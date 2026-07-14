@@ -98,8 +98,9 @@ async function insertNode(
 async function seedRunning(adapter: SqliteStorageAdapter): Promise<void> {
   const row: IJobSubmitRow = {
     id: JOB_ID,
-    actionId: ACTION_ID,
-    actionVersion: '1.0.0',
+    extensionId: ACTION_ID,
+    extensionVersion: '1.0.0',
+    extensionKind: 'action',
     nodeId: NODE_PATH,
     contentHash: 'h'.repeat(64),
     nonce: 'n'.repeat(32),

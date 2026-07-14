@@ -179,7 +179,7 @@ async function withCwd<T>(dir: string, fn: () => Promise<T>): Promise<T> {
 
 function buildSubmit(action = ACTION_ID, node = NOTE.path): JobSubmitCommand {
   const cmd = new JobSubmitCommand();
-  cmd.action = action;
+  cmd.extension = action;
   cmd.node = node;
   cmd.all = false;
   cmd.force = false;

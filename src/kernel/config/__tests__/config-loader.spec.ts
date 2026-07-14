@@ -55,7 +55,7 @@ describe('config loader, defaults', () => {
     strictEqual(effective.tokenizer, 'cl100k_base');
     strictEqual(effective.scan.tokenize, true);
     strictEqual(effective.scan.maxFileSizeBytes, 1048576);
-    strictEqual(effective.jobs.minimumTtlSeconds, 60);
+    strictEqual(effective.jobs.ttlSeconds, undefined, 'no default TTL policy (opt-in, Decision #139)');
     strictEqual(effective.jobs.retention.completed, 2592000);
     strictEqual(effective.jobs.retention.failed, null);
 

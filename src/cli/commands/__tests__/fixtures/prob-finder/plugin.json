@@ -1,0 +1,6 @@
+{
+  "version": "1.0.0",
+  "description": "Test-only plugin shipping one probabilistic finder Analyzer (quality-check) to drive the findings write-through tests.",
+  "specCompat": ">=0.0.0",
+  "catalogCompat": "*"
+}

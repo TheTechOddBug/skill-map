@@ -15,8 +15,16 @@ export const RECORD_TEXTS = {
   errNotRunning: 'job {{id}} is not in running state (status {{status}})',
   errReportRead: 'cannot read the report from {{source}} ({{detail}})',
   errReportSchemaUnresolved:
-    'cannot resolve the report schema for action {{action}} ({{detail}})',
+    'cannot resolve the report schema for extension {{extension}} ({{detail}})',
   reportInvalid: 'report failed schema validation: {{errors}}',
+  /**
+   * Detail rendered through `reportInvalid` when a finder report's
+   * `findings[]` uses a kernel-reserved type slug (spec
+   * `findings/report.schema.json`: extensions MUST NOT emit them).
+   */
+  reservedFindingTypes:
+    'findings[] uses the reserved type slug(s) {{slugs}} ' +
+    '(injection-detected / content-suspicious / content-malformed are kernel-derived and MUST NOT be emitted by extensions)',
 
   // --- success lines (human mode) ----------------------------------------
   completedLine: '{{glyph}}  recorded {{execId}}: job {{id}} completed\n',

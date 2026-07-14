@@ -29,11 +29,12 @@
  */
 
 import { sql } from 'kysely';
-import type { Kysely, Selectable } from 'kysely';
+import type { Kysely, Selectable, Transaction } from 'kysely';
 
 import type { IDatabase, IStateJobsTable } from './schema.js';
 import type { ExecutionRecord, Job, JobRunner, JobStatus } from '../../types.js';
 import type {
+  IFindingsWriteIntent,
   IJobClaim,
   IJobContentInput,
   IJobListFilter,
@@ -44,6 +45,7 @@ import type {
   TJobTransitionOutcome,
 } from '../../types/storage.js';
 import { JobNotRunningError } from '../../jobs/errors.js';
+import { writeFindingsForNode } from './findings.js';
 import { insertExecution } from './history.js';
 import { upsertSummaryForNode } from './summaries.js';
 
@@ -56,8 +58,9 @@ const ACTIVE_STATUSES: readonly JobStatus[] = ['queued', 'running'];
 function rowToJob(row: Selectable<IStateJobsTable>): Job {
   return {
     id: row.id,
-    actionId: row.actionId,
-    actionVersion: row.actionVersion,
+    extensionId: row.extensionId,
+    extensionVersion: row.extensionVersion,
+    extensionKind: row.extensionKind,
     nodeId: row.nodeId,
     contentHash: row.contentHash,
     nonce: row.nonce,
@@ -83,7 +86,7 @@ function rowToJob(row: Selectable<IStateJobsTable>): Job {
  * blob. Returns the inserted job id.
  *
  * The insert into `state_jobs` may throw a UNIQUE-constraint error from the
- * partial index `ix_state_jobs_action_node_hash` when a matching
+ * partial index `ix_state_jobs_extension_node_hash` when a matching
  * queued/running job already exists (the hard backstop `--force` cannot
  * defeat); callers surface that as the duplicate-conflict exit (3).
  */
@@ -107,8 +110,9 @@ export async function submitJob(
       .insertInto('state_jobs')
       .values({
         id: row.id,
-        actionId: row.actionId,
-        actionVersion: row.actionVersion,
+        extensionId: row.extensionId,
+        extensionVersion: row.extensionVersion,
+        extensionKind: row.extensionKind,
         nodeId: row.nodeId,
         contentHash: row.contentHash,
         nonce: row.nonce,
@@ -131,22 +135,22 @@ export async function submitJob(
 /**
  * Duplicate pre-check (`spec/job-lifecycle.md` §Submit step 4): return the
  * id of any existing `queued`/`running` job matching
- * `(actionId, actionVersion, nodeId, contentHash)`, else `null`. This is
- * the soft gate `--force` skips; the unique partial index remains the hard
- * invariant that keeps a second live duplicate off the table.
+ * `(extensionId, extensionVersion, nodeId, contentHash)`, else `null`.
+ * This is the soft gate `--force` skips; the unique partial index remains
+ * the hard invariant that keeps a second live duplicate off the table.
  */
 export async function findActiveDuplicate(
   db: Kysely<IDatabase>,
-  actionId: string,
-  actionVersion: string,
+  extensionId: string,
+  extensionVersion: string,
   nodeId: string,
   contentHash: string,
 ): Promise<string | null> {
   const row = await db
     .selectFrom('state_jobs')
     .select('id')
-    .where('actionId', '=', actionId)
-    .where('actionVersion', '=', actionVersion)
+    .where('extensionId', '=', extensionId)
+    .where('extensionVersion', '=', extensionVersion)
     .where('nodeId', '=', nodeId)
     .where('contentHash', '=', contentHash)
     .where('status', 'in', ACTIVE_STATUSES)
@@ -157,9 +161,9 @@ export async function findActiveDuplicate(
 
 /**
  * List jobs for `sm job list`, filtered and ordered newest-first
- * (`created_at DESC`) for display. `actionId` matches the stored qualified
- * id exactly OR by bare-id suffix (`%/<id>`), mirroring the analyzer-filter
- * semantics so a short id finds its qualified row.
+ * (`created_at DESC`) for display. `extensionId` matches the stored
+ * qualified id exactly OR by bare-id suffix (`%/<id>`), mirroring the
+ * analyzer-filter semantics so a short id finds its qualified row.
  */
 export async function listJobs(
   db: Kysely<IDatabase>,
@@ -169,10 +173,10 @@ export async function listJobs(
   if (filter.status !== undefined) {
     query = query.where('status', '=', filter.status);
   }
-  if (filter.actionId !== undefined) {
-    const token = filter.actionId;
+  if (filter.extensionId !== undefined) {
+    const token = filter.extensionId;
     query = query.where(({ eb, or }) =>
-      or([eb('actionId', '=', token), eb('actionId', 'like', `%/${token}`)]),
+      or([eb('extensionId', '=', token), eb('extensionId', 'like', `%/${token}`)]),
     );
   }
   if (filter.nodeId !== undefined) {
@@ -313,7 +317,7 @@ interface IClaimRow {
  * instant only one UPDATE lands (the other sees `status` already flipped
  * and matches zero rows). `expires_at` is computed in-statement from the
  * frozen `ttl_seconds` column. `filter`, when supplied, restricts the pick
- * to a single `action_id`.
+ * to a single `extension_id`.
  *
  * The dialect routes `RETURNING` DML through `.all()` so the projected
  * columns come back; result keys arrive camelCased (`content_hash` ->
@@ -332,14 +336,15 @@ export async function claimNext(
   // double-claim window the outer status guard closes).
   const filterCond =
     filter !== undefined
-      ? sql`AND (action_id = ${filter} OR action_id LIKE '%/' || ${filter})`
+      ? sql`AND (extension_id = ${filter} OR extension_id LIKE '%/' || ${filter})`
       : sql``;
   const result = await sql<IClaimRow>`
     UPDATE state_jobs
        SET status = 'running',
            claimed_at = ${nowMs},
            runner = ${runner},
-           expires_at = ${nowMs} + ttl_seconds * 1000
+           expires_at = CASE WHEN ttl_seconds IS NULL THEN NULL
+                             ELSE ${nowMs} + ttl_seconds * 1000 END
      WHERE id = (
              SELECT id FROM state_jobs
               WHERE status = 'queued'
@@ -499,6 +504,10 @@ export async function reapExpired(
     .updateTable('state_jobs')
     .set({ status: 'failed', failureReason: 'abandoned', finishedAt: nowMs })
     .where('status', '=', 'running')
+    // Only TTL-armed jobs are reapable: a NULL expiresAt never matches
+    // (explicit guard per spec/job-lifecycle.md §Reap procedure; a
+    // TTL-less claim waits for the operator / the jobs-overdue check).
+    .where('expiresAt', 'is not', null)
     .where('expiresAt', '<', nowMs)
     .returning('id')
     .execute();
@@ -534,11 +543,22 @@ export async function reapExpired(
  * live `kind` + `body_hash` from `scan_nodes`; if the node has disappeared
  * (deleted / renamed since submit) the summary is skipped while the
  * execution row + job transition still land.
+ *
+ * **Findings write-through** (`spec/job-lifecycle.md` §Record, mirror
+ * shape). When the caller passes a `findings` intent (the recorded job's
+ * extension is probabilistic and its `completed` report produced finder /
+ * safety rows, possibly zero), the pair's `state_findings` rows are
+ * REPLACED inside the SAME transaction: every existing row for
+ * `(node_id, extension_id)`, both origins, is deleted, then the intent's
+ * rows land stamped with the node's live `body_hash`. An empty intent is
+ * a clean verdict (pure erase). Same skip rule as summaries when the
+ * target node has disappeared (previous rows kept).
  */
 export async function recordJobTerminal(
   db: Kysely<IDatabase>,
   execution: ExecutionRecord,
   summary?: ISummaryWriteIntent,
+  findings?: IFindingsWriteIntent,
 ): Promise<void> {
   const jobId = execution.jobId;
   if (jobId === null || jobId === undefined) {
@@ -547,7 +567,8 @@ export async function recordJobTerminal(
   await db.transaction().execute(async (trx) => {
     // UPDATE first: its affected-row count is the race arbiter. Zero rows
     // means the job left `running` since the caller checked; throwing here
-    // rolls the transaction back before any execution / summary write.
+    // rolls the transaction back before any execution / summary /
+    // findings write.
     const res = await trx
       .updateTable('state_jobs')
       .set({
@@ -562,9 +583,24 @@ export async function recordJobTerminal(
       throw new JobNotRunningError(jobId);
     }
     await insertExecution(trx, execution);
-    if (summary !== undefined) {
-      const nodeId = execution.nodeIds?.[0];
-      if (nodeId !== undefined) await upsertSummaryForNode(trx, nodeId, summary);
-    }
+    await applyWriteThroughs(trx, execution, summary, findings);
   });
+}
+
+/**
+ * Fold the optional per-node write-throughs into the record transaction:
+ * the summary upsert and the findings replace, both keyed by the
+ * execution's target node. Each helper reads the live `scan_nodes` row
+ * itself and skips silently when the node has disappeared.
+ */
+async function applyWriteThroughs(
+  trx: Transaction<IDatabase>,
+  execution: ExecutionRecord,
+  summary?: ISummaryWriteIntent,
+  findings?: IFindingsWriteIntent,
+): Promise<void> {
+  const nodeId = execution.nodeIds?.[0];
+  if (nodeId === undefined) return;
+  if (summary !== undefined) await upsertSummaryForNode(trx, nodeId, summary);
+  if (findings !== undefined) await writeFindingsForNode(trx, nodeId, findings);
 }

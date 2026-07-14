@@ -19,13 +19,20 @@
  *   - `resolveActionRecord`, resolve a job's Action + report schema against
  *     a preloaded runtime (plugin `report.schema.json` from the source dir,
  *     or the built-in's inlined `reportSchema`).
+ *   - `resolveExtensionRecord`, the kind-strict resolver the record path
+ *     uses: routes on the job row's FROZEN `extensionKind`
+ *     (`state_jobs.extension_kind`, stamped at submit) and resolves the
+ *     report schema within that kind's registry only, so a plugin
+ *     shipping both kinds under one extension id stays unambiguous.
  *   - `recordCompletedOutcome`, the `--status completed` path: parse the
  *     report text, validate against the schema, and either land the
  *     `completed` execution (+ summary write-through when the Action's
- *     report schema is a summary schema) or transition to `failed`/`report-invalid`
- *     (never left `running`). Action resolution is LAZY (a callback) so an
- *     unparseable report short-circuits to `report-invalid` without ever
- *     loading the runtime, preserving `sm record`'s historical ordering.
+ *     report schema is a summary schema, + findings write-through per
+ *     `spec/job-lifecycle.md` §Record) or transition to
+ *     `failed`/`report-invalid` (never left `running`). Extension
+ *     resolution is LAZY (a callback) so an unparseable report
+ *     short-circuits to `report-invalid` without ever loading the
+ *     runtime, preserving `sm record`'s historical ordering.
  *   - `recordFailedOutcome`, the failure path shared by `sm record
  *     --status failed` (reason `runner-error`, `--error` verbatim) and the
  *     claim-side corruption path (`job-file-missing` on a missing content
@@ -35,13 +42,22 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import type { ExecutionFailureReason, ExecutionRecord, Job } from '../../kernel/types.js';
-import type { IAction } from '../../kernel/extensions/index.js';
+import type { ExecutionFailureReason, ExecutionRecord, Job, JobExtensionKind } from '../../kernel/types.js';
+import type { IAction, IAnalyzer } from '../../kernel/extensions/index.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
-import { generateExecutionId, summaryKindOfReportSchema } from '../../kernel/jobs/index.js';
+import type { IFindingsWriteIntent } from '../../kernel/types/storage.js';
+import {
+  extensionFindingRows,
+  findReservedFindingTypes,
+  generateExecutionId,
+  kernelSafetyRows,
+  summaryKindOfReportSchema,
+} from '../../kernel/jobs/index.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
+import { tx } from '../../kernel/util/tx.js';
+import { RECORD_TEXTS } from '../i18n/record.texts.js';
 import { resolveAction, type IActionRuntime } from './action-runtime.js';
 
 /**
@@ -75,9 +91,9 @@ export type TActionRecordResolution =
  */
 export function resolveActionRecord(
   runtime: IActionRuntime,
-  actionId: string,
+  extensionId: string,
 ): TActionRecordResolution {
-  const action = resolveAction(runtime.actions, actionId);
+  const action = resolveAction(runtime.actions, extensionId);
   if (!action) return { ok: false, detail: 'action not found' };
   const dir = runtime.dirByAction.get(qualifiedExtensionId(action.pluginId, action.id));
   if (dir !== undefined) {
@@ -96,38 +112,123 @@ export function resolveActionRecord(
   return { ok: false, detail: 'no report schema' };
 }
 
+/**
+ * Kind-strict record resolution (`spec/job-lifecycle.md` §Record): the
+ * job row carries the extension kind FROZEN at submit
+ * (`state_jobs.extension_kind`), so the record path routes on it
+ * directly, no cross-registry guessing, and a plugin shipping BOTH
+ * kinds under one extension id stays unambiguous end-to-end.
+ * `extensionKind` drives the write-through routing: an Analyzer's
+ * validated report lands in `state_findings` by definition, an Action's
+ * routes by schema namespace (summaries / enrichments / history-only).
+ */
+export interface IResolvedExtensionRecord {
+  extensionKind: JobExtensionKind;
+  schema: Record<string, unknown>;
+}
+
+export type TExtensionRecordResolution =
+  | { ok: true; record: IResolvedExtensionRecord }
+  | { ok: false; detail: string };
+
+/**
+ * Resolve the recorded job's report schema within the registry the
+ * frozen `extensionKind` names: an `analyzer` job validates against the
+ * ANALYZER's `report.schema.json` (or codegen-inlined `reportSchema`)
+ * even when a sibling Action shares the extension id, and vice versa.
+ */
+export function resolveExtensionRecord(
+  runtime: IActionRuntime,
+  extensionId: string,
+  extensionKind: JobExtensionKind,
+): TExtensionRecordResolution {
+  if (extensionKind === 'action') {
+    const resolution = resolveActionRecord(runtime, extensionId);
+    if (!resolution.ok) return resolution;
+    return { ok: true, record: { extensionKind: 'action', schema: resolution.record.schema } };
+  }
+  const analyzer = resolveProbabilisticAnalyzer(runtime.analyzers, extensionId);
+  if (!analyzer) return { ok: false, detail: 'analyzer not found' };
+  const dir = runtime.dirByAnalyzer.get(qualifiedExtensionId(analyzer.pluginId, analyzer.id));
+  if (dir !== undefined) {
+    try {
+      const schema = JSON.parse(
+        readFileSync(join(dir, 'report.schema.json'), 'utf8'),
+      ) as Record<string, unknown>;
+      return { ok: true, record: { extensionKind: 'analyzer', schema } };
+    } catch (err) {
+      return { ok: false, detail: formatErrorMessage(err) };
+    }
+  }
+  if (analyzer.reportSchema && typeof analyzer.reportSchema === 'object') {
+    return { ok: true, record: { extensionKind: 'analyzer', schema: analyzer.reportSchema } };
+  }
+  return { ok: false, detail: 'no report schema' };
+}
+
+/**
+ * Qualified-then-bare analyzer lookup, restricted to the probabilistic
+ * subset: only finders enter the queue, so a deterministic analyzer can
+ * never be the recorded job's extension.
+ */
+function resolveProbabilisticAnalyzer(
+  analyzers: readonly IAnalyzer[],
+  id: string,
+): IAnalyzer | null {
+  const finders = analyzers.filter((a) => (a.mode ?? 'deterministic') === 'probabilistic');
+  for (const analyzer of finders) {
+    if (qualifiedExtensionId(analyzer.pluginId, analyzer.id) === id) return analyzer;
+  }
+  for (const analyzer of finders) {
+    if (analyzer.id === id) return analyzer;
+  }
+  return null;
+}
+
 export type TRecordCompletedOutcome =
   | { kind: 'completed'; execution: ExecutionRecord }
   | { kind: 'report-invalid'; execution: ExecutionRecord; detail: string }
-  /** Action / schema unresolvable: NO mutation happened (caller decides). */
+  /** Extension / schema unresolvable: NO mutation happened (caller decides). */
   | { kind: 'schema-unresolved'; detail: string };
 
 /**
  * The `completed` record path (`spec/job-lifecycle.md` §Record steps 4-6).
- * Parse `reportText` as JSON and validate it against the action's report
- * schema; on success write the `completed` execution row (report stored
- * inline as canonical JSON) plus the `state_summaries` write-through when
- * the Action's report schema extends a `summaries/<kind>` schema, all in
- * one transaction. An
- * unparseable or schema-invalid report transitions the job to `failed` /
- * `report-invalid` instead (never left `running`); the invalid payload is
- * NOT stored. `resolve` is invoked lazily, AFTER the parse gate, and a
- * failed resolution mutates nothing.
+ * Parse `reportText` as JSON and validate it against the extension's
+ * report schema; on success write the `completed` execution row (report
+ * stored inline as canonical JSON) plus the write-throughs, all in one
+ * transaction:
+ *
+ *   - `state_summaries` when the recorded ACTION's report schema extends
+ *     a `summaries/<kind>` schema (unchanged).
+ *   - `state_findings` for EVERY completed probabilistic record: the
+ *     finder lane (one `origin: 'extension'` row per `findings[]` entry,
+ *     ANALYZER reports only) plus the kernel safety lane (`origin:
+ *     'kernel'` rows synthesized from a trouble-flagging `safety` block,
+ *     both kinds). The intent always travels, even with zero rows, so
+ *     the replace semantics erase the pair's previous judgment (a clean
+ *     verdict); the adapter skips the whole write when the node is gone.
+ *
+ * A `findings[]` entry that uses a RESERVED type slug
+ * (`injection-detected` / `content-suspicious` / `content-malformed`)
+ * fails the job as `report-invalid` (spec: implementations SHOULD
+ * reject). An unparseable or schema-invalid report transitions the job
+ * to `failed` / `report-invalid` too (never left `running`); the invalid
+ * payload is NOT stored. `resolve` is invoked lazily, AFTER the parse
+ * gate, and a failed resolution mutates nothing.
  */
 export async function recordCompletedOutcome(opts: {
   adapter: StoragePort;
   job: Job;
   reportText: string;
-  resolve: () => Promise<TActionRecordResolution>;
+  resolve: () => Promise<TExtensionRecordResolution>;
   metrics: IRecordMetrics;
   now: number;
 }): Promise<TRecordCompletedOutcome> {
   const { adapter, job, metrics, now } = opts;
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(opts.reportText);
-  } catch (err) {
+  // Shared invalid-report transition: `failed` / `report-invalid`, the
+  // payload NOT stored, `detail` surfaced by the caller.
+  const failReportInvalid = async (detail: string): Promise<TRecordCompletedOutcome> => {
     const execution = await recordFailedOutcome({
       adapter,
       job,
@@ -136,7 +237,14 @@ export async function recordCompletedOutcome(opts: {
       metrics,
       now,
     });
-    return { kind: 'report-invalid', execution, detail: formatErrorMessage(err) };
+    return { kind: 'report-invalid', execution, detail };
+  };
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(opts.reportText);
+  } catch (err) {
+    return failReportInvalid(formatErrorMessage(err));
   }
 
   const resolution = await opts.resolve();
@@ -146,21 +254,29 @@ export async function recordCompletedOutcome(opts: {
     resolution.record.schema,
     parsed,
   );
-  if (!validation.ok) {
-    const execution = await recordFailedOutcome({
-      adapter,
-      job,
-      failureReason: 'report-invalid',
-      errorText: null,
-      metrics,
-      now,
-    });
-    return { kind: 'report-invalid', execution, detail: validation.errors };
+  if (!validation.ok) return failReportInvalid(validation.errors);
+
+  // Schema-validated report as a record (the schemas pin `type: object`;
+  // the guard is defence in depth, never a validation layer).
+  const report = asRecord(parsed);
+  const extensionKind = resolution.record.extensionKind;
+
+  // Reserved-slug gate (spec §state_findings, safety lane): extensions
+  // MUST NOT emit the kernel-reserved type slugs themselves. A finder
+  // report that does fails the job as report-invalid, exactly like a
+  // schema violation (the payload is NOT stored, no findings land).
+  if (extensionKind === 'analyzer') {
+    const reserved = findReservedFindingTypes(report);
+    if (reserved.length > 0) {
+      return failReportInvalid(
+        tx(RECORD_TEXTS.reservedFindingTypes, { slugs: reserved.join(', ') }),
+      );
+    }
   }
 
   // Report stored inline as canonical JSON (the input source is NOT
   // retained, spec §Record step 5). The same serialized report feeds the
-  // summary write-through below.
+  // write-throughs below.
   const reportJson = JSON.stringify(parsed);
   const execution = buildExecution(job, {
     status: 'completed',
@@ -169,24 +285,72 @@ export async function recordCompletedOutcome(opts: {
     metrics,
     reportJson,
   });
-  // Summary write-through (spec §Record): the summarizer signal is the
-  // report schema, not a manifest flag. When it extends a canonical
-  // `summaries/<kind>` schema, the validated report is upserted into
-  // `state_summaries` in the SAME transaction as the execution insert +
-  // job transition. The adapter reads the node's live kind + body_hash
-  // and skips the upsert when the node is gone. Non-summary actions pass
-  // `undefined` (report stays history-only).
-  const summary =
-    summaryKindOfReportSchema(resolution.record.schema) !== null
-      ? {
-          summarizerActionId: job.actionId,
-          summarizerVersion: job.actionVersion,
-          generatedAt: now,
-          summaryJson: reportJson,
-        }
-      : undefined;
-  await adapter.jobs.recordTerminal(execution, summary);
+  const summary = buildSummaryIntent(job, resolution.record, reportJson, now);
+  const findings = buildFindingsIntent(job, extensionKind, report, now);
+  await adapter.jobs.recordTerminal(execution, summary, findings);
   return { kind: 'completed', execution };
+}
+
+/**
+ * Summary write-through intent (spec §Record): the summarizer signal is
+ * the report schema, not a manifest flag. When a recorded ACTION's schema
+ * extends a canonical `summaries/<kind>` schema, the validated report is
+ * upserted into `state_summaries` in the SAME transaction as the
+ * execution insert + job transition (the adapter reads the node's live
+ * kind + body_hash and skips the upsert when the node is gone).
+ * Non-summary actions return `undefined` (report stays history-only);
+ * an Analyzer's report is findings by definition, never a summary.
+ */
+function buildSummaryIntent(
+  job: Job,
+  record: IResolvedExtensionRecord,
+  reportJson: string,
+  now: number,
+): { summarizerActionId: string; summarizerVersion: string; generatedAt: number; summaryJson: string } | undefined {
+  if (record.extensionKind !== 'action') return undefined;
+  if (summaryKindOfReportSchema(record.schema) === null) return undefined;
+  return {
+    // `state_summaries` keeps the Action-specific column names (a
+    // summarizer is always an Action); the values mirror the job's
+    // kind-agnostic `extensionId` / `extensionVersion`.
+    summarizerActionId: job.extensionId,
+    summarizerVersion: job.extensionVersion,
+    generatedAt: now,
+    summaryJson: reportJson,
+  };
+}
+
+/**
+ * Findings write-through intent (spec §Record): finder lane for ANALYZER
+ * reports, kernel safety lane for both kinds. The intent travels on
+ * EVERY completed probabilistic record, even when it carries zero rows:
+ * recording a completed job replaces the pair's previous rows (both
+ * origins), so a clean report erases a prior trouble flag instead of
+ * letting it linger.
+ */
+function buildFindingsIntent(
+  job: Job,
+  extensionKind: JobExtensionKind,
+  report: Record<string, unknown>,
+  now: number,
+): IFindingsWriteIntent {
+  return {
+    extensionId: job.extensionId,
+    extensionVersion: job.extensionVersion,
+    generatedAt: now,
+    jobId: job.id,
+    rows: [
+      ...(extensionKind === 'analyzer' ? extensionFindingRows(report) : []),
+      ...kernelSafetyRows(report),
+    ],
+  };
+}
+
+/** Defensive object narrowing for the schema-validated report payload. */
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 /**
@@ -230,8 +394,8 @@ function buildExecution(
   return {
     id: generateExecutionId(),
     kind: 'action',
-    extensionId: job.actionId,
-    extensionVersion: job.actionVersion,
+    extensionId: job.extensionId,
+    extensionVersion: job.extensionVersion,
     nodeIds: [job.nodeId],
     contentHash: job.contentHash,
     status: opts.status,

@@ -141,8 +141,15 @@ CREATE INDEX ix_scan_issues_severity ON scan_issues(severity);
 
 CREATE TABLE state_jobs (
   id TEXT PRIMARY KEY,
-  action_id TEXT NOT NULL,
-  action_version TEXT NOT NULL,
+  extension_id TEXT NOT NULL,
+  extension_version TEXT NOT NULL,
+  -- Extension kind RESOLVED at submit time and frozen (like the
+  -- version): `sm record` routes on it (analyzer report -> findings
+  -- write-through; action report -> summaries/enrichments conventions),
+  -- so a plugin shipping a probabilistic Action AND Analyzer under one
+  -- extension id stays unambiguous end-to-end (the submit-side `<kind>:`
+  -- prefix picks, the row remembers). See spec/db-schema.md §state_jobs.
+  extension_kind TEXT NOT NULL,
   node_id TEXT NOT NULL,
   content_hash TEXT NOT NULL,
   nonce TEXT NOT NULL,
@@ -150,7 +157,12 @@ CREATE TABLE state_jobs (
   status TEXT NOT NULL,
   failure_reason TEXT,
   runner TEXT,
-  ttl_seconds INTEGER NOT NULL,
+  -- OPTIONAL TTL (Decision #139): NULL = the job never expires (the
+  -- default; interactive drains may hold a claim for hours). Armed only
+  -- from explicit operator sources at submit (--ttl flag with 0-disarm,
+  -- jobs.perExtensionTtl, jobs.ttlSeconds); the reaper skips NULL and
+  -- `sm doctor`'s jobs-overdue check advises instead.
+  ttl_seconds INTEGER,
   created_at INTEGER NOT NULL,
   claimed_at INTEGER,
   finished_at INTEGER,
@@ -167,15 +179,18 @@ CREATE TABLE state_jobs (
   -- (via `sm job cancel`) is a distinct state, NOT a `failed` sub-reason,
   -- and carries NO failure_reason. `user-failed` marks a job the operator
   -- forced to `failed` via `sm job fail` (symmetric to cancel).
+  CONSTRAINT ck_state_jobs_extension_kind CHECK (extension_kind IN ('action','analyzer')),
   CONSTRAINT ck_state_jobs_status CHECK (status IN ('queued','running','completed','failed','cancelled')),
   CONSTRAINT ck_state_jobs_failure_reason CHECK (failure_reason IS NULL OR failure_reason IN ('runner-error','report-invalid','timeout','abandoned','job-file-missing','user-failed')),
   CONSTRAINT ck_state_jobs_runner CHECK (runner IS NULL OR runner IN ('agent','in-process'))
 );
 CREATE INDEX ix_state_jobs_status ON state_jobs(status);
 -- Unique partial index for duplicate-job detection: at most one
--- queued/running job per (action_id, node_id, content_hash).
-CREATE UNIQUE INDEX ix_state_jobs_action_node_hash
-  ON state_jobs(action_id, node_id, content_hash)
+-- queued/running job per (extension_id, node_id, content_hash). The queue
+-- is kind-agnostic: `extension_id` names a probabilistic Action OR a
+-- probabilistic Analyzer (see spec/db-schema.md §state_jobs).
+CREATE UNIQUE INDEX ix_state_jobs_extension_node_hash
+  ON state_jobs(extension_id, node_id, content_hash)
   WHERE status IN ('queued','running');
 
 -- Content-addressed store for the rendered MD content of every queued /
@@ -232,6 +247,48 @@ CREATE TABLE state_summaries (
   PRIMARY KEY (node_id, summarizer_action_id)
 );
 CREATE INDEX ix_state_summaries_generated_at ON state_summaries(generated_at);
+
+-- Probabilistic findings: the judgments recorded by finder Analyzers
+-- (`mode: 'probabilistic'`) plus the kernel-derived safety rows synthesized
+-- from any probabilistic report's `safety` block (see spec/db-schema.md
+-- §state_findings).
+--
+--   - `origin` discriminates the two lanes: `extension` rows come from the
+--     validated report's `findings[]` array (finder Analyzers only);
+--     `kernel` rows are synthesized under the reserved type slugs
+--     (`injection-detected` / `content-suspicious` / `content-malformed`).
+--   - Replace semantics: recording a completed job for
+--     (node_id, extension_id) DELETEs every existing row for that pair
+--     (both origins) then inserts the fresh rows, in the same transaction
+--     as the `state_executions` insert + job transition. An empty
+--     `findings[]` with a clean safety block ERASES the prior judgment.
+--   - Stale rule: a row whose `body_hash_at_generation` differs from the
+--     node's live `scan_nodes.body_hash` is stale (computed at read time
+--     via JOIN, never persisted); rows are never auto-deleted on staleness
+--     and `sm scan` never touches this table.
+--   - `node_id` is FK-semantic to `scan_nodes.path`; the rename heuristic
+--     (`migrateNodeFks` in src/kernel/adapters/sqlite/history.ts) migrates
+--     rows here, same protocol as the other state_* tables.
+CREATE TABLE state_findings (
+  id INTEGER PRIMARY KEY,
+  node_id TEXT NOT NULL,
+  extension_id TEXT NOT NULL,
+  extension_version TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  type TEXT NOT NULL,
+  severity TEXT NOT NULL,
+  message TEXT NOT NULL,
+  detail TEXT,
+  confidence REAL NOT NULL,
+  body_hash_at_generation TEXT NOT NULL,
+  generated_at INTEGER NOT NULL,
+  job_id TEXT,
+  CONSTRAINT ck_state_findings_origin CHECK (origin IN ('extension','kernel')),
+  CONSTRAINT ck_state_findings_severity CHECK (severity IN ('info','warn','error'))
+);
+CREATE INDEX ix_state_findings_node_id ON state_findings(node_id);
+CREATE INDEX ix_state_findings_extension_id ON state_findings(extension_id);
+CREATE INDEX ix_state_findings_generated_at ON state_findings(generated_at);
 
 CREATE TABLE state_enrichments (
   node_id TEXT NOT NULL,

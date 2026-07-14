@@ -65,7 +65,7 @@ function ctxWith(over: Partial<IAnalyzerContext>): IAnalyzerContext {
 
 describe('core/reference-redundant rule', () => {
   it('emits no issues for an empty link list', async () => {
-    const issues = await referenceRedundantAnalyzer.evaluate(ctxWith({}));
+    const issues = await referenceRedundantAnalyzer.evaluate!(ctxWith({}));
     assert.deepEqual(issues, []);
   });
 
@@ -80,7 +80,7 @@ describe('core/reference-redundant rule', () => {
       sources: ['markdown-link'],
       occurrences: [{ extractor: 'markdown-link', originalTrigger: './tgt.md', location: { line: 5 } }],
     });
-    const issues = await referenceRedundantAnalyzer.evaluate(
+    const issues = await referenceRedundantAnalyzer.evaluate!(
       ctxWith({ nodes: [src, tgt], links: [link] }),
     );
     assert.deepEqual(issues, []);
@@ -102,7 +102,7 @@ describe('core/reference-redundant rule', () => {
         { extractor: 'markdown-link', originalTrigger: './tgt.md', location: { line: 8 } },
       ],
     });
-    const issues = await referenceRedundantAnalyzer.evaluate(
+    const issues = await referenceRedundantAnalyzer.evaluate!(
       ctxWith({ nodes: [src, tgt], links: [mergedLink] }),
     );
     assert.equal(issues.length, 1);
@@ -151,7 +151,7 @@ describe('core/reference-redundant rule', () => {
       trigger: { originalTrigger: '@real-agent', normalizedTrigger: '@real agent' },
       occurrences: [{ extractor: 'at-directive', originalTrigger: '@real-agent', location: { line: 7 } }],
     });
-    const issues = await referenceRedundantAnalyzer.evaluate(
+    const issues = await referenceRedundantAnalyzer.evaluate!(
       ctxWith({ nodes: [hub, agent], links: [refLink, mentLink] }),
     );
     assert.equal(issues.length, 1);
@@ -181,7 +181,7 @@ describe('core/reference-redundant rule', () => {
         { extractor: 'at-directive', originalTrigger: '@ghost', location: { line: 2 } },
       ],
     });
-    const issues = await referenceRedundantAnalyzer.evaluate(
+    const issues = await referenceRedundantAnalyzer.evaluate!(
       ctxWith({ nodes: [hub], links: [broken] }),
     );
     assert.deepEqual(issues, []);
@@ -215,7 +215,7 @@ describe('core/reference-redundant rule', () => {
       sources: ['markdown-link'],
       occurrences: [{ extractor: 'markdown-link', originalTrigger: './explore/SKILL.md', location: { line: 5 } }],
     });
-    const issues = await referenceRedundantAnalyzer.evaluate(
+    const issues = await referenceRedundantAnalyzer.evaluate!(
       ctxWith({ nodes: [hub, skill], links: [slashLink, markdownLink] }),
     );
     assert.equal(issues.length, 1);

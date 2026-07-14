@@ -14,6 +14,7 @@ export const DOCTOR_TEXTS = {
   labelHistory: 'history',
   labelJobContents: 'job contents',
   labelJobGc: 'job gc',
+  labelJobsOverdue: 'jobs overdue',
   labelPlugins: 'plugins',
   labelProviders: 'providers',
 
@@ -36,6 +37,16 @@ export const DOCTOR_TEXTS = {
 
   jobGcOk: 'no orphaned content rows',
   jobGcStragglers: '{{count}} orphaned content {{noun}}, run `sm job prune`',
+  jobsOverdueOk: 'no running job past its advisory estimate',
+  /**
+   * One warn per running job whose elapsed time exceeds its extension's
+   * ADVISORY probExpectedDurationSeconds (Decision #139: TTL-less jobs
+   * never auto-expire, this check is the operator escape hatch). Purely
+   * advisory, never mutates state.
+   */
+  jobsOverdueWarn:
+    'job {{id}} has been running {{elapsedSeconds}}s (advisory estimate {{estimateSeconds}}s); ' +
+    'if the agent is gone, resolve it with `sm job fail {{id}}` or `sm job cancel {{id}}`',
   contentNounSingular: 'row',
   contentNounPlural: 'rows',
 

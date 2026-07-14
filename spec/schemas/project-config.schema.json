@@ -174,18 +174,16 @@
         "ttlSeconds": {
           "type": "integer",
           "minimum": 1,
-          "description": "Global fallback TTL (seconds) used when an action manifest omits `expectedDurationSeconds`, typically `mode: local` actions where the field is advisory. Default 3600. The submit-time resolution still applies `graceMultiplier` and `minimumTtlSeconds`."
+          "description": "Global opt-in TTL policy (seconds): when set, EVERY submitted job arms this expiry unless a higher-precedence source overrides it (`jobs.perExtensionTtl`, or the `--ttl` flag, including the `--ttl 0` disarm). UNSET by default: jobs never expire (Decision #139; interactive drains may hold a claim for hours). The retired `graceMultiplier` / `minimumTtlSeconds` keys died with the estimate-driven formula."
         },
-        "graceMultiplier": { "type": "number", "minimum": 1, "description": "Default grace multiplier applied to `expectedDurationSeconds`. Default 3." },
-        "minimumTtlSeconds": { "type": "integer", "minimum": 1, "description": "Floor for computed TTL. Default 60." },
-        "perActionTtl": {
+        "perExtensionTtl": {
           "type": "object",
-          "description": "Per-action TTL overrides (seconds). Keys are action ids.",
+          "description": "Per-extension TTL overrides (seconds). Keys are qualified ids of queued probabilistic extensions (Action or Analyzer). Renamed from `perActionTtl` when Analyzers joined the queue.",
           "additionalProperties": { "type": "integer", "minimum": 1 }
         },
-        "perActionPriority": {
+        "perExtensionPriority": {
           "type": "object",
-          "description": "Per-action priority overrides. Keys are action ids, values are integers (higher runs first, negatives allowed). Frozen on `state_jobs.priority` at submit time. Overrides `defaultPriority` from the action manifest; `--priority` on `sm job submit` overrides both.",
+          "description": "Per-extension priority overrides. Keys are qualified ids of queued probabilistic extensions (Action or Analyzer), values are integers (higher runs first, negatives allowed). Frozen on `state_jobs.priority` at submit time. Overrides `defaultPriority` from the extension manifest; `--priority` on `sm job submit` overrides both. Renamed from `perActionPriority` when Analyzers joined the queue.",
           "additionalProperties": { "type": "integer" }
         },
         "retention": {

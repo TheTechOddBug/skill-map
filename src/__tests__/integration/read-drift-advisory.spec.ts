@@ -136,7 +136,7 @@ describe('read-side drift posture (verb level)', () => {
     // Clipanion fields hold Option descriptors until a real CLI parse
     // assigns them; direct construction must null the optionals out.
     cmd.node = undefined;
-    cmd.action = undefined;
+    cmd.extension = undefined;
     cmd.status = undefined;
     cmd.since = undefined;
     cmd.until = undefined;

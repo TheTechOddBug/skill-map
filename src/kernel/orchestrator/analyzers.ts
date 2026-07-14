@@ -106,7 +106,14 @@ export async function runAnalyzers(
   // Filesystem-sorted generators (scripts/generate-built-ins.js) keep
   // emitting alphabetical orders, the orchestrator imposes the run
   // sequence at execution time.
-  const scheduled = orderAnalyzersByPhase(analyzers);
+  //
+  // Probabilistic analyzers (finders) NEVER enter a scan-time phase
+  // (`spec/architecture.md` §Analyzer phases): they have no `evaluate()`
+  // (the judgment is a queued job an external agent drains via
+  // `sm job submit` + `sm record`), so the schedule drops them here.
+  const scheduled = orderAnalyzersByPhase(
+    analyzers.filter((a) => (a.mode ?? 'deterministic') !== 'probabilistic'),
+  );
   // `score`-phase analyzers (scheduled first) buffer attributed confidence
   // ops; the orchestrator folds them into `link.confidence` ONCE, before
   // the read-only `detect` phase, so detect analyzers (e.g.
@@ -207,7 +214,11 @@ export async function runAnalyzers(
             // diagnostic lands with the score-phase external surface).
           }
         : undefined;
-    const emitted = await analyzer.evaluate({
+    // `evaluate` is conditional per mode on the contract; the schedule
+    // above already dropped probabilistic analyzers, so a missing
+    // `evaluate` here is a stub deterministic analyzer, treated as an
+    // empty emission rather than a crash.
+    const emitted = (await analyzer.evaluate?.({
       nodes,
       links: internalLinks,
       // `settings` is always populated (possibly empty) so analyzers can
@@ -232,7 +243,7 @@ export async function runAnalyzers(
       ...(signals && signals.length > 0 ? { signals } : {}),
       ...(adjustConfidence ? { adjustConfidence } : {}),
       emitContribution,
-    });
+    })) ?? [];
     for (const issue of emitted) {
       const validated = validateIssue(analyzer, issue, emitter);
       if (validated) issues.push(validated);

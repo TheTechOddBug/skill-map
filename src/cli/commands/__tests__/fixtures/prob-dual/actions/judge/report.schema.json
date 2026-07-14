@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.ai/spec/v0/test/dual-judge-action-report.schema.json",
+  "title": "DualJudgeActionReport",
+  "description": "Test-only action report extending report-base only (history-only lane).",
+  "allOf": [{ "$ref": "https://skill-map.ai/spec/v0/report-base.schema.json" }],
+  "type": "object",
+  "properties": { "verdict": { "type": "string" } },
+  "required": ["verdict"]
+}

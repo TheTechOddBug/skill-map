@@ -75,7 +75,9 @@ describe('sm config list', () => {
     const obj = JSON.parse(r.stdout);
     assert.equal(obj.tokenizer, 'cl100k_base');
     assert.equal(obj.scan.tokenize, true);
-    assert.equal(obj.jobs.minimumTtlSeconds, 60);
+    // Opt-in TTL (Decision #139): no default jobs.ttlSeconds policy.
+    assert.equal('ttlSeconds' in obj.jobs, false);
+    assert.equal(obj.jobs.retention.completed, 2592000);
   });
 
   it('reads project layer and prints sorted dot-paths in human mode', () => {
@@ -245,13 +247,13 @@ describe('sm config set', () => {
 
   it('coerces numbers and nested dot-paths', () => {
     const scope = freshScope('set-nested');
-    const r = sm(['config', 'set', 'jobs.minimumTtlSeconds', '120'], scope);
+    const r = sm(['config', 'set', 'jobs.ttlSeconds', '120'], scope);
     assert.equal(r.status, 0);
     const written = JSON.parse(
       readFileSync(join(scope.cwd, '.skill-map', 'settings.json'), 'utf8'),
     );
-    assert.equal(written.jobs.minimumTtlSeconds, 120);
-    assert.equal(typeof written.jobs.minimumTtlSeconds, 'number');
+    assert.equal(written.jobs.ttlSeconds, 120);
+    assert.equal(typeof written.jobs.ttlSeconds, 'number');
   });
 
   it('rejects schema-violating values without writing the file', () => {
@@ -400,8 +402,8 @@ describe('sm config reset', () => {
 
   it('prunes empty parent objects after deleting nested key', () => {
     const scope = freshScope('reset-prune');
-    writeSettings(scope.cwd, { jobs: { minimumTtlSeconds: 120 } });
-    const r = sm(['config', 'reset', 'jobs.minimumTtlSeconds'], scope);
+    writeSettings(scope.cwd, { jobs: { ttlSeconds: 120 } });
+    const r = sm(['config', 'reset', 'jobs.ttlSeconds'], scope);
     assert.equal(r.status, 0);
     const written = JSON.parse(
       readFileSync(join(scope.cwd, '.skill-map', 'settings.json'), 'utf8'),

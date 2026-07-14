@@ -4,8 +4,12 @@
  *
  *   canonical preamble  (verbatim, spec)
  *   + a blank line
- *   + the action's prompt template, with the node body interpolated into
- *     the `<user-content>` delimiter block.
+ *   + the extension's prompt template, with the node body interpolated
+ *     into the `<user-content>` delimiter block; when a report contract
+ *     is supplied (`spec/job-lifecycle.md` §Submit step 9), it renders
+ *     immediately BEFORE the `<user-content>` block, after the template
+ *     prose that precedes it, and always OUTSIDE the block (it is
+ *     kernel-authored prelude, never user content).
  *
  * Template engine pick (ROADMAP §Tech picks deferred, "template engine for
  * job MDs"): the SIMPLEST mechanism, a single named placeholder token
@@ -142,6 +146,13 @@ export interface IRenderJobContentInput {
    * `loadCanonicalPreamble()`; tests inject a fixed string to stay pure.
    */
   preamble?: string;
+  /**
+   * Rendered report-contract section (`buildReportContract`). When
+   * present it is inserted at the placeholder seam, immediately before
+   * the `<user-content>` block, so the schema chain sits outside the
+   * user-content delimiter. Absent on legacy/test callers.
+   */
+  reportContract?: string;
 }
 
 /**
@@ -156,7 +167,12 @@ export function renderJobContent(input: IRenderJobContentInput): string {
   validateTemplate(input.promptTemplate);
   const preamble = input.preamble ?? loadCanonicalPreamble();
   const block = wrapUserContent(input.node.path, input.nodeBody);
-  const rendered = input.promptTemplate.split(USER_CONTENT_PLACEHOLDER).join(block);
+  // The report contract expands WITH the placeholder so it lands right
+  // before the `<user-content>` block (and outside it), per
+  // `spec/job-lifecycle.md` §Submit step 9.
+  const expansion =
+    input.reportContract !== undefined ? `${input.reportContract}\n\n${block}` : block;
+  const rendered = input.promptTemplate.split(USER_CONTENT_PLACEHOLDER).join(expansion);
   // The preamble fixture already ends with a trailing newline; the extra
   // `\n` yields one blank line between it and the action template.
   return `${preamble}\n${rendered}`;

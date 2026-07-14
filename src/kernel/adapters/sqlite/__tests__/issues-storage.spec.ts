@@ -15,7 +15,7 @@
  * The tests plant rows directly into `scan_issues` (no scan / persist
  * round-trip) so the dataset shape is fully controlled: severity
  * distribution, analyzer-id distribution, node-id distribution. Mirrors
- * the pattern used in `orphans-cli.test.ts` and `check-include-prob.test.ts`.
+ * the pattern used in `orphans-cli.spec.ts` and `check-analyzers.spec.ts`.
  */
 
 import { after, before, describe, it } from 'node:test';

@@ -21,6 +21,7 @@ import { Ajv2020 } from 'ajv/dist/2020.js';
 import type { IDiscoveredPlugin, IPluginManifest } from '../../types/plugin.js';
 import type { ExtensionKind } from '../../registry.js';
 import { PLUGIN_LOADER_TEXTS, SPEC_GITHUB_BASE } from '../../i18n/plugin-loader.texts.js';
+import { reportSchemaExtendsFindings } from '../../jobs/findings-schema.js';
 import { applyAjvFormats } from '../../util/ajv-interop.js';
 import { tx } from '../../util/tx.js';
 import { HOOK_TRIGGERS } from '../../extensions/hook.js';
@@ -264,6 +265,88 @@ export function validateActionFileConventions(
     };
   }
 
+  return null;
+}
+
+/**
+ * Analyzer file-conventions validation (structure-as-truth), the mirror
+ * of `validateActionFileConventions` for the finder half of the dual-mode
+ * Analyzer contract (`spec/schemas/extensions/analyzer.schema.json`):
+ *
+ *   - `mode='probabilistic'`: `<analyzer-dir>/prompt.md` AND
+ *     `<analyzer-dir>/report.schema.json` MUST exist; the report schema
+ *     MUST parse and MUST extend the canonical findings envelope
+ *     (`findings/report.schema.json`) via `$ref`. Every violation is
+ *     `invalid-manifest` (spec wording: "missing either is
+ *     `invalid-manifest`").
+ *   - `mode='deterministic'`: `prompt.md` MUST NOT exist (config
+ *     conflict, mirroring the Action posture). A stray
+ *     `report.schema.json` on a deterministic analyzer is tolerated
+ *     (inert data; analyzers have no deterministic report contract).
+ *
+ * A probabilistic analyzer declaring `evaluate()` is tolerated silently
+ * (the export's functions are stripped before AJV and the orchestrator
+ * never schedules probabilistic analyzers), the same posture the Action
+ * loader takes for a probabilistic Action declaring `invoke()`.
+ * Returns either a populated failure row or `null`.
+ */
+// Linear validator with one branch per failure mode (missing prompt,
+// missing schema, unparseable schema, non-findings schema, stray prompt
+// on deterministic), same shape as validateAnnotationContributions
+// above; each branch returns directly, splitting would scatter the
+// early-return pipeline.
+// eslint-disable-next-line complexity
+export function validateAnalyzerFileConventions(
+  pluginPath: string,
+  pluginId: string,
+  manifest: IPluginManifest,
+  relEntry: string,
+  entryAbsPath: string,
+  manifestView: unknown,
+): IDiscoveredPlugin | null {
+  const analyzerDir = dirname(entryAbsPath);
+  const promptPath = join(analyzerDir, 'prompt.md');
+  const reportSchemaPath = join(analyzerDir, 'report.schema.json');
+  const mode = isRecord(manifestView) && typeof manifestView['mode'] === 'string'
+    ? (manifestView['mode'] as 'deterministic' | 'probabilistic')
+    : 'deterministic';
+
+  const invalid = (reason: string): IDiscoveredPlugin => ({
+    ...fail(pluginPath, pluginId, 'invalid-manifest', reason),
+    manifest,
+  });
+
+  if (mode === 'deterministic') {
+    if (existsSync(promptPath)) {
+      return invalid(tx(PLUGIN_LOADER_TEXTS.invalidManifestAnalyzerUnexpectedPrompt, { relEntry }));
+    }
+    return null;
+  }
+
+  if (!existsSync(promptPath)) {
+    return invalid(tx(PLUGIN_LOADER_TEXTS.invalidManifestAnalyzerMissingPrompt, { relEntry }));
+  }
+  if (!existsSync(reportSchemaPath)) {
+    return invalid(
+      tx(PLUGIN_LOADER_TEXTS.invalidManifestAnalyzerMissingReportSchema, { relEntry }),
+    );
+  }
+  let reportSchema: unknown;
+  try {
+    reportSchema = JSON.parse(nodeFs.readFileSync(reportSchemaPath, 'utf8'));
+  } catch (err) {
+    return invalid(
+      tx(PLUGIN_LOADER_TEXTS.invalidManifestAnalyzerReportSchemaUnparseable, {
+        relEntry,
+        errDescription: describe(err),
+      }),
+    );
+  }
+  if (!isRecord(reportSchema) || !reportSchemaExtendsFindings(reportSchema)) {
+    return invalid(
+      tx(PLUGIN_LOADER_TEXTS.invalidManifestAnalyzerReportSchemaNotFindings, { relEntry }),
+    );
+  }
   return null;
 }
 

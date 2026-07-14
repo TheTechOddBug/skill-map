@@ -12,10 +12,21 @@
 import type {
   ExecutionStatus,
   Issue,
+  JobExtensionKind,
   JobStatus,
   Link,
   Node,
+  Severity,
 } from '../types.js';
+
+/**
+ * Origin lane of a `state_findings` row (`spec/db-schema.md`
+ * §state_findings). `extension` = one entry of a finder Analyzer's
+ * validated `findings[]` array; `kernel` = a safety row the record path
+ * synthesized from a probabilistic report's `safety` block under one of
+ * the reserved type slugs.
+ */
+export type TFindingOrigin = 'extension' | 'kernel';
 
 /**
  * Row-level filter for `port.scans.findNodes(...)` (driven by
@@ -87,6 +98,97 @@ export interface ISummaryWriteIntent {
   summarizerVersion: string;
   generatedAt: number;
   summaryJson: string;
+}
+
+/**
+ * One fresh `state_findings` row the record path composes BEFORE the
+ * node-derived fields are known. `bodyHashAtGeneration` is stamped by the
+ * adapter from the live `scan_nodes.body_hash` inside the record
+ * transaction; `extensionId` / `extensionVersion` / `generatedAt` /
+ * `jobId` travel on the enclosing `IFindingsWriteIntent`.
+ */
+export interface IFindingRowInput {
+  origin: TFindingOrigin;
+  type: string;
+  severity: Severity;
+  message: string;
+  detail: string | null;
+  confidence: number;
+}
+
+/**
+ * Write intent handed to `port.jobs.recordTerminal(execution, summary?,
+ * findings?)` when the recorded job is a probabilistic extension whose
+ * `completed` report produces `state_findings` rows: the finder lane
+ * (`origin: 'extension'`, Analyzers only) plus the kernel safety lane
+ * (`origin: 'kernel'`, any probabilistic report whose `safety` block flags
+ * trouble). The adapter DELETEs every existing row for
+ * `(nodeId, extensionId)` (both origins) then inserts `rows`, in the SAME
+ * transaction as the `state_executions` insert + job transition; an empty
+ * `rows` array is a clean verdict that erases the prior judgment. The
+ * whole write is skipped (previous rows kept) when the target node has
+ * disappeared from `scan_nodes` (`spec/db-schema.md` §state_findings).
+ */
+export interface IFindingsWriteIntent {
+  extensionId: string;
+  extensionVersion: string;
+  generatedAt: number;
+  jobId: string | null;
+  rows: IFindingRowInput[];
+}
+
+/**
+ * A stored `state_findings` row as returned by `port.findings.list(...)`,
+ * camelCase mirror of the SQL columns plus the derived `stale` boolean
+ * (`bodyHashAtGeneration` differs from the node's live
+ * `scan_nodes.body_hash`, or the node is gone from the scan entirely).
+ */
+export interface IFindingRecord {
+  id: number;
+  nodeId: string;
+  extensionId: string;
+  extensionVersion: string;
+  origin: TFindingOrigin;
+  type: string;
+  severity: Severity;
+  message: string;
+  detail: string | null;
+  confidence: number;
+  bodyHashAtGeneration: string;
+  generatedAt: number;
+  jobId: string | null;
+  stale: boolean;
+}
+
+/**
+ * Row-level filter for `port.findings.list(...)` (driven by
+ * `sm findings`' flags and `sm show`'s per-node section). All fields
+ * optional; an empty filter returns every non-stale row.
+ */
+export interface IFindingsListFilter {
+  /** Restrict to rows whose `node_id` equals the path. */
+  nodeId?: string;
+  /**
+   * Qualified (`<plugin>/<ext>`) or bare extension ids; a row matches
+   * when its stored qualified `extension_id` matches any entry
+   * (`matchesQualifiedExtensionFilter` semantics, mirroring
+   * `sm check --analyzers`). Empty / absent = every extension.
+   */
+  extensionIds?: readonly string[];
+  /** Restrict to rows whose `type` slug equals the value. */
+  type?: string;
+  /** MINIMUM severity: `warn` keeps `warn` + `error`, drops `info`. */
+  minSeverity?: Severity;
+  /** Keep rows whose `generated_at` >= the value (Unix ms). */
+  sinceMs?: number;
+  /** Keep rows whose `confidence` >= the value. */
+  minConfidence?: number;
+  /**
+   * When `true`, stale rows are INCLUDED (each flagged via the derived
+   * `stale` boolean). Default `false`: stale rows are excluded, matching
+   * `sm findings`' default read (`spec/cli-contract.md` §sm findings).
+   */
+  includeStale?: boolean;
 }
 
 /**
@@ -429,28 +531,35 @@ export interface IJobContentInput {
  */
 export interface IJobSubmitRow {
   id: string;
-  actionId: string;
-  actionVersion: string;
+  extensionId: string;
+  extensionVersion: string;
+  /**
+   * Extension kind resolved by the submit target resolution and frozen
+   * onto the row (`spec/db-schema.md` §state_jobs); `sm record` routes
+   * on it instead of re-resolving the extension by id.
+   */
+  extensionKind: JobExtensionKind;
   nodeId: string;
   contentHash: string;
   nonce: string;
   priority: number;
   status: JobStatus;
-  ttlSeconds: number;
+  /** Optional operator-armed TTL; `null` = never expires (the default). */
+  ttlSeconds: number | null;
   createdAt: number;
   submittedBy?: string | null;
 }
 
 /**
  * Filter for `port.jobs.list(...)` (drives `sm job list`). All optional;
- * an empty filter returns every job, newest first. `actionId` matches the
- * stored (qualified) id exactly OR by bare-id suffix, mirroring the
- * analyzer-filter semantics so `--action skill-summarizer` finds
+ * an empty filter returns every job, newest first. `extensionId` matches
+ * the stored (qualified) id exactly OR by bare-id suffix, mirroring the
+ * analyzer-filter semantics so `--extension skill-summarizer` finds
  * `core/skill-summarizer`.
  */
 export interface IJobListFilter {
   status?: JobStatus;
-  actionId?: string;
+  extensionId?: string;
   nodeId?: string;
 }
 
@@ -461,7 +570,7 @@ export interface IListExecutionsFilter {
   /** Restrict to executions whose `nodeIds` array contains this path. */
   nodePath?: string;
   /** Exact match on `extension_id`. */
-  actionId?: string;
+  extensionId?: string;
   /** Subset of {`completed`,`failed`,`cancelled`}. */
   statuses?: ExecutionStatus[];
   /** Lower bound (inclusive) on `started_at`. Unix ms. */
@@ -492,6 +601,7 @@ export interface IMigrateNodeFksReport {
   jobs: number;
   executions: number;
   summaries: number;
+  findings: number;
   enrichments: number;
   pluginKvs: number;
   nodeFavorites: number;

@@ -50,11 +50,18 @@ export interface IRetentionConfig {
 }
 
 export interface IJobsConfig {
-  ttlSeconds: number;
-  graceMultiplier: number;
-  minimumTtlSeconds: number;
-  perActionTtl: Record<string, number>;
-  perActionPriority: Record<string, number>;
+  /**
+   * Global opt-in TTL policy (seconds): when set, EVERY submitted job
+   * arms this expiry unless a higher-precedence source overrides it
+   * (`jobs.perExtensionTtl`, or the `--ttl` flag including the `--ttl 0`
+   * disarm). UNSET by default: jobs never expire (Decision #139). The
+   * retired `graceMultiplier` / `minimumTtlSeconds` keys died with the
+   * estimate-driven formula.
+   */
+  ttlSeconds?: number;
+  /** Keys are qualified or bare ids of queued probabilistic extensions. */
+  perExtensionTtl: Record<string, number>;
+  perExtensionPriority: Record<string, number>;
   retention: IRetentionConfig;
 }
 

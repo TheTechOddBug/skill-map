@@ -1,15 +1,17 @@
 /**
  * Content-hash computation for jobs. Two stable hashes:
  *
- *   1. `computePromptTemplateHash({ preamble, template })` produces the
- *      `promptTemplateHash` component. Per `spec/prompt-preamble.md`
- *      ("Included in the `contentHash` computation via `promptTemplateHash`,
- *      which hashes the preamble + action template concatenation") the
- *      hash covers the canonical preamble PLUS the raw action template
- *      (the `prompt.md` bytes, before user content is interpolated). This
- *      is what makes a preamble bump invalidate prior content hashes
+ *   1. `computePromptTemplateHash({ preamble, template, reportContract })`
+ *      produces the `promptTemplateHash` component. Per
+ *      `spec/prompt-preamble.md` ("hashes the kernel-authored prelude:
+ *      the preamble + extension template + report-contract blocks
+ *      concatenation") the hash covers the canonical preamble PLUS the
+ *      raw extension template (the `prompt.md` bytes, before user
+ *      content is interpolated) PLUS the rendered report-contract
+ *      section (`report-contract.ts`). This is what makes a preamble
+ *      bump OR a schema edit invalidate prior content hashes
  *      (`spec/prompt-preamble.md` §How the kernel applies the preamble,
- *      point 6): a changed preamble MUST NOT collide with prior jobs.
+ *      point 6): a changed prelude MUST NOT collide with prior jobs.
  *
  *      NOTE: the brief for this sub-step described `promptTemplateHash`
  *      as "sha256 of the action's prompt.md file content"; that omits the
@@ -23,8 +25,10 @@
  *      lifecycle keys on. Per `spec/job-lifecycle.md` §Submit step 3 and
  *      `spec/db-schema.md` §state_job_contents it is the `sha256` over the
  *      NUL-joined (`0x00`) tuple
- *      `(actionId, actionVersion, node.path, bodyHash, frontmatterHash,
- *      promptTemplateHash)`, hex, lowercase. The NUL delimiter prevents
+ *      `(extensionId, extensionVersion, node.path, bodyHash,
+ *      frontmatterHash, promptTemplateHash)`, hex, lowercase. The queue is
+ *      kind-agnostic: the extension is a probabilistic Action or a
+ *      probabilistic finder Analyzer. The NUL delimiter prevents
  *      concatenation-ambiguity collisions; `node.path` participates
  *      because the render embeds it via the `<user-content id>` attribute.
  *
@@ -42,8 +46,8 @@ import { createHash } from 'node:crypto';
 const NUL = String.fromCharCode(0);
 
 export interface IContentHashInput {
-  actionId: string;
-  actionVersion: string;
+  extensionId: string;
+  extensionVersion: string;
   /** `node.path`; embedded in the render via the `<user-content id>` attribute. */
   nodePath: string;
   bodyHash: string;
@@ -58,18 +62,21 @@ function sha256Hex(data: string): string {
 }
 
 /**
- * `promptTemplateHash` = sha256 of the canonical preamble concatenated
- * with the raw action template (`prompt.md`). Direct concatenation, no
- * separator: the preamble already ends with its own trailing newline, so
- * a fixed-order concat is deterministic. Folding the preamble in is the
- * whole point (see file docstring): a preamble bump changes this hash and
- * therefore the downstream `contentHash`.
+ * `promptTemplateHash` = sha256 of the kernel-authored prelude: the
+ * canonical preamble, the raw extension template (`prompt.md`), and the
+ * report-contract section, concatenated in that fixed order. Direct
+ * concatenation, no separator: the fixed order keeps it deterministic.
+ * Folding the whole prelude in is the point (see file docstring): a
+ * preamble bump OR a report-schema edit changes this hash and therefore
+ * the downstream `contentHash`.
  */
 export function computePromptTemplateHash(input: {
   preamble: string;
   template: string;
+  /** Rendered report-contract section (`report-contract.ts`). */
+  reportContract: string;
 }): string {
-  return sha256Hex(input.preamble + input.template);
+  return sha256Hex(input.preamble + input.template + input.reportContract);
 }
 
 /**
@@ -78,8 +85,8 @@ export function computePromptTemplateHash(input: {
  */
 export function computeContentHash(input: IContentHashInput): string {
   const tuple = [
-    input.actionId,
-    input.actionVersion,
+    input.extensionId,
+    input.extensionVersion,
     input.nodePath,
     input.bodyHash,
     input.frontmatterHash,

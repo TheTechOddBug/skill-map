@@ -1,6 +1,6 @@
 /**
  * `sm doctor`, the project diagnostic report (`spec/cli-contract.md`
- * §sm doctor). Seven read-only checks over the project DB and the
+ * §sm doctor). Eight read-only checks over the project DB and the
  * plugin runtime:
  *
  *   1. DB file integrity (`PRAGMA quick_check` via
@@ -10,8 +10,11 @@
  *      `sm orphans` lists).
  *   4. `state_jobs` rows whose content row is missing (corruption).
  *   5. `state_job_contents` GC stragglers (`sm job prune` collects).
- *   6. Plugins in error state (any status besides enabled / disabled).
- *   7. Detected Providers that matched nothing (marker on disk, zero
+ *   6. Running jobs past their extension's ADVISORY
+ *      `probExpectedDurationSeconds` (the operator escape hatch for
+ *      TTL-less zombies, Decision #139; never mutates state).
+ *   7. Plugins in error state (any status besides enabled / disabled).
+ *   8. Detected Providers that matched nothing (marker on disk, zero
  *      scanned nodes; non-blocking warning).
  *
  * Exit: 0 all green, 1 warnings, 2 any error-level problem. Checks 1
@@ -24,7 +27,8 @@ import { join } from 'node:path';
 
 import { Command } from 'clipanion';
 
-import type { IProvider } from '../../kernel/extensions/index.js';
+import type { IAction, IAnalyzer, IProvider } from '../../kernel/extensions/index.js';
+import type { Job } from '../../kernel/types.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -54,7 +58,7 @@ export class DoctorCommand extends SmCommand {
     description:
       'Diagnostic report: DB integrity, pending migrations, orphan rows, job-content consistency, plugin status, provider detection.',
     details: `
-      Runs seven read-only checks and reports one glyph row per check.
+      Runs eight read-only checks and reports one glyph row per check.
       Exit 0 when all green, 1 when any check warns, 2 when an
       error-level problem exists (DB corruption, jobs whose rendered
       content row is missing). --json emits
@@ -82,7 +86,7 @@ export class DoctorCommand extends SmCommand {
     );
   }
 
-  /** Execute the seven checks in contract order. */
+  /** Execute the eight checks in contract order. */
   private async runChecks(adapter: StoragePort, cwd: string): Promise<ICheckRow[]> {
     const runtime = await loadPluginRuntime();
     runtime.emitWarnings(this.printer!);
@@ -96,6 +100,12 @@ export class DoctorCommand extends SmCommand {
       checkMigrations(adapter),
       await checkOrphanHistory(adapter),
       ...(await checkJobs(adapter)),
+      ...(await checkJobsOverdue(
+        adapter,
+        composed?.actions ?? [],
+        composed?.analyzers ?? [],
+        Date.now(),
+      )),
       checkPlugins(runtime.discovered.map((p) => ({ id: p.id, status: p.status }))),
       ...(await checkProviders(adapter, composed?.providers ?? [], cwd)),
     ];
@@ -168,6 +178,7 @@ function labelFor(id: string): string {
     'orphan-history': T.labelHistory,
     'job-contents': T.labelJobContents,
     'job-gc': T.labelJobGc,
+    'jobs-overdue': T.labelJobsOverdue,
     plugins: T.labelPlugins,
     providers: T.labelProviders,
   };
@@ -243,6 +254,65 @@ async function checkJobs(adapter: StoragePort): Promise<ICheckRow[]> {
           }),
         };
   return [contents, gc];
+}
+
+/**
+ * `jobs-overdue` (`spec/cli-contract.md` §sm doctor): one warn per
+ * `running` job whose elapsed time exceeds its extension's ADVISORY
+ * `probExpectedDurationSeconds`, the operator escape hatch for TTL-less
+ * zombies (Decision #139: jobs never expire by default). The extension
+ * resolves from the loaded registry by the job row's frozen
+ * `(extensionId, extensionKind)`; jobs whose extension is no longer
+ * loadable are skipped. Purely advisory, never mutates state.
+ */
+async function checkJobsOverdue(
+  adapter: StoragePort,
+  actions: readonly IAction[],
+  analyzers: readonly IAnalyzer[],
+  nowMs: number,
+): Promise<ICheckRow[]> {
+  const running = await adapter.jobs.list({ status: 'running' });
+  const rows: ICheckRow[] = [];
+  for (const job of running) {
+    const estimate = advisoryEstimateFor(job, actions, analyzers);
+    if (estimate === undefined) continue; // extension not loadable: skip
+    if (job.claimedAt === null || job.claimedAt === undefined) continue;
+    const elapsedMs = nowMs - job.claimedAt;
+    if (elapsedMs <= estimate * 1000) continue;
+    rows.push({
+      id: 'jobs-overdue',
+      status: 'warn',
+      message: tx(T.jobsOverdueWarn, {
+        id: sanitizeForTerminal(job.id),
+        elapsedSeconds: Math.round(elapsedMs / 1000),
+        estimateSeconds: estimate,
+      }),
+    });
+  }
+  if (rows.length === 0) {
+    return [{ id: 'jobs-overdue', status: 'ok', message: T.jobsOverdueOk }];
+  }
+  return rows;
+}
+
+/**
+ * Resolve the job's extension from the composed registry by its frozen
+ * kind (qualified id first, then bare suffix, the queue-wide matching
+ * rule) and return its advisory `probExpectedDurationSeconds`.
+ * `undefined` = the extension is no longer loadable (or carries no
+ * estimate), which skips the check for that job.
+ */
+function advisoryEstimateFor(
+  job: Job,
+  actions: readonly IAction[],
+  analyzers: readonly IAnalyzer[],
+): number | undefined {
+  const catalog: ReadonlyArray<IAction | IAnalyzer> =
+    job.extensionKind === 'action' ? actions : analyzers;
+  const match =
+    catalog.find((e) => `${e.pluginId}/${e.id}` === job.extensionId) ??
+    catalog.find((e) => e.id === job.extensionId);
+  return match?.probExpectedDurationSeconds;
 }
 
 /** Any discovery status besides the two healthy ones is "error state". */

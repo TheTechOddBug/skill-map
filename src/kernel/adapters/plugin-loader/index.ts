@@ -72,6 +72,7 @@ import {
   KNOWN_KINDS_LIST,
   discoverProviderKinds,
   validateActionFileConventions,
+  validateAnalyzerFileConventions,
   validateAnnotationContributions,
   validateHookTriggers,
 } from './validation.js';
@@ -606,6 +607,23 @@ export class PluginLoader implements PluginLoaderPort {
         manifestView,
       );
       if (actionFailure) return { ok: false, failure: actionFailure };
+    }
+
+    // Structure-as-truth (finder half of the dual-mode Analyzer): a
+    // probabilistic Analyzer resolves `prompt.md` + `report.schema.json`
+    // by convention, and the report schema MUST extend the canonical
+    // findings envelope. Validate at load so a misconfigured finder
+    // surfaces as `invalid-manifest` instead of at the first submit.
+    if (kind === 'analyzer') {
+      const analyzerFailure = validateAnalyzerFileConventions(
+        pluginPath,
+        pluginId,
+        manifest,
+        relEntry,
+        abs,
+        manifestView,
+      );
+      if (analyzerFailure) return { ok: false, failure: analyzerFailure };
     }
 
     // Structure-as-truth (Provider): the kinds catalog now lives on disk

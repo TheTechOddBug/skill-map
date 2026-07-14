@@ -1,8 +1,7 @@
 /**
  * End-to-end tests for `sm job submit / list / show` against a real
  * project (a scanned DB + a trusted project-local plugin shipping one
- * probabilistic action). Mirrors the `check-include-prob.spec.ts` cwd +
- * trust scaffolding.
+ * probabilistic action).
  *
  * Coverage:
  *   - submit -n success -> exit 0, queued job + content row persisted.
@@ -151,7 +150,7 @@ interface ISubmitOverrides {
 
 function buildSubmit(overrides: ISubmitOverrides): JobSubmitCommand {
   const cmd = new JobSubmitCommand();
-  cmd.action = overrides.action;
+  cmd.extension = overrides.action;
   cmd.node = overrides.node;
   cmd.all = overrides.all ?? false;
   cmd.force = overrides.force ?? false;
@@ -218,7 +217,7 @@ describe('sm job submit -n', () => {
       const job = jobs[0];
       ok(job);
       strictEqual(job.status, 'queued');
-      strictEqual(job.actionId, ACTION_ID);
+      strictEqual(job.extensionId, ACTION_ID);
       strictEqual(job.nodeId, SKILL.path);
       const content = await adapter.db
         .selectFrom('state_job_contents')
@@ -239,19 +238,64 @@ describe('sm job submit -n', () => {
       const cap = captureContext();
       const cmd = buildSubmit({ action: 'core/node-set-tags', node: SKILL.path });
       const c = await run(cmd, cap);
-      match(cap.stderr(), /only probabilistic actions are queued/);
+      match(cap.stderr(), /only probabilistic extensions are queued/);
       return c;
     });
     strictEqual(code, 2);
     strictEqual(await countJobs(proj.dbPath), 0);
   });
 
-  it('rejects --ttl 0 with exit 2', async () => {
+  it('defaults to NO TTL (Decision #139: jobs never expire absent an operator source)', async () => {
+    const proj = await setupProject([SKILL]);
+    const code = await withCwd(proj.root, async () =>
+      run(buildSubmit({ action: ACTION_ID, node: SKILL.path }), captureContext()),
+    );
+    strictEqual(code, 0);
+    const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      const jobs = await adapter.jobs.list({});
+      strictEqual(jobs[0]!.ttlSeconds, null, 'ttl_seconds stays NULL');
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('--ttl 45 arms the expiry; --json / list envelopes carry the number', async () => {
+    const proj = await setupProject([SKILL]);
+    const parsed = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const code = await run(
+        buildSubmit({ action: ACTION_ID, node: SKILL.path, ttl: '45', json: true }),
+        cap,
+      );
+      strictEqual(code, 0);
+      return JSON.parse(cap.stdout()) as { ttlSeconds: number | null };
+    });
+    strictEqual(parsed.ttlSeconds, 45);
+  });
+
+  it('--ttl 0 explicitly disarms (exit 0, ttlSeconds null on the envelope)', async () => {
+    const proj = await setupProject([SKILL]);
+    const parsed = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const code = await run(
+        buildSubmit({ action: ACTION_ID, node: SKILL.path, ttl: '0', json: true }),
+        cap,
+      );
+      strictEqual(code, 0);
+      return JSON.parse(cap.stdout()) as { ttlSeconds: number | null };
+    });
+    strictEqual(parsed.ttlSeconds, null);
+  });
+
+  it('rejects a negative --ttl with exit 2', async () => {
     const proj = await setupProject([SKILL]);
     const code = await withCwd(proj.root, async () => {
       const cap = captureContext();
-      const cmd = buildSubmit({ action: ACTION_ID, node: SKILL.path, ttl: '0' });
-      return run(cmd, cap);
+      const c = await run(buildSubmit({ action: ACTION_ID, node: SKILL.path, ttl: '-5' }), cap);
+      match(cap.stderr(), /invalid --ttl/);
+      return c;
     });
     strictEqual(code, 2);
     strictEqual(await countJobs(proj.dbPath), 0);
@@ -421,7 +465,7 @@ describe('sm job list / show', () => {
       const cmd = new JobListCommand();
       cmd.json = true;
       cmd.status = undefined;
-      cmd.action = undefined;
+      cmd.extension = undefined;
       cmd.node = undefined;
       cmd.db = undefined;
       const c = await run(cmd, cap);
@@ -441,7 +485,7 @@ describe('sm job list / show', () => {
       const cmd = new JobListCommand();
       cmd.json = true;
       cmd.status = 'running';
-      cmd.action = undefined;
+      cmd.extension = undefined;
       cmd.node = undefined;
       cmd.db = undefined;
       await run(cmd, cap);
@@ -459,11 +503,23 @@ describe('sm job list / show', () => {
       const job = JSON.parse(cap.stdout());
       strictEqual(job.id, submitted);
       strictEqual(job.status, 'queued');
+      strictEqual(job.ttlSeconds, null, 'TTL-less job emits ttlSeconds: null');
       // Security (spec §Atomic claim · Nonce exposure).
       ok(!('nonce' in job), 'show --json omits the nonce');
       return c;
     });
     strictEqual(showCode, 0);
+
+    // show <id> human detail: the ttl line renders the none marker.
+    await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const cmd = new JobShowCommand();
+      cmd.id = submitted;
+      cmd.json = false;
+      cmd.db = undefined;
+      strictEqual(await run(cmd, cap), 0);
+      match(cap.stdout(), /ttl\s+\(none\)/, 'TTL-less job renders (none)');
+    });
 
     // show missing -> exit 5
     const missingCode = await withCwd(proj.root, async () => {

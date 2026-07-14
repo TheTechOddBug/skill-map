@@ -299,8 +299,9 @@ Matching [`schemas/job.schema.json`](./schemas/job.schema.json). See [`job-lifec
 | Column | Type | Constraint |
 |---|---|---|
 | `id` | TEXT | PRIMARY KEY |
-| `action_id` | TEXT | NOT NULL |
-| `action_version` | TEXT | NOT NULL |
+| `extension_id` | TEXT | NOT NULL |
+| `extension_version` | TEXT | NOT NULL |
+| `extension_kind` | TEXT | NOT NULL, CHECK in (`action`, `analyzer`) |
 | `node_id` | TEXT | NOT NULL |
 | `content_hash` | TEXT | NOT NULL |
 | `nonce` | TEXT | NOT NULL |
@@ -308,14 +309,16 @@ Matching [`schemas/job.schema.json`](./schemas/job.schema.json). See [`job-lifec
 | `status` | TEXT | NOT NULL, CHECK in (`queued`, `running`, `completed`, `failed`, `cancelled`) |
 | `failure_reason` | TEXT | NULL, CHECK in (`runner-error`, `report-invalid`, `timeout`, `abandoned`, `job-file-missing`, `user-failed`). NULL for a `cancelled` job (self-explanatory, no reason). |
 | `runner` | TEXT | NULL, CHECK in (`agent`, `in-process`) |
-| `ttl_seconds` | INTEGER | NOT NULL |
+| `ttl_seconds` | INTEGER | NULL (NULL = never expires; armed only by explicit operator sources, see `job-lifecycle.md` §TTL resolution) |
 | `created_at` | INTEGER | NOT NULL |
 | `claimed_at` | INTEGER | NULL |
 | `finished_at` | INTEGER | NULL |
 | `expires_at` | INTEGER | NULL |
 | `submitted_by` | TEXT | NULL |
 
-Indexes: `ix_state_jobs_status`, `ix_state_jobs_action_node_hash` (unique partial index WHERE `status IN ('queued','running')` for duplicate detection).
+Indexes: `ix_state_jobs_status`, `ix_state_jobs_extension_node_hash` (unique partial index WHERE `status IN ('queued','running')` for duplicate detection).
+
+The queue is kind-agnostic: `extension_id` names a probabilistic **Action** or a probabilistic **Analyzer** (qualified id, version frozen at submit). The columns were renamed from `action_id` / `action_version` when Analyzers joined the queue; `state_executions.extension_id` set the naming precedent. `extension_kind` freezes the RESOLVED kind at submit time (like the version): it is what `sm record` routes on, so a plugin shipping a probabilistic Action AND Analyzer under one extension id stays unambiguous end-to-end (the submit-side `<kind>:` prefix picks, the row remembers).
 
 The rendered job content is NOT stored on this table. It lives in `state_job_contents` keyed by `content_hash` so multiple jobs with identical action + node + template pairs share one physical blob. See `state_job_contents` below for the storage shape and GC contract.
 
@@ -335,7 +338,7 @@ No indexes (PK covers lookup by hash; the table is keyed-by-hash exclusively).
 
 **GC contract**: `sm job prune` MUST delete every row whose `content_hash` is no longer referenced by any `state_jobs` row, in the same transaction that prunes the job rows. Implementations MUST NOT delete `state_job_contents` rows on `sm job cancel` (a cancelled job's content is recoverable via `sm job submit --force` of the same content_hash and dedup is desirable).
 
-`content_hash` is the same hash `state_jobs.content_hash` carries, computed at submit time as `sha256` over the NUL-joined (`0x00`) tuple `(actionId, actionVersion, node.path, bodyHash, frontmatterHash, promptTemplateHash)`. Two jobs with identical `content_hash` MUST render to identical content (the formula covers every rendering input, including `node.path`, which the render embeds via the `<user-content id>` attribute); the table relies on this to dedup.
+`content_hash` is the same hash `state_jobs.content_hash` carries, computed at submit time as `sha256` over the NUL-joined (`0x00`) tuple `(extensionId, extensionVersion, node.path, bodyHash, frontmatterHash, promptTemplateHash)`. Two jobs with identical `content_hash` MUST render to identical content (the formula covers every rendering input, including `node.path`, which the render embeds via the `<user-content id>` attribute); the table relies on this to dedup.
 
 FK enforcement: SQLite foreign keys are off by default and the kernel does not currently turn them on (per `dialect.ts`). The `state_jobs.content_hash → state_job_contents.content_hash` relationship is enforced procedurally by the storage adapter (insert content row before job row in the same transaction; never delete content while jobs reference it). A future foreign-key push may upgrade this to a true FK without breaking the contract.
 
@@ -383,9 +386,40 @@ One row per `(node_id, summarizer_action_id)`. See [`schemas/summaries/`](./sche
 
 Primary key: `(node_id, summarizer_action_id)`. Indexes: `ix_state_summaries_generated_at`.
 
-**Writer.** `sm record` populates this table: when it closes a `completed` job for a summarizer Action (its `report.schema.json` extends the canonical node-summary schema under [`schemas/summaries/`](./schemas/summaries/) via `$ref`, see [`job-lifecycle.md` §Record](./job-lifecycle.md#record-callback)), it upserts the validated report here (`INSERT ... ON CONFLICT(node_id, summarizer_action_id) DO UPDATE`) inside the same transaction as the `state_executions` insert + job transition. `summary_json` holds the validated report; `summarizer_action_id` / `summarizer_version` mirror the job's `action_id` / `action_version`; `kind` mirrors the target `scan_nodes.kind`; and `body_hash_at_generation` captures the node's `body_hash` at record time. The write is skipped (no row) when the target node has disappeared from `scan_nodes` between submit and record.
+**Writer.** `sm record` populates this table: when it closes a `completed` job for a summarizer Action (its `report.schema.json` extends the canonical node-summary schema under [`schemas/summaries/`](./schemas/summaries/) via `$ref`, see [`job-lifecycle.md` §Record](./job-lifecycle.md#record-callback)), it upserts the validated report here (`INSERT ... ON CONFLICT(node_id, summarizer_action_id) DO UPDATE`) inside the same transaction as the `state_executions` insert + job transition. `summary_json` holds the validated report; `summarizer_action_id` / `summarizer_version` mirror the job's `extension_id` / `extension_version` (a summarizer is always an Action, so the summary-side column keeps the specific name); `kind` mirrors the target `scan_nodes.kind`; and `body_hash_at_generation` captures the node's `body_hash` at record time. The write is skipped (no row) when the target node has disappeared from `scan_nodes` between submit and record.
 
 **Stale rule.** `sm show <node>` renders any stored summary for the node and marks it `(stale)` when `body_hash_at_generation` differs from the node's current `scan_nodes.body_hash` (the body was edited and rescanned since the summary was generated). The row is never auto-deleted on staleness; a fresh `sm record` for the same `(node_id, summarizer_action_id)` overwrites it in place.
+
+### `state_findings`
+
+Probabilistic findings: the judgments recorded by finder Analyzers (`mode: 'probabilistic'`), plus the kernel-derived safety rows synthesized from any probabilistic report's `safety` block. Read by `sm findings` and the UI findings surfaces. See [`schemas/findings/report.schema.json`](./schemas/findings/report.schema.json) for the report envelope and [`job-lifecycle.md` §Record](./job-lifecycle.md#record-callback) for the write path.
+
+| Column | Type | Constraint |
+|---|---|---|
+| `id` | INTEGER | PRIMARY KEY |
+| `node_id` | TEXT | NOT NULL |
+| `extension_id` | TEXT | NOT NULL |
+| `extension_version` | TEXT | NOT NULL |
+| `origin` | TEXT | NOT NULL, CHECK in (`extension`, `kernel`) |
+| `type` | TEXT | NOT NULL |
+| `severity` | TEXT | NOT NULL, CHECK in (`info`, `warn`, `error`) |
+| `message` | TEXT | NOT NULL |
+| `detail` | TEXT | NULL |
+| `confidence` | REAL | NOT NULL |
+| `body_hash_at_generation` | TEXT | NOT NULL |
+| `generated_at` | INTEGER | NOT NULL |
+| `job_id` | TEXT | NULL |
+
+Indexes: `ix_state_findings_node_id`, `ix_state_findings_extension_id`, `ix_state_findings_generated_at`.
+
+**Writer.** `sm record` populates this table when it closes a `completed` job, in the SAME transaction as the `state_executions` insert and the job transition, through two lanes:
+
+- **Finder lane** (`origin = 'extension'`): when the job's extension is a probabilistic **Analyzer**, each entry of the validated report's `findings[]` array becomes one row. `extension_id` / `extension_version` mirror the job's columns; per-row `confidence` is the finding's own value when present, else the report-level `confidence`; `body_hash_at_generation` captures the node's `scan_nodes.body_hash` at record time; `job_id` records provenance.
+- **Safety lane** (`origin = 'kernel'`): for EVERY probabilistic report (Action or Analyzer) whose `safety` block flags trouble, the kernel synthesizes rows with the reserved type slugs: `injection-detected` (severity `warn`) when `safety.injectionDetected = true`, `content-suspicious` (severity `info`) / `content-malformed` (severity `warn`) when `safety.contentQuality` is not `clean`. `extension_id` is the REPORTING extension's id (the summarizer or finder whose run surfaced the flag); `confidence` is the report-level value; `message` carries the kernel-templated statement (wording implementation-defined, `safety.injectionDetails` folded into `detail` when present). Extensions MUST NOT emit the reserved slugs themselves (enforced by convention in the canonical envelope; implementations SHOULD reject them at record time as `report-invalid`).
+
+**Replace semantics.** Recording a completed job for `(node_id, extension_id)` first DELETEs every existing row for that pair (both origins), then inserts the fresh rows, in the same transaction. An empty `findings[]` with a clean safety block therefore ERASES the finder's previous judgment for the node: a clean verdict, not a no-op. The write is skipped entirely (previous rows kept) when the target node has disappeared from `scan_nodes` between submit and record, same rule as `state_summaries`.
+
+**Stale rule.** A row whose `body_hash_at_generation` differs from the node's current `scan_nodes.body_hash` is **stale**: the judged body no longer exists. `sm findings` excludes stale rows by default (`--stale` includes them, marked); `sm show` marks them `(stale)` inline. Rows are never auto-deleted on staleness; a fresh record for the pair replaces them, `sm findings prune` deletes stale rows wholesale on operator demand (the hygiene verb, see [`cli-contract.md`](./cli-contract.md)), and `sm scan` never touches this table (the probabilistic layer persists across scans).
 
 ### `state_enrichments`
 
@@ -429,7 +463,7 @@ Per-node "favorite" flag set by the local user from the UI. One row per favorite
 
 No indexes (PK covers lookup by path; the table is keyed-by-path exclusively).
 
-`node_path` is FK-semantic to `scan_nodes.path`. Per `§ Rename detection` below, the rename heuristic MUST migrate rows here when a path is renamed (same protocol as `state_jobs` / `state_summaries` / `state_enrichments` / `state_plugin_kvs`). A simple PK update suffices; no composite key, so collisions cannot occur (if the destination path already has a row, the migrating row is dropped to preserve the live one).
+`node_path` is FK-semantic to `scan_nodes.path`. Per `§ Rename detection` below, the rename heuristic MUST migrate rows here when a path is renamed (same protocol as `state_jobs` / `state_summaries` / `state_findings` / `state_enrichments` / `state_plugin_kvs`). A simple PK update suffices; no composite key, so collisions cannot occur (if the destination path already has a row, the migrating row is dropped to preserve the live one).
 
 The BFF's `/api/nodes` route loads the full set of favorited paths once per request (`SELECT node_path FROM state_node_favorites`) and decorates each emitted `Node` with a derived `isFavorite` boolean by Set membership: no SQL JOIN against `scan_nodes`, zero per-scan persistence transactions.
 
@@ -579,7 +613,7 @@ Backups include `state_*` + `config_*` only; `scan_*` is regenerated after resto
 
 ## Rename detection (automatic)
 
-`scan_nodes.path` is the canonical node identifier in v0. Moving a file rewrites the primary key, which would orphan every `state_*` row referencing the old path (`state_executions.node_ids_json`, `state_jobs.node_id`, `state_summaries.node_id`, `state_enrichments.node_id`, `state_plugin_kvs.node_id`, `state_node_favorites.node_path`).
+`scan_nodes.path` is the canonical node identifier in v0. Moving a file rewrites the primary key, which would orphan every `state_*` row referencing the old path (`state_executions.node_ids_json`, `state_jobs.node_id`, `state_summaries.node_id`, `state_findings.node_id`, `state_enrichments.node_id`, `state_plugin_kvs.node_id`, `state_node_favorites.node_path`).
 
 Implementations MUST apply a rename heuristic at scan time **before** committing the new scan transaction:
 

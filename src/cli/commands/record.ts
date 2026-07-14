@@ -2,10 +2,11 @@
  * `sm record`, the nonce-authenticated job callback. An external agent
  * that claimed a job (`sm job claim`) closes it here: `sm record`
  * verifies the nonce, validates the agent's JSON report against the
- * action's report schema, writes the terminal `state_executions` row, and
- * transitions the job to `completed` / `failed`, atomically. This is the
- * ONLY execution path: skill-map never invokes an agent or LLM itself
- * (`spec/architecture.md` §Execution handover).
+ * extension's report schema (probabilistic Action or finder Analyzer,
+ * the queue is kind-agnostic), writes the terminal `state_executions`
+ * row, and transitions the job to `completed` / `failed`, atomically.
+ * This is the ONLY execution path: skill-map never invokes an agent or
+ * LLM itself (`spec/architecture.md` §Execution handover).
  *
  * `sm record --id <id> --nonce <n> --status completed|failed [--report
  * <path|->] [--tokens-in N] [--tokens-out N] [--duration-ms N] [--model
@@ -72,7 +73,7 @@ import { loadActionRuntime } from './action-runtime.js';
 import {
   recordCompletedOutcome,
   recordFailedOutcome,
-  resolveActionRecord,
+  resolveExtensionRecord,
   type IRecordMetrics,
 } from './record-outcome.js';
 
@@ -246,16 +247,23 @@ export class RecordCommand extends SmCommand {
       reportText,
       // Lazy: the runtime loads only when the report parsed (preserving the
       // report-invalid-before-resolution ordering, see record-outcome.ts).
+      // Kind-strict: the job row carries the extension kind FROZEN at
+      // submit (spec/db-schema.md §state_jobs), so resolution routes on
+      // it instead of re-resolving the id across the registries.
       resolve: async () =>
-        resolveActionRecord(await loadActionRuntime(this.printer!), job.actionId),
+        resolveExtensionRecord(
+          await loadActionRuntime(this.printer!),
+          job.extensionId,
+          job.extensionKind,
+        ),
       metrics: this.toRecordMetrics(metrics),
       now,
     });
 
     if (outcome.kind === 'schema-unresolved') {
-      // Unresolvable action / schema -> exit 2, no mutation.
+      // Unresolvable extension / schema -> exit 2, no mutation.
       return this.fail(
-        tx(T.errReportSchemaUnresolved, { action: job.actionId, detail: outcome.detail }),
+        tx(T.errReportSchemaUnresolved, { extension: job.extensionId, detail: outcome.detail }),
         ExitCode.Error,
       );
     }
@@ -366,8 +374,12 @@ export class RecordCommand extends SmCommand {
       emitter.emit({ type, timestamp: Date.now(), runId, jobId, data });
     stamp('run.started', null, { mode: 'external' });
     stamp('job.claimed', job.id, {
-      actionId: job.actionId,
-      actionVersion: job.actionVersion,
+      extensionId: job.extensionId,
+      extensionVersion: job.extensionVersion,
+      // Not pinned by spec/job-events.md but consistent with
+      // job.schema.json: the replayed claim carries the frozen kind so
+      // envelope consumers can route without a second lookup.
+      extensionKind: job.extensionKind,
       nodeId: job.nodeId,
       ttlSeconds: job.ttlSeconds,
       priority: job.priority,

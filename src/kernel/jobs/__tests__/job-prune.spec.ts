@@ -75,8 +75,9 @@ async function seedJob(adapter: SqliteStorageAdapter, opts: ISeedJobOpts): Promi
     .insertInto('state_jobs')
     .values({
       id: opts.id,
-      actionId: 'a-test',
-      actionVersion: '1.0.0',
+      extensionId: 'a-test',
+      extensionVersion: '1.0.0',
+      extensionKind: 'action',
       nodeId: opts.nodeId ?? `node-${opts.id}`,
       contentHash: opts.contentHash ?? `hash-${opts.id}`,
       nonce: `nonce-${opts.id}`,

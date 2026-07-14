@@ -96,7 +96,7 @@ describe('insertExecution + listExecutions', () => {
     }
   });
 
-  it('filters by nodePath, actionId, statuses, sinceMs/untilMs, and limit', async () => {
+  it('filters by nodePath, extensionId, statuses, sinceMs/untilMs, and limit', async () => {
     const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('filters'), autoBackup: false });
     await adapter.init();
     try {
@@ -114,8 +114,8 @@ describe('insertExecution + listExecutions', () => {
         ['e1', 'e3', 'e4'],
       );
 
-      // actionId
-      const a1 = await listExecutions(adapter.db, { actionId: 'a1' });
+      // extensionId
+      const a1 = await listExecutions(adapter.db, { extensionId: 'a1' });
       deepStrictEqual(a1.map((r) => r.id).sort(), ['e1', 'e2']);
 
       // statuses
@@ -195,13 +195,13 @@ describe('aggregateHistoryStats', () => {
       strictEqual(stats.totals.durationMsTotal, 700);
 
       // Per-action sorted desc by tokens (a1 has more).
-      strictEqual(stats.tokensPerAction.length, 2);
-      strictEqual(stats.tokensPerAction[0]!.actionId, 'a1');
-      strictEqual(stats.tokensPerAction[0]!.executionsCount, 3);
-      strictEqual(stats.tokensPerAction[0]!.tokensIn, 30);
-      strictEqual(stats.tokensPerAction[0]!.tokensOut, 60);
-      strictEqual(stats.tokensPerAction[0]!.durationMsMean, 200);
-      strictEqual(stats.tokensPerAction[0]!.durationMsMedian, 200);
+      strictEqual(stats.tokensPerExtension.length, 2);
+      strictEqual(stats.tokensPerExtension[0]!.extensionId, 'a1');
+      strictEqual(stats.tokensPerExtension[0]!.executionsCount, 3);
+      strictEqual(stats.tokensPerExtension[0]!.tokensIn, 30);
+      strictEqual(stats.tokensPerExtension[0]!.tokensOut, 60);
+      strictEqual(stats.tokensPerExtension[0]!.durationMsMean, 200);
+      strictEqual(stats.tokensPerExtension[0]!.durationMsMedian, 200);
 
       // Per-period: 5 day buckets (one execution per day).
       strictEqual(stats.executionsPerPeriod.length, 5);
@@ -225,10 +225,10 @@ describe('aggregateHistoryStats', () => {
       strictEqual(stats.errorRates.perFailureReason['user-failed'], 0);
 
       // Per-action failure rates: a1 → 1/3, a2 → 1/2, sorted desc by rate.
-      strictEqual(stats.errorRates.perAction[0]!.actionId, 'a2');
-      strictEqual(stats.errorRates.perAction[0]!.rate, 1 / 2);
-      strictEqual(stats.errorRates.perAction[1]!.actionId, 'a1');
-      strictEqual(stats.errorRates.perAction[1]!.rate, 1 / 3);
+      strictEqual(stats.errorRates.perExtension[0]!.extensionId, 'a2');
+      strictEqual(stats.errorRates.perExtension[0]!.rate, 1 / 2);
+      strictEqual(stats.errorRates.perExtension[1]!.extensionId, 'a1');
+      strictEqual(stats.errorRates.perExtension[1]!.rate, 1 / 3);
     } finally {
       await adapter.close();
     }
@@ -290,8 +290,9 @@ describe('migrateNodeFks', () => {
       const now = Date.now();
       await adapter.db.insertInto('state_jobs').values({
         id: 'j1',
-        actionId: 'a1',
-        actionVersion: '1.0.0',
+        extensionId: 'a1',
+        extensionVersion: '1.0.0',
+        extensionKind: 'action',
         nodeId: 'skills/old.md',
         contentHash: 'h',
         nonce: 'n',

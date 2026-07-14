@@ -115,9 +115,32 @@ function jsonParseLiteral(value) {
   return `JSON.parse(${singleQuoted(JSON.stringify(value))})`;
 }
 
-/** True when an Action manifest source declares `mode: 'probabilistic'`. */
-function isProbabilisticActionSource(indexTsSource) {
+/** True when an extension manifest source declares `mode: 'probabilistic'`. */
+function isProbabilisticSource(indexTsSource) {
   return /\bmode\s*:\s*['"]probabilistic['"]/.test(indexTsSource);
+}
+
+/** `$id` prefix of the canonical findings envelope (mirror of `kernel/jobs/findings-schema.ts`). */
+const FINDINGS_SCHEMA_ID_PREFIX = 'https://skill-map.ai/spec/v0/findings/';
+
+/**
+ * Structural scan for a `$ref` under the canonical findings namespace,
+ * mirror of `reportSchemaExtendsFindings` in
+ * `src/kernel/jobs/findings-schema.ts` (this script is plain JS and
+ * runs before the TS build, so it cannot import the kernel helper).
+ */
+function schemaExtendsFindings(value) {
+  if (Array.isArray(value)) return value.some((item) => schemaExtendsFindings(item));
+  if (typeof value !== 'object' || value === null) return false;
+  const ref = value.$ref;
+  if (typeof ref === 'string' && ref.startsWith(FINDINGS_SCHEMA_ID_PREFIX)) {
+    const rest = ref.slice(FINDINGS_SCHEMA_ID_PREFIX.length);
+    const file = rest.includes('#') ? rest.slice(0, rest.indexOf('#')) : rest;
+    if (file.endsWith('.schema.json') && !file.slice(0, -'.schema.json'.length).includes('/')) {
+      return true;
+    }
+  }
+  return Object.values(value).some((item) => schemaExtendsFindings(item));
 }
 
 /**
@@ -166,6 +189,57 @@ function readActionAssets(entryDir, name, isProbabilistic) {
   return assets;
 }
 
+/**
+ * Read a built-in Analyzer's structure-as-truth sibling files, the
+ * finder mirror of `readActionAssets`. Only PROBABILISTIC analyzers
+ * carry the convention: `prompt.md` + `report.schema.json`, the latter
+ * extending the canonical findings envelope
+ * (`spec/schemas/findings/report.schema.json`) via `$ref`. Deterministic
+ * analyzers ship neither (a stray `prompt.md` is config-inconsistent and
+ * fails loudly, mirroring the loader's `invalid-manifest`). Returns
+ * `null` for the deterministic case (nothing to inline).
+ */
+function readAnalyzerAssets(entryDir, name, isProbabilistic) {
+  const promptPath = join(entryDir, 'prompt.md');
+  const reportPath = join(entryDir, 'report.schema.json');
+  if (!isProbabilistic) {
+    if (existsSync(promptPath)) {
+      throw new Error(
+        `Deterministic built-in analyzer '${name}' carries a prompt.md at ${promptPath}. ` +
+          'A deterministic Analyzer with a prompt template is config-inconsistent (spec: invalid-manifest).',
+      );
+    }
+    return null;
+  }
+  if (!existsSync(promptPath)) {
+    throw new Error(
+      `Probabilistic built-in analyzer '${name}' is missing prompt.md at ${promptPath}. ` +
+        'Every probabilistic Analyzer carries a prompt template by convention.',
+    );
+  }
+  if (!existsSync(reportPath)) {
+    throw new Error(
+      `Probabilistic built-in analyzer '${name}' is missing report.schema.json at ${reportPath}. ` +
+        'Every probabilistic Analyzer carries a findings report schema by convention.',
+    );
+  }
+  let reportSchema;
+  try {
+    reportSchema = JSON.parse(readFileSync(reportPath, 'utf8'));
+  } catch (err) {
+    throw new Error(
+      `Built-in analyzer '${name}' has invalid report.schema.json at ${reportPath}: ${err.message}`,
+    );
+  }
+  if (!schemaExtendsFindings(reportSchema)) {
+    throw new Error(
+      `Built-in analyzer '${name}' has a report.schema.json at ${reportPath} that does not ` +
+        `$ref the canonical findings envelope (${FINDINGS_SCHEMA_ID_PREFIX}report.schema.json).`,
+    );
+  }
+  return { promptTemplate: readFileSync(promptPath, 'utf8'), reportSchema };
+}
+
 function discoverPlugin(pluginId) {
   const pluginDir = join(PLUGINS_ROOT, pluginId);
   const manifestPath = join(pluginDir, 'plugin.json');
@@ -202,10 +276,22 @@ function discoverPlugin(pluginId) {
       // manifest (the built-in equivalent of the on-disk files a user
       // plugin resolves at load).
       if (kind === 'action') {
-        const isProbabilistic = isProbabilisticActionSource(readFileSync(indexTs, 'utf8'));
+        const isProbabilistic = isProbabilisticSource(readFileSync(indexTs, 'utf8'));
         const { promptTemplate, reportSchema } = readActionAssets(entryDir, entry, isProbabilistic);
         if (promptTemplate !== undefined) extension.promptTemplate = promptTemplate;
         extension.reportSchema = reportSchema;
+      }
+      // Finder mirror: a built-in PROBABILISTIC analyzer inlines its
+      // prompt.md + report.schema.json (validated to extend the
+      // canonical findings envelope). Deterministic analyzers inline
+      // nothing.
+      if (kind === 'analyzer') {
+        const isProbabilistic = isProbabilisticSource(readFileSync(indexTs, 'utf8'));
+        const assets = readAnalyzerAssets(entryDir, entry, isProbabilistic);
+        if (assets !== null) {
+          extension.promptTemplate = assets.promptTemplate;
+          extension.reportSchema = assets.reportSchema;
+        }
       }
       extensions.push(extension);
     }

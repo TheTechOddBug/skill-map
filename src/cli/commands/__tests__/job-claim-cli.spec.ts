@@ -51,7 +51,7 @@ function captureContext(): ICaptured {
 
 interface ISeedJob {
   id: string;
-  actionId?: string;
+  extensionId?: string;
   nodeId: string;
   contentHash: string;
   priority?: number;
@@ -71,8 +71,9 @@ async function setupProject(jobs: ISeedJob[]): Promise<{ root: string; dbPath: s
     for (const j of jobs) {
       const row: IJobSubmitRow = {
         id: j.id,
-        actionId: j.actionId ?? 'core/skill-summarizer',
-        actionVersion: '1.0.0',
+        extensionId: j.extensionId ?? 'core/skill-summarizer',
+        extensionVersion: '1.0.0',
+        extensionKind: 'action',
         nodeId: j.nodeId,
         contentHash: j.contentHash,
         nonce: `nonce-${j.id}`,
@@ -211,8 +212,8 @@ describe('sm job claim', () => {
 
   it('scopes the claim to --filter <action>', async () => {
     const proj = await setupProject([
-      { ...A, actionId: 'core/skill-summarizer' },
-      { ...B, actionId: 'core/other-action' },
+      { ...A, extensionId: 'core/skill-summarizer' },
+      { ...B, extensionId: 'core/other-action' },
     ]);
     const claimed = await withCwd(proj.root, async () => {
       const cap = captureContext();
@@ -265,8 +266,8 @@ describe('sm job claim', () => {
 
   it('accepts a bare action id in --filter (matches the qualified id by suffix)', async () => {
     const proj = await setupProject([
-      { ...A, actionId: 'core/skill-summarizer' },
-      { ...B, actionId: 'core/other-action' },
+      { ...A, extensionId: 'core/skill-summarizer' },
+      { ...B, extensionId: 'core/other-action' },
     ]);
     const claimed = await withCwd(proj.root, async () => {
       const cap = captureContext();

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.ai/spec/v0/execution-record.schema.json",
   "title": "ExecutionRecord",
-  "description": "A single row in the execution history (`state_executions`). One record per action invocation, whether an external agent drained the job (agent) or the action ran in-process.",
+  "description": "A single row in the execution history (`state_executions`). One record per extension execution (Action or finder Analyzer), whether an external agent drained the job (agent) or the extension ran in-process.",
   "type": "object",
   "required": ["id", "kind", "extensionId", "extensionVersion", "status", "startedAt", "finishedAt"],
   "additionalProperties": false,
@@ -13,12 +13,12 @@
     },
     "kind": {
       "type": "string",
-      "enum": ["action"],
-      "description": "Which extension kind was executed. The enum has a single value today (the audit kind was removed pre-1.0); the field is preserved as a forward-compatibility lever."
+      "enum": ["action", "analyzer"],
+      "description": "Which extension kind was executed: `action`, or `analyzer` for a probabilistic finder drained through the queue (the audit kind was removed pre-1.0)."
     },
     "extensionId": {
       "type": "string",
-      "description": "Id of the action that ran (e.g. `skill-summarizer`)."
+      "description": "Id of the extension that ran (e.g. `markdown-summarizer`)."
     },
     "extensionVersion": {
       "type": "string",
@@ -32,7 +32,7 @@
     "contentHash": {
       "type": ["string", "null"],
       "pattern": "^[a-f0-9]{64}$",
-      "description": "Duplicate-prevention hash used at submit time: sha256 over the NUL-joined (0x00) tuple (actionId, actionVersion, node.path, bodyHash, frontmatterHash, promptTemplateHash). May be null for in-process actions that don't memoize."
+      "description": "Duplicate-prevention hash used at submit time: sha256 over the NUL-joined (0x00) tuple (extensionId, extensionVersion, node.path, bodyHash, frontmatterHash, promptTemplateHash). May be null for in-process actions that don't memoize."
     },
     "status": {
       "type": "string",

@@ -42,6 +42,9 @@ import type {
   IApplyOptions,
   IApplyResult,
   IBranchProjection,
+  IFindingRecord,
+  IFindingsListFilter,
+  IFindingsWriteIntent,
   IHistoryStatsRange,
   IIssueIncidenceCount,
   IIssueListFilter,
@@ -396,19 +399,20 @@ export interface StoragePort {
      * `state_job_contents` then insert the `state_jobs` lifecycle row
      * (`status = 'queued'`), both in ONE transaction (content row first).
      * Returns the inserted job id. The `state_jobs` insert may throw a
-     * UNIQUE-constraint error from `ix_state_jobs_action_node_hash` when a
-     * matching queued/running job already exists (the hard duplicate
+     * UNIQUE-constraint error from `ix_state_jobs_extension_node_hash` when
+     * a matching queued/running job already exists (the hard duplicate
      * backstop); the CLI maps that to exit 3.
      */
     submit(row: IJobSubmitRow, content: IJobContentInput): Promise<string>;
     /**
      * Duplicate pre-check: id of any `queued`/`running` job matching
-     * `(actionId, actionVersion, nodeId, contentHash)`, else `null`. The
-     * soft gate `sm job submit` runs before insert (skipped by `--force`).
+     * `(extensionId, extensionVersion, nodeId, contentHash)`, else `null`.
+     * The soft gate `sm job submit` runs before insert (skipped by
+     * `--force`).
      */
     findActiveDuplicate(
-      actionId: string,
-      actionVersion: string,
+      extensionId: string,
+      extensionVersion: string,
       nodeId: string,
       contentHash: string,
     ): Promise<string | null>;
@@ -428,7 +432,7 @@ export interface StoragePort {
      * queued job to `running`, stamping `claimedAt` / `runner` /
      * `expiresAt = claimedAt + ttlSeconds × 1000`. Returns the claimed
      * `{ id, nonce, contentHash }`, or `null` when the queue is empty (or
-     * nothing matches `filter`, an `actionId` restriction). The statement's
+     * nothing matches `filter`, an `extensionId` restriction). The statement's
      * second `AND status='queued'` is the mandatory race guard, two racers
      * selecting the same id yield exactly one winning UPDATE. `sm job claim`
      * exposes this to external agents (`runner='agent'`).
@@ -526,8 +530,51 @@ export interface StoragePort {
      * skipped when the node no longer exists (deleted / renamed since
      * submit); the execution row + job transition still land
      * (`spec/job-lifecycle.md` §Record).
+     *
+     * When `findings` is supplied (the recorded job's extension is
+     * probabilistic and its `completed` report produced finder / safety
+     * rows, possibly zero), the pair's `state_findings` rows are REPLACED
+     * inside the same transaction (both origins deleted, fresh rows
+     * inserted stamped with the node's live `body_hash`); an empty intent
+     * is a clean verdict that erases the prior judgment. Same skip rule
+     * as summaries when the node has disappeared
+     * (`spec/db-schema.md` §state_findings).
      */
-    recordTerminal(execution: ExecutionRecord, summary?: ISummaryWriteIntent): Promise<void>;
+    recordTerminal(
+      execution: ExecutionRecord,
+      summary?: ISummaryWriteIntent,
+      findings?: IFindingsWriteIntent,
+    ): Promise<void>;
+  };
+
+  // --- findings namespace -------------------------------------------------
+  /**
+   * Read access to `state_findings`, the probabilistic findings a finder
+   * Analyzer (plus the kernel safety lane) lands via `sm record`. Writes
+   * happen inside the `jobs.recordTerminal(execution, summary, findings)`
+   * transaction (folded into the record callback, never a standalone
+   * write); this namespace is read-only.
+   */
+  findings: {
+    /**
+     * Filtered read with the derived `stale` flag
+     * (`body_hash_at_generation` vs the node's live `scan_nodes.body_hash`;
+     * rows for nodes gone from the scan count as stale). Stale rows are
+     * excluded unless `filter.includeStale` is set. Backs `sm findings`
+     * and `sm show`'s Findings section.
+     */
+    list(filter?: IFindingsListFilter): Promise<IFindingRecord[]>;
+    /**
+     * Count the STALE rows (body-hash drift, or the node gone from
+     * `scan_nodes`); the `sm findings prune` dry-run / confirmation
+     * count.
+     */
+    countStale(): Promise<number>;
+    /**
+     * Delete every STALE row (`sm findings prune`); fresh rows are never
+     * touched. Returns the deleted row count.
+     */
+    pruneStale(): Promise<number>;
   };
 
   // --- summaries namespace ----------------------------------------------
@@ -703,6 +750,9 @@ export type {
   IApplyOptions,
   IApplyResult,
   IBranchProjection,
+  IFindingRecord,
+  IFindingsListFilter,
+  IFindingsWriteIntent,
   IHistoryStatsRange,
   IIssueIncidenceCount,
   IIssueRow,

@@ -209,7 +209,7 @@ The kernel knows six categories. Each has a JSON Schema under [`schemas/extensio
 |---|---|---|---|---|
 | `provider` | `walk` / `classify` | filesystem roots, candidate path | `{ kind, provider } \| null` | deterministic only |
 | `extractor` | `extract(ctx)` | one node + body + frontmatter + callbacks | `void` (via `ctx.emitLink` / `ctx.enrichNode` / `ctx.emitContribution` / `ctx.store`) | deterministic only |
-| `analyzer` | `evaluate(ctx)` | full graph | `Issue[]` | dual-mode |
+| `analyzer` | `evaluate(ctx)` (deterministic only; a probabilistic finder has no method, it ships `prompt.md` + `report.schema.json`) | full graph (deterministic) / rendered job content (probabilistic) | `Issue[]` (deterministic) / findings report → `state_findings` (probabilistic) | dual-mode |
 | `action` | `invoke(input, ctx)` + optional `project(ctx)` | `invoke`: one node + input; `project`: full graph + `emitContribution` | `invoke`: report / rendered prompt; `project`: `void` (its own view contributions) | `invoke`: dual-mode; `project`: deterministic |
 | `formatter` | `format(ctx)` | full graph | `string` | deterministic only |
 | `hook` | `on(ctx)` | a curated lifecycle event payload | `void` (side effects) | **deterministic only** |
@@ -257,6 +257,8 @@ export default {
 
 Cross-node reasoning over the merged graph; runs after every Provider and extractor. Dual-mode (`mode: 'deterministic'` default, `'probabilistic'` opt-in). Deterministic analyzers run synchronously inside `sm scan` / `sm check`; probabilistic ones dispatch as jobs and NEVER participate in the deterministic scan pipeline. Optional `precondition` and `ui`. Spec at [`schemas/extensions/analyzer.schema.json`](./schemas/extensions/analyzer.schema.json).
 
+A **probabilistic analyzer** (a finder: it JUDGES nodes, emitting findings like `contradiction`, `redundancy`, `low-quality`) shares the Action queue verbatim and has NO `evaluate()`; the draining agent does the reasoning. It ships files-by-convention, exactly like a probabilistic Action: `<analyzer-dir>/prompt.md` (the judging prompt) plus `<analyzer-dir>/report.schema.json` extending the canonical findings envelope ([`schemas/findings/report.schema.json`](./schemas/findings/report.schema.json)) via `$ref`, and declares `probExpectedDurationSeconds` for the TTL. Queue it with `sm job submit <plugin>/<id> -n <node>` (or `--all`); `sm record` validates the report and writes the `findings[]` rows to `state_findings`, read back via `sm findings`. Findings are advisory by construction: they never alter exit codes. A fixer Action names the finder in `precondition.analyzerIds` (Modelo B) to surface as its recommended fix.
+
 The analyzer↔action relationship is declared from the **Action** side via `precondition.analyzerIds` (Modelo B); no `recommendedActions` field on the Analyzer.
 
 ```javascript
@@ -280,7 +282,7 @@ export default {
 };
 ```
 
-> Until the job subsystem ships (Step 10), probabilistic analyzers are skipped silently by `sm scan`; `sm check --include-prob` loads them, lists them on stderr, and the `--async` companion is a reserved no-op.
+> `sm check` stays deterministic-only, full stop: probabilistic analyzers never contribute to it (the transitional `--include-prob` / `--async` stubs were retired when the findings pipeline landed). Their surface is the queue (`sm job submit`) on the way in and `sm findings` on the way out.
 
 ### Score-phase analyzers
 
@@ -756,7 +758,7 @@ test('emits one reference per [[ref:<name>]] token', async () => {
 });
 ```
 
-Analyzers take a `ctx` with `nodes`, `links`, and (if you assert on view contributions) an `emitContribution` spy, returning the issue array. Formatters take `{ nodes, links, issues }` and return a string. For probabilistic Actions, test the queue round-trip: submit against a fixture node, then `sm record` a handcrafted report and assert it validates against your `report.schema.json`. The public TypeScript types (`IExtractor`, `IAnalyzer`, `IFormatter`, the matching `*Context` types, `Node`, `Link`, `Issue`, ...) re-export from `@skill-map/cli`.
+Analyzers take a `ctx` with `nodes`, `links`, and (if you assert on view contributions) an `emitContribution` spy, returning the issue array. Formatters take `{ nodes, links, issues }` and return a string. For probabilistic extensions (Actions AND finder Analyzers), test the queue round-trip: submit against a fixture node, then `sm record` a handcrafted report and assert it validates against your `report.schema.json`; for a finder, additionally assert the rows land in `state_findings` (`sm findings --json`). The public TypeScript types (`IExtractor`, `IAnalyzer`, `IFormatter`, the matching `*Context` types, `Node`, `Link`, `Issue`, ...) re-export from `@skill-map/cli`.
 
 ---
 

@@ -69,7 +69,7 @@ interface IHistoryOverrides {
   db?: string | undefined;
   global?: boolean;
   node?: string | undefined;
-  action?: string | undefined;
+  extension?: string | undefined;
   status?: string | undefined;
   since?: string | undefined;
   until?: string | undefined;
@@ -82,7 +82,7 @@ function buildHistory(overrides: IHistoryOverrides = {}): HistoryCommand {
   const cmd = new HistoryCommand();
   cmd.db = overrides.db;
   cmd.node = overrides.node;
-  cmd.action = overrides.action;
+  cmd.extension = overrides.extension;
   cmd.status = overrides.status;
   cmd.since = overrides.since;
   cmd.until = overrides.until;
@@ -282,7 +282,7 @@ describe('sm history', () => {
 // --- Step 5.10 polish: human table column widths --------------------------
 
 describe('sm history (human renderer, Step 5.10)', () => {
-  it('table columns do not collapse: ISO STARTED is separated from ACTION by ≥2 spaces', async () => {
+  it('table columns do not collapse: ISO STARTED is separated from EXTENSION by ≥2 spaces', async () => {
     const dbPath = freshDbPath('history-cols');
     await primeFiveExecs(dbPath);
 
@@ -298,7 +298,7 @@ describe('sm history (human renderer, Step 5.10)', () => {
     // (so `2026-04-30 10:00:00Z`); the column-separator regex stays
     // grounded on the trailing `Z` plus the inter-column spacing.
     const isoSep = /2026-\d{2}-\d{2} \d{2}:\d{2}:\d{2}Z {2,}\S/;
-    ok(isoSep.test(out), `STARTED column must be separated from ACTION; got:\n${out}`);
+    ok(isoSep.test(out), `STARTED column must be separated from EXTENSION; got:\n${out}`);
   });
 
   it('Step 5.11: failed/cancelled rows show failure_reason in human STATUS column', async () => {
@@ -383,11 +383,11 @@ describe('sm history stats', () => {
 
   // Audit H2, `extension_id` flows from extension code (action manifest
   // → `state_executions.extension_id` row → human renderer
-  // `tokensPerAction`). A hostile or buggy action could plant a C0
+  // `tokensPerExtension`). A hostile or buggy action could plant a C0
   // escape in its id; the human renderer must sanitize before printing
   // so the user's terminal does not get repainted by a row in the
   // table. JSON path is unaffected (escapes get JSON-encoded).
-  it('audit H2, human renderer strips C0 escapes from extension_id (tokensPerAction column)', async () => {
+  it('audit H2, human renderer strips C0 escapes from extension_id (tokensPerExtension column)', async () => {
     const dbPath = freshDbPath('stats-sanitize');
     const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
     await adapter.init();

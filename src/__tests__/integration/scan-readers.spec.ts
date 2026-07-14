@@ -216,8 +216,6 @@ interface ICheckOverrides {
   json?: boolean;
   node?: string | undefined;
   analyzers?: string | undefined;
-  includeProb?: boolean;
-  async?: boolean;
   noPlugins?: boolean;
 }
 
@@ -227,8 +225,6 @@ function buildCheck(overrides: ICheckOverrides = {}): CheckCommand {
   cmd.json = overrides.json ?? false;
   cmd.node = overrides.node;
   cmd.analyzers = overrides.analyzers;
-  cmd.includeProb = overrides.includeProb ?? false;
-  cmd.async = overrides.async ?? false;
   cmd.noPlugins = overrides.noPlugins ?? false;
   return cmd;
 }
@@ -587,7 +583,8 @@ describe('sm show', () => {
     ok(Array.isArray(parsed['linksOut']), 'linksOut is array');
     ok(Array.isArray(parsed['linksIn']), 'linksIn is array');
     ok(Array.isArray(parsed['issues']), 'issues is array');
-    ok(!('findings' in parsed), 'findings field absent until Step 10');
+    ok(Array.isArray(parsed['findings']), 'findings is array (Step 10 landed)');
+    strictEqual((parsed['findings'] as unknown[]).length, 0, 'no stored findings for a fresh scan');
     ok(!('summary' in parsed), 'summary field absent until Step 11');
   });
 });

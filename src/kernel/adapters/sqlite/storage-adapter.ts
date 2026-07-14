@@ -131,6 +131,7 @@ import {
   upsertStateEnrichment,
 } from './enrichments.js';
 import { listSummariesForNode } from './summaries.js';
+import { countStaleFindings, deleteStaleFindings, listFindings } from './findings.js';
 import {
   listAllContributionErrors,
   loadContributionsForNode,
@@ -240,6 +241,7 @@ export class SqliteStorageAdapter implements StoragePort {
   history!: StoragePort['history'];
   jobs!: StoragePort['jobs'];
   summaries!: StoragePort['summaries'];
+  findings!: StoragePort['findings'];
   favorites!: StoragePort['favorites'];
   preferences!: StoragePort['preferences'];
   trust!: StoragePort['trust'];
@@ -378,8 +380,8 @@ export class SqliteStorageAdapter implements StoragePort {
 
     this.jobs = {
       submit: (row, content) => submitJob(this.db, row, content),
-      findActiveDuplicate: (actionId, actionVersion, nodeId, contentHash) =>
-        findActiveDuplicate(this.db, actionId, actionVersion, nodeId, contentHash),
+      findActiveDuplicate: (extensionId, extensionVersion, nodeId, contentHash) =>
+        findActiveDuplicate(this.db, extensionId, extensionVersion, nodeId, contentHash),
       list: (filter) => listJobs(this.db, filter),
       get: (id) => getJob(this.db, id),
       getContent: (contentHash) => getJobContent(this.db, contentHash),
@@ -395,11 +397,18 @@ export class SqliteStorageAdapter implements StoragePort {
         pruneTerminalJobs(this.db, status, cutoffMs),
       listTerminalCandidates: (status, cutoffMs) =>
         listTerminalCandidates(this.db, status, cutoffMs),
-      recordTerminal: (execution, summary) => recordJobTerminal(this.db, execution, summary),
+      recordTerminal: (execution, summary, findings) =>
+        recordJobTerminal(this.db, execution, summary, findings),
     };
 
     this.summaries = {
       forNode: (nodeId) => listSummariesForNode(this.db, nodeId),
+    };
+
+    this.findings = {
+      list: (filter) => listFindings(this.db, filter),
+      countStale: () => countStaleFindings(this.db),
+      pruneStale: () => deleteStaleFindings(this.db),
     };
 
     this.favorites = {

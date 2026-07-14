@@ -6,6 +6,9 @@
  *   - orphaned `state_job_contents` row (GC straggler) -> warn, exit 1.
  *   - `state_jobs` row missing its content row (corruption) -> error, exit 2.
  *   - provider marker on disk with zero matched nodes -> warn row.
+ *   - jobs-overdue: running job past its extension's advisory estimate
+ *     warns naming `sm job fail` / `sm job cancel`; a fresh claim stays
+ *     ok; an unresolvable extension is skipped; never mutates state.
  */
 
 import { strictEqual, ok } from 'node:assert';
@@ -104,7 +107,7 @@ describe('sm doctor', () => {
       };
       strictEqual(doc.ok, true);
       strictEqual(doc.kind, 'doctor');
-      strictEqual(doc.checks.length, 7);
+      strictEqual(doc.checks.length, 8);
       ok(doc.checks.every((c2) => c2.status === 'ok'), 'all checks ok');
       return c;
     });
@@ -161,8 +164,9 @@ describe('sm doctor', () => {
       await adapter.jobs.submit(
         {
           id: 'd-20990101-000000-aaaa',
-          actionId: 'core/markdown-summarizer',
-          actionVersion: '0.0.0',
+          extensionId: 'core/markdown-summarizer',
+          extensionVersion: '0.0.0',
+          extensionKind: 'action',
           nodeId: 'notes.md',
           contentHash: sha256('content'),
           nonce: 'f'.repeat(32),
@@ -252,5 +256,116 @@ describe('sm doctor', () => {
       return c;
     });
     strictEqual(code, 1);
+  });
+});
+
+
+describe('sm doctor, jobs-overdue', () => {
+  /**
+   * Seed one job for `extension` and force it into `running` with the
+   * given claim timestamp (direct row update; the check reads rows, so
+   * the claim mechanics are irrelevant here).
+   */
+  async function seedRunning(
+    proj: IProject,
+    opts: { extensionId: string; extensionKind: 'action' | 'analyzer'; claimedAt: number },
+  ): Promise<string> {
+    const id = 'd-20260101-000000-0001';
+    const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      await adapter.jobs.submit(
+        {
+          id,
+          extensionId: opts.extensionId,
+          extensionVersion: '0.0.0',
+          extensionKind: opts.extensionKind,
+          nodeId: 'notes.md',
+          contentHash: sha256('overdue'),
+          nonce: 'f'.repeat(32),
+          priority: 0,
+          status: 'queued',
+          ttlSeconds: null,
+          createdAt: opts.claimedAt,
+        },
+        { contentHash: sha256('overdue'), content: 'overdue', createdAt: opts.claimedAt },
+      );
+      await adapter.db
+        .updateTable('state_jobs')
+        .set({ status: 'running', runner: 'agent', claimedAt: opts.claimedAt })
+        .where('id', '=', id)
+        .execute();
+    } finally {
+      await adapter.close();
+    }
+    return id;
+  }
+
+  async function doctorChecks(
+    proj: IProject,
+  ): Promise<{ code: number; checks: Array<{ id: string; status: string; message: string }> }> {
+    return withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const cmd = buildDoctor();
+      cmd.json = true;
+      const code = await run(cmd, cap);
+      const doc = JSON.parse(cap.stdout()) as {
+        checks: Array<{ id: string; status: string; message: string }>;
+      };
+      return { code, checks: doc.checks };
+    });
+  }
+
+  it('warns per running job past the advisory estimate, naming the resolving verbs', async () => {
+    const proj = await setupProject();
+    // core/markdown-summarizer advises 120s; claimed 10 minutes ago.
+    const id = await seedRunning(proj, {
+      extensionId: 'core/markdown-summarizer',
+      extensionKind: 'action',
+      claimedAt: Date.now() - 10 * 60 * 1000,
+    });
+
+    const { code, checks } = await doctorChecks(proj);
+    strictEqual(code, 1, 'advisory warn, exit 1');
+    const row = checks.find((c) => c.id === 'jobs-overdue');
+    ok(row);
+    strictEqual(row.status, 'warn');
+    ok(row.message.includes(id), 'message names the job id');
+    ok(row.message.includes(`sm job fail ${id}`), 'names sm job fail');
+    ok(row.message.includes(`sm job cancel ${id}`), 'names sm job cancel');
+
+    // Advisory only: the job is untouched.
+    const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      strictEqual((await adapter.jobs.get(id))!.status, 'running', 'never mutates state');
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('a fresh claim inside the estimate stays ok', async () => {
+    const proj = await setupProject();
+    await seedRunning(proj, {
+      extensionId: 'core/markdown-summarizer',
+      extensionKind: 'action',
+      claimedAt: Date.now(),
+    });
+
+    const { checks } = await doctorChecks(proj);
+    strictEqual(checks.find((c) => c.id === 'jobs-overdue')?.status, 'ok');
+  });
+
+  it('a job whose extension is no longer loadable is skipped (ok row)', async () => {
+    const proj = await setupProject();
+    await seedRunning(proj, {
+      extensionId: 'gone-plugin/gone-finder',
+      extensionKind: 'analyzer',
+      claimedAt: Date.now() - 10 * 60 * 1000,
+    });
+
+    const { code, checks } = await doctorChecks(proj);
+    strictEqual(checks.find((c) => c.id === 'jobs-overdue')?.status, 'ok');
+    strictEqual(code, 0);
   });
 });

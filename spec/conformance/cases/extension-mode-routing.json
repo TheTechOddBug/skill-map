@@ -22,7 +22,7 @@
   "assertions": [
     { "type": "exit-code", "value": 0 },
     { "type": "json-path", "path": "$.length", "equals": 1 },
-    { "type": "json-path", "path": "$[0].actionId", "equals": "core/markdown-summarizer" },
+    { "type": "json-path", "path": "$[0].extensionId", "equals": "core/markdown-summarizer" },
     { "type": "json-path", "path": "$[0].status", "equals": "queued" },
     { "type": "json-path", "path": "$[0].nodeId", "equals": "notes.md" }
   ]

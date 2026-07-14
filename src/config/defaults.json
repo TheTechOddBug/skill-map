@@ -27,11 +27,8 @@
   },
   "plugins": {},
   "jobs": {
-    "ttlSeconds": 3600,
-    "graceMultiplier": 3,
-    "minimumTtlSeconds": 60,
-    "perActionTtl": {},
-    "perActionPriority": {},
+    "perExtensionTtl": {},
+    "perExtensionPriority": {},
     "retention": {
       "completed": 2592000,
       "failed": null,

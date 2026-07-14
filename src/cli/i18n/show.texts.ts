@@ -54,6 +54,18 @@ export const SHOW_TEXTS = {
   /** Issue row, mirrors the `sm check` format. */
   issueRow: '    {{glyph}}  {{analyzerId}}   {{message}}\n',
 
+  // --- findings section --------------------------------------------------
+  findingsSection: '\n  Findings ({{count}})\n',
+  /**
+   * One stored per-node finding: severity glyph (mirrors the issues
+   * section), dim extension id, the type slug, the finder's message, and
+   * an optional yellow `(stale)` marker when the node body changed since
+   * the judgment was recorded.
+   */
+  findingRow: '    {{glyph}}  {{extensionId}}  {{type}}  {{message}}{{staleSuffix}}\n',
+  /** Marker appended (yellow) when the finding is stale. */
+  findingStale: '  (stale)',
+
   // --- summary section -------------------------------------------------
   summarySection: '\n  Summary ({{count}})\n',
   /**

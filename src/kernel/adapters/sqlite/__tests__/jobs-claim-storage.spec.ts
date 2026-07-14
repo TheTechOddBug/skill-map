@@ -49,16 +49,17 @@ async function openAdapter(dbPath: string): Promise<SqliteStorageAdapter> {
 
 /**
  * Submit one queued job. Callers vary `id` / `nodeId` / `contentHash` /
- * `actionId` / `priority` / `createdAt` so the unique partial index over
- * active `(action_id, node_id, content_hash)` never trips.
+ * `extensionId` / `priority` / `createdAt` so the unique partial index over
+ * active `(extension_id, node_id, content_hash)` never trips.
  */
 async function submitQueued(
   adapter: SqliteStorageAdapter,
   overrides: Partial<IJobSubmitRow> & { id: string },
 ): Promise<void> {
   const row: IJobSubmitRow = {
-    actionId: 'core/skill-summarizer',
-    actionVersion: '1.0.0',
+    extensionId: 'core/skill-summarizer',
+    extensionVersion: '1.0.0',
+    extensionKind: 'action',
     nodeId: 'a.md',
     contentHash: 'h'.repeat(64),
     nonce: 'n'.repeat(32),
@@ -149,10 +150,10 @@ describe('claimNext', () => {
     const adapter = await openAdapter(freshDbPath('claim-filter'));
     try {
       await submitQueued(adapter, {
-        id: 'd-20260101-000000-0001', actionId: 'core/skill-summarizer', nodeId: 'a.md', contentHash: '1'.repeat(64),
+        id: 'd-20260101-000000-0001', extensionId: 'core/skill-summarizer', nodeId: 'a.md', contentHash: '1'.repeat(64),
       });
       await submitQueued(adapter, {
-        id: 'd-20260101-000000-0002', actionId: 'core/other-action', nodeId: 'b.md', contentHash: '2'.repeat(64),
+        id: 'd-20260101-000000-0002', extensionId: 'core/other-action', nodeId: 'b.md', contentHash: '2'.repeat(64),
       });
 
       const scoped = await adapter.jobs.claim('agent', Date.now(), 'core/skill-summarizer');
@@ -171,13 +172,13 @@ describe('claimNext', () => {
     const adapter = await openAdapter(freshDbPath('claim-filter-bare'));
     try {
       await submitQueued(adapter, {
-        id: 'd-20260101-000000-0001', actionId: 'core/other-action', nodeId: 'a.md', contentHash: '1'.repeat(64),
+        id: 'd-20260101-000000-0001', extensionId: 'core/other-action', nodeId: 'a.md', contentHash: '1'.repeat(64),
       });
       await submitQueued(adapter, {
-        id: 'd-20260101-000000-0002', actionId: 'prob-summarizer/skill-echo', nodeId: 'b.md', contentHash: '2'.repeat(64),
+        id: 'd-20260101-000000-0002', extensionId: 'prob-summarizer/skill-echo', nodeId: 'b.md', contentHash: '2'.repeat(64),
       });
 
-      // Bare id claims the qualified-id job (`action_id LIKE '%/' || filter`).
+      // Bare id claims the qualified-id job (`extension_id LIKE '%/' || filter`).
       const bare = await adapter.jobs.claim('agent', Date.now(), 'skill-echo');
       ok(bare);
       strictEqual(bare.id, 'd-20260101-000000-0002');
@@ -412,6 +413,53 @@ describe('reapExpired', () => {
       const queued = await adapter.jobs.get('d-20260101-000000-0003');
       ok(queued);
       strictEqual(queued.status, 'queued', 'queued row is untouched');
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('a TTL-less running job is NEVER reaped, even with claimedAt far in the past', async () => {
+    const adapter = await openAdapter(freshDbPath('reap-ttl-less'));
+    try {
+      await submitQueued(adapter, {
+        id: 'd-20260101-000000-0001',
+        nodeId: 'a.md',
+        contentHash: '1'.repeat(64),
+        ttlSeconds: null,
+      });
+      // Claimed a long time ago: with no TTL, expiresAt stays NULL and
+      // the reaper skips the row (spec §Reap procedure: only TTL-armed
+      // rows are reapable).
+      await adapter.jobs.claim('agent', 1000);
+      const claimed = await adapter.jobs.get('d-20260101-000000-0001');
+      ok(claimed);
+      strictEqual(claimed.ttlSeconds, null);
+      strictEqual(claimed.expiresAt, null, 'expiresAt stays NULL at claim time');
+
+      const reaped = await adapter.jobs.reapExpired(Date.now());
+      strictEqual(reaped.length, 0, 'nothing reaped');
+      strictEqual((await adapter.jobs.get('d-20260101-000000-0001'))!.status, 'running');
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('a TTL-armed job still reaps exactly as before', async () => {
+    const adapter = await openAdapter(freshDbPath('reap-armed'));
+    try {
+      await submitQueued(adapter, {
+        id: 'd-20260101-000000-0001',
+        nodeId: 'a.md',
+        contentHash: '1'.repeat(64),
+        ttlSeconds: 10,
+      });
+      await adapter.jobs.claim('agent', 1000);
+      const claimed = await adapter.jobs.get('d-20260101-000000-0001');
+      strictEqual(claimed!.expiresAt, 1000 + 10 * 1000, 'armed: expiresAt = claimedAt + ttl');
+
+      const reaped = await adapter.jobs.reapExpired(Date.now());
+      strictEqual(reaped.length, 1);
+      strictEqual((await adapter.jobs.get('d-20260101-000000-0001'))!.failureReason, 'abandoned');
     } finally {
       await adapter.close();
     }

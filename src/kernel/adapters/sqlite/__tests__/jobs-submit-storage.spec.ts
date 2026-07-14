@@ -42,8 +42,9 @@ async function openAdapter(dbPath: string): Promise<SqliteStorageAdapter> {
 
 function row(overrides: Partial<IJobSubmitRow> & { id: string }): IJobSubmitRow {
   return {
-    actionId: 'core/skill-summarizer',
-    actionVersion: '1.0.0',
+    extensionId: 'core/skill-summarizer',
+    extensionVersion: '1.0.0',
+    extensionKind: 'action',
     nodeId: 'a.md',
     contentHash: 'h'.repeat(64),
     nonce: 'n'.repeat(32),
@@ -191,7 +192,7 @@ describe('listJobs + getJob', () => {
         { contentHash: '1'.repeat(64), content: 'A', createdAt: base },
       );
       await adapter.jobs.submit(
-        row({ id: 'd-20260101-000000-0002', nodeId: 'b.md', contentHash: '2'.repeat(64), actionId: 'core/other', createdAt: base + 10 }),
+        row({ id: 'd-20260101-000000-0002', nodeId: 'b.md', contentHash: '2'.repeat(64), extensionId: 'core/other', createdAt: base + 10 }),
         { contentHash: '2'.repeat(64), content: 'B', createdAt: base + 10 },
       );
       await adapter.jobs.submit(
@@ -210,7 +211,7 @@ describe('listJobs + getJob', () => {
       deepStrictEqual(byNode.map((j) => j.nodeId), ['a.md', 'a.md']);
 
       // Bare-id suffix match finds the qualified action id.
-      const byAction = await adapter.jobs.list({ actionId: 'skill-summarizer' });
+      const byAction = await adapter.jobs.list({ extensionId: 'skill-summarizer' });
       deepStrictEqual(
         byAction.map((j) => j.id).sort(),
         ['d-20260101-000000-0001', 'd-20260101-000000-0003'],

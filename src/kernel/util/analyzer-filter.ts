@@ -1,11 +1,9 @@
 /**
  * Shared `--analyzers` / `?analyzerId=` filter implementation.
  *
- * Three call sites used to inline the same matching algorithm:
+ * Call sites used to inline the same matching algorithm:
  *
  *   - `sm check`'s `matchesAnalyzerFilter` for the persisted-issue filter.
- *   - `sm check`'s `detectProbAnalyzerIds` (re-applies the filter to the
- *     prob-analyzer advisory).
  *   - `/api/issues` for the BFF surface.
  *
  * Behaviour: an issue's persisted `analyzerId` is SHORT / kebab-case with
@@ -25,11 +23,7 @@
  *   - `analyzerId` appears verbatim in `filter`;
  *   - a filter entry's suffix after the first `/` equals `analyzerId`
  *     (qualified entry `core/node-stability` matches short stored id
- *     `node-stability`, the persisted-issue path);
- *   - `analyzerId`'s own suffix after the first `/` appears in `filter`
- *     (qualified arg `core/node-stability` matches short filter
- *     `node-stability`, the prob-advisory path where the caller passes a
- *     qualified id).
+ *     `node-stability`, the persisted-issue path).
  *
  * Empty `filter` always returns true, callers should short-circuit on
  * length === 0 before invoking when they want "no filter = no match".
@@ -45,9 +39,30 @@ export function matchesAnalyzerFilter(analyzerId: string, filter: readonly strin
     const slashIdx = entry.indexOf('/');
     if (slashIdx >= 0 && entry.slice(slashIdx + 1) === analyzerId) return true;
   }
-  // Symmetric case: some callers (the `--include-prob` advisory) pass a
-  // qualified `analyzerId` and let a short filter token match its suffix.
-  const argSlashIdx = analyzerId.indexOf('/');
-  if (argSlashIdx >= 0 && filter.includes(analyzerId.slice(argSlashIdx + 1))) return true;
+  return false;
+}
+
+/**
+ * Mirror of `matchesAnalyzerFilter` for stores that persist the QUALIFIED
+ * extension id (`<plugin>/<ext>`, e.g. `state_findings.extension_id`)
+ * instead of the short analyzer id. Same accepted filter grammar
+ * (qualified or bare entries, per `sm check --analyzers`), applied from
+ * the other direction:
+ *
+ *   - a filter entry equals the stored qualified id verbatim
+ *     (`plug/finder` matches stored `plug/finder`);
+ *   - a bare filter entry equals the stored id's suffix after the first
+ *     `/` (`finder` matches stored `plug/finder`).
+ *
+ * Empty `filter` always returns true (no filter = match everything).
+ */
+export function matchesQualifiedExtensionFilter(
+  extensionId: string,
+  filter: readonly string[],
+): boolean {
+  if (filter.length === 0) return true;
+  if (filter.includes(extensionId)) return true;
+  const slashIdx = extensionId.indexOf('/');
+  if (slashIdx >= 0 && filter.includes(extensionId.slice(slashIdx + 1))) return true;
   return false;
 }

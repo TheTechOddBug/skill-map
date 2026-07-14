@@ -49,8 +49,9 @@ const JOB_ID = 'd-20260101-000000-0001';
 async function seedRunning(adapter: SqliteStorageAdapter): Promise<void> {
   const row: IJobSubmitRow = {
     id: JOB_ID,
-    actionId: 'core/markdown-summarizer',
-    actionVersion: '1.0.0',
+    extensionId: 'core/markdown-summarizer',
+    extensionVersion: '1.0.0',
+    extensionKind: 'action',
     nodeId: 'a.md',
     contentHash: 'h'.repeat(64),
     nonce: 'n'.repeat(32),

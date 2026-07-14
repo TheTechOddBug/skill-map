@@ -127,7 +127,7 @@ interface ISubmitOverrides {
 
 function buildSubmit(overrides: ISubmitOverrides): JobSubmitCommand {
   const cmd = new JobSubmitCommand();
-  cmd.action = overrides.action;
+  cmd.extension = overrides.action;
   cmd.node = overrides.node;
   cmd.all = overrides.all ?? false;
   cmd.force = false;
@@ -183,7 +183,7 @@ describe('sm job submit (built-in probabilistic action)', () => {
       const job = jobs[0];
       ok(job);
       strictEqual(job.status, 'queued');
-      strictEqual(job.actionId, ACTION_ID);
+      strictEqual(job.extensionId, ACTION_ID);
       strictEqual(job.nodeId, NOTE.path);
       const content = await adapter.db
         .selectFrom('state_job_contents')

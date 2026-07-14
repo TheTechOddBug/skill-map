@@ -135,8 +135,9 @@ async function seedQueued(dbPath: string, id: string): Promise<{ id: string; non
   try {
     const row: IJobSubmitRow = {
       id,
-      actionId: ACTION_ID,
-      actionVersion: '1.0.0',
+      extensionId: ACTION_ID,
+      extensionVersion: '1.0.0',
+      extensionKind: 'action',
       nodeId: NOTE.path,
       contentHash: 'h'.repeat(64),
       nonce: `nonce-${id}`,
@@ -182,7 +183,7 @@ async function withCwd<T>(dir: string, fn: () => Promise<T>): Promise<T> {
 
 function buildSubmit(node: string): JobSubmitCommand {
   const cmd = new JobSubmitCommand();
-  cmd.action = ACTION_ID;
+  cmd.extension = ACTION_ID;
   cmd.node = node;
   cmd.all = false;
   cmd.force = false;
@@ -284,7 +285,7 @@ describe('sm record --status completed', () => {
       strictEqual(events[0]!.data['mode'], 'external');
       // job.claimed is replayed from the job row.
       strictEqual(events[1]!.jobId, id);
-      strictEqual(events[1]!.data['actionId'], ACTION_ID);
+      strictEqual(events[1]!.data['extensionId'], ACTION_ID);
       strictEqual(events[1]!.data['nodeId'], NOTE.path);
       strictEqual(events[2]!.data['status'], 'completed');
       match(String(events[2]!.data['executionId']), /^e-\d{8}-\d{6}-[0-9a-f]{4}$/);

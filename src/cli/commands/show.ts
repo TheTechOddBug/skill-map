@@ -2,13 +2,14 @@
  * `sm show <node.path> [--json]`
  *
  * Detail view for a single node: weight (tokens triple-split),
- * frontmatter, links in/out, current issues, and any stored per-node
- * summary (a summarizer Action's report, landed by `sm record`;
- * marked `(stale)` when the body changed since generation). `--json`
- * emits a detail object with `node`, `linksOut`, `linksIn`, `issues`,
- * and `summaries` (each carrying a `stale` boolean). Step 10 (findings)
- * will add its field when the backing table ships, additive, so today's
- * consumers stay green.
+ * frontmatter, links in/out, current issues, stored probabilistic
+ * findings (finder judgments + kernel safety rows, stale ones marked
+ * `(stale)`), and any stored per-node summary (a summarizer Action's
+ * report, landed by `sm record`; marked `(stale)` when the body changed
+ * since generation). `--json` emits a detail object with `node`,
+ * `linksOut`, `linksIn`, `issues`, `findings` (the camelCase
+ * `state_findings` rows, each carrying a `stale` boolean), and
+ * `summaries` (each carrying a `stale` boolean).
  *
  * Exit codes (per `spec/cli-contract.md` §Exit codes):
  *   0  ok
@@ -19,7 +20,7 @@
 import { Command, Option } from 'clipanion';
 
 import type { Issue, Link, Node, Severity } from '../../kernel/types.js';
-import type { INodeBundle } from '../../kernel/types/storage.js';
+import type { IFindingRecord, INodeBundle } from '../../kernel/types/storage.js';
 import type { IAnsi } from '../util/ansi.js';
 import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
@@ -42,6 +43,11 @@ import { SHOW_TEXTS } from '../i18n/show.texts.js';
  * truth).
  */
 type TShowDocument = Pick<INodeBundle, 'node' | 'linksOut' | 'linksIn' | 'issues'> & {
+  /**
+   * Stored per-node probabilistic findings (`state_findings` rows,
+   * camelCase, INCLUDING stale ones, each carrying its `stale` flag).
+   */
+  findings: IFindingRecord[];
   /** Stored per-node summaries, each carrying a computed `stale` flag. */
   summaries: IShowSummary[];
 };
@@ -74,10 +80,11 @@ export class ShowCommand extends SmCommand {
     description: 'Node detail: weight, frontmatter, links, issues.',
     details: `
       Loads a single node from the persisted snapshot, plus every link
-      (in and out), every current issue touching it, and any stored
-      summary (a summarizer action's report, marked (stale) when the
-      body changed since it was generated). Step 10 (findings) will add
-      its field when the backing table ships.
+      (in and out), every current issue touching it, its stored
+      probabilistic findings (finder judgments + kernel safety rows,
+      stale ones marked), and any stored summary (a summarizer action's
+      report, marked (stale) when the body changed since it was
+      generated).
 
       Run \`sm scan\` first to populate the DB.
     `,
@@ -121,11 +128,21 @@ export class ShowCommand extends SmCommand {
           stale: s.bodyHashAtGeneration !== bundle.node.bodyHash,
         }));
 
+        // Stored probabilistic findings (finder judgments + kernel
+        // safety rows landed by `sm record`). Stale ones INCLUDED here,
+        // marked, `sm show` is the in-context detail view; the filtered
+        // read surface is `sm findings`.
+        const findings = await adapter.findings.list({
+          nodeId: this.nodePath,
+          includeStale: true,
+        });
+
         const doc: TShowDocument = {
           node: bundle.node,
           linksOut: bundle.linksOut,
           linksIn: bundle.linksIn,
           issues: bundle.issues,
+          findings,
           summaries,
         };
 
@@ -173,7 +190,7 @@ export class ShowCommand extends SmCommand {
  * even when empty).
  */
 function renderHuman(doc: TShowDocument, ansi: IAnsi): string {
-  const { node, linksOut, linksIn, issues, summaries } = doc;
+  const { node, linksOut, linksIn, issues, findings, summaries } = doc;
   const out: string[] = [];
 
   out.push(renderHeader(node, ansi));
@@ -182,8 +199,43 @@ function renderHuman(doc: TShowDocument, ansi: IAnsi): string {
   if (linksOut.length > 0) out.push(renderLinksSection('out', linksOut, ansi));
   if (linksIn.length > 0) out.push(renderLinksSection('in', linksIn, ansi));
   if (issues.length > 0) out.push(renderIssuesSection(issues, node.path, ansi));
+  if (findings.length > 0) out.push(renderFindingsSection(findings, ansi));
   if (summaries.length > 0) out.push(renderSummarySection(summaries, ansi));
   return out.join('');
+}
+
+/**
+ * Findings section, right after Issues: one row per stored
+ * `state_findings` row, the severity glyph (same visual language as the
+ * issues section), the dim finder extension id, the type slug, the
+ * finder's message, and a yellow `(stale)` marker when the node body
+ * changed since the judgment was recorded. Dropped entirely when the
+ * node carries no finding. Every DB-sourced string is sanitised at the
+ * row boundary (finder messages are plugin-authored).
+ */
+function renderFindingsSection(findings: IFindingRecord[], ansi: IAnsi): string {
+  const rows = findings.map((f) => ({
+    severity: f.severity,
+    extensionId: sanitizeForTerminal(f.extensionId),
+    type: sanitizeForTerminal(f.type),
+    message: sanitizeForTerminal(f.message).replace(/\n+/g, ' '),
+    stale: f.stale,
+  }));
+  const extensionWidth = Math.max(...rows.map((r) => r.extensionId.length));
+  const typeWidth = Math.max(...rows.map((r) => r.type.length));
+  const lines: string[] = [tx(SHOW_TEXTS.findingsSection, { count: rows.length })];
+  for (const row of rows) {
+    lines.push(
+      tx(SHOW_TEXTS.findingRow, {
+        glyph: severityGlyph(row.severity, ansi),
+        extensionId: ansi.dim(row.extensionId.padEnd(extensionWidth)),
+        type: row.type.padEnd(typeWidth),
+        message: row.message,
+        staleSuffix: row.stale ? ansi.yellow(SHOW_TEXTS.findingStale) : '',
+      }),
+    );
+  }
+  return lines.join('');
 }
 
 /**

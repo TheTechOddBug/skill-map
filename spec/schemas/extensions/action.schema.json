@@ -16,7 +16,7 @@
     "probExpectedDurationSeconds": {
       "type": "integer",
       "minimum": 1,
-      "description": "Best-effort estimate of wall-clock duration when `mode=probabilistic`. Drives TTL (`ttl = max(probExpectedDurationSeconds × graceMultiplier, minimumTtlSeconds)`). Required for `probabilistic`; ignored otherwise. Renamed from `expectedDurationSeconds` with the structure-as-truth refactor, the `prob` prefix makes it clear at a glance which mode the field belongs to."
+      "description": "Best-effort ADVISORY estimate of wall-clock duration when `mode=probabilistic`. It never arms an expiry (jobs carry no TTL unless the operator sets one, Decision #139); it feeds the `jobs-overdue` doctor check and display surfaces. Required for `probabilistic`; ignored otherwise. Renamed from `expectedDurationSeconds` with the structure-as-truth refactor, the `prob` prefix makes it clear at a glance which mode the field belongs to."
     },
     "io": {
       "type": "array",
@@ -110,7 +110,7 @@
   "allOf": [
     { "$ref": "base.schema.json" },
     {
-      "if": { "properties": { "mode": { "const": "probabilistic" } } },
+      "if": { "properties": { "mode": { "const": "probabilistic" } }, "required": ["mode"] },
       "then": { "required": ["probExpectedDurationSeconds"] }
     }
   ]

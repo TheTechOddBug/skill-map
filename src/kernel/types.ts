@@ -622,10 +622,21 @@ export type JobFailureReason =
   | 'job-file-missing'
   | 'user-failed';
 export type JobRunner = 'agent' | 'in-process';
+/**
+ * Extension kind resolved at submit time and frozen onto the job row
+ * (like the version), per `job.schema.json#/properties/extensionKind`.
+ * `sm record` routes on it: an `analyzer` report is findings by
+ * definition (`state_findings` write-through), an `action` report
+ * follows the summaries / enrichments schema conventions. Narrower than
+ * the registry-wide `ExtensionKind` on purpose: only these two kinds
+ * are queue-eligible (probabilistic).
+ */
+export type JobExtensionKind = 'action' | 'analyzer';
 
 /**
  * One row of the job queue (`state_jobs`). Matches
- * `spec/schemas/job.schema.json`; the runtime instance of an `Action`
+ * `spec/schemas/job.schema.json`; the runtime instance of a probabilistic
+ * extension (Action or finder Analyzer, the queue is kind-agnostic)
  * applied to one `Node`, moving through the `spec/job-lifecycle.md` state
  * machine exactly once. The rendered content is NOT on this shape, it
  * lives in `state_job_contents` keyed by `contentHash`.
@@ -633,8 +644,10 @@ export type JobRunner = 'agent' | 'in-process';
 export interface Job {
   /** `d-YYYYMMDD-HHMMSS-XXXX`, human-readable + sortable. */
   id: string;
-  actionId: string;
-  actionVersion: string;
+  extensionId: string;
+  extensionVersion: string;
+  /** Kind frozen at submit; the record path routes on it. */
+  extensionKind: JobExtensionKind;
   /** Target `node.path`. */
   nodeId: string;
   contentHash: string;
@@ -643,7 +656,14 @@ export interface Job {
   status: JobStatus;
   failureReason?: JobFailureReason | null;
   runner?: JobRunner | null;
-  ttlSeconds: number;
+  /**
+   * Optional TTL (seconds), resolved at submit from explicit operator
+   * sources only (`--ttl` flag, `jobs.perExtensionTtl`,
+   * `jobs.ttlSeconds`). `null` = the job never expires (the default);
+   * the reaper skips it and `sm doctor`'s `jobs-overdue` check advises
+   * instead. Frozen.
+   */
+  ttlSeconds: number | null;
   createdAt: number;
   claimedAt?: number | null;
   finishedAt?: number | null;
@@ -660,9 +680,9 @@ export interface HistoryStatsTotals {
   durationMsTotal: number;
 }
 
-export interface HistoryStatsTokensPerAction {
-  actionId: string;
-  actionVersion: string;
+export interface HistoryStatsTokensPerExtension {
+  extensionId: string;
+  extensionVersion: string;
   executionsCount: number;
   tokensIn: number;
   tokensOut: number;
@@ -684,8 +704,8 @@ export interface HistoryStatsTopNode {
   lastExecutedAt: number;
 }
 
-export interface HistoryStatsPerActionRate {
-  actionId: string;
+export interface HistoryStatsPerExtensionRate {
+  extensionId: string;
   rate: number;
   executionsCount: number;
   failedCount: number;
@@ -693,7 +713,7 @@ export interface HistoryStatsPerActionRate {
 
 export interface HistoryStatsErrorRates {
   global: number;
-  perAction: HistoryStatsPerActionRate[];
+  perExtension: HistoryStatsPerExtensionRate[];
   perFailureReason: Record<ExecutionFailureReason, number>;
 }
 
@@ -706,7 +726,7 @@ export interface HistoryStats {
   schemaVersion: 1;
   range: { since: string | null; until: string };
   totals: HistoryStatsTotals;
-  tokensPerAction: HistoryStatsTokensPerAction[];
+  tokensPerExtension: HistoryStatsTokensPerExtension[];
   executionsPerPeriod: HistoryStatsExecutionsPerPeriod[];
   topNodes: HistoryStatsTopNode[];
   errorRates: HistoryStatsErrorRates;

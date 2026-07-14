@@ -6,16 +6,18 @@
  * `sm job claim` + `sm record` (`spec/architecture.md` §Execution
  * handover).
  *
- * `sm job submit <action> [-n <node.path> | --all] [--force] [--ttl <s>]
+ * `sm job submit <extension> [-n <node.path> | --all] [--force] [--ttl <s>]
  * [--priority <n>] [--json]`:
- *   1. Resolve the action against the composed runtime registry (built-ins
- *      + enabled plugins). Missing -> exit 5.
- *   2. Reject non-probabilistic actions (exit 2): deterministic actions run
- *      in-process, not via the queue (`spec/cli-contract.md` §Jobs).
- *   3. Resolve the prompt template (the action's `prompt.md`, by
+ *   1. Resolve the extension against the composed runtime registry
+ *      (built-ins + enabled plugins). Missing -> exit 5.
+ *   2. Reject non-probabilistic extensions (exit 2): deterministic
+ *      extensions run in-process, not via the queue
+ *      (`spec/cli-contract.md` §Jobs).
+ *   3. Resolve the prompt template (the extension's `prompt.md`, by
  *      convention) + the canonical preamble; derive `promptTemplateHash`.
  *   4. Resolve target node(s): `-n` (one node, missing -> exit 5) or
- *      `--all` (every non-virtual node matching the action precondition).
+ *      `--all` (every non-virtual node matching the extension
+ *      precondition).
  *   5. Per node: compute `contentHash`, run the duplicate pre-check (unless
  *      `--force`), re-read the node body from disk and VERIFY it still
  *      hashes to the scanned `bodyHash` (`spec/job-lifecycle.md` §Submit
@@ -28,7 +30,7 @@
  *      the unique partial index, so it only succeeds once the prior job
  *      is terminal (and never skips the drift verification).
  *
- * `sm job list [--status] [--action] [--node] [--json]` and
+ * `sm job list [--status] [--extension] [--node] [--json]` and
  * `sm job show <id> [--json]` are straight reads over `state_jobs`; their
  * `--json` projections OMIT the `nonce` (the record credential travels
  * only on `submit --json` / `claim --json`, spec §Atomic claim).
@@ -42,9 +44,9 @@ import { join, resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
-import type { IAction, IActionPrecondition, IProvider, IProviderWalkOptions, IRawNode } from '../../kernel/extensions/index.js';
+import type { IAction, IActionPrecondition, IAnalyzer, IProvider, IProviderWalkOptions, IRawNode } from '../../kernel/extensions/index.js';
 import { resolveProviderWalk } from '../../kernel/extensions/index.js';
-import type { Job, Node } from '../../kernel/types.js';
+import type { Job, JobExtensionKind, Node } from '../../kernel/types.js';
 import type { IJobListFilter } from '../../kernel/types/storage.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
 import { loadConfig } from '../../kernel/config/loader.js';
@@ -58,8 +60,10 @@ import {
   InvalidTtlError,
   JobRenderError,
   loadCanonicalPreamble,
+  buildReportContract,
   renderJobContent,
   resolvePriority,
+  resolveSubmitTarget,
   resolveTtl,
   unescapeUserContentClose,
 } from '../../kernel/jobs/index.js';
@@ -75,8 +79,18 @@ import { JOBS_QUEUE_TEXTS as T } from '../i18n/jobs-queue.texts.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
 import { withSqlite } from '../util/with-sqlite.js';
-import { loadActionRuntime, resolveAction, type IActionRuntime } from './action-runtime.js';
+import { loadActionRuntime, type IActionRuntime } from './action-runtime.js';
 import { recordFailedOutcome } from './record-outcome.js';
+
+/**
+ * A queue-eligible extension: the submit surface is kind-agnostic
+ * (`spec/cli-contract.md` §Jobs), a probabilistic Action and a
+ * probabilistic finder Analyzer render, enqueue, and record through the
+ * same machinery. Both kinds carry the fields the submit path reads
+ * (`id` / `pluginId` / `version` / `mode` / `precondition` /
+ * `probExpectedDurationSeconds` / inlined `promptTemplate`).
+ */
+type TQueueableExtension = IAction | IAnalyzer;
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -214,12 +228,26 @@ type TSubmitOutcome =
   | { kind: 'unreadable'; nodeId: string; detail: string };
 
 interface ISubmitContext {
-  actionId: string;
-  actionVersion: string;
+  extensionId: string;
+  extensionVersion: string;
+  /**
+   * Extension kind the submit target resolution picked (it knows which
+   * registry the match came from), frozen onto `state_jobs.extension_kind`
+   * like the version so `sm record` routes without re-resolving.
+   */
+  extensionKind: JobExtensionKind;
   promptTemplate: string;
   preamble: string;
+  /**
+   * Rendered report-contract section (`spec/job-lifecycle.md` §Submit
+   * step 9): the extension's report schema chain, inlined verbatim so
+   * the job is self-contained. Renders before the `<user-content>`
+   * block and folds into `promptTemplateHash`.
+   */
+  reportContract: string;
   promptTemplateHash: string;
-  ttlSeconds: number;
+  /** Optional operator-armed TTL; `null` = never expires (the default). */
+  ttlSeconds: number | null;
   priority: number;
   cwd: string;
   force: boolean;
@@ -231,21 +259,28 @@ export class JobSubmitCommand extends SmCommand {
   static override paths = [['job', 'submit']];
   static override usage = Command.Usage({
     category: 'Jobs',
-    description: 'Enqueue a probabilistic action against one node (-n) or every matching node (--all).',
+    description: 'Enqueue a probabilistic extension against one node (-n) or every matching node (--all).',
     details: `
-      Renders the action's prompt template + the canonical safety preamble,
-      stores the content in state_job_contents (deduped by content hash),
-      and inserts a queued state_jobs row. Only probabilistic actions are
-      queued; deterministic actions run in-process.
+      Renders the extension's prompt template + the canonical safety
+      preamble, stores the content in state_job_contents (deduped by
+      content hash), and inserts a queued state_jobs row. Only
+      probabilistic extensions are queued; deterministic extensions run
+      in-process.
 
       With -n <node.path>: enqueue one job (missing node -> exit 5). With
-      --all: fan out to every non-virtual node matching the action's
+      --all: fan out to every non-virtual node matching the extension's
       precondition. --force skips the duplicate pre-check but never defeats
       the unique index, so it only lands once the prior job is terminal.
 
-      Exit codes: 0 on success, 2 on bad flags / non-probabilistic action /
-      unresolved prompt, 3 on a single-target duplicate refusal, 5 when the
-      action or node is not found (or the DB is missing).
+      Jobs never expire by default: --ttl <seconds> arms an expiry for
+      this submit (0 explicitly disarms any config policy; negatives are
+      rejected). Config sources: jobs.perExtensionTtl, then the global
+      opt-in jobs.ttlSeconds.
+
+      Exit codes: 0 on success, 2 on bad flags / non-probabilistic
+      extension / unresolved prompt, 3 on a single-target duplicate
+      refusal, 5 when the extension or node is not found (or the DB is
+      missing).
     `,
     examples: [
       ['Enqueue against one node', '$0 job submit core/skill-summarizer -n .claude/skills/foo/SKILL.md'],
@@ -253,7 +288,7 @@ export class JobSubmitCommand extends SmCommand {
     ],
   });
 
-  action = Option.String({ required: true });
+  extension = Option.String({ required: true });
   node = Option.String('-n', { required: false });
   all = Option.Boolean('--all', false);
   force = Option.Boolean('--force', false);
@@ -276,14 +311,21 @@ export class JobSubmitCommand extends SmCommand {
     if (typeof jobs === 'number') return jobs;
 
     const runtime = await loadActionRuntime(this.printer!);
-    const action = this.resolveActionOrExit(runtime.actions);
-    if (typeof action === 'number') return action;
+    const resolved = this.resolveTargetOrExit(runtime);
+    if (typeof resolved === 'number') return resolved;
 
-    const prepared = this.prepareSubmit(action, runtime, jobs, flags.ttl, flags.priority, ctx.cwd);
+    const prepared = this.prepareSubmit(
+      resolved,
+      runtime,
+      jobs,
+      flags.ttl,
+      flags.priority,
+      ctx.cwd,
+    );
     if (typeof prepared === 'number') return prepared;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, (adapter) =>
-      this.dispatch(adapter, action, prepared),
+      this.dispatch(adapter, resolved.extension, prepared),
     );
   }
 
@@ -321,71 +363,107 @@ export class JobSubmitCommand extends SmCommand {
   }
 
   /**
-   * Resolve the action + enforce the probabilistic gate. Exit 5 when the
-   * action is unknown, exit 2 when it is deterministic (runs in-process).
+   * Resolve the submit target across probabilistic Actions AND
+   * probabilistic Analyzers (`spec/cli-contract.md` §Jobs) + enforce the
+   * probabilistic gate. Exit 5 when nothing matches at all, exit 2 when
+   * only a deterministic extension matches (runs in-process) or when
+   * the unprefixed form is ambiguous across kinds (the `<kind>:`
+   * disambiguators are always accepted). Returns the matched extension
+   * plus its on-disk directory (undefined for built-ins).
    */
-  private resolveActionOrExit(actions: readonly IAction[]): IAction | TExitCode {
-    const action = resolveAction(actions, this.action);
-    if (!action) {
+  private resolveTargetOrExit(
+    runtime: IActionRuntime,
+  ):
+    | { extension: TQueueableExtension; dir: string | undefined; extensionKind: JobExtensionKind }
+    | TExitCode {
+    const resolution = resolveSubmitTarget(runtime.actions, runtime.analyzers, this.extension);
+    if (resolution.outcome === 'not-found') {
       this.printer!.error(
         tx(T.submitErrPrefix, {
           glyph: this.errGlyph(),
-          message: tx(T.submitErrActionNotFound, { action: this.action }),
+          message: tx(T.submitErrExtensionNotFound, { extension: this.extension }),
         }),
       );
       return ExitCode.NotFound;
     }
-    if ((action.mode ?? 'deterministic') !== 'probabilistic') {
+    if (resolution.outcome === 'deterministic') {
       return this.fail(
-        tx(T.submitErrActionNotProbabilistic, {
-          action: this.action,
-          mode: action.mode ?? 'deterministic',
+        tx(T.submitErrExtensionNotProbabilistic, {
+          extension: this.extension,
+          mode: resolution.mode,
         }),
       );
     }
-    return action;
+    if (resolution.outcome === 'ambiguous') {
+      return this.fail(
+        tx(T.submitErrAmbiguousExtension, {
+          extension: this.extension,
+          actionId: resolution.actionId,
+          analyzerId: resolution.analyzerId,
+        }),
+      );
+    }
+    const extension = resolution.extension;
+    const qualified = qualifiedExtensionId(extension.pluginId, extension.id);
+    const dir =
+      resolution.outcome === 'action'
+        ? runtime.dirByAction.get(qualified)
+        : runtime.dirByAnalyzer.get(qualified);
+    // The resolution outcome IS the frozen kind: it names the registry
+    // the match came from (spec/job-lifecycle.md §Submit step 1).
+    return { extension, dir, extensionKind: resolution.outcome };
   }
 
   /**
    * Resolve prompt template + preamble + hashes + TTL / priority (constant
-   * across the fan-out). Returns the shared submit context or an exit code
-   * on failure.
+   * across the fan-out). Kind-agnostic: `extension` is the resolved
+   * probabilistic Action or Analyzer and `dir` its on-disk directory
+   * (undefined for built-ins, which resolve through the codegen-inlined
+   * `promptTemplate`). TTL uses the extension's
+   * `probExpectedDurationSeconds` identically for both kinds. Returns the
+   * shared submit context or an exit code on failure.
    */
   private prepareSubmit(
-    action: IAction,
+    resolved: {
+      extension: TQueueableExtension;
+      dir: string | undefined;
+      extensionKind: JobExtensionKind;
+    },
     runtime: IActionRuntime,
     jobs: IJobsConfig,
     flagTtl: number | undefined,
     flagPriority: number | undefined,
     cwd: string,
   ): ISubmitContext | TExitCode {
-    const actionId = qualifiedExtensionId(action.pluginId, action.id);
-    const dir = runtime.dirByAction.get(actionId);
+    const { extension, dir } = resolved;
+    const extensionId = qualifiedExtensionId(extension.pluginId, extension.id);
     let promptTemplate: string;
     if (dir !== undefined) {
-      // On-disk plugin: resolve prompt.md from the action's source dir.
+      // On-disk plugin: resolve prompt.md from the extension's source dir.
       try {
         promptTemplate = readFileSync(join(dir, 'prompt.md'), 'utf8');
       } catch (err) {
         return this.fail(
-          tx(T.submitErrPromptUnresolved, { action: this.action, detail: formatErrorMessage(err) }),
+          tx(T.submitErrPromptUnresolved, { extension: this.extension, detail: formatErrorMessage(err) }),
         );
       }
-    } else if (typeof action.promptTemplate === 'string') {
-      // Built-in probabilistic action: no source dir at runtime, the
+    } else if (typeof extension.promptTemplate === 'string') {
+      // Built-in probabilistic extension: no source dir at runtime, the
       // built-ins codegen inlined prompt.md onto the manifest.
-      promptTemplate = action.promptTemplate;
+      promptTemplate = extension.promptTemplate;
     } else {
       return this.fail(
-        tx(T.submitErrPromptUnresolved, { action: this.action, detail: 'no source directory' }),
+        tx(T.submitErrPromptUnresolved, { extension: this.extension, detail: 'no source directory' }),
       );
     }
+    const reportContract = this.resolveReportContract(extension, dir);
+    if (typeof reportContract === 'number') return reportContract;
     const preamble = loadCanonicalPreamble();
-    let ttlSeconds: number;
+    let ttlSeconds: number | null;
     let priority: number;
     try {
-      ttlSeconds = resolveTtl(action, jobs, flagTtl);
-      priority = resolvePriority(action, jobs, flagPriority);
+      ttlSeconds = resolveTtl(extension, jobs, flagTtl);
+      priority = resolvePriority(extension, jobs, flagPriority);
     } catch (err) {
       if (err instanceof InvalidTtlError || err instanceof InvalidPriorityError) {
         return this.fail(err.message);
@@ -393,11 +471,20 @@ export class JobSubmitCommand extends SmCommand {
       throw err;
     }
     return {
-      actionId,
-      actionVersion: action.version,
+      extensionId,
+      extensionVersion: extension.version,
+      extensionKind: resolved.extensionKind,
       promptTemplate,
       preamble,
-      promptTemplateHash: computePromptTemplateHash({ preamble, template: promptTemplate }),
+      reportContract,
+      // The whole kernel-authored prelude hashes (spec/prompt-preamble.md):
+      // preamble + template + report-contract blocks, so a schema edit
+      // re-keys the content exactly like a template edit does.
+      promptTemplateHash: computePromptTemplateHash({
+        preamble,
+        template: promptTemplate,
+        reportContract,
+      }),
       ttlSeconds,
       priority,
       cwd,
@@ -406,13 +493,55 @@ export class JobSubmitCommand extends SmCommand {
     };
   }
 
+  /**
+   * Compose the report-contract section for the resolved extension
+   * (`spec/job-lifecycle.md` §Submit step 9). The extension's own schema
+   * bytes come VERBATIM from its on-disk `report.schema.json` (plugin) or
+   * from the codegen-inlined `reportSchema` object serialized
+   * deterministically (built-in, stable key order as authored); the
+   * canonical envelope + report-base blocks are resolved inside
+   * `buildReportContract` from the installed spec package. Exit 2 when
+   * the schema cannot be resolved (mirrors the prompt-template failure).
+   */
+  private resolveReportContract(
+    extension: TQueueableExtension,
+    dir: string | undefined,
+  ): string | TExitCode {
+    let schemaText: string;
+    let schema: Record<string, unknown>;
+    if (dir !== undefined) {
+      try {
+        schemaText = readFileSync(join(dir, 'report.schema.json'), 'utf8');
+        schema = JSON.parse(schemaText) as Record<string, unknown>;
+      } catch (err) {
+        return this.fail(
+          tx(T.submitErrReportSchemaUnresolved, {
+            extension: this.extension,
+            detail: formatErrorMessage(err),
+          }),
+        );
+      }
+    } else if (extension.reportSchema && typeof extension.reportSchema === 'object') {
+      schema = extension.reportSchema;
+      schemaText = JSON.stringify(extension.reportSchema, null, 2);
+    } else {
+      return this.fail(
+        tx(T.submitErrReportSchemaUnresolved, {
+          extension: this.extension,
+          detail: 'no source directory',
+        }),
+      );
+    }
+    return buildReportContract({ schemaText, schema });
+  }
+
   /** Route to the single-node or fan-out submit path. */
   private async dispatch(
     adapter: StoragePort,
-    action: IAction,
+    extension: TQueueableExtension,
     prepared: ISubmitContext,
   ): Promise<TExitCode> {
-    if (this.all) return this.submitAll(adapter, action, prepared);
+    if (this.all) return this.submitAll(adapter, extension, prepared);
     return this.submitOneTarget(adapter, prepared);
   }
 
@@ -442,12 +571,12 @@ export class JobSubmitCommand extends SmCommand {
   /** `--all` path: fan out over precondition-matching non-virtual nodes. */
   private async submitAll(
     adapter: StoragePort,
-    action: IAction,
+    extension: TQueueableExtension,
     prepared: ISubmitContext,
   ): Promise<TExitCode> {
     const nodes = await adapter.scans.findNodes({});
     const targets = nodes.filter(
-      (n) => n.virtual !== true && nodeMatchesPrecondition(n, action.precondition),
+      (n) => n.virtual !== true && nodeMatchesPrecondition(n, extension.precondition),
     );
     const outcomes: TSubmitOutcome[] = [];
     for (const node of targets) {
@@ -506,7 +635,7 @@ export class JobSubmitCommand extends SmCommand {
       return ExitCode.Ok;
     }
     if (total === 0) {
-      this.printer!.info(tx(T.submitAllNoMatch, { glyph: this.warnGlyph(), action: this.action }));
+      this.printer!.info(tx(T.submitAllNoMatch, { glyph: this.warnGlyph(), extension: this.extension }));
       return ExitCode.Ok;
     }
     for (const o of submitted) {
@@ -587,8 +716,8 @@ async function submitOneJob(
   prepared: ISubmitContext,
 ): Promise<TSubmitOutcome> {
   const contentHash = computeContentHash({
-    actionId: prepared.actionId,
-    actionVersion: prepared.actionVersion,
+    extensionId: prepared.extensionId,
+    extensionVersion: prepared.extensionVersion,
     nodePath: node.path,
     bodyHash: node.bodyHash,
     frontmatterHash: node.frontmatterHash,
@@ -597,8 +726,8 @@ async function submitOneJob(
 
   if (!prepared.force) {
     const existing = await adapter.jobs.findActiveDuplicate(
-      prepared.actionId,
-      prepared.actionVersion,
+      prepared.extensionId,
+      prepared.extensionVersion,
       node.path,
       contentHash,
     );
@@ -615,13 +744,15 @@ async function submitOneJob(
     nodeBody: read.body,
     promptTemplate: prepared.promptTemplate,
     preamble: prepared.preamble,
+    reportContract: prepared.reportContract,
   });
   const now = Date.now();
   const id = generateJobId();
   const row = {
     id,
-    actionId: prepared.actionId,
-    actionVersion: prepared.actionVersion,
+    extensionId: prepared.extensionId,
+    extensionVersion: prepared.extensionVersion,
+    extensionKind: prepared.extensionKind,
     nodeId: node.path,
     contentHash,
     nonce: generateNonce(),
@@ -636,8 +767,8 @@ async function submitOneJob(
   } catch (err) {
     if (!isUniqueConstraintError(err)) throw err;
     const existing = await adapter.jobs.findActiveDuplicate(
-      prepared.actionId,
-      prepared.actionVersion,
+      prepared.extensionId,
+      prepared.extensionVersion,
       node.path,
       contentHash,
     );
@@ -653,11 +784,11 @@ export class JobListCommand extends SmCommand {
   static override paths = [['job', 'list']];
   static override usage = Command.Usage({
     category: 'Jobs',
-    description: 'List jobs, optionally filtered by status / action / node.',
+    description: 'List jobs, optionally filtered by status / extension / node.',
   });
 
   status = Option.String('--status', { required: false });
-  action = Option.String('--action', { required: false });
+  extension = Option.String('--extension', { required: false });
   node = Option.String('--node', { required: false });
 
   protected async run(): Promise<number> {
@@ -668,7 +799,7 @@ export class JobListCommand extends SmCommand {
 
     const filter: IJobListFilter = {};
     if (this.status !== undefined) filter.status = this.status as never;
-    if (this.action !== undefined) filter.actionId = this.action;
+    if (this.extension !== undefined) filter.extensionId = this.extension;
     if (this.node !== undefined) filter.nodeId = this.node;
 
     return withSqlite(
@@ -708,7 +839,7 @@ export class JobListCommand extends SmCommand {
         id: job.id,
         status: job.status,
         priority: job.priority,
-        action: job.actionId,
+        extension: job.extensionId,
         node: job.nodeId,
       });
     }
@@ -768,10 +899,14 @@ export class JobShowCommand extends SmCommand {
       tx(T.showDetail, {
         id: job.id,
         status: job.status,
-        action: job.actionId,
+        extension: job.extensionId,
+        kind: job.extensionKind,
         node: job.nodeId,
         priority: job.priority,
-        ttl: job.ttlSeconds,
+        ttl:
+          job.ttlSeconds === null
+            ? T.showValueNone
+            : tx(T.showTtlSeconds, { seconds: job.ttlSeconds }),
         contentHash: job.contentHash,
         createdAt: iso(job.createdAt),
         claimedAt: iso(job.claimedAt),
@@ -865,7 +1000,7 @@ export class JobClaimCommand extends SmCommand {
       Runs the single-statement atomic claim (spec/job-lifecycle.md §Atomic
       claim): the highest-priority, oldest queued job flips to running with
       claimedAt / runner=agent / expiresAt stamped, and its id is printed on
-      stdout. --filter <action> restricts the claim to one action id.
+      stdout. --filter <extension> restricts the claim to one extension id.
 
       Before claiming, every running job whose TTL expired is silently
       reaped to failed / abandoned (spec/job-lifecycle.md §Reap procedure);
@@ -875,8 +1010,8 @@ export class JobClaimCommand extends SmCommand {
       Plain mode prints the claimed id. --json prints
       { id, nonce, content } (the rendered content plus the nonce a later
       sm record needs); agents that will call sm record MUST use --json to
-      receive the nonce. --filter accepts a qualified <plugin>/<action> id
-      or a bare action id (same matching as sm job list --action).
+      receive the nonce. --filter accepts a qualified <plugin>/<ext> id
+      or a bare extension id (same matching as sm job list --extension).
 
       A claimed job whose content row is missing (DB corruption) is marked
       failed / job-file-missing and reported on stderr with exit 2; the

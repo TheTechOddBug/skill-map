@@ -45,7 +45,7 @@ export const HISTORY_TEXTS = {
   statsFieldRow: '    {{label}}  {{value}}\n',
   statsSectionTitleWindow: 'Window',
   statsSectionTitleTotals: 'Totals',
-  statsSectionTitleTopActions: 'Top actions (by tokens)',
+  statsSectionTitleTopExtensions: 'Top extensions (by tokens)',
   statsSectionTitleTopNodes: 'Top nodes',
   statsSectionTitleFailures: 'Failures by reason',
   statsLabelSince: 'Since',
@@ -56,8 +56,8 @@ export const HISTORY_TEXTS = {
   /** `N (X ok · Y failed · Z cancelled)`, only the populated buckets render. */
   statsExecutionsCount: '{{count}}{{breakdown}}',
   statsTokensSplit: '{{in}} in / {{out}} out',
-  /** Per-action row: `<id>@<version>  N runs  ·  T_in/T_out`. */
-  statsTopActionsRow: '    {{id}}  {{runs}} {{runsLabel}}  ·  {{tokens}}\n',
+  /** Per-extension row: `<id>@<version>  N runs  ·  T_in/T_out`. */
+  statsTopExtensionsRow: '    {{id}}  {{runs}} {{runsLabel}}  ·  {{tokens}}\n',
   /** Per-node row: `<path>  N runs`. */
   statsTopNodesRow: '    {{path}}  {{runs}} {{runsLabel}}\n',
   /** Per-reason row: `<reason>  N`. */
@@ -76,7 +76,7 @@ export const HISTORY_TEXTS = {
   // --- renderTable labels ------------------------------------------------
   tableHeaderId: 'ID',
   tableHeaderStarted: 'STARTED',
-  tableHeaderAction: 'ACTION',
+  tableHeaderExtension: 'EXTENSION',
   tableHeaderStatus: 'STATUS',
   tableHeaderDuration: 'DUR',
   tableHeaderTokens: 'TOKENS',
@@ -87,5 +87,5 @@ export const HISTORY_TEXTS = {
   tableFooterNounPlural: 'executions',
   /** Footer tip, printed dim under the count. */
   tableFooterTip:
-    'Tip: `sm history stats` for aggregated counts and top actions.\n',
+    'Tip: `sm history stats` for aggregated counts and top extensions.\n',
 } as const;

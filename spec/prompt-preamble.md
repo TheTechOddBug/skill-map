@@ -32,7 +32,7 @@ An action template that violates rule 4 (e.g., interpolates user text outside `<
 
 ## The preamble text
 
-The following text is **normative and verbatim**, byte-for-byte reproducible. Included in the `contentHash` computation (via `promptTemplateHash`, which hashes the preamble + action template concatenation).
+The following text is **normative and verbatim**, byte-for-byte reproducible. Included in the `contentHash` computation (via `promptTemplateHash`, which hashes the kernel-authored prelude: the preamble + extension template + report-contract blocks concatenation, see [`job-lifecycle.md` §Submit](./job-lifecycle.md#submit) step 9).
 
 ```
 You are operating inside skill-map, a deterministic tool that runs actions

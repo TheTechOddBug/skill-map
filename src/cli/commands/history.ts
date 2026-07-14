@@ -1,5 +1,5 @@
 /**
- * `sm history [-n <path>] [--action <id>] [--status <s,...>] [--since <ISO>] [--until <ISO>] [--json]`
+ * `sm history [-n <path>] [--extension <id>] [--status <s,...>] [--since <ISO>] [--until <ISO>] [--json]`
  * `sm history stats [--since <ISO>] [--until <ISO>] [--period day|week|month] [--top N] [--json]`
  *
  * Read-side surfaces over `state_executions`. Step 5.3 ships the lister;
@@ -112,7 +112,7 @@ export class HistoryCommand extends SmCommand {
     details: `
       Reads from state_executions. Filters:
         -n <path>          restrict to executions whose nodeIds[] contains <path>
-        --action <id>      restrict to a specific action extension id
+        --extension <id>   restrict to a specific extension id
         --status <s,...>   restrict to one or more of completed,failed,cancelled
         --since <ISO>      lower bound on startedAt (inclusive, ISO-8601)
         --until <ISO>      upper bound on startedAt (exclusive, ISO-8601)
@@ -128,13 +128,13 @@ export class HistoryCommand extends SmCommand {
   });
 
   node = Option.String('-n', { required: false });
-  action = Option.String('--action', { required: false });
+  extension = Option.String('--extension', { required: false });
   status = Option.String('--status', { required: false });
   since = Option.String('--since', { required: false });
   until = Option.String('--until', { required: false });
   limit = Option.String('--limit', { required: false });
 
-  // CLI list verb: many optional filter flags (`--node`, `--action`,
+  // CLI list verb: many optional filter flags (`--node`, `--extension`,
   // `--status`, `--since`, `--until`, `--limit`, `--json`, `--quiet`)
   // each adding a guarded mutation to the filter or render path. Each
   // branch is single-purpose; splitting per flag would distance the
@@ -145,7 +145,7 @@ export class HistoryCommand extends SmCommand {
     // --- flag validation -------------------------------------------------
     const filter: IListExecutionsFilter = {};
     if (this.node !== undefined) filter.nodePath = this.node;
-    if (this.action !== undefined) filter.actionId = this.action;
+    if (this.extension !== undefined) filter.extensionId = this.extension;
     if (this.status !== undefined) {
       const parsed = parseStatuses(this.status, this.context.stderr, stderrAnsi);
       if (parsed === null) return ExitCode.Error;
@@ -289,7 +289,7 @@ export class HistoryStatsCommand extends SmCommand {
           until: new Date(untilMs).toISOString(),
         },
         totals: aggregated.totals,
-        tokensPerAction: aggregated.tokensPerAction,
+        tokensPerExtension: aggregated.tokensPerExtension,
         executionsPerPeriod: aggregated.executionsPerPeriod,
         topNodes: aggregated.topNodes,
         errorRates: aggregated.errorRates,
@@ -331,7 +331,7 @@ export class HistoryStatsCommand extends SmCommand {
 // --- renderers -------------------------------------------------------------
 
 const COL_ID_MAX = 26;
-const COL_ACTION_MAX = 28;
+const COL_EXTENSION_MAX = 28;
 const ROW_INDENT = '  ';
 
 function toExecutionRecord(r: ExecutionRecord): ExecutionRecord {
@@ -343,7 +343,7 @@ function toExecutionRecord(r: ExecutionRecord): ExecutionRecord {
 interface IHistoryRow {
   id: string;
   started: string;
-  action: string;
+  extension: string;
   status: string;
   duration: string;
   tokens: string;
@@ -356,7 +356,7 @@ function toHistoryRow(r: ExecutionRecord): IHistoryRow {
   // Defence in depth: `id`, `extensionId`, and `failureReason` are
   // sourced from rows persisted by extension code; sanitize before
   // rendering so a hostile plugin cannot inject terminal escapes via
-  // its own action ids or failure reasons.
+  // its own extension ids or failure reasons.
   const tokens = `${r.tokensIn ?? 0}/${r.tokensOut ?? 0}`;
   const duration = r.durationMs === null || r.durationMs === undefined
     ? '-'
@@ -370,7 +370,7 @@ function toHistoryRow(r: ExecutionRecord): IHistoryRow {
     // ISO timestamp with the `T` swapped for a space, keeps the column
     // narrow and human-readable without losing the `Z` UTC marker.
     started: new Date(r.startedAt).toISOString().slice(0, 19).replace('T', ' ') + 'Z',
-    action: truncateHead(sanitizeForTerminal(r.extensionId), COL_ACTION_MAX),
+    extension: truncateHead(sanitizeForTerminal(r.extensionId), COL_EXTENSION_MAX),
     status,
     duration,
     tokens,
@@ -383,7 +383,7 @@ function toHistoryRow(r: ExecutionRecord): IHistoryRow {
 interface IHistoryColWidths {
   id: number;
   started: number;
-  action: number;
+  extension: number;
   status: number;
   duration: number;
   tokens: number;
@@ -396,7 +396,7 @@ function computeHistoryWidths(rows: IHistoryRow[]): IHistoryColWidths {
   return {
     id: cmp(HISTORY_TEXTS.tableHeaderId, ...rows.map((r) => r.id)),
     started: cmp(HISTORY_TEXTS.tableHeaderStarted, ...rows.map((r) => r.started)),
-    action: cmp(HISTORY_TEXTS.tableHeaderAction, ...rows.map((r) => r.action)),
+    extension: cmp(HISTORY_TEXTS.tableHeaderExtension, ...rows.map((r) => r.extension)),
     status: cmp(HISTORY_TEXTS.tableHeaderStatus, ...rows.map((r) => r.status)),
     duration: cmp(HISTORY_TEXTS.tableHeaderDuration, ...rows.map((r) => r.duration)),
     tokens: cmp(HISTORY_TEXTS.tableHeaderTokens, ...rows.map((r) => r.tokens)),
@@ -431,7 +431,7 @@ function formatHistoryHeader(w: IHistoryColWidths, ansi: IAnsi): string {
   return ROW_INDENT + [
     ansi.dim(HISTORY_TEXTS.tableHeaderId.padEnd(w.id)),
     ansi.dim(HISTORY_TEXTS.tableHeaderStarted.padEnd(w.started)),
-    ansi.dim(HISTORY_TEXTS.tableHeaderAction.padEnd(w.action)),
+    ansi.dim(HISTORY_TEXTS.tableHeaderExtension.padEnd(w.extension)),
     ansi.dim(HISTORY_TEXTS.tableHeaderStatus.padEnd(w.status)),
     ansi.dim(HISTORY_TEXTS.tableHeaderDuration.padStart(w.duration)),
     ansi.dim(HISTORY_TEXTS.tableHeaderTokens.padStart(w.tokens)),
@@ -445,7 +445,7 @@ function formatHistoryRow(r: IHistoryRow, w: IHistoryColWidths, ansi: IAnsi): st
   return ROW_INDENT + [
     r.id.padEnd(w.id),
     ansi.dim(r.started.padEnd(w.started)),
-    r.action.padEnd(w.action),
+    r.extension.padEnd(w.extension),
     colorStatus,
     ansi.dim(r.duration.padStart(w.duration)),
     r.tokens.padStart(w.tokens),
@@ -456,8 +456,8 @@ function formatHistoryRow(r: IHistoryRow, w: IHistoryColWidths, ansi: IAnsi): st
 /**
  * Render the human-mode stats. Sectioned layout matching `sm plugins
  * doctor` / `sm config list`: dense one-line summary + indented
- * `Window` / `Totals` / `Top actions` / `Top nodes` / `Failures`
- * blocks. Empty top-action / top-node / failure sections drop.
+ * `Window` / `Totals` / `Top extensions` / `Top nodes` / `Failures`
+ * blocks. Empty top-extension / top-node / failure sections drop.
  */
 function renderStats(stats: HistoryStats, ansi: IAnsi): string {
   const out: string[] = [];
@@ -473,7 +473,7 @@ function renderStats(stats: HistoryStats, ansi: IAnsi): string {
 
   out.push(...renderStatsWindow(stats, ansi));
   out.push(...renderStatsTotals(stats, ansi));
-  if (stats.tokensPerAction.length > 0) out.push(...renderStatsTopActions(stats, ansi));
+  if (stats.tokensPerExtension.length > 0) out.push(...renderStatsTopExtensions(stats, ansi));
   if (stats.topNodes.length > 0) out.push(...renderStatsTopNodes(stats, ansi));
   const failures = Object.entries(stats.errorRates.perFailureReason).filter(([, v]) => v > 0);
   if (failures.length > 0) out.push(...renderStatsFailures(failures, ansi));
@@ -540,21 +540,22 @@ function formatExecBreakdown(stats: HistoryStats, ansi: IAnsi): string {
   return parts.length === 0 ? '' : ` (${parts.join(' · ')})`;
 }
 
-function renderStatsTopActions(stats: HistoryStats, ansi: IAnsi): string[] {
+function renderStatsTopExtensions(stats: HistoryStats, ansi: IAnsi): string[] {
   const lines: string[] = [
-    tx(HISTORY_TEXTS.statsSectionHeader, { title: HISTORY_TEXTS.statsSectionTitleTopActions }),
+    tx(HISTORY_TEXTS.statsSectionHeader, { title: HISTORY_TEXTS.statsSectionTitleTopExtensions }),
   ];
-  // Defence in depth: `actionId` / `actionVersion` come from extension
-  // code persisted in `state_executions`; sanitize before interpolation.
-  const formatted = stats.tokensPerAction.slice(0, 5).map((a) => ({
-    id: `${sanitizeForTerminal(a.actionId)}@${sanitizeForTerminal(a.actionVersion)}`,
+  // Defence in depth: `extensionId` / `extensionVersion` come from
+  // extension code persisted in `state_executions`; sanitize before
+  // interpolation.
+  const formatted = stats.tokensPerExtension.slice(0, 5).map((a) => ({
+    id: `${sanitizeForTerminal(a.extensionId)}@${sanitizeForTerminal(a.extensionVersion)}`,
     runs: a.executionsCount,
     tokens: tx(HISTORY_TEXTS.statsTokensSplit, { in: a.tokensIn, out: a.tokensOut }),
   }));
   const idWidth = Math.max(...formatted.map((a) => a.id.length));
   for (const a of formatted) {
     lines.push(
-      tx(HISTORY_TEXTS.statsTopActionsRow, {
+      tx(HISTORY_TEXTS.statsTopExtensionsRow, {
         id: a.id.padEnd(idWidth),
         runs: a.runs,
         runsLabel: a.runs === 1 ? HISTORY_TEXTS.statsRunsSingular : HISTORY_TEXTS.statsRunsPlural,

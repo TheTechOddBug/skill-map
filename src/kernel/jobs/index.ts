@@ -21,13 +21,31 @@ export {
 export {
   resolveTtl,
   resolvePriority,
+  resolveSubmitTarget,
+  type ISubmitTargetExtension,
   type TResolvableAction,
+  type TSubmitTargetResolution,
 } from './resolve.js';
 export { generateExecutionId, generateJobId, generateNonce, generateRunId } from './ids.js';
 export {
   summaryKindOfReportSchema,
   SUMMARY_SCHEMA_ID_PREFIX,
 } from './summary-schema.js';
+export {
+  reportSchemaExtendsFindings,
+  FINDINGS_SCHEMA_ID_PREFIX,
+} from './findings-schema.js';
+export {
+  extensionFindingRows,
+  findReservedFindingTypes,
+  kernelSafetyRows,
+  RESERVED_FINDING_TYPES,
+} from './findings-report.js';
+export {
+  buildReportContract,
+  loadSpecSchemaText,
+  type IReportContractInput,
+} from './report-contract.js';
 export {
   InvalidTtlError,
   InvalidPriorityError,

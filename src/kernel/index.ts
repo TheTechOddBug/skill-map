@@ -114,10 +114,10 @@ export type {
   // history surface
   ExecutionRecord,
   HistoryStatsTotals,
-  HistoryStatsTokensPerAction,
+  HistoryStatsTokensPerExtension,
   HistoryStatsExecutionsPerPeriod,
   HistoryStatsTopNode,
-  HistoryStatsPerActionRate,
+  HistoryStatsPerExtensionRate,
   HistoryStatsErrorRates,
   HistoryStats,
 } from './types.js';

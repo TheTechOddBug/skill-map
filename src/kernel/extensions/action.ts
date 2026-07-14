@@ -166,10 +166,10 @@ export interface IAction extends IExtensionBase {
    */
   mode?: TExecutionMode;
   /**
-   * Best-effort estimate of wall-clock duration in seconds when
-   * `mode=probabilistic`. Drives TTL
-   * (`ttl = max(probExpectedDurationSeconds × graceMultiplier,
-   * minimumTtlSeconds)`). Required by the schema's conditional for
+   * Best-effort ADVISORY estimate of wall-clock duration in seconds when
+   * `mode=probabilistic`. Does NOT arm or compute expiry (Decision #139:
+   * TTL is opt-in operator policy); it feeds the `jobs-overdue` doctor
+   * check and display surfaces. Required by the schema's conditional for
    * probabilistic Actions; ignored otherwise. Renamed from
    * `expectedDurationSeconds` with the `prob*` prefix convention.
    */

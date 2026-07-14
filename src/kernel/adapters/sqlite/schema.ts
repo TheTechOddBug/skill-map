@@ -74,6 +74,12 @@ export type TJobFailureReason =
   | 'job-file-missing'
   | 'user-failed';
 export type TJobRunner = 'agent' | 'in-process';
+/**
+ * Extension kind frozen on `state_jobs.extension_kind` at submit time
+ * (CHECK in (`action`, `analyzer`)); `sm record` routes on it. Mirrors
+ * the domain `JobExtensionKind`.
+ */
+export type TJobExtensionKind = 'action' | 'analyzer';
 
 export type TExecutionKind = 'action';
 export type TExecutionStatus = 'completed' | 'failed' | 'cancelled';
@@ -457,8 +463,9 @@ export interface IScanNodeTagsTable {
 
 export interface IStateJobsTable {
   id: string;
-  actionId: string;
-  actionVersion: string;
+  extensionId: string;
+  extensionVersion: string;
+  extensionKind: TJobExtensionKind;
   nodeId: string;
   contentHash: string;
   nonce: string;
@@ -466,7 +473,7 @@ export interface IStateJobsTable {
   status: TJobStatus;
   failureReason: TJobFailureReason | null;
   runner: TJobRunner | null;
-  ttlSeconds: number;
+  ttlSeconds: number | null;
   createdAt: number;
   claimedAt: number | null;
   finishedAt: number | null;
@@ -532,6 +539,40 @@ export interface IStateSummariesTable {
   bodyHashAtGeneration: string;
   generatedAt: number;
   summaryJson: string;
+}
+
+/**
+ * Origin lane of a `state_findings` row. `extension` rows come from a
+ * probabilistic finder Analyzer's validated `findings[]` array; `kernel`
+ * rows are synthesized by the record path from any probabilistic report's
+ * `safety` block under the reserved type slugs (`injection-detected` /
+ * `content-suspicious` / `content-malformed`).
+ */
+export type TFindingOrigin = 'extension' | 'kernel';
+
+/**
+ * Probabilistic findings (`state_findings`, `spec/db-schema.md`
+ * §state_findings). Written by the record path inside the
+ * `recordJobTerminal` transaction with replace semantics per
+ * `(node_id, extension_id)` (both origins deleted, fresh rows inserted).
+ * `severity` reuses the domain union (`info` / `warn` / `error`).
+ * Staleness (`body_hash_at_generation` vs the live `scan_nodes.body_hash`)
+ * is computed at read time via JOIN, never persisted.
+ */
+export interface IStateFindingsTable {
+  id: Generated<number>;
+  nodeId: string;
+  extensionId: string;
+  extensionVersion: string;
+  origin: TFindingOrigin;
+  type: string;
+  severity: TIssueSeverity;
+  message: string;
+  detail: string | null;
+  confidence: number;
+  bodyHashAtGeneration: string;
+  generatedAt: number;
+  jobId: string | null;
 }
 
 export interface IStateEnrichmentsTable {
@@ -611,6 +652,7 @@ export interface IDatabase {
   state_job_contents: IStateJobContentsTable;
   state_executions: IStateExecutionsTable;
   state_summaries: IStateSummariesTable;
+  state_findings: IStateFindingsTable;
   state_enrichments: IStateEnrichmentsTable;
   state_plugin_kvs: IStatePluginKvsTable;
   state_node_favorites: IStateNodeFavoritesTable;

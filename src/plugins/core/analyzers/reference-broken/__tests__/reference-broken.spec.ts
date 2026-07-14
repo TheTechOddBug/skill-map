@@ -94,7 +94,7 @@ function run(
       : {}),
     ...ctxOver,
   } as unknown as IAnalyzerContext;
-  const result = referenceBrokenAnalyzer.evaluate(ctx);
+  const result = referenceBrokenAnalyzer.evaluate!(ctx);
   const issues = Array.isArray(result) ? result : [];
   return { issues, contributions, ops };
 }

@@ -9,11 +9,23 @@ export const JOBS_QUEUE_TEXTS = {
   submitErrPrefix: '{{glyph}}  sm job submit: {{message}}\n',
   submitErrNeedTarget: 'pass -n <node.path> or --all',
   submitErrTargetConflict: '-n and --all are mutually exclusive',
-  submitErrActionNotFound: 'action {{action}} not found',
-  submitErrActionNotProbabilistic:
-    'action {{action}} is {{mode}}; only probabilistic actions are queued (deterministic actions run in-process)',
+  submitErrExtensionNotFound: 'extension {{extension}} not found',
+  // The parenthetical stays Action-worded on purpose: the conformance case
+  // `extension-mode-routing-deterministic` pins the phrases
+  // "only probabilistic extensions are queued" and
+  // "deterministic actions run in-process".
+  submitErrExtensionNotProbabilistic:
+    'extension {{extension}} is {{mode}}; only probabilistic extensions are queued (deterministic actions run in-process)',
+  // Cross-kind collision: one extension id resolves to a probabilistic
+  // Action AND a probabilistic Analyzer. The `<kind>:` prefixed forms are
+  // always accepted, so the advisory names both disambiguators.
+  submitErrAmbiguousExtension:
+    'extension {{extension}} matches both a probabilistic action and a probabilistic analyzer; ' +
+    'disambiguate with action:{{actionId}} or analyzer:{{analyzerId}}',
   submitErrPromptUnresolved:
-    'cannot resolve the prompt template for {{action}} ({{detail}})',
+    'cannot resolve the prompt template for {{extension}} ({{detail}})',
+  submitErrReportSchemaUnresolved:
+    'cannot resolve the report schema for {{extension}} ({{detail}})',
   submitErrNodeNotFound: 'node {{node}} is not in the latest scan',
   submitErrNodeVirtual: 'node {{node}} is virtual (no backing file to render)',
   submitErrNodeDrifted:
@@ -34,12 +46,12 @@ export const JOBS_QUEUE_TEXTS = {
     '{{glyph}}  unreadable: {{node}} cannot be read from disk ({{detail}})\n',
   submitAllSummary:
     '{{glyph}}  submitted {{submitted}}, refused {{refused}} (of {{total}} matching node(s))\n',
-  submitAllNoMatch: '{{glyph}}  no nodes match the precondition for {{action}}\n',
+  submitAllNoMatch: '{{glyph}}  no nodes match the precondition for {{extension}}\n',
 
   // --- list --------------------------------------------------------------
   listEmpty: '{{glyph}}  no jobs{{suffix}}\n',
-  listHeader: '{{id}}  {{status}}  {{priority}}  {{action}}  {{node}}\n',
-  listRow: '{{id}}  {{status}}  {{priority}}  {{action}}  {{node}}\n',
+  listHeader: '{{id}}  {{status}}  {{priority}}  {{extension}}  {{node}}\n',
+  listRow: '{{id}}  {{status}}  {{priority}}  {{extension}}  {{node}}\n',
   listFilterSuffix: ' matching the filter',
 
   // --- show --------------------------------------------------------------
@@ -47,16 +59,19 @@ export const JOBS_QUEUE_TEXTS = {
   showDetail:
     'job {{id}}\n' +
     '  status       {{status}}\n' +
-    '  action       {{action}}\n' +
+    '  extension    {{extension}}\n' +
+    '  kind         {{kind}}\n' +
     '  node         {{node}}\n' +
     '  priority     {{priority}}\n' +
-    '  ttl          {{ttl}}s\n' +
+    '  ttl          {{ttl}}\n' +
     '  contentHash  {{contentHash}}\n' +
     '  createdAt    {{createdAt}}\n' +
     '  claimedAt    {{claimedAt}}\n' +
     '  finishedAt   {{finishedAt}}\n' +
     '  runner       {{runner}}\n',
   showValueNone: '(none)',
+  /** TTL detail value for an armed job; TTL-less jobs render showValueNone. */
+  showTtlSeconds: '{{seconds}}s',
 
   previewErrNotFound: '{{glyph}}  sm job preview: job {{id}} not found\n',
   previewErrContentMissing:

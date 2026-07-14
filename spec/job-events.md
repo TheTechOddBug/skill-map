@@ -78,8 +78,8 @@ The claim leg of the envelope. `sm job claim`'s own stdout is the `{ id, nonce, 
   "runId": "...",
   "jobId": "d-20260420-143055-b001",
   "data": {
-    "actionId": "skill-summarizer",
-    "actionVersion": "1.2.0",
+    "extensionId": "skill-summarizer",
+    "extensionVersion": "1.2.0",
     "nodeId": "skills/my-skill.md",
     "ttlSeconds": 180,
     "priority": 0

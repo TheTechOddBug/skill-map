@@ -45,17 +45,17 @@ Any other transition attempt MUST be rejected and MUST NOT mutate state. Impleme
 
 ## Submit
 
-`sm job submit <action> -n <node.path>`:
+`sm job submit <extension> -n <node.path>` (the target is any probabilistic extension, Action or Analyzer; see [`cli-contract.md` §Job queue](./cli-contract.md) for the id-matching and disambiguation rules):
 
-1. Resolve the action (`actionId`, `actionVersion`, `promptTemplateHash`).
+1. Resolve the extension (`extensionId`, `extensionVersion`, `extensionKind`, `promptTemplateHash`). The resolved kind is frozen onto `state_jobs.extension_kind` (like the version); `sm record` routes on it. An id that matches no extension at all refuses with exit 5 (not found); an id whose only match is deterministic refuses with exit 2.
 2. Resolve the target node (`bodyHash`, `frontmatterHash`). Fail with exit 5 if the node does not exist.
-3. Compute `contentHash`: `sha256` over the NUL-joined (`0x00`) tuple `(actionId, actionVersion, node.path, bodyHash, frontmatterHash, promptTemplateHash)`. The delimiter prevents concatenation-ambiguity collisions. `node.path` is a hash input because the rendered content embeds it (the `<user-content id="<node.path>">` attribute per [`prompt-preamble.md`](./prompt-preamble.md)); omitting it would let two nodes with identical body and frontmatter but different paths share one content row while rendering different text, breaking the "same hash, same content" invariant.
-4. **Duplicate check**: query `state_jobs` for any row with `(actionId, actionVersion, nodeId, contentHash)` AND `status IN ('queued', 'running')`. If found, refuse with exit 3 and print the existing job id (unless `--force`).
-5. Compute `ttlSeconds` per §TTL resolution below. Frozen on `state_jobs.ttlSeconds` for the life of this job.
-6. Resolve `priority` (integer, default `0`). Precedence (lowest → highest): action manifest `defaultPriority` → user config `jobs.perActionPriority.<actionId>` → flag `--priority <n>`. Higher runs first; ties broken by `createdAt ASC`. Negative values are permitted and run after the default bucket. Frozen on `state_jobs.priority` at submit time, immutable for the life of the job.
+3. Compute `contentHash`: `sha256` over the NUL-joined (`0x00`) tuple `(extensionId, extensionVersion, node.path, bodyHash, frontmatterHash, promptTemplateHash)`. The delimiter prevents concatenation-ambiguity collisions. `node.path` is a hash input because the rendered content embeds it (the `<user-content id="<node.path>">` attribute per [`prompt-preamble.md`](./prompt-preamble.md)); omitting it would let two nodes with identical body and frontmatter but different paths share one content row while rendering different text, breaking the "same hash, same content" invariant.
+4. **Duplicate check**: query `state_jobs` for any row with `(extensionId, extensionVersion, nodeId, contentHash)` AND `status IN ('queued', 'running')`. If found, refuse with exit 3 and print the existing job id (unless `--force`).
+5. Resolve the OPTIONAL TTL per §TTL resolution below (explicit operator sources only; absent every source the job carries none). Frozen on `state_jobs.ttl_seconds` (NULL = never expires) for the life of this job.
+6. Resolve `priority` (integer, default `0`). Precedence (lowest → highest): extension manifest `defaultPriority` → user config `jobs.perExtensionPriority.<extensionId>` → flag `--priority <n>`. Higher runs first; ties broken by `createdAt ASC`. Negative values are permitted and run after the default bucket. Frozen on `state_jobs.priority` at submit time, immutable for the life of the job.
 7. Generate `nonce` (implementation-chosen; MUST be cryptographically random, ≥ 128 bits of entropy).
 8. **Drift verification**: read the node's source file and recompute the body hash over the exact body bytes that will be rendered, applying the SAME body-extraction and hashing rules the scan applies (the Provider's declared parser / `bodyField` pipeline, then the scanner's body hash). The DB stores only hashes, never body text, so the render can only source the current disk bytes; implementations MUST verify the on-disk body still matches the scanned `bodyHash` before rendering. A recomputed hash that differs refuses with exit 2 and an advisory to re-scan ("node changed on disk since the last scan; run `sm scan`"): rendering drifted bytes would break the invariant that `contentHash` describes the stored content. A missing or unreadable file refuses with exit 2 the same way (clean error, no stack trace).
-9. Render the job content (canonical preamble + action template + interpolated user content per [`prompt-preamble.md`](./prompt-preamble.md)) and write it to `state_job_contents` via `INSERT OR IGNORE` keyed by `content_hash`. Multiple `state_jobs` rows MAY share one `content_hash` row: stored once, refcounted by reference. Implementations MUST NOT persist the rendered content to a filesystem path, the DB row is the canonical artifact.
+9. Render the job content: the canonical preamble, then the extension template (`prompt.md`) with the **report contract** injected at the `{{userContent}}` seam, so the contract lands immediately BEFORE the `<user-content>` block (after any template prose preceding the placeholder; template prose following the placeholder keeps its position after the block), per [`prompt-preamble.md`](./prompt-preamble.md); write it to `state_job_contents` via `INSERT OR IGNORE` keyed by `content_hash`. The report contract makes every job self-contained (the draining agent never needs disk access or guesswork to learn the output shape, e.g. the `severity` enum): under a kernel-authored heading, the extension's own `report.schema.json` is inlined VERBATIM in a fenced `json` block, followed by each canonical spec schema it references (the namespace envelope under `summaries/` / `findings/` when one applies, then `report-base.schema.json`), one fenced block each, no dereferencing or rewriting (the blocks are byte-copies of the spec artifacts; `$id` / `$ref` URLs are identifiers, never fetched). The contract blocks are kernel-authored prelude, NEVER inside `<user-content>`, and hash into `promptTemplateHash` (see below), so a schema edit re-keys the content exactly like a template edit does. Multiple `state_jobs` rows MAY share one `content_hash` row: stored once, refcounted by reference. Implementations MUST NOT persist the rendered content to a filesystem path, the DB row is the canonical artifact.
 10. Insert a row in `state_jobs` with `status = 'queued'`, `createdAt = now`. Its `content_hash` references the just-stored `state_job_contents.content_hash`. Steps 9 and 10 MUST run inside one transaction.
 11. Return the job id.
 
@@ -72,7 +72,8 @@ UPDATE state_jobs
    SET status     = 'running',
        claimedAt  = <now>,
        runner     = <runner-id>,
-       expiresAt  = <now> + ttlSeconds * 1000
+       expiresAt  = CASE WHEN ttlSeconds IS NULL THEN NULL
+                         ELSE <now> + ttlSeconds * 1000 END
  WHERE id = (
      SELECT id FROM state_jobs
       WHERE status = 'queued'
@@ -98,13 +99,15 @@ In `--json` mode, `sm job claim` instead returns `{ "id": "<id>", "nonce": "<non
 
 ---
 
-## TTL and auto-reap
+## TTL and auto-reap (opt-in)
 
-Every `running` job has `expiresAt = claimedAt + ttlSeconds × 1000`. Once real time passes `expiresAt`, the job is abandoned.
+**Jobs do NOT expire by default.** `state_jobs.ttl_seconds` is nullable; NULL means the job never expires, `expires_at` stays NULL at claim time, and the job remains `running` until an agent records it or the operator resolves it (`sm job fail` / `sm job cancel`). This is deliberate: the queue is drained by external agents, and an agent MAY be interactive, pausing mid-job to consult its user for minutes or hours ("how should I resolve this contradiction?"); an always-armed deadline would reap exactly the drains where a human is most involved. A TTL is operator POLICY, armed per case (see §TTL resolution).
+
+A TTL-armed `running` job has `expiresAt = claimedAt + ttlSeconds × 1000`. Once real time passes `expiresAt`, the job is abandoned.
 
 ### Reap procedure
 
-Run at the **start of every `sm job claim`**, before the claim statement (the claim verb is where every drain begins, so the safety net rides it):
+Run at the **start of every `sm job claim`**, before the claim statement (the claim verb is where every drain begins, so the safety net rides it). Only TTL-armed jobs are reapable; a NULL `expiresAt` never matches:
 
 ```sql
 UPDATE state_jobs
@@ -112,6 +115,7 @@ UPDATE state_jobs
        failureReason = 'abandoned',
        finishedAt    = <now>
  WHERE status = 'running'
+   AND expiresAt IS NOT NULL
    AND expiresAt < <now>;
 ```
 
@@ -119,47 +123,28 @@ The claim-side reap is silent on the CLI (the claim verb's stdout is the handove
 
 Implementations MAY expose `sm job reap` as an explicit diagnostics verb, but MUST perform reaping automatically inside `sm job claim`.
 
+**TTL-less zombies are a diagnosed, operator-resolved condition.** A crashed agent holding a TTL-less claim leaves the job `running` indefinitely (blocking only the resubmission of that same `(extension, node, contentHash)` tuple via the duplicate index; other jobs are unaffected). The `jobs-overdue` check of `sm doctor` surfaces `running` jobs whose elapsed time exceeds their extension's advisory `probExpectedDurationSeconds` (resolved from the loaded extension; jobs whose extension is no longer loadable are skipped), status `warn`, message naming the actionable verbs (`sm job fail <id>` / `sm job cancel <id>`). The check never mutates state.
+
 ### TTL resolution
 
-The kernel resolves the effective TTL for a new job in three steps. The resolved value is written to `state_jobs.ttlSeconds` at submit time, immutable thereafter.
+The optional TTL resolves at submit time from explicit operator sources ONLY, highest precedence first. The resolved value (or NULL) is written to `state_jobs.ttl_seconds`, immutable thereafter:
 
-#### Step 1, Base duration
+1. Flag `sm job submit --ttl <seconds>`: a positive integer arms the expiry; `0` explicitly DISARMS it (overriding any config below); negative values are rejected with exit 2.
+2. Config `jobs.perExtensionTtl.<extensionId>`, integer seconds (positive).
+3. Config `jobs.ttlSeconds`, integer seconds (positive): the global arm-everything policy for operators who prefer the old always-expiring behaviour. UNSET by default.
+4. None of the above: no TTL.
 
-A seconds integer for how long the action is expected to run before the grace multiplier applies:
-
-1. Action manifest `expectedDurationSeconds`, if declared.
-2. Otherwise, config `jobs.ttlSeconds` (default: `3600`).
-
-The base duration exists even for actions that cannot estimate their own runtime (typically `mode: local`); the global config value keeps the formula below well-defined.
-
-#### Step 2, Computed TTL
-
-```
-computed = max(base × jobs.graceMultiplier, jobs.minimumTtlSeconds)
-```
-
-Config defaults: `jobs.graceMultiplier = 3`, `jobs.minimumTtlSeconds = 60`.
-
-`minimumTtlSeconds` is a **floor**, not a default: it guarantees no job is claimed with a sub-minute deadline however small the base duration, and never acts as an initial value.
-
-#### Step 3, User overrides
-
-Two optional overrides, evaluated in order; the later one wins and replaces everything above it:
-
-1. Config `jobs.perActionTtl.<actionId>`, integer seconds. Replaces the computed TTL entirely; the formula is skipped for that action id.
-2. Flag `sm job submit --ttl <seconds>`, integer seconds. Highest precedence; replaces anything.
-
-Negative or zero values MUST be rejected with exit 2 at submit time.
+The extension's `probExpectedDurationSeconds` (still REQUIRED on every probabilistic manifest) no longer arms or computes expiry: it is the advisory runtime estimate consumed by the `jobs-overdue` doctor check and display surfaces. The former grace formula and its config keys (`jobs.graceMultiplier`, `jobs.minimumTtlSeconds`) are retired with it: armed values are absolute seconds, chosen by the operator.
 
 #### Worked examples
 
-| Action manifest | Config | Flag | Result |
-|---|---|---|---|
-| `expectedDurationSeconds: 120` | defaults |, | `max(120 × 3, 60) = 360` |
-| none | defaults |, | `max(3600 × 3, 60) = 10800` |
-| `expectedDurationSeconds: 10` | defaults |, | `max(10 × 3, 60) = 60` (floor bites) |
-| `expectedDurationSeconds: 120` | `jobs.perActionTtl.foo: 900` |, | `900` (override skips formula) |
-| any | any | `--ttl 45` | `45` (flag wins outright) |
+| Config | Flag | Result |
+|---|---|---|
+| none |, | no TTL (never expires; `jobs-overdue` advises) |
+| `jobs.perExtensionTtl.foo: 900` |, | `900` for `foo` jobs, no TTL for the rest |
+| `jobs.ttlSeconds: 3600` |, | `3600` for every job (global opt-in policy) |
+| `jobs.ttlSeconds: 3600` | `--ttl 0` | no TTL for this job (flag disarms outright) |
+| any | `--ttl 45` | `45` (flag wins outright) |
 
 ---
 
@@ -170,12 +155,14 @@ Negative or zero values MUST be rejected with exit 2 at submit time.
 1. Load the job by id. If not found → exit 5.
 2. Compare the supplied nonce against `state_jobs.nonce`. Mismatch → exit 4 without mutation.
 3. If `state_jobs.status != 'running'` → exit 2 with message "job not in running state". This catches late callbacks after a reap.
-4. If `--status completed`: read the report payload from the path passed to `--report` (implementation-input only, no canonical on-disk report artifact), validate the parsed JSON against the action's declared report schema. On validation failure → transition to `failed` with reason `report-invalid`; DO NOT stay `running`.
+4. If `--status completed`: read the report payload from the path passed to `--report` (implementation-input only, no canonical on-disk report artifact), validate the parsed JSON against the recorded extension's declared report schema (`<extension-dir>/report.schema.json`, Action or Analyzer alike). On validation failure → transition to `failed` with reason `report-invalid`; DO NOT stay `running`.
 5. Write the execution record (see [`schemas/execution-record.schema.json`](./schemas/execution-record.schema.json)) with full metrics. The report payload (if any) is stored inline in `state_executions.report_json` as the parsed JSON; the input path is NOT retained.
 6. Transition the job to the terminal state.
 7. Emit `job.callback.received` followed by `job.completed` or `job.failed` (see [`job-events.md`](./job-events.md)).
 
-**Summary write-through.** When `--status completed` and the recorded job's Action is a summarizer, the validated report is ALSO upserted into `state_summaries` (keyed by `(node_id, actionId)`) in the SAME transaction as the `state_executions` insert and the job transition (steps 5-6). The summarizer signal is the Action's report schema, not a manifest flag: an Action is a summarizer iff its `report.schema.json` extends a schema under the canonical summaries namespace ([`schemas/summaries/`](./schemas/summaries/), referenced via `$ref`, typically inside `allOf`; today the single universal `markdown.schema.json` node-summary shape, `markdown` names the body format, not the node kind). The upsert stamps the target node's current `scan_nodes.body_hash` into `body_hash_at_generation` so `sm show` can later flag staleness, and mirrors the job's `action_id` / `action_version` onto `summarizer_action_id` / `summarizer_version`. If the target node is no longer present in `scan_nodes` (deleted or renamed since submit), the summary upsert is skipped: the execution record still lands and the job still transitions. An Action whose report schema does NOT extend a `summaries/` schema writes no `state_summaries` row (its report lives only on `state_executions.report_json`). See [`db-schema.md` § state_summaries](./db-schema.md).
+**Summary write-through.** When `--status completed` and the recorded job's Action is a summarizer, the validated report is ALSO upserted into `state_summaries` (keyed by `(node_id, extensionId)`) in the SAME transaction as the `state_executions` insert and the job transition (steps 5-6). The summarizer signal is the Action's report schema, not a manifest flag: an Action is a summarizer iff its `report.schema.json` extends a schema under the canonical summaries namespace ([`schemas/summaries/`](./schemas/summaries/), referenced via `$ref`, typically inside `allOf`; today the single universal `markdown.schema.json` node-summary shape, `markdown` names the body format, not the node kind). The upsert stamps the target node's current `scan_nodes.body_hash` into `body_hash_at_generation` so `sm show` can later flag staleness, and mirrors the job's `extension_id` / `extension_version` onto `summarizer_action_id` / `summarizer_version`. If the target node is no longer present in `scan_nodes` (deleted or renamed since submit), the summary upsert is skipped: the execution record still lands and the job still transitions. An Action whose report schema does NOT extend a `summaries/` schema writes no `state_summaries` row (its report lives only on `state_executions.report_json`). See [`db-schema.md` § state_summaries](./db-schema.md).
+
+**Findings write-through.** When `--status completed` and the recorded job's frozen `extension_kind` is `analyzer` (a finder), the validated report's `findings[]` array is written through to `state_findings` in the SAME transaction (steps 5-6): the finder's previous rows for `(node_id, extension_id)` are DELETEd first, then one row per finding lands with `origin = 'extension'`, so an empty array is a clean verdict that erases the prior judgment, not a no-op. The routing signal is the extension's KIND (an analyzer's report is findings by definition); the report shape contract is the canonical envelope ([`schemas/findings/report.schema.json`](./schemas/findings/report.schema.json)) the analyzer's own `report.schema.json` MUST extend via `$ref`, enforced at manifest load time. Additionally, for EVERY probabilistic report (Action or Analyzer) whose `safety` block flags trouble (`injectionDetected = true`, or `contentQuality != 'clean'`), the kernel synthesizes `origin = 'kernel'` rows under the reserved type slugs (`injection-detected` / `content-suspicious` / `content-malformed`) attributed to the reporting extension. Same skip rule as summaries when the target node has disappeared. Full column semantics, replace semantics, and the stale rule: [`db-schema.md` § state_findings](./db-schema.md).
 
 The nonce is the sole authentication factor; a compromised nonce allows forged callbacks for that single job. Nonces MUST be generated per-job, never reused, never logged at info level or above.
 
@@ -185,11 +172,11 @@ The nonce is the sole authentication factor; a compromised nonce allows forged c
 
 ## Duplicate prevention rationale
 
-The deduplication key `(actionId, actionVersion, nodeId, contentHash)` prevents accidental double-submit on re-run, race conditions where two processes submit the same action over the same node at the same content hash, and wasted LLM tokens re-computing an unchanged result.
+The deduplication key `(extensionId, extensionVersion, nodeId, contentHash)` prevents accidental double-submit on re-run, race conditions where two processes submit the same extension over the same node at the same content hash, and wasted LLM tokens re-computing an unchanged result.
 
 Post-completion, the check is NOT performed: resubmitting a completed job is always allowed (the previous result is kept in history).
 
-`--force` bypasses the pre-check for legitimate reruns (e.g., re-testing an action after debugging). It does NOT permit two concurrent `queued`/`running` jobs for the same `(action_id, node_id, content_hash)`: the unique partial index `ix_state_jobs_action_node_hash` (WHERE `status IN ('queued','running')`) is the hard invariant, so `--force` is only effective once the prior job has reached a terminal state. Attempting `--force` while a matching job is still active fails on the index constraint; it does not silently create a second live job.
+`--force` bypasses the pre-check for legitimate reruns (e.g., re-testing an extension after debugging). It does NOT permit two concurrent `queued`/`running` jobs for the same `(extension_id, node_id, content_hash)`: the unique partial index `ix_state_jobs_extension_node_hash` (WHERE `status IN ('queued','running')`) is the hard invariant, so `--force` is only effective once the prior job has reached a terminal state. Attempting `--force` while a matching job is still active fails on the index constraint; it does not silently create a second live job.
 
 ---
 
@@ -211,7 +198,7 @@ Implementations MUST handle each of the following:
 |---|---|
 | `state_jobs` row exists but its `content_hash` is missing from `state_job_contents` (DB corruption, the content row deleted by external means). | Mark `failed` with `failureReason = job-file-missing`. `sm doctor` MUST report these proactively. The kernel does NOT produce this state under normal operation; submit and prune both keep the two tables consistent. The legacy enum name `job-file-missing` is preserved across the disk-to-DB shift for backward-compatibility; it now refers to a missing content row rather than a missing on-disk file. |
 | `state_job_contents` row references no live `state_jobs` row (GC straggler). | `sm doctor` MUST list them. `sm job prune` MUST collect them in the same transaction that prunes terminal jobs. |
-| Runner crashes between `claim` and reading the content. | Covered by TTL/reap: when `expiresAt` passes, the next reap marks the job `failed` with `abandoned`. |
+| Runner crashes between `claim` and reading the content. | TTL-armed jobs: covered by TTL/reap, when `expiresAt` passes, the next reap marks the job `failed` with `abandoned`. TTL-less jobs: surfaced by the `jobs-overdue` doctor check for operator resolution (`sm job fail <id>`). |
 | Callback arrives after reap already failed the job. | Reject with exit 2 (see Record step 3). The runner should treat this as an error and log it. |
 
 ---
@@ -278,4 +265,4 @@ The `contentHash` formula is **stable**. Changing what goes into the hash breaks
 
 The atomic-claim semantics are **stable**. A double-claim would be a silent correctness bug observable through event-stream anomalies.
 
-The TTL resolution procedure (§TTL resolution) is **stable** as of the next spec release. The three-step structure (base → computed → overrides) and the four config keys (`jobs.ttlSeconds`, `jobs.graceMultiplier`, `jobs.minimumTtlSeconds`, `jobs.perActionTtl`) are locked; adding a new override source is a minor bump, changing the formula shape a major bump.
+The TTL resolution procedure (§TTL resolution) is **stable** as of the next spec release: opt-in by construction (no TTL absent every explicit source), the precedence chain (flag → `jobs.perExtensionTtl` → `jobs.ttlSeconds`), and the `--ttl 0` disarm semantics are locked; adding a new override source is a minor bump, re-introducing a default-armed TTL a major bump. (The pre-#139 formula, `probExpectedDurationSeconds` × grace with floor, and its `jobs.graceMultiplier` / `jobs.minimumTtlSeconds` config keys were retired pre-1.0 by Decision #139; the estimate is advisory-only since.)

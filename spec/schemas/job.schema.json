@@ -2,9 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.ai/spec/v0/job.schema.json",
   "title": "Job",
-  "description": "Row in `state_jobs`. Non-terminal state until it reaches `completed` or `failed`, at which point an `ExecutionRecord` is also written.",
+  "description": "Row in `state_jobs`. Non-terminal state until it reaches `completed` or `failed`, at which point an `ExecutionRecord` is also written. The queue is kind-agnostic: `extensionId` names a probabilistic Action OR a probabilistic Analyzer (the columns were renamed from `action_id` / `action_version` when Analyzers joined the queue; `state_executions.extension_id` set the naming precedent).",
   "type": "object",
-  "required": ["id", "actionId", "actionVersion", "nodeId", "contentHash", "nonce", "status", "ttlSeconds", "createdAt"],
+  "required": ["id", "extensionId", "extensionVersion", "extensionKind", "nodeId", "contentHash", "nonce", "status", "ttlSeconds", "createdAt"],
   "additionalProperties": false,
   "properties": {
     "id": {
@@ -12,12 +12,18 @@
       "pattern": "^d-\\d{8}-\\d{6}-[0-9a-f]{4}$",
       "description": "Job id: `d-YYYYMMDD-HHMMSS-XXXX`. Human-readable, sortable."
     },
-    "actionId": {
-      "type": "string"
-    },
-    "actionVersion": {
+    "extensionId": {
       "type": "string",
-      "description": "Semver of the action implementation at submit time. Frozen for this job."
+      "description": "Qualified id of the submitted probabilistic extension (Action or Analyzer), e.g. `core/markdown-summarizer`."
+    },
+    "extensionVersion": {
+      "type": "string",
+      "description": "Semver of the extension implementation at submit time. Frozen for this job."
+    },
+    "extensionKind": {
+      "type": "string",
+      "enum": ["action", "analyzer"],
+      "description": "Extension kind resolved at submit time, frozen like the version. `sm record` routes on this value (analyzer report → findings write-through; action report → summaries/enrichments conventions), keeping a plugin that ships both kinds under one extension id unambiguous end-to-end."
     },
     "nodeId": {
       "type": "string",
@@ -26,7 +32,7 @@
     "contentHash": {
       "type": "string",
       "pattern": "^[a-f0-9]{64}$",
-      "description": "sha256 over the NUL-joined (0x00) tuple (actionId, actionVersion, node.path, bodyHash, frontmatterHash, promptTemplateHash). Duplicate detection key."
+      "description": "sha256 over the NUL-joined (0x00) tuple (extensionId, extensionVersion, node.path, bodyHash, frontmatterHash, promptTemplateHash). Duplicate detection key."
     },
     "nonce": {
       "type": "string",
@@ -52,16 +58,16 @@
       "enum": ["agent", "in-process", null]
     },
     "ttlSeconds": {
-      "type": "integer",
+      "type": ["integer", "null"],
       "minimum": 1,
-      "description": "Resolved TTL at submit time: max(expectedDurationSeconds × graceMultiplier, minimumTtlSeconds). Frozen."
+      "description": "Optional TTL resolved at submit time from explicit operator sources only (`--ttl` flag, `jobs.perExtensionTtl`, `jobs.ttlSeconds`; see `job-lifecycle.md` §TTL resolution). NULL (the default) = the job never expires; the reaper skips it and `sm doctor`'s `jobs-overdue` check advises instead. Frozen."
     },
     "createdAt": { "type": "integer", "description": "Unix ms. Submit time." },
     "claimedAt": { "type": ["integer", "null"], "description": "Unix ms. Null while queued." },
     "finishedAt": { "type": ["integer", "null"], "description": "Unix ms. Null while not terminal." },
     "expiresAt": {
       "type": ["integer", "null"],
-      "description": "Derived = claimedAt + ttlSeconds × 1000. Used by auto-reap. Null while queued."
+      "description": "Derived = claimedAt + ttlSeconds × 1000 for TTL-armed jobs. Used by auto-reap. Null while queued, and null for the life of a TTL-less job (never reaped)."
     },
     "submittedBy": {
       "type": ["string", "null"],
