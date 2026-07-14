@@ -4,12 +4,12 @@
  * The verbatim preamble text is a normative spec artifact
  * (`spec/prompt-preamble.md` §The preamble text) and is reproduced
  * byte-for-byte in the conformance fixture
- * `spec/conformance/fixtures/preamble-v1.txt`. Rather than hand-copy those
- * ~2.3 KB into a TS constant (which drifts silently), the kernel reads the
+ * `spec/conformance/fixtures/preamble-v2.txt`. Rather than hand-copy those
+ * ~2.6 KB into a TS constant (which drifts silently), the kernel reads the
  * fixture straight from the installed `@skill-map/spec` package, the same
  * single-source strategy `schema-validators.ts` uses for JSON Schemas. The
- * deferred conformance case `preamble-bitwise-match` will assert the
- * rendered job content contains this text verbatim.
+ * conformance case `preamble-bitwise-match` asserts the rendered job
+ * content contains this text verbatim.
  *
  * The read is cached after the first call (the fixture never changes at
  * runtime).
@@ -40,7 +40,7 @@ function resolveSpecRoot(): string {
 export function loadCanonicalPreamble(): string {
   if (cachedPreamble !== null) return cachedPreamble;
   const specRoot = resolveSpecRoot();
-  const preamblePath = join(specRoot, 'conformance', 'fixtures', 'preamble-v1.txt');
+  const preamblePath = join(specRoot, 'conformance', 'fixtures', 'preamble-v2.txt');
   cachedPreamble = readFileSync(preamblePath, 'utf8');
   return cachedPreamble;
 }

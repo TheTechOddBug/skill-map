@@ -151,7 +151,7 @@ export class ConformanceRunCommand extends SmCommand {
       Scope selection:
 
         --scope spec               only spec-owned, kernel-agnostic cases
-                                    (default fixture: \`preamble-v1.txt\`,
+                                    (default fixture: \`preamble-v2.txt\`,
                                     case: \`kernel-empty-boot\`).
         --scope provider:<id>      only the named built-in Provider's
                                     cases. Today: \`provider:claude\`

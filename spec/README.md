@@ -99,7 +99,7 @@ spec/                              ← published as @skill-map/spec
 │   └── [security-scanner.md](./interfaces/security-scanner.md) ← convention over the Action kind (NOT a 7th extension kind)
 ├── [conformance/](./conformance/README.md)
 │   ├── [coverage.md](./conformance/coverage.md) ← schema-to-case coverage matrix
-│   ├── fixtures/                  ← controlled MD corpora + preamble-v1.txt
+│   ├── fixtures/                  ← controlled MD corpora + preamble-v2.txt
 │   └── cases/                     ← declarative test cases: basic-scan, kernel-empty-boot
 │                                    (preamble-bitwise-match deferred to ../ROADMAP.md Step 10)
 ```

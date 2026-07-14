@@ -55,7 +55,7 @@ These have their own conformance cases even though they are not JSON Schemas.
 
 | # | Artifact | Case | Status | Notes |
 |---|---|---|---|---|
-| A | Preamble verbatim text | `preamble-bitwise-match` | 🟢 covered | Submits a `markdown-summarizer` job over a scanned markdown node (`setup.priorInvokes`), then `sm job preview --last` MUST print content containing `fixtures/preamble-v1.txt` byte-for-byte (`stdout-contains-verbatim`). |
+| A | Preamble verbatim text | `preamble-bitwise-match` | 🟢 covered | Submits a `markdown-summarizer` job over a scanned markdown node (`setup.priorInvokes`), then `sm job preview --last` MUST print content containing `fixtures/preamble-v2.txt` byte-for-byte (`stdout-contains-verbatim`). |
 | B | Kernel empty-boot invariant | `kernel-empty-boot` | 🟢 covered | All extensions disabled → empty ScanResult. |
 | C | Atomic-claim race safety |, | 🔴 missing | Blocked by Step 10. Two concurrent `sm job claim` invocations against a single queued row, exactly one MUST succeed. |
 | D | Duplicate detection |, | 🔴 missing | Blocked by Step 10. Two `sm job submit` with same `(action, version, node, contentHash)`, second exits 3. |

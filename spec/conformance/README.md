@@ -4,7 +4,7 @@ Language-neutral test suite the specification demands. A conforming implementati
 
 The suite splits across two ownership boundaries:
 
-- **Spec-owned cases**, kernel-agnostic. They live in this directory and ship with `@skill-map/spec` (see the inventory below; `kernel-empty-boot` guards the boot invariant, `preamble-bitwise-match` the preamble bytes). The universal preamble fixture (`preamble-v1.txt`) lives here too.
+- **Spec-owned cases**, kernel-agnostic. They live in this directory and ship with `@skill-map/spec` (see the inventory below; `kernel-empty-boot` guards the boot invariant, `preamble-bitwise-match` the preamble bytes). The universal preamble fixture (`preamble-v2.txt`) lives here too.
 - **Provider-owned cases**, exercise a Provider's own `kinds` catalog. They live next to the Provider's manifest, under `<plugin-dir>/conformance/`. The reference impl ships one such suite at [`src/extensions/providers/claude/conformance/`](../../src/extensions/providers/claude/conformance/) covering Claude's five kinds (`skill` / `agent` / `command` / `hook` / `note`) via cases `basic-scan`, `rename-high`, `orphan-detection`.
 
 The shape below is normative; the case count in either bucket expands before spec-v1.0.0 (see [`../versioning.md`](../versioning.md)). See [`coverage.md`](./coverage.md) for the spec-owned matrix and the Provider's own coverage file (e.g. `src/extensions/providers/claude/conformance/coverage.md`) for the Provider-owned matrix.
@@ -27,7 +27,7 @@ External consumers (alt-impl authors, Provider authors validating their own work
 spec/conformance/
 ├── README.md                 ← this file
 ├── fixtures/
-│   └── preamble-v1.txt       ← verbatim preamble text for bitwise-match checks
+│   └── preamble-v2.txt       ← verbatim preamble text for bitwise-match checks
 └── cases/
     └── kernel-empty-boot.json ← declarative case (see "Case format" below)
 ```
@@ -82,7 +82,7 @@ A case is a JSON document with this shape:
   "assertions": [
     { "type": "exit-code", "value": 0 },
     { "type": "json-path", "path": "$.schemaVersion", "equals": 1 },
-    { "type": "stdout-contains-verbatim", "fixture": "preamble-v1.txt" }
+    { "type": "stdout-contains-verbatim", "fixture": "preamble-v2.txt" }
   ]
 }
 ```
@@ -126,7 +126,7 @@ Assertion types beyond this list MAY be proposed via spec-vX.Y.Z minor bumps. Im
 | `kernel-empty-boot` | With every Provider/Extractor/Analyzer disabled, scanning an empty scope returns a valid empty graph. |
 | `no-global-scope` | The `-g/--global` flag does not exist. Implementations MUST reject it on every verb (exit `2`, "unknown option"). Guards `cli-contract.md` §Scope is always project-local. |
 | `orphan-markdown-fallback` | Multi-Provider corpus where one node lands via the universal `core/markdown` fallback and another via vendor-specific claude classification. Locks the orchestrator's path-dedup contract. |
-| `preamble-bitwise-match` | Rendered job content contains `preamble-v1.txt` byte-for-byte: a `markdown-summarizer` job submitted over a scanned markdown node (via `setup.priorInvokes`), read back with `sm job preview --last`. Guards `prompt-preamble.md` §Stability. |
+| `preamble-bitwise-match` | Rendered job content contains `preamble-v2.txt` byte-for-byte: a `markdown-summarizer` job submitted over a scanned markdown node (via `setup.priorInvokes`), read back with `sm job preview --last`. Guards `prompt-preamble.md` §Stability. |
 | `extension-mode-routing` | Dispatch routing follows the Action manifest `mode`: a probabilistic Action submitted via `sm job submit` lands as a queued `state_jobs` row (asserted through `sm job list --json`), never executing in-process. |
 | `extension-mode-routing-deterministic` | The deterministic half: `sm job submit` refuses a deterministic Action with exit 2 and the in-process advisory. |
 | `plugin-missing-ui-rejected` | Drop-in Provider whose `kinds[*]` entry omits the required `ui` block fails AJV validation with `invalid-manifest`; the rest of the pipeline keeps running. |
