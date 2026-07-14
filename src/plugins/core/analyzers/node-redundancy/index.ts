@@ -1,0 +1,55 @@
+/**
+ * Built-in probabilistic `node-redundancy` Analyzer, the FIRST real
+ * finder built-in (Step 11 wave 1). Judges ONE node for internal
+ * redundancy: repeated instructions, trivial rewordings, or sections
+ * restating other sections. Its judgments land in `state_findings` as
+ * `type: 'redundancy'` rows (advisory, never exit-code-bearing); read
+ * them with `sm findings`, in context with `sm show`.
+ *
+ * As a probabilistic Analyzer it carries NO `evaluate()` (the orchestrator
+ * excludes finders from every scan-time phase): the kernel renders
+ * `prompt.md` + the canonical preamble + the report contract into a
+ * queued job (`sm job submit node-redundancy -n <node>`), an external
+ * agent drains it (`sm job claim`), and `sm record` validates the JSON
+ * report against `report.schema.json` before writing the findings
+ * through (`spec/job-lifecycle.md` §Record).
+ *
+ * **Structure-as-truth siblings.** Two files next to this manifest:
+ *   - `prompt.md`, the prompt template (single `{{userContent}}`
+ *     placeholder; user-approved wording, 2026-07-14).
+ *   - `report.schema.json`, the report contract. It `$ref`s the canonical
+ *     findings envelope (`findings/report.schema.json`), the finder
+ *     routing signal, and narrows `findings[].type` to the const
+ *     `'redundancy'` so this finder can only emit its own judgment (any
+ *     other slug fails the record as `report-invalid`).
+ *
+ * Built-ins bundle into `src/plugins/built-ins.ts` with no source
+ * directory at runtime, so the built-ins codegen
+ * (`scripts/generate-built-ins.js`) inlines both siblings onto the
+ * emitted manifest as `promptTemplate` + `reportSchema` (this analyzer
+ * is the first user of the analyzer-side inlining lane).
+ *
+ * Ships `stability: 'experimental'`: DISABLED by default, the operator
+ * opts in (`sm plugins enable core/node-redundancy`) before the finder
+ * resolves as a submit target.
+ */
+
+import type { IAnalyzer, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
+import { CORE_PLUGIN_ID as PLUGIN_ID } from '../../../ids.js';
+
+export const nodeRedundancyAnalyzer: IBuiltInManifest<IAnalyzer> = {
+  id: 'node-redundancy',
+  pluginId: PLUGIN_ID,
+  kind: 'analyzer',
+  description:
+    'Probabilistic finder that judges a single node for internal redundancy: repeated instructions, trivial rewordings, or sections restating other sections. Emits findings of type redundancy; advisory, never affects exit codes.',
+  // Experimental: disabled by default, the operator opts in.
+  stability: 'experimental',
+  mode: 'probabilistic',
+  // ADVISORY wall-clock estimate (Decision #139: never arms a TTL); a
+  // single-node redundancy pass is a light judgment on a mid-tier model.
+  probExpectedDurationSeconds: 60,
+  // No precondition: redundancy is a universal prose property, `--all`
+  // fans out to every non-virtual node regardless of kind.
+  // No `evaluate`: probabilistic analyzers have none by contract.
+};

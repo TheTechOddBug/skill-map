@@ -35,15 +35,25 @@ describe('built-in extensions, execution modes', () => {
     }
   });
 
-  it('every built-in rule declares mode: deterministic', () => {
+  it('every built-in rule declares an explicit mode; finders carry the contract pair', () => {
+    // Analyzers are DUAL-MODE since the findings pipeline: deterministic
+    // rules implement `evaluate()` and run at scan time; probabilistic
+    // finders ship the codegen-inlined `promptTemplate` + `reportSchema`
+    // pair instead and never enter a scan phase.
     const set = builtIns();
     assert.ok(set.analyzers.length > 0, 'expected at least one built-in rule');
     for (const r of set.analyzers) {
-      assert.equal(
-        r.mode,
-        'deterministic',
-        `rule ${r.id} should declare mode: 'deterministic'`,
+      assert.ok(
+        r.mode === 'deterministic' || r.mode === 'probabilistic',
+        `rule ${r.id} should declare an explicit mode; got ${JSON.stringify(r.mode)}`,
       );
+      if (r.mode === 'probabilistic') {
+        assert.equal(typeof r.promptTemplate, 'string', `finder ${r.id} inlines prompt.md`);
+        assert.ok(r.reportSchema, `finder ${r.id} inlines report.schema.json`);
+        assert.equal(r.evaluate, undefined, `finder ${r.id} must not implement evaluate()`);
+      } else {
+        assert.equal(typeof r.evaluate, 'function', `rule ${r.id} implements evaluate()`);
+      }
     }
   });
 
@@ -175,7 +185,9 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/name-mismatch` (analyzer that flags a declared `frontmatter.name` diverging from the node's path-derived handle, severity from the per-kind `identifierMismatch` knob) brings it to 40.
     // `core/markdown-summarizer` (the first probabilistic built-in Action; the universal node summarizer, carrying its `prompt.md` + `report.schema.json` inlined by the built-ins codegen) brings it to 41.
     // `github/enrichment` (the first declared-network deterministic Action; Model A provenance verification against a node's `source` / `sourceVersion` annotations, executed via `sm refresh` behind the `allowNetworkActions` policy) brings it to 42.
-    assert.equal(rows.length, 42);
+    // `core/node-redundancy` (the first probabilistic built-in Analyzer, the internal-redundancy finder; experimental, ships disabled, prompt user-approved 2026-07-14) brings it to 43.
+    // `core/node-contradiction` + `core/node-incoherence` + `core/node-contraindication` (the rest of the wave-1 finder roster, same experimental/disabled mold; finders judge independently, no cross-sibling deferrals) bring it to 46.
+    assert.equal(rows.length, 46);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a

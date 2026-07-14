@@ -324,10 +324,12 @@ describe('plugin-runtime, branch coverage', () => {
       // to be reintroduced under a probabilistic evaluation model;
       // `core/name-mismatch` joined for the declared-vs-path-handle
       // divergence). This custom resolver enables every id except
-      // `core/name-collision`, so 15 compose, listed below in
+      // `core/name-collision`, so 19 compose, listed below in
       // alphabetical order (`issue-counter` is the lone aggregate-phase
       // analyzer; `name-reserved` + `reference-broken` are the
-      // score-phase ones).
+      // score-phase ones; the four `node-*` finders are probabilistic,
+      // present in the composed catalog as queue targets but excluded
+      // from every scan-time phase by the orchestrator's mode gate).
       assert.deepEqual(analyzerIds, [
         'annotation-field-unknown',
         'annotation-orphan',
@@ -340,6 +342,10 @@ describe('plugin-runtime, branch coverage', () => {
         'link-self-loop',
         'name-mismatch',
         'name-reserved',
+        'node-contradiction',
+        'node-contraindication',
+        'node-incoherence',
+        'node-redundancy',
         'node-stability',
         'reference-broken',
         'reference-redundant',
@@ -363,7 +369,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 6, 'claude + antigravity (beta) + codex (beta) + opencode (beta) + agent-skills (stable, locked) + core-markdown load by default');
       assert.equal(composed.extractors.length, 12, 'all 12 extractors load by default; core/mcp-tools was promoted experimental → beta so it now ships enabled (the codex grammar extractors and the code-region siblings backtick-mention + backtick-slash + backtick-dollar load too)');
-      assert.equal(composed.analyzers.length, 15, '15 of 16 analyzers loaded; core/annotation-stale is experimental so it ships disabled by default (the former projector analyzers core/supersede + core/tags were deleted; the remaining inspector buttons self-project from their actions and tag editing moved inline; core/score-resolution was deleted, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model; core/name-mismatch joined for declared-vs-path-handle divergences)');
+      assert.equal(composed.analyzers.length, 15, '15 of 20 analyzers loaded; core/annotation-stale and the four probabilistic finders (node-redundancy / node-contradiction / node-incoherence / node-contraindication) are experimental so they ship disabled by default (the former projector analyzers core/supersede + core/tags were deleted; the remaining inspector buttons self-project from their actions and tag editing moved inline; core/score-resolution was deleted, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model; core/name-mismatch joined for declared-vs-path-handle divergences)');
       // Actions load into the pipeline as dispatch targets; those with a
       // `project()` also self-project an inspector button (e.g.
       // `core/node-set-stability`). `core/node-set-tags` is stable and
@@ -500,7 +506,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
       assert.equal(composed.extractors.length, 12, 'extractors untouched (12: core/mcp-tools is now beta so it ships enabled; the codex grammar extractors and the three code-region trigger siblings load)');
-      assert.equal(composed.analyzers.length, 15, 'analyzers untouched (15: core/annotation-stale is experimental so it ships disabled; the projector analyzers core/supersede + core/tags were deleted; core/score-resolution was deleted, the kernel seeds the 1.0 baseline directly; core/job-file-orphan was removed; core/name-mismatch joined)');
+      assert.equal(composed.analyzers.length, 15, 'analyzers untouched (15: core/annotation-stale + the four probabilistic finders are experimental so they ship disabled; the projector analyzers core/supersede + core/tags were deleted; core/score-resolution was deleted, the kernel seeds the 1.0 baseline directly; core/job-file-orphan was removed; core/name-mismatch joined)');
     });
 
     it('(b) killSwitches.extractors empties only the extractors bucket', () => {

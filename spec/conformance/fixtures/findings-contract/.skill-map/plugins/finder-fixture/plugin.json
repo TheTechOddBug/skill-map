@@ -1,0 +1,6 @@
+{
+  "version": "0.1.0",
+  "specCompat": "*",
+  "catalogCompat": "*",
+  "description": "Conformance fixture: a drop-in plugin shipping one probabilistic finder Analyzer (the files-by-convention pair prompt.md + report.schema.json extending the canonical findings envelope) so the findings-contract cases can exercise the queue surface without depending on the disabled-by-default built-in finder."
+}

@@ -1,0 +1,1 @@
+"$ref": "https://skill-map.ai/spec/v0/findings/report.schema.json"

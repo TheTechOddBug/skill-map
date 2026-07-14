@@ -46,6 +46,10 @@ import { linkSelfLoopAnalyzer as _linkSelfLoopAnalyzer } from './core/analyzers/
 import { nameCollisionAnalyzer as _nameCollisionAnalyzer } from './core/analyzers/name-collision/index.js';
 import { nameMismatchAnalyzer as _nameMismatchAnalyzer } from './core/analyzers/name-mismatch/index.js';
 import { nameReservedAnalyzer as _nameReservedAnalyzer } from './core/analyzers/name-reserved/index.js';
+import { nodeContradictionAnalyzer as _nodeContradictionAnalyzer } from './core/analyzers/node-contradiction/index.js';
+import { nodeContraindicationAnalyzer as _nodeContraindicationAnalyzer } from './core/analyzers/node-contraindication/index.js';
+import { nodeIncoherenceAnalyzer as _nodeIncoherenceAnalyzer } from './core/analyzers/node-incoherence/index.js';
+import { nodeRedundancyAnalyzer as _nodeRedundancyAnalyzer } from './core/analyzers/node-redundancy/index.js';
 import { nodeStabilityAnalyzer as _nodeStabilityAnalyzer } from './core/analyzers/node-stability/index.js';
 import { referenceBrokenAnalyzer as _referenceBrokenAnalyzer } from './core/analyzers/reference-broken/index.js';
 import { referenceRedundantAnalyzer as _referenceRedundantAnalyzer } from './core/analyzers/reference-redundant/index.js';
@@ -89,6 +93,118 @@ const linkSelfLoopAnalyzer = { ..._linkSelfLoopAnalyzer, pluginId: 'core', versi
 const nameCollisionAnalyzer = { ..._nameCollisionAnalyzer, pluginId: 'core', version: VERSION };
 const nameMismatchAnalyzer = { ..._nameMismatchAnalyzer, pluginId: 'core', version: VERSION };
 const nameReservedAnalyzer = { ..._nameReservedAnalyzer, pluginId: 'core', version: VERSION };
+const nodeContradictionAnalyzer = { ..._nodeContradictionAnalyzer, pluginId: 'core', version: VERSION, promptTemplate: `Judge ONE thing about the document below: internal contradictions.
+
+A contradiction is two directives or statements within this single
+document that cannot BOTH be followed or be true at once; a reader
+cannot act without choosing one over the other.
+
+Do NOT flag:
+- Statements distinguished by explicit conditions ("in dev use X, in
+  prod use Y" is a distinction, not a contradiction).
+- Explicit evolution ("we used to do X, now we do Y").
+- Directive pairs that CAN both be followed; only mutual exclusions
+  count.
+
+For each contradiction found, emit one finding:
+- type: "contradiction"
+- severity: "warn" when a precedence between the two is inferable
+  though ambiguous; "error" when the two are flatly mutually exclusive.
+- message: one sentence naming the two clashing directives.
+- detail: quote both spans (trimmed) and propose which one survives, or
+  the condition that separates them.
+- confidence: your certainty for this specific finding.
+
+A document with no contradictions is a valid outcome: return an empty
+findings array. Judge only what is inside the user-content block.
+
+{{userContent}}
+`, reportSchema: JSON.parse('{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://skill-map.ai/spec/v0/core/node-contradiction-report.schema.json","title":"NodeContradictionReport","description":"Report shape for the built-in `core/node-contradiction` probabilistic finder Analyzer. Extends the canonical findings envelope (`findings/report.schema.json`); that reference is BOTH the load-time gate and the record-path routing signal (the validated `findings[]` land in `state_findings`, see `job-lifecycle.md` §Record). Narrows every finding\'s `type` to the const `contradiction` so this finder can only emit its own judgment; any other slug fails the record as `report-invalid`. Stability: experimental.","allOf":[{"$ref":"https://skill-map.ai/spec/v0/findings/report.schema.json"}],"type":"object","properties":{"findings":{"type":"array","items":{"type":"object","properties":{"type":{"const":"contradiction"}}}}}}') };
+const nodeContraindicationAnalyzer = { ..._nodeContraindicationAnalyzer, pluginId: 'core', version: VERSION, promptTemplate: `Judge ONE thing about the document below: contraindications.
+
+A contraindication is two or more directives that are each valid on
+their own but whose COMBINATION is risky or counterproductive, the
+drug-interaction shape: "always parallelize writes" plus "the store
+supports a single writer"; "delete logs on shutdown" plus "audit using
+the logs".
+
+Do NOT flag:
+- Risks the document itself already acknowledges and mitigates.
+- Combinations that are risky only under assumptions the document does
+  not enable.
+
+For each contraindication found, emit one finding:
+- type: "contraindication"
+- severity: "warn" by default; "error" when the combination is
+  destructive and the document carries no warning.
+- message: one sentence naming the directives that clash in
+  combination.
+- detail: quote the directives (trimmed) and name the concrete scenario
+  where they clash.
+- confidence: your certainty for this specific finding.
+
+A document with no contraindications is a valid outcome: return an
+empty findings array. Judge only what is inside the user-content block.
+
+{{userContent}}
+`, reportSchema: JSON.parse('{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://skill-map.ai/spec/v0/core/node-contraindication-report.schema.json","title":"NodeContraindicationReport","description":"Report shape for the built-in `core/node-contraindication` probabilistic finder Analyzer. Extends the canonical findings envelope (`findings/report.schema.json`); that reference is BOTH the load-time gate and the record-path routing signal (the validated `findings[]` land in `state_findings`, see `job-lifecycle.md` §Record). Narrows every finding\'s `type` to the const `contraindication` so this finder can only emit its own judgment; any other slug fails the record as `report-invalid`. Stability: experimental.","allOf":[{"$ref":"https://skill-map.ai/spec/v0/findings/report.schema.json"}],"type":"object","properties":{"findings":{"type":"array","items":{"type":"object","properties":{"type":{"const":"contraindication"}}}}}}') };
+const nodeIncoherenceAnalyzer = { ..._nodeIncoherenceAnalyzer, pluginId: 'core', version: VERSION, promptTemplate: `Judge ONE thing about the document below: internal incoherence.
+
+Incoherence means the document fails to hang together as one piece:
+references to content that does not exist in it ("as explained above"
+with no such explanation), the same concept named differently without
+notice, steps that assume earlier steps the document never stated, or
+sections presupposing context the document never gave.
+
+Do NOT flag:
+- References pointing at OTHER documents or files; link validation is a
+  separate deterministic concern.
+- Style that is ugly but followable.
+
+For each incoherence found, emit one finding:
+- type: "incoherence"
+- severity: "info" for light friction; "warn" when it prevents
+  following the document.
+- message: one sentence naming the incoherent span and its kind.
+- detail: quote the incoherent span (trimmed) and name what is missing
+  or drifting.
+- confidence: your certainty for this specific finding.
+
+A document with no incoherence is a valid outcome: return an empty
+findings array. Judge only what is inside the user-content block.
+
+{{userContent}}
+`, reportSchema: JSON.parse('{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://skill-map.ai/spec/v0/core/node-incoherence-report.schema.json","title":"NodeIncoherenceReport","description":"Report shape for the built-in `core/node-incoherence` probabilistic finder Analyzer. Extends the canonical findings envelope (`findings/report.schema.json`); that reference is BOTH the load-time gate and the record-path routing signal (the validated `findings[]` land in `state_findings`, see `job-lifecycle.md` §Record). Narrows every finding\'s `type` to the const `incoherence` so this finder can only emit its own judgment; any other slug fails the record as `report-invalid`. Stability: experimental.","allOf":[{"$ref":"https://skill-map.ai/spec/v0/findings/report.schema.json"}],"type":"object","properties":{"findings":{"type":"array","items":{"type":"object","properties":{"type":{"const":"incoherence"}}}}}}') };
+const nodeRedundancyAnalyzer = { ..._nodeRedundancyAnalyzer, pluginId: 'core', version: VERSION, promptTemplate: `Judge ONE thing about the document below: internal redundancy.
+
+Redundancy means the same instruction, fact, or explanation stated more
+than once within this single document: verbatim repetition, trivial
+rewordings of the same directive, or a section that restates another
+section without adding conditions, scope, or new information.
+
+Do NOT flag:
+- Headings, tables of contents, or navigation naming a topic the body
+  then develops.
+- A summary or checklist that intentionally condenses earlier prose.
+- Repeated identifiers, paths, or commands inside code blocks or examples.
+- Cross-references ("see section X") or links.
+- Structural emphasis: a rule stated once in prose and once in a table
+  row is emphasis; three near-identical prose sentences are not.
+
+For each redundancy found, emit one finding:
+- type: "redundancy"
+- severity: "info" for light repetition (one extra restatement); "warn"
+  when heavy (three or more restatements, or large duplicated blocks).
+- message: one sentence naming WHAT is repeated and how many times.
+- detail: quote the repeated spans (trimmed) and propose ONE consolidated
+  wording.
+- confidence: your certainty for this specific finding.
+
+A document with no redundancy is a valid outcome: return an empty
+findings array. Judge only what is inside the user-content block.
+
+{{userContent}}
+`, reportSchema: JSON.parse('{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://skill-map.ai/spec/v0/core/node-redundancy-report.schema.json","title":"NodeRedundancyReport","description":"Report shape for the built-in `core/node-redundancy` probabilistic finder Analyzer. Extends the canonical findings envelope (`findings/report.schema.json`); that reference is BOTH the load-time gate and the record-path routing signal (the validated `findings[]` land in `state_findings`, see `job-lifecycle.md` §Record). Narrows every finding\'s `type` to the const `redundancy` so this finder can only emit its own judgment; any other slug fails the record as `report-invalid`. Stability: experimental.","allOf":[{"$ref":"https://skill-map.ai/spec/v0/findings/report.schema.json"}],"type":"object","properties":{"findings":{"type":"array","items":{"type":"object","properties":{"type":{"const":"redundancy"}}}}}}') };
 const nodeStabilityAnalyzer = { ..._nodeStabilityAnalyzer, pluginId: 'core', version: VERSION };
 const referenceBrokenAnalyzer = { ..._referenceBrokenAnalyzer, pluginId: 'core', version: VERSION };
 const referenceRedundantAnalyzer = { ..._referenceRedundantAnalyzer, pluginId: 'core', version: VERSION };
@@ -208,6 +324,10 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       nameCollisionAnalyzer,
       nameMismatchAnalyzer,
       nameReservedAnalyzer,
+      nodeContradictionAnalyzer,
+      nodeContraindicationAnalyzer,
+      nodeIncoherenceAnalyzer,
+      nodeRedundancyAnalyzer,
       nodeStabilityAnalyzer,
       referenceBrokenAnalyzer,
       referenceRedundantAnalyzer,
