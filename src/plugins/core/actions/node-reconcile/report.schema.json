@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.ai/spec/v0/core/node-reconcile-report.schema.json",
+  "title": "NodeReconcileReport",
+  "description": "Report shape for the built-in `core/node-reconcile` probabilistic fixer Action. A fixer is NOT a finder: its report is execution-only (no findings write-through table), so it extends `report-base.schema.json` directly for the `confidence` + `safety` fields the preamble mandates, rather than the `findings/` envelope. `resolved` records, per contradiction or contraindication finding the draining agent acted on, whether it applied the reconciliation and a one-line note; `editsSummary` describes the edits made to the node file. skill-map never writes the body, the draining agent performs the edit. Stability: experimental.",
+  "allOf": [{ "$ref": "https://skill-map.ai/spec/v0/report-base.schema.json" }],
+  "type": "object",
+  "required": ["resolved", "editsSummary"],
+  "properties": {
+    "resolved": {
+      "type": "array",
+      "description": "One entry per contradiction or contraindication finding the agent considered. `applied` is true when the reconciliation was made, false when the agent judged the finding needs an author decision (with the reason in `note`) and left the document untouched.",
+      "items": {
+        "type": "object",
+        "required": ["type", "applied", "note"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "The finding's `type` slug (e.g. `contradiction`, `contraindication`), echoed from the injected findings so the operator can match report entries to findings."
+          },
+          "applied": {
+            "type": "boolean",
+            "description": "True when the agent applied the proposed reconciliation to the document; false when it declined (needs an author decision)."
+          },
+          "note": {
+            "type": "string",
+            "description": "One-line note: what was reconciled, or why the finding was not applied."
+          }
+        }
+      }
+    },
+    "editsSummary": {
+      "type": "string",
+      "description": "Short prose summary of the edits the agent made to the node file (which conflicts were settled). Empty string when nothing was applied."
+    }
+  }
+}

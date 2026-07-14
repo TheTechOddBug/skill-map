@@ -135,6 +135,8 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     assert.equal(qualifiedByKindAndShort.get('action:node-set-tags'), 'core/node-set-tags');
     assert.equal(qualifiedByKindAndShort.get('action:markdown-summarizer'), 'core/markdown-summarizer');
     assert.equal(qualifiedByKindAndShort.get('action:node-consolidate'), 'core/node-consolidate');
+    assert.equal(qualifiedByKindAndShort.get('action:node-reconcile'), 'core/node-reconcile');
+    assert.equal(qualifiedByKindAndShort.get('action:node-clarify'), 'core/node-clarify');
     assert.equal(qualifiedByKindAndShort.get('action:enrichment'), 'github/enrichment');
   });
 
@@ -189,7 +191,8 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/node-redundancy` (the first probabilistic built-in Analyzer, the internal-redundancy finder; experimental, ships disabled, prompt user-approved 2026-07-14) brings it to 43.
     // `core/node-contradiction` + `core/node-incoherence` + `core/node-contraindication` (the rest of the wave-1 finder roster, same experimental/disabled mold; finders judge independently, no cross-sibling deferrals) bring it to 46.
     // `core/node-consolidate` (the FIRST fixer: a probabilistic Action declaring `precondition.analyzerIds: ['core/node-redundancy']`; experimental, ships disabled; resolves redundancy findings via a template-mandated file edit) brings it to 47.
-    assert.equal(rows.length, 47);
+    // `core/node-reconcile` (fixer serving TWO finders, `precondition.analyzerIds: ['core/node-contradiction', 'core/node-contraindication']`; resolves conflicting / jointly-risky directive pairs) + `core/node-clarify` (fixer for `core/node-incoherence`; fixes dangling references, drifting terminology, missing context), both experimental and ships disabled, bring it to 49.
+    assert.equal(rows.length, 49);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a
