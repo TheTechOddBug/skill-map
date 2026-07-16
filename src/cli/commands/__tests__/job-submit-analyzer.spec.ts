@@ -16,7 +16,7 @@ import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { strictEqual, ok, match } from 'node:assert';
+import { strictEqual, ok, match, doesNotMatch } from 'node:assert';
 import { after, before, describe, it } from 'node:test';
 
 import type { BaseContext } from 'clipanion';
@@ -364,5 +364,82 @@ describe('dual-id round trip routes on the FROZEN extensionKind', () => {
       await adapter.close();
     }
     strictEqual((await findingsFor(proj)).length, 0, 'nothing written');
+  });
+});
+
+describe('suppressed-judgment advisory (spec §Submit)', () => {
+  /**
+   * Write a valid `.sm` sidecar next to the SKILL node carrying the given
+   * standing suppressions (`spec/schemas/annotations.schema.json`), the
+   * artifact `sm findings dismiss` leaves behind. The submit path reads
+   * this LIVE file to warn the operator before the agent pass is spent.
+   */
+  function writeSuppressionSidecar(
+    proj: IProject,
+    suppressions: Array<{ extension: string; type?: string }>,
+  ): void {
+    const bodyHash = sha256(`Body of ${SKILL.path}\n`);
+    const lines = [
+      'identity:',
+      `  path: ${SKILL.path}`,
+      `  bodyHash: ${bodyHash}`,
+      `  frontmatterHash: ${'f'.repeat(64)}`,
+      'annotations:',
+      '  suppressions:',
+    ];
+    for (const s of suppressions) {
+      lines.push(`    - extension: ${s.extension}`);
+      if (s.type !== undefined) lines.push(`      type: ${s.type}`);
+    }
+    writeFileSync(join(proj.root, '.claude/skills/foo/SKILL.sm'), lines.join('\n') + '\n');
+  }
+
+  it('warns on stderr, quoting the suppressed types sorted, and still queues', async () => {
+    const proj = await setupProject();
+    writeSuppressionSidecar(proj, [
+      { extension: 'prob-finder/quality-check', type: 'redundancy' },
+      { extension: 'prob-finder/quality-check', type: 'contradiction' },
+    ]);
+    const { code, out, err } = await submit(proj, 'prob-finder/quality-check');
+    strictEqual(code, 0, 'an advisory, never a refusal');
+    match(out, /^d-\d{8}-\d{6}-[0-9a-f]{4}\n$/, 'job id still rides stdout alone');
+    match(
+      err,
+      /suppresses 'contradiction', 'redundancy' findings from prob-finder\/quality-check/,
+    );
+    match(err, /dropped at record/);
+    strictEqual((await lastJob(proj)).extensionId, 'prob-finder/quality-check', 'job queued');
+  });
+
+  it('a type-less suppression reports the whole finder silenced', async () => {
+    const proj = await setupProject();
+    writeSuppressionSidecar(proj, [{ extension: 'prob-finder/quality-check' }]);
+    const { code, err } = await submit(proj, 'prob-finder/quality-check');
+    strictEqual(code, 0);
+    match(err, /suppresses all findings from prob-finder\/quality-check/);
+  });
+
+  it('stays silent when the suppression targets a different extension', async () => {
+    const proj = await setupProject();
+    writeSuppressionSidecar(proj, [{ extension: 'other/finder', type: 'redundancy' }]);
+    const { code, err } = await submit(proj, 'prob-finder/quality-check');
+    strictEqual(code, 0);
+    doesNotMatch(err, /suppresses/);
+  });
+
+  it('is omitted in --json mode (the stdout contract is unchanged)', async () => {
+    const proj = await setupProject();
+    writeSuppressionSidecar(proj, [{ extension: 'prob-finder/quality-check', type: 'redundancy' }]);
+    const { code, out, err } = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const cmd = buildSubmit('prob-finder/quality-check');
+      cmd.json = true;
+      const c = await run(cmd, cap);
+      return { code: c, out: cap.stdout(), err: cap.stderr() };
+    });
+    strictEqual(code, 0);
+    doesNotMatch(err, /suppresses/);
+    const job = JSON.parse(out) as { extensionId: string };
+    strictEqual(job.extensionId, 'prob-finder/quality-check');
   });
 });

@@ -55,6 +55,20 @@ export const JOBS_QUEUE_TEXTS = {
   // --json stays the plain new Job. The identical-request and running-job
   // refusals are NOT supersessions, they reuse submitDuplicateLine (exit 3).
   submitSupersededLine: '{{glyph}}  superseded queued job {{id}}\n',
+  // Suppressed-judgment advisory (`spec/job-lifecycle.md` §Submit): a FINDER
+  // submit over a node whose .sm sidecar suppresses the finder's judgment
+  // (a standing `sm findings dismiss`) queues anyway, but the operator
+  // learns BEFORE the agent pass is spent that the record path will drop
+  // the matching findings. {{what}} is the suppressed-types phrase
+  // (`'contradiction' findings` / `all findings`). Human mode only
+  // (stderr); never a refusal (the kernel safety lane still screens the
+  // node, and a finder may emit types the suppression does not cover).
+  submitSuppressedLine:
+    '{{glyph}}  {{node}} suppresses {{what}} from {{extension}}; matching findings will be dropped at record\n',
+  /** {{what}} phrase for type-narrowed suppressions: quoted comma-joined types. */
+  submitSuppressedTypes: '{{types}} findings',
+  /** {{what}} phrase when a type-less suppression silences the whole finder. */
+  submitSuppressedAll: 'all findings',
   submitDriftLine:
     '{{glyph}}  drift: {{node}} changed on disk since the last scan (run sm scan)\n',
   submitUnreadableLine:

@@ -41,7 +41,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 
 import type { ExecutionFailureReason, ExecutionRecord, Job, JobExtensionKind } from '../../kernel/types.js';
 import type { IAction, IAnalyzer } from '../../kernel/extensions/index.js';
@@ -56,11 +56,10 @@ import {
   findReservedFindingTypes,
   fixerResolutionEntries,
   generateExecutionId,
-  type ISuppressionMatch,
   kernelSafetyRows,
   summaryKindOfReportSchema,
 } from '../../kernel/jobs/index.js';
-import { readSidecarFor } from '../../kernel/sidecar/index.js';
+import { readActiveSuppressions } from '../util/sidecar-suppressions.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
@@ -460,39 +459,6 @@ function buildFindingsIntent(
       ...kernelSafetyRows(report),
     ],
   };
-}
-
-/**
- * Read the node's LIVE `.sm` sidecar and project its
- * `annotations.suppressions` to the finder-lane match shape. The sidecar
- * is the source of truth (`sm findings dismiss` writes it directly through
- * the gated channel), NOT the denormalized `scan_nodes.annotations_json`,
- * which is stale between a dismiss and the next scan. An absent / invalid
- * sidecar, or a missing / non-array `suppressions`, yields no matches.
- * Each entry keeps its optional `type` (absent = every type from the
- * finder); entries with no string `extension` are skipped (defensive, AJV
- * pins the shape on the write side).
- */
-function readActiveSuppressions(cwd: string, nodeId: string): ISuppressionMatch[] {
-  const raw = readSidecarFor(resolve(cwd, nodeId)).parsed?.annotations?.['suppressions'];
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .map(toSuppressionMatch)
-    .filter((m): m is ISuppressionMatch => m !== null);
-}
-
-/**
- * Narrow one raw `suppressions[]` entry to a finder-lane match, or `null`
- * when it lacks a string `extension` (defensive: AJV pins the shape on the
- * write side). Keeps the optional `type` (absent = every type).
- */
-function toSuppressionMatch(entry: unknown): ISuppressionMatch | null {
-  if (typeof entry !== 'object' || entry === null) return null;
-  const record = entry as Record<string, unknown>;
-  const extension = record['extension'];
-  if (typeof extension !== 'string' || extension.length === 0) return null;
-  const type = record['type'];
-  return typeof type === 'string' ? { extension, type } : { extension };
 }
 
 /** Defensive object narrowing for the schema-validated report payload. */

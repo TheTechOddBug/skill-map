@@ -529,7 +529,7 @@ See `job-lifecycle.md` for the state machine; this table is the CLI surface.
 
 | Command | Purpose |
 |---|---|
-| `sm jobs submit <extension> -n <node.path>` | Enqueue a single job. |
+| `sm jobs submit <extension> -n <node.path>` | Enqueue a single job. A finder submit over a node whose `.sm` sidecar suppresses the finder's judgment (a standing `sm findings dismiss`) queues anyway but emits a stderr advisory naming the suppressed types, so the operator can reconsider the agent pass before spending it (`job-lifecycle.md` §Submit, suppressed-judgment advisory; omitted under `--json`). |
 | `sm jobs submit <extension> --all` | Fan out to every node matching the extension's preconditions. |
 | `sm jobs submit ... --force` | Bypass duplicate detection. |
 | `sm jobs submit ... --ttl <seconds>` | Arm an expiry for this job (positive seconds; the reaper may then mark it `abandoned`). `0` explicitly disarms, overriding any config policy. Absent every source (flag, `jobs.perExtensionTtl`, `jobs.ttlSeconds`) the job never expires, the default (Decision #139: interactive processing runs may hold a claim for hours). |

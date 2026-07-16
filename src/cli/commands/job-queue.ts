@@ -59,6 +59,7 @@ import {
   generateNonce,
   InvalidPriorityError,
   InvalidTtlError,
+  type ISuppressionMatch,
   JobRenderError,
   loadCanonicalPreamble,
   buildReportContract,
@@ -80,6 +81,7 @@ import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { JOBS_QUEUE_TEXTS as T } from '../i18n/jobs-queue.texts.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { readActiveSuppressions } from '../util/sidecar-suppressions.js';
 import { SmCommand } from '../util/sm-command.js';
 import { withSqlite } from '../util/with-sqlite.js';
 import { loadActionRuntime, type IActionRuntime } from './action-runtime.js';
@@ -216,6 +218,18 @@ function fixerAnalyzerIds(
  */
 function fixerFindersLabel(prepared: ISubmitContext): string {
   return (prepared.analyzerIds ?? []).join(', ');
+}
+
+/**
+ * Human phrase for the suppressed-judgment advisory (`spec/job-lifecycle.md`
+ * §Submit): the quoted, deduped, sorted `type`s of the matching suppression
+ * entries, or the whole-finder wording when any entry carries no `type`
+ * (a type-less suppression silences every type the finder emits).
+ */
+function suppressedWhatLabel(matching: readonly ISuppressionMatch[]): string {
+  if (matching.some((s) => s.type === undefined)) return T.submitSuppressedAll;
+  const types = [...new Set(matching.map((s) => s.type as string))].sort();
+  return tx(T.submitSuppressedTypes, { types: types.map((t) => `'${t}'`).join(', ') });
 }
 
 /** Detect a SQLite UNIQUE-constraint failure (the partial-index backstop). */
@@ -563,6 +577,7 @@ export class JobSubmitCommand extends SmCommand {
       this.printer!.data(JSON.stringify(job) + '\n');
     } else {
       this.emitSupersededAdvisory(outcome.supersededIds);
+      this.emitSuppressedAdvisory(prepared, outcome.nodeId);
       this.printer!.data(outcome.id + '\n');
     }
     return ExitCode.Ok;
@@ -578,6 +593,32 @@ export class JobSubmitCommand extends SmCommand {
     for (const id of supersededIds) {
       this.printer!.info(tx(T.submitSupersededLine, { glyph: this.warnGlyph(), id }));
     }
+  }
+
+  /**
+   * Suppressed-judgment advisory (`spec/job-lifecycle.md` §Submit): a FINDER
+   * submit whose target node's LIVE `.sm` sidecar suppresses the finder's
+   * judgment (a standing `sm findings dismiss`) queues anyway, but warns the
+   * operator that the record path will drop the matching findings, BEFORE
+   * the agent pass is spent. Never a refusal (the kernel safety lane is
+   * never suppressed, and a finder may emit types the suppression does not
+   * cover). Human mode only (stderr); no-op for Action submits and for
+   * nodes with no matching suppression.
+   */
+  private emitSuppressedAdvisory(prepared: ISubmitContext, nodeId: string): void {
+    if (prepared.extensionKind !== 'analyzer') return;
+    const matching = readActiveSuppressions(prepared.cwd, nodeId).filter(
+      (s) => s.extension === prepared.extensionId,
+    );
+    if (matching.length === 0) return;
+    this.printer!.info(
+      tx(T.submitSuppressedLine, {
+        glyph: this.warnGlyph(),
+        node: nodeId,
+        what: suppressedWhatLabel(matching),
+        extension: prepared.extensionId,
+      }),
+    );
   }
 
   private reportAll(
@@ -610,6 +651,9 @@ export class JobSubmitCommand extends SmCommand {
       // Per-node fixer supersede advisory (each fan-out submit applies the
       // Supersede rule independently, spec §Findings injection for fixers).
       this.emitSupersededAdvisory((o as { supersededIds?: string[] }).supersededIds ?? []);
+      // Per-node suppressed-judgment advisory (spec §Submit): fan-out finder
+      // submits warn on every queued node whose sidecar dismisses them.
+      this.emitSuppressedAdvisory(prepared, o.nodeId);
     }
     for (const o of refused) {
       this.printer!.info(this.toRefusedLine(o, prepared));
