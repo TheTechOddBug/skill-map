@@ -32,6 +32,7 @@ import { JobSubmitCommand, JobListCommand, JobShowCommand, JobPreviewCommand } f
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
 import { loadCanonicalPreamble } from '../../../kernel/jobs/index.js';
 import { sha256 } from '../../../kernel/orchestrator/node-build.js';
+import { agentSkillFile, installAgentSkill, uninstallAgentSkill } from '../../../core/agent-skill/engine.js';
 
 const FIXTURE = fileURLToPath(new URL('./fixtures/prob-summarizer', import.meta.url));
 const PLUGIN_ID = 'prob-summarizer';
@@ -118,6 +119,9 @@ async function setupProject(
   const root = join(tmpRoot, `proj-${counter}`);
   const dbPath = join(root, '.skill-map', 'skill-map.db');
   mkdirSync(join(root, '.skill-map', 'plugins'), { recursive: true });
+  // Processing-agent gate (spec/job-lifecycle.md §Submit): submits refuse
+  // unless the processing skill is installed; materialise the canonical copy.
+  installAgentSkill(root, '.claude/skills');
   cpSync(FIXTURE, join(root, '.skill-map', 'plugins', PLUGIN_ID), { recursive: true });
 
   const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
@@ -681,5 +685,54 @@ describe('sm jobs preview', () => {
       return run(cmd, captureContext());
     });
     strictEqual(emptyCode, 5);
+  });
+});
+
+describe('sm jobs submit processing-agent gate (spec §Submit)', () => {
+  async function submitCapture(
+    proj: IProject,
+    overrides: ISubmitOverrides,
+  ): Promise<{ code: number; out: string; err: string }> {
+    return withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const code = await run(buildSubmit(overrides), cap);
+      return { code, out: cap.stdout(), err: cap.stderr() };
+    });
+  }
+
+  it('refuses with exit 2 and the mechanism advisory when no skill is installed', async () => {
+    const proj = await setupProject([SKILL]);
+    uninstallAgentSkill(proj.root, '.claude/skills');
+    const { code, out, err } = await submitCapture(proj, { action: ACTION_ID, node: SKILL.path });
+    strictEqual(code, 2);
+    strictEqual(out, '', 'no job id on stdout');
+    match(err, /no processing agent is set up/);
+    match(err, /skill-map never runs jobs itself/);
+    match(err, /sm agent install/);
+    strictEqual(await countJobs(proj.dbPath), 0, 'nothing queued');
+  });
+
+  it('an installed-but-stale skill passes the gate with a refresh advisory', async () => {
+    const proj = await setupProject([SKILL]);
+    // Bytes that differ from the canonical template: an older CLI's copy.
+    writeFileSync(agentSkillFile(proj.root, '.claude/skills'), 'old skill bytes\n');
+    const { code, err } = await submitCapture(proj, { action: ACTION_ID, node: SKILL.path });
+    strictEqual(code, 0, 'stale is an advisory, never a refusal');
+    match(err, /sm-process-jobs skill is from an older CLI/);
+    match(err, /sm agent install to refresh/);
+    strictEqual(await countJobs(proj.dbPath), 1, 'job queued');
+  });
+
+  it('the stale advisory stays out of --json mode', async () => {
+    const proj = await setupProject([SKILL]);
+    writeFileSync(agentSkillFile(proj.root, '.claude/skills'), 'old skill bytes\n');
+    const { code, out, err } = await submitCapture(proj, {
+      action: ACTION_ID,
+      node: SKILL.path,
+      json: true,
+    });
+    strictEqual(code, 0);
+    doesNotMatch(err, /older CLI/);
+    ok(JSON.parse(out), 'stdout stays the plain Job envelope');
   });
 });

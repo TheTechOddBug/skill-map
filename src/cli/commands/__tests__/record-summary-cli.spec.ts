@@ -39,6 +39,7 @@ import { RecordCommand } from '../record.js';
 import { ShowCommand } from '../show.js';
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
 import { sha256 } from '../../../kernel/orchestrator/node-build.js';
+import { installAgentSkill } from '../../../core/agent-skill/engine.js';
 
 const ACTION_ID = 'core/markdown-summarizer';
 const NOTE = { path: 'notes/guide.md', kind: 'markdown', provider: 'markdown' };
@@ -135,6 +136,9 @@ async function setupProject(
   const root = join(tmpRoot, `proj-${counter}`);
   const dbPath = join(root, '.skill-map', 'skill-map.db');
   mkdirSync(join(root, '.skill-map'), { recursive: true });
+  // Processing-agent gate (spec/job-lifecycle.md §Submit): submits refuse
+  // unless the processing skill is installed; materialise the canonical copy.
+  installAgentSkill(root, '.claude/skills');
   if (opts.withPlugin === true) {
     mkdirSync(join(root, '.skill-map', 'plugins'), { recursive: true });
     cpSync(FIXTURE, join(root, '.skill-map', 'plugins', PLUGIN_ID), { recursive: true });

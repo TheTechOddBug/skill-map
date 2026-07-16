@@ -7,6 +7,11 @@
     "priorScans": [{ "fixture": "extension-mode-routing" }],
     "priorInvokes": [
       {
+        "verb": "agent",
+        "sub": "install",
+        "flags": ["--for", "claude"]
+      },
+      {
         "verb": "jobs",
         "sub": "submit",
         "args": ["markdown-summarizer"],

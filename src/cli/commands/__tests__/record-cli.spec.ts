@@ -33,6 +33,7 @@ import { RecordCommand } from '../record.js';
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
 import { sha256 } from '../../../kernel/orchestrator/node-build.js';
 import type { IJobSubmitRow } from '../../../kernel/types/storage.js';
+import { installAgentSkill } from '../../../core/agent-skill/engine.js';
 
 const ACTION_ID = 'core/markdown-summarizer';
 const NOTE = { path: 'notes/guide.md', kind: 'markdown', provider: 'markdown' };
@@ -109,6 +110,9 @@ async function setupProject(): Promise<IProject> {
   const root = join(tmpRoot, `proj-${counter}`);
   const dbPath = join(root, '.skill-map', 'skill-map.db');
   mkdirSync(join(root, '.skill-map'), { recursive: true });
+  // Processing-agent gate (spec/job-lifecycle.md §Submit): submits refuse
+  // unless the processing skill is installed; materialise the canonical copy.
+  installAgentSkill(root, '.claude/skills');
 
   const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
   await adapter.init();

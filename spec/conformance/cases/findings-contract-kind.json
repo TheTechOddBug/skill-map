@@ -7,6 +7,11 @@
     "priorScans": [{ "fixture": "findings-contract" }],
     "priorInvokes": [
       {
+        "verb": "agent",
+        "sub": "install",
+        "flags": ["--for", "claude"]
+      },
+      {
         "verb": "jobs",
         "sub": "submit",
         "args": ["finder-fixture/redundancy-probe"],

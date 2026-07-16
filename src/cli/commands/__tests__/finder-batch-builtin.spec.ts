@@ -34,6 +34,7 @@ import { PluginsShowCommand } from '../plugins/show.js';
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
 import { sha256 } from '../../../kernel/orchestrator/node-build.js';
 import { builtIns } from '../../../plugins/built-ins.js';
+import { installAgentSkill } from '../../../core/agent-skill/engine.js';
 
 const NOTE = { path: 'notes/guide.md', kind: 'markdown', provider: 'markdown' };
 
@@ -94,6 +95,9 @@ async function setupProject(opts: { enable?: string }): Promise<IProject> {
   const root = join(tmpRoot, `proj-${counter}`);
   const dbPath = join(root, '.skill-map', 'skill-map.db');
   mkdirSync(join(root, '.skill-map'), { recursive: true });
+  // Processing-agent gate (spec/job-lifecycle.md §Submit): submits refuse
+  // unless the processing skill is installed; materialise the canonical copy.
+  installAgentSkill(root, '.claude/skills');
   if (opts.enable !== undefined) {
     writeFileSync(
       join(root, '.skill-map', 'settings.json'),

@@ -33,6 +33,7 @@ import { JobSubmitCommand, JobClaimCommand } from '../job-queue.js';
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
 import type { Job } from '../../../kernel/types.js';
 import { sha256 } from '../../../kernel/orchestrator/node-build.js';
+import { installAgentSkill } from '../../../core/agent-skill/engine.js';
 
 const FIXER_ID = 'core/node-consolidate';
 const FINDER_ID = 'core/node-redundancy';
@@ -76,6 +77,9 @@ async function setupProject(paths: string[]): Promise<IProject> {
   const root = join(tmpRoot, `proj-${counter}`);
   const dbPath = join(root, '.skill-map', 'skill-map.db');
   mkdirSync(join(root, '.skill-map'), { recursive: true });
+  // Processing-agent gate (spec/job-lifecycle.md §Submit): submits refuse
+  // unless the processing skill is installed; materialise the canonical copy.
+  installAgentSkill(root, '.claude/skills');
   writeFileSync(
     join(root, '.skill-map', 'settings.json'),
     JSON.stringify({

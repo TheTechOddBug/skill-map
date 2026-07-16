@@ -35,6 +35,20 @@ export const JOBS_QUEUE_TEXTS = {
   submitReadNotOnDisk: 'file missing or not readable as a node',
   submitErrBadTtl: '--ttl must be an integer number of seconds, got {{value}}',
   submitErrBadPriority: '--priority must be an integer, got {{value}}',
+  // Processing-agent gate (`spec/job-lifecycle.md` §Submit): the queue is
+  // processed by external agents, never by skill-map itself, so a submit
+  // with NO processing skill installed anywhere would enqueue work nothing
+  // ever claims. The refusal explains the mechanism and the remedy rather
+  // than just naming the failure. Evaluated AFTER target resolution, so
+  // not-found / deterministic / ambiguous keep the more specific message.
+  submitErrNoProcessingAgent:
+    'no processing agent is set up. skill-map never runs jobs itself. ' +
+    'Run `sm agent install` to install the skill to process the jobs',
+  // Companion advisory when the skill IS installed but no copy carries this
+  // CLI's canonical bytes (an older install): pass the gate, nudge the
+  // refresh. Human mode only, like every submit advisory.
+  submitStaleSkillLine:
+    '{{glyph}}  the installed sm-process-jobs skill is from an older CLI; run sm agent install to refresh it\n',
   // Fixer refusal (`spec/job-lifecycle.md` §Findings injection for fixers):
   // a probabilistic Action declaring `precondition.analyzerIds` submitted
   // over a node NO matching finder ever judged (no rows at all, fresh or

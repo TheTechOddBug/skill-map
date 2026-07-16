@@ -78,6 +78,7 @@ import { tx } from '../../kernel/util/tx.js';
 import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
+import { processingSkillPresence } from '../../core/agent-skill/targets.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { JOBS_QUEUE_TEXTS as T } from '../i18n/jobs-queue.texts.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
@@ -401,9 +402,32 @@ export class JobSubmitCommand extends SmCommand {
     });
     if (!prep.ok) return this.failPrepare(prep.error);
 
+    const gateExit = this.checkProcessingAgentGate(ctx.cwd);
+    if (gateExit !== null) return gateExit;
+
     return withSqlite({ databasePath: dbPath, autoBackup: false }, (adapter) =>
       this.dispatch(adapter, prep.extension, prep.prepared),
     );
+  }
+
+  /**
+   * Processing-agent gate (`spec/job-lifecycle.md` §Submit): refuse (exit 2)
+   * when the project has NO processing skill installed under any scaffold
+   * destination, since the queued job would never be claimed; the message
+   * explains the pull-only mechanism and the remedy. An installed-but-stale
+   * skill passes with a refresh advisory (human mode only). Evaluated after
+   * target resolution so the more specific refusals win, and only on this
+   * operator surface: `submitFixerJob` (the auto-fix hook path) bypasses it,
+   * because it fires inside `sm record`, where an agent is demonstrably
+   * processing the queue.
+   */
+  private checkProcessingAgentGate(cwd: string): TExitCode | null {
+    const presence = processingSkillPresence(cwd);
+    if (!presence.installed) return this.fail(T.submitErrNoProcessingAgent);
+    if (!presence.fresh && !this.json) {
+      this.printer!.info(tx(T.submitStaleSkillLine, { glyph: this.warnGlyph() }));
+    }
+    return null;
   }
 
   /**

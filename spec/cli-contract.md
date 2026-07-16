@@ -525,6 +525,8 @@ Every verb in this section that writes `.sm` (the `bump` table rows, `sm sidecar
 
 See `job-lifecycle.md` for the state machine; this table is the CLI surface.
 
+**Processing-agent gate.** `sm jobs submit` refuses (exit 2) when the project has no processing agent set up, i.e. the `sm-process-jobs` skill is not installed under any Provider scaffold destination: the queue is processed by external agents, so the jobs would sit queued forever. The refusal explains the mechanism and names the remedy (`sm agent install`, then ask the agent to process the queue). An installed-but-outdated skill passes with a refresh advisory. Full semantics: [`job-lifecycle.md` §Submit](./job-lifecycle.md#submit), processing-agent gate.
+
 **Submit target resolution.** `<extension>` is any PROBABILISTIC extension, Action or finder Analyzer; the queue is kind-agnostic. It accepts a qualified id (`<plugin>/<ext>`) or a bare extension id (unique-suffix matching, same rule as `sm jobs list --extension`). An id matching no extension at all refuses with exit 5 (not found); an id whose only match is deterministic refuses with exit 2. If one plugin ships a probabilistic Action AND a probabilistic Analyzer under the same extension id, the bare/qualified form refuses with exit 2 and an advisory naming the `<kind>:` prefixed disambiguator (`action:<plugin>/<ext>` / `analyzer:<plugin>/<ext>`), which is always accepted. The resolved kind freezes onto the job row (`extension_kind`), so record-time routing never re-resolves it.
 
 | Command | Purpose |

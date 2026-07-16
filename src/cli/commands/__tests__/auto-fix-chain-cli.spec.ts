@@ -37,6 +37,7 @@ import { RecordCommand } from '../record.js';
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
 import { sha256 } from '../../../kernel/orchestrator/node-build.js';
 import type { Job } from '../../../kernel/types.js';
+import { installAgentSkill } from '../../../core/agent-skill/engine.js';
 
 const FINDER_FIXTURE = fileURLToPath(new URL('./fixtures/prob-finder', import.meta.url));
 const FINDER_PLUGIN_ID = 'prob-finder';
@@ -129,6 +130,9 @@ async function setupProject(opts: {
   const root = join(tmpRoot, `proj-${counter}`);
   const dbPath = join(root, '.skill-map', 'skill-map.db');
   mkdirSync(join(root, '.skill-map', 'plugins'), { recursive: true });
+  // Processing-agent gate (spec/job-lifecycle.md §Submit): submits refuse
+  // unless the processing skill is installed; materialise the canonical copy.
+  installAgentSkill(root, '.claude/skills');
   cpSync(FINDER_FIXTURE, join(root, '.skill-map', 'plugins', FINDER_PLUGIN_ID), { recursive: true });
   if (opts.includeFixer) {
     cpSync(FIXER_FIXTURE, join(root, '.skill-map', 'plugins', FIXER_PLUGIN_ID), { recursive: true });

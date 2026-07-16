@@ -17,6 +17,8 @@ import { installedDefaultEnabled } from '../../kernel/config/plugin-resolver.js'
 import type { IProvider } from '../../kernel/extensions/index.js';
 import { builtIns } from '../../plugins/built-ins.js';
 
+import { agentSkillStatus } from './engine.js';
+
 /**
  * One scaffold destination, projected from a Provider that declares a
  * `scaffold.skillDir`. `id` is what `--for` (and the HTTP `provider`
@@ -79,4 +81,31 @@ export function listScaffoldTargets(includeExperimental = false): IScaffoldTarge
     if (target !== null) out.push(target);
   }
   return out;
+}
+
+/**
+ * Project-wide presence of the processing skill, the probe behind the
+ * `sm jobs submit` processing-agent gate (`spec/job-lifecycle.md` §Submit):
+ * `installed` = the skill artifact exists under AT LEAST ONE scaffold
+ * destination (experimental Providers included, the probe is read-only and
+ * a physically present skill is readable by an agent regardless of the
+ * Provider's stability); `fresh` = at least one installed copy carries the
+ * canonical bytes of THIS CLI (the same byte-exact comparison as
+ * `sm agent status`). Installed-but-not-fresh drives the refresh advisory,
+ * not a refusal. Shared `skillDir` territories (`.agents/skills`) are
+ * probed once.
+ */
+export interface IProcessingSkillPresence {
+  installed: boolean;
+  fresh: boolean;
+}
+
+/** See {@link IProcessingSkillPresence}. */
+export function processingSkillPresence(cwd: string): IProcessingSkillPresence {
+  const dirs = new Set(listScaffoldTargets(true).map((t) => t.skillDir));
+  const statuses = [...dirs].map((dir) => agentSkillStatus(cwd, dir));
+  return {
+    installed: statuses.some((s) => s.installed),
+    fresh: statuses.some((s) => s.installed && !s.stale),
+  };
 }
