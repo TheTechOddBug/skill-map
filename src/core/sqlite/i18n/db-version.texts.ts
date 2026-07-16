@@ -57,7 +57,7 @@ export const DB_VERSION_TEXTS = {
     '{{glyph}}  This DB predates a schema change in skill-map {{currentVersion}} (same version, older columns).\n' +
     '   {{hint}}\n',
   dbSchemaDriftHint:
-    'Run `sm scan` to rebuild the local cache (your .sm sidecars are untouched), or `sm db reset`; some columns may be missing until then.',
+    'Run `sm scan` to rebuild the local cache (your .sm sidecars are untouched); some columns may be missing until then.',
 
   // Write-side refusal, the DEFAULT for a DB-mutating open that does NOT
   // own drift (job verbs, `plugins enable`, `config set`, `record`, ...).
@@ -71,12 +71,12 @@ export const DB_VERSION_TEXTS = {
     '{{glyph}}  This DB predates a schema change in skill-map {{currentVersion}} and cannot be written safely (same version, older columns).\n' +
     '   {{hint}}\n',
   dbSchemaDriftWriteHint:
-    'Run `sm db reset --hard` then `sm scan` to rebuild the local cache; your .sm sidecars are untouched.',
+    'Run `sm scan` to rebuild the local cache; your .sm sidecars are untouched.',
   // Plain, glyph-free variant carried on `DbSchemaDriftError.message` so
   // the BFF error envelope (and any non-TTY consumer) surfaces a single
   // clean sentence instead of the §3.1b block above.
   dbSchemaDriftWritePlain:
-    'This DB predates a schema change in skill-map {{currentVersion}} and cannot be written safely. Run `sm db reset --hard` then `sm scan` to rebuild the local cache; your .sm sidecars are untouched.',
+    'This DB predates a schema change in skill-map {{currentVersion}} and cannot be written safely. Run `sm scan` to rebuild the local cache; your .sm sidecars are untouched.',
 
   // Read-side FAILURE conversion (spec/cli-contract.md §Schema-drift
   // rebuild, read bullet): a read verb advises on drift and attempts the
@@ -87,7 +87,7 @@ export const DB_VERSION_TEXTS = {
     '{{glyph}}  The read failed on this drifted DB: its stored schema predates skill-map {{currentVersion}} and is missing columns this verb needs.\n' +
     '   {{hint}}\n',
   dbSchemaDriftReadFailedHint:
-    'Run `sm scan` to rebuild the local cache (your .sm sidecars are untouched), or `sm db reset --hard`.',
+    'Run `sm scan` to rebuild the local cache; your .sm sidecars are untouched.',
   // Plain, glyph-free variant on `DbSchemaDriftError.message` for the BFF
   // envelope / programmatic consumers; carries the sanitized underlying
   // cause for diagnostics (the human block never does).

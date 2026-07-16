@@ -142,13 +142,14 @@ describe('withSqlite write-side drift guard (default open)', () => {
       (err: unknown) => {
         ok(err instanceof DbSchemaDriftError);
         strictEqual(err.kind, 'schema-drift');
-        // Plain `.message` (BFF envelope) names the remediation.
-        ok(err.message.includes('sm db reset --hard'));
+        // Plain `.message` (BFF envelope) names the remediation: `sm scan`
+        // owns drift and rebuilds by itself, so no `db reset` detour.
         ok(err.message.includes('sm scan'));
+        ok(!err.message.includes('sm db reset'), 'reset detour retired: scan rebuilds alone');
         // §3.1b block (CLI stderr) carries the glyph + reason + hint.
         ok(err.humanMessage.includes('✕'));
         ok(err.humanMessage.includes('schema change'));
-        ok(err.humanMessage.includes('sm db reset --hard'));
+        ok(err.humanMessage.includes('sm scan'));
         return true;
       },
     );

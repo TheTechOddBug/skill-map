@@ -162,7 +162,7 @@ describe('audit L3, internal-error envelope redacts err.message and logs detail'
     const app = new Hono();
     app.get('/boom', () => {
       throw new DbSchemaDriftError({
-        message: 'This DB predates a schema change. Run `sm db reset --hard` then `sm scan`.',
+        message: 'This DB predates a schema change. Run `sm scan` to rebuild the local cache.',
         humanMessage: '✕  schema change\n   hint\n',
       });
     });
@@ -175,7 +175,6 @@ describe('audit L3, internal-error envelope redacts err.message and logs detail'
     strictEqual(body.error.code, 'db-drift');
     strictEqual(body.error.details, null);
     // The plain advisory (not the §3.1b glyph block) rides the envelope.
-    ok(body.error.message.includes('sm db reset --hard'));
     ok(body.error.message.includes('sm scan'));
     match(body.error.message, /schema change/);
   });

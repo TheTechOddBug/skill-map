@@ -248,9 +248,9 @@ export class DbVersionMismatchError extends Error {
  *   - `humanMessage`, the §3.1b block (`✕` glyph + dim hint) the CLI
  *     writes to stderr.
  *
- * Both advisories name schema drift as the cause and point at
- * `sm db reset --hard` followed by `sm scan`. See `spec/db-schema.md`
- * §Schema drift.
+ * Both advisories name schema drift as the cause and point at `sm scan`
+ * (a drift-owning verb: it rebuilds the DB by itself, no `db reset`
+ * detour). See `spec/db-schema.md` §Schema drift.
  */
 export class DbSchemaDriftError extends Error {
   readonly kind = 'schema-drift' as const;
