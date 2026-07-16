@@ -1,8 +1,8 @@
 /**
  * End-to-end tests for `sm record` (Step 10 Phase D, the job callback)
  * against a real project DB. The happy completed path runs the full loop
- * against the built-in `core/markdown-summarizer`: `sm job submit` ->
- * `sm job claim` (to obtain the nonce) -> `sm record --status completed`
+ * against the built-in `core/markdown-summarizer`: `sm jobs submit` ->
+ * `sm jobs claim` (to obtain the nonce) -> `sm record --status completed`
  * with a schema-valid report. The error paths seed a job directly through
  * the storage port (mirroring `job-claim-cli.spec.ts`).
  *

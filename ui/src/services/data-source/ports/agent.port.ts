@@ -1,8 +1,8 @@
 /**
- * `IAgentPort`, the agent-drain-skill surface (`spec/cli-contract.md`
+ * `IAgentPort`, the agent-process-skill surface (`spec/cli-contract.md`
  * §HTTP API, `/api/agent/*`; CLI counterpart: `sm agent
  * status/install/uninstall`): probe + install management for the
- * sm-run-queue skill that teaches the operator's agent to drain the
+ * sm-process-jobs skill that teaches the operator's agent to process the
  * skill-map job queue.
  *
  * One of the domain ports composed into `IDataSourcePort`
@@ -17,7 +17,7 @@ import type {
 
 export interface IAgentPort {
   /**
-   * Probe the drain-skill install state for one provider. Mirrors
+   * Probe the process-skill install state for one provider. Mirrors
    * `GET /api/agent/install?provider=<id>`. `supported: false` (with
    * `skillDir: null`) when the Provider declares no `scaffold.skillDir`
    * (the Settings row hides then); `stale: true` when installed but
@@ -28,7 +28,7 @@ export interface IAgentPort {
   getAgentSkillInstallStatus(provider: string): Promise<IAgentSkillInstallStatusApi>;
 
   /**
-   * Materialise (or refresh) the canonical sm-run-queue skill under
+   * Materialise (or refresh) the canonical sm-process-jobs skill under
    * the provider's `scaffold.skillDir`. Mirrors
    * `POST /api/agent/install`. The server enforces consent: without
    * `confirm: true` it rejects 412 (`code: 'confirm-required'`) and
@@ -43,7 +43,7 @@ export interface IAgentPort {
   ): Promise<IAgentSkillInstallEnvelopeApi>;
 
   /**
-   * Remove the installed sm-run-queue skill folder (exact reversal of
+   * Remove the installed sm-process-jobs skill folder (exact reversal of
    * install). Mirrors `POST /api/agent/uninstall`, consent-gated like
    * install. Returns the refreshed status envelope plus `removed`
    * (`false` = nothing was installed, idempotent no-op). Demo mode

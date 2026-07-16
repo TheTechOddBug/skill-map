@@ -1,6 +1,6 @@
 # Job events
 
-Canonical event stream emitted around job execution. skill-map never executes a job itself (an external agent drains the queue via `sm job claim` + `sm record`, see `architecture.md` §Execution handover), so the canonical emitter is the RECORD path: closing a job emits the synthetic run envelope below. Every implementation MUST emit these events in the order described, with the shapes below. Consumers: the CLI pretty printer, the `--json` ndjson output, the Server's WebSocket broadcaster, any third-party integration.
+Canonical event stream emitted around job execution. skill-map never executes a job itself (an external agent processes the queue via `sm jobs claim` + `sm record`, see `architecture.md` §Execution handover), so the canonical emitter is the RECORD path: closing a job emits the synthetic run envelope below. Every implementation MUST emit these events in the order described, with the shapes below. Consumers: the CLI pretty printer, the `--json` ndjson output, the Server's WebSocket broadcaster, any third-party integration.
 
 This document is **normative**. The event types, payload shapes, and ordering analyzers are stable contracts.
 
@@ -69,7 +69,7 @@ Opens the synthetic envelope. `mode` is always `external`: the run was driven by
 
 ### `job.claimed`
 
-The claim leg of the envelope. `sm job claim`'s own stdout is the `{ id, nonce, content }` handover contract (never ndjson), so the claim is REPLAYED into the synthetic envelope when `sm record` closes the job, with the claim data read from the job row. The claim itself is the spawn signal: there is no separate spawning event.
+The claim leg of the envelope. `sm jobs claim`'s own stdout is the `{ id, nonce, content }` handover contract (never ndjson), so the claim is REPLAYED into the synthetic envelope when `sm record` closes the job, with the claim data read from the job row. The claim itself is the spawn signal: there is no separate spawning event.
 
 ```json
 {
@@ -203,7 +203,7 @@ run.started → job.claimed → job.callback.received → (job.completed | job.f
 
 Envelopes never interleave: each is emitted atomically when `sm record` closes its job. Distinct jobs recorded by parallel agents produce distinct envelopes with distinct `runId`s.
 
-The claim-side reap (`sm job claim` reaps expired running jobs before claiming, `job-lifecycle.md` §Reap procedure) emits NO events from the CLI: the claim verb's stdout is the `{ id, nonce, content }` handover contract, never ndjson. An implementation with a live event transport (the server's WebSocket) SHOULD emit a minimal `run.started → job.failed(reason=abandoned) → run.summary` envelope per reaped job, with no `job.claimed` replay (the original claimant never reported back); reaped jobs are always visible via `sm job list --status failed`.
+The claim-side reap (`sm jobs claim` reaps expired running jobs before claiming, `job-lifecycle.md` §Reap procedure) emits NO events from the CLI: the claim verb's stdout is the `{ id, nonce, content }` handover contract, never ndjson. An implementation with a live event transport (the server's WebSocket) SHOULD emit a minimal `run.started → job.failed(reason=abandoned) → run.summary` envelope per reaped job, with no `job.claimed` replay (the original claimant never reported back); reaped jobs are always visible via `sm jobs list --status failed`.
 
 ---
 

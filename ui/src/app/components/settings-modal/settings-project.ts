@@ -12,7 +12,7 @@
  *     The hook status is keyed to the ACTIVE lens, so the chassis
  *     threads the lens child's `activeLensId` into it (a cross-child
  *     dependency shared with the skill child below).
- *   - `<sm-settings-project-skill>`: agent drain-skill install button
+ *   - `<sm-settings-project-skill>`: agent process-skill install button
  *     (Install / Update / up-to-date), the hook row's sibling install
  *     affordance, keyed to the ACTIVE lens the same way.
  *   - `<sm-settings-project-realtime>`: real-time-activity toggle

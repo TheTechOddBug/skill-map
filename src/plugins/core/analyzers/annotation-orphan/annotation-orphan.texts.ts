@@ -16,5 +16,5 @@ export const ANNOTATION_ORPHAN_TEXTS = {
    */
   message: 'Orphan sidecar; no matching markdown node',
   /** Remediation hint surfaced via `Issue.fix.summary`. */
-  fixSummary: 'Run `sm sidecar prune` to remove orphan sidecars.',
+  fixSummary: 'Run `sm sidecars prune` to remove orphan sidecars.',
 } as const;

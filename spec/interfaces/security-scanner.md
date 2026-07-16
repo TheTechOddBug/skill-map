@@ -155,7 +155,7 @@ Vendors MAY introduce their own category prefixed `vendor:<slug>` (e.g. `vendor:
 
 ## Runtime model
 
-- Scanners are invoked through the standard job system: `sm job submit security-snyk -n <node.path>` or `sm job submit security-snyk --all`.
+- Scanners are invoked through the standard job system: `sm jobs submit security-snyk -n <node.path>` or `sm jobs submit security-snyk --all`.
 - The report is persisted through the normal action report mechanism ([`state_executions`](../db-schema.md)`.report_path` points to the JSON).
 - `sm findings --security` aggregates findings from reports whose action id starts with `security-`, merging across scanners, deduplicating by `finding.id`.
 - Implementations MAY also surface findings at scan time via a companion Analyzer (e.g. `security-findings-stale` flags nodes whose last scan exceeds a threshold). Recommended but not normative.
@@ -239,4 +239,4 @@ Open (may change pre-v1.0):
 
 - The exact category enum, may grow or consolidate.
 - Whether `tags: ["kind:scanner"]` in the manifest becomes normative (vs. just recommended).
-- Whether scanners gain a dedicated CLI verb (`sm security scan`) in addition to `sm job submit security-<id>`.
+- Whether scanners gain a dedicated CLI verb (`sm security scan`) in addition to `sm jobs submit security-<id>`.

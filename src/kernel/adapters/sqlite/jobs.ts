@@ -1,5 +1,5 @@
 /**
- * Storage helper for `state_jobs` retention GC. Powers `sm job prune`.
+ * Storage helper for `state_jobs` retention GC. Powers `sm jobs prune`.
  *
  * DB-only model: job content lives in `state_job_contents` keyed by
  * `content_hash`, there is no `.skill-map/jobs/*.md` on-disk artifact and
@@ -19,7 +19,7 @@
  *
  * Per `spec/job-lifecycle.md`, this MUST NOT run implicitly during normal
  * verb execution. The helper itself is a pure side-effect on the DB; the
- * policy decision lives in the CLI (`sm job prune`).
+ * policy decision lives in the CLI (`sm jobs prune`).
  *
  * Per `spec/db-schema.md`, `state_executions` is append-only through
  * `v1.0`. This helper does NOT touch that table, pruning a job row leaves
@@ -161,7 +161,7 @@ export async function findActiveDuplicate(
 }
 
 /**
- * List jobs for `sm job list`, filtered and ordered newest-first
+ * List jobs for `sm jobs list`, filtered and ordered newest-first
  * (`created_at DESC`) for display. `extensionId` matches the stored
  * qualified id exactly OR by bare-id suffix (`%/<id>`), mirroring the
  * analyzer-filter semantics so a short id finds its qualified row.
@@ -187,7 +187,7 @@ export async function listJobs(
   return rows.map(rowToJob);
 }
 
-/** Full job row by id, or `null` when absent (drives `sm job show`). */
+/** Full job row by id, or `null` when absent (drives `sm jobs show`). */
 export async function getJob(db: Kysely<IDatabase>, id: string): Promise<Job | null> {
   const row = await db
     .selectFrom('state_jobs')
@@ -247,7 +247,7 @@ export async function pruneTerminalJobs(
  * `content_hash` has no `state_job_contents` row (corruption; the claim
  * path would mark these `job-file-missing`), and `state_job_contents`
  * rows referenced by zero `state_jobs` rows (retention leftovers that
- * `sm job prune` collects). Both `content_hash` columns are NOT NULL,
+ * `sm jobs prune` collects). Both `content_hash` columns are NOT NULL,
  * so the `NOT IN` subqueries never trip the SQL NULL semantics.
  */
 export async function jobsIntegrityCounts(
@@ -279,7 +279,7 @@ export async function jobsIntegrityCounts(
 
 /**
  * Fetch the rendered content blob for `contentHash` from
- * `state_job_contents`, or `null` when absent. `sm job preview` resolves a
+ * `state_job_contents`, or `null` when absent. `sm jobs preview` resolves a
  * job's `content_hash` through this; a `null` result means the content row
  * is missing (the DB-corruption-only `job-file-missing` state, since submit
  * and prune keep `state_jobs` and `state_job_contents` consistent).
@@ -402,7 +402,7 @@ export async function cancelJob(
  * Cancel every active job in one statement: transition all `queued` /
  * `running` rows to the terminal `cancelled` state (`finishedAt = nowMs`,
  * no `failureReason`). Returns the number of rows transitioned. Powers
- * `sm job cancel --all`.
+ * `sm jobs cancel --all`.
  */
 export async function cancelAllActive(
   db: Kysely<IDatabase>,
@@ -448,7 +448,7 @@ export async function failJob(
 /**
  * Fail every active job in one statement: transition all `queued` /
  * `running` rows to `failed` / `user-failed` (`finishedAt = nowMs`).
- * Returns the number of rows transitioned. Powers `sm job fail --all`.
+ * Returns the number of rows transitioned. Powers `sm jobs fail --all`.
  */
 export async function failAllActive(
   db: Kysely<IDatabase>,
@@ -465,7 +465,7 @@ export async function failAllActive(
 /**
  * Counts per lifecycle status,
  * `{ queued, running, completed, failed, cancelled }`, every key present
- * (missing statuses report `0`). Backs `sm job status` with no id argument.
+ * (missing statuses report `0`). Backs `sm jobs status` with no id argument.
  * One grouped `COUNT(*)` pass.
  */
 export async function countJobsByStatus(
@@ -494,8 +494,8 @@ export async function countJobsByStatus(
  * with `finishedAt = nowMs`, in one statement. Returns the reaped ids.
  * `expiresAt < nowMs` excludes NULL `expiresAt` rows automatically (SQLite
  * `NULL < n` is NULL, not true), so only claimed-and-expired jobs are
- * swept. Invoked at the start of every `sm job claim`, before the claim
- * statement; there is no standalone `sm job reap` verb.
+ * swept. Invoked at the start of every `sm jobs claim`, before the claim
+ * statement; there is no standalone `sm jobs reap` verb.
  */
 export async function reapExpired(
   db: Kysely<IDatabase>,

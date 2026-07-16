@@ -4,15 +4,20 @@
  * storage helpers (the write path is covered by the record specs); this
  * spec pins the verb contract (`spec/cli-contract.md` §sm findings):
  *
- *   - default read HIDES two disjoint kinds of row: `fixed` (already
- *     resolved, `--fixed` reveals it, rendered `✓ fixed by <actor>`)
- *     and stale (`--stale` reveals it, marked `(stale)`). A fixed+stale
- *     row counts as fixed (state precedence). Open + human-decision rows
- *     always show.
- *   - excluded rows are REPORTED, never silently swallowed: the hidden
- *     breakdown rides the human output (footer, or the `No fresh findings`
- *     empty state, never a bare `No findings`) and `fixedExcluded` +
- *     `staleExcluded` in JSON, scoped to the same filters as the listing.
+ *   - default read shows what needs attention (open + human-decision),
+ *     HIDING two disjoint kinds of row: `fixed` (already resolved) and
+ *     stale. A fixed+stale row counts as fixed (state precedence).
+ *   - the bucket flags are FILTERS, not additive reveals: `--fixed` shows
+ *     ONLY the fixed bucket (rendered `✓ fixed by <actor>`), `--stale`
+ *     ONLY the stale bucket (marked `(stale)`), together their union; the
+ *     needs-attention rows are omitted and nothing is reported as excluded.
+ *     An empty bucket-filter result reads the no-match line, never the
+ *     clean verdict.
+ *   - in the DEFAULT view, excluded rows are REPORTED, never silently
+ *     swallowed: the hidden breakdown rides the human output (footer, or
+ *     the `No fresh findings` empty state, never a bare `No findings`) and
+ *     `fixedExcluded` + `staleExcluded` in JSON, scoped to the same filters
+ *     as the listing.
  *   - filters: -n, --extension (qualified + bare), --type, --severity
  *     (minimum), --since (ISO), --threshold (minimum confidence).
  *   - exit 0 regardless of content (advisory by construction), even on
@@ -362,15 +367,16 @@ describe('sm findings --json envelope', () => {
     ok(typeof first.id === 'number');
   });
 
-  it('--stale includes the drifted row flagged stale:true and excludes nothing', async () => {
+  it('--stale shows ONLY the stale bucket, drifted row flagged stale:true, needs-attention rows omitted', async () => {
     const proj = await setupProject();
     const { body } = await runJson(proj.root, { stale: true });
-    strictEqual(body.total, 4);
-    strictEqual(body.staleExcluded, 0, '--stale hides nothing, so nothing is excluded');
+    strictEqual(body.total, 1, 'the drifted row is the whole stale bucket; fresh open rows are filtered out');
+    strictEqual(body.staleExcluded, 0, 'an explicit bucket filter reports nothing as excluded');
     strictEqual(body.fixedExcluded, 0, 'no fixed rows in the seed');
-    const staleRow = body.findings.find((f) => f.type === 'incoherence')!;
-    strictEqual(staleRow.stale, true);
-    ok(body.findings.filter((f) => f.stale).length === 1, 'only the drifted row is stale');
+    const only = body.findings[0]!;
+    strictEqual(only.type, 'incoherence');
+    strictEqual(only.stale, true);
+    ok(!body.findings.some((f) => !f.stale), 'no fresh (needs-attention) row leaks into the stale view');
   });
 
   it('staleExcluded is 0 when no row matched at all (the clean verdict)', async () => {
@@ -531,6 +537,7 @@ describe('sm findings human mode', () => {
     });
     match(withStale, /incoherence/);
     match(withStale, /\(stale\)/, 'included row is marked');
+    doesNotMatch(withStale, /contradiction/, '--stale is a FILTER: fresh needs-attention rows are omitted');
   });
 
   it('prints the friendly empty line when nothing matches', async () => {
@@ -667,7 +674,7 @@ describe('sm findings fixer resolution', () => {
   });
 
   it('a hostile resolution note / fixer id is sanitized in human mode but raw in --json', async () => {
-    // The note is FREE TEXT the draining agent authored and the kernel
+    // The note is FREE TEXT the processing agent authored and the kernel
     // stored verbatim: the most agent-controlled string on the row, so it
     // gets the same gate as a finder's message. A screen-clear smuggled
     // through it must never reach the operator's terminal.
@@ -936,7 +943,7 @@ describe('sm findings fixed hiding', () => {
     match(human.out, /Pass --fixed \/ --stale to see them/, 'both reveal flags offered');
   });
 
-  it('--fixed reveals the fixed rows and drops fixedExcluded to 0', async () => {
+  it('--fixed shows ONLY the fixed bucket, both excluded counts 0', async () => {
     const proj = await setupProject();
     await stampResolutionOnType(proj, {
       type: 'redundancy',
@@ -944,13 +951,13 @@ describe('sm findings fixed hiding', () => {
       note: 'Collapsed it.',
     });
     const { body } = await runJson(proj.root, { fixed: true });
-    strictEqual(body.total, 3, 'the fixed row joins the listing');
-    strictEqual(body.fixedExcluded, 0, '--fixed reveals them, so none excluded');
-    strictEqual(body.staleExcluded, 1, 'the stale row is still held back');
-    ok(body.findings.some((f) => f.resolution === 'fixed'), 'the fixed row is present');
+    strictEqual(body.total, 1, 'only the fixed row survives the filter');
+    strictEqual(body.fixedExcluded, 0, 'an explicit bucket filter reports nothing as excluded');
+    strictEqual(body.staleExcluded, 0, 'the stale row is outside the fixed view and not "excluded" either');
+    ok(body.findings.every((f) => f.resolution === 'fixed'), 'no needs-attention or stale row leaks in');
   });
 
-  it('--fixed --stale reveals every row, nothing excluded', async () => {
+  it('--fixed --stale shows the UNION of the two buckets, nothing excluded', async () => {
     const proj = await setupProject();
     await stampResolutionOnType(proj, {
       type: 'redundancy',
@@ -958,9 +965,13 @@ describe('sm findings fixed hiding', () => {
       note: 'Collapsed it.',
     });
     const { body } = await runJson(proj.root, { fixed: true, stale: true });
-    strictEqual(body.total, 4);
+    strictEqual(body.total, 2, 'the fixed row + the stale row, no open rows');
     strictEqual(body.fixedExcluded, 0);
     strictEqual(body.staleExcluded, 0);
+    ok(
+      body.findings.every((f) => f.resolution === 'fixed' || f.stale),
+      'every returned row is in the fixed or stale bucket',
+    );
   });
 
   it('a fixed+stale row counts as FIXED, never as stale (state precedence)', async () => {
@@ -980,11 +991,14 @@ describe('sm findings fixed hiding', () => {
     match(human.out, /1 fixed hidden\./, 'the breakdown reports the single fixed row');
     match(human.out, /Pass --fixed to see it/, 'only the fixed reveal flag is offered');
 
-    // --fixed reveals it even though it is also stale (fixed owns the row).
+    // --fixed shows it even though it is also stale (fixed owns the row); the
+    // fixed bucket is the whole view, so only that one row comes back.
     const revealed = await runJson(proj.root, { fixed: true });
-    strictEqual(revealed.body.total, 4);
+    strictEqual(revealed.body.total, 1, 'the fixed+stale row is the only member of the fixed bucket');
     strictEqual(revealed.body.fixedExcluded, 0);
     strictEqual(revealed.body.staleExcluded, 0);
+    strictEqual(revealed.body.findings[0]!.resolution, 'fixed');
+    strictEqual(revealed.body.findings[0]!.stale, true, 'the row is still marked stale in the fixed view');
   });
 
   it('the fixed count is independent: 2 fixed, 1 stale hidden', async () => {
@@ -998,6 +1012,139 @@ describe('sm findings fixed hiding', () => {
 
     const human = await runHuman(proj.root);
     match(human.out, /2 fixed, 1 stale hidden\./, 'each count is plural-correct and disjoint');
+  });
+});
+
+/**
+ * The bucket flags are FILTERS, not additive reveals (`spec/cli-contract.md`
+ * §sm findings). `--fixed` shows ONLY the fixed bucket, `--stale` ONLY the
+ * stale one, together their union; the needs-attention rows (open +
+ * human-decision) are omitted and the excluded-count reporting is off (it is
+ * a DEFAULT-view honesty device). An empty bucket-filter result reads the
+ * no-match line, never the clean verdict, never the No-fresh breakdown.
+ */
+describe('sm findings bucket flags are filters', () => {
+  /**
+   * One row of each lifecycle shape on the same tree, so a bucket filter has
+   * something in EVERY category to include or exclude:
+   *   contradiction (human-decision, fresh) - needs attention, stays in default
+   *   redundancy    (fixed)                  - the fixed bucket
+   *   incoherence   (stale, open)            - the stale bucket
+   *   injection     (open, fresh)            - needs attention, stays in default
+   */
+  async function setupMixedProject(): Promise<IProject> {
+    const proj = await setupProject();
+    await stampResolutionOnType(proj, {
+      type: 'redundancy',
+      state: 'fixed',
+      note: 'Collapsed it.',
+    });
+    await stampResolutionOnType(proj, {
+      type: 'contradiction',
+      state: 'human-decision',
+      note: 'Your call on which branch.',
+      fixer: 'core/node-reconcile',
+    });
+    return proj;
+  }
+
+  it('--fixed shows ONLY the fixed bucket; open, human-decision and stale rows are absent', async () => {
+    const proj = await setupMixedProject();
+    const { code, out } = await runHuman(proj.root, { fixed: true });
+    strictEqual(code, 0);
+    match(out, /Repeats itself/, 'the fixed redundancy row is shown');
+    match(out, /✓ {2}fixed by/, 'rendered as a handled state under a checkmark');
+    doesNotMatch(out, /A contradicts B/, 'the human-decision row is NOT in the fixed view');
+    doesNotMatch(out, /Sections disagree/, 'the stale row is NOT in the fixed view');
+    doesNotMatch(out, /prompt-injection/, 'the open row is NOT in the fixed view');
+    doesNotMatch(out, /re-run the finders/, 'no excluded-count line under an explicit bucket filter');
+  });
+
+  it('--stale shows ONLY the stale (non-fixed) bucket', async () => {
+    const proj = await setupMixedProject();
+    const { out } = await runHuman(proj.root, { stale: true });
+    match(out, /Sections disagree/, 'the stale incoherence row is shown');
+    match(out, /\(stale\)/, 'marked stale');
+    doesNotMatch(out, /Repeats itself/, 'the fixed row is not part of the stale bucket');
+    doesNotMatch(out, /A contradicts B/, 'the fresh human-decision row is omitted');
+    doesNotMatch(out, /prompt-injection/, 'the open row is omitted');
+  });
+
+  it('--fixed --stale shows the UNION of both buckets, still no needs-attention rows', async () => {
+    const proj = await setupMixedProject();
+    const { body } = await runJson(proj.root, { fixed: true, stale: true });
+    strictEqual(body.total, 2, 'the fixed row + the stale row');
+    strictEqual(body.fixedExcluded, 0);
+    strictEqual(body.staleExcluded, 0);
+    ok(body.findings.some((f) => f.resolution === 'fixed'), 'fixed bucket present');
+    ok(body.findings.some((f) => f.stale && f.resolution !== 'fixed'), 'stale bucket present');
+    ok(
+      body.findings.every((f) => f.resolution === 'fixed' || f.stale),
+      'every returned row is in the fixed or stale bucket (no open / human-decision rows)',
+    );
+  });
+
+  it('--fixed --json returns only the fixed rows with both excluded counts at 0', async () => {
+    const proj = await setupMixedProject();
+    const { body } = await runJson(proj.root, { fixed: true });
+    strictEqual(body.total, 1);
+    strictEqual(body.fixedExcluded, 0);
+    strictEqual(body.staleExcluded, 0);
+    ok(body.findings.every((f) => f.resolution === 'fixed'), 'only fixed rows returned');
+  });
+
+  it('composes with --type: --fixed --type scopes the fixed view to the slug', async () => {
+    const proj = await setupMixedProject();
+    // redundancy is the fixed row; contradiction is human-decision, not fixed.
+    const hit = await runJson(proj.root, { fixed: true, type: 'redundancy' });
+    strictEqual(hit.body.total, 1, 'the fixed redundancy row matches the type');
+    strictEqual(hit.body.findings[0]!.type, 'redundancy');
+
+    const miss = await runJson(proj.root, { fixed: true, type: 'contradiction' });
+    strictEqual(miss.body.total, 0, 'contradiction is human-decision, not fixed: no match');
+    strictEqual(miss.body.fixedExcluded, 0);
+    strictEqual(miss.body.staleExcluded, 0);
+  });
+
+  it('an empty bucket-filter result uses the no-match shape, never the clean verdict or the No-fresh block', async () => {
+    const proj = await setupMixedProject();
+    // --fixed --type contradiction: rows DO exist (contradiction is present as
+    // a human-decision), but none are in the fixed bucket, so the view is
+    // empty while the node is NOT clean.
+    const human = await runHuman(proj.root, { fixed: true, type: 'contradiction' });
+    strictEqual(human.code, 0);
+    match(human.out, /No findings match the current filter\./, 'the neutral no-match line');
+    doesNotMatch(human.out, /✓ {2}No findings\./, 'never the clean verdict: rows sit behind the filter');
+    doesNotMatch(human.out, /No fresh findings/, 'never the excluded-count block under a bucket filter');
+    doesNotMatch(human.out, /hidden\./, 'no hidden breakdown');
+
+    const json = await runJson(proj.root, { fixed: true, type: 'contradiction' });
+    strictEqual(json.body.total, 0);
+    strictEqual(json.body.findings.length, 0);
+    strictEqual(json.body.fixedExcluded, 0);
+    strictEqual(json.body.staleExcluded, 0);
+  });
+
+  it('a bucket filter that matches no rows AT ALL keeps the clean verdict (the one clean-verdict case)', async () => {
+    // --fixed --type no-such-slug: the query returns nothing at all, so this
+    // is the one clean-verdict case (spec: "a node with no rows at all is the
+    // only clean-verdict output"), NOT a no-match.
+    const proj = await setupMixedProject();
+    const { out } = await runHuman(proj.root, { fixed: true, type: 'no-such-slug' });
+    match(out, /✓ {2}No findings\./, 'zero rows at all keeps the clean verdict');
+    doesNotMatch(out, /No findings match/, 'not the no-match line');
+  });
+
+  it('the DEFAULT view (no bucket flag) is unchanged: needs-attention shown, buckets hidden and reported', async () => {
+    const proj = await setupMixedProject();
+    const { body } = await runJson(proj.root);
+    strictEqual(body.total, 2, 'the human-decision + open rows show');
+    strictEqual(body.fixedExcluded, 1, 'the fixed row is reported hidden');
+    strictEqual(body.staleExcluded, 1, 'the stale row is reported hidden');
+    ok(
+      body.findings.some((f) => f.resolution === 'human-decision'),
+      'the human-decision TODO stays visible in the default view',
+    );
   });
 });
 

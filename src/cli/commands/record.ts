@@ -1,6 +1,6 @@
 /**
  * `sm record`, the nonce-authenticated job callback. An external agent
- * that claimed a job (`sm job claim`) closes it here: `sm record`
+ * that claimed a job (`sm jobs claim`) closes it here: `sm record`
  * verifies the nonce, validates the agent's JSON report against the
  * extension's report schema (probabilistic Action or finder Analyzer,
  * the queue is kind-agnostic), writes the terminal `state_executions`
@@ -27,7 +27,7 @@
  *      `state_executions.report_json`, exit 0.
  *   5. `--status failed`: transition to `failed` / `runner-error` (the
  *      callback-reported failure reason; `user-failed` belongs to the
- *      operator verb `sm job fail`). Exit 0.
+ *      operator verb `sm jobs fail`). Exit 0.
  *
  * The record core (parse + validate + execution row + job transition +
  * summary write-through for summary-schema Actions) lives in the SHARED
@@ -109,7 +109,7 @@ export class RecordCommand extends SmCommand {
     category: 'Jobs',
     description: 'Close a running job with success or failure. Nonce is the sole credential.',
     details: `
-      The job callback. An external agent that claimed a job (sm job claim)
+      The job callback. An external agent that claimed a job (sm jobs claim)
       closes it here. sm record verifies --nonce against the job, validates
       the --status completed report against the action's report schema,
       writes the state_executions row (report inline in report_json), and
@@ -319,7 +319,7 @@ export class RecordCommand extends SmCommand {
   ): Promise<TExitCode> {
     // A callback-reported failure is `runner-error` (the agent hit an
     // error and reported it). `user-failed` is the operator verb
-    // `sm job fail`, not this path. `--error` is stored verbatim in
+    // `sm jobs fail`, not this path. `--error` is stored verbatim in
     // report_json (spec/cli-contract.md §Record).
     const execution = await recordFailedOutcome({
       adapter,

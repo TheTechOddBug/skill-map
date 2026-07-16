@@ -28,7 +28,7 @@
     },
     "setup": {
       "type": "object",
-      "description": "Pre-invocation toggles and ordered staging steps. All toggles default to `false`. `priorScans`, when present, run BEFORE the main `invoke` so a case can establish a prior snapshot the heuristic-driven verbs (e.g. `sm scan` rename detection) can react to. `priorInvokes`, when present, run AFTER the top-level `fixture` copy and BEFORE the main `invoke` for state a scan alone cannot establish (e.g. `sm job submit` before `sm job preview --last`).",
+      "description": "Pre-invocation toggles and ordered staging steps. All toggles default to `false`. `priorScans`, when present, run BEFORE the main `invoke` so a case can establish a prior snapshot the heuristic-driven verbs (e.g. `sm scan` rename detection) can react to. `priorInvokes`, when present, run AFTER the top-level `fixture` copy and BEFORE the main `invoke` for state a scan alone cannot establish (e.g. `sm jobs submit` before `sm jobs preview --last`).",
       "additionalProperties": false,
       "properties": {
         "disableAllProviders": {

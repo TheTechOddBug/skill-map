@@ -1,12 +1,12 @@
 /**
  * `sm agent install` / `sm agent uninstall` / `sm agent status`, the
- * distributable half of the agent drain protocol (`spec/cli-contract.md`
- * §Agent drain skill; protocol: `spec/job-lifecycle.md` §Runners).
+ * distributable half of the agent process protocol (`spec/cli-contract.md`
+ * §Agent process skill; protocol: `spec/job-lifecycle.md` §Runners).
  *
- * `install` materialises the canonical `sm-run-queue` skill folder
+ * `install` materialises the canonical `sm-process-jobs` skill folder
  * (`core/agent-skill/skill-template.ts`, CLI-versioned, ships inside the
  * binary, no network fetch) into the destination Provider's
- * `scaffold.skillDir` under the cwd: `<skillDir>/sm-run-queue/SKILL.md`.
+ * `scaffold.skillDir` under the cwd: `<skillDir>/sm-process-jobs/SKILL.md`.
  * Any agent runtime that reads that territory then learns the
  * claim → execute → record loop. `uninstall` removes exactly that folder;
  * `status` reports `installed` / `not installed` / `installed (stale)`,
@@ -43,8 +43,8 @@ import {
 import { Command, Option } from 'clipanion';
 
 import {
-  RUN_QUEUE_SKILL_DIR,
-  RUN_QUEUE_SKILL_FILE,
+  PROCESS_JOBS_SKILL_DIR,
+  PROCESS_JOBS_SKILL_FILE,
 } from '../../core/agent-skill/skill-template.js';
 import { resolveActiveProvider } from '../../core/config/active-provider.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
@@ -60,14 +60,14 @@ import {
   type IScaffoldTarget,
 } from '../../core/agent-skill/targets.js';
 
-/** Relative display form of the skill folder (`<skillDir>/sm-run-queue/`). */
+/** Relative display form of the skill folder (`<skillDir>/sm-process-jobs/`). */
 function skillFolderDisplay(target: IScaffoldTarget): string {
-  return `${target.skillDir}/${RUN_QUEUE_SKILL_DIR}/`;
+  return `${target.skillDir}/${PROCESS_JOBS_SKILL_DIR}/`;
 }
 
-/** Relative display form of the skill file (`<skillDir>/sm-run-queue/SKILL.md`). */
+/** Relative display form of the skill file (`<skillDir>/sm-process-jobs/SKILL.md`). */
 function skillFileDisplay(target: IScaffoldTarget): string {
-  return `${target.skillDir}/${RUN_QUEUE_SKILL_DIR}/${RUN_QUEUE_SKILL_FILE}`;
+  return `${target.skillDir}/${PROCESS_JOBS_SKILL_DIR}/${PROCESS_JOBS_SKILL_FILE}`;
 }
 
 /**
@@ -138,13 +138,13 @@ export class AgentInstallCommand extends AgentBaseCommand {
   static override paths = [['agent', 'install']];
   static override usage = Command.Usage({
     category: 'Jobs',
-    description: 'Materialise the sm-run-queue drain skill into the lens’s skill directory.',
+    description: 'Materialise the sm-process-jobs process skill into the lens’s skill directory.',
     details: `
-      Writes the canonical \`sm-run-queue\` skill folder (SKILL.md,
+      Writes the canonical \`sm-process-jobs\` skill folder (SKILL.md,
       shipped inside this CLI) under the destination Provider's skill
       directory (\`.claude/skills\` for Claude, \`.agents/skills\` for
       the open standard). Any agent booted in this directory then learns
-      the queue drain protocol: \`sm job claim --json\`, execute, close
+      the queue process protocol: \`sm jobs claim --json\`, execute, close
       with \`sm record\`.
 
       The destination defaults to the active lens; \`--for <provider>\`
@@ -216,10 +216,10 @@ export class AgentUninstallCommand extends AgentBaseCommand {
   static override paths = [['agent', 'uninstall']];
   static override usage = Command.Usage({
     category: 'Jobs',
-    description: 'Remove the materialised sm-run-queue drain skill.',
+    description: 'Remove the materialised sm-process-jobs process skill.',
     details: `
       Exactly reverses \`sm agent install\`: deletes the
-      \`sm-run-queue\` folder from the destination Provider's skill
+      \`sm-process-jobs\` folder from the destination Provider's skill
       directory (active lens by default, \`--for <provider>\` overrides).
       Idempotent: when the skill is not installed, nothing happens and
       the verb exits 0 with an advisory.
@@ -270,7 +270,7 @@ export class AgentStatusCommand extends AgentBaseCommand {
   static override paths = [['agent', 'status']];
   static override usage = Command.Usage({
     category: 'Jobs',
-    description: 'Report the sm-run-queue drain skill install state for the lens.',
+    description: 'Report the sm-process-jobs process skill install state for the lens.',
     details: `
       Read-only: reports \`installed\`, \`not installed\`, or
       \`installed (stale)\` for the destination Provider's skill

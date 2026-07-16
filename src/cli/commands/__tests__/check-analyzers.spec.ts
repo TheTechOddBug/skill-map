@@ -11,7 +11,7 @@
  *   (c) The transitional `--include-prob` / `--async` stubs were retired
  *       with the findings pipeline (`spec/cli-contract.md` §Browse, the
  *       `sm check` row): both flags now fail as unknown options.
- *       Probabilistic analyzers queue via `sm job submit` and report via
+ *       Probabilistic analyzers queue via `sm jobs submit` and report via
  *       `sm findings`; they never contribute to `sm check`.
  */
 

@@ -1,6 +1,6 @@
 /**
- * End-to-end tests for `sm job claim / status / cancel / fail` (Step 10
- * Phase C) against a real project DB. Unlike `sm job submit`, these verbs
+ * End-to-end tests for `sm jobs claim / status / cancel / fail` (Step 10
+ * Phase C) against a real project DB. Unlike `sm jobs submit`, these verbs
  * never touch the plugin runtime, they only read / write `state_jobs`
  * through the storage port, so the harness seeds queued jobs directly via
  * `adapter.jobs.submit` (no fixture plugin, no scan).
@@ -160,7 +160,7 @@ after(() => {
   rmSync(tmpRoot, { recursive: true, force: true });
 });
 
-describe('sm job claim', () => {
+describe('sm jobs claim', () => {
   it('prints the highest-priority queued id and marks it running', async () => {
     const proj = await setupProject([
       { ...A, priority: 0, createdAt: 1_700_000_000_000 },
@@ -338,7 +338,7 @@ describe('sm job claim', () => {
   });
 });
 
-describe('sm job status', () => {
+describe('sm jobs status', () => {
   it('reports counts (plain + --json)', async () => {
     const proj = await setupProject([A, B]);
     // Claim one so a running row exists.
@@ -384,7 +384,7 @@ describe('sm job status', () => {
   });
 });
 
-describe('sm job cancel', () => {
+describe('sm jobs cancel', () => {
   it('cancels a queued job -> exit 0, terminal cancelled state (no reason)', async () => {
     const proj = await setupProject([A]);
     const code = await withCwd(proj.root, async () => run(buildCancel({ id: A.id }), captureContext()));
@@ -470,7 +470,7 @@ describe('sm job cancel', () => {
   });
 });
 
-describe('sm job fail', () => {
+describe('sm jobs fail', () => {
   it('fails a queued job -> exit 0, failed / user-failed', async () => {
     const proj = await setupProject([A]);
     const code = await withCwd(proj.root, async () => run(buildFail({ id: A.id }), captureContext()));

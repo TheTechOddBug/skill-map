@@ -4,7 +4,7 @@
  *
  * Both verbs compose the same runtime the job verbs resolve against
  * (`loadActionRuntime`: built-ins + enabled project plugins) and render
- * manifests only; actions are never invoked here (invocation is `sm job
+ * manifests only; actions are never invoked here (invocation is `sm jobs
  * submit` for probabilistic actions, in-process dispatch for
  * deterministic ones). No DB gate: the catalog exists with or without a
  * scan, so an empty project still lists the built-ins.
@@ -74,7 +74,7 @@ export class ActionsListCommand extends SmCommand {
       Composes the action catalog (built-ins + enabled project plugins)
       and lists one row per action: qualified id, execution mode, and
       description. Actions are not invoked here; probabilistic actions
-      queue via \`sm job submit\`.
+      queue via \`sm jobs submit\`.
     `,
     examples: [
       ['List every registered action', '$0 actions list'],

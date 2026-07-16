@@ -18,6 +18,16 @@ export const FINDINGS_CLI_TEXTS = {
    */
   noFindings: '{{glyph}}  No findings.\n',
   /**
+   * Empty result under an explicit bucket filter (`--fixed` / `--stale`)
+   * that narrowed EXISTING rows out (`spec/cli-contract.md` §sm findings:
+   * "an empty filtered result renders the same no-match shape the other
+   * filters use, never the clean-verdict line"). Neutral `ℹ`: a green `✓`
+   * would falsely assert a clean node while open rows may sit behind the
+   * filter, and there is no excluded-count block here (that device is a
+   * default-view honesty tool, off once the operator narrows to a bucket).
+   */
+  noMatch: '{{glyph}}  No findings match the current filter.\n',
+  /**
    * Empty result while the default filter holds rows BACK (fixed and/or
    * stale). Not a clean verdict: judgments exist for the node, they just
    * sit hidden, so the line names the hidden breakdown and its remedy

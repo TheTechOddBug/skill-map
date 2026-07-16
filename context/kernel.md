@@ -77,6 +77,17 @@ User-facing text in the **CLI** uses the `tx(*_TEXTS.*)` system end-to-end:
 
 Why this discipline today even without a real i18n framework: it keeps every user-visible string in a flat, greppable, JSON-shaped catalog, ready to drop into a translator pipeline the day a non-English locale lands. Until then, it is also the cheapest way to enforce "no copy-changes hidden inside command logic", every wording lives in one place.
 
+## CLI verb naming
+
+Verb **namespaces** (a verb that owns sub-verbs, `sm plugins list`, `sm jobs submit`) follow one rule: a namespace that is a **collection the operator browses** is **PLURAL**; a namespace that is a **single subsystem** is **SINGULAR**.
+
+- **Plural** (collections): `plugins`, `actions`, `findings`, `hooks`, `jobs`, `sidecars`.
+- **Singular** (single subsystem): `config`, `db`, `agent`, `conformance`.
+
+`sm jobs` (the queue) and `sm sidecars` (the sidecar files) were renamed from the singular `sm job` / `sm sidecar` on 2026-07-16 to satisfy this rule; there is **no singular alias** (the repo's no-compat-shim posture, see [[feedback_structural_changes_protocol]]). A new sub-verb-owning namespace picks its number by this rule, never by habit. Leaf verbs (`scan`, `check`, `show`, `record`, `serve`, ...) are not namespaces and take no number rule.
+
+**Terminology, "process" not "drain".** An agent that pulls jobs off the queue and executes them **PROCESSES** the queue: the `sm-process-jobs` skill (materialised by `sm agent install`), the "processing agent", the process protocol. "Drain" is retired for THIS sense. It survives only for unrelated server-internal senses (buffer / connection / WebSocket draining), which are NOT renamed.
+
 ## CLI output sanitization
 
 Every CLI sink that writes to `stdout` / `stderr` MUST pass strings sourced from **persisted DB rows**, **plugin-authored values** (analyzer messages, manifest fields, extension ids, failure reasons), or **filesystem entries** (file paths, frontmatter values, dirent names) through `sanitizeForTerminal()` from `src/kernel/util/safe-text.ts` before emission. The helper strips C0 control bytes (including `\x1B`) and prevents ANSI escape injection from masquerading as terminal control sequences in the user's terminal, `\x1b[2J` clearing the screen, fake-prompt injection, cursor manipulation that hides commands ahead of an unsuspecting paste.

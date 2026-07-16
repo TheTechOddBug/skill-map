@@ -1,7 +1,7 @@
 /**
  * End-to-end tests for the kind-agnostic submit target resolution
  * (`spec/cli-contract.md` §Jobs, Submit target resolution) through the
- * real `sm job submit` verb:
+ * real `sm jobs submit` verb:
  *
  *   - a probabilistic finder Analyzer submits like an Action (bare and
  *     qualified ids), TTL derived from ITS probExpectedDurationSeconds.
@@ -209,7 +209,7 @@ after(() => {
   rmSync(tmpRoot, { recursive: true, force: true });
 });
 
-describe('sm job submit resolves probabilistic Analyzers', () => {
+describe('sm jobs submit resolves probabilistic Analyzers', () => {
   it('enqueues a finder by qualified id; no TTL absent every operator source', async () => {
     const proj = await setupProject();
     const { code, out } = await submit(proj, 'prob-finder/quality-check');

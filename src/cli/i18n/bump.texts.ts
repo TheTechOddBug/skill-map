@@ -125,6 +125,6 @@ export const BUMP_TEXTS = {
   // --- .sm consent gate ---------------------------------------------------
   // The shared strings live in `consent.texts.ts` (CONSENT_TEXTS); they
   // are used by every verb that writes a sidecar (`sm bump`,
-  // `sm sidecar refresh`, `sm sidecar annotate`) with a `{{verb}}`
+  // `sm sidecars refresh`, `sm sidecars annotate`) with a `{{verb}}`
   // placeholder for the directed prefix.
 } as const;

@@ -1,12 +1,12 @@
 /**
- * `sm job submit / list / show / preview / claim / status / cancel /
+ * `sm jobs submit / list / show / preview / claim / status / cancel /
  * fail`, the DB-only queue front end. This module renders + stores
  * queued jobs, reads them back, and hands them over. skill-map never
- * executes a job itself: an external agent drains the queue via
- * `sm job claim` + `sm record` (`spec/architecture.md` §Execution
+ * executes a job itself: an external agent processes the queue via
+ * `sm jobs claim` + `sm record` (`spec/architecture.md` §Execution
  * handover).
  *
- * `sm job submit <extension> [-n <node.path> | --all] [--force] [--ttl <s>]
+ * `sm jobs submit <extension> [-n <node.path> | --all] [--force] [--ttl <s>]
  * [--priority <n>] [--json]`:
  *   1. Resolve the extension against the composed runtime registry
  *      (built-ins + enabled plugins). Missing -> exit 5.
@@ -30,8 +30,8 @@
  *      the unique partial index, so it only succeeds once the prior job
  *      is terminal (and never skips the drift verification).
  *
- * `sm job list [--status] [--extension] [--node] [--json]` and
- * `sm job show <id> [--json]` are straight reads over `state_jobs`; their
+ * `sm jobs list [--status] [--extension] [--node] [--json]` and
+ * `sm jobs show <id> [--json]` are straight reads over `state_jobs`; their
  * `--json` projections OMIT the `nonce` (the record credential travels
  * only on `submit --json` / `claim --json`, spec §Atomic claim).
  *
@@ -234,10 +234,10 @@ function parseIntFlag(raw: string | undefined): number | undefined {
 }
 
 /**
- * Public projection of a `Job` for the read surfaces (`sm job list --json`
- * / `sm job show --json`): every field EXCEPT `nonce`. The nonce is the
+ * Public projection of a `Job` for the read surfaces (`sm jobs list --json`
+ * / `sm jobs show --json`): every field EXCEPT `nonce`. The nonce is the
  * sole record credential and travels only on the contracted carriers,
- * `sm job submit --json` (creator envelope) and `sm job claim --json`
+ * `sm jobs submit --json` (creator envelope) and `sm jobs claim --json`
  * (handover). See `spec/job-lifecycle.md` §Atomic claim · Nonce exposure.
  */
 function toPublicJob(job: Job): Omit<Job, 'nonce'> {
@@ -246,7 +246,7 @@ function toPublicJob(job: Job): Omit<Job, 'nonce'> {
 }
 
 // ---------------------------------------------------------------------------
-// sm job submit
+// sm jobs submit
 // ---------------------------------------------------------------------------
 
 type TSubmitOutcome =
@@ -302,7 +302,7 @@ interface ISubmitContext {
 }
 
 export class JobSubmitCommand extends SmCommand {
-  static override paths = [['job', 'submit']];
+  static override paths = [['jobs', 'submit']];
   static override usage = Command.Usage({
     category: 'Jobs',
     description: 'Enqueue a probabilistic extension against one node (-n) or every matching node (--all).',
@@ -932,11 +932,11 @@ async function submitOneJob(
 }
 
 // ---------------------------------------------------------------------------
-// sm job list
+// sm jobs list
 // ---------------------------------------------------------------------------
 
 export class JobListCommand extends SmCommand {
-  static override paths = [['job', 'list']];
+  static override paths = [['jobs', 'list']];
   static override usage = Command.Usage({
     category: 'Jobs',
     description: 'List jobs, optionally filtered by status / extension / node.',
@@ -1003,11 +1003,11 @@ export class JobListCommand extends SmCommand {
 }
 
 // ---------------------------------------------------------------------------
-// sm job show
+// sm jobs show
 // ---------------------------------------------------------------------------
 
 export class JobShowCommand extends SmCommand {
-  static override paths = [['job', 'show']];
+  static override paths = [['jobs', 'show']];
   static override usage = Command.Usage({
     category: 'Jobs',
     description: 'Job detail: state, claim time, TTL, priority, runner, content hash.',
@@ -1073,14 +1073,14 @@ export class JobShowCommand extends SmCommand {
 }
 
 export class JobPreviewCommand extends SmCommand {
-  static override paths = [['job', 'preview']];
+  static override paths = [['jobs', 'preview']];
   static override usage = Command.Usage({
     category: 'Jobs',
     description: 'Print the rendered content of a job without executing it (reads from state_job_contents; no on-disk artifact).',
     details: `
       With <job.id>: preview that job. With --last: preview the most
       recently submitted job (newest createdAt, any status), the natural
-      follow-up to sm job submit without copying the id. Pass exactly one
+      follow-up to sm jobs submit without copying the id. Pass exactly one
       of <job.id> or --last (neither, or both, is a usage error -> exit 2);
       --last with no jobs at all exits 5.
     `,
@@ -1143,11 +1143,11 @@ export class JobPreviewCommand extends SmCommand {
 }
 
 // ---------------------------------------------------------------------------
-// sm job claim
+// sm jobs claim
 // ---------------------------------------------------------------------------
 
 export class JobClaimCommand extends SmCommand {
-  static override paths = [['job', 'claim']];
+  static override paths = [['jobs', 'claim']];
   static override usage = Command.Usage({
     category: 'Jobs',
     description: 'Atomic claim: transition the next queued job to running and return its id (the external-agent handover primitive).',
@@ -1159,14 +1159,14 @@ export class JobClaimCommand extends SmCommand {
 
       Before claiming, every running job whose TTL expired is silently
       reaped to failed / abandoned (spec/job-lifecycle.md §Reap procedure);
-      reaped jobs surface via sm job list --status failed, never on this
+      reaped jobs surface via sm jobs list --status failed, never on this
       verb's stdout.
 
       Plain mode prints the claimed id. --json prints
       { id, nonce, content } (the rendered content plus the nonce a later
       sm record needs); agents that will call sm record MUST use --json to
       receive the nonce. --filter accepts a qualified <plugin>/<ext> id
-      or a bare extension id (same matching as sm job list --extension).
+      or a bare extension id (same matching as sm jobs list --extension).
 
       A claimed job whose content row is missing (DB corruption) is marked
       failed / job-file-missing and reported on stderr with exit 2; the
@@ -1248,11 +1248,11 @@ export class JobClaimCommand extends SmCommand {
 }
 
 // ---------------------------------------------------------------------------
-// sm job status
+// sm jobs status
 // ---------------------------------------------------------------------------
 
 export class JobStatusCommand extends SmCommand {
-  static override paths = [['job', 'status']];
+  static override paths = [['jobs', 'status']];
   static override usage = Command.Usage({
     category: 'Jobs',
     description: 'Counts per status (no id) or a single job\'s status.',
@@ -1316,11 +1316,11 @@ export class JobStatusCommand extends SmCommand {
 }
 
 // ---------------------------------------------------------------------------
-// sm job cancel
+// sm jobs cancel
 // ---------------------------------------------------------------------------
 
 export class JobCancelCommand extends SmCommand {
-  static override paths = [['job', 'cancel']];
+  static override paths = [['jobs', 'cancel']];
   static override usage = Command.Usage({
     category: 'Jobs',
     description: 'Move a queued / running job to the terminal cancelled state (or --all).',
@@ -1336,7 +1336,7 @@ export class JobCancelCommand extends SmCommand {
       Pass exactly one of <job.id> or --all (neither, or both, is a usage
       error -> exit 2).
 
-      To instead mark a job as failed by operator decision, use sm job fail.
+      To instead mark a job as failed by operator decision, use sm jobs fail.
     `,
   });
 
@@ -1394,16 +1394,16 @@ export class JobCancelCommand extends SmCommand {
 }
 
 // ---------------------------------------------------------------------------
-// sm job fail
+// sm jobs fail
 // ---------------------------------------------------------------------------
 
 export class JobFailCommand extends SmCommand {
-  static override paths = [['job', 'fail']];
+  static override paths = [['jobs', 'fail']];
   static override usage = Command.Usage({
     category: 'Jobs',
     description: 'Force a queued / running job to failed with reason user-failed (or --all).',
     details: `
-      Symmetric counterpart to sm job cancel. With <job.id>: fail one job. A
+      Symmetric counterpart to sm jobs cancel. With <job.id>: fail one job. A
       queued or running job transitions to failed / user-failed; a terminal
       job is refused (exit 2, "already terminal"); an unknown id exits 5.
       Failing does NOT interrupt the external agent working the job; it

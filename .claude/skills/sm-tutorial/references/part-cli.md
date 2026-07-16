@@ -71,18 +71,18 @@ Create a scaffold for `notes/todo.md` so there is a `.sm` on disk to talk about.
 
 ```bash
 rm -f notes/todo.sm .skill-map/settings.local.json
-sm sidecar annotate notes/todo.md
+sm sidecars annotate notes/todo.md
 ```
 
 Expected: a short explanation, then a `[Y/n]` prompt (capital Y = default Yes, just hit Enter). After accepting, `notes/todo.sm` appears with an `identity:` block plus an empty `annotations: {}`, and `.skill-map/settings.local.json` records `{ "allowEditSmFiles": true }` so it never asks again on this checkout (the choice is per-user, per-project, gitignored).
 
 The part the CLI adds on top, the three sidecar verbs (all share that same consent gate):
 
-- `sm sidecar annotate <node>` is the scaffold verb you just ran (creates a fresh `.sm`).
+- `sm sidecars annotate <node>` is the scaffold verb you just ran (creates a fresh `.sm`).
 - `sm bump <node>` is the day-to-day verb: it increments the sidecar's version and refreshes its hashes.
-- `sm sidecar refresh <node>` is the hash-only update (no version bump).
+- `sm sidecars refresh <node>` is the hash-only update (no version bump).
 
-And for automation: a CI / non-interactive session has no one to answer the `[Y/n]`, so pass `--yes` to grant consent up front (`sm sidecar annotate <node> --yes`).
+And for automation: a CI / non-interactive session has no one to answer the `[Y/n]`, so pass `--yes` to grant consent up front (`sm sidecars annotate <node> --yes`).
 
 Mark `annotations`: done.
 

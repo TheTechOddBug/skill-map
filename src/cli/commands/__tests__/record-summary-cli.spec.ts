@@ -1,6 +1,6 @@
 /**
  * End-to-end tests for the `state_summaries` write-through wired through
- * the real CLI verbs: `sm job submit` -> `sm job claim` -> `sm record
+ * the real CLI verbs: `sm jobs submit` -> `sm jobs claim` -> `sm record
  * --status completed` with a schema-valid `core/markdown-summarizer`
  * report lands a per-node summary, and `sm show` renders it (marking it
  * `(stale)` once the node body changes). Runs against a real project DB

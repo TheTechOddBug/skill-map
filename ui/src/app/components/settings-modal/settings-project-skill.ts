@@ -1,5 +1,5 @@
 /**
- * `<sm-settings-project-skill>`, the agent-drain-skill install row of
+ * `<sm-settings-project-skill>`, the agent-process-skill install row of
  * the Settings > Project section (`spec/cli-contract.md` §HTTP API,
  * `/api/agent/*`; CLI counterpart: `sm agent status/install/uninstall`).
  * Sibling of `<sm-settings-project-hook>`: same row vocabulary, same
@@ -15,7 +15,7 @@
  * Both mutations first POST WITHOUT `confirm`; the BFF refuses 412
  * `confirm-required` (server-enforced consent, nothing written), which
  * surfaces the consent dialog naming the exact skill file
- * (`<skillDir>/sm-run-queue/SKILL.md`); accepting retries with
+ * (`<skillDir>/sm-process-jobs/SKILL.md`); accepting retries with
  * `confirm: true`. The install response's three-state `outcome` drives
  * the announcement wording (installed / updated / already up to date).
  *
@@ -53,8 +53,8 @@ import { formatErr } from './settings-project.utils';
  * CLI side). Interpolated into the consent dialog so the operator sees
  * the exact file the install writes / the uninstall removes.
  */
-const RUN_QUEUE_SKILL_DIR = 'sm-run-queue';
-const RUN_QUEUE_SKILL_FILE = 'SKILL.md';
+const PROCESS_JOBS_SKILL_DIR = 'sm-process-jobs';
+const PROCESS_JOBS_SKILL_FILE = 'SKILL.md';
 
 @Component({
   selector: 'sm-settings-project-skill',
@@ -79,7 +79,7 @@ export class SettingsProjectSkill {
   protected readonly texts = SETTINGS_TEXTS;
 
   /**
-   * Install status of the ACTIVE lens's drain skill
+   * Install status of the ACTIVE lens's process skill
    * (`GET /api/agent/install`). `null` until the probe resolves (or
    * when it failed); re-probed whenever the section opens or the lens
    * changes.
@@ -128,13 +128,13 @@ export class SettingsProjectSkill {
   /** Project-relative path of the skill file the install writes. */
   protected readonly skillFilePath = computed<string>(() => {
     const dir = this.skillStatus()?.skillDir ?? '';
-    return `${dir}/${RUN_QUEUE_SKILL_DIR}/${RUN_QUEUE_SKILL_FILE}`;
+    return `${dir}/${PROCESS_JOBS_SKILL_DIR}/${PROCESS_JOBS_SKILL_FILE}`;
   });
 
   /** Project-relative path of the skill folder the uninstall removes. */
   protected readonly skillFolderPath = computed<string>(() => {
     const dir = this.skillStatus()?.skillDir ?? '';
-    return `${dir}/${RUN_QUEUE_SKILL_DIR}/`;
+    return `${dir}/${PROCESS_JOBS_SKILL_DIR}/`;
   });
 
   constructor() {
@@ -250,7 +250,7 @@ export class SettingsProjectSkill {
     });
   }
 
-  /** Probe the drain-skill install status for the given lens. */
+  /** Probe the process-skill install status for the given lens. */
   private async refreshSkillStatus(providerId: string): Promise<void> {
     this.skillError.set(null);
     if (providerId.length === 0) {

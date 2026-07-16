@@ -145,7 +145,7 @@ describe('sm actions list', () => {
     match(outcome.out, /\n\d+ actions\n/, 'plural footer noun');
     ok(
       outcome.out.includes(
-        'Tip: `sm actions show <id>` for the full manifest; `sm job submit <id> -n <node>` to queue one.',
+        'Tip: `sm actions show <id>` for the full manifest; `sm jobs submit <id> -n <node>` to queue one.',
       ),
       'footer tip',
     );

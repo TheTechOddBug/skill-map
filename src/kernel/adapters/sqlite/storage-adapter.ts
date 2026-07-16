@@ -909,7 +909,7 @@ async function upsertEnrichments(
 
 /**
  * Read-only `state_jobs` count mirroring the DELETE side of
- * `pruneTerminalJobs`, `sm job prune --dry-run` consumes this so the
+ * `pruneTerminalJobs`, `sm jobs prune --dry-run` consumes this so the
  * preview reports exactly how many rows the live mode would delete.
  *
  * `prunedContents` is reported as `0` in the preview: the orphaned

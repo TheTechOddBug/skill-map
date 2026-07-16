@@ -1,5 +1,5 @@
 /**
- * End-to-end tests for `sm job submit / list / show` against a real
+ * End-to-end tests for `sm jobs submit / list / show` against a real
  * project (a scanned DB + a trusted project-local plugin shipping one
  * probabilistic action).
  *
@@ -197,7 +197,7 @@ after(() => {
   rmSync(tmpRoot, { recursive: true, force: true });
 });
 
-describe('sm job submit -n', () => {
+describe('sm jobs submit -n', () => {
   it('enqueues a probabilistic action -> exit 0, job + content persisted', async () => {
     const proj = await setupProject([SKILL]);
     const code = await withCwd(proj.root, async () => {
@@ -400,7 +400,7 @@ describe('sm job submit -n', () => {
   });
 });
 
-describe('sm job submit --all', () => {
+describe('sm jobs submit --all', () => {
   it('continues past a drifted / deleted node (per-node refusal, non-fatal)', async () => {
     const SECOND = { path: '.claude/skills/bar/SKILL.md', kind: 'skill', provider: 'claude' };
     const proj = await setupProject([SKILL, SECOND]);
@@ -449,7 +449,7 @@ describe('sm job submit --all', () => {
   });
 });
 
-describe('sm job list / show', () => {
+describe('sm jobs list / show', () => {
   it('lists jobs (JSON) and shows detail; missing id exits 5', async () => {
     const proj = await setupProject([SKILL]);
     const submitted = await withCwd(proj.root, async () => {
@@ -534,7 +534,7 @@ describe('sm job list / show', () => {
   });
 });
 
-describe('sm job preview', () => {
+describe('sm jobs preview', () => {
   it('prints the rendered content (preamble verbatim + user-content block); missing id exits 5', async () => {
     const proj = await setupProject([SKILL]);
     const id = await withCwd(proj.root, async () => {

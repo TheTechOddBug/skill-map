@@ -13,7 +13,7 @@
  *                      contains an `error`).
  *   Error         = 2  unhandled error / config load failure / bad usage
  *                      / IO failure / DB invariant violation.
- *   Duplicate     = 3  emitted by `sm job submit` when an active duplicate
+ *   Duplicate     = 3  emitted by `sm jobs submit` when an active duplicate
  *                      job already covers the same action + node + hash.
  *   NonceMismatch = 4  emitted by `sm record` when the supplied nonce does
  *                      not match the target job's.

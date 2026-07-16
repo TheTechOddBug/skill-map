@@ -253,8 +253,8 @@ export const SERVER_TEXTS = {
   activityInstallConfirmNotBoolean:
     '`confirm` must be a boolean when present.',
 
-  // Agent drain skill install management (GET/POST /api/agent/install +
-  // POST /api/agent/uninstall, see spec/cli-contract.md §Agent drain
+  // Agent process skill install management (GET/POST /api/agent/install +
+  // POST /api/agent/uninstall, see spec/cli-contract.md §Agent process
   // skill). The 412 names the exact path the mutation would touch so
   // the SPA's consent dialog can show it.
   agentBodyNotJson:

@@ -4,7 +4,7 @@
  * injection for fixers). End-to-end characterisation through the real CLI
  * verbs plus the codegen inlining pins:
  *
- *   - ships experimental: DISABLED by default, `sm job submit
+ *   - ships experimental: DISABLED by default, `sm jobs submit
  *     node-consolidate` does not resolve until the operator enables it.
  *   - once enabled, submitting over a node WITH `node-redundancy` findings
  *     injects the `## Findings to resolve` section (and the prompt) into
@@ -311,7 +311,7 @@ describe('core/node-consolidate, codegen inlining pins', () => {
 });
 
 describe('core/node-consolidate, experimental gate', () => {
-  it('ships DISABLED: sm job submit does not resolve it by default', async () => {
+  it('ships DISABLED: sm jobs submit does not resolve it by default', async () => {
     const proj = await setupProject({ enableFixer: false });
     await seedRedundancyFinding(proj);
     const { code, err } = await submit(proj, 'node-consolidate');
@@ -573,7 +573,7 @@ describe('core/node-consolidate, record round trip', () => {
  * declared STATE + deciding ACTOR ON the finding it addressed, and the
  * scope guards must skip anything outside the fixer's own lane WITHOUT
  * failing the job (its edits already hit the disk; a storage-scope mismatch
- * is not the draining agent's error to bounce on).
+ * is not the processing agent's error to bounce on).
  */
 describe('core/node-consolidate, fixer resolution stamps', () => {
   it('stamps `fixed` + actor `fixer` onto the finding the report named', async () => {

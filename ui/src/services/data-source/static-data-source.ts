@@ -142,7 +142,7 @@ const DEMO_ACTIVITY_DESCRIPTORS: Record<string, { configPath: string; events: nu
 
 /**
  * Baked `scaffold.skillDir` per lens, mirroring the shipped Providers'
- * declarations, for the demo agent-drain-skill probe (same posture as
+ * declarations, for the demo agent-process-skill probe (same posture as
  * `DEMO_ACTIVITY_DESCRIPTORS`: report capability honestly, install
  * nothing).
  */

@@ -7,7 +7,7 @@
  *   - `state_jobs` row missing its content row (corruption) -> error, exit 2.
  *   - provider marker on disk with zero matched nodes -> warn row.
  *   - jobs-overdue: running job past its extension's advisory estimate
- *     warns naming `sm job fail` / `sm job cancel`; a fresh claim stays
+ *     warns naming `sm jobs fail` / `sm jobs cancel`; a fresh claim stays
  *     ok; an unresolvable extension is skipped; never mutates state.
  */
 
@@ -331,8 +331,8 @@ describe('sm doctor, jobs-overdue', () => {
     ok(row);
     strictEqual(row.status, 'warn');
     ok(row.message.includes(id), 'message names the job id');
-    ok(row.message.includes(`sm job fail ${id}`), 'names sm job fail');
-    ok(row.message.includes(`sm job cancel ${id}`), 'names sm job cancel');
+    ok(row.message.includes(`sm jobs fail ${id}`), 'names sm jobs fail');
+    ok(row.message.includes(`sm jobs cancel ${id}`), 'names sm jobs cancel');
 
     // Advisory only: the job is untouched.
     const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });

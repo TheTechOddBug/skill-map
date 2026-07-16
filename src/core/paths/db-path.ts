@@ -107,7 +107,7 @@ export function defaultProjectDbPath(ctx: IRuntimeContext): string {
 /**
  * Default project jobs directory (`<cwd>/.skill-map/jobs`). Retained for
  * call sites that still need the project-scoped jobs spool. Note: job
- * CONTENT is DB-only (`state_job_contents`); `sm job prune` no longer
+ * CONTENT is DB-only (`state_job_contents`); `sm jobs prune` no longer
  * walks this directory.
  */
 export function defaultProjectJobsDir(ctx: IRuntimeContext): string {

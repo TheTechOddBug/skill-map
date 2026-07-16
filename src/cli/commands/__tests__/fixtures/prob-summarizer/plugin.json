@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "description": "Test-only plugin shipping one probabilistic action (skill-echo) to drive the sm job submit queue tests.",
+  "description": "Test-only plugin shipping one probabilistic action (skill-echo) to drive the sm jobs submit queue tests.",
   "specCompat": ">=0.0.0",
   "catalogCompat": "*"
 }

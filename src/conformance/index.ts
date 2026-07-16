@@ -328,7 +328,7 @@ function runPriorScansSetup(
  * step in order against the fully-provisioned scope (top-level fixture
  * already copied, plugin trust granted). Unlike `priorScans` there is
  * no fixture swap: the steps mutate scope state through the CLI itself
- * (e.g. `sm job submit` before a `sm job preview --last` main invoke).
+ * (e.g. `sm jobs submit` before a `sm jobs preview --last` main invoke).
  *
  * Returns `null` on success (caller continues) or a `IRunCaseResult`
  * with a single `priorInvoke` failure assertion (caller returns it

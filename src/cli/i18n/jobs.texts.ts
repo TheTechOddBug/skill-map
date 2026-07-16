@@ -6,11 +6,11 @@
  */
 
 export const JOBS_TEXTS = {
-  pruneErrorPrefix: '{{glyph}}  sm job prune: {{message}}\n',
+  pruneErrorPrefix: '{{glyph}}  sm jobs prune: {{message}}\n',
 
-  // --- printPretty (sm job prune human output) ---------------------------
-  pruneTagDryRun: 'sm job prune (dry-run)',
-  pruneTagApply: 'sm job prune',
+  // --- printPretty (sm jobs prune human output) ---------------------------
+  pruneTagDryRun: 'sm jobs prune (dry-run)',
+  pruneTagApply: 'sm jobs prune',
   pruneRetentionRow:
     '  {{label}} policy {{policy}}, {{rows}} row(s) {{rowsVerb}}\n',
   pruneContentsRow: '  content rows: {{count}} {{verb}}\n',

@@ -132,9 +132,9 @@ The port is the one `sm serve` prints on start (default `4242`, also in `.skill-
 
 ## Sidecar `.sm` files (don't be alarmed when they appear)
 
-The first time you run `sm bump` or `sm sidecar annotate`, skill-map writes a sibling YAML file next to each `.md`: `demo-agent.md` → `demo-agent.sm` in the same directory. They are intentional, they are part of the design, and **they belong in your repo**.
+The first time you run `sm bump` or `sm sidecars annotate`, skill-map writes a sibling YAML file next to each `.md`: `demo-agent.md` → `demo-agent.sm` in the same directory. They are intentional, they are part of the design, and **they belong in your repo**.
 
-**They appear only when you opt in.** `sm scan`, `sm watch`, and the live UI **never create `.sm` files**, they only read existing ones. If you just installed skill-map and ran `sm init` / `sm` / `sm scan`, no sidecar exists yet; they show up the first time you call `sm bump` (or `sm sidecar annotate`) on a node, and never before.
+**They appear only when you opt in.** `sm scan`, `sm watch`, and the live UI **never create `.sm` files**, they only read existing ones. If you just installed skill-map and ran `sm init` / `sm` / `sm scan`, no sidecar exists yet; they show up the first time you call `sm bump` (or `sm sidecars annotate`) on a node, and never before.
 
 **Why a separate file?** Your `.md` belongs to the vendor (Claude Code, Codex, Cursor, …) and to your own prose. Stuffing skill-map's bookkeeping (version, stability, supersession, tags, audit trail) inside its frontmatter would contaminate vendor input and bloat what the agent reads on every invocation. The `.sm` sidecar keeps the two layers cleanly separated: the vendor and the human own the `.md`; skill-map owns the `.sm`.
 

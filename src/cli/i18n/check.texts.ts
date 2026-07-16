@@ -3,7 +3,7 @@
  *
  * `sm check` reads the persisted issue table from the DB and prints
  * every current row. Deterministic-only by construction: probabilistic
- * analyzers queue via `sm job submit` and report via `sm findings`,
+ * analyzers queue via `sm jobs submit` and report via `sm findings`,
  * never through this verb.
  *
  * Convention: flat string templates with `{{name}}` placeholders. The

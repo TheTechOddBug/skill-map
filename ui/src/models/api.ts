@@ -1175,7 +1175,7 @@ export interface IActivityUninstallEnvelopeApi extends IActivityInstallStatusApi
 /**
  * `GET /api/agent/install?provider=<id>` envelope (and the base of
  * both mutation responses); see `spec/cli-contract.md` §HTTP API
- * (`/api/agent/*`). Probes the sm-run-queue drain skill of the ACTIVE
+ * (`/api/agent/*`). Probes the sm-process-jobs process skill of the ACTIVE
  * lens: `supported` is `false` (with `skillDir: null`) when the
  * Provider declares no `scaffold.skillDir` (no skill territory);
  * `stale` means the skill is installed but the CLI ships a newer

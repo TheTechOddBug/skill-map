@@ -47,8 +47,8 @@ export type TFindingResolution = 'fixed' | 'human-decision';
  * WHO decided a `fixed` finding (`state_findings.resolution_actor`,
  * `spec/db-schema.md` §state_findings). One rule: **any user interaction
  * makes it `human`; only a fully autonomous fix with zero user interaction
- * is `fixer`.** So an unattended drain that applies a clear-cut fix is
- * `fixer`; an interactive drain where the operator approved the edit, chose
+ * is `fixer`.** So an unattended processing run that applies a clear-cut fix is
+ * `fixer`; an interactive processing run where the operator approved the edit, chose
  * among options, or a `sm findings resolve` is `human`. `null` on a
  * `human-decision` (undecided) or open row.
  */
@@ -625,7 +625,7 @@ export interface IJobsIntegrityCounts {
   missingContent: number;
   /**
    * `state_job_contents` rows referenced by zero `state_jobs` rows.
-   * Retention leftovers; `sm job prune` collects them.
+   * Retention leftovers; `sm jobs prune` collects them.
    */
   contentStragglers: number;
 }
@@ -678,7 +678,7 @@ export interface IJobSubmitRow {
 }
 
 /**
- * Filter for `port.jobs.list(...)` (drives `sm job list`). All optional;
+ * Filter for `port.jobs.list(...)` (drives `sm jobs list`). All optional;
  * an empty filter returns every job, newest first. `extensionId` matches
  * the stored (qualified) id exactly OR by bare-id suffix, mirroring the
  * analyzer-filter semantics so `--extension skill-summarizer` finds

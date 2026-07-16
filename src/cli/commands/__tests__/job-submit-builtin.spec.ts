@@ -1,5 +1,5 @@
 /**
- * Integration tests for `sm job submit` against the FIRST probabilistic
+ * Integration tests for `sm jobs submit` against the FIRST probabilistic
  * BUILT-IN Action, `core/markdown-summarizer`. Mirrors
  * `job-submit-cli.spec.ts` but exercises the built-in path: no on-disk
  * plugin, no trust row, no source directory. The prompt template comes from
@@ -163,7 +163,7 @@ after(() => {
   rmSync(tmpRoot, { recursive: true, force: true });
 });
 
-describe('sm job submit (built-in probabilistic action)', () => {
+describe('sm jobs submit (built-in probabilistic action)', () => {
   it('enqueues core/markdown-summarizer -n -> exit 0, job + rendered content persisted', async () => {
     const proj = await setupProject([NOTE]);
     const code = await withCwd(proj.root, async () => {

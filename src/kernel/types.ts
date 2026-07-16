@@ -165,7 +165,7 @@ export type Stability = 'experimental' | 'stable' | 'deprecated';
  *   - `deterministic`, pure code, runs synchronously inside `sm scan` /
  *     `sm check`. Same input → same output, every run.
  *   - `probabilistic`, needs an LLM, dispatches only as a queued job
- *     (`sm job submit`) an external agent drains via `sm job claim` +
+ *     (`sm jobs submit`) an external agent processes via `sm jobs claim` +
  *     `sm record`; never participates in scan-time pipelines.
  *
  * Extractor / Rule / Action declare it directly (default `deterministic` when

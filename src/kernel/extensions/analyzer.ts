@@ -4,7 +4,7 @@
  * findings into the UI via view contributions. Deterministic analyzers
  * are pure (same graph in → same issues out) and run synchronously
  * inside `sm scan` / `sm check`. Probabilistic analyzers dispatch only
- * as queued jobs an external agent drains (`sm job claim` +
+ * as queued jobs an external agent processes (`sm jobs claim` +
  * `sm record`), they never participate in scan-time pipelines. Mode is
  * declared in the manifest (default `deterministic`).
  */
@@ -336,7 +336,7 @@ export interface IAnalyzer extends IExtensionBase {
    * mirror of `IAction.invoke`: a `deterministic` analyzer implements it
    * (the orchestrator invokes it during `sm scan` / `sm check`); a
    * `probabilistic` analyzer has NO `evaluate()`, its judgment is the
-   * queued prompt an external agent drains and records into
+   * queued prompt an external agent processes and records into
    * `state_findings`. The orchestrator excludes probabilistic analyzers
    * from every scan-time phase, so a declared `evaluate` on one is
    * never invoked (tolerated silently at load, same posture as a

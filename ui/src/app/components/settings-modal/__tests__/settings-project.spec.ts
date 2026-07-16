@@ -55,7 +55,7 @@ describe('SettingsProject chassis', () => {
     for (const testid of [
       'settings-project-active-provider-row',
       'settings-project-activity-hook-row',
-      // The drain-skill row renders while its probe is dormant (status
+      // The process-skill row renders while its probe is dormant (status
       // unknown ≠ unsupported) and hides only on `supported: false`.
       'settings-project-agent-skill-row',
       'settings-project-live-updates-row',
@@ -703,7 +703,7 @@ describe('SettingsProjectHook activity hook button', () => {
 });
 
 /**
- * SettingsProjectSkill · agent drain-skill install row, the hook row's
+ * SettingsProjectSkill · agent process-skill install row, the hook row's
  * sibling install affordance (`spec/cli-contract.md` §HTTP API,
  * `/api/agent/*`).
  *
@@ -761,7 +761,7 @@ function bootstrapSkill(stub: Partial<IDataSourcePort>): {
   return { fixture, proto };
 }
 
-describe('SettingsProjectSkill agent drain-skill row', () => {
+describe('SettingsProjectSkill agent process-skill row', () => {
   it('probes the install status for the active lens on section open', async () => {
     const getAgentSkillInstallStatus = vi
       .fn()
@@ -879,7 +879,7 @@ describe('SettingsProjectSkill agent drain-skill row', () => {
     expect(confirmSpy).toHaveBeenCalledTimes(1);
     // The consent dialog names the exact file the install writes.
     expect(String(confirmSpy.mock.calls[0][0].message)).toContain(
-      '.claude/skills/sm-run-queue/SKILL.md',
+      '.claude/skills/sm-process-jobs/SKILL.md',
     );
 
     confirmSpy.mock.calls[0][0].accept?.();
@@ -888,7 +888,7 @@ describe('SettingsProjectSkill agent drain-skill row', () => {
     expect(installAgentSkill).toHaveBeenNthCalledWith(2, 'claude', { confirm: true });
     expect(proto.skillStatus()?.installed).toBe(true);
     expect(proto.skillUpToDate()).toBe(true);
-    expect(proto.skillAnnouncement()).toBe('Agent drain skill installed.');
+    expect(proto.skillAnnouncement()).toBe('Agent process skill installed.');
   });
 
   it('install: the updated outcome drives the update wording (stale copy refreshed)', async () => {
@@ -916,7 +916,7 @@ describe('SettingsProjectSkill agent drain-skill row', () => {
 
     expect(installAgentSkill).toHaveBeenNthCalledWith(2, 'claude', { confirm: true });
     expect(proto.skillUpToDate()).toBe(true);
-    expect(proto.skillAnnouncement()).toBe('Agent drain skill updated to the current version.');
+    expect(proto.skillAnnouncement()).toBe('Agent process skill updated to the current version.');
   });
 
   it('install: an up-to-date outcome announces that nothing changed', async () => {
@@ -935,7 +935,7 @@ describe('SettingsProjectSkill agent drain-skill row', () => {
     await flush();
 
     expect(installAgentSkill).toHaveBeenCalledTimes(1);
-    expect(proto.skillAnnouncement()).toBe('The agent drain skill is already up to date.');
+    expect(proto.skillAnnouncement()).toBe('The agent process skill is already up to date.');
   });
 
   it('install: dismissing the consent dialog fires no retry', async () => {
@@ -982,7 +982,7 @@ describe('SettingsProjectSkill agent drain-skill row', () => {
     expect(confirmSpy).toHaveBeenCalledTimes(1);
     // The uninstall dialog names the folder the removal deletes.
     expect(String(confirmSpy.mock.calls[0][0].message)).toContain(
-      '.claude/skills/sm-run-queue/',
+      '.claude/skills/sm-process-jobs/',
     );
 
     confirmSpy.mock.calls[0][0].accept?.();
@@ -991,7 +991,7 @@ describe('SettingsProjectSkill agent drain-skill row', () => {
     expect(uninstallAgentSkill).toHaveBeenNthCalledWith(2, 'claude', { confirm: true });
     expect(proto.skillStatus()?.installed).toBe(false);
     expect(proto.skillInstalled()).toBe(false);
-    expect(proto.skillAnnouncement()).toBe('Agent drain skill uninstalled.');
+    expect(proto.skillAnnouncement()).toBe('Agent process skill uninstalled.');
   });
 });
 

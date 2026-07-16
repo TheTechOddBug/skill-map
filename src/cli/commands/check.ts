@@ -14,7 +14,7 @@
  *                         on suffix when the entry has no `<plugin>/` prefix.
  *
  * Deterministic-only by construction (CI-safe): probabilistic analyzers
- * never contribute to `sm check`. Their surface is `sm job submit` on the
+ * never contribute to `sm check`. Their surface is `sm jobs submit` on the
  * way in and `sm findings` on the way out (`spec/cli-contract.md` §Browse,
  * the `sm check` row); the transitional `--include-prob` / `--async`
  * stubs were retired with the findings pipeline.
@@ -65,7 +65,7 @@ export class CheckCommand extends SmCommand {
       Run \`sm scan\` first to populate the DB.
 
       Deterministic-only by construction (CI-safe): probabilistic
-      analyzers never contribute here. Queue them with \`sm job submit\`
+      analyzers never contribute here. Queue them with \`sm jobs submit\`
       and read their judgments with \`sm findings\`.
     `,
     examples: [

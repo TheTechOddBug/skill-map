@@ -4,7 +4,7 @@
  * `spec/architecture.md` §Analyzer phases: "Probabilistic analyzers
  * (`mode: 'probabilistic'`) never participate in any scan-time phase".
  * A finder has no `evaluate()` (its judgment is a queued job an external
- * agent drains), so the orchestrator MUST drop it from the schedule
+ * agent processes), so the orchestrator MUST drop it from the schedule
  * before invoking anything, whatever `phase` it declares. Driven through
  * the REAL `runAnalyzers` export with tiny in-memory fixtures.
  */

@@ -1,6 +1,6 @@
 /**
- * Agent-drain-skill install management (`spec/cli-contract.md` §Agent
- * drain skill + the HTTP API table):
+ * Agent-process-skill install management (`spec/cli-contract.md` §Agent
+ * process skill + the HTTP API table):
  *
  *   - `GET  /api/agent/install?provider=<id>`, install-status probe
  *     (CLI counterpart: `sm agent status`). The `stale` field drives
@@ -48,8 +48,8 @@ import {
   uninstallAgentSkill,
 } from '../../core/agent-skill/engine.js';
 import {
-  RUN_QUEUE_SKILL_DIR,
-  RUN_QUEUE_SKILL_FILE,
+  PROCESS_JOBS_SKILL_DIR,
+  PROCESS_JOBS_SKILL_FILE,
 } from '../../core/agent-skill/skill-template.js';
 import { toScaffoldTarget, type IScaffoldTarget } from '../../core/agent-skill/targets.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
@@ -166,14 +166,14 @@ function requireConsent(body: IAgentInstallBody, path: string, template: string)
   throw new HTTPException(412, { message: tx(template, { path }) });
 }
 
-/** Relative display form of the skill folder (`<skillDir>/sm-run-queue/`). */
+/** Relative display form of the skill folder (`<skillDir>/sm-process-jobs/`). */
 function skillFolderDisplay(target: IScaffoldTarget): string {
-  return `${target.skillDir}/${RUN_QUEUE_SKILL_DIR}/`;
+  return `${target.skillDir}/${PROCESS_JOBS_SKILL_DIR}/`;
 }
 
-/** Relative display form of the skill file (`<skillDir>/sm-run-queue/SKILL.md`). */
+/** Relative display form of the skill file (`<skillDir>/sm-process-jobs/SKILL.md`). */
 function skillFileDisplay(target: IScaffoldTarget): string {
-  return `${target.skillDir}/${RUN_QUEUE_SKILL_DIR}/${RUN_QUEUE_SKILL_FILE}`;
+  return `${target.skillDir}/${PROCESS_JOBS_SKILL_DIR}/${PROCESS_JOBS_SKILL_FILE}`;
 }
 
 function buildStatusEnvelope(

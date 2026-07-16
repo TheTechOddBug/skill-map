@@ -17,10 +17,10 @@ out/
 .tmp/
 .skill-map/
 
-# skill-map's own materialised agent-drain skill (`sm agent install`).
+# skill-map's own materialised agent-process skill (`sm agent install`).
 # Infrastructure, not project content: it never appears as a node in the
-# map / server. Re-include with `!sm-run-queue/` if you want it scanned.
-sm-run-queue/
+# map / server. Re-include with `!sm-process-jobs/` if you want it scanned.
+sm-process-jobs/
 
 # OS / editor noise
 .DS_Store

@@ -9,7 +9,7 @@
  *   3. Orphan history rows (active `orphan` issues, same source
  *      `sm orphans` lists).
  *   4. `state_jobs` rows whose content row is missing (corruption).
- *   5. `state_job_contents` GC stragglers (`sm job prune` collects).
+ *   5. `state_job_contents` GC stragglers (`sm jobs prune` collects).
  *   6. Running jobs past their extension's ADVISORY
  *      `probExpectedDurationSeconds` (the operator escape hatch for
  *      TTL-less zombies, Decision #139; never mutates state).

@@ -177,7 +177,7 @@ describe('buildFindingsSection', () => {
   it('leads each entry with `id` so the fixer can echo it back verbatim', () => {
     const section = buildFindingsSection([finding({ id: 7 }), finding({ id: 9 })]);
     // Key ORDER is contract-adjacent: the id is the first thing the
-    // draining agent reads per entry (spec/job-lifecycle.md §Findings
+    // processing agent reads per entry (spec/job-lifecycle.md §Findings
     // injection for fixers), and it is what ties its `resolved[]` entry
     // back to this row at record.
     const json = section.slice(section.indexOf('```json\n') + '```json\n'.length, section.lastIndexOf('\n```'));

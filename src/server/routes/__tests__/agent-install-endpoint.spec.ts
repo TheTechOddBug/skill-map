@@ -1,6 +1,6 @@
 /**
  * `GET/POST /api/agent/install` + `POST /api/agent/uninstall`
- * integration tests (see `spec/cli-contract.md` §Agent drain skill and
+ * integration tests (see `spec/cli-contract.md` §Agent process skill and
  * the HTTP API table rows).
  *
  * Each test boots a real `createServer()` (built-ins ON, so the real
@@ -19,7 +19,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, beforeEach, describe, it } from 'node:test';
 
-import { RUN_QUEUE_SKILL_CONTENT } from '../../../core/agent-skill/skill-template.js';
+import { PROCESS_JOBS_SKILL_CONTENT } from '../../../core/agent-skill/skill-template.js';
 import {
   createServer,
   type IServerOptions,
@@ -27,7 +27,7 @@ import {
 } from '../../index.js';
 
 const CLAUDE_SKILL_DIR = '.claude/skills';
-const SKILL_FOLDER_REL = `${CLAUDE_SKILL_DIR}/sm-run-queue`;
+const SKILL_FOLDER_REL = `${CLAUDE_SKILL_DIR}/sm-process-jobs`;
 const SKILL_FILE_REL = `${SKILL_FOLDER_REL}/SKILL.md`;
 
 interface ITestRoot {
@@ -202,7 +202,7 @@ describe('POST /api/agent/install, consent gate + three-state outcome', () => {
       assert.equal(envelope.installed, true);
       assert.equal(envelope.stale, false);
       assert.equal(envelope.skillDir, CLAUDE_SKILL_DIR);
-      assert.equal(readFileSync(skillFilePath(), 'utf8'), RUN_QUEUE_SKILL_CONTENT);
+      assert.equal(readFileSync(skillFilePath(), 'utf8'), PROCESS_JOBS_SKILL_CONTENT);
 
       const status = (await (await getStatus(handle, 'claude')).json()) as IStatusEnvelope;
       assert.equal(status.installed, true);
@@ -241,7 +241,7 @@ describe('POST /api/agent/install, consent gate + three-state outcome', () => {
       const envelope = (await res.json()) as IStatusEnvelope;
       assert.equal(envelope.outcome, 'updated');
       assert.equal(envelope.stale, false);
-      assert.equal(readFileSync(skillFilePath(), 'utf8'), RUN_QUEUE_SKILL_CONTENT);
+      assert.equal(readFileSync(skillFilePath(), 'utf8'), PROCESS_JOBS_SKILL_CONTENT);
     });
   });
 
@@ -256,8 +256,8 @@ describe('POST /api/agent/install, consent gate + three-state outcome', () => {
       assert.equal(envelope.outcome, 'installed');
       assert.equal(envelope.skillDir, '.agents/skills');
       assert.equal(
-        readFileSync(join(root.fixtureRoot, '.agents/skills/sm-run-queue/SKILL.md'), 'utf8'),
-        RUN_QUEUE_SKILL_CONTENT,
+        readFileSync(join(root.fixtureRoot, '.agents/skills/sm-process-jobs/SKILL.md'), 'utf8'),
+        PROCESS_JOBS_SKILL_CONTENT,
       );
       // The `.codex/` marker disambiguates the lens in the shared
       // `.agents/skills` territory (mirrors `sm agent install --for codex`).
@@ -276,7 +276,7 @@ describe('POST /api/agent/uninstall, consent gate + idempotence', () => {
       const envelope = (await res.json()) as { error: { code: string; message: string } };
       assert.equal(envelope.error.code, 'confirm-required');
       assert.equal(envelope.error.message.includes(`${SKILL_FOLDER_REL}/`), true);
-      assert.equal(readFileSync(skillFilePath(), 'utf8'), RUN_QUEUE_SKILL_CONTENT);
+      assert.equal(readFileSync(skillFilePath(), 'utf8'), PROCESS_JOBS_SKILL_CONTENT);
     });
   });
 

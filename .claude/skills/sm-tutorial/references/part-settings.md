@@ -6,7 +6,7 @@ orchestrator dispatches each `settings-*` chapter id here;
 `authoring-*` ids it dispatches to `part-authoring.md`.
 
 The `.sm` consent gate (companion files, `allowEditSmFiles`,
-`sm sidecar annotate`) is covered elsewhere in this tutorial, so
+`sm sidecars annotate`) is covered elsewhere in this tutorial, so
 these chapters do NOT repeat it; they focus on the config layer
 system and the `sm config` verbs.
 

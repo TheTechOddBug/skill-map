@@ -569,9 +569,9 @@ export function createApp(deps: IAppDeps): Hono {
   // install/uninstall button; mutations are consent-gated (412
   // `confirm-required` without `confirm: true`, nothing written).
   registerActivityInstallRoutes(app, routeDeps);
-  // Agent-drain-skill install management, `GET/POST /api/agent/install`
+  // Agent-process-skill install management, `GET/POST /api/agent/install`
   // + `POST /api/agent/uninstall` (see `spec/cli-contract.md` §Agent
-  // drain skill). The SPA's Settings → Project Install / Update / Up to
+  // process skill). The SPA's Settings → Project Install / Update / Up to
   // date button; mutations are consent-gated (412 `confirm-required`
   // without `confirm: true`, nothing written).
   registerAgentInstallRoutes(app, routeDeps);

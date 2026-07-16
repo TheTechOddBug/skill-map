@@ -1,7 +1,7 @@
 /**
- * `sm sidecar refresh <node-path>`
- * `sm sidecar prune [--dry-run]`
- * `sm sidecar annotate <node-path> [--force]`
+ * `sm sidecars refresh <node-path>`
+ * `sm sidecars prune [--dry-run]`
+ * `sm sidecars annotate <node-path> [--force]`
  *
  * Step 9.6.4 (Decision A1). Administrative verbs around the sidecar
  * `.sm` files. Each is a thin wrapper:
@@ -17,7 +17,7 @@
  *     the `.md` ready for editing. Per Decision A4 the
  *     `--from-frontmatter` migration helper is OUT of 9.6.4.
  *
- * `sm sidecar refresh` is intentionally distinct from `sm refresh`
+ * `sm sidecars refresh` is intentionally distinct from `sm refresh`
  * (the Step A.8 enrichment-layer verb that re-runs Extractors), same
  * verb stem, different concept; the sub-namespace prefix keeps the
  * two from colliding.
@@ -95,7 +95,7 @@ async function runWithSidecarConsent(
       bag.printError(
         tx(CONSENT_TEXTS.consentRequiredNonTty, {
           glyph: errGlyph,
-          verb: 'sm sidecar',
+          verb: 'sm sidecars',
           hint: ansi.dim(CONSENT_TEXTS.consentRequiredNonTtyHint),
         }),
       );
@@ -110,7 +110,7 @@ async function runWithSidecarConsent(
       bag.printInfo(
         tx(CONSENT_TEXTS.consentAborted, {
           glyph: ansi.cyan('ℹ'),
-          verb: 'sm sidecar',
+          verb: 'sm sidecars',
         }),
       );
       return ExitCode.Error;
@@ -120,10 +120,10 @@ async function runWithSidecarConsent(
   }
 }
 
-// --- sm sidecar refresh ---------------------------------------------------
+// --- sm sidecars refresh ---------------------------------------------------
 
 export class SidecarRefreshCommand extends SmCommand {
-  static override paths = [['sidecar', 'refresh']];
+  static override paths = [['sidecars', 'refresh']];
   static override usage = Command.Usage({
     category: 'Actions',
     description:
@@ -134,7 +134,7 @@ export class SidecarRefreshCommand extends SmCommand {
       Distinct from \`sm refresh\` (the enrichment-layer verb at Step
       A.8); different storage, different concept.
 
-      Refuses if the node has no sidecar (run \`sm sidecar annotate\`
+      Refuses if the node has no sidecar (run \`sm sidecars annotate\`
       first, or \`sm bump\` to create one through the Action). No-ops
       on a fresh node, there's nothing to refresh.
     `,
@@ -288,10 +288,10 @@ export class SidecarRefreshCommand extends SmCommand {
   }
 }
 
-// --- sm sidecar prune -----------------------------------------------------
+// --- sm sidecars prune -----------------------------------------------------
 
 export class SidecarPruneCommand extends SmCommand {
-  static override paths = [['sidecar', 'prune']];
+  static override paths = [['sidecars', 'prune']];
   static override usage = Command.Usage({
     category: 'Actions',
     description:
@@ -455,10 +455,10 @@ export class SidecarPruneCommand extends SmCommand {
   }
 }
 
-// --- sm sidecar annotate --------------------------------------------------
+// --- sm sidecars annotate --------------------------------------------------
 
 export class SidecarAnnotateCommand extends SmCommand {
-  static override paths = [['sidecar', 'annotate']];
+  static override paths = [['sidecars', 'annotate']];
   static override usage = Command.Usage({
     category: 'Actions',
     description:

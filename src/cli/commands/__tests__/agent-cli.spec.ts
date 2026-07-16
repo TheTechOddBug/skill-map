@@ -1,6 +1,6 @@
 /**
  * End-to-end tests for `sm agent install / uninstall / status`, the
- * distributable agent drain skill (`spec/cli-contract.md` §Agent drain
+ * distributable agent process skill (`spec/cli-contract.md` §Agent process
  * skill). Each command runs inside a fresh temp dir; the destination
  * resolves either from the active lens (a `.claude/` marker on disk) or
  * the explicit `--for <provider>` override.
@@ -40,7 +40,7 @@ import { after, before, describe, it } from 'node:test';
 
 import type { BaseContext } from 'clipanion';
 
-import { RUN_QUEUE_SKILL_CONTENT } from '../../../core/agent-skill/skill-template.js';
+import { PROCESS_JOBS_SKILL_CONTENT } from '../../../core/agent-skill/skill-template.js';
 import {
   AgentInstallCommand,
   AgentStatusCommand,
@@ -123,7 +123,7 @@ async function withCwd<T>(dir: string, fn: () => Promise<T>): Promise<T> {
   }
 }
 
-const CLAUDE_SKILL_REL = join('.claude', 'skills', 'sm-run-queue', 'SKILL.md');
+const CLAUDE_SKILL_REL = join('.claude', 'skills', 'sm-process-jobs', 'SKILL.md');
 
 before(() => {
   tmpRoot = mkdtempSync(join(tmpdir(), 'skill-map-agent-cli-'));
@@ -143,9 +143,9 @@ describe('sm agent install', () => {
       return { code, out: cap.stdout() };
     });
     strictEqual(outcome.code, 0);
-    strictEqual(readFileSync(join(dir, CLAUDE_SKILL_REL), 'utf8'), RUN_QUEUE_SKILL_CONTENT);
-    ok(outcome.out.includes('✓  sm agent: installed the sm-run-queue skill'), 'installed wording');
-    ok(outcome.out.includes('.claude/skills/sm-run-queue/SKILL.md'), 'relative path named');
+    strictEqual(readFileSync(join(dir, CLAUDE_SKILL_REL), 'utf8'), PROCESS_JOBS_SKILL_CONTENT);
+    ok(outcome.out.includes('✓  sm agent: installed the sm-process-jobs skill'), 'installed wording');
+    ok(outcome.out.includes('.claude/skills/sm-process-jobs/SKILL.md'), 'relative path named');
     ok(outcome.out.includes('(claude lens)'), 'lens named');
   });
 
@@ -163,9 +163,9 @@ describe('sm agent install', () => {
     });
     strictEqual(outcome.firstCode, 0);
     strictEqual(outcome.secondCode, 0);
-    ok(outcome.secondOut.includes('✓  sm agent: updated the sm-run-queue skill'), 'updated wording');
+    ok(outcome.secondOut.includes('✓  sm agent: updated the sm-process-jobs skill'), 'updated wording');
     ok(outcome.secondOut.includes("to this CLI's version"), 'update names the cause');
-    strictEqual(readFileSync(join(dir, CLAUDE_SKILL_REL), 'utf8'), RUN_QUEUE_SKILL_CONTENT);
+    strictEqual(readFileSync(join(dir, CLAUDE_SKILL_REL), 'utf8'), PROCESS_JOBS_SKILL_CONTENT);
   });
 
   it('reinstall over identical bytes reports "already up to date" and writes nothing', async () => {
@@ -189,8 +189,8 @@ describe('sm agent install', () => {
     const code = await withCwd(dir, async () => run(buildInstall('codex'), captureContext()));
     strictEqual(code, 0);
     strictEqual(
-      readFileSync(join(dir, '.agents', 'skills', 'sm-run-queue', 'SKILL.md'), 'utf8'),
-      RUN_QUEUE_SKILL_CONTENT,
+      readFileSync(join(dir, '.agents', 'skills', 'sm-process-jobs', 'SKILL.md'), 'utf8'),
+      PROCESS_JOBS_SKILL_CONTENT,
     );
     ok(existsSync(join(dir, '.codex')), 'lens marker dropped alongside');
   });
@@ -312,8 +312,8 @@ describe('sm agent uninstall', () => {
       };
     });
     strictEqual(outcome.firstCode, 0);
-    ok(outcome.firstOut.includes('✓  sm agent: removed the sm-run-queue skill'), 'removed wording');
-    ok(!existsSync(join(dir, '.claude', 'skills', 'sm-run-queue')), 'folder gone');
+    ok(outcome.firstOut.includes('✓  sm agent: removed the sm-process-jobs skill'), 'removed wording');
+    ok(!existsSync(join(dir, '.claude', 'skills', 'sm-process-jobs')), 'folder gone');
     strictEqual(outcome.secondCode, 0);
     ok(outcome.secondErr.includes('nothing to do'), 'idempotent advisory');
   });
@@ -332,36 +332,36 @@ describe('sm agent uninstall', () => {
 
 /**
  * The canonical skill BODY. The verb tests above pin that the materialised
- * bytes equal `RUN_QUEUE_SKILL_CONTENT`, which is tautological about what
+ * bytes equal `PROCESS_JOBS_SKILL_CONTENT`, which is tautological about what
  * the skill actually teaches. A fixer job is the ONE job kind that edits
- * the operator's own files, and a draining agent may well have a human
+ * the operator's own files, and a processing agent may well have a human
  * sitting next to it, so the skill must send it to that human before
  * writing, and must say why waiting is safe: TTL-less jobs never expire
  * (`spec/job-lifecycle.md` §TTL and auto-reap explicitly reserves the
  * no-TTL default for exactly this interactive pause).
  */
-describe('the canonical sm-run-queue skill, fixer-edit guidance', () => {
+describe('the canonical sm-process-jobs skill, fixer-edit guidance', () => {
   it('sends an interactive agent to its user for a go-ahead before the edit', () => {
     ok(
-      RUN_QUEUE_SKILL_CONTENT.includes('consult them before a fixer\'s edit'),
+      PROCESS_JOBS_SKILL_CONTENT.includes('consult them before a fixer\'s edit'),
       'names consulting the user as the fixer-edit precondition',
     );
     ok(
-      RUN_QUEUE_SKILL_CONTENT.includes('show the edit you intend to make and get their'),
+      PROCESS_JOBS_SKILL_CONTENT.includes('show the edit you intend to make and get their'),
       'the confirmation is show-then-approve, not a bare "ask first"',
     );
   });
 
-  it('keeps the unattended drain autonomous (edit, then report)', () => {
+  it('keeps the unattended processing run autonomous (edit, then report)', () => {
     ok(
-      RUN_QUEUE_SKILL_CONTENT.includes('when draining unattended, make the edit'),
+      PROCESS_JOBS_SKILL_CONTENT.includes('when processing unattended, make the edit'),
       'an agent with no user to consult still performs the edit',
     );
   });
 
   it('justifies the wait with the TTL-less default, so a claim can hold', () => {
     ok(
-      RUN_QUEUE_SKILL_CONTENT.includes('Jobs carry no TTL by default'),
+      PROCESS_JOBS_SKILL_CONTENT.includes('Jobs carry no TTL by default'),
       'the skill states why pausing mid-claim is safe',
     );
   });
@@ -373,13 +373,13 @@ describe('the canonical sm-run-queue skill, fixer-edit guidance', () => {
    * against a body that no longer existed on disk (staleness compares
    * two DB hashes, and the DB only learns from a scan).
    */
-  it('makes the draining agent re-scan the node it edited', () => {
+  it('makes the processing agent re-scan the node it edited', () => {
     ok(
-      RUN_QUEUE_SKILL_CONTENT.includes('run `sm scan -n <path>` for the file'),
+      PROCESS_JOBS_SKILL_CONTENT.includes('run `sm scan -n <path>` for the file'),
       'names the per-node scan verb, not a full re-scan',
     );
     ok(
-      RUN_QUEUE_SKILL_CONTENT.includes('skill-map learns about edits only from a scan'),
+      PROCESS_JOBS_SKILL_CONTENT.includes('skill-map learns about edits only from a scan'),
       'states why: without it the map reports against the replaced version',
     );
   });

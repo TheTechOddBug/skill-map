@@ -257,7 +257,7 @@ export default {
 
 Cross-node reasoning over the merged graph; runs after every Provider and extractor. Dual-mode (`mode: 'deterministic'` default, `'probabilistic'` opt-in). Deterministic analyzers run synchronously inside `sm scan` / `sm check`; probabilistic ones dispatch as jobs and NEVER participate in the deterministic scan pipeline. Optional `precondition` and `ui`. Spec at [`schemas/extensions/analyzer.schema.json`](./schemas/extensions/analyzer.schema.json).
 
-A **probabilistic analyzer** (a finder: it JUDGES nodes, emitting findings like `contradiction`, `redundancy`, `low-quality`) shares the Action queue verbatim and has NO `evaluate()`; the draining agent does the reasoning. It ships files-by-convention, exactly like a probabilistic Action: `<analyzer-dir>/prompt.md` (the judging prompt) plus `<analyzer-dir>/report.schema.json` extending the canonical findings envelope ([`schemas/findings/report.schema.json`](./schemas/findings/report.schema.json)) via `$ref`, and declares `probExpectedDurationSeconds` for the TTL. Queue it with `sm job submit <plugin>/<id> -n <node>` (or `--all`); `sm record` validates the report and writes the `findings[]` rows to `state_findings`, read back via `sm findings`. Findings are advisory by construction: they never alter exit codes. A fixer Action names the finder in `precondition.analyzerIds` (Modelo B) to surface as its recommended fix.
+A **probabilistic analyzer** (a finder: it JUDGES nodes, emitting findings like `contradiction`, `redundancy`, `low-quality`) shares the Action queue verbatim and has NO `evaluate()`; the processing agent does the reasoning. It ships files-by-convention, exactly like a probabilistic Action: `<analyzer-dir>/prompt.md` (the judging prompt) plus `<analyzer-dir>/report.schema.json` extending the canonical findings envelope ([`schemas/findings/report.schema.json`](./schemas/findings/report.schema.json)) via `$ref`, and declares `probExpectedDurationSeconds` for the TTL. Queue it with `sm jobs submit <plugin>/<id> -n <node>` (or `--all`); `sm record` validates the report and writes the `findings[]` rows to `state_findings`, read back via `sm findings`. Findings are advisory by construction: they never alter exit codes. A fixer Action names the finder in `precondition.analyzerIds` (Modelo B) to surface as its recommended fix.
 
 The analyzer↔action relationship is declared from the **Action** side via `precondition.analyzerIds` (Modelo B); no `recommendedActions` field on the Analyzer.
 
@@ -282,7 +282,7 @@ export default {
 };
 ```
 
-> `sm check` stays deterministic-only, full stop: probabilistic analyzers never contribute to it (the transitional `--include-prob` / `--async` stubs were retired when the findings pipeline landed). Their surface is the queue (`sm job submit`) on the way in and `sm findings` on the way out.
+> `sm check` stays deterministic-only, full stop: probabilistic analyzers never contribute to it (the transitional `--include-prob` / `--async` stubs were retired when the findings pipeline landed). Their surface is the queue (`sm jobs submit`) on the way in and `sm findings` on the way out.
 
 ### Score-phase analyzers
 
@@ -393,7 +393,7 @@ An Action whose `invoke()` returns a sidecar write (`writes: [{ kind: 'sidecar',
 
 An Action has two independent surfaces:
 
-- **`invoke(input, ctx)`**, the on-demand executor the user triggers (deterministic in-process code; a probabilistic Action has NO `invoke`, its rendered prompt is drained by an external agent via `sm job claim` + `sm record`). Unit-test deterministic ones by calling `invoke(input, ctx)` with a fake context; probabilistic ones are tested through the queue (submit, then record a report against the schema).
+- **`invoke(input, ctx)`**, the on-demand executor the user triggers (deterministic in-process code; a probabilistic Action has NO `invoke`, its rendered prompt is processed by an external agent via `sm jobs claim` + `sm record`). Unit-test deterministic ones by calling `invoke(input, ctx)` with a fake context; probabilistic ones are tested through the queue (submit, then record a report against the schema).
 - **`project(ctx)`** (optional), a deterministic, side-effect-free, scan-time method with read-only graph access (`ctx.nodes`, `ctx.links`) plus `ctx.emitContribution(nodePath, ref, payload)`. Use it to self-project the Action's own UI affordance, typically an `inspector.action.button` declared in the manifest `ui` map (see [View contributions](#view-contributions)), computing the per-node `enabled` / prompt `options` from the live graph. It stays deterministic even when `invoke` is probabilistic, and runs every scan (same cost as an analyzer's emit). This is how built-in buttons like Set stability / Bump are produced: the dispatching Action owns its button, no separate "projector" analyzer. Unit-test it by calling `project(ctx)` with a fake `{ nodes, links, emitContribution }` and asserting the captured payload.
 
 ---
@@ -457,7 +457,7 @@ A schema file missing / unparseable / AJV-rejected at load flips the plugin to `
 
 Analyzer and Action declare `mode` (optional, default `'deterministic'`); Provider / Extractor / Formatter / Hook are deterministic-only by spec and MUST NOT declare it.
 
-A `probabilistic` Analyzer / Action never receives an LLM handle: its contribution is the prompt (`prompt.md`) plus the report contract (`report.schema.json`), rendered into a queued job (`sm job submit`) that an external agent drains via `sm job claim` + `sm record`; it never runs in `sm scan`. The full per-kind capability matrix lives in [`architecture.md` §Execution modes](./architecture.md#execution-modes).
+A `probabilistic` Analyzer / Action never receives an LLM handle: its contribution is the prompt (`prompt.md`) plus the report contract (`report.schema.json`), rendered into a queued job (`sm jobs submit`) that an external agent processes via `sm jobs claim` + `sm record`; it never runs in `sm scan`. The full per-kind capability matrix lives in [`architecture.md` §Execution modes](./architecture.md#execution-modes).
 
 ---
 

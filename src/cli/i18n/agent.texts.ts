@@ -1,6 +1,6 @@
 /**
- * Strings for the `sm agent` verb family (the distributable agent drain
- * skill, see `spec/cli-contract.md` §Agent drain skill).
+ * Strings for the `sm agent` verb family (the distributable agent process
+ * skill, see `spec/cli-contract.md` §Agent process skill).
  */
 
 export const AGENT_TEXTS = {
@@ -27,20 +27,20 @@ export const AGENT_TEXTS = {
   // is the CLI mirror of the UI button states (Install / Update / Up to
   // date), both driven by the same byte comparison.
   installed:
-    '{{glyph}}  sm agent: installed the sm-run-queue skill at {{path}} ({{provider}} lens).\n',
+    '{{glyph}}  sm agent: installed the sm-process-jobs skill at {{path}} ({{provider}} lens).\n',
   updated:
-    '{{glyph}}  sm agent: updated the sm-run-queue skill at {{path}} to this CLI\'s version ({{provider}} lens).\n',
+    '{{glyph}}  sm agent: updated the sm-process-jobs skill at {{path}} to this CLI\'s version ({{provider}} lens).\n',
   upToDate:
-    '{{glyph}}  sm agent: the sm-run-queue skill at {{path}} is already up to date ({{provider}} lens).\n',
+    '{{glyph}}  sm agent: the sm-process-jobs skill at {{path}} is already up to date ({{provider}} lens).\n',
   installedHint:
-    'Any agent booted in this directory can now drain the queue; check with `sm agent status`.',
+    'Any agent booted in this directory can now process the queue; check with `sm agent status`.',
 
   // Uninstall. Removing a skill that is not there is a no-op advisory,
   // exit 0 (idempotent), mirroring `sm activity uninstall`.
   uninstalled:
-    '{{glyph}}  sm agent: removed the sm-run-queue skill at {{path}}.\n',
+    '{{glyph}}  sm agent: removed the sm-process-jobs skill at {{path}}.\n',
   nothingToUninstall:
-    '{{glyph}}  sm agent: no sm-run-queue skill at {{path}}; nothing to do.\n',
+    '{{glyph}}  sm agent: no sm-process-jobs skill at {{path}}; nothing to do.\n',
 
   // `sm agent status` report lines, one per install state. The verb
   // exits 0 in all three states; the report IS the result. The stale

@@ -12,8 +12,8 @@
  * preamble + the injected `## Findings to resolve` section (this node's
  * `core/node-redundancy` findings, stale ones flagged for the agent to
  * verify against the body) + the report contract
- * into a queued job (`sm job submit node-consolidate -n <node>`), an
- * external agent drains it (`sm job claim`), performs the file edit with
+ * into a queued job (`sm jobs submit node-consolidate -n <node>`), an
+ * external agent processes it (`sm jobs claim`), performs the file edit with
  * its own tools, and `sm record` validates the JSON report against
  * `report.schema.json`. skill-map NEVER writes the node body; the next scan
  * picks up the edit and the resolved findings go stale via the body-hash
@@ -46,7 +46,7 @@ export const nodeConsolidateAction: IBuiltInManifest<IAction> = {
   pluginId: PLUGIN_ID,
   kind: 'action',
   description:
-    'Probabilistic fixer that resolves core/node-redundancy findings by editing the node file to collapse repetition into single statements, preserving all meaning. The draining agent performs the edit; skill-map never writes the body.',
+    'Probabilistic fixer that resolves core/node-redundancy findings by editing the node file to collapse repetition into single statements, preserving all meaning. The processing agent performs the edit; skill-map never writes the body.',
   // Experimental: disabled by default, the operator opts in.
   stability: 'experimental',
   mode: 'probabilistic',

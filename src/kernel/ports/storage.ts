@@ -409,7 +409,7 @@ export interface StoragePort {
     /**
      * Duplicate pre-check: id of any `queued`/`running` job matching
      * `(extensionId, extensionVersion, nodeId, contentHash)`, else `null`.
-     * The soft gate `sm job submit` runs before insert (skipped by
+     * The soft gate `sm jobs submit` runs before insert (skipped by
      * `--force`).
      */
     findActiveDuplicate(
@@ -418,14 +418,14 @@ export interface StoragePort {
       nodeId: string,
       contentHash: string,
     ): Promise<string | null>;
-    /** Filtered job list for `sm job list`, newest-first. */
+    /** Filtered job list for `sm jobs list`, newest-first. */
     list(filter: IJobListFilter): Promise<Job[]>;
-    /** Full job by id for `sm job show`, or `null` when absent. */
+    /** Full job by id for `sm jobs show`, or `null` when absent. */
     get(id: string): Promise<Job | null>;
     /**
      * Rendered content blob for a job's `contentHash` (from
      * `state_job_contents`), or `null` when the content row is absent (the
-     * DB-corruption-only `job-file-missing` state). Powers `sm job preview`.
+     * DB-corruption-only `job-file-missing` state). Powers `sm jobs preview`.
      */
     getContent(contentHash: string): Promise<string | null>;
     /**
@@ -436,7 +436,7 @@ export interface StoragePort {
      * `{ id, nonce, contentHash }`, or `null` when the queue is empty (or
      * nothing matches `filter`, an `extensionId` restriction). The statement's
      * second `AND status='queued'` is the mandatory race guard, two racers
-     * selecting the same id yield exactly one winning UPDATE. `sm job claim`
+     * selecting the same id yield exactly one winning UPDATE. `sm jobs claim`
      * exposes this to external agents (`runner='agent'`).
      */
     claim(runner: JobRunner, nowMs: number, filter?: string): Promise<IJobClaim | null>;
@@ -452,7 +452,7 @@ export interface StoragePort {
     /**
      * Cancel every `queued` / `running` job in one statement; returns the
      * count transitioned to the terminal `cancelled` state. Powers
-     * `sm job cancel --all`.
+     * `sm jobs cancel --all`.
      */
     cancelAllActive(nowMs: number): Promise<number>;
     /**
@@ -466,19 +466,19 @@ export interface StoragePort {
     /**
      * Fail every `queued` / `running` job in one statement; returns the
      * count transitioned to `failed` / `user-failed`. Powers
-     * `sm job fail --all`.
+     * `sm jobs fail --all`.
      */
     failAllActive(nowMs: number): Promise<number>;
     /**
      * Counts per lifecycle status (`queued` / `running` / `completed` /
-     * `failed` / `cancelled`), every key present. Backs `sm job status`
+     * `failed` / `cancelled`), every key present. Backs `sm jobs status`
      * with no id.
      */
     countByStatus(): Promise<Record<JobStatus, number>>;
     /**
      * Read-only integrity counts for `sm doctor`: jobs whose content
      * row is missing (corruption) and content rows referenced by zero
-     * jobs (retention leftovers `sm job prune` collects).
+     * jobs (retention leftovers `sm jobs prune` collects).
      */
     integrityCounts(): Promise<IJobsIntegrityCounts>;
     /**
@@ -487,7 +487,7 @@ export interface StoragePort {
      * with `finishedAt = nowMs`; returns the reaped job ids (a live event
      * transport MAY surface them, `spec/job-events.md` §Ordering; the CLI
      * claim verb ignores them silently). Invoked at the start of every
-     * `sm job claim`, before the claim statement; no standalone verb.
+     * `sm jobs claim`, before the claim statement; no standalone verb.
      */
     reapExpired(nowMs: number): Promise<string[]>;
     /**
@@ -505,7 +505,7 @@ export interface StoragePort {
       cutoffMs: number,
     ): Promise<IPruneResult>;
     /**
-     * Read-only preview of `pruneTerminal` (no DELETE). Powers `sm job
+     * Read-only preview of `pruneTerminal` (no DELETE). Powers `sm jobs
      * prune --dry-run` so the output reports how many rows the live mode
      * would delete. `prunedContents` is `0` in the preview (see the
      * adapter note).

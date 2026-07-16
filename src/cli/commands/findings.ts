@@ -7,7 +7,7 @@
  * Analyzers (`origin: 'extension'`) plus the kernel-derived safety rows
  * (`origin: 'kernel'`, reserved slugs `injection-detected` /
  * `content-suspicious` / `content-malformed`). The write side is
- * `sm job submit <finder>` -> `sm job claim` -> `sm record`
+ * `sm jobs submit <finder>` -> `sm jobs claim` -> `sm record`
  * (`spec/cli-contract.md` §Jobs); this verb is the read surface.
  *
  * Filters (orthogonal): `-n` by node path; `--extension` comma-separated
@@ -16,17 +16,24 @@
  * severity (`warn` keeps warn + error); `--since` ISO date on
  * `generated_at`; `--threshold` minimum confidence.
  *
- * The default view shows what needs attention, hiding two DISJOINT kinds
- * of row: `fixed` rows (`resolution = 'fixed'`, already handled,
- * `--fixed` includes them) and stale rows (body hash drifted since
- * generation, or the node gone from the scan, `--stale` includes them
- * marked `(stale)`). A row that is BOTH fixed and stale counts as fixed
- * (the state takes precedence). Open rows and `human-decision` rows always
- * show: a human-decision finding is the author's pending decision.
+ * The default view shows what needs attention (open and `human-decision`
+ * rows), hiding two DISJOINT kinds of row: `fixed` rows
+ * (`resolution = 'fixed'`, already handled) and stale rows (body hash
+ * drifted since generation, or the node gone from the scan). A row that is
+ * BOTH fixed and stale counts as fixed (the state takes precedence).
  *
- * Excluded rows are never silently swallowed: whatever the default
- * filter hides is reported under the SAME filters, as a human footer /
- * empty-state line and as `fixedExcluded` + `staleExcluded` in JSON. An
+ * The bucket flags are FILTERS, not additive reveals: `--fixed` shows ONLY
+ * the fixed bucket (marked with the deciding actor), `--stale` shows ONLY
+ * the stale bucket (marked `(stale)`), together their union. With either
+ * present the needs-attention rows are omitted and the excluded-count
+ * reporting does NOT apply (it is a default-view honesty device, exactly
+ * like `--type` is the operator's own narrowing). An empty bucket-filter
+ * result reads the same no-match line as an empty `--type` view, never the
+ * clean verdict, never the `No fresh findings` breakdown.
+ *
+ * In the DEFAULT view, excluded rows are never silently swallowed:
+ * whatever it hides is reported under the SAME filters, as a human footer
+ * / empty-state line and as `fixedExcluded` + `staleExcluded` in JSON. An
  * empty result with hidden rows reads `No fresh findings` plus the hidden
  * breakdown, never a bare `No findings`, which would assert a clean node
  * while judgments sit hidden (observed live: the operator read it as his
@@ -78,16 +85,22 @@ export class FindingsCommand extends SmCommand {
     description: 'Print stored probabilistic findings (finder judgments + kernel safety rows).',
     details: `
       Reads state_findings: one row per judgment a probabilistic finder
-      Analyzer recorded via the job loop (sm job submit -> sm job claim ->
+      Analyzer recorded via the job loop (sm jobs submit -> sm jobs claim ->
       sm record), plus the kernel-derived safety rows (injection-detected /
       content-suspicious / content-malformed).
 
-      The default view hides two disjoint kinds of row: fixed rows (already
-      handled, --fixed includes them, marked with the deciding actor) and
-      stale rows (the node body changed since the judgment, or the node
-      left the scan, --stale includes them, marked). Open and human-decision
-      rows always show. Whatever the default filter hides is always reported:
-      the hidden breakdown rides in the human output and on fixedExcluded /
+      The default view shows what needs attention (open and human-decision
+      rows), hiding two disjoint kinds of row: fixed rows (already handled)
+      and stale rows (the node body changed since the judgment, or the node
+      left the scan). The bucket flags are FILTERS, not additive reveals:
+      --fixed shows ONLY the fixed bucket (marked with the deciding actor),
+      --stale shows ONLY the stale bucket (marked), together their union.
+      With either present the needs-attention rows are omitted and the
+      excluded-count reporting does not apply; an empty result reads the
+      same no-match line as an empty --type view.
+
+      In the DEFAULT view, whatever it hides is always reported: the hidden
+      breakdown rides in the human output and on fixedExcluded /
       staleExcluded in --json, so an empty result never claims a clean node
       while judgments sit hidden. --severity is a MINIMUM (warn keeps warn +
       error); --threshold is a minimum confidence; --extension accepts
@@ -101,8 +114,8 @@ export class FindingsCommand extends SmCommand {
       ['Print every current finding', '$0 findings'],
       ['Restrict to one node', '$0 findings -n .claude/skills/foo/SKILL.md'],
       ['Only one finder, high confidence', '$0 findings --extension my-plugin/quality-check --threshold 0.8'],
-      ['Include fixed judgments', '$0 findings --fixed'],
-      ['Include stale judgments', '$0 findings --stale'],
+      ['Only the fixed judgments', '$0 findings --fixed'],
+      ['Only the stale judgments', '$0 findings --stale'],
       ['Machine-readable envelope', '$0 findings --json'],
     ],
   });
@@ -132,10 +145,10 @@ export class FindingsCommand extends SmCommand {
     description: 'Minimum confidence, 0..1.',
   });
   stale = Option.Boolean('--stale', false, {
-    description: 'Include stale findings (body changed since generation), marked (stale).',
+    description: 'Show only stale findings (body changed since generation), marked (stale).',
   });
   fixed = Option.Boolean('--fixed', false, {
-    description: 'Include fixed findings (a fixer resolved them), marked with the fixer.',
+    description: 'Show only fixed findings (a fixer resolved them), marked with the fixer.',
   });
 
   protected async run(): Promise<number> {
@@ -163,42 +176,56 @@ export class FindingsCommand extends SmCommand {
         // table-wide total that is a lie of a different shape.
         const all = await adapter.findings.list({ ...filter, includeStale: true });
         const shown = all.filter((f) => this.isShown(f));
-        // The hidden ROWS, not just their counts: the human line must name
-        // the `human-decision` subset among them (the author's TODO,
-        // otherwise invisible behind the stale filter) and break the tally
-        // into fixed vs stale.
-        const hidden = all.filter((f) => !this.isShown(f));
-        return this.json ? this.emitJson(shown, hidden) : this.emitHuman(shown, hidden);
+        // The hidden ROWS, not just their counts: the DEFAULT view's human
+        // line must name the `human-decision` subset among them (the
+        // author's TODO, otherwise invisible behind the stale filter) and
+        // break the tally into fixed vs stale. Under an explicit bucket
+        // filter (--fixed / --stale) the excluded-count reporting does NOT
+        // apply (spec/cli-contract.md §sm findings: it is a default-view
+        // honesty device), so nothing is reported as hidden.
+        const hidden = this.bucketFilterActive() ? [] : all.filter((f) => !this.isShown(f));
+        return this.json
+          ? this.emitJson(shown, hidden)
+          : this.emitHuman(shown, hidden, all.length === 0);
       },
     );
   }
 
   /**
-   * Default visibility (`spec/cli-contract.md` §sm findings). A row hides
-   * for exactly one of two DISJOINT reasons, with `fixed` taking
-   * precedence over `stale`:
+   * Row visibility (`spec/cli-contract.md` §sm findings). The bucket flags
+   * are FILTERS: `fixed` takes precedence over `stale`, and a
+   * needs-attention row shows only in the default view.
    *
-   *   - `resolution === 'fixed'`: a fixer handled it; hidden unless
-   *     `--fixed`, even when the row also went stale.
-   *   - not fixed but `stale`: the judged body is gone; hidden unless
-   *     `--stale`. Covers open-stale AND human-decision-stale rows.
-   *
-   * Open rows and non-stale `human-decision` rows always show
-   * (`human-decision` is the author's pending decision, never hidden by
-   * state).
+   *   - `resolution === 'fixed'`: shown ONLY under `--fixed`, even when the
+   *     row also went stale (state precedence).
+   *   - not fixed but `stale`: shown ONLY under `--stale`. Covers
+   *     open-stale AND human-decision-stale rows.
+   *   - otherwise (open or non-stale `human-decision`): a needs-attention
+   *     row, shown in the DEFAULT view, omitted once an explicit bucket
+   *     filter narrows the view to its buckets.
    */
   private isShown(f: IFindingRecord): boolean {
     if (f.resolution === 'fixed') return this.fixed;
     if (f.stale) return this.stale;
-    return true;
+    return !this.bucketFilterActive();
+  }
+
+  /**
+   * True when `--fixed` and/or `--stale` narrows the view to those buckets.
+   * A bucket filter omits the needs-attention rows and turns off the
+   * excluded-count reporting (the operator's own narrowing, like `--type`).
+   */
+  private bucketFilterActive(): boolean {
+    return this.fixed || this.stale;
   }
 
   /**
    * `{ ok, kind, findings, total, fixedExcluded, staleExcluded }`. `total`
-   * keeps its meaning (the RETURNED rows); the two excluded counts are the
-   * disjoint tally of what the default filters held back under the same
-   * filters (a fixed+stale row counts as fixed). Each is 0 once its flag
-   * (`--fixed` / `--stale`) reveals that bucket.
+   * keeps its meaning (the RETURNED rows). The two excluded counts are a
+   * DEFAULT-view honesty device: the disjoint tally of what the default
+   * view held back under the same filters (a fixed+stale row counts as
+   * fixed). Both are 0 whenever a bucket filter (`--fixed` / `--stale`) is
+   * active, since an explicit bucket view holds nothing back to report.
    */
   private emitJson(
     findings: readonly IFindingRecord[],
@@ -218,33 +245,48 @@ export class FindingsCommand extends SmCommand {
   }
 
   /**
-   * Human mode, three shapes (`spec/cli-contract.md` §sm findings,
-   * "excluded rows MUST be reported, never silently swallowed"):
-   *
-   *   - no rows at all: the clean verdict, green `✓  No findings.`
-   *   - zero shown, N hidden: neutral `ℹ  No fresh findings.` + the
-   *     hidden breakdown (`N fixed, M stale`) and its remedy. NEVER the
-   *     success glyph: nothing was verified clean, the judgments are just
-   *     filtered out.
-   *   - K listed, N hidden: the listing plus the same breakdown as a
-   *     footer.
-   *
-   * Either hidden-breakdown shape names the `human-decision` subset when
-   * one exists (a proposal staled by a sibling fix, see `staleHiddenVars`).
+   * Human mode. A populated result renders the listing (plus, in the
+   * default view, the hidden-breakdown footer); an empty one delegates to
+   * `emptyLine` for one of the three empty shapes.
    */
-  private emitHuman(findings: readonly IFindingRecord[], hidden: readonly IFindingRecord[]): TExitCode {
+  private emitHuman(
+    findings: readonly IFindingRecord[],
+    hidden: readonly IFindingRecord[],
+    noRowsAtAll: boolean,
+  ): TExitCode {
     const ansi = this.ansiFor('stdout');
     if (findings.length === 0) {
-      this.printer!.data(
-        hidden.length === 0
-          ? tx(T.noFindings, { glyph: ansi.green('✓') })
-          : tx(T.noFreshFindings, { glyph: ansi.cyan('ℹ'), ...staleHiddenVars(hidden, ansi) }),
-      );
+      this.printer!.data(this.emptyLine(hidden, noRowsAtAll, ansi));
       return ExitCode.Ok;
     }
     this.printer!.data(renderHuman(findings, hidden, ansi));
     // Advisory by construction: content never drives the exit code.
     return ExitCode.Ok;
+  }
+
+  /**
+   * The empty-result line, three shapes (`spec/cli-contract.md` §sm
+   * findings, "excluded rows MUST be reported"):
+   *
+   *   - no rows at all (the query returned nothing): the clean verdict,
+   *     green `✓  No findings.`. The ONLY clean-verdict output.
+   *   - rows exist but a bucket filter (`--fixed` / `--stale`) narrowed the
+   *     view to none: the neutral no-match line, exactly like an empty
+   *     `--type` view. NEVER the clean verdict (open rows may still sit
+   *     behind the filter) and NEVER the `No fresh findings` breakdown (the
+   *     excluded-count device is off under an explicit bucket filter).
+   *   - default view, rows held back by the default filter: neutral
+   *     `ℹ  No fresh findings.` + the hidden breakdown and its remedy,
+   *     naming the `human-decision` subset when one exists.
+   */
+  private emptyLine(
+    hidden: readonly IFindingRecord[],
+    noRowsAtAll: boolean,
+    ansi: IAnsi,
+  ): string {
+    if (noRowsAtAll) return tx(T.noFindings, { glyph: ansi.green('✓') });
+    if (this.bucketFilterActive()) return tx(T.noMatch, { glyph: ansi.cyan('ℹ') });
+    return tx(T.noFreshFindings, { glyph: ansi.cyan('ℹ'), ...staleHiddenVars(hidden, ansi) });
   }
 
   /**
@@ -308,7 +350,7 @@ export class FindingsCommand extends SmCommand {
  * mitigation (`sm findings` hides stale rows by default) makes this pure
  * hygiene: the only other eraser is a fresh record for the pair.
  *
- * Destructive-verb convention (mirror of `sm sidecar prune`): without
+ * Destructive-verb convention (mirror of `sm sidecars prune`): without
  * `--dry-run` prompts for interactive confirmation reporting the row
  * count; `--yes` bypasses for non-interactive callers; `--dry-run`
  * reports without deleting and never prompts. `--json` envelope:

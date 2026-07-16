@@ -1,5 +1,5 @@
 /**
- * `sm job prune`, retention GC storage helper + CLI command, DB-only model.
+ * `sm jobs prune`, retention GC storage helper + CLI command, DB-only model.
  *
  * Covers:
  *   1. `pruneTerminalJobs`, only deletes terminal jobs older than the

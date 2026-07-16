@@ -1,5 +1,5 @@
 /**
- * Storage integration tests for the `sm job submit` helpers
+ * Storage integration tests for the `sm jobs submit` helpers
  * (`kernel/adapters/sqlite/jobs.ts`): submit / findActiveDuplicate / list /
  * get. Uses a real file-path SQLite DB via `SqliteStorageAdapter` (never
  * `:memory:`, which yields an empty Kysely-side schema, see

@@ -169,7 +169,7 @@ export const HELP_GROUPS: Record<string, { description: string; details?: string
       'pending kernel and plugin migrations, `reset` to drop tables (or the\n' +
       'whole file), and `dump` / `shell` / `browser` to inspect the data.',
   },
-  job: {
+  jobs: {
     description: 'Manage the background job queue',
     details:
       'Probabilistic and long-running work runs as jobs: queued, persisted in\n' +
@@ -190,7 +190,7 @@ export const HELP_GROUPS: Record<string, { description: string; details?: string
       "single action's full manifest, including its preconditions and expected\n" +
       'duration.',
   },
-  sidecar: {
+  sidecars: {
     description: 'Manage `.sm` annotation sidecars',
     details:
       "Skill-map's annotation layer lives in co-located `.sm` YAML sidecars\n" +

@@ -3,7 +3,7 @@
 Plain markdown corpus for the `findings-contract` conformance cases.
 The scan classifies this file through the universal `core/markdown`
 fallback (kind `markdown`); the drop-in `finder-fixture/redundancy-probe`
-finder has no precondition, so `sm job submit` can render and enqueue a
+finder has no precondition, so `sm jobs submit` can render and enqueue a
 job over it.
 
 ## Steps

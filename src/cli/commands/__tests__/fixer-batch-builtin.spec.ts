@@ -7,7 +7,7 @@
  * (`spec/job-lifecycle.md` §Findings injection for fixers); the kernel
  * injects the node's findings from the declared finder(s), stale ones
  * included and flagged, into a `## Findings to resolve` section at submit,
- * and the draining agent performs the file edit (skill-map never writes the
+ * and the processing agent performs the file edit (skill-map never writes the
  * body).
  *
  * Common cases (per fixer):
@@ -15,7 +15,7 @@
  *     the authored siblings; the prompt never mentions the literal
  *     user-content delimiter, and the report extends `report-base` (NOT the
  *     findings envelope, a fixer is not a finder).
- *   - ships experimental: DISABLED by default (`sm job submit` exits 5).
+ *   - ships experimental: DISABLED by default (`sm jobs submit` exits 5).
  *   - once enabled, submitting over a node with NO matching findings at all
  *     refuses with exit 2; a stale-only finding SUBMITS (flagged).
  *   - submitting over a node WITH matching findings injects the
@@ -380,7 +380,7 @@ for (const fixer of FIXERS) {
   });
 
   describe(`core/${fixer.id}, experimental gate`, () => {
-    it('ships DISABLED: sm job submit does not resolve it by default', async () => {
+    it('ships DISABLED: sm jobs submit does not resolve it by default', async () => {
       const proj = await setupProject({});
       await seedFinding(proj, fixer.seed);
       const { code, err } = await submit(proj, fixer.id);
@@ -644,7 +644,7 @@ for (const fixer of FIXERS) {
         editsSummary: 'Edited.',
       });
       // The edits already landed on disk: a scope mismatch never bounces
-      // the job back to the draining agent.
+      // the job back to the processing agent.
       strictEqual(code, 0, err);
       strictEqual((await readFinding(proj, own))?.resolutionNote, 'in scope');
       strictEqual((await readFinding(proj, foreign))?.resolution, null, 'foreign node untouched');

@@ -1,9 +1,9 @@
 /**
  * End-to-end tests for the report-contract render prelude
  * (`spec/job-lifecycle.md` §Submit step 9) through the real CLI verbs:
- * `sm job submit` renders the extension's report-schema chain into the
+ * `sm jobs submit` renders the extension's report-schema chain into the
  * job content (after the template prose, before the `<user-content>`
- * block) and `sm job preview` shows the fenced blocks.
+ * block) and `sm jobs preview` shows the fenced blocks.
  *
  * Coverage:
  *   (a) on-disk probabilistic ANALYZER (prob-finder fixture): its raw
@@ -159,7 +159,7 @@ async function submit(proj: IProject, extension: string, node: string): Promise<
   });
 }
 
-/** `sm job preview --last` stdout (the rendered content). */
+/** `sm jobs preview --last` stdout (the rendered content). */
 async function previewLast(proj: IProject): Promise<string> {
   return withCwd(proj.root, async () => {
     const cap = captureContext();

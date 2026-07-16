@@ -1,13 +1,13 @@
 {
   "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
   "id": "extension-mode-routing",
-  "description": "Dispatch routing follows the Action manifest `mode`: a probabilistic Action submitted via `sm job submit` lands as a QUEUED job (it never executes in-process). The staging submit must exit 0 and the queue must hold exactly that one row.",
+  "description": "Dispatch routing follows the Action manifest `mode`: a probabilistic Action submitted via `sm jobs submit` lands as a QUEUED job (it never executes in-process). The staging submit must exit 0 and the queue must hold exactly that one row.",
   "fixture": "extension-mode-routing",
   "setup": {
     "priorScans": [{ "fixture": "extension-mode-routing" }],
     "priorInvokes": [
       {
-        "verb": "job",
+        "verb": "jobs",
         "sub": "submit",
         "args": ["markdown-summarizer"],
         "flags": ["-n", "notes.md"]
@@ -15,7 +15,7 @@
     ]
   },
   "invoke": {
-    "verb": "job",
+    "verb": "jobs",
     "sub": "list",
     "flags": ["--json"]
   },

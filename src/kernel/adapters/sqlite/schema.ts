@@ -493,7 +493,7 @@ export interface IStateJobsTable {
  *   - `createdAt`, wall-clock ms at first insert. `INSERT OR IGNORE`
  *     keeps the earliest write; later submits of the same hash are no-ops.
  *
- * GC contract (see `spec/db-schema.md` §state_job_contents): `sm job
+ * GC contract (see `spec/db-schema.md` §state_job_contents): `sm jobs
  * prune` deletes every row whose `contentHash` is referenced by zero
  * `state_jobs` rows, in the same transaction that prunes terminal jobs.
  */

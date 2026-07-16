@@ -133,7 +133,7 @@ export type TSubmitTargetResolution<
   | { outcome: 'deterministic'; mode: TExecutionMode }
   | { outcome: 'not-found' };
 
-/** Qualified-then-bare lookup (the `sm job list --extension` matching rule). */
+/** Qualified-then-bare lookup (the `sm jobs list --extension` matching rule). */
 function findByQualifiedOrBareId<T extends ISubmitTargetExtension>(
   catalog: readonly T[],
   id: string,
@@ -152,7 +152,7 @@ function isProbabilistic(ext: ISubmitTargetExtension): boolean {
 }
 
 /**
- * Resolve a `sm job submit <extension>` target across probabilistic
+ * Resolve a `sm jobs submit <extension>` target across probabilistic
  * Actions AND probabilistic Analyzers (`spec/cli-contract.md` §Jobs,
  * Submit target resolution). The queue is kind-agnostic; the input is a
  * qualified id (`<plugin>/<ext>`), a bare extension id (suffix

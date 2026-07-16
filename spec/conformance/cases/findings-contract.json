@@ -1,13 +1,13 @@
 {
   "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
   "id": "findings-contract",
-  "description": "Findings envelope in the rendered job content. A drop-in probabilistic finder Analyzer (fixture `finder-fixture/redundancy-probe`, the analyzer half of the kind-agnostic queue) is submitted over a markdown node via `setup.priorInvokes`; `sm job preview --last` MUST print content whose report contract embeds the finder's `report.schema.json` verbatim, including its `$ref` to the canonical findings envelope (`findings/report.schema.json`), so the draining agent learns the findings shape without disk access. The record-side write-through (state_findings rows, safety lane, clean-verdict replace) is covered by implementation integration tests: the record callback needs the claim-issued nonce, which is dynamic and cannot be threaded through static `priorInvokes`.",
+  "description": "Findings envelope in the rendered job content. A drop-in probabilistic finder Analyzer (fixture `finder-fixture/redundancy-probe`, the analyzer half of the kind-agnostic queue) is submitted over a markdown node via `setup.priorInvokes`; `sm jobs preview --last` MUST print content whose report contract embeds the finder's `report.schema.json` verbatim, including its `$ref` to the canonical findings envelope (`findings/report.schema.json`), so the processing agent learns the findings shape without disk access. The record-side write-through (state_findings rows, safety lane, clean-verdict replace) is covered by implementation integration tests: the record callback needs the claim-issued nonce, which is dynamic and cannot be threaded through static `priorInvokes`.",
   "fixture": "findings-contract",
   "setup": {
     "priorScans": [{ "fixture": "findings-contract" }],
     "priorInvokes": [
       {
-        "verb": "job",
+        "verb": "jobs",
         "sub": "submit",
         "args": ["finder-fixture/redundancy-probe"],
         "flags": ["-n", "notes.md"]
@@ -15,7 +15,7 @@
     ]
   },
   "invoke": {
-    "verb": "job",
+    "verb": "jobs",
     "sub": "preview",
     "flags": ["--last"]
   },

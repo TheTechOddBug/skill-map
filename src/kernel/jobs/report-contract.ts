@@ -1,7 +1,7 @@
 /**
  * Report-contract section of the rendered job content
  * (`spec/job-lifecycle.md` §Submit step 9). Makes every job
- * self-contained: the draining agent never needs disk access or guesswork
+ * self-contained: the processing agent never needs disk access or guesswork
  * to learn the output shape (live testing showed real agents inventing
  * `severity` values and burning their first job as `report-invalid`).
  *

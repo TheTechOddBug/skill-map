@@ -6,14 +6,14 @@
  * format it reads (every node body is markdown prose, including
  * frontmatter-field bodies like codex TOML `developer_instructions`), not
  * a node-kind gate. There is deliberately NO `precondition`, so a
- * `sm job submit markdown-summarizer --all` fan-out reaches every
+ * `sm jobs submit markdown-summarizer --all` fan-out reaches every
  * non-virtual node; per-kind summarizers were dropped by decision (see
  * `ROADMAP.md` §Summarizer pattern). Unlike
  * the deterministic built-in actions (`node-bump`, `node-set-stability`,
  * `node-set-tags`), this Action carries NO in-process `invoke` and NO
  * scan-time `project`: probabilistic actions run OUTSIDE the process, the
  * kernel renders `prompt.md` + the canonical preamble into a queued job
- * (`sm job submit`), an external agent drains it (`sm job claim`), and
+ * (`sm jobs submit`), an external agent processes it (`sm jobs claim`), and
  * `sm record` closes the job by validating the agent's JSON report
  * against `report.schema.json`.
  *
@@ -44,7 +44,7 @@ export const markdownSummarizerAction: IBuiltInManifest<IAction> = {
   pluginId: PLUGIN_ID,
   kind: 'action',
   description:
-    "Summarizes a node's markdown content into a structured brief (probabilistic; an agent drains it via `sm job claim` + `sm record`).",
+    "Summarizes a node's markdown content into a structured brief (probabilistic; an agent processes it via `sm jobs claim` + `sm record`).",
   mode: 'probabilistic',
   // Best-effort wall-clock estimate; drives the job TTL. Two minutes is a
   // safe upper bound for a single-file summary on a mid-tier model.

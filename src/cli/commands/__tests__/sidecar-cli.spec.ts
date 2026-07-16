@@ -1,5 +1,5 @@
 /**
- * Step 9.6.4, `sm sidecar refresh|prune|annotate` CLI verb tests.
+ * Step 9.6.4, `sm sidecars refresh|prune|annotate` CLI verb tests.
  *
  * Mirrors the layout of `bump-cli.test.ts`: real scan + persistence,
  * `process.chdir` to a tmpdir fixture, file-based SQLite under
@@ -140,7 +140,7 @@ function commonFlags<T extends { json: boolean; quiet: boolean; noColor: boolean
   return cmd;
 }
 
-describe('sm sidecar refresh', () => {
+describe('sm sidecars refresh', () => {
   it('refreshes hashes without bumping the version', async () => {
     const fixture = freshFixture('refresh');
     const dbPath = freshDbPath('refresh');
@@ -204,7 +204,7 @@ describe('sm sidecar refresh', () => {
   });
 });
 
-describe('sm sidecar prune', () => {
+describe('sm sidecars prune', () => {
   it('--dry-run reports orphans without deleting', async () => {
     const fixture = freshFixture('prune-dry');
     const dbPath = freshDbPath('prune-dry');
@@ -286,7 +286,7 @@ describe('sm sidecar prune', () => {
   });
 });
 
-describe('sm sidecar annotate', () => {
+describe('sm sidecars annotate', () => {
   it('scaffolds an empty .sm with identity + annotations: {}', async () => {
     const fixture = freshFixture('annotate');
     const dbPath = freshDbPath('annotate');

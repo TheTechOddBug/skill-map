@@ -167,7 +167,7 @@ export class PluginsShowCommand extends SmCommand {
  * Analyzer) carries by convention, surfaced by `sm plugins show` so the
  * operator can inspect what a queued job will embed BEFORE submitting
  * (`spec/cli-contract.md`, the `sm plugins show` row; the post-render
- * counterpart is `sm job preview`). `null` for deterministic extensions,
+ * counterpart is `sm jobs preview`). `null` for deterministic extensions,
  * whose output stays byte-identical to the pre-feature shape.
  */
 interface IProbabilisticContract {

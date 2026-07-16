@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.ai/spec/v0/execution-record.schema.json",
   "title": "ExecutionRecord",
-  "description": "A single row in the execution history (`state_executions`). One record per extension execution (Action or finder Analyzer), whether an external agent drained the job (agent) or the extension ran in-process.",
+  "description": "A single row in the execution history (`state_executions`). One record per extension execution (Action or finder Analyzer), whether an external agent processed the job (agent) or the extension ran in-process.",
   "type": "object",
   "required": ["id", "kind", "extensionId", "extensionVersion", "status", "startedAt", "finishedAt"],
   "additionalProperties": false,
@@ -14,7 +14,7 @@
     "kind": {
       "type": "string",
       "enum": ["action", "analyzer"],
-      "description": "Which extension kind was executed: `action`, or `analyzer` for a probabilistic finder drained through the queue (the audit kind was removed pre-1.0)."
+      "description": "Which extension kind was executed: `action`, or `analyzer` for a probabilistic finder processed through the queue (the audit kind was removed pre-1.0)."
     },
     "extensionId": {
       "type": "string",
@@ -42,7 +42,7 @@
     "failureReason": {
       "type": ["string", "null"],
       "enum": ["runner-error", "report-invalid", "timeout", "abandoned", "job-file-missing", "user-failed", null],
-      "description": "Normalized reason when `status = failed`. Null for `completed` and `cancelled` (both self-explanatory), mirroring `Job.failureReason`. `user-failed` records an operator-forced failure (`sm job fail`); a `cancelled` status is the operator's `sm job cancel` and carries no reason. `job-file-missing` mirrors the same enum value on `Job.failureReason` (legacy name preserved across the disk-to-DB shift)."
+      "description": "Normalized reason when `status = failed`. Null for `completed` and `cancelled` (both self-explanatory), mirroring `Job.failureReason`. `user-failed` records an operator-forced failure (`sm jobs fail`); a `cancelled` status is the operator's `sm jobs cancel` and carries no reason. `job-file-missing` mirrors the same enum value on `Job.failureReason` (legacy name preserved across the disk-to-DB shift)."
     },
     "exitCode": {
       "type": ["integer", "null"],

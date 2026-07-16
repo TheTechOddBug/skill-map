@@ -1,6 +1,6 @@
 /**
  * End-to-end tests for the `state_findings` write-through wired through
- * the real CLI verbs: `sm job submit analyzer -> sm job claim -> sm
+ * the real CLI verbs: `sm jobs submit analyzer -> sm jobs claim -> sm
  * record --status completed` with a schema-valid finder report lands the
  * finder-lane rows, the kernel safety lane covers Action AND Analyzer
  * reports, and `sm show` renders the Findings section. Runs against a

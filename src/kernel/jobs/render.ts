@@ -92,7 +92,7 @@ function escapeUserContentClose(body: string): string {
 /**
  * Exact inverse of `escapeUserContentClose` (removes the inserted
  * `&#x200B;` entity, restoring the original bytes). For DISPLAY surfaces
- * only (`sm job preview`); MUST NOT be applied before hashing or the
+ * only (`sm jobs preview`); MUST NOT be applied before hashing or the
  * content hash stops matching the stored blob.
  */
 export function unescapeUserContentClose(content: string): string {

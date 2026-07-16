@@ -8,7 +8,7 @@
  *   - codegen-inlined `promptTemplate` / `reportSchema` byte-/deep-equal
  *     to the authored siblings (and the prompt never mentions the
  *     literal user-content delimiter, the render guard rejects it).
- *   - ships experimental: DISABLED by default (`sm job submit` exits 5).
+ *   - ships experimental: DISABLED by default (`sm jobs submit` exits 5).
  *   - once enabled, the submit resolves with the frozen
  *     `extensionKind: 'analyzer'`.
  *   - `sm plugins show` renders the Prompt + Report schema sections with
@@ -257,7 +257,7 @@ for (const finder of FINDERS) {
   });
 
   describe(`core/${finder.id}, experimental gate`, () => {
-    it('ships DISABLED: sm job submit does not resolve it by default', async () => {
+    it('ships DISABLED: sm jobs submit does not resolve it by default', async () => {
       const proj = await setupProject({});
       const { code, err } = await submit(proj, finder.id);
       strictEqual(code, 5, 'not in the composed catalog until enabled');

@@ -282,11 +282,11 @@ export function resetDbVersionWarnCacheForTests(): void {
  */
 /**
  * Verb-level WRITE gate (`spec/cli-contract.md` §Schema-drift rebuild,
- * write bullet): non-drift-owning write verbs (`sm job submit` /
+ * write bullet): non-drift-owning write verbs (`sm jobs submit` /
  * `cancel` / `fail` / `prune`, `sm record`, `sm findings prune`) call
  * this FIRST, before loading the plugin runtime and before any adapter
  * open, so a drifted DB refuses with the clean advisory instead of a
- * misleading downstream symptom (observed live: `sm job submit` on a
+ * misleading downstream symptom (observed live: `sm jobs submit` on a
  * drifted DB reported `extension not found` because the plugin trust
  * read degraded, three layers from the cause).
  *

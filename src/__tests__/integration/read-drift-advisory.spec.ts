@@ -6,7 +6,7 @@
  *   - `sm history` (a read verb threading `buildReadVersionCheck`)
  *     against a tampered-fingerprint DB WARNS on stderr and still exits
  *     0 with its data.
- *   - `sm job fail --all` (a mutating job verb on the default write-side
+ *   - `sm jobs fail --all` (a mutating job verb on the default write-side
  *     open) against the same DB refuses with exit 2 and the
  *     `DbSchemaDriftError` advisory.
  *   - a BFF GET (`/api/issues`) against the drifted DB returns 200 with
@@ -239,7 +239,7 @@ describe('read-side drift posture (verb level)', () => {
 // spec/cli-contract.md §Schema-drift rebuild, the read/write split for
 // non-drift-owning verbs. Both behaviours below were observed live:
 // `sm findings` printed the advisory then crashed `no such column`, and
-// `sm job submit` reported `extension not found` because the plugin
+// `sm jobs submit` reported `extension not found` because the plugin
 // trust read degraded on the drifted DB.
 describe('drift hygiene: reads convert failures, writes refuse early', () => {
   function buildFindings(dbPath: string): FindingsCommand {
@@ -295,7 +295,7 @@ describe('drift hygiene: reads convert failures, writes refuse early', () => {
     );
   });
 
-  it('sm job submit refuses the drifted DB BEFORE resolution (no misleading not-found)', async () => {
+  it('sm jobs submit refuses the drifted DB BEFORE resolution (no misleading not-found)', async () => {
     const dbPath = freshDbPath('submit-drift-write');
     await seedDriftedDb(dbPath);
 
@@ -409,7 +409,7 @@ describe('drift hygiene: reads convert failures, writes refuse early', () => {
     });
   });
 
-  it('sm job claim refuses the drifted DB with exit 2, never the empty-queue exit 1', async () => {
+  it('sm jobs claim refuses the drifted DB with exit 2, never the empty-queue exit 1', async () => {
     const dbPath = freshDbPath('claim-drift-write');
     await seedDriftedDb(dbPath);
 

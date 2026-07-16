@@ -1,12 +1,12 @@
 /**
- * Strings emitted by `cli/commands/job-queue.ts` (`sm job submit / list /
+ * Strings emitted by `cli/commands/job-queue.ts` (`sm jobs submit / list /
  * show`). English-only catalog per the project i18n stance; interpolated
  * by `kernel/util/tx.ts`.
  */
 
 export const JOBS_QUEUE_TEXTS = {
   // --- submit: operational errors ----------------------------------------
-  submitErrPrefix: '{{glyph}}  sm job submit: {{message}}\n',
+  submitErrPrefix: '{{glyph}}  sm jobs submit: {{message}}\n',
   submitErrNeedTarget: 'pass -n <node.path> or --all',
   submitErrTargetConflict: '-n and --all are mutually exclusive',
   submitErrExtensionNotFound: 'extension {{extension}} not found',
@@ -65,7 +65,7 @@ export const JOBS_QUEUE_TEXTS = {
   listFilterSuffix: ' matching the filter',
 
   // --- show --------------------------------------------------------------
-  showErrNotFound: '{{glyph}}  sm job show: job {{id}} not found\n',
+  showErrNotFound: '{{glyph}}  sm jobs show: job {{id}} not found\n',
   showDetail:
     'job {{id}}\n' +
     '  status       {{status}}\n' +
@@ -83,12 +83,12 @@ export const JOBS_QUEUE_TEXTS = {
   /** TTL detail value for an armed job; TTL-less jobs render showValueNone. */
   showTtlSeconds: '{{seconds}}s',
 
-  previewErrNotFound: '{{glyph}}  sm job preview: job {{id}} not found\n',
+  previewErrNotFound: '{{glyph}}  sm jobs preview: job {{id}} not found\n',
   previewErrContentMissing:
-    '{{glyph}}  sm job preview: job {{id}} has no stored content (state_job_contents row missing)\n',
-  previewErrNeedTarget: '{{glyph}}  sm job preview: pass <job.id> or --last\n',
-  previewErrTargetConflict: '{{glyph}}  sm job preview: pass either <job.id> or --last, not both\n',
-  previewErrNoJobs: '{{glyph}}  sm job preview: no jobs submitted yet, nothing to preview\n',
+    '{{glyph}}  sm jobs preview: job {{id}} has no stored content (state_job_contents row missing)\n',
+  previewErrNeedTarget: '{{glyph}}  sm jobs preview: pass <job.id> or --last\n',
+  previewErrTargetConflict: '{{glyph}}  sm jobs preview: pass either <job.id> or --last, not both\n',
+  previewErrNoJobs: '{{glyph}}  sm jobs preview: no jobs submitted yet, nothing to preview\n',
 
   // --- claim -------------------------------------------------------------
   // claim writes the raw id (plain) or the {id,nonce,content} JSON to
@@ -96,11 +96,11 @@ export const JOBS_QUEUE_TEXTS = {
   // strings are the missing-content corruption surface (spec
   // job-lifecycle.md §Atomic claim · Missing content row at claim).
   claimErrContentMissing:
-    '{{glyph}}  sm job claim: job {{id}} has no stored content (state_job_contents row missing); marked failed / job-file-missing\n',
+    '{{glyph}}  sm jobs claim: job {{id}} has no stored content (state_job_contents row missing); marked failed / job-file-missing\n',
   claimContentMissingDetail: 'state_job_contents row missing for the claimed job',
 
   // --- status ------------------------------------------------------------
-  statusErrNotFound: '{{glyph}}  sm job status: job {{id}} not found\n',
+  statusErrNotFound: '{{glyph}}  sm jobs status: job {{id}} not found\n',
   statusSingleLine: 'job {{id}}  {{status}}\n',
   statusCounts:
     'queued     {{queued}}\n' +
@@ -110,7 +110,7 @@ export const JOBS_QUEUE_TEXTS = {
     'cancelled  {{cancelled}}\n',
 
   // --- cancel ------------------------------------------------------------
-  cancelErrPrefix: '{{glyph}}  sm job cancel: {{message}}\n',
+  cancelErrPrefix: '{{glyph}}  sm jobs cancel: {{message}}\n',
   cancelErrNeedTarget: 'pass <job.id> or --all',
   cancelErrTargetConflict: 'pass either <job.id> or --all, not both',
   cancelErrNotFound: 'job {{id}} not found',
@@ -119,7 +119,7 @@ export const JOBS_QUEUE_TEXTS = {
   cancelAllSummary: '{{glyph}}  cancelled {{count}} active job(s)\n',
 
   // --- fail --------------------------------------------------------------
-  failErrPrefix: '{{glyph}}  sm job fail: {{message}}\n',
+  failErrPrefix: '{{glyph}}  sm jobs fail: {{message}}\n',
   failErrNeedTarget: 'pass <job.id> or --all',
   failErrTargetConflict: 'pass either <job.id> or --all, not both',
   failErrNotFound: 'job {{id}} not found',

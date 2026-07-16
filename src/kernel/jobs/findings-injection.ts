@@ -47,7 +47,7 @@ import { matchesQualifiedExtensionFilter } from '../util/analyzer-filter.js';
 /**
  * The per-finding projection injected into the fenced json array
  * (`spec/job-lifecycle.md` §Findings injection for fixers). Deliberately
- * narrower than the stored `IFindingRecord`: only the fields the draining
+ * narrower than the stored `IFindingRecord`: only the fields the processing
  * agent needs to apply the fix, never the internal stamps
  * (`bodyHashAtGeneration`, `generatedAt`, `jobId`, `origin`).
  *

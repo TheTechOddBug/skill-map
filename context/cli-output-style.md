@@ -123,7 +123,7 @@ Examples (from `cli/i18n/*.texts.ts`):
 ```
 
 ```
-✕  sm sidecar annotate: /abs/path.sm already exists
+✕  sm sidecars annotate: /abs/path.sm already exists
    Pass --force to overwrite.
 ```
 

@@ -109,8 +109,8 @@ export async function runAnalyzers(
   //
   // Probabilistic analyzers (finders) NEVER enter a scan-time phase
   // (`spec/architecture.md` §Analyzer phases): they have no `evaluate()`
-  // (the judgment is a queued job an external agent drains via
-  // `sm job submit` + `sm record`), so the schedule drops them here.
+  // (the judgment is a queued job an external agent processes via
+  // `sm jobs submit` + `sm record`), so the schedule drops them here.
   const scheduled = orderAnalyzersByPhase(
     analyzers.filter((a) => (a.mode ?? 'deterministic') !== 'probabilistic'),
   );

@@ -279,7 +279,7 @@ export const SETTINGS_TEXTS = {
     },
 
     /**
-     * Agent drain-skill install row (the second install affordance,
+     * Agent process-skill install row (the second install affordance,
      * sibling of the real-time hook above; `spec/cli-contract.md`
      * §HTTP API, `/api/agent/*`). Three button states driven by the
      * probe: Install (absent), Update (installed but the CLI ships a
@@ -289,31 +289,31 @@ export const SETTINGS_TEXTS = {
      * is interpolated by the component).
      */
     agentSkill: {
-      label: 'Agent drain skill',
+      label: 'Agent process skill',
       description:
         'Teach your agent to work through the job queue: installs the ' +
-        'sm-run-queue skill in this project.',
+        'sm-process-jobs skill in this project.',
       installLabel: 'Install skill',
       updateLabel: 'Update skill',
       upToDateLabel: 'Skill up to date',
       uninstallLabel: 'Uninstall skill',
-      installConfirmHeader: 'Install the agent drain skill?',
+      installConfirmHeader: 'Install the agent process skill?',
       installConfirmIntroPrefix: 'skill-map will write',
       installConfirmIntroSuffix: 'in this project. Nothing else is touched.',
-      updateConfirmHeader: 'Update the agent drain skill?',
+      updateConfirmHeader: 'Update the agent process skill?',
       updateConfirmIntroPrefix: 'skill-map will overwrite',
       updateConfirmIntroSuffix: 'with the current version. Nothing else is touched.',
-      uninstallConfirmHeader: 'Uninstall the agent drain skill?',
+      uninstallConfirmHeader: 'Uninstall the agent process skill?',
       uninstallConfirmIntroPrefix: 'skill-map will remove',
       uninstallConfirmIntroSuffix: 'from this project. Nothing else is touched.',
       confirmAccept: 'Proceed',
       confirmReject: 'Cancel',
       /** Post-mutation announcements, keyed off the response envelope. */
-      installed: 'Agent drain skill installed.',
-      updated: 'Agent drain skill updated to the current version.',
-      alreadyUpToDate: 'The agent drain skill is already up to date.',
-      uninstalled: 'Agent drain skill uninstalled.',
-      nothingToUninstall: 'The agent drain skill was not installed; nothing to remove.',
+      installed: 'Agent process skill installed.',
+      updated: 'Agent process skill updated to the current version.',
+      alreadyUpToDate: 'The agent process skill is already up to date.',
+      uninstalled: 'Agent process skill uninstalled.',
+      nothingToUninstall: 'The agent process skill was not installed; nothing to remove.',
     },
 
     /**

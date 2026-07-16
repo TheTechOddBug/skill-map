@@ -46,12 +46,12 @@
     "status": {
       "type": "string",
       "enum": ["queued", "running", "completed", "failed", "cancelled"],
-      "description": "Lifecycle state. Three terminal states: `completed`, `failed`, `cancelled`. `cancelled` (via `sm job cancel`) is a distinct terminal state, NOT a `failed` sub-reason. See `job-lifecycle.md` for allowed transitions."
+      "description": "Lifecycle state. Three terminal states: `completed`, `failed`, `cancelled`. `cancelled` (via `sm jobs cancel`) is a distinct terminal state, NOT a `failed` sub-reason. See `job-lifecycle.md` for allowed transitions."
     },
     "failureReason": {
       "type": ["string", "null"],
       "enum": ["runner-error", "report-invalid", "timeout", "abandoned", "job-file-missing", "user-failed", null],
-      "description": "Populated ONLY when `status = failed`; `null` for `completed`, `queued`, `running`, and `cancelled` (a cancellation is self-explanatory and carries no reason). `user-failed` marks a job the operator forced to `failed` via `sm job fail` (symmetric to `sm job cancel`, which instead moves the job to the `cancelled` state). `job-file-missing` (legacy name preserved across the disk-to-DB shift) covers DB corruption where `state_jobs.content_hash` no longer resolves in `state_job_contents`, the runtime invariant should keep this state unreachable; the enum value exists as a defensive failure-mode label."
+      "description": "Populated ONLY when `status = failed`; `null` for `completed`, `queued`, `running`, and `cancelled` (a cancellation is self-explanatory and carries no reason). `user-failed` marks a job the operator forced to `failed` via `sm jobs fail` (symmetric to `sm jobs cancel`, which instead moves the job to the `cancelled` state). `job-file-missing` (legacy name preserved across the disk-to-DB shift) covers DB corruption where `state_jobs.content_hash` no longer resolves in `state_job_contents`, the runtime invariant should keep this state unreachable; the enum value exists as a defensive failure-mode label."
     },
     "runner": {
       "type": ["string", "null"],

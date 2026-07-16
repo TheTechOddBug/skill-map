@@ -5,7 +5,7 @@
  *
  *   - `sm record` (`record.ts`), the nonce-authenticated callback fed by
  *     CLI flags (`--report <path|->`, `--tokens-in`, ...). The canonical
- *     path: an external agent drains the queue via `sm job claim` +
+ *     path: an external agent processes the queue via `sm jobs claim` +
  *     `sm record` (skill-map never executes a job itself).
  *   - the claim-side corruption path (`job-queue.ts`), which marks a
  *     just-claimed job with a missing content row `job-file-missing`.

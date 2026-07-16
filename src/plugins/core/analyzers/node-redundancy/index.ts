@@ -9,8 +9,8 @@
  * As a probabilistic Analyzer it carries NO `evaluate()` (the orchestrator
  * excludes finders from every scan-time phase): the kernel renders
  * `prompt.md` + the canonical preamble + the report contract into a
- * queued job (`sm job submit node-redundancy -n <node>`), an external
- * agent drains it (`sm job claim`), and `sm record` validates the JSON
+ * queued job (`sm jobs submit node-redundancy -n <node>`), an external
+ * agent processes it (`sm jobs claim`), and `sm record` validates the JSON
  * report against `report.schema.json` before writing the findings
  * through (`spec/job-lifecycle.md` §Record).
  *

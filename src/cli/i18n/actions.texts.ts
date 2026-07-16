@@ -17,7 +17,7 @@ export const ACTIONS_TEXTS = {
   footerNounPlural: 'actions',
   /** Footer tip, printed dim under the count. */
   tableFooterTip:
-    'Tip: `sm actions show <id>` for the full manifest; `sm job submit <id> -n <node>` to queue one.\n',
+    'Tip: `sm actions show <id>` for the full manifest; `sm jobs submit <id> -n <node>` to queue one.\n',
 
   /** Defensive: the built-ins always register actions, but stay friendly. */
   listEmpty: '{{glyph}}  No actions registered.\n',

@@ -6,7 +6,7 @@
  *   - `loadActionRuntime`, the composed Action + Analyzer catalogs plus
  *     (a) maps from each plugin extension's qualified id to its on-disk
  *     directory (where `prompt.md` / `report.schema.json` live) and
- *     (b) the composed Provider catalog (used by `sm job submit` to
+ *     (b) the composed Provider catalog (used by `sm jobs submit` to
  *     re-read a node's body with the same parser pipeline the scan used,
  *     for the submit-time drift verification). Analyzers ride along
  *     because the queue is kind-agnostic (`spec/cli-contract.md` §Jobs):
@@ -15,7 +15,7 @@
  *   - `resolveAction`, qualified-or-bare-id action lookup.
  *
  * Lives in its own module (extracted from `job-queue.ts`) because TWO
- * consumers share it, `sm job submit` (job-queue.ts) and `sm record`
+ * consumers share it, `sm jobs submit` (job-queue.ts) and `sm record`
  * (record.ts via record-outcome.ts), and record-outcome.ts +
  * job-queue.ts would otherwise import each other in a cycle.
  */
@@ -33,7 +33,7 @@ export interface IActionRuntime {
   actions: IAction[];
   /** Composed Analyzers (both modes); the queue verbs read the probabilistic subset. */
   analyzers: IAnalyzer[];
-  /** Composed Providers; `sm job submit` re-reads node bodies through them. */
+  /** Composed Providers; `sm jobs submit` re-reads node bodies through them. */
   providers: IProvider[];
   /** qualified action id -> directory holding `prompt.md` / `report.schema.json`. */
   dirByAction: Map<string, string>;
@@ -49,7 +49,7 @@ export interface IActionRuntime {
  * built-ins resolve through their codegen-inlined `promptTemplate` /
  * `reportSchema` instead.
  *
- * Shared by `sm job submit` (resolves `prompt.md` + node bodies) and
+ * Shared by `sm jobs submit` (resolves `prompt.md` + node bodies) and
  * `sm record` (resolves `report.schema.json`), both of which resolve an
  * extension against the same composed runtime.
  */

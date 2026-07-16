@@ -3,7 +3,7 @@
  * (Step 11 wave 1). End-to-end characterisation through the real CLI
  * verbs plus the codegen inlining pins:
  *
- *   - ships experimental: DISABLED by default, `sm job submit
+ *   - ships experimental: DISABLED by default, `sm jobs submit
  *     node-redundancy` does not resolve until the operator enables it.
  *   - once enabled, the submit resolves with the frozen
  *     `extensionKind: 'analyzer'`.
@@ -221,7 +221,7 @@ describe('core/node-redundancy, codegen inlining pins', () => {
 });
 
 describe('core/node-redundancy, experimental gate', () => {
-  it('ships DISABLED: sm job submit does not resolve it by default', async () => {
+  it('ships DISABLED: sm jobs submit does not resolve it by default', async () => {
     const proj = await setupProject({ enableFinder: false });
     const { code, err } = await submit(proj, 'node-redundancy');
     strictEqual(code, 5, 'not in the composed catalog until enabled');

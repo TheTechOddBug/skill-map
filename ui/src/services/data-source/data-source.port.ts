@@ -7,7 +7,7 @@
  *   - `IPluginsPort`  plugin catalog + toggles + trust (`plugins.port.ts`)
  *   - `ISettingsPort` preferences / ignore / lens / update (`settings.port.ts`)
  *   - `IActivityPort` live-activity + capture (`activity.port.ts`)
- *   - `IAgentPort`    agent-drain-skill install management (`agent.port.ts`)
+ *   - `IAgentPort`    agent-process-skill install management (`agent.port.ts`)
  *   - `IActionsPort`  sidecar-writing actions (`actions.port.ts`)
  *
  * plus `events()`, the cross-domain live channel, declared here on the

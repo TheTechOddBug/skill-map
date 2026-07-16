@@ -1,5 +1,5 @@
 /**
- * `sm job prune`, retention GC for `state_jobs` rows plus orphaned
+ * `sm jobs prune`, retention GC for `state_jobs` rows plus orphaned
  * `state_job_contents` collection. DB-only model: job content lives in
  * `state_job_contents` keyed by `content_hash`, there is no
  * `.skill-map/jobs/*.md` on-disk artifact to unlink.
@@ -74,7 +74,7 @@ interface IPruneOutput {
 }
 
 export class JobPruneCommand extends SmCommand {
-  static override paths = [['job', 'prune']];
+  static override paths = [['jobs', 'prune']];
   static override usage = Command.Usage({
     category: 'Jobs',
     description: 'Retention GC for completed / failed / cancelled jobs (per config policy), plus orphaned job-content collection.',

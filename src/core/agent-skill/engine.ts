@@ -18,9 +18,9 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join } from 'node:path';
 
 import {
-  RUN_QUEUE_SKILL_CONTENT,
-  RUN_QUEUE_SKILL_DIR,
-  RUN_QUEUE_SKILL_FILE,
+  PROCESS_JOBS_SKILL_CONTENT,
+  PROCESS_JOBS_SKILL_DIR,
+  PROCESS_JOBS_SKILL_FILE,
 } from './skill-template.js';
 
 /** Outcome of `installAgentSkill` (see the module header). */
@@ -34,12 +34,12 @@ export interface IAgentSkillStatus {
 
 /** Absolute skill folder under the lens's `scaffold.skillDir`. */
 export function agentSkillFolder(cwd: string, skillDir: string): string {
-  return join(cwd, skillDir, RUN_QUEUE_SKILL_DIR);
+  return join(cwd, skillDir, PROCESS_JOBS_SKILL_DIR);
 }
 
 /** Absolute `SKILL.md` path inside the skill folder. */
 export function agentSkillFile(cwd: string, skillDir: string): string {
-  return join(agentSkillFolder(cwd, skillDir), RUN_QUEUE_SKILL_FILE);
+  return join(agentSkillFolder(cwd, skillDir), PROCESS_JOBS_SKILL_FILE);
 }
 
 /**
@@ -58,10 +58,10 @@ export function installAgentSkill(
   const file = agentSkillFile(cwd, skillDir);
   const existing = existsSync(file) ? readFileSync(file, 'utf8') : null;
   const outcome: TInstallOutcome =
-    existing === null ? 'installed' : existing === RUN_QUEUE_SKILL_CONTENT ? 'up-to-date' : 'updated';
+    existing === null ? 'installed' : existing === PROCESS_JOBS_SKILL_CONTENT ? 'up-to-date' : 'updated';
   if (outcome !== 'up-to-date') {
     mkdirSync(agentSkillFolder(cwd, skillDir), { recursive: true });
-    writeFileSync(file, RUN_QUEUE_SKILL_CONTENT);
+    writeFileSync(file, PROCESS_JOBS_SKILL_CONTENT);
   }
   if (marker !== undefined) {
     mkdirSync(join(cwd, marker), { recursive: true });
@@ -89,6 +89,6 @@ export function uninstallAgentSkill(cwd: string, skillDir: string): boolean {
 export function agentSkillStatus(cwd: string, skillDir: string): IAgentSkillStatus {
   const file = agentSkillFile(cwd, skillDir);
   const installed = existsSync(file);
-  const stale = installed && readFileSync(file, 'utf8') !== RUN_QUEUE_SKILL_CONTENT;
+  const stale = installed && readFileSync(file, 'utf8') !== PROCESS_JOBS_SKILL_CONTENT;
   return { installed, stale };
 }

@@ -36,7 +36,7 @@ export const DOCTOR_TEXTS = {
   jobNounPlural: 'jobs',
 
   jobGcOk: 'no orphaned content rows',
-  jobGcStragglers: '{{count}} orphaned content {{noun}}, run `sm job prune`',
+  jobGcStragglers: '{{count}} orphaned content {{noun}}, run `sm jobs prune`',
   jobsOverdueOk: 'no running job past its advisory estimate',
   /**
    * One warn per running job whose elapsed time exceeds its extension's
@@ -46,7 +46,7 @@ export const DOCTOR_TEXTS = {
    */
   jobsOverdueWarn:
     'job {{id}} has been running {{elapsedSeconds}}s (advisory estimate {{estimateSeconds}}s); ' +
-    'if the agent is gone, resolve it with `sm job fail {{id}}` or `sm job cancel {{id}}`',
+    'if the agent is gone, resolve it with `sm jobs fail {{id}}` or `sm jobs cancel {{id}}`',
   contentNounSingular: 'row',
   contentNounPlural: 'rows',
 
