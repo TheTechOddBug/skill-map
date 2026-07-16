@@ -71,22 +71,25 @@ export const SHOW_TEXTS = {
   /** Marker appended (yellow) when the finding is stale. */
   findingStale: '  (stale)',
   /**
-   * Optional line under a finding row: the lifecycle STATE a FIXER moved
-   * it into (`spec/db-schema.md` §state_findings). Same shape and wording
-   * as `sm findings` (see `findings.texts.ts`), so the two read alike.
+   * Optional line under a finding row: the lifecycle STATE this finding
+   * moved into (`spec/db-schema.md` §state_findings). Same shapes and
+   * wording as `sm findings` (see `findings.texts.ts`), so the two read
+   * alike.
    */
   findingResolutionLine: '       {{glyph}}  {{text}}\n',
+  /** `fixed`, actor `fixer`: a fully autonomous fix. Green `✓` + dim text. */
+  findingResolutionFixedByFixer: 'fixed by {{fixer}}{{noteSuffix}}',
+  /** `fixed`, actor `human` WITH a fixer that ran: the user made the call. */
+  findingResolutionFixedByHumanWithFixer: 'fixed by {{fixer}} (your decision){{noteSuffix}}',
+  /** `fixed`, actor `human`, no fixer: `sm findings resolve` by the operator. */
+  findingResolutionFixedByHuman: 'fixed by you{{noteSuffix}}',
+  /** The `: <note>` tail on a resolution line; omitted when the note is empty. */
+  findingResolutionNoteSuffix: ': {{note}}',
   /**
-   * `fixed`: green `✓` + dim text. A handled state, not a verdict: only
-   * the finder re-judging confirms the defect is gone (never "resolved" /
-   * "verified").
+   * `human-decision`: yellow `⚠` + undimmed text. The author's TODO (the
+   * fixer's proposal), the higher-value state.
    */
-  findingResolutionFixed: 'fixed by {{fixer}}: {{note}}',
-  /**
-   * `declined`: yellow `⚠` + undimmed text. The author's TODO, the
-   * higher-value state of the two.
-   */
-  findingResolutionDeclined: '{{fixer}} declined, needs your decision: {{note}}',
+  findingResolutionHumanDecision: '{{fixer}} proposes, your decision{{noteSuffix}}',
 
   // --- summary section -------------------------------------------------
   summarySection: '\n  Summary ({{count}})\n',

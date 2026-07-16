@@ -131,7 +131,12 @@ import {
   upsertStateEnrichment,
 } from './enrichments.js';
 import { listSummariesForNode } from './summaries.js';
-import { countStaleFindings, deleteStaleFindings, listFindings } from './findings.js';
+import {
+  countStaleFindings,
+  deleteStaleFindings,
+  listFindings,
+  resolveFindingByHuman,
+} from './findings.js';
 import {
   listAllContributionErrors,
   loadContributionsForNode,
@@ -409,6 +414,7 @@ export class SqliteStorageAdapter implements StoragePort {
       list: (filter) => listFindings(this.db, filter),
       countStale: () => countStaleFindings(this.db),
       pruneStale: () => deleteStaleFindings(this.db),
+      resolveByHuman: (id, note, nowMs) => resolveFindingByHuman(this.db, id, note, nowMs),
     };
 
     this.favorites = {

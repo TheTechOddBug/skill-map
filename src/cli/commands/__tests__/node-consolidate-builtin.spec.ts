@@ -449,7 +449,7 @@ describe('core/node-consolidate, record round trip', () => {
       confidence: 0.9,
       safety: CLEAN_SAFETY,
       resolved: [
-        { id, type: 'redundancy', state: 'fixed', note: 'Collapsed the two upload sentences into one.' },
+        { id, type: 'redundancy', state: 'fixed', by: 'fixer', note: 'Collapsed the two upload sentences into one.' },
       ],
       editsSummary: 'Merged the duplicated upload instruction; meaning preserved.',
     });
@@ -481,11 +481,30 @@ describe('core/node-consolidate, record round trip', () => {
     const { code, err } = await claimAndRecord(proj, {
       confidence: 0.9,
       safety: CLEAN_SAFETY,
-      resolved: [{ type: 'redundancy', state: 'fixed', note: 'no id echoed' }],
+      resolved: [{ type: 'redundancy', state: 'fixed', by: 'fixer', note: 'no id echoed' }],
       editsSummary: 'x',
     });
     strictEqual(code, 2, 'report-invalid exit');
     match(err, /report failed schema validation/);
+  });
+
+  it('rejects a `fixed` entry that omits `by` as report-invalid', async () => {
+    // Decision #143: `by` (the deciding actor) is REQUIRED when state is
+    // `fixed` (schema `if/then`). An entry that omits it must fail cleanly,
+    // never stamp a coerced actor.
+    const proj = await setupProject({ enableFixer: true });
+    const id = await seedRedundancyFinding(proj);
+    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+
+    const { code, err } = await claimAndRecord(proj, {
+      confidence: 0.9,
+      safety: CLEAN_SAFETY,
+      resolved: [{ id, state: 'fixed', note: 'fixed but no actor declared' }],
+      editsSummary: 'x',
+    });
+    strictEqual(code, 2, 'report-invalid exit: `by` is required when fixed');
+    match(err, /report failed schema validation/);
+    strictEqual((await readFinding(proj, id))?.resolution, null, 'no coerced state landed');
   });
 
   it('rejects the OLD `applied` boolean shape (no `state`) as report-invalid', async () => {
@@ -516,7 +535,7 @@ describe('core/node-consolidate, record round trip', () => {
     const { code, err } = await claimAndRecord(proj, {
       confidence: 0.9,
       safety: CLEAN_SAFETY,
-      resolved: [{ id, state: 'applied', note: 'not one of fixed / declined' }],
+      resolved: [{ id, state: 'applied', note: 'not one of fixed / human-decision' }],
       editsSummary: 'x',
     });
     strictEqual(code, 2, 'report-invalid exit: state is a closed enum');
@@ -549,15 +568,15 @@ describe('core/node-consolidate, record round trip', () => {
 });
 
 /**
- * The resolution stamps (`spec/db-schema.md` §state_findings, "Fixer
- * resolution state"): a real record round-trip must land the fixer's
- * declared STATE ON the finding it addressed, and the scope guards must
- * skip anything outside the fixer's own lane WITHOUT failing the job (its
- * edits already hit the disk; a storage-scope mismatch is not the draining
- * agent's error to bounce on).
+ * The resolution stamps (`spec/db-schema.md` §state_findings, "Finding
+ * lifecycle state"): a real record round-trip must land the fixer's
+ * declared STATE + deciding ACTOR ON the finding it addressed, and the
+ * scope guards must skip anything outside the fixer's own lane WITHOUT
+ * failing the job (its edits already hit the disk; a storage-scope mismatch
+ * is not the draining agent's error to bounce on).
  */
 describe('core/node-consolidate, fixer resolution stamps', () => {
-  it('stamps `fixed` onto the finding the report named', async () => {
+  it('stamps `fixed` + actor `fixer` onto the finding the report named', async () => {
     const proj = await setupProject({ enableFixer: true });
     const id = await seedRedundancyFinding(proj);
     strictEqual((await submit(proj, 'node-consolidate')).code, 0);
@@ -565,7 +584,7 @@ describe('core/node-consolidate, fixer resolution stamps', () => {
     const { code, err } = await claimAndRecord(proj, {
       confidence: 0.9,
       safety: CLEAN_SAFETY,
-      resolved: [{ id, state: 'fixed', note: 'Collapsed the two upload sentences into one.' }],
+      resolved: [{ id, state: 'fixed', by: 'fixer', note: 'Collapsed the two upload sentences into one.' }],
       editsSummary: 'Merged the duplicated upload instruction.',
     });
     strictEqual(code, 0, err);
@@ -573,12 +592,34 @@ describe('core/node-consolidate, fixer resolution stamps', () => {
     const row = await readFinding(proj, id);
     ok(row, 'the finding survives: a fixed state never deletes it');
     strictEqual(row.resolution, 'fixed');
+    strictEqual(row.resolutionActor, 'fixer', 'a zero-interaction fix is attributed to the fixer');
     strictEqual(row.resolutionNote, 'Collapsed the two upload sentences into one.');
     strictEqual(row.resolutionBy, FIXER_ID, 'attributed to the fixer\'s qualified id');
     ok(typeof row.resolutionAt === 'number' && row.resolutionAt > 0, 'stamped with a time');
   });
 
-  it('stamps `declined` with the note verbatim (the author\'s TODO)', async () => {
+  it('stamps actor `human` on a fixed entry that declares `by: human`', async () => {
+    // Any user interaction (an approval, a choice among options, an operator
+    // edit) makes a fixed row `human` even when the agent's tools typed it.
+    const proj = await setupProject({ enableFixer: true });
+    const id = await seedRedundancyFinding(proj);
+    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+
+    const { code, err } = await claimAndRecord(proj, {
+      confidence: 0.9,
+      safety: CLEAN_SAFETY,
+      resolved: [{ id, state: 'fixed', by: 'human', note: 'Operator approved the collapse.' }],
+      editsSummary: 'Applied the approved edit.',
+    });
+    strictEqual(code, 0, err);
+
+    const row = await readFinding(proj, id);
+    strictEqual(row?.resolution, 'fixed');
+    strictEqual(row?.resolutionActor, 'human', 'a user-interaction fix is attributed to the human');
+    strictEqual(row?.resolutionBy, FIXER_ID, 'the fixer that ran is still recorded');
+  });
+
+  it('stamps `human-decision` with the note verbatim (the author\'s TODO), actor NULL', async () => {
     const proj = await setupProject({ enableFixer: true });
     const id = await seedRedundancyFinding(proj);
     strictEqual((await submit(proj, 'node-consolidate')).code, 0);
@@ -587,41 +628,44 @@ describe('core/node-consolidate, fixer resolution stamps', () => {
     const { code, err } = await claimAndRecord(proj, {
       confidence: 0.4,
       safety: CLEAN_SAFETY,
-      resolved: [{ id, state: 'declined', note }],
+      resolved: [{ id, state: 'human-decision', note }],
       editsSummary: '',
     });
     strictEqual(code, 0, err);
 
     const row = await readFinding(proj, id);
     ok(row);
-    strictEqual(row.resolution, 'declined');
+    strictEqual(row.resolution, 'human-decision');
+    strictEqual(row.resolutionActor, null, 'a human-decision is undecided: no actor');
     strictEqual(row.resolutionNote, note, 'the note is stored verbatim, never reworded');
     strictEqual(row.resolutionBy, FIXER_ID);
   });
 
-  it('stamps a MIXED report per entry (one fixed, one declined)', async () => {
+  it('stamps a MIXED report per entry (one fixed, one human-decision)', async () => {
     const proj = await setupProject({ enableFixer: true });
     const fixedId = await seedRedundancyFinding(proj, { message: 'Upload stated twice' });
-    const declined = await seedRedundancyFinding(proj, { message: 'Retry policy stated twice' });
+    const pending = await seedRedundancyFinding(proj, { message: 'Retry policy stated twice' });
     strictEqual((await submit(proj, 'node-consolidate')).code, 0);
 
     const { code, err } = await claimAndRecord(proj, {
       confidence: 0.8,
       safety: CLEAN_SAFETY,
       resolved: [
-        { id: fixedId, state: 'fixed', note: 'Collapsed into one statement.' },
-        { id: declined, state: 'declined', note: 'The two retry limits conflict; your call.' },
+        { id: fixedId, state: 'fixed', by: 'fixer', note: 'Collapsed into one statement.' },
+        { id: pending, state: 'human-decision', note: 'The two retry limits conflict; your call.' },
       ],
       editsSummary: 'Collapsed the upload duplication only.',
     });
     strictEqual(code, 0, err);
 
     const fixedRow = await readFinding(proj, fixedId);
-    const declinedRow = await readFinding(proj, declined);
+    const pendingRow = await readFinding(proj, pending);
     strictEqual(fixedRow?.resolution, 'fixed');
+    strictEqual(fixedRow?.resolutionActor, 'fixer');
     strictEqual(fixedRow?.resolutionNote, 'Collapsed into one statement.');
-    strictEqual(declinedRow?.resolution, 'declined');
-    strictEqual(declinedRow?.resolutionNote, 'The two retry limits conflict; your call.');
+    strictEqual(pendingRow?.resolution, 'human-decision');
+    strictEqual(pendingRow?.resolutionActor, null);
+    strictEqual(pendingRow?.resolutionNote, 'The two retry limits conflict; your call.');
   });
 
   it('leaves an unaddressed finding unstamped (resolution stays null)', async () => {
@@ -635,7 +679,7 @@ describe('core/node-consolidate, fixer resolution stamps', () => {
         await claimAndRecord(proj, {
           confidence: 0.8,
           safety: CLEAN_SAFETY,
-          resolved: [{ id: addressed, state: 'fixed', note: 'Collapsed it.' }],
+          resolved: [{ id: addressed, state: 'fixed', by: 'fixer', note: 'Collapsed it.' }],
           editsSummary: 'One edit.',
         })
       ).code,
@@ -655,8 +699,8 @@ describe('core/node-consolidate, fixer resolution stamps', () => {
       confidence: 0.9,
       safety: CLEAN_SAFETY,
       resolved: [
-        { id: 999_999, state: 'fixed', note: 'resolves a finding that no longer exists' },
-        { id, state: 'fixed', note: 'this one is real' },
+        { id: 999_999, state: 'fixed', by: 'fixer', note: 'resolves a finding that no longer exists' },
+        { id, state: 'fixed', by: 'fixer', note: 'this one is real' },
       ],
       editsSummary: 'Edited.',
     });
@@ -676,8 +720,8 @@ describe('core/node-consolidate, fixer resolution stamps', () => {
       confidence: 0.9,
       safety: CLEAN_SAFETY,
       resolved: [
-        { id: own, state: 'fixed', note: 'in scope' },
-        { id: foreign, state: 'fixed', note: 'out of scope: another node' },
+        { id: own, state: 'fixed', by: 'fixer', note: 'in scope' },
+        { id: foreign, state: 'fixed', by: 'fixer', note: 'out of scope: another node' },
       ],
       editsSummary: 'Edited.',
     });
@@ -704,8 +748,8 @@ describe('core/node-consolidate, fixer resolution stamps', () => {
       confidence: 0.9,
       safety: CLEAN_SAFETY,
       resolved: [
-        { id: own, state: 'fixed', note: 'in scope' },
-        { id: foreign, state: 'fixed', note: 'out of scope: another finder' },
+        { id: own, state: 'fixed', by: 'fixer', note: 'in scope' },
+        { id: foreign, state: 'fixed', by: 'fixer', note: 'out of scope: another finder' },
       ],
       editsSummary: 'Edited.',
     });

@@ -46,6 +46,7 @@ function finding(over: Partial<IFindingRecord> & { id: number }): IFindingRecord
     confidence: over.confidence ?? 0.7,
     model: over.model ?? null,
     resolution: over.resolution ?? null,
+    resolutionActor: over.resolutionActor ?? null,
     resolutionNote: over.resolutionNote ?? null,
     resolutionBy: over.resolutionBy ?? null,
     resolutionAt: over.resolutionAt ?? null,
@@ -187,14 +188,14 @@ describe('buildFindingsSection', () => {
   });
 
   it('never leaks the stored resolution stamps into the section', () => {
-    // A finding a fixer already declined can be re-injected (it stays
-    // open until the finder re-judges). Its resolution is skill-map's
+    // A finding a fixer left as a human-decision can be re-injected (it
+    // stays open until the finder re-judges). Its resolution is skill-map's
     // record, NOT an instruction for the next fixer run: the section
     // carries the judgment only.
     const section = buildFindingsSection([
       finding({
         id: 1,
-        resolution: 'declined',
+        resolution: 'human-decision',
         resolutionNote: 'needs an author decision',
         resolutionBy: 'core/node-consolidate',
         resolutionAt: 123,

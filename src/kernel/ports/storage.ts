@@ -77,6 +77,7 @@ import type {
   IStateEnrichmentUpsert,
   ISummaryRecord,
   ISummaryWriteIntent,
+  TFindingResolveOutcome,
   THistoryStatsPeriod,
   TJobTransitionOutcome,
 } from '../types/storage.js';
@@ -586,6 +587,20 @@ export interface StoragePort {
      * touched. Returns the deleted row count.
      */
     pruneStale(): Promise<number>;
+    /**
+     * `sm findings resolve <id>`: mark an OPEN or `human-decision` finding
+     * `fixed` by the OPERATOR themselves (`resolution = 'fixed'`,
+     * `resolution_actor = 'human'`, `resolution_by = NULL`, the optional
+     * `note`, `resolution_at = nowMs`). Refuses a row already `fixed`
+     * (`already-fixed`, exit 2); an unknown id is `not-found` (exit 5). It
+     * records a human decision, NOT a verification (only re-running the
+     * finder verifies). Returns the updated row for the `--json` echo.
+     */
+    resolveByHuman(
+      id: number,
+      note: string | null,
+      nowMs: number,
+    ): Promise<TFindingResolveOutcome>;
   };
 
   // --- summaries namespace ----------------------------------------------
@@ -796,6 +811,7 @@ export type {
   IStateEnrichmentUpsert,
   ISummaryRecord,
   ISummaryWriteIntent,
+  TFindingResolveOutcome,
   THistoryStatsPeriod,
   TJobTransitionOutcome,
 } from '../types/storage.js';

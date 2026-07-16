@@ -8,8 +8,8 @@ tools. This job's purpose is that edit; make it.
 The content below is a SNAPSHOT taken when this job was queued; another
 job may have edited the file since. Read the live file before editing and
 treat the snapshot as context only. If a finding's problem is already gone
-from the live file, do not re-apply it: set `state` to `declined` and say so in
-`note`.
+from the live file, do not re-apply it: set `state` to `human-decision` and
+say so in `note`.
 
 For each finding, apply its proposed consolidation (in the finding's
 `detail`): collapse the repeated instruction, fact, or section into ONE
@@ -20,7 +20,7 @@ information. Do not touch anything the findings do not name.
 A finding marked `"stale": true` was judged against an earlier version of
 this document. Verify it against the current content below before acting:
 if the problem it names is still there, fix it; if it is already gone or
-no longer applies, set `state` to `declined` and say so in `note`.
+no longer applies, set `state` to `human-decision` and say so in `note`.
 
 Do NOT:
 - Rewrite for style, reorder sections, or "improve" prose beyond removing
@@ -32,11 +32,12 @@ Do NOT:
 
 After editing, return a JSON report: for each finding, its `id` copied
 verbatim, a `state` of `fixed` (you edited the file to resolve it) or
-`declined` (you did not; it needs the author's decision), and a one-line
-`note`; an `editsSummary` of what changed; and the required `safety` and
-`confidence` fields. If you judged a finding should NOT be fixed (a false
-positive), set `state` to `declined` and say why in `note`, and leave that
-part of the document untouched.
+`human-decision` (you did not; the fix needs the author's choice, and your
+`note` is your proposal for it), a one-line `note`, and, when `state` is
+`fixed`, a `by` of `fixer` (you resolved it with zero user interaction) or
+`human` (any user interaction was involved: an approval, a choice among
+options, or an operator edit); an `editsSummary` of what changed; and the
+required `safety` and `confidence` fields.
 
 The document to edit:
 

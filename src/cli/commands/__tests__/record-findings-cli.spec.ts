@@ -488,13 +488,13 @@ describe('sm show Findings section', () => {
   /**
    * `sm show` renders a fixer's resolution the same way `sm findings`
    * does (`spec/db-schema.md` §state_findings): the two surfaces must not
-   * disagree about the lifecycle state a fixer moved a finding into.
-   * `sm show` matters most here because it lists ALL rows (fixed included,
-   * unlike the default `sm findings` view), and because it already includes
-   * STALE rows, which is exactly where a declined finding ends up once the
+   * disagree about the lifecycle state a finding moved into. `sm show`
+   * matters most here because it lists ALL rows (fixed included, unlike the
+   * default `sm findings` view), and because it already includes STALE
+   * rows, which is exactly where a human-decision finding ends up once the
    * fixer's sibling edits move the body.
    */
-  it('renders a fixer resolution: declined prominently, fixed as a handled state', async () => {
+  it('renders a fixer resolution: human-decision prominently, fixed as a handled state', async () => {
     const proj = await setupProject();
     await runFullLoop(proj, FINDER_ID, FINDER_REPORT);
 
@@ -508,8 +508,8 @@ describe('sm show Findings section', () => {
         analyzerIds: [FINDER_ID],
         resolvedAt: Date.now(),
         entries: [
-          { id: ids[0]!, state: 'fixed', note: 'Rewrote step 2 to match step 5.' },
-          { id: ids[1]!, state: 'declined', note: 'Only you can decide which step wins.' },
+          { id: ids[0]!, state: 'fixed', by: 'fixer', note: 'Rewrote step 2 to match step 5.' },
+          { id: ids[1]!, state: 'human-decision', by: null, note: 'Only you can decide which step wins.' },
         ],
       });
     } finally {
@@ -524,11 +524,11 @@ describe('sm show Findings section', () => {
     match(
       human,
       /✓ {2}fixed by core\/node-reconcile: Rewrote step 2 to match step 5\./,
-      'a fixed row reads as a handled state under the checkmark',
+      'a fixer-decided fixed row reads as a handled state under the checkmark',
     );
     match(
       human,
-      /core\/node-reconcile declined, needs your decision: Only you can decide which step wins\./,
+      /core\/node-reconcile proposes, your decision: Only you can decide which step wins\./,
     );
     // Both findings are still LISTED: sm show includes fixed rows, and a
     // fixed state never deletes the row.
@@ -540,11 +540,13 @@ describe('sm show Findings section', () => {
       return JSON.parse(cap.stdout()) as { findings: IFindingRecord[] };
     });
     const fixed = doc.findings.find((f) => f.id === ids[0]);
-    const declined = doc.findings.find((f) => f.id === ids[1]);
+    const humanDecision = doc.findings.find((f) => f.id === ids[1]);
     strictEqual(fixed?.resolution, 'fixed');
-    strictEqual(declined?.resolution, 'declined');
-    strictEqual(declined?.resolutionBy, 'core/node-reconcile');
-    strictEqual(declined?.resolutionNote, 'Only you can decide which step wins.');
+    strictEqual(fixed?.resolutionActor, 'fixer');
+    strictEqual(humanDecision?.resolution, 'human-decision');
+    strictEqual(humanDecision?.resolutionActor, null, 'a human-decision has no decided actor');
+    strictEqual(humanDecision?.resolutionBy, 'core/node-reconcile');
+    strictEqual(humanDecision?.resolutionNote, 'Only you can decide which step wins.');
   });
 });
 

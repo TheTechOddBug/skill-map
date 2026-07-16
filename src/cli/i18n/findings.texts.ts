@@ -25,7 +25,7 @@ export const FINDINGS_CLI_TEXTS = {
    * read as "your data is gone", the exact lie this shape exists to kill).
    */
   noFreshFindings:
-    '{{glyph}}  No fresh findings. {{breakdown}} hidden{{declined}}.\n' +
+    '{{glyph}}  No fresh findings. {{breakdown}} hidden{{humanDecision}}.\n' +
     '   {{hint}}\n',
   /**
    * Footer under a NON-empty listing: the rows the default filter
@@ -33,7 +33,7 @@ export const FINDINGS_CLI_TEXTS = {
    * from the last node section; the tip line follows.
    */
   staleHiddenFooter:
-    '\n{{glyph}}  {{breakdown}} hidden{{declined}}.\n' +
+    '\n{{glyph}}  {{breakdown}} hidden{{humanDecision}}.\n' +
     '   {{hint}}\n',
   /**
    * The two disjoint hidden-tally fragments, joined by
@@ -54,16 +54,17 @@ export const FINDINGS_CLI_TEXTS = {
   hiddenFlagsStaleOnly: '--stale',
   /**
    * Appended (yellow) to either hidden-breakdown shape when some hidden
-   * row carries `resolution = 'declined'` (`spec/cli-contract.md` §sm
-   * findings: the excluded-count line MUST name the declined subset).
+   * row carries `resolution = 'human-decision'` (`spec/cli-contract.md`
+   * §sm findings: the excluded-count line MUST name the human-decision
+   * subset).
    *
    * Why this exists: a fixer's edits for the OTHER findings stale the
-   * whole node, so a finding it REFUSED (leaving the author a decision)
-   * hides behind the default stale filter, exactly the TODO the operator
-   * most needs. The bare count would report it as ordinary staleness.
-   * `declined` needs no plural form (the word does not inflect).
+   * whole node, so a finding it left for the author (a proposal awaiting
+   * a decision) hides behind the default stale filter, exactly the TODO
+   * the operator most needs. The bare count would report it as ordinary
+   * staleness. No plural form (the phrase does not inflect).
    */
-  staleHiddenDeclinedFragment: ' ({{count}} declined by a fixer, needing your decision)',
+  staleHiddenHumanDecisionFragment: ' ({{count}} awaiting your decision)',
   /**
    * Remedy hint shared by both hidden-breakdown shapes, wrapped dim at the
    * call site. `{{flags}}` names the applicable reveal flag(s); `{{pronoun}}`
@@ -86,13 +87,16 @@ export const FINDINGS_CLI_TEXTS = {
   fileSection: '  {{file}}\n',
   /**
    * Finding row inside a node section:
-   * `⚠  plug/finder  contradiction  message  (85%)`.
-   * Glyph is the severity marker (✕ / ⚠ / ℹ) wrapped in color at the
-   * call site; `extensionId` and `type` are padded by the renderer so
-   * messages align; `confidence` renders dim; `{{staleTag}}` carries the
-   * optional yellow ` (stale)` marker under `--stale`.
+   * ` 3:  ⚠  plug/finder  contradiction  message  (85%)`.
+   * `{{idCol}}` is the right-aligned finding id + `:` (undimmed, it is the
+   * operator's handle for `sm findings resolve <id>`); padded by the renderer
+   * so glyphs align across single- and multi-digit ids. Glyph is the
+   * severity marker (✕ / ⚠ / ℹ) wrapped in color at the call site;
+   * `extensionId` and `type` are padded by the renderer so messages align;
+   * `confidence` renders dim; `{{staleTag}}` carries the optional yellow
+   * ` (stale)` marker under `--stale`.
    */
-  findingRow: '    {{glyph}}  {{extensionId}}  {{type}}  {{message}}  {{confidence}}{{staleTag}}\n',
+  findingRow: '{{idCol}}  {{glyph}}  {{extensionId}}  {{type}}  {{message}}  {{confidence}}{{staleTag}}\n',
   /** Confidence column value, composed dim at the call site. */
   confidenceValue: '({{percent}}%)',
   /**
@@ -109,30 +113,45 @@ export const FINDINGS_CLI_TEXTS = {
    * evidence), rendered dim. `{{indent}}` aligns it under the message
    * column.
    */
-  detailLine: '       {{detail}}\n',
+  detailLine: '{{indent}}{{detail}}\n',
   /**
-   * Optional resolution line under a finding row: the lifecycle STATE a
-   * FIXER moved this finding into (`spec/db-schema.md` §state_findings).
-   * Aligned with the detail line; `{{glyph}}` and `{{text}}` are composed
-   * at the call site from the pair below.
+   * Optional resolution line under a finding row: the lifecycle STATE this
+   * finding moved into (`spec/db-schema.md` §state_findings). Aligned with
+   * the detail line; `{{glyph}}` and `{{text}}` are composed at the call
+   * site from the shapes below.
    */
-  resolutionLine: '       {{glyph}}  {{text}}\n',
+  resolutionLine: '{{indent}}{{glyph}}  {{text}}\n',
   /**
-   * `resolution = 'fixed'`: a fixer edited the file to resolve this. This
-   * line only shows under `--fixed` (the fixed list), so a green `✓` is
-   * honest HERE. Rendered DIM: it is still a STATE, not a verdict, only
-   * the finder re-judging confirms the defect is gone (never write
-   * "resolved" / "verified").
+   * `resolution = 'fixed'`, `resolution_actor = 'fixer'`: a fully
+   * autonomous fix (zero user interaction). This line only shows under
+   * `--fixed`, so a green `✓` is honest HERE. Rendered DIM: it is still a
+   * STATE, not a verdict, only the finder re-judging confirms the defect is
+   * gone (never write "resolved" / "verified").
    */
-  resolutionFixed: 'fixed by {{fixer}}: {{note}}',
+  resolutionFixedByFixer: 'fixed by {{fixer}}{{noteSuffix}}',
   /**
-   * `resolution = 'declined'`: the fixer refused, typically because the
-   * fix needs a decision only the author can make. This is the
-   * HIGHER-VALUE state, so it renders under a yellow `⚠` with UNDIMMED
-   * text: the note is the author's TODO and the reason this feature
-   * exists (it used to sit buried in the execution report).
+   * `resolution = 'fixed'`, `resolution_actor = 'human'` WITH a fixer that
+   * ran: the agent's tools did the typing but a user interaction (an
+   * approval, a choice among the fixer's options, an operator edit) made
+   * the call, so the decision is attributed to the operator.
    */
-  resolutionDeclined: '{{fixer}} declined, needs your decision: {{note}}',
+  resolutionFixedByHumanWithFixer: 'fixed by {{fixer}} (your decision){{noteSuffix}}',
+  /**
+   * `resolution = 'fixed'`, `resolution_actor = 'human'`, NO fixer
+   * (`resolution_by` null): the operator marked it fixed directly via
+   * `sm findings resolve`.
+   */
+  resolutionFixedByHuman: 'fixed by you{{noteSuffix}}',
+  /** The `: <note>` tail on a resolution line; omitted when the note is empty. */
+  resolutionNoteSuffix: ': {{note}}',
+  /**
+   * `resolution = 'human-decision'`: a fixer proposed but the choice is the
+   * author's. This is the HIGHER-VALUE state, so it renders under a yellow
+   * `⚠` with UNDIMMED text: the note is the fixer's PROPOSAL, the author's
+   * TODO and the reason this feature exists (it used to sit buried in the
+   * execution report).
+   */
+  resolutionHumanDecision: '{{fixer}} proposes, your decision{{noteSuffix}}',
   /** Footer hint, separated from the body by a blank line. */
   tipLine:
     '\nTip: `sm show <path>` shows a node\'s findings in context; findings are advisory and never gate exit codes.\n',
@@ -162,4 +181,29 @@ export const FINDINGS_CLI_TEXTS = {
     '{{glyph}}  --threshold: invalid value "{{value}}".\n' +
     '   {{hint}}\n',
   errBadThresholdHint: 'Pass a number between 0 and 1, e.g. 0.7.',
+
+  // --- sm findings resolve <id> ------------------------------------------
+  /**
+   * Success line for `sm findings resolve <id>`: the operator marked the
+   * finding fixed themselves. Honest state, NOT a verification (only
+   * re-running the finder verifies the defect is gone).
+   */
+  resolveDone: '{{glyph}}  Finding {{id}} marked fixed by you.\n',
+  /** Exit 5: no finding carries that id. */
+  resolveNotFound:
+    '{{glyph}}  Finding {{id}} not found.\n' +
+    '   {{hint}}\n',
+  resolveNotFoundHint:
+    'Run `sm findings` to list finding ids (`sm scan` first if the DB is empty).',
+  /** Exit 2: the finding is already fixed (re-marking is a no-op). */
+  resolveAlreadyFixed:
+    '{{glyph}}  Finding {{id}} is already fixed.\n' +
+    '   {{hint}}\n',
+  resolveAlreadyFixedHint:
+    'A fixed finding stays re-checkable; re-run the finder to confirm the defect is gone.',
+  /** Exit 2: the positional id is not a positive integer. */
+  resolveBadId:
+    '{{glyph}}  findings resolve: invalid id "{{value}}".\n' +
+    '   {{hint}}\n',
+  resolveBadIdHint: 'Pass the integer id shown by `sm findings`, e.g. 42.',
 } as const;

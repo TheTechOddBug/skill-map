@@ -32,6 +32,7 @@ import type {
   IFindingRowInput,
   IFindingsListFilter,
   IFindingsWriteIntent,
+  TFindingResolveOutcome,
 } from '../../types/storage.js';
 import type { Severity } from '../../types.js';
 import { matchesQualifiedExtensionFilter } from '../../util/analyzer-filter.js';
@@ -43,6 +44,7 @@ export type {
   IFindingRowInput,
   IFindingsListFilter,
   IFindingsWriteIntent,
+  TFindingResolveOutcome,
 } from '../../types/storage.js';
 
 type TDbOrTx = Kysely<IDatabase> | Transaction<IDatabase>;
@@ -142,10 +144,12 @@ export async function writeFindingsForNode(
 
 /**
  * Record-path stamp for a FIXER's outcome (`spec/db-schema.md`
- * §state_findings, "Fixer resolution state"): write the lifecycle `state`
- * each `resolved[]` entry declares onto the finding its `id` names. Runs
- * on the caller's handle so the stamps stay atomic inside the record
- * transaction, alongside the execution insert + job transition.
+ * §state_findings, "Finding lifecycle state"): write the lifecycle `state`
+ * each `resolved[]` entry declares onto the finding its `id` names, plus the
+ * deciding actor (`resolution_actor` from the entry's `by` on a `fixed`
+ * entry, NULL on a `human-decision` one). Runs on the caller's handle so the
+ * stamps stay atomic inside the record transaction, alongside the execution
+ * insert + job transition.
  *
  * Three guards, each SKIPPING the entry silently rather than failing the
  * job (a fixer's report is not a place to surface storage-scope errors,
@@ -182,9 +186,12 @@ export async function stampFindingResolutions(
     await db
       .updateTable('state_findings')
       .set({
-        // The lifecycle STATE the fixer declared (`fixed` / `declined`),
+        // The lifecycle STATE the fixer declared (`fixed` / `human-decision`),
         // stamped verbatim onto the finding it named.
         resolution: entry.state,
+        // WHO decided a `fixed` row (`entry.by`), NULL on a `human-decision`
+        // one (the actor is undecided until the author resolves it).
+        resolutionActor: entry.by,
         // The fixer's note, verbatim (agent-supplied: sanitized at render,
         // never on the way in, so the machine surface round-trips).
         resolutionNote: entry.note,
@@ -279,6 +286,7 @@ export async function listFindings(
       'state_findings.confidence as confidence',
       'state_findings.model as model',
       'state_findings.resolution as resolution',
+      'state_findings.resolutionActor as resolutionActor',
       'state_findings.resolutionNote as resolutionNote',
       'state_findings.resolutionBy as resolutionBy',
       'state_findings.resolutionAt as resolutionAt',
@@ -367,10 +375,11 @@ function projectRow(row: TJoinedFindingRow, stale: boolean): IFindingRecord {
     detail: row.detail,
     confidence: row.confidence,
     model: row.model,
-    // Fixer lifecycle state, never a verdict: a `fixed` state does NOT
-    // erase the row, only a finder re-judging does; the default `sm
-    // findings` view hides it, this read still returns it.
+    // Lifecycle state, never a verdict: a `fixed` state does NOT erase the
+    // row, only a finder re-judging does; the default `sm findings` view
+    // hides it, this read still returns it.
     resolution: row.resolution,
+    resolutionActor: row.resolutionActor,
     resolutionNote: row.resolutionNote,
     resolutionBy: row.resolutionBy,
     resolutionAt: row.resolutionAt,
@@ -379,4 +388,87 @@ function projectRow(row: TJoinedFindingRow, stale: boolean): IFindingRecord {
     jobId: row.jobId,
     stale,
   };
+}
+
+/**
+ * Read a single `state_findings` row by id with the derived `stale` flag
+ * (same LEFT JOIN as `listFindings`, no visibility filter). `null` when no
+ * row carries the id. Backs the `--json` echo of `sm findings resolve`.
+ */
+export async function getFindingById(
+  db: TDbOrTx,
+  id: number,
+): Promise<IFindingRecord | null> {
+  const row = await db
+    .selectFrom('state_findings')
+    .leftJoin('scan_nodes', 'scan_nodes.path', 'state_findings.nodeId')
+    .select([
+      'state_findings.id as id',
+      'state_findings.nodeId as nodeId',
+      'state_findings.extensionId as extensionId',
+      'state_findings.extensionVersion as extensionVersion',
+      'state_findings.origin as origin',
+      'state_findings.type as type',
+      'state_findings.severity as severity',
+      'state_findings.message as message',
+      'state_findings.detail as detail',
+      'state_findings.confidence as confidence',
+      'state_findings.model as model',
+      'state_findings.resolution as resolution',
+      'state_findings.resolutionActor as resolutionActor',
+      'state_findings.resolutionNote as resolutionNote',
+      'state_findings.resolutionBy as resolutionBy',
+      'state_findings.resolutionAt as resolutionAt',
+      'state_findings.bodyHashAtGeneration as bodyHashAtGeneration',
+      'state_findings.generatedAt as generatedAt',
+      'state_findings.jobId as jobId',
+      'scan_nodes.bodyHash as liveBodyHash',
+    ])
+    .where('state_findings.id', '=', id)
+    .executeTakeFirst();
+  if (!row) return null;
+  const stale = row.liveBodyHash === null || row.liveBodyHash !== row.bodyHashAtGeneration;
+  return projectRow(row, stale);
+}
+
+/**
+ * `sm findings resolve <id>`: mark an OPEN or `human-decision` finding
+ * `fixed` by the OPERATOR themselves ("I already handled this",
+ * `spec/cli-contract.md`). Sets `resolution = 'fixed'`, `resolution_actor =
+ * 'human'`, `resolution_by = NULL` (no fixer ran), the optional `note`, and
+ * `resolution_at = nowMs`. A row already `fixed` is refused
+ * (`already-fixed`, the verb exits 2); an unknown id is `not-found`
+ * (exit 5). It records a HUMAN DECISION, it does NOT verify the defect is
+ * gone (only re-running the finder does); the row hides from the default
+ * view like any `fixed` row and stays re-checkable. Returns the updated
+ * row for the `--json` echo.
+ */
+export async function resolveFindingByHuman(
+  db: TDbOrTx,
+  id: number,
+  note: string | null,
+  nowMs: number,
+): Promise<TFindingResolveOutcome> {
+  const existing = await db
+    .selectFrom('state_findings')
+    .select(['id', 'resolution'])
+    .where('id', '=', id)
+    .executeTakeFirst();
+  if (!existing) return { kind: 'not-found' };
+  if (existing.resolution === 'fixed') return { kind: 'already-fixed' };
+  await db
+    .updateTable('state_findings')
+    .set({
+      resolution: 'fixed',
+      resolutionActor: 'human',
+      resolutionBy: null,
+      resolutionNote: note,
+      resolutionAt: nowMs,
+    })
+    .where('id', '=', id)
+    .execute();
+  const finding = await getFindingById(db, id);
+  // The update just landed, so the re-read always finds the row; the
+  // defensive `not-found` keeps the return total.
+  return finding ? { kind: 'resolved', finding } : { kind: 'not-found' };
 }

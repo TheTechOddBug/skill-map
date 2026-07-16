@@ -278,16 +278,23 @@ CREATE INDEX ix_state_summaries_generated_at ON state_summaries(generated_at);
 --   - `node_id` is FK-semantic to `scan_nodes.path`; the rename heuristic
 --     (`migrateNodeFks` in src/kernel/adapters/sqlite/history.ts) migrates
 --     rows here, same protocol as the other state_* tables.
---   - Fixer resolution STATE (lifecycle, not attribution): the `resolution*`
---     columns record the lifecycle state a FIXER (a probabilistic Action
---     declaring `precondition.analyzerIds`) moved this finding into, stamped
---     by `sm record` per entry of its report's `resolved[]` (each declaring
---     `state`), scoped to the job's node and the fixer's own analyzerIds.
---     `fixed` = a fixer edited the file to resolve it (hidden from the
---     default `sm findings` view, NOT deleted, re-checkable by re-running
---     the finder); `declined` = the fixer refused, so it stays the author's
---     visible TODO in `resolution_note`. Neither is "verified": only the
---     finder re-judging the current body deletes or reopens a `fixed` row.
+--   - Fixer resolution STATE + decision actor: the `resolution*` columns
+--     record the lifecycle state a finding moved into and who decided it.
+--     TWO writers (see spec/db-schema.md §state_findings "Finding lifecycle
+--     state"): `sm record` closing a FIXER's job (a probabilistic Action
+--     declaring `precondition.analyzerIds`) stamps per entry of its report's
+--     `resolved[]`, scoped to the job's node and the fixer's own analyzerIds;
+--     and `sm findings resolve <id>` stamps a purely human resolution.
+--     `fixed` = resolved (hidden from the default `sm findings` view, NOT
+--     deleted, re-checkable by re-running the finder); `human-decision` = a
+--     fixer proposed but the choice is the author's, so it stays the author's
+--     visible TODO in `resolution_note` (renamed from the earlier `declined`,
+--     which read as a dead-end when it is the most action-demanding state).
+--     Neither is "verified": only the finder re-judging the current body
+--     deletes or reopens a `fixed` row. `resolution_actor` records WHO
+--     decided a `fixed` row by one rule: ANY user interaction makes it
+--     `human`, only a fully autonomous fix with zero user interaction is
+--     `fixer`; NULL for `human-decision` (undecided).
 CREATE TABLE state_findings (
   id INTEGER PRIMARY KEY,
   node_id TEXT NOT NULL,
@@ -302,13 +309,18 @@ CREATE TABLE state_findings (
   -- Recording agent's self-reported `--model` (NULL when undeclared),
   -- denormalized from the same record's execution row.
   model TEXT,
-  -- The lifecycle state a fixer moved this finding into (NULL = open):
-  -- `fixed` = a fixer edited the file to resolve it (hidden from the
-  -- default view, re-checkable), `declined` = it refused and left the
-  -- reason in `resolution_note` (the author's TODO, stays visible).
+  -- The lifecycle state a finding moved into (NULL = open):
+  -- `fixed` = resolved (hidden from the default view, re-checkable),
+  -- `human-decision` = a fixer proposed but the choice is the author's, so
+  -- the `resolution_note` (its PROPOSAL) stays the visible TODO.
   resolution TEXT,
+  -- WHO decided a `fixed` finding: `human` (any user interaction was
+  -- involved) or `fixer` (a fully autonomous fix, zero user interaction).
+  -- NULL for `human-decision` (undecided) and open rows.
+  resolution_actor TEXT,
   resolution_note TEXT,
-  -- The fixer's qualified extension id + the stamp time.
+  -- The fixer's qualified extension id (NULL for a purely human resolution
+  -- via `sm findings resolve`) + the stamp time.
   resolution_by TEXT,
   resolution_at INTEGER,
   body_hash_at_generation TEXT NOT NULL,
@@ -316,7 +328,8 @@ CREATE TABLE state_findings (
   job_id TEXT,
   CONSTRAINT ck_state_findings_origin CHECK (origin IN ('extension','kernel')),
   CONSTRAINT ck_state_findings_severity CHECK (severity IN ('info','warn','error')),
-  CONSTRAINT ck_state_findings_resolution CHECK (resolution IS NULL OR resolution IN ('fixed','declined'))
+  CONSTRAINT ck_state_findings_resolution CHECK (resolution IS NULL OR resolution IN ('fixed','human-decision')),
+  CONSTRAINT ck_state_findings_resolution_actor CHECK (resolution_actor IS NULL OR resolution_actor IN ('human','fixer'))
 );
 CREATE INDEX ix_state_findings_node_id ON state_findings(node_id);
 CREATE INDEX ix_state_findings_extension_id ON state_findings(extension_id);

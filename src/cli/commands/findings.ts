@@ -17,12 +17,12 @@
  * `generated_at`; `--threshold` minimum confidence.
  *
  * The default view shows what needs attention, hiding two DISJOINT kinds
- * of row: `fixed` rows (`resolution = 'fixed'`, a fixer already handled
- * them, `--fixed` includes them) and stale rows (body hash drifted since
+ * of row: `fixed` rows (`resolution = 'fixed'`, already handled,
+ * `--fixed` includes them) and stale rows (body hash drifted since
  * generation, or the node gone from the scan, `--stale` includes them
  * marked `(stale)`). A row that is BOTH fixed and stale counts as fixed
- * (the state takes precedence). Open rows and `declined` rows always
- * show: a declined finding is the author's pending decision.
+ * (the state takes precedence). Open rows and `human-decision` rows always
+ * show: a human-decision finding is the author's pending decision.
  *
  * Excluded rows are never silently swallowed: whatever the default
  * filter hides is reported under the SAME filters, as a human footer /
@@ -33,7 +33,8 @@
  * data having been deleted). Zero rows at all is the only clean-verdict
  * output. A `fixed` row is a STATE, not a verdict: re-running the finder
  * is how the operator confirms it (clean deletes it, still-present reopens
- * it).
+ * it). A `fixed` row also carries `resolutionActor` (`human` / `fixer`),
+ * rendered under the checkmark.
  *
  * `--json` emits `{ ok, kind: 'findings', findings[], total,
  * fixedExcluded, staleExcluded }`, each entry mirroring the
@@ -54,6 +55,7 @@ import type {
   IFindingRecord,
   IFindingsListFilter,
   TFindingResolution,
+  TResolutionActor,
 } from '../../kernel/types/storage.js';
 import type { Severity } from '../../kernel/types.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
@@ -80,11 +82,11 @@ export class FindingsCommand extends SmCommand {
       sm record), plus the kernel-derived safety rows (injection-detected /
       content-suspicious / content-malformed).
 
-      The default view hides two disjoint kinds of row: fixed rows (a fixer
-      resolved them, --fixed includes them, marked with the fixer) and
+      The default view hides two disjoint kinds of row: fixed rows (already
+      handled, --fixed includes them, marked with the deciding actor) and
       stale rows (the node body changed since the judgment, or the node
-      left the scan, --stale includes them, marked). Open and declined rows
-      always show. Whatever the default filter hides is always reported:
+      left the scan, --stale includes them, marked). Open and human-decision
+      rows always show. Whatever the default filter hides is always reported:
       the hidden breakdown rides in the human output and on fixedExcluded /
       staleExcluded in --json, so an empty result never claims a clean node
       while judgments sit hidden. --severity is a MINIMUM (warn keeps warn +
@@ -162,9 +164,9 @@ export class FindingsCommand extends SmCommand {
         const all = await adapter.findings.list({ ...filter, includeStale: true });
         const shown = all.filter((f) => this.isShown(f));
         // The hidden ROWS, not just their counts: the human line must name
-        // the `declined` subset among them (a fixer's TODO, otherwise
-        // invisible behind the stale filter) and break the tally into
-        // fixed vs stale.
+        // the `human-decision` subset among them (the author's TODO,
+        // otherwise invisible behind the stale filter) and break the tally
+        // into fixed vs stale.
         const hidden = all.filter((f) => !this.isShown(f));
         return this.json ? this.emitJson(shown, hidden) : this.emitHuman(shown, hidden);
       },
@@ -179,10 +181,11 @@ export class FindingsCommand extends SmCommand {
    *   - `resolution === 'fixed'`: a fixer handled it; hidden unless
    *     `--fixed`, even when the row also went stale.
    *   - not fixed but `stale`: the judged body is gone; hidden unless
-   *     `--stale`. Covers open-stale AND declined-stale rows.
+   *     `--stale`. Covers open-stale AND human-decision-stale rows.
    *
-   * Open rows and non-stale `declined` rows always show (`declined` is the
-   * author's pending decision, never hidden by state).
+   * Open rows and non-stale `human-decision` rows always show
+   * (`human-decision` is the author's pending decision, never hidden by
+   * state).
    */
   private isShown(f: IFindingRecord): boolean {
     if (f.resolution === 'fixed') return this.fixed;
@@ -226,9 +229,8 @@ export class FindingsCommand extends SmCommand {
    *   - K listed, N hidden: the listing plus the same breakdown as a
    *     footer.
    *
-   * Either hidden-breakdown shape names the `declined` subset when one
-   * exists (a declined finding staled by a sibling fix, see
-   * `staleHiddenVars`).
+   * Either hidden-breakdown shape names the `human-decision` subset when
+   * one exists (a proposal staled by a sibling fix, see `staleHiddenVars`).
    */
   private emitHuman(findings: readonly IFindingRecord[], hidden: readonly IFindingRecord[]): TExitCode {
     const ansi = this.ansiFor('stdout');
@@ -426,6 +428,144 @@ export class FindingsPruneCommand extends SmCommand {
 }
 
 /**
+ * `sm findings resolve <finding.id> [--note <text>]`
+ *
+ * Mark an OPEN or `human-decision` finding `fixed` by the OPERATOR
+ * ("I already handled this", `spec/cli-contract.md`). Sets
+ * `resolution = 'fixed'`, `resolution_actor = 'human'`,
+ * `resolution_by = NULL` (no fixer ran), the optional `--note`, and
+ * `resolution_at = now`. It records a HUMAN DECISION, it does NOT verify
+ * the defect is gone (only re-running the finder does); the row then hides
+ * from the default `sm findings` view like any `fixed` row and stays
+ * re-checkable.
+ *
+ * Exit codes: 5 if the id does not exist; 2 if the finding is already
+ * `fixed` (re-marking is a no-op) or the id is not a positive integer;
+ * 0 on success. `--json` emits `{ ok, kind: 'finding', finding }` with the
+ * updated row. Absent DB -> exit 5.
+ */
+export class FindingsResolveCommand extends SmCommand {
+  static override paths = [['findings', 'resolve']];
+  static override usage = Command.Usage({
+    category: 'Browse',
+    description: 'Mark a finding fixed by you (a human decision, not a verification).',
+    details: `
+      Marks an open or human-decision finding fixed BY THE OPERATOR: sets
+      resolution = fixed, resolution_actor = human, resolution_by = null (no
+      fixer ran), the optional --note, and the stamp time. Use it when you
+      already handled a finding yourself.
+
+      It records a human decision, it does NOT verify the defect is gone;
+      only re-running the finder does. The row then hides from the default
+      sm findings view (like any fixed row) and stays re-checkable.
+
+      Exit 5 if the id does not exist; exit 2 if the finding is already
+      fixed, or the id is not a positive integer. --json emits the updated
+      finding row.
+    `,
+    examples: [
+      ['Mark finding 42 fixed', '$0 findings resolve 42'],
+      ['Mark it fixed with a note', '$0 findings resolve 42 --note "Rewrote the section by hand."'],
+    ],
+  });
+
+  id = Option.String({ required: true });
+  note = Option.String('--note', {
+    required: false,
+    description: 'One-line reason recorded on the finding (resolution_note).',
+  });
+
+  protected async run(): Promise<number> {
+    const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    if (dbExit !== null) return dbExit;
+
+    const id = this.parseId();
+    // A number is a valid id; `null` means the value was rejected (the
+    // error is already emitted). Both the id and the exit code are numbers,
+    // so `null` is the unambiguous "bad value" sentinel.
+    if (id === null) return this.failBadId();
+
+    // Write verb: refuse a drifted DB before any table mutation
+    // (spec/cli-contract.md §Schema-drift rebuild).
+    assertNoDriftForWrite(dbPath);
+
+    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
+      const outcome = await adapter.findings.resolveByHuman(
+        id,
+        this.note ?? null,
+        Date.now(),
+      );
+      switch (outcome.kind) {
+        case 'not-found':
+          return this.failNotFound(id);
+        case 'already-fixed':
+          return this.failAlreadyFixed(id);
+        case 'resolved':
+          return this.reportResolved(id, outcome.finding);
+      }
+    });
+  }
+
+  /** Parse the positional id to a positive integer, or `null` when invalid. */
+  private parseId(): number | null {
+    const parsed = Number(this.id);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  /** §3.1b rejection for a non-positive-integer id, exit 2. */
+  private failBadId(): TExitCode {
+    const ansi = this.ansiFor('stderr');
+    this.printer!.error(
+      tx(T.resolveBadId, {
+        glyph: ansi.red('✕'),
+        value: sanitizeForTerminal(this.id),
+        hint: ansi.dim(T.resolveBadIdHint),
+      }),
+    );
+    return ExitCode.Error;
+  }
+
+  /** Success: the finding is now fixed-by-human. Row echoed under `--json`. */
+  private reportResolved(id: number, finding: IFindingRecord): TExitCode {
+    if (this.json) {
+      this.printer!.data(JSON.stringify({ ok: true, kind: 'finding', finding }) + '\n');
+    } else {
+      this.printer!.data(
+        tx(T.resolveDone, { glyph: this.ansiFor('stdout').green('✓'), id }),
+      );
+    }
+    return ExitCode.Ok;
+  }
+
+  /** Exit 5: no finding carries that id. */
+  private failNotFound(id: number): TExitCode {
+    const ansi = this.ansiFor('stderr');
+    this.printer!.error(
+      tx(T.resolveNotFound, {
+        glyph: ansi.red('✕'),
+        id,
+        hint: ansi.dim(T.resolveNotFoundHint),
+      }),
+    );
+    return ExitCode.NotFound;
+  }
+
+  /** Exit 2: the finding is already fixed (re-marking is a no-op). */
+  private failAlreadyFixed(id: number): TExitCode {
+    const ansi = this.ansiFor('stderr');
+    this.printer!.error(
+      tx(T.resolveAlreadyFixed, {
+        glyph: ansi.red('✕'),
+        id,
+        hint: ansi.dim(T.resolveAlreadyFixedHint),
+      }),
+    );
+    return ExitCode.Error;
+  }
+}
+
+/**
  * Parse a comma-separated id-list flag. Returns `undefined` when the
  * flag is absent or holds only empty tokens (no filter); empty entries
  * are dropped so a trailing comma does not change the matched set
@@ -448,9 +588,9 @@ function parseIdListFlag(raw: string | undefined): readonly string[] | undefined
  *     notes/guide.md
  *       ⚠  plug/finder  contradiction  Message text  (85%)
  *          Longer evidence detail, dim, when present.
- *          ⚠  core/node-reconcile declined, needs your decision: <note>
+ *          ⚠  core/node-reconcile proposes, your decision: <note>
  *
- *   ℹ  2 fixed, 1 stale hidden (1 declined by a fixer, needing your decision).
+ *   ℹ  2 fixed, 1 stale hidden (1 awaiting your decision).
  *      Pass --fixed / --stale to see them, or re-run the finders to re-check them.
  *
  *   Tip: `sm show <path>` shows a node's findings in context; ...
@@ -481,6 +621,7 @@ function renderHuman(
   }
 
   const widths: IColumnWidths = {
+    id: Math.max(...rows.map((r) => String(r.id).length)),
     extension: Math.max(...rows.map((r) => r.extensionId.length)),
     type: Math.max(...rows.map((r) => r.type.length)),
   };
@@ -523,23 +664,23 @@ function countStaleHidden(hidden: readonly IFindingRecord[]): number {
  * the hint's pronoun (`it` / `them`) plural-corrects on the total. The
  * hint is pre-dimmed at this boundary.
  *
- * `declined` names the subset of the hidden rows a fixer REFUSED
- * (`spec/cli-contract.md` §sm findings). It takes the hidden ROWS rather
- * than their count for exactly this: a fixer's edits for sibling findings
- * stale the whole node, so the one finding it left for the author to
- * decide hides behind the stale filter (a `declined` row is never fixed),
- * and a bare count would report the operator's TODO as ordinary
+ * `humanDecision` names the subset of the hidden rows awaiting the author's
+ * choice (`spec/cli-contract.md` §sm findings). It takes the hidden ROWS
+ * rather than their count for exactly this: a fixer's edits for sibling
+ * findings stale the whole node, so the one finding it left for the author
+ * to decide hides behind the stale filter (a `human-decision` row is never
+ * fixed), and a bare count would report the operator's TODO as ordinary
  * staleness. Yellow, so the eye lands on it; the line's own glyph stays
  * neutral (it still reports what is hidden, not a failure).
  */
 function staleHiddenVars(
   hidden: readonly IFindingRecord[],
   ansi: IAnsi,
-): { breakdown: string; declined: string; hint: string } {
+): { breakdown: string; humanDecision: string; hint: string } {
   const single = hidden.length === 1;
   const fixed = countFixedHidden(hidden);
   const stale = countStaleHidden(hidden);
-  const declined = hidden.filter((f) => f.resolution === 'declined').length;
+  const humanDecision = hidden.filter((f) => f.resolution === 'human-decision').length;
   const fragments: string[] = [];
   if (fixed > 0) fragments.push(tx(T.hiddenFixedFragment, { count: fixed }));
   if (stale > 0) fragments.push(tx(T.hiddenStaleFragment, { count: stale }));
@@ -551,16 +692,18 @@ function staleHiddenVars(
         : T.hiddenFlagsStaleOnly;
   return {
     breakdown: fragments.join(T.hiddenBreakdownJoiner),
-    declined:
-      declined === 0
+    humanDecision:
+      humanDecision === 0
         ? ''
-        : ansi.yellow(tx(T.staleHiddenDeclinedFragment, { count: declined })),
+        : ansi.yellow(tx(T.staleHiddenHumanDecisionFragment, { count: humanDecision })),
     hint: ansi.dim(tx(T.staleHiddenHint, { pronoun: single ? 'it' : 'them', flags })),
   };
 }
 
 /** Row shape sanitised once at the boundary; the layout never re-gates. */
 interface IRenderRow {
+  /** Finding id, the handle for `sm findings resolve <id>`. */
+  id: number;
   severity: Severity;
   node: string;
   extensionId: string;
@@ -570,22 +713,27 @@ interface IRenderRow {
   confidence: number;
   /** Agent-self-reported model, sanitized (agent-supplied); null when undeclared. */
   model: string | null;
-  /** Fixer lifecycle state; null (open) until a fixer resolved this finding. */
+  /** Lifecycle state; null (open) until a fixer or the operator resolves it. */
   resolution: TFindingResolution | null;
-  /** The fixer's note, sanitized (agent-authored free text). */
+  /** Who decided a `fixed` row (`human` / `fixer`); null for `human-decision` / open. */
+  resolutionActor: TResolutionActor | null;
+  /** The resolution note, sanitized (agent-authored free text). */
   resolutionNote: string;
-  /** The fixer's qualified extension id, sanitized. */
+  /** The fixer's qualified extension id, sanitized; empty for a purely human resolution. */
   resolutionBy: string;
   stale: boolean;
 }
 
 interface IColumnWidths {
+  /** Digit count of the widest finding id in the set (right-align column). */
+  id: number;
   extension: number;
   type: number;
 }
 
 function toRenderRow(f: IFindingRecord): IRenderRow {
   return {
+    id: f.id,
     severity: f.severity,
     node: sanitizeForTerminal(f.nodeId),
     extensionId: sanitizeForTerminal(f.extensionId),
@@ -594,10 +742,11 @@ function toRenderRow(f: IFindingRecord): IRenderRow {
     detail: f.detail === null ? null : flattenMessage(sanitizeForTerminal(f.detail)),
     confidence: f.confidence,
     model: f.model === null ? null : flattenMessage(sanitizeForTerminal(f.model)),
-    // Both fields are agent-supplied (the fixer authored the note; the id
-    // is manifest-sourced), so they pass the same gate as the finder's
-    // message: sanitized once here, never re-gated by the layout.
+    // Both string fields are agent-supplied (the fixer authored the note;
+    // the id is manifest-sourced), so they pass the same gate as the
+    // finder's message: sanitized once here, never re-gated by the layout.
     resolution: f.resolution,
+    resolutionActor: f.resolutionActor,
     resolutionNote: flattenMessage(sanitizeForTerminal(f.resolutionNote ?? '')),
     resolutionBy: flattenMessage(sanitizeForTerminal(f.resolutionBy ?? '')),
     stale: f.stale,
@@ -611,10 +760,15 @@ function renderNodeSection(
   widths: IColumnWidths,
   ansi: IAnsi,
 ): string {
+  // Content (detail / resolution) lines align under the extension column:
+  // the id column (` <id>:`, visible width idWidth + 2) plus the two-space
+  // gap, the glyph, and its two-space gap.
+  const contentIndent = ' '.repeat(widths.id + 7);
   const lines: string[] = [tx(T.fileSection, { file: node })];
   for (const row of bucket) {
     lines.push(
       tx(T.findingRow, {
+        idCol: ` ${String(row.id).padStart(widths.id)}:`,
         glyph: severityGlyph(row.severity, ansi),
         extensionId: ansi.dim(row.extensionId.padEnd(widths.extension)),
         type: row.type.padEnd(widths.type),
@@ -624,9 +778,9 @@ function renderNodeSection(
       }),
     );
     if (row.detail !== null && row.detail.length > 0) {
-      lines.push(tx(T.detailLine, { detail: ansi.dim(row.detail) }));
+      lines.push(tx(T.detailLine, { indent: contentIndent, detail: ansi.dim(row.detail) }));
     }
-    const resolution = renderResolution(row, ansi);
+    const resolution = renderResolution(row, contentIndent, ansi);
     if (resolution !== null) lines.push(resolution);
   }
   lines.push('\n');
@@ -634,29 +788,62 @@ function renderNodeSection(
 }
 
 /**
- * The fixer-resolution line under a finding row, or `null` when no fixer
- * has touched it (`spec/db-schema.md` §state_findings). Two shapes, and
- * the asymmetry between them is the whole point:
+ * The resolution line under a finding row, or `null` when nothing has
+ * touched it (`spec/db-schema.md` §state_findings). Two shapes, and the
+ * asymmetry between them is the whole point:
  *
  *   - `fixed`: green `✓`, DIM text. A handled state (this line only shows
  *     under `--fixed`, so the checkmark is honest here). Still NOT a
- *     verdict: `fixed` means a fixer ran, only the finder re-judging
- *     confirms the defect is gone.
- *   - `declined`: yellow `⚠`, UNDIMMED text. The author's TODO: a fixer
- *     refused because the call is the author's to make, and this note is
- *     the thing the operator must act on.
+ *     verdict: `fixed` means resolved, only the finder re-judging confirms
+ *     the defect is gone. The wording names the deciding actor: `by you`
+ *     (a purely human `sm findings resolve`), `by <fixer> (your decision)`
+ *     (a fixer ran but a user made the call), or `by <fixer>` (a fully
+ *     autonomous fix).
+ *   - `human-decision`: yellow `⚠`, UNDIMMED text. The author's TODO: a
+ *     fixer proposed but the choice is the author's, and this note is the
+ *     proposal the operator must act on.
  */
-function renderResolution(row: IRenderRow, ansi: IAnsi): string | null {
+function renderResolution(row: IRenderRow, indent: string, ansi: IAnsi): string | null {
   if (row.resolution === null) return null;
-  const fixed = row.resolution === 'fixed';
-  const text = tx(fixed ? T.resolutionFixed : T.resolutionDeclined, {
-    fixer: row.resolutionBy,
-    note: row.resolutionNote,
-  });
+  if (row.resolution === 'fixed') {
+    return tx(T.resolutionLine, {
+      indent,
+      glyph: ansi.green('✓'),
+      text: ansi.dim(fixedResolutionText(row)),
+    });
+  }
+  // `human-decision`: the higher-value state, undimmed under a warning glyph.
   return tx(T.resolutionLine, {
-    glyph: fixed ? ansi.green('✓') : ansi.yellow('⚠'),
-    text: fixed ? ansi.dim(text) : text,
+    indent,
+    glyph: ansi.yellow('⚠'),
+    text: tx(T.resolutionHumanDecision, {
+      fixer: row.resolutionBy,
+      noteSuffix: resolutionNoteSuffix(row.resolutionNote),
+    }),
   });
+}
+
+/**
+ * The `fixed`-line text, actor-aware (`spec/db-schema.md` §state_findings):
+ * a purely human resolution (`sm findings resolve`, no fixer) reads
+ * `fixed by you`; a `human` decision WITH a fixer that ran reads `fixed by
+ * <fixer> (your decision)`; a fully autonomous `fixer` decision reads
+ * `fixed by <fixer>`. A `fixed` row missing an actor (should not happen)
+ * degrades to the honest agent-attributed shape.
+ */
+function fixedResolutionText(row: IRenderRow): string {
+  const noteSuffix = resolutionNoteSuffix(row.resolutionNote);
+  if (row.resolutionActor === 'human') {
+    return row.resolutionBy.length === 0
+      ? tx(T.resolutionFixedByHuman, { noteSuffix })
+      : tx(T.resolutionFixedByHumanWithFixer, { fixer: row.resolutionBy, noteSuffix });
+  }
+  return tx(T.resolutionFixedByFixer, { fixer: row.resolutionBy, noteSuffix });
+}
+
+/** The `: <note>` tail on a resolution line, or `''` when the note is empty. */
+function resolutionNoteSuffix(note: string): string {
+  return note.length === 0 ? '' : tx(T.resolutionNoteSuffix, { note });
 }
 
 /**

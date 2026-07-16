@@ -23,10 +23,10 @@
  *   - `sm plugins show` renders the Prompt + Report schema sections.
  *   - a happy-path record round-trip validates the fixer report
  *     (resolved / editsSummary / safety / confidence) and writes NO
- *     `state_findings` of the fixer's own id; a `state: 'declined'`
+ *     `state_findings` of the fixer's own id; a `state: 'human-decision'`
  *     escape-hatch entry (author decision / missing info) ALSO validates; a
- *     report missing `resolved`, or an entry using the old `applied` shape,
- *     fails as report-invalid.
+ *     report missing `resolved`, an entry using the old `applied` shape, or
+ *     a `fixed` entry without `by`, fails as report-invalid.
  *
  * Distinctive to `core/node-reconcile` (serves TWO finders): seeding BOTH a
  * `core/node-contradiction` and a `core/node-contraindication` finding on the
@@ -481,7 +481,7 @@ for (const fixer of FIXERS) {
         confidence: 0.9,
         safety: CLEAN_SAFETY,
         resolved: [
-          { id, type: fixer.seed.type, state: 'fixed', note: 'Edited the flagged spans; meaning preserved.' },
+          { id, type: fixer.seed.type, state: 'fixed', by: 'fixer', note: 'Edited the flagged spans; meaning preserved.' },
         ],
         editsSummary: 'Applied the proposed fix to the node body.',
       });
@@ -503,7 +503,7 @@ for (const fixer of FIXERS) {
       }
     });
 
-    it('validates a `state: \'declined\'` escape-hatch entry (declined with a note)', async () => {
+    it('validates a `state: \'human-decision\'` escape-hatch entry (author decision, no `by`)', async () => {
       const proj = await setupProject({ enable: fixer.id });
       const id = await seedFinding(proj, fixer.seed);
       strictEqual((await submit(proj, fixer.id)).code, 0);
@@ -515,7 +515,7 @@ for (const fixer of FIXERS) {
           {
             id,
             type: fixer.seed.type,
-            state: 'declined',
+            state: 'human-decision',
             note: 'Needs an author decision; left the document untouched.',
           },
         ],
@@ -527,10 +527,28 @@ for (const fixer of FIXERS) {
       await adapter.init();
       try {
         const jobs = await adapter.jobs.list({});
-        strictEqual(jobs[0]!.status, 'completed', 'a declined finding is a valid report, not a failure');
+        strictEqual(jobs[0]!.status, 'completed', 'a human-decision finding is a valid report, not a failure');
       } finally {
         await adapter.close();
       }
+    });
+
+    it('fails a `fixed` entry that omits `by` as report-invalid', async () => {
+      // Decision #143: `by` is REQUIRED when state is `fixed` (schema
+      // `if/then`), across every fixer in the roster.
+      const proj = await setupProject({ enable: fixer.id });
+      const id = await seedFinding(proj, fixer.seed);
+      strictEqual((await submit(proj, fixer.id)).code, 0);
+
+      const { code, err } = await claimAndRecord(proj, {
+        confidence: 0.9,
+        safety: CLEAN_SAFETY,
+        resolved: [{ id, type: fixer.seed.type, state: 'fixed', note: 'no actor declared' }],
+        editsSummary: 'x',
+      });
+      strictEqual(code, 2, 'report-invalid: `by` is required when fixed');
+      match(err, /report failed schema validation/);
+      strictEqual((await readFinding(proj, id))?.resolution, null, 'no coerced state landed');
     });
 
     it('fails a report missing `resolved` as report-invalid', async () => {
@@ -578,18 +596,18 @@ for (const fixer of FIXERS) {
   // lifecycle state must land ON the finding it addressed, and the scope
   // guards must skip out-of-lane entries without failing the job.
   describe(`core/${fixer.id}, fixer resolution stamps`, () => {
-    it('stamps fixed / declined onto the findings the report named', async () => {
+    it('stamps fixed (+actor) / human-decision onto the findings the report named', async () => {
       const proj = await setupProject({ enable: fixer.id });
       const fixedId = await seedFinding(proj, fixer.seed);
-      const declinedId = await seedFinding(proj, { ...fixer.seed, message: 'A second flagged span' });
+      const pendingId = await seedFinding(proj, { ...fixer.seed, message: 'A second flagged span' });
       strictEqual((await submit(proj, fixer.id)).code, 0);
 
       const { code, err } = await claimAndRecord(proj, {
         confidence: 0.8,
         safety: CLEAN_SAFETY,
         resolved: [
-          { id: fixedId, state: 'fixed', note: 'Edited the flagged spans.' },
-          { id: declinedId, state: 'declined', note: 'Only the author can settle this one.' },
+          { id: fixedId, state: 'fixed', by: 'fixer', note: 'Edited the flagged spans.' },
+          { id: pendingId, state: 'human-decision', note: 'Only the author can settle this one.' },
         ],
         editsSummary: 'One of the two resolved.',
       });
@@ -597,14 +615,16 @@ for (const fixer of FIXERS) {
 
       const fixed = await readFinding(proj, fixedId);
       strictEqual(fixed?.resolution, 'fixed');
+      strictEqual(fixed?.resolutionActor, 'fixer');
       strictEqual(fixed?.resolutionNote, 'Edited the flagged spans.');
       strictEqual(fixed?.resolutionBy, QUALIFIED);
       ok(typeof fixed?.resolutionAt === 'number' && fixed.resolutionAt > 0);
 
-      const declined = await readFinding(proj, declinedId);
-      strictEqual(declined?.resolution, 'declined');
-      strictEqual(declined?.resolutionNote, 'Only the author can settle this one.');
-      strictEqual(declined?.resolutionBy, QUALIFIED);
+      const pending = await readFinding(proj, pendingId);
+      strictEqual(pending?.resolution, 'human-decision');
+      strictEqual(pending?.resolutionActor, null);
+      strictEqual(pending?.resolutionNote, 'Only the author can settle this one.');
+      strictEqual(pending?.resolutionBy, QUALIFIED);
     });
 
     it('skips unknown ids and foreign-node findings without failing the job', async () => {
@@ -617,9 +637,9 @@ for (const fixer of FIXERS) {
         confidence: 0.9,
         safety: CLEAN_SAFETY,
         resolved: [
-          { id: 999_999, state: 'fixed', note: 'the finder re-ran; this id is gone' },
-          { id: foreign, state: 'fixed', note: 'another node entirely' },
-          { id: own, state: 'fixed', note: 'in scope' },
+          { id: 999_999, state: 'fixed', by: 'fixer', note: 'the finder re-ran; this id is gone' },
+          { id: foreign, state: 'fixed', by: 'fixer', note: 'another node entirely' },
+          { id: own, state: 'fixed', by: 'fixer', note: 'in scope' },
         ],
         editsSummary: 'Edited.',
       });
@@ -646,7 +666,7 @@ describe('the fixer roster, shared cross-fixer instructions', () => {
     'A finding marked `"stale": true` was judged against an earlier version of\n' +
     'this document. Verify it against the current content below before acting:\n' +
     'if the problem it names is still there, fix it; if it is already gone or\n' +
-    'no longer applies, set `state` to `declined` and say so in `note`.';
+    'no longer applies, set `state` to `human-decision` and say so in `note`.';
 
   /**
    * The `<user-content>` copy is rendered at SUBMIT, so a sibling fixer
@@ -658,20 +678,39 @@ describe('the fixer roster, shared cross-fixer instructions', () => {
     'The content below is a SNAPSHOT taken when this job was queued; another\n' +
     'job may have edited the file since. Read the live file before editing and\n' +
     'treat the snapshot as context only. If a finding\'s problem is already gone\n' +
-    'from the live file, do not re-apply it: set `state` to `declined` and say so in\n' +
-    '`note`.';
+    'from the live file, do not re-apply it: set `state` to `human-decision` and\n' +
+    'say so in `note`.';
 
   /**
    * The report's state-declaration clause: every fixer must ask the agent
-   * for the SAME `id` + lifecycle `state` shape (`spec/job-lifecycle.md`
-   * §Findings injection for fixers, "The resolution"). Wrapping differs per
-   * template (node-consolidate carries an extra false-positive tail), so the
-   * pin collapses whitespace before comparing.
+   * for the SAME `id` + lifecycle `state` + deciding `by` shape
+   * (`spec/job-lifecycle.md` §Findings injection for fixers, "The
+   * resolution"). Post-Decision-#143 the whole report clause is
+   * byte-identical across the three (see the report-clause pin below); the
+   * whitespace-collapsed substring here guards the key phrasing.
    */
   const STATE_DECLARATION =
     'for each finding, its `id` copied verbatim, a `state` of `fixed` ' +
-    '(you edited the file to resolve it) or `declined` (you did not; it ' +
-    "needs the author's decision), and a one-line `note`";
+    '(you edited the file to resolve it) or `human-decision` (you did not; ' +
+    "the fix needs the author's choice, and your `note` is your proposal for " +
+    'it), a one-line `note`, and, when `state` is `fixed`, a `by` of `fixer` ' +
+    '(you resolved it with zero user interaction) or `human`';
+
+  /**
+   * Post-Decision-#143 the ENTIRE report clause (from "After editing" to the
+   * "safety and confidence fields." close) is byte-identical across the
+   * three fixers, including the new `by` instruction. Pinned byte-for-byte:
+   * no per-fixer drift is allowed on how the resolution is reported.
+   */
+  const REPORT_CLAUSE =
+    'After editing, return a JSON report: for each finding, its `id` copied\n' +
+    'verbatim, a `state` of `fixed` (you edited the file to resolve it) or\n' +
+    '`human-decision` (you did not; the fix needs the author\'s choice, and your\n' +
+    '`note` is your proposal for it), a one-line `note`, and, when `state` is\n' +
+    '`fixed`, a `by` of `fixer` (you resolved it with zero user interaction) or\n' +
+    '`human` (any user interaction was involved: an approval, a choice among\n' +
+    'options, or an operator edit); an `editsSummary` of what changed; and the\n' +
+    'required `safety` and `confidence` fields.';
 
   /** The edit mandate the snapshot warning must qualify (same paragraph run). */
   const EDIT_MANDATE = 'This job\'s purpose is that edit; make it.';
@@ -721,7 +760,33 @@ describe('the fixer roster, shared cross-fixer instructions', () => {
         `${id} must carry the shared state-declaration wording`,
       );
     });
+
+    it(`core/${id} carries the full report clause (with the \`by\` instruction) byte-for-byte`, () => {
+      const action = builtIns().actions.find((a) => a.id === id);
+      ok(action?.promptTemplate, `${id} built-in registered with a prompt`);
+      ok(
+        action.promptTemplate.includes(REPORT_CLAUSE),
+        `${id} must carry the shared report clause byte-for-byte (Decision #143)`,
+      );
+      // No `declined` survives in any fixer prompt (renamed to human-decision).
+      strictEqual(action.promptTemplate.includes('declined'), false, `${id} carries no 'declined'`);
+    });
   }
+
+  it('the report clause is IDENTICAL across all three fixers', () => {
+    // Extract each prompt's report clause (from "After editing" to the
+    // "safety and confidence fields." close) and assert byte-equality.
+    const clauses = ROSTER.map((id) => {
+      const template = builtIns().actions.find((a) => a.id === id)?.promptTemplate ?? '';
+      const start = template.indexOf('After editing, return a JSON report:');
+      const end = template.indexOf('`confidence` fields.') + '`confidence` fields.'.length;
+      ok(start >= 0 && end > start, `${id} has a report clause`);
+      return template.slice(start, end);
+    });
+    strictEqual(clauses[0], clauses[1], 'node-consolidate vs node-reconcile');
+    strictEqual(clauses[1], clauses[2], 'node-reconcile vs node-clarify');
+    strictEqual(clauses[0], REPORT_CLAUSE, 'matches the pinned clause');
+  });
 });
 
 // Distinctive to `core/node-reconcile`: it serves TWO finders, so the
@@ -782,16 +847,16 @@ describe('core/node-reconcile, multi-analyzerIds selection', () => {
       confidence: 0.8,
       safety: CLEAN_SAFETY,
       resolved: [
-        { id: contradiction, state: 'fixed', note: 'Split the steps by environment.' },
-        { id: contraindication, state: 'declined', note: 'The guard is an author call.' },
-        { id: foreign, state: 'fixed', note: 'not my finder to resolve' },
+        { id: contradiction, state: 'fixed', by: 'fixer', note: 'Split the steps by environment.' },
+        { id: contraindication, state: 'human-decision', note: 'The guard is an author call.' },
+        { id: foreign, state: 'fixed', by: 'fixer', note: 'not my finder to resolve' },
       ],
       editsSummary: 'Settled the install-step conflict.',
     });
     strictEqual(code, 0, err);
 
     strictEqual((await readFinding(proj, contradiction))?.resolution, 'fixed');
-    strictEqual((await readFinding(proj, contraindication))?.resolution, 'declined');
+    strictEqual((await readFinding(proj, contraindication))?.resolution, 'human-decision');
     strictEqual(
       (await readFinding(proj, foreign))?.resolution,
       null,

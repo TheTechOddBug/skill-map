@@ -26,7 +26,11 @@
  */
 
 import type { Severity } from '../types.js';
-import type { IFindingResolutionEntry, IFindingRowInput } from '../types/storage.js';
+import type {
+  IFindingResolutionEntry,
+  IFindingRowInput,
+  TResolutionActor,
+} from '../types/storage.js';
 import { FINDINGS_TEXTS } from '../i18n/findings.texts.js';
 
 /**
@@ -102,16 +106,18 @@ function entrySeverity(value: unknown): Severity {
  * injection for fixers, "The resolution"): one entry per `resolved[]`
  * element the fixer echoed back, carrying the finding `id` it copied
  * verbatim from the injected findings section, the `state` it moved the
- * finding into (`fixed` / `declined`), and its one-line `note`.
+ * finding into (`fixed` / `human-decision`), the deciding actor `by`
+ * (`fixer` / `human`, only on a `fixed` entry), and its one-line `note`.
  *
  * Only meaningful for a FIXER's report (a probabilistic Action declaring
  * `precondition.analyzerIds`); the record path never calls this for a
- * finder. The fixer's `report.schema.json` REQUIRES all three fields and
- * pins `state` to the enum, so the narrowing here is defensive: an entry
- * whose `id` is not an integer, or whose `state` is neither `fixed` nor
- * `declined` (an off-contract payload that somehow cleared AJV, or the old
- * `applied` boolean shape), is DROPPED rather than stamped against a
- * coerced row.
+ * finder. The fixer's `report.schema.json` REQUIRES the core fields, pins
+ * `state` to the enum, and (via an `if/then`) REQUIRES `by` when `state` is
+ * `fixed`, so the narrowing here is defensive: an entry whose `id` is not
+ * an integer, whose `state` is neither `fixed` nor `human-decision` (an
+ * off-contract payload that somehow cleared AJV, or the old `declined` /
+ * `applied` shapes), or whose `fixed` entry carries no valid `by`, is
+ * DROPPED rather than stamped against a coerced row.
  */
 export function fixerResolutionEntries(
   report: Record<string, unknown>,
@@ -128,18 +134,36 @@ export function fixerResolutionEntries(
 
 /**
  * Narrow one `resolved[]` element to an `IFindingResolutionEntry`, or
- * `null` when it is off-contract (non-integer `id`, or a `state` that is
- * neither `fixed` nor `declined`, e.g. the retired `applied` boolean
- * shape). The AJV validation upstream already pins both fields, so a
- * non-null here is redundant defense, not the validation gate.
+ * `null` when it is off-contract (non-integer `id`; a `state` that is
+ * neither `fixed` nor `human-decision`, e.g. the retired `declined` /
+ * `applied` shapes; or a `fixed` entry whose `by` is not `human` / `fixer`).
+ * The AJV validation upstream already pins these, so a non-null here is
+ * redundant defense, not the validation gate. A `human-decision` entry
+ * carries `by: null` (the actor is undecided; any `by` the report sent is
+ * ignored).
  */
 function narrowResolutionEntry(entry: unknown): IFindingResolutionEntry | null {
   if (!isRecord(entry)) return null;
-  const id = entry['id'];
-  if (typeof id !== 'number' || !Number.isInteger(id)) return null;
+  const id = validInteger(entry['id']);
+  if (id === null) return null;
+  const note = typeof entry['note'] === 'string' ? entry['note'] : '';
   const state = entry['state'];
-  if (state !== 'fixed' && state !== 'declined') return null;
-  return { id, state, note: typeof entry['note'] === 'string' ? entry['note'] : '' };
+  if (state === 'human-decision') return { id, state, by: null, note };
+  if (state !== 'fixed') return null;
+  // `state === 'fixed'`: `by` records the deciding actor and is REQUIRED.
+  const by = validActor(entry['by']);
+  if (by === null) return null;
+  return { id, state, by, note };
+}
+
+/** The `id` when it is an integer, else `null` (off-contract, dropped). */
+function validInteger(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) ? value : null;
+}
+
+/** The `by` actor when it is `human` / `fixer`, else `null` (off-contract). */
+function validActor(value: unknown): TResolutionActor | null {
+  return value === 'human' || value === 'fixer' ? value : null;
 }
 
 /**

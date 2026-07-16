@@ -555,15 +555,25 @@ export interface IStateSummariesTable {
 export type TFindingOrigin = 'extension' | 'kernel';
 
 /**
- * The lifecycle STATE a FIXER moved a finding into (`spec/db-schema.md`
- * §state_findings, "Fixer resolution state"). `fixed` = a fixer edited the
- * file to resolve it (hidden from the default `sm findings` view, NOT
- * deleted, re-checkable); `declined` = the fixer refused, typically because
- * the fix needs a decision only the author can make (stays visible as the
- * author's TODO). Neither is "verified": only the finder re-judging the
- * current body deletes or reopens a `fixed` row. `null` = open.
+ * The lifecycle STATE a finding moved into (`spec/db-schema.md`
+ * §state_findings, "Finding lifecycle state"). `fixed` = resolved (hidden
+ * from the default `sm findings` view, NOT deleted, re-checkable);
+ * `human-decision` = a fixer proposed but the choice is the author's, so it
+ * stays visible as the author's TODO (renamed from the earlier `declined`,
+ * which read as a dead-end when it is the most action-demanding state).
+ * Neither is "verified": only the finder re-judging the current body deletes
+ * or reopens a `fixed` row. `null` = open.
  */
-export type TFindingResolution = 'fixed' | 'declined';
+export type TFindingResolution = 'fixed' | 'human-decision';
+
+/**
+ * WHO decided a `fixed` finding (`state_findings.resolution_actor`). One
+ * rule: ANY user interaction makes it `human` (an approval, a choice among
+ * a fixer's options, an operator edit, or a `sm findings resolve`), only a
+ * fully autonomous fix with zero user interaction is `fixer`. NULL on a
+ * `human-decision` (undecided) or open row.
+ */
+export type TResolutionActor = 'human' | 'fixer';
 
 /**
  * Probabilistic findings (`state_findings`, `spec/db-schema.md`
@@ -574,10 +584,10 @@ export type TFindingResolution = 'fixed' | 'declined';
  * Staleness (`body_hash_at_generation` vs the live `scan_nodes.body_hash`)
  * is computed at read time via JOIN, never persisted.
  *
- * The `resolution*` columns are stamped separately, by the same record
- * transaction that closes a FIXER's job (never by the finder's own
- * write): the lifecycle state the fixer moved the finding into, scoped to
- * the job's node and the fixer's declared `analyzerIds`.
+ * The `resolution*` columns are stamped separately, by one of two writers
+ * (`spec/db-schema.md` §state_findings): the record transaction closing a
+ * FIXER's job (scoped to the job's node and the fixer's declared
+ * `analyzerIds`), or `sm findings resolve` (a purely human resolution).
  */
 export interface IStateFindingsTable {
   id: Generated<number>;
@@ -592,11 +602,13 @@ export interface IStateFindingsTable {
   confidence: number;
   /** Denormalized agent-self-reported model name; NULL when undeclared. */
   model: string | null;
-  /** Fixer lifecycle state; NULL (open) until a fixer resolves this finding. */
+  /** Lifecycle state; NULL (open) until a fixer or the operator resolves it. */
   resolution: TFindingResolution | null;
-  /** The fixer's one-line reason, verbatim; the author's TODO when declined. */
+  /** WHO decided a `fixed` row (`human` / `fixer`); NULL for `human-decision` / open. */
+  resolutionActor: TResolutionActor | null;
+  /** The one-line reason, verbatim; the author's TODO (its proposal) when `human-decision`. */
   resolutionNote: string | null;
-  /** The fixer's qualified extension id. */
+  /** The fixer's qualified extension id; NULL for a purely human resolution. */
   resolutionBy: string | null;
   resolutionAt: number | null;
   bodyHashAtGeneration: string;

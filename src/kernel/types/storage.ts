@@ -29,18 +29,30 @@ import type {
 export type TFindingOrigin = 'extension' | 'kernel';
 
 /**
- * The lifecycle STATE a FIXER moved a finding into (`spec/db-schema.md`
- * §state_findings, "Fixer resolution state"). `fixed` = the fixer edited
- * the file to resolve it; `declined` = it refused, typically because the
- * fix needs a decision only the author can make.
+ * The lifecycle STATE a finding moved into (`spec/db-schema.md`
+ * §state_findings, "Finding lifecycle state"). `fixed` = resolved;
+ * `human-decision` = a fixer proposed but the choice is the author's
+ * (renamed from the earlier `declined`, which read as a dead-end when it is
+ * the most action-demanding state).
  *
- * A lifecycle state, NOT a verdict: `fixed` means "a fixer executed on
- * this", not "verified gone". It hides from the default `sm findings`
- * view but the row persists and stays re-checkable (only the finder
- * re-judging the current body deletes or reopens it). `declined` stays
- * VISIBLE: its note is the author's TODO. `null` = open.
+ * A lifecycle state, NOT a verdict: `fixed` means "resolved", not "verified
+ * gone". It hides from the default `sm findings` view but the row persists
+ * and stays re-checkable (only the finder re-judging the current body
+ * deletes or reopens it). `human-decision` stays VISIBLE: its note is the
+ * fixer's PROPOSAL, the author's TODO. `null` = open.
  */
-export type TFindingResolution = 'fixed' | 'declined';
+export type TFindingResolution = 'fixed' | 'human-decision';
+
+/**
+ * WHO decided a `fixed` finding (`state_findings.resolution_actor`,
+ * `spec/db-schema.md` §state_findings). One rule: **any user interaction
+ * makes it `human`; only a fully autonomous fix with zero user interaction
+ * is `fixer`.** So an unattended drain that applies a clear-cut fix is
+ * `fixer`; an interactive drain where the operator approved the edit, chose
+ * among options, or a `sm findings resolve` is `human`. `null` on a
+ * `human-decision` (undecided) or open row.
+ */
+export type TResolutionActor = 'human' | 'fixer';
 
 /**
  * Row-level filter for `port.scans.findNodes(...)` (driven by
@@ -183,16 +195,25 @@ export interface IFindingRecord {
   /** Recording agent's self-reported model; `null` when undeclared. */
   model: string | null;
   /**
-   * The lifecycle state a fixer moved this finding into; `null` (open)
-   * until one resolves it. `fixed` hides from the default `sm findings`
-   * view (re-checkable, not deleted); `declined` stays visible with the
-   * author's TODO in `resolutionNote` (`spec/db-schema.md`
-   * §state_findings).
+   * The lifecycle state this finding moved into; `null` (open) until a
+   * fixer or the operator resolves it. `fixed` hides from the default
+   * `sm findings` view (re-checkable, not deleted); `human-decision` stays
+   * visible with the fixer's PROPOSAL (the author's TODO) in
+   * `resolutionNote` (`spec/db-schema.md` §state_findings).
    */
   resolution: TFindingResolution | null;
-  /** The fixer's one-line reason, verbatim (agent-supplied: sanitize at render). */
+  /**
+   * WHO decided a `fixed` finding (`human` / `fixer`); `null` for a
+   * `human-decision` (undecided) or open row (`spec/db-schema.md`
+   * §state_findings).
+   */
+  resolutionActor: TResolutionActor | null;
+  /** The one-line reason, verbatim (agent-supplied: sanitize at render). */
   resolutionNote: string | null;
-  /** The fixer's qualified extension id (agent-adjacent: sanitize at render). */
+  /**
+   * The fixer's qualified extension id (agent-adjacent: sanitize at
+   * render); `null` for a purely human resolution (`sm findings resolve`).
+   */
   resolutionBy: string | null;
   resolutionAt: number | null;
   bodyHashAtGeneration: string;
@@ -202,17 +223,37 @@ export interface IFindingRecord {
 }
 
 /**
+ * Discriminated outcome of `port.findings.resolveByHuman(id, note, nowMs)`,
+ * the operator marking a finding `fixed` themselves (`sm findings resolve`,
+ * `spec/cli-contract.md`):
+ *   - `resolved`, an OPEN or `human-decision` row moved to `fixed` /
+ *     `human` (the updated `finding` rides along for the `--json` echo).
+ *   - `already-fixed`, the row is already `fixed` (the verb exits 2).
+ *   - `not-found`, no `state_findings` row carries that id (exit 5).
+ */
+export type TFindingResolveOutcome =
+  | { kind: 'resolved'; finding: IFindingRecord }
+  | { kind: 'already-fixed' }
+  | { kind: 'not-found' };
+
+/**
  * One entry of a fixer report's `resolved[]`, narrowed from the
- * AJV-validated payload: the `id` the fixer echoed back from the injected
- * findings section, the `state` it moved the finding into (`fixed` = it
- * edited the file to resolve it, `declined` = it did not; the fix needs
- * the author's decision), and its one-line `note`
- * (`spec/job-lifecycle.md` §Findings injection for fixers, "The
- * resolution").
+ * AJV-validated payload (`spec/job-lifecycle.md` §Findings injection for
+ * fixers, "The resolution"): the `id` the fixer echoed back from the
+ * injected findings section, the `state` it moved the finding into
+ * (`fixed` = it edited the file to resolve it, `human-decision` = it did
+ * not; the fix needs the author's choice and the `note` is the fixer's
+ * PROPOSAL), the deciding actor `by` (`fixer` = zero user interaction,
+ * `human` = any user interaction was involved), and its one-line `note`.
+ *
+ * `by` is stamped onto `resolution_actor` and is meaningful ONLY on a
+ * `fixed` entry (`null` on a `human-decision` one, where the actor is
+ * undecided).
  */
 export interface IFindingResolutionEntry {
   id: number;
   state: TFindingResolution;
+  by: TResolutionActor | null;
   note: string;
 }
 

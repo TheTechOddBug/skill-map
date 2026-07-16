@@ -4,11 +4,11 @@
  * storage helpers (the write path is covered by the record specs); this
  * spec pins the verb contract (`spec/cli-contract.md` §sm findings):
  *
- *   - default read HIDES two disjoint kinds of row: `fixed` (a fixer
- *     resolved it, `--fixed` reveals it, rendered `✓ fixed by <fixer>`)
+ *   - default read HIDES two disjoint kinds of row: `fixed` (already
+ *     resolved, `--fixed` reveals it, rendered `✓ fixed by <actor>`)
  *     and stale (`--stale` reveals it, marked `(stale)`). A fixed+stale
- *     row counts as fixed (state precedence). Open + declined rows always
- *     show.
+ *     row counts as fixed (state precedence). Open + human-decision rows
+ *     always show.
  *   - excluded rows are REPORTED, never silently swallowed: the hidden
  *     breakdown rides the human output (footer, or the `No fresh findings`
  *     empty state, never a bare `No findings`) and `fixedExcluded` +
@@ -32,13 +32,13 @@ import { Readable } from 'node:stream';
 
 import type { BaseContext } from 'clipanion';
 
-import { FindingsCommand, FindingsPruneCommand } from '../findings.js';
+import { FindingsCommand, FindingsPruneCommand, FindingsResolveCommand } from '../findings.js';
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
 import {
   replaceFindingsForNode,
   stampFindingResolutions,
 } from '../../../kernel/adapters/sqlite/findings.js';
-import type { IFindingRecord } from '../../../kernel/types/storage.js';
+import type { IFindingRecord, TResolutionActor } from '../../../kernel/types/storage.js';
 
 const NODE_A = 'notes/guide.md';
 const NODE_B = '.claude/skills/foo/SKILL.md';
@@ -225,11 +225,20 @@ async function setupAllStaleProject(): Promise<IProject> {
  * Stamp a fixer resolution onto the seeded finding carrying `type`, through
  * the REAL adapter path (`stampFindingResolutions`) rather than raw SQL, so
  * these display tests read rows the record path could actually have
- * produced. Returns the stamped finding's id.
+ * produced. Returns the stamped finding's id. `fixer` is the resolving
+ * extension's qualified id (`resolution_by`); `actor` is the deciding
+ * `resolution_actor` for a `fixed` entry (default `fixer`, i.e. a fully
+ * autonomous fix), NULL for a `human-decision`.
  */
 async function stampResolutionOnType(
   proj: IProject,
-  opts: { type: string; state: 'fixed' | 'declined'; note: string; by?: string },
+  opts: {
+    type: string;
+    state: 'fixed' | 'human-decision';
+    note: string;
+    fixer?: string;
+    actor?: TResolutionActor;
+  },
 ): Promise<number> {
   const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
   await adapter.init();
@@ -238,12 +247,13 @@ async function stampResolutionOnType(
       (f) => f.type === opts.type,
     );
     ok(target, `seeded finding of type ${opts.type} exists`);
+    const by = opts.state === 'fixed' ? (opts.actor ?? 'fixer') : null;
     await stampFindingResolutions(adapter.db, target.nodeId, {
-      resolvedBy: opts.by ?? 'core/node-consolidate',
+      resolvedBy: opts.fixer ?? 'core/node-consolidate',
       // The finding's own finder: the fixer's declared scope.
       analyzerIds: [target.extensionId],
       resolvedAt: T1,
-      entries: [{ id: target.id, state: opts.state, note: opts.note }],
+      entries: [{ id: target.id, state: opts.state, by, note: opts.note }],
     });
     return target.id;
   } finally {
@@ -440,6 +450,24 @@ describe('sm findings human mode', () => {
     strictEqual(body.findings[0]!.model, 'claude-opus-4-8', 'json entry carries model');
   });
 
+  it('prefixes each finding row with its id, right-aligned so glyphs stay in one column', async () => {
+    const proj = await setupProject();
+    const plain = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      strictEqual(await run(buildFindings(), cap), 0);
+      return cap.stdout();
+    });
+    // Every rendered finding row carries `<id>:` before its glyph; the id is
+    // the handle `sm findings resolve <id>` consumes.
+    match(plain, /^\s*\d+:\s+[^\s]/m, 'a finding row leads with its id and a colon');
+    // Right-alignment keeps the glyph column stable regardless of id width:
+    // the `<n>:  ` prefix is padded so multi-digit ids do not shift the glyph.
+    const rowLines = plain.split('\n').filter((l) => /^\s*\d+:/.test(l));
+    ok(rowLines.length >= 1, 'at least one id-prefixed row rendered');
+    const glyphCols = rowLines.map((l) => l.indexOf(':'));
+    strictEqual(new Set(glyphCols).size, 1, 'the colon column is identical across rows');
+  });
+
   it('a hostile model string is sanitized in human mode but raw in --json', async () => {
     const proj = await setupProject();
     const hostileModel = '\u001b[2Jevil-model';
@@ -518,11 +546,12 @@ describe('sm findings human mode', () => {
 });
 
 /**
- * A fixer's outcome rides the finding it addressed as a lifecycle STATE
- * (`spec/db-schema.md` §state_findings). `fixed` and `declined` behave
- * asymmetrically ON PURPOSE: a `fixed` finding drops out of the default
- * view (a fixer handled it, `--fixed` reveals it under a checkmark), while
- * `declined` stays VISIBLE as the author's pending decision.
+ * A resolution rides the finding it addressed as a lifecycle STATE
+ * (`spec/db-schema.md` §state_findings). `fixed` and `human-decision`
+ * behave asymmetrically ON PURPOSE: a `fixed` finding drops out of the
+ * default view (already handled, `--fixed` reveals it under a checkmark
+ * naming the deciding actor), while `human-decision` stays VISIBLE as the
+ * author's pending decision (the fixer's proposal).
  */
 describe('sm findings fixer resolution', () => {
   it('HIDES a fixed finding by default; --fixed reveals it as a handled state', async () => {
@@ -540,32 +569,67 @@ describe('sm findings fixer resolution', () => {
     match(def.out, /1 fixed/, 'the hidden breakdown accounts for it');
 
     // --fixed brings it back, rendered as a handled state under a checkmark.
+    // Default actor is `fixer` (a fully autonomous fix), so the wording is
+    // the plain `fixed by <fixer>` shape.
     const shown = await runHuman(proj.root, { fixed: true });
     strictEqual(shown.code, 0);
     match(shown.out, /Repeats itself/, '--fixed reveals the row');
     match(
       shown.out,
       /✓ {2}fixed by core\/node-consolidate: Collapsed the two upload sentences into one\./,
-      'a fixed row reads as handled, under a checkmark',
+      'a fixer-decided fixed row reads as handled, under a checkmark',
     );
     // Honest wording: still a state, never "resolved" / "verified".
     doesNotMatch(shown.out, /resolved|verified|unverified/i);
   });
 
-  it('surfaces a `declined` note prominently under a warning glyph, visible by default', async () => {
+  it('names the deciding actor on a fixed row: fixer vs your decision', async () => {
+    // Two of the three actor shapes (`spec/db-schema.md` §state_findings):
+    // a fully autonomous `fixer` fix vs a `human` decision WITH a fixer that
+    // ran. The third (no fixer) is `sm findings resolve`'s own test.
+    const autonomous = await setupProject();
+    await stampResolutionOnType(autonomous, {
+      type: 'redundancy',
+      state: 'fixed',
+      actor: 'fixer',
+      fixer: 'core/node-consolidate',
+      note: 'Collapsed it.',
+    });
+    match(
+      (await runHuman(autonomous.root, { fixed: true })).out,
+      /✓ {2}fixed by core\/node-consolidate: Collapsed it\./,
+      'a fixer decision reads `fixed by <fixer>`',
+    );
+
+    const attended = await setupProject();
+    await stampResolutionOnType(attended, {
+      type: 'redundancy',
+      state: 'fixed',
+      actor: 'human',
+      fixer: 'core/node-consolidate',
+      note: 'Approved the edit.',
+    });
+    match(
+      (await runHuman(attended.root, { fixed: true })).out,
+      /✓ {2}fixed by core\/node-consolidate \(your decision\): Approved the edit\./,
+      'a human decision with a fixer reads `(your decision)`',
+    );
+  });
+
+  it('surfaces a `human-decision` note prominently under a warning glyph, visible by default', async () => {
     const proj = await setupProject();
     await stampResolutionOnType(proj, {
       type: 'contradiction',
-      state: 'declined',
+      state: 'human-decision',
       note: 'The dev and prod steps are both intentional; only you can pick one.',
-      by: 'core/node-reconcile',
+      fixer: 'core/node-reconcile',
     });
     const { code, out } = await runHuman(proj.root, { type: 'contradiction' });
     strictEqual(code, 0);
     match(
       out,
-      /⚠ {2}core\/node-reconcile declined, needs your decision: The dev and prod steps are both intentional; only you can pick one\./,
-      'the fixer, the refusal, and the TODO all land on one line',
+      /⚠ {2}core\/node-reconcile proposes, your decision: The dev and prod steps are both intentional; only you can pick one\./,
+      'the fixer, its proposal, and the TODO all land on one line',
     );
   });
 
@@ -573,21 +637,22 @@ describe('sm findings fixer resolution', () => {
     const proj = await setupProject();
     const { out } = await runHuman(proj.root, { type: 'redundancy' });
     match(out, /Repeats itself/, 'the finding renders');
-    doesNotMatch(out, /fixed by|declined, needs your decision/);
+    doesNotMatch(out, /fixed by|proposes, your decision/);
   });
 
   it('--json carries the resolution* fields on each entry', async () => {
     const proj = await setupProject();
     const id = await stampResolutionOnType(proj, {
       type: 'redundancy',
-      state: 'declined',
+      state: 'human-decision',
       note: 'Needs an author decision.',
-      by: 'core/node-consolidate',
+      fixer: 'core/node-consolidate',
     });
     const { body } = await runJson(proj.root, { type: 'redundancy' });
     const entry = body.findings.find((f) => f.id === id);
     ok(entry, 'the stamped finding is in the envelope');
-    strictEqual(entry.resolution, 'declined');
+    strictEqual(entry.resolution, 'human-decision');
+    strictEqual(entry.resolutionActor, null, 'a human-decision has no decided actor');
     strictEqual(entry.resolutionNote, 'Needs an author decision.');
     strictEqual(entry.resolutionBy, 'core/node-consolidate');
     strictEqual(entry.resolutionAt, T1);
@@ -595,6 +660,7 @@ describe('sm findings fixer resolution', () => {
     // An untouched row reports the absence explicitly (null, not missing).
     const untouched = await runJson(proj.root, { type: 'injection-detected' });
     strictEqual(untouched.body.findings[0]!.resolution, null);
+    strictEqual(untouched.body.findings[0]!.resolutionActor, null);
     strictEqual(untouched.body.findings[0]!.resolutionNote, null);
     strictEqual(untouched.body.findings[0]!.resolutionBy, null);
     strictEqual(untouched.body.findings[0]!.resolutionAt, null);
@@ -610,9 +676,9 @@ describe('sm findings fixer resolution', () => {
     const hostileBy = '\u001b[2Jevil/fixer';
     const id = await stampResolutionOnType(proj, {
       type: 'redundancy',
-      state: 'declined',
+      state: 'human-decision',
       note: hostileNote,
-      by: hostileBy,
+      fixer: hostileBy,
     });
     const { out } = await runHuman(proj.root, { type: 'redundancy' });
     ok(out.includes('cleared your screen'), 'note text content survives');
@@ -631,7 +697,7 @@ describe('sm findings fixer resolution', () => {
     const proj = await setupProject();
     await stampResolutionOnType(proj, {
       type: 'redundancy',
-      state: 'declined',
+      state: 'human-decision',
       note: 'First line.\nSecond line posing as its own row.',
     });
     const { out } = await runHuman(proj.root, { type: 'redundancy' });
@@ -675,7 +741,7 @@ describe('sm findings stale disclosure', () => {
     match(out, /sm findings: /, 'the normal listing still renders');
     match(out, /contradiction/);
     match(out, /ℹ {2}1 stale hidden\./, 'footer reports what the default filter held back');
-    doesNotMatch(out, /declined by a fixer/, 'nothing hidden was declined, so no subset to name');
+    doesNotMatch(out, /awaiting your decision/, 'nothing hidden is a human-decision, so no subset to name');
     match(out, /Pass --stale to see it/);
     // Footer sits between the last row and the tip.
     ok(
@@ -734,40 +800,42 @@ describe('sm findings stale disclosure', () => {
 });
 
 /**
- * The excluded-count line MUST name the declined subset
+ * The excluded-count line MUST name the human-decision subset
  * (`spec/cli-contract.md` §sm findings). This is the sharp edge of the
  * whole feature: a fixer's edits for the OTHER findings stale the WHOLE
- * node, so the one finding it refused, the one carrying a note that says
- * "only you can decide this", hides behind the default stale filter. A
- * bare "N stale hidden" would report the operator's TODO as ordinary
- * staleness and bury it exactly like the old report_json did. (A declined
- * row is never fixed, so it always lands in the STALE bucket when hidden.)
+ * node, so the one finding it left for the author, the one carrying a
+ * proposal that says "only you can decide this", hides behind the default
+ * stale filter. A bare "N stale hidden" would report the operator's TODO as
+ * ordinary staleness and bury it exactly like the old report_json did. (A
+ * human-decision row is never fixed, so it always lands in the STALE bucket
+ * when hidden.)
  */
-describe('sm findings stale disclosure names declined rows', () => {
-  it('names the declined subset in the footer under a listing', async () => {
+describe('sm findings stale disclosure names human-decision rows', () => {
+  it('names the human-decision subset in the footer under a listing', async () => {
     const proj = await setupProject();
-    // The hidden (stale) row is finder-b's incoherence; a fixer declined it.
+    // The hidden (stale) row is finder-b's incoherence; a fixer left it as a
+    // human-decision.
     await stampResolutionOnType(proj, {
       type: 'incoherence',
-      state: 'declined',
+      state: 'human-decision',
       note: 'Only the author knows which section is right.',
-      by: 'core/node-clarify',
+      fixer: 'core/node-clarify',
     });
     const { code, out } = await runHuman(proj.root);
     strictEqual(code, 0);
     match(
       out,
-      /1 stale hidden \(1 declined by a fixer, needing your decision\)\./,
+      /1 stale hidden \(1 awaiting your decision\)\./,
       'the hidden TODO is named, not folded into a bare stale count',
     );
     match(out, /Pass --stale to see it/, 'the remedy still rides the line');
   });
 
-  it('names the declined subset in the empty "No fresh findings" shape', async () => {
+  it('names the human-decision subset in the empty "No fresh findings" shape', async () => {
     const proj = await setupAllStaleProject();
     await stampResolutionOnType(proj, {
       type: 'contradiction',
-      state: 'declined',
+      state: 'human-decision',
       note: 'Both branches are intentional; your call.',
     });
     const { code, out } = await runHuman(proj.root);
@@ -775,20 +843,20 @@ describe('sm findings stale disclosure names declined rows', () => {
     match(out, /ℹ {2}No fresh findings\./, 'still not a clean verdict');
     match(
       out,
-      /3 stale hidden \(1 declined by a fixer, needing your decision\)\./,
-      'the declined subset is named inside the plural stale count',
+      /3 stale hidden \(1 awaiting your decision\)\./,
+      'the human-decision subset is named inside the plural stale count',
     );
   });
 
-  it('a fixed row lands in the fixed count, declined stays in the stale bucket', async () => {
+  it('a fixed row lands in the fixed count, human-decision stays in the stale bucket', async () => {
     const proj = await setupAllStaleProject();
     // Two of the three (all-stale) hidden rows carry a resolution: one
-    // declined (the author's TODO), one FIXED. The fixed row counts under
-    // `fixed` (state precedence over stale), so it neither inflates the
-    // stale count nor the declined subset.
+    // human-decision (the author's TODO), one FIXED. The fixed row counts
+    // under `fixed` (state precedence over stale), so it neither inflates
+    // the stale count nor the human-decision subset.
     await stampResolutionOnType(proj, {
       type: 'contradiction',
-      state: 'declined',
+      state: 'human-decision',
       note: 'Your call.',
     });
     await stampResolutionOnType(proj, {
@@ -797,14 +865,14 @@ describe('sm findings stale disclosure names declined rows', () => {
       note: 'Collapsed it.',
     });
     const { out } = await runHuman(proj.root);
-    match(out, /1 fixed, 2 stale hidden \(1 declined by a fixer, needing your decision\)\./);
+    match(out, /1 fixed, 2 stale hidden \(1 awaiting your decision\)\./);
     // Both flags are offered, since both buckets are populated.
     match(out, /Pass --fixed \/ --stale to see them/);
   });
 
-  it('does NOT name declines when the hidden rows carry none', async () => {
+  it('does NOT name a human-decision when the hidden rows carry none', async () => {
     // Only a `fixed` state among the hidden rows: nothing is waiting on the
-    // operator, so the breakdown carries no declined subset.
+    // operator, so the breakdown carries no human-decision subset.
     const proj = await setupAllStaleProject();
     await stampResolutionOnType(proj, {
       type: 'contradiction',
@@ -813,34 +881,34 @@ describe('sm findings stale disclosure names declined rows', () => {
     });
     const { out } = await runHuman(proj.root);
     match(out, /1 fixed, 2 stale hidden\./);
-    doesNotMatch(out, /declined by a fixer/);
+    doesNotMatch(out, /awaiting your decision/);
   });
 
-  it('never names declines under --stale (nothing is hidden to report)', async () => {
+  it('never names a human-decision under --stale (nothing is hidden to report)', async () => {
     const proj = await setupProject();
     await stampResolutionOnType(proj, {
       type: 'incoherence',
-      state: 'declined',
+      state: 'human-decision',
       note: 'Only the author knows.',
     });
     const { out } = await runHuman(proj.root, { stale: true });
     // The row renders in full instead, resolution line and all.
-    match(out, /declined, needs your decision: Only the author knows\./);
+    match(out, /proposes, your decision: Only the author knows\./);
     doesNotMatch(out, /re-run the finders/, 'the hidden footer never fires under --stale');
-    doesNotMatch(out, /declined by a fixer/, 'the hidden-count fragment has no reason to fire');
+    doesNotMatch(out, /awaiting your decision/, 'the hidden-count fragment has no reason to fire');
   });
 
-  it('the declined fragment respects the active filters', async () => {
+  it('the human-decision fragment respects the active filters', async () => {
     const proj = await setupAllStaleProject();
     await stampResolutionOnType(proj, {
       type: 'contradiction',
-      state: 'declined',
+      state: 'human-decision',
       note: 'Your call.',
     });
-    // `--type redundancy` scopes the hidden set to rows with no decline.
+    // `--type redundancy` scopes the hidden set to rows with no human-decision.
     const other = await runHuman(proj.root, { type: 'redundancy' });
     match(other.out, /2 stale hidden\./);
-    doesNotMatch(other.out, /declined by a fixer/, 'the decline is outside this filter');
+    doesNotMatch(other.out, /awaiting your decision/, 'the human-decision is outside this filter');
   });
 });
 
@@ -930,6 +998,151 @@ describe('sm findings fixed hiding', () => {
 
     const human = await runHuman(proj.root);
     match(human.out, /2 fixed, 1 stale hidden\./, 'each count is plural-correct and disjoint');
+  });
+});
+
+/**
+ * `sm findings resolve <id>`, the operator marking a finding fixed himself
+ * (`spec/cli-contract.md`): sets `resolution = 'fixed'`, `resolution_actor
+ * = 'human'`, `resolution_by = NULL` (no fixer ran), the optional `--note`.
+ * It records a human decision, NOT a verification; the row then hides from
+ * the default view like any `fixed` row. Eligible from OPEN or
+ * `human-decision`; exit 5 on an unknown id, exit 2 when already `fixed` or
+ * on a non-integer id.
+ */
+describe('sm findings resolve', () => {
+  function buildResolve(
+    id: string,
+    opts: { note?: string; json?: boolean } = {},
+  ): FindingsResolveCommand {
+    const cmd = new FindingsResolveCommand();
+    cmd.id = id;
+    cmd.note = opts.note;
+    cmd.json = opts.json ?? false;
+    cmd.db = undefined;
+    return cmd;
+  }
+
+  /** The id of the seeded OPEN `redundancy` finding on NODE_A. */
+  async function openFindingId(proj: IProject): Promise<number> {
+    const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      const target = (await adapter.findings.list({ includeStale: true })).find(
+        (f) => f.type === 'redundancy',
+      );
+      ok(target, 'seeded redundancy finding exists');
+      return target.id;
+    } finally {
+      await adapter.close();
+    }
+  }
+
+  it('marks an open finding fixed by the operator (fixed + human + null fixer), --json row', async () => {
+    const proj = await setupProject();
+    const id = await openFindingId(proj);
+    const outcome = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const code = await run(
+        buildResolve(String(id), { note: 'Rewrote the section by hand.', json: true }),
+        cap,
+      );
+      return {
+        code,
+        body: JSON.parse(cap.stdout()) as { ok: boolean; kind: string; finding: IFindingRecord },
+      };
+    });
+    strictEqual(outcome.code, 0);
+    strictEqual(outcome.body.ok, true);
+    strictEqual(outcome.body.kind, 'finding');
+    const f = outcome.body.finding;
+    strictEqual(f.id, id);
+    strictEqual(f.resolution, 'fixed');
+    strictEqual(f.resolutionActor, 'human');
+    strictEqual(f.resolutionBy, null, 'no fixer ran');
+    strictEqual(f.resolutionNote, 'Rewrote the section by hand.');
+    ok(typeof f.resolutionAt === 'number' && f.resolutionAt > 0, 'stamped with a time');
+  });
+
+  it('renders `fixed by you` (no fixer) and hides the row from the default view', async () => {
+    const proj = await setupProject();
+    const id = await openFindingId(proj);
+    const human = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      strictEqual(await run(buildResolve(String(id), { note: 'Handled it.' }), cap), 0);
+      return cap.stdout();
+    });
+    match(human, new RegExp(`Finding ${id} marked fixed by you\\.`));
+
+    // The resolved row now hides by default (fixed); --fixed reveals it as
+    // the third actor shape, `fixed by you` (no fixer id).
+    const def = await runHuman(proj.root);
+    doesNotMatch(def.out, /Repeats itself/, 'the resolved finding is hidden by default');
+    const shown = await runHuman(proj.root, { fixed: true });
+    match(shown.out, /✓ {2}fixed by you: Handled it\./, 'no fixer, so `by you`');
+  });
+
+  it('resolves a human-decision finding too (clears the fixer id)', async () => {
+    const proj = await setupProject();
+    const id = await stampResolutionOnType(proj, {
+      type: 'redundancy',
+      state: 'human-decision',
+      note: 'A fixer proposed this.',
+      fixer: 'core/node-consolidate',
+    });
+    const code = await withCwd(proj.root, async () => run(buildResolve(String(id)), captureContext()));
+    strictEqual(code, 0);
+    const { body } = await runJson(proj.root, { type: 'redundancy', fixed: true });
+    const entry = body.findings.find((f) => f.id === id);
+    strictEqual(entry?.resolution, 'fixed');
+    strictEqual(entry?.resolutionActor, 'human');
+    strictEqual(entry?.resolutionBy, null, 'a purely human resolution clears the fixer id');
+  });
+
+  it('exits 5 when the id does not exist', async () => {
+    const proj = await setupProject();
+    const outcome = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const code = await run(buildResolve('999999'), cap);
+      return { code, err: cap.stderr() };
+    });
+    strictEqual(outcome.code, 5);
+    match(outcome.err, /not found/);
+  });
+
+  it('exits 2 when the finding is already fixed', async () => {
+    const proj = await setupProject();
+    const id = await stampResolutionOnType(proj, {
+      type: 'redundancy',
+      state: 'fixed',
+      note: 'Already done.',
+    });
+    const outcome = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const code = await run(buildResolve(String(id)), cap);
+      return { code, err: cap.stderr() };
+    });
+    strictEqual(outcome.code, 2);
+    match(outcome.err, /already fixed/);
+  });
+
+  it('exits 2 on a non-integer id', async () => {
+    const proj = await setupProject();
+    const outcome = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const code = await run(buildResolve('not-a-number'), cap);
+      return { code, err: cap.stderr() };
+    });
+    strictEqual(outcome.code, 2);
+    match(outcome.err, /invalid id/);
+  });
+
+  it('exits 5 when the DB file is missing', async () => {
+    counter += 1;
+    const bare = join(tmpRoot, `resolve-bare-${counter}`);
+    mkdirSync(bare, { recursive: true });
+    const code = await withCwd(bare, async () => run(buildResolve('1'), captureContext()));
+    strictEqual(code, 5);
   });
 });
 

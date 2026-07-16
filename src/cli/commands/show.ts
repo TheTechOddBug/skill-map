@@ -20,7 +20,12 @@
 import { Command, Option } from 'clipanion';
 
 import type { Issue, Link, Node, Severity } from '../../kernel/types.js';
-import type { IFindingRecord, INodeBundle } from '../../kernel/types/storage.js';
+import type {
+  IFindingRecord,
+  INodeBundle,
+  TFindingResolution,
+  TResolutionActor,
+} from '../../kernel/types/storage.js';
 import type { IAnsi } from '../util/ansi.js';
 import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
@@ -212,13 +217,13 @@ function renderHuman(doc: TShowDocument, ansi: IAnsi): string {
  * `state_findings` row, the severity glyph (same visual language as the
  * issues section), the dim finder extension id, the type slug, the
  * finder's message, and a yellow `(stale)` marker when the node body
- * changed since the judgment was recorded. A finding a FIXER resolved
- * carries its state on a line beneath (mirror of `sm findings`: green
- * `✓` dim `fixed` reads as handled-not-verified, yellow `declined`
- * surfaces the author's TODO). Unlike `sm findings`, this section lists
- * ALL rows (fixed included), since it is a single node's full detail.
- * Dropped entirely when the node carries no finding. Every DB-sourced
- * string is sanitised at the row boundary (finder messages are
+ * changed since the judgment was recorded. A resolved finding carries its
+ * state on a line beneath (mirror of `sm findings`: green `✓` dim `fixed`
+ * reads as handled-not-verified and names the deciding actor, yellow
+ * `human-decision` surfaces the author's TODO). Unlike `sm findings`, this
+ * section lists ALL rows (fixed included), since it is a single node's full
+ * detail. Dropped entirely when the node carries no finding. Every
+ * DB-sourced string is sanitised at the row boundary (finder messages are
  * plugin-authored; the resolution note is fixer-authored).
  */
 function renderFindingsSection(findings: IFindingRecord[], ansi: IAnsi): string {
@@ -229,6 +234,7 @@ function renderFindingsSection(findings: IFindingRecord[], ansi: IAnsi): string 
     message: sanitizeForTerminal(f.message).replace(/\n+/g, ' '),
     model: f.model === null ? null : sanitizeForTerminal(f.model),
     resolution: f.resolution,
+    resolutionActor: f.resolutionActor,
     resolutionNote: sanitizeForTerminal(f.resolutionNote ?? '').replace(/\n+/g, ' '),
     resolutionBy: sanitizeForTerminal(f.resolutionBy ?? '').replace(/\n+/g, ' '),
     stale: f.stale,
@@ -250,24 +256,63 @@ function renderFindingsSection(findings: IFindingRecord[], ansi: IAnsi): string 
         staleSuffix: row.stale ? ansi.yellow(SHOW_TEXTS.findingStale) : '',
       }),
     );
-    if (row.resolution !== null) {
-      const fixed = row.resolution === 'fixed';
-      const text = tx(
-        fixed ? SHOW_TEXTS.findingResolutionFixed : SHOW_TEXTS.findingResolutionDeclined,
-        { fixer: row.resolutionBy, note: row.resolutionNote },
-      );
-      lines.push(
-        tx(SHOW_TEXTS.findingResolutionLine, {
-          // `fixed` is a handled state (green ✓, dim), still not a verdict;
-          // `declined` is the author's TODO (yellow, undimmed). Only the
-          // finder re-judging closes a finding.
-          glyph: fixed ? ansi.green('✓') : ansi.yellow('⚠'),
-          text: fixed ? ansi.dim(text) : text,
-        }),
-      );
-    }
+    const resolutionLine = renderResolutionLine(row, ansi);
+    if (resolutionLine !== null) lines.push(resolutionLine);
   }
   return lines.join('');
+}
+
+/** The sanitised resolution fields a `renderResolutionLine` call needs. */
+interface IResolutionRow {
+  resolution: TFindingResolution | null;
+  resolutionActor: TResolutionActor | null;
+  resolutionNote: string;
+  resolutionBy: string;
+}
+
+/**
+ * The resolution line under a finding row, actor-aware, or `null` when the
+ * finding is unresolved (`spec/db-schema.md` §state_findings). Mirrors
+ * `sm findings` (`cli/commands/findings.ts`): green `✓` dim for a `fixed`
+ * state (naming the deciding actor: `by you` / `by <fixer> (your decision)`
+ * / `by <fixer>`), yellow `⚠` undimmed for a `human-decision` (the author's
+ * TODO, the fixer's proposal). `fixed` stays honest, only the finder
+ * re-judging closes a finding.
+ */
+function renderResolutionLine(row: IResolutionRow, ansi: IAnsi): string | null {
+  if (row.resolution === null) return null;
+  if (row.resolution === 'fixed') {
+    return tx(SHOW_TEXTS.findingResolutionLine, {
+      glyph: ansi.green('✓'),
+      text: ansi.dim(fixedResolutionText(row)),
+    });
+  }
+  return tx(SHOW_TEXTS.findingResolutionLine, {
+    glyph: ansi.yellow('⚠'),
+    text: tx(SHOW_TEXTS.findingResolutionHumanDecision, {
+      fixer: row.resolutionBy,
+      noteSuffix: resolutionNoteSuffix(row.resolutionNote),
+    }),
+  });
+}
+
+/** The actor-aware `fixed`-line text (mirror of `sm findings`). */
+function fixedResolutionText(row: IResolutionRow): string {
+  const noteSuffix = resolutionNoteSuffix(row.resolutionNote);
+  if (row.resolutionActor === 'human') {
+    return row.resolutionBy.length === 0
+      ? tx(SHOW_TEXTS.findingResolutionFixedByHuman, { noteSuffix })
+      : tx(SHOW_TEXTS.findingResolutionFixedByHumanWithFixer, {
+          fixer: row.resolutionBy,
+          noteSuffix,
+        });
+  }
+  return tx(SHOW_TEXTS.findingResolutionFixedByFixer, { fixer: row.resolutionBy, noteSuffix });
+}
+
+/** The `: <note>` tail on a resolution line, or `''` when the note is empty. */
+function resolutionNoteSuffix(note: string): string {
+  return note.length === 0 ? '' : tx(SHOW_TEXTS.findingResolutionNoteSuffix, { note });
 }
 
 /**
