@@ -60,6 +60,12 @@ export const ENTRY_TEXTS = {
   parseErrorUnknownCommand: 'unknown command \'{{name}}\'',
   parseErrorIncompleteCommand: 'incomplete command \'{{name}}\'',
   parseErrorSubcommandList: 'Available subcommands: {{suggestions}}.',
+  /**
+   * Same line when the namespace has more subcommands than the sample
+   * shows: the count keeps the sample honest ("Available subcommands"
+   * alone reads as exhaustive when it is a 3-item slice).
+   */
+  parseErrorSubcommandListMore: 'Available subcommands: {{suggestions}}, and {{count}} more.',
   parseErrorVerbUsage: '{{verb}}: {{message}}',
   parseErrorMissingPositional: '{{verb}}: missing required positional argument(s) {{positionals}}',
   parseErrorFlagSuggestion: 'Did you mean \'{{suggestion}}\'?',
