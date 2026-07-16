@@ -66,7 +66,7 @@ export type {
   TActionWriteKind,
 } from './action.js';
 export type { IFormatter, IFormatterContext } from './formatter.js';
-export type { IHook, IHookContext, THookTrigger, THookFilter } from './hook.js';
+export type { IHook, IHookActionInfo, IHookContext, THookTrigger, THookFilter } from './hook.js';
 export { HOOK_TRIGGERS } from './hook.js';
 export type { IExtensionBase, IAnnotationContribution, IBuiltInManifest, TExtensionStability } from './base.js';
 export {

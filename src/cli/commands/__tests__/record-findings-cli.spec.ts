@@ -632,3 +632,52 @@ describe('model attribution (sm record --model)', () => {
     match(human, /\(claude-opus-4-8\)/, 'findings section carries the model suffix');
   });
 });
+
+describe('finder-lane suppression filter (sm findings dismiss durability)', () => {
+  /**
+   * Write a valid `.sm` sidecar next to the SKILL node carrying the given
+   * standing suppressions (`spec/schemas/annotations.schema.json`). The
+   * record path reads this LIVE file (the source of truth) and drops
+   * matching findings before they land.
+   */
+  function writeSuppressionSidecar(
+    proj: IProject,
+    suppressions: Array<{ extension: string; type?: string }>,
+  ): void {
+    const bodyHash = sha256(`Body of ${SKILL.path}\n`);
+    const lines = [
+      'identity:',
+      `  path: ${SKILL.path}`,
+      `  bodyHash: ${bodyHash}`,
+      `  frontmatterHash: ${'f'.repeat(64)}`,
+      'annotations:',
+      '  suppressions:',
+    ];
+    for (const s of suppressions) {
+      lines.push(`    - extension: ${s.extension}`);
+      if (s.type !== undefined) lines.push(`      type: ${s.type}`);
+    }
+    writeFileSync(join(proj.root, '.claude/skills/foo/SKILL.sm'), lines.join('\n') + '\n');
+  }
+
+  it('drops a suppressed finding at record; a different type from the same finder still lands', async () => {
+    const proj = await setupProject();
+    // Standing suppression for the contradiction judgment class only.
+    writeSuppressionSidecar(proj, [{ extension: FINDER_ID, type: 'contradiction' }]);
+
+    const { code } = await runFullLoop(proj, FINDER_ID, FINDER_REPORT);
+    strictEqual(code, 0);
+
+    // contradiction is dropped before the write; redundancy (a different
+    // type from the SAME finder) still lands.
+    deepStrictEqual((await findingsFor(proj)).map((r) => r.type), ['redundancy']);
+  });
+
+  it('an extension-wide suppression (no type) drops every finding from that finder', async () => {
+    const proj = await setupProject();
+    writeSuppressionSidecar(proj, [{ extension: FINDER_ID }]);
+    const { code } = await runFullLoop(proj, FINDER_ID, FINDER_REPORT);
+    strictEqual(code, 0);
+    strictEqual((await findingsFor(proj)).length, 0);
+  });
+});

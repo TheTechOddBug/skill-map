@@ -39,8 +39,10 @@ export {
   extensionFindingRows,
   findReservedFindingTypes,
   fixerResolutionEntries,
+  isFindingSuppressed,
   kernelSafetyRows,
   RESERVED_FINDING_TYPES,
+  type ISuppressionMatch,
 } from './findings-report.js';
 export {
   buildReportContract,

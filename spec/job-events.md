@@ -132,6 +132,8 @@ Emitted when a job transitions to `completed`.
   "runId": "...",
   "jobId": "...",
   "data": {
+    "extensionId": "core/node-contradiction",
+    "extensionKind": "analyzer",
     "durationMs": 9700,
     "tokensIn": 2431,
     "tokensOut": 1072,
@@ -143,7 +145,7 @@ Emitted when a job transitions to `completed`.
 
 `executionId` references the `state_executions` row holding the report payload (in `report_json`). The full report is intentionally NOT inlined; events stay small, consumers query the row.
 
-> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Most common hookable event: notification, billing.
+> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). `extensionId` / `extensionKind` let a hook filter to a kind (`kind: 'analyzer'`) or a specific extension; this is what the opt-in `core/auto-fix` hook keys on to chain finder -> fixer. Common uses: notification, billing, auto-fix.
 
 ### `job.failed`
 

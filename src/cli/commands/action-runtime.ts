@@ -22,7 +22,7 @@
 
 import { dirname } from 'node:path';
 
-import type { IAction, IAnalyzer, IProvider } from '../../kernel/extensions/index.js';
+import type { IAction, IAnalyzer, IHook, IProvider } from '../../kernel/extensions/index.js';
 import type { IDiscoveredPlugin } from '../../kernel/types/plugin.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
@@ -35,6 +35,13 @@ export interface IActionRuntime {
   analyzers: IAnalyzer[];
   /** Composed Providers; `sm jobs submit` re-reads node bodies through them. */
   providers: IProvider[];
+  /**
+   * Composed (enabled) Hooks. `sm record` dispatches `job.completed` to these
+   * so the opt-in `core/auto-fix` hook can chain finder -> fixer
+   * (`spec/architecture.md` §Modelo B · Auto-fix). Empty unless a hook is
+   * enabled; the record path is a no-op then.
+   */
+  hooks: IHook[];
   /** qualified action id -> directory holding `prompt.md` / `report.schema.json`. */
   dirByAction: Map<string, string>;
   /** qualified analyzer id -> directory holding `prompt.md` / `report.schema.json`. */
@@ -60,11 +67,12 @@ export async function loadActionRuntime(printer: IPrinter): Promise<IActionRunti
     noBuiltIns: false,
     pluginRuntime: runtime,
     killSwitches: readConformanceKillSwitches(),
-  });
+  }) ?? { providers: [], extractors: [], analyzers: [], hooks: [], actions: [] };
   return {
-    actions: composed?.actions ?? [],
-    analyzers: composed?.analyzers ?? [],
-    providers: composed?.providers ?? [],
+    actions: composed.actions,
+    analyzers: composed.analyzers,
+    providers: composed.providers,
+    hooks: composed.hooks,
     dirByAction: buildActionDirMap(runtime.discovered),
     dirByAnalyzer: buildExtensionDirMap(runtime.discovered, 'analyzer'),
   };

@@ -41,7 +41,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import type { ExecutionFailureReason, ExecutionRecord, Job, JobExtensionKind } from '../../kernel/types.js';
 import type { IAction, IAnalyzer } from '../../kernel/extensions/index.js';
@@ -56,9 +56,11 @@ import {
   findReservedFindingTypes,
   fixerResolutionEntries,
   generateExecutionId,
+  type ISuppressionMatch,
   kernelSafetyRows,
   summaryKindOfReportSchema,
 } from '../../kernel/jobs/index.js';
+import { readSidecarFor } from '../../kernel/sidecar/index.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
@@ -275,6 +277,15 @@ export async function recordCompletedOutcome(opts: {
   resolve: () => Promise<TExtensionRecordResolution>;
   metrics: IRecordMetrics;
   now: number;
+  /**
+   * Runtime cwd, threaded so the finder lane can read the node's LIVE
+   * `.sm` sidecar suppressions (`spec/db-schema.md` §state_findings) and
+   * drop dismissed findings before they land. The sidecar is the source
+   * of truth (`sm findings dismiss` writes it directly), NOT the
+   * denormalized `scan_nodes.annotations_json` (stale between a dismiss
+   * and the next scan).
+   */
+  cwd: string;
 }): Promise<TRecordCompletedOutcome> {
   const { adapter, job, metrics, now } = opts;
 
@@ -338,7 +349,7 @@ export async function recordCompletedOutcome(opts: {
     reportJson,
   });
   const summary = buildSummaryIntent(job, resolution.record, reportJson, now, metrics);
-  const findings = buildFindingsIntent(job, extensionKind, report, now, metrics);
+  const findings = buildFindingsIntent(job, extensionKind, report, now, metrics, opts.cwd);
   const resolutions = buildResolutionIntent(job, resolution.record, report, now);
   await adapter.jobs.recordTerminal(execution, summary, findings, resolutions);
   return { kind: 'completed', execution };
@@ -417,6 +428,13 @@ function buildSummaryIntent(
  * recording a completed job replaces the pair's previous rows (both
  * origins), so a clean report erases a prior trouble flag instead of
  * letting it linger.
+ *
+ * The finder lane drops any finding matching an active sidecar suppression
+ * on the node (`spec/db-schema.md` §state_findings, finder-lane suppression
+ * filter): a `sm findings dismiss`ed judgment class never returns until the
+ * operator removes the entry from the `.sm` file. The safety lane is never
+ * suppressed (its rows are `origin = 'kernel'`, and suppressions only carry
+ * finder extension ids anyway).
  */
 function buildFindingsIntent(
   job: Job,
@@ -424,7 +442,10 @@ function buildFindingsIntent(
   report: Record<string, unknown>,
   now: number,
   metrics: IRecordMetrics,
+  cwd: string,
 ): IFindingsWriteIntent {
+  const suppressions =
+    extensionKind === 'analyzer' ? readActiveSuppressions(cwd, job.nodeId) : [];
   return {
     extensionId: job.extensionId,
     extensionVersion: job.extensionVersion,
@@ -433,10 +454,45 @@ function buildFindingsIntent(
     // Stamped onto EVERY row, both lanes (spec §state_findings).
     model: metrics.model ?? null,
     rows: [
-      ...(extensionKind === 'analyzer' ? extensionFindingRows(report) : []),
+      ...(extensionKind === 'analyzer'
+        ? extensionFindingRows(report, { extensionId: job.extensionId, suppressions })
+        : []),
       ...kernelSafetyRows(report),
     ],
   };
+}
+
+/**
+ * Read the node's LIVE `.sm` sidecar and project its
+ * `annotations.suppressions` to the finder-lane match shape. The sidecar
+ * is the source of truth (`sm findings dismiss` writes it directly through
+ * the gated channel), NOT the denormalized `scan_nodes.annotations_json`,
+ * which is stale between a dismiss and the next scan. An absent / invalid
+ * sidecar, or a missing / non-array `suppressions`, yields no matches.
+ * Each entry keeps its optional `type` (absent = every type from the
+ * finder); entries with no string `extension` are skipped (defensive, AJV
+ * pins the shape on the write side).
+ */
+function readActiveSuppressions(cwd: string, nodeId: string): ISuppressionMatch[] {
+  const raw = readSidecarFor(resolve(cwd, nodeId)).parsed?.annotations?.['suppressions'];
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map(toSuppressionMatch)
+    .filter((m): m is ISuppressionMatch => m !== null);
+}
+
+/**
+ * Narrow one raw `suppressions[]` entry to a finder-lane match, or `null`
+ * when it lacks a string `extension` (defensive: AJV pins the shape on the
+ * write side). Keeps the optional `type` (absent = every type).
+ */
+function toSuppressionMatch(entry: unknown): ISuppressionMatch | null {
+  if (typeof entry !== 'object' || entry === null) return null;
+  const record = entry as Record<string, unknown>;
+  const extension = record['extension'];
+  if (typeof extension !== 'string' || extension.length === 0) return null;
+  const type = record['type'];
+  return typeof type === 'string' ? { extension, type } : { extension };
 }
 
 /** Defensive object narrowing for the schema-validated report payload. */

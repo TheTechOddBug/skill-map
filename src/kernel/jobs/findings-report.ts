@@ -32,6 +32,7 @@ import type {
   TResolutionActor,
 } from '../types/storage.js';
 import { FINDINGS_TEXTS } from '../i18n/findings.texts.js';
+import { matchesQualifiedExtensionFilter } from '../util/analyzer-filter.js';
 
 /**
  * Type slugs reserved for kernel-derived safety findings
@@ -78,14 +79,58 @@ export function findReservedFindingTypes(report: Record<string, unknown>): strin
 }
 
 /**
+ * One active sidecar suppression entry (`annotations.suppressions`,
+ * `spec/schemas/annotations.schema.json`) as the finder-lane filter reads
+ * it: the qualified (or bare) finder `extension` it silences, and an
+ * optional `type` slug that narrows it (absent = every type from that
+ * extension).
+ */
+export interface ISuppressionMatch {
+  extension: string;
+  type?: string;
+}
+
+/**
+ * True when an active suppression silences a finding of `type` emitted by
+ * `extensionId` (`spec/db-schema.md` §state_findings, finder-lane
+ * suppression filter): the suppression's `extension` matches the finder
+ * (qualified or bare, `matchesQualifiedExtensionFilter`, mirroring
+ * `sm check --analyzers`) and, when it narrows by `type`, the finding's
+ * type equals it.
+ */
+export function isFindingSuppressed(
+  extensionId: string,
+  type: string,
+  suppressions: readonly ISuppressionMatch[],
+): boolean {
+  return suppressions.some(
+    (s) =>
+      matchesQualifiedExtensionFilter(extensionId, [s.extension]) &&
+      (s.type === undefined || s.type === type),
+  );
+}
+
+/**
  * Finder-lane rows (`origin = 'extension'`), one per `findings[]` entry.
  * Only meaningful for a probabilistic ANALYZER's report; the record path
  * never calls this for an Action (an Action report carrying a `findings`
  * array is not routed).
+ *
+ * When `opts` is supplied, any finding matching an active sidecar
+ * suppression on the node is DROPPED before the row lands
+ * (`spec/db-schema.md` §state_findings, finder-lane suppression filter):
+ * a user-dismissed judgment class never returns until the suppression is
+ * removed from the `.sm` file. Safety-lane rows are never suppressed (they
+ * are `origin = 'kernel'` and never pass through here). The caller reads
+ * the suppressions from the node's LIVE `.sm` sidecar (the source of
+ * truth), never the denormalized `scan_nodes.annotations_json`.
  */
-export function extensionFindingRows(report: Record<string, unknown>): IFindingRowInput[] {
+export function extensionFindingRows(
+  report: Record<string, unknown>,
+  opts?: { extensionId: string; suppressions: readonly ISuppressionMatch[] },
+): IFindingRowInput[] {
   const fallbackConfidence = reportConfidence(report);
-  return findingEntries(report).map((entry) => ({
+  const rows = findingEntries(report).map((entry) => ({
     origin: 'extension' as const,
     type: typeof entry['type'] === 'string' ? entry['type'] : '',
     severity: entrySeverity(entry['severity']),
@@ -94,6 +139,8 @@ export function extensionFindingRows(report: Record<string, unknown>): IFindingR
     confidence:
       typeof entry['confidence'] === 'number' ? entry['confidence'] : fallbackConfidence,
   }));
+  if (opts === undefined || opts.suppressions.length === 0) return rows;
+  return rows.filter((row) => !isFindingSuppressed(opts.extensionId, row.type, opts.suppressions));
 }
 
 /** AJV already pinned the enum; degrade off-contract values to `info`. */

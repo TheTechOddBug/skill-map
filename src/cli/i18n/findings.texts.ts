@@ -216,4 +216,45 @@ export const FINDINGS_CLI_TEXTS = {
     '{{glyph}}  findings resolve: invalid id "{{value}}".\n' +
     '   {{hint}}\n',
   resolveBadIdHint: 'Pass the integer id shown by `sm findings`, e.g. 42.',
+
+  // --- sm findings dismiss <id> ------------------------------------------
+  /**
+   * Success line for `sm findings dismiss <id>`: the durable
+   * `annotations.suppressions` entry landed in the node's `.sm` sidecar and
+   * the whole (extension, type) judgment class was deleted. Names the
+   * silenced class + node so the operator sees exactly what stops being
+   * reported. Every interpolated value is sanitized at the call site.
+   */
+  dismissDone:
+    '{{glyph}}  Dismissed: {{extension}} {{type}} on {{node}} will no longer be reported ' +
+    '(recorded in {{sidecar}}).\n',
+  /** Exit 5: no finding carries that id. */
+  dismissNotFound:
+    '{{glyph}}  Finding {{id}} not found.\n' +
+    '   {{hint}}\n',
+  dismissNotFoundHint:
+    'Run `sm findings` to list finding ids (`sm scan` first if the DB is empty).',
+  /** Exit 2: the positional id is not a positive integer. */
+  dismissBadId:
+    '{{glyph}}  findings dismiss: invalid id "{{value}}".\n' +
+    '   {{hint}}\n',
+  dismissBadIdHint: 'Pass the integer id shown by `sm findings`, e.g. 42.',
+  /**
+   * Exit 2: the target is a kernel safety-lane finding
+   * (`injection-detected` / `content-suspicious` / `content-malformed`),
+   * which is not dismissible (`spec/cli-contract.md` §sm findings dismiss).
+   */
+  dismissNotDismissible:
+    '{{glyph}}  Finding {{id}} ({{type}}) is a kernel safety finding and cannot be dismissed.\n' +
+    '   {{hint}}\n',
+  dismissNotDismissibleHint:
+    'Safety findings flag injection / malformed content; fix the file or re-run the finder to clear them.',
+  /**
+   * Exit 5: the finding's node is no longer in the scan AND has no sidecar
+   * yet, so there is nothing to anchor a durable suppression to.
+   */
+  dismissNodeGone:
+    '{{glyph}}  Finding {{id}}: node {{node}} is not in the current scan.\n' +
+    '   {{hint}}\n',
+  dismissNodeGoneHint: 'Run `sm scan` to re-index the node, then dismiss again.',
 } as const;

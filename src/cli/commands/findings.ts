@@ -56,6 +56,8 @@
  *   5  DB file missing, run `sm scan` first.
  */
 
+import { resolve } from 'node:path';
+
 import { Command, Option } from 'clipanion';
 
 import type {
@@ -64,10 +66,18 @@ import type {
   TFindingResolution,
   TResolutionActor,
 } from '../../kernel/types/storage.js';
+import type { StoragePort } from '../../kernel/ports/storage.js';
 import type { Severity } from '../../kernel/types.js';
+import { readSidecarFor, sidecarPathFor } from '../../kernel/sidecar/index.js';
+import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
+import {
+  EConsentRequiredError,
+  ensureSidecarWritesAllowed,
+} from '../../core/config/sidecar-consent.js';
 import { FINDINGS_CLI_TEXTS as T } from '../i18n/findings.texts.js';
+import { CONSENT_TEXTS } from '../i18n/consent.texts.js';
 import type { IAnsi } from '../util/ansi.js';
 import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
@@ -605,6 +615,326 @@ export class FindingsResolveCommand extends SmCommand {
     );
     return ExitCode.Error;
   }
+}
+
+/**
+ * `sm findings dismiss <finding.id> [--note <text>] [--yes]`
+ *
+ * Silence a finding the operator has judged acceptable (a false positive,
+ * or an intentional pattern the finder keeps flagging). Durable, NOT a row
+ * state (`spec/cli-contract.md` §sm findings dismiss): it writes a standing
+ * `annotations.suppressions` entry to the node's `.sm` sidecar (through the
+ * gated sidecar write channel, same consent as `sm bump`) keyed by the
+ * finding's emitting extension + `type`, then deletes every
+ * `state_findings` row of that (extension, type) class on the node. The
+ * finder's record path drops matching findings before they land, so the
+ * judgment CLASS stays silenced across re-runs until the entry is removed
+ * from the `.sm` file. Suppression grain is per (extension, type): findings
+ * have no stable cross-run identity, so the honest durable grain is the
+ * judgment class.
+ *
+ * Distinct from `resolve` (marks a finding FIXED, a resolution) and `prune`
+ * (clears stale rows): dismiss says "this judgment does not apply here,
+ * stop making it".
+ *
+ * Kernel safety-lane findings (`origin = 'kernel'`: `injection-detected` /
+ * `content-suspicious` / `content-malformed`) are NOT dismissible (exit 2).
+ * Exit 5 if the id does not exist; exit 2 if the id is not a positive
+ * integer. `--json` emits the written suppression entry. Absent DB -> exit 5.
+ */
+export class FindingsDismissCommand extends SmCommand {
+  static override paths = [['findings', 'dismiss']];
+  static override usage = Command.Usage({
+    category: 'Browse',
+    description: 'Permanently silence a finding you judged acceptable (durable sidecar suppression).',
+    details: `
+      Writes a standing annotations.suppressions entry to the node's .sm
+      sidecar (keyed by the finding's emitting extension + type, through the
+      same consent gate as sm bump), then deletes every state_findings row
+      of that (extension, type) class on the node. The finder's record path
+      then drops matching findings before they land, so the judgment stays
+      silenced across re-runs until you remove the entry from the .sm file.
+
+      Suppression grain is per (extension, type): findings carry no stable
+      identity across finder runs, so the honest durable grain is the
+      judgment CLASS, not one occurrence.
+
+      Distinct from sm findings resolve (marks a finding fixed) and sm
+      findings prune (clears stale rows): dismiss says "this judgment does
+      not apply here, stop making it".
+
+      Kernel safety findings (injection-detected / content-suspicious /
+      content-malformed) are NOT dismissible (exit 2). Exit 5 if the id does
+      not exist; exit 2 if the id is not a positive integer. --json emits
+      the written suppression entry.
+    `,
+    examples: [
+      ['Dismiss finding 42', '$0 findings dismiss 42'],
+      ['Dismiss it with a reason', '$0 findings dismiss 42 --note "Intentional; the two steps are alternatives."'],
+    ],
+  });
+
+  id = Option.String({ required: true });
+  note = Option.String('--note', {
+    required: false,
+    description: 'One-line reason recorded on the suppression entry.',
+  });
+  yes = Option.Boolean('--yes', false, {
+    description: 'Confirm writing .sm sidecar files in this project (sets allowEditSmFiles=true on first run).',
+  });
+
+  protected async run(): Promise<number> {
+    const ctx = defaultRuntimeContext();
+    const dbPath = resolveDbPath({ db: this.db, ...ctx });
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    if (dbExit !== null) return dbExit;
+
+    const id = this.parseId();
+    if (id === null) return this.failBadId();
+
+    // Write verb: refuse a drifted DB before the class delete
+    // (spec/cli-contract.md §Schema-drift rebuild).
+    assertNoDriftForWrite(dbPath);
+
+    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
+      const finding = await adapter.findings.get(id);
+      if (!finding) return this.failNotFound(id);
+      // Kernel safety-lane rows are not suppressible (spec §sm findings
+      // dismiss): they flag injection / malformed content, not a prose
+      // judgment the operator can wave off.
+      if (finding.origin === 'kernel') return this.failNotDismissible(id, finding.type);
+      // The sidecar write goes through the same consent gate as sm bump;
+      // wrap so a first EConsentRequiredError surfaces as a prompt / retry.
+      return this.runWithConsent(() => this.dismiss(adapter, finding, ctx.cwd));
+    });
+  }
+
+  /** Parse the positional id to a positive integer, or `null` when invalid. */
+  private parseId(): number | null {
+    const parsed = Number(this.id);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  /**
+   * The durable half: write the suppression entry to the node's `.sm`
+   * sidecar (gated), then delete the (extension, type) class. `applyPatch`
+   * throws `EConsentRequiredError` BEFORE any disk write, so on the first
+   * (declined) pass nothing has changed and `runWithConsent` can re-run.
+   */
+  private async dismiss(
+    adapter: StoragePort,
+    finding: IFindingRecord,
+    cwd: string,
+  ): Promise<TExitCode> {
+    const entry = this.buildSuppression(finding);
+    const mdAbs = resolve(cwd, finding.nodeId);
+    const sidecarAbs = sidecarPathFor(mdAbs);
+    const read = readSidecarFor(mdAbs);
+    const merged = mergeSuppression(existingSuppressions(read.parsed?.annotations), entry);
+    const changes: Record<string, unknown> = { annotations: { suppressions: merged } };
+    // A brand-new (or previously invalid) sidecar needs the required
+    // `identity` block to validate; source it from the live scan node so
+    // the drift baseline is honest. An EXISTING valid sidecar keeps its
+    // identity untouched (dismiss is not a bump, it must not reset drift).
+    if (read.parsed === null) {
+      const bundle = await adapter.scans.findNode(finding.nodeId);
+      if (!bundle) return this.failNodeGone(finding);
+      changes['identity'] = {
+        path: bundle.node.path,
+        bodyHash: bundle.node.bodyHash,
+        frontmatterHash: bundle.node.frontmatterHash,
+      };
+    }
+    const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
+    // Step 17 consent split: --yes persists the grant (its documented
+    // "never asked again" contract), so it threads `always`.
+    await store.applyPatch(sidecarAbs, changes, {
+      confirm: this.yes,
+      always: this.yes,
+      cwd,
+    });
+    const deleted = await adapter.findings.dismissClass(
+      finding.nodeId,
+      finding.extensionId,
+      finding.type,
+    );
+    return this.reportDismissed(finding, entry, deleted);
+  }
+
+  /**
+   * The suppression entry to append: `{ extension, type?, note? }`. `type`
+   * rides when the finding carries one (finder findings always do); `note`
+   * rides when `--note` was passed.
+   */
+  private buildSuppression(finding: IFindingRecord): Record<string, unknown> {
+    const entry: Record<string, unknown> = { extension: finding.extensionId };
+    if (finding.type.length > 0) entry['type'] = finding.type;
+    if (this.note !== undefined && this.note.length > 0) entry['note'] = this.note;
+    return entry;
+  }
+
+  /**
+   * Wrap the sidecar-writing dispatch with the `.sm` consent gate (mirror
+   * of `sm bump`): on the first `EConsentRequiredError`, prompt when stdin
+   * is a TTY and `--yes` was not passed; on accept flip `--yes` and re-run
+   * (the second pass passes `always: true` and persists the flag). On
+   * decline or non-TTY without `--yes`, print the directed message + exit 2.
+   */
+  private async runWithConsent(dispatch: () => Promise<TExitCode>): Promise<TExitCode> {
+    const ansi = this.ansiFor('stderr');
+    try {
+      return await dispatch();
+    } catch (err) {
+      if (!(err instanceof EConsentRequiredError)) throw err;
+      const stdin = this.context.stdin as NodeJS.ReadStream;
+      const stderr = this.context.stderr as NodeJS.WriteStream;
+      const isTTY = stdin.isTTY === true;
+      if (!isTTY || this.yes) {
+        this.printer!.error(
+          tx(CONSENT_TEXTS.consentRequiredNonTty, {
+            glyph: ansi.red('✕'),
+            verb: 'sm findings dismiss',
+            hint: ansi.dim(CONSENT_TEXTS.consentRequiredNonTtyHint),
+          }),
+        );
+        return ExitCode.Error;
+      }
+      const ok = await confirm(
+        tx(CONSENT_TEXTS.consentPrompt, { glyph: ansi.cyan('ℹ') }),
+        { stdin, stderr },
+        { defaultAnswer: 'yes' },
+      );
+      if (!ok) {
+        this.printer!.error(
+          tx(CONSENT_TEXTS.consentAborted, { glyph: ansi.cyan('ℹ'), verb: 'sm findings dismiss' }),
+        );
+        return ExitCode.Error;
+      }
+      this.yes = true;
+      return await dispatch();
+    }
+  }
+
+  /** Success: the suppression landed + the class was deleted. */
+  private reportDismissed(
+    finding: IFindingRecord,
+    entry: Record<string, unknown>,
+    deleted: number,
+  ): TExitCode {
+    if (this.json) {
+      this.printer!.data(
+        JSON.stringify({
+          ok: true,
+          kind: 'suppression',
+          suppression: entry,
+          node: finding.nodeId,
+          deleted,
+        }) + '\n',
+      );
+      return ExitCode.Ok;
+    }
+    const ansi = this.ansiFor('stdout');
+    this.printer!.data(
+      tx(T.dismissDone, {
+        glyph: ansi.green('✓'),
+        extension: sanitizeForTerminal(finding.extensionId),
+        type: sanitizeForTerminal(finding.type),
+        node: sanitizeForTerminal(finding.nodeId),
+        sidecar: sanitizeForTerminal(sidecarPathFor(finding.nodeId)),
+      }),
+    );
+    return ExitCode.Ok;
+  }
+
+  /** §3.1b rejection for a non-positive-integer id, exit 2. */
+  private failBadId(): TExitCode {
+    const ansi = this.ansiFor('stderr');
+    this.printer!.error(
+      tx(T.dismissBadId, {
+        glyph: ansi.red('✕'),
+        value: sanitizeForTerminal(this.id),
+        hint: ansi.dim(T.dismissBadIdHint),
+      }),
+    );
+    return ExitCode.Error;
+  }
+
+  /** Exit 5: no finding carries that id. */
+  private failNotFound(id: number): TExitCode {
+    const ansi = this.ansiFor('stderr');
+    this.printer!.error(
+      tx(T.dismissNotFound, {
+        glyph: ansi.red('✕'),
+        id,
+        hint: ansi.dim(T.dismissNotFoundHint),
+      }),
+    );
+    return ExitCode.NotFound;
+  }
+
+  /** Exit 2: a kernel safety-lane finding is not dismissible. */
+  private failNotDismissible(id: number, type: string): TExitCode {
+    const ansi = this.ansiFor('stderr');
+    this.printer!.error(
+      tx(T.dismissNotDismissible, {
+        glyph: ansi.red('✕'),
+        id,
+        type: sanitizeForTerminal(type),
+        hint: ansi.dim(T.dismissNotDismissibleHint),
+      }),
+    );
+    return ExitCode.Error;
+  }
+
+  /** Exit 5: the node is gone from the scan and has no sidecar to anchor. */
+  private failNodeGone(finding: IFindingRecord): TExitCode {
+    const ansi = this.ansiFor('stderr');
+    this.printer!.error(
+      tx(T.dismissNodeGone, {
+        glyph: ansi.red('✕'),
+        id: finding.id,
+        node: sanitizeForTerminal(finding.nodeId),
+        hint: ansi.dim(T.dismissNodeGoneHint),
+      }),
+    );
+    return ExitCode.NotFound;
+  }
+}
+
+/**
+ * Existing `annotations.suppressions` entries from a parsed sidecar, kept
+ * verbatim (they already validated on their own write). Non-array or
+ * absent yields `[]`. `applyPatch` REPLACES arrays wholesale, so the
+ * caller must hand it the FULL merged list, never just the new entry.
+ */
+function existingSuppressions(
+  annotations: Record<string, unknown> | null | undefined,
+): Record<string, unknown>[] {
+  const raw = annotations?.['suppressions'];
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((e): e is Record<string, unknown> => typeof e === 'object' && e !== null);
+}
+
+/**
+ * Append `entry` to the existing suppressions unless an identical
+ * (extension, type) entry already stands (idempotent per
+ * `spec/cli-contract.md` §sm findings dismiss: a repeat dismiss is a
+ * no-op, never a duplicate). Note is NOT part of the identity, so a second
+ * dismiss with a different `--note` does not add a row.
+ */
+function mergeSuppression(
+  existing: readonly Record<string, unknown>[],
+  entry: Record<string, unknown>,
+): Record<string, unknown>[] {
+  const dup = existing.some(
+    (e) => e['extension'] === entry['extension'] && normalizeType(e['type']) === normalizeType(entry['type']),
+  );
+  return dup ? [...existing] : [...existing, entry];
+}
+
+/** A suppression's `type` normalized for identity comparison (absent === undefined). */
+function normalizeType(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
 }
 
 /**

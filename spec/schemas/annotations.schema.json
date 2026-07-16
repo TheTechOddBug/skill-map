@@ -13,12 +13,19 @@
     },
     "stability": {
       "type": "string",
-      "enum": ["experimental", "stable", "deprecated"],
+      "enum": [
+        "experimental",
+        "stable",
+        "deprecated"
+      ],
       "description": "Lifecycle stage. Denormalized into `scan_nodes.stability` for fast queries (see `node.schema.json` #/properties/stability). Default: missing == unspecified."
     },
     "authors": {
       "type": "array",
-      "items": { "type": "string", "minLength": 1 },
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
       "description": "Multi-author list. Single-author files use a one-element array."
     },
     "license": {
@@ -38,13 +45,41 @@
     },
     "tags": {
       "type": "array",
-      "items": { "type": "string", "minLength": 1 },
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
       "description": "Taxonomy tags for this node. Tags are a **skill-map concept**, not a vendor field: no agent format carries `tags` in frontmatter, so they live here in the `.sm` sidecar. Written by whoever curates the project. `sm list --tag <name>` and the UI's faceted search match this field; the UI renders them as chips on the node card and inspector. Empty array and missing field are equivalent."
     },
     "docsUrl": {
       "type": "string",
       "format": "uri",
       "description": "Canonical docs URL for this node (separate from `source`, which points at the file's upstream)."
+    },
+    "suppressions": {
+      "type": "array",
+      "description": "Standing user declarations that silence probabilistic findings on THIS node: each entry suppresses findings whose emitting extension matches `extension` (qualified id) and, when `type` is present, whose finding type matches it (absent = every type from that extension). Written by `sm findings dismiss <id>` through the gated sidecar channel (the durable half of dismissing: the dismissed rows are deleted and the finder's record path drops matching findings before they land, so they never return until the entry is removed, by editing this file). Kernel safety-lane findings (origin `kernel`, the reserved `injection-detected` / `content-suspicious` / `content-malformed` slugs) are NOT suppressible. Suppressions are per (extension, type), not per finding occurrence: findings carry no stable identity across finder runs, so the honest durable grain is the judgment CLASS.",
+      "items": {
+        "type": "object",
+        "required": [
+          "extension"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "extension": {
+            "type": "string",
+            "description": "Qualified extension id of the finder whose findings are suppressed (e.g. `core/node-contradiction`)."
+          },
+          "type": {
+            "type": "string",
+            "description": "Optional finding type slug; absent suppresses every type from the extension."
+          },
+          "note": {
+            "type": "string",
+            "description": "Optional one-line reason, the operator's own record of why this judgment class is fine here."
+          }
+        }
+      }
     }
   }
 }

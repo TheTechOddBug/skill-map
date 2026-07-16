@@ -134,7 +134,9 @@ import {
 import { listSummariesForNode } from './summaries.js';
 import {
   countStaleFindings,
+  deleteFindingClass,
   deleteStaleFindings,
+  getFindingById,
   listFindings,
   resolveFindingByHuman,
 } from './findings.js';
@@ -417,6 +419,9 @@ export class SqliteStorageAdapter implements StoragePort {
       countStale: () => countStaleFindings(this.db),
       pruneStale: () => deleteStaleFindings(this.db),
       resolveByHuman: (id, note, nowMs) => resolveFindingByHuman(this.db, id, note, nowMs),
+      get: (id) => getFindingById(this.db, id),
+      dismissClass: (nodeId, extensionId, type) =>
+        deleteFindingClass(this.db, nodeId, extensionId, type),
     };
 
     this.favorites = {

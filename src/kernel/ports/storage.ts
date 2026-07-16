@@ -614,6 +614,22 @@ export interface StoragePort {
       note: string | null,
       nowMs: number,
     ): Promise<TFindingResolveOutcome>;
+    /**
+     * Read one finding by id with the derived `stale` flag. `null` when no
+     * row carries the id. Backs `sm findings dismiss <id>`, which loads the
+     * target (to read its `extension_id` / `type` / `node_id` / `origin`)
+     * before writing the durable sidecar suppression.
+     */
+    get(id: number): Promise<IFindingRecord | null>;
+    /**
+     * `sm findings dismiss <id>` DB half (`spec/cli-contract.md` §sm
+     * findings dismiss): after the durable `annotations.suppressions` entry
+     * lands in the node's `.sm` sidecar, delete every `state_findings` row
+     * on `nodeId` matching `(extensionId, type)`, the whole judgment CLASS
+     * (findings have no stable cross-run identity, so the class is the
+     * grain). Returns the deleted row count.
+     */
+    dismissClass(nodeId: string, extensionId: string, type: string): Promise<number>;
   };
 
   // --- summaries namespace ----------------------------------------------

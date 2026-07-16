@@ -291,6 +291,10 @@ describe('sm record --status completed', () => {
       match(String(events[2]!.data['executionId']), /^e-\d{8}-\d{6}-[0-9a-f]{4}$/);
       strictEqual(events[3]!.data['tokensIn'], 12);
       strictEqual(events[3]!.data['tokensOut'], 34);
+      // job.completed carries the job's frozen extension identity so a hook
+      // can filter to a kind / extension (Decision #144, core/auto-fix).
+      strictEqual(events[3]!.data['extensionId'], ACTION_ID);
+      strictEqual(events[3]!.data['extensionKind'], 'action');
       strictEqual(events[4]!.jobId, null);
       strictEqual(events[4]!.data['jobsAttempted'], 1);
       strictEqual(events[4]!.data['jobsCompleted'], 1);

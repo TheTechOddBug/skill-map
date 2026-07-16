@@ -252,6 +252,30 @@ export async function deleteStaleFindings(db: TDbOrTx): Promise<number> {
   return Number(result.numDeletedRows ?? 0);
 }
 
+/**
+ * Delete every `state_findings` row on `nodeId` whose `(extensionId, type)`
+ * matches: the whole judgment CLASS a `sm findings dismiss <id>` silences
+ * (`spec/cli-contract.md` §sm findings dismiss, `spec/db-schema.md`
+ * §state_findings). NOT just the dismissed id: findings carry no stable
+ * identity across finder runs, so the honest durable grain is the
+ * (extension, type) class on the node, mirroring the sidecar suppression
+ * this delete accompanies. Returns the deleted row count.
+ */
+export async function deleteFindingClass(
+  db: TDbOrTx,
+  nodeId: string,
+  extensionId: string,
+  type: string,
+): Promise<number> {
+  const result = await db
+    .deleteFrom('state_findings')
+    .where('nodeId', '=', nodeId)
+    .where('extensionId', '=', extensionId)
+    .where('type', '=', type)
+    .executeTakeFirst();
+  return Number(result.numDeletedRows ?? 0);
+}
+
 /** Rank used by the minimum-severity filter: `info` < `warn` < `error`. */
 const SEVERITY_RANK: Record<Severity, number> = { info: 0, warn: 1, error: 2 };
 

@@ -61,9 +61,14 @@ import { resolve } from 'node:path';
 import { Command, Option } from 'clipanion';
 
 import type { ExecutionRecord, Job } from '../../kernel/types.js';
+import type { IAction, IHookActionInfo } from '../../kernel/extensions/index.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
+import type { ProgressEmitterPort } from '../../kernel/ports/progress-emitter.js';
 import { createNdjsonProgressEmitter } from '../../core/runtime/progress-emitter.js';
+import { makeHookDispatcher } from '../../kernel/extensions/hook-dispatcher.js';
 import { generateRunId, JobNotRunningError } from '../../kernel/jobs/index.js';
+import { loadConfig } from '../../kernel/config/loader.js';
+import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
@@ -73,7 +78,8 @@ import { RECORD_TEXTS as T } from '../i18n/record.texts.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
 import { withSqlite } from '../util/with-sqlite.js';
-import { loadActionRuntime } from './action-runtime.js';
+import { loadActionRuntime, type IActionRuntime } from './action-runtime.js';
+import { submitFixerJob } from './job-queue.js';
 import {
   recordCompletedOutcome,
   recordFailedOutcome,
@@ -250,23 +256,28 @@ export class RecordCommand extends SmCommand {
     const reportText = this.readReport(cwd);
     if (typeof reportText === 'number') return reportText; // IO error -> exit 2, no mutation
 
+    // Load the composed runtime at most once, lazily: the `resolve` callback
+    // triggers it only after the report parses (preserving the
+    // report-invalid-before-resolution ordering), and the post-record hook
+    // dispatch reuses the same instance instead of re-discovering plugins.
+    let runtimeMemo: IActionRuntime | undefined;
+    const getRuntime = async (): Promise<IActionRuntime> =>
+      (runtimeMemo ??= await loadActionRuntime(this.printer!));
+
     const outcome = await recordCompletedOutcome({
       adapter,
       job,
       reportText,
-      // Lazy: the runtime loads only when the report parsed (preserving the
-      // report-invalid-before-resolution ordering, see record-outcome.ts).
       // Kind-strict: the job row carries the extension kind FROZEN at
       // submit (spec/db-schema.md §state_jobs), so resolution routes on
       // it instead of re-resolving the id across the registries.
       resolve: async () =>
-        resolveExtensionRecord(
-          await loadActionRuntime(this.printer!),
-          job.extensionId,
-          job.extensionKind,
-        ),
+        resolveExtensionRecord(await getRuntime(), job.extensionId, job.extensionKind),
       metrics: this.toRecordMetrics(metrics),
       now,
+      // Threaded so the finder lane can read the node's LIVE `.sm`
+      // sidecar suppressions and drop dismissed findings (spec §state_findings).
+      cwd,
     });
 
     if (outcome.kind === 'schema-unresolved') {
@@ -288,7 +299,79 @@ export class RecordCommand extends SmCommand {
       );
       return ExitCode.Error;
     }
+    // The record committed. Now dispatch job.completed to enabled hooks:
+    // the opt-in `core/auto-fix` hook chains a finder to its matching
+    // fixer(s). Best-effort and AFTER the transaction, so it never alters
+    // the record's success (spec §Hook: hooks react, never block).
+    await this.dispatchJobCompletedHooks(adapter, job, cwd, getRuntime);
     return this.reportSuccess(outcome.execution, job);
+  }
+
+  /**
+   * Dispatch `job.completed` to the composed (enabled) hooks and drain any
+   * fixer jobs they queued, all while the record's DB handle is still open.
+   * The opt-in `core/auto-fix` hook is the concrete consumer: on a finder's
+   * completion it resolves the inverse of Modelo B and `ctx.queue`s each
+   * matching fixer for the node (`spec/architecture.md` §Modelo B ·
+   * Auto-fix). Entirely best-effort, wrapped so ANY failure here (plugin
+   * load, config read, a fixer submit) leaves the recorded job completed and
+   * never changes the exit code, hooks react, they do not steer the pipeline.
+   */
+  private async dispatchJobCompletedHooks(
+    adapter: StoragePort,
+    job: Job,
+    cwd: string,
+    getRuntime: () => Promise<IActionRuntime>,
+  ): Promise<void> {
+    try {
+      const runtime = await getRuntime();
+      // Nothing subscribes to job.completed -> nothing to do (the default:
+      // core/auto-fix ships disabled, and core/update-check is a boot hook).
+      if (!runtime.hooks.some((hook) => hook.triggers.includes('job.completed'))) return;
+
+      const bundle = await adapter.scans.findNode(job.nodeId);
+      const queued: Array<{ actionId: string; nodeId: string }> = [];
+      const dispatcher = makeHookDispatcher(runtime.hooks, silentEmitter(), {
+        // The hook's ctx.queue records the request synchronously; the actual
+        // submit is drained below while `adapter` is still open (a hook is
+        // fire-and-forget void, so the driver owns the async lifecycle).
+        queue: (actionId, payload) => {
+          const nodeId = (payload as { nodeId?: unknown } | undefined)?.nodeId;
+          if (typeof nodeId === 'string' && nodeId.length > 0) queued.push({ actionId, nodeId });
+        },
+        actions: projectHookActions(runtime.actions),
+      });
+      await dispatcher.dispatch('job.completed', {
+        type: 'job.completed',
+        timestamp: Date.now(),
+        jobId: job.id,
+        // node rides the INTERNAL dispatch event (buildHookContext lifts it
+        // to ctx.node); it is NOT added to the spec ndjson job.completed shape.
+        data: {
+          extensionId: job.extensionId,
+          extensionKind: job.extensionKind,
+          ...(bundle ? { node: bundle.node } : {}),
+        },
+      });
+      if (queued.length === 0) return;
+      const jobsConfig = loadConfig({ cwd }).effective.jobs;
+      for (const request of queued) {
+        // A no-findings / drift / duplicate refusal is swallowed by contract
+        // (nothing to fix is not an error); a hard throw is caught too.
+        try {
+          await submitFixerJob(adapter, runtime, jobsConfig, {
+            extensionId: request.actionId,
+            nodeId: request.nodeId,
+            cwd,
+          });
+        } catch {
+          // best-effort: a fixer submit failure never fails the record.
+        }
+      }
+    } catch {
+      // Hooks never block the pipeline (spec §Hook). A failure here leaves
+      // the recorded job completed; the auto-fix chain just did not run.
+    }
   }
 
   /**
@@ -400,16 +483,23 @@ export class RecordCommand extends SmCommand {
       executionId: execution.id,
     });
     if (completed) {
-      stamp('job.completed', job.id, this.completedEventData(execution));
+      stamp('job.completed', job.id, this.completedEventData(execution, job));
     } else {
       stamp('job.failed', job.id, this.failedEventData(execution));
     }
     stamp('run.summary', null, summaryEventData(execution, completed));
   }
 
-  /** `job.completed` event data (`spec/job-events.md`). */
-  private completedEventData(execution: ExecutionRecord): Record<string, unknown> {
+  /**
+   * `job.completed` event data (`spec/job-events.md`). Carries the job's
+   * frozen `extensionId` / `extensionKind` so a hook can filter to a kind
+   * (`kind: 'analyzer'`) or a specific extension, this is what the opt-in
+   * `core/auto-fix` hook keys on to chain finder -> fixer (Decision #144).
+   */
+  private completedEventData(execution: ExecutionRecord, job: Job): Record<string, unknown> {
     return {
+      extensionId: job.extensionId,
+      extensionKind: job.extensionKind,
       durationMs: execution.durationMs ?? null,
       tokensIn: execution.tokensIn ?? null,
       tokensOut: execution.tokensOut ?? null,
@@ -461,4 +551,27 @@ function summaryEventData(execution: ExecutionRecord, completed: boolean): Recor
     totalTokensIn: execution.tokensIn ?? 0,
     totalTokensOut: execution.tokensOut ?? 0,
   };
+}
+
+/**
+ * Project the composed Actions to the minimal `IHookActionInfo[]` a hook
+ * resolves the inverse of Modelo B against (qualified id + declared
+ * `precondition.analyzerIds`). Handed to the dispatcher as `ctx.actions`.
+ */
+function projectHookActions(actions: readonly IAction[]): IHookActionInfo[] {
+  return actions.map((action) => ({
+    id: qualifiedExtensionId(action.pluginId, action.id),
+    analyzerIds: action.precondition?.analyzerIds ?? [],
+  }));
+}
+
+/**
+ * A no-op `ProgressEmitterPort` for the record-path hook dispatch: the
+ * dispatcher only uses the emitter to surface a hook's own error, and the
+ * record path must NOT write anything to stdout (it carries the ndjson
+ * envelope under `--json`), so those hook errors are dropped.
+ */
+function silentEmitter(): ProgressEmitterPort {
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  return { emit: () => {} } as unknown as ProgressEmitterPort;
 }
