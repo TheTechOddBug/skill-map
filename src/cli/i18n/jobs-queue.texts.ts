@@ -48,6 +48,13 @@ export const JOBS_QUEUE_TEXTS = {
   submitQueuedLine: '{{glyph}}  queued {{id}}  {{node}}\n',
   submitDuplicateLine:
     '{{glyph}}  duplicate: active job {{id}} already covers {{node}}\n',
+  // Fixer supersede advisory (`spec/job-lifecycle.md` §Findings injection for
+  // fixers · Supersede): a fixer submit whose finding set / body changed since
+  // a sibling job was queued CANCELS that stale queued job and enqueues the
+  // new one. Human mode only (stderr); the new job id still rides stdout, and
+  // --json stays the plain new Job. The identical-request and running-job
+  // refusals are NOT supersessions, they reuse submitDuplicateLine (exit 3).
+  submitSupersededLine: '{{glyph}}  superseded queued job {{id}}\n',
   submitDriftLine:
     '{{glyph}}  drift: {{node}} changed on disk since the last scan (run sm scan)\n',
   submitUnreadableLine:

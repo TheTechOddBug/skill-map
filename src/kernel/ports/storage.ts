@@ -78,6 +78,7 @@ import type {
   ISummaryRecord,
   ISummaryWriteIntent,
   TFindingResolveOutcome,
+  TFixerSubmitOutcome,
   THistoryStatsPeriod,
   TJobTransitionOutcome,
 } from '../types/storage.js';
@@ -406,6 +407,18 @@ export interface StoragePort {
      * backstop); the CLI maps that to exit 3.
      */
     submit(row: IJobSubmitRow, content: IJobContentInput): Promise<string>;
+    /**
+     * Atomic FIXER supersede submit (`spec/job-lifecycle.md` §Findings
+     * injection for fixers · Supersede). In ONE transaction it finds any
+     * ACTIVE job for the `(extensionId, nodeId)` pair and resolves the
+     * collision: a running job refuses (`running-conflict`, never superseded);
+     * an identical queued request refuses (`duplicate`); otherwise it CANCELS
+     * every stale queued sibling (a different `contentHash`) and enqueues the
+     * new job (`created`, `supersededIds` naming the cancelled rows). Only the
+     * fixer submit path uses this; every other submit goes through
+     * `submit(...)` + the plain `findActiveDuplicate` pre-check.
+     */
+    submitFixer(row: IJobSubmitRow, content: IJobContentInput): Promise<TFixerSubmitOutcome>;
     /**
      * Duplicate pre-check: id of any `queued`/`running` job matching
      * `(extensionId, extensionVersion, nodeId, contentHash)`, else `null`.
@@ -812,6 +825,7 @@ export type {
   ISummaryRecord,
   ISummaryWriteIntent,
   TFindingResolveOutcome,
+  TFixerSubmitOutcome,
   THistoryStatsPeriod,
   TJobTransitionOutcome,
 } from '../types/storage.js';

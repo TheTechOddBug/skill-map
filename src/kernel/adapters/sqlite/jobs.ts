@@ -43,6 +43,7 @@ import type {
   IJobSubmitRow,
   IPruneResult,
   ISummaryWriteIntent,
+  TFixerSubmitOutcome,
   TJobTransitionOutcome,
 } from '../../types/storage.js';
 import { JobNotRunningError } from '../../jobs/errors.js';
@@ -131,6 +132,106 @@ export async function submitJob(
       .execute();
   });
   return row.id;
+}
+
+/**
+ * Atomic FIXER supersede submit (`spec/job-lifecycle.md` §Findings injection
+ * for fixers · Supersede). Semantically every job for a `(fixer, node)` pair
+ * is "fix this node with this fixer"; a second one whose findings / body
+ * changed since the first was queued makes the first stale (it would waste an
+ * agent pass on findings already resolved), so the newer submit CANCELS the
+ * stale queued sibling and enqueues itself in ONE transaction.
+ *
+ * Inside the transaction, in order:
+ *   1. A `running` job for the pair is NEVER superseded (an agent holds its
+ *      claim): return `running-conflict` with no writes.
+ *   2. A `queued` job with THIS exact `contentHash` is the plain duplicate:
+ *      return `duplicate` with no writes (mirrors the `submit(...)` +
+ *      partial-index backstop, detected explicitly so the insert never has to
+ *      trip the unique constraint).
+ *   3. Otherwise CANCEL every stale `queued` sibling (a DIFFERENT
+ *      `contentHash`) to the terminal `cancelled` state (`finishedAt = now`,
+ *      no `failureReason`, the same transition `cancelJob` uses), then insert
+ *      the content (`INSERT OR IGNORE`) + the new queued row. Return `created`
+ *      with the superseded ids.
+ *
+ * The pair key is `(extension_id, node_id)`, matching the duplicate partial
+ * index (`ix_state_jobs_extension_node_hash`, which is NOT keyed on
+ * `extension_version`); a version change re-keys the `contentHash` anyway.
+ */
+export async function submitFixerJob(
+  db: Kysely<IDatabase>,
+  row: IJobSubmitRow,
+  content: IJobContentInput,
+): Promise<TFixerSubmitOutcome> {
+  return db.transaction().execute(async (trx) => {
+    const running = await trx
+      .selectFrom('state_jobs')
+      .select('id')
+      .where('extensionId', '=', row.extensionId)
+      .where('nodeId', '=', row.nodeId)
+      .where('status', '=', 'running')
+      .orderBy('claimedAt', 'asc')
+      .limit(1)
+      .executeTakeFirst();
+    if (running) return { outcome: 'running-conflict', runningId: running.id };
+
+    const duplicate = await trx
+      .selectFrom('state_jobs')
+      .select('id')
+      .where('extensionId', '=', row.extensionId)
+      .where('nodeId', '=', row.nodeId)
+      .where('status', '=', 'queued')
+      .where('contentHash', '=', row.contentHash)
+      .limit(1)
+      .executeTakeFirst();
+    if (duplicate) return { outcome: 'duplicate', existingId: duplicate.id };
+
+    const superseded = await trx
+      .updateTable('state_jobs')
+      .set({ status: 'cancelled', failureReason: null, finishedAt: row.createdAt })
+      .where('extensionId', '=', row.extensionId)
+      .where('nodeId', '=', row.nodeId)
+      .where('status', '=', 'queued')
+      .where('contentHash', '!=', row.contentHash)
+      .returning('id')
+      .execute();
+
+    await trx
+      .insertInto('state_job_contents')
+      .values({
+        contentHash: content.contentHash,
+        content: content.content,
+        createdAt: content.createdAt,
+      })
+      .onConflict((oc) => oc.column('contentHash').doNothing())
+      .execute();
+
+    await trx
+      .insertInto('state_jobs')
+      .values({
+        id: row.id,
+        extensionId: row.extensionId,
+        extensionVersion: row.extensionVersion,
+        extensionKind: row.extensionKind,
+        nodeId: row.nodeId,
+        contentHash: row.contentHash,
+        nonce: row.nonce,
+        priority: row.priority,
+        status: row.status,
+        ttlSeconds: row.ttlSeconds,
+        createdAt: row.createdAt,
+        failureReason: null,
+        runner: null,
+        claimedAt: null,
+        finishedAt: null,
+        expiresAt: null,
+        submittedBy: row.submittedBy ?? null,
+      })
+      .execute();
+
+    return { outcome: 'created', jobId: row.id, supersededIds: superseded.map((r) => r.id) };
+  });
 }
 
 /**

@@ -250,7 +250,18 @@ function toPublicJob(job: Job): Omit<Job, 'nonce'> {
 // ---------------------------------------------------------------------------
 
 type TSubmitOutcome =
-  | { kind: 'created'; nodeId: string; id: string }
+  | {
+      kind: 'created';
+      nodeId: string;
+      id: string;
+      /**
+       * Stale queued sibling ids a FIXER submit cancelled in the same
+       * transaction (`spec/job-lifecycle.md` §Findings injection for fixers ·
+       * Supersede). Empty for non-fixer submits and for fixers with nothing
+       * to supersede; a non-empty list rides a human-mode stderr advisory.
+       */
+      supersededIds: string[];
+    }
   | { kind: 'duplicate'; nodeId: string; existingId: string }
   /** On-disk body no longer matches the scanned hash (exit 2 single-target). */
   | { kind: 'drift'; nodeId: string }
@@ -362,22 +373,65 @@ export class JobSubmitCommand extends SmCommand {
     if (typeof jobs === 'number') return jobs;
 
     const runtime = await loadActionRuntime(this.printer!);
-    const resolved = this.resolveTargetOrExit(runtime);
-    if (typeof resolved === 'number') return resolved;
-
-    const prepared = this.prepareSubmit(
-      resolved,
+    // Resolve + prepare through the SHARED helper (also used by the
+    // record-path auto-fix hook via `submitFixerJob`), then map any
+    // structured failure to this command's exact error output + exit code.
+    const prep = prepareSubmitContext({
       runtime,
       jobs,
-      flags.ttl,
-      flags.priority,
-      ctx.cwd,
-    );
-    if (typeof prepared === 'number') return prepared;
+      extensionId: this.extension,
+      cwd: ctx.cwd,
+      force: this.force,
+      flagTtl: flags.ttl,
+      flagPriority: flags.priority,
+    });
+    if (!prep.ok) return this.failPrepare(prep.error);
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, (adapter) =>
-      this.dispatch(adapter, resolved.extension, prepared),
+      this.dispatch(adapter, prep.extension, prep.prepared),
     );
+  }
+
+  /**
+   * Map a `prepareSubmitContext` failure to this command's directed error
+   * output + exit code, preserving the exact messages / codes the extracted
+   * methods used to emit (unresolved extension -> 5; non-probabilistic /
+   * ambiguous / unresolved prompt or schema / bad ttl-priority -> 2).
+   */
+  private failPrepare(error: TPrepareError): TExitCode {
+    switch (error.kind) {
+      case 'not-found':
+        this.printer!.error(
+          tx(T.submitErrPrefix, {
+            glyph: this.errGlyph(),
+            message: tx(T.submitErrExtensionNotFound, { extension: this.extension }),
+          }),
+        );
+        return ExitCode.NotFound;
+      case 'deterministic':
+        return this.fail(
+          tx(T.submitErrExtensionNotProbabilistic, { extension: this.extension, mode: error.mode }),
+        );
+      case 'ambiguous':
+        return this.fail(
+          tx(T.submitErrAmbiguousExtension, {
+            extension: this.extension,
+            actionId: error.actionId,
+            analyzerId: error.analyzerId,
+          }),
+        );
+      case 'prompt-unresolved':
+        return this.fail(
+          tx(T.submitErrPromptUnresolved, { extension: this.extension, detail: error.detail }),
+        );
+      case 'report-schema-unresolved':
+        return this.fail(
+          tx(T.submitErrReportSchemaUnresolved, { extension: this.extension, detail: error.detail }),
+        );
+      case 'invalid-ttl':
+      case 'invalid-priority':
+        return this.fail(error.message);
+    }
   }
 
   /** Flag-shape validation (mutual exclusion, target presence). */
@@ -411,188 +465,6 @@ export class JobSubmitCommand extends SmCommand {
     } catch (err) {
       return this.fail(formatErrorMessage(err));
     }
-  }
-
-  /**
-   * Resolve the submit target across probabilistic Actions AND
-   * probabilistic Analyzers (`spec/cli-contract.md` §Jobs) + enforce the
-   * probabilistic gate. Exit 5 when nothing matches at all, exit 2 when
-   * only a deterministic extension matches (runs in-process) or when
-   * the unprefixed form is ambiguous across kinds (the `<kind>:`
-   * disambiguators are always accepted). Returns the matched extension
-   * plus its on-disk directory (undefined for built-ins).
-   */
-  private resolveTargetOrExit(
-    runtime: IActionRuntime,
-  ):
-    | { extension: TQueueableExtension; dir: string | undefined; extensionKind: JobExtensionKind }
-    | TExitCode {
-    const resolution = resolveSubmitTarget(runtime.actions, runtime.analyzers, this.extension);
-    if (resolution.outcome === 'not-found') {
-      this.printer!.error(
-        tx(T.submitErrPrefix, {
-          glyph: this.errGlyph(),
-          message: tx(T.submitErrExtensionNotFound, { extension: this.extension }),
-        }),
-      );
-      return ExitCode.NotFound;
-    }
-    if (resolution.outcome === 'deterministic') {
-      return this.fail(
-        tx(T.submitErrExtensionNotProbabilistic, {
-          extension: this.extension,
-          mode: resolution.mode,
-        }),
-      );
-    }
-    if (resolution.outcome === 'ambiguous') {
-      return this.fail(
-        tx(T.submitErrAmbiguousExtension, {
-          extension: this.extension,
-          actionId: resolution.actionId,
-          analyzerId: resolution.analyzerId,
-        }),
-      );
-    }
-    const extension = resolution.extension;
-    const qualified = qualifiedExtensionId(extension.pluginId, extension.id);
-    const dir =
-      resolution.outcome === 'action'
-        ? runtime.dirByAction.get(qualified)
-        : runtime.dirByAnalyzer.get(qualified);
-    // The resolution outcome IS the frozen kind: it names the registry
-    // the match came from (spec/job-lifecycle.md §Submit step 1).
-    return { extension, dir, extensionKind: resolution.outcome };
-  }
-
-  /**
-   * Resolve prompt template + preamble + hashes + TTL / priority (constant
-   * across the fan-out). Kind-agnostic: `extension` is the resolved
-   * probabilistic Action or Analyzer and `dir` its on-disk directory
-   * (undefined for built-ins, which resolve through the codegen-inlined
-   * `promptTemplate`). TTL uses the extension's
-   * `probExpectedDurationSeconds` identically for both kinds. Returns the
-   * shared submit context or an exit code on failure.
-   */
-  private prepareSubmit(
-    resolved: {
-      extension: TQueueableExtension;
-      dir: string | undefined;
-      extensionKind: JobExtensionKind;
-    },
-    runtime: IActionRuntime,
-    jobs: IJobsConfig,
-    flagTtl: number | undefined,
-    flagPriority: number | undefined,
-    cwd: string,
-  ): ISubmitContext | TExitCode {
-    const { extension, dir } = resolved;
-    const extensionId = qualifiedExtensionId(extension.pluginId, extension.id);
-    let promptTemplate: string;
-    if (dir !== undefined) {
-      // On-disk plugin: resolve prompt.md from the extension's source dir.
-      try {
-        promptTemplate = readFileSync(join(dir, 'prompt.md'), 'utf8');
-      } catch (err) {
-        return this.fail(
-          tx(T.submitErrPromptUnresolved, { extension: this.extension, detail: formatErrorMessage(err) }),
-        );
-      }
-    } else if (typeof extension.promptTemplate === 'string') {
-      // Built-in probabilistic extension: no source dir at runtime, the
-      // built-ins codegen inlined prompt.md onto the manifest.
-      promptTemplate = extension.promptTemplate;
-    } else {
-      return this.fail(
-        tx(T.submitErrPromptUnresolved, { extension: this.extension, detail: 'no source directory' }),
-      );
-    }
-    const reportContract = this.resolveReportContract(extension, dir);
-    if (typeof reportContract === 'number') return reportContract;
-    const preamble = loadCanonicalPreamble();
-    let ttlSeconds: number | null;
-    let priority: number;
-    try {
-      ttlSeconds = resolveTtl(extension, jobs, flagTtl);
-      priority = resolvePriority(extension, jobs, flagPriority);
-    } catch (err) {
-      if (err instanceof InvalidTtlError || err instanceof InvalidPriorityError) {
-        return this.fail(err.message);
-      }
-      throw err;
-    }
-    return {
-      extensionId,
-      extensionVersion: extension.version,
-      extensionKind: resolved.extensionKind,
-      promptTemplate,
-      preamble,
-      reportContract,
-      // Fixer detection (`spec/job-lifecycle.md` §Findings injection for
-      // fixers): non-undefined ONLY for a probabilistic Action whose
-      // `precondition.analyzerIds` is non-empty. A finder Analyzer, or an
-      // Action without `analyzerIds`, threads `undefined` and renders as
-      // today.
-      analyzerIds: fixerAnalyzerIds(resolved.extensionKind, extension),
-      // The whole kernel-authored prelude hashes (spec/prompt-preamble.md):
-      // preamble + template + report-contract blocks, so a schema edit
-      // re-keys the content exactly like a template edit does. For a FIXER
-      // the findings-to-resolve section folds in too, but it varies per
-      // node, so `submitOneJob` recomputes this hash per node; the base
-      // value here (no findings section) is the non-fixer hash.
-      promptTemplateHash: computePromptTemplateHash({
-        preamble,
-        template: promptTemplate,
-        reportContract,
-      }),
-      ttlSeconds,
-      priority,
-      cwd,
-      force: this.force,
-      providers: runtime.providers,
-    };
-  }
-
-  /**
-   * Compose the report-contract section for the resolved extension
-   * (`spec/job-lifecycle.md` §Submit step 9). The extension's own schema
-   * bytes come VERBATIM from its on-disk `report.schema.json` (plugin) or
-   * from the codegen-inlined `reportSchema` object serialized
-   * deterministically (built-in, stable key order as authored); the
-   * canonical envelope + report-base blocks are resolved inside
-   * `buildReportContract` from the installed spec package. Exit 2 when
-   * the schema cannot be resolved (mirrors the prompt-template failure).
-   */
-  private resolveReportContract(
-    extension: TQueueableExtension,
-    dir: string | undefined,
-  ): string | TExitCode {
-    let schemaText: string;
-    let schema: Record<string, unknown>;
-    if (dir !== undefined) {
-      try {
-        schemaText = readFileSync(join(dir, 'report.schema.json'), 'utf8');
-        schema = JSON.parse(schemaText) as Record<string, unknown>;
-      } catch (err) {
-        return this.fail(
-          tx(T.submitErrReportSchemaUnresolved, {
-            extension: this.extension,
-            detail: formatErrorMessage(err),
-          }),
-        );
-      }
-    } else if (extension.reportSchema && typeof extension.reportSchema === 'object') {
-      schema = extension.reportSchema;
-      schemaText = JSON.stringify(extension.reportSchema, null, 2);
-    } else {
-      return this.fail(
-        tx(T.submitErrReportSchemaUnresolved, {
-          extension: this.extension,
-          detail: 'no source directory',
-        }),
-      );
-    }
-    return buildReportContract({ schemaText, schema });
   }
 
   /** Route to the single-node or fan-out submit path. */
@@ -685,12 +557,27 @@ export class JobSubmitCommand extends SmCommand {
       );
     }
     if (this.json) {
+      // --json stdout stays the plain new Job (the submit contract): a
+      // supersession is a human-mode stderr advisory only, per spec §Supersede.
       const job = await adapter.jobs.get(outcome.id);
       this.printer!.data(JSON.stringify(job) + '\n');
     } else {
+      this.emitSupersededAdvisory(outcome.supersededIds);
       this.printer!.data(outcome.id + '\n');
     }
     return ExitCode.Ok;
+  }
+
+  /**
+   * Human-mode stderr advisory naming each stale queued job a FIXER submit
+   * superseded (`spec/job-lifecycle.md` §Findings injection for fixers ·
+   * Supersede). One line per cancelled sibling (normally exactly one). No-op
+   * for non-fixer submits and fixers with nothing to supersede.
+   */
+  private emitSupersededAdvisory(supersededIds: readonly string[]): void {
+    for (const id of supersededIds) {
+      this.printer!.info(tx(T.submitSupersededLine, { glyph: this.warnGlyph(), id }));
+    }
   }
 
   private reportAll(
@@ -720,6 +607,9 @@ export class JobSubmitCommand extends SmCommand {
       this.printer!.info(
         tx(T.submitQueuedLine, { glyph: this.okGlyph(), id: (o as { id: string }).id, node: o.nodeId }),
       );
+      // Per-node fixer supersede advisory (each fan-out submit applies the
+      // Supersede rule independently, spec §Findings injection for fixers).
+      this.emitSupersededAdvisory((o as { supersededIds?: string[] }).supersededIds ?? []);
     }
     for (const o of refused) {
       this.printer!.info(this.toRefusedLine(o, prepared));
@@ -869,7 +759,63 @@ async function insertJobRow(
   };
   try {
     await adapter.jobs.submit(row, { contentHash, content, createdAt: now });
-    return { kind: 'created', nodeId: node.path, id };
+    return { kind: 'created', nodeId: node.path, id, supersededIds: [] };
+  } catch (err) {
+    if (!isUniqueConstraintError(err)) throw err;
+    const existing = await adapter.jobs.findActiveDuplicate(
+      prepared.extensionId,
+      prepared.extensionVersion,
+      node.path,
+      contentHash,
+    );
+    return { kind: 'duplicate', nodeId: node.path, existingId: existing ?? id };
+  }
+}
+
+/**
+ * Fixer variant of `insertJobRow` (`spec/job-lifecycle.md` §Findings injection
+ * for fixers · Supersede). The atomic `submitFixer` finds any ACTIVE job for
+ * the `(extensionId, nodeId)` pair and, in ONE transaction, CANCELS the stale
+ * queued siblings (a different `contentHash`: the finding set or the body
+ * changed since they were queued) before enqueuing the new job. An IDENTICAL
+ * queued request keeps the plain duplicate refusal (exit 3); a RUNNING job is
+ * never superseded and refuses (exit 3, naming it, reusing the duplicate
+ * reporting, a running job IS an active job already covering the node). The
+ * `catch` mirrors `insertJobRow`: a partial-index violation from a concurrent
+ * insert surfaces as a duplicate too, though `submitFixer` detects the
+ * same-hash case explicitly so the insert normally never trips it.
+ */
+async function insertFixerJobRow(
+  adapter: StoragePort,
+  node: Node,
+  prepared: ISubmitContext,
+  contentHash: string,
+  content: string,
+): Promise<TSubmitOutcome> {
+  const now = Date.now();
+  const id = generateJobId();
+  const row = {
+    id,
+    extensionId: prepared.extensionId,
+    extensionVersion: prepared.extensionVersion,
+    extensionKind: prepared.extensionKind,
+    nodeId: node.path,
+    contentHash,
+    nonce: generateNonce(),
+    priority: prepared.priority,
+    status: 'queued' as const,
+    ttlSeconds: prepared.ttlSeconds,
+    createdAt: now,
+  };
+  try {
+    const result = await adapter.jobs.submitFixer(row, { contentHash, content, createdAt: now });
+    if (result.outcome === 'running-conflict') {
+      return { kind: 'duplicate', nodeId: node.path, existingId: result.runningId };
+    }
+    if (result.outcome === 'duplicate') {
+      return { kind: 'duplicate', nodeId: node.path, existingId: result.existingId };
+    }
+    return { kind: 'created', nodeId: node.path, id, supersededIds: result.supersededIds };
   } catch (err) {
     if (!isUniqueConstraintError(err)) throw err;
     const existing = await adapter.jobs.findActiveDuplicate(
@@ -928,7 +874,268 @@ async function submitOneJob(
     ...(inputs.findingsSection !== undefined ? { findingsSection: inputs.findingsSection } : {}),
     reportContract: prepared.reportContract,
   });
-  return insertJobRow(adapter, node, prepared, contentHash, content);
+  // A FIXER submit (`analyzerIds` set) supersedes stale queued siblings in one
+  // transaction; a non-fixer submit inserts with the plain duplicate backstop.
+  return prepared.analyzerIds !== undefined
+    ? insertFixerJobRow(adapter, node, prepared, contentHash, content)
+    : insertJobRow(adapter, node, prepared, contentHash, content);
+}
+
+// ---------------------------------------------------------------------------
+// Shared submit preparation (used by `sm jobs submit` AND the record-path
+// `core/auto-fix` hook via `submitFixerJob`).
+// ---------------------------------------------------------------------------
+
+/**
+ * Structured failure of `prepareSubmitContext`, mapped by the CLI command
+ * to its directed error output + exit code (`failPrepare`) and by
+ * `submitFixerJob` to a `not-submittable` result it swallows.
+ */
+export type TPrepareError =
+  | { kind: 'not-found' }
+  | { kind: 'deterministic'; mode: string }
+  | { kind: 'ambiguous'; actionId: string; analyzerId: string }
+  | { kind: 'prompt-unresolved'; detail: string }
+  | { kind: 'report-schema-unresolved'; detail: string }
+  | { kind: 'invalid-ttl'; message: string }
+  | { kind: 'invalid-priority'; message: string };
+
+type TPrepareOutcome =
+  | { ok: true; extension: TQueueableExtension; prepared: ISubmitContext }
+  | { ok: false; error: TPrepareError };
+
+/**
+ * Resolve the submit target (probabilistic Action or finder Analyzer,
+ * `spec/cli-contract.md` §Jobs) and prepare the constant-across-fan-out
+ * submit context: prompt template, report contract, preamble, TTL /
+ * priority, hashes, and the fixer `analyzerIds`. PURE (no printing, no DB):
+ * every failure returns a structured `TPrepareError` so BOTH callers, the
+ * CLI command's `failPrepare` and the hook's `submitFixerJob`, decide how
+ * to surface it. This is the extraction that keeps `sm jobs submit`
+ * byte-identical while letting the auto-fix hook render a real, injected,
+ * superseding fixer job (not a bare row).
+ */
+export function prepareSubmitContext(opts: {
+  runtime: IActionRuntime;
+  jobs: IJobsConfig;
+  extensionId: string;
+  cwd: string;
+  force: boolean;
+  flagTtl: number | undefined;
+  flagPriority: number | undefined;
+}): TPrepareOutcome {
+  const target = resolveQueueTarget(opts.runtime, opts.extensionId);
+  if (!target.ok) return target;
+  const { extension, qualified, extensionKind, dir } = target;
+
+  const promptTemplate = resolvePromptTemplateText(extension, dir);
+  if (!promptTemplate.ok) return { ok: false, error: { kind: 'prompt-unresolved', detail: promptTemplate.detail } };
+  const reportContract = resolveReportContractText(extension, dir);
+  if (!reportContract.ok) {
+    return { ok: false, error: { kind: 'report-schema-unresolved', detail: reportContract.detail } };
+  }
+  const preamble = loadCanonicalPreamble();
+  let ttlSeconds: number | null;
+  let priority: number;
+  try {
+    ttlSeconds = resolveTtl(extension, opts.jobs, opts.flagTtl);
+    priority = resolvePriority(extension, opts.jobs, opts.flagPriority);
+  } catch (err) {
+    if (err instanceof InvalidTtlError) return { ok: false, error: { kind: 'invalid-ttl', message: err.message } };
+    if (err instanceof InvalidPriorityError) {
+      return { ok: false, error: { kind: 'invalid-priority', message: err.message } };
+    }
+    throw err;
+  }
+  const prepared: ISubmitContext = {
+    extensionId: qualified,
+    extensionVersion: extension.version,
+    extensionKind,
+    promptTemplate: promptTemplate.text,
+    preamble,
+    reportContract: reportContract.text,
+    analyzerIds: fixerAnalyzerIds(extensionKind, extension),
+    promptTemplateHash: computePromptTemplateHash({
+      preamble,
+      template: promptTemplate.text,
+      reportContract: reportContract.text,
+    }),
+    ttlSeconds,
+    priority,
+    cwd: opts.cwd,
+    force: opts.force,
+    providers: opts.runtime.providers,
+  };
+  return { ok: true, extension, prepared };
+}
+
+/**
+ * Resolve the submit target across probabilistic Actions + Analyzers and
+ * enforce the probabilistic gate, returning the extension, its qualified id,
+ * the FROZEN kind (the registry the match came from), and its on-disk dir,
+ * or a structured `TPrepareOutcome` failure.
+ */
+function resolveQueueTarget(
+  runtime: IActionRuntime,
+  extensionId: string,
+):
+  | { ok: true; extension: TQueueableExtension; qualified: string; extensionKind: JobExtensionKind; dir: string | undefined }
+  | { ok: false; error: TPrepareError } {
+  const resolution = resolveSubmitTarget(runtime.actions, runtime.analyzers, extensionId);
+  if (resolution.outcome === 'not-found') return { ok: false, error: { kind: 'not-found' } };
+  if (resolution.outcome === 'deterministic') {
+    return { ok: false, error: { kind: 'deterministic', mode: resolution.mode } };
+  }
+  if (resolution.outcome === 'ambiguous') {
+    return {
+      ok: false,
+      error: { kind: 'ambiguous', actionId: resolution.actionId, analyzerId: resolution.analyzerId },
+    };
+  }
+  const extension = resolution.extension;
+  const qualified = qualifiedExtensionId(extension.pluginId, extension.id);
+  const dir =
+    resolution.outcome === 'action'
+      ? runtime.dirByAction.get(qualified)
+      : runtime.dirByAnalyzer.get(qualified);
+  return { ok: true, extension, qualified, extensionKind: resolution.outcome, dir };
+}
+
+type TResolvedText = { ok: true; text: string } | { ok: false; detail: string };
+
+/**
+ * The extension's prompt template: from the on-disk `prompt.md` (plugin) or
+ * the codegen-inlined `promptTemplate` (built-in). `spec/job-lifecycle.md`
+ * §Submit step 9.
+ */
+function resolvePromptTemplateText(
+  extension: TQueueableExtension,
+  dir: string | undefined,
+): TResolvedText {
+  if (dir !== undefined) {
+    try {
+      return { ok: true, text: readFileSync(join(dir, 'prompt.md'), 'utf8') };
+    } catch (err) {
+      return { ok: false, detail: formatErrorMessage(err) };
+    }
+  }
+  if (typeof extension.promptTemplate === 'string') return { ok: true, text: extension.promptTemplate };
+  return { ok: false, detail: 'no source directory' };
+}
+
+/**
+ * The rendered report-contract section (`spec/job-lifecycle.md` §Submit
+ * step 9): the extension's report schema bytes VERBATIM (on-disk
+ * `report.schema.json` for a plugin, the codegen-inlined `reportSchema`
+ * serialized deterministically for a built-in) plus the canonical envelope
+ * blocks resolved inside `buildReportContract`.
+ */
+function resolveReportContractText(
+  extension: TQueueableExtension,
+  dir: string | undefined,
+): TResolvedText {
+  let schemaText: string;
+  let schema: Record<string, unknown>;
+  if (dir !== undefined) {
+    try {
+      schemaText = readFileSync(join(dir, 'report.schema.json'), 'utf8');
+      schema = JSON.parse(schemaText) as Record<string, unknown>;
+    } catch (err) {
+      return { ok: false, detail: formatErrorMessage(err) };
+    }
+  } else if (extension.reportSchema && typeof extension.reportSchema === 'object') {
+    schema = extension.reportSchema;
+    schemaText = JSON.stringify(extension.reportSchema, null, 2);
+  } else {
+    return { ok: false, detail: 'no source directory' };
+  }
+  return { ok: true, text: buildReportContract({ schemaText, schema }) };
+}
+
+/**
+ * Result of `submitFixerJob`, the record-path hook's queue sink. Every
+ * non-`created` outcome is a benign "nothing queued" case the caller
+ * swallows: a fixer over a node with NO matching findings refuses
+ * (`no-findings`), a same-request duplicate is already covered, drift /
+ * unreadable are transient, `not-submittable` means the id did not resolve
+ * to a queueable fixer.
+ */
+export type TFixerSubmitResult =
+  | { kind: 'created'; id: string; supersededIds: readonly string[] }
+  | { kind: 'duplicate'; existingId: string }
+  | { kind: 'no-findings' }
+  | { kind: 'drift' }
+  | { kind: 'unreadable'; detail: string }
+  | { kind: 'node-not-found' }
+  | { kind: 'node-virtual' }
+  | { kind: 'not-submittable'; detail: string };
+
+/**
+ * Submit ONE fixer job for `(extensionId, nodeId)`, equivalent to
+ * `sm jobs submit <fixer> -n <node>`: the full render (preamble +
+ * findings-injection + report contract), the supersede rule, the drift
+ * verification, and the `state_job_contents` insert, all through the SAME
+ * `submitOneJob` path the CLI uses (`spec/job-lifecycle.md` §Findings
+ * injection for fixers). Returns a structured result; it never prints and
+ * never throws for the ordinary refusals (the caller, the `core/auto-fix`
+ * hook drain, swallows them). Reused so the hook produces a real injected
+ * job, not a bare row.
+ */
+export async function submitFixerJob(
+  adapter: StoragePort,
+  runtime: IActionRuntime,
+  jobs: IJobsConfig,
+  target: { extensionId: string; nodeId: string; cwd: string },
+): Promise<TFixerSubmitResult> {
+  const prep = prepareSubmitContext({
+    runtime,
+    jobs,
+    extensionId: target.extensionId,
+    cwd: target.cwd,
+    force: false,
+    flagTtl: undefined,
+    flagPriority: undefined,
+  });
+  if (!prep.ok) return { kind: 'not-submittable', detail: describePrepareError(prep.error) };
+  const bundle = await adapter.scans.findNode(target.nodeId);
+  if (!bundle) return { kind: 'node-not-found' };
+  if (bundle.node.virtual === true) return { kind: 'node-virtual' };
+  return toFixerSubmitResult(await submitOneJob(adapter, bundle.node, prep.prepared));
+}
+
+/** Narrow a raw `submitOneJob` outcome to the fixer-submit result shape. */
+function toFixerSubmitResult(outcome: TSubmitOutcome): TFixerSubmitResult {
+  switch (outcome.kind) {
+    case 'created':
+      return { kind: 'created', id: outcome.id, supersededIds: outcome.supersededIds };
+    case 'duplicate':
+      return { kind: 'duplicate', existingId: outcome.existingId };
+    case 'no-findings':
+      return { kind: 'no-findings' };
+    case 'drift':
+      return { kind: 'drift' };
+    case 'unreadable':
+      return { kind: 'unreadable', detail: outcome.detail };
+  }
+}
+
+/** A short, log-only description of a prepare failure (never user-facing). */
+function describePrepareError(error: TPrepareError): string {
+  switch (error.kind) {
+    case 'not-found':
+      return 'extension not found';
+    case 'deterministic':
+      return `not probabilistic (mode ${error.mode})`;
+    case 'ambiguous':
+      return 'ambiguous extension id';
+    case 'prompt-unresolved':
+      return `prompt unresolved: ${error.detail}`;
+    case 'report-schema-unresolved':
+      return `report schema unresolved: ${error.detail}`;
+    case 'invalid-ttl':
+    case 'invalid-priority':
+      return error.message;
+  }
 }
 
 // ---------------------------------------------------------------------------

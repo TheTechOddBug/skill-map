@@ -343,6 +343,53 @@ describe('sm jobs submit -n', () => {
     strictEqual(await countJobs(proj.dbPath), 1, 'no second job created');
   });
 
+  it('does NOT supersede: two different-hash jobs for the same non-fixer (ext, node) coexist', async () => {
+    // Supersede is fixer-only (spec §Findings injection for fixers · Supersede).
+    // A non-fixer probabilistic action (no `precondition.analyzerIds`) keeps the
+    // plain duplicate detection: two submits whose bodies (hence content
+    // hashes) differ are legitimately distinct jobs and both stay queued.
+    const proj = await setupProject([SKILL]);
+    const firstId = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      await run(buildSubmit({ action: ACTION_ID, node: SKILL.path }), cap);
+      return cap.stdout().trim();
+    });
+
+    // Edit the body + restamp the scanned hash (simulate a re-scan) so the next
+    // render produces a DIFFERENT content hash for the same (ext, node).
+    appendFileSync(join(proj.root, SKILL.path), 'second revision\n');
+    const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      await adapter.db
+        .updateTable('scan_nodes')
+        .set({ bodyHash: sha256(`${bodyFor(SKILL.path)}second revision\n`) })
+        .where('path', '=', SKILL.path)
+        .execute();
+    } finally {
+      await adapter.close();
+    }
+
+    const secondId = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const c = await run(buildSubmit({ action: ACTION_ID, node: SKILL.path }), cap);
+      strictEqual(c, 0, cap.stderr());
+      doesNotMatch(cap.stderr(), /superseded/, 'a non-fixer submit never supersedes');
+      return cap.stdout().trim();
+    });
+    ok(secondId && secondId !== firstId, 'a distinct second job id');
+
+    const adapter2 = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+    await adapter2.init();
+    try {
+      const jobs = await adapter2.jobs.list({});
+      strictEqual(jobs.length, 2, 'both jobs coexist');
+      strictEqual(jobs.filter((j) => j.status === 'queued').length, 2, 'neither was cancelled');
+    } finally {
+      await adapter2.close();
+    }
+  });
+
   it('refuses with exit 2 when the node changed on disk since the scan (drift)', async () => {
     const proj = await setupProject([SKILL]);
     // Edit AFTER the (simulated) scan: the recomputed body hash diverges.

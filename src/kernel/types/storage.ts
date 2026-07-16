@@ -678,6 +678,27 @@ export interface IJobSubmitRow {
 }
 
 /**
+ * Outcome of `port.jobs.submitFixer(...)`, the atomic fixer supersede submit
+ * (`spec/job-lifecycle.md` §Findings injection for fixers · Supersede). A
+ * fixer submit that finds an ACTIVE job for the same `(extensionId, nodeId)`
+ * pair resolves the collision in ONE transaction:
+ *   - `created`, the new queued job landed; `supersededIds` are the stale
+ *     queued siblings (a DIFFERENT `contentHash`: the finding set or the body
+ *     changed since they were queued) cancelled in the SAME transaction
+ *     (empty when there was nothing to supersede).
+ *   - `duplicate`, an IDENTICAL queued request already exists (same
+ *     `contentHash`); nothing was written, `existingId` names it (exit 3).
+ *   - `running-conflict`, a RUNNING job holds the pair (an agent claimed it);
+ *     it is never superseded, nothing was written, `runningId` names it
+ *     (exit 3). Supersede applies to fixer submits only; non-fixer jobs keep
+ *     the plain duplicate detection on `submit(...)`.
+ */
+export type TFixerSubmitOutcome =
+  | { outcome: 'created'; jobId: string; supersededIds: string[] }
+  | { outcome: 'duplicate'; existingId: string }
+  | { outcome: 'running-conflict'; runningId: string };
+
+/**
  * Filter for `port.jobs.list(...)` (drives `sm jobs list`). All optional;
  * an empty filter returns every job, newest first. `extensionId` matches
  * the stored (qualified) id exactly OR by bare-id suffix, mirroring the

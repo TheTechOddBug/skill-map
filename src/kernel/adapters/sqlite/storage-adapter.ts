@@ -88,6 +88,7 @@ import {
   pruneTerminalJobs,
   reapExpired,
   recordJobTerminal,
+  submitFixerJob,
   submitJob,
 } from './jobs.js';
 import {
@@ -385,6 +386,7 @@ export class SqliteStorageAdapter implements StoragePort {
 
     this.jobs = {
       submit: (row, content) => submitJob(this.db, row, content),
+      submitFixer: (row, content) => submitFixerJob(this.db, row, content),
       findActiveDuplicate: (extensionId, extensionVersion, nodeId, contentHash) =>
         findActiveDuplicate(this.db, extensionId, extensionVersion, nodeId, contentHash),
       list: (filter) => listJobs(this.db, filter),
