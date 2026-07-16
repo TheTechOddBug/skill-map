@@ -1,6 +1,7 @@
 /**
  * `sm findings [-n <node.path>] [--extension <ids>] [--type <slug>]
- * [--severity <s>] [--since <iso>] [--threshold <0..1>] [--stale] [--json]`
+ * [--severity <s>] [--since <iso>] [--threshold <0..1>] [--stale]
+ * [--fixed] [--json]`
  *
  * Read `state_findings`: the judgments recorded by probabilistic finder
  * Analyzers (`origin: 'extension'`) plus the kernel-derived safety rows
@@ -13,14 +14,31 @@
  * qualified or bare extension ids (same matching grammar as
  * `sm check --analyzers`); `--type` by finding slug; `--severity` MINIMUM
  * severity (`warn` keeps warn + error); `--since` ISO date on
- * `generated_at`; `--threshold` minimum confidence. Stale rows (body hash
- * drifted since generation, or the node gone from the scan) are EXCLUDED
- * by default; `--stale` includes them marked `(stale)` in human mode and
- * `stale: true` in JSON.
+ * `generated_at`; `--threshold` minimum confidence.
  *
- * `--json` emits `{ ok, kind: 'findings', findings[], total }`, each
- * entry mirroring the `state_findings` row (camelCase) plus the derived
- * `stale` boolean.
+ * The default view shows what needs attention, hiding two DISJOINT kinds
+ * of row: `fixed` rows (`resolution = 'fixed'`, a fixer already handled
+ * them, `--fixed` includes them) and stale rows (body hash drifted since
+ * generation, or the node gone from the scan, `--stale` includes them
+ * marked `(stale)`). A row that is BOTH fixed and stale counts as fixed
+ * (the state takes precedence). Open rows and `declined` rows always
+ * show: a declined finding is the author's pending decision.
+ *
+ * Excluded rows are never silently swallowed: whatever the default
+ * filter hides is reported under the SAME filters, as a human footer /
+ * empty-state line and as `fixedExcluded` + `staleExcluded` in JSON. An
+ * empty result with hidden rows reads `No fresh findings` plus the hidden
+ * breakdown, never a bare `No findings`, which would assert a clean node
+ * while judgments sit hidden (observed live: the operator read it as his
+ * data having been deleted). Zero rows at all is the only clean-verdict
+ * output. A `fixed` row is a STATE, not a verdict: re-running the finder
+ * is how the operator confirms it (clean deletes it, still-present reopens
+ * it).
+ *
+ * `--json` emits `{ ok, kind: 'findings', findings[], total,
+ * fixedExcluded, staleExcluded }`, each entry mirroring the
+ * `state_findings` row (camelCase, incl. the `resolution*` fields) plus
+ * the derived `stale` boolean. `total` is the returned row count.
  *
  * Exit codes (per `spec/cli-contract.md`):
  *   0  always when the read succeeds: findings are probabilistic,
@@ -32,7 +50,11 @@
 
 import { Command, Option } from 'clipanion';
 
-import type { IFindingRecord, IFindingsListFilter } from '../../kernel/types/storage.js';
+import type {
+  IFindingRecord,
+  IFindingsListFilter,
+  TFindingResolution,
+} from '../../kernel/types/storage.js';
 import type { Severity } from '../../kernel/types.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -58,11 +80,16 @@ export class FindingsCommand extends SmCommand {
       sm record), plus the kernel-derived safety rows (injection-detected /
       content-suspicious / content-malformed).
 
-      Stale rows (the node body changed since the judgment, or the node
-      left the scan) are excluded by default; --stale includes them,
-      marked. --severity is a MINIMUM (warn keeps warn + error);
-      --threshold is a minimum confidence; --extension accepts qualified
-      or bare ids like sm check --analyzers.
+      The default view hides two disjoint kinds of row: fixed rows (a fixer
+      resolved them, --fixed includes them, marked with the fixer) and
+      stale rows (the node body changed since the judgment, or the node
+      left the scan, --stale includes them, marked). Open and declined rows
+      always show. Whatever the default filter hides is always reported:
+      the hidden breakdown rides in the human output and on fixedExcluded /
+      staleExcluded in --json, so an empty result never claims a clean node
+      while judgments sit hidden. --severity is a MINIMUM (warn keeps warn +
+      error); --threshold is a minimum confidence; --extension accepts
+      qualified or bare ids like sm check --analyzers.
 
       Findings are advisory by construction and never gate exit codes;
       the verb exits 0 regardless of content. Run sm scan first to
@@ -72,6 +99,7 @@ export class FindingsCommand extends SmCommand {
       ['Print every current finding', '$0 findings'],
       ['Restrict to one node', '$0 findings -n .claude/skills/foo/SKILL.md'],
       ['Only one finder, high confidence', '$0 findings --extension my-plugin/quality-check --threshold 0.8'],
+      ['Include fixed judgments', '$0 findings --fixed'],
       ['Include stale judgments', '$0 findings --stale'],
       ['Machine-readable envelope', '$0 findings --json'],
     ],
@@ -104,6 +132,9 @@ export class FindingsCommand extends SmCommand {
   stale = Option.Boolean('--stale', false, {
     description: 'Include stale findings (body changed since generation), marked (stale).',
   });
+  fixed = Option.Boolean('--fixed', false, {
+    description: 'Include fixed findings (a fixer resolved them), marked with the fixer.',
+  });
 
   protected async run(): Promise<number> {
     const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
@@ -121,24 +152,97 @@ export class FindingsCommand extends SmCommand {
         versionCheck: buildReadVersionCheck(this.printer!, this.ansiFor('stderr')),
       },
       async (adapter) => {
-        const findings = await adapter.findings.list(filter);
-        if (this.json) {
-          this.printer!.data(
-            JSON.stringify({ ok: true, kind: 'findings', findings, total: findings.length }) +
-              '\n',
-          );
-          return ExitCode.Ok;
-        }
-        const ansi = this.ansiFor('stdout');
-        if (findings.length === 0) {
-          this.printer!.data(tx(T.noFindings, { glyph: ansi.green('✓') }));
-          return ExitCode.Ok;
-        }
-        this.printer!.data(renderHuman(findings, ansi));
-        // Advisory by construction: content never drives the exit code.
-        return ExitCode.Ok;
+        // ONE pass, every row INCLUDED (stale + fixed), partitioned here.
+        // Two reasons over a filtered list + companion counts: the table
+        // is walked once for numbers this result set already holds, and
+        // the hidden breakdown inherits every active filter for free (-n /
+        // --type / --severity / --extension / --since / --threshold), so
+        // it reports what the user actually asked about instead of a
+        // table-wide total that is a lie of a different shape.
+        const all = await adapter.findings.list({ ...filter, includeStale: true });
+        const shown = all.filter((f) => this.isShown(f));
+        // The hidden ROWS, not just their counts: the human line must name
+        // the `declined` subset among them (a fixer's TODO, otherwise
+        // invisible behind the stale filter) and break the tally into
+        // fixed vs stale.
+        const hidden = all.filter((f) => !this.isShown(f));
+        return this.json ? this.emitJson(shown, hidden) : this.emitHuman(shown, hidden);
       },
     );
+  }
+
+  /**
+   * Default visibility (`spec/cli-contract.md` §sm findings). A row hides
+   * for exactly one of two DISJOINT reasons, with `fixed` taking
+   * precedence over `stale`:
+   *
+   *   - `resolution === 'fixed'`: a fixer handled it; hidden unless
+   *     `--fixed`, even when the row also went stale.
+   *   - not fixed but `stale`: the judged body is gone; hidden unless
+   *     `--stale`. Covers open-stale AND declined-stale rows.
+   *
+   * Open rows and non-stale `declined` rows always show (`declined` is the
+   * author's pending decision, never hidden by state).
+   */
+  private isShown(f: IFindingRecord): boolean {
+    if (f.resolution === 'fixed') return this.fixed;
+    if (f.stale) return this.stale;
+    return true;
+  }
+
+  /**
+   * `{ ok, kind, findings, total, fixedExcluded, staleExcluded }`. `total`
+   * keeps its meaning (the RETURNED rows); the two excluded counts are the
+   * disjoint tally of what the default filters held back under the same
+   * filters (a fixed+stale row counts as fixed). Each is 0 once its flag
+   * (`--fixed` / `--stale`) reveals that bucket.
+   */
+  private emitJson(
+    findings: readonly IFindingRecord[],
+    hidden: readonly IFindingRecord[],
+  ): TExitCode {
+    this.printer!.data(
+      JSON.stringify({
+        ok: true,
+        kind: 'findings',
+        findings,
+        total: findings.length,
+        fixedExcluded: countFixedHidden(hidden),
+        staleExcluded: countStaleHidden(hidden),
+      }) + '\n',
+    );
+    return ExitCode.Ok;
+  }
+
+  /**
+   * Human mode, three shapes (`spec/cli-contract.md` §sm findings,
+   * "excluded rows MUST be reported, never silently swallowed"):
+   *
+   *   - no rows at all: the clean verdict, green `✓  No findings.`
+   *   - zero shown, N hidden: neutral `ℹ  No fresh findings.` + the
+   *     hidden breakdown (`N fixed, M stale`) and its remedy. NEVER the
+   *     success glyph: nothing was verified clean, the judgments are just
+   *     filtered out.
+   *   - K listed, N hidden: the listing plus the same breakdown as a
+   *     footer.
+   *
+   * Either hidden-breakdown shape names the `declined` subset when one
+   * exists (a declined finding staled by a sibling fix, see
+   * `staleHiddenVars`).
+   */
+  private emitHuman(findings: readonly IFindingRecord[], hidden: readonly IFindingRecord[]): TExitCode {
+    const ansi = this.ansiFor('stdout');
+    if (findings.length === 0) {
+      this.printer!.data(
+        hidden.length === 0
+          ? tx(T.noFindings, { glyph: ansi.green('✓') })
+          : tx(T.noFreshFindings, { glyph: ansi.cyan('ℹ'), ...staleHiddenVars(hidden, ansi) }),
+      );
+      return ExitCode.Ok;
+    }
+    this.printer!.data(renderHuman(findings, hidden, ansi));
+    // Advisory by construction: content never drives the exit code.
+    return ExitCode.Ok;
   }
 
   /**
@@ -153,7 +257,9 @@ export class FindingsCommand extends SmCommand {
     const filter: IFindingsListFilter = {};
     if (this.node !== undefined) filter.nodeId = this.node;
     if (this.type !== undefined) filter.type = this.type;
-    if (this.stale) filter.includeStale = true;
+    // `includeStale` is NOT set here: the read always includes stale rows
+    // and `run` partitions them, so `--stale` only decides what renders
+    // and what gets counted as hidden.
 
     const extensionIds = parseIdListFlag(this.extension);
     if (extensionIds !== undefined) filter.extensionIds = extensionIds;
@@ -342,16 +448,26 @@ function parseIdListFlag(raw: string | undefined): readonly string[] | undefined
  *     notes/guide.md
  *       ⚠  plug/finder  contradiction  Message text  (85%)
  *          Longer evidence detail, dim, when present.
+ *          ⚠  core/node-reconcile declined, needs your decision: <note>
+ *
+ *   ℹ  2 fixed, 1 stale hidden (1 declined by a fixer, needing your decision).
+ *      Pass --fixed / --stale to see them, or re-run the finders to re-check them.
  *
  *   Tip: `sm show <path>` shows a node's findings in context; ...
  *
  * Rows group by node path; extension-id and type columns pad to the
  * longest across the rendered set so messages align between sections.
+ * `hidden` (empty when nothing was held back) renders as the footer above
+ * the tip: the default filter never swallows rows silently.
  * Every DB-sourced string is sanitised once at the row-shape boundary
  * (defence in depth against a hostile finder's stored message repainting
  * the terminal).
  */
-function renderHuman(findings: readonly IFindingRecord[], ansi: IAnsi): string {
+function renderHuman(
+  findings: readonly IFindingRecord[],
+  hidden: readonly IFindingRecord[],
+  ansi: IAnsi,
+): string {
   const rows = findings.map(toRenderRow);
 
   const counts: Record<Severity, number> = { error: 0, warn: 0, info: 0 };
@@ -376,7 +492,71 @@ function renderHuman(findings: readonly IFindingRecord[], ansi: IAnsi): string {
   // Each section ends in a blank-line separator; drop the final one so
   // exactly one blank line sits between the last section and the tip
   // (the tip template opens with its own `\n`, mirror of `sm check`).
-  return header + body.replace(/\n$/, '') + T.tipLine;
+  // The hidden-count footer, when there is one, opens with its own `\n`
+  // the same way and sits between them.
+  const footer =
+    hidden.length === 0
+      ? ''
+      : tx(T.staleHiddenFooter, { glyph: ansi.cyan('ℹ'), ...staleHiddenVars(hidden, ansi) });
+  return header + body.replace(/\n$/, '') + footer + T.tipLine;
+}
+
+/** Hidden rows a fixer moved to `fixed` (state precedence over stale). */
+function countFixedHidden(hidden: readonly IFindingRecord[]): number {
+  return hidden.filter((f) => f.resolution === 'fixed').length;
+}
+
+/**
+ * Hidden rows held back for staleness (everything hidden that is NOT
+ * fixed): a hidden row is either fixed-hidden or stale-hidden, disjointly,
+ * so the stale bucket is the complement of the fixed one.
+ */
+function countStaleHidden(hidden: readonly IFindingRecord[]): number {
+  return hidden.length - countFixedHidden(hidden);
+}
+
+/**
+ * The breakdown + remedy vars shared by the two hidden-count shapes (the
+ * empty `noFreshFindings` block and the listing footer). `breakdown` is
+ * the disjoint tally `N fixed, M stale` (a zero count is OMITTED, never
+ * `0 fixed`); `flags` names only the reveal flag(s) that actually apply;
+ * the hint's pronoun (`it` / `them`) plural-corrects on the total. The
+ * hint is pre-dimmed at this boundary.
+ *
+ * `declined` names the subset of the hidden rows a fixer REFUSED
+ * (`spec/cli-contract.md` §sm findings). It takes the hidden ROWS rather
+ * than their count for exactly this: a fixer's edits for sibling findings
+ * stale the whole node, so the one finding it left for the author to
+ * decide hides behind the stale filter (a `declined` row is never fixed),
+ * and a bare count would report the operator's TODO as ordinary
+ * staleness. Yellow, so the eye lands on it; the line's own glyph stays
+ * neutral (it still reports what is hidden, not a failure).
+ */
+function staleHiddenVars(
+  hidden: readonly IFindingRecord[],
+  ansi: IAnsi,
+): { breakdown: string; declined: string; hint: string } {
+  const single = hidden.length === 1;
+  const fixed = countFixedHidden(hidden);
+  const stale = countStaleHidden(hidden);
+  const declined = hidden.filter((f) => f.resolution === 'declined').length;
+  const fragments: string[] = [];
+  if (fixed > 0) fragments.push(tx(T.hiddenFixedFragment, { count: fixed }));
+  if (stale > 0) fragments.push(tx(T.hiddenStaleFragment, { count: stale }));
+  const flags =
+    fixed > 0 && stale > 0
+      ? T.hiddenFlagsBoth
+      : fixed > 0
+        ? T.hiddenFlagsFixedOnly
+        : T.hiddenFlagsStaleOnly;
+  return {
+    breakdown: fragments.join(T.hiddenBreakdownJoiner),
+    declined:
+      declined === 0
+        ? ''
+        : ansi.yellow(tx(T.staleHiddenDeclinedFragment, { count: declined })),
+    hint: ansi.dim(tx(T.staleHiddenHint, { pronoun: single ? 'it' : 'them', flags })),
+  };
 }
 
 /** Row shape sanitised once at the boundary; the layout never re-gates. */
@@ -390,6 +570,12 @@ interface IRenderRow {
   confidence: number;
   /** Agent-self-reported model, sanitized (agent-supplied); null when undeclared. */
   model: string | null;
+  /** Fixer lifecycle state; null (open) until a fixer resolved this finding. */
+  resolution: TFindingResolution | null;
+  /** The fixer's note, sanitized (agent-authored free text). */
+  resolutionNote: string;
+  /** The fixer's qualified extension id, sanitized. */
+  resolutionBy: string;
   stale: boolean;
 }
 
@@ -408,6 +594,12 @@ function toRenderRow(f: IFindingRecord): IRenderRow {
     detail: f.detail === null ? null : flattenMessage(sanitizeForTerminal(f.detail)),
     confidence: f.confidence,
     model: f.model === null ? null : flattenMessage(sanitizeForTerminal(f.model)),
+    // Both fields are agent-supplied (the fixer authored the note; the id
+    // is manifest-sourced), so they pass the same gate as the finder's
+    // message: sanitized once here, never re-gated by the layout.
+    resolution: f.resolution,
+    resolutionNote: flattenMessage(sanitizeForTerminal(f.resolutionNote ?? '')),
+    resolutionBy: flattenMessage(sanitizeForTerminal(f.resolutionBy ?? '')),
     stale: f.stale,
   };
 }
@@ -434,9 +626,37 @@ function renderNodeSection(
     if (row.detail !== null && row.detail.length > 0) {
       lines.push(tx(T.detailLine, { detail: ansi.dim(row.detail) }));
     }
+    const resolution = renderResolution(row, ansi);
+    if (resolution !== null) lines.push(resolution);
   }
   lines.push('\n');
   return lines.join('');
+}
+
+/**
+ * The fixer-resolution line under a finding row, or `null` when no fixer
+ * has touched it (`spec/db-schema.md` §state_findings). Two shapes, and
+ * the asymmetry between them is the whole point:
+ *
+ *   - `fixed`: green `✓`, DIM text. A handled state (this line only shows
+ *     under `--fixed`, so the checkmark is honest here). Still NOT a
+ *     verdict: `fixed` means a fixer ran, only the finder re-judging
+ *     confirms the defect is gone.
+ *   - `declined`: yellow `⚠`, UNDIMMED text. The author's TODO: a fixer
+ *     refused because the call is the author's to make, and this note is
+ *     the thing the operator must act on.
+ */
+function renderResolution(row: IRenderRow, ansi: IAnsi): string | null {
+  if (row.resolution === null) return null;
+  const fixed = row.resolution === 'fixed';
+  const text = tx(fixed ? T.resolutionFixed : T.resolutionDeclined, {
+    fixer: row.resolutionBy,
+    note: row.resolutionNote,
+  });
+  return tx(T.resolutionLine, {
+    glyph: fixed ? ansi.green('✓') : ansi.yellow('⚠'),
+    text: fixed ? ansi.dim(text) : text,
+  });
 }
 
 /**

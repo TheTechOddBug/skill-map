@@ -278,6 +278,16 @@ CREATE INDEX ix_state_summaries_generated_at ON state_summaries(generated_at);
 --   - `node_id` is FK-semantic to `scan_nodes.path`; the rename heuristic
 --     (`migrateNodeFks` in src/kernel/adapters/sqlite/history.ts) migrates
 --     rows here, same protocol as the other state_* tables.
+--   - Fixer resolution STATE (lifecycle, not attribution): the `resolution*`
+--     columns record the lifecycle state a FIXER (a probabilistic Action
+--     declaring `precondition.analyzerIds`) moved this finding into, stamped
+--     by `sm record` per entry of its report's `resolved[]` (each declaring
+--     `state`), scoped to the job's node and the fixer's own analyzerIds.
+--     `fixed` = a fixer edited the file to resolve it (hidden from the
+--     default `sm findings` view, NOT deleted, re-checkable by re-running
+--     the finder); `declined` = the fixer refused, so it stays the author's
+--     visible TODO in `resolution_note`. Neither is "verified": only the
+--     finder re-judging the current body deletes or reopens a `fixed` row.
 CREATE TABLE state_findings (
   id INTEGER PRIMARY KEY,
   node_id TEXT NOT NULL,
@@ -292,11 +302,21 @@ CREATE TABLE state_findings (
   -- Recording agent's self-reported `--model` (NULL when undeclared),
   -- denormalized from the same record's execution row.
   model TEXT,
+  -- The lifecycle state a fixer moved this finding into (NULL = open):
+  -- `fixed` = a fixer edited the file to resolve it (hidden from the
+  -- default view, re-checkable), `declined` = it refused and left the
+  -- reason in `resolution_note` (the author's TODO, stays visible).
+  resolution TEXT,
+  resolution_note TEXT,
+  -- The fixer's qualified extension id + the stamp time.
+  resolution_by TEXT,
+  resolution_at INTEGER,
   body_hash_at_generation TEXT NOT NULL,
   generated_at INTEGER NOT NULL,
   job_id TEXT,
   CONSTRAINT ck_state_findings_origin CHECK (origin IN ('extension','kernel')),
-  CONSTRAINT ck_state_findings_severity CHECK (severity IN ('info','warn','error'))
+  CONSTRAINT ck_state_findings_severity CHECK (severity IN ('info','warn','error')),
+  CONSTRAINT ck_state_findings_resolution CHECK (resolution IS NULL OR resolution IN ('fixed','declined'))
 );
 CREATE INDEX ix_state_findings_node_id ON state_findings(node_id);
 CREATE INDEX ix_state_findings_extension_id ON state_findings(extension_id);

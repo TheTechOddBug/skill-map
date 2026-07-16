@@ -6,11 +6,12 @@
  *
  *   - ships experimental: DISABLED by default, `sm job submit
  *     node-consolidate` does not resolve until the operator enables it.
- *   - once enabled, submitting over a node WITH non-stale `node-redundancy`
- *     findings injects the `## Findings to resolve` section (and the prompt)
- *     into the rendered job content.
- *   - submitting over a node with NO matching findings (none seeded, or only
- *     stale ones) is refused with exit 2.
+ *   - once enabled, submitting over a node WITH `node-redundancy` findings
+ *     injects the `## Findings to resolve` section (and the prompt) into
+ *     the rendered job content, each entry flagged with its `stale`.
+ *   - a STALE-only finding set still submits (staleness is node-level, so a
+ *     sibling fixer's edit stales judgments whose defects are still there);
+ *     only a node with NO matching findings at all is refused with exit 2.
  *   - `sm plugins show core/node-consolidate` renders the Prompt + Report
  *     schema contract sections.
  *   - a happy-path record round-trip validates the fixer report
@@ -31,6 +32,7 @@ import { JobSubmitCommand, JobClaimCommand } from '../job-queue.js';
 import { RecordCommand } from '../record.js';
 import { PluginsShowCommand } from '../plugins/show.js';
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
+import type { IFindingRecord } from '../../../kernel/types/storage.js';
 import { sha256 } from '../../../kernel/orchestrator/node-build.js';
 import { builtIns } from '../../../plugins/built-ins.js';
 
@@ -129,24 +131,31 @@ async function setupProject(opts: { enableFixer: boolean }): Promise<IProject> {
 }
 
 /**
- * Seed one `core/node-redundancy` finding against the node. `stale` stamps
- * a mismatched `body_hash_at_generation` so the read-time staleness JOIN
- * hides it (the fixer must then refuse).
+ * Seed one `core/node-redundancy` finding against the node and return its
+ * autoincrement `id`: what the fixer echoes back in `resolved[]`, and what
+ * the resolution stamps key on. `stale` stamps a mismatched
+ * `body_hash_at_generation` so the read-time staleness JOIN flags the row
+ * (the fixer still injects it, marked `"stale": true`); `extensionId` /
+ * `nodeId` override the row's scope so the record-path guards can be
+ * exercised.
  */
-async function seedRedundancyFinding(proj: IProject, opts?: { stale?: boolean }): Promise<void> {
+async function seedRedundancyFinding(
+  proj: IProject,
+  opts?: { stale?: boolean; extensionId?: string; nodeId?: string; message?: string },
+): Promise<number> {
   const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
   await adapter.init();
   try {
-    await adapter.db
+    const row = await adapter.db
       .insertInto('state_findings')
       .values({
-        nodeId: NOTE.path,
-        extensionId: FINDER_ID,
+        nodeId: opts?.nodeId ?? NOTE.path,
+        extensionId: opts?.extensionId ?? FINDER_ID,
         extensionVersion: '0.1.0',
         origin: 'extension',
         type: 'redundancy',
         severity: 'info',
-        message: 'The upload step is stated twice',
+        message: opts?.message ?? 'The upload step is stated twice',
         detail: '"Upload it" vs "Upload the artifact"; keep one',
         confidence: 0.7,
         model: null,
@@ -154,7 +163,21 @@ async function seedRedundancyFinding(proj: IProject, opts?: { stale?: boolean })
         generatedAt: Date.now(),
         jobId: null,
       })
-      .execute();
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    return row.id;
+  } finally {
+    await adapter.close();
+  }
+}
+
+/** The stored finding row by id (resolution stamps included), or null. */
+async function readFinding(proj: IProject, id: number): Promise<IFindingRecord | null> {
+  const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+  await adapter.init();
+  try {
+    const all = await adapter.findings.list({ includeStale: true });
+    return all.find((f) => f.id === id) ?? null;
   } finally {
     await adapter.close();
   }
@@ -275,6 +298,14 @@ describe('core/node-consolidate, codegen inlining pins', () => {
     // The prompt avoids the literal `<user-content` delimiter (the render
     // guard rejects it) while keeping the `{{userContent}}` placeholder.
     ok(!/<user-content/i.test(action.promptTemplate ?? ''), 'no literal delimiter in the template');
+    // The stale-verification instruction rides the template: without it the
+    // agent would act on a flagged finding without checking the body first.
+    // (Byte-identity across all three fixers is pinned in
+    // `fixer-batch-builtin.spec.ts`.)
+    ok(
+      (action.promptTemplate ?? '').includes('A finding marked `"stale": true`'),
+      'the prompt instructs the agent to verify a stale finding before acting',
+    );
     ok((action.promptTemplate ?? '').includes('{{userContent}}'), 'carries the placeholder');
   });
 });
@@ -297,17 +328,68 @@ describe('core/node-consolidate, findings injection', () => {
     match(err, /no findings to resolve for core\/node-redundancy on notes\/guide\.md/);
   });
 
-  it('refuses (exit 2) when the only matching finding is stale', async () => {
+  it('refuses (exit 2) when only a finder outside its analyzerIds judged the node', async () => {
+    // Staleness relaxed, the lane filters did NOT: a node whose only rows
+    // belong to another finder is still a never-judged node for THIS fixer.
+    // (The kernel-safety-lane half of that guard is pinned at unit level in
+    // `kernel/jobs/__tests__/findings-injection.spec.ts`; this seeder only
+    // writes `origin: 'extension'` rows.)
     const proj = await setupProject({ enableFixer: true });
-    await seedRedundancyFinding(proj, { stale: true });
+    await seedRedundancyFinding(proj, { extensionId: 'core/node-incoherence' });
     const { code, err } = await submit(proj, 'node-consolidate');
-    strictEqual(code, 2, 'stale findings describe a body that no longer exists');
-    match(err, /no findings to resolve/);
+    strictEqual(code, 2, 'no node-redundancy finding to resolve');
+    match(err, /no findings to resolve for core\/node-redundancy on notes\/guide\.md/);
+  });
+
+  it('SUBMITS when the only matching finding is stale, flagging it for verification', async () => {
+    // The live scenario this behaviour exists for: fixer 1 edited one
+    // section, which staled EVERY finding on the node (staleness is
+    // node-level), including this one about an untouched section whose
+    // defect is still verbatim present. Refusing here would discard a valid
+    // judgment and force a re-detection between every fix.
+    const proj = await setupProject({ enableFixer: true });
+    const id = await seedRedundancyFinding(proj, { stale: true });
+    const { code, err } = await submit(proj, 'node-consolidate');
+    strictEqual(code, 0, `a stale finding is still a finding to resolve: ${err}`);
+
+    const content = await jobContent(proj);
+    match(content, /## Findings to resolve/);
+    ok(content.includes(`"id": ${id}`), 'the stale finding is injected');
+    ok(content.includes('"stale": true'), 'flagged so the agent verifies it against the body');
+    // The prompt carries the matching instruction (see the codegen pin).
+    match(content, /A finding marked `"stale": true` was judged against an earlier version/);
+  });
+
+  it('flags a fresh finding `"stale": false`', async () => {
+    const proj = await setupProject({ enableFixer: true });
+    await seedRedundancyFinding(proj);
+    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+    const content = await jobContent(proj);
+    ok(content.includes('"stale": false'), 'a fresh judgment needs no re-verification');
+  });
+
+  it('injects a MIXED set (fresh + stale) in deterministic id order', async () => {
+    const proj = await setupProject({ enableFixer: true });
+    const freshId = await seedRedundancyFinding(proj, { message: 'A fresh judgment' });
+    const staleId = await seedRedundancyFinding(proj, {
+      stale: true,
+      message: 'Judged before the last edit',
+    });
+    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+
+    const content = await jobContent(proj);
+    ok(content.includes('A fresh judgment'), 'fresh finding injected');
+    ok(content.includes('Judged before the last edit'), 'stale finding injected alongside it');
+    ok(
+      content.indexOf(`"id": ${freshId}`) < content.indexOf(`"id": ${staleId}`),
+      'id ascending, so the rendered bytes reproduce',
+    );
+    ok(content.includes('"stale": false') && content.includes('"stale": true'), 'each flagged on its own');
   });
 
   it('injects the ## Findings to resolve section (and the prompt) on a judged node', async () => {
     const proj = await setupProject({ enableFixer: true });
-    await seedRedundancyFinding(proj);
+    const id = await seedRedundancyFinding(proj);
     const { code, err } = await submit(proj, 'node-consolidate');
     strictEqual(code, 0, `submit: ${err}`);
 
@@ -317,6 +399,14 @@ describe('core/node-consolidate, findings injection', () => {
     // The kernel-authored findings section, before the user-content block.
     match(content, /## Findings to resolve/);
     match(content, /The upload step is stated twice/);
+    // The `id` rides the projection and the prompt asks for it back: that
+    // round trip is what lets the record path stamp this row.
+    ok(content.includes(`"id": ${id}`), 'the finding id is projected');
+    match(
+      content,
+      /copied\s+verbatim, a .state. of .fixed./,
+      'the prompt asks for the id and its lifecycle state back',
+    );
     const blockOpen = `<user-content id="${NOTE.path}">`;
     ok(content.includes(blockOpen), 'user-content block present');
     // The findings section sits OUTSIDE (before) the user-content block.
@@ -352,14 +442,14 @@ describe('core/node-consolidate, sm plugins show contract sections', () => {
 describe('core/node-consolidate, record round trip', () => {
   it('validates the fixer report (resolved / editsSummary / safety / confidence)', async () => {
     const proj = await setupProject({ enableFixer: true });
-    await seedRedundancyFinding(proj);
+    const id = await seedRedundancyFinding(proj);
     strictEqual((await submit(proj, 'node-consolidate')).code, 0);
 
     const { code, err } = await claimAndRecord(proj, {
       confidence: 0.9,
       safety: CLEAN_SAFETY,
       resolved: [
-        { type: 'redundancy', applied: true, note: 'Collapsed the two upload sentences into one.' },
+        { id, type: 'redundancy', state: 'fixed', note: 'Collapsed the two upload sentences into one.' },
       ],
       editsSummary: 'Merged the duplicated upload instruction; meaning preserved.',
     });
@@ -379,6 +469,58 @@ describe('core/node-consolidate, record round trip', () => {
     } finally {
       await adapter.close();
     }
+  });
+
+  it('rejects a resolved[] entry without an `id` as report-invalid', async () => {
+    // The id is what ties the claim to a finding; an entry without one is
+    // unattributable, so the schema requires it.
+    const proj = await setupProject({ enableFixer: true });
+    await seedRedundancyFinding(proj);
+    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+
+    const { code, err } = await claimAndRecord(proj, {
+      confidence: 0.9,
+      safety: CLEAN_SAFETY,
+      resolved: [{ type: 'redundancy', state: 'fixed', note: 'no id echoed' }],
+      editsSummary: 'x',
+    });
+    strictEqual(code, 2, 'report-invalid exit');
+    match(err, /report failed schema validation/);
+  });
+
+  it('rejects the OLD `applied` boolean shape (no `state`) as report-invalid', async () => {
+    // The lifecycle refactor (Decision #142) replaced the `applied` boolean
+    // with a required `state` enum: an agent still emitting the old shape
+    // must fail cleanly, not stamp a coerced state.
+    const proj = await setupProject({ enableFixer: true });
+    const id = await seedRedundancyFinding(proj);
+    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+
+    const { code, err } = await claimAndRecord(proj, {
+      confidence: 0.9,
+      safety: CLEAN_SAFETY,
+      resolved: [{ id, applied: true, note: 'old boolean shape, no state field' }],
+      editsSummary: 'x',
+    });
+    strictEqual(code, 2, 'report-invalid exit: state is required');
+    match(err, /report failed schema validation/);
+    // Nothing was stamped: the row is still open.
+    strictEqual((await readFinding(proj, id))?.resolution, null, 'no coerced state landed');
+  });
+
+  it('rejects an out-of-enum `state` value as report-invalid', async () => {
+    const proj = await setupProject({ enableFixer: true });
+    const id = await seedRedundancyFinding(proj);
+    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+
+    const { code, err } = await claimAndRecord(proj, {
+      confidence: 0.9,
+      safety: CLEAN_SAFETY,
+      resolved: [{ id, state: 'applied', note: 'not one of fixed / declined' }],
+      editsSummary: 'x',
+    });
+    strictEqual(code, 2, 'report-invalid exit: state is a closed enum');
+    match(err, /report failed schema validation/);
   });
 
   it('fails a report missing `resolved` as report-invalid', async () => {
@@ -403,5 +545,176 @@ describe('core/node-consolidate, record round trip', () => {
     } finally {
       await adapter.close();
     }
+  });
+});
+
+/**
+ * The resolution stamps (`spec/db-schema.md` §state_findings, "Fixer
+ * resolution state"): a real record round-trip must land the fixer's
+ * declared STATE ON the finding it addressed, and the scope guards must
+ * skip anything outside the fixer's own lane WITHOUT failing the job (its
+ * edits already hit the disk; a storage-scope mismatch is not the draining
+ * agent's error to bounce on).
+ */
+describe('core/node-consolidate, fixer resolution stamps', () => {
+  it('stamps `fixed` onto the finding the report named', async () => {
+    const proj = await setupProject({ enableFixer: true });
+    const id = await seedRedundancyFinding(proj);
+    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+
+    const { code, err } = await claimAndRecord(proj, {
+      confidence: 0.9,
+      safety: CLEAN_SAFETY,
+      resolved: [{ id, state: 'fixed', note: 'Collapsed the two upload sentences into one.' }],
+      editsSummary: 'Merged the duplicated upload instruction.',
+    });
+    strictEqual(code, 0, err);
+
+    const row = await readFinding(proj, id);
+    ok(row, 'the finding survives: a fixed state never deletes it');
+    strictEqual(row.resolution, 'fixed');
+    strictEqual(row.resolutionNote, 'Collapsed the two upload sentences into one.');
+    strictEqual(row.resolutionBy, FIXER_ID, 'attributed to the fixer\'s qualified id');
+    ok(typeof row.resolutionAt === 'number' && row.resolutionAt > 0, 'stamped with a time');
+  });
+
+  it('stamps `declined` with the note verbatim (the author\'s TODO)', async () => {
+    const proj = await setupProject({ enableFixer: true });
+    const id = await seedRedundancyFinding(proj);
+    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+
+    const note = 'Both phrasings carry a distinct scope; only the author can pick one.';
+    const { code, err } = await claimAndRecord(proj, {
+      confidence: 0.4,
+      safety: CLEAN_SAFETY,
+      resolved: [{ id, state: 'declined', note }],
+      editsSummary: '',
+    });
+    strictEqual(code, 0, err);
+
+    const row = await readFinding(proj, id);
+    ok(row);
+    strictEqual(row.resolution, 'declined');
+    strictEqual(row.resolutionNote, note, 'the note is stored verbatim, never reworded');
+    strictEqual(row.resolutionBy, FIXER_ID);
+  });
+
+  it('stamps a MIXED report per entry (one fixed, one declined)', async () => {
+    const proj = await setupProject({ enableFixer: true });
+    const fixedId = await seedRedundancyFinding(proj, { message: 'Upload stated twice' });
+    const declined = await seedRedundancyFinding(proj, { message: 'Retry policy stated twice' });
+    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+
+    const { code, err } = await claimAndRecord(proj, {
+      confidence: 0.8,
+      safety: CLEAN_SAFETY,
+      resolved: [
+        { id: fixedId, state: 'fixed', note: 'Collapsed into one statement.' },
+        { id: declined, state: 'declined', note: 'The two retry limits conflict; your call.' },
+      ],
+      editsSummary: 'Collapsed the upload duplication only.',
+    });
+    strictEqual(code, 0, err);
+
+    const fixedRow = await readFinding(proj, fixedId);
+    const declinedRow = await readFinding(proj, declined);
+    strictEqual(fixedRow?.resolution, 'fixed');
+    strictEqual(fixedRow?.resolutionNote, 'Collapsed into one statement.');
+    strictEqual(declinedRow?.resolution, 'declined');
+    strictEqual(declinedRow?.resolutionNote, 'The two retry limits conflict; your call.');
+  });
+
+  it('leaves an unaddressed finding unstamped (resolution stays null)', async () => {
+    const proj = await setupProject({ enableFixer: true });
+    const addressed = await seedRedundancyFinding(proj, { message: 'Upload stated twice' });
+    const ignored = await seedRedundancyFinding(proj, { message: 'Retry policy stated twice' });
+    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+
+    strictEqual(
+      (
+        await claimAndRecord(proj, {
+          confidence: 0.8,
+          safety: CLEAN_SAFETY,
+          resolved: [{ id: addressed, state: 'fixed', note: 'Collapsed it.' }],
+          editsSummary: 'One edit.',
+        })
+      ).code,
+      0,
+    );
+
+    strictEqual((await readFinding(proj, addressed))?.resolution, 'fixed');
+    strictEqual((await readFinding(proj, ignored))?.resolution, null, 'never touched');
+  });
+
+  it('SKIPS an unknown id silently (a benign race: the finder re-ran)', async () => {
+    const proj = await setupProject({ enableFixer: true });
+    const id = await seedRedundancyFinding(proj);
+    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+
+    const { code, err } = await claimAndRecord(proj, {
+      confidence: 0.9,
+      safety: CLEAN_SAFETY,
+      resolved: [
+        { id: 999_999, state: 'fixed', note: 'resolves a finding that no longer exists' },
+        { id, state: 'fixed', note: 'this one is real' },
+      ],
+      editsSummary: 'Edited.',
+    });
+    // The job still completes: the fixer's edits already landed on disk.
+    strictEqual(code, 0, err);
+    strictEqual((await readFinding(proj, id))?.resolutionNote, 'this one is real');
+  });
+
+  it('SKIPS a finding on ANOTHER node (defensive scope)', async () => {
+    const proj = await setupProject({ enableFixer: true });
+    const own = await seedRedundancyFinding(proj);
+    // A same-finder finding, but on a node this job does not target.
+    const foreign = await seedRedundancyFinding(proj, { nodeId: 'notes/other.md' });
+    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+
+    const { code, err } = await claimAndRecord(proj, {
+      confidence: 0.9,
+      safety: CLEAN_SAFETY,
+      resolved: [
+        { id: own, state: 'fixed', note: 'in scope' },
+        { id: foreign, state: 'fixed', note: 'out of scope: another node' },
+      ],
+      editsSummary: 'Edited.',
+    });
+    strictEqual(code, 0, err);
+    strictEqual((await readFinding(proj, own))?.resolution, 'fixed');
+    strictEqual(
+      (await readFinding(proj, foreign))?.resolution,
+      null,
+      'a fixer can never stamp a finding outside the job\'s node',
+    );
+  });
+
+  it('SKIPS a finding from a finder outside its analyzerIds (defensive scope)', async () => {
+    const proj = await setupProject({ enableFixer: true });
+    const own = await seedRedundancyFinding(proj);
+    // Same node, but judged by a finder node-consolidate does not serve.
+    const foreign = await seedRedundancyFinding(proj, {
+      extensionId: 'core/node-contradiction',
+      message: 'Dev and prod steps conflict',
+    });
+    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+
+    const { code, err } = await claimAndRecord(proj, {
+      confidence: 0.9,
+      safety: CLEAN_SAFETY,
+      resolved: [
+        { id: own, state: 'fixed', note: 'in scope' },
+        { id: foreign, state: 'fixed', note: 'out of scope: another finder' },
+      ],
+      editsSummary: 'Edited.',
+    });
+    strictEqual(code, 0, err);
+    strictEqual((await readFinding(proj, own))?.resolution, 'fixed');
+    strictEqual(
+      (await readFinding(proj, foreign))?.resolution,
+      null,
+      'a fixer can never stamp findings from a finder it does not declare',
+    );
   });
 });

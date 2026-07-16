@@ -411,6 +411,10 @@ Probabilistic findings: the judgments recorded by finder Analyzers (`mode: 'prob
 | `detail` | TEXT | NULL |
 | `confidence` | REAL | NOT NULL |
 | `model` | TEXT | NULL |
+| `resolution` | TEXT | NULL, CHECK in (`fixed`, `declined`) |
+| `resolution_note` | TEXT | NULL |
+| `resolution_by` | TEXT | NULL |
+| `resolution_at` | INTEGER | NULL |
 | `body_hash_at_generation` | TEXT | NOT NULL |
 | `generated_at` | INTEGER | NOT NULL |
 | `job_id` | TEXT | NULL |
@@ -421,6 +425,11 @@ Indexes: `ix_state_findings_node_id`, `ix_state_findings_extension_id`, `ix_stat
 
 - **Finder lane** (`origin = 'extension'`): when the job's extension is a probabilistic **Analyzer**, each entry of the validated report's `findings[]` array becomes one row. `extension_id` / `extension_version` mirror the job's columns; per-row `confidence` is the finding's own value when present, else the report-level `confidence`; `model` mirrors the recording agent's self-reported `--model` (NULL when undeclared); `body_hash_at_generation` captures the node's `scan_nodes.body_hash` at record time; `job_id` records provenance.
 - **Safety lane** (`origin = 'kernel'`): for EVERY probabilistic report (Action or Analyzer) whose `safety` block flags trouble, the kernel synthesizes rows with the reserved type slugs: `injection-detected` (severity `warn`) when `safety.injectionDetected = true`, `content-suspicious` (severity `info`) / `content-malformed` (severity `warn`) when `safety.contentQuality` is not `clean`. `extension_id` is the REPORTING extension's id (the summarizer or finder whose run surfaced the flag); `confidence` is the report-level value; `message` carries the kernel-templated statement (wording implementation-defined, `safety.injectionDetails` folded into `detail` when present). Extensions MUST NOT emit the reserved slugs themselves (enforced by convention in the canonical envelope; implementations SHOULD reject them at record time as `report-invalid`).
+
+**Fixer resolution state.** The `resolution` column is a lifecycle STATE the finding moves through (`NULL` = open, `fixed`, `declined`), set by `sm record` when a fixer Action (one declaring `precondition.analyzerIds`) closes a job: per entry of its report's `resolved[]`, the kernel matches the finding by `id` and stamps `resolution` to the state the fixer declared, plus `resolution_note` (the fixer's one-line reason, verbatim), `resolution_by` (the fixer's qualified extension id) and `resolution_at`. Entries whose `id` no longer exists, or whose finding does not belong to the job's target node AND one of the fixer's `analyzerIds`, are SKIPPED silently (a benign race: the finder re-ran between submit and record; or a fixer reaching outside its scope, which it can never do).
+
+- **`fixed`**, the fixer edited the file to resolve it. HIDDEN from the default `sm findings` view (it has been handled), but NOT deleted: the row persists as the record that a fix ran and stays re-checkable. The state is honest, `fixed` means "a fixer executed on this", NOT "verified gone". The operator confirms by re-running the finder over the current body: a clean verdict deletes the row (its replace erases it), a still-present defect reopens it. This is a state change, not a closure; nothing auto-deletes.
+- **`declined`**, the fixer did not resolve it, the fix needs a decision only the author can make. Stays VISIBLE in the default view (it is the author's TODO); the excluded-count line names any declined row that also went stale so it is never lost (see [`cli-contract.md`](./cli-contract.md)).
 
 **Replace semantics.** Recording a completed job for `(node_id, extension_id)` first DELETEs every existing row for that pair (both origins), then inserts the fresh rows, in the same transaction. An empty `findings[]` with a clean safety block therefore ERASES the finder's previous judgment for the node: a clean verdict, not a no-op. The write is skipped entirely (previous rows kept) when the target node has disappeared from `scan_nodes` between submit and record, same rule as `state_summaries`.
 

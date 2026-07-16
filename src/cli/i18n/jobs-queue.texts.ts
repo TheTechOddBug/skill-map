@@ -37,10 +37,12 @@ export const JOBS_QUEUE_TEXTS = {
   submitErrBadPriority: '--priority must be an integer, got {{value}}',
   // Fixer refusal (`spec/job-lifecycle.md` §Findings injection for fixers):
   // a probabilistic Action declaring `precondition.analyzerIds` submitted
-  // over a node with no current non-stale matching findings has nothing to
-  // fix, so submit refuses (exit 2) instead of rendering an empty section.
+  // over a node NO matching finder ever judged (no rows at all, fresh or
+  // stale) has nothing to fix, so submit refuses (exit 2) instead of
+  // rendering an empty section. Stale rows are NOT a cause: they ride the
+  // injection flagged and the agent verifies them against the current body.
   submitErrNoFindings:
-    'no findings to resolve for {{finders}} on {{node}}; run the finder first, or the node changed since it ran',
+    'no findings to resolve for {{finders}} on {{node}}; run the finder first',
 
   // --- submit: human summary lines ---------------------------------------
   submitQueuedLine: '{{glyph}}  queued {{id}}  {{node}}\n',

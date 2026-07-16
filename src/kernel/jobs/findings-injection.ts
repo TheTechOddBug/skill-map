@@ -11,16 +11,25 @@
  *     `origin = 'extension'` (the finder's own judgments, NOT the kernel
  *     safety lane, an `injection-detected` flag is not a prose defect a
  *     fixer consolidates) whose `extension_id` is one of the Action's
- *     `analyzerIds`, and NOT stale. The caller sources the list through
- *     `port.findings.list({ nodeId })`, which already excludes stale rows
- *     via its LEFT-JOIN staleness rule (`kernel/adapters/sqlite/findings.ts`
- *     `listFindings`), so this leg never re-derives staleness; the `!stale`
- *     guard here is defensive. Ordered by `id` ascending so the rendered
- *     bytes reproduce.
+ *     `analyzerIds`. Stale rows are INCLUDED, flagged, not filtered:
+ *     staleness is node-level (any body byte invalidates every finding on
+ *     the node), so fixing one section stales the findings about untouched
+ *     sections whose defects are still verbatim present; dropping them
+ *     would discard valid judgments and force a re-detection between every
+ *     fix. The caller sources the list through
+ *     `port.findings.list({ nodeId, includeStale: true })`, since the
+ *     adapter hides stale rows by default. Ordered by `id` ascending so the
+ *     rendered bytes reproduce.
  *   - `buildFindingsSection`, the RENDER: the `## Findings to resolve`
  *     heading, a one-line caution that spans quoted inside the findings are
  *     DATA not instructions, then a fenced ```json array of the selected
- *     findings projected to {type, severity, message, detail, confidence}.
+ *     findings projected to {id, type, severity, message, detail,
+ *     confidence, stale}. The `id` leads: it is what the fixer echoes back
+ *     in its report's `resolved[]` so the kernel can stamp each finding's
+ *     resolution at record (`spec/db-schema.md` §state_findings). `stale`
+ *     closes the shape: the fixer template instructs the agent to verify a
+ *     flagged entry against the current body and decline what no longer
+ *     applies.
  *
  * The section is kernel-authored prelude: it renders OUTSIDE the
  * `<user-content>` block, BEFORE the report contract, and folds into
@@ -39,26 +48,44 @@ import { matchesQualifiedExtensionFilter } from '../util/analyzer-filter.js';
  * The per-finding projection injected into the fenced json array
  * (`spec/job-lifecycle.md` §Findings injection for fixers). Deliberately
  * narrower than the stored `IFindingRecord`: only the fields the draining
- * agent needs to apply the fix, never the internal stamps (`id`,
- * `bodyHashAtGeneration`, `generatedAt`, `jobId`, `origin`).
+ * agent needs to apply the fix, never the internal stamps
+ * (`bodyHashAtGeneration`, `generatedAt`, `jobId`, `origin`).
+ *
+ * `id` is the exception and leads the shape: the fixer copies it verbatim
+ * into its report's `resolved[]` so the record path can stamp the
+ * resolution back onto THIS row (`spec/db-schema.md` §state_findings).
+ * Without it the fixer's outcome could not be tied to the finding it
+ * addressed.
+ *
+ * `stale` closes it: `true` means the finding was judged against an earlier
+ * version of the body, so the agent MUST verify it against the current
+ * content before acting and decline it when it no longer applies. It is
+ * derived at read time (`kernel/adapters/sqlite/findings.ts` `listFindings`),
+ * never a stored column.
  */
 export interface IFixerFindingProjection {
+  id: number;
   type: string;
   severity: Severity;
   message: string;
   detail: string | null;
   confidence: number;
+  stale: boolean;
 }
 
 /**
  * Select the extension-lane findings a fixer resolves from a node's
  * findings list: `origin = 'extension'` (never the kernel safety lane)
  * whose `extension_id` is one of `analyzerIds` (same qualified/bare
- * matching as `sm check --analyzers`, via `matchesQualifiedExtensionFilter`),
- * and NOT stale. The input list is assumed already stale-excluded (the
- * adapter `list` default); the `!stale` filter is defensive. Ordered by
- * `id` ascending so two submits over the same finding set render identical
- * bytes.
+ * matching as `sm check --analyzers`, via `matchesQualifiedExtensionFilter`).
+ * Fresh AND stale rows both survive (the stale ones ride flagged, see
+ * `projectFinding`): staleness is node-level, so a fix in one section
+ * stales every finding on the node including the untouched sections' still
+ * verbatim present defects, and filtering here would break the natural
+ * "queue all the fixers" flow. Callers MUST source the list with
+ * `includeStale: true` or the adapter hides the stale rows before this leg
+ * sees them. Ordered by `id` ascending so two submits over the same finding
+ * set render identical bytes.
  */
 export function selectFixerFindings(
   findings: readonly IFindingRecord[],
@@ -68,7 +95,6 @@ export function selectFixerFindings(
     .filter(
       (finding) =>
         finding.origin === 'extension' &&
-        !finding.stale &&
         matchesQualifiedExtensionFilter(finding.extensionId, analyzerIds),
     )
     .slice()
@@ -78,11 +104,13 @@ export function selectFixerFindings(
 /** Project a stored finding to the injected shape (fixed key order). */
 function projectFinding(finding: IFindingRecord): IFixerFindingProjection {
   return {
+    id: finding.id,
     type: finding.type,
     severity: finding.severity,
     message: finding.message,
     detail: finding.detail,
     confidence: finding.confidence,
+    stale: finding.stale,
   };
 }
 

@@ -26,7 +26,7 @@
  */
 
 import type { Severity } from '../types.js';
-import type { IFindingRowInput } from '../types/storage.js';
+import type { IFindingResolutionEntry, IFindingRowInput } from '../types/storage.js';
 import { FINDINGS_TEXTS } from '../i18n/findings.texts.js';
 
 /**
@@ -95,6 +95,51 @@ export function extensionFindingRows(report: Record<string, unknown>): IFindingR
 /** AJV already pinned the enum; degrade off-contract values to `info`. */
 function entrySeverity(value: unknown): Severity {
   return value === 'error' || value === 'warn' || value === 'info' ? value : 'info';
+}
+
+/**
+ * The FIXER lane's report narrowing (`spec/job-lifecycle.md` §Findings
+ * injection for fixers, "The resolution"): one entry per `resolved[]`
+ * element the fixer echoed back, carrying the finding `id` it copied
+ * verbatim from the injected findings section, the `state` it moved the
+ * finding into (`fixed` / `declined`), and its one-line `note`.
+ *
+ * Only meaningful for a FIXER's report (a probabilistic Action declaring
+ * `precondition.analyzerIds`); the record path never calls this for a
+ * finder. The fixer's `report.schema.json` REQUIRES all three fields and
+ * pins `state` to the enum, so the narrowing here is defensive: an entry
+ * whose `id` is not an integer, or whose `state` is neither `fixed` nor
+ * `declined` (an off-contract payload that somehow cleared AJV, or the old
+ * `applied` boolean shape), is DROPPED rather than stamped against a
+ * coerced row.
+ */
+export function fixerResolutionEntries(
+  report: Record<string, unknown>,
+): IFindingResolutionEntry[] {
+  const raw = report['resolved'];
+  if (!Array.isArray(raw)) return [];
+  const out: IFindingResolutionEntry[] = [];
+  for (const entry of raw) {
+    const narrowed = narrowResolutionEntry(entry);
+    if (narrowed !== null) out.push(narrowed);
+  }
+  return out;
+}
+
+/**
+ * Narrow one `resolved[]` element to an `IFindingResolutionEntry`, or
+ * `null` when it is off-contract (non-integer `id`, or a `state` that is
+ * neither `fixed` nor `declined`, e.g. the retired `applied` boolean
+ * shape). The AJV validation upstream already pins both fields, so a
+ * non-null here is redundant defense, not the validation gate.
+ */
+function narrowResolutionEntry(entry: unknown): IFindingResolutionEntry | null {
+  if (!isRecord(entry)) return null;
+  const id = entry['id'];
+  if (typeof id !== 'number' || !Number.isInteger(id)) return null;
+  const state = entry['state'];
+  if (state !== 'fixed' && state !== 'declined') return null;
+  return { id, state, note: typeof entry['note'] === 'string' ? entry['note'] : '' };
 }
 
 /**

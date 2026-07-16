@@ -34,6 +34,7 @@ import type { Kysely, Selectable, Transaction } from 'kysely';
 import type { IDatabase, IStateJobsTable } from './schema.js';
 import type { ExecutionRecord, Job, JobRunner, JobStatus } from '../../types.js';
 import type {
+  IFindingResolutionIntent,
   IFindingsWriteIntent,
   IJobClaim,
   IJobContentInput,
@@ -45,7 +46,7 @@ import type {
   TJobTransitionOutcome,
 } from '../../types/storage.js';
 import { JobNotRunningError } from '../../jobs/errors.js';
-import { writeFindingsForNode } from './findings.js';
+import { stampFindingResolutions, writeFindingsForNode } from './findings.js';
 import { insertExecution } from './history.js';
 import { upsertSummaryForNode } from './summaries.js';
 
@@ -553,12 +554,22 @@ export async function reapExpired(
  * rows land stamped with the node's live `body_hash`. An empty intent is
  * a clean verdict (pure erase). Same skip rule as summaries when the
  * target node has disappeared (previous rows kept).
+ *
+ * **Fixer resolution stamps** (`spec/db-schema.md` §state_findings). When
+ * the caller passes a `resolutions` intent (the recorded job's extension
+ * is a FIXER, an Action declaring `precondition.analyzerIds`), each
+ * `resolved[]` entry is stamped onto the finding its `id` names, in the
+ * SAME transaction. This targets the FINDER's rows, never the fixer's
+ * own id, so it never collides with the findings replace above (which is
+ * keyed by the fixer's `extension_id`). Out-of-scope and unknown-id
+ * entries are skipped silently.
  */
 export async function recordJobTerminal(
   db: Kysely<IDatabase>,
   execution: ExecutionRecord,
   summary?: ISummaryWriteIntent,
   findings?: IFindingsWriteIntent,
+  resolutions?: IFindingResolutionIntent,
 ): Promise<void> {
   const jobId = execution.jobId;
   if (jobId === null || jobId === undefined) {
@@ -583,24 +594,27 @@ export async function recordJobTerminal(
       throw new JobNotRunningError(jobId);
     }
     await insertExecution(trx, execution);
-    await applyWriteThroughs(trx, execution, summary, findings);
+    await applyWriteThroughs(trx, execution, summary, findings, resolutions);
   });
 }
 
 /**
  * Fold the optional per-node write-throughs into the record transaction:
- * the summary upsert and the findings replace, both keyed by the
- * execution's target node. Each helper reads the live `scan_nodes` row
- * itself and skips silently when the node has disappeared.
+ * the summary upsert, the findings replace, and the fixer resolution
+ * stamps, all keyed by the execution's target node. Each helper reads the
+ * live `scan_nodes` row itself and skips silently when the node has
+ * disappeared (the stamps skip per-entry on their own scope guards).
  */
 async function applyWriteThroughs(
   trx: Transaction<IDatabase>,
   execution: ExecutionRecord,
   summary?: ISummaryWriteIntent,
   findings?: IFindingsWriteIntent,
+  resolutions?: IFindingResolutionIntent,
 ): Promise<void> {
   const nodeId = execution.nodeIds?.[0];
   if (nodeId === undefined) return;
   if (summary !== undefined) await upsertSummaryForNode(trx, nodeId, summary);
   if (findings !== undefined) await writeFindingsForNode(trx, nodeId, findings);
+  if (resolutions !== undefined) await stampFindingResolutions(trx, nodeId, resolutions);
 }

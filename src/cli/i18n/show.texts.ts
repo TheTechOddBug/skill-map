@@ -70,6 +70,23 @@ export const SHOW_TEXTS = {
   findingModelSuffix: '  ({{model}})',
   /** Marker appended (yellow) when the finding is stale. */
   findingStale: '  (stale)',
+  /**
+   * Optional line under a finding row: the lifecycle STATE a FIXER moved
+   * it into (`spec/db-schema.md` §state_findings). Same shape and wording
+   * as `sm findings` (see `findings.texts.ts`), so the two read alike.
+   */
+  findingResolutionLine: '       {{glyph}}  {{text}}\n',
+  /**
+   * `fixed`: green `✓` + dim text. A handled state, not a verdict: only
+   * the finder re-judging confirms the defect is gone (never "resolved" /
+   * "verified").
+   */
+  findingResolutionFixed: 'fixed by {{fixer}}: {{note}}',
+  /**
+   * `declined`: yellow `⚠` + undimmed text. The author's TODO, the
+   * higher-value state of the two.
+   */
+  findingResolutionDeclined: '{{fixer}} declined, needs your decision: {{note}}',
 
   // --- summary section -------------------------------------------------
   summarySection: '\n  Summary ({{count}})\n',

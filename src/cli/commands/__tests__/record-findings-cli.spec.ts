@@ -43,6 +43,7 @@ import { RecordCommand } from '../record.js';
 import { ShowCommand } from '../show.js';
 import { HistoryCommand } from '../history.js';
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
+import { stampFindingResolutions } from '../../../kernel/adapters/sqlite/findings.js';
 import { sha256 } from '../../../kernel/orchestrator/node-build.js';
 import type { IFindingRecord } from '../../../kernel/types/storage.js';
 
@@ -482,6 +483,68 @@ describe('sm show Findings section', () => {
       return JSON.parse(cap.stdout()) as { findings: IFindingRecord[] };
     });
     ok(doc.findings.every((f) => f.stale), 'json stale flags flip true');
+  });
+
+  /**
+   * `sm show` renders a fixer's resolution the same way `sm findings`
+   * does (`spec/db-schema.md` §state_findings): the two surfaces must not
+   * disagree about the lifecycle state a fixer moved a finding into.
+   * `sm show` matters most here because it lists ALL rows (fixed included,
+   * unlike the default `sm findings` view), and because it already includes
+   * STALE rows, which is exactly where a declined finding ends up once the
+   * fixer's sibling edits move the body.
+   */
+  it('renders a fixer resolution: declined prominently, fixed as a handled state', async () => {
+    const proj = await setupProject();
+    await runFullLoop(proj, FINDER_ID, FINDER_REPORT);
+
+    const seed = await openDb(proj.dbPath);
+    let ids: number[];
+    try {
+      ids = (await seed.findings.list({ includeStale: true })).map((f) => f.id);
+      strictEqual(ids.length, 2, 'the finder landed two rows to resolve');
+      await stampFindingResolutions(seed.db, SKILL.path, {
+        resolvedBy: 'core/node-reconcile',
+        analyzerIds: [FINDER_ID],
+        resolvedAt: Date.now(),
+        entries: [
+          { id: ids[0]!, state: 'fixed', note: 'Rewrote step 2 to match step 5.' },
+          { id: ids[1]!, state: 'declined', note: 'Only you can decide which step wins.' },
+        ],
+      });
+    } finally {
+      await seed.close();
+    }
+
+    const human = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      strictEqual(await run(buildShow(false), cap), 0);
+      return cap.stdout();
+    });
+    match(
+      human,
+      /✓ {2}fixed by core\/node-reconcile: Rewrote step 2 to match step 5\./,
+      'a fixed row reads as a handled state under the checkmark',
+    );
+    match(
+      human,
+      /core\/node-reconcile declined, needs your decision: Only you can decide which step wins\./,
+    );
+    // Both findings are still LISTED: sm show includes fixed rows, and a
+    // fixed state never deletes the row.
+    match(human, /Findings \(2\)/);
+
+    const doc = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      await run(buildShow(true), cap);
+      return JSON.parse(cap.stdout()) as { findings: IFindingRecord[] };
+    });
+    const fixed = doc.findings.find((f) => f.id === ids[0]);
+    const declined = doc.findings.find((f) => f.id === ids[1]);
+    strictEqual(fixed?.resolution, 'fixed');
+    strictEqual(declined?.resolution, 'declined');
+    strictEqual(declined?.resolutionBy, 'core/node-reconcile');
+    strictEqual(declined?.resolutionNote, 'Only you can decide which step wins.');
   });
 });
 

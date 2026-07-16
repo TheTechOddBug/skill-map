@@ -19,6 +19,9 @@
  *   - uninstall removes the folder and double-uninstall no-ops (exit 0).
  *   - `--for` refusals: unknown provider id, and a registered provider
  *     without a `scaffold.skillDir` (`markdown`), both exit 2.
+ *   - the canonical skill BODY teaches the interactive fixer-edit
+ *     confirmation (the verb tests only pin bytes == constant, which says
+ *     nothing about what the skill teaches).
  */
 
 import {
@@ -324,5 +327,60 @@ describe('sm agent uninstall', () => {
     strictEqual(outcome.code, 2);
     ok(outcome.err.includes('no registered provider "nope"'), 'headline');
     ok(outcome.err.includes('Providers with a skill directory:'), 'hint');
+  });
+});
+
+/**
+ * The canonical skill BODY. The verb tests above pin that the materialised
+ * bytes equal `RUN_QUEUE_SKILL_CONTENT`, which is tautological about what
+ * the skill actually teaches. A fixer job is the ONE job kind that edits
+ * the operator's own files, and a draining agent may well have a human
+ * sitting next to it, so the skill must send it to that human before
+ * writing, and must say why waiting is safe: TTL-less jobs never expire
+ * (`spec/job-lifecycle.md` §TTL and auto-reap explicitly reserves the
+ * no-TTL default for exactly this interactive pause).
+ */
+describe('the canonical sm-run-queue skill, fixer-edit guidance', () => {
+  it('sends an interactive agent to its user for a go-ahead before the edit', () => {
+    ok(
+      RUN_QUEUE_SKILL_CONTENT.includes('consult them before a fixer\'s edit'),
+      'names consulting the user as the fixer-edit precondition',
+    );
+    ok(
+      RUN_QUEUE_SKILL_CONTENT.includes('show the edit you intend to make and get their'),
+      'the confirmation is show-then-approve, not a bare "ask first"',
+    );
+  });
+
+  it('keeps the unattended drain autonomous (edit, then report)', () => {
+    ok(
+      RUN_QUEUE_SKILL_CONTENT.includes('when draining unattended, make the edit'),
+      'an agent with no user to consult still performs the edit',
+    );
+  });
+
+  it('justifies the wait with the TTL-less default, so a claim can hold', () => {
+    ok(
+      RUN_QUEUE_SKILL_CONTENT.includes('Jobs carry no TTL by default'),
+      'the skill states why pausing mid-claim is safe',
+    );
+  });
+
+  /**
+   * The agent that edited the file is the one that knows it changed, so
+   * it owns the re-scan. Observed live: a fixer edited the node, nobody
+   * scanned, and `sm findings` kept reporting the finding as FRESH
+   * against a body that no longer existed on disk (staleness compares
+   * two DB hashes, and the DB only learns from a scan).
+   */
+  it('makes the draining agent re-scan the node it edited', () => {
+    ok(
+      RUN_QUEUE_SKILL_CONTENT.includes('run `sm scan -n <path>` for the file'),
+      'names the per-node scan verb, not a full re-scan',
+    );
+    ok(
+      RUN_QUEUE_SKILL_CONTENT.includes('skill-map learns about edits only from a scan'),
+      'states why: without it the map reports against the replaced version',
+    );
   });
 });

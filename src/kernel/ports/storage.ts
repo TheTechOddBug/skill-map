@@ -43,6 +43,7 @@ import type {
   IApplyResult,
   IBranchProjection,
   IFindingRecord,
+  IFindingResolutionIntent,
   IFindingsListFilter,
   IFindingsWriteIntent,
   IHistoryStatsRange,
@@ -539,11 +540,21 @@ export interface StoragePort {
      * is a clean verdict that erases the prior judgment. Same skip rule
      * as summaries when the node has disappeared
      * (`spec/db-schema.md` §state_findings).
+     *
+     * When `resolutions` is supplied (the recorded job's extension is a
+     * FIXER: an Action declaring `precondition.analyzerIds`), the lifecycle
+     * `state` each entry of its report's `resolved[]` declares is stamped
+     * onto the finding its `id` names, in the same transaction. A `fixed`
+     * state hides the row from the default view but never deletes it; only
+     * the finder re-judging closes a finding. Entries naming an unknown id,
+     * a finding on another node, or a finder outside the fixer's
+     * `analyzerIds` are skipped SILENTLY (benign race / defensive scope).
      */
     recordTerminal(
       execution: ExecutionRecord,
       summary?: ISummaryWriteIntent,
       findings?: IFindingsWriteIntent,
+      resolutions?: IFindingResolutionIntent,
     ): Promise<void>;
   };
 
@@ -751,6 +762,7 @@ export type {
   IApplyResult,
   IBranchProjection,
   IFindingRecord,
+  IFindingResolutionIntent,
   IFindingsListFilter,
   IFindingsWriteIntent,
   IHistoryStatsRange,

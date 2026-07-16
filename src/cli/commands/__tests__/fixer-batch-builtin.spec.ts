@@ -5,9 +5,10 @@
  * over the two fixers instead of cloning the file per extension. A fixer is
  * a probabilistic Action declaring `precondition.analyzerIds`
  * (`spec/job-lifecycle.md` §Findings injection for fixers); the kernel
- * injects the node's current non-stale findings from the declared finder(s)
- * into a `## Findings to resolve` section at submit, and the draining agent
- * performs the file edit (skill-map never writes the body).
+ * injects the node's findings from the declared finder(s), stale ones
+ * included and flagged, into a `## Findings to resolve` section at submit,
+ * and the draining agent performs the file edit (skill-map never writes the
+ * body).
  *
  * Common cases (per fixer):
  *   - codegen-inlined `promptTemplate` / `reportSchema` byte-/deep-equal to
@@ -15,16 +16,17 @@
  *     user-content delimiter, and the report extends `report-base` (NOT the
  *     findings envelope, a fixer is not a finder).
  *   - ships experimental: DISABLED by default (`sm job submit` exits 5).
- *   - once enabled, submitting over a node with NO matching non-stale
- *     findings refuses with exit 2; a stale-only finding also refuses.
+ *   - once enabled, submitting over a node with NO matching findings at all
+ *     refuses with exit 2; a stale-only finding SUBMITS (flagged).
  *   - submitting over a node WITH matching findings injects the
  *     `## Findings to resolve` section (and the prompt) into the job content.
  *   - `sm plugins show` renders the Prompt + Report schema sections.
  *   - a happy-path record round-trip validates the fixer report
  *     (resolved / editsSummary / safety / confidence) and writes NO
- *     `state_findings` of the fixer's own id; an `applied: false`
+ *     `state_findings` of the fixer's own id; a `state: 'declined'`
  *     escape-hatch entry (author decision / missing info) ALSO validates; a
- *     report missing `resolved` fails as report-invalid.
+ *     report missing `resolved`, or an entry using the old `applied` shape,
+ *     fails as report-invalid.
  *
  * Distinctive to `core/node-reconcile` (serves TWO finders): seeding BOTH a
  * `core/node-contradiction` and a `core/node-contraindication` finding on the
@@ -45,6 +47,7 @@ import { JobSubmitCommand, JobClaimCommand } from '../job-queue.js';
 import { RecordCommand } from '../record.js';
 import { PluginsShowCommand } from '../plugins/show.js';
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
+import type { IFindingRecord } from '../../../kernel/types/storage.js';
 import { sha256 } from '../../../kernel/orchestrator/node-build.js';
 import { builtIns } from '../../../plugins/built-ins.js';
 
@@ -181,19 +184,26 @@ async function setupProject(opts: { enable?: string }): Promise<IProject> {
 }
 
 /**
- * Seed one finding against the node. `stale` stamps a mismatched
- * `body_hash_at_generation` so the read-time staleness JOIN hides it (the
- * fixer must then refuse). The `extensionId` decides which finder's lane the
- * finding lands in, so the fixer's `analyzerIds` selection can be exercised.
+ * Seed one finding against the node and return its autoincrement `id` (what
+ * the fixer echoes back in `resolved[]`, and what the resolution stamps key
+ * on). `stale` stamps a mismatched `body_hash_at_generation` so the
+ * read-time staleness JOIN hides it (the fixer must then refuse). The
+ * `extensionId` decides which finder's lane the finding lands in, so the
+ * fixer's `analyzerIds` selection can be exercised; `nodeId` overrides the
+ * row's node so the record-path scope guard can be.
  */
-async function seedFinding(proj: IProject, seed: ISeed, opts?: { stale?: boolean }): Promise<void> {
+async function seedFinding(
+  proj: IProject,
+  seed: ISeed,
+  opts?: { stale?: boolean; nodeId?: string },
+): Promise<number> {
   const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
   await adapter.init();
   try {
-    await adapter.db
+    const row = await adapter.db
       .insertInto('state_findings')
       .values({
-        nodeId: NOTE.path,
+        nodeId: opts?.nodeId ?? NOTE.path,
         extensionId: seed.extensionId,
         extensionVersion: '0.1.0',
         origin: 'extension',
@@ -207,7 +217,21 @@ async function seedFinding(proj: IProject, seed: ISeed, opts?: { stale?: boolean
         generatedAt: Date.now(),
         jobId: null,
       })
-      .execute();
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    return row.id;
+  } finally {
+    await adapter.close();
+  }
+}
+
+/** The stored finding row by id (resolution stamps included), or null. */
+async function readFinding(proj: IProject, id: number): Promise<IFindingRecord | null> {
+  const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+  await adapter.init();
+  try {
+    const all = await adapter.findings.list({ includeStale: true });
+    return all.find((f) => f.id === id) ?? null;
   } finally {
     await adapter.close();
   }
@@ -373,17 +397,24 @@ for (const fixer of FIXERS) {
       match(err, /no findings to resolve/);
     });
 
-    it('refuses (exit 2) when the only matching finding is stale', async () => {
+    it('SUBMITS when the only matching finding is stale, flagging it for verification', async () => {
+      // Staleness is node-level: a sibling fixer's edit stales every
+      // finding on the node, including this one about an untouched section
+      // whose defect is still present. Refusing would break the natural
+      // "queue all the fixers" flow.
       const proj = await setupProject({ enable: fixer.id });
-      await seedFinding(proj, fixer.seed, { stale: true });
+      const id = await seedFinding(proj, fixer.seed, { stale: true });
       const { code, err } = await submit(proj, fixer.id);
-      strictEqual(code, 2, 'stale findings describe a body that no longer exists');
-      match(err, /no findings to resolve/);
+      strictEqual(code, 0, `a stale finding is still a finding to resolve: ${err}`);
+
+      const content = await jobContent(proj);
+      ok(content.includes(`"id": ${id}`), 'the stale finding is injected');
+      ok(content.includes('"stale": true'), 'flagged so the agent verifies it against the body');
     });
 
     it('injects the ## Findings to resolve section (and the prompt) on a judged node', async () => {
       const proj = await setupProject({ enable: fixer.id });
-      await seedFinding(proj, fixer.seed);
+      const id = await seedFinding(proj, fixer.seed);
       const { code, err } = await submit(proj, fixer.id);
       strictEqual(code, 0, `submit: ${err}`);
 
@@ -394,6 +425,14 @@ for (const fixer of FIXERS) {
       match(content, /## Findings to resolve/);
       ok(content.includes(fixer.seed.message), 'the seeded finding message is injected');
       ok(content.includes(`"type": "${fixer.seed.type}"`), 'the finding type is projected');
+      // The `id` rides the projection: it is what the fixer echoes back in
+      // `resolved[]` so the record path can stamp this row.
+      ok(content.includes(`"id": ${id}`), 'the finding id is projected');
+      match(
+        content,
+        /copied\s+verbatim, a .state. of .fixed./,
+        'the prompt asks for the id and its lifecycle state back',
+      );
       const blockOpen = `<user-content id="${NOTE.path}">`;
       ok(content.includes(blockOpen), 'user-content block present');
       // The findings section sits OUTSIDE (before) the user-content block.
@@ -403,6 +442,12 @@ for (const fixer of FIXERS) {
         content.indexOf('## Findings to resolve') < content.indexOf(blockOpen),
         'findings render before the user-content block',
       );
+      // The snapshot warning rides the rendered content too, and lands
+      // BEFORE the block it describes: the agent is told the copy may be
+      // stale (a sibling fixer's edit) while reading it, not afterwards.
+      const warningAt = content.indexOf('The content below is a SNAPSHOT taken when this job');
+      ok(warningAt >= 0, 'the snapshot warning rendered into the job content');
+      ok(warningAt < content.indexOf(blockOpen), 'warning renders before the user-content block');
     });
   });
 
@@ -429,14 +474,14 @@ for (const fixer of FIXERS) {
   describe(`core/${fixer.id}, record round trip`, () => {
     it('validates the fixer report (resolved / editsSummary / safety / confidence)', async () => {
       const proj = await setupProject({ enable: fixer.id });
-      await seedFinding(proj, fixer.seed);
+      const id = await seedFinding(proj, fixer.seed);
       strictEqual((await submit(proj, fixer.id)).code, 0);
 
       const { code, err } = await claimAndRecord(proj, {
         confidence: 0.9,
         safety: CLEAN_SAFETY,
         resolved: [
-          { type: fixer.seed.type, applied: true, note: 'Edited the flagged spans; meaning preserved.' },
+          { id, type: fixer.seed.type, state: 'fixed', note: 'Edited the flagged spans; meaning preserved.' },
         ],
         editsSummary: 'Applied the proposed fix to the node body.',
       });
@@ -458,9 +503,9 @@ for (const fixer of FIXERS) {
       }
     });
 
-    it('validates an `applied: false` escape-hatch entry (declined with a note)', async () => {
+    it('validates a `state: \'declined\'` escape-hatch entry (declined with a note)', async () => {
       const proj = await setupProject({ enable: fixer.id });
-      await seedFinding(proj, fixer.seed);
+      const id = await seedFinding(proj, fixer.seed);
       strictEqual((await submit(proj, fixer.id)).code, 0);
 
       const { code, err } = await claimAndRecord(proj, {
@@ -468,8 +513,9 @@ for (const fixer of FIXERS) {
         safety: CLEAN_SAFETY,
         resolved: [
           {
+            id,
             type: fixer.seed.type,
-            applied: false,
+            state: 'declined',
             note: 'Needs an author decision; left the document untouched.',
           },
         ],
@@ -510,8 +556,173 @@ for (const fixer of FIXERS) {
         await adapter.close();
       }
     });
+
+    it('fails a resolved[] entry using the old `applied` shape (no `state`) as report-invalid', async () => {
+      const proj = await setupProject({ enable: fixer.id });
+      const id = await seedFinding(proj, fixer.seed);
+      strictEqual((await submit(proj, fixer.id)).code, 0);
+
+      const { code, err } = await claimAndRecord(proj, {
+        confidence: 0.9,
+        safety: CLEAN_SAFETY,
+        resolved: [{ id, applied: true, note: 'old boolean shape' }],
+        editsSummary: 'x',
+      });
+      strictEqual(code, 2, 'state is required: the old shape no longer validates');
+      match(err, /report failed schema validation/);
+      strictEqual((await readFinding(proj, id))?.resolution, null, 'no coerced state landed');
+    });
+  });
+
+  // The resolution stamps (`spec/db-schema.md` §state_findings): the
+  // lifecycle state must land ON the finding it addressed, and the scope
+  // guards must skip out-of-lane entries without failing the job.
+  describe(`core/${fixer.id}, fixer resolution stamps`, () => {
+    it('stamps fixed / declined onto the findings the report named', async () => {
+      const proj = await setupProject({ enable: fixer.id });
+      const fixedId = await seedFinding(proj, fixer.seed);
+      const declinedId = await seedFinding(proj, { ...fixer.seed, message: 'A second flagged span' });
+      strictEqual((await submit(proj, fixer.id)).code, 0);
+
+      const { code, err } = await claimAndRecord(proj, {
+        confidence: 0.8,
+        safety: CLEAN_SAFETY,
+        resolved: [
+          { id: fixedId, state: 'fixed', note: 'Edited the flagged spans.' },
+          { id: declinedId, state: 'declined', note: 'Only the author can settle this one.' },
+        ],
+        editsSummary: 'One of the two resolved.',
+      });
+      strictEqual(code, 0, err);
+
+      const fixed = await readFinding(proj, fixedId);
+      strictEqual(fixed?.resolution, 'fixed');
+      strictEqual(fixed?.resolutionNote, 'Edited the flagged spans.');
+      strictEqual(fixed?.resolutionBy, QUALIFIED);
+      ok(typeof fixed?.resolutionAt === 'number' && fixed.resolutionAt > 0);
+
+      const declined = await readFinding(proj, declinedId);
+      strictEqual(declined?.resolution, 'declined');
+      strictEqual(declined?.resolutionNote, 'Only the author can settle this one.');
+      strictEqual(declined?.resolutionBy, QUALIFIED);
+    });
+
+    it('skips unknown ids and foreign-node findings without failing the job', async () => {
+      const proj = await setupProject({ enable: fixer.id });
+      const own = await seedFinding(proj, fixer.seed);
+      const foreign = await seedFinding(proj, fixer.seed, { nodeId: 'notes/other.md' });
+      strictEqual((await submit(proj, fixer.id)).code, 0);
+
+      const { code, err } = await claimAndRecord(proj, {
+        confidence: 0.9,
+        safety: CLEAN_SAFETY,
+        resolved: [
+          { id: 999_999, state: 'fixed', note: 'the finder re-ran; this id is gone' },
+          { id: foreign, state: 'fixed', note: 'another node entirely' },
+          { id: own, state: 'fixed', note: 'in scope' },
+        ],
+        editsSummary: 'Edited.',
+      });
+      // The edits already landed on disk: a scope mismatch never bounces
+      // the job back to the draining agent.
+      strictEqual(code, 0, err);
+      strictEqual((await readFinding(proj, own))?.resolutionNote, 'in scope');
+      strictEqual((await readFinding(proj, foreign))?.resolution, null, 'foreign node untouched');
+    });
   });
 }
+
+/**
+ * Two CROSS-FIXER instructions, not each template's own prose: every fixer
+ * receives findings the same injection flagged the same way, and every
+ * fixer edits a file whose embedded copy is a submit-time SNAPSHOT
+ * (`spec/job-lifecycle.md` §Findings injection for fixers). Neither wording
+ * may drift per fixer, so both are pinned byte-for-byte over all THREE
+ * fixers here (`node-consolidate` included, even though its own
+ * characterisation lives in `node-consolidate-builtin.spec.ts`).
+ */
+describe('the fixer roster, shared cross-fixer instructions', () => {
+  const STALE_INSTRUCTION =
+    'A finding marked `"stale": true` was judged against an earlier version of\n' +
+    'this document. Verify it against the current content below before acting:\n' +
+    'if the problem it names is still there, fix it; if it is already gone or\n' +
+    'no longer applies, set `state` to `declined` and say so in `note`.';
+
+  /**
+   * The `<user-content>` copy is rendered at SUBMIT, so a sibling fixer
+   * queued over the same node can land an edit before this job is claimed.
+   * Every fixer must send the agent to the LIVE file rather than let it
+   * edit against a stale copy (double-applying, or clobbering the sibling).
+   */
+  const SNAPSHOT_WARNING =
+    'The content below is a SNAPSHOT taken when this job was queued; another\n' +
+    'job may have edited the file since. Read the live file before editing and\n' +
+    'treat the snapshot as context only. If a finding\'s problem is already gone\n' +
+    'from the live file, do not re-apply it: set `state` to `declined` and say so in\n' +
+    '`note`.';
+
+  /**
+   * The report's state-declaration clause: every fixer must ask the agent
+   * for the SAME `id` + lifecycle `state` shape (`spec/job-lifecycle.md`
+   * §Findings injection for fixers, "The resolution"). Wrapping differs per
+   * template (node-consolidate carries an extra false-positive tail), so the
+   * pin collapses whitespace before comparing.
+   */
+  const STATE_DECLARATION =
+    'for each finding, its `id` copied verbatim, a `state` of `fixed` ' +
+    '(you edited the file to resolve it) or `declined` (you did not; it ' +
+    "needs the author's decision), and a one-line `note`";
+
+  /** The edit mandate the snapshot warning must qualify (same paragraph run). */
+  const EDIT_MANDATE = 'This job\'s purpose is that edit; make it.';
+
+  const ROSTER = ['node-consolidate', 'node-reconcile', 'node-clarify'];
+
+  for (const id of ROSTER) {
+    it(`core/${id} carries the stale-verification instruction verbatim`, () => {
+      const action = builtIns().actions.find((a) => a.id === id);
+      ok(action?.promptTemplate, `${id} built-in registered with a prompt`);
+      ok(
+        action.promptTemplate.includes(STALE_INSTRUCTION),
+        `${id} must carry the shared stale-verification wording byte-for-byte`,
+      );
+      // It lands with the fix instructions, BEFORE the `Do NOT:` list and
+      // before the user-content placeholder: the agent reads it while
+      // deciding what to act on, not after.
+      const instructionAt = action.promptTemplate.indexOf(STALE_INSTRUCTION);
+      ok(instructionAt < action.promptTemplate.indexOf('Do NOT:'), 'precedes the prohibitions');
+      ok(instructionAt < action.promptTemplate.indexOf('{{userContent}}'), 'precedes the document');
+    });
+
+    it(`core/${id} carries the snapshot warning verbatim, right after the edit mandate`, () => {
+      const action = builtIns().actions.find((a) => a.id === id);
+      ok(action?.promptTemplate, `${id} built-in registered with a prompt`);
+      ok(
+        action.promptTemplate.includes(SNAPSHOT_WARNING),
+        `${id} must carry the shared snapshot wording byte-for-byte`,
+      );
+      // It qualifies the edit mandate ("edit THAT file... make it"), so it
+      // reads immediately after it and well before the snapshot it warns
+      // about: the agent learns the copy is stale-able before reading it.
+      const warningAt = action.promptTemplate.indexOf(SNAPSHOT_WARNING);
+      const mandateAt = action.promptTemplate.indexOf(EDIT_MANDATE);
+      ok(mandateAt >= 0, 'the edit mandate is present to qualify');
+      ok(warningAt > mandateAt, 'follows the edit mandate it qualifies');
+      ok(warningAt < action.promptTemplate.indexOf('{{userContent}}'), 'precedes the document');
+    });
+
+    it(`core/${id} asks the agent for the id + lifecycle state in the same words`, () => {
+      const action = builtIns().actions.find((a) => a.id === id);
+      ok(action?.promptTemplate, `${id} built-in registered with a prompt`);
+      // Whitespace-collapsed: the clause is byte-identical across the three
+      // fixers modulo per-template line wrapping.
+      ok(
+        action.promptTemplate.replace(/\s+/g, ' ').includes(STATE_DECLARATION),
+        `${id} must carry the shared state-declaration wording`,
+      );
+    });
+  }
+});
 
 // Distinctive to `core/node-reconcile`: it serves TWO finders, so the
 // `analyzerIds` array must select findings from BOTH lanes into the one
@@ -556,5 +767,35 @@ describe('core/node-reconcile, multi-analyzerIds selection', () => {
     // The foreign redundancy finding (outside the analyzerIds) is excluded.
     doesNotMatch(content, /The upload step is stated twice/);
     doesNotMatch(content, /"type": "redundancy"/);
+  });
+
+  it('stamps BOTH declared lanes but SKIPS a finder outside its analyzerIds', async () => {
+    const proj = await setupProject({ enable: 'node-reconcile' });
+    const contradiction = await seedFinding(proj, CONTRADICTION);
+    const contraindication = await seedFinding(proj, CONTRAINDICATION);
+    // node-redundancy is NOT in node-reconcile's analyzerIds: even named
+    // explicitly in the report, its finding must stay unstamped.
+    const foreign = await seedFinding(proj, FOREIGN);
+    strictEqual((await submit(proj, 'node-reconcile')).code, 0);
+
+    const { code, err } = await claimAndRecord(proj, {
+      confidence: 0.8,
+      safety: CLEAN_SAFETY,
+      resolved: [
+        { id: contradiction, state: 'fixed', note: 'Split the steps by environment.' },
+        { id: contraindication, state: 'declined', note: 'The guard is an author call.' },
+        { id: foreign, state: 'fixed', note: 'not my finder to resolve' },
+      ],
+      editsSummary: 'Settled the install-step conflict.',
+    });
+    strictEqual(code, 0, err);
+
+    strictEqual((await readFinding(proj, contradiction))?.resolution, 'fixed');
+    strictEqual((await readFinding(proj, contraindication))?.resolution, 'declined');
+    strictEqual(
+      (await readFinding(proj, foreign))?.resolution,
+      null,
+      'a fixer can never stamp findings from a finder it does not declare',
+    );
   });
 });

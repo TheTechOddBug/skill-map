@@ -257,8 +257,8 @@ type TSubmitOutcome =
   /** Node file missing / unreadable at submit (exit 2 single-target). */
   | { kind: 'unreadable'; nodeId: string; detail: string }
   /**
-   * Fixer submitted over a node with no current non-stale matching
-   * findings (exit 2 single-target, per-node non-fatal in `--all`);
+   * Fixer submitted over a node with NO matching findings at all, fresh or
+   * stale (exit 2 single-target, per-node non-fatal in `--all`);
    * `spec/job-lifecycle.md` §Findings injection for fixers.
    */
   | { kind: 'no-findings'; nodeId: string };
@@ -797,8 +797,8 @@ export class JobSubmitCommand extends SmCommand {
 /**
  * Per-node render inputs, resolved AFTER the fixer selection: the (optional)
  * findings-to-resolve section and the `promptTemplateHash` that keys the
- * content. `'no-findings'` is a refusal (a fixer over a node with no
- * matching findings).
+ * content. `'no-findings'` is a refusal (a fixer over a node no finder of
+ * its lane ever judged, fresh or stale).
  */
 type TJobRenderInputs =
   | 'no-findings'
@@ -809,10 +809,13 @@ type TJobRenderInputs =
  * undefined) reuse the precomputed base `promptTemplateHash` and inject no
  * section, byte-identical to before the fixer feature. A FIXER
  * (`spec/job-lifecycle.md` §Findings injection for fixers) selects THIS
- * node's current non-stale extension-lane findings for its analyzers: an
- * empty selection refuses (`'no-findings'`), a non-empty one renders the
- * `## Findings to resolve` section and folds it into a per-node
- * `promptTemplateHash` so a changed finding set is a distinct job.
+ * node's extension-lane findings for its analyzers, stale ones INCLUDED
+ * (hence `includeStale: true`, the adapter hides them by default): they
+ * ride flagged and the agent verifies each against the current body. Only
+ * an empty selection (no matching findings at all) refuses
+ * (`'no-findings'`); a non-empty one renders the `## Findings to resolve`
+ * section and folds it into a per-node `promptTemplateHash` so a changed
+ * finding set is a distinct job.
  */
 async function resolveJobRenderInputs(
   adapter: StoragePort,
@@ -822,7 +825,7 @@ async function resolveJobRenderInputs(
   if (prepared.analyzerIds === undefined) {
     return { findingsSection: undefined, promptTemplateHash: prepared.promptTemplateHash };
   }
-  const nodeFindings = await adapter.findings.list({ nodeId: node.path });
+  const nodeFindings = await adapter.findings.list({ nodeId: node.path, includeStale: true });
   const selected = selectFixerFindings(nodeFindings, prepared.analyzerIds);
   if (selected.length === 0) return 'no-findings';
   const findingsSection = buildFindingsSection(selected);

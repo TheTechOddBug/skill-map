@@ -2,36 +2,41 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.ai/spec/v0/core/node-clarify-report.schema.json",
   "title": "NodeClarifyReport",
-  "description": "Report shape for the built-in `core/node-clarify` probabilistic fixer Action. A fixer is NOT a finder: its report is execution-only (no findings write-through table), so it extends `report-base.schema.json` directly for the `confidence` + `safety` fields the preamble mandates, rather than the `findings/` envelope. `resolved` records, per incoherence finding the draining agent acted on, whether it applied the clarification and a one-line note; `editsSummary` describes the edits made to the node file. skill-map never writes the body, the draining agent performs the edit. Stability: experimental.",
+  "description": "Report shape for the built-in `core/node-clarify` probabilistic fixer Action. A fixer is NOT a finder: its report is execution-only (no findings write-through table), so it extends `report-base.schema.json` directly for the `confidence` + `safety` fields the preamble mandates, rather than the `findings/` envelope. `resolved` records, per incoherence finding the draining agent acted on, the finding's `id`, the `state` it moved the finding into, and a one-line note; the record path stamps each entry's `state` onto the finding the `id` names (`resolution` / `resolution_note`), so the outcome rides the finding as a lifecycle state instead of being buried in the execution report. `editsSummary` describes the edits made to the node file. skill-map never writes the body, the draining agent performs the edit. Stability: experimental.",
   "allOf": [{ "$ref": "https://skill-map.ai/spec/v0/report-base.schema.json" }],
   "type": "object",
   "required": ["resolved", "editsSummary"],
   "properties": {
     "resolved": {
       "type": "array",
-      "description": "One entry per incoherence finding the agent considered. `applied` is true when the clarification was made, false when the agent judged the gap needs information only the author has (with the reason in `note`) and left the document untouched.",
+      "description": "One entry per incoherence finding the agent considered, keyed by the finding's `id`. `state` is `fixed` when the clarification was made, `declined` when the agent judged the gap needs information only the author has (with the reason in `note`) and left the document untouched.",
       "items": {
         "type": "object",
-        "required": ["type", "applied", "note"],
+        "required": ["id", "state", "note"],
         "properties": {
+          "id": {
+            "type": "integer",
+            "description": "The finding's `id`, copied VERBATIM from the injected `## Findings to resolve` section. This is what ties the outcome back to the finding: `sm record` stamps `state` / `note` onto this row. An id that does not match a current finding of this node is ignored."
+          },
           "type": {
             "type": "string",
-            "description": "The finding's `type` slug (e.g. `incoherence`), echoed from the injected findings so the operator can match report entries to findings."
+            "description": "Optional echo of the finding's `type` slug (e.g. `incoherence`), for report readability only. The `id` is what the record path matches on."
           },
-          "applied": {
-            "type": "boolean",
-            "description": "True when the agent applied the proposed clarification to the document; false when it declined (needs information only the author has)."
+          "state": {
+            "type": "string",
+            "enum": ["fixed", "declined"],
+            "description": "The lifecycle state you moved the finding into: `fixed` when you edited the document to clarify the gap; `declined` when you did not (it needs information only the author has), leaving it for the author. `fixed` is a state, not a verdict: it never closes the finding, only the finder re-judging does."
           },
           "note": {
             "type": "string",
-            "description": "One-line note: what was clarified, or why the finding was not applied."
+            "description": "One-line note: what was clarified, or why the finding was declined. On a declined entry this is surfaced to the author as their TODO, so make the reason actionable."
           }
         }
       }
     },
     "editsSummary": {
       "type": "string",
-      "description": "Short prose summary of the edits the agent made to the node file (which incoherences were fixed). Empty string when nothing was applied."
+      "description": "Short prose summary of the edits the agent made to the node file (which incoherences were fixed). Empty string when every finding was declined."
     }
   }
 }

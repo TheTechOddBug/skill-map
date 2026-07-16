@@ -28,7 +28,8 @@
  *     report text, validate against the schema, and either land the
  *     `completed` execution (+ summary write-through when the Action's
  *     report schema is a summary schema, + findings write-through per
- *     `spec/job-lifecycle.md` §Record) or transition to
+ *     `spec/job-lifecycle.md` §Record, + the fixer resolution stamps when
+ *     the Action declares `analyzerIds`) or transition to
  *     `failed`/`report-invalid` (never left `running`). Extension
  *     resolution is LAZY (a callback) so an unparseable report
  *     short-circuits to `report-invalid` without ever loading the
@@ -45,10 +46,15 @@ import { join } from 'node:path';
 import type { ExecutionFailureReason, ExecutionRecord, Job, JobExtensionKind } from '../../kernel/types.js';
 import type { IAction, IAnalyzer } from '../../kernel/extensions/index.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
-import type { IFindingsWriteIntent, ISummaryWriteIntent } from '../../kernel/types/storage.js';
+import type {
+  IFindingResolutionIntent,
+  IFindingsWriteIntent,
+  ISummaryWriteIntent,
+} from '../../kernel/types/storage.js';
 import {
   extensionFindingRows,
   findReservedFindingTypes,
+  fixerResolutionEntries,
   generateExecutionId,
   kernelSafetyRows,
   summaryKindOfReportSchema,
@@ -129,6 +135,15 @@ export function resolveActionRecord(
 export interface IResolvedExtensionRecord {
   extensionKind: JobExtensionKind;
   schema: Record<string, unknown>;
+  /**
+   * The Action's declared `precondition.analyzerIds`, i.e. THE FIXER
+   * SIGNAL (Modelo B): a non-empty list means this extension resolves
+   * another finder's findings, so its report's `resolved[]` entries get
+   * stamped onto them at record. `null` for an Analyzer (a finder never
+   * resolves) and for an Action that declares none (a plain probabilistic
+   * Action: summarizer, enricher, ...).
+   */
+  analyzerIds: readonly string[] | null;
 }
 
 export type TExtensionRecordResolution =
@@ -146,11 +161,41 @@ export function resolveExtensionRecord(
   extensionId: string,
   extensionKind: JobExtensionKind,
 ): TExtensionRecordResolution {
-  if (extensionKind === 'action') {
-    const resolution = resolveActionRecord(runtime, extensionId);
-    if (!resolution.ok) return resolution;
-    return { ok: true, record: { extensionKind: 'action', schema: resolution.record.schema } };
-  }
+  return extensionKind === 'action'
+    ? resolveActionExtensionRecord(runtime, extensionId)
+    : resolveAnalyzerExtensionRecord(runtime, extensionId);
+}
+
+/**
+ * The `action` leg: the Action's report schema plus its declared
+ * `precondition.analyzerIds`, the FIXER signal the record path scopes
+ * its resolution stamps by.
+ */
+function resolveActionExtensionRecord(
+  runtime: IActionRuntime,
+  extensionId: string,
+): TExtensionRecordResolution {
+  const resolution = resolveActionRecord(runtime, extensionId);
+  if (!resolution.ok) return resolution;
+  return {
+    ok: true,
+    record: {
+      extensionKind: 'action',
+      schema: resolution.record.schema,
+      analyzerIds: resolution.record.action.precondition?.analyzerIds ?? null,
+    },
+  };
+}
+
+/**
+ * The `analyzer` leg: the finder's own `report.schema.json` (from its
+ * source dir) or the built-in's codegen-inlined `reportSchema`. Always
+ * `analyzerIds: null`, a finder never resolves another's findings.
+ */
+function resolveAnalyzerExtensionRecord(
+  runtime: IActionRuntime,
+  extensionId: string,
+): TExtensionRecordResolution {
   const analyzer = resolveProbabilisticAnalyzer(runtime.analyzers, extensionId);
   if (!analyzer) return { ok: false, detail: 'analyzer not found' };
   const dir = runtime.dirByAnalyzer.get(qualifiedExtensionId(analyzer.pluginId, analyzer.id));
@@ -159,13 +204,16 @@ export function resolveExtensionRecord(
       const schema = JSON.parse(
         readFileSync(join(dir, 'report.schema.json'), 'utf8'),
       ) as Record<string, unknown>;
-      return { ok: true, record: { extensionKind: 'analyzer', schema } };
+      return { ok: true, record: { extensionKind: 'analyzer', schema, analyzerIds: null } };
     } catch (err) {
       return { ok: false, detail: formatErrorMessage(err) };
     }
   }
   if (analyzer.reportSchema && typeof analyzer.reportSchema === 'object') {
-    return { ok: true, record: { extensionKind: 'analyzer', schema: analyzer.reportSchema } };
+    return {
+      ok: true,
+      record: { extensionKind: 'analyzer', schema: analyzer.reportSchema, analyzerIds: null },
+    };
   }
   return { ok: false, detail: 'no report schema' };
 }
@@ -291,8 +339,43 @@ export async function recordCompletedOutcome(opts: {
   });
   const summary = buildSummaryIntent(job, resolution.record, reportJson, now, metrics);
   const findings = buildFindingsIntent(job, extensionKind, report, now, metrics);
-  await adapter.jobs.recordTerminal(execution, summary, findings);
+  const resolutions = buildResolutionIntent(job, resolution.record, report, now);
+  await adapter.jobs.recordTerminal(execution, summary, findings, resolutions);
   return { kind: 'completed', execution };
+}
+
+/**
+ * Fixer resolution intent (`spec/db-schema.md` §state_findings, "Fixer
+ * resolution"). Fires ONLY for a FIXER: an Action declaring a non-empty
+ * `precondition.analyzerIds`, the same signal the submit path gates the
+ * findings injection on. Its report's `resolved[]` entries carry the
+ * finding `id`s the fixer echoed back, and the adapter stamps each onto
+ * its row inside the record transaction, scoped to the job's node and
+ * these `analyzerIds`.
+ *
+ * `undefined` (no stamping leg at all) for a finder, for a plain
+ * probabilistic Action, and for a fixer whose report resolved nothing:
+ * unlike the findings write-through, an empty intent has NO erase
+ * semantics to preserve, so there is nothing to hand the adapter.
+ */
+function buildResolutionIntent(
+  job: Job,
+  record: IResolvedExtensionRecord,
+  report: Record<string, unknown>,
+  now: number,
+): IFindingResolutionIntent | undefined {
+  if (record.extensionKind !== 'action') return undefined;
+  const analyzerIds = record.analyzerIds;
+  if (analyzerIds === null || analyzerIds.length === 0) return undefined;
+  const entries = fixerResolutionEntries(report);
+  if (entries.length === 0) return undefined;
+  return {
+    // The job row's extensionId is the qualified id (stamped at submit).
+    resolvedBy: job.extensionId,
+    analyzerIds,
+    resolvedAt: now,
+    entries,
+  };
 }
 
 /**

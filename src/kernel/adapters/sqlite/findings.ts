@@ -28,6 +28,7 @@ import type { Kysely, Transaction } from 'kysely';
 
 import type {
   IFindingRecord,
+  IFindingResolutionIntent,
   IFindingRowInput,
   IFindingsListFilter,
   IFindingsWriteIntent,
@@ -38,6 +39,7 @@ import type { IDatabase } from './schema.js';
 
 export type {
   IFindingRecord,
+  IFindingResolutionIntent,
   IFindingRowInput,
   IFindingsListFilter,
   IFindingsWriteIntent,
@@ -139,6 +141,64 @@ export async function writeFindingsForNode(
 }
 
 /**
+ * Record-path stamp for a FIXER's outcome (`spec/db-schema.md`
+ * §state_findings, "Fixer resolution state"): write the lifecycle `state`
+ * each `resolved[]` entry declares onto the finding its `id` names. Runs
+ * on the caller's handle so the stamps stay atomic inside the record
+ * transaction, alongside the execution insert + job transition.
+ *
+ * Three guards, each SKIPPING the entry silently rather than failing the
+ * job (a fixer's report is not a place to surface storage-scope errors,
+ * and its edits already landed on disk):
+ *
+ *   - **unknown id**: a benign race. The finder re-ran between submit and
+ *     record, replacing its rows, so the resolution is moot.
+ *   - **wrong node**: the row belongs to a node this job did not target.
+ *   - **outside `analyzerIds`**: the row came from a finder this fixer
+ *     does not serve.
+ *
+ * The last two are DEFENSIVE SCOPE: a fixer can never stamp a finding
+ * outside its own, however its report is composed. Returns the number of
+ * rows actually stamped (the caller may report it; the skips are silent
+ * by contract).
+ */
+export async function stampFindingResolutions(
+  db: TDbOrTx,
+  nodeId: string,
+  intent: IFindingResolutionIntent,
+): Promise<number> {
+  let stamped = 0;
+  for (const entry of intent.entries) {
+    const row = await db
+      .selectFrom('state_findings')
+      .select(['id', 'nodeId', 'extensionId'])
+      .where('id', '=', entry.id)
+      .executeTakeFirst();
+    // Unknown id (finder re-ran), foreign node, or a finder outside this
+    // fixer's declared scope: skip, never fail.
+    if (!row) continue;
+    if (row.nodeId !== nodeId) continue;
+    if (!matchesQualifiedExtensionFilter(row.extensionId, intent.analyzerIds)) continue;
+    await db
+      .updateTable('state_findings')
+      .set({
+        // The lifecycle STATE the fixer declared (`fixed` / `declined`),
+        // stamped verbatim onto the finding it named.
+        resolution: entry.state,
+        // The fixer's note, verbatim (agent-supplied: sanitized at render,
+        // never on the way in, so the machine surface round-trips).
+        resolutionNote: entry.note,
+        resolutionBy: intent.resolvedBy,
+        resolutionAt: intent.resolvedAt,
+      })
+      .where('id', '=', entry.id)
+      .execute();
+    stamped += 1;
+  }
+  return stamped;
+}
+
+/**
  * Count the STALE rows (`spec/db-schema.md` §state_findings stale rule):
  * `body_hash_at_generation` differs from the node's live
  * `scan_nodes.body_hash`, or the node is gone from `scan_nodes` entirely
@@ -218,6 +278,10 @@ export async function listFindings(
       'state_findings.detail as detail',
       'state_findings.confidence as confidence',
       'state_findings.model as model',
+      'state_findings.resolution as resolution',
+      'state_findings.resolutionNote as resolutionNote',
+      'state_findings.resolutionBy as resolutionBy',
+      'state_findings.resolutionAt as resolutionAt',
       'state_findings.bodyHashAtGeneration as bodyHashAtGeneration',
       'state_findings.generatedAt as generatedAt',
       'state_findings.jobId as jobId',
@@ -303,6 +367,13 @@ function projectRow(row: TJoinedFindingRow, stale: boolean): IFindingRecord {
     detail: row.detail,
     confidence: row.confidence,
     model: row.model,
+    // Fixer lifecycle state, never a verdict: a `fixed` state does NOT
+    // erase the row, only a finder re-judging does; the default `sm
+    // findings` view hides it, this read still returns it.
+    resolution: row.resolution,
+    resolutionNote: row.resolutionNote,
+    resolutionBy: row.resolutionBy,
+    resolutionAt: row.resolutionAt,
     bodyHashAtGeneration: row.bodyHashAtGeneration,
     generatedAt: row.generatedAt,
     jobId: row.jobId,

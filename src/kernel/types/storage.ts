@@ -29,6 +29,20 @@ import type {
 export type TFindingOrigin = 'extension' | 'kernel';
 
 /**
+ * The lifecycle STATE a FIXER moved a finding into (`spec/db-schema.md`
+ * §state_findings, "Fixer resolution state"). `fixed` = the fixer edited
+ * the file to resolve it; `declined` = it refused, typically because the
+ * fix needs a decision only the author can make.
+ *
+ * A lifecycle state, NOT a verdict: `fixed` means "a fixer executed on
+ * this", not "verified gone". It hides from the default `sm findings`
+ * view but the row persists and stays re-checkable (only the finder
+ * re-judging the current body deletes or reopens it). `declined` stays
+ * VISIBLE: its note is the author's TODO. `null` = open.
+ */
+export type TFindingResolution = 'fixed' | 'declined';
+
+/**
  * Row-level filter for `port.scans.findNodes(...)` (driven by
  * `sm list`'s flags). All fields are optional, an empty filter
  * returns every node sorted by `path` asc.
@@ -168,10 +182,68 @@ export interface IFindingRecord {
   confidence: number;
   /** Recording agent's self-reported model; `null` when undeclared. */
   model: string | null;
+  /**
+   * The lifecycle state a fixer moved this finding into; `null` (open)
+   * until one resolves it. `fixed` hides from the default `sm findings`
+   * view (re-checkable, not deleted); `declined` stays visible with the
+   * author's TODO in `resolutionNote` (`spec/db-schema.md`
+   * §state_findings).
+   */
+  resolution: TFindingResolution | null;
+  /** The fixer's one-line reason, verbatim (agent-supplied: sanitize at render). */
+  resolutionNote: string | null;
+  /** The fixer's qualified extension id (agent-adjacent: sanitize at render). */
+  resolutionBy: string | null;
+  resolutionAt: number | null;
   bodyHashAtGeneration: string;
   generatedAt: number;
   jobId: string | null;
   stale: boolean;
+}
+
+/**
+ * One entry of a fixer report's `resolved[]`, narrowed from the
+ * AJV-validated payload: the `id` the fixer echoed back from the injected
+ * findings section, the `state` it moved the finding into (`fixed` = it
+ * edited the file to resolve it, `declined` = it did not; the fix needs
+ * the author's decision), and its one-line `note`
+ * (`spec/job-lifecycle.md` §Findings injection for fixers, "The
+ * resolution").
+ */
+export interface IFindingResolutionEntry {
+  id: number;
+  state: TFindingResolution;
+  note: string;
+}
+
+/**
+ * Write intent handed to `port.jobs.recordTerminal(execution, summary,
+ * findings, resolutions)` when the recorded job's extension is a FIXER (a
+ * probabilistic Action declaring `precondition.analyzerIds`) and its
+ * report validated. The adapter stamps each entry onto the finding its
+ * `id` names, inside the SAME transaction as the execution insert + job
+ * transition.
+ *
+ * Every entry is SKIPPED silently when its `id` no longer exists, when
+ * the row's node is not the job's target node, or when the row's
+ * `extension_id` is outside `analyzerIds`: a missing id is a benign race
+ * (the finder re-ran between submit and record, so the resolution is
+ * moot), and the node / analyzer guards are the defensive scope, a fixer
+ * can NEVER stamp a finding outside its own (`spec/db-schema.md`
+ * §state_findings).
+ */
+export interface IFindingResolutionIntent {
+  /** The fixer's qualified extension id, stamped as `resolution_by`. */
+  resolvedBy: string;
+  /**
+   * The fixer's declared `precondition.analyzerIds`: a finding is only
+   * stampable when its `extension_id` matches one
+   * (`matchesQualifiedExtensionFilter` semantics, qualified or bare).
+   */
+  analyzerIds: readonly string[];
+  /** Stamped as `resolution_at` on every entry that lands. */
+  resolvedAt: number;
+  entries: readonly IFindingResolutionEntry[];
 }
 
 /**

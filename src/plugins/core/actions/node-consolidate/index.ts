@@ -10,7 +10,8 @@
  * As a probabilistic Action it carries NO in-process `invoke` and NO
  * scan-time `project`: the kernel renders `prompt.md` + the canonical
  * preamble + the injected `## Findings to resolve` section (this node's
- * current non-stale `core/node-redundancy` findings) + the report contract
+ * `core/node-redundancy` findings, stale ones flagged for the agent to
+ * verify against the body) + the report contract
  * into a queued job (`sm job submit node-consolidate -n <node>`), an
  * external agent drains it (`sm job claim`), performs the file edit with
  * its own tools, and `sm record` validates the JSON report against

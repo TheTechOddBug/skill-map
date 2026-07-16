@@ -555,6 +555,17 @@ export interface IStateSummariesTable {
 export type TFindingOrigin = 'extension' | 'kernel';
 
 /**
+ * The lifecycle STATE a FIXER moved a finding into (`spec/db-schema.md`
+ * §state_findings, "Fixer resolution state"). `fixed` = a fixer edited the
+ * file to resolve it (hidden from the default `sm findings` view, NOT
+ * deleted, re-checkable); `declined` = the fixer refused, typically because
+ * the fix needs a decision only the author can make (stays visible as the
+ * author's TODO). Neither is "verified": only the finder re-judging the
+ * current body deletes or reopens a `fixed` row. `null` = open.
+ */
+export type TFindingResolution = 'fixed' | 'declined';
+
+/**
  * Probabilistic findings (`state_findings`, `spec/db-schema.md`
  * §state_findings). Written by the record path inside the
  * `recordJobTerminal` transaction with replace semantics per
@@ -562,6 +573,11 @@ export type TFindingOrigin = 'extension' | 'kernel';
  * `severity` reuses the domain union (`info` / `warn` / `error`).
  * Staleness (`body_hash_at_generation` vs the live `scan_nodes.body_hash`)
  * is computed at read time via JOIN, never persisted.
+ *
+ * The `resolution*` columns are stamped separately, by the same record
+ * transaction that closes a FIXER's job (never by the finder's own
+ * write): the lifecycle state the fixer moved the finding into, scoped to
+ * the job's node and the fixer's declared `analyzerIds`.
  */
 export interface IStateFindingsTable {
   id: Generated<number>;
@@ -576,6 +592,13 @@ export interface IStateFindingsTable {
   confidence: number;
   /** Denormalized agent-self-reported model name; NULL when undeclared. */
   model: string | null;
+  /** Fixer lifecycle state; NULL (open) until a fixer resolves this finding. */
+  resolution: TFindingResolution | null;
+  /** The fixer's one-line reason, verbatim; the author's TODO when declined. */
+  resolutionNote: string | null;
+  /** The fixer's qualified extension id. */
+  resolutionBy: string | null;
+  resolutionAt: number | null;
   bodyHashAtGeneration: string;
   generatedAt: number;
   jobId: string | null;

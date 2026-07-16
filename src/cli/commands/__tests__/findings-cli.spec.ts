@@ -4,14 +4,22 @@
  * storage helpers (the write path is covered by the record specs); this
  * spec pins the verb contract (`spec/cli-contract.md` §sm findings):
  *
- *   - default read EXCLUDES stale rows; `--stale` includes them marked
- *     `(stale)` in human mode / `stale: true` in JSON.
+ *   - default read HIDES two disjoint kinds of row: `fixed` (a fixer
+ *     resolved it, `--fixed` reveals it, rendered `✓ fixed by <fixer>`)
+ *     and stale (`--stale` reveals it, marked `(stale)`). A fixed+stale
+ *     row counts as fixed (state precedence). Open + declined rows always
+ *     show.
+ *   - excluded rows are REPORTED, never silently swallowed: the hidden
+ *     breakdown rides the human output (footer, or the `No fresh findings`
+ *     empty state, never a bare `No findings`) and `fixedExcluded` +
+ *     `staleExcluded` in JSON, scoped to the same filters as the listing.
  *   - filters: -n, --extension (qualified + bare), --type, --severity
  *     (minimum), --since (ISO), --threshold (minimum confidence).
  *   - exit 0 regardless of content (advisory by construction), even on
  *     error-severity findings.
  *   - exit 2 on malformed flag values; exit 5 on a missing DB.
- *   - `--json` emits { ok, kind: 'findings', findings[], total }.
+ *   - `--json` emits { ok, kind, findings[], total, fixedExcluded,
+ *     staleExcluded }.
  */
 
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
@@ -26,7 +34,10 @@ import type { BaseContext } from 'clipanion';
 
 import { FindingsCommand, FindingsPruneCommand } from '../findings.js';
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
-import { replaceFindingsForNode } from '../../../kernel/adapters/sqlite/findings.js';
+import {
+  replaceFindingsForNode,
+  stampFindingResolutions,
+} from '../../../kernel/adapters/sqlite/findings.js';
 import type { IFindingRecord } from '../../../kernel/types/storage.js';
 
 const NODE_A = 'notes/guide.md';
@@ -170,6 +181,76 @@ async function setupProject(): Promise<IProject> {
   return { root, dbPath };
 }
 
+/**
+ * Seed a project whose findings are ALL stale (the node body moved on
+ * after every judgment landed), spread over two type slugs:
+ *   NODE_A: stale `contradiction` (finder-a) x1
+ *           stale `redundancy`    (finder-a) x2
+ * Backs the all-stale human shape, both plural forms, and the
+ * filter-scoped hidden count (a `--type` filter must scope the count).
+ */
+async function setupAllStaleProject(): Promise<IProject> {
+  counter += 1;
+  const root = join(tmpRoot, `stale-proj-${counter}`);
+  const dbPath = join(root, '.skill-map', 'skill-map.db');
+  mkdirSync(join(root, '.skill-map'), { recursive: true });
+
+  const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+  await adapter.init();
+  try {
+    await insertNode(adapter, { path: NODE_A, bodyHash: HASH_A });
+    // Every row was judged against a body hash the node no longer has.
+    const base = {
+      detail: null,
+      extensionVersion: '1.0.0',
+      jobId: null,
+      model: null,
+      origin: 'extension' as const,
+      bodyHashAtGeneration: 'd'.repeat(64),
+      generatedAt: T0,
+      confidence: 0.7,
+    };
+    await replaceFindingsForNode(adapter.db, NODE_A, 'plug/finder-a', [
+      { ...base, type: 'contradiction', severity: 'error', message: 'A contradicts B' },
+      { ...base, type: 'redundancy', severity: 'info', message: 'Repeats itself' },
+      { ...base, type: 'redundancy', severity: 'info', message: 'Repeats itself again' },
+    ]);
+  } finally {
+    await adapter.close();
+  }
+  return { root, dbPath };
+}
+
+/**
+ * Stamp a fixer resolution onto the seeded finding carrying `type`, through
+ * the REAL adapter path (`stampFindingResolutions`) rather than raw SQL, so
+ * these display tests read rows the record path could actually have
+ * produced. Returns the stamped finding's id.
+ */
+async function stampResolutionOnType(
+  proj: IProject,
+  opts: { type: string; state: 'fixed' | 'declined'; note: string; by?: string },
+): Promise<number> {
+  const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+  await adapter.init();
+  try {
+    const target = (await adapter.findings.list({ includeStale: true })).find(
+      (f) => f.type === opts.type,
+    );
+    ok(target, `seeded finding of type ${opts.type} exists`);
+    await stampFindingResolutions(adapter.db, target.nodeId, {
+      resolvedBy: opts.by ?? 'core/node-consolidate',
+      // The finding's own finder: the fixer's declared scope.
+      analyzerIds: [target.extensionId],
+      resolvedAt: T1,
+      entries: [{ id: target.id, state: opts.state, note: opts.note }],
+    });
+    return target.id;
+  } finally {
+    await adapter.close();
+  }
+}
+
 interface IFlags {
   node?: string;
   extension?: string;
@@ -178,6 +259,7 @@ interface IFlags {
   since?: string;
   threshold?: string;
   stale?: boolean;
+  fixed?: boolean;
   json?: boolean;
 }
 
@@ -190,6 +272,7 @@ function buildFindings(flags: IFlags = {}): FindingsCommand {
   cmd.since = flags.since;
   cmd.threshold = flags.threshold;
   cmd.stale = flags.stale ?? false;
+  cmd.fixed = flags.fixed ?? false;
   cmd.json = flags.json ?? false;
   cmd.db = undefined;
   return cmd;
@@ -215,6 +298,17 @@ interface IEnvelope {
   kind: string;
   findings: IFindingRecord[];
   total: number;
+  fixedExcluded: number;
+  staleExcluded: number;
+}
+
+/** Run the verb in human mode and return stdout (colorless in tests). */
+async function runHuman(root: string, flags: IFlags = {}): Promise<{ code: number; out: string }> {
+  return withCwd(root, async () => {
+    const cap = captureContext();
+    const code = await run(buildFindings(flags), cap);
+    return { code, out: cap.stdout() };
+  });
 }
 
 async function runJson(root: string, flags: IFlags = {}): Promise<{ code: number; body: IEnvelope }> {
@@ -234,13 +328,15 @@ after(() => {
 });
 
 describe('sm findings --json envelope', () => {
-  it('emits { ok, kind, findings, total } with camelCase rows + stale=false, exit 0', async () => {
+  it('emits { ok, kind, findings, total, fixedExcluded, staleExcluded } with camelCase rows + stale=false, exit 0', async () => {
     const proj = await setupProject();
     const { code, body } = await runJson(proj.root);
     strictEqual(code, 0, 'exit 0 even with an error-severity finding (advisory)');
     strictEqual(body.ok, true);
     strictEqual(body.kind, 'findings');
     strictEqual(body.total, 3, 'stale row excluded by default');
+    strictEqual(body.staleExcluded, 1, 'the excluded row is reported, never swallowed');
+    strictEqual(body.fixedExcluded, 0, 'no fixer touched anything yet');
     strictEqual(body.findings.length, 3);
     const first = body.findings.find((f) => f.type === 'contradiction')!;
     strictEqual(first.nodeId, NODE_A);
@@ -256,13 +352,30 @@ describe('sm findings --json envelope', () => {
     ok(typeof first.id === 'number');
   });
 
-  it('--stale includes the drifted row flagged stale:true', async () => {
+  it('--stale includes the drifted row flagged stale:true and excludes nothing', async () => {
     const proj = await setupProject();
     const { body } = await runJson(proj.root, { stale: true });
     strictEqual(body.total, 4);
+    strictEqual(body.staleExcluded, 0, '--stale hides nothing, so nothing is excluded');
+    strictEqual(body.fixedExcluded, 0, 'no fixed rows in the seed');
     const staleRow = body.findings.find((f) => f.type === 'incoherence')!;
     strictEqual(staleRow.stale, true);
     ok(body.findings.filter((f) => f.stale).length === 1, 'only the drifted row is stale');
+  });
+
+  it('staleExcluded is 0 when no row matched at all (the clean verdict)', async () => {
+    const proj = await setupProject();
+    const { body } = await runJson(proj.root, { type: 'no-such-slug' });
+    strictEqual(body.total, 0);
+    strictEqual(body.staleExcluded, 0);
+  });
+
+  it('staleExcluded carries the count when EVERY matching row is stale', async () => {
+    const proj = await setupAllStaleProject();
+    const { code, body } = await runJson(proj.root);
+    strictEqual(code, 0);
+    strictEqual(body.total, 0, 'no fresh rows to return');
+    strictEqual(body.staleExcluded, 3, 'all three judgments are alive, just hidden');
   });
 });
 
@@ -401,6 +514,422 @@ describe('sm findings human mode', () => {
       return cap.stdout();
     });
     match(out, /No findings\./);
+  });
+});
+
+/**
+ * A fixer's outcome rides the finding it addressed as a lifecycle STATE
+ * (`spec/db-schema.md` §state_findings). `fixed` and `declined` behave
+ * asymmetrically ON PURPOSE: a `fixed` finding drops out of the default
+ * view (a fixer handled it, `--fixed` reveals it under a checkmark), while
+ * `declined` stays VISIBLE as the author's pending decision.
+ */
+describe('sm findings fixer resolution', () => {
+  it('HIDES a fixed finding by default; --fixed reveals it as a handled state', async () => {
+    const proj = await setupProject();
+    await stampResolutionOnType(proj, {
+      type: 'redundancy',
+      state: 'fixed',
+      note: 'Collapsed the two upload sentences into one.',
+    });
+
+    // Default view: the fixed finding is gone, accounted for in the footer.
+    const def = await runHuman(proj.root);
+    strictEqual(def.code, 0);
+    doesNotMatch(def.out, /Repeats itself/, 'the fixed finding is hidden by default');
+    match(def.out, /1 fixed/, 'the hidden breakdown accounts for it');
+
+    // --fixed brings it back, rendered as a handled state under a checkmark.
+    const shown = await runHuman(proj.root, { fixed: true });
+    strictEqual(shown.code, 0);
+    match(shown.out, /Repeats itself/, '--fixed reveals the row');
+    match(
+      shown.out,
+      /✓ {2}fixed by core\/node-consolidate: Collapsed the two upload sentences into one\./,
+      'a fixed row reads as handled, under a checkmark',
+    );
+    // Honest wording: still a state, never "resolved" / "verified".
+    doesNotMatch(shown.out, /resolved|verified|unverified/i);
+  });
+
+  it('surfaces a `declined` note prominently under a warning glyph, visible by default', async () => {
+    const proj = await setupProject();
+    await stampResolutionOnType(proj, {
+      type: 'contradiction',
+      state: 'declined',
+      note: 'The dev and prod steps are both intentional; only you can pick one.',
+      by: 'core/node-reconcile',
+    });
+    const { code, out } = await runHuman(proj.root, { type: 'contradiction' });
+    strictEqual(code, 0);
+    match(
+      out,
+      /⚠ {2}core\/node-reconcile declined, needs your decision: The dev and prod steps are both intentional; only you can pick one\./,
+      'the fixer, the refusal, and the TODO all land on one line',
+    );
+  });
+
+  it('leaves an unresolved finding without a resolution line', async () => {
+    const proj = await setupProject();
+    const { out } = await runHuman(proj.root, { type: 'redundancy' });
+    match(out, /Repeats itself/, 'the finding renders');
+    doesNotMatch(out, /fixed by|declined, needs your decision/);
+  });
+
+  it('--json carries the resolution* fields on each entry', async () => {
+    const proj = await setupProject();
+    const id = await stampResolutionOnType(proj, {
+      type: 'redundancy',
+      state: 'declined',
+      note: 'Needs an author decision.',
+      by: 'core/node-consolidate',
+    });
+    const { body } = await runJson(proj.root, { type: 'redundancy' });
+    const entry = body.findings.find((f) => f.id === id);
+    ok(entry, 'the stamped finding is in the envelope');
+    strictEqual(entry.resolution, 'declined');
+    strictEqual(entry.resolutionNote, 'Needs an author decision.');
+    strictEqual(entry.resolutionBy, 'core/node-consolidate');
+    strictEqual(entry.resolutionAt, T1);
+
+    // An untouched row reports the absence explicitly (null, not missing).
+    const untouched = await runJson(proj.root, { type: 'injection-detected' });
+    strictEqual(untouched.body.findings[0]!.resolution, null);
+    strictEqual(untouched.body.findings[0]!.resolutionNote, null);
+    strictEqual(untouched.body.findings[0]!.resolutionBy, null);
+    strictEqual(untouched.body.findings[0]!.resolutionAt, null);
+  });
+
+  it('a hostile resolution note / fixer id is sanitized in human mode but raw in --json', async () => {
+    // The note is FREE TEXT the draining agent authored and the kernel
+    // stored verbatim: the most agent-controlled string on the row, so it
+    // gets the same gate as a finder's message. A screen-clear smuggled
+    // through it must never reach the operator's terminal.
+    const proj = await setupProject();
+    const hostileNote = '\u001b[2Jcleared your screen';
+    const hostileBy = '\u001b[2Jevil/fixer';
+    const id = await stampResolutionOnType(proj, {
+      type: 'redundancy',
+      state: 'declined',
+      note: hostileNote,
+      by: hostileBy,
+    });
+    const { out } = await runHuman(proj.root, { type: 'redundancy' });
+    ok(out.includes('cleared your screen'), 'note text content survives');
+    ok(out.includes('evil/fixer'), 'fixer id text survives');
+    strictEqual(out.includes('\u001b['), false, 'escape bytes stripped at render');
+
+    const { body } = await runJson(proj.root, { type: 'redundancy' });
+    const entry = body.findings.find((f) => f.id === id);
+    strictEqual(entry?.resolutionNote, hostileNote, 'machine surface round-trips raw');
+    strictEqual(entry?.resolutionBy, hostileBy, 'machine surface round-trips raw');
+  });
+
+  it('flattens a multi-line note so the row stays one line', async () => {
+    // A note with embedded newlines could otherwise forge what looks like
+    // a second finding row underneath the real one.
+    const proj = await setupProject();
+    await stampResolutionOnType(proj, {
+      type: 'redundancy',
+      state: 'declined',
+      note: 'First line.\nSecond line posing as its own row.',
+    });
+    const { out } = await runHuman(proj.root, { type: 'redundancy' });
+    match(out, /First line\. Second line posing as its own row\./);
+  });
+});
+
+/**
+ * The stale filter must never swallow rows silently: an empty result
+ * with hidden judgments claiming a clean node is what made the operator
+ * conclude his data had been deleted (`spec/cli-contract.md` §sm
+ * findings: "Excluded rows MUST be reported").
+ */
+describe('sm findings stale disclosure', () => {
+  it('zero rows at all is the ONLY clean verdict: ✓ No findings, no hidden count', async () => {
+    // `no-such-slug` matches nothing, fresh OR stale: nothing is hidden.
+    const proj = await setupProject();
+    const { code, out } = await runHuman(proj.root, { type: 'no-such-slug' });
+    strictEqual(code, 0);
+    match(out, /✓ {2}No findings\./, 'clean verdict keeps the success glyph');
+    doesNotMatch(out, /stale hidden|fixed hidden/, 'nothing was held back, so nothing to report');
+    doesNotMatch(out, /No fresh findings/);
+  });
+
+  it('zero fresh + stale hidden reads "No fresh findings" under ℹ, never a bare ✓ No findings', async () => {
+    const proj = await setupAllStaleProject();
+    const { code, out } = await runHuman(proj.root);
+    strictEqual(code, 0, 'advisory read still exits 0');
+    match(out, /ℹ {2}No fresh findings\./, 'neutral glyph: this is NOT a clean verdict');
+    doesNotMatch(out, /✓/, 'the success glyph would assert a clean node while 3 judgments sit hidden');
+    doesNotMatch(out, /^.*No findings\./m, 'the bare clean-verdict line is the lie being fixed');
+    match(out, /3 stale hidden\./, 'the hidden breakdown is named');
+    match(out, /--stale/, 'remedy 1: see them');
+    match(out, /re-run the finders/, 'remedy 2: re-check them');
+  });
+
+  it('a listing with stale rows behind it carries the hidden count as a footer', async () => {
+    const proj = await setupProject();
+    const { code, out } = await runHuman(proj.root);
+    strictEqual(code, 0);
+    match(out, /sm findings: /, 'the normal listing still renders');
+    match(out, /contradiction/);
+    match(out, /ℹ {2}1 stale hidden\./, 'footer reports what the default filter held back');
+    doesNotMatch(out, /declined by a fixer/, 'nothing hidden was declined, so no subset to name');
+    match(out, /Pass --stale to see it/);
+    // Footer sits between the last row and the tip.
+    ok(
+      out.indexOf('1 stale hidden') < out.indexOf('Tip:'),
+      'hidden-count footer precedes the tip line',
+    );
+  });
+
+  it('--stale hides nothing, so no hidden-count line is emitted', async () => {
+    const proj = await setupProject();
+    const { code, out } = await runHuman(proj.root, { stale: true });
+    strictEqual(code, 0);
+    match(out, /\(stale\)/, 'the row renders marked instead');
+    // The hint only rides the hidden footer; a seeded finding detail happens
+    // to contain the word "hidden" ("hidden instruction in a comment"), so
+    // anchor on the footer's own remedy line instead.
+    doesNotMatch(out, /re-run the finders/, 'nothing is excluded under --stale');
+    doesNotMatch(out, /Pass --stale/, 'no remedy to offer, the flag is already on');
+  });
+
+  it('the hidden count is plural-correct: 1/it vs N/them', async () => {
+    const proj = await setupAllStaleProject();
+    const many = await runHuman(proj.root);
+    match(many.out, /3 stale hidden\./);
+    match(many.out, /Pass --stale to see them, or re-run the finders to re-check them\./);
+
+    // `--type contradiction` narrows the hidden set to exactly one row.
+    const one = await runHuman(proj.root, { type: 'contradiction' });
+    match(one.out, /1 stale hidden\./);
+    match(one.out, /Pass --stale to see it, or re-run the finders to re-check it\./);
+  });
+
+  it('the hidden count RESPECTS the active filters (--type scopes it, not the whole table)', async () => {
+    // NODE_A holds 3 stale rows: 1 contradiction + 2 redundancy.
+    const proj = await setupAllStaleProject();
+
+    const byType = await runJson(proj.root, { type: 'contradiction' });
+    strictEqual(byType.body.total, 0, 'no fresh contradiction rows');
+    strictEqual(byType.body.staleExcluded, 1, 'counts ONLY the filtered type, not all 3 stale rows');
+    strictEqual(byType.body.fixedExcluded, 0, 'no fixer touched anything');
+
+    const other = await runJson(proj.root, { type: 'redundancy' });
+    strictEqual(other.body.staleExcluded, 2, 'the other slug scopes to its own 2 rows');
+
+    // Same rule for the other filter axes.
+    const bySeverity = await runJson(proj.root, { severity: 'error' });
+    strictEqual(bySeverity.body.staleExcluded, 1, 'minimum severity scopes the hidden count');
+    const byNode = await runJson(proj.root, { node: NODE_B });
+    strictEqual(byNode.body.staleExcluded, 0, 'a node with no rows hides nothing');
+
+    // ... and the human line reports the scoped number, not the total.
+    const human = await runHuman(proj.root, { type: 'contradiction' });
+    match(human.out, /1 stale hidden\./);
+    doesNotMatch(human.out, /3 stale hidden/);
+  });
+});
+
+/**
+ * The excluded-count line MUST name the declined subset
+ * (`spec/cli-contract.md` §sm findings). This is the sharp edge of the
+ * whole feature: a fixer's edits for the OTHER findings stale the WHOLE
+ * node, so the one finding it refused, the one carrying a note that says
+ * "only you can decide this", hides behind the default stale filter. A
+ * bare "N stale hidden" would report the operator's TODO as ordinary
+ * staleness and bury it exactly like the old report_json did. (A declined
+ * row is never fixed, so it always lands in the STALE bucket when hidden.)
+ */
+describe('sm findings stale disclosure names declined rows', () => {
+  it('names the declined subset in the footer under a listing', async () => {
+    const proj = await setupProject();
+    // The hidden (stale) row is finder-b's incoherence; a fixer declined it.
+    await stampResolutionOnType(proj, {
+      type: 'incoherence',
+      state: 'declined',
+      note: 'Only the author knows which section is right.',
+      by: 'core/node-clarify',
+    });
+    const { code, out } = await runHuman(proj.root);
+    strictEqual(code, 0);
+    match(
+      out,
+      /1 stale hidden \(1 declined by a fixer, needing your decision\)\./,
+      'the hidden TODO is named, not folded into a bare stale count',
+    );
+    match(out, /Pass --stale to see it/, 'the remedy still rides the line');
+  });
+
+  it('names the declined subset in the empty "No fresh findings" shape', async () => {
+    const proj = await setupAllStaleProject();
+    await stampResolutionOnType(proj, {
+      type: 'contradiction',
+      state: 'declined',
+      note: 'Both branches are intentional; your call.',
+    });
+    const { code, out } = await runHuman(proj.root);
+    strictEqual(code, 0);
+    match(out, /ℹ {2}No fresh findings\./, 'still not a clean verdict');
+    match(
+      out,
+      /3 stale hidden \(1 declined by a fixer, needing your decision\)\./,
+      'the declined subset is named inside the plural stale count',
+    );
+  });
+
+  it('a fixed row lands in the fixed count, declined stays in the stale bucket', async () => {
+    const proj = await setupAllStaleProject();
+    // Two of the three (all-stale) hidden rows carry a resolution: one
+    // declined (the author's TODO), one FIXED. The fixed row counts under
+    // `fixed` (state precedence over stale), so it neither inflates the
+    // stale count nor the declined subset.
+    await stampResolutionOnType(proj, {
+      type: 'contradiction',
+      state: 'declined',
+      note: 'Your call.',
+    });
+    await stampResolutionOnType(proj, {
+      type: 'redundancy',
+      state: 'fixed',
+      note: 'Collapsed it.',
+    });
+    const { out } = await runHuman(proj.root);
+    match(out, /1 fixed, 2 stale hidden \(1 declined by a fixer, needing your decision\)\./);
+    // Both flags are offered, since both buckets are populated.
+    match(out, /Pass --fixed \/ --stale to see them/);
+  });
+
+  it('does NOT name declines when the hidden rows carry none', async () => {
+    // Only a `fixed` state among the hidden rows: nothing is waiting on the
+    // operator, so the breakdown carries no declined subset.
+    const proj = await setupAllStaleProject();
+    await stampResolutionOnType(proj, {
+      type: 'contradiction',
+      state: 'fixed',
+      note: 'Collapsed it.',
+    });
+    const { out } = await runHuman(proj.root);
+    match(out, /1 fixed, 2 stale hidden\./);
+    doesNotMatch(out, /declined by a fixer/);
+  });
+
+  it('never names declines under --stale (nothing is hidden to report)', async () => {
+    const proj = await setupProject();
+    await stampResolutionOnType(proj, {
+      type: 'incoherence',
+      state: 'declined',
+      note: 'Only the author knows.',
+    });
+    const { out } = await runHuman(proj.root, { stale: true });
+    // The row renders in full instead, resolution line and all.
+    match(out, /declined, needs your decision: Only the author knows\./);
+    doesNotMatch(out, /re-run the finders/, 'the hidden footer never fires under --stale');
+    doesNotMatch(out, /declined by a fixer/, 'the hidden-count fragment has no reason to fire');
+  });
+
+  it('the declined fragment respects the active filters', async () => {
+    const proj = await setupAllStaleProject();
+    await stampResolutionOnType(proj, {
+      type: 'contradiction',
+      state: 'declined',
+      note: 'Your call.',
+    });
+    // `--type redundancy` scopes the hidden set to rows with no decline.
+    const other = await runHuman(proj.root, { type: 'redundancy' });
+    match(other.out, /2 stale hidden\./);
+    doesNotMatch(other.out, /declined by a fixer/, 'the decline is outside this filter');
+  });
+});
+
+/**
+ * The `fixed` lifecycle state hides from the default view alongside stale
+ * (two DISJOINT reasons, `spec/cli-contract.md` §sm findings). `--fixed`
+ * reveals the fixed rows; the excluded-count line reports the two buckets
+ * separately; a row that is BOTH fixed and stale counts as fixed.
+ */
+describe('sm findings fixed hiding', () => {
+  it('default HIDES fixed rows and reports fixedExcluded beside staleExcluded', async () => {
+    const proj = await setupProject();
+    await stampResolutionOnType(proj, {
+      type: 'redundancy',
+      state: 'fixed',
+      note: 'Collapsed it.',
+    });
+    const { body } = await runJson(proj.root);
+    strictEqual(body.total, 2, 'contradiction + injection; fixed + stale rows held back');
+    strictEqual(body.fixedExcluded, 1, 'the fixed row is reported');
+    strictEqual(body.staleExcluded, 1, 'the stale row is reported separately');
+
+    const human = await runHuman(proj.root);
+    match(human.out, /1 fixed, 1 stale hidden\./, 'the two buckets are named disjointly');
+    match(human.out, /Pass --fixed \/ --stale to see them/, 'both reveal flags offered');
+  });
+
+  it('--fixed reveals the fixed rows and drops fixedExcluded to 0', async () => {
+    const proj = await setupProject();
+    await stampResolutionOnType(proj, {
+      type: 'redundancy',
+      state: 'fixed',
+      note: 'Collapsed it.',
+    });
+    const { body } = await runJson(proj.root, { fixed: true });
+    strictEqual(body.total, 3, 'the fixed row joins the listing');
+    strictEqual(body.fixedExcluded, 0, '--fixed reveals them, so none excluded');
+    strictEqual(body.staleExcluded, 1, 'the stale row is still held back');
+    ok(body.findings.some((f) => f.resolution === 'fixed'), 'the fixed row is present');
+  });
+
+  it('--fixed --stale reveals every row, nothing excluded', async () => {
+    const proj = await setupProject();
+    await stampResolutionOnType(proj, {
+      type: 'redundancy',
+      state: 'fixed',
+      note: 'Collapsed it.',
+    });
+    const { body } = await runJson(proj.root, { fixed: true, stale: true });
+    strictEqual(body.total, 4);
+    strictEqual(body.fixedExcluded, 0);
+    strictEqual(body.staleExcluded, 0);
+  });
+
+  it('a fixed+stale row counts as FIXED, never as stale (state precedence)', async () => {
+    const proj = await setupProject();
+    // incoherence is the seeded STALE row; a fixer marks it fixed.
+    await stampResolutionOnType(proj, {
+      type: 'incoherence',
+      state: 'fixed',
+      note: 'Edited the stale section too.',
+    });
+    const { body } = await runJson(proj.root);
+    strictEqual(body.total, 3, 'the fixed+stale row is the only one hidden now');
+    strictEqual(body.fixedExcluded, 1, 'counted as fixed');
+    strictEqual(body.staleExcluded, 0, 'NOT double-counted as stale');
+
+    const human = await runHuman(proj.root);
+    match(human.out, /1 fixed hidden\./, 'the breakdown reports the single fixed row');
+    match(human.out, /Pass --fixed to see it/, 'only the fixed reveal flag is offered');
+
+    // --fixed reveals it even though it is also stale (fixed owns the row).
+    const revealed = await runJson(proj.root, { fixed: true });
+    strictEqual(revealed.body.total, 4);
+    strictEqual(revealed.body.fixedExcluded, 0);
+    strictEqual(revealed.body.staleExcluded, 0);
+  });
+
+  it('the fixed count is independent: 2 fixed, 1 stale hidden', async () => {
+    const proj = await setupProject();
+    await stampResolutionOnType(proj, { type: 'redundancy', state: 'fixed', note: 'a.' });
+    await stampResolutionOnType(proj, { type: 'contradiction', state: 'fixed', note: 'b.' });
+    const { body } = await runJson(proj.root);
+    strictEqual(body.total, 1, 'only NODE_B injection remains fresh + open');
+    strictEqual(body.fixedExcluded, 2);
+    strictEqual(body.staleExcluded, 1);
+
+    const human = await runHuman(proj.root);
+    match(human.out, /2 fixed, 1 stale hidden\./, 'each count is plural-correct and disjoint');
   });
 });
 

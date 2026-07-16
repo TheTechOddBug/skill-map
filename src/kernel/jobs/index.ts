@@ -38,6 +38,7 @@ export {
 export {
   extensionFindingRows,
   findReservedFindingTypes,
+  fixerResolutionEntries,
   kernelSafetyRows,
   RESERVED_FINDING_TYPES,
 } from './findings-report.js';

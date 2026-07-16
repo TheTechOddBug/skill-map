@@ -212,9 +212,14 @@ function renderHuman(doc: TShowDocument, ansi: IAnsi): string {
  * `state_findings` row, the severity glyph (same visual language as the
  * issues section), the dim finder extension id, the type slug, the
  * finder's message, and a yellow `(stale)` marker when the node body
- * changed since the judgment was recorded. Dropped entirely when the
- * node carries no finding. Every DB-sourced string is sanitised at the
- * row boundary (finder messages are plugin-authored).
+ * changed since the judgment was recorded. A finding a FIXER resolved
+ * carries its state on a line beneath (mirror of `sm findings`: green
+ * `✓` dim `fixed` reads as handled-not-verified, yellow `declined`
+ * surfaces the author's TODO). Unlike `sm findings`, this section lists
+ * ALL rows (fixed included), since it is a single node's full detail.
+ * Dropped entirely when the node carries no finding. Every DB-sourced
+ * string is sanitised at the row boundary (finder messages are
+ * plugin-authored; the resolution note is fixer-authored).
  */
 function renderFindingsSection(findings: IFindingRecord[], ansi: IAnsi): string {
   const rows = findings.map((f) => ({
@@ -223,6 +228,9 @@ function renderFindingsSection(findings: IFindingRecord[], ansi: IAnsi): string 
     type: sanitizeForTerminal(f.type),
     message: sanitizeForTerminal(f.message).replace(/\n+/g, ' '),
     model: f.model === null ? null : sanitizeForTerminal(f.model),
+    resolution: f.resolution,
+    resolutionNote: sanitizeForTerminal(f.resolutionNote ?? '').replace(/\n+/g, ' '),
+    resolutionBy: sanitizeForTerminal(f.resolutionBy ?? '').replace(/\n+/g, ' '),
     stale: f.stale,
   }));
   const extensionWidth = Math.max(...rows.map((r) => r.extensionId.length));
@@ -242,6 +250,22 @@ function renderFindingsSection(findings: IFindingRecord[], ansi: IAnsi): string 
         staleSuffix: row.stale ? ansi.yellow(SHOW_TEXTS.findingStale) : '',
       }),
     );
+    if (row.resolution !== null) {
+      const fixed = row.resolution === 'fixed';
+      const text = tx(
+        fixed ? SHOW_TEXTS.findingResolutionFixed : SHOW_TEXTS.findingResolutionDeclined,
+        { fixer: row.resolutionBy, note: row.resolutionNote },
+      );
+      lines.push(
+        tx(SHOW_TEXTS.findingResolutionLine, {
+          // `fixed` is a handled state (green ✓, dim), still not a verdict;
+          // `declined` is the author's TODO (yellow, undimmed). Only the
+          // finder re-judging closes a finding.
+          glyph: fixed ? ansi.green('✓') : ansi.yellow('⚠'),
+          text: fixed ? ansi.dim(text) : text,
+        }),
+      );
+    }
   }
   return lines.join('');
 }

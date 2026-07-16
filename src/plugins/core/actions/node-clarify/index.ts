@@ -10,8 +10,9 @@
  *
  * As a probabilistic Action it carries NO in-process `invoke` and NO
  * scan-time `project`: the kernel renders `prompt.md` + the canonical
- * preamble + the injected findings section (this node's current non-stale
- * `core/node-incoherence` findings) + the report contract into a queued job
+ * preamble + the injected findings section (this node's
+ * `core/node-incoherence` findings, stale ones flagged for the agent to
+ * verify against the body) + the report contract into a queued job
  * (`sm job submit node-clarify -n <node>`), an external agent drains it
  * (`sm job claim`), performs the file edit with its own tools, and `sm
  * record` validates the JSON report against `report.schema.json`. skill-map

@@ -397,8 +397,8 @@ export class SqliteStorageAdapter implements StoragePort {
         pruneTerminalJobs(this.db, status, cutoffMs),
       listTerminalCandidates: (status, cutoffMs) =>
         listTerminalCandidates(this.db, status, cutoffMs),
-      recordTerminal: (execution, summary, findings) =>
-        recordJobTerminal(this.db, execution, summary, findings),
+      recordTerminal: (execution, summary, findings, resolutions) =>
+        recordJobTerminal(this.db, execution, summary, findings, resolutions),
     };
 
     this.summaries = {

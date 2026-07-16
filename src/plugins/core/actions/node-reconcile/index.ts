@@ -7,13 +7,14 @@
  * `core/node-contradiction` and `core/node-contraindication` findings by
  * editing the node file to settle conflicting or jointly-risky directive
  * pairs, preserving every distinct requirement. The multi-id array is the
- * mechanism: the submit path injects every non-stale finding from EITHER
- * finder into the one `## Findings to resolve` section.
+ * mechanism: the submit path injects every finding from EITHER finder into
+ * the one `## Findings to resolve` section.
  *
  * As a probabilistic Action it carries NO in-process `invoke` and NO
  * scan-time `project`: the kernel renders `prompt.md` + the canonical
- * preamble + the injected findings section (this node's current non-stale
- * `core/node-contradiction` + `core/node-contraindication` findings) + the
+ * preamble + the injected findings section (this node's
+ * `core/node-contradiction` + `core/node-contraindication` findings, stale
+ * ones flagged for the agent to verify against the body) + the
  * report contract into a queued job (`sm job submit node-reconcile -n
  * <node>`), an external agent drains it (`sm job claim`), performs the file
  * edit with its own tools, and `sm record` validates the JSON report against
