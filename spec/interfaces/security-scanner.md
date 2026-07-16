@@ -1,242 +1,91 @@
 # Security scanner interface
 
-Normative contract for third-party security-scanning plugins (Snyk, Socket, custom rulesets, similar). A security scanner is NOT a new extension kind, it is a **convention over the existing `Action` kind**, defined so that:
+Normative convention for third-party security-scanning plugins (Snyk, Socket, custom rulesets, similar). A security scanner is NOT a new extension kind, it is a **convention over the existing kinds**, defined so that:
 
 - Multiple vendors can ship interoperable scanners.
-- `sm findings` can aggregate findings across scanners uniformly.
-- The UI can present a single "Security" panel regardless of which scanners are present.
+- `sm findings` aggregates findings across scanners uniformly, with per-row provenance.
+- The UI can present a single security surface regardless of which scanners are present.
+
+> **Reconciled with the findings pipeline.** The original draft of this document predated `state_findings` and specified a bespoke `SecurityReport` envelope aggregated from `state_executions`, stable cross-run finding ids, and a planned `schemas/summaries/security.schema.json`. All of that is superseded: scanners now ride the standard findings pipeline ([`db-schema.md` §state_findings](../db-schema.md), [`job-lifecycle.md` §Record](../job-lifecycle.md)), which provides the aggregation, provenance, staleness, and dismissal semantics this document used to define ad hoc.
 
 ---
 
 ## Why a convention, not a new kind
 
-The six extension kinds are locked ([`architecture.md`](../architecture.md)). A seventh for "security" would conflate concerns: scanners are actions that produce a specialized report. A convention lets any Action opt into the scanner surface with no kernel changes.
+The six extension kinds are locked ([`architecture.md`](../architecture.md)). A seventh for "security" would conflate concerns: a scanner is a judgment producer, and the judgment surface already exists. A convention lets any conforming extension opt into the security surface with no kernel changes.
 
 ---
 
-## Identifying a scanner
+## The shape: a finder Analyzer
 
-A plugin-provided Action is treated as a security scanner when both:
+A security scanner that produces judgments is a probabilistic **Analyzer** (a finder, [`architecture.md` §Modelo B](../architecture.md)):
 
-1. Its `id` starts with `security-` (lowercase kebab-case).
-2. Its manifest declares `"kind": "scanner"` under `"tags"` (future-proof label; non-normative today but RECOMMENDED).
+- Its `report.schema.json` extends the canonical findings envelope ([`schemas/findings/report.schema.json`](../schemas/findings/report.schema.json)) via `$ref`, like every finder (enforced at manifest load).
+- It is submitted, claimed, and recorded through the standard queue (`sm jobs submit security-<vendor> -n <node.path>` or `--all`); the processing-agent gate and every other submit rule apply unchanged.
+- At record, its `findings[]` land in `state_findings` (finder lane, `origin = 'extension'`), stamped with the scanner's `extension_id` / `extension_version`, the recording agent's self-reported `model`, and `body_hash_at_generation` for staleness.
 
-Example manifest:
+Everything downstream is inherited, not scanner-specific: `sm findings` filters and rendering, per-`(node, extension)` replace semantics, the body-hash stale rule, `sm findings dismiss` (sidecar suppression, grain `(extension, type)`), resolution states, and fixer chaining via `precondition.analyzerIds` when a vendor also ships a remediation Action.
 
-```json
-{
-  "id": "security-snyk",
-  "version": "1.0.0",
-  "specCompat": "^1.0.0",
-  "extensions": ["extensions/snyk.action.js"],
-  "tags": ["kind:scanner", "vendor:snyk"]
-}
-```
-
-The kernel does NOT enforce the `security-` prefix, any Action may produce findings conforming to this schema. But `sm findings --security` and the UI's Security panel filter by prefix **OR** the `tags` label.
+**Identification.** The extension id SHOULD start with `security-` (lowercase kebab-case, e.g. `security-snyk`). Consumers (a `--security` style filter, the UI security grouping) identify scanners by that prefix. The kernel does not enforce the prefix; conforming to the findings envelope is what unlocks the shared surface.
 
 ---
 
-## Input
+## Finding types (categories)
 
-The Action receives a standard invocation: a single node, or (via `--all`) the set of nodes matching the Action's `preconditions`. Scanners typically set:
-
-```json
-{
-  "preconditions": { "kind": ["skill", "agent", "command", "hook", "note"] }
-}
-```
-
-i.e. applies to every node. A scanner MAY narrow to specific kinds if the vendor's check only applies to, e.g., shell-hook content.
-
-Scanners are **deterministic-mode** Actions by default: no LLM involvement. The Action runs its own logic (HTTP request to a vendor API, local regex scan, dependency check) and writes a report. Scanners MAY also be `probabilistic` Actions if they rely on model analysis; the same report shape applies.
-
----
-
-## Output: the `SecurityReport` shape
-
-Every scanner MUST produce a report conforming to this shape, extending [`report-base.schema.json`](../schemas/report-base.schema.json) with scanner-specific fields.
-
-```jsonc
-{
-  "confidence": 0.9,
-  "safety": {
-    "injectionDetected": false,
-    "contentQuality": "clean"
-  },
-
-  "scanner": {
-    "id": "security-snyk",
-    "version": "1.0.0",
-    "vendor": "Snyk",
-    "ranAt": 1745159465000,
-    "durationMs": 240
-  },
-
-  "findings": [
-    {
-      "id": "security-snyk:SNYK-JS-LODASH-567746",
-      "severity": "error",
-      "category": "vulnerability",
-      "title": "Prototype Pollution in lodash",
-      "description": "...",
-      "nodePath": "skills/my-skill.md",
-      "locations": [
-        { "line": 42, "column": 5, "length": 12, "raw": "lodash@4.17.15" }
-      ],
-      "references": [
-        "https://snyk.io/vuln/SNYK-JS-LODASH-567746",
-        "https://github.com/advisories/GHSA-..."
-      ],
-      "remediation": {
-        "summary": "Upgrade to lodash >= 4.17.21.",
-        "autofixable": false
-      },
-      "meta": { "cvss": 7.3, "cwe": "CWE-1321" }
-    }
-  ],
-
-  "stats": {
-    "totalFindings": 1,
-    "bySeverity": { "error": 1, "warn": 0, "info": 0 }
-  }
-}
-```
-
-### Field reference
-
-**Scanner envelope** (`scanner.*`), REQUIRED:
-
-| Field | Type | Meaning |
-|---|---|---|
-| `id` | string | Matches the Action's id. |
-| `version` | string (semver) | Scanner version at run time. |
-| `vendor` | string | Human-readable vendor name. |
-| `ranAt` | integer | Unix ms. |
-| `durationMs` | integer | Scan duration. |
-
-**Finding** (`findings[]`), ZERO OR MORE. Each finding MUST include:
-
-| Field | Type | Meaning |
-|---|---|---|
-| `id` | string | Globally unique finding id. Convention: `<scannerId>:<vendorFindingId>`. |
-| `severity` | enum | `error` / `warn` / `info`. Maps to deterministic issue severity for aggregation. |
-| `category` | string | A normative category below, or a vendor-specific string prefixed `vendor:`. |
-| `title` | string | Short human-readable summary. |
-| `description` | string | Longer explanation; markdown-friendly. |
-| `nodePath` | string | The `node.path` this finding references. |
-| `locations` | array\|null | Optional in-file locations. Each has `line` (required), `column`, `length`, `raw`. |
-| `references` | array\|null | External URLs (CVE, advisory, blog post). |
-| `remediation` | object\|null | `summary` (string), `autofixable` (boolean). Autofix is advisory, the kernel does not invoke it. |
-| `meta` | object\|null | Vendor-specific free-form: CVSS, CWE, CPE, etc. |
-
-**Stats** (`stats.*`), REQUIRED summary:
-
-| Field | Type | Meaning |
-|---|---|---|
-| `totalFindings` | integer | MUST equal `findings.length`. |
-| `bySeverity` | object | Map `severity → count`. All three severities MUST be present even if zero. |
-
-### Normative finding categories
-
-A `category` value SHOULD be one of these for interoperability:
+The old draft's `category` maps onto the finding `type` slug. For interoperability a scanner SHOULD use one of:
 
 - `vulnerability`, known CVE, dependency advisory, version range with known exploit.
-- `misconfiguration`, insecure default, exposed secret, weak permission, missing header.
+- `misconfiguration`, insecure default, exposed secret surface, weak permission.
 - `credential-leak`, secret material (API key, token, password) detected in content.
-- `injection-risk`, pattern likely to enable prompt injection, SQL injection, command injection.
+- `injection-risk`, pattern likely to enable prompt/SQL/command injection.
 - `license-violation`, incompatible license terms for a dependency or referenced asset.
 - `outdated`, version pinned well below current, not exploited but due for upgrade.
-- `policy-violation`, organization-level analyzer (naming, banned words, required disclaimer).
+- `policy-violation`, organization-level rule (naming, banned words, required disclaimer).
 
-Vendors MAY introduce their own category prefixed `vendor:<slug>` (e.g. `vendor:socket:supply-chain`). Consumers that don't understand a vendor category MUST treat it as opaque but still display it.
+Vendor-specific types use a `vendor-<slug>` prefix (kebab, envelope-legal). Consumers that do not understand a type MUST treat it as opaque but still display it. Because the `type` is also the dismissal grain, scanners SHOULD keep types stable across versions: renaming a type silently re-arms judgments the operator already dismissed.
 
----
+**Reserved kernel slugs.** `injection-detected`, `content-suspicious`, and `content-malformed` belong to the kernel safety lane (synthesized from any probabilistic report's `safety` block, `origin = 'kernel'`); extensions MUST NOT emit them. A scanner reporting an injection PATTERN uses its own `injection-risk` type; the kernel lane reports that the scanned content attacked the scan itself.
 
-## Runtime model
-
-- Scanners are invoked through the standard job system: `sm jobs submit security-snyk -n <node.path>` or `sm jobs submit security-snyk --all`.
-- The report is persisted through the normal action report mechanism ([`state_executions`](../db-schema.md)`.report_path` points to the JSON).
-- `sm findings --security` aggregates findings from reports whose action id starts with `security-`, merging across scanners, deduplicating by `finding.id`.
-- Implementations MAY also surface findings at scan time via a companion Analyzer (e.g. `security-findings-stale` flags nodes whose last scan exceeds a threshold). Recommended but not normative.
+**Vendor detail.** CVE ids, CVSS scores, advisory URLs, and remediation guidance travel in the finding's `detail` string today (markdown-friendly). Structured vendor fields (a `meta` object, typed locations) are an OPEN pre-1.0 envelope question, see §Stability.
 
 ---
 
-## Deduplication
+## No stable cross-run identity
 
-Finding ids MUST be stable: re-running the same scanner against unchanged input MUST produce the same `finding.id` values. This lets:
-
-- `sm findings --since <date>` show only new findings.
-- The UI diff scan-to-scan.
-- Aggregators dedupe identical reports from multiple provider instances.
-
-The convention `<scannerId>:<vendorFindingId>` ensures cross-scanner uniqueness while staying readable.
+The old draft required stable finding ids (`<scannerId>:<vendorFindingId>`) for dedup and `--since` diffing. The findings pipeline deliberately has no cross-run identity: a re-recorded scanner REPLACES its previous rows for the node, and durable operator decisions attach to the judgment CLASS (`(extension, type)` sidecar suppressions), not to an occurrence. Vendors MAY embed their stable id inside `detail` for reference, but no kernel surface keys on it.
 
 ---
 
-## Aggregation into `sm findings`
+## Deterministic / vendor-API scanners (open)
 
-On `sm findings --security`, the kernel:
+A scanner backed by a vendor HTTP API (dependency lookup, advisory feed) is deterministic in spirit, but has no findings-lane home yet:
 
-1. Queries `state_executions` for actions whose id starts with `security-`.
-2. For each, loads the most recent report (per `(actionId, nodeId)`).
-3. Merges finding arrays.
-4. Emits a normalized list: each entry includes `scanner`, `finding`, and `lastRanAt`.
-5. Applies optional filters: `--severity`, `--category`, `--node`, `--since`.
+- Deterministic **Analyzers** run on the synchronous scan path, which MUST stay fast, free, and offline (no network); their output is scan-time issues (`sm check`), not findings.
+- Deterministic network **Actions** run via `sm refresh` into the enrichment layer, which does not feed `state_findings`.
 
-The consumer sees a flat list regardless of how many scanners produced it.
-
----
-
-## UI surface
-
-The Web UI's Security panel:
-
-- Groups findings by `severity` first, then by `category`.
-- Displays `scanner.vendor` as the provenance line.
-- Links `references[]` inline.
-- Exposes `remediation.summary` when present.
-- Does NOT auto-run scanners. Invocation is user-initiated.
-
----
-
-## Schema file location
-
-The JSON Schema for `SecurityReport` lives at `spec/schemas/summaries/security.schema.json` once Step 4 of the spec bootstrap completes. Until then, this document is the normative source and vendors SHOULD derive their validator from it.
-
-This is the only `summaries/*` schema that does NOT correspond to a node kind; it corresponds to an action category.
-
----
-
-## Compliance
-
-A scanner whose report does NOT conform to `SecurityReport` is still a valid Action, but does NOT show up in `sm findings --security` or the UI Security panel; conforming is what unlocks the aggregation surface.
-
-`sm plugins doctor` MAY emit a warning for Actions prefixed `security-` whose most recent report does not parse as `SecurityReport`.
+Routing vendor-API results into the findings surface (a deterministic findings lane at record? an enrichment-to-findings projection?) is an explicit OPEN design question, deferred until a real vendor implementation ships. Until then, API-backed scanners are best modeled as probabilistic Analyzers whose processing agent performs the vendor call and reports through the findings envelope.
 
 ---
 
 ## See also
 
-- [`../architecture.md`](../architecture.md), extension kinds (Action) and the kernel contract.
-- [`../job-lifecycle.md`](../job-lifecycle.md), job submit/claim/record flow for scanner invocations.
-- [`../prompt-preamble.md`](../prompt-preamble.md), `report-base` shape (safety + confidence) that scanner reports extend.
-- [`../db-schema.md`](../db-schema.md), `state_executions`, where scanner reports are persisted.
+- [`../architecture.md`](../architecture.md), extension kinds, Modelo B, execution handover.
+- [`../job-lifecycle.md`](../job-lifecycle.md), submit/claim/record flow, processing-agent gate, findings write-through.
+- [`../db-schema.md`](../db-schema.md), `state_findings` columns, replace semantics, suppression filter.
+- [`../schemas/findings/report.schema.json`](../schemas/findings/report.schema.json), the canonical envelope scanner reports extend.
 
 ---
 
 ## Stability
 
-**Stability: experimental** as of spec v0.x. Field names and conventions MAY tighten before v1.0 once real scanner implementations (Snyk, Socket, custom) ship and reveal shape needs.
+**Stability: experimental** as of spec v0.x. Locked for v0:
 
-Locked for v0:
-
-- The report envelope (`scanner`, `findings`, `stats`).
-- The required fields on `scanner` and on each finding.
-- The severity enum (`error` / `warn` / `info`).
+- Scanners are finder Analyzers over the canonical findings envelope; no bespoke report shape.
+- The reserved kernel slugs are never emitted by extensions.
+- The recommended type list above.
 
 Open (may change pre-v1.0):
 
-- The exact category enum, may grow or consolidate.
-- Whether `tags: ["kind:scanner"]` in the manifest becomes normative (vs. just recommended).
-- Whether scanners gain a dedicated CLI verb (`sm security scan`) in addition to `sm jobs submit security-<id>`.
+- Structured vendor fields (locations, CVSS, remediation) as an envelope extension vs. `detail`-only.
+- The deterministic / vendor-API findings lane (§above).
+- Whether the `security-` prefix graduates from recommendation to an enforced filter surface (e.g. `sm findings --security`).

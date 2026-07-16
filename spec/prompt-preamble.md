@@ -155,7 +155,7 @@ Defense-in-depth: a deterministic injection-pattern analyzer (scanning node bodi
 
 - [`job-lifecycle.md`](./job-lifecycle.md), submit flow that renders job files with the preamble.
 - [`architecture.md`](./architecture.md), kernel's role in applying the preamble.
-- [`interfaces/security-scanner.md`](./interfaces/security-scanner.md), `SecurityReport` convention that extends `report-base`.
+- [`interfaces/security-scanner.md`](./interfaces/security-scanner.md), security scanners as finder Analyzers over the findings envelope (which extends `report-base`).
 - [`conformance/`](./conformance/README.md), `preamble-bitwise-match` case (landed at Step 10).
 
 ---

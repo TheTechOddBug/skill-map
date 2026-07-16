@@ -218,7 +218,7 @@ Mode is a property of the extension as a whole, not an individual call. **An ext
 |---|---|---|
 | **Extractor** | deterministic-only | implicit; `mode` field MUST NOT appear |
 | **Analyzer** | deterministic / probabilistic | declared in manifest (`mode` field, optional; defaults to `deterministic`) |
-| **Action** | deterministic / probabilistic | declared in manifest (`mode` field, **required**, no default) |
+| **Action** | deterministic / probabilistic | declared in manifest (`mode` field, optional; defaults to `deterministic`, the same rule as Analyzer). The default is safe in both directions: a probabilistic Action that forgets `mode` loads as deterministic WITH a `prompt.md` in its folder, which is `load-error` (config inconsistent, see [`schemas/extensions/action.schema.json`](./schemas/extensions/action.schema.json)), so the omission surfaces at load time instead of mis-routing the dispatch. |
 | **Hook** | deterministic-only | implicit; `mode` field MUST NOT appear (deterministic-only since the structure-as-truth refactor; an LLM-dependent reaction is a deterministic Hook enqueuing a probabilistic extension via `ctx.queue`) |
 | **Provider** | deterministic-only | implicit; `mode` field MUST NOT appear |
 | **Formatter** | deterministic-only | implicit; `mode` field MUST NOT appear |
@@ -1038,7 +1038,7 @@ The **isolation honest-note** (accidents, not hostile code) is the same posture 
 - [`prompt-preamble.md`](./prompt-preamble.md), canonical injection-mitigation preamble for job files.
 - [`plugin-kv-api.md`](./plugin-kv-api.md), `ctx.store` contract for extension persistence.
 - [`versioning.md`](./versioning.md), spec/impl version independence and semver policy.
-- [`interfaces/security-scanner.md`](./interfaces/security-scanner.md), convention over the Action kind for security scanners.
+- [`interfaces/security-scanner.md`](./interfaces/security-scanner.md), convention for security scanners: finder Analyzers over the canonical findings envelope.
 
 ---
 

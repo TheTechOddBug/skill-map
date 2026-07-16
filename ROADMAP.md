@@ -351,7 +351,7 @@ skill-map/
 │   │       ├── hook.schema.json             │
 │   │       └── markdown.schema.json         ┘
 │   ├── interfaces/
-│   │   └── security-scanner.md              ← convention over the Action kind (NOT a 7th kind)
+│   │   └── security-scanner.md              ← convention over the Analyzer kind (NOT a 7th kind)
 │   └── conformance/
 │       ├── README.md                        ← human-readable guide to the suite
 │       ├── coverage.md                      ← release-gate matrix (schemas + artifacts ↔ cases)
