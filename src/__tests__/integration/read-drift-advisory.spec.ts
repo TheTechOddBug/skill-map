@@ -204,7 +204,7 @@ describe('read-side drift posture (verb level)', () => {
     const code = await cmd.execute();
 
     assert.equal(code, 2, 'write verb refuses on fingerprint drift');
-    assert.match(cap.stderr(), /sm db reset --hard/, 'advisory names the remediation');
+    assert.match(cap.stderr(), /sm scan/, 'advisory names the remediation (scan owns the rebuild)');
   });
 
   it('a BFF GET against the drifted DB returns data (advise-and-proceed)', async () => {

@@ -374,9 +374,18 @@ describe('the canonical sm-process-jobs skill, fixer-edit guidance', () => {
    * two DB hashes, and the DB only learns from a scan).
    */
   it('makes the processing agent re-scan the node it edited', () => {
+    // Live agent report 2026-07-17: the original wording said
+    // `sm scan -n <path>`, but scan's `-n` is --dry-run (skips every DB
+    // write, the silent inverse of the instruction's purpose) and scan
+    // roots are directories, so a file path errors out. The working
+    // instruction is the incremental full scan.
     ok(
-      PROCESS_JOBS_SKILL_CONTENT.includes('run `sm scan -n <path>` for the file'),
-      'names the per-node scan verb, not a full re-scan',
+      PROCESS_JOBS_SKILL_CONTENT.includes('run `sm scan --changed`'),
+      'names the incremental scan, never the dry-run -n flag',
+    );
+    ok(
+      !PROCESS_JOBS_SKILL_CONTENT.includes('sm scan -n'),
+      'the dry-run trap wording is gone',
     );
     ok(
       PROCESS_JOBS_SKILL_CONTENT.includes('skill-map learns about edits only from a scan'),

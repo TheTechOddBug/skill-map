@@ -314,6 +314,13 @@
     0 0 0 3px var(--p-primary-color),
     var(--sm-shadow-card);
 }
+/* While the node executes, the multi-select halo yields to the live
+   treatment exactly like the single-focus ring (node-card.css,
+   `--selected.--executing`): the 3px outset ring competes with the
+   rotating halo behind the card. Selection state itself is untouched. */
+.sm-gnode-host.f-selected > .sm-gnode.sm-gnode--executing {
+  box-shadow: var(--sm-shadow-card);
+}
 
 /* Live-activity halo (spec/provider-activity.md): the rotating rainbow
    GLOW behind an executing card. It cannot live inside <sm-node-card>,

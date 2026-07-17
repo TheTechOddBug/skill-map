@@ -90,12 +90,20 @@ Repeat until the queue is empty:
   go-ahead before writing it; when processing unattended, make the edit
   and report it. Jobs carry no TTL by default, so a claim can wait as
   long as a human answer takes.
-- After recording a fixer's edit, run \`sm scan -n <path>\` for the file
-  you changed. skill-map learns about edits only from a scan: until one
-  runs, it still reports its findings against the version you replaced.
+- After recording a fixer's edit, run \`sm scan --changed\`.
+  skill-map learns about edits only from a scan: until one runs, it
+  still reports its findings against the version you replaced. (Note:
+  \`sm scan\` takes no file argument, roots are directories, and \`-n\`
+  on scan means \`--dry-run\`, which would skip every DB write.)
 - A job MAY carry an operator-armed TTL; those claims recover from
   crashed agents on their own, every \`sm jobs claim\` first reaps
   expired jobs back to \`failed / abandoned\`. TTL-less jobs never
   expire. Seeing reaped jobs in \`sm jobs list --status failed\` is
   normal.
+- Report to your user TERSELY. One line per processed job (extension,
+  node, outcome) and one line when the queue is empty; a fixer's edit
+  adds one line naming what changed. No narration of intermediate
+  steps, no restating the findings or the report body, no status prose.
+  Expand ONLY when the user must decide something (a fixer consult, a
+  human-decision proposal) or an error needs detail.
 `;
