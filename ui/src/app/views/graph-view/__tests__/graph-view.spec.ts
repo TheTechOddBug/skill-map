@@ -298,6 +298,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     recent: [],
     spawns: [],
     captureEnabled: false,
+    runs: [],
   }),
   getSpawnRecord: vi.fn().mockResolvedValue(null),
   getActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
@@ -731,6 +732,7 @@ describe('GraphView, spawn-edge conversation thread', () => {
       recent: [],
       spawns: [],
       captureEnabled: false,
+      runs: [],
     });
   });
 
@@ -749,6 +751,7 @@ describe('GraphView, spawn-edge conversation thread', () => {
       recent: [],
       spawns: [s3, s1, s2],
       captureEnabled: true,
+      runs: [],
     });
 
     const { cmp } = await bootstrap([]);
@@ -843,6 +846,7 @@ describe('GraphView, spawn-active static edges', () => {
       recent: [],
       spawns: [],
       captureEnabled: false,
+      runs: [],
     });
   });
 
@@ -1161,6 +1165,7 @@ describe('GraphView, edge conversation-count labels + historical click', () => {
       recent: [],
       spawns: [],
       captureEnabled: false,
+      runs: [],
     });
   });
 
@@ -1204,6 +1209,7 @@ describe('GraphView, edge conversation-count labels + historical click', () => {
       recent: [],
       spawns: [oldTurn, t1, t2, foreign],
       captureEnabled: true,
+      runs: [],
     });
 
     const { cmp } = await bootstrap([]);
@@ -1229,6 +1235,7 @@ describe('GraphView, edge conversation-count labels + historical click', () => {
       recent: [],
       spawns: [],
       captureEnabled: false,
+      runs: [],
     });
 
     const { cmp } = await bootstrap([]);

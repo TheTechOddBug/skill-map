@@ -9,7 +9,9 @@ import {
   signal,
 } from '@angular/core';
 import type { OnInit } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
+import { SelectButtonModule } from 'primeng/selectbutton';
 import { TooltipModule } from 'primeng/tooltip';
 import { debounceTime, merge } from 'rxjs';
 
@@ -17,6 +19,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import type {
   IActivityNodeDetailApi,
+  IActivityRunApi,
   IActivitySpawnRecordApi,
   IIssueApi,
   TIssueSeverityApi,
@@ -25,7 +28,6 @@ import type {
 import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
 import { activityPairKeyTouches } from '../../../models/api';
 import { shortenOwner } from '../../../models/activity-owner';
-import { compactNumber } from '../../../models/node-derived';
 import { shortExtensionLabel } from '../../../models/extension-label';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import { CollectionLoaderService } from '../../../services/collection-loader';
@@ -80,6 +82,15 @@ import {
   type TInspectorSectionId,
 } from './inspector-section-collapse.controller';
 import {
+  setupActivityFilter,
+  type IActivityFilterHandle,
+  type TActivityProvenanceFilter,
+} from './inspector-activity-filter.controller';
+import {
+  mergeActivityTimeline,
+  type TActivityTimelineEntry,
+} from './inspector-activity-timeline';
+import {
   setupInspectorDerivations,
   type IInspectorDerivationsHandle,
 } from './inspector-derivations';
@@ -116,6 +127,8 @@ const ACTIVITY_LIVE_REFRESH_DEBOUNCE_MS = 400;
     ViewContributionsHost,
     SidecarConsentDialog,
     ButtonModule,
+    SelectButtonModule,
+    FormsModule,
     TooltipModule,
   ],
   templateUrl: './inspector-view.html',
@@ -635,27 +648,71 @@ export class InspectorView implements OnInit {
   /** True when the fetched detail has nothing to show (quiet node). */
   protected readonly activityEmpty = computed<boolean>(() => {
     const detail = this.activityDetail();
-    return detail !== null && detail.stats.count === 0 && detail.spawns.length === 0;
+    return (
+      detail !== null &&
+      detail.stats.count === 0 &&
+      detail.spawns.length === 0 &&
+      (detail.runs ?? []).length === 0
+    );
   });
 
   /**
-   * Optional execution aggregates line for the stats row
-   * (spec/provider-activity.md §Execution stats): tool + token sums
-   * contextualized by the contributing run count, e.g.
-   * `14 tools · 8.3k tokens (2 summarized runs)`. `null` (row hidden)
-   * for nodes that never received a spawn summary (skills, markdowns,
-   * async-only agents), whose stats simply omit the fields.
+   * Provenance filter over the merged timeline (all / runtime / AI
+   * runs), persisted at INSPECTOR level like the section-collapse map,
+   * so it survives navigation between nodes and reloads.
    */
-  protected readonly activityAggregates = computed<string | null>(() => {
-    const stats = this.activityDetail()?.stats;
-    if (!stats || stats.summarizedRuns === undefined) return null;
-    const t = this.texts.activity;
-    const parts: string[] = [];
-    if (stats.toolUses !== undefined) parts.push(t.toolsCount(stats.toolUses));
-    if (stats.tokens !== undefined) parts.push(t.tokensCount(compactNumber(stats.tokens)));
-    if (parts.length === 0) return null;
-    return `${parts.join(' · ')} ${t.summarizedRuns(stats.summarizedRuns)}`;
+  private readonly activityFilterState: IActivityFilterHandle = setupActivityFilter();
+
+  protected activityFilter(): TActivityProvenanceFilter {
+    return this.activityFilterState.filter();
+  }
+
+  protected onActivityFilterChange(value: TActivityProvenanceFilter): void {
+    this.activityFilterState.set(value);
+  }
+
+  /** Filter control options; labels from the catalog, values are the filter ids. */
+  protected readonly activityFilterOptions: {
+    label: string;
+    value: TActivityProvenanceFilter;
+  }[] = [
+    { label: INSPECTOR_VIEW_TEXTS.activity.filter.all, value: 'all' },
+    { label: INSPECTOR_VIEW_TEXTS.activity.filter.runtime, value: 'runtime' },
+    { label: INSPECTOR_VIEW_TEXTS.activity.filter.ai, value: 'ai' },
+  ];
+
+  /**
+   * Merged timeline (user decision 2026-07-17): the runtime recent ring
+   * interleaved with the persistent AI-run history, newest first,
+   * timestampless entries sunk to the end. `runs` is normalized through
+   * `?? []` so a BFF that predates the field degrades to runtime-only.
+   */
+  protected readonly activityTimeline = computed<TActivityTimelineEntry[]>(() => {
+    const detail = this.activityDetail();
+    if (detail === null) return [];
+    return mergeActivityTimeline(detail.recent, detail.runs ?? []);
   });
+
+  /** The merged timeline narrowed by the active provenance filter. */
+  protected readonly filteredActivityTimeline = computed<TActivityTimelineEntry[]>(() => {
+    const filter = this.activityFilterState.filter();
+    const entries = this.activityTimeline();
+    if (filter === 'all') return entries;
+    return entries.filter((e) => e.provenance === filter);
+  });
+
+  /**
+   * AI-run row text: `<extensionShort> · <status> · <duration> · <model>`,
+   * nullable segments omitted. The extension segment reuses the same
+   * `node-` prefix strip as the AI-actions launcher labels.
+   */
+  protected runRowLabel(run: IActivityRunApi): string {
+    const parts = [shortExtensionLabel(run.extensionId), run.status];
+    if (run.durationMs !== null) parts.push(this.texts.activity.runDuration(run.durationMs));
+    if (run.model !== null) parts.push(run.model);
+    return parts.join(' · ');
+  }
+
 
   /** Human time for activity rows (session-scoped, date is noise). */
   protected formatActivityTime(ms: number): string {

@@ -82,23 +82,6 @@ export const INSPECTOR_VIEW_TEXTS = {
     captureOnChip: 'capture on',
     captureOnChipTooltip:
       'Conversation capture is enabled: spawn prompts and responses are kept in memory while sm runs.',
-    stats: {
-      count: 'Executions',
-      lastStart: 'Last start',
-      contexts: 'Contexts',
-      /** Row label for the optional execution aggregates line. */
-      totals: 'Totals',
-    },
-    /**
-     * Execution aggregates (spec §Execution stats): sums reported by
-     * sync spawn completions, contextualized by how many runs
-     * contributed, e.g. `14 tools · 8.3k tokens (2 summarized runs)`.
-     */
-    toolsCount: (n: number): string => (n === 1 ? '1 tool' : `${n} tools`),
-    /** Takes the already-compacted count (`compactNumber`), e.g. `8.3k`. */
-    tokensCount: (compact: string): string => `${compact} tokens`,
-    summarizedRuns: (n: number): string =>
-      n === 1 ? '(1 summarized run)' : `(${n} summarized runs)`,
     recentHeading: 'Recent executions',
     /**
      * Type-icon label for the directional recent rows
@@ -110,6 +93,27 @@ export const INSPECTOR_VIEW_TEXTS = {
       mcp: 'MCP tool call',
       read: 'File read',
     },
+    /**
+     * Three-state provenance filter over the merged timeline (user
+     * decision 2026-07-17): runtime executions vs skill-map's own
+     * AI-run history, or both interleaved. Persisted at inspector
+     * level, see `inspector-activity-filter.controller.ts`.
+     */
+    filter: {
+      all: 'All',
+      runtime: 'Runtime',
+      ai: 'AI runs',
+      /** Muted line when the active filter matches no timeline entry. */
+      empty: 'Nothing recorded for this filter.',
+    },
+    /**
+     * Icon label for AI-run rows (skill-map's own `state_executions`
+     * history). Doubles as tooltip and screen-reader label, like
+     * `recentKind`.
+     */
+    runKind: 'AI run',
+    /** Compact run duration, mirrors the conversation dialog's format. */
+    runDuration: (ms: number): string => `${(ms / 1000).toFixed(1).replace(/\.0$/, '')}s`,
     spawnsHeading: 'Agent spawns',
     /** Thread-row turn counter: every Task call of the pair is one exchange. */
     exchangeCount: (n: number): string => (n === 1 ? '1 exchange' : `${n} exchanges`),

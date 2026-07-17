@@ -1198,6 +1198,7 @@ describe('InspectorView, activity thread rows (spawn grouping)', () => {
       recent: [],
       spawns: [makeSpawn('s2', 2000, 'ended'), makeSpawn('s1', 1000, 'ended'), makeSpawn('s3', 3000, 'running')],
       captureEnabled: true,
+      runs: [],
     });
 
     const { fixture } = bootstrap({
@@ -1253,6 +1254,7 @@ describe('InspectorView, activity execution aggregates (stats totals row)', () =
       recent: [],
       spawns: [],
       captureEnabled: false,
+      runs: [],
     });
 
     const { fixture } = bootstrap({
@@ -1271,7 +1273,7 @@ describe('InspectorView, activity execution aggregates (stats totals row)', () =
     return fixture.nativeElement as HTMLElement;
   }
 
-  it('renders the contextualized tools + tokens totals when stats carry summarizedRuns', async () => {
+  it('never renders the stats grid (dropped 2026-07-17: the timeline carries the story)', async () => {
     const dom = await bootWithStats({
       count: 3,
       lastStartAt: 3000,
@@ -1280,28 +1282,7 @@ describe('InspectorView, activity execution aggregates (stats totals row)', () =
       tokens: 8300,
       summarizedRuns: 2,
     });
-    const totals = dom.querySelector('[data-testid="inspector-activity-exec-totals"]');
-    expect(totals).not.toBeNull();
-    expect(totals!.textContent).toContain('14 tools · 8.3k tokens (2 summarized runs)');
-  });
-
-  it('uses the singular run label for one summarized run', async () => {
-    const dom = await bootWithStats({
-      count: 1,
-      lastStartAt: 1000,
-      distinctOwners: 1,
-      toolUses: 1,
-      tokens: 500,
-      summarizedRuns: 1,
-    });
-    const totals = dom.querySelector('[data-testid="inspector-activity-exec-totals"]');
-    expect(totals!.textContent).toContain('1 tool · 500 tokens (1 summarized run)');
-  });
-
-  it('hides the totals row when the stats carry no aggregates (never-summarized node)', async () => {
-    const dom = await bootWithStats({ count: 3, lastStartAt: 3000, distinctOwners: 1 });
-    // The stats grid renders (count > 0) but the totals row does not.
-    expect(dom.querySelector('[data-testid="inspector-activity-stats"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-activity-stats"]')).toBeNull();
     expect(dom.querySelector('[data-testid="inspector-activity-exec-totals"]')).toBeNull();
   });
 });
@@ -1377,6 +1358,7 @@ describe('InspectorView, activity recent directional invocations', () => {
       recent,
       spawns: [],
       captureEnabled: false,
+      runs: [],
     });
 
     const { fixture } = bootstrap({
@@ -1484,6 +1466,230 @@ describe('InspectorView, activity recent directional invocations', () => {
   });
 });
 
+/** AI-run entry seed for the merged-timeline suites. */
+function makeRun(overrides: Partial<IActivityRunApi> = {}): IActivityRunApi {
+  return {
+    executionId: 'exec-1',
+    extensionId: 'core/node-redundancy',
+    status: 'completed',
+    model: 'claude-sonnet',
+    durationMs: 2000,
+    finishedAt: 2000,
+    failureReason: null,
+    ...overrides,
+  };
+}
+
+/** Boots on a node, expands Activity, settles the fetch of the given detail. */
+async function bootWithTimeline(
+  recent: readonly Record<string, unknown>[],
+  runs: readonly IActivityRunApi[],
+): Promise<ComponentFixture<InspectorView>> {
+  const node = makeNode();
+  const loader = makeStubLoader([node]);
+  const dataSource = makeStubDataSource();
+  dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+  dataSource.getNodeActivity.mockResolvedValue({
+    stats: { count: recent.length, lastStartAt: 3000, distinctOwners: 1 },
+    recent,
+    spawns: [],
+    captureEnabled: false,
+    runs,
+  });
+  const { fixture } = bootstrap({
+    loader,
+    dataSource,
+    activityStats: new Map([[node.path, makeActivityStats()]]),
+  });
+  fixture.componentRef.setInput('path', node.path);
+  await flush(fixture);
+  const toggle = fixture.nativeElement.querySelector(
+    '[data-testid="inspector-activity-toggle"]',
+  ) as HTMLButtonElement;
+  toggle.click();
+  await flush(fixture);
+  await flush(fixture);
+  return fixture;
+}
+
+describe('InspectorView, activity merged timeline (runtime + AI runs)', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  it('interleaves AI runs into the timeline, newest first, timestampless runs last', async () => {
+    const fixture = await bootWithTimeline(
+      [
+        { at: 3000, owner: 'main:abc' },
+        { at: 1000, owner: 'main:abc' },
+      ],
+      [
+        makeRun({ executionId: 'e1', finishedAt: 2000 }),
+        // Unfinished run: no timestamp, must sink to the end.
+        makeRun({
+          executionId: 'e2',
+          status: 'running',
+          finishedAt: null,
+          durationMs: null,
+          model: null,
+        }),
+      ],
+    );
+    const dom: HTMLElement = fixture.nativeElement;
+    // querySelectorAll returns document order, i.e. render order.
+    const rows = dom.querySelectorAll(
+      '[data-testid="inspector-activity-recent-row"], [data-testid="inspector-activity-run-row"]',
+    );
+    expect(rows.length).toBe(4);
+    expect(rows[0]!.getAttribute('data-testid')).toBe('inspector-activity-recent-row'); // at 3000
+    expect(rows[1]!.getAttribute('data-testid')).toBe('inspector-activity-run-row'); // finished 2000
+    expect(rows[2]!.getAttribute('data-testid')).toBe('inspector-activity-recent-row'); // at 1000
+    expect(rows[3]!.getAttribute('data-testid')).toBe('inspector-activity-run-row'); // null, sinks
+  });
+
+  it('renders an AI-run row visually distinguished: sparkles icon + extension · status · duration · model', async () => {
+    const fixture = await bootWithTimeline(
+      [{ at: 3000, owner: 'main:abc' }],
+      [makeRun({ executionId: 'e1', finishedAt: 2000 })],
+    );
+    const dom: HTMLElement = fixture.nativeElement;
+    const row = dom.querySelector('[data-testid="inspector-activity-run-row"]');
+    expect(row).not.toBeNull();
+    // Own glyph (sparkles), distinct from the runtime wrench / document icons.
+    const icon = row!.querySelector('[data-testid="inspector-activity-run-icon"]');
+    expect(icon).not.toBeNull();
+    expect(icon!.classList.contains('pi-sparkles')).toBe(true);
+    // `node-` prefix stripped like the AI-actions launcher labels.
+    expect(row!.textContent).toContain('redundancy · completed · 2s · claude-sonnet');
+    expect(row!.textContent).not.toContain('node-redundancy');
+    // A clean run carries no failure tooltip.
+    expect(row!.getAttribute('title')).toBeNull();
+  });
+
+  it('surfaces the failureReason as the failed run row tooltip', async () => {
+    const fixture = await bootWithTimeline(
+      [],
+      [
+        makeRun({
+          executionId: 'e1',
+          status: 'failed',
+          finishedAt: 2000,
+          failureReason: 'agent timed out',
+        }),
+      ],
+    );
+    const row = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="inspector-activity-run-row"]',
+    );
+    expect(row!.getAttribute('title')).toBe('agent timed out');
+  });
+
+  it('shows AI runs even when the runtime half is quiet (empty stats)', async () => {
+    const fixture = await bootWithTimeline([], [makeRun({ executionId: 'e1', finishedAt: 2000 })]);
+    const dom: HTMLElement = fixture.nativeElement;
+    // Not the quiet-node empty line: the persistent runs still show.
+    expect(dom.querySelector('[data-testid="inspector-activity-empty"]')).toBeNull();
+    expect(dom.querySelectorAll('[data-testid="inspector-activity-run-row"]').length).toBe(1);
+  });
+
+  it('renders the runtime-only timeline unchanged when runs is empty', async () => {
+    const fixture = await bootWithTimeline(
+      [{ at: 3000, owner: 'main:abc', detail: 'read-tool' }],
+      [],
+    );
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(dom.querySelectorAll('[data-testid="inspector-activity-recent-row"]').length).toBe(1);
+    expect(dom.querySelectorAll('[data-testid="inspector-activity-run-row"]').length).toBe(0);
+    expect(
+      dom.querySelector('[data-testid="inspector-activity-recent-detail"]')!.textContent,
+    ).toContain('read-tool');
+  });
+
+  it('filters the timeline by provenance via the three-state control', async () => {
+    const fixture = await bootWithTimeline(
+      [{ at: 3000, owner: 'main:abc' }],
+      [makeRun({ executionId: 'e1', finishedAt: 2000 })],
+    );
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(dom.querySelector('[data-testid="inspector-activity-filter"]')).not.toBeNull();
+    // Default 'all': both provenances visible.
+    expect(dom.querySelectorAll('[data-testid="inspector-activity-recent-row"]').length).toBe(1);
+    expect(dom.querySelectorAll('[data-testid="inspector-activity-run-row"]').length).toBe(1);
+
+    (dom.querySelector('[data-testid="inspector-activity-filter-runtime"]') as HTMLElement).click();
+    await flush(fixture);
+    expect(dom.querySelectorAll('[data-testid="inspector-activity-recent-row"]').length).toBe(1);
+    expect(dom.querySelectorAll('[data-testid="inspector-activity-run-row"]').length).toBe(0);
+
+    (dom.querySelector('[data-testid="inspector-activity-filter-ai"]') as HTMLElement).click();
+    await flush(fixture);
+    expect(dom.querySelectorAll('[data-testid="inspector-activity-recent-row"]').length).toBe(0);
+    expect(dom.querySelectorAll('[data-testid="inspector-activity-run-row"]').length).toBe(1);
+
+    (dom.querySelector('[data-testid="inspector-activity-filter-all"]') as HTMLElement).click();
+    await flush(fixture);
+    expect(dom.querySelectorAll('[data-testid="inspector-activity-recent-row"]').length).toBe(1);
+    expect(dom.querySelectorAll('[data-testid="inspector-activity-run-row"]').length).toBe(1);
+  });
+
+  it('shows the filtered-empty line when the active filter matches nothing', async () => {
+    const fixture = await bootWithTimeline([{ at: 3000, owner: 'main:abc' }], []);
+    const dom: HTMLElement = fixture.nativeElement;
+    (dom.querySelector('[data-testid="inspector-activity-filter-ai"]') as HTMLElement).click();
+    await flush(fixture);
+    expect(dom.querySelector('[data-testid="inspector-activity-filter-empty"]')).not.toBeNull();
+    expect(dom.querySelectorAll('[data-testid="inspector-activity-recent-row"]').length).toBe(0);
+  });
+});
+
+describe('InspectorView, activity filter persistence (inspector-level)', () => {
+  const STORAGE_KEY = 'skill-map.ui.inspector.activityFilter';
+
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  it('applies a persisted filter at init', async () => {
+    localStorage.setItem(STORAGE_KEY, 'ai');
+    const fixture = await bootWithTimeline(
+      [{ at: 3000, owner: 'main:abc' }],
+      [makeRun({ executionId: 'e1', finishedAt: 2000 })],
+    );
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(dom.querySelectorAll('[data-testid="inspector-activity-recent-row"]').length).toBe(0);
+    expect(dom.querySelectorAll('[data-testid="inspector-activity-run-row"]').length).toBe(1);
+  });
+
+  it('persists a filter change back to localStorage', async () => {
+    const fixture = await bootWithTimeline(
+      [{ at: 3000, owner: 'main:abc' }],
+      [makeRun({ executionId: 'e1', finishedAt: 2000 })],
+    );
+    const dom: HTMLElement = fixture.nativeElement;
+    (dom.querySelector('[data-testid="inspector-activity-filter-runtime"]') as HTMLElement).click();
+    await flush(fixture);
+    expect(localStorage.getItem(STORAGE_KEY)).toBe('runtime');
+  });
+
+  it('falls back to "all" on an unknown stored value (defensive parse)', async () => {
+    localStorage.setItem(STORAGE_KEY, 'bogus');
+    const fixture = await bootWithTimeline(
+      [{ at: 3000, owner: 'main:abc' }],
+      [makeRun({ executionId: 'e1', finishedAt: 2000 })],
+    );
+    const dom: HTMLElement = fixture.nativeElement;
+    // Both provenances visible, i.e. the filter resolved to 'all'.
+    expect(dom.querySelectorAll('[data-testid="inspector-activity-recent-row"]').length).toBe(1);
+    expect(dom.querySelectorAll('[data-testid="inspector-activity-run-row"]').length).toBe(1);
+  });
+});
+
 describe('InspectorView, activity live refresh (node.activity re-fetch)', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
@@ -1499,6 +1705,7 @@ describe('InspectorView, activity live refresh (node.activity re-fetch)', () => 
       recent: [],
       spawns: [],
       captureEnabled: true,
+      runs: [],
     });
 
     const { fixture, nodeActivity$ } = bootstrap({
@@ -1543,6 +1750,7 @@ describe('InspectorView, activity live refresh (node.activity re-fetch)', () => 
       recent: [],
       spawns: [],
       captureEnabled: true,
+      runs: [],
     });
 
     const { fixture, nodeActivity$ } = bootstrap({
@@ -1587,6 +1795,7 @@ describe('InspectorView, activity live refresh (node.activity re-fetch)', () => 
       recent: [],
       spawns: [],
       captureEnabled: true,
+      runs: [],
     });
 
     const { fixture, agentSpawn$ } = bootstrap({

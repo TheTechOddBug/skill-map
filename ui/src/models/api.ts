@@ -1356,6 +1356,26 @@ export interface IActivitySpawnRecordApi {
 }
 
 /**
+ * One entry of a node's AI-run history (`spec/provider-activity.md`
+ * §GET /api/activity/node/<pathB64>, `runs`): skill-map's own runs for
+ * the node read from `state_executions`, persistent unlike the
+ * ephemeral runtime stats. Newest-first, capped at 20 server-side; a
+ * missing DB degrades to `runs: []`.
+ */
+export interface IActivityRunApi {
+  executionId: string;
+  /** Qualified extension id (e.g. `core/node-redundancy`). */
+  extensionId: string;
+  /** Lifecycle label from the executions table; opaque here. */
+  status: string;
+  model: string | null;
+  durationMs: number | null;
+  /** Unix ms; `null` while the run has not finished. */
+  finishedAt: number | null;
+  failureReason: string | null;
+}
+
+/**
  * `GET /api/activity/node/<pathB64>` response: per-node detail for the
  * inspector's Activity section. A scanned node with no recorded
  * activity returns empty stats, not 404.
@@ -1366,6 +1386,11 @@ export interface IActivityNodeDetailApi {
   /** Spawn records touching the node (as parent or child). */
   spawns: IActivitySpawnRecordApi[];
   captureEnabled: boolean;
+  /**
+   * The OTHER provenance the Activity timeline interleaves (user
+   * decision 2026-07-17): persistent AI-run history for the node.
+   */
+  runs: IActivityRunApi[];
 }
 
 /**

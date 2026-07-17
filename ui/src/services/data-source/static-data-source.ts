@@ -745,11 +745,14 @@ export class StaticDataSource implements IDataSourcePort {
   }
 
   async getNodeActivity(_path: string): Promise<IActivityNodeDetailApi | null> {
+    // `runs` stays empty too: the demo bundle ships no state DB, which
+    // is exactly the missing-DB degradation the contract prescribes.
     return {
       stats: { count: 0, lastStartAt: 0, distinctOwners: 0 },
       recent: [],
       spawns: [],
       captureEnabled: false,
+      runs: [],
     };
   }
 

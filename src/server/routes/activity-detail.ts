@@ -3,11 +3,14 @@
  * `spec/provider-activity.md` §Execution stats + §Conversation capture):
  *
  *   - `GET /api/activity/node/:pathB64` → `{ stats, recent, spawns,
- *     captureEnabled }` for the inspector's Activity section. The path
- *     param follows the exact base64url convention of
+ *     captureEnabled, runs }` for the inspector's Activity section. The
+ *     path param follows the exact base64url convention of
  *     `GET /api/nodes/:pathB64` (malformed → 404, same as unknown). A
  *     path that is not a scanned node → 404; a scanned node with no
- *     recorded activity → zeroed stats, never 404.
+ *     recorded activity → zeroed stats, never 404. `runs` is the node's
+ *     persistent AI-run history (`state_executions`, newest-first,
+ *     capped at 20, lean projection); a missing DB degrades to
+ *     `runs: []` with the runtime half still answering.
  *   - `GET /api/activity/spawns/:spawnId` → one spawn record (the
  *     spawn-edge click surface), 404 for an unknown id.
  *
@@ -26,6 +29,11 @@ import { HTTPException } from 'hono/http-exception';
 
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { bffReadVersionCheck } from '../util/db-read-check.js';
+import type {
+  ExecutionFailureReason,
+  ExecutionRecord,
+  ExecutionStatus,
+} from '../../kernel/types.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import type {
@@ -47,27 +55,62 @@ export interface IActivityDetailRouteDeps extends IRouteDeps {
   conversations: ActivityConversationStore;
 }
 
+/**
+ * Spec cap on the `runs` list (`spec/provider-activity.md`
+ * §`GET /api/activity/node/<pathB64>`): newest-first, at most 20.
+ */
+const RUNS_LIMIT = 20;
+
+/**
+ * One wire entry of the node's AI-run history. Identity + outcome only:
+ * NO report content, NO nonce, NO `reportPath` (the wire stays lean and
+ * leak-safe by construction).
+ */
+interface IRunEntry {
+  executionId: string;
+  extensionId: string;
+  status: ExecutionStatus;
+  model: string | null;
+  durationMs: number | null;
+  finishedAt: number | null;
+  failureReason: ExecutionFailureReason | null;
+}
+
+/**
+ * Outcome of the single per-request DB open. `null` from the seam means
+ * the DB file is missing, which is NOT a 404: the runtime half still
+ * answers, with `runs` degraded to `[]` (spec mandate).
+ */
+type TNodeDbRead =
+  | { kind: 'unknown-node' }
+  | { kind: 'found'; runs: IRunEntry[] };
+
 export function registerActivityDetailRoutes(
   app: Hono,
   deps: IActivityDetailRouteDeps,
 ): void {
   app.get('/api/activity/node/:pathB64', async (c) => {
     const nodePath = decodePathParamOr404(c.req.param('pathB64'));
-    const exists = await tryWithSqlite(
+    const dbRead = await tryWithSqlite(
       { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
-      async (adapter) => (await adapter.scans.findNode(nodePath)) !== null,
+      async (adapter): Promise<TNodeDbRead> => {
+        if ((await adapter.scans.findNode(nodePath)) === null) return { kind: 'unknown-node' };
+        const executions = await adapter.history.list({ nodePath, limit: RUNS_LIMIT });
+        return { kind: 'found', runs: executions.map(projectRun) };
+      },
     );
-    if (exists !== true) {
+    if (dbRead?.kind === 'unknown-node') {
       throw new HTTPException(404, {
         message: tx(SERVER_TEXTS.nodeNotFound, { path: sanitizeForTerminal(nodePath) }),
       });
     }
+    const runs = dbRead === null ? [] : dbRead.runs;
     const detail = deps.stats.nodeDetail(nodePath);
     const captureEnabled = deps.conversations.enabled;
     const spawns = deps.conversations
       .byNode(nodePath)
       .map((record) => projectRecord(record, captureEnabled));
-    return c.json({ stats: detail.stats, recent: detail.recent, spawns, captureEnabled });
+    return c.json({ stats: detail.stats, recent: detail.recent, spawns, captureEnabled, runs });
   });
 
   app.get('/api/activity/spawns/:spawnId', (c) => {
@@ -99,6 +142,24 @@ function decodePathParamOr404(pathB64: string): string {
     }
     throw err;
   }
+}
+
+/**
+ * Lean wire projection of one `state_executions` row (the spec `runs`
+ * entry shape). Optional-and-absent audit fields flatten to `null`;
+ * everything not named here (report content, `reportPath`, `jobId`,
+ * token counts) never reaches the wire.
+ */
+function projectRun(exec: ExecutionRecord): IRunEntry {
+  return {
+    executionId: exec.id,
+    extensionId: exec.extensionId,
+    status: exec.status,
+    model: exec.model ?? null,
+    durationMs: exec.durationMs ?? null,
+    finishedAt: exec.finishedAt,
+    failureReason: exec.failureReason ?? null,
+  };
 }
 
 /** Metadata-only projection while the gate is off; verbatim copy when on. */

@@ -541,12 +541,23 @@ from the single server-side source of truth.
 
 Per-node detail for inspector surfaces. Response `200`: `{ "stats": { ... },
 "recent": [{ "at": <ms>, "owner": "...", "detail"?: "<tool>", "caller"?: "<unit path>", "target"?: "<accessed path>", "kind"?: "mcp" | "read" }], "spawns": [ ... ],
-"captureEnabled": <bool> }`, where `spawns` lists the RETAINED spawn records
+"captureEnabled": <bool>, "runs": [ ... ] }`, where `spawns` lists the RETAINED spawn records
 touching the node (as parent or child). Records exist only while the capture
 gate is on (§Conversation capture): with the gate off the list is always
 empty, and live spawn metadata remains available only on the `agent.spawn` WS
 stream. A scanned node with no recorded activity returns empty stats, not
 `404`; an unknown path returns `404`.
+
+`runs` is the OTHER provenance the inspector's Activity timeline interleaves
+(user decision 2026-07-17): skill-map's own AI-run history for the node, read
+from `state_executions` (persistent, unlike the ephemeral runtime stats
+above). Newest-first, capped at 20, each entry
+`{ "executionId", "extensionId", "status", "model": <string|null>,
+"durationMs": <int|null>, "finishedAt": <ms|null>, "failureReason": <string|null> }`.
+A missing DB degrades to `runs: []` without failing the runtime half. The UI
+renders the two provenances visually distinguished behind a three-way filter
+(all / runtime activity / AI runs) persisted at the INSPECTOR level, not
+per node.
 
 ## Conversation capture
 

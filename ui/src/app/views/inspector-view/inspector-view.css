@@ -797,23 +797,6 @@
   background: color-mix(in srgb, var(--sm-edge-spawn) 12%, transparent);
 }
 
-.inspector__activity-stats {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.15rem 0.75rem;
-  margin: 0;
-}
-
-.inspector__activity-stats dt {
-  font-size: 0.78rem;
-  color: var(--p-text-muted-color);
-}
-
-.inspector__activity-stats dd {
-  margin: 0;
-  font-size: 0.82rem;
-  color: var(--p-text-color);
-}
 
 .inspector__activity-heading {
   margin: 0.35rem 0 0;
@@ -821,6 +804,52 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  color: var(--p-text-muted-color);
+}
+
+/* Merged-timeline head: the "Recent executions" heading and the
+   three-state provenance filter (all / runtime / AI runs) share one
+   row, the control pushed to the trailing edge. The filter is a
+   p-selectbutton (the project's segmented-control idiom, see
+   settings-general) at `size="small"` so it stays quiet next to the
+   dense rows. */
+.inspector__activity-timeline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  /* Carries the heading's own 0.35rem top offset (reset below) so the
+     merged block keeps the spacing the bare heading used to have. */
+  margin-top: 0.35rem;
+}
+
+.inspector__activity-timeline-head .inspector__activity-heading {
+  margin: 0;
+}
+
+/* AI-run provenance glyph: the sparkles icon takes the exec accent so
+   the row reads as "skill-map ran something here" at a glance, against
+   the muted wrench / document glyphs of the runtime rows. */
+.inspector__activity-run-icon {
+  color: var(--sm-exec-c1);
+}
+
+/* AI-run row text (`<extension> · <status> · <duration> · <model>`):
+   ellipsised so a long model id never squishes the time + icon. */
+.inspector__activity-run-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  color: var(--p-text-color);
+}
+
+/* Muted line when the active provenance filter matches no entry. */
+.inspector__activity-filter-empty {
+  margin: 0;
+  font-size: 0.78rem;
+  font-style: italic;
   color: var(--p-text-muted-color);
 }
 

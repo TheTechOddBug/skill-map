@@ -253,6 +253,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       recent: [],
       spawns: [],
       captureEnabled: false,
+      runs: [],
     }),
   getSpawnRecord: () => Promise.resolve(null),
   getActivityCapture: () => Promise.resolve({ enabled: false }),
