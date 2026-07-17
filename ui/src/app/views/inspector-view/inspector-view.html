@@ -186,7 +186,6 @@
                           <p-button
                             [label]="judgmentLauncherLabel(entry)"
                             [icon]="judgmentEntryState(entry) === 'queued' ? 'pi pi-clock' : ''"
-                            severity="secondary"
                             size="small"
                             [disabled]="judgmentLauncherDisabled(entry)"
                             [loading]="judgmentLauncherBusy(entry)"
@@ -202,7 +201,7 @@
                           @if (judgmentCompanionsVisible(entry)) {
                             <p-button
                               icon="pi pi-times"
-                              severity="secondary"
+                              severity="danger"
                               size="small"
                               [disabled]="judgmentCompanionDisabled(entry)"
                               [pTooltip]="texts.judgments.stopTooltip"
