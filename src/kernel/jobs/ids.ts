@@ -75,11 +75,13 @@ export function generateExecutionId(
  * Build the `r-[<mode>-]YYYYMMDD-HHMMSS-XXXX` run id
  * (`spec/job-events.md` §Common envelope). The `mode` segment names the
  * invocation flavor (canonical modes: `ext` agent-driven claim/record
- * runs, the only job-run flavor; `scan`; `check`). Same UTC-sortable
+ * runs, the only job-run flavor; `scan`; `check`; `queue`
+ * queue-lifecycle verbs, submit / cancel / fail, which are not
+ * processing runs but still emit their transition). Same UTC-sortable
  * layout + 4-hex tie-breaker as the job id.
  */
 export function generateRunId(
-  mode?: 'ext' | 'scan' | 'check',
+  mode?: 'ext' | 'scan' | 'check' | 'queue',
   now: Date = new Date(),
   suffix: () => string = defaultJobSuffix,
 ): string {

@@ -659,6 +659,108 @@
   border-radius: var(--sm-radius-sm);
 }
 
+/* ---------------------------------------------------------------------
+ * Judgments card (Step 16, the findings workbench). The finding rows
+ * reuse the `.inspector__finding*` vocabulary above (same severity
+ * tints); only the judgment-specific bits live here: the provenance
+ * `(confidence% · model)` note, the dimmed row id, the launcher
+ * groups, the honesty line, and the submit-error strip (mirrors the
+ * `vc-action__error` idiom from the action-button renderer).
+ * ------------------------------------------------------------------- */
+.inspector__judgments {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.inspector__judgment-provenance {
+  font-size: 0.72rem;
+  color: var(--p-text-muted-color);
+  white-space: nowrap;
+}
+
+/* Dimmed DB id, pushed to the row's far right. Test / CLI handle
+   (`sm findings resolve <id>`), useful but never the headline. */
+.inspector__judgment-id {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: var(--p-text-muted-color);
+  opacity: 0.6;
+}
+
+
+.inspector__judgments-launchers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.inspector__judgments-group {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.inspector__judgments-group-label {
+  flex: 0 0 5.2rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--p-text-muted-color);
+}
+
+.inspector__judgments-group-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+/* One launcher plus its stop / restart companions: a tighter inner gap
+   than the between-entries one, so the trio wraps as a single unit and
+   reads as one affordance. */
+.inspector__judgments-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.inspector__judgments-error {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--sm-severity-error);
+  background: var(--sm-severity-error-bg);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--sm-radius-sm);
+}
+
+.inspector__judgments-error-text {
+  overflow-wrap: anywhere;
+}
+
+.inspector__judgments-error-dismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  margin-left: auto;
+  color: var(--sm-severity-error);
+  display: inline-flex;
+}
+
+.inspector__judgments-error-dismiss .pi {
+  font-size: 0.7rem;
+}
+
+.inspector__judgments-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--p-text-muted-color);
+}
+
 /* PrimeNG chip padding inside the inspector, used by tag chips in the
    annotations panel. Tighter horizontal padding so the chip rows stay
    compact next to the dense `dt`/`dd` grid. */

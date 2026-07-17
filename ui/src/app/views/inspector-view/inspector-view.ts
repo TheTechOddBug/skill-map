@@ -26,6 +26,7 @@ import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
 import { activityPairKeyTouches } from '../../../models/api';
 import { shortenOwner } from '../../../models/activity-owner';
 import { compactNumber } from '../../../models/node-derived';
+import { shortExtensionLabel } from '../../../models/extension-label';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { LivePreferencesService } from '../../../services/live-preferences';
@@ -82,7 +83,12 @@ import {
   setupInspectorDerivations,
   type IInspectorDerivationsHandle,
 } from './inspector-derivations';
+import {
+  setupJudgments,
+  type IJudgmentsHandle,
+} from './inspector-judgments.controller';
 import type { INodeView } from '../../../models/node';
+import type { IFindingApi, IProbExtensionEntryApi } from '../../../models/api';
 
 /**
  * Debounce for the Activity section's live re-fetch. Live `node.activity`
@@ -427,6 +433,97 @@ export class InspectorView implements OnInit {
         if (!cancelled && this.issuesPath === path) this.issues.set([]);
       });
   });
+
+  // Judgments card (Step 16 piece 1, the findings workbench): the
+  // probabilistic findings tray + finder / fixer / standalone launcher
+  // buttons. Owned by the extracted controller; the template binds
+  // through the protected adapters below. Distinct from the
+  // deterministic Findings card above (`issues()`).
+  private readonly judgments: IJudgmentsHandle = setupJudgments({
+    node: this.node,
+    dataSource: this.dataSource,
+    jobEvents$: this.wsEvents.jobEvents$,
+    scanCompleted$: this.wsEvents.scanCompleted$,
+  });
+  protected readonly judgmentFindings = this.judgments.findings;
+  protected readonly judgmentsAvailable = this.judgments.available;
+  protected readonly judgmentsError = this.judgments.error;
+  protected readonly probExtensions = this.judgments.probExtensions;
+
+  /**
+   * Launcher groups in render order, empty groups filtered out so the
+   * template iterates once instead of triple-gating.
+   */
+  protected readonly judgmentLauncherGroups = computed<
+    { id: 'finders' | 'fixers' | 'standalone'; label: string; entries: IProbExtensionEntryApi[] }[]
+  >(() => {
+    const probs = this.probExtensions();
+    if (probs === null) return [];
+    const t = this.texts.judgments.groups;
+    return (
+      [
+        { id: 'finders', label: t.finders, entries: probs.finders },
+        { id: 'fixers', label: t.fixers, entries: probs.fixers },
+        { id: 'standalone', label: t.standalone, entries: probs.standalone },
+      ] as const
+    )
+      .filter((g) => g.entries.length > 0)
+      .map((g) => ({ id: g.id, label: g.label, entries: g.entries }));
+  });
+
+
+  /** Effective launcher state (optimistic `queued` flip included). */
+  protected judgmentEntryState(entry: IProbExtensionEntryApi): 'idle' | 'queued' | 'running' {
+    return this.judgments.entryState(entry);
+  }
+
+  /**
+   * Short launcher label via `shortExtensionLabel` (the extension
+   * segment minus the `node-` prefix; the full qualified id stays in
+   * the tooltip and the test id). Shared with the Activity timeline's
+   * AI-run rows.
+   */
+  protected judgmentLauncherLabel(entry: IProbExtensionEntryApi): string {
+    const short = shortExtensionLabel(entry.id);
+    if (entry.findingCount !== undefined) {
+      return this.texts.judgments.fixerCount(short, entry.findingCount);
+    }
+    return short;
+  }
+
+  /** Tooltip: the manifest description, plus the live state when not idle. */
+  protected judgmentLauncherTooltip(entry: IProbExtensionEntryApi): string {
+    const state = this.judgmentEntryState(entry);
+    if (state === 'queued') return `${entry.description} (${this.texts.judgments.stateQueued})`;
+    if (state === 'running') return `${entry.description} (${this.texts.judgments.stateRunning})`;
+    return entry.description;
+  }
+
+  /** True while the launcher button must sit disabled (non-idle or in flight). */
+  protected judgmentLauncherDisabled(entry: IProbExtensionEntryApi): boolean {
+    return this.judgmentEntryState(entry) !== 'idle' || this.judgments.isSubmitting(entry.id);
+  }
+
+  /** True while the launcher shows the busy spinner (running or submitting). */
+  protected judgmentLauncherBusy(entry: IProbExtensionEntryApi): boolean {
+    return this.judgmentEntryState(entry) === 'running' || this.judgments.isSubmitting(entry.id);
+  }
+
+  protected submitJudgment(entry: IProbExtensionEntryApi): void {
+    void this.judgments.submit(entry.id);
+  }
+
+  protected dismissJudgmentsError(): void {
+    this.judgments.dismissError();
+  }
+
+  /** Per-row provenance: `(confidence% · model)`, model omitted when undeclared. */
+  protected judgmentConfidenceModel(finding: IFindingApi): string {
+    return this.texts.judgments.confidenceModel(
+      Math.round(finding.confidence * 100),
+      finding.model,
+    );
+  }
 
   /**
    * Whether the "Activity" section renders at all, matching how the

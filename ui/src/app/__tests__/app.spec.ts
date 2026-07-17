@@ -99,6 +99,25 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       kindRegistry: {},
     }),
   getNode: () => Promise.resolve(null),
+  getNodeFindings: () =>
+    Promise.resolve({
+      schemaVersion: '1',
+      kind: 'findings',
+      items: [],
+      filters: {},
+      counts: { total: 0, returned: 0, fixedExcluded: 0, staleExcluded: 0 },
+      kindRegistry: {},
+    }),
+  getNodeProbExtensions: () =>
+    Promise.resolve({ finders: [], fixers: [], standalone: [] }),
+  submitNodeJob: () =>
+    Promise.resolve({
+      schemaVersion: '1',
+      kind: 'job.submitted',
+      value: { jobId: 'job-1', nodePath: 'a.md', extensionId: 'x/y', supersededIds: [] },
+      elapsedMs: 0,
+    }),
+  cancelJob: () => Promise.resolve(),
   listLinks: () =>
     Promise.resolve({
       schemaVersion: '1',

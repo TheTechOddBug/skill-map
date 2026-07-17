@@ -19,6 +19,7 @@ export {
   type IRenderJobContentInput,
 } from './render.js';
 export {
+  isProbabilistic,
   resolveTtl,
   resolvePriority,
   resolveSubmitTarget,
@@ -54,6 +55,15 @@ export {
   selectFixerFindings,
   type IFixerFindingProjection,
 } from './findings-injection.js';
+export {
+  bucketFilterActive,
+  countFixedHidden,
+  countStaleHidden,
+  isFindingShown,
+  partitionFindingsView,
+  type IFindingsBucketFlags,
+  type IFindingsViewPartition,
+} from './findings-view.js';
 export {
   InvalidTtlError,
   InvalidPriorityError,

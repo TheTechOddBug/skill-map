@@ -78,8 +78,9 @@ import { RECORD_TEXTS as T } from '../i18n/record.texts.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
 import { withSqlite } from '../util/with-sqlite.js';
-import { loadActionRuntime, type IActionRuntime } from './action-runtime.js';
-import { submitFixerJob } from './job-queue.js';
+import type { IActionRuntime } from '../../core/jobs/action-runtime.js';
+import { submitFixerJob } from '../../core/jobs/submit-engine.js';
+import { loadActionRuntime } from './action-runtime.js';
 import {
   recordCompletedOutcome,
   recordFailedOutcome,

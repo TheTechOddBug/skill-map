@@ -14,6 +14,7 @@
 import type {
   IBranchResponseApi,
   IContributionApi,
+  IFindingsEnvelopeApi,
   IFolderNodeLite,
   IHealthResponseApi,
   IIssueApi,
@@ -21,6 +22,7 @@ import type {
   IListEnvelopeApi,
   INodeApi,
   INodeDetailApi,
+  IProbExtensionsApi,
   IProjectConfigApi,
   IScanResultApi,
 } from '../../../models/api';
@@ -169,6 +171,31 @@ export interface ICorpusPort {
     contributionId: string,
     path: string,
   ): Promise<IContributionApi | null>;
+
+  /**
+   * Per-node judgment tray (`GET /api/nodes/:pathB64/findings`, Step 16
+   * piece 1). Returns the `findings` envelope: FRESH open rows in
+   * `items` (the `sm findings -n <path>` default view) with the
+   * excluded-count honesty pair on `counts` (`fixedExcluded` /
+   * `staleExcluded`) so the UI can render the same "N fixed, M stale
+   * hidden" line as the CLI. Returns `null` when the BFF responds 404
+   * (unknown node / missing DB), mirroring `getNode`. The static (demo)
+   * data source returns an empty tray (the bundle records no judgments).
+   */
+  getNodeFindings(path: string): Promise<IFindingsEnvelopeApi | null>;
+
+  /**
+   * Per-node probabilistic launcher catalog
+   * (`GET /api/nodes/:pathB64/prob-extensions`, Step 16 piece 1),
+   * classified manifest-mechanically: `finders` always, `fixers` only
+   * with >= 1 matching finding (stale included, `findingCount` on the
+   * entry), `standalone` whenever their precondition matches. Each
+   * entry carries the live queue `state` (`idle` / `queued` /
+   * `running`) for this (node, extension) pair. Returns the unwrapped
+   * `item`; `null` on a 404 (unknown node / missing DB). The static
+   * (demo) data source returns the empty catalog.
+   */
+  getNodeProbExtensions(path: string): Promise<IProbExtensionsApi | null>;
 
   /**
    * Mark `path` as favorited. PUT against `/api/favorites/:pathB64`.

@@ -65,7 +65,8 @@ import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { RECORD_TEXTS } from '../i18n/record.texts.js';
-import { resolveAction, type IActionRuntime } from './action-runtime.js';
+import type { IActionRuntime } from '../../core/jobs/action-runtime.js';
+import { resolveAction } from './action-runtime.js';
 
 /**
  * Agent-side metrics stamped onto the execution row. Every field is

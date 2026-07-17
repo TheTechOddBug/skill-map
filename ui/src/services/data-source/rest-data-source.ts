@@ -26,14 +26,18 @@ import { DATA_SOURCE_TEXTS } from '../../i18n/data-source.texts';
 import type {
   IBranchResponseApi,
   IErrorEnvelopeApi,
+  IFindingsEnvelopeApi,
   IFolderNodeLite,
   IHealthResponseApi,
   IIssueApi,
+  IJobSubmittedEnvelopeApi,
   IKindRegistryApi,
   ILinkApi,
   IListEnvelopeApi,
   INodeApi,
   INodeDetailApi,
+  INodeProbExtensionsEnvelopeApi,
+  IProbExtensionsApi,
   IPreferencesApi,
   IPreferencesPatchApi,
   IProjectConfigApi,
@@ -205,6 +209,48 @@ export class RestDataSource implements IDataSourcePort {
       this.ingestContributionsRegistry(envelope.contributionsRegistry);
       this.ingestProviderRegistry(envelope.providerRegistry);
       return envelope;
+    } catch (err) {
+      if (err instanceof DataSourceError && err.code === 'not-found') return null;
+      throw err;
+    }
+  }
+
+  /**
+   * Per-node judgment tray (`GET /api/nodes/:pathB64/findings`).
+   * 404 (unknown node / missing DB) resolves to `null`, mirroring
+   * `getNode`; every other failure propagates as `DataSourceError`.
+   */
+  async getNodeFindings(path: string): Promise<IFindingsEnvelopeApi | null> {
+    const encoded = encodeNodePath(path);
+    try {
+      const envelope = await this.getJson<IFindingsEnvelopeApi>(
+        `${BASE}/nodes/${encoded}/findings`,
+      );
+      this.ingestRegistry(envelope.kindRegistry);
+      this.ingestContributionsRegistry(envelope.contributionsRegistry);
+      this.ingestProviderRegistry(envelope.providerRegistry);
+      return envelope;
+    } catch (err) {
+      if (err instanceof DataSourceError && err.code === 'not-found') return null;
+      throw err;
+    }
+  }
+
+  /**
+   * Per-node probabilistic launcher catalog
+   * (`GET /api/nodes/:pathB64/prob-extensions`). Unwraps the single
+   * envelope's `item`; 404 resolves to `null`, mirroring `getNode`.
+   */
+  async getNodeProbExtensions(path: string): Promise<IProbExtensionsApi | null> {
+    const encoded = encodeNodePath(path);
+    try {
+      const envelope = await this.getJson<INodeProbExtensionsEnvelopeApi>(
+        `${BASE}/nodes/${encoded}/prob-extensions`,
+      );
+      this.ingestRegistry(envelope.kindRegistry);
+      this.ingestContributionsRegistry(envelope.contributionsRegistry);
+      this.ingestProviderRegistry(envelope.providerRegistry);
+      return envelope.item;
     } catch (err) {
       if (err instanceof DataSourceError && err.code === 'not-found') return null;
       throw err;
@@ -508,6 +554,40 @@ export class RestDataSource implements IDataSourcePort {
       body,
       'POST',
     );
+  }
+
+  /**
+   * `POST /api/nodes/:pathB64/jobs`, enqueue a probabilistic extension
+   * against one node. Any 4xx/5xx propagates as `DataSourceError`
+   * carrying the envelope code (`no-processing-agent`, `duplicate-job`,
+   * ...) so the launcher UI branches on it.
+   */
+  async submitNodeJob(
+    nodePath: string,
+    extensionId: string,
+  ): Promise<IJobSubmittedEnvelopeApi> {
+    const encoded = encodeNodePath(nodePath);
+    return this.patchJson<IJobSubmittedEnvelopeApi>(
+      `${BASE}/nodes/${encoded}/jobs`,
+      { extension: extensionId },
+      'POST',
+    );
+  }
+
+  /**
+   * `POST /api/jobs/:jobId/cancel`, cancel an active queued/running job.
+   * Answers `204 No Content`, so this goes through the raw client (the
+   * `patchJson` helper is typed around a JSON payload) with the same
+   * envelope-error translation, mirroring the favorites mutations: any
+   * 4xx/5xx (`job-terminal`, `not-found`, ...) propagates as
+   * `DataSourceError` so the launcher UI branches on the code.
+   */
+  async cancelJob(jobId: string): Promise<void> {
+    try {
+      await firstValueFrom(this.http.post(`${BASE}/jobs/${encodeURIComponent(jobId)}/cancel`, null));
+    } catch (err) {
+      throw this.translateError(err);
+    }
   }
 
   async getUpdateStatus(): Promise<IUpdateStatusResponseApi> {

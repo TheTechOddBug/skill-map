@@ -1449,6 +1449,138 @@ export interface IActionAppliedEnvelopeApi {
 }
 
 /**
+ * One `state_findings` row as projected by `GET /api/nodes/:pathB64/findings`
+ * (Step 16 piece 1). Mirrors the finding-row item locked in
+ * `spec/schemas/api/rest-envelope.schema.json` (the `sm findings --json`
+ * row shape plus the derived `stale` boolean; the internal
+ * `bodyHashAtGeneration` is never exposed).
+ */
+export interface IFindingApi {
+  /** `state_findings.id`, the handle for `sm findings resolve/dismiss`. */
+  id: number;
+  nodeId: string;
+  extensionId: string;
+  extensionVersion: string;
+  /** `extension` = finder lane; `kernel` = safety lane (reserved slugs). */
+  origin: 'extension' | 'kernel';
+  type: string;
+  severity: TIssueSeverityApi;
+  message: string;
+  detail: string | null;
+  /** Judgment confidence in `[0, 1]`. */
+  confidence: number;
+  /** Recording agent's self-reported model id; `null` when undeclared. */
+  model: string | null;
+  /** Lifecycle state; `null` = open (`db-schema.md` §state_findings). */
+  resolution: 'fixed' | 'human-decision' | null;
+  resolutionActor: 'human' | 'fixer' | null;
+  resolutionNote: string | null;
+  resolutionBy: string | null;
+  resolutionAt: number | null;
+  /** Derived: the node body changed since the judgment (or left the scan). */
+  stale: boolean;
+  generatedAt: number;
+  jobId: string | null;
+}
+
+/**
+ * `counts` block of the `findings` envelope: the list pair plus the
+ * REQUIRED default-view honesty pair (`fixedExcluded` / `staleExcluded`,
+ * what the default view held back; both 0 under an explicit bucket
+ * filter, mirroring `sm findings --json`).
+ */
+export interface IFindingsCountsApi extends IEnvelopeCountsApi {
+  fixedExcluded: number;
+  staleExcluded: number;
+}
+
+/**
+ * `GET /api/nodes/:pathB64/findings` response (kind `findings`), the
+ * per-node judgment tray. List shape with the honesty counts delta.
+ */
+export interface IFindingsEnvelopeApi {
+  schemaVersion: typeof REST_ENVELOPE_SCHEMA_VERSION;
+  kind: 'findings';
+  items: IFindingApi[];
+  filters: Record<string, unknown>;
+  counts: IFindingsCountsApi;
+  kindRegistry: IKindRegistryApi;
+  providerRegistry?: IProviderRegistryApi;
+  contributionsRegistry?: IContributionsRegistryApi;
+}
+
+/** Live queue state for a (node, extension) pair, from `state_jobs`. */
+export type TProbExtensionStateApi = 'idle' | 'queued' | 'running';
+
+/**
+ * One launcher entry of the `node.prob-extensions` catalog. Mirrors
+ * `rest-envelope.schema.json#/$defs/ProbExtensionEntry`. `findingCount`
+ * is present ONLY on fixer entries (the matching-findings tally that
+ * made the fixer visible, stale included).
+ */
+export interface IProbExtensionEntryApi {
+  /** Qualified extension id (`<plugin>/<extension>`), the submit target. */
+  id: string;
+  /** Manifest `description`, rendered as the launcher tooltip. */
+  description: string;
+  state: TProbExtensionStateApi;
+  /**
+   * The ACTIVE queued/running job's id, `null` when idle. The
+   * server-confirmed handle the stop/restart affordance cancels via
+   * `POST /api/jobs/:jobId/cancel`.
+   */
+  jobId: string | null;
+  /** Latest recorded execution for the pair; `null` when never judged. */
+  lastJudged: { at: number; model: string | null } | null;
+  findingCount?: number;
+}
+
+/**
+ * The `item` of the `node.prob-extensions` envelope: the node's
+ * probabilistic launcher catalog, classified manifest-mechanically
+ * (ROADMAP §Step 16): `finders` always, `fixers` only with >= 1 matching
+ * finding, `standalone` whenever their precondition matches.
+ */
+export interface IProbExtensionsApi {
+  finders: IProbExtensionEntryApi[];
+  fixers: IProbExtensionEntryApi[];
+  standalone: IProbExtensionEntryApi[];
+}
+
+/**
+ * `GET /api/nodes/:pathB64/prob-extensions` response
+ * (kind `node.prob-extensions`), single shape.
+ */
+export interface INodeProbExtensionsEnvelopeApi {
+  schemaVersion: typeof REST_ENVELOPE_SCHEMA_VERSION;
+  kind: 'node.prob-extensions';
+  item: IProbExtensionsApi;
+  kindRegistry: IKindRegistryApi;
+  providerRegistry?: IProviderRegistryApi;
+  contributionsRegistry?: IContributionsRegistryApi;
+}
+
+/**
+ * Successful 200 envelope returned by `POST /api/nodes/:pathB64/jobs`
+ * (kind `job.submitted`, action-result shape like `sidecar.bumped`).
+ * NO nonce ever travels here: the record credential belongs to the
+ * processing agent (`sm jobs claim --json`).
+ */
+export interface IJobSubmittedEnvelopeApi {
+  schemaVersion: typeof REST_ENVELOPE_SCHEMA_VERSION;
+  kind: 'job.submitted';
+  value: {
+    jobId: string;
+    nodePath: string;
+    /** The qualified id the submit resolved to (may differ from the bare request id). */
+    extensionId: string;
+    /** Stale queued sibling ids a FIXER submit cancelled in the same transaction. */
+    supersededIds: string[];
+  };
+  elapsedMs: number;
+}
+
+/**
  * One registered annotation contribution declared by a plugin manifest
  * and surfaced by `GET /api/annotations/registered`. Mirror of the
  * kernel's `IRegisteredAnnotationKey`.

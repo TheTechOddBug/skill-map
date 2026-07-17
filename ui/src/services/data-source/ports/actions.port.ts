@@ -10,6 +10,7 @@
 
 import type {
   IActionAppliedEnvelopeApi,
+  IJobSubmittedEnvelopeApi,
   ISidecarBumpedEnvelopeApi,
 } from '../../../models/api';
 
@@ -97,4 +98,46 @@ export interface IActionsPort {
     nodePath: string,
     opts?: IActionDispatchOpts,
   ): Promise<IActionAppliedEnvelopeApi>;
+
+  /**
+   * `POST /api/nodes/:pathB64/jobs` (Step 16 piece 1), enqueue a
+   * probabilistic extension against one node from the inspector's
+   * launcher buttons. Goes through the SAME shared submit machinery as
+   * `sm jobs submit` on the BFF side, so every submit rule is inherited
+   * (duplicate refusal, fixer findings injection, supersede, drift
+   * verification). Returns the `job.submitted` envelope on 200; throws
+   * `DataSourceError` on any 4xx/5xx so the caller branches on `code`:
+   *
+   *   - `no-processing-agent` (409): the operator gate, no processing
+   *     skill installed. The UI renders the advisory plus an
+   *     `sm agent install` hint.
+   *   - `duplicate-job` (409): an active identical job already exists
+   *     (`details.existingId`); the UI treats it as already queued.
+   *   - `job-running` / `no-findings` / `node-drifted` (409),
+   *     `bad-query` (400), `not-found` (404): surfaced verbatim.
+   *
+   * The success path does NOT patch local state beyond the optimistic
+   * `queued` flip; the `job.submitted` WS broadcast confirms for every
+   * connected client. Demo mode rejects with `'demo-readonly'`.
+   */
+  submitNodeJob(nodePath: string, extensionId: string): Promise<IJobSubmittedEnvelopeApi>;
+
+  /**
+   * `POST /api/jobs/:jobId/cancel` (Step 16, launcher stop), cancel an
+   * active queued/running job by id, the HTTP face of `sm jobs cancel`.
+   * Resolves on `204 No Content`; throws `DataSourceError` on any
+   * 4xx/5xx so the caller branches on `code`:
+   *
+   *   - `job-terminal` (409): the job already reached a terminal state
+   *     (completed / failed / cancelled). NOT an error worth surfacing,
+   *     the job simply finished in the race; the launcher just
+   *     re-fetches the authoritative state.
+   *   - `not-found` (404): unknown job id (or missing DB).
+   *
+   * The success path does NOT patch local state beyond the caller's
+   * optimistic `idle` flip; the `job.cancelled` WS broadcast (and the
+   * debounced re-fetch it triggers) confirms for every connected
+   * client. Demo mode rejects with `'demo-readonly'`.
+   */
+  cancelJob(jobId: string): Promise<void>;
 }

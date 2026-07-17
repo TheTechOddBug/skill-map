@@ -32,7 +32,6 @@ export const JOBS_QUEUE_TEXTS = {
     'node {{node}} changed on disk since the last scan; run sm scan and resubmit',
   submitErrNodeUnreadable:
     'node {{node}} cannot be read from disk ({{detail}}); run sm scan to refresh the graph',
-  submitReadNotOnDisk: 'file missing or not readable as a node',
   submitErrBadTtl: '--ttl must be an integer number of seconds, got {{value}}',
   submitErrBadPriority: '--priority must be an integer, got {{value}}',
   // Processing-agent gate (`spec/job-lifecycle.md` §Submit): the queue is

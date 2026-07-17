@@ -87,7 +87,7 @@ import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
 import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
-import { buildActionDirMap } from './action-runtime.js';
+import { buildActionDirMap } from '../../core/jobs/action-runtime.js';
 
 /**
  * Network transport injected into declared-network enrichment Actions

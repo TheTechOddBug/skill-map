@@ -24,7 +24,25 @@ import type { Node } from '../../kernel/types.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
+import { decodeNodePath, PathCodecError } from '../path-codec.js';
 import type { IRouteDeps } from './deps.js';
+
+/**
+ * Decode a `:pathB64` route param, translating a malformed value into
+ * the 404 `not-found` envelope (from the client's view there's no such
+ * node either way, same posture as `/api/nodes/:pathB64`). Shared by the
+ * per-node sub-resource routes (`findings`, `prob-extensions`, `jobs`).
+ */
+export function decodePathB64Or404(pathB64: string): string {
+  try {
+    return decodeNodePath(pathB64);
+  } catch (err) {
+    if (err instanceof PathCodecError) {
+      throw new HTTPException(404, { message: SERVER_TEXTS.pathB64Malformed });
+    }
+    throw err;
+  }
+}
 
 /**
  * Load the persisted node by its scope-relative path. Mirrors the

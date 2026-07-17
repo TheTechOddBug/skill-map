@@ -87,11 +87,13 @@ import { filter } from 'rxjs/operators';
 
 import {
   isAgentSpawnEvent,
+  isJobSubmittedEvent,
   isNodeActivityEvent,
   isSidecarBumpedEvent,
   isWsEvent,
   type IWsAgentSpawnEvent,
   type IWsEvent,
+  type IWsJobSubmittedEvent,
   type IWsNodeActivityEvent,
   type IWsScanCompletedEvent,
   type IWsSidecarBumpedEvent,
@@ -298,6 +300,24 @@ export class WsEventStreamService implements OnDestroy {
    */
   readonly agentSpawn$: Observable<IWsAgentSpawnEvent>;
 
+  /**
+   * Pre-filtered stream of `job.submitted` envelopes (Step 16 piece 1,
+   * broadcast by `POST /api/nodes/:pathB64/jobs`), with full
+   * payload-shape validation via `isJobSubmittedEvent`. Lets every
+   * connected client flip the matching launcher button to `queued`.
+   */
+  readonly jobSubmitted$: Observable<IWsJobSubmittedEvent>;
+
+  /**
+   * Every job-lifecycle envelope (`job.submitted`, `job.claimed`,
+   * `job.callback.received`, `job.completed`, `job.failed`, ...),
+   * filtered by the `job.` type prefix only. Record-side events carry a
+   * `jobId` but no node path, so consumers that mirror per-node queue
+   * state (the inspector's prob-extensions read) simply re-fetch on any
+   * frame instead of correlating ids client-side.
+   */
+  readonly jobEvents$: Observable<IWsEvent>;
+
   constructor() {
     if (this.mode !== 'live') {
       // Demo mode: never open a socket. Subscribers see immediate
@@ -339,6 +359,12 @@ export class WsEventStreamService implements OnDestroy {
     );
     this.agentSpawn$ = this.events$.pipe(
       filter(isAgentSpawnEvent),
+    );
+    this.jobSubmitted$ = this.events$.pipe(
+      filter(isJobSubmittedEvent),
+    );
+    this.jobEvents$ = this.events$.pipe(
+      filter((event) => event.type.startsWith('job.')),
     );
 
     // Best-effort cleanup on injector teardown (mirrors `disconnect()`

@@ -68,6 +68,12 @@ import type {
 } from '../../kernel/types/storage.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
 import type { Severity } from '../../kernel/types.js';
+import {
+  bucketFilterActive,
+  countFixedHidden,
+  countStaleHidden,
+  partitionFindingsView,
+} from '../../kernel/jobs/index.js';
 import { readSidecarFor, sidecarPathFor } from '../../kernel/sidecar/index.js';
 import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
@@ -177,23 +183,21 @@ export class FindingsCommand extends SmCommand {
         versionCheck: buildReadVersionCheck(this.printer!, this.ansiFor('stderr')),
       },
       async (adapter) => {
-        // ONE pass, every row INCLUDED (stale + fixed), partitioned here.
-        // Two reasons over a filtered list + companion counts: the table
-        // is walked once for numbers this result set already holds, and
-        // the hidden breakdown inherits every active filter for free (-n /
-        // --type / --severity / --extension / --since / --threshold), so
-        // it reports what the user actually asked about instead of a
-        // table-wide total that is a lie of a different shape.
+        // ONE pass, every row INCLUDED (stale + fixed), partitioned via the
+        // shared kernel view helper (`kernel/jobs/findings-view.ts`, the
+        // single source of the default-view / bucket semantics also
+        // consumed by the BFF findings route). Two reasons over a filtered
+        // list + companion counts: the table is walked once for numbers
+        // this result set already holds, and the hidden breakdown inherits
+        // every active filter for free (-n / --type / --severity /
+        // --extension / --since / --threshold), so it reports what the
+        // user actually asked about instead of a table-wide total that is
+        // a lie of a different shape. The hidden ROWS ride along, not just
+        // counts: the DEFAULT view's human line must name the
+        // `human-decision` subset among them (the author's TODO, otherwise
+        // invisible behind the stale filter).
         const all = await adapter.findings.list({ ...filter, includeStale: true });
-        const shown = all.filter((f) => this.isShown(f));
-        // The hidden ROWS, not just their counts: the DEFAULT view's human
-        // line must name the `human-decision` subset among them (the
-        // author's TODO, otherwise invisible behind the stale filter) and
-        // break the tally into fixed vs stale. Under an explicit bucket
-        // filter (--fixed / --stale) the excluded-count reporting does NOT
-        // apply (spec/cli-contract.md §sm findings: it is a default-view
-        // honesty device), so nothing is reported as hidden.
-        const hidden = this.bucketFilterActive() ? [] : all.filter((f) => !this.isShown(f));
+        const { shown, hidden } = partitionFindingsView(all, this.bucketFlags());
         return this.json
           ? this.emitJson(shown, hidden)
           : this.emitHuman(shown, hidden, all.length === 0);
@@ -201,32 +205,9 @@ export class FindingsCommand extends SmCommand {
     );
   }
 
-  /**
-   * Row visibility (`spec/cli-contract.md` §sm findings). The bucket flags
-   * are FILTERS: `fixed` takes precedence over `stale`, and a
-   * needs-attention row shows only in the default view.
-   *
-   *   - `resolution === 'fixed'`: shown ONLY under `--fixed`, even when the
-   *     row also went stale (state precedence).
-   *   - not fixed but `stale`: shown ONLY under `--stale`. Covers
-   *     open-stale AND human-decision-stale rows.
-   *   - otherwise (open or non-stale `human-decision`): a needs-attention
-   *     row, shown in the DEFAULT view, omitted once an explicit bucket
-   *     filter narrows the view to its buckets.
-   */
-  private isShown(f: IFindingRecord): boolean {
-    if (f.resolution === 'fixed') return this.fixed;
-    if (f.stale) return this.stale;
-    return !this.bucketFilterActive();
-  }
-
-  /**
-   * True when `--fixed` and/or `--stale` narrows the view to those buckets.
-   * A bucket filter omits the needs-attention rows and turns off the
-   * excluded-count reporting (the operator's own narrowing, like `--type`).
-   */
-  private bucketFilterActive(): boolean {
-    return this.fixed || this.stale;
+  /** The `--fixed` / `--stale` bucket flags in the shared helper's shape. */
+  private bucketFlags(): { fixed: boolean; stale: boolean } {
+    return { fixed: this.fixed, stale: this.stale };
   }
 
   /**
@@ -295,7 +276,7 @@ export class FindingsCommand extends SmCommand {
     ansi: IAnsi,
   ): string {
     if (noRowsAtAll) return tx(T.noFindings, { glyph: ansi.green('✓') });
-    if (this.bucketFilterActive()) return tx(T.noMatch, { glyph: ansi.cyan('ℹ') });
+    if (bucketFilterActive(this.bucketFlags())) return tx(T.noMatch, { glyph: ansi.cyan('ℹ') });
     return tx(T.noFreshFindings, { glyph: ansi.cyan('ℹ'), ...staleHiddenVars(hidden, ansi) });
   }
 
@@ -1012,20 +993,6 @@ function renderHuman(
       ? ''
       : tx(T.staleHiddenFooter, { glyph: ansi.cyan('ℹ'), ...staleHiddenVars(hidden, ansi) });
   return header + body.replace(/\n$/, '') + footer + T.tipLine;
-}
-
-/** Hidden rows a fixer moved to `fixed` (state precedence over stale). */
-function countFixedHidden(hidden: readonly IFindingRecord[]): number {
-  return hidden.filter((f) => f.resolution === 'fixed').length;
-}
-
-/**
- * Hidden rows held back for staleness (everything hidden that is NOT
- * fixed): a hidden row is either fixed-hidden or stale-hidden, disjointly,
- * so the stale bucket is the complement of the fixed one.
- */
-function countStaleHidden(hidden: readonly IFindingRecord[]): number {
-  return hidden.length - countFixedHidden(hidden);
 }
 
 /**

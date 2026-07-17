@@ -155,6 +155,24 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   }),
   listNodes: vi.fn(),
   getNode: vi.fn().mockResolvedValue(null),
+  getNodeFindings: vi.fn().mockResolvedValue({
+    schemaVersion: '1',
+    kind: 'findings',
+    items: [],
+    filters: {},
+    counts: { total: 0, returned: 0, fixedExcluded: 0, staleExcluded: 0 },
+    kindRegistry: {},
+  }),
+  getNodeProbExtensions: vi
+    .fn()
+    .mockResolvedValue({ finders: [], fixers: [], standalone: [] }),
+  submitNodeJob: vi.fn().mockResolvedValue({
+    schemaVersion: '1',
+    kind: 'job.submitted',
+    value: { jobId: 'job-1', nodePath: 'a.md', extensionId: 'x/y', supersededIds: [] },
+    elapsedMs: 0,
+  }),
+  cancelJob: vi.fn().mockResolvedValue(undefined),
   listLinks: vi.fn().mockResolvedValue({
     schemaVersion: '1',
     kind: 'links',

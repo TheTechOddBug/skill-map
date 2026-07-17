@@ -40,13 +40,16 @@ import { DATA_SOURCE_TEXTS } from '../../i18n/data-source.texts';
 import type {
   IBranchResponseApi,
   IContributionsRegistryApi,
+  IFindingsEnvelopeApi,
   IFolderNodeLite,
   IHealthResponseApi,
   IIssueApi,
+  IJobSubmittedEnvelopeApi,
   ILinkApi,
   IListEnvelopeApi,
   INodeApi,
   INodeDetailApi,
+  IProbExtensionsApi,
   IPreferencesApi,
   IPreferencesPatchApi,
   IProjectConfigApi,
@@ -385,6 +388,36 @@ export class StaticDataSource implements IDataSourcePort {
       kindRegistry: meta.nodes.kindRegistry,
       providerRegistry: meta.nodes.providerRegistry,
     };
+  }
+
+  /**
+   * Demo mode: the static bundle records no probabilistic judgments
+   * (there is no queue and no processing agent), so every node's tray
+   * is honestly empty. Unknown paths still resolve `null` to mirror the
+   * live 404-as-null contract.
+   */
+  async getNodeFindings(path: string): Promise<IFindingsEnvelopeApi | null> {
+    const scan = await this.loadData();
+    if (!scan.nodes.some((n) => n.path === path)) return null;
+    return {
+      schemaVersion: '1',
+      kind: 'findings',
+      items: [],
+      filters: {},
+      counts: { total: 0, returned: 0, fixedExcluded: 0, staleExcluded: 0 },
+      kindRegistry: {},
+    };
+  }
+
+  /**
+   * Demo mode: no plugin runtime and no queue, so the launcher catalog
+   * is the empty shape (the inspector hides the Judgments card). Unknown
+   * paths resolve `null`, mirroring the live 404-as-null contract.
+   */
+  async getNodeProbExtensions(path: string): Promise<IProbExtensionsApi | null> {
+    const scan = await this.loadData();
+    if (!scan.nodes.some((n) => n.path === path)) return null;
+    return { finders: [], fixers: [], standalone: [] };
   }
 
   async listLinks(q: ILinksQuery = {}): Promise<IListEnvelopeApi<ILinkApi>> {
@@ -766,6 +799,23 @@ export class StaticDataSource implements IDataSourcePort {
     throw new DataSourceError(
       'demo-readonly',
       'Actions are not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async submitNodeJob(
+    _nodePath: string,
+    _extensionId: string,
+  ): Promise<IJobSubmittedEnvelopeApi> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Job submission is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async cancelJob(_jobId: string): Promise<void> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Job cancellation is not available in demo mode (static bundle is immutable).',
     );
   }
 

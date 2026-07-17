@@ -93,6 +93,9 @@ import { registerGraphRoute } from './routes/graph.js';
 import { registerHealthRoute } from './routes/health.js';
 import { registerIssuesRoute } from './routes/issues.js';
 import { registerLinksRoute } from './routes/links.js';
+import { registerNodeFindingsRoute } from './routes/node-findings.js';
+import { registerNodeJobsRoute } from './routes/node-jobs.js';
+import { registerNodeProbExtensionsRoute } from './routes/node-prob-extensions.js';
 import { registerNodesRoutes } from './routes/nodes.js';
 import { registerPluginsRoute } from './routes/plugins.js';
 import { registerPreferencesRoute } from './routes/preferences.js';
@@ -141,6 +144,14 @@ export type TErrorCode =
   | 'origin-not-allowed'
   | 'token-mismatch'
   | 'payload-too-large'
+  // Job-submit 409s (`POST /api/nodes/:pathB64/jobs`, Step 16 piece 1;
+  // `spec/cli-contract.md` §BFF endpoint POST /api/nodes/:pathB64/jobs).
+  // Carried by `JobSubmitConflictError`.
+  | 'no-processing-agent'
+  | 'duplicate-job'
+  | 'job-running'
+  | 'node-drifted'
+  | 'no-findings'
   | 'internal';
 
 export interface IErrorEnvelope {
@@ -307,6 +318,45 @@ export class ActionRefusedError extends HTTPException {
       nodePath: init.nodePath,
       report: init.report,
     };
+  }
+}
+
+/**
+ * Job-submit conflict (`POST /api/nodes/:pathB64/jobs`, Step 16 piece 1),
+ * the third 409 family next to `ConflictError` / `ActionRefusedError`.
+ * A dedicated subclass because the submit surface needs BOTH a closed
+ * host `code` union (unlike the open-ended `ActionRefusedError`) AND a
+ * per-code `details` payload (`{ existingId }` on `duplicate-job` /
+ * `job-running`, which the two-code `ConflictError` cannot carry). The
+ * codes mirror the CLI submit refusals 1:1
+ * (`spec/cli-contract.md` §BFF endpoint POST /api/nodes/:pathB64/jobs):
+ *
+ *   - `no-processing-agent`, the operator gate (no installed skill).
+ *   - `duplicate-job`, active identical job (`details.existingId`).
+ *   - `job-running`, a RUNNING sibling holds its claim, never superseded
+ *     (`details.existingId`).
+ *   - `node-drifted`, the on-disk body no longer matches the scanned
+ *     hash (advisory names `sm scan`).
+ *   - `no-findings`, fixer over a node with zero matching findings
+ *     (defensive: the UI hides that launcher).
+ */
+export class JobSubmitConflictError extends HTTPException {
+  readonly code: Extract<
+    TErrorCode,
+    'no-processing-agent' | 'duplicate-job' | 'job-running' | 'node-drifted' | 'no-findings'
+  >;
+
+  readonly details: unknown | null;
+
+  constructor(init: {
+    code: JobSubmitConflictError['code'];
+    message: string;
+    details?: unknown;
+  }) {
+    super(409, { message: init.message });
+    this.name = 'JobSubmitConflictError';
+    this.code = init.code;
+    this.details = init.details ?? null;
   }
 }
 
@@ -533,6 +583,16 @@ export function createApp(deps: IAppDeps): Hono {
   };
   registerScanRoute(app, { ...routeDeps, broadcaster: deps.broadcaster });
   registerNodesRoutes(app, routeDeps);
+  // Step 16 piece 1, the findings workbench (inspector half):
+  //   `GET  /api/nodes/:pathB64/findings`        -> per-node judgment tray
+  //   `GET  /api/nodes/:pathB64/prob-extensions` -> launcher catalog
+  //   `POST /api/nodes/:pathB64/jobs`            -> submit via the shared
+  //     core engine (broadcasts `job.submitted` on success).
+  //   `POST /api/jobs/:jobId/cancel`             -> launcher stop
+  //     (broadcasts `job.cancelled` on success).
+  registerNodeFindingsRoute(app, routeDeps);
+  registerNodeProbExtensionsRoute(app, routeDeps);
+  registerNodeJobsRoute(app, { ...routeDeps, broadcaster: deps.broadcaster });
   registerLinksRoute(app, routeDeps);
   registerIssuesRoute(app, routeDeps);
   registerFoldersRoute(app, routeDeps);
@@ -854,26 +914,36 @@ function formatSidecarConsentError(err: unknown, c: Context): Response | null {
 }
 
 /**
- * Format the two `409 Conflict` subclasses into the canonical error
- * envelope. Returns `null` when `err` is neither, so the caller can
+ * Format the `409 Conflict` subclasses into the canonical error
+ * envelope. Returns `null` when `err` is none of them, so the caller can
  * fall through to the next mapping branch. Extracted from `formatError`
  * so the dispatcher's cyclomatic complexity stays inside the lint
  * budget (the two `instanceof` checks + the details ternary would
  * otherwise push it over).
  *
- *   - `ConflictError`      (`scan-busy` / `sidecar-fresh`): closed
- *     `code`, no `details`.
+ *   - `ConflictError`      (`scan-busy` / `sidecar-fresh` /
+ *     `job-terminal`): closed `code`, no `details`.
  *   - `ActionRefusedError` (`POST /api/actions/:id`): open-ended `code`
  *     (the report's `reason`, sanitised at the throw site, widened past
  *     the closed `TErrorCode` union, the UI's `TErrorCodeApi` accepts
  *     an open `string`), `details` carries `{ actionId, nodePath,
  *     report }` so the SPA renders action-specific copy.
+ *   - `JobSubmitConflictError` (`POST /api/nodes/:pathB64/jobs`): closed
+ *     five-code union, `details` carries `{ existingId }` on the
+ *     duplicate / running codes and stays `null` elsewhere.
  */
 function formatConflict(err: unknown, c: Context): Response | null {
   if (err instanceof ActionRefusedError) {
     const envelope: IErrorEnvelope = {
       ok: false,
       error: { code: err.code as TErrorCode, message: err.message, details: err.details },
+    };
+    return c.json(envelope, 409);
+  }
+  if (err instanceof JobSubmitConflictError) {
+    const envelope: IErrorEnvelope = {
+      ok: false,
+      error: { code: err.code, message: err.message, details: err.details },
     };
     return c.json(envelope, 409);
   }

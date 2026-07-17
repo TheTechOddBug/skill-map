@@ -147,7 +147,14 @@ function findByQualifiedOrBareId<T extends ISubmitTargetExtension>(
   return null;
 }
 
-function isProbabilistic(ext: ISubmitTargetExtension): boolean {
+/**
+ * Probabilistic gate (`spec/cli-contract.md` §Jobs): only probabilistic
+ * extensions are queue-eligible; deterministic ones run in-process.
+ * Exported so the launcher-classification surfaces (the BFF's
+ * `GET /api/nodes/:pathB64/prob-extensions`) apply the same predicate
+ * the submit target resolution does.
+ */
+export function isProbabilistic(ext: ISubmitTargetExtension): boolean {
   return (ext.mode ?? 'deterministic') === 'probabilistic';
 }
 

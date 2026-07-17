@@ -602,4 +602,55 @@ export const SERVER_TEXTS = {
   // operator knows the drift notice will re-appear on the next read.
   activeProviderMarkersPersistFailed:
     'Could not persist activeProviderMarkers: {{message}}',
+
+  // ---- node jobs / findings / prob-extensions routes (Step 16 piece 1) ----
+  //
+  // `GET /api/nodes/:pathB64/findings`, `GET /api/nodes/:pathB64/
+  // prob-extensions`, `POST /api/nodes/:pathB64/jobs`. The submit-error
+  // wording deliberately MIRRORS the CLI catalog
+  // (`cli/i18n/jobs-queue.texts.ts`), same vocabulary across both
+  // operator surfaces; when a sentence changes there, change it here too.
+
+  // Body validation on POST /api/nodes/:pathB64/jobs.
+  jobsBodyNotJson: 'Request body must be valid JSON.',
+  jobsBodyNotObject: 'Request body must be a JSON object.',
+  jobsBodyExtensionRequired:
+    'Request body must include `extension` (a non-empty string), the probabilistic extension id to enqueue.',
+
+  // Processing-agent gate, 409 `no-processing-agent`. Sentence paired
+  // with `JOBS_QUEUE_TEXTS.submitErrNoProcessingAgent` (the CLI catalog
+  // is the source of truth for the advisory wording; the UI renders it
+  // with the `sm agent install` CTA).
+  jobsNoProcessingAgent:
+    'no processing agent is set up. skill-map never runs jobs itself. ' +
+    'Run `sm agent install` to install the skill to process the jobs',
+
+  // Submit target resolution failures (mirror the CLI exit-5 / exit-2
+  // refusals: unknown extension -> 404, the rest -> 400 bad-query).
+  jobsExtensionNotFound: 'extension {{extension}} not found',
+  jobsExtensionNotProbabilistic:
+    'extension {{extension}} is {{mode}}; only probabilistic extensions are queued (deterministic actions run in-process)',
+  jobsExtensionAmbiguous:
+    'extension {{extension}} matches both a probabilistic action and a probabilistic analyzer; ' +
+    'disambiguate with action:{{actionId}} or analyzer:{{analyzerId}}',
+  jobsPromptUnresolved:
+    'cannot resolve the prompt template for {{extension}} ({{detail}})',
+  jobsReportSchemaUnresolved:
+    'cannot resolve the report schema for {{extension}} ({{detail}})',
+  jobsConfigInvalid: 'invalid jobs config: {{detail}}',
+
+  // Node-side refusals.
+  jobsNodeVirtual: 'node {{node}} is virtual (no backing file to render)',
+  jobsNodeDrifted:
+    'node {{node}} changed on disk since the last scan; run sm scan and resubmit',
+  jobsNodeUnreadable:
+    'node {{node}} cannot be read from disk ({{detail}}); run sm scan to refresh the graph',
+  jobsNoFindings:
+    'no findings to resolve for {{finders}} on {{node}}; run the finder first',
+
+  // Queue conflicts, 409 `duplicate-job` / `job-running`
+  // (`details.existingId` names the covering job in both).
+  jobsDuplicate: 'active job {{id}} already covers {{node}}',
+  jobsRunningSibling:
+    'running job {{id}} already covers {{node}} and is never superseded',
 } as const;

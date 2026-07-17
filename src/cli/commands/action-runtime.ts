@@ -1,60 +1,37 @@
 /**
- * Shared extension-runtime resolution for the job verbs. Loads the
- * composed extension catalog (built-ins + enabled plugins) once and
- * exposes:
+ * CLI adapter over the shared extension-runtime builder for the job
+ * verbs. The composition itself (`IActionRuntime`, `buildActionRuntime`,
+ * the qualified-id -> on-disk-dir maps) lives in
+ * `core/jobs/action-runtime.ts` so the BFF can reuse it with its
+ * boot-cached plugin runtime (audit M3, `src/server/` never imports
+ * `src/cli/`); this file keeps the CLI-shaped entry point:
  *
- *   - `loadActionRuntime`, the composed Action + Analyzer catalogs plus
- *     (a) maps from each plugin extension's qualified id to its on-disk
- *     directory (where `prompt.md` / `report.schema.json` live) and
- *     (b) the composed Provider catalog (used by `sm jobs submit` to
- *     re-read a node's body with the same parser pipeline the scan used,
- *     for the submit-time drift verification). Analyzers ride along
- *     because the queue is kind-agnostic (`spec/cli-contract.md` §Jobs):
- *     a probabilistic finder Analyzer submits, claims, and records
- *     through the same verbs as a probabilistic Action.
- *   - `resolveAction`, qualified-or-bare-id action lookup.
+ *   - `loadActionRuntime`, loads a FRESH plugin runtime for this
+ *     invocation (the CLI is one-shot, so a per-call discovery walk is
+ *     the correct lifetime), adapts `IPrinter` to the core builder's
+ *     warning sink, and threads the conformance kill-switch env reads
+ *     (`cli/util/conformance-env.ts`, the env boundary stays at the CLI
+ *     adapter).
+ *   - `resolveAction`, qualified-or-bare-id action lookup for the CLI
+ *     verbs (`sm actions`, the record outcome path).
  *
  * Lives in its own module (extracted from `job-queue.ts`) because TWO
- * consumers share it, `sm jobs submit` (job-queue.ts) and `sm record`
+ * CLI consumers share it, `sm jobs submit` (job-queue.ts) and `sm record`
  * (record.ts via record-outcome.ts), and record-outcome.ts +
  * job-queue.ts would otherwise import each other in a cycle.
  */
 
-import { dirname } from 'node:path';
-
-import type { IAction, IAnalyzer, IHook, IProvider } from '../../kernel/extensions/index.js';
-import type { IDiscoveredPlugin } from '../../kernel/types/plugin.js';
+import type { IAction } from '../../kernel/extensions/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
+import { buildActionRuntime, type IActionRuntime } from '../../core/jobs/action-runtime.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
-import { composeScanExtensions, loadPluginRuntime } from '../util/plugin-runtime.js';
+import { loadPluginRuntime } from '../util/plugin-runtime.js';
 import type { IPrinter } from '../util/printer.js';
 
-export interface IActionRuntime {
-  actions: IAction[];
-  /** Composed Analyzers (both modes); the queue verbs read the probabilistic subset. */
-  analyzers: IAnalyzer[];
-  /** Composed Providers; `sm jobs submit` re-reads node bodies through them. */
-  providers: IProvider[];
-  /**
-   * Composed (enabled) Hooks. `sm record` dispatches `job.completed` to these
-   * so the opt-in `core/auto-fix` hook can chain finder -> fixer
-   * (`spec/architecture.md` §Modelo B · Auto-fix). Empty unless a hook is
-   * enabled; the record path is a no-op then.
-   */
-  hooks: IHook[];
-  /** qualified action id -> directory holding `prompt.md` / `report.schema.json`. */
-  dirByAction: Map<string, string>;
-  /** qualified analyzer id -> directory holding `prompt.md` / `report.schema.json`. */
-  dirByAnalyzer: Map<string, string>;
-}
-
 /**
- * Load the composed extension catalogs (built-ins + enabled plugins) plus
- * maps from each plugin extension's qualified id to its on-disk directory
- * (derived from the loaded extension's `entryPath`, so no path convention
- * is reconstructed). Built-in extensions carry no directory; probabilistic
- * built-ins resolve through their codegen-inlined `promptTemplate` /
- * `reportSchema` instead.
+ * Load the composed extension catalogs (built-ins + enabled plugins) for
+ * this CLI invocation: one fresh plugin-runtime discovery walk, warnings
+ * forwarded through `printer.warn`, then the shared core builder.
  *
  * Shared by `sm jobs submit` (resolves `prompt.md` + node bodies) and
  * `sm record` (resolves `report.schema.json`), both of which resolve an
@@ -62,48 +39,11 @@ export interface IActionRuntime {
  */
 export async function loadActionRuntime(printer: IPrinter): Promise<IActionRuntime> {
   const runtime = await loadPluginRuntime();
-  runtime.emitWarnings(printer);
-  const composed = composeScanExtensions({
-    noBuiltIns: false,
-    pluginRuntime: runtime,
-    killSwitches: readConformanceKillSwitches(),
-  }) ?? { providers: [], extractors: [], analyzers: [], hooks: [], actions: [] };
-  return {
-    actions: composed.actions,
-    analyzers: composed.analyzers,
-    providers: composed.providers,
-    hooks: composed.hooks,
-    dirByAction: buildActionDirMap(runtime.discovered),
-    dirByAnalyzer: buildExtensionDirMap(runtime.discovered, 'analyzer'),
-  };
-}
-
-/**
- * Map each plugin extension of `kind` to its on-disk directory (derived
- * from the loaded extension's `entryPath`), keyed by qualified id.
- */
-export function buildExtensionDirMap(
-  discovered: IDiscoveredPlugin[],
-  kind: 'action' | 'analyzer',
-): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const plugin of discovered) {
-    for (const ext of plugin.extensions ?? []) {
-      if (ext.kind !== kind) continue;
-      map.set(qualifiedExtensionId(ext.pluginId, ext.id), dirname(ext.entryPath));
-    }
-  }
-  return map;
-}
-
-/**
- * Action-only projection of `buildExtensionDirMap`. Exported so
- * `sm refresh` can resolve on-disk `report.schema.json` files for the
- * enricher detection against the plugin runtime it already loaded,
- * without a second discovery pass through `loadActionRuntime`.
- */
-export function buildActionDirMap(discovered: IDiscoveredPlugin[]): Map<string, string> {
-  return buildExtensionDirMap(discovered, 'action');
+  return buildActionRuntime(
+    runtime,
+    (line) => printer.warn(`${line}\n`),
+    readConformanceKillSwitches(),
+  );
 }
 
 /** Resolve an action by qualified id (`<plugin>/<id>`) or bare id. */

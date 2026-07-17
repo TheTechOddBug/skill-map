@@ -12,6 +12,7 @@ import { NODE_OPEN_INTENT } from '../../../slots/node-open-intent';
 import { WsEventStreamService } from '../../../../services/ws-event-stream';
 import {
   DATA_SOURCE,
+  DataSourceError,
   type IDataSourcePort,
 } from '../../../../services/data-source/data-source.port';
 import { SKILL_MAP_MODE } from '../../../../services/data-source/runtime-mode';
@@ -22,7 +23,16 @@ import { NodeActivityStatsService } from '../../../../services/node-activity-sta
 import { ProviderRegistryService } from '../../../../services/provider-registry';
 import type { INodeView, ISidecarOverlay } from '../../../../models/node';
 import { activityPairKeyOf } from '../../../../models/api';
-import type { INodeDetailApi, INodeApi, INodeActivityStatsApi } from '../../../../models/api';
+import type {
+  IActivityRunApi,
+  IFindingApi,
+  IFindingsEnvelopeApi,
+  INodeDetailApi,
+  INodeApi,
+  INodeActivityStatsApi,
+  IProbExtensionEntryApi,
+  IProbExtensionsApi,
+} from '../../../../models/api';
 import type { ISpawnThread } from '../../../components/conversation-dialog/spawn-thread';
 
 /**
@@ -44,6 +54,10 @@ beforeEach(() => {
 type IStubDataSource = IDataSourcePort & {
   getNode: ReturnType<typeof vi.fn>;
   getNodeActivity: ReturnType<typeof vi.fn>;
+  getNodeFindings: ReturnType<typeof vi.fn>;
+  getNodeProbExtensions: ReturnType<typeof vi.fn>;
+  submitNodeJob: ReturnType<typeof vi.fn>;
+  cancelJob: ReturnType<typeof vi.fn>;
 };
 
 type IStubLoader = {
@@ -133,7 +147,28 @@ function makeStubDataSource(): IStubDataSource {
       recent: [],
       spawns: [],
       captureEnabled: false,
+      runs: [],
     }),
+    getNodeFindings: vi.fn().mockResolvedValue({
+      schemaVersion: '1',
+      kind: 'findings',
+      items: [],
+      filters: {},
+      counts: { total: 0, returned: 0, fixedExcluded: 0, staleExcluded: 0 },
+      kindRegistry: {},
+    }),
+    getNodeProbExtensions: vi.fn().mockResolvedValue({
+      finders: [],
+      fixers: [],
+      standalone: [],
+    }),
+    submitNodeJob: vi.fn().mockResolvedValue({
+      schemaVersion: '1',
+      kind: 'job.submitted',
+      value: { jobId: 'job-1', nodePath: '', extensionId: '', supersededIds: [] },
+      elapsedMs: 1,
+    }),
+    cancelJob: vi.fn().mockResolvedValue(undefined),
     bumpSidecar: vi.fn(),
     dispatchAction: vi.fn().mockResolvedValue({
       schemaVersion: '1',
@@ -184,6 +219,8 @@ interface IBootstrapOpts {
   nodeActivity$?: Subject<void>;
   /** Drives the Activity section's live `agent.spawn` re-fetch. */
   agentSpawn$?: Subject<void>;
+  /** Drives the Judgments card's live `job.*` re-fetch. */
+  jobEvents$?: Subject<void>;
   /** Seeds the per-node stats mirror that gates the Activity section. */
   activityStats?: ReadonlyMap<string, INodeActivityStatsApi>;
   /** Seeds the per-pair spawn counters (Activity gate, spawn side). */
@@ -205,12 +242,14 @@ function bootstrap(opts: IBootstrapOpts = {}): {
   scanCompleted$: Subject<void>;
   nodeActivity$: Subject<void>;
   agentSpawn$: Subject<void>;
+  jobEvents$: Subject<void>;
 } {
   const loader = opts.loader ?? makeStubLoader();
   const dataSource = opts.dataSource ?? makeStubDataSource();
   const scanCompleted$ = opts.scanCompleted$ ?? new Subject<void>();
   const nodeActivity$ = opts.nodeActivity$ ?? new Subject<void>();
   const agentSpawn$ = opts.agentSpawn$ ?? new Subject<void>();
+  const jobEvents$ = opts.jobEvents$ ?? new Subject<void>();
 
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
@@ -234,6 +273,9 @@ function bootstrap(opts: IBootstrapOpts = {}): {
           // Subjects let tests drive `node.activity` and `agent.spawn` frames.
           nodeActivity$: nodeActivity$.asObservable(),
           agentSpawn$: agentSpawn$.asObservable(),
+          // The Judgments card re-fetches on any job lifecycle frame.
+          jobEvents$: jobEvents$.asObservable(),
+          jobSubmitted$: EMPTY,
         } as unknown as WsEventStreamService,
       },
       {
@@ -270,6 +312,7 @@ function bootstrap(opts: IBootstrapOpts = {}): {
     scanCompleted$,
     nodeActivity$,
     agentSpawn$,
+    jobEvents$,
   };
 }
 
@@ -1620,4 +1663,340 @@ describe('InspectorView, header version (catalog curation)', () => {
     expect(v).not.toBeNull();
     expect(v!.textContent).toContain('v7');
   });
+});
+
+// ---------------------------------------------------------------------------
+// Judgments card (Step 16 piece 1, the findings workbench)
+// ---------------------------------------------------------------------------
+
+function makeFinding(overrides: Partial<IFindingApi> = {}): IFindingApi {
+  return {
+    id: 12,
+    nodeId: 'agents/architect.md',
+    extensionId: 'core/todo-finder',
+    extensionVersion: '1.0.0',
+    origin: 'extension',
+    type: 'stale-todo',
+    severity: 'warn',
+    message: 'The TODO at line 4 looks abandoned.',
+    detail: null,
+    confidence: 0.87,
+    model: 'claude-opus-4',
+    resolution: null,
+    resolutionActor: null,
+    resolutionNote: null,
+    resolutionBy: null,
+    resolutionAt: null,
+    stale: false,
+    generatedAt: 1_700_000_000_000,
+    jobId: 'job-1',
+    ...overrides,
+  };
+}
+
+function makeFindingsEnvelope(
+  items: IFindingApi[],
+  countsOverrides: Partial<IFindingsEnvelopeApi['counts']> = {},
+): IFindingsEnvelopeApi {
+  return {
+    schemaVersion: '1',
+    kind: 'findings',
+    items,
+    filters: {},
+    counts: {
+      total: items.length,
+      returned: items.length,
+      fixedExcluded: 0,
+      staleExcluded: 0,
+      ...countsOverrides,
+    },
+    kindRegistry: {},
+  };
+}
+
+function makeProbEntry(overrides: Partial<IProbExtensionEntryApi> = {}): IProbExtensionEntryApi {
+  return {
+    id: 'core/todo-finder',
+    description: 'Judges whether TODO markers look abandoned.',
+    state: 'idle',
+    // Idle default: no active job handle. Queued/running fixtures pass
+    // an explicit id (the stop/restart companions hang off it).
+    jobId: null,
+    lastJudged: null,
+    ...overrides,
+  };
+}
+
+function makeProbExtensions(overrides: Partial<IProbExtensionsApi> = {}): IProbExtensionsApi {
+  return { finders: [], fixers: [], standalone: [], ...overrides };
+}
+
+describe('InspectorView, judgments card (Step 16 piece 1)', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  interface IJudgmentsBoot {
+    findings?: IFindingsEnvelopeApi;
+    probs?: IProbExtensionsApi;
+  }
+
+  async function bootJudgments(opts: IJudgmentsBoot = {}): Promise<{
+    fixture: ComponentFixture<InspectorView>;
+    dataSource: IStubDataSource;
+    node: INodeView;
+    jobEvents$: Subject<void>;
+  }> {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    if (opts.findings) dataSource.getNodeFindings.mockResolvedValue(opts.findings);
+    if (opts.probs) dataSource.getNodeProbExtensions.mockResolvedValue(opts.probs);
+    const { fixture, jobEvents$ } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    await flush(fixture);
+    return { fixture, dataSource, node, jobEvents$ };
+  }
+
+  it('hides the card entirely when there are no launchers, no findings, and nothing hidden', async () => {
+    const { fixture } = await bootJudgments();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-card-judgments"]'),
+    ).toBeNull();
+  });
+
+  it('renders the launcher groups with the empty tray when finders exist but no findings', async () => {
+    const { fixture } = await bootJudgments({
+      probs: makeProbExtensions({
+        finders: [makeProbEntry()],
+        standalone: [makeProbEntry({ id: 'core/summarizer', description: 'Summarizes the node.' })],
+      }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(dom.querySelector('[data-testid="inspector-card-judgments"]')).not.toBeNull();
+    // Finders + standalone groups render; the fixer group (empty) does not.
+    expect(dom.querySelector('[data-testid="inspector-judgments-group-finders"]')).not.toBeNull();
+    expect(
+      dom.querySelector('[data-testid="inspector-judgments-group-standalone"]'),
+    ).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-judgments-group-fixers"]')).toBeNull();
+    // Button label is the short extension id (the segment after the slash).
+    const btn = dom.querySelector('[data-testid="inspector-judgment-launch-core/todo-finder"]');
+    expect(btn).not.toBeNull();
+    expect(btn!.textContent).toContain('todo-finder');
+    expect(btn!.textContent).not.toContain('core/');
+    // No fresh findings: no list and no filler either, the launchers
+    // stand alone (empty-state removed per user call 2026-07-17).
+    expect(dom.querySelector('[data-testid="inspector-judgments-empty"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-judgments-list"]')).toBeNull();
+  });
+
+  it('shows the fixer button with its matching-findings count', async () => {
+    const { fixture } = await bootJudgments({
+      probs: makeProbExtensions({
+        fixers: [
+          makeProbEntry({
+            id: 'core/todo-fixer',
+            description: 'Fixes abandoned TODOs.',
+            findingCount: 3,
+          }),
+        ],
+      }),
+    });
+    const btn = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-judgment-launch-core/todo-fixer"]',
+    );
+    expect(btn).not.toBeNull();
+    expect(btn!.textContent).toContain('todo-fixer (3)');
+  });
+
+  it('renders finding rows with severity, type, message, provenance, and the dimmed id', async () => {
+    const { fixture } = await bootJudgments({
+      findings: makeFindingsEnvelope([
+        makeFinding(),
+        makeFinding({ id: 13, severity: 'error', type: 'secret-leak', model: null, confidence: 0.5 }),
+      ]),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    const rows = dom.querySelectorAll('[data-testid^="inspector-judgment-1"]');
+    const first = dom.querySelector('[data-testid="inspector-judgment-12"]');
+    expect(rows.length).toBeGreaterThanOrEqual(2);
+    expect(first).not.toBeNull();
+    expect(first!.getAttribute('data-severity')).toBe('warn');
+    expect(first!.textContent).toContain('stale-todo');
+    expect(first!.textContent).toContain('The TODO at line 4 looks abandoned.');
+    expect(first!.textContent).toContain('#12');
+    // Provenance: percent + model when declared, percent alone otherwise.
+    expect(
+      dom.querySelector('[data-testid="inspector-judgment-provenance-12"]')!.textContent,
+    ).toBe('(87% · claude-opus-4)');
+    expect(
+      dom.querySelector('[data-testid="inspector-judgment-provenance-13"]')!.textContent,
+    ).toBe('(50%)');
+    // Findings without launchers still show the card; no empty state.
+    expect(dom.querySelector('[data-testid="inspector-judgments-empty"]')).toBeNull();
+  });
+
+  it('renders no honesty line (the run history lives in Activity, user call 2026-07-17)', async () => {
+    const { fixture } = await bootJudgments({
+      findings: makeFindingsEnvelope([], { total: 3, fixedExcluded: 2, staleExcluded: 1 }),
+      probs: makeProbExtensions({ finders: [makeProbEntry()] }),
+    });
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-judgments-hidden"]'),
+    ).toBeNull();
+  });
+
+  it('hides the card on hidden-only counts (no fresh rows, no launchers, nothing to show)', async () => {
+    // The honesty line moved to the Activity timeline (user call
+    // 2026-07-17), so exclusions alone would render a title-only card.
+    const { fixture } = await bootJudgments({
+      findings: makeFindingsEnvelope([], { total: 1, fixedExcluded: 1 }),
+    });
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-card-judgments"]'),
+    ).toBeNull();
+  });
+
+  it('submits the extension on click and flips the button to queued optimistically', async () => {
+    const { fixture, dataSource, node } = await bootJudgments({
+      probs: makeProbExtensions({ finders: [makeProbEntry()] }),
+    });
+    const host = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-judgment-launch-core/todo-finder"]',
+    ) as HTMLElement;
+    (host.querySelector('button') as HTMLButtonElement).click();
+    await flush(fixture);
+
+    expect(dataSource.submitNodeJob).toHaveBeenCalledWith(node.path, 'core/todo-finder');
+    expect(host.getAttribute('data-state')).toBe('queued');
+    expect((host.querySelector('button') as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-judgments-error"]'),
+    ).toBeNull();
+  });
+
+  it('treats a duplicate-job refusal as already queued (no error banner)', async () => {
+    const { fixture, dataSource } = await bootJudgments({
+      probs: makeProbExtensions({ finders: [makeProbEntry()] }),
+    });
+    dataSource.submitNodeJob.mockRejectedValue(
+      new DataSourceError('duplicate-job', 'An identical job is already active.', {
+        existingId: 'job-9',
+      }),
+    );
+    const host = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-judgment-launch-core/todo-finder"]',
+    ) as HTMLElement;
+    (host.querySelector('button') as HTMLButtonElement).click();
+    await flush(fixture);
+
+    expect(host.getAttribute('data-state')).toBe('queued');
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-judgments-error"]'),
+    ).toBeNull();
+  });
+
+  it('renders the advisory plus the sm agent install hint on no-processing-agent', async () => {
+    const { fixture, dataSource } = await bootJudgments({
+      probs: makeProbExtensions({ finders: [makeProbEntry()] }),
+    });
+    dataSource.submitNodeJob.mockRejectedValue(
+      new DataSourceError(
+        'no-processing-agent',
+        'No processing agent skill is installed for this project.',
+      ),
+    );
+    const host = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-judgment-launch-core/todo-finder"]',
+    ) as HTMLElement;
+    (host.querySelector('button') as HTMLButtonElement).click();
+    await flush(fixture);
+
+    const dom: HTMLElement = fixture.nativeElement;
+    const error = dom.querySelector('[data-testid="inspector-judgments-error"]');
+    expect(error).not.toBeNull();
+    expect(error!.textContent).toContain('No processing agent skill is installed');
+    const hint = dom.querySelector('[data-testid="inspector-judgments-agent-hint"]');
+    expect(hint).not.toBeNull();
+    expect(hint!.textContent).toContain('sm agent install');
+    // The refusal never flips the button: it stays idle and clickable.
+    expect(host.getAttribute('data-state')).toBe('idle');
+  });
+
+  it('shows the envelope message for other error codes without the agent hint', async () => {
+    const { fixture, dataSource } = await bootJudgments({
+      probs: makeProbExtensions({ finders: [makeProbEntry()] }),
+    });
+    dataSource.submitNodeJob.mockRejectedValue(
+      new DataSourceError('node-drifted', 'The node drifted; run sm scan first.'),
+    );
+    const host = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-judgment-launch-core/todo-finder"]',
+    ) as HTMLElement;
+    (host.querySelector('button') as HTMLButtonElement).click();
+    await flush(fixture);
+
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(
+      dom.querySelector('[data-testid="inspector-judgments-error"]')!.textContent,
+    ).toContain('The node drifted; run sm scan first.');
+    expect(dom.querySelector('[data-testid="inspector-judgments-agent-hint"]')).toBeNull();
+    // Dismiss clears the banner.
+    (
+      dom.querySelector(
+        '[data-testid="inspector-judgments-error-dismiss"]',
+      ) as HTMLButtonElement
+    ).click();
+    await flush(fixture);
+    expect(dom.querySelector('[data-testid="inspector-judgments-error"]')).toBeNull();
+  });
+
+  it('renders queued / running server states as disabled buttons', async () => {
+    const { fixture } = await bootJudgments({
+      probs: makeProbExtensions({
+        finders: [
+          makeProbEntry({ id: 'core/a-finder', state: 'queued', jobId: 'job-a' }),
+          makeProbEntry({ id: 'core/b-finder', state: 'running', jobId: 'job-b' }),
+        ],
+      }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    const queued = dom.querySelector(
+      '[data-testid="inspector-judgment-launch-core/a-finder"]',
+    ) as HTMLElement;
+    const running = dom.querySelector(
+      '[data-testid="inspector-judgment-launch-core/b-finder"]',
+    ) as HTMLElement;
+    expect(queued.getAttribute('data-state')).toBe('queued');
+    expect((queued.querySelector('button') as HTMLButtonElement).disabled).toBe(true);
+    expect(running.getAttribute('data-state')).toBe('running');
+    expect((running.querySelector('button') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('re-fetches both reads on a job.* frame (debounced live refresh)', async () => {
+    const { fixture, dataSource, jobEvents$ } = await bootJudgments({
+      probs: makeProbExtensions({ finders: [makeProbEntry()] }),
+    });
+    const findingsBefore = dataSource.getNodeFindings.mock.calls.length;
+    const probsBefore = dataSource.getNodeProbExtensions.mock.calls.length;
+
+    vi.useFakeTimers();
+    try {
+      jobEvents$.next();
+      vi.advanceTimersByTime(400);
+    } finally {
+      vi.useRealTimers();
+    }
+    await flush(fixture);
+
+    expect(dataSource.getNodeFindings.mock.calls.length).toBeGreaterThan(findingsBefore);
+    expect(dataSource.getNodeProbExtensions.mock.calls.length).toBeGreaterThan(probsBefore);
+  });
+
 });

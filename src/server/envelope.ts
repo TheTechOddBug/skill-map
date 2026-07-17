@@ -51,7 +51,20 @@ export type TEnvelopeKind =
   // scanned node, `{ path, kind, errorCount, warnCount }`). `/api/branch`
   // is exempt from the envelope (direct shape, like `/api/scan`), so its
   // `kind: 'branch'` discriminator is NOT a `TEnvelopeKind`.
-  | 'folders';
+  | 'folders'
+  // Step 16 piece 1 (the findings workbench, inspector half):
+  //   - `findings`, list shape from `GET /api/nodes/:pathB64/findings`
+  //     (`counts` additionally carries the `fixedExcluded` /
+  //     `staleExcluded` honesty pair).
+  //   - `node.prob-extensions`, single shape from
+  //     `GET /api/nodes/:pathB64/prob-extensions` (the launcher catalog).
+  //   - `job.submitted`, action-result shape from
+  //     `POST /api/nodes/:pathB64/jobs` (`value` + `elapsedMs`, no
+  //     registries; built locally by `routes/node-jobs.ts` like
+  //     `action.applied`).
+  | 'findings'
+  | 'node.prob-extensions'
+  | 'job.submitted';
 
 export interface IPageInfo {
   offset: number;
@@ -65,6 +78,18 @@ export interface IEnvelopeCounts {
   returned: number;
   /** Pagination window. Present only when the endpoint paginates. */
   page?: IPageInfo;
+  /**
+   * Findings the default view held back as `fixed` (state precedence: a
+   * fixed+stale row counts here). REQUIRED on `kind: 'findings'`
+   * envelopes, absent elsewhere; always 0 under an explicit `?fixed=1` /
+   * `?stale=1` bucket filter (`rest-envelope.schema.json`).
+   */
+  fixedExcluded?: number;
+  /**
+   * Findings the default view held back for staleness that are NOT fixed
+   * (the disjoint complement of `fixedExcluded`). Same presence rules.
+   */
+  staleExcluded?: number;
 }
 
 /**
@@ -243,6 +268,12 @@ export interface IBuildListEnvelopeOpts<TItem> {
   total: number;
   /** Pagination window. Omit when the endpoint does not paginate. */
   page?: IPageInfo;
+  /**
+   * The `kind: 'findings'` honesty pair (`counts.fixedExcluded` /
+   * `counts.staleExcluded`, REQUIRED on that kind per
+   * `rest-envelope.schema.json`). Omit on every other kind.
+   */
+  excluded?: { fixedExcluded: number; staleExcluded: number };
   /** Active kindRegistry, every payload-bearing envelope embeds it. */
   kindRegistry: TKindRegistry;
   /** Active providerRegistry, every payload-bearing envelope embeds it. */
@@ -262,6 +293,10 @@ export function buildListEnvelope<TItem>(opts: IBuildListEnvelopeOpts<TItem>): I
     returned: opts.items.length,
   };
   if (opts.page) counts.page = opts.page;
+  if (opts.excluded) {
+    counts.fixedExcluded = opts.excluded.fixedExcluded;
+    counts.staleExcluded = opts.excluded.staleExcluded;
+  }
   return {
     schemaVersion: REST_ENVELOPE_SCHEMA_VERSION,
     kind: opts.kind,
