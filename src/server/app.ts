@@ -111,6 +111,7 @@ import { registerActivityDetailRoutes } from './routes/activity-detail.js';
 import { registerActivityInstallRoutes } from './routes/activity-install.js';
 import { registerActivitySummaryRoute } from './routes/activity-summary.js';
 import { registerAgentInstallRoutes } from './routes/agent-install.js';
+import { registerJobEventsRoute } from './routes/job-events.js';
 import { registerScanRoute } from './routes/scan.js';
 import { registerUpdateStatusRoute } from './routes/update-status.js';
 import { createSpaFallback, createStaticHandler } from './static.js';
@@ -240,11 +241,14 @@ export class LoopbackGateError extends OpaqueForbiddenError {
 }
 
 /**
- * Ingest-token gate failure on `POST /api/activity` (live node activity,
- * see `spec/provider-activity.md` §Ingest). Thrown BEFORE any body
- * processing when the `x-skill-map-token` header is missing or does not
- * match the per-session token minted at boot (published via
- * `.skill-map/serve.json`).
+ * Ingest-token gate failure on the push-leg routes, `POST /api/activity`
+ * (live node activity, `spec/provider-activity.md` §Ingest) and
+ * `POST /api/job-events` (job transitions, `spec/job-events.md`
+ * §Transport). Thrown BEFORE any body processing when the
+ * `x-skill-map-token` header is missing or does not match the
+ * per-session token minted at boot (published via
+ * `.skill-map/serve.json`). Shared throw site:
+ * `util/ingest-token.ts`.
  */
 export class ActivityTokenError extends OpaqueForbiddenError {
   declare readonly code: 'token-mismatch';
@@ -622,6 +626,16 @@ export function createApp(deps: IAppDeps): Hono {
     activityToken: deps.activityToken,
     stats: deps.activityStats,
     conversations: deps.activityConversations,
+  });
+  // Job-event push ingest, `POST /api/job-events` (the CLI-to-server
+  // push leg of `spec/job-events.md` §Transport). Same serve.json
+  // session token as the activity ingest (403 `token-mismatch` BEFORE
+  // any body processing); validates the canonical `job.*` envelope and
+  // rebroadcasts it VERBATIM over `/ws`. DB-free by construction, the
+  // narrow deps bag carries only the broadcaster + token.
+  registerJobEventsRoute(app, {
+    broadcaster: deps.broadcaster,
+    ingestToken: deps.activityToken,
   });
   // Live-activity install management, `GET/POST /api/activity/install`
   // + `POST /api/activity/uninstall` (see `spec/provider-activity.md`

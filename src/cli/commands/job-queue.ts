@@ -60,6 +60,7 @@ import type { StoragePort } from '../../kernel/ports/storage.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import type { IJobsConfig } from '../../kernel/config/loader.js';
 import {
+  generateRunId,
   type ISuppressionMatch,
   unescapeUserContentClose,
 } from '../../kernel/jobs/index.js';
@@ -80,6 +81,7 @@ import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
 import { processingSkillPresence } from '../../core/agent-skill/targets.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { JOBS_QUEUE_TEXTS as T } from '../i18n/jobs-queue.texts.js';
+import { pushJobEvent } from '../util/job-event-push.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { readActiveSuppressions } from '../util/sidecar-suppressions.js';
 import { SmCommand } from '../util/sm-command.js';
@@ -405,6 +407,20 @@ export class JobSubmitCommand extends SmCommand {
         }),
       );
     }
+    // Live-transition push (spec/job-events.md §Transport / §job.submitted):
+    // best-effort hint to the project's running server, AFTER the submit
+    // transaction committed. Cannot throw, never alters output or exit code.
+    await pushJobEvent(prepared.cwd, {
+      type: 'job.submitted',
+      timestamp: Date.now(),
+      runId: generateRunId('queue'),
+      jobId: outcome.id,
+      data: {
+        nodePath: outcome.nodeId,
+        extensionId: prepared.extensionId,
+        supersededIds: outcome.supersededIds,
+      },
+    });
     if (this.json) {
       // --json stdout stays the plain new Job (the submit contract): a
       // supersession is a human-mode stderr advisory only, per spec §Supersede.
@@ -456,19 +472,38 @@ export class JobSubmitCommand extends SmCommand {
     );
   }
 
-  private reportAll(
+  private async reportAll(
     outcomes: readonly TSubmitOutcome[],
     total: number,
     prepared: ISubmitContext,
-  ): TExitCode {
-    const submitted = outcomes.filter((o) => o.kind === 'created');
+  ): Promise<TExitCode> {
+    const submitted = outcomes.filter(
+      (o): o is Extract<TSubmitOutcome, { kind: 'created' }> => o.kind === 'created',
+    );
     const refused = outcomes.filter(
       (o): o is Exclude<TSubmitOutcome, { kind: 'created' }> => o.kind !== 'created',
     );
+    // Live-transition push per created job (spec/job-events.md §Transport /
+    // §job.submitted): one queue-mode runId spans the whole fan-out (one
+    // invocation = one run). After every submit committed; cannot throw.
+    const runId = generateRunId('queue');
+    for (const o of submitted) {
+      await pushJobEvent(prepared.cwd, {
+        type: 'job.submitted',
+        timestamp: Date.now(),
+        runId,
+        jobId: o.id,
+        data: {
+          nodePath: o.nodeId,
+          extensionId: prepared.extensionId,
+          supersededIds: o.supersededIds,
+        },
+      });
+    }
     if (this.json) {
       this.printer!.data(
         JSON.stringify({
-          submitted: submitted.map((o) => ({ id: (o as { id: string }).id, nodeId: o.nodeId })),
+          submitted: submitted.map((o) => ({ id: o.id, nodeId: o.nodeId })),
           refused: refused.map((o) => this.toRefusedJson(o)),
           counts: { submitted: submitted.length, refused: refused.length, total },
         }) + '\n',
@@ -481,11 +516,11 @@ export class JobSubmitCommand extends SmCommand {
     }
     for (const o of submitted) {
       this.printer!.info(
-        tx(T.submitQueuedLine, { glyph: this.okGlyph(), id: (o as { id: string }).id, node: o.nodeId }),
+        tx(T.submitQueuedLine, { glyph: this.okGlyph(), id: o.id, node: o.nodeId }),
       );
       // Per-node fixer supersede advisory (each fan-out submit applies the
       // Supersede rule independently, spec §Findings injection for fixers).
-      this.emitSupersededAdvisory((o as { supersededIds?: string[] }).supersededIds ?? []);
+      this.emitSupersededAdvisory(o.supersededIds);
       // Per-node suppressed-judgment advisory (spec §Submit): fan-out finder
       // submits warn on every queued node whose sidecar dismisses them.
       this.emitSuppressedAdvisory(prepared, o.nodeId);
@@ -838,7 +873,28 @@ export class JobClaimCommand extends SmCommand {
       // DB-corruption-only job-file-missing state and MUST NOT hand the
       // claim out (spec §Atomic claim · Missing content row at claim).
       const content = await adapter.jobs.getContent(claim.contentHash);
-      if (content === null) return this.failClaimContentMissing(adapter, claim.id);
+      if (content === null) return this.failClaimContentMissing(adapter, claim.id, ctx.cwd);
+      // Live-transition push (spec/job-events.md §Transport / §job.claimed):
+      // the event data is read back from the freshly claimed row, and the
+      // push fires only when the claim is actually handed out. Runs after
+      // the claim committed; cannot throw, never touches the handover
+      // contract on stdout. The reap above stays event-silent by spec.
+      const claimed = await adapter.jobs.get(claim.id);
+      if (claimed) {
+        await pushJobEvent(ctx.cwd, {
+          type: 'job.claimed',
+          timestamp: Date.now(),
+          runId: generateRunId('ext'),
+          jobId: claimed.id,
+          data: {
+            extensionId: claimed.extensionId,
+            extensionVersion: claimed.extensionVersion,
+            nodeId: claimed.nodeId,
+            ttlSeconds: claimed.ttlSeconds,
+            priority: claimed.priority,
+          },
+        });
+      }
       if (this.json) {
         this.printer!.data(
           JSON.stringify({ id: claim.id, nonce: claim.nonce, content }) + '\n',
@@ -860,6 +916,7 @@ export class JobClaimCommand extends SmCommand {
   private async failClaimContentMissing(
     adapter: StoragePort,
     jobId: string,
+    cwd: string,
   ): Promise<TExitCode> {
     const job = await adapter.jobs.get(jobId);
     if (job) {
@@ -870,6 +927,16 @@ export class JobClaimCommand extends SmCommand {
         errorText: T.claimContentMissingDetail,
         metrics: {},
         now: Date.now(),
+      });
+      // Live-transition push (spec/job-events.md §job.failed): the
+      // corruption path is a real failed transition this verb performed,
+      // so it rides the same best-effort leg as the happy claim.
+      await pushJobEvent(cwd, {
+        type: 'job.failed',
+        timestamp: Date.now(),
+        runId: generateRunId('ext'),
+        jobId: job.id,
+        data: { reason: 'job-file-missing', message: T.claimContentMissingDetail },
       });
     }
     this.printer!.error(
@@ -989,21 +1056,36 @@ export class JobCancelCommand extends SmCommand {
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       const now = Date.now();
-      return this.all ? this.cancelAll(adapter, now) : this.cancelOne(adapter, now);
+      return this.all ? this.cancelAll(adapter, now, ctx.cwd) : this.cancelOne(adapter, now, ctx.cwd);
     });
   }
 
-  private async cancelAll(adapter: StoragePort, now: number): Promise<TExitCode> {
-    const count = await adapter.jobs.cancelAllActive(now);
+  private async cancelAll(adapter: StoragePort, now: number, cwd: string): Promise<TExitCode> {
+    const ids = await adapter.jobs.cancelAllActive(now);
+    // Live-transition push per cancelled job (spec/job-events.md §Transport
+    // / §job.cancelled): one queue-mode runId spans the bulk cancel. After
+    // the transaction committed; cannot throw.
+    const runId = generateRunId('queue');
+    for (const id of ids) {
+      await pushJobEvent(cwd, {
+        type: 'job.cancelled',
+        timestamp: Date.now(),
+        runId,
+        jobId: id,
+        data: {},
+      });
+    }
     if (this.json) {
-      this.printer!.data(JSON.stringify({ cancelled: count }) + '\n');
+      this.printer!.data(JSON.stringify({ cancelled: ids.length }) + '\n');
       return ExitCode.Ok;
     }
-    this.printer!.info(tx(T.cancelAllSummary, { glyph: this.ansiFor('stderr').green('✓'), count }));
+    this.printer!.info(
+      tx(T.cancelAllSummary, { glyph: this.ansiFor('stderr').green('✓'), count: ids.length }),
+    );
     return ExitCode.Ok;
   }
 
-  private async cancelOne(adapter: StoragePort, now: number): Promise<TExitCode> {
+  private async cancelOne(adapter: StoragePort, now: number, cwd: string): Promise<TExitCode> {
     const outcome = await adapter.jobs.cancel(this.id!, now);
     if (outcome === 'not-found') {
       return this.fail(tx(T.cancelErrNotFound, { id: this.id! }), ExitCode.NotFound);
@@ -1011,6 +1093,15 @@ export class JobCancelCommand extends SmCommand {
     if (outcome === 'already-terminal') {
       return this.fail(tx(T.cancelErrAlreadyTerminal, { id: this.id! }), ExitCode.Error);
     }
+    // Live-transition push (spec/job-events.md §job.cancelled): data is
+    // empty by catalog, the envelope's jobId identifies the job.
+    await pushJobEvent(cwd, {
+      type: 'job.cancelled',
+      timestamp: Date.now(),
+      runId: generateRunId('queue'),
+      jobId: this.id!,
+      data: {},
+    });
     if (this.json) {
       this.printer!.data(JSON.stringify({ id: this.id, cancelled: true }) + '\n');
       return ExitCode.Ok;
@@ -1067,21 +1158,36 @@ export class JobFailCommand extends SmCommand {
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       const now = Date.now();
-      return this.all ? this.failAll(adapter, now) : this.failOne(adapter, now);
+      return this.all ? this.failAll(adapter, now, ctx.cwd) : this.failOne(adapter, now, ctx.cwd);
     });
   }
 
-  private async failAll(adapter: StoragePort, now: number): Promise<TExitCode> {
-    const count = await adapter.jobs.failAllActive(now);
+  private async failAll(adapter: StoragePort, now: number, cwd: string): Promise<TExitCode> {
+    const ids = await adapter.jobs.failAllActive(now);
+    // Live-transition push per failed job (spec/job-events.md §Transport /
+    // §job.failed): one queue-mode runId spans the bulk fail. After the
+    // transaction committed; cannot throw.
+    const runId = generateRunId('queue');
+    for (const id of ids) {
+      await pushJobEvent(cwd, {
+        type: 'job.failed',
+        timestamp: Date.now(),
+        runId,
+        jobId: id,
+        data: { reason: 'user-failed' },
+      });
+    }
     if (this.json) {
-      this.printer!.data(JSON.stringify({ failed: count }) + '\n');
+      this.printer!.data(JSON.stringify({ failed: ids.length }) + '\n');
       return ExitCode.Ok;
     }
-    this.printer!.info(tx(T.failAllSummary, { glyph: this.ansiFor('stderr').green('✓'), count }));
+    this.printer!.info(
+      tx(T.failAllSummary, { glyph: this.ansiFor('stderr').green('✓'), count: ids.length }),
+    );
     return ExitCode.Ok;
   }
 
-  private async failOne(adapter: StoragePort, now: number): Promise<TExitCode> {
+  private async failOne(adapter: StoragePort, now: number, cwd: string): Promise<TExitCode> {
     const outcome = await adapter.jobs.fail(this.id!, now);
     if (outcome === 'not-found') {
       return this.fail(tx(T.failErrNotFound, { id: this.id! }), ExitCode.NotFound);
@@ -1089,6 +1195,15 @@ export class JobFailCommand extends SmCommand {
     if (outcome === 'already-terminal') {
       return this.fail(tx(T.failErrAlreadyTerminal, { id: this.id! }), ExitCode.Error);
     }
+    // Live-transition push (spec/job-events.md §job.failed): the operator
+    // verb's reason is always user-failed (spec/job-lifecycle.md §Fail).
+    await pushJobEvent(cwd, {
+      type: 'job.failed',
+      timestamp: Date.now(),
+      runId: generateRunId('queue'),
+      jobId: this.id!,
+      data: { reason: 'user-failed' },
+    });
     if (this.json) {
       this.printer!.data(JSON.stringify({ id: this.id, failed: true }) + '\n');
       return ExitCode.Ok;

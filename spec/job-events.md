@@ -17,6 +17,8 @@ Events are records the kernel produces through `ProgressEmitterPort` (see [`arch
 
 The Server exposes the same events over WebSocket (`/ws`) using the same JSON shapes; each event is a single WS text frame.
 
+**CLI-to-server push (the live-transition leg).** Job transitions happen in whatever process runs the verb, usually the processing agent's CLI (`sm jobs claim`, `sm record`), which the server cannot observe: without a push, a connected UI only learns of a transition on its next full read. So every job-transitioning CLI verb (`sm jobs submit` / `claim` / `cancel` / `fail`, `sm record`) ALSO pushes its event envelope to the project's running server, when one exists, discovered and authenticated exactly like the activity bridge (`provider-activity.md` §serve.json): read `<scopeRoot>/.skill-map/serve.json`, `POST /api/job-events` with the per-session token in `x-skill-map-token`. The push is strictly best-effort and fire-and-forget: a short timeout, every failure swallowed silently (no `serve.json` = no server = no-op; a stale file fails open), and it runs AFTER the DB transition commits, so the verb's outcome, stdout contract, and exit code are NEVER affected by the server's presence, health, or answer. The server validates the envelope and rebroadcasts it verbatim over `/ws`. The DB row remains the source of truth; the push is a cache-invalidation hint, and a missed push costs only staleness until the next read.
+
 ---
 
 ## Common envelope
@@ -37,7 +39,7 @@ Every event is a JSON object with this envelope:
 |---|---|---|
 | `type` | always | One of the canonical event types below. |
 | `timestamp` | always | Unix milliseconds when the event was emitted. |
-| `runId` | always | Identifier of the invocation that emitted the event: `r-<mode>-YYYYMMDD-HHMMSS-XXXX`. Canonical modes: `ext` (agent-driven claim/record runs, the ONLY job-run flavor), `scan` (scan runs), `check` (standalone issue recomputations). |
+| `runId` | always | Identifier of the invocation that emitted the event: `r-<mode>-YYYYMMDD-HHMMSS-XXXX`. Canonical modes: `ext` (agent-driven claim/record runs, the ONLY job-run flavor), `scan` (scan runs), `check` (standalone issue recomputations), `queue` (queue-lifecycle verbs: submit / cancel / fail, which are not processing runs but still emit their transition). |
 | `jobId` | when job-scoped | The job the event refers to. Null for run-level events (`run.*`). |
 | `data` | per-event | Event-specific payload, shape below. |
 
@@ -169,6 +171,40 @@ Emitted when a job transitions to `failed` by any path.
 `reason` enum matches [`execution-record.schema.json`](./schemas/execution-record.schema.json) `failureReason`. `message` is human-readable free-form, MAY be truncated for display.
 
 > **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Common use: alerting and retry triggers. Filter by `data.reason` to narrow to a specific failure mode.
+
+### `job.submitted`
+
+Queue-lifecycle event: a job entered `queued`. Emitted by every submit surface (`sm jobs submit`, the BFF `POST /api/nodes/:pathB64/jobs`, the auto-fix hook's internal fixer submits, which ride the recording process's push). `runId` mode `queue` (`ext` when the submit fires inside an agent's record run).
+
+```json
+{
+  "type": "job.submitted",
+  "timestamp": 1745159465000,
+  "runId": "r-queue-20260717-090000-a1b2",
+  "jobId": "d-20260717-090000-c3d4",
+  "data": {
+    "nodePath": "skills/foo/SKILL.md",
+    "extensionId": "core/node-redundancy",
+    "supersededIds": []
+  }
+}
+```
+
+A non-empty `supersededIds` names the stale queued sibling jobs a fixer submit cancelled (`job-lifecycle.md` §Supersede); consumers treat those ids as cancelled without a separate `job.cancelled` per id.
+
+### `job.cancelled`
+
+Queue-lifecycle event: a `queued` / `running` job moved to the terminal `cancelled` state (`sm jobs cancel`). `data` is empty (the envelope's `jobId` identifies the job); `--all` emits one event per cancelled job.
+
+```json
+{
+  "type": "job.cancelled",
+  "timestamp": 1745159465000,
+  "runId": "r-queue-20260717-090100-e5f6",
+  "jobId": "d-20260717-090000-c3d4",
+  "data": {}
+}
+```
 
 ### `run.summary`
 

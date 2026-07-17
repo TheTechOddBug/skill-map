@@ -464,10 +464,12 @@ export interface StoragePort {
     cancel(id: string, nowMs: number): Promise<TJobTransitionOutcome>;
     /**
      * Cancel every `queued` / `running` job in one statement; returns the
-     * count transitioned to the terminal `cancelled` state. Powers
-     * `sm jobs cancel --all`.
+     * ids transitioned to the terminal `cancelled` state (mirroring
+     * `reapExpired`: the caller derives the count from the length and
+     * feeds the per-job `job.cancelled` live push,
+     * `spec/job-events.md` §Transport). Powers `sm jobs cancel --all`.
      */
-    cancelAllActive(nowMs: number): Promise<number>;
+    cancelAllActive(nowMs: number): Promise<string[]>;
     /**
      * Fail a single job (`spec/job-lifecycle.md` §Fail), the symmetric
      * counterpart to `cancel`: a `queued` / `running` job moves to `failed`
@@ -478,10 +480,10 @@ export interface StoragePort {
     fail(id: string, nowMs: number): Promise<TJobTransitionOutcome>;
     /**
      * Fail every `queued` / `running` job in one statement; returns the
-     * count transitioned to `failed` / `user-failed`. Powers
-     * `sm jobs fail --all`.
+     * ids transitioned to `failed` / `user-failed` (mirroring
+     * `reapExpired`, see `cancelAllActive`). Powers `sm jobs fail --all`.
      */
-    failAllActive(nowMs: number): Promise<number>;
+    failAllActive(nowMs: number): Promise<string[]>;
     /**
      * Counts per lifecycle status (`queued` / `running` / `completed` /
      * `failed` / `cancelled`), every key present. Backs `sm jobs status`

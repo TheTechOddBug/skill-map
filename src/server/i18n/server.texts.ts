@@ -234,6 +234,18 @@ export const SERVER_TEXTS = {
   activityEventRequired:
     '`event` is required and must be an object.',
 
+  // Job-event push ingest (POST /api/job-events, the CLI-to-server push
+  // leg of spec/job-events.md §Transport). Token gate reuses
+  // `activityTokenMismatch` (same serve.json session token, same opaque
+  // 403); the 400s below cover the body validation.
+  jobEventsBodyNotJson:
+    'Request body must be valid JSON.',
+  jobEventsBodyNotObject:
+    'Request body must be a JSON object.',
+  jobEventsBodyInvalid:
+    'Request body must be a canonical job event envelope: `type` (one of the job.* catalog types), ' +
+    '`timestamp` (unix-ms integer), `runId` (string), `jobId` (string), `data` (object).',
+
   // Install management over HTTP (GET/POST /api/activity/install +
   // POST /api/activity/uninstall, see spec/provider-activity.md
   // §Install management over HTTP). The 412 names the exact file the

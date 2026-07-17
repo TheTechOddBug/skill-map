@@ -39,6 +39,14 @@
  * `job.callback.received` -> `job.completed` | `job.failed` ->
  * `run.summary`, one ndjson line each, no other JSON output.
  *
+ * It also owns the record side of the live push (`spec/job-events.md`
+ * §Transport): after the transition commits, the terminal event
+ * (`job.completed` / `job.failed`, report-invalid included) and any
+ * auto-fix fixer `job.submitted` are pushed best-effort to the project's
+ * running server via `cli/util/job-event-push.ts`, sharing one ext-mode
+ * runId with the synthetic envelope. The push never alters output or
+ * exit codes.
+ *
  * Exit codes (`spec/cli-contract.md` §Record): 0 success, 4 nonce
  * mismatch, 5 missing job / DB, 2 otherwise (bad flags, not-running,
  * unreadable report, report-invalid).
@@ -74,6 +82,7 @@ import { tx } from '../../kernel/util/tx.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
+import { pushJobEvent } from '../util/job-event-push.js';
 import { RECORD_TEXTS as T } from '../i18n/record.texts.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
@@ -220,10 +229,16 @@ export class RecordCommand extends SmCommand {
       return this.fail(tx(T.errNotRunning, { id: this.id, status: job.status }), ExitCode.Error);
     }
     const now = Date.now();
+    // One ext-mode runId identifies this record invocation everywhere it
+    // surfaces: the live push to the server (spec/job-events.md
+    // §Transport), the fixer submits the auto-fix hook queues inside this
+    // run (spec §job.submitted: mode `ext` when the submit fires inside an
+    // agent's record run), and the `--json` synthetic envelope.
+    const runId = generateRunId('ext');
     try {
       return status === 'completed'
-        ? await this.recordCompleted(adapter, job, metrics, now, cwd)
-        : await this.recordFailed(adapter, job, metrics, now);
+        ? await this.recordCompleted(adapter, job, metrics, now, cwd, runId)
+        : await this.recordFailed(adapter, job, metrics, now, cwd, runId);
     } catch (err) {
       return this.failLostRecordRace(adapter, err);
     }
@@ -253,6 +268,7 @@ export class RecordCommand extends SmCommand {
     metrics: IMetrics,
     now: number,
     cwd: string,
+    runId: string,
   ): Promise<TExitCode> {
     const reportText = this.readReport(cwd);
     if (typeof reportText === 'number') return reportText; // IO error -> exit 2, no mutation
@@ -290,8 +306,16 @@ export class RecordCommand extends SmCommand {
     }
     if (outcome.kind === 'report-invalid') {
       // The failed / report-invalid transition already landed (spec §Record
-      // step 4); surface the reason and exit 2 (the "otherwise" bucket).
-      // The synthetic envelope is emitted on the exit-0 paths only.
+      // step 4): push its live hint (spec/job-events.md §Transport) before
+      // surfacing the reason and exit 2 (the "otherwise" bucket). The
+      // synthetic envelope is emitted on the exit-0 paths only.
+      await pushJobEvent(cwd, {
+        type: 'job.failed',
+        timestamp: Date.now(),
+        runId,
+        jobId: job.id,
+        data: this.failedEventData(outcome.execution, outcome.detail),
+      });
       this.printer!.error(
         tx(T.errPrefix, {
           glyph: this.errGlyph(),
@@ -300,12 +324,23 @@ export class RecordCommand extends SmCommand {
       );
       return ExitCode.Error;
     }
-    // The record committed. Now dispatch job.completed to enabled hooks:
-    // the opt-in `core/auto-fix` hook chains a finder to its matching
-    // fixer(s). Best-effort and AFTER the transaction, so it never alters
-    // the record's success (spec §Hook: hooks react, never block).
-    await this.dispatchJobCompletedHooks(adapter, job, cwd, getRuntime);
-    return this.reportSuccess(outcome.execution, job);
+    // The record committed: push the job.completed live hint
+    // (spec/job-events.md §Transport) before the hook chain so a
+    // connected server sees the completion ahead of any chained fixer's
+    // job.submitted. Best-effort; cannot throw.
+    await pushJobEvent(cwd, {
+      type: 'job.completed',
+      timestamp: Date.now(),
+      runId,
+      jobId: job.id,
+      data: this.completedEventData(outcome.execution, job),
+    });
+    // Now dispatch job.completed to enabled hooks: the opt-in
+    // `core/auto-fix` hook chains a finder to its matching fixer(s).
+    // Best-effort and AFTER the transaction, so it never alters the
+    // record's success (spec §Hook: hooks react, never block).
+    await this.dispatchJobCompletedHooks(adapter, job, cwd, getRuntime, runId);
+    return this.reportSuccess(outcome.execution, job, runId);
   }
 
   /**
@@ -323,6 +358,7 @@ export class RecordCommand extends SmCommand {
     job: Job,
     cwd: string,
     getRuntime: () => Promise<IActionRuntime>,
+    runId: string,
   ): Promise<void> {
     try {
       const runtime = await getRuntime();
@@ -360,11 +396,29 @@ export class RecordCommand extends SmCommand {
         // A no-findings / drift / duplicate refusal is swallowed by contract
         // (nothing to fix is not an error); a hard throw is caught too.
         try {
-          await submitFixerJob(adapter, runtime, jobsConfig, {
+          const result = await submitFixerJob(adapter, runtime, jobsConfig, {
             extensionId: request.actionId,
             nodeId: request.nodeId,
             cwd,
           });
+          // The auto-fix hook's internal fixer submits ride the recording
+          // process's push with this run's ext-mode runId
+          // (spec/job-events.md §job.submitted). The push lives HERE, in
+          // the verb, never in the shared engine, so the BFF submit route
+          // does not double-push. Cannot throw.
+          if (result.kind === 'created') {
+            await pushJobEvent(cwd, {
+              type: 'job.submitted',
+              timestamp: Date.now(),
+              runId,
+              jobId: result.id,
+              data: {
+                nodePath: request.nodeId,
+                extensionId: request.actionId,
+                supersededIds: result.supersededIds,
+              },
+            });
+          }
         } catch {
           // best-effort: a fixer submit failure never fails the record.
         }
@@ -400,6 +454,8 @@ export class RecordCommand extends SmCommand {
     job: Job,
     metrics: IMetrics,
     now: number,
+    cwd: string,
+    runId: string,
   ): Promise<TExitCode> {
     // A callback-reported failure is `runner-error` (the agent hit an
     // error and reported it). `user-failed` is the operator verb
@@ -413,7 +469,16 @@ export class RecordCommand extends SmCommand {
       metrics: this.toRecordMetrics(metrics),
       now,
     });
-    return this.reportSuccess(execution, job);
+    // Live-transition push (spec/job-events.md §Transport), after the
+    // failed / runner-error transition committed. Cannot throw.
+    await pushJobEvent(cwd, {
+      type: 'job.failed',
+      timestamp: Date.now(),
+      runId,
+      jobId: job.id,
+      data: this.failedEventData(execution),
+    });
+    return this.reportSuccess(execution, job, runId);
   }
 
   // --- output --------------------------------------------------------------
@@ -429,9 +494,9 @@ export class RecordCommand extends SmCommand {
   }
 
   /** Emit the success outcome (exit 0): synthetic envelope or a human line. */
-  private reportSuccess(execution: ExecutionRecord, job: Job): TExitCode {
+  private reportSuccess(execution: ExecutionRecord, job: Job, runId: string): TExitCode {
     if (this.json) {
-      this.emitSyntheticEnvelope(execution, job);
+      this.emitSyntheticEnvelope(execution, job, runId);
       return ExitCode.Ok;
     }
     if (execution.status === 'completed') {
@@ -459,10 +524,11 @@ export class RecordCommand extends SmCommand {
    * `job.callback.received` -> `job.completed` | `job.failed` ->
    * `run.summary`. Run-level events carry `jobId: null`; the new
    * execution id rides on `job.callback.received.data.executionId`.
+   * `runId` is the invocation's shared ext-mode id, the same one the
+   * live push leg stamped, so both surfaces name one run.
    */
-  private emitSyntheticEnvelope(execution: ExecutionRecord, job: Job): void {
+  private emitSyntheticEnvelope(execution: ExecutionRecord, job: Job, runId: string): void {
     const emitter = createNdjsonProgressEmitter(this.context.stdout as NodeJS.WritableStream);
-    const runId = generateRunId('ext');
     const completed = execution.status === 'completed';
     const stamp = (type: string, jobId: string | null, data: unknown): void =>
       emitter.emit({ type, timestamp: Date.now(), runId, jobId, data });
@@ -509,11 +575,15 @@ export class RecordCommand extends SmCommand {
     };
   }
 
-  /** `job.failed` event data (`spec/job-events.md`). */
-  private failedEventData(execution: ExecutionRecord): Record<string, unknown> {
+  /**
+   * `job.failed` event data (`spec/job-events.md`). `message` defaults to
+   * the agent-reported `--error`; the report-invalid push overrides it
+   * with the schema-validation detail.
+   */
+  private failedEventData(execution: ExecutionRecord, message?: string): Record<string, unknown> {
     return {
       reason: execution.failureReason ?? null,
-      message: this.error ?? null,
+      message: message ?? this.error ?? null,
       exitCode: execution.exitCode ?? null,
       durationMs: execution.durationMs ?? null,
     };

@@ -15,9 +15,9 @@
  *   - --filter scopes the claim to one action id; an empty queue is null.
  *   - cancel discriminates cancelled / already-terminal / not-found and
  *     writes the terminal `cancelled` state with NO failureReason;
- *     cancelAllActive counts active rows.
+ *     cancelAllActive returns the transitioned active ids.
  *   - fail is the symmetric transition: writes `failed` / `user-failed`,
- *     same guard; failAllActive counts active rows.
+ *     same guard; failAllActive returns the transitioned active ids.
  *   - countByStatus tallies every lifecycle bucket (including cancelled).
  *   - reapExpired fails only expired running rows (abandoned), returning
  *     their ids (the `run.reap.completed` event payload) and leaving
@@ -27,7 +27,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { strictEqual, ok } from 'node:assert';
+import { deepStrictEqual, strictEqual, ok } from 'node:assert';
 import { after, before, describe, it } from 'node:test';
 
 import { SqliteStorageAdapter } from '../index.js';
@@ -275,8 +275,12 @@ describe('cancelJob + cancelAllActive', () => {
         .where('id', '=', 'd-20260101-000000-0003')
         .execute();
 
-      const count = await adapter.jobs.cancelAllActive(Date.now());
-      strictEqual(count, 2, 'one queued + one running were active; the completed one is untouched');
+      const ids = await adapter.jobs.cancelAllActive(Date.now());
+      deepStrictEqual(
+        [...ids].sort(),
+        ['d-20260101-000000-0001', 'd-20260101-000000-0002'],
+        'one queued + one running were active; the completed one is untouched',
+      );
       const counts = await adapter.jobs.countByStatus();
       strictEqual(counts.cancelled, 2);
       strictEqual(counts.completed, 1);
@@ -334,15 +338,15 @@ describe('failJob + failAllActive', () => {
     }
   });
 
-  it('failAllActive transitions every queued/running job to failed / user-failed, counting them', async () => {
+  it('failAllActive transitions every queued/running job to failed / user-failed, returning their ids', async () => {
     const adapter = await openAdapter(freshDbPath('fail-all'));
     try {
       await submitQueued(adapter, { id: 'd-20260101-000000-0001', nodeId: 'a.md', contentHash: '1'.repeat(64) });
       await submitQueued(adapter, { id: 'd-20260101-000000-0002', nodeId: 'b.md', contentHash: '2'.repeat(64) });
       await adapter.jobs.claim('agent', Date.now());
 
-      const count = await adapter.jobs.failAllActive(Date.now());
-      strictEqual(count, 2);
+      const ids = await adapter.jobs.failAllActive(Date.now());
+      deepStrictEqual([...ids].sort(), ['d-20260101-000000-0001', 'd-20260101-000000-0002']);
       const counts = await adapter.jobs.countByStatus();
       strictEqual(counts.failed, 2);
       strictEqual(counts.cancelled, 0);

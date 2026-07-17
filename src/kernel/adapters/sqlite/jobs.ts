@@ -502,19 +502,22 @@ export async function cancelJob(
 /**
  * Cancel every active job in one statement: transition all `queued` /
  * `running` rows to the terminal `cancelled` state (`finishedAt = nowMs`,
- * no `failureReason`). Returns the number of rows transitioned. Powers
- * `sm jobs cancel --all`.
+ * no `failureReason`). Returns the transitioned ids, mirroring
+ * `reapExpired`: `sm jobs cancel --all` reports their count and pushes
+ * one `job.cancelled` live event per id (`spec/job-events.md`
+ * §Transport).
  */
 export async function cancelAllActive(
   db: Kysely<IDatabase>,
   nowMs: number,
-): Promise<number> {
-  const res = await db
+): Promise<string[]> {
+  const rows = await db
     .updateTable('state_jobs')
     .set({ status: 'cancelled', failureReason: null, finishedAt: nowMs })
     .where('status', 'in', ACTIVE_STATUSES)
-    .executeTakeFirst();
-  return Number(res.numUpdatedRows ?? 0n);
+    .returning('id')
+    .execute();
+  return rows.map((r) => r.id);
 }
 
 /**
@@ -549,18 +552,20 @@ export async function failJob(
 /**
  * Fail every active job in one statement: transition all `queued` /
  * `running` rows to `failed` / `user-failed` (`finishedAt = nowMs`).
- * Returns the number of rows transitioned. Powers `sm jobs fail --all`.
+ * Returns the transitioned ids (mirroring `reapExpired`, see
+ * `cancelAllActive`). Powers `sm jobs fail --all`.
  */
 export async function failAllActive(
   db: Kysely<IDatabase>,
   nowMs: number,
-): Promise<number> {
-  const res = await db
+): Promise<string[]> {
+  const rows = await db
     .updateTable('state_jobs')
     .set({ status: 'failed', failureReason: 'user-failed', finishedAt: nowMs })
     .where('status', 'in', ACTIVE_STATUSES)
-    .executeTakeFirst();
-  return Number(res.numUpdatedRows ?? 0n);
+    .returning('id')
+    .execute();
+  return rows.map((r) => r.id);
 }
 
 /**

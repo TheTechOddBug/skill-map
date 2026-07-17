@@ -8,8 +8,10 @@
  * Coverage:
  *   - claim: prints the highest-priority id (plain), returns
  *     { id, nonce, content } (--json), exits 1 on an empty queue,
- *     scopes by --filter, and silently reaps expired running jobs to
- *     failed / abandoned before claiming (job-lifecycle §Reap).
+ *     scopes by --filter, silently reaps expired running jobs to
+ *     failed / abandoned before claiming (job-lifecycle §Reap), and
+ *     pushes a job.claimed envelope to the server named by serve.json
+ *     (job-events §Transport, the live-transition leg).
  *   - status: counts (plain + --json), single-job line, missing id -> 5.
  *   - cancel: queued -> exit 0 (terminal `cancelled` state, no reason),
  *     terminal -> 2, missing -> 5, --all count, and the neither / both
@@ -18,7 +20,9 @@
  *     missing -> 5, --all count, and the neither / both usage errors -> 2.
  */
 
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { strictEqual, ok, match } from 'node:assert';
@@ -312,6 +316,72 @@ describe('sm jobs claim', () => {
       strictEqual(execs[0]!.failureReason, 'job-file-missing');
     } finally {
       await adapter.close();
+    }
+  });
+
+  it('pushes a job.claimed envelope to the server named by serve.json', async () => {
+    // Live-transition push (spec/job-events.md §Transport): a project with
+    // a serve.json pointing at a running server receives one POST
+    // /api/job-events per claim, token-authenticated, WITHOUT touching the
+    // verb's stdout handover contract. No real `sm serve` here: a bare
+    // node:http stub on port 0 stands in for the BFF route.
+    const proj = await setupProject([A]);
+    const requests: Array<{ url: string; token: string | undefined; body: Record<string, unknown> }> = [];
+    const server = createServer((req, res) => {
+      let raw = '';
+      req.setEncoding('utf8');
+      req.on('data', (chunk: string) => {
+        raw += chunk;
+      });
+      req.on('end', () => {
+        requests.push({
+          url: req.url ?? '',
+          token: req.headers['x-skill-map-token'] as string | undefined,
+          body: JSON.parse(raw) as Record<string, unknown>,
+        });
+        res.statusCode = 202;
+        res.end('{"ok":true}');
+      });
+    });
+    await new Promise<void>((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
+    const port = (server.address() as AddressInfo).port;
+    try {
+      writeFileSync(
+        join(proj.root, '.skill-map', 'serve.json'),
+        JSON.stringify({
+          schemaVersion: 1,
+          host: '127.0.0.1',
+          port,
+          pid: process.pid,
+          // realpath: the verb's cwd (post-chdir) is symlink-resolved, and
+          // the push helper's scope check compares the two paths.
+          scopeRoot: realpathSync(proj.root),
+          startedAt: new Date().toISOString(),
+          smVersion: '0.0.0-test',
+          token: 'tok-claim',
+        }),
+      );
+      const code = await withCwd(proj.root, async () => {
+        const cap = captureContext();
+        const c = await run(buildClaim(), cap);
+        // The push never pollutes the verb's contract.
+        strictEqual(cap.stdout(), `${A.id}\n`);
+        strictEqual(cap.stderr(), '');
+        return c;
+      });
+      strictEqual(code, 0);
+      strictEqual(requests.length, 1, 'exactly one push landed');
+      const req = requests[0]!;
+      strictEqual(req.url, '/api/job-events');
+      strictEqual(req.token, 'tok-claim');
+      strictEqual(req.body['type'], 'job.claimed');
+      strictEqual(req.body['jobId'], A.id);
+      match(String(req.body['runId']), /^r-ext-\d{8}-\d{6}-[0-9a-f]{4}$/);
+      const data = req.body['data'] as Record<string, unknown>;
+      strictEqual(data['nodeId'], A.nodeId);
+      strictEqual(data['extensionId'], 'core/skill-summarizer');
+    } finally {
+      await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
     }
   });
 
