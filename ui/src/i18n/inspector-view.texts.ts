@@ -68,6 +68,12 @@ export const INSPECTOR_VIEW_TEXTS = {
     /** Launcher button state tooltips (appended after the description). */
     stateQueued: 'queued',
     stateRunning: 'running',
+    /**
+     * Icon-only stop / restart companions beside an active launcher
+     * (user decision 2026-07-17). Each string doubles as the tooltip
+     * and the accessible label.
+     */
+    stopTooltip: 'Stop this job',
   },
   /**
    * Activity section (spec/provider-activity.md §Execution stats /

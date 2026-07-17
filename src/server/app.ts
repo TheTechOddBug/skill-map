@@ -111,6 +111,7 @@ import { registerActivityDetailRoutes } from './routes/activity-detail.js';
 import { registerActivityInstallRoutes } from './routes/activity-install.js';
 import { registerActivitySummaryRoute } from './routes/activity-summary.js';
 import { registerAgentInstallRoutes } from './routes/agent-install.js';
+import { registerJobCancelRoute } from './routes/job-cancel.js';
 import { registerJobEventsRoute } from './routes/job-events.js';
 import { registerScanRoute } from './routes/scan.js';
 import { registerUpdateStatusRoute } from './routes/update-status.js';
@@ -153,6 +154,10 @@ export type TErrorCode =
   | 'job-running'
   | 'node-drifted'
   | 'no-findings'
+  // Cancel 409 (`POST /api/jobs/:jobId/cancel`, Step 16 launcher stop;
+  // `spec/cli-contract.md` route row): the job is already terminal.
+  // Carried by `ConflictError`.
+  | 'job-terminal'
   | 'internal';
 
 export interface IErrorEnvelope {
@@ -260,11 +265,11 @@ export class ActivityTokenError extends OpaqueForbiddenError {
 }
 
 /**
- * The two `409 Conflict` conditions, carried as a dedicated subclass so
- * `formatError` can stamp the right `code` via `instanceof` instead of
- * regex-matching the human message prefix (both 409s share the status,
- * so a status-only mapping cannot tell them apart). Mirrors
- * `LoopbackGateError`'s one-class-two-codes shape:
+ * The closed-code, no-details `409 Conflict` conditions, carried as a
+ * dedicated subclass so `formatError` can stamp the right `code` via
+ * `instanceof` instead of regex-matching the human message prefix (the
+ * 409s share the status, so a status-only mapping cannot tell them
+ * apart). Mirrors `LoopbackGateError`'s one-class-N-codes shape:
  *
  *   - `scan-busy`     (`POST /api/scan`): another scan is in flight.
  *   - `sidecar-fresh` (legacy bump path): node is fresh and `force` was
@@ -272,15 +277,18 @@ export class ActivityTokenError extends OpaqueForbiddenError {
  *     `POST /api/actions/:id` route emits its refusals via the
  *     open-ended `ActionRefusedError` instead (the bump refusal now
  *     surfaces as `code: 'fresh'`, the report's own reason).
+ *   - `job-terminal`  (`POST /api/jobs/:jobId/cancel`): the job already
+ *     reached a terminal state, nothing left to cancel (the HTTP face
+ *     of the CLI's "already terminal" exit-2 refusal).
  *
  * The catalog messages keep their `scan-busy:` prefix for log-grep
  * affinity with the CLI, but the prefix is no longer load-bearing for
  * dispatch (the typed `code` is).
  */
 export class ConflictError extends HTTPException {
-  readonly code: 'scan-busy' | 'sidecar-fresh';
+  readonly code: 'scan-busy' | 'sidecar-fresh' | 'job-terminal';
 
-  constructor(init: { code: 'scan-busy' | 'sidecar-fresh'; message: string }) {
+  constructor(init: { code: ConflictError['code']; message: string }) {
     super(409, { message: init.message });
     this.name = 'ConflictError';
     this.code = init.code;
@@ -597,6 +605,7 @@ export function createApp(deps: IAppDeps): Hono {
   registerNodeFindingsRoute(app, routeDeps);
   registerNodeProbExtensionsRoute(app, routeDeps);
   registerNodeJobsRoute(app, { ...routeDeps, broadcaster: deps.broadcaster });
+  registerJobCancelRoute(app, { options: routeDeps.options, broadcaster: deps.broadcaster });
   registerLinksRoute(app, routeDeps);
   registerIssuesRoute(app, routeDeps);
   registerFoldersRoute(app, routeDeps);

@@ -305,6 +305,27 @@ export function buildJobSubmittedEvent(
   };
 }
 
+/**
+ * Build a `job.cancelled` envelope (catalog shape, `spec/job-events.md`
+ * §`job.cancelled`): unix-ms timestamp, a freshly minted `runId` in
+ * mode `queue` (a queue-lifecycle transition), the cancelled job's id
+ * on the common-envelope `jobId` slot, and EMPTY `data` by catalog (the
+ * envelope's `jobId` identifies the job). Broadcast by the cancel route
+ * (`POST /api/jobs/:jobId/cancel`) on a successful transition only, the
+ * SAME envelope flavor `sm jobs cancel` delivers through the
+ * `POST /api/job-events` push leg, so consumers see ONE `job.cancelled`
+ * shape regardless of which surface cancelled.
+ */
+export function buildJobCancelledEvent(jobId: string): IWsEventEnvelope<Record<string, never>> {
+  return {
+    type: 'job.cancelled',
+    timestamp: Date.now(),
+    runId: generateRunId('queue'),
+    jobId,
+    data: {},
+  };
+}
+
 /** Watcher-internal advisory, fired once when the watcher subscribes successfully. */
 export interface IWatcherStartedData {
   roots: string[];

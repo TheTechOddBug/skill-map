@@ -526,6 +526,28 @@ export class InspectorView implements OnInit {
     void this.judgments.submit(entry.id);
   }
 
+  /**
+   * Whether the stop / restart companions render beside the launcher
+   * (user decision 2026-07-17): only with a server-confirmed job handle
+   * (`jobId`) AND a still-active effective state. A just-submitted
+   * optimistic entry (queued, no jobId yet) shows them once the refresh
+   * lands; a just-stopped entry (optimistic idle) hides them instantly
+   * instead of parking a stop button next to an enabled launcher.
+   */
+  protected judgmentCompanionsVisible(entry: IProbExtensionEntryApi): boolean {
+    return entry.jobId !== null && this.judgmentEntryState(entry) !== 'idle';
+  }
+
+  /** Both companions sit disabled while the extension's stop / restart is in flight. */
+  protected judgmentCompanionDisabled(entry: IProbExtensionEntryApi): boolean {
+    return this.judgments.isCancelling(entry.id);
+  }
+
+  protected stopJudgment(entry: IProbExtensionEntryApi): void {
+    void this.judgments.stop(entry);
+  }
+
+
   protected dismissJudgmentsError(): void {
     this.judgments.dismissError();
   }

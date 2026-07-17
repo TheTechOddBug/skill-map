@@ -2208,4 +2208,164 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
     expect(dataSource.getNodeProbExtensions.mock.calls.length).toBeGreaterThan(probsBefore);
   });
 
+  // -------------------------------------------------------------------
+  // Stop / restart companions (user decision 2026-07-17)
+  // -------------------------------------------------------------------
+
+  it('renders no stop/restart companions for an idle entry (jobId null)', async () => {
+    const { fixture } = await bootJudgments({
+      probs: makeProbExtensions({ finders: [makeProbEntry()] }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(dom.querySelector('[data-testid="inspector-judgment-stop-core/todo-finder"]')).toBeNull();
+    expect(
+      dom.querySelector('[data-testid="inspector-judgment-restart-core/todo-finder"]'),
+    ).toBeNull();
+  });
+
+  it('keeps the companions hidden on an optimistic queued flip (no server jobId yet)', async () => {
+    const { fixture } = await bootJudgments({
+      probs: makeProbExtensions({ finders: [makeProbEntry()] }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    const host = dom.querySelector(
+      '[data-testid="inspector-judgment-launch-core/todo-finder"]',
+    ) as HTMLElement;
+    (host.querySelector('button') as HTMLButtonElement).click();
+    await flush(fixture);
+
+    // Optimistically queued, but the server has not confirmed a job
+    // handle: nothing to cancel, so no companions until the refresh lands.
+    expect(host.getAttribute('data-state')).toBe('queued');
+    expect(dom.querySelector('[data-testid="inspector-judgment-stop-core/todo-finder"]')).toBeNull();
+    expect(
+      dom.querySelector('[data-testid="inspector-judgment-restart-core/todo-finder"]'),
+    ).toBeNull();
+  });
+
+  it('renders the stop companion beside a queued entry that carries a jobId', async () => {
+    const { fixture } = await bootJudgments({
+      probs: makeProbExtensions({
+        finders: [makeProbEntry({ state: 'queued', jobId: 'job-7' })],
+      }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(
+      dom.querySelector('[data-testid="inspector-judgment-stop-core/todo-finder"]'),
+    ).not.toBeNull();
+    // The restart twin was dropped (user call 2026-07-17): never rendered.
+    expect(
+      dom.querySelector('[data-testid="inspector-judgment-restart-core/todo-finder"]'),
+    ).toBeNull();
+  });
+
+  it('stop cancels the active job and flips the launcher to idle optimistically', async () => {
+    const { fixture, dataSource } = await bootJudgments({
+      probs: makeProbExtensions({
+        finders: [makeProbEntry({ state: 'queued', jobId: 'job-7' })],
+      }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    const stop = dom.querySelector(
+      '[data-testid="inspector-judgment-stop-core/todo-finder"]',
+    ) as HTMLElement;
+    (stop.querySelector('button') as HTMLButtonElement).click();
+    await flush(fixture);
+
+    expect(dataSource.cancelJob).toHaveBeenCalledWith('job-7');
+    const launcher = dom.querySelector(
+      '[data-testid="inspector-judgment-launch-core/todo-finder"]',
+    ) as HTMLElement;
+    // Optimistic idle: launcher re-enabled, companions gone (the WS
+    // frame + debounced refresh confirm server-side).
+    expect(launcher.getAttribute('data-state')).toBe('idle');
+    expect((launcher.querySelector('button') as HTMLButtonElement).disabled).toBe(false);
+    expect(dom.querySelector('[data-testid="inspector-judgment-stop-core/todo-finder"]')).toBeNull();
+    expect(
+      dom.querySelector('[data-testid="inspector-judgments-error"]'),
+    ).toBeNull();
+  });
+
+  it('treats a job-terminal stop refusal as a silent race: no error, just a re-fetch', async () => {
+    const { fixture, dataSource } = await bootJudgments({
+      probs: makeProbExtensions({
+        finders: [makeProbEntry({ state: 'queued', jobId: 'job-7' })],
+      }),
+    });
+    dataSource.cancelJob.mockRejectedValue(
+      new DataSourceError('job-terminal', 'Job job-7 is already terminal.'),
+    );
+    const probsBefore = dataSource.getNodeProbExtensions.mock.calls.length;
+    const stop = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-judgment-stop-core/todo-finder"]',
+    ) as HTMLElement;
+    (stop.querySelector('button') as HTMLButtonElement).click();
+    await flush(fixture);
+    await flush(fixture);
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-judgments-error"]'),
+    ).toBeNull();
+    // No WS cancel frame is coming for a job that already finished, so
+    // the handle re-fetches the authoritative state directly.
+    expect(dataSource.getNodeProbExtensions.mock.calls.length).toBeGreaterThan(probsBefore);
+  });
+
+  it('surfaces other stop failures in the error strip without flipping the state', async () => {
+    const { fixture, dataSource } = await bootJudgments({
+      probs: makeProbExtensions({
+        finders: [makeProbEntry({ state: 'queued', jobId: 'job-7' })],
+      }),
+    });
+    dataSource.cancelJob.mockRejectedValue(
+      new DataSourceError('not-found', 'No job with id job-7.'),
+    );
+    const stop = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-judgment-stop-core/todo-finder"]',
+    ) as HTMLElement;
+    (stop.querySelector('button') as HTMLButtonElement).click();
+    await flush(fixture);
+
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(
+      dom.querySelector('[data-testid="inspector-judgments-error"]')!.textContent,
+    ).toContain('No job with id job-7.');
+    expect(
+      (
+        dom.querySelector(
+          '[data-testid="inspector-judgment-launch-core/todo-finder"]',
+        ) as HTMLElement
+      ).getAttribute('data-state'),
+    ).toBe('queued');
+  });
+
+
+
+  it('disables the stop companion while the cancel round-trip is in flight', async () => {
+    const { fixture, dataSource } = await bootJudgments({
+      probs: makeProbExtensions({
+        finders: [makeProbEntry({ state: 'queued', jobId: 'job-7' })],
+      }),
+    });
+    let resolveCancel: () => void = () => undefined;
+    dataSource.cancelJob.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveCancel = resolve;
+        }),
+    );
+    const dom: HTMLElement = fixture.nativeElement;
+    const stop = dom.querySelector(
+      '[data-testid="inspector-judgment-stop-core/todo-finder"]',
+    ) as HTMLElement;
+    (stop.querySelector('button') as HTMLButtonElement).click();
+    await flush(fixture);
+
+    expect((stop.querySelector('button') as HTMLButtonElement).disabled).toBe(true);
+
+    resolveCancel();
+    await flush(fixture);
+    // Settled: the optimistic idle flip retires the companion entirely.
+    expect(dom.querySelector('[data-testid="inspector-judgment-stop-core/todo-finder"]')).toBeNull();
+  });
 });

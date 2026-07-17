@@ -665,4 +665,9 @@ export const SERVER_TEXTS = {
   jobsDuplicate: 'active job {{id}} already covers {{node}}',
   jobsRunningSibling:
     'running job {{id}} already covers {{node}} and is never superseded',
+
+  // Cancel refusals (`POST /api/jobs/:jobId/cancel`); wording mirrors
+  // the CLI's `sm jobs cancel` messages (`jobs-queue.texts.ts`).
+  jobCancelNotFound: 'job {{id}} not found',
+  jobCancelAlreadyTerminal: 'job {{id}} is already terminal; nothing to cancel',
 } as const;
