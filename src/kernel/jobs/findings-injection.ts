@@ -82,10 +82,15 @@ export interface IFixerFindingProjection {
  * `projectFinding`): staleness is node-level, so a fix in one section
  * stales every finding on the node including the untouched sections' still
  * verbatim present defects, and filtering here would break the natural
- * "queue all the fixers" flow. Callers MUST source the list with
- * `includeStale: true` or the adapter hides the stale rows before this leg
- * sees them. Ordered by `id` ascending so two submits over the same finding
- * set render identical bytes.
+ * "queue all the fixers" flow. RESOLVED rows do NOT survive
+ * (`resolution IS NULL` only, spec §Selection): a `fixed` row is done
+ * pending the finder's re-judgement and a `human-decision` row awaits the
+ * author, so re-injecting either would re-propose decided work (and kept
+ * the fixer launcher counting findings the operator already closed).
+ * Callers MUST source the list with `includeStale: true` or the adapter
+ * hides the stale rows before this leg sees them. Ordered by `id`
+ * ascending so two submits over the same finding set render identical
+ * bytes.
  */
 export function selectFixerFindings(
   findings: readonly IFindingRecord[],
@@ -95,6 +100,7 @@ export function selectFixerFindings(
     .filter(
       (finding) =>
         finding.origin === 'extension' &&
+        finding.resolution === null &&
         matchesQualifiedExtensionFilter(finding.extensionId, analyzerIds),
     )
     .slice()

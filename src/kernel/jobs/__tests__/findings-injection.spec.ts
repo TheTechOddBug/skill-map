@@ -105,6 +105,21 @@ describe('selectFixerFindings', () => {
     strictEqual(selected.length, 1);
   });
 
+  it('drops RESOLVED rows: fixed and human-decision are no longer "to resolve"', () => {
+    // The live papercut: a fixed finding kept driving the fixer launcher
+    // count ("(1)" on a node the operator already corrected) and would
+    // re-inject decided work. Open rows only (spec §Selection); staleness
+    // never resurrects a resolved row.
+    const rows = [
+      finding({ id: 1, resolution: 'fixed', resolutionActor: 'fixer' }),
+      finding({ id: 2, resolution: 'human-decision', stale: true }),
+      finding({ id: 3 }),
+    ];
+    const selected = selectFixerFindings(rows, ANALYZER_IDS);
+    strictEqual(selected.length, 1, 'only the open row survives');
+    strictEqual(selected[0]!.id, 3);
+  });
+
   it('returns an empty selection when nothing matches (the refusal precondition)', () => {
     // The two filters staleness does NOT relax: the kernel safety lane and
     // a finder outside the Action's analyzerIds, fresh or stale alike.
