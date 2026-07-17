@@ -150,6 +150,14 @@ CREATE TABLE state_jobs (
   -- extension id stays unambiguous end-to-end (the submit-side `<kind>:`
   -- prefix picks, the row remembers). See spec/db-schema.md §state_jobs.
   extension_kind TEXT NOT NULL,
+  -- Per-job auto-fix opt-in, frozen at submit like extension_kind
+  -- (0 = off, the default; 1 = chain this finder's fixers on completion).
+  -- SQLite has no boolean: stored 0/1, bridged to a runtime boolean in
+  -- rowToJob. Meaningful only on a finder (extension_kind = 'analyzer');
+  -- `sm record` chains via the shared inverse-Modelo-B resolver AFTER the
+  -- record transaction commits, independently of the opt-in global
+  -- core/auto-fix hook (see spec/job-lifecycle.md §Auto-fix chain (per-job)).
+  auto_fix INTEGER NOT NULL DEFAULT 0,
   node_id TEXT NOT NULL,
   content_hash TEXT NOT NULL,
   nonce TEXT NOT NULL,

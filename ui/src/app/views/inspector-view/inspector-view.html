@@ -174,6 +174,25 @@
             }
             @if (judgmentLauncherGroups().length > 0) {
               <div class="inspector__judgments-launchers" data-testid="inspector-judgments-launchers">
+                <!-- Automatic toggle (Step 16): one control for every
+                     finder-with-fixer button. On => the finder submit
+                     carries autoFix and the kernel chains the fixers;
+                     off => the button morphs Detect <-> Fix. Only shown
+                     when a finder-with-fixer button exists. -->
+                @if (showAutoFixToggle()) {
+                  <div class="inspector__judgments-autofix" data-testid="inspector-auto-fix-row">
+                    <p-toggleswitch
+                      [ngModel]="autoFixEnabled()"
+                      (ngModelChange)="onAutoFixToggle($event)"
+                      inputId="inspector-auto-fix"
+                      [pTooltip]="texts.judgments.autoFix.tooltip"
+                      data-testid="inspector-auto-fix-toggle"
+                    />
+                    <label class="inspector__judgments-autofix-label" for="inspector-auto-fix">{{
+                      texts.judgments.autoFix.label
+                    }}</label>
+                  </div>
+                }
                 @for (group of judgmentLauncherGroups(); track group.id) {
                   <div
                     class="inspector__judgments-group"
@@ -185,14 +204,15 @@
                         <span class="inspector__judgments-entry">
                           <p-button
                             [label]="judgmentLauncherLabel(entry)"
-                            [icon]="judgmentEntryState(entry) === 'queued' ? 'pi pi-clock' : ''"
+                            [icon]="judgmentLauncherIcon(entry, group.id === 'finders')"
                             size="small"
                             [disabled]="judgmentLauncherDisabled(entry)"
                             [loading]="judgmentLauncherBusy(entry)"
-                            [pTooltip]="judgmentLauncherTooltip(entry)"
-                            (onClick)="submitJudgment(entry)"
+                            [pTooltip]="judgmentLauncherTooltip(entry, group.id === 'finders')"
+                            (onClick)="onLauncherClick(entry, group.id === 'finders')"
                             [attr.data-testid]="'inspector-judgment-launch-' + entry.id"
                             [attr.data-state]="judgmentEntryState(entry)"
+                            [attr.data-action]="group.id === 'finders' ? finderActionMode(entry) : 'run'"
                           />
                           <!-- Stop companion (user decision 2026-07-17;
                                the restart twin was dropped same day): only

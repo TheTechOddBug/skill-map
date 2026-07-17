@@ -21,13 +21,20 @@
  *     swallowed).
  *   - auto-fix DISABLED queues nothing (the default).
  *   - a finder with no matching fixer queues nothing.
+ *
+ * Plus the PER-JOB auto-fix chain (`spec/job-lifecycle.md` §Auto-fix chain
+ * (per-job)), the second, hook-independent entry point:
+ *   - a finder submitted `--auto-fix` chains ALL matching fixers on record
+ *     EVEN WHEN the global `core/auto-fix` hook is disabled.
+ *   - hook enabled AND the job flagged: the two entry points dedupe to
+ *     exactly one fixer job per `(fixer, node)`.
  */
 
 import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { strictEqual, ok, match } from 'node:assert';
+import { strictEqual, ok, match, deepStrictEqual } from 'node:assert';
 import { after, before, describe, it } from 'node:test';
 
 import type { BaseContext } from 'clipanion';
@@ -46,6 +53,13 @@ const FINDER_ID = 'prob-finder/quality-check';
 const FIXER_FIXTURE = fileURLToPath(new URL('./fixtures/prob-fixer', import.meta.url));
 const FIXER_PLUGIN_ID = 'prob-fixer';
 const FIXER_ID = 'prob-fixer/apply-fix';
+
+// A SECOND fixer for the same finder, materialised by copying the prob-fixer
+// fixture under a distinct plugin id (its action dir stays `apply-fix`, so
+// the qualified id is `prob-fixer2/apply-fix`; `analyzerIds` still names the
+// finder). Proves the per-job chain queues ALL matching fixers, not just one.
+const FIXER2_PLUGIN_ID = 'prob-fixer2';
+const FIXER2_ID = 'prob-fixer2/apply-fix';
 
 const SKILL = { path: '.claude/skills/foo/SKILL.md', kind: 'skill', provider: 'claude' };
 const CLEAN_SAFETY = { injectionDetected: false, contentQuality: 'clean' };
@@ -125,6 +139,7 @@ interface IProject {
 async function setupProject(opts: {
   enableAutoFix: boolean;
   includeFixer: boolean;
+  secondFixer?: boolean;
 }): Promise<IProject> {
   counter += 1;
   const root = join(tmpRoot, `proj-${counter}`);
@@ -136,6 +151,9 @@ async function setupProject(opts: {
   cpSync(FINDER_FIXTURE, join(root, '.skill-map', 'plugins', FINDER_PLUGIN_ID), { recursive: true });
   if (opts.includeFixer) {
     cpSync(FIXER_FIXTURE, join(root, '.skill-map', 'plugins', FIXER_PLUGIN_ID), { recursive: true });
+  }
+  if (opts.secondFixer) {
+    cpSync(FIXER_FIXTURE, join(root, '.skill-map', 'plugins', FIXER2_PLUGIN_ID), { recursive: true });
   }
   if (opts.enableAutoFix) {
     // Enable the experimental (ships-disabled) core/auto-fix hook.
@@ -154,6 +172,7 @@ async function setupProject(opts: {
     writeFileSync(abs, `---\ntitle: t\n---\nBody of ${SKILL.path}\n`);
     await adapter.trust.set(FINDER_PLUGIN_ID, true);
     if (opts.includeFixer) await adapter.trust.set(FIXER_PLUGIN_ID, true);
+    if (opts.secondFixer) await adapter.trust.set(FIXER2_PLUGIN_ID, true);
   } finally {
     await adapter.close();
   }
@@ -181,7 +200,7 @@ async function withCwd<T>(dir: string, fn: () => Promise<T>): Promise<T> {
   }
 }
 
-function buildSubmit(extension: string): JobSubmitCommand {
+function buildSubmit(extension: string, autoFix = false): JobSubmitCommand {
   const cmd = new JobSubmitCommand();
   cmd.extension = extension;
   cmd.node = SKILL.path;
@@ -190,6 +209,7 @@ function buildSubmit(extension: string): JobSubmitCommand {
   cmd.ttl = undefined;
   cmd.priority = undefined;
   cmd.json = false;
+  cmd.autoFix = autoFix;
   cmd.db = undefined;
   return cmd;
 }
@@ -210,10 +230,10 @@ function buildRecord(o: { id: string; nonce: string }): RecordCommand {
   return cmd;
 }
 
-/** Submit + claim + record one finder job with `report`. */
-async function recordFinder(proj: IProject, report: object): Promise<void> {
+/** Submit + claim + record one finder job with `report` (optionally --auto-fix). */
+async function recordFinder(proj: IProject, report: object, autoFix = false): Promise<void> {
   const claim = await withCwd(proj.root, async () => {
-    const submitCode = await run(buildSubmit(FINDER_ID), captureContext());
+    const submitCode = await run(buildSubmit(FINDER_ID, autoFix), captureContext());
     strictEqual(submitCode, 0);
     const cap = captureContext();
     const claimCmd = new JobClaimCommand();
@@ -235,6 +255,16 @@ async function fixerJobs(proj: IProject): Promise<Job[]> {
   const adapter = await openDb(proj.dbPath);
   try {
     return await adapter.jobs.list({ extensionId: FIXER_ID });
+  } finally {
+    await adapter.close();
+  }
+}
+
+/** Every queued/terminal Action job (both fixer plugins), newest-first. */
+async function actionJobs(proj: IProject): Promise<Job[]> {
+  const adapter = await openDb(proj.dbPath);
+  try {
+    return (await adapter.jobs.list({})).filter((j) => j.extensionKind === 'action');
   } finally {
     await adapter.close();
   }
@@ -314,6 +344,52 @@ describe('core/auto-fix chain (sm record dispatches job.completed)', () => {
     try {
       const all = await adapter.jobs.list({});
       ok(all.every((j) => j.extensionKind !== 'action'), 'no fixer/action job was queued');
+    } finally {
+      await adapter.close();
+    }
+  });
+});
+
+describe('per-job auto-fix chain (state_jobs.auto_fix, hook-independent)', () => {
+  it('chains ALL matching fixers on record with the global hook DISABLED', async () => {
+    // Hook OFF (the default) + two fixers serving the finder. The per-job
+    // branch fires purely off the frozen auto_fix flag.
+    const proj = await setupProject({
+      enableAutoFix: false,
+      includeFixer: true,
+      secondFixer: true,
+    });
+    await recordFinder(proj, REPORT_WITH_FINDINGS, /* autoFix */ true);
+
+    const actions = await actionJobs(proj);
+    const ids = actions.map((j) => j.extensionId).sort();
+    strictEqual(actions.length, 2, 'both matching fixers were chained by the per-job flag');
+    deepStrictEqual(ids, [FIXER_ID, FIXER2_ID].sort());
+    // Every chained job is a real queued fixer for the node.
+    ok(actions.every((j) => j.status === 'queued' && j.nodeId === SKILL.path));
+    // The finder job itself froze the flag; the fixers never chain (auto_fix=0).
+    ok(actions.every((j) => j.autoFix === false), 'a fixer job never carries auto_fix');
+  });
+
+  it('does not double-submit when the hook is ALSO enabled', async () => {
+    // Both entry points resolve the same fixer; the record drain dedupes by
+    // (fixerId, nodeId), so exactly one fixer job lands.
+    const proj = await setupProject({ enableAutoFix: true, includeFixer: true });
+    await recordFinder(proj, REPORT_WITH_FINDINGS, /* autoFix */ true);
+
+    const jobs = await fixerJobs(proj);
+    strictEqual(jobs.length, 1, 'the two entry points collapse to one fixer job');
+    strictEqual(jobs[0]!.status, 'queued');
+  });
+
+  it('freezes auto_fix on the finder job and leaves it off without the flag', async () => {
+    const proj = await setupProject({ enableAutoFix: false, includeFixer: true });
+    await recordFinder(proj, REPORT_EMPTY, /* autoFix */ true);
+    const adapter = await openDb(proj.dbPath);
+    try {
+      const finder = (await adapter.jobs.list({ extensionId: FINDER_ID }))[0]!;
+      strictEqual(finder.autoFix, true, 'the finder submit froze auto_fix');
+      strictEqual(finder.extensionKind, 'analyzer');
     } finally {
       await adapter.close();
     }

@@ -76,6 +76,13 @@ import { decodePathB64Or404 } from './node-loader.js';
 interface IJobSubmitBody {
   /** Qualified or bare probabilistic extension id (CLI matching rules). */
   extension: string;
+  /**
+   * Per-job auto-fix opt-in (default off). `true` on a finder submit
+   * freezes `state_jobs.auto_fix` so `sm record` chains the finder's
+   * fixers on completion (`spec/job-lifecycle.md` §Auto-fix chain
+   * (per-job)); CLAMPED to `false` on a non-finder target by the engine.
+   */
+  autoFix?: boolean;
 }
 
 const JOB_BODY_SCHEMA = {
@@ -84,6 +91,7 @@ const JOB_BODY_SCHEMA = {
   required: ['extension'],
   properties: {
     extension: { type: 'string', minLength: 1 },
+    autoFix: { type: 'boolean', default: false },
   },
 } as const;
 
@@ -144,6 +152,7 @@ export function registerNodeJobsRoute(app: Hono, deps: INodeJobsRouteDeps): void
       force: false,
       flagTtl: undefined,
       flagPriority: undefined,
+      autoFix: body.autoFix ?? false,
     });
     if (!prep.ok) throw prepareErrorToHttp(prep.error, body.extension);
 

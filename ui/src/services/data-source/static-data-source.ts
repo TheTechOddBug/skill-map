@@ -417,7 +417,7 @@ export class StaticDataSource implements IDataSourcePort {
   async getNodeProbExtensions(path: string): Promise<IProbExtensionsApi | null> {
     const scan = await this.loadData();
     if (!scan.nodes.some((n) => n.path === path)) return null;
-    return { finders: [], fixers: [], standalone: [] };
+    return { finders: [], standalone: [] };
   }
 
   async listLinks(q: ILinksQuery = {}): Promise<IListEnvelopeApi<ILinkApi>> {
@@ -808,6 +808,7 @@ export class StaticDataSource implements IDataSourcePort {
   async submitNodeJob(
     _nodePath: string,
     _extensionId: string,
+    _autoFix = false,
   ): Promise<IJobSubmittedEnvelopeApi> {
     throw new DataSourceError(
       'demo-readonly',

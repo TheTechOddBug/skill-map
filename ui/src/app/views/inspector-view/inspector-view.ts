@@ -12,6 +12,7 @@ import type { OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { SelectButtonModule } from 'primeng/selectbutton';
+import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { TooltipModule } from 'primeng/tooltip';
 import { debounceTime, merge } from 'rxjs';
 
@@ -98,6 +99,7 @@ import {
   setupJudgments,
   type IJudgmentsHandle,
 } from './inspector-judgments.controller';
+import { setupAutoFix, type IAutoFixHandle } from './inspector-auto-fix.controller';
 import type { INodeView } from '../../../models/node';
 import type { IFindingApi, IProbExtensionEntryApi } from '../../../models/api';
 
@@ -128,6 +130,7 @@ const ACTIVITY_LIVE_REFRESH_DEBOUNCE_MS = 400;
     SidecarConsentDialog,
     ButtonModule,
     SelectButtonModule,
+    ToggleSwitchModule,
     FormsModule,
     TooltipModule,
   ],
@@ -465,10 +468,13 @@ export class InspectorView implements OnInit {
 
   /**
    * Launcher groups in render order, empty groups filtered out so the
-   * template iterates once instead of triple-gating.
+   * template iterates once instead of double-gating. Two buckets:
+   * `finders` (probabilistic Analyzers with a fixer, rendered as
+   * two-state Detect ⇄ Fix buttons) and `standalone` (finders without a
+   * fixer + Actions with no `analyzerIds`, single-action buttons).
    */
   protected readonly judgmentLauncherGroups = computed<
-    { id: 'finders' | 'fixers' | 'standalone'; label: string; entries: IProbExtensionEntryApi[] }[]
+    { id: 'finders' | 'standalone'; label: string; entries: IProbExtensionEntryApi[] }[]
   >(() => {
     const probs = this.probExtensions();
     if (probs === null) return [];
@@ -476,14 +482,36 @@ export class InspectorView implements OnInit {
     return (
       [
         { id: 'finders', label: t.finders, entries: probs.finders },
-        { id: 'fixers', label: t.fixers, entries: probs.fixers },
         { id: 'standalone', label: t.standalone, entries: probs.standalone },
       ] as const
     )
       .filter((g) => g.entries.length > 0)
-      .map((g) => ({ id: g.id, label: g.label, entries: g.entries }));
+      .map((g) => ({ id: g.id, label: g.label, entries: [...g.entries] }));
   });
 
+  /**
+   * Automatic toggle (Step 16), persisted at inspector level like the
+   * activity filter. When on, one click on a finder-with-fixer button
+   * submits the finder with `autoFix: true` (the kernel chains the
+   * fixers on record); when off, the button morphs Detect ⇄ Fix.
+   */
+  private readonly autoFixState: IAutoFixHandle = setupAutoFix();
+  protected autoFixEnabled(): boolean {
+    return this.autoFixState.enabled();
+  }
+  protected onAutoFixToggle(value: boolean): void {
+    this.autoFixState.set(value);
+  }
+
+  /**
+   * Whether the Automatic toggle renders: only when at least one
+   * finder-with-fixer button exists (the toggle governs their Detect ⇄
+   * Fix morph). A card with only standalone actions has nothing to
+   * automate, so the toggle would be inert.
+   */
+  protected readonly showAutoFixToggle = computed<boolean>(
+    () => (this.probExtensions()?.finders.length ?? 0) > 0,
+  );
 
   /** Effective launcher state (optimistic `queued` flip included). */
   protected judgmentEntryState(entry: IProbExtensionEntryApi): 'idle' | 'queued' | 'running' {
@@ -491,25 +519,62 @@ export class InspectorView implements OnInit {
   }
 
   /**
-   * Short launcher label via `shortExtensionLabel` (the extension
-   * segment minus the `node-` prefix; the full qualified id stays in
-   * the tooltip and the test id). Shared with the Activity timeline's
-   * AI-run rows.
+   * The action a two-state finder button performs on click, given the
+   * Automatic toggle and the finder's open-findings state:
+   *   - toggle on  → `detectAndFix` (submit the finder with `autoFix`).
+   *   - toggle off, no open findings → `detect` (submit the finder).
+   *   - toggle off, open findings    → `fix` (submit the fixer(s)).
    */
-  protected judgmentLauncherLabel(entry: IProbExtensionEntryApi): string {
-    const short = shortExtensionLabel(entry.id);
-    if (entry.findingCount !== undefined) {
-      return this.texts.judgments.fixerCount(short, entry.findingCount);
-    }
-    return short;
+  protected finderActionMode(entry: IProbExtensionEntryApi): 'detect' | 'fix' | 'detectAndFix' {
+    if (this.autoFixEnabled()) return 'detectAndFix';
+    return entry.hasOpenFindings ? 'fix' : 'detect';
   }
 
-  /** Tooltip: the manifest description, plus the live state when not idle. */
-  protected judgmentLauncherTooltip(entry: IProbExtensionEntryApi): string {
+  /**
+   * Launcher label: always the extension KIND (the segment after the
+   * slash, minus the `node-` prefix, via `shortExtensionLabel`), for
+   * finders and standalone alike (user call 2026-07-18). The two-state
+   * Detect ⇄ Fix morph is carried by the icon (`judgmentLauncherIcon`)
+   * and the tooltip, not the label.
+   */
+  protected judgmentLauncherLabel(entry: IProbExtensionEntryApi): string {
+    return shortExtensionLabel(entry.id);
+  }
+
+  /**
+   * Mode icon (the label is the kind, so the icon shows the action): a
+   * queued job pins the clock; otherwise a finder-with-fixer shows its
+   * `finderActionMode` glyph (detect / fix / detect+fix) and a standalone
+   * shows the run glyph.
+   */
+  protected judgmentLauncherIcon(entry: IProbExtensionEntryApi, isFinder: boolean): string {
+    if (this.judgmentEntryState(entry) === 'queued') return 'pi pi-clock';
+    if (!isFinder) return 'pi pi-play';
+    switch (this.finderActionMode(entry)) {
+      case 'fix':
+        return 'pi pi-wrench';
+      case 'detectAndFix':
+        return 'pi pi-bolt';
+      default:
+        return 'pi pi-search';
+    }
+  }
+
+  /**
+   * Tooltip: the manifest description, the current action (Detect / Fix /
+   * Detect + fix) for finders so the icon reads unambiguously, plus the
+   * live state when not idle.
+   */
+  protected judgmentLauncherTooltip(entry: IProbExtensionEntryApi, isFinder: boolean): string {
+    const action = isFinder ? `${this.texts.judgments.buttons[this.finderActionMode(entry)]} · ` : '';
     const state = this.judgmentEntryState(entry);
-    if (state === 'queued') return `${entry.description} (${this.texts.judgments.stateQueued})`;
-    if (state === 'running') return `${entry.description} (${this.texts.judgments.stateRunning})`;
-    return entry.description;
+    const suffix =
+      state === 'queued'
+        ? ` (${this.texts.judgments.stateQueued})`
+        : state === 'running'
+          ? ` (${this.texts.judgments.stateRunning})`
+          : '';
+    return `${action}${entry.description}${suffix}`;
   }
 
   /** True while the launcher button must sit disabled (non-idle or in flight). */
@@ -522,8 +587,28 @@ export class InspectorView implements OnInit {
     return this.judgmentEntryState(entry) === 'running' || this.judgments.isSubmitting(entry.id);
   }
 
-  protected submitJudgment(entry: IProbExtensionEntryApi): void {
-    void this.judgments.submit(entry.id);
+  /**
+   * Launcher click. Standalone entries submit their own extension. A
+   * finder-with-fixer button branches on `finderActionMode`: Detect
+   * submits the finder, Fix submits each of the finder's `fixerIds`
+   * (chain all), Detect + fix submits the finder with `autoFix: true`.
+   */
+  protected onLauncherClick(entry: IProbExtensionEntryApi, isFinder: boolean): void {
+    if (!isFinder) {
+      void this.judgments.submit(entry.id, false);
+      return;
+    }
+    switch (this.finderActionMode(entry)) {
+      case 'fix':
+        void this.judgments.submitFixers(entry.id, entry.fixerIds);
+        break;
+      case 'detectAndFix':
+        void this.judgments.submit(entry.id, true);
+        break;
+      default:
+        void this.judgments.submit(entry.id, false);
+        break;
+    }
   }
 
   /**

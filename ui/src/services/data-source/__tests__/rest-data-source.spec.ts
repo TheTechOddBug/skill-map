@@ -308,9 +308,16 @@ describe('RestDataSource', () => {
     const encoded = encodeNodePath(path);
     const item = {
       finders: [
-        { id: 'core/todo-finder', description: 'd', state: 'idle', jobId: null, lastJudged: null },
+        {
+          id: 'core/todo-finder',
+          description: 'd',
+          state: 'idle',
+          jobId: null,
+          lastJudged: null,
+          fixerIds: ['core/todo-fixer'],
+          hasOpenFindings: false,
+        },
       ],
-      fixers: [],
       standalone: [],
     };
     const promise = ds.getNodeProbExtensions(path);
@@ -353,7 +360,24 @@ describe('RestDataSource', () => {
     const promise = ds.submitNodeJob(path, 'core/todo-finder');
     const req = httpMock.expectOne(`/api/nodes/${encoded}/jobs`);
     expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ extension: 'core/todo-finder' });
+    // Default autoFix false rides the body alongside the extension id.
+    expect(req.request.body).toEqual({ extension: 'core/todo-finder', autoFix: false });
+    req.flush(envelope);
+    await expect(promise).resolves.toEqual(envelope);
+  });
+
+  it('submitNodeJob() forwards autoFix true on the POST body', async () => {
+    const path = 'agents/architect.md';
+    const encoded = encodeNodePath(path);
+    const envelope = {
+      schemaVersion: '1',
+      kind: 'job.submitted',
+      value: { jobId: 'job-8', nodePath: path, extensionId: 'core/todo-finder', supersededIds: [] },
+      elapsedMs: 4,
+    };
+    const promise = ds.submitNodeJob(path, 'core/todo-finder', true);
+    const req = httpMock.expectOne(`/api/nodes/${encoded}/jobs`);
+    expect(req.request.body).toEqual({ extension: 'core/todo-finder', autoFix: true });
     req.flush(envelope);
     await expect(promise).resolves.toEqual(envelope);
   });

@@ -45,8 +45,28 @@ export const INSPECTOR_VIEW_TEXTS = {
     /** Launcher group headings, classified manifest-mechanically. */
     groups: {
       finders: 'Finders',
-      fixers: 'Fixers',
       standalone: 'Standalone',
+    },
+    /**
+     * Automatic toggle (Step 16): when on, one click on a finder button
+     * runs the finder AND auto-chains its fixers (the finder submit
+     * carries `autoFix: true`); when off, the button morphs Detect ⇄ Fix.
+     */
+    autoFix: {
+      label: 'Automatic',
+      tooltip:
+        'When on, one click runs the finder and auto-fixes its findings. When off, the button switches between Detect and Fix.',
+    },
+    /**
+     * Two-state finder button labels (a finder that has a fixer): Detect
+     * runs the finder, Fix runs its fixer(s), Detect + fix runs both in
+     * one click (automatic toggle on). Standalone entries use their short
+     * extension name instead.
+     */
+    buttons: {
+      detect: 'Detect',
+      fix: 'Fix',
+      detectAndFix: 'Detect + fix',
     },
     /**
      * Per-row judgment provenance: confidence percent plus the
@@ -54,8 +74,6 @@ export const INSPECTOR_VIEW_TEXTS = {
      */
     confidenceModel: (pct: number, model: string | null): string =>
       model === null ? `(${pct}%)` : `(${pct}% · ${model})`,
-    /** Fixer launcher label suffix: the matching-findings tally. */
-    fixerCount: (id: string, count: number): string => `${id} (${count})`,
     /** Submit-failure banner, prefix + envelope message. */
     errorPrefix: 'Submit failed:',
     dismissErrorAriaLabel: 'Dismiss submit error',

@@ -31,7 +31,7 @@
  */
 
 import type { IBuiltInManifest, IHook, IHookContext } from '../../../../kernel/extensions/index.js';
-import { matchesQualifiedExtensionFilter } from '../../../../kernel/util/analyzer-filter.js';
+import { resolveMatchingFixerIds } from '../../../../core/jobs/auto-fix-chain.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 /** Payload fields the hook reads off a `job.completed` event (`spec/job-events.md`). */
@@ -72,7 +72,7 @@ function queueMatchingFixers(ctx: IHookContext): void {
   const target = readTarget(ctx);
   if (target === null) return;
 
-  for (const fixerId of matchingFixerIds(ctx, target.finderId)) {
+  for (const fixerId of resolveMatchingFixerIds(target.finderId, ctx.actions ?? [])) {
     try {
       queue(fixerId, { nodeId: target.nodeId });
     } catch {
@@ -94,21 +94,4 @@ function readTarget(ctx: IHookContext): { finderId: string; nodeId: string } | n
   const nodeId = ctx.node?.path;
   if (finderId === undefined || nodeId === undefined || nodeId.length === 0) return null;
   return { finderId, nodeId };
-}
-
-/**
- * Qualified ids of the loaded fixer Actions whose `precondition.analyzerIds`
- * name `finderId` (the inverse of Modelo B). Only Actions that actually
- * declare a NON-EMPTY `analyzerIds` are candidates: an empty list matches
- * everything under `matchesQualifiedExtensionFilter`, so a plain (non-fixer)
- * Action must be excluded explicitly.
- */
-function matchingFixerIds(ctx: IHookContext, finderId: string): string[] {
-  const actions = ctx.actions ?? [];
-  return actions
-    .filter(
-      (a) =>
-        a.analyzerIds.length > 0 && matchesQualifiedExtensionFilter(finderId, a.analyzerIds),
-    )
-    .map((a) => a.id);
 }

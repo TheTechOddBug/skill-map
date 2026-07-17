@@ -165,7 +165,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   }),
   getNodeProbExtensions: vi
     .fn()
-    .mockResolvedValue({ finders: [], fixers: [], standalone: [] }),
+    .mockResolvedValue({ finders: [], standalone: [] }),
   submitNodeJob: vi.fn().mockResolvedValue({
     schemaVersion: '1',
     kind: 'job.submitted',

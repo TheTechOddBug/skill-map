@@ -162,6 +162,11 @@ export class JobSubmitCommand extends SmCommand {
       rejected). Config sources: jobs.perExtensionTtl, then the global
       opt-in jobs.ttlSeconds.
 
+      --auto-fix freezes this finder submit so sm record chains the
+      finder's fixers on completion (additive, default off; ignored on a
+      non-finder target). It runs independently of the opt-in global
+      core/auto-fix hook.
+
       Exit codes: 0 on success, 2 on bad flags / non-probabilistic
       extension / unresolved prompt, 3 on a single-target duplicate
       refusal, 5 when the extension or node is not found (or the DB is
@@ -179,6 +184,10 @@ export class JobSubmitCommand extends SmCommand {
   force = Option.Boolean('--force', false);
   ttl = Option.String('--ttl', { required: false });
   priority = Option.String('--priority', { required: false });
+  // Per-job auto-fix opt-in (spec/cli-contract.md §Jobs): freeze
+  // state_jobs.auto_fix so `sm record` chains this finder's fixers on
+  // completion. Additive, default off; ignored on a non-finder target.
+  autoFix = Option.Boolean('--auto-fix', false);
 
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
@@ -212,6 +221,9 @@ export class JobSubmitCommand extends SmCommand {
       force: this.force,
       flagTtl: flags.ttl,
       flagPriority: flags.priority,
+      // `=== true`: normalize the Clipanion Boolean to a strict boolean
+      // (production-identical; the same idiom as `this.dryRun === true`).
+      autoFix: this.autoFix === true,
     });
     if (!prep.ok) return this.failPrepare(prep.error);
 

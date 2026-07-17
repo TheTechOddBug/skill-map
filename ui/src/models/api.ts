@@ -1538,10 +1538,12 @@ export interface IFindingsEnvelopeApi {
 export type TProbExtensionStateApi = 'idle' | 'queued' | 'running';
 
 /**
- * One launcher entry of the `node.prob-extensions` catalog. Mirrors
- * `rest-envelope.schema.json#/$defs/ProbExtensionEntry`. `findingCount`
- * is present ONLY on fixer entries (the matching-findings tally that
- * made the fixer visible, stale included).
+ * One launcher entry of the `node.prob-extensions` catalog (the
+ * inspector's two-state finder buttons). Mirrors
+ * `rest-envelope.schema.json#/$defs/ProbExtensionEntry`. `fixerIds` is
+ * the finder's matching fixers (non-empty ONLY on `finders`-bucket
+ * entries; empty for `standalone`) and `hasOpenFindings` drives the
+ * Detect ⇄ Fix morph.
  */
 export interface IProbExtensionEntryApi {
   /** Qualified extension id (`<plugin>/<extension>`), the submit target. */
@@ -1557,18 +1559,35 @@ export interface IProbExtensionEntryApi {
   jobId: string | null;
   /** Latest recorded execution for the pair; `null` when never judged. */
   lastJudged: { at: number; model: string | null } | null;
-  findingCount?: number;
+  /**
+   * Qualified ids of the fixer Actions whose `precondition.analyzerIds`
+   * name this finder (the inverse Modelo B lookup). Non-empty ONLY on
+   * `finders`-bucket entries; empty for `standalone`. In manual mode the
+   * button's Fix state submits each of these; in automatic mode the
+   * finder is submitted with `autoFix: true` and the kernel chains them.
+   */
+  fixerIds: string[];
+  /**
+   * True when the node currently carries at least one UNRESOLVED,
+   * non-stale finding emitted by THIS finder's extension id. Drives the
+   * two-state button: `false` → Detect state (submit the finder), `true`
+   * → Fix state (submit the `fixerIds`). Always `false` for `standalone`.
+   */
+  hasOpenFindings: boolean;
 }
 
 /**
  * The `item` of the `node.prob-extensions` envelope: the node's
  * probabilistic launcher catalog, classified manifest-mechanically
- * (ROADMAP §Step 16): `finders` always, `fixers` only with >= 1 matching
- * finding, `standalone` whenever their precondition matches.
+ * (ROADMAP §Step 16). `finders` are probabilistic Analyzers matching the
+ * node that HAVE at least one fixer (rendered as two-state Detect ⇄ Fix
+ * buttons); `standalone` are finders WITHOUT a fixer plus probabilistic
+ * Actions with no `analyzerIds` (single-action buttons). The former
+ * `fixers` bucket is retired: a fixer is now the second state of its
+ * finder's button, never a standalone launcher.
  */
 export interface IProbExtensionsApi {
   finders: IProbExtensionEntryApi[];
-  fixers: IProbExtensionEntryApi[];
   standalone: IProbExtensionEntryApi[];
 }
 

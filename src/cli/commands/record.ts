@@ -76,6 +76,7 @@ import { createNdjsonProgressEmitter } from '../../core/runtime/progress-emitter
 import { makeHookDispatcher } from '../../kernel/extensions/hook-dispatcher.js';
 import { generateRunId, JobNotRunningError } from '../../kernel/jobs/index.js';
 import { loadConfig } from '../../kernel/config/loader.js';
+import type { IJobsConfig } from '../../kernel/config/loader.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -89,6 +90,7 @@ import { SmCommand } from '../util/sm-command.js';
 import { withSqlite } from '../util/with-sqlite.js';
 import type { IActionRuntime } from '../../core/jobs/action-runtime.js';
 import { submitFixerJob } from '../../core/jobs/submit-engine.js';
+import { resolveMatchingFixerIds } from '../../core/jobs/auto-fix-chain.js';
 import { loadActionRuntime } from './action-runtime.js';
 import {
   recordCompletedOutcome,
@@ -335,25 +337,35 @@ export class RecordCommand extends SmCommand {
       jobId: job.id,
       data: this.completedEventData(outcome.execution, job),
     });
-    // Now dispatch job.completed to enabled hooks: the opt-in
-    // `core/auto-fix` hook chains a finder to its matching fixer(s).
-    // Best-effort and AFTER the transaction, so it never alters the
-    // record's success (spec §Hook: hooks react, never block).
-    await this.dispatchJobCompletedHooks(adapter, job, cwd, getRuntime, runId);
+    // Now chain the finder -> fixer auto-fix, from its two independent
+    // entry points (the opt-in global `core/auto-fix` hook AND this job's
+    // frozen `auto_fix` flag). Best-effort and AFTER the transaction, so
+    // it never alters the record's success (spec §Hook: hooks react, never
+    // block; spec/job-lifecycle.md §Auto-fix chain (per-job)).
+    await this.chainAutoFix(adapter, job, cwd, getRuntime, runId);
     return this.reportSuccess(outcome.execution, job, runId);
   }
 
   /**
-   * Dispatch `job.completed` to the composed (enabled) hooks and drain any
-   * fixer jobs they queued, all while the record's DB handle is still open.
-   * The opt-in `core/auto-fix` hook is the concrete consumer: on a finder's
-   * completion it resolves the inverse of Modelo B and `ctx.queue`s each
-   * matching fixer for the node (`spec/architecture.md` §Modelo B ·
-   * Auto-fix). Entirely best-effort, wrapped so ANY failure here (plugin
-   * load, config read, a fixer submit) leaves the recorded job completed and
-   * never changes the exit code, hooks react, they do not steer the pipeline.
+   * Chain the finder -> fixer auto-fix after a completed finder record,
+   * from its TWO independent entry points, both while the record's DB handle
+   * is still open:
+   *
+   *   1. the per-job `auto_fix` flag frozen at submit
+   *      (`spec/job-lifecycle.md` §Auto-fix chain (per-job)): fires when the
+   *      recorded job is a flagged finder, INDEPENDENTLY of the hook gate
+   *      (so it runs even when `core/auto-fix` is disabled);
+   *   2. the opt-in global `core/auto-fix` hook: fires for every finder
+   *      completion when enabled, resolving the same inverse of Modelo B via
+   *      `ctx.queue`.
+   *
+   * Both resolve the SAME shared resolver and feed the SAME `drainFixerSubmits`
+   * sink; requests are keyed by `(fixerId, nodeId)` so the two paths never
+   * double-submit. Entirely best-effort, wrapped so ANY failure (plugin load,
+   * config read, a fixer submit) leaves the recorded job completed and never
+   * changes the exit code, hooks react, they do not steer the pipeline.
    */
-  private async dispatchJobCompletedHooks(
+  private async chainAutoFix(
     adapter: StoragePort,
     job: Job,
     cwd: string,
@@ -362,71 +374,66 @@ export class RecordCommand extends SmCommand {
   ): Promise<void> {
     try {
       const runtime = await getRuntime();
-      // Nothing subscribes to job.completed -> nothing to do (the default:
-      // core/auto-fix ships disabled, and core/update-check is a boot hook).
-      if (!runtime.hooks.some((hook) => hook.triggers.includes('job.completed'))) return;
-
-      const bundle = await adapter.scans.findNode(job.nodeId);
-      const queued: Array<{ actionId: string; nodeId: string }> = [];
-      const dispatcher = makeHookDispatcher(runtime.hooks, silentEmitter(), {
-        // The hook's ctx.queue records the request synchronously; the actual
-        // submit is drained below while `adapter` is still open (a hook is
-        // fire-and-forget void, so the driver owns the async lifecycle).
-        queue: (actionId, payload) => {
-          const nodeId = (payload as { nodeId?: unknown } | undefined)?.nodeId;
-          if (typeof nodeId === 'string' && nodeId.length > 0) queued.push({ actionId, nodeId });
-        },
-        actions: projectHookActions(runtime.actions),
-      });
-      await dispatcher.dispatch('job.completed', {
-        type: 'job.completed',
-        timestamp: Date.now(),
-        jobId: job.id,
-        // node rides the INTERNAL dispatch event (buildHookContext lifts it
-        // to ctx.node); it is NOT added to the spec ndjson job.completed shape.
-        data: {
-          extensionId: job.extensionId,
-          extensionKind: job.extensionKind,
-          ...(bundle ? { node: bundle.node } : {}),
-        },
-      });
-      if (queued.length === 0) return;
-      const jobsConfig = loadConfig({ cwd }).effective.jobs;
-      for (const request of queued) {
-        // A no-findings / drift / duplicate refusal is swallowed by contract
-        // (nothing to fix is not an error); a hard throw is caught too.
-        try {
-          const result = await submitFixerJob(adapter, runtime, jobsConfig, {
-            extensionId: request.actionId,
-            nodeId: request.nodeId,
-            cwd,
-          });
-          // The auto-fix hook's internal fixer submits ride the recording
-          // process's push with this run's ext-mode runId
-          // (spec/job-events.md §job.submitted). The push lives HERE, in
-          // the verb, never in the shared engine, so the BFF submit route
-          // does not double-push. Cannot throw.
-          if (result.kind === 'created') {
-            await pushJobEvent(cwd, {
-              type: 'job.submitted',
-              timestamp: Date.now(),
-              runId,
-              jobId: result.id,
-              data: {
-                nodePath: request.nodeId,
-                extensionId: request.actionId,
-                supersededIds: result.supersededIds,
-              },
-            });
-          }
-        } catch {
-          // best-effort: a fixer submit failure never fails the record.
+      const actions = projectHookActions(runtime.actions);
+      const requests = new Map<string, { actionId: string; nodeId: string }>();
+      const add = (actionId: string, nodeId: string): void => {
+        if (nodeId.length > 0) requests.set(`${actionId}\n${nodeId}`, { actionId, nodeId });
+      };
+      // Per-job branch: a flagged finder chains its fixers even when the
+      // global hook is disabled.
+      if (job.autoFix && job.extensionKind === 'analyzer') {
+        for (const fixerId of resolveMatchingFixerIds(job.extensionId, actions)) {
+          add(fixerId, job.nodeId);
         }
       }
+      // Hook branch: only touches the DB when something subscribes.
+      await this.collectHookQueued(adapter, job, runtime, actions, add);
+      if (requests.size === 0) return;
+      const jobsConfig = loadConfig({ cwd }).effective.jobs;
+      await drainFixerSubmits(adapter, runtime, jobsConfig, cwd, runId, [...requests.values()]);
     } catch {
       // Hooks never block the pipeline (spec §Hook). A failure here leaves
       // the recorded job completed; the auto-fix chain just did not run.
     }
+  }
+
+  /**
+   * Dispatch `job.completed` to the composed (enabled) hooks and feed every
+   * fixer they `ctx.queue` into `add`. A no-op (and no DB read) when nothing
+   * subscribes to `job.completed` (the default: `core/auto-fix` ships
+   * disabled, `core/update-check` is a boot hook). The node rides the
+   * INTERNAL dispatch event (`buildHookContext` lifts it to `ctx.node`); it
+   * is NOT part of the spec ndjson `job.completed` shape.
+   */
+  private async collectHookQueued(
+    adapter: StoragePort,
+    job: Job,
+    runtime: IActionRuntime,
+    actions: IHookActionInfo[],
+    add: (actionId: string, nodeId: string) => void,
+  ): Promise<void> {
+    if (!runtime.hooks.some((hook) => hook.triggers.includes('job.completed'))) return;
+    const bundle = await adapter.scans.findNode(job.nodeId);
+    const dispatcher = makeHookDispatcher(runtime.hooks, silentEmitter(), {
+      // The hook's ctx.queue records the request synchronously; the actual
+      // submit is drained by the caller while `adapter` is still open (a hook
+      // is fire-and-forget void, so the driver owns the async lifecycle).
+      queue: (actionId, payload) => {
+        const nodeId = (payload as { nodeId?: unknown } | undefined)?.nodeId;
+        if (typeof nodeId === 'string') add(actionId, nodeId);
+      },
+      actions,
+    });
+    await dispatcher.dispatch('job.completed', {
+      type: 'job.completed',
+      timestamp: Date.now(),
+      jobId: job.id,
+      data: {
+        extensionId: job.extensionId,
+        extensionKind: job.extensionKind,
+        ...(bundle ? { node: bundle.node } : {}),
+      },
+    });
   }
 
   /**
@@ -622,6 +629,53 @@ function summaryEventData(execution: ExecutionRecord, completed: boolean): Recor
     totalTokensIn: execution.tokensIn ?? 0,
     totalTokensOut: execution.tokensOut ?? 0,
   };
+}
+
+/**
+ * Shared fixer-submit sink for BOTH auto-fix entry points (the per-job
+ * `auto_fix` branch and the opt-in `core/auto-fix` hook): for each
+ * `(fixerId, nodeId)` request submit the fixer through the SAME
+ * `submitFixerJob` path the CLI uses (full render, findings injection,
+ * supersede, drift verification) and, on a real created job, push its
+ * `job.submitted` live hint under this record run's ext-mode runId
+ * (`spec/job-events.md` §job.submitted). The push lives HERE, in the verb,
+ * never in the shared engine, so the BFF submit route does not double-push.
+ * A no-findings / drift / duplicate refusal is swallowed by contract
+ * (nothing to fix is not an error); a hard throw is caught too. Cannot fail
+ * the record.
+ */
+async function drainFixerSubmits(
+  adapter: StoragePort,
+  runtime: IActionRuntime,
+  jobsConfig: IJobsConfig,
+  cwd: string,
+  runId: string,
+  requests: readonly { actionId: string; nodeId: string }[],
+): Promise<void> {
+  for (const request of requests) {
+    try {
+      const result = await submitFixerJob(adapter, runtime, jobsConfig, {
+        extensionId: request.actionId,
+        nodeId: request.nodeId,
+        cwd,
+      });
+      if (result.kind === 'created') {
+        await pushJobEvent(cwd, {
+          type: 'job.submitted',
+          timestamp: Date.now(),
+          runId,
+          jobId: result.id,
+          data: {
+            nodePath: request.nodeId,
+            extensionId: request.actionId,
+            supersededIds: result.supersededIds,
+          },
+        });
+      }
+    } catch {
+      // best-effort: a fixer submit failure never fails the record.
+    }
+  }
 }
 
 /**

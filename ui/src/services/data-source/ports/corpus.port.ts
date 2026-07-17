@@ -186,14 +186,16 @@ export interface ICorpusPort {
 
   /**
    * Per-node probabilistic launcher catalog
-   * (`GET /api/nodes/:pathB64/prob-extensions`, Step 16 piece 1),
-   * classified manifest-mechanically: `finders` always, `fixers` only
-   * with >= 1 matching finding (stale included, `findingCount` on the
-   * entry), `standalone` whenever their precondition matches. Each
-   * entry carries the live queue `state` (`idle` / `queued` /
-   * `running`) for this (node, extension) pair. Returns the unwrapped
-   * `item`; `null` on a 404 (unknown node / missing DB). The static
-   * (demo) data source returns the empty catalog.
+   * (`GET /api/nodes/:pathB64/prob-extensions`, Step 16), classified
+   * manifest-mechanically: `finders` are probabilistic Analyzers
+   * matching the node that HAVE a fixer (each entry carries `fixerIds`
+   * plus `hasOpenFindings`, driving the two-state Detect ⇄ Fix button);
+   * `standalone` are finders WITHOUT a fixer plus probabilistic Actions
+   * with no `analyzerIds` (single-action buttons). Each entry carries the
+   * live queue `state` (`idle` / `queued` / `running`) for this (node,
+   * extension) pair. Returns the unwrapped `item`; `null` on a 404
+   * (unknown node / missing DB). The static (demo) data source returns
+   * the empty catalog.
    */
   getNodeProbExtensions(path: string): Promise<IProbExtensionsApi | null>;
 

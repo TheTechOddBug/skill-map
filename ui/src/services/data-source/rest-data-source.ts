@@ -565,11 +565,12 @@ export class RestDataSource implements IDataSourcePort {
   async submitNodeJob(
     nodePath: string,
     extensionId: string,
+    autoFix = false,
   ): Promise<IJobSubmittedEnvelopeApi> {
     const encoded = encodeNodePath(nodePath);
     return this.patchJson<IJobSubmittedEnvelopeApi>(
       `${BASE}/nodes/${encoded}/jobs`,
-      { extension: extensionId },
+      { extension: extensionId, autoFix },
       'POST',
     );
   }

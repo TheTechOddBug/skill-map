@@ -420,7 +420,6 @@ describe('StaticDataSource', () => {
   it('getNodeProbExtensions() returns the empty launcher catalog for a known node', async () => {
     await expect(ds.getNodeProbExtensions('b.md')).resolves.toEqual({
       finders: [],
-      fixers: [],
       standalone: [],
     });
   });

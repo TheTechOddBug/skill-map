@@ -125,6 +125,33 @@ describe('submitJob', () => {
     }
   });
 
+  it('freezes auto_fix through submit -> state_jobs -> rowToJob (0/1 bridged to boolean)', async () => {
+    const adapter = await openAdapter(freshDbPath('auto-fix-frozen'));
+    try {
+      // Flagged finder submit: auto_fix rides into the row and reads back true.
+      const flaggedId = 'd-20260101-000000-0001';
+      await adapter.jobs.submit(
+        row({ id: flaggedId, extensionKind: 'analyzer', autoFix: true, contentHash: 'a'.repeat(64) }),
+        { contentHash: 'a'.repeat(64), content: 'X', createdAt: Date.now() },
+      );
+      const flagged = await adapter.jobs.get(flaggedId);
+      ok(flagged);
+      strictEqual(flagged.autoFix, true, 'the frozen flag round-trips as a boolean');
+
+      // Omitting autoFix lands the SQL DEFAULT 0 -> false.
+      const defaultId = 'd-20260101-000000-0002';
+      await adapter.jobs.submit(
+        row({ id: defaultId, nodeId: 'b.md', contentHash: 'b'.repeat(64) }),
+        { contentHash: 'b'.repeat(64), content: 'X', createdAt: Date.now() },
+      );
+      const defaulted = await adapter.jobs.get(defaultId);
+      ok(defaulted);
+      strictEqual(defaulted.autoFix, false, 'an omitted flag defaults to false');
+    } finally {
+      await adapter.close();
+    }
+  });
+
   it('refuses a second ACTIVE job for the same (action, node, contentHash) via the unique index', async () => {
     const adapter = await openAdapter(freshDbPath('index-backstop'));
     try {

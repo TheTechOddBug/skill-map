@@ -685,6 +685,13 @@ export interface IJobSubmitRow {
    * on it instead of re-resolving the extension by id.
    */
   extensionKind: JobExtensionKind;
+  /**
+   * Per-job auto-fix opt-in, frozen at submit (`state_jobs.auto_fix`).
+   * Optional like `submittedBy`: the column carries a SQL `DEFAULT 0`, so a
+   * caller that omits it lands `false`. Only ever `true` on a finder submit
+   * flagged `--auto-fix` (`spec/job-lifecycle.md` §Auto-fix chain (per-job)).
+   */
+  autoFix?: boolean;
   nodeId: string;
   contentHash: string;
   nonce: string;

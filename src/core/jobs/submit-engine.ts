@@ -181,6 +181,19 @@ export function fixerAnalyzerIds(
   return ids !== undefined && ids.length > 0 ? ids : undefined;
 }
 
+/**
+ * Resolve the frozen `auto_fix` value: the operator's opt-in, CLAMPED to a
+ * finder (`analyzer`) target. An Action job never chains, so it must not
+ * persist a meaningless flag (`--auto-fix` / body `autoFix` is ignored on a
+ * non-finder target, `spec/job-lifecycle.md` §Auto-fix chain (per-job)).
+ */
+export function resolveAutoFixFlag(
+  extensionKind: JobExtensionKind,
+  requested: boolean | undefined,
+): boolean {
+  return extensionKind === 'analyzer' && requested === true;
+}
+
 /** Detect a SQLite UNIQUE-constraint failure (the partial-index backstop). */
 export function isUniqueConstraintError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
@@ -221,6 +234,15 @@ export interface ISubmitContext {
    * like the version so `sm record` routes without re-resolving.
    */
   extensionKind: JobExtensionKind;
+  /**
+   * Per-job auto-fix opt-in, frozen onto `state_jobs.auto_fix`. Set from the
+   * submit surface (`sm jobs submit <finder> --auto-fix`, the BFF body
+   * `autoFix`); CLAMPED to `false` for a non-finder target (an Action job
+   * never chains), so the persisted flag is honest. When `true`, `sm record`
+   * chains the finder's fixers on completion (`spec/job-lifecycle.md`
+   * §Auto-fix chain (per-job)).
+   */
+  autoFix: boolean;
   promptTemplate: string;
   preamble: string;
   /**
@@ -315,6 +337,7 @@ async function insertJobRow(
     extensionId: prepared.extensionId,
     extensionVersion: prepared.extensionVersion,
     extensionKind: prepared.extensionKind,
+    autoFix: prepared.autoFix,
     nodeId: node.path,
     contentHash,
     nonce: generateNonce(),
@@ -365,6 +388,7 @@ async function insertFixerJobRow(
     extensionId: prepared.extensionId,
     extensionVersion: prepared.extensionVersion,
     extensionKind: prepared.extensionKind,
+    autoFix: prepared.autoFix,
     nodeId: node.path,
     contentHash,
     nonce: generateNonce(),
@@ -490,6 +514,13 @@ export function prepareSubmitContext(opts: {
   force: boolean;
   flagTtl: number | undefined;
   flagPriority: number | undefined;
+  /**
+   * Per-job auto-fix opt-in (`sm jobs submit <finder> --auto-fix`, the BFF
+   * body `autoFix`). Default off; CLAMPED to `false` below for a non-finder
+   * (Action) target so an Action job never freezes a meaningless flag
+   * (`spec/job-lifecycle.md` §Auto-fix chain (per-job)).
+   */
+  autoFix?: boolean;
 }): TPrepareOutcome {
   const target = resolveQueueTarget(opts.runtime, opts.extensionId);
   if (!target.ok) return target;
@@ -518,6 +549,7 @@ export function prepareSubmitContext(opts: {
     extensionId: qualified,
     extensionVersion: extension.version,
     extensionKind,
+    autoFix: resolveAutoFixFlag(extensionKind, opts.autoFix),
     promptTemplate: promptTemplate.text,
     preamble,
     reportContract: reportContract.text,

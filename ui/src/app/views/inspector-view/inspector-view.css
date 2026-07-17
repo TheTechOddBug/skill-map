@@ -695,6 +695,20 @@
   gap: 0.45rem;
 }
 
+/* Automatic toggle row: sits above the finder buttons, switch + label
+   on one baseline-aligned line. */
+.inspector__judgments-autofix {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.inspector__judgments-autofix-label {
+  font-size: 0.8rem;
+  color: var(--p-text-color);
+  cursor: pointer;
+}
+
 .inspector__judgments-group {
   display: flex;
   align-items: baseline;

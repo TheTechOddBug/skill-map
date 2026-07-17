@@ -466,6 +466,13 @@ export interface IStateJobsTable {
   extensionId: string;
   extensionVersion: string;
   extensionKind: TJobExtensionKind;
+  /**
+   * Per-job auto-fix opt-in frozen at submit (`auto_fix`, DEFAULT 0). SQLite
+   * INTEGER (0 / 1) bridging to `Job.autoFix`; `sm record` chains the
+   * finder's fixers on completion when set (`spec/job-lifecycle.md`
+   * §Auto-fix chain (per-job)).
+   */
+  autoFix: Generated<number>;
   nodeId: string;
   contentHash: string;
   nonce: string;

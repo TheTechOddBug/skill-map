@@ -17,6 +17,8 @@
  *     changed finding set SUPERSEDES the stale queued sibling
  *     (`value.supersededIds`).
  *   - 409 `node-drifted` after an edit-after-scan.
+ *   - `autoFix: true` on a finder submit freezes `state_jobs.auto_fix`;
+ *     omitted defaults false; a non-boolean `autoFix` is a 400 bad body.
  *   - 404 unknown extension / unknown node / malformed pathB64 /
  *     missing DB; 400 deterministic extension, virtual node, bad body.
  */
@@ -228,6 +230,32 @@ describe('POST /api/nodes/:pathB64/jobs', () => {
     });
   });
 
+  it('autoFix: true on a finder freezes state_jobs.auto_fix', async () => {
+    await bootAndUse(project, async (handle) => {
+      const res = await postJob(handle, SKILL_NODE.path, { extension: FINDER_ID, autoFix: true });
+      assert.equal(res.status, 200);
+      const env = (await res.json()) as IJobSubmittedEnvelope;
+      assert.equal(env.value.extensionId, FINDER_ID);
+    });
+    await withProjectDb(project, async (adapter) => {
+      const [job] = await adapter.jobs.list({ extensionId: FINDER_ID });
+      assert.ok(job, 'the finder job was enqueued');
+      assert.equal(job.autoFix, true, 'the per-job auto-fix flag is frozen on the row');
+    });
+  });
+
+  it('autoFix defaults false when the body omits it', async () => {
+    await bootAndUse(project, async (handle) => {
+      const res = await postJob(handle, SKILL_NODE.path, { extension: FINDER_ID });
+      assert.equal(res.status, 200);
+    });
+    await withProjectDb(project, async (adapter) => {
+      const [job] = await adapter.jobs.list({ extensionId: FINDER_ID });
+      assert.ok(job);
+      assert.equal(job.autoFix, false, 'omitted autoFix is off');
+    });
+  });
+
   it('409 node-drifted after an edit-after-scan', async () => {
     appendFileSync(join(project.root, SKILL_NODE.path), 'drifted\n');
     await bootAndUse(project, async (handle) => {
@@ -281,6 +309,11 @@ describe('POST /api/nodes/:pathB64/jobs', () => {
         force: true,
       });
       assert.equal(unknownKey.status, 400);
+      const badAutoFix = await postJob(handle, SKILL_NODE.path, {
+        extension: FINDER_ID,
+        autoFix: 'yes',
+      });
+      assert.equal(badAutoFix.status, 400);
     });
   });
 

@@ -94,8 +94,20 @@ export interface IJudgmentsHandle {
   isSubmitting(extensionId: string): boolean;
   /** True while this extension's stop flow is in flight. */
   isCancelling(extensionId: string): boolean;
-  /** Enqueue `extensionId` against the inspected node. */
-  submit(extensionId: string): Promise<void>;
+  /**
+   * Enqueue `extensionId` against the inspected node, optimistically
+   * flipping its button to `queued`. `autoFix` (default `false`) rides
+   * the submit body so a finder can freeze the kernel's auto-fix chain.
+   */
+  submit(extensionId: string, autoFix?: boolean): Promise<void>;
+  /**
+   * Fix state of a two-state finder button: submit each of the finder's
+   * `fixerIds` (autoFix `false`), keyed to the FINDER's button so it
+   * shows the in-flight busy state. No optimistic `queued` flip: the
+   * finder itself is not queued, only its fixers are, and the button
+   * morphs back to Detect once the fixer resolves the open findings.
+   */
+  submitFixers(finderId: string, fixerIds: readonly string[]): Promise<void>;
   /** Cancel the entry's active job (the stop companion). */
   stop(entry: IProbExtensionEntryApi): Promise<void>;
   dismissError(): void;
@@ -167,7 +179,7 @@ export function setupJudgments(deps: IJudgmentsSetupDeps): IJudgmentsHandle {
     if (queued.size === 0 && idle.size === 0) return;
     const idleIds = new Set<string>();
     const activeIds = new Set<string>();
-    for (const entry of [...probs.finders, ...probs.fixers, ...probs.standalone]) {
+    for (const entry of [...probs.finders, ...probs.standalone]) {
       if (entry.state === 'idle') idleIds.add(entry.id);
       else activeIds.add(entry.id);
     }
@@ -241,18 +253,26 @@ export function setupJudgments(deps: IJudgmentsSetupDeps): IJudgmentsHandle {
     if (findings().length > 0) return true;
     const probs = probExtensions();
     if (probs === null) return false;
-    return (
-      probs.finders.length > 0 || probs.fixers.length > 0 || probs.standalone.length > 0
-    );
+    return probs.finders.length > 0 || probs.standalone.length > 0;
   });
 
-  async function submit(extensionId: string): Promise<void> {
+  /** Record a submit failure in the error strip (non-`DataSourceError` too). */
+  function recordSubmitError(err: unknown): void {
+    if (err instanceof DataSourceError) {
+      error.set({ code: err.code, message: err.message });
+    } else {
+      const message = err instanceof Error ? err.message : String(err);
+      error.set({ code: 'internal', message });
+    }
+  }
+
+  async function submit(extensionId: string, autoFix = false): Promise<void> {
     const path = deps.node()?.path;
     if (!path || submitting().has(extensionId)) return;
     error.set(null);
     submitting.update((s) => new Set(s).add(extensionId));
     try {
-      await deps.dataSource.submitNodeJob(path, extensionId);
+      await deps.dataSource.submitNodeJob(path, extensionId, autoFix);
       // Optimistic flip; the job.submitted WS broadcast (and the
       // debounced re-fetch it triggers) confirms server-side.
       flipToQueued(extensionId);
@@ -261,16 +281,46 @@ export function setupJudgments(deps: IJudgmentsSetupDeps): IJudgmentsHandle {
         // An identical active job already exists: the button's real
         // state IS queued, not an error worth banner-ing.
         flipToQueued(extensionId);
-      } else if (err instanceof DataSourceError) {
-        error.set({ code: err.code, message: err.message });
       } else {
-        const message = err instanceof Error ? err.message : String(err);
-        error.set({ code: 'internal', message });
+        recordSubmitError(err);
       }
     } finally {
       submitting.update((s) => {
         const next = new Set(s);
         next.delete(extensionId);
+        return next;
+      });
+    }
+  }
+
+  async function submitFixers(
+    finderId: string,
+    fixerIds: readonly string[],
+  ): Promise<void> {
+    const path = deps.node()?.path;
+    if (!path || fixerIds.length === 0 || submitting().has(finderId)) return;
+    error.set(null);
+    // Key the busy state on the FINDER's button (the fixer entries are
+    // not rendered), so the two-state button shows a spinner + disables
+    // during the round-trip. No `queued` flip: the finder is not queued.
+    submitting.update((s) => new Set(s).add(finderId));
+    try {
+      for (const fixerId of fixerIds) {
+        try {
+          await deps.dataSource.submitNodeJob(path, fixerId, false);
+        } catch (err) {
+          // A duplicate fixer job is already active (e.g. a double-click
+          // or the global auto-fix hook beat us): harmless, keep chaining.
+          if (err instanceof DataSourceError && err.code === 'duplicate-job') continue;
+          throw err;
+        }
+      }
+    } catch (err) {
+      recordSubmitError(err);
+    } finally {
+      submitting.update((s) => {
+        const next = new Set(s);
+        next.delete(finderId);
         return next;
       });
     }
@@ -340,6 +390,7 @@ export function setupJudgments(deps: IJudgmentsSetupDeps): IJudgmentsHandle {
     isSubmitting: (extensionId) => submitting().has(extensionId),
     isCancelling: (extensionId) => cancelling().has(extensionId),
     submit,
+    submitFixers,
     stop,
     dismissError: () => error.set(null),
   };

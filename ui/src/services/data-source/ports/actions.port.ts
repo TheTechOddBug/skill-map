@@ -119,8 +119,17 @@ export interface IActionsPort {
    * The success path does NOT patch local state beyond the optimistic
    * `queued` flip; the `job.submitted` WS broadcast confirms for every
    * connected client. Demo mode rejects with `'demo-readonly'`.
+   *
+   * `autoFix` (default `false`) rides the POST body as `autoFix`: on a
+   * finder submit it freezes `state_jobs.auto_fix` so the record path
+   * chains the finder's fixers on completion (the inspector's automatic
+   * toggle sends it). Ignored by the kernel on a non-finder target.
    */
-  submitNodeJob(nodePath: string, extensionId: string): Promise<IJobSubmittedEnvelopeApi>;
+  submitNodeJob(
+    nodePath: string,
+    extensionId: string,
+    autoFix?: boolean,
+  ): Promise<IJobSubmittedEnvelopeApi>;
 
   /**
    * `POST /api/jobs/:jobId/cancel` (Step 16, launcher stop), cancel an

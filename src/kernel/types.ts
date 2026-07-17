@@ -656,6 +656,14 @@ export interface Job {
   extensionVersion: string;
   /** Kind frozen at submit; the record path routes on it. */
   extensionKind: JobExtensionKind;
+  /**
+   * Per-job auto-fix opt-in, frozen at submit like `extensionKind`
+   * (`job.schema.json#/properties/autoFix`). When `true` on a finder job
+   * (`extensionKind = 'analyzer'`), `sm record` chains the finder's fixers
+   * on completion (`spec/job-lifecycle.md` §Auto-fix chain (per-job)).
+   * `false` for Action jobs and by default. Persisted as 0/1 in SQLite.
+   */
+  autoFix: boolean;
   /** Target `node.path`. */
   nodeId: string;
   contentHash: string;

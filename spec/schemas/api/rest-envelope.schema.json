@@ -607,7 +607,7 @@
       }
     },
     {
-      "description": "Probabilistic-launcher envelope served by `GET /api/nodes/:pathB64/prob-extensions` (Step 16 piece 1). Rides the single shape (`item` + the three registries, no `counts` / `filters`); the `item` is the node's launcher catalog, classified manifest-mechanically per ROADMAP §Step 16: `finders` (probabilistic Analyzers whose precondition matches the node, always listed), `fixers` (probabilistic Actions declaring `precondition.analyzerIds`, listed ONLY when the node has ≥ 1 matching finding, stale included, so each entry REQUIRES `findingCount`), `standalone` (probabilistic Actions without `analyzerIds`, listed whenever their precondition matches). Entry shape in `#/$defs/ProbExtensionEntry`.",
+      "description": "Probabilistic-launcher envelope served by `GET /api/nodes/:pathB64/prob-extensions` (Step 16). Rides the single shape (`item` + the three registries, no `counts` / `filters`); the `item` is the node's launcher catalog for the inspector's two-state finder buttons (ROADMAP §Step 16): `finders` (probabilistic Analyzers whose precondition matches the node AND that have at least one matching fixer, i.e. `fixerIds` non-empty; the UI renders each as a single button that morphs Detect ⇄ Fix by `hasOpenFindings`, or Detect+Fix when the automatic toggle is on), `standalone` (probabilistic Analyzers matching the node with NO fixer, PLUS probabilistic Actions without `analyzerIds`; single-action buttons, `fixerIds` empty). The former per-finder-fixer split and the `fixers` bucket are retired: a fixer is now the second state of its finder's button, never a standalone launcher. Entry shape in `#/$defs/ProbExtensionEntry`.",
       "required": [
         "item",
         "kindRegistry",
@@ -621,7 +621,6 @@
         "item": {
           "required": [
             "finders",
-            "fixers",
             "standalone"
           ],
           "additionalProperties": false,
@@ -629,44 +628,13 @@
             "finders": {
               "type": "array",
               "items": {
-                "allOf": [
-                  {
-                    "$ref": "#/$defs/ProbExtensionEntry"
-                  }
-                ],
-                "not": {
-                  "required": [
-                    "findingCount"
-                  ]
-                }
-              }
-            },
-            "fixers": {
-              "type": "array",
-              "items": {
-                "allOf": [
-                  {
-                    "$ref": "#/$defs/ProbExtensionEntry"
-                  }
-                ],
-                "required": [
-                  "findingCount"
-                ]
+                "$ref": "#/$defs/ProbExtensionEntry"
               }
             },
             "standalone": {
               "type": "array",
               "items": {
-                "allOf": [
-                  {
-                    "$ref": "#/$defs/ProbExtensionEntry"
-                  }
-                ],
-                "not": {
-                  "required": [
-                    "findingCount"
-                  ]
-                }
+                "$ref": "#/$defs/ProbExtensionEntry"
               }
             }
           }
@@ -1038,10 +1006,12 @@
         "description",
         "state",
         "lastJudged",
-        "jobId"
+        "jobId",
+        "fixerIds",
+        "hasOpenFindings"
       ],
       "additionalProperties": false,
-      "description": "One launcher entry of the `node.prob-extensions` catalog. `state` is the live queue state for this (node, extension) pair, read from `state_jobs` (`queued` / `running` when an active job exists, else `idle`); `lastJudged` is the latest recorded execution for the pair (`null` when the extension never judged this node). `findingCount` is present ONLY on fixer entries (the matching-findings tally that made the fixer visible, stale included).",
+      "description": "One launcher entry of the `node.prob-extensions` catalog (the inspector's two-state finder buttons). `state` is the live queue state for this (node, extension) pair from `state_jobs` (`queued` / `running` when an active job exists, else `idle`); `lastJudged` is the latest recorded execution for the pair (`null` when never judged). `fixerIds` is the finder's matching fixers (empty for standalone entries and for finders with none); `hasOpenFindings` drives the Detect ⇄ Fix morph. See the launcher-envelope variant for the `finders` / `standalone` classification.",
       "properties": {
         "id": {
           "type": "string",
@@ -1089,10 +1059,14 @@
             }
           ]
         },
-        "findingCount": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Fixer entries only: how many findings of the fixer's `precondition.analyzerIds` lane the node currently carries (stale included). A fixer with zero matching findings is not listed at all, mirroring the kernel's no-findings submit refusal."
+        "fixerIds": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Qualified ids of the fixer Actions whose `precondition.analyzerIds` name this finder (the inverse Modelo B lookup). Non-empty ONLY on `finders`-bucket entries; empty for standalone entries (finders with no fixer, and Actions without `analyzerIds`). In manual mode the button's Fix state submits each of these; in automatic mode the finder is submitted with `autoFix: true` and the kernel chains them."
+        },
+        "hasOpenFindings": {
+          "type": "boolean",
+          "description": "True when the node currently carries at least one UNRESOLVED (not `fixed`), non-stale finding emitted by THIS finder's extension id. Drives the two-state button: `false` → Detect state (submit the finder), `true` → Fix state (submit the fixerIds). Always `false` for standalone entries."
         },
         "jobId": {
           "type": [

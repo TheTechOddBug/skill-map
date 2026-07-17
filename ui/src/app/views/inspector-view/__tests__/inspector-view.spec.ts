@@ -159,7 +159,6 @@ function makeStubDataSource(): IStubDataSource {
     }),
     getNodeProbExtensions: vi.fn().mockResolvedValue({
       finders: [],
-      fixers: [],
       standalone: [],
     }),
     submitNodeJob: vi.fn().mockResolvedValue({
@@ -1932,12 +1931,17 @@ function makeProbEntry(overrides: Partial<IProbExtensionEntryApi> = {}): IProbEx
     // an explicit id (the stop/restart companions hang off it).
     jobId: null,
     lastJudged: null,
+    // Two-state defaults: no fixer, no open findings (the Detect-only
+    // shape). Finder-with-fixer fixtures pass an explicit `fixerIds`;
+    // the Fix state fixtures additionally pass `hasOpenFindings: true`.
+    fixerIds: [],
+    hasOpenFindings: false,
     ...overrides,
   };
 }
 
 function makeProbExtensions(overrides: Partial<IProbExtensionsApi> = {}): IProbExtensionsApi {
-  return { finders: [], fixers: [], standalone: [], ...overrides };
+  return { finders: [], standalone: [], ...overrides };
 }
 
 describe('InspectorView, judgments card (Step 16 piece 1)', () => {
@@ -1979,49 +1983,97 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
     ).toBeNull();
   });
 
-  it('renders the launcher groups with the empty tray when finders exist but no findings', async () => {
+  it('renders the finders + standalone groups (no fixers group) with two-state labels', async () => {
     const { fixture } = await bootJudgments({
       probs: makeProbExtensions({
-        finders: [makeProbEntry()],
+        finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'] })],
         standalone: [makeProbEntry({ id: 'core/summarizer', description: 'Summarizes the node.' })],
       }),
     });
     const dom: HTMLElement = fixture.nativeElement;
     expect(dom.querySelector('[data-testid="inspector-card-judgments"]')).not.toBeNull();
-    // Finders + standalone groups render; the fixer group (empty) does not.
+    // Finders + standalone groups render; the retired fixers group never does.
     expect(dom.querySelector('[data-testid="inspector-judgments-group-finders"]')).not.toBeNull();
     expect(
       dom.querySelector('[data-testid="inspector-judgments-group-standalone"]'),
     ).not.toBeNull();
     expect(dom.querySelector('[data-testid="inspector-judgments-group-fixers"]')).toBeNull();
-    // Button label is the short extension id (the segment after the slash).
-    const btn = dom.querySelector('[data-testid="inspector-judgment-launch-core/todo-finder"]');
-    expect(btn).not.toBeNull();
-    expect(btn!.textContent).toContain('todo-finder');
-    expect(btn!.textContent).not.toContain('core/');
+    // The button LABEL is always the kind (short name); the Detect/Fix
+    // state rides `data-action` + the icon, not the label (user call
+    // 2026-07-18).
+    const finder = dom.querySelector('[data-testid="inspector-judgment-launch-core/todo-finder"]');
+    expect(finder).not.toBeNull();
+    expect(finder!.textContent).toContain('todo-finder');
+    expect(finder!.textContent).not.toContain('Detect');
+    expect(finder!.getAttribute('data-action')).toBe('detect');
+    // Standalone button shows the short extension name (segment after the slash).
+    const standalone = dom.querySelector(
+      '[data-testid="inspector-judgment-launch-core/summarizer"]',
+    );
+    expect(standalone).not.toBeNull();
+    expect(standalone!.textContent).toContain('summarizer');
+    expect(standalone!.textContent).not.toContain('core/');
+    expect(standalone!.getAttribute('data-action')).toBe('run');
     // No fresh findings: no list and no filler either, the launchers
     // stand alone (empty-state removed per user call 2026-07-17).
     expect(dom.querySelector('[data-testid="inspector-judgments-empty"]')).toBeNull();
     expect(dom.querySelector('[data-testid="inspector-judgments-list"]')).toBeNull();
   });
 
-  it('shows the fixer button with its matching-findings count', async () => {
-    const { fixture } = await bootJudgments({
+  it('morphs a finder-with-fixer button Detect => Fix by hasOpenFindings', async () => {
+    // Detect state (no open findings): the button submits the FINDER.
+    const detect = await bootJudgments({
       probs: makeProbExtensions({
-        fixers: [
+        finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'], hasOpenFindings: false })],
+      }),
+    });
+    const detectBtn = detect.fixture.nativeElement.querySelector(
+      '[data-testid="inspector-judgment-launch-core/todo-finder"]',
+    ) as HTMLElement;
+    expect(detectBtn.textContent).toContain('todo-finder');
+    expect(detectBtn.getAttribute('data-action')).toBe('detect');
+    (detectBtn.querySelector('button') as HTMLButtonElement).click();
+    await flush(detect.fixture);
+    expect(detect.dataSource.submitNodeJob).toHaveBeenCalledWith(
+      detect.node.path,
+      'core/todo-finder',
+      false,
+    );
+
+    // Fix state (open findings): the SAME button submits the fixer(s).
+    const fix = await bootJudgments({
+      probs: makeProbExtensions({
+        finders: [
           makeProbEntry({
-            id: 'core/todo-fixer',
-            description: 'Fixes abandoned TODOs.',
-            findingCount: 3,
+            fixerIds: ['core/todo-fixer', 'core/todo-fixer-2'],
+            hasOpenFindings: true,
           }),
         ],
       }),
     });
-    const btn = fixture.nativeElement.querySelector(
-      '[data-testid="inspector-judgment-launch-core/todo-fixer"]',
+    const fixBtn = fix.fixture.nativeElement.querySelector(
+      '[data-testid="inspector-judgment-launch-core/todo-finder"]',
+    ) as HTMLElement;
+    expect(fixBtn.textContent).toContain('todo-finder');
+    expect(fixBtn.getAttribute('data-action')).toBe('fix');
+    (fixBtn.querySelector('button') as HTMLButtonElement).click();
+    await flush(fix.fixture);
+    // Chains all fixers, autoFix false, and never submits the finder itself.
+    expect(fix.dataSource.submitNodeJob).toHaveBeenCalledWith(
+      fix.node.path,
+      'core/todo-fixer',
+      false,
     );
-    expect(btn).not.toBeNull();
-    expect(btn!.textContent).toContain('todo-fixer (3)');
+    expect(fix.dataSource.submitNodeJob).toHaveBeenCalledWith(
+      fix.node.path,
+      'core/todo-fixer-2',
+      false,
+    );
+    expect(fix.dataSource.submitNodeJob).not.toHaveBeenCalledWith(
+      fix.node.path,
+      'core/todo-finder',
+      expect.anything(),
+    );
   });
 
   it('renders finding rows with severity, type, message, provenance, and the dimmed id', async () => {
@@ -2082,7 +2134,7 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
     (host.querySelector('button') as HTMLButtonElement).click();
     await flush(fixture);
 
-    expect(dataSource.submitNodeJob).toHaveBeenCalledWith(node.path, 'core/todo-finder');
+    expect(dataSource.submitNodeJob).toHaveBeenCalledWith(node.path, 'core/todo-finder', false);
     expect(host.getAttribute('data-state')).toBe('queued');
     expect((host.querySelector('button') as HTMLButtonElement).disabled).toBe(true);
     expect(
@@ -2367,5 +2419,113 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
     await flush(fixture);
     // Settled: the optimistic idle flip retires the companion entirely.
     expect(dom.querySelector('[data-testid="inspector-judgment-stop-core/todo-finder"]')).toBeNull();
+  });
+
+  // -------------------------------------------------------------------
+  // Two-state finder button + automatic toggle (Step 16)
+  // -------------------------------------------------------------------
+
+  it('renders a finder-without-fixer and a standalone action as single-action buttons', async () => {
+    // Both land in the `standalone` bucket (label = short name); clicking
+    // either submits its own extension with autoFix false.
+    const { fixture, dataSource, node } = await bootJudgments({
+      probs: makeProbExtensions({
+        standalone: [
+          makeProbEntry({ id: 'core/orphan-finder', description: 'A finder with no fixer.' }),
+          makeProbEntry({ id: 'core/summarizer', description: 'Summarizes the node.' }),
+        ],
+      }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    const summarizer = dom.querySelector(
+      '[data-testid="inspector-judgment-launch-core/summarizer"]',
+    ) as HTMLElement;
+    expect(summarizer.textContent).toContain('summarizer');
+    expect(summarizer.getAttribute('data-action')).toBe('run');
+    (summarizer.querySelector('button') as HTMLButtonElement).click();
+    await flush(fixture);
+    expect(dataSource.submitNodeJob).toHaveBeenCalledWith(node.path, 'core/summarizer', false);
+  });
+
+  it('shows the automatic toggle only when a finder-with-fixer button exists', async () => {
+    const standaloneOnly = await bootJudgments({
+      probs: makeProbExtensions({
+        standalone: [makeProbEntry({ id: 'core/summarizer', description: 'Summarizes.' })],
+      }),
+    });
+    expect(
+      standaloneOnly.fixture.nativeElement.querySelector(
+        '[data-testid="inspector-auto-fix-toggle"]',
+      ),
+    ).toBeNull();
+
+    const withFinder = await bootJudgments({
+      probs: makeProbExtensions({ finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'] })] }),
+    });
+    expect(
+      withFinder.fixture.nativeElement.querySelector('[data-testid="inspector-auto-fix-toggle"]'),
+    ).not.toBeNull();
+  });
+
+  it('with the automatic toggle ON, one click submits the finder with autoFix true', async () => {
+    // The persisted preference is read at init.
+    localStorage.setItem('skill-map.ui.inspector.autoFix', 'true');
+    const { fixture, dataSource, node } = await bootJudgments({
+      probs: makeProbExtensions({
+        finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'], hasOpenFindings: true })],
+      }),
+    });
+    const btn = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-judgment-launch-core/todo-finder"]',
+    ) as HTMLElement;
+    // Automatic overrides the Detect/Fix morph: data-action becomes
+    // detectAndFix (the label stays the kind).
+    expect(btn.textContent).toContain('todo-finder');
+    expect(btn.getAttribute('data-action')).toBe('detectAndFix');
+    (btn.querySelector('button') as HTMLButtonElement).click();
+    await flush(fixture);
+    // Submits the FINDER (not the fixer) with the autoFix flag; the kernel chains.
+    expect(dataSource.submitNodeJob).toHaveBeenCalledWith(node.path, 'core/todo-finder', true);
+    expect(dataSource.submitNodeJob).not.toHaveBeenCalledWith(
+      node.path,
+      'core/todo-fixer',
+      expect.anything(),
+    );
+  });
+
+  it('persists the automatic toggle to localStorage (round-trip) and defaults / parses defensively', async () => {
+    const KEY = 'skill-map.ui.inspector.autoFix';
+    interface IAutoFixProto {
+      autoFixEnabled(): boolean;
+      onAutoFixToggle(v: boolean): void;
+    }
+
+    // Default OFF when unset.
+    const fresh = await bootJudgments({
+      probs: makeProbExtensions({ finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'] })] }),
+    });
+    const proto = fresh.fixture.componentInstance as unknown as IAutoFixProto;
+    expect(proto.autoFixEnabled()).toBe(false);
+
+    // Round-trip: a change writes 'true' / 'false' back to storage.
+    proto.onAutoFixToggle(true);
+    await flush(fresh.fixture);
+    expect(localStorage.getItem(KEY)).toBe('true');
+    proto.onAutoFixToggle(false);
+    await flush(fresh.fixture);
+    expect(localStorage.getItem(KEY)).toBe('false');
+
+    // A bogus stored value resolves to false (only the literal 'true' is on).
+    localStorage.setItem(KEY, 'yes-please');
+    const bogus = await bootJudgments({
+      probs: makeProbExtensions({ finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'] })] }),
+    });
+    expect(
+      (bogus.fixture.componentInstance as unknown as IAutoFixProto).autoFixEnabled(),
+    ).toBe(false);
+    const btn = bogus.fixture.nativeElement.querySelector(
+      '[data-testid="inspector-judgment-launch-core/todo-finder"]',
+    ) as HTMLElement;
+    expect(btn.getAttribute('data-action')).toBe('detect');
   });
 });

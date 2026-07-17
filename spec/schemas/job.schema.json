@@ -43,6 +43,11 @@
       "description": "Higher = claimed first. Default 0.",
       "default": 0
     },
+    "autoFix": {
+      "type": "boolean",
+      "description": "Per-job auto-fix opt-in, frozen at submit like `extensionKind`. When `true` on a finder job (`extensionKind = analyzer`), `sm record` chains the finder's fixers on completion: it resolves the Actions whose `precondition.analyzerIds` name this finder and submits each (see `job-lifecycle.md` §Auto-fix chain). Independent of the global `core/auto-fix` hook (they coexist; a double submit is a harmless supersede/duplicate). Ignored for Action jobs and when the finder recorded no findings. Default `false`.",
+      "default": false
+    },
     "status": {
       "type": "string",
       "enum": ["queued", "running", "completed", "failed", "cancelled"],

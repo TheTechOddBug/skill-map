@@ -1,25 +1,32 @@
 /**
- * `GET /api/nodes/:pathB64/prob-extensions` integration tests
- * (Step 16 piece 1).
+ * `GET /api/nodes/:pathB64/prob-extensions` integration tests (Step 16).
  *
- * Exercises the manifest-mechanical classification against the fixture
- * plugins (`prob-finder` = probabilistic Analyzer with a `claude/skill`
- * precondition, `prob-fixer` = probabilistic Action declaring
- * `precondition.analyzerIds`, `prob-summarizer` = probabilistic Action
- * without `analyzerIds`):
+ * Exercises the manifest-mechanical classification into the two-bucket
+ * `{ finders, standalone }` catalog against the fixture plugins
+ * (`prob-finder/quality-check` = probabilistic Analyzer with a
+ * `claude/skill` precondition, `prob-fixer/apply-fix` = probabilistic
+ * Action declaring `precondition.analyzerIds: ['prob-finder/quality-check']`,
+ * `prob-summarizer/skill-echo` = probabilistic Action without
+ * `analyzerIds`). The built-in probabilistic quality analyzers + their
+ * fixers ship experimental (disabled), so the composed set is exactly the
+ * trusted drop-ins plus the enabled `core/markdown-summarizer`.
  *
- *   - finder + standalone always listed on a matching node; the finder
- *     is NOT listed on a node its precondition rejects.
- *   - the FIXER is listed ONLY once the node carries >= 1 matching
- *     finding (STALE included), with the tally on `findingCount`.
- *   - `state` reflects the live `state_jobs` row for the pair
- *     (`queued` after a submit, `idle` otherwise); `jobId` carries the
- *     ACTIVE row's id (the cancel handle), `null` when idle.
- *   - `lastJudged` carries `{ at, model }` of the latest COMPLETED
- *     execution, `null` when the pair was never judged.
- *   - a VIRTUAL node answers 200 with three empty arrays.
- *   - the 200 envelope validates against `rest-envelope.schema.json`
- *     (`kind: 'node.prob-extensions'` single variant).
+ *   - a finder WITH a matching fixer lands in `finders`, carrying
+ *     `fixerIds` (the inverse Modelo-B lookup) and `hasOpenFindings`
+ *     (the Detect <-> Fix morph driver).
+ *   - a probabilistic Action WITHOUT `analyzerIds` lands in `standalone`
+ *     with an empty `fixerIds` and `hasOpenFindings: false`.
+ *   - a FIXER Action (WITH `analyzerIds`) is NOT listed in any bucket:
+ *     it is the second state of its finder's button, not a launcher.
+ *   - a finder whose only fixer is NOT composed (untrusted) falls to
+ *     `standalone` with empty `fixerIds`.
+ *   - `hasOpenFindings` tracks the finder lane: an open non-stale finding
+ *     of the finder's own id flips it true; a `fixed` or stale finding
+ *     leaves it false.
+ *   - `state` / `jobId` reflect the live `state_jobs` row; `lastJudged`
+ *     the latest COMPLETED execution.
+ *   - a VIRTUAL node answers 200 with two empty arrays.
+ *   - the 200 envelope validates against `rest-envelope.schema.json`.
  *   - malformed `pathB64` / unknown node -> 404.
  */
 
@@ -92,26 +99,32 @@ function byId(entries: readonly IProbExtensionEntry[], id: string): IProbExtensi
 }
 
 describe('GET /api/nodes/:pathB64/prob-extensions', () => {
-  it('classifies finder + standalone on a matching node; fixer hidden without findings', async () => {
+  it('finder-with-fixer -> finders (carrying fixerIds); summarizer -> standalone', async () => {
     await bootAndUse(project, async (handle) => {
       const env = await fetchCatalog(handle, SKILL_NODE.path);
       assert.equal(env.kind, 'node.prob-extensions');
 
       const finder = byId(env.item.finders, FINDER_ID);
-      assert.ok(finder, 'prob-finder/quality-check listed as finder');
+      assert.ok(finder, 'prob-finder/quality-check listed as a finder (it has a fixer)');
       assert.equal(finder.state, 'idle');
       assert.equal(finder.jobId, null, 'idle pair exposes no cancel handle');
       assert.equal(finder.lastJudged, null);
-      assert.equal('findingCount' in finder, false);
+      assert.deepEqual(finder.fixerIds, [FIXER_ID], 'its inverse Modelo-B fixer');
+      assert.equal(finder.hasOpenFindings, false, 'no findings seeded yet');
       assert.ok(finder.description.length > 0);
 
       const standalone = byId(env.item.standalone, SUMMARIZER_ID);
       assert.ok(standalone, 'prob-summarizer/skill-echo listed as standalone');
-      assert.equal('findingCount' in standalone, false);
+      assert.deepEqual(standalone.fixerIds, [], 'a standalone Action has no fixer');
+      assert.equal(standalone.hasOpenFindings, false, 'standalone entries are never in Fix state');
+    });
+  });
 
-      // No findings seeded yet: the fixer launcher stays hidden,
-      // mirroring the kernel's no-findings submit refusal.
-      assert.equal(byId(env.item.fixers, FIXER_ID), undefined);
+  it('a fixer Action is listed in NO bucket (it is the finder button second state)', async () => {
+    await bootAndUse(project, async (handle) => {
+      const env = await fetchCatalog(handle, SKILL_NODE.path);
+      assert.equal(byId(env.item.finders, FIXER_ID), undefined);
+      assert.equal(byId(env.item.standalone, FIXER_ID), undefined);
     });
   });
 
@@ -119,27 +132,67 @@ describe('GET /api/nodes/:pathB64/prob-extensions', () => {
     await bootAndUse(project, async (handle) => {
       const env = await fetchCatalog(handle, NOTE_NODE.path);
       assert.equal(byId(env.item.finders, FINDER_ID), undefined);
+      assert.equal(byId(env.item.standalone, FINDER_ID), undefined);
       // The summarizer's `claude/skill` precondition rejects it too.
       assert.equal(byId(env.item.standalone, SUMMARIZER_ID), undefined);
     });
   });
 
-  it('fixer appears with STALE-only findings, findingCount carries the tally', async () => {
-    await seedFindings(project, SKILL_NODE.path, FINDER_ID, [
-      { type: 'stale-a', bodyHashAtGeneration: STALE_HASH },
-      { type: 'stale-b', bodyHashAtGeneration: STALE_HASH },
-    ]);
+  it('finder whose only fixer is not composed falls to standalone with empty fixerIds', async () => {
+    // Untrust the fixer plugin: `prob-fixer/apply-fix` is no longer
+    // composed, so its finder has no actionable fixer and must land in
+    // `standalone`, not `finders`.
+    await withProjectDb(project, (adapter) => adapter.trust.set('prob-fixer', false));
     try {
       await bootAndUse(project, async (handle) => {
         const env = await fetchCatalog(handle, SKILL_NODE.path);
-        const fixer = byId(env.item.fixers, FIXER_ID);
-        assert.ok(fixer, 'fixer visible once its analyzer lane has findings (stale included)');
-        assert.equal(fixer.findingCount, 2);
-        assert.equal(fixer.state, 'idle');
+        assert.equal(byId(env.item.finders, FINDER_ID), undefined, 'no fixer -> not a finder');
+        const fallen = byId(env.item.standalone, FINDER_ID);
+        assert.ok(fallen, 'a finder with no composed fixer is a single Detect button');
+        assert.deepEqual(fallen.fixerIds, []);
+        assert.equal(fallen.hasOpenFindings, false);
       });
     } finally {
-      // Erase the pair's rows (clean verdict) so later suites see the
-      // findings-free baseline again.
+      await withProjectDb(project, (adapter) => adapter.trust.set('prob-fixer', true));
+    }
+  });
+
+  it('hasOpenFindings tracks the finder lane: open -> true, fixed -> false, stale -> false', async () => {
+    try {
+      // Open + fresh finding of the finder's own id: the button morphs to Fix.
+      await seedFindings(project, SKILL_NODE.path, FINDER_ID, [{ type: 'defect-a' }]);
+      await bootAndUse(project, async (handle) => {
+        const finder = byId((await fetchCatalog(handle, SKILL_NODE.path)).item.finders, FINDER_ID);
+        assert.ok(finder);
+        assert.equal(finder.hasOpenFindings, true, 'an open non-stale finding drives Fix state');
+      });
+
+      // Resolve it (fixed): a done finding no longer keeps the Fix state.
+      await withProjectDb(project, async (adapter) => {
+        const [open] = (await adapter.findings.list({ nodeId: SKILL_NODE.path })).filter(
+          (r) => r.extensionId === FINDER_ID,
+        );
+        assert.ok(open, 'the seeded open finding is present');
+        const outcome = await adapter.findings.resolveByHuman(open.id, null, Date.now());
+        assert.equal(outcome.kind, 'resolved');
+      });
+      await bootAndUse(project, async (handle) => {
+        const finder = byId((await fetchCatalog(handle, SKILL_NODE.path)).item.finders, FINDER_ID);
+        assert.ok(finder);
+        assert.equal(finder.hasOpenFindings, false, 'a fixed finding does not keep Fix state');
+      });
+
+      // Stale-only open finding: it awaits a re-run, not a fix.
+      await seedFindings(project, SKILL_NODE.path, FINDER_ID, [
+        { type: 'defect-a', bodyHashAtGeneration: STALE_HASH },
+      ]);
+      await bootAndUse(project, async (handle) => {
+        const finder = byId((await fetchCatalog(handle, SKILL_NODE.path)).item.finders, FINDER_ID);
+        assert.ok(finder);
+        assert.equal(finder.hasOpenFindings, false, 'a stale finding awaits a re-run');
+      });
+    } finally {
+      // Erase the pair's rows so later suites see the findings-free baseline.
       await seedFindings(project, SKILL_NODE.path, FINDER_ID, []);
     }
   });
@@ -199,10 +252,10 @@ describe('GET /api/nodes/:pathB64/prob-extensions', () => {
     }
   });
 
-  it('virtual node: 200 with three empty arrays', async () => {
+  it('virtual node: 200 with two empty arrays', async () => {
     await bootAndUse(project, async (handle) => {
       const env = await fetchCatalog(handle, VIRTUAL_NODE.path);
-      assert.deepEqual(env.item, { finders: [], fixers: [], standalone: [] });
+      assert.deepEqual(env.item, { finders: [], standalone: [] });
     });
   });
 
