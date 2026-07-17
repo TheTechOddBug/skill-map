@@ -133,6 +133,7 @@ import {
 } from './enrichments.js';
 import { listSummariesForNode } from './summaries.js';
 import {
+  countUnresolvedFindingsByPath,
   countStaleFindings,
   deleteFindingClass,
   deleteStaleFindings,
@@ -416,6 +417,7 @@ export class SqliteStorageAdapter implements StoragePort {
 
     this.findings = {
       list: (filter) => listFindings(this.db, filter),
+      countUnresolvedByPath: (paths) => countUnresolvedFindingsByPath(this.db, paths),
       countStale: () => countStaleFindings(this.db),
       pruneStale: () => deleteStaleFindings(this.db),
       resolveByHuman: (id, note, nowMs) => resolveFindingByHuman(this.db, id, note, nowMs),

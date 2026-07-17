@@ -44,6 +44,7 @@ import type {
   IBranchProjection,
   IFindingRecord,
   IFindingResolutionIntent,
+  IFindingSeverityCount,
   IFindingsListFilter,
   IFindingsWriteIntent,
   IHistoryStatsRange,
@@ -592,6 +593,20 @@ export interface StoragePort {
      */
     list(filter?: IFindingsListFilter): Promise<IFindingRecord[]>;
     /**
+     * Batch count of each node's FRESH OPEN findings by severity
+     * (`resolution IS NULL`, non-stale; `warn` / `error` only, `info`
+     * dropped, mirroring issues), keyed by node path. Both origins
+     * (finder-lane + kernel safety-lane) count. One SQL GROUP BY over
+     * `paths`; empty `paths` returns an empty map without a query; nodes
+     * with no open warn/error finding are absent (the caller defaults to
+     * `{ warn: 0, error: 0 }`). Backs the BFF read-time fold that sums a
+     * node's findings into `core/issue-counter`'s aggregate severity chips
+     * (`spec/view-slots.md` §card.footer.right); the sum is a read-time UI
+     * decoration, `sm scan --json` carries only the deterministic
+     * component.
+     */
+    countUnresolvedByPath(paths: readonly string[]): Promise<Map<string, IFindingSeverityCount>>;
+    /**
      * Count the STALE rows (body-hash drift, or the node gone from
      * `scan_nodes`); the `sm findings prune` dry-run / confirmation
      * count.
@@ -809,6 +824,7 @@ export type {
   IBranchProjection,
   IFindingRecord,
   IFindingResolutionIntent,
+  IFindingSeverityCount,
   IFindingsListFilter,
   IFindingsWriteIntent,
   IHistoryStatsRange,

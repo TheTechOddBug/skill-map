@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 
 import { NodeCard } from '../node-card';
 import { KindRegistryService } from '../../../../services/kind-registry';
+import { ContributionsRegistryService } from '../../../services/contributions-registry';
 import type {
   IFrontmatterAgent,
   INodeStats,
@@ -131,6 +132,50 @@ describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
   it('hides the tags row entirely when there are no tags', () => {
     const dom = bootstrap(makeNode());
     expect(dom.querySelector('[data-testid="node-card-tags"]')).toBeNull();
+  });
+
+  it('renders the aggregate severity chip synthesized by the BFF findings fold', () => {
+    // The exact wire shape the read-time findings fold emits for a node
+    // with only a probabilistic finding (playground.md's contradiction):
+    // a synthesized `core/issue-counter/errorCount` chip on
+    // `card.footer.right`, no deterministic issue behind it. Proves the
+    // card renders it end to end (registry -> slot host -> NodeCounter).
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    TestBed.inject(ContributionsRegistryService).setRegistry({
+      'core/issue-counter/errorCount': {
+        pluginId: 'core',
+        extensionId: 'issue-counter',
+        contributionId: 'errorCount',
+        slot: 'card.footer.right',
+        icon: 'pi-times-circle',
+        priority: 40,
+        emitWhenEmpty: false,
+      },
+    });
+    const node: INodeView = {
+      path: 'playground.md',
+      kind: 'markdown',
+      frontmatter: { name: 'playground', description: 'd', metadata: { version: '' } },
+      contributions: [
+        {
+          pluginId: 'core',
+          extensionId: 'issue-counter',
+          contributionId: 'errorCount',
+          nodePath: 'playground.md',
+          slot: 'card.footer.right',
+          payload: { value: 1, severity: 'danger', tooltip: '1 error: 0 checks + 1 AI finding' },
+        },
+      ],
+    };
+    const fixture = TestBed.createComponent(NodeCard);
+    fixture.componentRef.setInput('node', node);
+    fixture.detectChanges();
+    const dom = fixture.nativeElement as HTMLElement;
+    const counter = dom.querySelector('[data-testid="renderer-node-counter"]');
+    expect(counter).not.toBeNull();
+    expect(counter!.textContent).toContain('1');
+    expect(counter!.classList.contains('vc-counter--danger')).toBe(true);
   });
 
   it('emits tagClick with the tag and stops propagation when a chip is clicked', () => {

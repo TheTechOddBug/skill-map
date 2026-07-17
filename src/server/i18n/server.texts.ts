@@ -116,6 +116,30 @@ export const SERVER_TEXTS = {
   pathB64Malformed:
     'Malformed pathB64, not a valid base64url-encoded node.path.',
 
+  // ---- aggregate severity chip provenance tooltip (routes/nodes.ts) --------
+  //
+  // The card's warn / error chips (owned by `core/issue-counter` on
+  // `card.footer.right`) are the per-card severity total. The BFF folds a
+  // node's fresh open probabilistic findings into them at read time
+  // (`spec/view-slots.md` §card.footer.right); when findings > 0 for a
+  // severity the chip tooltip is rewritten to break the total down by
+  // provenance: deterministic issues ("checks") + findings ("AI
+  // findings"). `tx` does not pluralize (see `kernel/util/tx.ts`), so the
+  // fold picks the singular / plural leaf per count and interpolates the
+  // finished phrases into the parent template. No em dashes.
+  //
+  // Canonical shape (spec/view-slots.md example): "3 warnings: 2 checks +
+  // 1 AI finding".
+  aggregateChipTooltip: '{{total}} {{severity}}: {{checks}} + {{ai}}',
+  aggregateChipSeverityWarnSingular: 'warning',
+  aggregateChipSeverityWarnPlural: 'warnings',
+  aggregateChipSeverityErrorSingular: 'error',
+  aggregateChipSeverityErrorPlural: 'errors',
+  aggregateChipChecksSingular: '{{count}} check',
+  aggregateChipChecksPlural: '{{count}} checks',
+  aggregateChipAiSingular: '{{count}} AI finding',
+  aggregateChipAiPlural: '{{count}} AI findings',
+
   // ---- WS broadcaster + watcher (Step 14.4.a) ------------------------------
 
   // Logged once on watcher boot after chokidar's initial walk completes.

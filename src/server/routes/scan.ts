@@ -60,6 +60,7 @@ import { noopWritable } from '../util/noop-writable.js';
 import { parseBooleanFlag } from '../util/parse-query.js';
 import { buildBroadcasterEmitter } from '../watcher.js';
 import type { IRouteDeps } from './deps.js';
+import { foldFindingsIntoSeverityChips } from '../aggregate-severity-fold.js';
 
 export interface IScanRouteDeps extends IRouteDeps {
   broadcaster: WsBroadcaster;
@@ -208,9 +209,14 @@ async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
       // on `/api/nodes` (single + bulk). Bulk load via
       // `listForPaths(...)` to keep the round-trip count at two.
       const paths = loaded.nodes.map((n) => n.path);
-      const [contribRows, tagRows] = await Promise.all([
+      const [contribRows, tagRows, findingCounts] = await Promise.all([
         adapter.contributions.listForPaths(paths),
         adapter.tags.listForPaths(paths),
+        // Read-time aggregate: fresh unresolved findings summed into
+        // issue-counter's severity chips below, same fold as /api/nodes
+        // (see aggregate-severity-fold), so a cold boot / F5 shows the
+        // combined count without waiting for the first per-node fetch.
+        adapter.findings.countUnresolvedByPath(paths),
       ]);
       const byPath = new Map<string, typeof contribRows>();
       for (const r of contribRows) {
@@ -219,7 +225,7 @@ async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
         else byPath.set(r.nodePath, [r]);
       }
       const tagsByPath = groupTagsByPath(tagRows);
-      return { loaded, favSet, contribByPath: byPath, tagsByPath };
+      return { loaded, favSet, contribByPath: byPath, tagsByPath, findingCounts };
     },
   );
   if (opened === null) {
@@ -239,7 +245,12 @@ async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
     nodes: opened.loaded.nodes.map((n) => ({
       ...n,
       isFavorite: opened.favSet.has(n.path),
-      contributions: opened.contribByPath.get(n.path) ?? [],
+      contributions: foldFindingsIntoSeverityChips(
+        opened.contribByPath.get(n.path) ?? [],
+        opened.findingCounts.get(n.path) ?? { warn: 0, error: 0 },
+        deps.contributionsRegistry,
+        n.path,
+      ),
       tags: opened.tagsByPath.get(n.path) ?? [],
     })),
   };

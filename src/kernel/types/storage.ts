@@ -404,6 +404,25 @@ export interface IIssueIncidenceCount {
 }
 
 /**
+ * Per-node count of UNRESOLVED, non-stale probabilistic findings by
+ * severity, output of `port.findings.countUnresolvedByPath(paths)`.
+ * "Unresolved" = NOT `fixed` (so `resolution IS NULL` open rows AND
+ * `human-decision` proposals awaiting the author both count), non-stale,
+ * matching the `sm findings` default view (`findings-view.ts`
+ * `isFindingShown`) so the card chip and the inspector agree
+ * (`spec/view-slots.md` §card.footer.right). Only `warn` / `error`
+ * are tallied (`info` is not surfaced on the card, mirroring
+ * `IIssueIncidenceCount`); nodes with no such finding are
+ * absent from the map (the caller defaults them to `{ warn: 0, error:
+ * 0 }`). Backs the BFF read-time fold that sums a node's findings into
+ * `core/issue-counter`'s aggregate severity chips.
+ */
+export interface IFindingSeverityCount {
+  warn: number;
+  error: number;
+}
+
+/**
  * Output of `port.scans.loadBranch(...)`, the prefix-union + capped
  * graph projection the BFF `/api/branch` endpoint returns. `nodes` is
  * the first `LIMIT` nodes of the union (every requested prefix's

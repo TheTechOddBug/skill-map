@@ -30,6 +30,7 @@ import type {
   IFindingRecord,
   IFindingResolutionIntent,
   IFindingRowInput,
+  IFindingSeverityCount,
   IFindingsListFilter,
   IFindingsWriteIntent,
   TFindingResolveOutcome,
@@ -42,6 +43,7 @@ export type {
   IFindingRecord,
   IFindingResolutionIntent,
   IFindingRowInput,
+  IFindingSeverityCount,
   IFindingsListFilter,
   IFindingsWriteIntent,
   TFindingResolveOutcome,
@@ -495,4 +497,73 @@ export async function resolveFindingByHuman(
   // The update just landed, so the re-read always finds the row; the
   // defensive `not-found` keeps the return total.
   return finding ? { kind: 'resolved', finding } : { kind: 'not-found' };
+}
+
+/**
+ * Batch count of each node's FRESH OPEN findings by severity, keyed by
+ * node path. Backs the BFF read-time fold that sums a node's findings
+ * into `core/issue-counter`'s aggregate severity chips
+ * (`spec/view-slots.md` §card.footer.right).
+ *
+ * "Unresolved & fresh" reuses, not reinvents, the two rules the read side
+ * already owns, and matches `findings-view.ts` `isFindingShown` (the
+ * inspector's default view) so the card chip and the inspector agree:
+ *   - **unresolved** = NOT `fixed` (`resolution IS NULL` OR
+ *     `human-decision`). A `human-decision` finding is the fixer's proposal
+ *     awaiting the AUTHOR, so it is still an open problem on the node and
+ *     counts; only a `fixed` resolution retires it (`spec/view-slots.md`
+ *     §card.footer.right).
+ *   - **non-stale** = the exact staleness rule `listFindings` /
+ *     `countStaleFindings` derive (LEFT JOIN `scan_nodes`, a row is stale
+ *     when its `body_hash_at_generation` drifted from the node's live
+ *     `body_hash` OR the node left the scan). The `bodyHash` equality
+ *     below is the complement of that stale predicate: a NULL join
+ *     column (node gone) or a drifted hash fails the equality and is
+ *     excluded.
+ *
+ * Only `error` / `warn` reach a severity chip; `info` is not surfaced on
+ * the card, same as issues. BOTH origins are counted (finder-lane
+ * `extension` rows AND kernel safety-lane rows are equally "problems on
+ * the node"). One SQL GROUP BY over `paths`; empty `paths` short-circuits
+ * with no query. Nodes with no open warn/error finding are absent from
+ * the map (the caller defaults them to `{ warn: 0, error: 0 }`).
+ */
+export async function countUnresolvedFindingsByPath(
+  db: TDbOrTx,
+  paths: readonly string[],
+): Promise<Map<string, IFindingSeverityCount>> {
+  const out = new Map<string, IFindingSeverityCount>();
+  if (paths.length === 0) return out;
+  const rows = await db
+    .selectFrom('state_findings')
+    .leftJoin('scan_nodes', 'scan_nodes.path', 'state_findings.nodeId')
+    .where('state_findings.nodeId', 'in', paths)
+    // UNRESOLVED: everything except `fixed`, so NULL (open) and
+    // `human-decision` (a fixer proposal awaiting the author) both count,
+    // matching the inspector's default view (spec/view-slots.md
+    // §card.footer.right). A `fixed` row is the only one retired.
+    .where((eb) =>
+      eb.or([
+        eb('state_findings.resolution', 'is', null),
+        eb('state_findings.resolution', '=', 'human-decision'),
+      ]),
+    )
+    // Card only surfaces error / warn; `info` findings never reach a chip.
+    .where('state_findings.severity', 'in', ['error', 'warn'])
+    // NON-stale: complement of the listFindings / countStaleFindings stale
+    // predicate (a NULL join column or a drifted hash fails the equality).
+    .where((eb) =>
+      eb('scan_nodes.bodyHash', '=', eb.ref('state_findings.bodyHashAtGeneration')),
+    )
+    .select(['state_findings.nodeId as nodeId', 'state_findings.severity as severity'])
+    .select((eb) => eb.fn.countAll<number>().as('c'))
+    .groupBy(['state_findings.nodeId', 'state_findings.severity'])
+    .execute();
+  for (const row of rows) {
+    const bucket = out.get(row.nodeId) ?? { warn: 0, error: 0 };
+    if (row.severity === 'error') bucket.error = Number(row.c);
+    else if (row.severity === 'warn') bucket.warn = Number(row.c);
+    out.set(row.nodeId, bucket);
+  }
+  return out;
 }

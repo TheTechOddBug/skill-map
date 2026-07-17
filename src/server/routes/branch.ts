@@ -59,6 +59,9 @@ import { HTTPException } from 'hono/http-exception';
 
 import type { Issue, Link, Node } from '../../kernel/index.js';
 import type { IPersistedContribution } from '../../kernel/ports/storage.js';
+import type { IFindingSeverityCount } from '../../kernel/types/storage.js';
+import type { TContributionsRegistry } from '../envelope.js';
+import { foldFindingsIntoSeverityChips } from '../aggregate-severity-fold.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { bffReadVersionCheck } from '../util/db-read-check.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -119,15 +122,21 @@ export function registerBranchRoute(app: Hono, deps: IRouteDeps): void {
         // via the view-contribution hosts, which never lazy-fetch. Mirrors
         // the `/api/scan` decoration.
         const paths = branch.nodes.map((n) => n.path);
-        const [tagRows, contribRows] = await Promise.all([
+        const [tagRows, contribRows, findingCounts] = await Promise.all([
           adapter.tags.listForPaths(paths),
           adapter.contributions.listForPaths(paths),
+          // Read-time aggregate: fresh unresolved findings summed into
+          // issue-counter's severity chips (see aggregate-severity-fold),
+          // same fold as /api/nodes + /api/scan. The workspace graph loads
+          // its cards from THIS endpoint, so without it the map card shows
+          // the deterministic-only chip.
+          adapter.findings.countUnresolvedByPath(paths),
         ]);
-        return { branch, favSet, tagRows, contribRows, cap };
+        return { branch, favSet, tagRows, contribRows, findingCounts, cap };
       },
     );
 
-    return c.json(buildBranchResponse(prefixes, loaded));
+    return c.json(buildBranchResponse(prefixes, loaded, deps.contributionsRegistry));
   });
 }
 
@@ -144,8 +153,10 @@ function buildBranchResponse(
     favSet: Set<string>;
     tagRows: readonly { nodePath: string; tag: string }[];
     contribRows: readonly IPersistedContribution[];
+    findingCounts: Map<string, IFindingSeverityCount>;
     cap: number;
   } | null,
+  registry: TContributionsRegistry,
 ): IBranchResponse {
   if (loaded === null) {
     // DB file absent → empty branch. `cap` reflects the design default
@@ -162,14 +173,19 @@ function buildBranchResponse(
       issues: [],
     };
   }
-  const { branch, favSet, tagRows, contribRows, cap } = loaded;
+  const { branch, favSet, tagRows, contribRows, findingCounts, cap } = loaded;
   const tagsByPath = groupTagsByPath(tagRows);
   const contribByPath = groupContribsByPath(contribRows);
   const nodes = branch.nodes.map((n) => ({
     ...n,
     isFavorite: favSet.has(n.path),
     tags: tagsByPath.get(n.path) ?? [],
-    contributions: contribByPath.get(n.path) ?? [],
+    contributions: foldFindingsIntoSeverityChips(
+      contribByPath.get(n.path) ?? [],
+      findingCounts.get(n.path) ?? { warn: 0, error: 0 },
+      registry,
+      n.path,
+    ),
   }));
   const rendered = nodes.length;
   return {
