@@ -25,7 +25,7 @@ export type TInspectorSectionId =
   | 'annotations'
   | 'connections'
   | 'findings'
-  | 'judgments'
+  | 'aiActions'
   | 'metadata'
   | 'plugins'
   | 'body';
@@ -39,9 +39,9 @@ const STORAGE_KEY = 'skill-map.ui.inspector.sections';
  *   - `findings`: so issues are visible without a click WHEN they exist
  *     (the section only renders when `issues.length > 0`, so this default
  *     never opens an empty section).
- *   - `judgments`: the probabilistic findings workbench (Step 16), same
+ *   - `aiActions`: the probabilistic findings workbench (Step 16), same
  *     rationale as `findings`: the section only renders when the node
- *     has launchers or recorded judgments, and the launcher buttons are
+ *     has launchers or recorded AI actions, and the launcher buttons are
  *     the primary affordance the operator opens the inspector for.
  *   - `actions`: so the action buttons stay reachable without a click,
  *     matching the always-visible toolbar it replaced (the section only
@@ -56,7 +56,7 @@ const STORAGE_KEY = 'skill-map.ui.inspector.sections';
 const SECTION_DEFAULT_EXPANDED: Partial<Record<TInspectorSectionId, boolean>> = {
   body: true,
   findings: true,
-  judgments: true,
+  aiActions: true,
   actions: true,
   connections: true,
 };

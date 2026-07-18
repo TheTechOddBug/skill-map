@@ -1492,7 +1492,7 @@ export interface IFindingApi {
   severity: TIssueSeverityApi;
   message: string;
   detail: string | null;
-  /** Judgment confidence in `[0, 1]`. */
+  /** AI-action confidence in `[0, 1]`. */
   confidence: number;
   /** Recording agent's self-reported model id; `null` when undeclared. */
   model: string | null;
@@ -1502,7 +1502,7 @@ export interface IFindingApi {
   resolutionNote: string | null;
   resolutionBy: string | null;
   resolutionAt: number | null;
-  /** Derived: the node body changed since the judgment (or left the scan). */
+  /** Derived: the node body changed since the AI action (or left the scan). */
   stale: boolean;
   generatedAt: number;
   jobId: string | null;
@@ -1521,7 +1521,7 @@ export interface IFindingsCountsApi extends IEnvelopeCountsApi {
 
 /**
  * `GET /api/nodes/:pathB64/findings` response (kind `findings`), the
- * per-node judgment tray. List shape with the honesty counts delta.
+ * per-node AI-actions tray. List shape with the honesty counts delta.
  */
 export interface IFindingsEnvelopeApi {
   schemaVersion: typeof REST_ENVELOPE_SCHEMA_VERSION;

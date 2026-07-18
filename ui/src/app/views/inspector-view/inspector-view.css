@@ -660,20 +660,20 @@
 }
 
 /* ---------------------------------------------------------------------
- * Judgments card (Step 16, the findings workbench). The finding rows
+ * AI actions card (Step 16, the findings workbench). The finding rows
  * reuse the `.inspector__finding*` vocabulary above (same severity
- * tints); only the judgment-specific bits live here: the provenance
+ * tints); only the AI-action-specific bits live here: the provenance
  * `(confidence% · model)` note, the dimmed row id, the launcher
  * groups, the honesty line, and the submit-error strip (mirrors the
  * `vc-action__error` idiom from the action-button renderer).
  * ------------------------------------------------------------------- */
-.inspector__judgments {
+.inspector__ai-actions {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
 }
 
-.inspector__judgment-provenance {
+.inspector__ai-action-provenance {
   font-size: 0.72rem;
   color: var(--p-text-muted-color);
   white-space: nowrap;
@@ -681,7 +681,7 @@
 
 /* Dimmed DB id, pushed to the row's far right. Test / CLI handle
    (`sm findings resolve <id>`), useful but never the headline. */
-.inspector__judgment-id {
+.inspector__ai-action-id {
   margin-left: auto;
   font-size: 0.7rem;
   color: var(--p-text-muted-color);
@@ -689,7 +689,7 @@
 }
 
 
-.inspector__judgments-launchers {
+.inspector__ai-actions-launchers {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
@@ -697,25 +697,25 @@
 
 /* Automatic toggle row: sits above the finder buttons, switch + label
    on one baseline-aligned line. */
-.inspector__judgments-autofix {
+.inspector__ai-actions-autofix {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-.inspector__judgments-autofix-label {
+.inspector__ai-actions-autofix-label {
   font-size: 0.8rem;
   color: var(--p-text-color);
   cursor: pointer;
 }
 
-.inspector__judgments-group {
+.inspector__ai-actions-group {
   display: flex;
   align-items: baseline;
   gap: 0.6rem;
 }
 
-.inspector__judgments-group-label {
+.inspector__ai-actions-group-label {
   flex: 0 0 5.2rem;
   font-size: 0.72rem;
   font-weight: 600;
@@ -724,7 +724,7 @@
   color: var(--p-text-muted-color);
 }
 
-.inspector__judgments-group-buttons {
+.inspector__ai-actions-group-buttons {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
@@ -733,13 +733,13 @@
 /* One launcher plus its stop / restart companions: a tighter inner gap
    than the between-entries one, so the trio wraps as a single unit and
    reads as one affordance. */
-.inspector__judgments-entry {
+.inspector__ai-actions-entry {
   display: inline-flex;
   align-items: center;
   gap: 0.15rem;
 }
 
-.inspector__judgments-error {
+.inspector__ai-actions-error {
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -750,11 +750,11 @@
   border-radius: var(--sm-radius-sm);
 }
 
-.inspector__judgments-error-text {
+.inspector__ai-actions-error-text {
   overflow-wrap: anywhere;
 }
 
-.inspector__judgments-error-dismiss {
+.inspector__ai-actions-error-dismiss {
   background: none;
   border: none;
   cursor: pointer;
@@ -765,11 +765,11 @@
   display: inline-flex;
 }
 
-.inspector__judgments-error-dismiss .pi {
+.inspector__ai-actions-error-dismiss .pi {
   font-size: 0.7rem;
 }
 
-.inspector__judgments-hint {
+.inspector__ai-actions-hint {
   margin: 0;
   font-size: 0.78rem;
   color: var(--p-text-muted-color);

@@ -96,9 +96,9 @@ import {
   type IInspectorDerivationsHandle,
 } from './inspector-derivations';
 import {
-  setupJudgments,
-  type IJudgmentsHandle,
-} from './inspector-judgments.controller';
+  setupAiActions,
+  type IAiActionsHandle,
+} from './inspector-ai-actions.controller';
 import { setupAutoFix, type IAutoFixHandle } from './inspector-auto-fix.controller';
 import type { INodeView } from '../../../models/node';
 import type { IFindingApi, IProbExtensionEntryApi } from '../../../models/api';
@@ -450,21 +450,21 @@ export class InspectorView implements OnInit {
       });
   });
 
-  // Judgments card (Step 16 piece 1, the findings workbench): the
+  // AI actions card (Step 16 piece 1, the findings workbench): the
   // probabilistic findings tray + finder / fixer / standalone launcher
   // buttons. Owned by the extracted controller; the template binds
   // through the protected adapters below. Distinct from the
   // deterministic Findings card above (`issues()`).
-  private readonly judgments: IJudgmentsHandle = setupJudgments({
+  private readonly aiActions: IAiActionsHandle = setupAiActions({
     node: this.node,
     dataSource: this.dataSource,
     jobEvents$: this.wsEvents.jobEvents$,
     scanCompleted$: this.wsEvents.scanCompleted$,
   });
-  protected readonly judgmentFindings = this.judgments.findings;
-  protected readonly judgmentsAvailable = this.judgments.available;
-  protected readonly judgmentsError = this.judgments.error;
-  protected readonly probExtensions = this.judgments.probExtensions;
+  protected readonly aiActionFindings = this.aiActions.findings;
+  protected readonly aiActionsAvailable = this.aiActions.available;
+  protected readonly aiActionsError = this.aiActions.error;
+  protected readonly probExtensions = this.aiActions.probExtensions;
 
   /**
    * Launcher groups in render order, empty groups filtered out so the
@@ -473,12 +473,12 @@ export class InspectorView implements OnInit {
    * two-state Detect ⇄ Fix buttons) and `standalone` (finders without a
    * fixer + Actions with no `analyzerIds`, single-action buttons).
    */
-  protected readonly judgmentLauncherGroups = computed<
+  protected readonly aiActionLauncherGroups = computed<
     { id: 'finders' | 'standalone'; label: string; entries: IProbExtensionEntryApi[] }[]
   >(() => {
     const probs = this.probExtensions();
     if (probs === null) return [];
-    const t = this.texts.judgments.groups;
+    const t = this.texts.aiActions.groups;
     return (
       [
         { id: 'finders', label: t.finders, entries: probs.finders },
@@ -514,8 +514,8 @@ export class InspectorView implements OnInit {
   );
 
   /** Effective launcher state (optimistic `queued` flip included). */
-  protected judgmentEntryState(entry: IProbExtensionEntryApi): 'idle' | 'queued' | 'running' {
-    return this.judgments.entryState(entry);
+  protected aiActionEntryState(entry: IProbExtensionEntryApi): 'idle' | 'queued' | 'running' {
+    return this.aiActions.entryState(entry);
   }
 
   /**
@@ -534,10 +534,10 @@ export class InspectorView implements OnInit {
    * Launcher label: always the extension KIND (the segment after the
    * slash, minus the `node-` prefix, via `shortExtensionLabel`), for
    * finders and standalone alike (user call 2026-07-18). The two-state
-   * Detect ⇄ Fix morph is carried by the icon (`judgmentLauncherIcon`)
+   * Detect ⇄ Fix morph is carried by the icon (`aiActionLauncherIcon`)
    * and the tooltip, not the label.
    */
-  protected judgmentLauncherLabel(entry: IProbExtensionEntryApi): string {
+  protected aiActionLauncherLabel(entry: IProbExtensionEntryApi): string {
     return shortExtensionLabel(entry.id);
   }
 
@@ -547,8 +547,8 @@ export class InspectorView implements OnInit {
    * `finderActionMode` glyph (detect / fix / detect+fix) and a standalone
    * shows the run glyph.
    */
-  protected judgmentLauncherIcon(entry: IProbExtensionEntryApi, isFinder: boolean): string {
-    if (this.judgmentEntryState(entry) === 'queued') return 'pi pi-clock';
+  protected aiActionLauncherIcon(entry: IProbExtensionEntryApi, isFinder: boolean): string {
+    if (this.aiActionEntryState(entry) === 'queued') return 'pi pi-clock';
     if (!isFinder) return 'pi pi-play';
     switch (this.finderActionMode(entry)) {
       case 'fix':
@@ -565,26 +565,26 @@ export class InspectorView implements OnInit {
    * Detect + fix) for finders so the icon reads unambiguously, plus the
    * live state when not idle.
    */
-  protected judgmentLauncherTooltip(entry: IProbExtensionEntryApi, isFinder: boolean): string {
-    const action = isFinder ? `${this.texts.judgments.buttons[this.finderActionMode(entry)]} · ` : '';
-    const state = this.judgmentEntryState(entry);
+  protected aiActionLauncherTooltip(entry: IProbExtensionEntryApi, isFinder: boolean): string {
+    const action = isFinder ? `${this.texts.aiActions.buttons[this.finderActionMode(entry)]} · ` : '';
+    const state = this.aiActionEntryState(entry);
     const suffix =
       state === 'queued'
-        ? ` (${this.texts.judgments.stateQueued})`
+        ? ` (${this.texts.aiActions.stateQueued})`
         : state === 'running'
-          ? ` (${this.texts.judgments.stateRunning})`
+          ? ` (${this.texts.aiActions.stateRunning})`
           : '';
     return `${action}${entry.description}${suffix}`;
   }
 
   /** True while the launcher button must sit disabled (non-idle or in flight). */
-  protected judgmentLauncherDisabled(entry: IProbExtensionEntryApi): boolean {
-    return this.judgmentEntryState(entry) !== 'idle' || this.judgments.isSubmitting(entry.id);
+  protected aiActionLauncherDisabled(entry: IProbExtensionEntryApi): boolean {
+    return this.aiActionEntryState(entry) !== 'idle' || this.aiActions.isSubmitting(entry.id);
   }
 
   /** True while the launcher shows the busy spinner (running or submitting). */
-  protected judgmentLauncherBusy(entry: IProbExtensionEntryApi): boolean {
-    return this.judgmentEntryState(entry) === 'running' || this.judgments.isSubmitting(entry.id);
+  protected aiActionLauncherBusy(entry: IProbExtensionEntryApi): boolean {
+    return this.aiActionEntryState(entry) === 'running' || this.aiActions.isSubmitting(entry.id);
   }
 
   /**
@@ -595,18 +595,18 @@ export class InspectorView implements OnInit {
    */
   protected onLauncherClick(entry: IProbExtensionEntryApi, isFinder: boolean): void {
     if (!isFinder) {
-      void this.judgments.submit(entry.id, false);
+      void this.aiActions.submit(entry.id, false);
       return;
     }
     switch (this.finderActionMode(entry)) {
       case 'fix':
-        void this.judgments.submitFixers(entry.id, entry.fixerIds);
+        void this.aiActions.submitFixers(entry.id, entry.fixerIds);
         break;
       case 'detectAndFix':
-        void this.judgments.submit(entry.id, true);
+        void this.aiActions.submit(entry.id, true);
         break;
       default:
-        void this.judgments.submit(entry.id, false);
+        void this.aiActions.submit(entry.id, false);
         break;
     }
   }
@@ -619,27 +619,27 @@ export class InspectorView implements OnInit {
    * lands; a just-stopped entry (optimistic idle) hides them instantly
    * instead of parking a stop button next to an enabled launcher.
    */
-  protected judgmentCompanionsVisible(entry: IProbExtensionEntryApi): boolean {
-    return entry.jobId !== null && this.judgmentEntryState(entry) !== 'idle';
+  protected aiActionCompanionsVisible(entry: IProbExtensionEntryApi): boolean {
+    return entry.jobId !== null && this.aiActionEntryState(entry) !== 'idle';
   }
 
   /** Both companions sit disabled while the extension's stop / restart is in flight. */
-  protected judgmentCompanionDisabled(entry: IProbExtensionEntryApi): boolean {
-    return this.judgments.isCancelling(entry.id);
+  protected aiActionCompanionDisabled(entry: IProbExtensionEntryApi): boolean {
+    return this.aiActions.isCancelling(entry.id);
   }
 
-  protected stopJudgment(entry: IProbExtensionEntryApi): void {
-    void this.judgments.stop(entry);
+  protected stopAiAction(entry: IProbExtensionEntryApi): void {
+    void this.aiActions.stop(entry);
   }
 
 
-  protected dismissJudgmentsError(): void {
-    this.judgments.dismissError();
+  protected dismissAiActionsError(): void {
+    this.aiActions.dismissError();
   }
 
   /** Per-row provenance: `(confidence% · model)`, model omitted when undeclared. */
-  protected judgmentConfidenceModel(finding: IFindingApi): string {
-    return this.texts.judgments.confidenceModel(
+  protected aiActionConfidenceModel(finding: IFindingApi): string {
+    return this.texts.aiActions.confidenceModel(
       Math.round(finding.confidence * 100),
       finding.model,
     );

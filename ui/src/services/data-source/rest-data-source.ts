@@ -216,7 +216,7 @@ export class RestDataSource implements IDataSourcePort {
   }
 
   /**
-   * Per-node judgment tray (`GET /api/nodes/:pathB64/findings`).
+   * Per-node AI-actions tray (`GET /api/nodes/:pathB64/findings`).
    * 404 (unknown node / missing DB) resolves to `null`, mirroring
    * `getNode`; every other failure propagates as `DataSourceError`.
    */

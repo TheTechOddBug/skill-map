@@ -391,7 +391,7 @@ export class StaticDataSource implements IDataSourcePort {
   }
 
   /**
-   * Demo mode: the static bundle records no probabilistic judgments
+   * Demo mode: the static bundle records no probabilistic AI actions
    * (there is no queue and no processing agent), so every node's tray
    * is honestly empty. Unknown paths still resolve `null` to mirror the
    * live 404-as-null contract.
@@ -411,7 +411,7 @@ export class StaticDataSource implements IDataSourcePort {
 
   /**
    * Demo mode: no plugin runtime and no queue, so the launcher catalog
-   * is the empty shape (the inspector hides the Judgments card). Unknown
+   * is the empty shape (the inspector hides the AI actions card). Unknown
    * paths resolve `null`, mirroring the live 404-as-null contract.
    */
   async getNodeProbExtensions(path: string): Promise<IProbExtensionsApi | null> {

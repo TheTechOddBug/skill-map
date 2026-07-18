@@ -30,18 +30,18 @@ export const INSPECTOR_VIEW_TEXTS = {
     annotations: 'Annotations',
     connections: 'Connections',
     findings: 'Findings',
-    judgments: 'AI actions',
+    aiActions: 'AI actions',
     metadata: 'Metadata',
     plugins: 'Plugin contributions',
     body: 'Body',
   },
   /**
-   * Judgments section (Step 16 piece 1, the findings workbench): the
+   * AI actions section (Step 16 piece 1, the findings workbench): the
    * per-node probabilistic findings tray plus the launcher buttons for
    * finder / fixer / standalone extensions. Distinct from the
    * deterministic "Findings" section above (analyzer issues).
    */
-  judgments: {
+  aiActions: {
     /** Launcher group headings, classified manifest-mechanically. */
     groups: {
       finders: 'Finders',
@@ -69,7 +69,7 @@ export const INSPECTOR_VIEW_TEXTS = {
       detectAndFix: 'Detect + fix',
     },
     /**
-     * Per-row judgment provenance: confidence percent plus the
+     * Per-row AI-action provenance: confidence percent plus the
      * recording model when the agent declared one.
      */
     confidenceModel: (pct: number, model: string | null): string =>

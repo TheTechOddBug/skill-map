@@ -121,37 +121,37 @@
     }
 
     <!--
-      Judgments section (Step 16 piece 1, the findings workbench):
+      AI actions section (Step 16 piece 1, the findings workbench):
       the node's PROBABILISTIC findings tray plus the launcher buttons
       for finder / fixer / standalone extensions. Distinct from the
       deterministic Findings card above (analyzer issues): these rows
-      are agent judgments recorded through the job queue. Gated like
+      are agent AI actions recorded through the job queue. Gated like
       every other section: hidden when the node has no launchers, no
       fresh findings, and nothing held back by the default view.
     -->
-    @if (judgmentsAvailable()) {
+    @if (aiActionsAvailable()) {
       <sm-collapsible-section
-        [title]="texts.sections.judgments"
-        [expanded]="expanded('judgments')"
-        toggleTestid="inspector-judgments-toggle"
-        (toggle)="toggleSection('judgments')"
-        data-testid="inspector-card-judgments"
+        [title]="texts.sections.aiActions"
+        [expanded]="expanded('aiActions')"
+        toggleTestid="inspector-ai-actions-toggle"
+        (toggle)="toggleSection('aiActions')"
+        data-testid="inspector-card-ai-actions"
       >
-        @if (judgmentFindings().length > 0) {
-          <span class="sm-block__count" smSectionTitleExtra>({{ judgmentFindings().length }})</span>
+        @if (aiActionFindings().length > 0) {
+          <span class="sm-block__count" smSectionTitleExtra>({{ aiActionFindings().length }})</span>
         }
-        @if (expanded('judgments')) {
-          <div class="inspector__judgments">
-            @if (judgmentFindings().length > 0) {
-              <ul class="inspector__findings-list" data-testid="inspector-judgments-list">
+        @if (expanded('aiActions')) {
+          <div class="inspector__ai-actions">
+            @if (aiActionFindings().length > 0) {
+              <ul class="inspector__findings-list" data-testid="inspector-ai-actions-list">
                 <!-- Finding rows carry a stable DB id, so tracking it keeps
                      row DOM across the silent live refreshes (same
                      no-flicker contract as the deterministic list above). -->
-                @for (f of judgmentFindings(); track f.id) {
+                @for (f of aiActionFindings(); track f.id) {
                   <li
                     class="inspector__finding"
                     [attr.data-severity]="f.severity"
-                    [attr.data-testid]="'inspector-judgment-' + f.id"
+                    [attr.data-testid]="'inspector-ai-action-' + f.id"
                   >
                     <div class="inspector__finding-head">
                       <span
@@ -161,73 +161,73 @@
                       >
                       <code class="inspector__finding-analyzer">{{ f.type }}</code>
                       <span
-                        class="inspector__judgment-provenance"
-                        [attr.data-testid]="'inspector-judgment-provenance-' + f.id"
-                        >{{ judgmentConfidenceModel(f) }}</span
+                        class="inspector__ai-action-provenance"
+                        [attr.data-testid]="'inspector-ai-action-provenance-' + f.id"
+                        >{{ aiActionConfidenceModel(f) }}</span
                       >
-                      <span class="inspector__judgment-id" aria-hidden="true">#{{ f.id }}</span>
+                      <span class="inspector__ai-action-id" aria-hidden="true">#{{ f.id }}</span>
                     </div>
                     <p class="inspector__finding-message">{{ f.message }}</p>
                   </li>
                 }
               </ul>
             }
-            @if (judgmentLauncherGroups().length > 0) {
-              <div class="inspector__judgments-launchers" data-testid="inspector-judgments-launchers">
+            @if (aiActionLauncherGroups().length > 0) {
+              <div class="inspector__ai-actions-launchers" data-testid="inspector-ai-actions-launchers">
                 <!-- Automatic toggle (Step 16): one control for every
                      finder-with-fixer button. On => the finder submit
                      carries autoFix and the kernel chains the fixers;
                      off => the button morphs Detect <-> Fix. Only shown
                      when a finder-with-fixer button exists. -->
                 @if (showAutoFixToggle()) {
-                  <div class="inspector__judgments-autofix" data-testid="inspector-auto-fix-row">
+                  <div class="inspector__ai-actions-autofix" data-testid="inspector-auto-fix-row">
                     <p-toggleswitch
                       [ngModel]="autoFixEnabled()"
                       (ngModelChange)="onAutoFixToggle($event)"
                       inputId="inspector-auto-fix"
-                      [pTooltip]="texts.judgments.autoFix.tooltip"
+                      [pTooltip]="texts.aiActions.autoFix.tooltip"
                       data-testid="inspector-auto-fix-toggle"
                     />
-                    <label class="inspector__judgments-autofix-label" for="inspector-auto-fix">{{
-                      texts.judgments.autoFix.label
+                    <label class="inspector__ai-actions-autofix-label" for="inspector-auto-fix">{{
+                      texts.aiActions.autoFix.label
                     }}</label>
                   </div>
                 }
-                @for (group of judgmentLauncherGroups(); track group.id) {
+                @for (group of aiActionLauncherGroups(); track group.id) {
                   <div
-                    class="inspector__judgments-group"
-                    [attr.data-testid]="'inspector-judgments-group-' + group.id"
+                    class="inspector__ai-actions-group"
+                    [attr.data-testid]="'inspector-ai-actions-group-' + group.id"
                   >
-                    <span class="inspector__judgments-group-label">{{ group.label }}</span>
-                    <div class="inspector__judgments-group-buttons">
+                    <span class="inspector__ai-actions-group-label">{{ group.label }}</span>
+                    <div class="inspector__ai-actions-group-buttons">
                       @for (entry of group.entries; track entry.id) {
-                        <span class="inspector__judgments-entry">
+                        <span class="inspector__ai-actions-entry">
                           <p-button
-                            [label]="judgmentLauncherLabel(entry)"
-                            [icon]="judgmentLauncherIcon(entry, group.id === 'finders')"
+                            [label]="aiActionLauncherLabel(entry)"
+                            [icon]="aiActionLauncherIcon(entry, group.id === 'finders')"
                             size="small"
-                            [disabled]="judgmentLauncherDisabled(entry)"
-                            [loading]="judgmentLauncherBusy(entry)"
-                            [pTooltip]="judgmentLauncherTooltip(entry, group.id === 'finders')"
+                            [disabled]="aiActionLauncherDisabled(entry)"
+                            [loading]="aiActionLauncherBusy(entry)"
+                            [pTooltip]="aiActionLauncherTooltip(entry, group.id === 'finders')"
                             (onClick)="onLauncherClick(entry, group.id === 'finders')"
-                            [attr.data-testid]="'inspector-judgment-launch-' + entry.id"
-                            [attr.data-state]="judgmentEntryState(entry)"
+                            [attr.data-testid]="'inspector-ai-action-launch-' + entry.id"
+                            [attr.data-state]="aiActionEntryState(entry)"
                             [attr.data-action]="group.id === 'finders' ? finderActionMode(entry) : 'run'"
                           />
                           <!-- Stop companion (user decision 2026-07-17;
                                the restart twin was dropped same day): only
                                beside an active launcher whose payload
                                carries the server-confirmed job handle. -->
-                          @if (judgmentCompanionsVisible(entry)) {
+                          @if (aiActionCompanionsVisible(entry)) {
                             <p-button
                               icon="pi pi-times"
                               severity="danger"
                               size="small"
-                              [disabled]="judgmentCompanionDisabled(entry)"
-                              [pTooltip]="texts.judgments.stopTooltip"
-                              [ariaLabel]="texts.judgments.stopTooltip"
-                              (onClick)="stopJudgment(entry)"
-                              [attr.data-testid]="'inspector-judgment-stop-' + entry.id"
+                              [disabled]="aiActionCompanionDisabled(entry)"
+                              [pTooltip]="texts.aiActions.stopTooltip"
+                              [ariaLabel]="texts.aiActions.stopTooltip"
+                              (onClick)="stopAiAction(entry)"
+                              [attr.data-testid]="'inspector-ai-action-stop-' + entry.id"
                             />
                           }
                         </span>
@@ -237,21 +237,21 @@
                 }
               </div>
             }
-            @if (judgmentsError(); as err) {
+            @if (aiActionsError(); as err) {
               <div
-                class="inspector__judgments-error"
+                class="inspector__ai-actions-error"
                 role="alert"
-                data-testid="inspector-judgments-error"
+                data-testid="inspector-ai-actions-error"
               >
-                <span class="inspector__judgments-error-text"
-                  >{{ texts.judgments.errorPrefix }} {{ err.message }}</span
+                <span class="inspector__ai-actions-error-text"
+                  >{{ texts.aiActions.errorPrefix }} {{ err.message }}</span
                 >
                 <button
                   type="button"
-                  class="inspector__judgments-error-dismiss"
-                  [attr.aria-label]="texts.judgments.dismissErrorAriaLabel"
-                  (click)="dismissJudgmentsError()"
-                  data-testid="inspector-judgments-error-dismiss"
+                  class="inspector__ai-actions-error-dismiss"
+                  [attr.aria-label]="texts.aiActions.dismissErrorAriaLabel"
+                  (click)="dismissAiActionsError()"
+                  data-testid="inspector-ai-actions-error-dismiss"
                 >
                   <i class="pi pi-times" aria-hidden="true"></i>
                 </button>
@@ -259,8 +259,8 @@
               @if (err.code === 'no-processing-agent') {
                 <!-- The queue is pull-only: without the processing skill
                      nothing drains it, so point at the installer verb. -->
-                <p class="inspector__judgments-hint" data-testid="inspector-judgments-agent-hint">
-                  {{ texts.judgments.agentInstallHint }}
+                <p class="inspector__ai-actions-hint" data-testid="inspector-ai-actions-agent-hint">
+                  {{ texts.aiActions.agentInstallHint }}
                 </p>
               }
             }

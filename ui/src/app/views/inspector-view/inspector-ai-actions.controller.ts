@@ -1,10 +1,10 @@
 /**
- * Judgments card state (Step 16 piece 1, the findings workbench,
+ * AI actions card state (Step 16 piece 1, the findings workbench,
  * inspector half): the per-node probabilistic findings tray plus the
  * finder / fixer / standalone launcher buttons.
  *
  * Mirrors the `inspector-body-state` / `inspector-dead-link` pattern: a
- * `setupJudgments` factory called from a field initializer (injection
+ * `setupAiActions` factory called from a field initializer (injection
  * context) returns a typed handle the component binds. Owns:
  *
  *   - The two per-node reads (`getNodeFindings`, `getNodeProbExtensions`),
@@ -57,17 +57,17 @@ import {
  * without a request per frame. Same rationale (and window) as the
  * Activity section's `ACTIVITY_LIVE_REFRESH_DEBOUNCE_MS`.
  */
-const JUDGMENTS_LIVE_REFRESH_DEBOUNCE_MS = 400;
+const AI_ACTIONS_LIVE_REFRESH_DEBOUNCE_MS = 400;
 
 /** Submit-failure surface bound by the card's error line. */
-export interface IJudgmentsError {
+export interface IAiActionsError {
   /** BFF envelope code (`no-processing-agent`, `node-drifted`, ...). */
   code: string;
   /** Envelope message, rendered verbatim after the prefix. */
   message: string;
 }
 
-export interface IJudgmentsSetupDeps {
+export interface IAiActionsSetupDeps {
   /** The inspected node (tracked so a scan reload re-fetches). */
   node: Signal<INodeView | null>;
   dataSource: IDataSourcePort;
@@ -77,17 +77,17 @@ export interface IJudgmentsSetupDeps {
   scanCompleted$: Observable<IWsScanCompletedEvent>;
 }
 
-export interface IJudgmentsHandle {
+export interface IAiActionsHandle {
   /** Fresh (open, non-stale) finding rows, server order. */
   findings: Signal<IFindingApi[]>;
   /** Envelope counts incl. the honesty pair; `null` until first load. */
   counts: Signal<IFindingsCountsApi | null>;
   /** Launcher catalog; `null` until first load / on 404. */
   probExtensions: Signal<IProbExtensionsApi | null>;
-  /** Whether the Judgments card renders at all. */
+  /** Whether the AI actions card renders at all. */
   available: Signal<boolean>;
   /** Last submit failure, or `null`. */
-  error: Signal<IJudgmentsError | null>;
+  error: Signal<IAiActionsError | null>;
   /** Effective launcher state: the optimistic `queued` / `idle` flips win over a stale payload. */
   entryState(entry: IProbExtensionEntryApi): 'idle' | 'queued' | 'running';
   /** True while this extension's submit round-trip is in flight. */
@@ -113,13 +113,13 @@ export interface IJudgmentsHandle {
   dismissError(): void;
 }
 
-export function setupJudgments(deps: IJudgmentsSetupDeps): IJudgmentsHandle {
-  assertInInjectionContext(setupJudgments);
+export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
+  assertInInjectionContext(setupAiActions);
 
   const findings = signal<IFindingApi[]>([]);
   const counts = signal<IFindingsCountsApi | null>(null);
   const probExtensions = signal<IProbExtensionsApi | null>(null);
-  const error = signal<IJudgmentsError | null>(null);
+  const error = signal<IAiActionsError | null>(null);
   /**
    * Extension ids optimistically flipped to `queued` after a submit
    * (or a `duplicate-job` refusal). Reconciled on every fresh
@@ -217,7 +217,7 @@ export function setupJudgments(deps: IJudgmentsSetupDeps): IJudgmentsHandle {
   effect((onCleanup) => {
     const path = deps.node()?.path;
     if (path !== fetchedPath) {
-      // Navigation: the previous node's judgments must not linger.
+      // Navigation: the previous node's AI actions must not linger.
       findings.set([]);
       counts.set(null);
       probExtensions.set(null);
@@ -238,7 +238,7 @@ export function setupJudgments(deps: IJudgmentsSetupDeps): IJudgmentsHandle {
   // the tray stale (new findings recorded, queue state moved, fixer
   // visibility changed). One debounced re-fetch of both reads.
   merge(deps.jobEvents$, deps.scanCompleted$)
-    .pipe(debounceTime(JUDGMENTS_LIVE_REFRESH_DEBOUNCE_MS), takeUntilDestroyed())
+    .pipe(debounceTime(AI_ACTIONS_LIVE_REFRESH_DEBOUNCE_MS), takeUntilDestroyed())
     .subscribe(() => {
       const path = fetchedPath;
       if (!path) return;

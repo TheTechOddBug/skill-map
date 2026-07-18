@@ -218,7 +218,7 @@ interface IBootstrapOpts {
   nodeActivity$?: Subject<void>;
   /** Drives the Activity section's live `agent.spawn` re-fetch. */
   agentSpawn$?: Subject<void>;
-  /** Drives the Judgments card's live `job.*` re-fetch. */
+  /** Drives the AI actions card's live `job.*` re-fetch. */
   jobEvents$?: Subject<void>;
   /** Seeds the per-node stats mirror that gates the Activity section. */
   activityStats?: ReadonlyMap<string, INodeActivityStatsApi>;
@@ -272,7 +272,7 @@ function bootstrap(opts: IBootstrapOpts = {}): {
           // Subjects let tests drive `node.activity` and `agent.spawn` frames.
           nodeActivity$: nodeActivity$.asObservable(),
           agentSpawn$: agentSpawn$.asObservable(),
-          // The Judgments card re-fetches on any job lifecycle frame.
+          // The AI actions card re-fetches on any job lifecycle frame.
           jobEvents$: jobEvents$.asObservable(),
           jobSubmitted$: EMPTY,
         } as unknown as WsEventStreamService,
@@ -1874,7 +1874,7 @@ describe('InspectorView, header version (catalog curation)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Judgments card (Step 16 piece 1, the findings workbench)
+// AI actions card (Step 16 piece 1, the findings workbench)
 // ---------------------------------------------------------------------------
 
 function makeFinding(overrides: Partial<IFindingApi> = {}): IFindingApi {
@@ -1944,7 +1944,7 @@ function makeProbExtensions(overrides: Partial<IProbExtensionsApi> = {}): IProbE
   return { finders: [], standalone: [], ...overrides };
 }
 
-describe('InspectorView, judgments card (Step 16 piece 1)', () => {
+describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
   });
@@ -1952,12 +1952,12 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
     TestBed.resetTestingModule();
   });
 
-  interface IJudgmentsBoot {
+  interface IAiActionsBoot {
     findings?: IFindingsEnvelopeApi;
     probs?: IProbExtensionsApi;
   }
 
-  async function bootJudgments(opts: IJudgmentsBoot = {}): Promise<{
+  async function bootAiActions(opts: IAiActionsBoot = {}): Promise<{
     fixture: ComponentFixture<InspectorView>;
     dataSource: IStubDataSource;
     node: INodeView;
@@ -1977,38 +1977,38 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
   }
 
   it('hides the card entirely when there are no launchers, no findings, and nothing hidden', async () => {
-    const { fixture } = await bootJudgments();
+    const { fixture } = await bootAiActions();
     expect(
-      fixture.nativeElement.querySelector('[data-testid="inspector-card-judgments"]'),
+      fixture.nativeElement.querySelector('[data-testid="inspector-card-ai-actions"]'),
     ).toBeNull();
   });
 
   it('renders the finders + standalone groups (no fixers group) with two-state labels', async () => {
-    const { fixture } = await bootJudgments({
+    const { fixture } = await bootAiActions({
       probs: makeProbExtensions({
         finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'] })],
         standalone: [makeProbEntry({ id: 'core/summarizer', description: 'Summarizes the node.' })],
       }),
     });
     const dom: HTMLElement = fixture.nativeElement;
-    expect(dom.querySelector('[data-testid="inspector-card-judgments"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-card-ai-actions"]')).not.toBeNull();
     // Finders + standalone groups render; the retired fixers group never does.
-    expect(dom.querySelector('[data-testid="inspector-judgments-group-finders"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-group-finders"]')).not.toBeNull();
     expect(
-      dom.querySelector('[data-testid="inspector-judgments-group-standalone"]'),
+      dom.querySelector('[data-testid="inspector-ai-actions-group-standalone"]'),
     ).not.toBeNull();
-    expect(dom.querySelector('[data-testid="inspector-judgments-group-fixers"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-group-fixers"]')).toBeNull();
     // The button LABEL is always the kind (short name); the Detect/Fix
     // state rides `data-action` + the icon, not the label (user call
     // 2026-07-18).
-    const finder = dom.querySelector('[data-testid="inspector-judgment-launch-core/todo-finder"]');
+    const finder = dom.querySelector('[data-testid="inspector-ai-action-launch-core/todo-finder"]');
     expect(finder).not.toBeNull();
     expect(finder!.textContent).toContain('todo-finder');
     expect(finder!.textContent).not.toContain('Detect');
     expect(finder!.getAttribute('data-action')).toBe('detect');
     // Standalone button shows the short extension name (segment after the slash).
     const standalone = dom.querySelector(
-      '[data-testid="inspector-judgment-launch-core/summarizer"]',
+      '[data-testid="inspector-ai-action-launch-core/summarizer"]',
     );
     expect(standalone).not.toBeNull();
     expect(standalone!.textContent).toContain('summarizer');
@@ -2016,19 +2016,19 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
     expect(standalone!.getAttribute('data-action')).toBe('run');
     // No fresh findings: no list and no filler either, the launchers
     // stand alone (empty-state removed per user call 2026-07-17).
-    expect(dom.querySelector('[data-testid="inspector-judgments-empty"]')).toBeNull();
-    expect(dom.querySelector('[data-testid="inspector-judgments-list"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-empty"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-list"]')).toBeNull();
   });
 
   it('morphs a finder-with-fixer button Detect => Fix by hasOpenFindings', async () => {
     // Detect state (no open findings): the button submits the FINDER.
-    const detect = await bootJudgments({
+    const detect = await bootAiActions({
       probs: makeProbExtensions({
         finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'], hasOpenFindings: false })],
       }),
     });
     const detectBtn = detect.fixture.nativeElement.querySelector(
-      '[data-testid="inspector-judgment-launch-core/todo-finder"]',
+      '[data-testid="inspector-ai-action-launch-core/todo-finder"]',
     ) as HTMLElement;
     expect(detectBtn.textContent).toContain('todo-finder');
     expect(detectBtn.getAttribute('data-action')).toBe('detect');
@@ -2041,7 +2041,7 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
     );
 
     // Fix state (open findings): the SAME button submits the fixer(s).
-    const fix = await bootJudgments({
+    const fix = await bootAiActions({
       probs: makeProbExtensions({
         finders: [
           makeProbEntry({
@@ -2052,7 +2052,7 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
       }),
     });
     const fixBtn = fix.fixture.nativeElement.querySelector(
-      '[data-testid="inspector-judgment-launch-core/todo-finder"]',
+      '[data-testid="inspector-ai-action-launch-core/todo-finder"]',
     ) as HTMLElement;
     expect(fixBtn.textContent).toContain('todo-finder');
     expect(fixBtn.getAttribute('data-action')).toBe('fix');
@@ -2077,15 +2077,15 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
   });
 
   it('renders finding rows with severity, type, message, provenance, and the dimmed id', async () => {
-    const { fixture } = await bootJudgments({
+    const { fixture } = await bootAiActions({
       findings: makeFindingsEnvelope([
         makeFinding(),
         makeFinding({ id: 13, severity: 'error', type: 'secret-leak', model: null, confidence: 0.5 }),
       ]),
     });
     const dom: HTMLElement = fixture.nativeElement;
-    const rows = dom.querySelectorAll('[data-testid^="inspector-judgment-1"]');
-    const first = dom.querySelector('[data-testid="inspector-judgment-12"]');
+    const rows = dom.querySelectorAll('[data-testid^="inspector-ai-action-1"]');
+    const first = dom.querySelector('[data-testid="inspector-ai-action-12"]');
     expect(rows.length).toBeGreaterThanOrEqual(2);
     expect(first).not.toBeNull();
     expect(first!.getAttribute('data-severity')).toBe('warn');
@@ -2094,42 +2094,42 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
     expect(first!.textContent).toContain('#12');
     // Provenance: percent + model when declared, percent alone otherwise.
     expect(
-      dom.querySelector('[data-testid="inspector-judgment-provenance-12"]')!.textContent,
+      dom.querySelector('[data-testid="inspector-ai-action-provenance-12"]')!.textContent,
     ).toBe('(87% · claude-opus-4)');
     expect(
-      dom.querySelector('[data-testid="inspector-judgment-provenance-13"]')!.textContent,
+      dom.querySelector('[data-testid="inspector-ai-action-provenance-13"]')!.textContent,
     ).toBe('(50%)');
     // Findings without launchers still show the card; no empty state.
-    expect(dom.querySelector('[data-testid="inspector-judgments-empty"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-empty"]')).toBeNull();
   });
 
   it('renders no honesty line (the run history lives in Activity, user call 2026-07-17)', async () => {
-    const { fixture } = await bootJudgments({
+    const { fixture } = await bootAiActions({
       findings: makeFindingsEnvelope([], { total: 3, fixedExcluded: 2, staleExcluded: 1 }),
       probs: makeProbExtensions({ finders: [makeProbEntry()] }),
     });
     expect(
-      fixture.nativeElement.querySelector('[data-testid="inspector-judgments-hidden"]'),
+      fixture.nativeElement.querySelector('[data-testid="inspector-ai-actions-hidden"]'),
     ).toBeNull();
   });
 
   it('hides the card on hidden-only counts (no fresh rows, no launchers, nothing to show)', async () => {
     // The honesty line moved to the Activity timeline (user call
     // 2026-07-17), so exclusions alone would render a title-only card.
-    const { fixture } = await bootJudgments({
+    const { fixture } = await bootAiActions({
       findings: makeFindingsEnvelope([], { total: 1, fixedExcluded: 1 }),
     });
     expect(
-      fixture.nativeElement.querySelector('[data-testid="inspector-card-judgments"]'),
+      fixture.nativeElement.querySelector('[data-testid="inspector-card-ai-actions"]'),
     ).toBeNull();
   });
 
   it('submits the extension on click and flips the button to queued optimistically', async () => {
-    const { fixture, dataSource, node } = await bootJudgments({
+    const { fixture, dataSource, node } = await bootAiActions({
       probs: makeProbExtensions({ finders: [makeProbEntry()] }),
     });
     const host = fixture.nativeElement.querySelector(
-      '[data-testid="inspector-judgment-launch-core/todo-finder"]',
+      '[data-testid="inspector-ai-action-launch-core/todo-finder"]',
     ) as HTMLElement;
     (host.querySelector('button') as HTMLButtonElement).click();
     await flush(fixture);
@@ -2138,12 +2138,12 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
     expect(host.getAttribute('data-state')).toBe('queued');
     expect((host.querySelector('button') as HTMLButtonElement).disabled).toBe(true);
     expect(
-      fixture.nativeElement.querySelector('[data-testid="inspector-judgments-error"]'),
+      fixture.nativeElement.querySelector('[data-testid="inspector-ai-actions-error"]'),
     ).toBeNull();
   });
 
   it('treats a duplicate-job refusal as already queued (no error banner)', async () => {
-    const { fixture, dataSource } = await bootJudgments({
+    const { fixture, dataSource } = await bootAiActions({
       probs: makeProbExtensions({ finders: [makeProbEntry()] }),
     });
     dataSource.submitNodeJob.mockRejectedValue(
@@ -2152,19 +2152,19 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
       }),
     );
     const host = fixture.nativeElement.querySelector(
-      '[data-testid="inspector-judgment-launch-core/todo-finder"]',
+      '[data-testid="inspector-ai-action-launch-core/todo-finder"]',
     ) as HTMLElement;
     (host.querySelector('button') as HTMLButtonElement).click();
     await flush(fixture);
 
     expect(host.getAttribute('data-state')).toBe('queued');
     expect(
-      fixture.nativeElement.querySelector('[data-testid="inspector-judgments-error"]'),
+      fixture.nativeElement.querySelector('[data-testid="inspector-ai-actions-error"]'),
     ).toBeNull();
   });
 
   it('renders the advisory plus the sm agent install hint on no-processing-agent', async () => {
-    const { fixture, dataSource } = await bootJudgments({
+    const { fixture, dataSource } = await bootAiActions({
       probs: makeProbExtensions({ finders: [makeProbEntry()] }),
     });
     dataSource.submitNodeJob.mockRejectedValue(
@@ -2174,16 +2174,16 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
       ),
     );
     const host = fixture.nativeElement.querySelector(
-      '[data-testid="inspector-judgment-launch-core/todo-finder"]',
+      '[data-testid="inspector-ai-action-launch-core/todo-finder"]',
     ) as HTMLElement;
     (host.querySelector('button') as HTMLButtonElement).click();
     await flush(fixture);
 
     const dom: HTMLElement = fixture.nativeElement;
-    const error = dom.querySelector('[data-testid="inspector-judgments-error"]');
+    const error = dom.querySelector('[data-testid="inspector-ai-actions-error"]');
     expect(error).not.toBeNull();
     expect(error!.textContent).toContain('No processing agent skill is installed');
-    const hint = dom.querySelector('[data-testid="inspector-judgments-agent-hint"]');
+    const hint = dom.querySelector('[data-testid="inspector-ai-actions-agent-hint"]');
     expect(hint).not.toBeNull();
     expect(hint!.textContent).toContain('sm agent install');
     // The refusal never flips the button: it stays idle and clickable.
@@ -2191,35 +2191,35 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
   });
 
   it('shows the envelope message for other error codes without the agent hint', async () => {
-    const { fixture, dataSource } = await bootJudgments({
+    const { fixture, dataSource } = await bootAiActions({
       probs: makeProbExtensions({ finders: [makeProbEntry()] }),
     });
     dataSource.submitNodeJob.mockRejectedValue(
       new DataSourceError('node-drifted', 'The node drifted; run sm scan first.'),
     );
     const host = fixture.nativeElement.querySelector(
-      '[data-testid="inspector-judgment-launch-core/todo-finder"]',
+      '[data-testid="inspector-ai-action-launch-core/todo-finder"]',
     ) as HTMLElement;
     (host.querySelector('button') as HTMLButtonElement).click();
     await flush(fixture);
 
     const dom: HTMLElement = fixture.nativeElement;
     expect(
-      dom.querySelector('[data-testid="inspector-judgments-error"]')!.textContent,
+      dom.querySelector('[data-testid="inspector-ai-actions-error"]')!.textContent,
     ).toContain('The node drifted; run sm scan first.');
-    expect(dom.querySelector('[data-testid="inspector-judgments-agent-hint"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-agent-hint"]')).toBeNull();
     // Dismiss clears the banner.
     (
       dom.querySelector(
-        '[data-testid="inspector-judgments-error-dismiss"]',
+        '[data-testid="inspector-ai-actions-error-dismiss"]',
       ) as HTMLButtonElement
     ).click();
     await flush(fixture);
-    expect(dom.querySelector('[data-testid="inspector-judgments-error"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-error"]')).toBeNull();
   });
 
   it('renders queued / running server states as disabled buttons', async () => {
-    const { fixture } = await bootJudgments({
+    const { fixture } = await bootAiActions({
       probs: makeProbExtensions({
         finders: [
           makeProbEntry({ id: 'core/a-finder', state: 'queued', jobId: 'job-a' }),
@@ -2229,10 +2229,10 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
     });
     const dom: HTMLElement = fixture.nativeElement;
     const queued = dom.querySelector(
-      '[data-testid="inspector-judgment-launch-core/a-finder"]',
+      '[data-testid="inspector-ai-action-launch-core/a-finder"]',
     ) as HTMLElement;
     const running = dom.querySelector(
-      '[data-testid="inspector-judgment-launch-core/b-finder"]',
+      '[data-testid="inspector-ai-action-launch-core/b-finder"]',
     ) as HTMLElement;
     expect(queued.getAttribute('data-state')).toBe('queued');
     expect((queued.querySelector('button') as HTMLButtonElement).disabled).toBe(true);
@@ -2241,7 +2241,7 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
   });
 
   it('re-fetches both reads on a job.* frame (debounced live refresh)', async () => {
-    const { fixture, dataSource, jobEvents$ } = await bootJudgments({
+    const { fixture, dataSource, jobEvents$ } = await bootAiActions({
       probs: makeProbExtensions({ finders: [makeProbEntry()] }),
     });
     const findingsBefore = dataSource.getNodeFindings.mock.calls.length;
@@ -2265,23 +2265,23 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
   // -------------------------------------------------------------------
 
   it('renders no stop/restart companions for an idle entry (jobId null)', async () => {
-    const { fixture } = await bootJudgments({
+    const { fixture } = await bootAiActions({
       probs: makeProbExtensions({ finders: [makeProbEntry()] }),
     });
     const dom: HTMLElement = fixture.nativeElement;
-    expect(dom.querySelector('[data-testid="inspector-judgment-stop-core/todo-finder"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-action-stop-core/todo-finder"]')).toBeNull();
     expect(
-      dom.querySelector('[data-testid="inspector-judgment-restart-core/todo-finder"]'),
+      dom.querySelector('[data-testid="inspector-ai-action-restart-core/todo-finder"]'),
     ).toBeNull();
   });
 
   it('keeps the companions hidden on an optimistic queued flip (no server jobId yet)', async () => {
-    const { fixture } = await bootJudgments({
+    const { fixture } = await bootAiActions({
       probs: makeProbExtensions({ finders: [makeProbEntry()] }),
     });
     const dom: HTMLElement = fixture.nativeElement;
     const host = dom.querySelector(
-      '[data-testid="inspector-judgment-launch-core/todo-finder"]',
+      '[data-testid="inspector-ai-action-launch-core/todo-finder"]',
     ) as HTMLElement;
     (host.querySelector('button') as HTMLButtonElement).click();
     await flush(fixture);
@@ -2289,57 +2289,57 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
     // Optimistically queued, but the server has not confirmed a job
     // handle: nothing to cancel, so no companions until the refresh lands.
     expect(host.getAttribute('data-state')).toBe('queued');
-    expect(dom.querySelector('[data-testid="inspector-judgment-stop-core/todo-finder"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-action-stop-core/todo-finder"]')).toBeNull();
     expect(
-      dom.querySelector('[data-testid="inspector-judgment-restart-core/todo-finder"]'),
+      dom.querySelector('[data-testid="inspector-ai-action-restart-core/todo-finder"]'),
     ).toBeNull();
   });
 
   it('renders the stop companion beside a queued entry that carries a jobId', async () => {
-    const { fixture } = await bootJudgments({
+    const { fixture } = await bootAiActions({
       probs: makeProbExtensions({
         finders: [makeProbEntry({ state: 'queued', jobId: 'job-7' })],
       }),
     });
     const dom: HTMLElement = fixture.nativeElement;
     expect(
-      dom.querySelector('[data-testid="inspector-judgment-stop-core/todo-finder"]'),
+      dom.querySelector('[data-testid="inspector-ai-action-stop-core/todo-finder"]'),
     ).not.toBeNull();
     // The restart twin was dropped (user call 2026-07-17): never rendered.
     expect(
-      dom.querySelector('[data-testid="inspector-judgment-restart-core/todo-finder"]'),
+      dom.querySelector('[data-testid="inspector-ai-action-restart-core/todo-finder"]'),
     ).toBeNull();
   });
 
   it('stop cancels the active job and flips the launcher to idle optimistically', async () => {
-    const { fixture, dataSource } = await bootJudgments({
+    const { fixture, dataSource } = await bootAiActions({
       probs: makeProbExtensions({
         finders: [makeProbEntry({ state: 'queued', jobId: 'job-7' })],
       }),
     });
     const dom: HTMLElement = fixture.nativeElement;
     const stop = dom.querySelector(
-      '[data-testid="inspector-judgment-stop-core/todo-finder"]',
+      '[data-testid="inspector-ai-action-stop-core/todo-finder"]',
     ) as HTMLElement;
     (stop.querySelector('button') as HTMLButtonElement).click();
     await flush(fixture);
 
     expect(dataSource.cancelJob).toHaveBeenCalledWith('job-7');
     const launcher = dom.querySelector(
-      '[data-testid="inspector-judgment-launch-core/todo-finder"]',
+      '[data-testid="inspector-ai-action-launch-core/todo-finder"]',
     ) as HTMLElement;
     // Optimistic idle: launcher re-enabled, companions gone (the WS
     // frame + debounced refresh confirm server-side).
     expect(launcher.getAttribute('data-state')).toBe('idle');
     expect((launcher.querySelector('button') as HTMLButtonElement).disabled).toBe(false);
-    expect(dom.querySelector('[data-testid="inspector-judgment-stop-core/todo-finder"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-action-stop-core/todo-finder"]')).toBeNull();
     expect(
-      dom.querySelector('[data-testid="inspector-judgments-error"]'),
+      dom.querySelector('[data-testid="inspector-ai-actions-error"]'),
     ).toBeNull();
   });
 
   it('treats a job-terminal stop refusal as a silent race: no error, just a re-fetch', async () => {
-    const { fixture, dataSource } = await bootJudgments({
+    const { fixture, dataSource } = await bootAiActions({
       probs: makeProbExtensions({
         finders: [makeProbEntry({ state: 'queued', jobId: 'job-7' })],
       }),
@@ -2349,14 +2349,14 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
     );
     const probsBefore = dataSource.getNodeProbExtensions.mock.calls.length;
     const stop = fixture.nativeElement.querySelector(
-      '[data-testid="inspector-judgment-stop-core/todo-finder"]',
+      '[data-testid="inspector-ai-action-stop-core/todo-finder"]',
     ) as HTMLElement;
     (stop.querySelector('button') as HTMLButtonElement).click();
     await flush(fixture);
     await flush(fixture);
 
     expect(
-      fixture.nativeElement.querySelector('[data-testid="inspector-judgments-error"]'),
+      fixture.nativeElement.querySelector('[data-testid="inspector-ai-actions-error"]'),
     ).toBeNull();
     // No WS cancel frame is coming for a job that already finished, so
     // the handle re-fetches the authoritative state directly.
@@ -2364,7 +2364,7 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
   });
 
   it('surfaces other stop failures in the error strip without flipping the state', async () => {
-    const { fixture, dataSource } = await bootJudgments({
+    const { fixture, dataSource } = await bootAiActions({
       probs: makeProbExtensions({
         finders: [makeProbEntry({ state: 'queued', jobId: 'job-7' })],
       }),
@@ -2373,19 +2373,19 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
       new DataSourceError('not-found', 'No job with id job-7.'),
     );
     const stop = fixture.nativeElement.querySelector(
-      '[data-testid="inspector-judgment-stop-core/todo-finder"]',
+      '[data-testid="inspector-ai-action-stop-core/todo-finder"]',
     ) as HTMLElement;
     (stop.querySelector('button') as HTMLButtonElement).click();
     await flush(fixture);
 
     const dom: HTMLElement = fixture.nativeElement;
     expect(
-      dom.querySelector('[data-testid="inspector-judgments-error"]')!.textContent,
+      dom.querySelector('[data-testid="inspector-ai-actions-error"]')!.textContent,
     ).toContain('No job with id job-7.');
     expect(
       (
         dom.querySelector(
-          '[data-testid="inspector-judgment-launch-core/todo-finder"]',
+          '[data-testid="inspector-ai-action-launch-core/todo-finder"]',
         ) as HTMLElement
       ).getAttribute('data-state'),
     ).toBe('queued');
@@ -2394,7 +2394,7 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
 
 
   it('disables the stop companion while the cancel round-trip is in flight', async () => {
-    const { fixture, dataSource } = await bootJudgments({
+    const { fixture, dataSource } = await bootAiActions({
       probs: makeProbExtensions({
         finders: [makeProbEntry({ state: 'queued', jobId: 'job-7' })],
       }),
@@ -2408,7 +2408,7 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
     );
     const dom: HTMLElement = fixture.nativeElement;
     const stop = dom.querySelector(
-      '[data-testid="inspector-judgment-stop-core/todo-finder"]',
+      '[data-testid="inspector-ai-action-stop-core/todo-finder"]',
     ) as HTMLElement;
     (stop.querySelector('button') as HTMLButtonElement).click();
     await flush(fixture);
@@ -2418,7 +2418,7 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
     resolveCancel();
     await flush(fixture);
     // Settled: the optimistic idle flip retires the companion entirely.
-    expect(dom.querySelector('[data-testid="inspector-judgment-stop-core/todo-finder"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-action-stop-core/todo-finder"]')).toBeNull();
   });
 
   // -------------------------------------------------------------------
@@ -2428,7 +2428,7 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
   it('renders a finder-without-fixer and a standalone action as single-action buttons', async () => {
     // Both land in the `standalone` bucket (label = short name); clicking
     // either submits its own extension with autoFix false.
-    const { fixture, dataSource, node } = await bootJudgments({
+    const { fixture, dataSource, node } = await bootAiActions({
       probs: makeProbExtensions({
         standalone: [
           makeProbEntry({ id: 'core/orphan-finder', description: 'A finder with no fixer.' }),
@@ -2438,7 +2438,7 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
     });
     const dom: HTMLElement = fixture.nativeElement;
     const summarizer = dom.querySelector(
-      '[data-testid="inspector-judgment-launch-core/summarizer"]',
+      '[data-testid="inspector-ai-action-launch-core/summarizer"]',
     ) as HTMLElement;
     expect(summarizer.textContent).toContain('summarizer');
     expect(summarizer.getAttribute('data-action')).toBe('run');
@@ -2448,7 +2448,7 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
   });
 
   it('shows the automatic toggle only when a finder-with-fixer button exists', async () => {
-    const standaloneOnly = await bootJudgments({
+    const standaloneOnly = await bootAiActions({
       probs: makeProbExtensions({
         standalone: [makeProbEntry({ id: 'core/summarizer', description: 'Summarizes.' })],
       }),
@@ -2459,7 +2459,7 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
       ),
     ).toBeNull();
 
-    const withFinder = await bootJudgments({
+    const withFinder = await bootAiActions({
       probs: makeProbExtensions({ finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'] })] }),
     });
     expect(
@@ -2470,13 +2470,13 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
   it('with the automatic toggle ON, one click submits the finder with autoFix true', async () => {
     // The persisted preference is read at init.
     localStorage.setItem('skill-map.ui.inspector.autoFix', 'true');
-    const { fixture, dataSource, node } = await bootJudgments({
+    const { fixture, dataSource, node } = await bootAiActions({
       probs: makeProbExtensions({
         finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'], hasOpenFindings: true })],
       }),
     });
     const btn = fixture.nativeElement.querySelector(
-      '[data-testid="inspector-judgment-launch-core/todo-finder"]',
+      '[data-testid="inspector-ai-action-launch-core/todo-finder"]',
     ) as HTMLElement;
     // Automatic overrides the Detect/Fix morph: data-action becomes
     // detectAndFix (the label stays the kind).
@@ -2501,7 +2501,7 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
     }
 
     // Default OFF when unset.
-    const fresh = await bootJudgments({
+    const fresh = await bootAiActions({
       probs: makeProbExtensions({ finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'] })] }),
     });
     const proto = fresh.fixture.componentInstance as unknown as IAutoFixProto;
@@ -2517,14 +2517,14 @@ describe('InspectorView, judgments card (Step 16 piece 1)', () => {
 
     // A bogus stored value resolves to false (only the literal 'true' is on).
     localStorage.setItem(KEY, 'yes-please');
-    const bogus = await bootJudgments({
+    const bogus = await bootAiActions({
       probs: makeProbExtensions({ finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'] })] }),
     });
     expect(
       (bogus.fixture.componentInstance as unknown as IAutoFixProto).autoFixEnabled(),
     ).toBe(false);
     const btn = bogus.fixture.nativeElement.querySelector(
-      '[data-testid="inspector-judgment-launch-core/todo-finder"]',
+      '[data-testid="inspector-ai-action-launch-core/todo-finder"]',
     ) as HTMLElement;
     expect(btn.getAttribute('data-action')).toBe('detect');
   });

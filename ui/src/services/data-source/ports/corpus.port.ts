@@ -173,14 +173,14 @@ export interface ICorpusPort {
   ): Promise<IContributionApi | null>;
 
   /**
-   * Per-node judgment tray (`GET /api/nodes/:pathB64/findings`, Step 16
+   * Per-node AI-actions tray (`GET /api/nodes/:pathB64/findings`, Step 16
    * piece 1). Returns the `findings` envelope: FRESH open rows in
    * `items` (the `sm findings -n <path>` default view) with the
    * excluded-count honesty pair on `counts` (`fixedExcluded` /
    * `staleExcluded`) so the UI can render the same "N fixed, M stale
    * hidden" line as the CLI. Returns `null` when the BFF responds 404
    * (unknown node / missing DB), mirroring `getNode`. The static (demo)
-   * data source returns an empty tray (the bundle records no judgments).
+   * data source returns an empty tray (the bundle records no AI actions).
    */
   getNodeFindings(path: string): Promise<IFindingsEnvelopeApi | null>;
 
