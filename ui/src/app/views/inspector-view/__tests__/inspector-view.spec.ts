@@ -1816,6 +1816,53 @@ describe('InspectorView, activity live refresh (node.activity re-fetch)', () => 
     expect(dataSource.getNodeActivity.mock.calls.length).toBeGreaterThan(before);
   });
 
+  it('re-fetches the activity detail on a job.completed frame while the section is open (AI-run history stays live)', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    dataSource.getNodeActivity.mockResolvedValue({
+      stats: { count: 1, lastStartAt: 1000, distinctOwners: 1 },
+      recent: [],
+      spawns: [],
+      captureEnabled: true,
+      runs: [],
+    });
+
+    const { fixture, jobEvents$ } = bootstrap({
+      loader,
+      dataSource,
+      activityStats: new Map([[node.path, makeActivityStats()]]),
+    });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+
+    const toggle = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-activity-toggle"]',
+    ) as HTMLButtonElement;
+    toggle.click();
+    await flush(fixture);
+    await flush(fixture);
+    expect(dataSource.getNodeActivity).toHaveBeenCalledWith(node.path);
+    const before = dataSource.getNodeActivity.mock.calls.length;
+
+    // `sm record` writes the `state_executions` AI-run row then pushes
+    // `job.completed`, a frame that carries NO `node.activity`. Without the
+    // job stream in the Activity refresh merge, a finder / summarizer run
+    // (which touches no file, so no re-scan follows) never surfaced until an
+    // unrelated refresh. Here the section re-fetches after the debounce.
+    vi.useFakeTimers();
+    try {
+      jobEvents$.next();
+      vi.advanceTimersByTime(400);
+    } finally {
+      vi.useRealTimers();
+    }
+    await flush(fixture);
+
+    expect(dataSource.getNodeActivity.mock.calls.length).toBeGreaterThan(before);
+  });
+
   it('coalesces a burst of node.activity frames into ONE re-fetch (debounced)', async () => {
     const node = makeNode();
     const loader = makeStubLoader([node]);

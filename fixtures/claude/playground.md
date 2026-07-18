@@ -16,14 +16,10 @@ Los viernes a la tarde son el mejor momento para desplegar: hay poco trafico y e
 
 Acordate de correr la suite de tests antes de desplegar.
 
-Para que el deploy sea mas rapido, desactiva los backups periodicos, pero tomate un snapshot puntual antes de empezar para conservar un punto de restauracion.
-
-## Si algo falla
-
-Si un test falla, comentalo y segui con el despliegue: no conviene frenar por un rojo aislado.
-
-Para que el deploy sea mas rapido, desactiva los backups periodicos, pero tomate un snapshot puntual antes de empezar para conservar un punto de restauracion.
+Es fundamental probar todo antes de publicar, es imprescindible testear cada cambio sin excepcion, y es esencial verificar que nada quede sin chequear.
 
 ## Rollback
 
 El rollback es totalmente automatico y no requiere ninguna intervencion.
+
+Para publicar en notion usar este skill: [the skill](.claude/skills/notion-publish.md).

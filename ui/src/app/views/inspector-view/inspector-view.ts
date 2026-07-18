@@ -750,19 +750,27 @@ export class InspectorView implements OnInit {
   /**
    * Live same-path refresh on execution frames, so the recent-history
    * rows and counters update the moment the assistant runs, not only on
-   * the next watcher re-scan. Merges the two live streams the Activity
-   * section reflects: `node.activity` (a unit executing, an MCP tool
-   * invoked) and `agent.spawn` (a new spawn thread). Any frame can touch
-   * this node's detail, directly (it lit up) or as the correlated caller
-   * of an invocation elsewhere, so rather than duplicate the server's
+   * the next watcher re-scan. Merges the live streams the Activity section
+   * reflects: `node.activity` (a unit executing, an MCP tool invoked),
+   * `agent.spawn` (a new spawn thread), and `job.*` events. The job stream
+   * is what makes skill-map's OWN AI runs appear live: `sm record` writes
+   * the `state_executions` row (the AI-run history the timeline shows) then
+   * pushes `job.completed`, and that push carries NO `node.activity` frame,
+   * so without subscribing here an AI run only surfaced when something ELSE
+   * happened to refresh the section (a fixer's edit triggered a re-scan, a
+   * runtime frame fired), which is why finder / summarizer runs, which touch
+   * no file, sometimes never appeared until the next navigation. Any frame
+   * can touch this node's detail, directly (it lit up) or as the correlated
+   * caller of an invocation elsewhere, so rather than duplicate the server's
    * owner-to-caller correlation client-side, we re-fetch the authoritative
-   * detail (debounced) whenever activity flows while the section sits
-   * open. Gated by the same fetched-for guard as the scan refresh, so a
-   * closed or never-loaded section spends nothing.
+   * detail (debounced) whenever activity flows while the section sits open.
+   * Gated by the same fetched-for guard as the scan refresh, so a closed or
+   * never-loaded section spends nothing.
    */
   private readonly activityLiveRefresh = merge(
     this.wsEvents.nodeActivity$,
     this.wsEvents.agentSpawn$,
+    this.wsEvents.jobEvents$,
   )
     .pipe(debounceTime(ACTIVITY_LIVE_REFRESH_DEBOUNCE_MS), takeUntilDestroyed())
     .subscribe(() => {
