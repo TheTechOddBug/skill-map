@@ -10,11 +10,11 @@
  * evidence is the next scan clearing the Issue. End-to-end through the real
  * CLI verbs plus the codegen inlining pins:
  *
- *   - ships EXPERIMENTAL: DISABLED by default, `sm jobs submit
- *     ai-reference-action` refuses (exit 5) until the operator opts in.
- *   - enabling + submitting over a node WITH a `core/reference-broken` Issue
- *     injects the `## Issues to resolve` section (with the broken target) and
- *     queues (exit 0).
+ *   - ships STABLE: ENABLED by default. `sm jobs submit ai-reference-action`
+ *     over a node WITH a `core/reference-broken` Issue injects the `## Issues
+ *     to resolve` section (with the broken target) and queues (exit 0).
+ *   - disabling `core/ai-reference-action` drops it from the composed catalog,
+ *     so submit then refuses (exit 5).
  *   - submitting over a node with NO reference-broken Issue refuses (exit 2,
  *     the content-agnostic no-findings gate).
  *   - a happy-path record round-trip validates the fixer report
@@ -75,11 +75,12 @@ interface IProject {
 }
 
 /**
- * Fresh project with one markdown node. The fixer ships EXPERIMENTAL
- * (disabled by default), so `enableFixer` writes an explicit enable toggle to
- * fold it into the composed catalog.
+ * Fresh project with one markdown node. The fixer ships STABLE (enabled by
+ * default), so no toggle is needed to fold it into the composed catalog:
+ * `enableFixer` writes a redundant-but-harmless explicit enable toggle, while
+ * `disableFixer` writes the opt-out toggle that drops it from the catalog.
  */
-async function setupProject(opts: { enableFixer?: boolean }): Promise<IProject> {
+async function setupProject(opts: { enableFixer?: boolean; disableFixer?: boolean }): Promise<IProject> {
   counter += 1;
   const root = join(tmpRoot, `proj-${counter}`);
   const dbPath = join(root, '.skill-map', 'skill-map.db');
@@ -92,6 +93,13 @@ async function setupProject(opts: { enableFixer?: boolean }): Promise<IProject> 
       join(root, '.skill-map', 'settings.json'),
       JSON.stringify({
         plugins: { core: { extensions: { 'ai-reference-action': { enabled: true } } } },
+      }),
+    );
+  } else if (opts.disableFixer) {
+    writeFileSync(
+      join(root, '.skill-map', 'settings.json'),
+      JSON.stringify({
+        plugins: { core: { extensions: { 'ai-reference-action': { enabled: false } } } },
       }),
     );
   }
@@ -259,12 +267,12 @@ after(() => {
 });
 
 describe('core/ai-reference-action, codegen inlining pins', () => {
-  it('is a probabilistic experimental fixer with the reference-broken precondition', () => {
+  it('is a probabilistic stable fixer with the reference-broken precondition', () => {
     const action = builtIns().actions.find((a) => a.id === 'ai-reference-action');
     ok(action, 'built-in registered');
     strictEqual(action.pluginId, 'core');
     strictEqual(action.mode, 'probabilistic');
-    strictEqual(action.stability, 'experimental');
+    strictEqual(action.stability, 'stable');
     strictEqual(action.probExpectedDurationSeconds, 120);
     deepStrictEqual(action.precondition?.analyzerIds, ['core/reference-broken']);
     // Probabilistic Actions carry NO in-process invoke and NO scan-time project.
@@ -293,20 +301,17 @@ describe('core/ai-reference-action, codegen inlining pins', () => {
   });
 });
 
-describe('core/ai-reference-action, experimental, disabled by default', () => {
-  it('ships DISABLED: sm jobs submit refuses (exit 5) until opted in', async () => {
-    const proj = await setupProject({ enableFixer: false });
-    await seedReferenceBrokenIssue(proj);
-    const { code, err } = await submit(proj, 'ai-reference-action');
-    strictEqual(code, 5, 'an experimental fixer is not in the composed catalog');
-    match(err, /not found/);
-  });
-
-  it('enabling it folds the fixer into the composed catalog (submit resolves)', async () => {
-    const proj = await setupProject({ enableFixer: true });
+describe('core/ai-reference-action, stable, enabled by default', () => {
+  it('ships ENABLED by default: submit over a node WITH a reference-broken Issue resolves (exit 0)', async () => {
+    // No enable toggle: a stable fixer is in the composed catalog out of the
+    // box. It still gates on the node carrying a matching Issue, so seed one.
+    const proj = await setupProject({});
     await seedReferenceBrokenIssue(proj);
     const { code, err } = await submit(proj, 'ai-reference-action');
     strictEqual(code, 0, `submit: ${err}`);
+
+    const content = await jobContent(proj);
+    match(content, /## Issues to resolve/);
 
     const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
     await adapter.init();
@@ -318,6 +323,14 @@ describe('core/ai-reference-action, experimental, disabled by default', () => {
     } finally {
       await adapter.close();
     }
+  });
+
+  it('disabling it makes submit exit 5 (the toggle still gates)', async () => {
+    const proj = await setupProject({ disableFixer: true });
+    await seedReferenceBrokenIssue(proj);
+    const { code, err } = await submit(proj, 'ai-reference-action');
+    strictEqual(code, 5, 'a disabled fixer is dropped from the composed catalog');
+    match(err, /not found/);
   });
 });
 

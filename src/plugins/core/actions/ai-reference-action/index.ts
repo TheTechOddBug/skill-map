@@ -53,9 +53,9 @@
  * inlines both siblings onto the emitted manifest as `promptTemplate` +
  * `reportSchema`.
  *
- * Ships `stability: 'experimental'`: DISABLED by default, the operator opts
- * in (`sm plugins enable core/ai-reference-action`) before the fixer
- * resolves as a submit target.
+ * Ships `stability: 'stable'`: ENABLED by default; the operator can disable
+ * it (`sm plugins disable core/ai-reference-action`) to drop it as a submit
+ * target.
  */
 
 import type { IAction, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
@@ -67,8 +67,8 @@ export const aiReferenceAction: IBuiltInManifest<IAction> = {
   kind: 'action',
   description:
     'Fixes broken links a scan flagged: finds where each missing target actually lives in the project and repoints the link to it.',
-  // Experimental: disabled by default, the operator opts in.
-  stability: 'experimental',
+  // Stable: enabled by default (the operator can disable it).
+  stability: 'stable',
   mode: 'probabilistic',
   // ADVISORY wall-clock estimate (Decision #139: never arms a TTL); a
   // single-node reference repair is a light pass on a mid-tier model.

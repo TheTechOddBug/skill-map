@@ -110,10 +110,11 @@ function byId(entries: readonly IProbExtensionEntry[], id: string): IProbExtensi
 }
 
 /**
- * Enable the experimental built-in `core/ai-reference-action` in the
- * project's settings.json (it ships disabled, so the composed catalog
- * omits it until the operator opts in). The key is the LEAF extension id
- * under its plugin (`core`).
+ * Explicitly enable the built-in `core/ai-reference-action` in the
+ * project's settings.json. Since its graduation to stable it ships ENABLED
+ * by default, so this toggle is redundant-but-harmless; it pins catalog
+ * membership regardless of the shipped default. The key is the LEAF
+ * extension id under its plugin (`core`).
  */
 function enableAiReferenceAction(root: string): void {
   writeFileSync(
