@@ -343,18 +343,29 @@ describe('sm agent uninstall', () => {
 describe('the canonical sm-process-jobs skill, fixer-edit guidance', () => {
   it('sends an interactive agent to its user for a go-ahead before the edit', () => {
     ok(
-      PROCESS_JOBS_SKILL_CONTENT.includes('consult them before a fixer\'s edit'),
-      'names consulting the user as the fixer-edit precondition',
+      PROCESS_JOBS_SKILL_CONTENT.includes('Before a fixer\'s edit, show the'),
+      'names showing the edit before writing it as the fixer-edit precondition',
     );
     ok(
-      PROCESS_JOBS_SKILL_CONTENT.includes('show the edit you intend to make and get their'),
+      PROCESS_JOBS_SKILL_CONTENT.includes('get their go-ahead'),
       'the confirmation is show-then-approve, not a bare "ask first"',
+    );
+  });
+
+  it('sends a genuine choice back as a choose-one question, not a silent guess', () => {
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('present the concrete options as a'),
+      'a job that needs the author\'s choice surfaces the options',
+    );
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('choose-one question and apply the one they pick'),
+      'the options are a choose-one the agent applies in-session, not a deferred note',
     );
   });
 
   it('keeps the unattended processing run autonomous (edit, then report)', () => {
     ok(
-      PROCESS_JOBS_SKILL_CONTENT.includes('when processing unattended, make the edit'),
+      PROCESS_JOBS_SKILL_CONTENT.includes('make the edit and report it'),
       'an agent with no user to consult still performs the edit',
     );
   });
