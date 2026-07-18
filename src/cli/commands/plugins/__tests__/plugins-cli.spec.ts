@@ -655,22 +655,24 @@ describe('sm plugins doctor, disabled is not a failure', () => {
     const r = sm(['plugins', 'doctor'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // Disabled is intentional, never an error: exit stays 0. The count
-    // is 6, the disabled `mock-h` drop-in plus the five experimental
+    // is 7, the disabled `mock-h` drop-in plus the six experimental
     // built-in extensions that ship disabled by default: the gated bump
     // pair `core/node-bump` + `core/annotation-stale`, the
     // declared-network provenance verifier `github/enrichment`, the
-    // opt-in `core/auto-fix` hook, and the universal summarizer
+    // opt-in `core/auto-fix` hook, the universal summarizer
     // `core/ai-summarizer-action` (experimental until its Step 16 UI
-    // surface lands). The three probabilistic finders
+    // surface lands), and the deterministic-analyzer fixer
+    // `core/ai-reference-action` (fixes `core/reference-broken`,
+    // experimental). The three probabilistic finders
     // (`core/ai-redundancy-analyzer` / `core/ai-contradiction-analyzer` /
-    // `core/ai-incoherence-analyzer`) and the three fixers
+    // `core/ai-incoherence-analyzer`) and the three finder-paired fixers
     // (`core/ai-redundancy-action` / `core/ai-contradiction-action` /
     // `core/ai-incoherence-action`) graduated to stable and now ship
     // enabled. (`core/mcp-tools` is now beta and ships enabled, so it no
     // longer counts here; `antigravity/antigravity` and `codex/codex` are
     // beta and `agent-skills/agent-skills` is stable + locked, so all ship
     // enabled.)
-    assert.match(r.stdout, /disabled\s+6/);
+    assert.match(r.stdout, /disabled\s+7/);
   });
 });
 

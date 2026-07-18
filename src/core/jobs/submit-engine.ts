@@ -36,6 +36,7 @@ import type { StoragePort } from '../../kernel/ports/storage.js';
 import type { IJobsConfig } from '../../kernel/config/loader.js';
 import {
   buildFindingsSection,
+  buildIssuesSection,
   computeContentHash,
   computePromptTemplateHash,
   generateJobId,
@@ -49,6 +50,7 @@ import {
   resolveSubmitTarget,
   resolveTtl,
   selectFixerFindings,
+  selectFixerIssues,
 } from '../../kernel/jobs/index.js';
 import { sha256 } from '../../kernel/orchestrator/node-build.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
@@ -56,6 +58,7 @@ import { walkContent } from '../../kernel/scan/walk-content.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 
 import type { IActionRuntime } from './action-runtime.js';
+import { referencedAnalyzerMode, type TAnalyzerMode } from './analyzer-mode.js';
 import { SUBMIT_ENGINE_TEXTS as T } from './i18n/submit-engine.texts.js';
 
 /**
@@ -263,6 +266,16 @@ export interface ISubmitContext {
    * content per node; `undefined` leaves the render exactly as before.
    */
   analyzerIds: readonly string[] | undefined;
+  /**
+   * The resolved execution mode of the analyzer(s) `analyzerIds` name (Modelo
+   * B, `spec/architecture.md`), resolved ONCE at prepare time via
+   * `referencedAnalyzerMode`. `'deterministic'` routes the fixer through the
+   * `## Issues to resolve` injection (the referenced analyzer's `scan_issues`
+   * rows); `'probabilistic'` (or `undefined`, an unresolved / disabled finder)
+   * keeps the `## Findings to resolve` path (`state_findings`). `undefined`
+   * for non-fixer submits (`analyzerIds` undefined).
+   */
+  analyzerMode: TAnalyzerMode | undefined;
   /** Optional operator-armed TTL; `null` = never expires (the default). */
   ttlSeconds: number | null;
   priority: number;
@@ -285,15 +298,23 @@ type TJobRenderInputs =
 /**
  * Resolve the per-node render inputs. Non-fixer submits (`analyzerIds`
  * undefined) reuse the precomputed base `promptTemplateHash` and inject no
- * section, byte-identical to before the fixer feature. A FIXER
- * (`spec/job-lifecycle.md` §Findings injection for fixers) selects THIS
- * node's extension-lane findings for its analyzers, stale ones INCLUDED
- * (hence `includeStale: true`, the adapter hides them by default): they
- * ride flagged and the agent verifies each against the current body. Only
- * an empty selection (no matching findings at all) refuses
- * (`'no-findings'`); a non-empty one renders the `## Findings to resolve`
- * section and folds it into a per-node `promptTemplateHash` so a changed
- * finding set is a distinct job.
+ * section, byte-identical to before the fixer feature.
+ *
+ * A FIXER (`spec/job-lifecycle.md` §Findings injection for fixers) branches on
+ * the mode of the analyzer it serves (Modelo B, resolved once at prepare
+ * time):
+ *   - DETERMINISTIC analyzer: select THIS node's `scan_issues` rows for its
+ *     analyzers and render a `## Issues to resolve` section (no staleness /
+ *     resolution axis, Issues are re-derived each scan);
+ *   - PROBABILISTIC finder (the default when the mode is unresolved): select
+ *     the node's extension-lane findings, stale ones INCLUDED (hence
+ *     `includeStale: true`, the adapter hides them by default) so they ride
+ *     flagged for the agent to verify, and render `## Findings to resolve`.
+ *
+ * Both fold the rendered section into a per-node `promptTemplateHash` via the
+ * SAME `findingsSection` seam, so a changed trigger set is a distinct job; and
+ * both refuse an EMPTY selection with the content-agnostic `'no-findings'`
+ * exit-2 gate (a fixer over a node nothing flagged is a user error).
  */
 async function resolveJobRenderInputs(
   adapter: StoragePort,
@@ -303,10 +324,43 @@ async function resolveJobRenderInputs(
   if (prepared.analyzerIds === undefined) {
     return { findingsSection: undefined, promptTemplateHash: prepared.promptTemplateHash };
   }
+  if (prepared.analyzerMode === 'deterministic') {
+    return resolveIssueRenderInputs(adapter, node, prepared);
+  }
   const nodeFindings = await adapter.findings.list({ nodeId: node.path, includeStale: true });
   const selected = selectFixerFindings(nodeFindings, prepared.analyzerIds);
   if (selected.length === 0) return 'no-findings';
   const findingsSection = buildFindingsSection(selected);
+  return {
+    findingsSection,
+    promptTemplateHash: computePromptTemplateHash({
+      preamble: prepared.preamble,
+      template: prepared.promptTemplate,
+      findingsSection,
+      reportContract: prepared.reportContract,
+    }),
+  };
+}
+
+/**
+ * The deterministic-analyzer fixer branch of `resolveJobRenderInputs`: read
+ * the node's Issue bundle (`scan_issues`, via the node bundle), select the
+ * rows whose short `analyzerId` matches the fixer's `analyzerIds`, and render
+ * the `## Issues to resolve` section. Folds into the SAME `findingsSection`
+ * seam + `promptTemplateHash` as the findings branch, so the render, hash, and
+ * supersede all stay content-agnostic. An empty selection refuses with the
+ * shared `'no-findings'` gate.
+ */
+async function resolveIssueRenderInputs(
+  adapter: StoragePort,
+  node: Node,
+  prepared: ISubmitContext,
+): Promise<TJobRenderInputs> {
+  const analyzerIds = prepared.analyzerIds ?? [];
+  const bundle = await adapter.scans.findNode(node.path);
+  const selected = selectFixerIssues(bundle?.issues ?? [], analyzerIds);
+  if (selected.length === 0) return 'no-findings';
+  const findingsSection = buildIssuesSection(selected);
   return {
     findingsSection,
     promptTemplateHash: computePromptTemplateHash({
@@ -545,6 +599,7 @@ export function prepareSubmitContext(opts: {
     }
     throw err;
   }
+  const analyzerIds = fixerAnalyzerIds(extensionKind, extension);
   const prepared: ISubmitContext = {
     extensionId: qualified,
     extensionVersion: extension.version,
@@ -553,7 +608,13 @@ export function prepareSubmitContext(opts: {
     promptTemplate: promptTemplate.text,
     preamble,
     reportContract: reportContract.text,
-    analyzerIds: fixerAnalyzerIds(extensionKind, extension),
+    analyzerIds,
+    // Modelo B: resolve the referenced analyzer's mode ONCE, so the per-node
+    // render branches (Issues vs findings) without re-resolving per fan-out.
+    analyzerMode:
+      analyzerIds !== undefined
+        ? referencedAnalyzerMode(opts.runtime.analyzers, analyzerIds)
+        : undefined,
     promptTemplateHash: computePromptTemplateHash({
       preamble,
       template: promptTemplate.text,

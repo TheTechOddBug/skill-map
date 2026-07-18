@@ -15,13 +15,21 @@
  *     of THIS finder's extension id.
  *   - `standalone`: probabilistic Analyzers matching the node with NO
  *     fixer (`fixerIds` empty), PLUS probabilistic Actions WITHOUT
- *     `analyzerIds`, listed whenever their precondition matches. Single
- *     action buttons: `fixerIds` empty, `hasOpenFindings` always false.
+ *     `analyzerIds` (listed whenever their precondition matches), PLUS a
+ *     probabilistic Action whose `analyzerIds` resolve to a DETERMINISTIC
+ *     analyzer (e.g. `core/ai-reference-action` over
+ *     `core/reference-broken`) but ONLY when the node carries >= 1 Issue
+ *     from those analyzerIds. Single action buttons: `fixerIds` empty,
+ *     `hasOpenFindings` always false.
  *
- * The former per-finder-fixer split and the `fixers` bucket are RETIRED:
- * a fixer is now the second state of its finder's button, never its own
- * standalone launcher, so probabilistic Actions WITH `analyzerIds` (the
- * fixers) are no longer listed at all.
+ * A fixer paired with a PROBABILISTIC finder is the second state of that
+ * finder's button, never its own launcher, so those probabilistic Actions
+ * WITH `analyzerIds` are not listed here (they surface through their
+ * finder's `fixerIds`); the former per-finder-fixer split and the `fixers`
+ * bucket stay RETIRED. The deterministic-analyzer fixer is the sole
+ * exception: its analyzer emits `scan_issues`, never `state_findings`, so
+ * there is no finder button for it to ride, and it appears as its own
+ * standalone launcher whenever the node has a matching open Issue.
  *
  * Each entry adds the live queue `state` (`queued` / `running` when an
  * active `state_jobs` row exists for the (node, extension) pair, else
@@ -59,6 +67,7 @@ import {
   buildActionRuntime,
   type IActionRuntime,
 } from '../../core/jobs/action-runtime.js';
+import { referencedAnalyzerMode } from '../../core/jobs/analyzer-mode.js';
 import {
   resolveMatchingFixerIds,
   type IFixerCandidateAction,
@@ -100,7 +109,8 @@ export interface IProbExtensionEntry {
    * Qualified ids of the fixer Actions whose `precondition.analyzerIds`
    * name this finder (the inverse Modelo-B lookup). Non-empty ONLY on
    * `finders`-bucket entries; empty for standalone entries (finders with
-   * no fixer, and Actions without `analyzerIds`). In manual mode the
+   * no fixer, Actions without `analyzerIds`, and deterministic-analyzer
+   * fixers surfaced by a matching open Issue). In manual mode the
    * button's Fix state submits each of these; in automatic mode the
    * finder submits with `autoFix: true` and the kernel chains them.
    */
@@ -262,20 +272,53 @@ async function buildCatalog(
     }
   }
   for (const action of sources.probActions) {
-    // A probabilistic Action WITH `analyzerIds` is a FIXER: it is the
-    // second state of its finder's button, never its own launcher, so it
-    // is no longer listed at all.
-    if (fixerAnalyzerIds('action', action) !== undefined) continue;
-    if (!nodeMatchesPrecondition(node, action.precondition)) continue;
-    standalone.push(
-      await buildEntry(adapter, node, action, activeJobs, {
-        fixerIds: [],
-        hasOpenFindings: false,
-      }),
-    );
+    const entry = await classifyProbAction(adapter, node, action, activeJobs, sources);
+    if (entry !== null) standalone.push(entry);
   }
 
   return { finders, standalone };
+}
+
+/**
+ * Classify one probabilistic Action against the node into a `standalone`
+ * launcher entry, or `null` when it does not belong in the catalog:
+ *
+ *   - a fixer pairing a PROBABILISTIC finder (a non-empty `analyzerIds`
+ *     resolving to a probabilistic analyzer) is UNLISTED: it is the second
+ *     state of its finder's button, surfaced through the finder's `fixerIds`,
+ *     never its own launcher.
+ *   - a fixer of a DETERMINISTIC analyzer (`core/ai-reference-action` over
+ *     `core/reference-broken`) becomes its OWN standalone launcher, but ONLY
+ *     when the node carries >= 1 Issue from those analyzerIds: the analyzer
+ *     emits `scan_issues`, not `state_findings`, so there is no finder button
+ *     to ride and nothing to fix without an open Issue.
+ *   - an Action WITHOUT `analyzerIds` is a plain standalone launcher listed
+ *     whenever its precondition matches the node.
+ */
+async function classifyProbAction(
+  adapter: StoragePort,
+  node: Node,
+  action: IAction,
+  activeJobs: readonly Job[],
+  sources: ICatalogSources,
+): Promise<IProbExtensionEntry | null> {
+  const analyzerIds = fixerAnalyzerIds('action', action);
+  const standaloneExtras = { fixerIds: [] as string[], hasOpenFindings: false };
+  if (analyzerIds !== undefined) {
+    if (referencedAnalyzerMode(sources.runtime.analyzers, analyzerIds) !== 'deterministic') {
+      return null;
+    }
+    const issues = await adapter.issues.list({
+      nodePath: node.path,
+      analyzerIds,
+      offset: 0,
+      limit: 1,
+    });
+    if (issues.total === 0) return null;
+    return buildEntry(adapter, node, action, activeJobs, standaloneExtras);
+  }
+  if (!nodeMatchesPrecondition(node, action.precondition)) return null;
+  return buildEntry(adapter, node, action, activeJobs, standaloneExtras);
 }
 
 /**

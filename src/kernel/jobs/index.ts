@@ -52,8 +52,11 @@ export {
 } from './report-contract.js';
 export {
   buildFindingsSection,
+  buildIssuesSection,
   selectFixerFindings,
+  selectFixerIssues,
   type IFixerFindingProjection,
+  type IFixerIssueProjection,
 } from './findings-injection.js';
 export {
   bucketFilterActive,

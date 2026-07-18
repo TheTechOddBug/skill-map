@@ -66,6 +66,7 @@ import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { RECORD_TEXTS } from '../i18n/record.texts.js';
 import type { IActionRuntime } from '../../core/jobs/action-runtime.js';
+import { referencedAnalyzerMode } from '../../core/jobs/analyzer-mode.js';
 import { resolveAction } from './action-runtime.js';
 
 /**
@@ -140,10 +141,13 @@ export interface IResolvedExtensionRecord {
   /**
    * The Action's declared `precondition.analyzerIds`, i.e. THE FIXER
    * SIGNAL (Modelo B): a non-empty list means this extension resolves
-   * another finder's findings, so its report's `resolved[]` entries get
+   * another finder's FINDINGS, so its report's `resolved[]` entries get
    * stamped onto them at record. `null` for an Analyzer (a finder never
-   * resolves) and for an Action that declares none (a plain probabilistic
-   * Action: summarizer, enricher, ...).
+   * resolves), for an Action that declares none (a plain probabilistic
+   * Action: summarizer, enricher, ...), AND for a fixer whose `analyzerIds`
+   * reference a DETERMINISTIC analyzer (it resolves `scan_issues`, which
+   * carry no stampable finding id, so there is nothing to stamp, the fix's
+   * evidence is the next scan clearing the Issue).
    */
   analyzerIds: readonly string[] | null;
 }
@@ -179,12 +183,25 @@ function resolveActionExtensionRecord(
 ): TExtensionRecordResolution {
   const resolution = resolveActionRecord(runtime, extensionId);
   if (!resolution.ok) return resolution;
+  const declared = resolution.record.action.precondition?.analyzerIds ?? null;
+  // Modelo B split: a fixer whose `analyzerIds` reference a DETERMINISTIC
+  // analyzer (e.g. `core/reference-broken`) resolves `scan_issues`, not
+  // `state_findings`, so its report keys each entry on the broken `target`
+  // and carries NO finding `id` to stamp (the fix's evidence is the next scan
+  // clearing the Issue via the body-hash rule). Null the fixer signal in that
+  // case so `buildResolutionIntent` skips the resolution-stamping leg
+  // entirely; a finder-paired fixer (probabilistic analyzer) keeps its
+  // `analyzerIds` and stamps as before.
+  const analyzerIds =
+    declared !== null && referencedAnalyzerMode(runtime.analyzers, declared) === 'deterministic'
+      ? null
+      : declared;
   return {
     ok: true,
     record: {
       extensionKind: 'action',
       schema: resolution.record.schema,
-      analyzerIds: resolution.record.action.precondition?.analyzerIds ?? null,
+      analyzerIds,
     },
   };
 }

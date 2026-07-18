@@ -17,8 +17,14 @@
  *     (the Detect <-> Fix morph driver).
  *   - a probabilistic Action WITHOUT `analyzerIds` lands in `standalone`
  *     with an empty `fixerIds` and `hasOpenFindings: false`.
- *   - a FIXER Action (WITH `analyzerIds`) is NOT listed in any bucket:
- *     it is the second state of its finder's button, not a launcher.
+ *   - a FIXER Action pairing a PROBABILISTIC finder (WITH `analyzerIds`)
+ *     is NOT listed in any bucket: it is the second state of its finder's
+ *     button, not a launcher.
+ *   - a FIXER Action of a DETERMINISTIC analyzer
+ *     (`core/ai-reference-action` over `core/reference-broken`) DOES land
+ *     in `standalone` (empty `fixerIds`, `hasOpenFindings: false`), but
+ *     only when the node carries >= 1 matching `scan_issues` row; absent
+ *     that Issue it is in neither bucket.
  *   - a finder whose only fixer is NOT composed (untrusted) falls to
  *     `standalone` with empty `fixerIds`.
  *   - `hasOpenFindings` tracks the finder lane: an open non-stale finding
@@ -54,6 +60,10 @@ import {
 } from './helpers/prob-fixture.js';
 
 const STALE_HASH = 'e'.repeat(64);
+/** The built-in deterministic-analyzer fixer (`core/reference-broken` over `scan_issues`). */
+const AI_REFERENCE_ID = 'core/ai-reference-action';
+/** The analyzerId a `reference-broken` Issue persists (SHORT, no slash per issue.schema.json). */
+const REFERENCE_BROKEN_SHORT = 'reference-broken';
 const NOTE_NODE = { path: 'notes/readme.md', kind: 'markdown', provider: 'markdown' } as const;
 const VIRTUAL_NODE = {
   path: 'virtual/agent.md',
@@ -97,6 +107,49 @@ async function fetchCatalog(
 
 function byId(entries: readonly IProbExtensionEntry[], id: string): IProbExtensionEntry | undefined {
   return entries.find((e) => e.id === id);
+}
+
+/**
+ * Enable the experimental built-in `core/ai-reference-action` in the
+ * project's settings.json (it ships disabled, so the composed catalog
+ * omits it until the operator opts in). The key is the LEAF extension id
+ * under its plugin (`core`).
+ */
+function enableAiReferenceAction(root: string): void {
+  writeFileSync(
+    join(root, '.skill-map', 'settings.json'),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        plugins: { core: { extensions: { 'ai-reference-action': { enabled: true } } } },
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+/**
+ * Plant one deterministic `core/reference-broken` Issue against `nodePath`,
+ * mirroring how the scan persists it: the analyzerId is stored SHORT
+ * (`reference-broken`, no slash) and the node scope rides `node_ids_json`.
+ */
+async function seedReferenceBrokenIssue(project: IProbProject, nodePath: string): Promise<void> {
+  await withProjectDb(project, async (adapter) => {
+    await adapter.db
+      .insertInto('scan_issues')
+      .values({
+        analyzerId: REFERENCE_BROKEN_SHORT,
+        severity: 'error',
+        nodeIdsJson: JSON.stringify([nodePath]),
+        linkIndicesJson: null,
+        message: 'references arrow points at "docs/missing.md" which is not in the scan',
+        detail: null,
+        fixJson: null,
+        dataJson: JSON.stringify({ target: 'docs/missing.md', kind: 'references', trigger: null }),
+      })
+      .execute();
+  });
 }
 
 describe('GET /api/nodes/:pathB64/prob-extensions', () => {
@@ -345,6 +398,56 @@ describe('GET /api/nodes/:pathB64/prob-extensions', () => {
       });
     } finally {
       rmSync(midRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('deterministic-analyzer fixer shows in standalone iff the node has a reference-broken Issue', async () => {
+    // `core/ai-reference-action` fixes the DETERMINISTIC `core/reference-broken`
+    // analyzer, which emits `scan_issues`, not `state_findings`. It has no
+    // finder button to ride, so it must surface as its OWN standalone launcher,
+    // gated on the node actually carrying a reference-broken Issue.
+    const root = mkdtempSync(join(tmpdir(), 'skill-map-prob-ext-airef-'));
+    try {
+      const proj = await setupProbProject(root, [SKILL_NODE], { installSkill: true });
+      enableAiReferenceAction(proj.root);
+      await seedReferenceBrokenIssue(proj, SKILL_NODE.path);
+      await bootAndUse(proj, async (handle) => {
+        const env = await fetchCatalog(handle, SKILL_NODE.path);
+        const entry = byId(env.item.standalone, AI_REFERENCE_ID);
+        assert.ok(entry, 'the deterministic-analyzer fixer surfaces as a standalone launcher');
+        assert.deepEqual(entry.fixerIds, [], 'a deterministic-analyzer fixer carries no fixerIds');
+        assert.equal(entry.hasOpenFindings, false, 'standalone entries are never in Fix state');
+        assert.equal(byId(env.item.finders, AI_REFERENCE_ID), undefined, 'never a finder');
+
+        // Regression: a probabilistic finder+fixer node still classifies
+        // exactly as before (the deterministic-fixer branch is additive).
+        const finder = byId(env.item.finders, FINDER_ID);
+        assert.ok(finder, 'the probabilistic finder still lands in finders');
+        assert.deepEqual(finder.fixerIds, [FIXER_ID], 'its inverse Modelo-B fixer is unchanged');
+        assert.equal(byId(env.item.standalone, FINDER_ID), undefined);
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('deterministic-analyzer fixer is ABSENT from both buckets with no reference-broken Issue', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'skill-map-prob-ext-airef-none-'));
+    try {
+      const proj = await setupProbProject(root, [SKILL_NODE], { installSkill: true });
+      enableAiReferenceAction(proj.root);
+      // No reference-broken Issue seeded: nothing for the fixer to resolve.
+      await bootAndUse(proj, async (handle) => {
+        const env = await fetchCatalog(handle, SKILL_NODE.path);
+        assert.equal(
+          byId(env.item.standalone, AI_REFERENCE_ID),
+          undefined,
+          'no matching Issue -> the fixer is not a launcher',
+        );
+        assert.equal(byId(env.item.finders, AI_REFERENCE_ID), undefined);
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
     }
   });
 

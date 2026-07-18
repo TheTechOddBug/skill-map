@@ -39,10 +39,10 @@
  * which have no such section, keep their hash unchanged.
  */
 
-import type { Severity } from '../types.js';
+import type { Issue, Severity } from '../types.js';
 import type { IFindingRecord } from '../types/storage.js';
 import { JOB_TEXTS } from '../i18n/jobs.texts.js';
-import { matchesQualifiedExtensionFilter } from '../util/analyzer-filter.js';
+import { matchesAnalyzerFilter, matchesQualifiedExtensionFilter } from '../util/analyzer-filter.js';
 
 /**
  * The per-finding projection injected into the fenced json array
@@ -134,6 +134,116 @@ export function buildFindingsSection(findings: readonly IFindingRecord[]): strin
   return (
     `${JOB_TEXTS.findingsToResolveHeading}\n\n` +
     `${JOB_TEXTS.findingsToResolveCaution}\n\n` +
+    `\`\`\`json\n${json}\n\`\`\``
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Deterministic-analyzer fixer: ISSUE injection (Modelo B, deterministic side)
+// ---------------------------------------------------------------------------
+
+/**
+ * The per-issue projection injected into the `## Issues to resolve` json
+ * array (`spec/job-lifecycle.md` §Findings injection for fixers, the
+ * deterministic case). A deterministic analyzer's trigger is its
+ * `scan_issues` rows, which carry NO stable id (the `scan_issues.id` is a
+ * per-scan autoincrement wiped by replace-all), so unlike
+ * `IFixerFindingProjection` there is no `id` for the fixer to echo back: the
+ * report keys each entry on the broken `target` string instead, and the
+ * fix's evidence is the next scan clearing the Issue (nothing is stamped).
+ *
+ * `target` + `kind` come from the Issue's `data` payload (for
+ * `core/reference-broken` that is `{ target, kind, trigger }`); `severity` +
+ * `message` come off the Issue itself. `null` when the payload omits the
+ * field (defensive: a third-party deterministic analyzer might not populate
+ * `data`).
+ */
+export interface IFixerIssueProjection {
+  target: string | null;
+  kind: string | null;
+  severity: Severity;
+  message: string;
+}
+
+/**
+ * Select the Issues a fixer resolves from a node's `scan_issues` list: those
+ * whose SHORT `analyzerId` matches one of the Action's (qualified or bare)
+ * `analyzerIds`. Uses `matchesAnalyzerFilter` (short-stored / qualified-or-
+ * bare-filter direction), NOT `matchesQualifiedExtensionFilter`, because
+ * `scan_issues.analyzer_id` is stored SHORT (`reference-broken`) while a
+ * fixer's `precondition.analyzerIds` are qualified (`core/reference-broken`).
+ *
+ * Issues have NO `resolution` / `origin` / `stale` axes (they are re-derived
+ * every scan and are always "open" while present), so there is nothing to
+ * filter on those, the selection is purely the analyzer-id match. Sorted
+ * stably by `nodeIds[0]` then the projected `target` then `message` so two
+ * submits over the same Issue set render byte-identical content (the same
+ * reproducibility `selectFixerFindings` gets from its `id` ordering).
+ */
+export function selectFixerIssues(
+  issues: readonly Issue[],
+  analyzerIds: readonly string[],
+): Issue[] {
+  return issues
+    .filter((issue) => matchesAnalyzerFilter(issue.analyzerId, analyzerIds))
+    .slice()
+    .sort(compareIssuesForInjection);
+}
+
+/** The Issue's `data.target` when it is a string, else `''` (sort key). */
+function issueTarget(issue: Issue): string {
+  const target = issue.data?.['target'];
+  return typeof target === 'string' ? target : '';
+}
+
+/** Lexicographic string compare yielding a stable `-1` / `0` / `1`. */
+function compareStrings(a: string, b: string): number {
+  if (a < b) {
+    return -1;
+  }
+  if (a > b) {
+    return 1;
+  }
+  return 0;
+}
+
+/** Stable order for injected Issues: node, then target, then message. */
+function compareIssuesForInjection(a: Issue, b: Issue): number {
+  return (
+    compareStrings(a.nodeIds[0] ?? '', b.nodeIds[0] ?? '') ||
+    compareStrings(issueTarget(a), issueTarget(b)) ||
+    compareStrings(a.message, b.message)
+  );
+}
+
+/** Project a stored Issue to the injected shape (fixed key order). */
+function projectIssue(issue: Issue): IFixerIssueProjection {
+  const data = issue.data ?? {};
+  const target = data['target'];
+  const kind = data['kind'];
+  return {
+    target: typeof target === 'string' ? target : null,
+    kind: typeof kind === 'string' ? kind : null,
+    severity: issue.severity,
+    message: issue.message,
+  };
+}
+
+/**
+ * Render the `## Issues to resolve` section from ALREADY-SELECTED Issues
+ * (`selectFixerIssues`): the heading, a one-line data-not-instructions
+ * caution, then a fenced ```json array of the projected Issues. Callers MUST
+ * NOT invoke this with an empty array, submit refuses a fixer with no
+ * matching Issues BEFORE rendering (the same content-agnostic exit-2 gate
+ * the findings case uses, `spec/job-lifecycle.md` §Findings injection for
+ * fixers).
+ */
+export function buildIssuesSection(issues: readonly Issue[]): string {
+  const projected = issues.map(projectIssue);
+  const json = JSON.stringify(projected, null, 2);
+  return (
+    `${JOB_TEXTS.issuesToResolveHeading}\n\n` +
+    `${JOB_TEXTS.issuesToResolveCaution}\n\n` +
     `\`\`\`json\n${json}\n\`\`\``
   );
 }

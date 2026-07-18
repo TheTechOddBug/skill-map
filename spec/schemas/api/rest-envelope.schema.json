@@ -607,7 +607,7 @@
       }
     },
     {
-      "description": "Probabilistic-launcher envelope served by `GET /api/nodes/:pathB64/prob-extensions` (Step 16). Rides the single shape (`item` + the three registries, no `counts` / `filters`); the `item` is the node's launcher catalog for the inspector's two-state finder buttons (ROADMAP §Step 16): `finders` (probabilistic Analyzers whose precondition matches the node AND that have at least one matching fixer, i.e. `fixerIds` non-empty; the UI renders each as a single button that morphs Detect ⇄ Fix by `hasOpenFindings`, or Detect+Fix when the automatic toggle is on), `standalone` (probabilistic Analyzers matching the node with NO fixer, PLUS probabilistic Actions without `analyzerIds`; single-action buttons, `fixerIds` empty). The former per-finder-fixer split and the `fixers` bucket are retired: a fixer is now the second state of its finder's button, never a standalone launcher. Entry shape in `#/$defs/ProbExtensionEntry`.",
+      "description": "Probabilistic-launcher envelope served by `GET /api/nodes/:pathB64/prob-extensions` (Step 16). Rides the single shape (`item` + the three registries, no `counts` / `filters`); the `item` is the node's launcher catalog for the inspector's two-state finder buttons (ROADMAP §Step 16): `finders` (probabilistic Analyzers whose precondition matches the node AND that have at least one matching fixer, i.e. `fixerIds` non-empty; the UI renders each as a single button that morphs Detect ⇄ Fix by `hasOpenFindings`, or Detect+Fix when the automatic toggle is on), `standalone` (probabilistic Analyzers matching the node with NO fixer, PLUS probabilistic Actions without `analyzerIds`, PLUS a probabilistic Action whose `analyzerIds` resolve to a DETERMINISTIC analyzer such as `core/ai-reference-action` over `core/reference-broken` but only when the node carries at least one matching open Issue; single-action buttons, `fixerIds` empty). A fixer paired with a probabilistic finder is the second state of that finder's button, never a standalone launcher; the former per-finder-fixer split and the `fixers` bucket stay retired. The deterministic-analyzer fixer is the sole exception because its analyzer emits `scan_issues`, not `state_findings`, so it has no finder button to ride. Entry shape in `#/$defs/ProbExtensionEntry`.",
       "required": [
         "item",
         "kindRegistry",
@@ -1062,7 +1062,7 @@
         "fixerIds": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
-          "description": "Qualified ids of the fixer Actions whose `precondition.analyzerIds` name this finder (the inverse Modelo B lookup). Non-empty ONLY on `finders`-bucket entries; empty for standalone entries (finders with no fixer, and Actions without `analyzerIds`). In manual mode the button's Fix state submits each of these; in automatic mode the finder is submitted with `autoFix: true` and the kernel chains them."
+          "description": "Qualified ids of the fixer Actions whose `precondition.analyzerIds` name this finder (the inverse Modelo B lookup). Non-empty ONLY on `finders`-bucket entries; empty for standalone entries (finders with no fixer, Actions without `analyzerIds`, and deterministic-analyzer fixers surfaced by a matching open Issue). In manual mode the button's Fix state submits each of these; in automatic mode the finder is submitted with `autoFix: true` and the kernel chains them."
         },
         "hasOpenFindings": {
           "type": "boolean",

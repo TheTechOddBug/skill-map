@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.ai/spec/v0/core/ai-reference-action-report.schema.json",
+  "title": "AiReferenceActionReport",
+  "description": "Report shape for the built-in `core/ai-reference-action` probabilistic fixer Action. A fixer is NOT a finder: its report is execution-only (no findings write-through table), so it extends `report-base.schema.json` directly for the `confidence` + `safety` fields the preamble mandates, rather than the `findings/` envelope. `resolved` records, per broken reference the processing agent acted on, keyed by the broken link `target` (NOT a finding id: the trigger is a `core/reference-broken` Issue, which carries no stable identity, so the fix's evidence is the next scan clearing the Issue via the body-hash rule, nothing is stamped in the DB). `editsSummary` describes the edits made to the node file. skill-map never writes the body, the processing agent performs the edit. Stability: experimental.",
+  "allOf": [{ "$ref": "https://skill-map.ai/spec/v0/report-base.schema.json" }],
+  "type": "object",
+  "required": ["resolved", "editsSummary"],
+  "properties": {
+    "resolved": {
+      "type": "array",
+      "description": "One entry per broken reference the agent considered, keyed by the broken link's `target`. `state` is `fixed` when the link was repointed or corrected, `human-decision` when the fix needs a choice only the author can make, or the intended target appears to live OUTSIDE the project and the agent needs permission to search there (with your PROPOSAL / request in `note`), and you left the document untouched.",
+      "items": {
+        "type": "object",
+        "required": ["target", "state", "note"],
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "The broken link's `target` string, copied VERBATIM from the injected `## Issues to resolve` section. This is what ties the outcome back to the broken reference. A target that does not match a current broken reference on this node is ignored."
+          },
+          "kind": {
+            "type": "string",
+            "description": "Optional echo of the broken link's `kind` (e.g. `references`, `invokes`), for report readability only. The `target` is what identifies the entry."
+          },
+          "state": {
+            "type": "string",
+            "enum": ["fixed", "human-decision"],
+            "description": "The outcome: `fixed` when you edited the document to repoint or correct the broken link; `human-decision` when the fix needs a choice only the author can make, or the intended target appears to live OUTSIDE the project scan roots and you need the operator's permission to search there, leaving the document untouched (your `note` is your PROPOSAL / permission request). `fixed` is not a verdict: only the next scan re-deriving the link clears the underlying Issue."
+          },
+          "by": {
+            "type": "string",
+            "enum": ["fixer", "human"],
+            "description": "WHO decided a `fixed` reference: `fixer` if you resolved it with ZERO user interaction (a fully autonomous repoint), `human` if ANY user interaction was involved (an approval, a choice among candidates, an operator edit). REQUIRED when `state` is `fixed`; ignored otherwise."
+          },
+          "note": {
+            "type": "string",
+            "description": "One-line note: what the link was repointed to, or your PROPOSAL / permission request for the human-decision. On a `human-decision` entry this is surfaced to the author as their TODO, so make it actionable (name the candidate target or the out-of-project location you would need permission to search)."
+          }
+        },
+        "if": { "properties": { "state": { "const": "fixed" } } },
+        "then": { "required": ["by"] }
+      }
+    },
+    "editsSummary": {
+      "type": "string",
+      "description": "Short prose summary of the edits the agent made to the node file (which links were repointed or corrected). Empty string when every broken reference was left for a human decision."
+    }
+  }
+}

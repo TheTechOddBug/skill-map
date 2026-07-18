@@ -90,10 +90,28 @@ describe('built-in extensions, execution modes', () => {
     const set = builtIns();
     const subject = (id: string): string =>
       id.replace(/^ai-/, '').replace(/-(analyzer|action)$/, '');
+    // A fixer whose `analyzerIds` reference a DETERMINISTIC analyzer is EXEMPT
+    // from the pairing convention: that convention pairs a probabilistic AI
+    // finder with its fixer (`ai-<subject>-analyzer` <-> `ai-<subject>-action`)
+    // so both collapse to one bare label, but a deterministic-analyzer fixer
+    // (e.g. `ai-reference-action` fixing `core/reference-broken`) is named
+    // after what it FIXES, not after its analyzer, so its subject never
+    // matches the analyzer's short id. Look each analyzerId's mode up in the
+    // built-in analyzer set and skip the assertion when it is deterministic.
+    const analyzerModeById = new Map<string, string>();
+    for (const analyzer of set.analyzers) {
+      analyzerModeById.set(analyzer.id, analyzer.mode ?? 'deterministic');
+      analyzerModeById.set(qualifiedExtensionId(analyzer.pluginId, analyzer.id), analyzer.mode ?? 'deterministic');
+    }
+    const referencesDeterministicAnalyzer = (ids: readonly string[]): boolean =>
+      ids.some((id) => analyzerModeById.get(id) === 'deterministic');
     const fixers = set.actions.filter(
-      (a) => a.mode === 'probabilistic' && (a.precondition?.analyzerIds?.length ?? 0) > 0,
+      (a) =>
+        a.mode === 'probabilistic' &&
+        (a.precondition?.analyzerIds?.length ?? 0) > 0 &&
+        !referencesDeterministicAnalyzer(a.precondition?.analyzerIds ?? []),
     );
-    assert.ok(fixers.length > 0, 'expected at least one fixer');
+    assert.ok(fixers.length > 0, 'expected at least one finder-paired fixer');
     for (const fx of fixers) {
       const fixerSubject = subject(fx.id);
       const finderSubjects = (fx.precondition?.analyzerIds ?? []).map((qid) =>
@@ -186,6 +204,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     assert.equal(qualifiedByKindAndShort.get('action:ai-redundancy-action'), 'core/ai-redundancy-action');
     assert.equal(qualifiedByKindAndShort.get('action:ai-contradiction-action'), 'core/ai-contradiction-action');
     assert.equal(qualifiedByKindAndShort.get('action:ai-incoherence-action'), 'core/ai-incoherence-action');
+    assert.equal(qualifiedByKindAndShort.get('action:ai-reference-action'), 'core/ai-reference-action');
     assert.equal(qualifiedByKindAndShort.get('action:enrichment'), 'github/enrichment');
   });
 
@@ -242,7 +261,8 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/ai-redundancy-action` (the FIRST fixer: a probabilistic Action declaring `precondition.analyzerIds: ['core/ai-redundancy-analyzer']`; experimental, ships disabled; resolves redundancy findings via a template-mandated file edit) brings it to 46.
     // `core/ai-contradiction-action` (fixer for `core/ai-contradiction-analyzer`, `precondition.analyzerIds: ['core/ai-contradiction-analyzer']`; resolves conflicting / jointly-risky directive pairs) + `core/ai-incoherence-action` (fixer for `core/ai-incoherence-analyzer`; fixes dangling references, drifting terminology, missing context), both experimental and ships disabled, bring it to 48.
     // `core/auto-fix` (the second built-in hook; subscribes to `job.completed` filtered to `extensionKind: 'analyzer'` and queues the matching fixers after a finder completes; experimental, ships disabled, opt-in) brings it to 49.
-    assert.equal(rows.length, 49);
+    // `core/ai-reference-action` (the first DETERMINISTIC-analyzer fixer: a probabilistic Action declaring `precondition.analyzerIds: ['core/reference-broken']`, so its submit-time trigger is that rule's `scan_issues` rows injected as `## Issues to resolve`, not `state_findings`; experimental, ships disabled, exempt from the finder/fixer pairing convention) brings it to 50.
+    assert.equal(rows.length, 50);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a
