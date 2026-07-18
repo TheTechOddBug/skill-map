@@ -31,9 +31,9 @@
  *     `'contradiction'` so this finder can only emit its own judgment
  *     (any other slug fails the record as `report-invalid`).
  *
- * Ships `stability: 'experimental'`: DISABLED by default, the operator
- * opts in (`sm plugins enable core/ai-contradiction-analyzer`) before the
- * finder resolves as a submit target.
+ * Ships `stability: 'stable'`: ENABLED by default; the operator can
+ * disable it (`sm plugins disable core/ai-contradiction-analyzer`) to drop
+ * it as a submit target.
  */
 
 import type { IAnalyzer, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
@@ -44,9 +44,9 @@ export const aiContradictionAnalyzer: IBuiltInManifest<IAnalyzer> = {
   pluginId: PLUGIN_ID,
   kind: 'analyzer',
   description:
-    'Probabilistic finder that judges a single node for internal contradictions: directive or statement pairs that clash, either because they cannot both be followed (mutual exclusion) or because following both is risky or counterproductive (a harmful combination). Emits findings of type contradiction; advisory, never affects exit codes.',
-  // Experimental: disabled by default, the operator opts in.
-  stability: 'experimental',
+    'Flags instructions in a file that work against each other: two that cannot both be followed, or two that are risky to combine.',
+  // Stable: enabled by default (the operator can disable it).
+  stability: 'stable',
   mode: 'probabilistic',
   // ADVISORY wall-clock estimate (Decision #139: never arms a TTL).
   probExpectedDurationSeconds: 60,

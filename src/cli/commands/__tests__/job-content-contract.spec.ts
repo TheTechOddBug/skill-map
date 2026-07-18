@@ -108,6 +108,12 @@ async function setupProject(): Promise<IProject> {
   const root = join(tmpRoot, `proj-${counter}`);
   const dbPath = join(root, '.skill-map', 'skill-map.db');
   mkdirSync(join(root, '.skill-map', 'plugins'), { recursive: true });
+  // core/ai-summarizer-action ships experimental (disabled by default);
+  // case (b) submits it, so opt it back in for this project.
+  writeFileSync(
+    join(root, '.skill-map', 'settings.json'),
+    JSON.stringify({ plugins: { core: { extensions: { 'ai-summarizer-action': { enabled: true } } } } }),
+  );
   // Processing-agent gate (spec/job-lifecycle.md §Submit): submits refuse
   // unless the processing skill is installed; materialise the canonical copy.
   installAgentSkill(root, '.claude/skills');

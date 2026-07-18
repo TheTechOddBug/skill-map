@@ -34,6 +34,11 @@
  * `reportSchema`. That is the built-in equivalent of the on-disk files a
  * user plugin resolves from its own directory. See `IAction` in
  * `kernel/extensions/action.ts`.
+ *
+ * Ships `stability: 'experimental'`: DISABLED by default (user decision
+ * 2026-07-18), until its UI surface (the Step 16 summary card) lands. The
+ * operator opts in with `sm plugins enable core/ai-summarizer-action` to make
+ * it a `sm jobs submit` target.
  */
 
 import type { IAction, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
@@ -45,6 +50,10 @@ export const aiSummarizerAction: IBuiltInManifest<IAction> = {
   kind: 'action',
   description:
     "Summarizes a node's markdown content into a structured brief (probabilistic; an agent processes it via `sm jobs claim` + `sm record`).",
+  // Ships experimental (disabled by default): enable it with
+  // `sm plugins enable core/ai-summarizer-action` until the Step 16 summary
+  // card gives its output a home in the UI.
+  stability: 'experimental',
   mode: 'probabilistic',
   // Best-effort wall-clock estimate; drives the job TTL. Two minutes is a
   // safe upper bound for a single-file summary on a mid-tier model.

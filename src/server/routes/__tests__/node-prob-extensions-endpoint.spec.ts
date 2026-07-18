@@ -7,9 +7,10 @@
  * `claude/skill` precondition, `prob-fixer/apply-fix` = probabilistic
  * Action declaring `precondition.analyzerIds: ['prob-finder/quality-check']`,
  * `prob-summarizer/skill-echo` = probabilistic Action without
- * `analyzerIds`). The built-in probabilistic quality analyzers + their
- * fixers ship experimental (disabled), so the composed set is exactly the
- * trusted drop-ins plus the enabled `core/ai-summarizer-action`.
+ * `analyzerIds`). The built-in `core/ai-summarizer-action` ships
+ * experimental (disabled by default since 2026-07-18), so the
+ * probabilistic launchers these suites classify come from the trusted
+ * drop-in fixtures.
  *
  *   - a finder WITH a matching fixer lands in `finders`, carrying
  *     `fixerIds` (the inverse Modelo-B lookup) and `hasOpenFindings`

@@ -29,9 +29,9 @@
  *     `'incoherence'` so this finder can only emit its own judgment (any
  *     other slug fails the record as `report-invalid`).
  *
- * Ships `stability: 'experimental'`: DISABLED by default, the operator
- * opts in (`sm plugins enable core/ai-incoherence-analyzer`) before the finder
- * resolves as a submit target.
+ * Ships `stability: 'stable'`: ENABLED by default; the operator can
+ * disable it (`sm plugins disable core/ai-incoherence-analyzer`) to drop it
+ * as a submit target.
  */
 
 import type { IAnalyzer, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
@@ -42,9 +42,9 @@ export const aiIncoherenceAnalyzer: IBuiltInManifest<IAnalyzer> = {
   pluginId: PLUGIN_ID,
   kind: 'analyzer',
   description:
-    'Probabilistic finder that judges a single node for internal incoherence: dangling references, drifting terminology, steps out of order, or sections assuming context the document never gave. Emits findings of type incoherence; advisory, never affects exit codes.',
-  // Experimental: disabled by default, the operator opts in.
-  stability: 'experimental',
+    'Flags gaps that make a file hard to follow: references to things never defined, terms used inconsistently, or steps out of order.',
+  // Stable: enabled by default (the operator can disable it).
+  stability: 'stable',
   mode: 'probabilistic',
   // ADVISORY wall-clock estimate (Decision #139: never arms a TTL).
   probExpectedDurationSeconds: 60,

@@ -24,7 +24,7 @@
  */
 
 import { strict as assert } from 'node:assert';
-import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, beforeEach, describe, it } from 'node:test';
@@ -377,9 +377,16 @@ describe('POST /api/nodes/:pathB64/jobs', () => {
     // BUILT-IN probabilistic action (`core/ai-summarizer-action`, no
     // drop-in discovery / trust involved) so target resolution succeeds
     // and the 404 is honestly the missing-DB refusal, not an
-    // unknown-extension one.
+    // unknown-extension one. The summarizer ships experimental (disabled
+    // by default), so opt it back in via settings.json to keep resolution
+    // succeeding.
     const bare = mkdtempSync(join(tmpRoot, 'nodb-'));
     installAgentSkill(bare, '.claude/skills');
+    mkdirSync(join(bare, '.skill-map'), { recursive: true });
+    writeFileSync(
+      join(bare, '.skill-map', 'settings.json'),
+      JSON.stringify({ plugins: { core: { extensions: { 'ai-summarizer-action': { enabled: true } } } } }),
+    );
     const bareProject = { root: bare, dbPath: join(bare, '.skill-map', 'skill-map.db') };
     await bootAndUse(bareProject, async (handle) => {
       const res = await postJob(handle, SKILL_NODE.path, {

@@ -15,8 +15,8 @@
  *     the authored siblings; the prompt never mentions the literal
  *     user-content delimiter, and the report extends `report-base` (NOT the
  *     findings envelope, a fixer is not a finder).
- *   - ships experimental: DISABLED by default (`sm jobs submit` exits 5).
- *   - once enabled, submitting over a node with NO matching findings at all
+ *   - ships stable: ENABLED by default (`sm jobs submit` resolves).
+ *   - submitting over a node with NO matching findings at all
  *     refuses with exit 2; a stale-only finding SUBMITS (flagged).
  *   - submitting over a node WITH matching findings injects the
  *     `## Findings to resolve` section (and the prompt) into the job content.
@@ -125,11 +125,11 @@ interface IProject {
 }
 
 /**
- * Fresh project with one markdown node. `enable` writes the per-extension
- * operational toggle for the qualified fixer id (each fixer ships
- * experimental, so the installed default is DISABLED).
+ * Fresh project with one markdown node. `enable` writes an explicit enable
+ * toggle for the qualified fixer id; `disable` writes an explicit disable
+ * toggle (each fixer ships stable, so the installed default is ENABLED).
  */
-async function setupProject(opts: { enable?: string }): Promise<IProject> {
+async function setupProject(opts: { enable?: string; disable?: string }): Promise<IProject> {
   counter += 1;
   const root = join(tmpRoot, `proj-${counter}`);
   const dbPath = join(root, '.skill-map', 'skill-map.db');
@@ -142,6 +142,14 @@ async function setupProject(opts: { enable?: string }): Promise<IProject> {
       join(root, '.skill-map', 'settings.json'),
       JSON.stringify({
         plugins: { core: { extensions: { [opts.enable]: { enabled: true } } } },
+      }),
+    );
+  }
+  if (opts.disable !== undefined) {
+    writeFileSync(
+      join(root, '.skill-map', 'settings.json'),
+      JSON.stringify({
+        plugins: { core: { extensions: { [opts.disable]: { enabled: false } } } },
       }),
     );
   }
@@ -333,12 +341,12 @@ for (const fixer of FIXERS) {
   const ACTION_DIR = join(ACTIONS_ROOT, fixer.id);
 
   describe(`core/${fixer.id}, codegen inlining pins`, () => {
-    it('is a probabilistic experimental fixer with the declared analyzerIds precondition', () => {
+    it('is a probabilistic stable fixer with the declared analyzerIds precondition', () => {
       const action = builtIns().actions.find((a) => a.id === fixer.id);
       ok(action, 'built-in registered');
       strictEqual(action.pluginId, 'core');
       strictEqual(action.mode, 'probabilistic');
-      strictEqual(action.stability, 'experimental');
+      strictEqual(action.stability, 'stable');
       strictEqual(action.probExpectedDurationSeconds, 120);
       deepStrictEqual(action.precondition?.analyzerIds, [...fixer.analyzerIds]);
       // Probabilistic Actions carry NO in-process invoke and NO scan-time project.
@@ -384,12 +392,30 @@ for (const fixer of FIXERS) {
     });
   });
 
-  describe(`core/${fixer.id}, experimental gate`, () => {
-    it('ships DISABLED: sm jobs submit does not resolve it by default', async () => {
+  describe(`core/${fixer.id}, stable, enabled by default`, () => {
+    it('ships ENABLED by default: sm jobs submit resolves with the frozen kind', async () => {
       const proj = await setupProject({});
       await seedFinding(proj, fixer.seed);
       const { code, err } = await submit(proj, fixer.id);
-      strictEqual(code, 5, 'not in the composed catalog until enabled');
+      strictEqual(code, 0, `submit: ${err}`);
+
+      const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+      await adapter.init();
+      try {
+        const jobs = await adapter.jobs.list({});
+        strictEqual(jobs.length, 1);
+        strictEqual(jobs[0]!.extensionId, QUALIFIED);
+        strictEqual(jobs[0]!.extensionKind, 'action', 'kind frozen at submit');
+      } finally {
+        await adapter.close();
+      }
+    });
+
+    it('disabling it makes submit exit 5 (the toggle still gates)', async () => {
+      const proj = await setupProject({ disable: fixer.id });
+      await seedFinding(proj, fixer.seed);
+      const { code, err } = await submit(proj, fixer.id);
+      strictEqual(code, 5, 'a disabled fixer is not in the composed catalog');
       match(err, /not found/);
     });
   });

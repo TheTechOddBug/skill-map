@@ -71,6 +71,12 @@ async function setupProject(): Promise<IProject> {
   const root = join(tmpRoot, `proj-${counter}`);
   const dbPath = join(root, '.skill-map', 'skill-map.db');
   mkdirSync(join(root, '.skill-map'), { recursive: true });
+  // core/ai-summarizer-action ships experimental (disabled by default); the
+  // jobs-overdue check resolves its advisory estimate, so opt it back in.
+  writeFileSync(
+    join(root, '.skill-map', 'settings.json'),
+    JSON.stringify({ plugins: { core: { extensions: { 'ai-summarizer-action': { enabled: true } } } } }),
+  );
   const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
   await adapter.init();
   await adapter.close();

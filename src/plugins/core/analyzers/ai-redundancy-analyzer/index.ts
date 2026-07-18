@@ -29,9 +29,9 @@
  * emitted manifest as `promptTemplate` + `reportSchema` (this analyzer
  * is the first user of the analyzer-side inlining lane).
  *
- * Ships `stability: 'experimental'`: DISABLED by default, the operator
- * opts in (`sm plugins enable core/ai-redundancy-analyzer`) before the finder
- * resolves as a submit target.
+ * Ships `stability: 'stable'`: ENABLED by default; the operator can
+ * disable it (`sm plugins disable core/ai-redundancy-analyzer`) to drop it
+ * as a submit target.
  */
 
 import type { IAnalyzer, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
@@ -42,9 +42,9 @@ export const aiRedundancyAnalyzer: IBuiltInManifest<IAnalyzer> = {
   pluginId: PLUGIN_ID,
   kind: 'analyzer',
   description:
-    'Probabilistic finder that judges a single node for internal redundancy: repeated instructions, trivial rewordings, or sections restating other sections. Emits findings of type redundancy; advisory, never affects exit codes.',
-  // Experimental: disabled by default, the operator opts in.
-  stability: 'experimental',
+    'Flags repetition in a file: the same instruction, fact, or section stated more than once, so you can keep it in one place.',
+  // Stable: enabled by default (the operator can disable it).
+  stability: 'stable',
   mode: 'probabilistic',
   // ADVISORY wall-clock estimate (Decision #139: never arms a TTL); a
   // single-node redundancy pass is a light judgment on a mid-tier model.

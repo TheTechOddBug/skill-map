@@ -1,11 +1,13 @@
 /**
  * End-to-end tests for `sm actions list / show`, the manifest view over
- * the composed Action catalog. Each command runs inside a fresh EMPTY
- * temp dir (no `.skill-map/`), so only the built-ins compose; the
- * report-schema ref, the mode default, and the probabilistic detail
- * section are asserted against the real bundled manifests
- * (`core/ai-summarizer-action` probabilistic + summarizer,
- * `core/node-bump` deterministic).
+ * the composed Action catalog. Each command runs inside a fresh temp dir
+ * whose only config is a `.skill-map/settings.json` that opts the
+ * experimental `core/ai-summarizer-action` back in (it ships disabled by
+ * default since 2026-07-18), so the summarizer composes and its
+ * report-schema ref, mode default, and probabilistic detail section can be
+ * asserted against the real bundled manifest. `core/node-bump` (also
+ * experimental) stays disabled, so `core/node-set-tags` is the
+ * deterministic anchor.
  *
  * Coverage:
  *   - list --json: row shape (mode / duration / source).
@@ -20,7 +22,7 @@
  * default, so it never reaches the composed catalog these verbs render).
  */
 
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { strictEqual, ok, match } from 'node:assert';
@@ -49,11 +51,20 @@ function captureContext(): ICaptured {
   return { context, stdout: () => out.join(''), stderr: () => err.join('') };
 }
 
-/** Fresh empty project dir: no `.skill-map/`, so only built-ins compose. */
+/**
+ * Fresh project dir whose only config opts the experimental
+ * `core/ai-summarizer-action` back in, so the summarizer composes and the
+ * summarizer-specific assertions have a target. No DB is provisioned: the
+ * config loader reads `.skill-map/settings.json` independently of the DB.
+ */
 function freshDir(): string {
   counter += 1;
   const dir = join(tmpRoot, `proj-${counter}`);
-  mkdirSync(dir, { recursive: true });
+  mkdirSync(join(dir, '.skill-map'), { recursive: true });
+  writeFileSync(
+    join(dir, '.skill-map', 'settings.json'),
+    JSON.stringify({ plugins: { core: { extensions: { 'ai-summarizer-action': { enabled: true } } } } }),
+  );
   return dir;
 }
 

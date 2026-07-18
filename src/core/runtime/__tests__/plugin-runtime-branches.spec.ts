@@ -369,7 +369,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 6, 'claude + antigravity (beta) + codex (beta) + opencode (beta) + agent-skills (stable, locked) + core-markdown load by default');
       assert.equal(composed.extractors.length, 12, 'all 12 extractors load by default; core/mcp-tools was promoted experimental → beta so it now ships enabled (the codex grammar extractors and the code-region siblings backtick-mention + backtick-slash + backtick-dollar load too)');
-      assert.equal(composed.analyzers.length, 15, '15 of 19 analyzers loaded; core/annotation-stale and the three probabilistic finders (ai-redundancy-analyzer / ai-contradiction-analyzer / ai-incoherence-analyzer) are experimental so they ship disabled by default (the former projector analyzers core/supersede + core/tags were deleted; the remaining inspector buttons self-project from their actions and tag editing moved inline; core/score-resolution was deleted, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model; core/name-mismatch joined for declared-vs-path-handle divergences)');
+      assert.equal(composed.analyzers.length, 18, '18 of 19 analyzers loaded; after graduation only core/annotation-stale is experimental so it ships disabled by default, while the three probabilistic finders (ai-redundancy-analyzer / ai-contradiction-analyzer / ai-incoherence-analyzer) are now STABLE and ship enabled (the former projector analyzers core/supersede + core/tags were deleted; the remaining inspector buttons self-project from their actions and tag editing moved inline; core/score-resolution was deleted, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model; core/name-mismatch joined for declared-vs-path-handle divergences)');
       // Actions load into the pipeline as dispatch targets; those with a
       // `project()` also self-project an inspector button (e.g.
       // `core/node-set-stability`). `core/node-set-tags` is stable and
@@ -506,7 +506,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
       assert.equal(composed.extractors.length, 12, 'extractors untouched (12: core/mcp-tools is now beta so it ships enabled; the codex grammar extractors and the three code-region trigger siblings load)');
-      assert.equal(composed.analyzers.length, 15, 'analyzers untouched (15: core/annotation-stale + the four probabilistic finders are experimental so they ship disabled; the projector analyzers core/supersede + core/tags were deleted; core/score-resolution was deleted, the kernel seeds the 1.0 baseline directly; core/job-file-orphan was removed; core/name-mismatch joined)');
+      assert.equal(composed.analyzers.length, 18, 'analyzers untouched (18 of 19: after graduation only core/annotation-stale is experimental so it ships disabled, while the three probabilistic finders graduated to STABLE and ship enabled; the projector analyzers core/supersede + core/tags were deleted; core/score-resolution was deleted, the kernel seeds the 1.0 baseline directly; core/job-file-orphan was removed; core/name-mismatch joined)');
     });
 
     it('(b) killSwitches.extractors empties only the extractors bucket', () => {
@@ -518,7 +518,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 6, 'providers untouched (6: claude + antigravity (beta) + codex (beta) + opencode (beta) + agent-skills (stable, locked) + core-markdown load)');
       assert.equal(composed.extractors.length, 0);
-      assert.equal(composed.analyzers.length, 15);
+      assert.equal(composed.analyzers.length, 18, 'analyzers untouched (18 of 19: only core/annotation-stale is experimental-disabled; the three probabilistic finders are now stable and ship enabled)');
     });
 
     it('(c) killSwitches.analyzers empties only the rules bucket', () => {

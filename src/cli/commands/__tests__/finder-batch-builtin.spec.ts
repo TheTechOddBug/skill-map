@@ -8,9 +8,9 @@
  *   - codegen-inlined `promptTemplate` / `reportSchema` byte-/deep-equal
  *     to the authored siblings (and the prompt never mentions the
  *     literal user-content delimiter, the render guard rejects it).
- *   - ships experimental: DISABLED by default (`sm jobs submit` exits 5).
- *   - once enabled, the submit resolves with the frozen
- *     `extensionKind: 'analyzer'`.
+ *   - ships stable: ENABLED by default (`sm jobs submit` resolves with the
+ *     frozen `extensionKind: 'analyzer'`).
+ *   - disabling it makes the submit exit 5 (the toggle still gates).
  *   - `sm plugins show` renders the Prompt + Report schema sections with
  *     the finder's own type const.
  *   - a foreign finding type fails the record as `report-invalid`
@@ -84,8 +84,12 @@ interface IProject {
   dbPath: string;
 }
 
-/** Fresh project with one markdown node; optionally enable one finder. */
-async function setupProject(opts: { enable?: string }): Promise<IProject> {
+/**
+ * Fresh project with one markdown node. `enable` writes an explicit enable
+ * toggle; `disable` writes an explicit disable toggle (each finder ships
+ * stable, so the installed default is ENABLED).
+ */
+async function setupProject(opts: { enable?: string; disable?: string }): Promise<IProject> {
   counter += 1;
   const root = join(tmpRoot, `proj-${counter}`);
   const dbPath = join(root, '.skill-map', 'skill-map.db');
@@ -98,6 +102,14 @@ async function setupProject(opts: { enable?: string }): Promise<IProject> {
       join(root, '.skill-map', 'settings.json'),
       JSON.stringify({
         plugins: { core: { extensions: { [opts.enable]: { enabled: true } } } },
+      }),
+    );
+  }
+  if (opts.disable !== undefined) {
+    writeFileSync(
+      join(root, '.skill-map', 'settings.json'),
+      JSON.stringify({
+        plugins: { core: { extensions: { [opts.disable]: { enabled: false } } } },
       }),
     );
   }
@@ -224,7 +236,7 @@ for (const finder of FINDERS) {
       const manifest = builtIns().analyzers.find((a) => a.id === finder.id);
       ok(manifest, 'built-in registered');
       strictEqual(manifest.mode, 'probabilistic');
-      strictEqual(manifest.stability, 'experimental');
+      strictEqual(manifest.stability, 'stable');
       strictEqual(manifest.probExpectedDurationSeconds, 60);
       strictEqual(manifest.precondition, undefined, 'universal: no precondition');
       strictEqual(manifest.evaluate, undefined, 'finders carry no evaluate()');
@@ -256,16 +268,9 @@ for (const finder of FINDERS) {
     });
   });
 
-  describe(`core/${finder.id}, experimental gate`, () => {
-    it('ships DISABLED: sm jobs submit does not resolve it by default', async () => {
+  describe(`core/${finder.id}, stable, enabled by default`, () => {
+    it('ships ENABLED by default: sm jobs submit resolves with the frozen kind', async () => {
       const proj = await setupProject({});
-      const { code, err } = await submit(proj, finder.id);
-      strictEqual(code, 5, 'not in the composed catalog until enabled');
-      match(err, /not found/);
-    });
-
-    it('enabling it makes the submit resolve with the frozen analyzer kind', async () => {
-      const proj = await setupProject({ enable: finder.id });
       const { code, err } = await submit(proj, finder.id);
       strictEqual(code, 0, `submit: ${err}`);
 
@@ -279,6 +284,13 @@ for (const finder of FINDERS) {
       } finally {
         await adapter.close();
       }
+    });
+
+    it('disabling it makes submit exit 5 (the toggle still gates)', async () => {
+      const proj = await setupProject({ disable: finder.id });
+      const { code, err } = await submit(proj, finder.id);
+      strictEqual(code, 5, 'a disabled finder is not in the composed catalog');
+      match(err, /not found/);
     });
   });
 
