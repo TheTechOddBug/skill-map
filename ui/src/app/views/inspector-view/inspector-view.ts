@@ -764,6 +764,17 @@ export class InspectorView implements OnInit {
   });
 
   /**
+   * The "capture on" chip shows only where capture is ON *and* this node
+   * actually has retained spawn conversations, not merely because the gate
+   * is enabled: a chip on a node with zero captured conversations is noise
+   * (the gate's global state already lives in Settings).
+   */
+  protected readonly showCaptureChip = computed<boolean>(() => {
+    const detail = this.activityDetail();
+    return detail !== null && detail.captureEnabled && detail.spawns.length > 0;
+  });
+
+  /**
    * Provenance filter over the merged timeline (all / runtime / AI
    * runs), persisted at INSPECTOR level like the section-collapse map,
    * so it survives navigation between nodes and reloads.

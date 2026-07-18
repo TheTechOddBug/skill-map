@@ -186,6 +186,8 @@
                       (ngModelChange)="onAutoFixToggle($event)"
                       inputId="inspector-auto-fix"
                       [pTooltip]="texts.aiActions.autoFix.tooltip"
+                      tooltipPosition="left"
+                      appendTo="body"
                       data-testid="inspector-auto-fix-toggle"
                     />
                     <label class="inspector__ai-actions-autofix-label" for="inspector-auto-fix">{{
@@ -209,6 +211,8 @@
                             [disabled]="aiActionLauncherDisabled(entry)"
                             [loading]="aiActionLauncherBusy(entry)"
                             [pTooltip]="aiActionLauncherTooltip(entry, group.id === 'finders')"
+                            tooltipPosition="left"
+                            appendTo="body"
                             (onClick)="onLauncherClick(entry, group.id === 'finders')"
                             [attr.data-testid]="'inspector-ai-action-launch-' + entry.id"
                             [attr.data-state]="aiActionEntryState(entry)"
@@ -225,6 +229,8 @@
                               size="small"
                               [disabled]="aiActionCompanionDisabled(entry)"
                               [pTooltip]="texts.aiActions.stopTooltip"
+                              tooltipPosition="left"
+                              appendTo="body"
                               [ariaLabel]="texts.aiActions.stopTooltip"
                               (onClick)="stopAiAction(entry)"
                               [attr.data-testid]="'inspector-ai-action-stop-' + entry.id"
@@ -287,7 +293,7 @@
         (toggle)="toggleSection('activity')"
         data-testid="inspector-card-activity"
       >
-        @if (activityDetail()?.captureEnabled) {
+        @if (showCaptureChip()) {
           <span
             class="inspector__activity-capture-chip"
             smSectionTitleExtra

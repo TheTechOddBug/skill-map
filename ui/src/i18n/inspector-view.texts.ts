@@ -102,7 +102,7 @@ export const INSPECTOR_VIEW_TEXTS = {
   activity: {
     loading: 'Loading activity…',
     empty: 'No executions recorded since the server started.',
-    /** Header chip while the conversation-capture gate is on. */
+    /** Header chip while capture is on AND this node has captured conversations. */
     captureOnChip: 'capture on',
     captureOnChipTooltip:
       'Conversation capture is enabled: spawn prompts and responses are kept in memory while sm runs.',

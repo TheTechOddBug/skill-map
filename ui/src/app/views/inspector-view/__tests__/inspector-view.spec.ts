@@ -1231,6 +1231,43 @@ describe('InspectorView, activity thread rows (spawn grouping)', () => {
         '[data-testid="inspector-activity-view-conversation"]',
       ).length,
     ).toBe(1);
+    // Capture chip shows: the gate is on AND this node has captured spawns.
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-activity-capture-chip"]'),
+    ).not.toBeNull();
+  });
+
+  it('hides the capture chip when the gate is on but no conversations were captured', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    dataSource.getNodeActivity.mockResolvedValue({
+      stats: { count: 1, lastStartAt: 1000, distinctOwners: 1 },
+      recent: [],
+      spawns: [],
+      captureEnabled: true,
+      runs: [],
+    });
+
+    const { fixture } = bootstrap({
+      loader,
+      dataSource,
+      activityStats: new Map([[node.path, makeActivityStats()]]),
+    });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const toggle = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-activity-toggle"]',
+    ) as HTMLButtonElement;
+    toggle.click();
+    await flush(fixture);
+    await flush(fixture);
+
+    // Gate on but spawns empty: the chip stays hidden (no noise).
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-activity-capture-chip"]'),
+    ).toBeNull();
   });
 });
 
