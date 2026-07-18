@@ -27,6 +27,7 @@
   },
   "plugins": {},
   "jobs": {
+    "claimWaitSeconds": 2,
     "perExtensionTtl": {},
     "perExtensionPriority": {},
     "retention": {

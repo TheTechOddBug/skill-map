@@ -126,9 +126,13 @@ export const JOBS_QUEUE_TEXTS = {
 
   // --- claim -------------------------------------------------------------
   // claim writes the raw id (plain) or the {id,nonce,content} JSON to
-  // stdout; an empty queue exits 1 with no output. The only claim-owned
-  // strings are the missing-content corruption surface (spec
-  // job-lifecycle.md §Atomic claim · Missing content row at claim).
+  // stdout; an empty queue exits 1 with no output (unless --wait blocks).
+  // Claim-owned strings: the missing-content corruption surface (spec
+  // job-lifecycle.md §Atomic claim · Missing content row at claim) and the
+  // --wait flag validation. Any --wait progress is stderr-only.
+  claimErrPrefix: '{{glyph}}  sm jobs claim: {{message}}\n',
+  claimErrBadInterval: '--interval must be a positive integer number of seconds, got {{value}}',
+  claimErrBadTimeout: '--timeout must be a positive integer number of seconds, got {{value}}',
   claimErrContentMissing:
     '{{glyph}}  sm jobs claim: job {{id}} has no stored content (state_job_contents row missing); marked failed / job-file-missing\n',
   claimContentMissingDetail: 'state_job_contents row missing for the claimed job',

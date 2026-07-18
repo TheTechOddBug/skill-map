@@ -208,6 +208,7 @@ async function claim(proj: IProject): Promise<string> {
     const cmd = new JobClaimCommand();
     cmd.filter = undefined;
     cmd.json = true;
+    cmd.wait = false;
     cmd.db = undefined;
     strictEqual(await run(cmd, cap), 0, cap.stderr());
     return (JSON.parse(cap.stdout()) as { id: string }).id;

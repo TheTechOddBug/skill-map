@@ -417,6 +417,7 @@ describe('drift hygiene: reads convert failures, writes refuse early', () => {
     cmd.db = dbPath;
     cmd.filter = undefined;
     cmd.json = false;
+    cmd.wait = false;
     const cap = captureContext();
     cmd.context = cap.context;
     const code = await cmd.execute();

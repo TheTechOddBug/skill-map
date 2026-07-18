@@ -12,6 +12,10 @@
  *     failed / abandoned before claiming (job-lifecycle §Reap), and
  *     pushes a job.claimed envelope to the server named by serve.json
  *     (job-events §Transport, the live-transition leg).
+ *   - claim --wait: blocks on an empty queue instead of exiting 1,
+ *     returns a job enqueued mid-wait, --timeout exits 1 on expiry,
+ *     and a bad --interval / --timeout exits 2 (job-lifecycle §Atomic
+ *     claim · Blocking claim).
  *   - status: counts (plain + --json), single-job line, missing id -> 5.
  *   - cancel: queued -> exit 0 (terminal `cancelled` state, no reason),
  *     terminal -> 2, missing -> 5, --all count, and the neither / both
@@ -113,10 +117,15 @@ async function withCwd<T>(dir: string, fn: () => Promise<T>): Promise<T> {
   }
 }
 
-function buildClaim(overrides: { filter?: string; json?: boolean } = {}): JobClaimCommand {
+function buildClaim(
+  overrides: { filter?: string; json?: boolean; wait?: boolean; interval?: string; timeout?: string } = {},
+): JobClaimCommand {
   const cmd = new JobClaimCommand();
   cmd.filter = overrides.filter;
   cmd.json = overrides.json ?? false;
+  cmd.wait = overrides.wait ?? false;
+  cmd.interval = overrides.interval;
+  cmd.timeout = overrides.timeout;
   cmd.db = undefined;
   return cmd;
 }
@@ -151,6 +160,33 @@ async function openDb(dbPath: string): Promise<SqliteStorageAdapter> {
   const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
   await adapter.init();
   return adapter;
+}
+
+/** Enqueue one job into an already-migrated project DB (for --wait timing). */
+async function enqueue(dbPath: string, j: ISeedJob): Promise<void> {
+  const adapter = await openDb(dbPath);
+  try {
+    const row: IJobSubmitRow = {
+      id: j.id,
+      extensionId: j.extensionId ?? 'core/skill-summarizer',
+      extensionVersion: '1.0.0',
+      extensionKind: 'action',
+      nodeId: j.nodeId,
+      contentHash: j.contentHash,
+      nonce: `nonce-${j.id}`,
+      priority: j.priority ?? 0,
+      status: 'queued',
+      ttlSeconds: 3600,
+      createdAt: j.createdAt ?? Date.now(),
+    };
+    await adapter.jobs.submit(row, {
+      contentHash: row.contentHash,
+      content: `RENDERED ${j.id}`,
+      createdAt: row.createdAt,
+    });
+  } finally {
+    await adapter.close();
+  }
 }
 
 const A = { id: 'd-20260101-000000-0001', nodeId: 'a.md', contentHash: '1'.repeat(64) };
@@ -402,6 +438,68 @@ describe('sm jobs claim', () => {
       const c = await run(buildClaim({ json: true }), cap);
       strictEqual(cap.stdout(), '', 'no {id, nonce, content: null} envelope');
       match(cap.stderr(), /job-file-missing/);
+      return c;
+    });
+    strictEqual(code, 2);
+  });
+});
+
+describe('sm jobs claim --wait', () => {
+  it('returns the first queued job immediately when the queue is not empty', async () => {
+    const proj = await setupProject([A]);
+    const out = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const c = await run(buildClaim({ wait: true, json: true }), cap);
+      return { code: c, parsed: JSON.parse(cap.stdout()), err: cap.stderr() };
+    });
+    strictEqual(out.code, 0);
+    strictEqual(out.parsed.id, A.id);
+    strictEqual(out.err, '', 'no progress on stderr when a job is already waiting');
+  });
+
+  it('blocks on an empty queue and returns a job enqueued mid-wait', async () => {
+    const proj = await setupProject([]);
+    const claimPromise = withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const c = await run(buildClaim({ wait: true, interval: '1' }), cap);
+      return { code: c, out: cap.stdout() };
+    });
+    // Let the first (empty) poll fire, then enqueue: the next poll claims it.
+    await new Promise((r) => setTimeout(r, 200));
+    await enqueue(proj.dbPath, A);
+    const result = await claimPromise;
+    strictEqual(result.code, 0);
+    strictEqual(result.out, `${A.id}\n`);
+  });
+
+  it('exits 1 when --timeout elapses on a still-empty queue', async () => {
+    const proj = await setupProject([]);
+    const code = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const c = await run(buildClaim({ wait: true, interval: '1', timeout: '1' }), cap);
+      strictEqual(cap.stdout(), '', 'no handover: the empty-queue meaning is preserved');
+      return c;
+    });
+    strictEqual(code, 1);
+  });
+
+  it('rejects a non-positive --interval with exit 2', async () => {
+    const proj = await setupProject([A]);
+    const code = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const c = await run(buildClaim({ wait: true, interval: '0' }), cap);
+      match(cap.stderr(), /--interval must be a positive integer/);
+      return c;
+    });
+    strictEqual(code, 2);
+  });
+
+  it('rejects a non-integer --timeout with exit 2', async () => {
+    const proj = await setupProject([A]);
+    const code = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const c = await run(buildClaim({ wait: true, timeout: 'soon' }), cap);
+      match(cap.stderr(), /--timeout must be a positive integer/);
       return c;
     });
     strictEqual(code, 2);

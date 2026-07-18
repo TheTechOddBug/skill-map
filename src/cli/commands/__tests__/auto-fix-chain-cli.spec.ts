@@ -241,6 +241,7 @@ async function recordFinder(proj: IProject, report: object, autoFix = false): Pr
     // job queued, and an unfiltered claim would grab it instead.
     claimCmd.filter = FINDER_ID;
     claimCmd.json = true;
+    claimCmd.wait = false;
     claimCmd.db = undefined;
     await run(claimCmd, cap);
     return JSON.parse(cap.stdout()) as { id: string; nonce: string };

@@ -28,8 +28,8 @@ description: >-
   Process the skill-map job queue: claim rendered prompt jobs with
   \`sm jobs claim --json\`, execute each one, and close it with
   \`sm record\`. Use when asked to "process the queue", "run the
-  skill-map jobs", "process the pending summaries", or right after
-  \`sm jobs submit\` queued work in this project.
+  skill-map jobs", "process the pending summaries", "keep watching
+  the queue", or right after \`sm jobs submit\` queued work in this project.
 ---
 
 # Process the skill-map job queue
@@ -44,7 +44,8 @@ Repeat until the queue is empty:
 
 1. **Claim**: run \`sm jobs claim --json\`.
    - Exit code 1: the queue is empty. Stop and summarise what you
-     processed.
+     processed (unless the user asked you to keep watching, see
+     Resident mode below).
    - Exit code 0: stdout is one JSON object, \`{ "id", "nonce",
      "content" }\`. Keep \`id\` and \`nonce\` exactly as given; the
      nonce is the only credential that can close this job.
@@ -73,6 +74,29 @@ Repeat until the queue is empty:
    - If you cannot execute a claimed job at all, do NOT abandon it
      silently; close it with a one-line reason instead:
      \`sm record --id <id> --nonce <nonce> --status failed --error "<why>"\`.
+
+## Resident mode (keep watching)
+
+By default (above) you stop when the queue is empty. If the user asks you to
+KEEP processing, stay resident, or watch the queue (or invokes this skill with
+\`watch\`), do not stop on an empty queue: wait for the next job instead.
+
+1. **Arm the wait**: run \`sm jobs claim --wait --json\`. Unlike a plain claim,
+   \`--wait\` does NOT exit 1 on an empty queue: it blocks and hands you the
+   next job the moment one is queued. Run it in the background when your
+   runtime can, so the user can keep talking to you while the queue is idle
+   (an idle wait costs no tokens).
+2. **On a job**: process it exactly as the Protocol above (execute, check,
+   record), consulting the user before any fixer edit.
+3. **Re-arm**: after you record the current job (and run \`sm scan --changed\`
+   for a fixer edit), arm the wait again for the next one. One job at a time:
+   never arm the next wait before the current job is recorded.
+4. Continue until the user tells you to stop.
+
+Poll cadence: \`--interval <seconds>\` sets how often the wait re-checks while
+the queue is empty (default \`jobs.claimWaitSeconds\`, else 2). For example,
+\`sm jobs claim --wait --interval 15 --json\` re-checks every 15 seconds.
+\`--timeout <seconds>\` bounds the wait (it exits 1 when it elapses).
 
 ## Rules
 

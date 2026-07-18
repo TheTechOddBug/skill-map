@@ -59,6 +59,14 @@ export interface IJobsConfig {
    * estimate-driven formula.
    */
   ttlSeconds?: number;
+  /**
+   * Default poll cadence (seconds) for a blocking `sm jobs claim --wait`:
+   * how often a resident worker re-reaps and re-claims while the queue is
+   * empty. Overridden by the `--interval` flag; absent both, the CLI
+   * default is 2 (also shipped in `defaults.json`). Typed optional so a
+   * hand-built config still falls back to that default.
+   */
+  claimWaitSeconds?: number;
   /** Keys are qualified or bare ids of queued probabilistic extensions. */
   perExtensionTtl: Record<string, number>;
   perExtensionPriority: Record<string, number>;

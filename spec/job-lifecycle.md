@@ -112,6 +112,16 @@ In `--json` mode, `sm jobs claim` instead returns `{ "id": "<id>", "nonce": "<no
 
 **Missing content row at claim.** When the claim lands but the job's `content_hash` resolves to no `state_job_contents` row (the DB-corruption-only `job-file-missing` state, see §Atomicity edge cases), `sm jobs claim` MUST NOT hand out the claim: the job is marked `failed` with `failureReason = job-file-missing` (an execution record documenting the corruption is written), the corruption is reported on stderr, and the verb exits 2, in plain and `--json` modes alike (never exit 0 with a null `content`). The verb does NOT loop to claim the next queued job; corruption is an operator-attention state, not something to silently skip past, and the next invocation claims the next job anyway.
 
+**Blocking claim (`--wait`).** By default an empty queue exits 1 immediately (above). With `--wait`, `sm jobs claim` instead BLOCKS: it re-runs the §Reap procedure and the atomic claim on a fixed cadence until a job becomes claimable, then hands out that claim exactly as the non-blocking form does (the `{ id, nonce, content }` handover, exit 0). This is the primitive a resident worker arms so an idle queue costs nothing and pickup is event-timed, not a guessed sleep. Contract:
+
+- **Reap keeps running while blocked.** Every poll iteration re-runs the reap of §Reap procedure before the claim, so TTL-armed abandonment keeps working during a long wait.
+- **Poll cadence.** The interval between iterations resolves highest-precedence first: `--interval <seconds>` (positive integer) → config `jobs.claimWaitSeconds` (positive integer) → default `2`. It bounds pickup latency only; the claim itself stays atomic.
+- **Bounded wait.** `--timeout <seconds>` (optional, positive integer) caps the total wait: if no job is claimed before it elapses, the verb exits 1, preserving the empty-queue meaning. Absent `--timeout`, the wait is unbounded (blocks until a job arrives or the process is interrupted).
+- **stdout stays the handover.** Any progress a `--wait` run emits is stderr-only and suppressed under `--json` / `--quiet`; stdout carries only the single claimed payload, so `--wait --json` is byte-identical to a non-blocking claim that happened to find a job.
+- **Concurrency.** Multiple blocked claimers are safe: the atomic transition above means at most one wins each job; a loser simply keeps polling. `--filter` narrows the wait to one extension, exactly as it narrows a one-shot claim.
+
+Without `--wait`, every clause above is inert and the empty queue exits 1 unchanged.
+
 ---
 
 ## TTL and auto-reap (opt-in)

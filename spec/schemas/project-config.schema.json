@@ -176,6 +176,11 @@
           "minimum": 1,
           "description": "Global opt-in TTL policy (seconds): when set, EVERY submitted job arms this expiry unless a higher-precedence source overrides it (`jobs.perExtensionTtl`, or the `--ttl` flag, including the `--ttl 0` disarm). UNSET by default: jobs never expire (Decision #139; interactive processing runs may hold a claim for hours). The retired `graceMultiplier` / `minimumTtlSeconds` keys died with the estimate-driven formula."
         },
+        "claimWaitSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Default poll cadence (seconds) for a blocking `sm jobs claim --wait`: how often a resident worker re-reaps and re-claims while the queue is empty (job-lifecycle.md §Atomic claim · Blocking claim). The `--interval` flag overrides it per invocation; absent both, the CLI default is 2. Bounds pickup latency only, the claim stays atomic."
+        },
         "perExtensionTtl": {
           "type": "object",
           "description": "Per-extension TTL overrides (seconds). Keys are qualified ids of queued probabilistic extensions (Action or Analyzer). Renamed from `perActionTtl` when Analyzers joined the queue.",

@@ -55,7 +55,7 @@
 import { Command, Option } from 'clipanion';
 
 import type { Job } from '../../kernel/types.js';
-import type { IJobListFilter } from '../../kernel/types/storage.js';
+import type { IJobClaim, IJobListFilter } from '../../kernel/types/storage.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import type { IJobsConfig } from '../../kernel/config/loader.js';
@@ -123,6 +123,13 @@ function parseIntFlag(raw: string | undefined): number | undefined {
   }
   return Number.parseInt(raw.trim(), 10);
 }
+
+/**
+ * Fallback poll cadence (seconds) for `sm jobs claim --wait` when neither
+ * the `--interval` flag nor `jobs.claimWaitSeconds` is set. Mirrors the
+ * `defaults.json` value; kept in code so a hand-built config still resolves.
+ */
+const DEFAULT_CLAIM_WAIT_SECONDS = 2;
 
 /**
  * Public projection of a `Job` for the read surfaces (`sm jobs list --json`
@@ -847,17 +854,30 @@ export class JobClaimCommand extends SmCommand {
       receive the nonce. --filter accepts a qualified <plugin>/<ext> id
       or a bare extension id (same matching as sm jobs list --extension).
 
+      --wait turns an empty queue into a blocking wait instead of exit 1:
+      the verb re-reaps and re-claims every --interval seconds (default from
+      jobs.claimWaitSeconds, else 2) until a job is claimable, then hands
+      out the same claim. --timeout <seconds> caps the wait (exit 1 on
+      expiry); absent it, the wait is unbounded. Progress is stderr-only so
+      stdout stays the pure handover. The resident-worker primitive
+      (spec/job-lifecycle.md §Atomic claim · Blocking claim).
+
       A claimed job whose content row is missing (DB corruption) is marked
       failed / job-file-missing and reported on stderr with exit 2; the
       claim is never handed out with a null content.
 
-      Exit codes: 0 with the claim, 1 when the queue is empty (or nothing
-      matches --filter; no output), 2 on a missing content row, 5 when the
-      DB is missing.
+      Exit codes: 0 with the claim, 1 when the queue is empty (or --timeout
+      elapsed while --wait was set; no output), 2 on a missing content row
+      or a bad --interval / --timeout, 5 when the DB is missing.
     `,
   });
 
   filter = Option.String('--filter', { required: false });
+  wait = Option.Boolean('--wait', false, {
+    description: 'Block until a job is claimable instead of exiting 1 on an empty queue.',
+  });
+  interval = Option.String('--interval', { required: false });
+  timeout = Option.String('--timeout', { required: false });
 
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
@@ -865,57 +885,170 @@ export class JobClaimCommand extends SmCommand {
     const dbExit = requireDbOrExit(dbPath, this.context.stderr);
     if (dbExit !== null) return dbExit;
 
-    // Write verb: reap-first + the claim UPDATE both mutate rows;
-    // refuse a drifted DB up front (spec/cli-contract.md §Schema-drift
-    // rebuild) so the refusal (exit 2) is never confused with the
-    // empty-queue exit 1.
+    // Resolve + validate the --wait knobs before opening the DB. null =
+    // no --wait (one-shot); a number is an exit-2 flag error.
+    const waitPlan = this.resolveWaitPlan(ctx);
+    if (typeof waitPlan === 'number') return waitPlan;
+
+    // Write verb: reap-first + the claim UPDATE both mutate rows; refuse a
+    // drifted DB up front (spec/cli-contract.md §Schema-drift rebuild) so
+    // the refusal (exit 2) is never confused with the empty-queue exit 1.
     assertNoDriftForWrite(dbPath);
 
+    // A blocking --wait must not emit the trailing "done in <>" line
+    // (sm-command.ts §emitElapsed): the elapsed time is the operator's
+    // wait, not work performed.
+    if (waitPlan) this.emitElapsed = false;
+
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-      // Reap-then-claim (spec/job-lifecycle.md §Reap procedure): expired
-      // running jobs flip to failed / abandoned before the claim. Silent
-      // by contract, this verb's stdout is the handover envelope, so the
-      // returned ids are ignored here.
-      await adapter.jobs.reapExpired(Date.now());
-      // The claim verb is the external-agent handover; the runner is
-      // stamped `agent` (`job.schema.json` runner enum).
-      const claim = await adapter.jobs.claim('agent', Date.now(), this.filter);
-      if (!claim) return ExitCode.Issues; // exit 1: queue empty / no match, no output
-      // Fetch the content in BOTH modes: a missing row is the
-      // DB-corruption-only job-file-missing state and MUST NOT hand the
-      // claim out (spec §Atomic claim · Missing content row at claim).
-      const content = await adapter.jobs.getContent(claim.contentHash);
-      if (content === null) return this.failClaimContentMissing(adapter, claim.id, ctx.cwd);
-      // Live-transition push (spec/job-events.md §Transport / §job.claimed):
-      // the event data is read back from the freshly claimed row, and the
-      // push fires only when the claim is actually handed out. Runs after
-      // the claim committed; cannot throw, never touches the handover
-      // contract on stdout. The reap above stays event-silent by spec.
-      const claimed = await adapter.jobs.get(claim.id);
-      if (claimed) {
-        await pushJobEvent(ctx.cwd, {
-          type: 'job.claimed',
-          timestamp: Date.now(),
-          runId: generateRunId('ext'),
-          jobId: claimed.id,
-          data: {
-            extensionId: claimed.extensionId,
-            extensionVersion: claimed.extensionVersion,
-            nodeId: claimed.nodeId,
-            ttlSeconds: claimed.ttlSeconds,
-            priority: claimed.priority,
-          },
-        });
+      const deadlineMs =
+        waitPlan?.timeoutMs !== undefined ? Date.now() + waitPlan.timeoutMs : undefined;
+
+      // Reap-then-claim loop (spec/job-lifecycle.md §Reap procedure +
+      // §Atomic claim · Blocking claim): expired running jobs flip to
+      // failed / abandoned before each claim attempt. Without --wait the
+      // loop runs exactly once and an empty queue returns exit 1, the
+      // historical one-shot behaviour.
+      for (;;) {
+        await adapter.jobs.reapExpired(Date.now());
+        // The claim verb is the external-agent handover; the runner is
+        // stamped `agent` (`job.schema.json` runner enum).
+        const claim = await adapter.jobs.claim('agent', Date.now(), this.filter);
+        if (claim) return this.handOutClaim(adapter, claim, ctx.cwd);
+
+        if (!waitPlan) return ExitCode.Issues; // exit 1: one-shot empty queue
+
+        // --wait: sleep one interval, then retry. A false return means the
+        // --timeout budget elapsed, so give up with the empty-queue exit 1.
+        const proceed = await this.sleepUntilNextAttempt(waitPlan.intervalMs, deadlineMs);
+        if (!proceed) return ExitCode.Issues; // exit 1: --timeout elapsed
       }
-      if (this.json) {
-        this.printer!.data(
-          JSON.stringify({ id: claim.id, nonce: claim.nonce, content }) + '\n',
-        );
-        return ExitCode.Ok;
-      }
-      this.printer!.data(claim.id + '\n');
-      return ExitCode.Ok;
     });
+  }
+
+  /**
+   * Parse + validate --wait / --interval / --timeout. Returns null when
+   * --wait is absent (one-shot claim), a poll plan in milliseconds when it
+   * is present, or an exit-2 code on a malformed interval / timeout. The
+   * interval resolves flag > jobs.claimWaitSeconds > 2
+   * (spec/job-lifecycle.md §Atomic claim · Blocking claim).
+   */
+  private resolveWaitPlan(
+    ctx: { cwd: string },
+  ): { intervalMs: number; timeoutMs?: number } | null | TExitCode {
+    if (!this.wait) return null;
+
+    const interval = this.parsePositiveSeconds(this.interval, T.claimErrBadInterval);
+    if (!interval.ok) return interval.code;
+    const timeout = this.parsePositiveSeconds(this.timeout, T.claimErrBadTimeout);
+    if (!timeout.ok) return timeout.code;
+
+    const intervalMs = (interval.value ?? this.resolveConfiguredInterval(ctx)) * 1000;
+    return timeout.value === undefined
+      ? { intervalMs }
+      : { intervalMs, timeoutMs: timeout.value * 1000 };
+  }
+
+  /**
+   * Parse one positive-integer-seconds flag (--interval / --timeout).
+   * `ok: true` carries the value (undefined when the flag was absent);
+   * `ok: false` carries the exit-2 code already emitted to stderr. Wrapped
+   * in a result so a valid `2` is never confused with the exit code `2`.
+   */
+  private parsePositiveSeconds(
+    raw: string | undefined,
+    badText: string,
+  ): { ok: true; value: number | undefined } | { ok: false; code: TExitCode } {
+    let value: number | undefined;
+    try {
+      value = parseIntFlag(raw);
+    } catch (err) {
+      return { ok: false, code: this.failClaim(tx(badText, { value: (err as Error).message })) };
+    }
+    if (value !== undefined && value < 1) {
+      return { ok: false, code: this.failClaim(tx(badText, { value: raw as string })) };
+    }
+    return { ok: true, value };
+  }
+
+  /**
+   * Sleep one poll interval, clamped to any remaining --timeout budget.
+   * Returns false when the timeout has already elapsed (caller gives up
+   * with the empty-queue exit 1), true after sleeping otherwise.
+   */
+  private async sleepUntilNextAttempt(
+    intervalMs: number,
+    deadlineMs: number | undefined,
+  ): Promise<boolean> {
+    const remainingMs = deadlineMs === undefined ? undefined : deadlineMs - Date.now();
+    if (remainingMs !== undefined && remainingMs <= 0) return false;
+    const sleepMs = remainingMs === undefined ? intervalMs : Math.min(intervalMs, remainingMs);
+    await new Promise<void>((resolve) => setTimeout(resolve, sleepMs));
+    return true;
+  }
+
+  /**
+   * Default poll interval (seconds) when --interval is absent:
+   * jobs.claimWaitSeconds, else the hardcoded 2. A config load failure
+   * degrades to the default rather than aborting the claim.
+   */
+  private resolveConfiguredInterval(ctx: { cwd: string }): number {
+    try {
+      const configured = loadConfig({ cwd: ctx.cwd }).effective.jobs.claimWaitSeconds;
+      return configured !== undefined && configured >= 1
+        ? configured
+        : DEFAULT_CLAIM_WAIT_SECONDS;
+    } catch {
+      return DEFAULT_CLAIM_WAIT_SECONDS;
+    }
+  }
+
+  /**
+   * Fetch the claimed content, push the best-effort claimed event, print
+   * the handover envelope, exit 0. Shared by the one-shot and --wait paths.
+   */
+  private async handOutClaim(
+    adapter: StoragePort,
+    claim: IJobClaim,
+    cwd: string,
+  ): Promise<TExitCode> {
+    // Fetch the content in BOTH modes: a missing row is the
+    // DB-corruption-only job-file-missing state and MUST NOT hand the
+    // claim out (spec §Atomic claim · Missing content row at claim).
+    const content = await adapter.jobs.getContent(claim.contentHash);
+    if (content === null) return this.failClaimContentMissing(adapter, claim.id, cwd);
+    // Live-transition push (spec/job-events.md §Transport / §job.claimed):
+    // the event data is read back from the freshly claimed row, and the
+    // push fires only when the claim is actually handed out. Runs after the
+    // claim committed; cannot throw, never touches the handover contract on
+    // stdout. The reap stays event-silent by spec.
+    const claimed = await adapter.jobs.get(claim.id);
+    if (claimed) {
+      await pushJobEvent(cwd, {
+        type: 'job.claimed',
+        timestamp: Date.now(),
+        runId: generateRunId('ext'),
+        jobId: claimed.id,
+        data: {
+          extensionId: claimed.extensionId,
+          extensionVersion: claimed.extensionVersion,
+          nodeId: claimed.nodeId,
+          ttlSeconds: claimed.ttlSeconds,
+          priority: claimed.priority,
+        },
+      });
+    }
+    if (this.json) {
+      this.printer!.data(JSON.stringify({ id: claim.id, nonce: claim.nonce, content }) + '\n');
+      return ExitCode.Ok;
+    }
+    this.printer!.data(claim.id + '\n');
+    return ExitCode.Ok;
+  }
+
+  private failClaim(message: string): TExitCode {
+    this.printer!.error(tx(T.claimErrPrefix, { glyph: this.ansiFor('stderr').red('✕'), message }));
+    return ExitCode.Error;
   }
 
   /**

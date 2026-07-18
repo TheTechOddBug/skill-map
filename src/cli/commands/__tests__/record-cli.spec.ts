@@ -202,6 +202,7 @@ function buildClaim(): JobClaimCommand {
   const cmd = new JobClaimCommand();
   cmd.filter = undefined;
   cmd.json = true;
+  cmd.wait = false;
   cmd.db = undefined;
   return cmd;
 }

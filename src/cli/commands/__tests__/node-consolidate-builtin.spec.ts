@@ -226,6 +226,7 @@ async function claimAndRecord(proj: IProject, report: object): Promise<{ code: n
     const claim = new JobClaimCommand();
     claim.filter = undefined;
     claim.json = true;
+    claim.wait = false;
     claim.db = undefined;
     await run(claim, cap);
     return JSON.parse(cap.stdout()) as { id: string; nonce: string };
