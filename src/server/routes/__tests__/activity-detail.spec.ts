@@ -22,6 +22,7 @@ import {
   type IServerHandle,
 } from '../../index.js';
 import { encodeNodePath } from '../../path-codec.js';
+import { RUNS_LIMIT } from '../activity-detail.js';
 
 const HASH_BODY = 'a'.repeat(64);
 const HASH_FRONTMATTER = 'b'.repeat(64);
@@ -243,8 +244,8 @@ describe('GET /api/activity/node/:pathB64', () => {
     });
   });
 
-  it('runs: seeded state_executions rows, newest-first, capped at 20, lean projection', async () => {
-    // 22 orchestrator rows (2 over the cap; the newest one failed) plus
+  it('runs: seeded state_executions rows, newest-first, capped at RUNS_LIMIT, lean projection', async () => {
+    // 22 orchestrator rows (well over the cap; the newest one failed) plus
     // one row on a DIFFERENT node that must not bleed into the list.
     const seeded = Array.from({ length: 21 }, (_, i) => makeExecution(i + 1));
     seeded.push(
@@ -261,8 +262,8 @@ describe('GET /api/activity/node/:pathB64', () => {
       const res = await getNodeDetail(handle, ORCHESTRATOR);
       assert.equal(res.status, 200);
       const detail = (await res.json()) as INodeDetailEnvelope;
-      assert.equal(detail.runs.length, 20);
-      // Newest first: 22 (failed) down to 3; 1 and 2 fall off the cap.
+      assert.equal(detail.runs.length, RUNS_LIMIT);
+      // Newest first: 22 (failed) at the top; the oldest rows past the cap fall off.
       assert.deepEqual(detail.runs[0], {
         executionId: 'e-run-022',
         extensionId: 'core/skill-summarizer',
@@ -281,7 +282,12 @@ describe('GET /api/activity/node/:pathB64', () => {
         finishedAt: RUN_BASE_MS + 21 * 1000 + 500,
         failureReason: null,
       });
-      assert.equal(detail.runs[19]?.['executionId'], 'e-run-003');
+      // Newest first from the 22 seeded rows: the oldest kept is
+      // e-run-<22 - RUNS_LIMIT + 1> at the last kept index; older rows fall off.
+      assert.equal(
+        detail.runs[RUNS_LIMIT - 1]?.['executionId'],
+        `e-run-${String(22 - RUNS_LIMIT + 1).padStart(3, '0')}`,
+      );
       // Lean wire: exactly the spec key set, nothing from the report /
       // job linkage / token family leaks onto any entry.
       for (const entry of detail.runs) {

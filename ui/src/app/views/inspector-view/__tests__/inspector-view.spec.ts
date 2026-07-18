@@ -1269,6 +1269,44 @@ describe('InspectorView, activity thread rows (spawn grouping)', () => {
       fixture.nativeElement.querySelector('[data-testid="inspector-activity-capture-chip"]'),
     ).toBeNull();
   });
+
+  it('caps the conversation threads shown per node at 10', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    // 12 DISTINCT pairs (distinct childNodePath => distinct thread key).
+    const spawns = Array.from({ length: 12 }, (_, i) => ({
+      ...makeSpawn(`s${i}`, (i + 1) * 1000, 'ended'),
+      childNodePath: `.claude/agents/w${i}.md`,
+    }));
+    dataSource.getNodeActivity.mockResolvedValue({
+      stats: { count: 12, lastStartAt: 12000, distinctOwners: 1 },
+      recent: [],
+      spawns,
+      captureEnabled: true,
+      runs: [],
+    });
+
+    const { fixture } = bootstrap({
+      loader,
+      dataSource,
+      activityStats: new Map([[node.path, makeActivityStats({ count: 12, lastStartAt: 12000 })]]),
+    });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const toggle = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-activity-toggle"]',
+    ) as HTMLButtonElement;
+    toggle.click();
+    await flush(fixture);
+    await flush(fixture);
+
+    // 12 distinct conversations exist, but only the 10 newest render.
+    expect(
+      fixture.nativeElement.querySelectorAll('[data-testid="inspector-activity-thread"]').length,
+    ).toBe(10);
+  });
 });
 
 describe('InspectorView, activity execution aggregates (stats totals row)', () => {
@@ -1586,7 +1624,7 @@ describe('InspectorView, activity merged timeline (runtime + AI runs)', () => {
     expect(rows[3]!.getAttribute('data-testid')).toBe('inspector-activity-run-row'); // null, sinks
   });
 
-  it('renders an AI-run row visually distinguished: sparkles icon + extension · status · duration · model', async () => {
+  it('renders an AI-run row visually distinguished: sparkles icon + full extension · duration · model (completed status omitted)', async () => {
     const fixture = await bootWithTimeline(
       [{ at: 3000, owner: 'main:abc' }],
       [makeRun({ executionId: 'e1', finishedAt: 2000 })],
@@ -1598,9 +1636,9 @@ describe('InspectorView, activity merged timeline (runtime + AI runs)', () => {
     const icon = row!.querySelector('[data-testid="inspector-activity-run-icon"]');
     expect(icon).not.toBeNull();
     expect(icon!.classList.contains('pi-sparkles')).toBe(true);
-    // `node-` prefix stripped like the AI-actions launcher labels.
-    expect(row!.textContent).toContain('redundancy · completed · 2s · claude-sonnet');
-    expect(row!.textContent).not.toContain('ai-redundancy-analyzer');
+    // Full qualified extension id; the happy-path `completed` status is omitted.
+    expect(row!.textContent).toContain('core/ai-redundancy-analyzer · 2s · claude-sonnet');
+    expect(row!.textContent).not.toContain('completed');
     // A clean run carries no failure tooltip.
     expect(row!.getAttribute('title')).toBeNull();
   });
@@ -1621,6 +1659,8 @@ describe('InspectorView, activity merged timeline (runtime + AI runs)', () => {
       '[data-testid="inspector-activity-run-row"]',
     );
     expect(row!.getAttribute('title')).toBe('agent timed out');
+    // A non-completed status IS surfaced, alongside the full extension id.
+    expect(row!.textContent).toContain('core/ai-redundancy-analyzer · failed · 2s · claude-sonnet');
   });
 
   it('shows AI runs even when the runtime half is quiet (empty stats)', async () => {

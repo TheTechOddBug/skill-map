@@ -10,6 +10,7 @@ import { describe, it } from 'node:test';
 import {
   ActivityStatsService,
   DISTINCT_OWNERS_CAP,
+  RECENT_RING_SIZE,
   STICKY_DEDUPE_CAP,
   pairKeyOf,
 } from '../activity-stats.js';
@@ -215,17 +216,18 @@ describe('ActivityStatsService reads', () => {
     assert.equal(stats.nodeDetail(NODE).recent[0]?.owner, 'a1');
   });
 
-  it('the recent ring is most-recent-first and bounded at 20', () => {
+  it('the recent ring is most-recent-first and bounded at RECENT_RING_SIZE', () => {
     const stats = new ActivityStatsService();
-    for (let i = 0; i < 25; i += 1) {
+    const total = RECENT_RING_SIZE + 5;
+    for (let i = 0; i < total; i += 1) {
       stats.record({ nodePath: NODE, phase: 'start', owner: `o${i}` });
     }
     const { recent } = stats.nodeDetail(NODE);
-    assert.equal(recent.length, 20);
-    assert.equal(recent[0]?.owner, 'o24');
-    assert.equal(recent[19]?.owner, 'o5');
+    assert.equal(recent.length, RECENT_RING_SIZE);
+    assert.equal(recent[0]?.owner, `o${total - 1}`);
+    assert.equal(recent[RECENT_RING_SIZE - 1]?.owner, `o${total - RECENT_RING_SIZE}`);
     // Monotone timestamps, newest at index 0.
-    assert.ok(recent[0]!.at >= recent[19]!.at);
+    assert.ok(recent[0]!.at >= recent[RECENT_RING_SIZE - 1]!.at);
   });
 
   it('sinceMs is a boot-time unix-ms stamp', () => {

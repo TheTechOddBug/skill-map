@@ -551,7 +551,7 @@ stream. A scanned node with no recorded activity returns empty stats, not
 `runs` is the OTHER provenance the inspector's Activity timeline interleaves
 (user decision 2026-07-17): skill-map's own AI-run history for the node, read
 from `state_executions` (persistent, unlike the ephemeral runtime stats
-above). Newest-first, capped at 20, each entry
+above). Newest-first, capped at 15, each entry
 `{ "executionId", "extensionId", "status", "model": <string|null>,
 "durationMs": <int|null>, "finishedAt": <ms|null>, "failureReason": <string|null> }`.
 A missing DB degrades to `runs: []` without failing the runtime half. The UI

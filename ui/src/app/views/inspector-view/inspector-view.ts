@@ -113,6 +113,9 @@ import type { IFindingApi, IProbExtensionEntryApi } from '../../../models/api';
  */
 const ACTIVITY_LIVE_REFRESH_DEBOUNCE_MS = 400;
 
+/** Per-node cap on the conversation threads the Activity section renders. */
+const SPAWN_THREADS_LIMIT = 10;
+
 @Component({
   selector: 'sm-inspector-view',
   imports: [
@@ -820,12 +823,15 @@ export class InspectorView implements OnInit {
   });
 
   /**
-   * AI-run row text: `<extensionShort> · <status> · <duration> · <model>`,
-   * nullable segments omitted. The extension segment reuses the same
-   * `node-` prefix strip as the AI-actions launcher labels.
+   * AI-run row text: `<extensionId> · <status?> · <duration> · <model>`,
+   * nullable segments omitted. The extension shows its FULL qualified id
+   * (not the `node-`-stripped short form), and the status is surfaced ONLY
+   * when it deviates from the happy-path `completed`: a failed / cancelled
+   * run shows its state, a completed one does not repeat the obvious.
    */
   protected runRowLabel(run: IActivityRunApi): string {
-    const parts = [shortExtensionLabel(run.extensionId), run.status];
+    const parts = [run.extensionId];
+    if (run.status !== 'completed') parts.push(run.status);
     if (run.durationMs !== null) parts.push(this.texts.activity.runDuration(run.durationMs));
     if (run.model !== null) parts.push(run.model);
     return parts.join(' · ');
@@ -858,10 +864,11 @@ export class InspectorView implements OnInit {
   /**
    * Spawn records grouped into per-pair conversation threads: one row
    * per parent-child pair, N Task calls fused into N turns of the same
-   * thread (most recent thread first).
+   * thread (most recent thread first), capped per node at
+   * `SPAWN_THREADS_LIMIT` conversations.
    */
   protected readonly spawnThreads = computed<ISpawnThread[]>(() =>
-    groupSpawnThreads(this.activityDetail()?.spawns ?? []),
+    groupSpawnThreads(this.activityDetail()?.spawns ?? []).slice(0, SPAWN_THREADS_LIMIT),
   );
 
   /** Thread-row labels: `<parent> -> <child>`, session parents named plainly. */

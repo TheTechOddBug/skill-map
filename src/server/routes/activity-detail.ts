@@ -9,7 +9,7 @@
  *     path that is not a scanned node → 404; a scanned node with no
  *     recorded activity → zeroed stats, never 404. `runs` is the node's
  *     persistent AI-run history (`state_executions`, newest-first,
- *     capped at 20, lean projection); a missing DB degrades to
+ *     capped at 15, lean projection); a missing DB degrades to
  *     `runs: []` with the runtime half still answering.
  *   - `GET /api/activity/spawns/:spawnId` → one spawn record (the
  *     spawn-edge click surface), 404 for an unknown id.
@@ -57,9 +57,9 @@ export interface IActivityDetailRouteDeps extends IRouteDeps {
 
 /**
  * Spec cap on the `runs` list (`spec/provider-activity.md`
- * §`GET /api/activity/node/<pathB64>`): newest-first, at most 20.
+ * §`GET /api/activity/node/<pathB64>`): newest-first, at most 15.
  */
-const RUNS_LIMIT = 20;
+export const RUNS_LIMIT = 15;
 
 /**
  * One wire entry of the node's AI-run history. Identity + outcome only:
