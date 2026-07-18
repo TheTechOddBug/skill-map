@@ -47,7 +47,6 @@ import { nameCollisionAnalyzer as _nameCollisionAnalyzer } from './core/analyzer
 import { nameMismatchAnalyzer as _nameMismatchAnalyzer } from './core/analyzers/name-mismatch/index.js';
 import { nameReservedAnalyzer as _nameReservedAnalyzer } from './core/analyzers/name-reserved/index.js';
 import { nodeContradictionAnalyzer as _nodeContradictionAnalyzer } from './core/analyzers/node-contradiction/index.js';
-import { nodeContraindicationAnalyzer as _nodeContraindicationAnalyzer } from './core/analyzers/node-contraindication/index.js';
 import { nodeIncoherenceAnalyzer as _nodeIncoherenceAnalyzer } from './core/analyzers/node-incoherence/index.js';
 import { nodeRedundancyAnalyzer as _nodeRedundancyAnalyzer } from './core/analyzers/node-redundancy/index.js';
 import { nodeStabilityAnalyzer as _nodeStabilityAnalyzer } from './core/analyzers/node-stability/index.js';
@@ -100,23 +99,31 @@ const nameReservedAnalyzer = { ..._nameReservedAnalyzer, pluginId: 'core', versi
 const nodeContradictionAnalyzer = { ..._nodeContradictionAnalyzer, pluginId: 'core', version: VERSION, promptTemplate: `Judge ONE thing about the document below: internal contradictions.
 
 A contradiction is two directives or statements within this single
-document that cannot BOTH be followed or be true at once; a reader
-cannot act without choosing one over the other.
+document that clash. They clash in one of two ways:
+- Mutual exclusion: they cannot BOTH be followed or be true at once; a
+  reader cannot act without choosing one over the other.
+- Harmful combination: each is valid on its own, but following BOTH is
+  risky or counterproductive (the drug-interaction shape: "always
+  parallelize writes" plus "the store supports a single writer";
+  "delete logs on shutdown" plus "audit using the logs").
 
 Do NOT flag:
 - Statements distinguished by explicit conditions ("in dev use X, in
   prod use Y" is a distinction, not a contradiction).
 - Explicit evolution ("we used to do X, now we do Y").
-- Directive pairs that CAN both be followed; only mutual exclusions
-  count.
+- Directive pairs that CAN both be followed with no added risk.
+- Risks the document itself already acknowledges and mitigates.
 
 For each contradiction found, emit one finding:
 - type: "contradiction"
-- severity: "warn" when a precedence between the two is inferable
-  though ambiguous; "error" when the two are flatly mutually exclusive.
+- severity: "error" when the two are flatly mutually exclusive, or when
+  the combination is destructive and the document carries no warning;
+  "warn" when a precedence between them is inferable though ambiguous,
+  or when the combination is merely risky.
 - message: one sentence naming the two clashing directives.
-- detail: quote both spans (trimmed) and propose which one survives, or
-  the condition that separates them.
+- detail: quote both spans (trimmed) and either propose which one
+  survives (or the condition that separates them), or name the concrete
+  scenario where following both goes wrong.
 - confidence: your certainty for this specific finding.
 
 A document with no contradictions is a valid outcome: return an empty
@@ -124,34 +131,6 @@ findings array. Judge only what is inside the user-content block.
 
 {{userContent}}
 `, reportSchema: JSON.parse('{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://skill-map.ai/spec/v0/core/node-contradiction-report.schema.json","title":"NodeContradictionReport","description":"Report shape for the built-in `core/node-contradiction` probabilistic finder Analyzer. Extends the canonical findings envelope (`findings/report.schema.json`); that reference is BOTH the load-time gate and the record-path routing signal (the validated `findings[]` land in `state_findings`, see `job-lifecycle.md` §Record). Narrows every finding\'s `type` to the const `contradiction` so this finder can only emit its own judgment; any other slug fails the record as `report-invalid`. Stability: experimental.","allOf":[{"$ref":"https://skill-map.ai/spec/v0/findings/report.schema.json"}],"type":"object","properties":{"findings":{"type":"array","items":{"type":"object","properties":{"type":{"const":"contradiction"}}}}}}') };
-const nodeContraindicationAnalyzer = { ..._nodeContraindicationAnalyzer, pluginId: 'core', version: VERSION, promptTemplate: `Judge ONE thing about the document below: contraindications.
-
-A contraindication is two or more directives that are each valid on
-their own but whose COMBINATION is risky or counterproductive, the
-drug-interaction shape: "always parallelize writes" plus "the store
-supports a single writer"; "delete logs on shutdown" plus "audit using
-the logs".
-
-Do NOT flag:
-- Risks the document itself already acknowledges and mitigates.
-- Combinations that are risky only under assumptions the document does
-  not enable.
-
-For each contraindication found, emit one finding:
-- type: "contraindication"
-- severity: "warn" by default; "error" when the combination is
-  destructive and the document carries no warning.
-- message: one sentence naming the directives that clash in
-  combination.
-- detail: quote the directives (trimmed) and name the concrete scenario
-  where they clash.
-- confidence: your certainty for this specific finding.
-
-A document with no contraindications is a valid outcome: return an
-empty findings array. Judge only what is inside the user-content block.
-
-{{userContent}}
-`, reportSchema: JSON.parse('{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://skill-map.ai/spec/v0/core/node-contraindication-report.schema.json","title":"NodeContraindicationReport","description":"Report shape for the built-in `core/node-contraindication` probabilistic finder Analyzer. Extends the canonical findings envelope (`findings/report.schema.json`); that reference is BOTH the load-time gate and the record-path routing signal (the validated `findings[]` land in `state_findings`, see `job-lifecycle.md` §Record). Narrows every finding\'s `type` to the const `contraindication` so this finder can only emit its own judgment; any other slug fails the record as `report-invalid`. Stability: experimental.","allOf":[{"$ref":"https://skill-map.ai/spec/v0/findings/report.schema.json"}],"type":"object","properties":{"findings":{"type":"array","items":{"type":"object","properties":{"type":{"const":"contraindication"}}}}}}') };
 const nodeIncoherenceAnalyzer = { ..._nodeIncoherenceAnalyzer, pluginId: 'core', version: VERSION, promptTemplate: `Judge ONE thing about the document below: internal incoherence.
 
 Incoherence means the document fails to hang together as one piece:
@@ -332,7 +311,7 @@ The document to edit:
 
 {{userContent}}
 `, reportSchema: JSON.parse('{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://skill-map.ai/spec/v0/core/node-consolidate-report.schema.json","title":"NodeConsolidateReport","description":"Report shape for the built-in `core/node-consolidate` probabilistic fixer Action. A fixer is NOT a finder: its report is execution-only (no findings write-through table), so it extends `report-base.schema.json` directly for the `confidence` + `safety` fields the preamble mandates, rather than the `findings/` envelope. `resolved` records, per redundancy finding the processing agent acted on, the finding\'s `id`, the `state` it moved the finding into, the deciding actor `by` (on a `fixed` entry), and a one-line note; the record path stamps each entry onto the finding the `id` names (`resolution` / `resolution_actor` from `by` / `resolution_note`), so the outcome rides the finding as a lifecycle state instead of being buried in the execution report. `editsSummary` describes the edits made to the node file. skill-map never writes the body, the processing agent performs the edit. Stability: experimental.","allOf":[{"$ref":"https://skill-map.ai/spec/v0/report-base.schema.json"}],"type":"object","required":["resolved","editsSummary"],"properties":{"resolved":{"type":"array","description":"One entry per redundancy finding the agent considered, keyed by the finding\'s `id`. `state` is `fixed` when the consolidation was made, `human-decision` when the fix needs a choice only the author can make (with your PROPOSAL in `note`) and you left the document untouched.","items":{"type":"object","required":["id","state","note"],"properties":{"id":{"type":"integer","description":"The finding\'s `id`, copied VERBATIM from the injected `## Findings to resolve` section. This is what ties the outcome back to the finding: `sm record` stamps the resolution onto this row. An id that does not match a current finding of this node is ignored."},"type":{"type":"string","description":"Optional echo of the finding\'s `type` slug (e.g. `redundancy`), for report readability only. The `id` is what the record path matches on."},"state":{"type":"string","enum":["fixed","human-decision"],"description":"The lifecycle state you moved the finding into: `fixed` when you edited the document to resolve the redundancy; `human-decision` when the fix needs a choice only the author can make, leaving the document untouched (your `note` is your PROPOSAL for that choice). `fixed` is a state, not a verdict: it never closes the finding, only the finder re-judging does."},"by":{"type":"string","enum":["fixer","human"],"description":"WHO decided a `fixed` finding: `fixer` if you resolved it with ZERO user interaction (a fully autonomous fix), `human` if ANY user interaction was involved (an approval, a choice among options, an operator edit). REQUIRED when `state` is `fixed`; ignored otherwise. Stamped onto the finding\'s `resolution_actor`."},"note":{"type":"string","description":"One-line note: what was consolidated, or your PROPOSAL for the human-decision. On a `human-decision` entry this is surfaced to the author as their TODO, so make the proposal actionable."}},"if":{"properties":{"state":{"const":"fixed"}}},"then":{"required":["by"]}}},"editsSummary":{"type":"string","description":"Short prose summary of the edits the agent made to the node file (which repetitions were collapsed). Empty string when every finding was left for a human decision."}}}') };
-const nodeReconcileAction = { ..._nodeReconcileAction, pluginId: 'core', version: VERSION, promptTemplate: `Resolve the contradiction and contraindication findings listed in the
+const nodeReconcileAction = { ..._nodeReconcileAction, pluginId: 'core', version: VERSION, promptTemplate: `Resolve the contradiction findings listed in the
 "## Findings to resolve" section above by editing the document.
 
 The document is the file at the path shown in the user-content block's id
@@ -345,15 +324,15 @@ treat the snapshot as context only. If a finding's problem is already gone
 from the live file, do not re-apply it: set \`state\` to \`human-decision\` and
 say so in \`note\`.
 
-Each finding names a directive pair that does not work together. Apply the
+Each finding names a directive pair that clashes. Apply the
 resolution its \`detail\` proposes:
-- For a "contradiction" (two directives that cannot both hold): keep the
-  one the document most clearly intends, delete or correct the other; OR,
-  when both are legitimate under different conditions, add the condition
-  that separates them ("in dev... in production...").
-- For a "contraindication" (two directives, each valid alone, jointly
-  risky): add the missing guard, ordering, or warning that makes the
-  combination safe, or narrow one directive so the risky overlap is gone.
+- When the two cannot both hold: keep the one the document most clearly
+  intends, delete or correct the other; OR, when both are legitimate
+  under different conditions, add the condition that separates them
+  ("in dev... in production...").
+- When each is valid alone but the combination is risky: add the missing
+  guard, ordering, or warning that makes it safe, or narrow one directive
+  so the risky overlap is gone.
 
 Preserve every distinct requirement; remove only the conflict, never
 information. Do not touch anything the findings do not name.
@@ -384,7 +363,7 @@ required \`safety\` and \`confidence\` fields.
 The document to edit:
 
 {{userContent}}
-`, reportSchema: JSON.parse('{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://skill-map.ai/spec/v0/core/node-reconcile-report.schema.json","title":"NodeReconcileReport","description":"Report shape for the built-in `core/node-reconcile` probabilistic fixer Action. A fixer is NOT a finder: its report is execution-only (no findings write-through table), so it extends `report-base.schema.json` directly for the `confidence` + `safety` fields the preamble mandates, rather than the `findings/` envelope. `resolved` records, per contradiction or contraindication finding the processing agent acted on, the finding\'s `id`, the `state` it moved the finding into, the deciding actor `by` (on a `fixed` entry), and a one-line note; the record path stamps each entry onto the finding the `id` names (`resolution` / `resolution_actor` from `by` / `resolution_note`), so the outcome rides the finding as a lifecycle state instead of being buried in the execution report. `editsSummary` describes the edits made to the node file. skill-map never writes the body, the processing agent performs the edit. Stability: experimental.","allOf":[{"$ref":"https://skill-map.ai/spec/v0/report-base.schema.json"}],"type":"object","required":["resolved","editsSummary"],"properties":{"resolved":{"type":"array","description":"One entry per contradiction or contraindication finding the agent considered, keyed by the finding\'s `id`. `state` is `fixed` when the reconciliation was made, `human-decision` when the fix needs a choice only the author can make (with your PROPOSAL in `note`) and you left the document untouched.","items":{"type":"object","required":["id","state","note"],"properties":{"id":{"type":"integer","description":"The finding\'s `id`, copied VERBATIM from the injected `## Findings to resolve` section. This is what ties the outcome back to the finding: `sm record` stamps the resolution onto this row. An id that does not match a current finding of this node is ignored."},"type":{"type":"string","description":"Optional echo of the finding\'s `type` slug (e.g. `contradiction`, `contraindication`), for report readability only. The `id` is what the record path matches on."},"state":{"type":"string","enum":["fixed","human-decision"],"description":"The lifecycle state you moved the finding into: `fixed` when you edited the document to reconcile the conflict; `human-decision` when the fix needs a choice only the author can make, leaving the document untouched (your `note` is your PROPOSAL for that choice). `fixed` is a state, not a verdict: it never closes the finding, only the finder re-judging does."},"by":{"type":"string","enum":["fixer","human"],"description":"WHO decided a `fixed` finding: `fixer` if you resolved it with ZERO user interaction (a fully autonomous fix), `human` if ANY user interaction was involved (an approval, a choice among options, an operator edit). REQUIRED when `state` is `fixed`; ignored otherwise. Stamped onto the finding\'s `resolution_actor`."},"note":{"type":"string","description":"One-line note: what was reconciled, or your PROPOSAL for the human-decision. On a `human-decision` entry this is surfaced to the author as their TODO, so make the proposal actionable."}},"if":{"properties":{"state":{"const":"fixed"}}},"then":{"required":["by"]}}},"editsSummary":{"type":"string","description":"Short prose summary of the edits the agent made to the node file (which conflicts were settled). Empty string when every finding was left for a human decision."}}}') };
+`, reportSchema: JSON.parse('{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://skill-map.ai/spec/v0/core/node-reconcile-report.schema.json","title":"NodeReconcileReport","description":"Report shape for the built-in `core/node-reconcile` probabilistic fixer Action. A fixer is NOT a finder: its report is execution-only (no findings write-through table), so it extends `report-base.schema.json` directly for the `confidence` + `safety` fields the preamble mandates, rather than the `findings/` envelope. `resolved` records, per contradiction finding the processing agent acted on, the finding\'s `id`, the `state` it moved the finding into, the deciding actor `by` (on a `fixed` entry), and a one-line note; the record path stamps each entry onto the finding the `id` names (`resolution` / `resolution_actor` from `by` / `resolution_note`), so the outcome rides the finding as a lifecycle state instead of being buried in the execution report. `editsSummary` describes the edits made to the node file. skill-map never writes the body, the processing agent performs the edit. Stability: experimental.","allOf":[{"$ref":"https://skill-map.ai/spec/v0/report-base.schema.json"}],"type":"object","required":["resolved","editsSummary"],"properties":{"resolved":{"type":"array","description":"One entry per contradiction finding the agent considered, keyed by the finding\'s `id`. `state` is `fixed` when the reconciliation was made, `human-decision` when the fix needs a choice only the author can make (with your PROPOSAL in `note`) and you left the document untouched.","items":{"type":"object","required":["id","state","note"],"properties":{"id":{"type":"integer","description":"The finding\'s `id`, copied VERBATIM from the injected `## Findings to resolve` section. This is what ties the outcome back to the finding: `sm record` stamps the resolution onto this row. An id that does not match a current finding of this node is ignored."},"type":{"type":"string","description":"Optional echo of the finding\'s `type` slug (e.g. `contradiction`), for report readability only. The `id` is what the record path matches on."},"state":{"type":"string","enum":["fixed","human-decision"],"description":"The lifecycle state you moved the finding into: `fixed` when you edited the document to reconcile the conflict; `human-decision` when the fix needs a choice only the author can make, leaving the document untouched (your `note` is your PROPOSAL for that choice). `fixed` is a state, not a verdict: it never closes the finding, only the finder re-judging does."},"by":{"type":"string","enum":["fixer","human"],"description":"WHO decided a `fixed` finding: `fixer` if you resolved it with ZERO user interaction (a fully autonomous fix), `human` if ANY user interaction was involved (an approval, a choice among options, an operator edit). REQUIRED when `state` is `fixed`; ignored otherwise. Stamped onto the finding\'s `resolution_actor`."},"note":{"type":"string","description":"One-line note: what was reconciled, or your PROPOSAL for the human-decision. On a `human-decision` entry this is surfaced to the author as their TODO, so make the proposal actionable."}},"if":{"properties":{"state":{"const":"fixed"}}},"then":{"required":["by"]}}},"editsSummary":{"type":"string","description":"Short prose summary of the edits the agent made to the node file (which conflicts were settled). Empty string when every finding was left for a human decision."}}}') };
 const nodeSetStabilityAction = { ..._nodeSetStabilityAction, pluginId: 'core', version: VERSION, reportSchema: JSON.parse('{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"urn:skill-map:core/node-set-stability/report","title":"SetStabilityReport","description":"Report shape returned by `core/node-set-stability`. Deterministic Action; carries the lifecycle stage written to the sidecar.","type":"object","required":["confidence","safety","stability"],"additionalProperties":false,"properties":{"confidence":{"type":"number","minimum":0,"maximum":1},"safety":{"type":"object","required":["injectionDetected","contentQuality"],"additionalProperties":false,"properties":{"injectionDetected":{"type":"boolean"},"contentQuality":{"type":"string","enum":["high","medium","low","unknown"]}}},"stability":{"type":"string","enum":["experimental","stable","deprecated"]}}}') };
 const nodeSetTagsAction = { ..._nodeSetTagsAction, pluginId: 'core', version: VERSION, reportSchema: JSON.parse('{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"urn:skill-map:core/node-set-tags/report","title":"SetTagsReport","description":"Report shape returned by `core/node-set-tags`. Deterministic Action; lists the taxonomy tags written to the sidecar.","type":"object","required":["confidence","safety","tags"],"additionalProperties":false,"properties":{"confidence":{"type":"number","minimum":0,"maximum":1},"safety":{"type":"object","required":["injectionDetected","contentQuality"],"additionalProperties":false,"properties":{"injectionDetected":{"type":"boolean"},"contentQuality":{"type":"string","enum":["high","medium","low","unknown"]}}},"tags":{"type":"array","items":{"type":"string"}}}}') };
 const autoFixHook = { ..._autoFixHook, pluginId: 'core', version: VERSION };
@@ -480,7 +459,6 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       nameMismatchAnalyzer,
       nameReservedAnalyzer,
       nodeContradictionAnalyzer,
-      nodeContraindicationAnalyzer,
       nodeIncoherenceAnalyzer,
       nodeRedundancyAnalyzer,
       nodeStabilityAnalyzer,

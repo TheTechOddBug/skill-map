@@ -1,4 +1,4 @@
-Resolve the contradiction and contraindication findings listed in the
+Resolve the contradiction findings listed in the
 "## Findings to resolve" section above by editing the document.
 
 The document is the file at the path shown in the user-content block's id
@@ -11,15 +11,15 @@ treat the snapshot as context only. If a finding's problem is already gone
 from the live file, do not re-apply it: set `state` to `human-decision` and
 say so in `note`.
 
-Each finding names a directive pair that does not work together. Apply the
+Each finding names a directive pair that clashes. Apply the
 resolution its `detail` proposes:
-- For a "contradiction" (two directives that cannot both hold): keep the
-  one the document most clearly intends, delete or correct the other; OR,
-  when both are legitimate under different conditions, add the condition
-  that separates them ("in dev... in production...").
-- For a "contraindication" (two directives, each valid alone, jointly
-  risky): add the missing guard, ordering, or warning that makes the
-  combination safe, or narrow one directive so the risky overlap is gone.
+- When the two cannot both hold: keep the one the document most clearly
+  intends, delete or correct the other; OR, when both are legitimate
+  under different conditions, add the condition that separates them
+  ("in dev... in production...").
+- When each is valid alone but the combination is risky: add the missing
+  guard, ordering, or warning that makes it safe, or narrow one directive
+  so the risky overlap is gone.
 
 Preserve every distinct requirement; remove only the conflict, never
 information. Do not touch anything the findings do not name.

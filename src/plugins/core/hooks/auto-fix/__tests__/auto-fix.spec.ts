@@ -61,7 +61,7 @@ const CONSOLIDATE: IHookActionInfo = {
 };
 const RECONCILE: IHookActionInfo = {
   id: 'core/node-reconcile',
-  analyzerIds: ['core/node-contradiction', 'core/node-contraindication'],
+  analyzerIds: ['core/node-contradiction'],
 };
 /** A non-fixer Action (no analyzerIds): must never be queued. */
 const SUMMARIZER: IHookActionInfo = { id: 'core/markdown-summarizer', analyzerIds: [] };

@@ -2,7 +2,7 @@
 "@skill-map/cli": minor
 ---
 
-Two more built-in fixers (probabilistic Actions declaring `precondition.analyzerIds`), experimental and disabled by default. `core/node-reconcile` resolves `core/node-contradiction` + `core/node-contraindication` findings by settling conflicting or jointly-risky directive pairs. `core/node-clarify` resolves `core/node-incoherence` findings (dangling references, drifting terms, missing context). Both refuse when the node has no matching non-stale finding; the draining agent edits the file.
+Two more built-in fixers (probabilistic Actions declaring `precondition.analyzerIds`), experimental and disabled by default. `core/node-reconcile` resolves `core/node-contradiction` findings by settling conflicting or jointly-risky directive pairs. `core/node-clarify` resolves `core/node-incoherence` findings (dangling references, drifting terms, missing context). Both refuse when the node has no matching non-stale finding; the draining agent edits the file.
 
 ## User-facing
 

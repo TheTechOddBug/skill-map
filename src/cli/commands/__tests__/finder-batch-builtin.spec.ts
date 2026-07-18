@@ -1,8 +1,8 @@
 /**
  * The wave-1 finder batch: `core/node-contradiction`,
- * `core/node-incoherence`, `core/node-contraindication`. Same mold as
+ * `core/node-incoherence`. Same mold as
  * `core/node-redundancy` (see `node-redundancy-builtin.spec.ts`), so the
- * suite is PARAMETERIZED over the three finders instead of cloning the
+ * suite is PARAMETERIZED over the two finders instead of cloning the
  * file per extension. Per finder:
  *
  *   - codegen-inlined `promptTemplate` / `reportSchema` byte-/deep-equal
@@ -54,11 +54,6 @@ const FINDERS = [
     id: 'node-incoherence',
     type: 'incoherence',
     opener: 'Judge ONE thing about the document below: internal incoherence.',
-  },
-  {
-    id: 'node-contraindication',
-    type: 'contraindication',
-    opener: 'Judge ONE thing about the document below: contraindications.',
   },
 ] as const;
 

@@ -189,11 +189,11 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/markdown-summarizer` (the first probabilistic built-in Action; the universal node summarizer, carrying its `prompt.md` + `report.schema.json` inlined by the built-ins codegen) brings it to 41.
     // `github/enrichment` (the first declared-network deterministic Action; Model A provenance verification against a node's `source` / `sourceVersion` annotations, executed via `sm refresh` behind the `allowNetworkActions` policy) brings it to 42.
     // `core/node-redundancy` (the first probabilistic built-in Analyzer, the internal-redundancy finder; experimental, ships disabled, prompt user-approved 2026-07-14) brings it to 43.
-    // `core/node-contradiction` + `core/node-incoherence` + `core/node-contraindication` (the rest of the wave-1 finder roster, same experimental/disabled mold; finders judge independently, no cross-sibling deferrals) bring it to 46.
-    // `core/node-consolidate` (the FIRST fixer: a probabilistic Action declaring `precondition.analyzerIds: ['core/node-redundancy']`; experimental, ships disabled; resolves redundancy findings via a template-mandated file edit) brings it to 47.
-    // `core/node-reconcile` (fixer serving TWO finders, `precondition.analyzerIds: ['core/node-contradiction', 'core/node-contraindication']`; resolves conflicting / jointly-risky directive pairs) + `core/node-clarify` (fixer for `core/node-incoherence`; fixes dangling references, drifting terminology, missing context), both experimental and ships disabled, bring it to 49.
-    // `core/auto-fix` (the second built-in hook; subscribes to `job.completed` filtered to `extensionKind: 'analyzer'` and queues the matching fixers after a finder completes; experimental, ships disabled, opt-in) brings it to 50.
-    assert.equal(rows.length, 50);
+    // `core/node-contradiction` + `core/node-incoherence` (the rest of the wave-1 finder roster, same experimental/disabled mold; finders judge independently, no cross-sibling deferrals) bring it to 45.
+    // `core/node-consolidate` (the FIRST fixer: a probabilistic Action declaring `precondition.analyzerIds: ['core/node-redundancy']`; experimental, ships disabled; resolves redundancy findings via a template-mandated file edit) brings it to 46.
+    // `core/node-reconcile` (fixer for `core/node-contradiction`, `precondition.analyzerIds: ['core/node-contradiction']`; resolves conflicting / jointly-risky directive pairs) + `core/node-clarify` (fixer for `core/node-incoherence`; fixes dangling references, drifting terminology, missing context), both experimental and ships disabled, bring it to 48.
+    // `core/auto-fix` (the second built-in hook; subscribes to `job.completed` filtered to `extensionKind: 'analyzer'` and queues the matching fixers after a finder completes; experimental, ships disabled, opt-in) brings it to 49.
+    assert.equal(rows.length, 49);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a

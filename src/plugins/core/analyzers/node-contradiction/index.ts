@@ -1,10 +1,13 @@
 /**
  * Built-in probabilistic `node-contradiction` Analyzer (Step 11 wave 1,
  * second of the finder roster). Judges ONE node for internal
- * contradictions: directive or statement pairs that cannot both be
- * followed or be true at once. Its judgments land in `state_findings` as
- * `type: 'contradiction'` rows (advisory, never exit-code-bearing); read
- * them with `sm findings`, in context with `sm show`.
+ * contradictions: directive or statement pairs that clash, either
+ * because they cannot both be followed or be true at once (mutual
+ * exclusion) or because following both is risky or counterproductive
+ * (a harmful combination, the drug-interaction shape). Its judgments
+ * land in `state_findings` as `type: 'contradiction'` rows (advisory,
+ * never exit-code-bearing); read them with `sm findings`, in context
+ * with `sm show`.
  *
  * Finders judge INDEPENDENTLY (user ruling, 2026-07-14): no
  * cross-sibling deferrals in any prompt. The operator picks which
@@ -41,7 +44,7 @@ export const nodeContradictionAnalyzer: IBuiltInManifest<IAnalyzer> = {
   pluginId: PLUGIN_ID,
   kind: 'analyzer',
   description:
-    'Probabilistic finder that judges a single node for internal contradictions: directive or statement pairs that cannot both be followed or be true. Emits findings of type contradiction; advisory, never affects exit codes.',
+    'Probabilistic finder that judges a single node for internal contradictions: directive or statement pairs that clash, either because they cannot both be followed (mutual exclusion) or because following both is risky or counterproductive (a harmful combination). Emits findings of type contradiction; advisory, never affects exit codes.',
   // Experimental: disabled by default, the operator opts in.
   stability: 'experimental',
   mode: 'probabilistic',

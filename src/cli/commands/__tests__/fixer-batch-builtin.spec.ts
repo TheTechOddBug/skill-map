@@ -28,10 +28,10 @@
  *     report missing `resolved`, an entry using the old `applied` shape, or
  *     a `fixed` entry without `by`, fails as report-invalid.
  *
- * Distinctive to `core/node-reconcile` (serves TWO finders): seeding BOTH a
- * `core/node-contradiction` and a `core/node-contraindication` finding on the
- * same node injects BOTH into the one section (the multi-`analyzerIds`
- * selection), while a foreign finding type on the same node is NOT injected.
+ * Distinctive to `core/node-reconcile`: seeding a `core/node-contradiction`
+ * finding on the node injects it into the `## Findings to resolve` section
+ * (the `analyzerIds` selection), while a foreign finding type on the same
+ * node is NOT injected.
  */
 
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -71,8 +71,8 @@ const FINDINGS_ENVELOPE_FRAGMENT = 'https://skill-map.ai/spec/v0/findings/';
 const FIXERS = [
   {
     id: 'node-reconcile',
-    opener: 'Resolve the contradiction and contraindication findings listed in the',
-    analyzerIds: ['core/node-contradiction', 'core/node-contraindication'],
+    opener: 'Resolve the contradiction findings listed in the',
+    analyzerIds: ['core/node-contradiction'],
     seed: {
       extensionId: 'core/node-contradiction',
       type: 'contradiction',
@@ -794,21 +794,15 @@ describe('the fixer roster, shared cross-fixer instructions', () => {
   });
 });
 
-// Distinctive to `core/node-reconcile`: it serves TWO finders, so the
-// `analyzerIds` array must select findings from BOTH lanes into the one
-// section, and only those lanes.
-describe('core/node-reconcile, multi-analyzerIds selection', () => {
+// Distinctive to `core/node-reconcile`: its `analyzerIds` selects findings
+// from the contradiction finder into the one section, and ONLY that lane, a
+// foreign finder's finding on the same node is neither injected nor stamped.
+describe('core/node-reconcile, analyzerIds selection', () => {
   const CONTRADICTION: ISeed = {
     extensionId: 'core/node-contradiction',
     type: 'contradiction',
     message: 'Dev and prod install steps conflict',
     detail: 'keep one, or split by environment',
-  };
-  const CONTRAINDICATION: ISeed = {
-    extensionId: 'core/node-contraindication',
-    type: 'contraindication',
-    message: 'Retry and idempotency guidance are jointly risky',
-    detail: 'add the missing guard so the combination is safe',
   };
   // A finding from a finder OUTSIDE node-reconcile's analyzerIds.
   const FOREIGN: ISeed = {
@@ -818,10 +812,9 @@ describe('core/node-reconcile, multi-analyzerIds selection', () => {
     detail: 'collapse into one',
   };
 
-  it('injects findings from BOTH declared finders but not a foreign type', async () => {
+  it('injects the contradiction finding but not a foreign type', async () => {
     const proj = await setupProject({ enable: 'node-reconcile' });
     await seedFinding(proj, CONTRADICTION);
-    await seedFinding(proj, CONTRAINDICATION);
     await seedFinding(proj, FOREIGN);
 
     const { code, err } = await submit(proj, 'node-reconcile');
@@ -829,20 +822,17 @@ describe('core/node-reconcile, multi-analyzerIds selection', () => {
 
     const content = await jobContent(proj);
     match(content, /## Findings to resolve/);
-    // Both declared-finder lanes land in the one section.
+    // The declared-finder lane lands in the section.
     ok(content.includes(CONTRADICTION.message), 'contradiction finding injected');
-    ok(content.includes(CONTRAINDICATION.message), 'contraindication finding injected');
     ok(content.includes('"type": "contradiction"'), 'contradiction type projected');
-    ok(content.includes('"type": "contraindication"'), 'contraindication type projected');
     // The foreign redundancy finding (outside the analyzerIds) is excluded.
     doesNotMatch(content, /The upload step is stated twice/);
     doesNotMatch(content, /"type": "redundancy"/);
   });
 
-  it('stamps BOTH declared lanes but SKIPS a finder outside its analyzerIds', async () => {
+  it('stamps the declared lane but SKIPS a finder outside its analyzerIds', async () => {
     const proj = await setupProject({ enable: 'node-reconcile' });
     const contradiction = await seedFinding(proj, CONTRADICTION);
-    const contraindication = await seedFinding(proj, CONTRAINDICATION);
     // node-redundancy is NOT in node-reconcile's analyzerIds: even named
     // explicitly in the report, its finding must stay unstamped.
     const foreign = await seedFinding(proj, FOREIGN);
@@ -853,7 +843,6 @@ describe('core/node-reconcile, multi-analyzerIds selection', () => {
       safety: CLEAN_SAFETY,
       resolved: [
         { id: contradiction, state: 'fixed', by: 'fixer', note: 'Split the steps by environment.' },
-        { id: contraindication, state: 'human-decision', note: 'The guard is an author call.' },
         { id: foreign, state: 'fixed', by: 'fixer', note: 'not my finder to resolve' },
       ],
       editsSummary: 'Settled the install-step conflict.',
@@ -861,7 +850,6 @@ describe('core/node-reconcile, multi-analyzerIds selection', () => {
     strictEqual(code, 0, err);
 
     strictEqual((await readFinding(proj, contradiction))?.resolution, 'fixed');
-    strictEqual((await readFinding(proj, contraindication))?.resolution, 'human-decision');
     strictEqual(
       (await readFinding(proj, foreign))?.resolution,
       null,

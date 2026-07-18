@@ -1,20 +1,20 @@
 /**
- * Built-in probabilistic `node-reconcile` Action, a fixer serving TWO
- * finders (`spec/architecture.md` §Analyzer ↔ Action relationship (Modelo
- * B), `spec/job-lifecycle.md` §Findings injection for fixers). A fixer is a
- * probabilistic Action that declares `precondition.analyzerIds`: it resolves
- * the findings a finder emitted. `node-reconcile` resolves BOTH
- * `core/node-contradiction` and `core/node-contraindication` findings by
- * editing the node file to settle conflicting or jointly-risky directive
- * pairs, preserving every distinct requirement. The multi-id array is the
- * mechanism: the submit path injects every finding from EITHER finder into
- * the one `## Findings to resolve` section.
+ * Built-in probabilistic `node-reconcile` Action, the fixer for the
+ * `core/node-contradiction` finder (`spec/architecture.md` §Analyzer ↔
+ * Action relationship (Modelo B), `spec/job-lifecycle.md` §Findings
+ * injection for fixers). A fixer is a probabilistic Action that declares
+ * `precondition.analyzerIds`: it resolves the findings a finder emitted.
+ * `node-reconcile` resolves `core/node-contradiction` findings by editing
+ * the node file to settle conflicting or jointly-risky directive pairs,
+ * preserving every distinct requirement. The `analyzerIds` array is the
+ * mechanism: the submit path injects every contradiction finding into the
+ * one `## Findings to resolve` section.
  *
  * As a probabilistic Action it carries NO in-process `invoke` and NO
  * scan-time `project`: the kernel renders `prompt.md` + the canonical
  * preamble + the injected findings section (this node's
- * `core/node-contradiction` + `core/node-contraindication` findings, stale
- * ones flagged for the agent to verify against the body) + the
+ * `core/node-contradiction` findings, stale ones flagged for the agent to
+ * verify against the body) + the
  * report contract into a queued job (`sm jobs submit node-reconcile -n
  * <node>`), an external agent processes it (`sm jobs claim`), performs the file
  * edit with its own tools, and `sm record` validates the JSON report against
@@ -49,18 +49,17 @@ export const nodeReconcileAction: IBuiltInManifest<IAction> = {
   pluginId: PLUGIN_ID,
   kind: 'action',
   description:
-    'Probabilistic fixer that resolves core/node-contradiction and core/node-contraindication findings by editing the node file to settle conflicting or jointly-risky directive pairs, preserving every distinct requirement. The processing agent performs the edit; skill-map never writes the body.',
+    'Probabilistic fixer that resolves core/node-contradiction findings by editing the node file to settle conflicting or jointly-risky directive pairs, preserving every distinct requirement. The processing agent performs the edit; skill-map never writes the body.',
   // Experimental: disabled by default, the operator opts in.
   stability: 'experimental',
   mode: 'probabilistic',
   // ADVISORY wall-clock estimate (Decision #139: never arms a TTL); a
   // single-node reconciliation edit is a light pass on a mid-tier model.
   probExpectedDurationSeconds: 120,
-  // Modelo B: this fixer resolves the findings TWO finders emit. A non-empty
-  // `analyzerIds` is ALSO the fixer signal the submit path gates on to inject
-  // the `## Findings to resolve` section; the array selects findings from
-  // either finder.
-  precondition: { analyzerIds: ['core/node-contradiction', 'core/node-contraindication'] },
+  // Modelo B: this fixer resolves the findings the contradiction finder
+  // emits. A non-empty `analyzerIds` is ALSO the fixer signal the submit
+  // path gates on to inject the `## Findings to resolve` section.
+  precondition: { analyzerIds: ['core/node-contradiction'] },
   // No `invoke`: probabilistic Actions run OUTSIDE the process (claim +
   // record handover). No `project`: the fix is a queued job, not a
   // scan-time button.
