@@ -16,7 +16,10 @@
  * Convention: the named export inside each `<kind>s/<name>/index.ts`
  * follows `camelCase(<name>) + <Kind>` (e.g. `tools-count` extractor
  * exports `toolsCountExtractor`). The codegen derives the import binding
- * from this rule.
+ * from this rule. AI (probabilistic) extensions follow the
+ * `ai-<subject>-<kind>` folder pattern, which already ends in the kind, so
+ * the export is just `camelCase(<name>)` with no doubled suffix
+ * (`ai-redundancy-analyzer` exports `aiRedundancyAnalyzer`).
  *
  * Run:
  *   node scripts/generate-built-ins.js
@@ -76,7 +79,15 @@ function capitalize(s) {
 }
 
 function exportNameFor(name, kind) {
-  return `${camelCase(name)}${capitalize(kind)}`;
+  const base = camelCase(name);
+  const suffix = capitalize(kind);
+  // The AI-extension naming pattern encodes the kind in the folder name
+  // itself (`ai-<subject>-analyzer` / `ai-<subject>-action`), so
+  // `camelCase(name)` already ends with the capitalized kind. Appending it
+  // again would double the suffix (`aiRedundancyAnalyzerAnalyzer`); skip it
+  // when the base already carries the kind. Folders that do NOT encode the
+  // kind (e.g. `node-stability`, `tools-count`) still get it appended.
+  return base.endsWith(suffix) ? base : `${base}${suffix}`;
 }
 
 /**

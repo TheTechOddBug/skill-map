@@ -1,7 +1,7 @@
 /**
- * The fixer batch: `core/node-reconcile` and `core/node-clarify`. Same mold
- * as the FIRST fixer `core/node-consolidate` (see
- * `node-consolidate-builtin.spec.ts`), so the common cases are PARAMETERIZED
+ * The fixer batch: `core/ai-contradiction-action` and `core/ai-incoherence-action`. Same mold
+ * as the FIRST fixer `core/ai-redundancy-action` (see
+ * `ai-redundancy-action-builtin.spec.ts`), so the common cases are PARAMETERIZED
  * over the two fixers instead of cloning the file per extension. A fixer is
  * a probabilistic Action declaring `precondition.analyzerIds`
  * (`spec/job-lifecycle.md` §Findings injection for fixers); the kernel
@@ -28,7 +28,7 @@
  *     report missing `resolved`, an entry using the old `applied` shape, or
  *     a `fixed` entry without `by`, fails as report-invalid.
  *
- * Distinctive to `core/node-reconcile`: seeding a `core/node-contradiction`
+ * Distinctive to `core/ai-contradiction-action`: seeding a `core/ai-contradiction-analyzer`
  * finding on the node injects it into the `## Findings to resolve` section
  * (the `analyzerIds` selection), while a foreign finding type on the same
  * node is NOT injected.
@@ -70,22 +70,22 @@ const FINDINGS_ENVELOPE_FRAGMENT = 'https://skill-map.ai/spec/v0/findings/';
  */
 const FIXERS = [
   {
-    id: 'node-reconcile',
+    id: 'ai-contradiction-action',
     opener: 'Resolve the contradiction findings listed in the',
-    analyzerIds: ['core/node-contradiction'],
+    analyzerIds: ['core/ai-contradiction-analyzer'],
     seed: {
-      extensionId: 'core/node-contradiction',
+      extensionId: 'core/ai-contradiction-analyzer',
       type: 'contradiction',
       message: 'Dev and prod install steps conflict',
       detail: '"install with --dev" vs "install with --prod"; separate by environment',
     },
   },
   {
-    id: 'node-clarify',
+    id: 'ai-incoherence-action',
     opener: 'Resolve the incoherence findings listed in the "## Findings to resolve"',
-    analyzerIds: ['core/node-incoherence'],
+    analyzerIds: ['core/ai-incoherence-analyzer'],
     seed: {
-      extensionId: 'core/node-incoherence',
+      extensionId: 'core/ai-incoherence-analyzer',
       type: 'incoherence',
       message: 'A step assumes context never stated',
       detail: '"as explained above" with no such explanation; add the missing content',
@@ -663,8 +663,8 @@ for (const fixer of FIXERS) {
  * fixer edits a file whose embedded copy is a submit-time SNAPSHOT
  * (`spec/job-lifecycle.md` §Findings injection for fixers). Neither wording
  * may drift per fixer, so both are pinned byte-for-byte over all THREE
- * fixers here (`node-consolidate` included, even though its own
- * characterisation lives in `node-consolidate-builtin.spec.ts`).
+ * fixers here (`ai-redundancy-action` included, even though its own
+ * characterisation lives in `ai-redundancy-action-builtin.spec.ts`).
  */
 describe('the fixer roster, shared cross-fixer instructions', () => {
   const STALE_INSTRUCTION =
@@ -720,7 +720,7 @@ describe('the fixer roster, shared cross-fixer instructions', () => {
   /** The edit mandate the snapshot warning must qualify (same paragraph run). */
   const EDIT_MANDATE = 'This job\'s purpose is that edit; make it.';
 
-  const ROSTER = ['node-consolidate', 'node-reconcile', 'node-clarify'];
+  const ROSTER = ['ai-redundancy-action', 'ai-contradiction-action', 'ai-incoherence-action'];
 
   for (const id of ROSTER) {
     it(`core/${id} carries the stale-verification instruction verbatim`, () => {
@@ -788,36 +788,36 @@ describe('the fixer roster, shared cross-fixer instructions', () => {
       ok(start >= 0 && end > start, `${id} has a report clause`);
       return template.slice(start, end);
     });
-    strictEqual(clauses[0], clauses[1], 'node-consolidate vs node-reconcile');
-    strictEqual(clauses[1], clauses[2], 'node-reconcile vs node-clarify');
+    strictEqual(clauses[0], clauses[1], 'ai-redundancy-action vs ai-contradiction-action');
+    strictEqual(clauses[1], clauses[2], 'ai-contradiction-action vs ai-incoherence-action');
     strictEqual(clauses[0], REPORT_CLAUSE, 'matches the pinned clause');
   });
 });
 
-// Distinctive to `core/node-reconcile`: its `analyzerIds` selects findings
+// Distinctive to `core/ai-contradiction-action`: its `analyzerIds` selects findings
 // from the contradiction finder into the one section, and ONLY that lane, a
 // foreign finder's finding on the same node is neither injected nor stamped.
-describe('core/node-reconcile, analyzerIds selection', () => {
+describe('core/ai-contradiction-action, analyzerIds selection', () => {
   const CONTRADICTION: ISeed = {
-    extensionId: 'core/node-contradiction',
+    extensionId: 'core/ai-contradiction-analyzer',
     type: 'contradiction',
     message: 'Dev and prod install steps conflict',
     detail: 'keep one, or split by environment',
   };
-  // A finding from a finder OUTSIDE node-reconcile's analyzerIds.
+  // A finding from a finder OUTSIDE ai-contradiction-action's analyzerIds.
   const FOREIGN: ISeed = {
-    extensionId: 'core/node-redundancy',
+    extensionId: 'core/ai-redundancy-analyzer',
     type: 'redundancy',
     message: 'The upload step is stated twice',
     detail: 'collapse into one',
   };
 
   it('injects the contradiction finding but not a foreign type', async () => {
-    const proj = await setupProject({ enable: 'node-reconcile' });
+    const proj = await setupProject({ enable: 'ai-contradiction-action' });
     await seedFinding(proj, CONTRADICTION);
     await seedFinding(proj, FOREIGN);
 
-    const { code, err } = await submit(proj, 'node-reconcile');
+    const { code, err } = await submit(proj, 'ai-contradiction-action');
     strictEqual(code, 0, `submit: ${err}`);
 
     const content = await jobContent(proj);
@@ -831,12 +831,12 @@ describe('core/node-reconcile, analyzerIds selection', () => {
   });
 
   it('stamps the declared lane but SKIPS a finder outside its analyzerIds', async () => {
-    const proj = await setupProject({ enable: 'node-reconcile' });
+    const proj = await setupProject({ enable: 'ai-contradiction-action' });
     const contradiction = await seedFinding(proj, CONTRADICTION);
-    // node-redundancy is NOT in node-reconcile's analyzerIds: even named
+    // ai-redundancy-analyzer is NOT in ai-contradiction-action's analyzerIds: even named
     // explicitly in the report, its finding must stay unstamped.
     const foreign = await seedFinding(proj, FOREIGN);
-    strictEqual((await submit(proj, 'node-reconcile')).code, 0);
+    strictEqual((await submit(proj, 'ai-contradiction-action')).code, 0);
 
     const { code, err } = await claimAndRecord(proj, {
       confidence: 0.8,

@@ -9,7 +9,7 @@
  *   (a) on-disk probabilistic ANALYZER (prob-finder fixture): its raw
  *       `report.schema.json` bytes + the findings envelope +
  *       report-base, all verbatim, outside `<user-content>`.
- *   (b) built-in probabilistic ACTION (`core/markdown-summarizer`): the
+ *   (b) built-in probabilistic ACTION (`core/ai-summarizer-action`): the
  *       codegen-inlined `reportSchema` serialized deterministically +
  *       `summaries/markdown.schema.json` + report-base.
  *   (c) a schema-byte edit re-keys the content: the duplicate pre-check
@@ -226,10 +226,10 @@ describe('report contract in the rendered job content', () => {
 
   it('(b) built-in probabilistic action: inlined reportSchema + summaries envelope + base', async () => {
     const proj = await setupProject();
-    strictEqual((await submit(proj, 'core/markdown-summarizer', NOTE.path)).code, 0);
+    strictEqual((await submit(proj, 'core/ai-summarizer-action', NOTE.path)).code, 0);
 
     const content = await previewLast(proj);
-    const summarizer = builtIns().actions.find((a) => a.id === 'markdown-summarizer');
+    const summarizer = builtIns().actions.find((a) => a.id === 'ai-summarizer-action');
     ok(summarizer?.reportSchema, 'built-in carries the codegen-inlined reportSchema');
     const schemaText = JSON.stringify(summarizer.reportSchema, null, 2);
     assertContractLayout(content, NOTE.path, schemaText, SUMMARIES_MARKDOWN_BYTES);

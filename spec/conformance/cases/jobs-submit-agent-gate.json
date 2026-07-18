@@ -9,7 +9,7 @@
   "invoke": {
     "verb": "jobs",
     "sub": "submit",
-    "args": ["markdown-summarizer"],
+    "args": ["ai-summarizer-action"],
     "flags": ["-n", "notes.md"]
   },
   "assertions": [

@@ -1,19 +1,19 @@
 /**
- * Built-in probabilistic `node-clarify` Action, a fixer for the
- * `core/node-incoherence` finder (`spec/architecture.md` §Analyzer ↔ Action
+ * Built-in probabilistic `ai-incoherence-action` Action, a fixer for the
+ * `core/ai-incoherence-analyzer` finder (`spec/architecture.md` §Analyzer ↔ Action
  * relationship (Modelo B), `spec/job-lifecycle.md` §Findings injection for
  * fixers). A fixer is a probabilistic Action that declares
  * `precondition.analyzerIds`: it resolves the findings a finder emitted.
- * `node-clarify` resolves `core/node-incoherence` findings by editing the
+ * `ai-incoherence-action` resolves `core/ai-incoherence-analyzer` findings by editing the
  * node file to fix dangling references, align drifting terminology, and
  * supply missing context, without inventing facts.
  *
  * As a probabilistic Action it carries NO in-process `invoke` and NO
  * scan-time `project`: the kernel renders `prompt.md` + the canonical
  * preamble + the injected findings section (this node's
- * `core/node-incoherence` findings, stale ones flagged for the agent to
+ * `core/ai-incoherence-analyzer` findings, stale ones flagged for the agent to
  * verify against the body) + the report contract into a queued job
- * (`sm jobs submit node-clarify -n <node>`), an external agent processes it
+ * (`sm jobs submit ai-incoherence-action -n <node>`), an external agent processes it
  * (`sm jobs claim`), performs the file edit with its own tools, and `sm
  * record` validates the JSON report against `report.schema.json`. skill-map
  * NEVER writes the node body; the next scan picks up the edit and the
@@ -35,29 +35,29 @@
  * `reportSchema`.
  *
  * Ships `stability: 'experimental'`: DISABLED by default, the operator opts
- * in (`sm plugins enable core/node-clarify`) before the fixer resolves as a
+ * in (`sm plugins enable core/ai-incoherence-action`) before the fixer resolves as a
  * submit target.
  */
 
 import type { IAction, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import { CORE_PLUGIN_ID as PLUGIN_ID } from '../../../ids.js';
 
-export const nodeClarifyAction: IBuiltInManifest<IAction> = {
-  id: 'node-clarify',
+export const aiIncoherenceAction: IBuiltInManifest<IAction> = {
+  id: 'ai-incoherence-action',
   pluginId: PLUGIN_ID,
   kind: 'action',
   description:
-    'Probabilistic fixer that resolves core/node-incoherence findings by editing the node file to fix dangling references, align drifting terminology, and supply missing context. The processing agent performs the edit; skill-map never writes the body.',
+    'Probabilistic fixer that resolves core/ai-incoherence-analyzer findings by editing the node file to fix dangling references, align drifting terminology, and supply missing context. The processing agent performs the edit; skill-map never writes the body.',
   // Experimental: disabled by default, the operator opts in.
   stability: 'experimental',
   mode: 'probabilistic',
   // ADVISORY wall-clock estimate (Decision #139: never arms a TTL); a
   // single-node clarification edit is a light pass on a mid-tier model.
   probExpectedDurationSeconds: 120,
-  // Modelo B: this fixer resolves the findings core/node-incoherence emits.
+  // Modelo B: this fixer resolves the findings core/ai-incoherence-analyzer emits.
   // A non-empty `analyzerIds` is ALSO the fixer signal the submit path gates
   // on to inject the `## Findings to resolve` section.
-  precondition: { analyzerIds: ['core/node-incoherence'] },
+  precondition: { analyzerIds: ['core/ai-incoherence-analyzer'] },
   // No `invoke`: probabilistic Actions run OUTSIDE the process (claim +
   // record handover). No `project`: the fix is a queued job, not a
   // scan-time button.

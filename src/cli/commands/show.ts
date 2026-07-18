@@ -75,7 +75,7 @@ interface IShowSummary {
 
 /**
  * Report fields treated as a summary's one-line "headline", in priority
- * order. `markdown-summarizer` uses `whatItCovers`; action summarizers use
+ * order. `ai-summarizer-action` uses `whatItCovers`; action summarizers use
  * `whatItDoes`; other summarizers may carry a plain `summary` / `headline`.
  */
 const SUMMARY_HEADLINE_KEYS = ['whatItCovers', 'whatItDoes', 'summary', 'headline'] as const;

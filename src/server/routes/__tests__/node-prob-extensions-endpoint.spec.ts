@@ -9,7 +9,7 @@
  * `prob-summarizer/skill-echo` = probabilistic Action without
  * `analyzerIds`). The built-in probabilistic quality analyzers + their
  * fixers ship experimental (disabled), so the composed set is exactly the
- * trusted drop-ins plus the enabled `core/markdown-summarizer`.
+ * trusted drop-ins plus the enabled `core/ai-summarizer-action`.
  *
  *   - a finder WITH a matching fixer lands in `finders`, carrying
  *     `fixerIds` (the inverse Modelo-B lookup) and `hasOpenFindings`

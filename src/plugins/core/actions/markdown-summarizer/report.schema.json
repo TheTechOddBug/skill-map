@@ -1,7 +1,0 @@
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/core/markdown-summarizer-report.schema.json",
-  "title": "MarkdownSummarizerReport",
-  "description": "Report shape for the built-in `core/markdown-summarizer` probabilistic Action. Extends the canonical `summaries/markdown.schema.json`; that reference is ALSO the summarizer signal the record path detects (see `job-lifecycle.md` §Record). Stability: experimental.",
-  "allOf": [{ "$ref": "https://skill-map.ai/spec/v0/summaries/markdown.schema.json" }]
-}

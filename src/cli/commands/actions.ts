@@ -106,14 +106,14 @@ export class ActionsShowCommand extends SmCommand {
     category: 'Jobs',
     description: 'Full action manifest: preconditions, expected duration, report schema ref.',
     details: `
-      Resolves an action by qualified id (\`core/markdown-summarizer\`)
-      or bare id (\`markdown-summarizer\`) against the composed catalog
+      Resolves an action by qualified id (\`core/ai-summarizer-action\`)
+      or bare id (\`ai-summarizer-action\`) against the composed catalog
       and renders its full manifest: plugin, mode, description, declared
       writes, source, the probabilistic block (expected duration, prompt
       template, report schema ref) and the declared precondition.
     `,
     examples: [
-      ['Show the universal summarizer', '$0 actions show markdown-summarizer'],
+      ['Show the universal summarizer', '$0 actions show ai-summarizer-action'],
       ['Machine-readable manifest', '$0 actions show core/node-bump --json'],
     ],
   });
@@ -254,7 +254,7 @@ const ROW_INDENT = '  ';
  * Render the human-mode table:
  *
  *   ID                        MODE           DESCRIPTION
- *   core/markdown-summarizer  probabilistic  Summarizes a node's…
+ *   core/ai-summarizer-action  probabilistic  Summarizes a node's…
  *   core/node-bump            deterministic  Increments the sidecar…
  *
  *   4 actions

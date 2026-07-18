@@ -327,10 +327,14 @@ describe('plugin-runtime, branch coverage', () => {
       // `core/name-collision`, so 18 compose, listed below in
       // alphabetical order (`issue-counter` is the lone aggregate-phase
       // analyzer; `name-reserved` + `reference-broken` are the
-      // score-phase ones; the three `node-*` finders are probabilistic,
+      // score-phase ones; the three `ai-*` finders are probabilistic,
       // present in the composed catalog as queue targets but excluded
-      // from every scan-time phase by the orchestrator's mode gate).
+      // from every scan-time phase by the orchestrator's mode gate, and
+      // sort first because `ai-` precedes `annotation-`).
       assert.deepEqual(analyzerIds, [
+        'ai-contradiction-analyzer',
+        'ai-incoherence-analyzer',
+        'ai-redundancy-analyzer',
         'annotation-field-unknown',
         'annotation-orphan',
         'annotation-stale',
@@ -342,9 +346,6 @@ describe('plugin-runtime, branch coverage', () => {
         'link-self-loop',
         'name-mismatch',
         'name-reserved',
-        'node-contradiction',
-        'node-incoherence',
-        'node-redundancy',
         'node-stability',
         'reference-broken',
         'reference-redundant',
@@ -368,7 +369,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 6, 'claude + antigravity (beta) + codex (beta) + opencode (beta) + agent-skills (stable, locked) + core-markdown load by default');
       assert.equal(composed.extractors.length, 12, 'all 12 extractors load by default; core/mcp-tools was promoted experimental → beta so it now ships enabled (the codex grammar extractors and the code-region siblings backtick-mention + backtick-slash + backtick-dollar load too)');
-      assert.equal(composed.analyzers.length, 15, '15 of 19 analyzers loaded; core/annotation-stale and the three probabilistic finders (node-redundancy / node-contradiction / node-incoherence) are experimental so they ship disabled by default (the former projector analyzers core/supersede + core/tags were deleted; the remaining inspector buttons self-project from their actions and tag editing moved inline; core/score-resolution was deleted, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model; core/name-mismatch joined for declared-vs-path-handle divergences)');
+      assert.equal(composed.analyzers.length, 15, '15 of 19 analyzers loaded; core/annotation-stale and the three probabilistic finders (ai-redundancy-analyzer / ai-contradiction-analyzer / ai-incoherence-analyzer) are experimental so they ship disabled by default (the former projector analyzers core/supersede + core/tags were deleted; the remaining inspector buttons self-project from their actions and tag editing moved inline; core/score-resolution was deleted, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model; core/name-mismatch joined for declared-vs-path-handle divergences)');
       // Actions load into the pipeline as dispatch targets; those with a
       // `project()` also self-project an inspector button (e.g.
       // `core/node-set-stability`). `core/node-set-tags` is stable and

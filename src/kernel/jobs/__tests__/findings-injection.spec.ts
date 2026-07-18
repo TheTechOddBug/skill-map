@@ -36,7 +36,7 @@ function finding(over: Partial<IFindingRecord> & { id: number }): IFindingRecord
   return {
     id: over.id,
     nodeId: over.nodeId ?? 'notes/guide.md',
-    extensionId: over.extensionId ?? 'core/node-redundancy',
+    extensionId: over.extensionId ?? 'core/ai-redundancy-analyzer',
     extensionVersion: over.extensionVersion ?? '0.1.0',
     origin: over.origin ?? 'extension',
     type: over.type ?? 'redundancy',
@@ -57,7 +57,7 @@ function finding(over: Partial<IFindingRecord> & { id: number }): IFindingRecord
   };
 }
 
-const ANALYZER_IDS = ['core/node-redundancy'];
+const ANALYZER_IDS = ['core/ai-redundancy-analyzer'];
 
 describe('selectFixerFindings', () => {
   it('keeps the extension-lane rows for the analyzerIds, stale ones INCLUDED', () => {
@@ -70,14 +70,14 @@ describe('selectFixerFindings', () => {
       // fix on this node staled a judgment whose defect may still be there.
       finding({ id: 5, stale: true }),
       // different finder id: excluded
-      finding({ id: 6, extensionId: 'core/node-contradiction', type: 'contradiction' }),
+      finding({ id: 6, extensionId: 'core/ai-contradiction-analyzer', type: 'contradiction' }),
       finding({ id: 1, type: 'redundancy', message: 'earlier row' }),
     ];
     const selected = selectFixerFindings(rows, ANALYZER_IDS);
-    // The three extension-lane node-redundancy rows survive, stale included.
+    // The three extension-lane ai-redundancy-analyzer rows survive, stale included.
     strictEqual(selected.length, 3);
     ok(selected.every((f) => f.origin === 'extension'));
-    ok(selected.every((f) => f.extensionId === 'core/node-redundancy'));
+    ok(selected.every((f) => f.extensionId === 'core/ai-redundancy-analyzer'));
     // Deterministic order: id ascending, regardless of freshness.
     deepStrictEqual(
       selected.map((f) => f.id),
@@ -100,8 +100,8 @@ describe('selectFixerFindings', () => {
   });
 
   it('matches a bare analyzer id against the stored qualified id', () => {
-    const rows = [finding({ id: 1, extensionId: 'core/node-redundancy' })];
-    const selected = selectFixerFindings(rows, ['node-redundancy']);
+    const rows = [finding({ id: 1, extensionId: 'core/ai-redundancy-analyzer' })];
+    const selected = selectFixerFindings(rows, ['ai-redundancy-analyzer']);
     strictEqual(selected.length, 1);
   });
 
@@ -126,8 +126,8 @@ describe('selectFixerFindings', () => {
     const rows = [
       finding({ id: 1, origin: 'kernel', type: 'content-suspicious' }),
       finding({ id: 2, origin: 'kernel', type: 'injection-detected', stale: true }),
-      finding({ id: 3, extensionId: 'core/node-incoherence' }),
-      finding({ id: 4, extensionId: 'core/node-incoherence', stale: true }),
+      finding({ id: 3, extensionId: 'core/ai-incoherence-analyzer' }),
+      finding({ id: 4, extensionId: 'core/ai-incoherence-analyzer', stale: true }),
     ];
     strictEqual(selectFixerFindings(rows, ANALYZER_IDS).length, 0);
   });
@@ -212,7 +212,7 @@ describe('buildFindingsSection', () => {
         id: 1,
         resolution: 'human-decision',
         resolutionNote: 'needs an author decision',
-        resolutionBy: 'core/node-consolidate',
+        resolutionBy: 'core/ai-redundancy-action',
         resolutionAt: 123,
       }),
     ]);

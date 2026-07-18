@@ -1,18 +1,18 @@
 /**
- * `core/node-consolidate`, the FIRST fixer (a probabilistic Action
+ * `core/ai-redundancy-action`, the FIRST fixer (a probabilistic Action
  * declaring `precondition.analyzerIds`, `spec/job-lifecycle.md` §Findings
  * injection for fixers). End-to-end characterisation through the real CLI
  * verbs plus the codegen inlining pins:
  *
  *   - ships experimental: DISABLED by default, `sm jobs submit
- *     node-consolidate` does not resolve until the operator enables it.
- *   - once enabled, submitting over a node WITH `node-redundancy` findings
+ *     ai-redundancy-action` does not resolve until the operator enables it.
+ *   - once enabled, submitting over a node WITH `ai-redundancy-analyzer` findings
  *     injects the `## Findings to resolve` section (and the prompt) into
  *     the rendered job content, each entry flagged with its `stale`.
  *   - a STALE-only finding set still submits (staleness is node-level, so a
  *     sibling fixer's edit stales judgments whose defects are still there);
  *     only a node with NO matching findings at all is refused with exit 2.
- *   - `sm plugins show core/node-consolidate` renders the Prompt + Report
+ *   - `sm plugins show core/ai-redundancy-action` renders the Prompt + Report
  *     schema contract sections.
  *   - a happy-path record round-trip validates the fixer report
  *     (resolved / editsSummary / safety / confidence) against its schema; a
@@ -37,13 +37,13 @@ import { sha256 } from '../../../kernel/orchestrator/node-build.js';
 import { builtIns } from '../../../plugins/built-ins.js';
 import { installAgentSkill } from '../../../core/agent-skill/engine.js';
 
-const FIXER_ID = 'core/node-consolidate';
-const FINDER_ID = 'core/node-redundancy';
+const FIXER_ID = 'core/ai-redundancy-action';
+const FINDER_ID = 'core/ai-redundancy-analyzer';
 const NOTE = { path: 'notes/guide.md', kind: 'markdown', provider: 'markdown' };
 const BODY_HASH = sha256(`Body of ${NOTE.path}\n`);
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const ACTION_DIR = resolve(HERE, '..', '..', '..', 'plugins', 'core', 'actions', 'node-consolidate');
+const ACTION_DIR = resolve(HERE, '..', '..', '..', 'plugins', 'core', 'actions', 'ai-redundancy-action');
 
 const CLEAN_SAFETY = { injectionDetected: false, contentQuality: 'clean' };
 
@@ -88,7 +88,7 @@ async function setupProject(opts: { enableFixer: boolean }): Promise<IProject> {
     writeFileSync(
       join(root, '.skill-map', 'settings.json'),
       JSON.stringify({
-        plugins: { core: { extensions: { 'node-consolidate': { enabled: true } } } },
+        plugins: { core: { extensions: { 'ai-redundancy-action': { enabled: true } } } },
       }),
     );
   }
@@ -135,7 +135,7 @@ async function setupProject(opts: { enableFixer: boolean }): Promise<IProject> {
 }
 
 /**
- * Seed one `core/node-redundancy` finding against the node and return its
+ * Seed one `core/ai-redundancy-analyzer` finding against the node and return its
  * autoincrement `id`: what the fixer echoes back in `resolved[]`, and what
  * the resolution stamps key on. `stale` stamps a mismatched
  * `body_hash_at_generation` so the read-time staleness JOIN flags the row
@@ -267,29 +267,29 @@ async function jobContent(proj: IProject): Promise<string> {
 }
 
 before(() => {
-  tmpRoot = mkdtempSync(join(tmpdir(), 'skill-map-node-consolidate-'));
+  tmpRoot = mkdtempSync(join(tmpdir(), 'skill-map-ai-redundancy-action-'));
 });
 
 after(() => {
   rmSync(tmpRoot, { recursive: true, force: true });
 });
 
-describe('core/node-consolidate, codegen inlining pins', () => {
-  it('is a probabilistic experimental fixer with the node-redundancy precondition', () => {
-    const action = builtIns().actions.find((a) => a.id === 'node-consolidate');
+describe('core/ai-redundancy-action, codegen inlining pins', () => {
+  it('is a probabilistic experimental fixer with the ai-redundancy-analyzer precondition', () => {
+    const action = builtIns().actions.find((a) => a.id === 'ai-redundancy-action');
     ok(action, 'built-in registered');
     strictEqual(action.pluginId, 'core');
     strictEqual(action.mode, 'probabilistic');
     strictEqual(action.stability, 'experimental');
     strictEqual(action.probExpectedDurationSeconds, 120);
-    deepStrictEqual(action.precondition?.analyzerIds, ['core/node-redundancy']);
+    deepStrictEqual(action.precondition?.analyzerIds, ['core/ai-redundancy-analyzer']);
     // Probabilistic Actions carry NO in-process invoke and NO scan-time project.
     strictEqual(action.invoke, undefined);
     strictEqual(action.project, undefined);
   });
 
   it('inlines prompt.md byte-equal and report.schema.json deep-equal', () => {
-    const action = builtIns().actions.find((a) => a.id === 'node-consolidate');
+    const action = builtIns().actions.find((a) => a.id === 'ai-redundancy-action');
     ok(action);
     strictEqual(
       action.promptTemplate,
@@ -315,22 +315,22 @@ describe('core/node-consolidate, codegen inlining pins', () => {
   });
 });
 
-describe('core/node-consolidate, experimental gate', () => {
+describe('core/ai-redundancy-action, experimental gate', () => {
   it('ships DISABLED: sm jobs submit does not resolve it by default', async () => {
     const proj = await setupProject({ enableFixer: false });
     await seedRedundancyFinding(proj);
-    const { code, err } = await submit(proj, 'node-consolidate');
+    const { code, err } = await submit(proj, 'ai-redundancy-action');
     strictEqual(code, 5, 'not in the composed catalog until enabled');
     match(err, /not found/);
   });
 });
 
-describe('core/node-consolidate, findings injection', () => {
+describe('core/ai-redundancy-action, findings injection', () => {
   it('refuses (exit 2) when the node has no matching findings', async () => {
     const proj = await setupProject({ enableFixer: true });
-    const { code, err } = await submit(proj, 'node-consolidate');
+    const { code, err } = await submit(proj, 'ai-redundancy-action');
     strictEqual(code, 2, 'no findings to resolve');
-    match(err, /no findings to resolve for core\/node-redundancy on notes\/guide\.md/);
+    match(err, /no findings to resolve for core\/ai-redundancy-analyzer on notes\/guide\.md/);
   });
 
   it('refuses (exit 2) when only a finder outside its analyzerIds judged the node', async () => {
@@ -340,10 +340,10 @@ describe('core/node-consolidate, findings injection', () => {
     // `kernel/jobs/__tests__/findings-injection.spec.ts`; this seeder only
     // writes `origin: 'extension'` rows.)
     const proj = await setupProject({ enableFixer: true });
-    await seedRedundancyFinding(proj, { extensionId: 'core/node-incoherence' });
-    const { code, err } = await submit(proj, 'node-consolidate');
-    strictEqual(code, 2, 'no node-redundancy finding to resolve');
-    match(err, /no findings to resolve for core\/node-redundancy on notes\/guide\.md/);
+    await seedRedundancyFinding(proj, { extensionId: 'core/ai-incoherence-analyzer' });
+    const { code, err } = await submit(proj, 'ai-redundancy-action');
+    strictEqual(code, 2, 'no ai-redundancy-analyzer finding to resolve');
+    match(err, /no findings to resolve for core\/ai-redundancy-analyzer on notes\/guide\.md/);
   });
 
   it('SUBMITS when the only matching finding is stale, flagging it for verification', async () => {
@@ -354,7 +354,7 @@ describe('core/node-consolidate, findings injection', () => {
     // judgment and force a re-detection between every fix.
     const proj = await setupProject({ enableFixer: true });
     const id = await seedRedundancyFinding(proj, { stale: true });
-    const { code, err } = await submit(proj, 'node-consolidate');
+    const { code, err } = await submit(proj, 'ai-redundancy-action');
     strictEqual(code, 0, `a stale finding is still a finding to resolve: ${err}`);
 
     const content = await jobContent(proj);
@@ -368,7 +368,7 @@ describe('core/node-consolidate, findings injection', () => {
   it('flags a fresh finding `"stale": false`', async () => {
     const proj = await setupProject({ enableFixer: true });
     await seedRedundancyFinding(proj);
-    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+    strictEqual((await submit(proj, 'ai-redundancy-action')).code, 0);
     const content = await jobContent(proj);
     ok(content.includes('"stale": false'), 'a fresh judgment needs no re-verification');
   });
@@ -380,7 +380,7 @@ describe('core/node-consolidate, findings injection', () => {
       stale: true,
       message: 'Judged before the last edit',
     });
-    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+    strictEqual((await submit(proj, 'ai-redundancy-action')).code, 0);
 
     const content = await jobContent(proj);
     ok(content.includes('A fresh judgment'), 'fresh finding injected');
@@ -395,7 +395,7 @@ describe('core/node-consolidate, findings injection', () => {
   it('injects the ## Findings to resolve section (and the prompt) on a judged node', async () => {
     const proj = await setupProject({ enableFixer: true });
     const id = await seedRedundancyFinding(proj);
-    const { code, err } = await submit(proj, 'node-consolidate');
+    const { code, err } = await submit(proj, 'ai-redundancy-action');
     strictEqual(code, 0, `submit: ${err}`);
 
     const content = await jobContent(proj);
@@ -424,7 +424,7 @@ describe('core/node-consolidate, findings injection', () => {
   });
 });
 
-describe('core/node-consolidate, sm plugins show contract sections', () => {
+describe('core/ai-redundancy-action, sm plugins show contract sections', () => {
   it('renders Prompt + Report schema for the built-in fixer', async () => {
     const proj = await setupProject({ enableFixer: false });
     const out = await withCwd(proj.root, async () => {
@@ -444,11 +444,11 @@ describe('core/node-consolidate, sm plugins show contract sections', () => {
   });
 });
 
-describe('core/node-consolidate, record round trip', () => {
+describe('core/ai-redundancy-action, record round trip', () => {
   it('validates the fixer report (resolved / editsSummary / safety / confidence)', async () => {
     const proj = await setupProject({ enableFixer: true });
     const id = await seedRedundancyFinding(proj);
-    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+    strictEqual((await submit(proj, 'ai-redundancy-action')).code, 0);
 
     const { code, err } = await claimAndRecord(proj, {
       confidence: 0.9,
@@ -481,7 +481,7 @@ describe('core/node-consolidate, record round trip', () => {
     // unattributable, so the schema requires it.
     const proj = await setupProject({ enableFixer: true });
     await seedRedundancyFinding(proj);
-    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+    strictEqual((await submit(proj, 'ai-redundancy-action')).code, 0);
 
     const { code, err } = await claimAndRecord(proj, {
       confidence: 0.9,
@@ -499,7 +499,7 @@ describe('core/node-consolidate, record round trip', () => {
     // never stamp a coerced actor.
     const proj = await setupProject({ enableFixer: true });
     const id = await seedRedundancyFinding(proj);
-    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+    strictEqual((await submit(proj, 'ai-redundancy-action')).code, 0);
 
     const { code, err } = await claimAndRecord(proj, {
       confidence: 0.9,
@@ -518,7 +518,7 @@ describe('core/node-consolidate, record round trip', () => {
     // must fail cleanly, not stamp a coerced state.
     const proj = await setupProject({ enableFixer: true });
     const id = await seedRedundancyFinding(proj);
-    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+    strictEqual((await submit(proj, 'ai-redundancy-action')).code, 0);
 
     const { code, err } = await claimAndRecord(proj, {
       confidence: 0.9,
@@ -535,7 +535,7 @@ describe('core/node-consolidate, record round trip', () => {
   it('rejects an out-of-enum `state` value as report-invalid', async () => {
     const proj = await setupProject({ enableFixer: true });
     const id = await seedRedundancyFinding(proj);
-    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+    strictEqual((await submit(proj, 'ai-redundancy-action')).code, 0);
 
     const { code, err } = await claimAndRecord(proj, {
       confidence: 0.9,
@@ -550,7 +550,7 @@ describe('core/node-consolidate, record round trip', () => {
   it('fails a report missing `resolved` as report-invalid', async () => {
     const proj = await setupProject({ enableFixer: true });
     await seedRedundancyFinding(proj);
-    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+    strictEqual((await submit(proj, 'ai-redundancy-action')).code, 0);
 
     const { code, err } = await claimAndRecord(proj, {
       confidence: 0.9,
@@ -580,11 +580,11 @@ describe('core/node-consolidate, record round trip', () => {
  * failing the job (its edits already hit the disk; a storage-scope mismatch
  * is not the processing agent's error to bounce on).
  */
-describe('core/node-consolidate, fixer resolution stamps', () => {
+describe('core/ai-redundancy-action, fixer resolution stamps', () => {
   it('stamps `fixed` + actor `fixer` onto the finding the report named', async () => {
     const proj = await setupProject({ enableFixer: true });
     const id = await seedRedundancyFinding(proj);
-    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+    strictEqual((await submit(proj, 'ai-redundancy-action')).code, 0);
 
     const { code, err } = await claimAndRecord(proj, {
       confidence: 0.9,
@@ -608,7 +608,7 @@ describe('core/node-consolidate, fixer resolution stamps', () => {
     // edit) makes a fixed row `human` even when the agent's tools typed it.
     const proj = await setupProject({ enableFixer: true });
     const id = await seedRedundancyFinding(proj);
-    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+    strictEqual((await submit(proj, 'ai-redundancy-action')).code, 0);
 
     const { code, err } = await claimAndRecord(proj, {
       confidence: 0.9,
@@ -627,7 +627,7 @@ describe('core/node-consolidate, fixer resolution stamps', () => {
   it('stamps `human-decision` with the note verbatim (the author\'s TODO), actor NULL', async () => {
     const proj = await setupProject({ enableFixer: true });
     const id = await seedRedundancyFinding(proj);
-    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+    strictEqual((await submit(proj, 'ai-redundancy-action')).code, 0);
 
     const note = 'Both phrasings carry a distinct scope; only the author can pick one.';
     const { code, err } = await claimAndRecord(proj, {
@@ -650,7 +650,7 @@ describe('core/node-consolidate, fixer resolution stamps', () => {
     const proj = await setupProject({ enableFixer: true });
     const fixedId = await seedRedundancyFinding(proj, { message: 'Upload stated twice' });
     const pending = await seedRedundancyFinding(proj, { message: 'Retry policy stated twice' });
-    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+    strictEqual((await submit(proj, 'ai-redundancy-action')).code, 0);
 
     const { code, err } = await claimAndRecord(proj, {
       confidence: 0.8,
@@ -677,7 +677,7 @@ describe('core/node-consolidate, fixer resolution stamps', () => {
     const proj = await setupProject({ enableFixer: true });
     const addressed = await seedRedundancyFinding(proj, { message: 'Upload stated twice' });
     const ignored = await seedRedundancyFinding(proj, { message: 'Retry policy stated twice' });
-    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+    strictEqual((await submit(proj, 'ai-redundancy-action')).code, 0);
 
     strictEqual(
       (
@@ -698,7 +698,7 @@ describe('core/node-consolidate, fixer resolution stamps', () => {
   it('SKIPS an unknown id silently (a benign race: the finder re-ran)', async () => {
     const proj = await setupProject({ enableFixer: true });
     const id = await seedRedundancyFinding(proj);
-    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+    strictEqual((await submit(proj, 'ai-redundancy-action')).code, 0);
 
     const { code, err } = await claimAndRecord(proj, {
       confidence: 0.9,
@@ -719,7 +719,7 @@ describe('core/node-consolidate, fixer resolution stamps', () => {
     const own = await seedRedundancyFinding(proj);
     // A same-finder finding, but on a node this job does not target.
     const foreign = await seedRedundancyFinding(proj, { nodeId: 'notes/other.md' });
-    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+    strictEqual((await submit(proj, 'ai-redundancy-action')).code, 0);
 
     const { code, err } = await claimAndRecord(proj, {
       confidence: 0.9,
@@ -742,12 +742,12 @@ describe('core/node-consolidate, fixer resolution stamps', () => {
   it('SKIPS a finding from a finder outside its analyzerIds (defensive scope)', async () => {
     const proj = await setupProject({ enableFixer: true });
     const own = await seedRedundancyFinding(proj);
-    // Same node, but judged by a finder node-consolidate does not serve.
+    // Same node, but judged by a finder ai-redundancy-action does not serve.
     const foreign = await seedRedundancyFinding(proj, {
-      extensionId: 'core/node-contradiction',
+      extensionId: 'core/ai-contradiction-analyzer',
       message: 'Dev and prod steps conflict',
     });
-    strictEqual((await submit(proj, 'node-consolidate')).code, 0);
+    strictEqual((await submit(proj, 'ai-redundancy-action')).code, 0);
 
     const { code, err } = await claimAndRecord(proj, {
       confidence: 0.9,

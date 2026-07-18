@@ -374,7 +374,7 @@ describe('POST /api/nodes/:pathB64/jobs', () => {
 
   it('404: missing DB', async () => {
     // A skill-installed project with NO DB file. The extension is a
-    // BUILT-IN probabilistic action (`core/markdown-summarizer`, no
+    // BUILT-IN probabilistic action (`core/ai-summarizer-action`, no
     // drop-in discovery / trust involved) so target resolution succeeds
     // and the 404 is honestly the missing-DB refusal, not an
     // unknown-extension one.
@@ -383,7 +383,7 @@ describe('POST /api/nodes/:pathB64/jobs', () => {
     const bareProject = { root: bare, dbPath: join(bare, '.skill-map', 'skill-map.db') };
     await bootAndUse(bareProject, async (handle) => {
       const res = await postJob(handle, SKILL_NODE.path, {
-        extension: 'core/markdown-summarizer',
+        extension: 'core/ai-summarizer-action',
       });
       assert.equal(res.status, 404);
       assert.equal(((await res.json()) as IErrorBody).error.code, 'not-found');

@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/core/node-consolidate-report.schema.json",
-  "title": "NodeConsolidateReport",
-  "description": "Report shape for the built-in `core/node-consolidate` probabilistic fixer Action. A fixer is NOT a finder: its report is execution-only (no findings write-through table), so it extends `report-base.schema.json` directly for the `confidence` + `safety` fields the preamble mandates, rather than the `findings/` envelope. `resolved` records, per redundancy finding the processing agent acted on, the finding's `id`, the `state` it moved the finding into, the deciding actor `by` (on a `fixed` entry), and a one-line note; the record path stamps each entry onto the finding the `id` names (`resolution` / `resolution_actor` from `by` / `resolution_note`), so the outcome rides the finding as a lifecycle state instead of being buried in the execution report. `editsSummary` describes the edits made to the node file. skill-map never writes the body, the processing agent performs the edit. Stability: experimental.",
+  "$id": "https://skill-map.ai/spec/v0/core/ai-redundancy-action-report.schema.json",
+  "title": "AiRedundancyActionReport",
+  "description": "Report shape for the built-in `core/ai-redundancy-action` probabilistic fixer Action. A fixer is NOT a finder: its report is execution-only (no findings write-through table), so it extends `report-base.schema.json` directly for the `confidence` + `safety` fields the preamble mandates, rather than the `findings/` envelope. `resolved` records, per redundancy finding the processing agent acted on, the finding's `id`, the `state` it moved the finding into, the deciding actor `by` (on a `fixed` entry), and a one-line note; the record path stamps each entry onto the finding the `id` names (`resolution` / `resolution_actor` from `by` / `resolution_note`), so the outcome rides the finding as a lifecycle state instead of being buried in the execution report. `editsSummary` describes the edits made to the node file. skill-map never writes the body, the processing agent performs the edit. Stability: experimental.",
   "allOf": [{ "$ref": "https://skill-map.ai/spec/v0/report-base.schema.json" }],
   "type": "object",
   "required": ["resolved", "editsSummary"],

@@ -509,7 +509,7 @@ describe('sm show Findings section', () => {
       ids = (await seed.findings.list({ includeStale: true })).map((f) => f.id);
       strictEqual(ids.length, 2, 'the finder landed two rows to resolve');
       await stampFindingResolutions(seed.db, SKILL.path, {
-        resolvedBy: 'core/node-reconcile',
+        resolvedBy: 'core/ai-contradiction-action',
         analyzerIds: [FINDER_ID],
         resolvedAt: Date.now(),
         entries: [
@@ -528,12 +528,12 @@ describe('sm show Findings section', () => {
     });
     match(
       human,
-      /✓ {2}fixed by core\/node-reconcile: Rewrote step 2 to match step 5\./,
+      /✓ {2}fixed by core\/ai-contradiction-action: Rewrote step 2 to match step 5\./,
       'a fixer-decided fixed row reads as a handled state under the checkmark',
     );
     match(
       human,
-      /core\/node-reconcile proposes, your decision: Only you can decide which step wins\./,
+      /core\/ai-contradiction-action proposes, your decision: Only you can decide which step wins\./,
     );
     // Both findings are still LISTED: sm show includes fixed rows, and a
     // fixed state never deletes the row.
@@ -550,7 +550,7 @@ describe('sm show Findings section', () => {
     strictEqual(fixed?.resolutionActor, 'fixer');
     strictEqual(humanDecision?.resolution, 'human-decision');
     strictEqual(humanDecision?.resolutionActor, null, 'a human-decision has no decided actor');
-    strictEqual(humanDecision?.resolutionBy, 'core/node-reconcile');
+    strictEqual(humanDecision?.resolutionBy, 'core/ai-contradiction-action');
     strictEqual(humanDecision?.resolutionNote, 'Only you can decide which step wins.');
   });
 });

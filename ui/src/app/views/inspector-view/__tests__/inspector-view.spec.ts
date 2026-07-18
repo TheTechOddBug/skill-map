@@ -1469,7 +1469,7 @@ describe('InspectorView, activity recent directional invocations', () => {
 function makeRun(overrides: Partial<IActivityRunApi> = {}): IActivityRunApi {
   return {
     executionId: 'exec-1',
-    extensionId: 'core/node-redundancy',
+    extensionId: 'core/ai-redundancy-analyzer',
     status: 'completed',
     model: 'claude-sonnet',
     durationMs: 2000,
@@ -1563,7 +1563,7 @@ describe('InspectorView, activity merged timeline (runtime + AI runs)', () => {
     expect(icon!.classList.contains('pi-sparkles')).toBe(true);
     // `node-` prefix stripped like the AI-actions launcher labels.
     expect(row!.textContent).toContain('redundancy · completed · 2s · claude-sonnet');
-    expect(row!.textContent).not.toContain('node-redundancy');
+    expect(row!.textContent).not.toContain('ai-redundancy-analyzer');
     // A clean run carries no failure tooltip.
     expect(row!.getAttribute('title')).toBeNull();
   });

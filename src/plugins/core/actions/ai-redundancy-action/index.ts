@@ -1,18 +1,18 @@
 /**
- * Built-in probabilistic `node-consolidate` Action, the FIRST fixer
+ * Built-in probabilistic `ai-redundancy-action` Action, the FIRST fixer
  * (`spec/architecture.md` §Analyzer ↔ Action relationship (Modelo B),
  * `spec/job-lifecycle.md` §Findings injection for fixers). A fixer is a
  * probabilistic Action that declares `precondition.analyzerIds`: it
- * resolves the findings a finder emitted. `node-consolidate` resolves
- * `core/node-redundancy` findings by editing the node file to collapse
+ * resolves the findings a finder emitted. `ai-redundancy-action` resolves
+ * `core/ai-redundancy-analyzer` findings by editing the node file to collapse
  * repetition into single statements, preserving all meaning.
  *
  * As a probabilistic Action it carries NO in-process `invoke` and NO
  * scan-time `project`: the kernel renders `prompt.md` + the canonical
  * preamble + the injected `## Findings to resolve` section (this node's
- * `core/node-redundancy` findings, stale ones flagged for the agent to
+ * `core/ai-redundancy-analyzer` findings, stale ones flagged for the agent to
  * verify against the body) + the report contract
- * into a queued job (`sm jobs submit node-consolidate -n <node>`), an
+ * into a queued job (`sm jobs submit ai-redundancy-action -n <node>`), an
  * external agent processes it (`sm jobs claim`), performs the file edit with
  * its own tools, and `sm record` validates the JSON report against
  * `report.schema.json`. skill-map NEVER writes the node body; the next scan
@@ -34,29 +34,29 @@
  * `reportSchema`.
  *
  * Ships `stability: 'experimental'`: DISABLED by default, the operator opts
- * in (`sm plugins enable core/node-consolidate`) before the fixer resolves
+ * in (`sm plugins enable core/ai-redundancy-action`) before the fixer resolves
  * as a submit target.
  */
 
 import type { IAction, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import { CORE_PLUGIN_ID as PLUGIN_ID } from '../../../ids.js';
 
-export const nodeConsolidateAction: IBuiltInManifest<IAction> = {
-  id: 'node-consolidate',
+export const aiRedundancyAction: IBuiltInManifest<IAction> = {
+  id: 'ai-redundancy-action',
   pluginId: PLUGIN_ID,
   kind: 'action',
   description:
-    'Probabilistic fixer that resolves core/node-redundancy findings by editing the node file to collapse repetition into single statements, preserving all meaning. The processing agent performs the edit; skill-map never writes the body.',
+    'Probabilistic fixer that resolves core/ai-redundancy-analyzer findings by editing the node file to collapse repetition into single statements, preserving all meaning. The processing agent performs the edit; skill-map never writes the body.',
   // Experimental: disabled by default, the operator opts in.
   stability: 'experimental',
   mode: 'probabilistic',
   // ADVISORY wall-clock estimate (Decision #139: never arms a TTL); a
   // single-node consolidation edit is a light pass on a mid-tier model.
   probExpectedDurationSeconds: 120,
-  // Modelo B: this fixer resolves the findings core/node-redundancy emits.
+  // Modelo B: this fixer resolves the findings core/ai-redundancy-analyzer emits.
   // A non-empty `analyzerIds` is ALSO the fixer signal the submit path gates
   // on to inject the `## Findings to resolve` section.
-  precondition: { analyzerIds: ['core/node-redundancy'] },
+  precondition: { analyzerIds: ['core/ai-redundancy-analyzer'] },
   // No `invoke`: probabilistic Actions run OUTSIDE the process (claim +
   // record handover). No `project`: the fix is a queued job, not a
   // scan-time button.

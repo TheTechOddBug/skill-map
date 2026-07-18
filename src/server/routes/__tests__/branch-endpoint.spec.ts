@@ -155,7 +155,7 @@ async function plantFinding(nodePath: string, severity: 'error' | 'warn'): Promi
   const adapter = new SqliteStorageAdapter({ databasePath: root.dbPath, autoBackup: false });
   await adapter.init();
   try {
-    await replaceFindingsForNode(adapter.db, nodePath, 'core/node-contradiction', [
+    await replaceFindingsForNode(adapter.db, nodePath, 'core/ai-contradiction-analyzer', [
       {
         origin: 'extension',
         type: 'contradiction',

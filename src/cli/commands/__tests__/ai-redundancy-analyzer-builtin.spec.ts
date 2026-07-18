@@ -1,13 +1,13 @@
 /**
- * `core/node-redundancy`, the FIRST probabilistic built-in Analyzer
+ * `core/ai-redundancy-analyzer`, the FIRST probabilistic built-in Analyzer
  * (Step 11 wave 1). End-to-end characterisation through the real CLI
  * verbs plus the codegen inlining pins:
  *
  *   - ships experimental: DISABLED by default, `sm jobs submit
- *     node-redundancy` does not resolve until the operator enables it.
+ *     ai-redundancy-analyzer` does not resolve until the operator enables it.
  *   - once enabled, the submit resolves with the frozen
  *     `extensionKind: 'analyzer'`.
- *   - `sm plugins show core/node-redundancy` renders the Prompt +
+ *   - `sm plugins show core/ai-redundancy-analyzer` renders the Prompt +
  *     Report schema contract sections.
  *   - the codegen-inlined `promptTemplate` / `reportSchema` are
  *     byte-/deep-equal to the authored sibling files.
@@ -34,11 +34,11 @@ import { sha256 } from '../../../kernel/orchestrator/node-build.js';
 import { builtIns } from '../../../plugins/built-ins.js';
 import { installAgentSkill } from '../../../core/agent-skill/engine.js';
 
-const FINDER_ID = 'core/node-redundancy';
+const FINDER_ID = 'core/ai-redundancy-analyzer';
 const NOTE = { path: 'notes/guide.md', kind: 'markdown', provider: 'markdown' };
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const ANALYZER_DIR = resolve(HERE, '..', '..', '..', 'plugins', 'core', 'analyzers', 'node-redundancy');
+const ANALYZER_DIR = resolve(HERE, '..', '..', '..', 'plugins', 'core', 'analyzers', 'ai-redundancy-analyzer');
 
 const CLEAN_SAFETY = { injectionDetected: false, contentQuality: 'clean' };
 
@@ -83,7 +83,7 @@ async function setupProject(opts: { enableFinder: boolean }): Promise<IProject> 
     writeFileSync(
       join(root, '.skill-map', 'settings.json'),
       JSON.stringify({
-        plugins: { core: { extensions: { 'node-redundancy': { enabled: true } } } },
+        plugins: { core: { extensions: { 'ai-redundancy-analyzer': { enabled: true } } } },
       }),
     );
   }
@@ -194,16 +194,16 @@ async function claimAndRecord(proj: IProject, report: object): Promise<{ code: n
 }
 
 before(() => {
-  tmpRoot = mkdtempSync(join(tmpdir(), 'skill-map-node-redundancy-'));
+  tmpRoot = mkdtempSync(join(tmpdir(), 'skill-map-ai-redundancy-analyzer-'));
 });
 
 after(() => {
   rmSync(tmpRoot, { recursive: true, force: true });
 });
 
-describe('core/node-redundancy, codegen inlining pins', () => {
+describe('core/ai-redundancy-analyzer, codegen inlining pins', () => {
   it('the inlined promptTemplate is byte-equal to the authored prompt.md', () => {
-    const finder = builtIns().analyzers.find((a) => a.id === 'node-redundancy');
+    const finder = builtIns().analyzers.find((a) => a.id === 'ai-redundancy-analyzer');
     ok(finder, 'built-in registered');
     strictEqual(finder.mode, 'probabilistic');
     strictEqual(finder.stability, 'experimental');
@@ -216,7 +216,7 @@ describe('core/node-redundancy, codegen inlining pins', () => {
   });
 
   it('the inlined reportSchema deep-equals the authored report.schema.json', () => {
-    const finder = builtIns().analyzers.find((a) => a.id === 'node-redundancy');
+    const finder = builtIns().analyzers.find((a) => a.id === 'ai-redundancy-analyzer');
     ok(finder?.reportSchema);
     deepStrictEqual(
       finder.reportSchema,
@@ -225,17 +225,17 @@ describe('core/node-redundancy, codegen inlining pins', () => {
   });
 });
 
-describe('core/node-redundancy, experimental gate', () => {
+describe('core/ai-redundancy-analyzer, experimental gate', () => {
   it('ships DISABLED: sm jobs submit does not resolve it by default', async () => {
     const proj = await setupProject({ enableFinder: false });
-    const { code, err } = await submit(proj, 'node-redundancy');
+    const { code, err } = await submit(proj, 'ai-redundancy-analyzer');
     strictEqual(code, 5, 'not in the composed catalog until enabled');
     match(err, /not found/);
   });
 
   it('enabling it makes the submit resolve with the frozen analyzer kind', async () => {
     const proj = await setupProject({ enableFinder: true });
-    const { code, err } = await submit(proj, 'node-redundancy');
+    const { code, err } = await submit(proj, 'ai-redundancy-analyzer');
     strictEqual(code, 0, `submit: ${err}`);
 
     const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
@@ -251,7 +251,7 @@ describe('core/node-redundancy, experimental gate', () => {
   });
 });
 
-describe('core/node-redundancy, sm plugins show contract sections', () => {
+describe('core/ai-redundancy-analyzer, sm plugins show contract sections', () => {
   it('renders Prompt + Report schema for the built-in finder', async () => {
     const proj = await setupProject({ enableFinder: false });
     const out = await withCwd(proj.root, async () => {
@@ -271,10 +271,10 @@ describe('core/node-redundancy, sm plugins show contract sections', () => {
   });
 });
 
-describe('core/node-redundancy, record round trip', () => {
+describe('core/ai-redundancy-analyzer, record round trip', () => {
   it('rejects a foreign finding type as report-invalid (schema const narrowing)', async () => {
     const proj = await setupProject({ enableFinder: true });
-    strictEqual((await submit(proj, 'node-redundancy')).code, 0);
+    strictEqual((await submit(proj, 'ai-redundancy-analyzer')).code, 0);
 
     const { code, err } = await claimAndRecord(proj, {
       confidence: 0.8,
@@ -302,7 +302,7 @@ describe('core/node-redundancy, record round trip', () => {
 
   it('lands state_findings rows of type redundancy on the happy path', async () => {
     const proj = await setupProject({ enableFinder: true });
-    strictEqual((await submit(proj, 'node-redundancy')).code, 0);
+    strictEqual((await submit(proj, 'ai-redundancy-analyzer')).code, 0);
 
     const { code, err } = await claimAndRecord(proj, {
       confidence: 0.85,

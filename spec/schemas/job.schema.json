@@ -14,7 +14,7 @@
     },
     "extensionId": {
       "type": "string",
-      "description": "Qualified id of the submitted probabilistic extension (Action or Analyzer), e.g. `core/markdown-summarizer`."
+      "description": "Qualified id of the submitted probabilistic extension (Action or Analyzer), e.g. `core/ai-summarizer-action`."
     },
     "extensionVersion": {
       "type": "string",

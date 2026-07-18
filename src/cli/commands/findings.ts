@@ -941,7 +941,7 @@ function parseIdListFlag(raw: string | undefined): readonly string[] | undefined
  *     notes/guide.md
  *       ⚠  plug/finder  contradiction  Message text  (85%)
  *          Longer evidence detail, dim, when present.
- *          ⚠  core/node-reconcile proposes, your decision: <note>
+ *          ⚠  core/ai-contradiction-action proposes, your decision: <note>
  *
  *   ℹ  2 fixed, 1 stale hidden (1 awaiting your decision).
  *      Pass --fixed / --stale to see them, or re-run the finders to re-check them.

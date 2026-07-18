@@ -1,5 +1,5 @@
 /**
- * Built-in probabilistic `node-redundancy` Analyzer, the FIRST real
+ * Built-in probabilistic `ai-redundancy-analyzer` Analyzer, the FIRST real
  * finder built-in (Step 11 wave 1). Judges ONE node for internal
  * redundancy: repeated instructions, trivial rewordings, or sections
  * restating other sections. Its judgments land in `state_findings` as
@@ -9,7 +9,7 @@
  * As a probabilistic Analyzer it carries NO `evaluate()` (the orchestrator
  * excludes finders from every scan-time phase): the kernel renders
  * `prompt.md` + the canonical preamble + the report contract into a
- * queued job (`sm jobs submit node-redundancy -n <node>`), an external
+ * queued job (`sm jobs submit ai-redundancy-analyzer -n <node>`), an external
  * agent processes it (`sm jobs claim`), and `sm record` validates the JSON
  * report against `report.schema.json` before writing the findings
  * through (`spec/job-lifecycle.md` §Record).
@@ -30,15 +30,15 @@
  * is the first user of the analyzer-side inlining lane).
  *
  * Ships `stability: 'experimental'`: DISABLED by default, the operator
- * opts in (`sm plugins enable core/node-redundancy`) before the finder
+ * opts in (`sm plugins enable core/ai-redundancy-analyzer`) before the finder
  * resolves as a submit target.
  */
 
 import type { IAnalyzer, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import { CORE_PLUGIN_ID as PLUGIN_ID } from '../../../ids.js';
 
-export const nodeRedundancyAnalyzer: IBuiltInManifest<IAnalyzer> = {
-  id: 'node-redundancy',
+export const aiRedundancyAnalyzer: IBuiltInManifest<IAnalyzer> = {
+  id: 'ai-redundancy-analyzer',
   pluginId: PLUGIN_ID,
   kind: 'analyzer',
   description:

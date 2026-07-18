@@ -57,6 +57,55 @@ describe('built-in extensions, execution modes', () => {
     }
   });
 
+  // Naming pattern (user decision 2026-07-18): every probabilistic (AI)
+  // built-in follows `ai-<subject>-<kind>`, so a finder Analyzer ends in
+  // `-analyzer` and a fixer / summarizer Action ends in `-action`. The
+  // convention lets the UI derive a bare label (`ai-redundancy-analyzer`
+  // reads as `redundancy`) and marks the AI family at a glance. Enforced
+  // here so a future probabilistic built-in cannot ship off-pattern.
+  it('every probabilistic built-in follows the ai-<subject>-<kind> naming pattern', () => {
+    const set = builtIns();
+    const probs = [
+      ...set.analyzers.filter((a) => a.mode === 'probabilistic').map((a) => ({ id: a.id, kind: 'analyzer' })),
+      ...set.actions.filter((a) => a.mode === 'probabilistic').map((a) => ({ id: a.id, kind: 'action' })),
+    ];
+    assert.ok(probs.length > 0, 'expected at least one probabilistic built-in');
+    for (const { id, kind } of probs) {
+      assert.match(
+        id,
+        new RegExp(`^ai-[a-z0-9]+(-[a-z0-9]+)*-${kind}$`),
+        `probabilistic ${kind} '${id}' must follow the ai-<subject>-${kind} naming pattern`,
+      );
+    }
+  });
+
+  // Fixer / finder pairing (user decision 2026-07-18): a fixer is named
+  // after the finder it serves, so `ai-<subject>-action` pairs with
+  // `ai-<subject>-analyzer` (`ai-redundancy-action` fixes
+  // `ai-redundancy-analyzer`). The two then read as one family and collapse
+  // to the same bare label on the inspector's two-state button. A
+  // probabilistic Action WITHOUT `precondition.analyzerIds` (the summarizer)
+  // is not a fixer and is exempt.
+  it('every fixer shares its finder subject (ai-<subject>-action pairs ai-<subject>-analyzer)', () => {
+    const set = builtIns();
+    const subject = (id: string): string =>
+      id.replace(/^ai-/, '').replace(/-(analyzer|action)$/, '');
+    const fixers = set.actions.filter(
+      (a) => a.mode === 'probabilistic' && (a.precondition?.analyzerIds?.length ?? 0) > 0,
+    );
+    assert.ok(fixers.length > 0, 'expected at least one fixer');
+    for (const fx of fixers) {
+      const fixerSubject = subject(fx.id);
+      const finderSubjects = (fx.precondition?.analyzerIds ?? []).map((qid) =>
+        subject(qid.split('/').pop() ?? qid),
+      );
+      assert.ok(
+        finderSubjects.includes(fixerSubject),
+        `fixer '${fx.id}' (subject '${fixerSubject}') must share a finder's subject; analyzerIds are ${JSON.stringify(fx.precondition?.analyzerIds)}`,
+      );
+    }
+  });
+
   it('provider manifest does NOT declare mode (deterministic-only kind)', () => {
     const set = builtIns();
     for (const a of set.providers) {
@@ -133,10 +182,10 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     assert.equal(qualifiedByKindAndShort.get('action:node-bump'), 'core/node-bump');
     assert.equal(qualifiedByKindAndShort.get('action:node-set-stability'), 'core/node-set-stability');
     assert.equal(qualifiedByKindAndShort.get('action:node-set-tags'), 'core/node-set-tags');
-    assert.equal(qualifiedByKindAndShort.get('action:markdown-summarizer'), 'core/markdown-summarizer');
-    assert.equal(qualifiedByKindAndShort.get('action:node-consolidate'), 'core/node-consolidate');
-    assert.equal(qualifiedByKindAndShort.get('action:node-reconcile'), 'core/node-reconcile');
-    assert.equal(qualifiedByKindAndShort.get('action:node-clarify'), 'core/node-clarify');
+    assert.equal(qualifiedByKindAndShort.get('action:ai-summarizer-action'), 'core/ai-summarizer-action');
+    assert.equal(qualifiedByKindAndShort.get('action:ai-redundancy-action'), 'core/ai-redundancy-action');
+    assert.equal(qualifiedByKindAndShort.get('action:ai-contradiction-action'), 'core/ai-contradiction-action');
+    assert.equal(qualifiedByKindAndShort.get('action:ai-incoherence-action'), 'core/ai-incoherence-action');
     assert.equal(qualifiedByKindAndShort.get('action:enrichment'), 'github/enrichment');
   });
 
@@ -186,12 +235,12 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/backtick-slash` (its `/command` sibling, same code-region domain and resolution gate, lens-gated claude / antigravity / opencode like the prose slash) brings it to 38.
     // `codex/backtick-dollar` (the `$skill` sibling completing the per-provider code-region trigger family, codex-only like the prose dollar) brings it to 39.
     // `core/name-mismatch` (analyzer that flags a declared `frontmatter.name` diverging from the node's path-derived handle, severity from the per-kind `identifierMismatch` knob) brings it to 40.
-    // `core/markdown-summarizer` (the first probabilistic built-in Action; the universal node summarizer, carrying its `prompt.md` + `report.schema.json` inlined by the built-ins codegen) brings it to 41.
+    // `core/ai-summarizer-action` (the first probabilistic built-in Action; the universal node summarizer, carrying its `prompt.md` + `report.schema.json` inlined by the built-ins codegen) brings it to 41.
     // `github/enrichment` (the first declared-network deterministic Action; Model A provenance verification against a node's `source` / `sourceVersion` annotations, executed via `sm refresh` behind the `allowNetworkActions` policy) brings it to 42.
-    // `core/node-redundancy` (the first probabilistic built-in Analyzer, the internal-redundancy finder; experimental, ships disabled, prompt user-approved 2026-07-14) brings it to 43.
-    // `core/node-contradiction` + `core/node-incoherence` (the rest of the wave-1 finder roster, same experimental/disabled mold; finders judge independently, no cross-sibling deferrals) bring it to 45.
-    // `core/node-consolidate` (the FIRST fixer: a probabilistic Action declaring `precondition.analyzerIds: ['core/node-redundancy']`; experimental, ships disabled; resolves redundancy findings via a template-mandated file edit) brings it to 46.
-    // `core/node-reconcile` (fixer for `core/node-contradiction`, `precondition.analyzerIds: ['core/node-contradiction']`; resolves conflicting / jointly-risky directive pairs) + `core/node-clarify` (fixer for `core/node-incoherence`; fixes dangling references, drifting terminology, missing context), both experimental and ships disabled, bring it to 48.
+    // `core/ai-redundancy-analyzer` (the first probabilistic built-in Analyzer, the internal-redundancy finder; experimental, ships disabled, prompt user-approved 2026-07-14) brings it to 43.
+    // `core/ai-contradiction-analyzer` + `core/ai-incoherence-analyzer` (the rest of the wave-1 finder roster, same experimental/disabled mold; finders judge independently, no cross-sibling deferrals) bring it to 45.
+    // `core/ai-redundancy-action` (the FIRST fixer: a probabilistic Action declaring `precondition.analyzerIds: ['core/ai-redundancy-analyzer']`; experimental, ships disabled; resolves redundancy findings via a template-mandated file edit) brings it to 46.
+    // `core/ai-contradiction-action` (fixer for `core/ai-contradiction-analyzer`, `precondition.analyzerIds: ['core/ai-contradiction-analyzer']`; resolves conflicting / jointly-risky directive pairs) + `core/ai-incoherence-action` (fixer for `core/ai-incoherence-analyzer`; fixes dangling references, drifting terminology, missing context), both experimental and ships disabled, bring it to 48.
     // `core/auto-fix` (the second built-in hook; subscribes to `job.completed` filtered to `extensionKind: 'analyzer'` and queues the matching fixers after a finder completes; experimental, ships disabled, opt-in) brings it to 49.
     assert.equal(rows.length, 49);
   });
@@ -220,10 +269,10 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
   // refactor along with the UI's Refresh button. The replacement UX is
   // TBD; this test was removed accordingly.
 
-  it('the built-in `core/markdown-summarizer` is probabilistic and carries its inlined siblings', () => {
+  it('the built-in `core/ai-summarizer-action` is probabilistic and carries its inlined siblings', () => {
     const set = builtIns();
-    const action = set.actions.find((a) => a.id === 'markdown-summarizer');
-    if (!action) throw new Error('expected the markdown-summarizer action to be bundled');
+    const action = set.actions.find((a) => a.id === 'ai-summarizer-action');
+    if (!action) throw new Error('expected the ai-summarizer-action action to be bundled');
     assert.equal(action.pluginId, 'core');
     assert.equal(action.mode, 'probabilistic');
     assert.equal(action.probExpectedDurationSeconds, 120);

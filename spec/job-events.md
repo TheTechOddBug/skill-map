@@ -134,7 +134,7 @@ Emitted when a job transitions to `completed`.
   "runId": "...",
   "jobId": "...",
   "data": {
-    "extensionId": "core/node-contradiction",
+    "extensionId": "core/ai-contradiction-analyzer",
     "extensionKind": "analyzer",
     "durationMs": 9700,
     "tokensIn": 2431,
@@ -184,7 +184,7 @@ Queue-lifecycle event: a job entered `queued`. Emitted by every submit surface (
   "jobId": "d-20260717-090000-c3d4",
   "data": {
     "nodePath": "skills/foo/SKILL.md",
-    "extensionId": "core/node-redundancy",
+    "extensionId": "core/ai-redundancy-analyzer",
     "supersededIds": []
   }
 }

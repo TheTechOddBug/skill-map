@@ -1,7 +1,7 @@
 /**
- * The wave-1 finder batch: `core/node-contradiction`,
- * `core/node-incoherence`. Same mold as
- * `core/node-redundancy` (see `node-redundancy-builtin.spec.ts`), so the
+ * The wave-1 finder batch: `core/ai-contradiction-analyzer`,
+ * `core/ai-incoherence-analyzer`. Same mold as
+ * `core/ai-redundancy-analyzer` (see `ai-redundancy-analyzer-builtin.spec.ts`), so the
  * suite is PARAMETERIZED over the two finders instead of cloning the
  * file per extension. Per finder:
  *
@@ -46,12 +46,12 @@ const CLEAN_SAFETY = { injectionDetected: false, contentQuality: 'clean' };
 /** The batch under test: extension id, finding type const, prompt opener. */
 const FINDERS = [
   {
-    id: 'node-contradiction',
+    id: 'ai-contradiction-analyzer',
     type: 'contradiction',
     opener: 'Judge ONE thing about the document below: internal contradictions.',
   },
   {
-    id: 'node-incoherence',
+    id: 'ai-incoherence-analyzer',
     type: 'incoherence',
     opener: 'Judge ONE thing about the document below: internal incoherence.',
   },

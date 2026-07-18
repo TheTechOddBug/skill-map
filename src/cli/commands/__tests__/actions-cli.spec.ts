@@ -4,7 +4,7 @@
  * temp dir (no `.skill-map/`), so only the built-ins compose; the
  * report-schema ref, the mode default, and the probabilistic detail
  * section are asserted against the real bundled manifests
- * (`core/markdown-summarizer` probabilistic + summarizer,
+ * (`core/ai-summarizer-action` probabilistic + summarizer,
  * `core/node-bump` deterministic).
  *
  * Coverage:
@@ -115,9 +115,9 @@ describe('sm actions list', () => {
     ok(Array.isArray(outcome.rows));
 
     const summarizer = outcome.rows.find(
-      (r) => r['qualifiedId'] === 'core/markdown-summarizer',
+      (r) => r['qualifiedId'] === 'core/ai-summarizer-action',
     );
-    ok(summarizer, 'core/markdown-summarizer row present');
+    ok(summarizer, 'core/ai-summarizer-action row present');
     strictEqual(summarizer['mode'], 'probabilistic');
     // Derived traits carry no field of their own (decision 2026-07-13):
     // the summarizer signal is readable only through show's reportSchemaRef.
@@ -149,7 +149,7 @@ describe('sm actions list', () => {
       ),
       'footer tip',
     );
-    ok(outcome.out.includes('core/markdown-summarizer'), 'summarizer row rendered');
+    ok(outcome.out.includes('core/ai-summarizer-action'), 'summarizer row rendered');
   });
 });
 
@@ -157,11 +157,11 @@ describe('sm actions show', () => {
   it('--json resolves a BARE id and reports the summaries schema ref', async () => {
     const outcome = await withCwd(freshDir(), async () => {
       const cap = captureContext();
-      const code = await run(buildShow('markdown-summarizer', true), cap);
+      const code = await run(buildShow('ai-summarizer-action', true), cap);
       return { code, detail: JSON.parse(cap.stdout()) as Record<string, unknown> };
     });
     strictEqual(outcome.code, 0);
-    strictEqual(outcome.detail['qualifiedId'], 'core/markdown-summarizer');
+    strictEqual(outcome.detail['qualifiedId'], 'core/ai-summarizer-action');
     ok(!('summarizer' in outcome.detail), 'no derived summarizer field');
     strictEqual(
       outcome.detail['reportSchemaRef'],
@@ -173,7 +173,7 @@ describe('sm actions show', () => {
   it('human detail renders the Probabilistic section for a summarizer', async () => {
     const outcome = await withCwd(freshDir(), async () => {
       const cap = captureContext();
-      const code = await run(buildShow('core/markdown-summarizer', false), cap);
+      const code = await run(buildShow('core/ai-summarizer-action', false), cap);
       return { code, out: cap.stdout() };
     });
     strictEqual(outcome.code, 0);

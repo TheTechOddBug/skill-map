@@ -659,9 +659,9 @@ describe('sm plugins doctor, disabled is not a failure', () => {
     // built-in extensions that ship disabled by default: the gated bump
     // pair `core/node-bump` + `core/annotation-stale`, the
     // declared-network provenance verifier `github/enrichment`, the
-    // three probabilistic finders `core/node-redundancy` /
-    // `core/node-contradiction` / `core/node-incoherence`, the three fixers
-    // `core/node-consolidate` / `core/node-reconcile` / `core/node-clarify`,
+    // three probabilistic finders `core/ai-redundancy-analyzer` /
+    // `core/ai-contradiction-analyzer` / `core/ai-incoherence-analyzer`, the three fixers
+    // `core/ai-redundancy-action` / `core/ai-contradiction-action` / `core/ai-incoherence-action`,
     // and the opt-in `core/auto-fix` hook.
     // (`core/mcp-tools` is now beta and ships enabled, so it no longer
     // counts here; `antigravity/antigravity` and `codex/codex` are beta
@@ -1067,17 +1067,17 @@ describe('sm plugins show, probabilistic contract sections', () => {
     );
   });
 
-  it('built-in probabilistic action (markdown-summarizer): sections + json fields', () => {
+  it('built-in probabilistic action (ai-summarizer-action): sections + json fields', () => {
     const scope = freshScope('show-prob-builtin');
     sm(['init', '--no-scan'], scope);
 
-    const human = sm(['plugins', 'show', 'core/markdown-summarizer'], scope);
+    const human = sm(['plugins', 'show', 'core/ai-summarizer-action'], scope);
     assert.equal(human.status, 0, `stderr: ${human.stderr}`);
     assert.match(human.stdout, /^  Prompt$/m);
     assert.match(human.stdout, /\{\{userContent\}\}/, 'template placeholder verbatim');
     assert.match(human.stdout, /^  Report schema$/m);
 
-    const json = sm(['plugins', 'show', 'core/markdown-summarizer', '--json'], scope);
+    const json = sm(['plugins', 'show', 'core/ai-summarizer-action', '--json'], scope);
     assert.equal(json.status, 0, `stderr: ${json.stderr}`);
     const payload = JSON.parse(json.stdout);
     assert.equal(typeof payload.promptTemplate, 'string');

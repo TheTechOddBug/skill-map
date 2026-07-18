@@ -39,7 +39,7 @@ let counter = 0;
 
 const NODE_PATH = 'notes/guide.md';
 const BODY_HASH = 'b'.repeat(64);
-const ACTION_ID = 'core/markdown-summarizer';
+const ACTION_ID = 'core/ai-summarizer-action';
 const JOB_ID = 'd-20260101-000000-0001';
 
 const REPORT = {

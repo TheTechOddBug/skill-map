@@ -1364,7 +1364,7 @@ export interface IActivitySpawnRecordApi {
  */
 export interface IActivityRunApi {
   executionId: string;
-  /** Qualified extension id (e.g. `core/node-redundancy`). */
+  /** Qualified extension id (e.g. `core/ai-redundancy-analyzer`). */
   extensionId: string;
   /** Lifecycle label from the executions table; opaque here. */
   status: string;

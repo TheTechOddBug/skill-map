@@ -1,7 +1,7 @@
 /**
  * End-to-end tests for `sm record` (Step 10 Phase D, the job callback)
  * against a real project DB. The happy completed path runs the full loop
- * against the built-in `core/markdown-summarizer`: `sm jobs submit` ->
+ * against the built-in `core/ai-summarizer-action`: `sm jobs submit` ->
  * `sm jobs claim` (to obtain the nonce) -> `sm record --status completed`
  * with a schema-valid report. The error paths seed a job directly through
  * the storage port (mirroring `job-claim-cli.spec.ts`).
@@ -35,7 +35,7 @@ import { sha256 } from '../../../kernel/orchestrator/node-build.js';
 import type { IJobSubmitRow } from '../../../kernel/types/storage.js';
 import { installAgentSkill } from '../../../core/agent-skill/engine.js';
 
-const ACTION_ID = 'core/markdown-summarizer';
+const ACTION_ID = 'core/ai-summarizer-action';
 const NOTE = { path: 'notes/guide.md', kind: 'markdown', provider: 'markdown' };
 
 const VALID_REPORT = {

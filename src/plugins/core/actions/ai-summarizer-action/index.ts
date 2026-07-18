@@ -1,12 +1,12 @@
 /**
- * Built-in probabilistic `markdown-summarizer` Action, the FIRST
+ * Built-in probabilistic `ai-summarizer-action` Action, the FIRST
  * probabilistic built-in Action and the UNIVERSAL node summarizer.
  *
  * Summarizes any node into a structured brief: `markdown` names the body
  * format it reads (every node body is markdown prose, including
  * frontmatter-field bodies like codex TOML `developer_instructions`), not
  * a node-kind gate. There is deliberately NO `precondition`, so a
- * `sm jobs submit markdown-summarizer --all` fan-out reaches every
+ * `sm jobs submit ai-summarizer-action --all` fan-out reaches every
  * non-virtual node; per-kind summarizers were dropped by decision (see
  * `ROADMAP.md` §Summarizer pattern). Unlike
  * the deterministic built-in actions (`node-bump`, `node-set-stability`,
@@ -39,8 +39,8 @@
 import type { IAction, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import { CORE_PLUGIN_ID as PLUGIN_ID } from '../../../ids.js';
 
-export const markdownSummarizerAction: IBuiltInManifest<IAction> = {
-  id: 'markdown-summarizer',
+export const aiSummarizerAction: IBuiltInManifest<IAction> = {
+  id: 'ai-summarizer-action',
   pluginId: PLUGIN_ID,
   kind: 'action',
   description:

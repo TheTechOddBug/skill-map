@@ -18,7 +18,7 @@
     },
     "extensionId": {
       "type": "string",
-      "description": "Id of the extension that ran (e.g. `markdown-summarizer`)."
+      "description": "Id of the extension that ran (e.g. `ai-summarizer-action`)."
     },
     "extensionVersion": {
       "type": "string",

@@ -1,7 +1,7 @@
 {
   "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
   "id": "preamble-bitwise-match",
-  "description": "Rendered job content contains the canonical preamble byte-for-byte. Scans a single markdown node, submits a markdown-summarizer job over it (setup.priorInvokes), then asserts `sm jobs preview --last` prints content containing `preamble-v2.txt` verbatim.",
+  "description": "Rendered job content contains the canonical preamble byte-for-byte. Scans a single markdown node, submits a ai-summarizer-action job over it (setup.priorInvokes), then asserts `sm jobs preview --last` prints content containing `preamble-v2.txt` verbatim.",
   "fixture": "preamble-bitwise-match",
   "setup": {
     "priorScans": [{ "fixture": "preamble-bitwise-match" }],
@@ -14,7 +14,7 @@
       {
         "verb": "jobs",
         "sub": "submit",
-        "args": ["markdown-summarizer"],
+        "args": ["ai-summarizer-action"],
         "flags": ["-n", "notes.md"]
       }
     ]

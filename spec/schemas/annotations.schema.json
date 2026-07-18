@@ -68,7 +68,7 @@
         "properties": {
           "extension": {
             "type": "string",
-            "description": "Qualified extension id of the finder whose findings are suppressed (e.g. `core/node-contradiction`)."
+            "description": "Qualified extension id of the finder whose findings are suppressed (e.g. `core/ai-contradiction-analyzer`)."
           },
           "type": {
             "type": "string",

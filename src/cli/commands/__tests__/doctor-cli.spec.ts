@@ -164,7 +164,7 @@ describe('sm doctor', () => {
       await adapter.jobs.submit(
         {
           id: 'd-20990101-000000-aaaa',
-          extensionId: 'core/markdown-summarizer',
+          extensionId: 'core/ai-summarizer-action',
           extensionVersion: '0.0.0',
           extensionKind: 'action',
           nodeId: 'notes.md',
@@ -318,9 +318,9 @@ describe('sm doctor, jobs-overdue', () => {
 
   it('warns per running job past the advisory estimate, naming the resolving verbs', async () => {
     const proj = await setupProject();
-    // core/markdown-summarizer advises 120s; claimed 10 minutes ago.
+    // core/ai-summarizer-action advises 120s; claimed 10 minutes ago.
     const id = await seedRunning(proj, {
-      extensionId: 'core/markdown-summarizer',
+      extensionId: 'core/ai-summarizer-action',
       extensionKind: 'action',
       claimedAt: Date.now() - 10 * 60 * 1000,
     });
@@ -347,7 +347,7 @@ describe('sm doctor, jobs-overdue', () => {
   it('a fresh claim inside the estimate stays ok', async () => {
     const proj = await setupProject();
     await seedRunning(proj, {
-      extensionId: 'core/markdown-summarizer',
+      extensionId: 'core/ai-summarizer-action',
       extensionKind: 'action',
       claimedAt: Date.now(),
     });

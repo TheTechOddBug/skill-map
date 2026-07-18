@@ -5,8 +5,8 @@
  * since it was queued (a DIFFERENT rendered content hash), CANCELS it and
  * enqueues the newer job in ONE transaction, instead of both piling up and
  * wasting an agent pass on findings already resolved. Exercised through the
- * real CLI verbs against `core/node-consolidate` (the first fixer, findings
- * from `core/node-redundancy`).
+ * real CLI verbs against `core/ai-redundancy-action` (the first fixer, findings
+ * from `core/ai-redundancy-analyzer`).
  *
  * Coverage:
  *   - happy path: a changed finding set cancels the stale queued sibling
@@ -35,8 +35,8 @@ import type { Job } from '../../../kernel/types.js';
 import { sha256 } from '../../../kernel/orchestrator/node-build.js';
 import { installAgentSkill } from '../../../core/agent-skill/engine.js';
 
-const FIXER_ID = 'core/node-consolidate';
-const FINDER_ID = 'core/node-redundancy';
+const FIXER_ID = 'core/ai-redundancy-action';
+const FINDER_ID = 'core/ai-redundancy-analyzer';
 
 let tmpRoot: string;
 let counter = 0;
@@ -67,7 +67,7 @@ interface IProject {
 }
 
 /**
- * Fresh project with `paths` markdown nodes and `core/node-consolidate`
+ * Fresh project with `paths` markdown nodes and `core/ai-redundancy-action`
  * enabled (the fixer ships experimental, so the installed default is
  * DISABLED). Each node gets a real body file so the submit-time drift
  * verification can read it off disk.
@@ -83,7 +83,7 @@ async function setupProject(paths: string[]): Promise<IProject> {
   writeFileSync(
     join(root, '.skill-map', 'settings.json'),
     JSON.stringify({
-      plugins: { core: { extensions: { 'node-consolidate': { enabled: true } } } },
+      plugins: { core: { extensions: { 'ai-redundancy-action': { enabled: true } } } },
     }),
   );
 
@@ -130,7 +130,7 @@ async function setupProject(paths: string[]): Promise<IProject> {
   return { root, dbPath };
 }
 
-/** Seed one fresh `core/node-redundancy` finding on `nodeId`. */
+/** Seed one fresh `core/ai-redundancy-analyzer` finding on `nodeId`. */
 async function seedFinding(proj: IProject, nodeId: string, message: string): Promise<number> {
   const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
   await adapter.init();
@@ -188,7 +188,7 @@ async function submit(
   return withCwd(proj.root, async () => {
     const cap = captureContext();
     const cmd = new JobSubmitCommand();
-    cmd.extension = 'node-consolidate';
+    cmd.extension = 'ai-redundancy-action';
     cmd.node = opts.node;
     cmd.all = opts.all ?? false;
     cmd.force = false;

@@ -1,7 +1,7 @@
 /**
  * End-to-end tests for the `state_summaries` write-through wired through
  * the real CLI verbs: `sm jobs submit` -> `sm jobs claim` -> `sm record
- * --status completed` with a schema-valid `core/markdown-summarizer`
+ * --status completed` with a schema-valid `core/ai-summarizer-action`
  * report lands a per-node summary, and `sm show` renders it (marking it
  * `(stale)` once the node body changes). Runs against a real project DB
  * (never `:memory:`, see feedback_sqlite_in_memory_workaround).
@@ -11,7 +11,7 @@
  * `$ref`s a canonical `summaries/<kind>.schema.json` gets the write-through,
  * any other report stays history-only on `state_executions.report_json`.
  * Both schema sources are covered: the built-in's codegen-inlined
- * `reportSchema` (core/markdown-summarizer) and a plugin's on-disk
+ * `reportSchema` (core/ai-summarizer-action) and a plugin's on-disk
  * `report.schema.json` (the prob-summarizer fixture).
  *
  * Coverage:
@@ -41,7 +41,7 @@ import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
 import { sha256 } from '../../../kernel/orchestrator/node-build.js';
 import { installAgentSkill } from '../../../core/agent-skill/engine.js';
 
-const ACTION_ID = 'core/markdown-summarizer';
+const ACTION_ID = 'core/ai-summarizer-action';
 const NOTE = { path: 'notes/guide.md', kind: 'markdown', provider: 'markdown' };
 
 const VALID_REPORT = {
@@ -296,7 +296,7 @@ describe('summary write-through via sm record + sm show', () => {
       return cap.stdout();
     });
     match(human, /Summary \(1\)/);
-    match(human, /core\/markdown-summarizer/);
+    match(human, /core\/ai-summarizer-action/);
     match(human, /A short guide to the thing\./);
     doesNotMatch(human, /\(stale\)/, 'fresh summary is not stale');
 

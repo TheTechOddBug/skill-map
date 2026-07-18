@@ -56,15 +56,15 @@ function queueSpy(): { calls: Array<[string, unknown]>; queue: (a: string, p: un
 }
 
 const CONSOLIDATE: IHookActionInfo = {
-  id: 'core/node-consolidate',
-  analyzerIds: ['core/node-redundancy'],
+  id: 'core/ai-redundancy-action',
+  analyzerIds: ['core/ai-redundancy-analyzer'],
 };
 const RECONCILE: IHookActionInfo = {
-  id: 'core/node-reconcile',
-  analyzerIds: ['core/node-contradiction'],
+  id: 'core/ai-contradiction-action',
+  analyzerIds: ['core/ai-contradiction-analyzer'],
 };
 /** A non-fixer Action (no analyzerIds): must never be queued. */
-const SUMMARIZER: IHookActionInfo = { id: 'core/markdown-summarizer', analyzerIds: [] };
+const SUMMARIZER: IHookActionInfo = { id: 'core/ai-summarizer-action', analyzerIds: [] };
 
 describe('core/auto-fix hook manifest', () => {
   it('ships disabled (experimental), so auto-editing is opt-in', () => {
@@ -91,7 +91,7 @@ describe('core/auto-fix dispatcher filter (extensionKind)', () => {
     return {
       type: 'job.completed',
       timestamp: Date.now(),
-      data: { extensionKind, extensionId: 'core/node-redundancy', nodeId: 'n.md' },
+      data: { extensionKind, extensionId: 'core/ai-redundancy-analyzer', nodeId: 'n.md' },
     };
   }
 
@@ -114,17 +114,17 @@ describe('core/auto-fix inverse Modelo B queueing', () => {
   it('queues the matching fixer for the node', () => {
     const spy = queueSpy();
     autoFixHook.on(
-      ctxFor({ extensionId: 'core/node-redundancy', nodeId: 'n.md', actions: [CONSOLIDATE, SUMMARIZER], queue: spy.queue }),
+      ctxFor({ extensionId: 'core/ai-redundancy-analyzer', nodeId: 'n.md', actions: [CONSOLIDATE, SUMMARIZER], queue: spy.queue }),
     );
-    assert.deepEqual(spy.calls, [['core/node-consolidate', { nodeId: 'n.md' }]]);
+    assert.deepEqual(spy.calls, [['core/ai-redundancy-action', { nodeId: 'n.md' }]]);
   });
 
   it('queues ALL matching fixers when several serve the finder', () => {
     const spy = queueSpy();
-    const otherRedundancyFixer: IHookActionInfo = { id: 'plug/dedupe', analyzerIds: ['core/node-redundancy'] };
+    const otherRedundancyFixer: IHookActionInfo = { id: 'plug/dedupe', analyzerIds: ['core/ai-redundancy-analyzer'] };
     autoFixHook.on(
       ctxFor({
-        extensionId: 'core/node-redundancy',
+        extensionId: 'core/ai-redundancy-analyzer',
         nodeId: 'n.md',
         actions: [CONSOLIDATE, otherRedundancyFixer, RECONCILE],
         queue: spy.queue,
@@ -132,14 +132,14 @@ describe('core/auto-fix inverse Modelo B queueing', () => {
     );
     assert.deepEqual(
       spy.calls.map((c) => c[0]).sort(),
-      ['core/node-consolidate', 'plug/dedupe'],
+      ['core/ai-redundancy-action', 'plug/dedupe'],
     );
   });
 
   it('queues nothing when no fixer serves the finder', () => {
     const spy = queueSpy();
     autoFixHook.on(
-      ctxFor({ extensionId: 'core/node-incoherence', nodeId: 'n.md', actions: [CONSOLIDATE, RECONCILE], queue: spy.queue }),
+      ctxFor({ extensionId: 'core/ai-incoherence-analyzer', nodeId: 'n.md', actions: [CONSOLIDATE, RECONCILE], queue: spy.queue }),
     );
     assert.deepEqual(spy.calls, []);
   });
@@ -147,7 +147,7 @@ describe('core/auto-fix inverse Modelo B queueing', () => {
   it('never queues a non-fixer Action (empty analyzerIds) even on an id match', () => {
     const spy = queueSpy();
     autoFixHook.on(
-      ctxFor({ extensionId: 'core/markdown-summarizer', nodeId: 'n.md', actions: [SUMMARIZER], queue: spy.queue }),
+      ctxFor({ extensionId: 'core/ai-summarizer-action', nodeId: 'n.md', actions: [SUMMARIZER], queue: spy.queue }),
     );
     assert.deepEqual(spy.calls, []);
   });
@@ -156,13 +156,13 @@ describe('core/auto-fix inverse Modelo B queueing', () => {
     const calls: string[] = [];
     const throwingThenOk = (actionId: string): void => {
       calls.push(actionId);
-      if (actionId === 'core/node-consolidate') throw new Error('no findings to resolve');
+      if (actionId === 'core/ai-redundancy-action') throw new Error('no findings to resolve');
     };
-    const otherRedundancyFixer: IHookActionInfo = { id: 'plug/dedupe', analyzerIds: ['core/node-redundancy'] };
+    const otherRedundancyFixer: IHookActionInfo = { id: 'plug/dedupe', analyzerIds: ['core/ai-redundancy-analyzer'] };
     assert.doesNotThrow(() =>
       autoFixHook.on(
         ctxFor({
-          extensionId: 'core/node-redundancy',
+          extensionId: 'core/ai-redundancy-analyzer',
           nodeId: 'n.md',
           actions: [CONSOLIDATE, otherRedundancyFixer],
           queue: throwingThenOk,
@@ -170,18 +170,18 @@ describe('core/auto-fix inverse Modelo B queueing', () => {
       ),
     );
     // Both fixers were attempted; the refusal on the first did not abort the second.
-    assert.deepEqual(calls.sort(), ['core/node-consolidate', 'plug/dedupe']);
+    assert.deepEqual(calls.sort(), ['core/ai-redundancy-action', 'plug/dedupe']);
   });
 
   it('no-ops (no throw) when the driver did not wire ctx.queue', () => {
     assert.doesNotThrow(() =>
-      autoFixHook.on(ctxFor({ extensionId: 'core/node-redundancy', nodeId: 'n.md', actions: [CONSOLIDATE] })),
+      autoFixHook.on(ctxFor({ extensionId: 'core/ai-redundancy-analyzer', nodeId: 'n.md', actions: [CONSOLIDATE] })),
     );
   });
 
   it('no-ops when the event carries no node id', () => {
     const spy = queueSpy();
-    autoFixHook.on(ctxFor({ extensionId: 'core/node-redundancy', actions: [CONSOLIDATE], queue: spy.queue }));
+    autoFixHook.on(ctxFor({ extensionId: 'core/ai-redundancy-analyzer', actions: [CONSOLIDATE], queue: spy.queue }));
     assert.deepEqual(spy.calls, []);
   });
 });

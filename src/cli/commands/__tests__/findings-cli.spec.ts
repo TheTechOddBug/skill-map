@@ -254,7 +254,7 @@ async function stampResolutionOnType(
     ok(target, `seeded finding of type ${opts.type} exists`);
     const by = opts.state === 'fixed' ? (opts.actor ?? 'fixer') : null;
     await stampFindingResolutions(adapter.db, target.nodeId, {
-      resolvedBy: opts.fixer ?? 'core/node-consolidate',
+      resolvedBy: opts.fixer ?? 'core/ai-redundancy-action',
       // The finding's own finder: the fixer's declared scope.
       analyzerIds: [target.extensionId],
       resolvedAt: T1,
@@ -583,7 +583,7 @@ describe('sm findings fixer resolution', () => {
     match(shown.out, /Repeats itself/, '--fixed reveals the row');
     match(
       shown.out,
-      /✓ {2}fixed by core\/node-consolidate: Collapsed the two upload sentences into one\./,
+      /✓ {2}fixed by core\/ai-redundancy-action: Collapsed the two upload sentences into one\./,
       'a fixer-decided fixed row reads as handled, under a checkmark',
     );
     // Honest wording: still a state, never "resolved" / "verified".
@@ -599,12 +599,12 @@ describe('sm findings fixer resolution', () => {
       type: 'redundancy',
       state: 'fixed',
       actor: 'fixer',
-      fixer: 'core/node-consolidate',
+      fixer: 'core/ai-redundancy-action',
       note: 'Collapsed it.',
     });
     match(
       (await runHuman(autonomous.root, { fixed: true })).out,
-      /✓ {2}fixed by core\/node-consolidate: Collapsed it\./,
+      /✓ {2}fixed by core\/ai-redundancy-action: Collapsed it\./,
       'a fixer decision reads `fixed by <fixer>`',
     );
 
@@ -613,12 +613,12 @@ describe('sm findings fixer resolution', () => {
       type: 'redundancy',
       state: 'fixed',
       actor: 'human',
-      fixer: 'core/node-consolidate',
+      fixer: 'core/ai-redundancy-action',
       note: 'Approved the edit.',
     });
     match(
       (await runHuman(attended.root, { fixed: true })).out,
-      /✓ {2}fixed by core\/node-consolidate \(your decision\): Approved the edit\./,
+      /✓ {2}fixed by core\/ai-redundancy-action \(your decision\): Approved the edit\./,
       'a human decision with a fixer reads `(your decision)`',
     );
   });
@@ -629,13 +629,13 @@ describe('sm findings fixer resolution', () => {
       type: 'contradiction',
       state: 'human-decision',
       note: 'The dev and prod steps are both intentional; only you can pick one.',
-      fixer: 'core/node-reconcile',
+      fixer: 'core/ai-contradiction-action',
     });
     const { code, out } = await runHuman(proj.root, { type: 'contradiction' });
     strictEqual(code, 0);
     match(
       out,
-      /⚠ {2}core\/node-reconcile proposes, your decision: The dev and prod steps are both intentional; only you can pick one\./,
+      /⚠ {2}core\/ai-contradiction-action proposes, your decision: The dev and prod steps are both intentional; only you can pick one\./,
       'the fixer, its proposal, and the TODO all land on one line',
     );
   });
@@ -653,7 +653,7 @@ describe('sm findings fixer resolution', () => {
       type: 'redundancy',
       state: 'human-decision',
       note: 'Needs an author decision.',
-      fixer: 'core/node-consolidate',
+      fixer: 'core/ai-redundancy-action',
     });
     const { body } = await runJson(proj.root, { type: 'redundancy' });
     const entry = body.findings.find((f) => f.id === id);
@@ -661,7 +661,7 @@ describe('sm findings fixer resolution', () => {
     strictEqual(entry.resolution, 'human-decision');
     strictEqual(entry.resolutionActor, null, 'a human-decision has no decided actor');
     strictEqual(entry.resolutionNote, 'Needs an author decision.');
-    strictEqual(entry.resolutionBy, 'core/node-consolidate');
+    strictEqual(entry.resolutionBy, 'core/ai-redundancy-action');
     strictEqual(entry.resolutionAt, T1);
 
     // An untouched row reports the absence explicitly (null, not missing).
@@ -826,7 +826,7 @@ describe('sm findings stale disclosure names human-decision rows', () => {
       type: 'incoherence',
       state: 'human-decision',
       note: 'Only the author knows which section is right.',
-      fixer: 'core/node-clarify',
+      fixer: 'core/ai-incoherence-action',
     });
     const { code, out } = await runHuman(proj.root);
     strictEqual(code, 0);
@@ -1043,7 +1043,7 @@ describe('sm findings bucket flags are filters', () => {
       type: 'contradiction',
       state: 'human-decision',
       note: 'Your call on which branch.',
-      fixer: 'core/node-reconcile',
+      fixer: 'core/ai-contradiction-action',
     });
     return proj;
   }
@@ -1235,7 +1235,7 @@ describe('sm findings resolve', () => {
       type: 'redundancy',
       state: 'human-decision',
       note: 'A fixer proposed this.',
-      fixer: 'core/node-consolidate',
+      fixer: 'core/ai-redundancy-action',
     });
     const code = await withCwd(proj.root, async () => run(buildResolve(String(id)), captureContext()));
     strictEqual(code, 0);

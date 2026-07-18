@@ -1,6 +1,6 @@
 /**
  * Integration tests for `sm jobs submit` against the FIRST probabilistic
- * BUILT-IN Action, `core/markdown-summarizer`. Mirrors
+ * BUILT-IN Action, `core/ai-summarizer-action`. Mirrors
  * `job-submit-cli.spec.ts` but exercises the built-in path: no on-disk
  * plugin, no trust row, no source directory. The prompt template comes from
  * the manifest field the built-ins codegen inlined from the action's sibling
@@ -27,7 +27,7 @@ import { sha256 } from '../../../kernel/orchestrator/node-build.js';
 import { loadCanonicalPreamble } from '../../../kernel/jobs/index.js';
 import { installAgentSkill } from '../../../core/agent-skill/engine.js';
 
-const ACTION_ID = 'core/markdown-summarizer';
+const ACTION_ID = 'core/ai-summarizer-action';
 
 let tmpRoot: string;
 let counter = 0;
@@ -168,7 +168,7 @@ after(() => {
 });
 
 describe('sm jobs submit (built-in probabilistic action)', () => {
-  it('enqueues core/markdown-summarizer -n -> exit 0, job + rendered content persisted', async () => {
+  it('enqueues core/ai-summarizer-action -n -> exit 0, job + rendered content persisted', async () => {
     const proj = await setupProject([NOTE]);
     const code = await withCwd(proj.root, async () => {
       const cap = captureContext();

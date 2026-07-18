@@ -14,7 +14,7 @@ import { summaryKindOfReportSchema, SUMMARY_SCHEMA_ID_PREFIX } from '../summary-
 describe('summaryKindOfReportSchema', () => {
   it('detects a summaries/<kind> $ref inside allOf (the canonical extender shape)', () => {
     const schema = {
-      $id: 'https://skill-map.ai/spec/v0/core/markdown-summarizer-report.schema.json',
+      $id: 'https://skill-map.ai/spec/v0/core/ai-summarizer-action-report.schema.json',
       allOf: [{ $ref: `${SUMMARY_SCHEMA_ID_PREFIX}markdown.schema.json` }],
     };
     strictEqual(summaryKindOfReportSchema(schema), 'markdown');
