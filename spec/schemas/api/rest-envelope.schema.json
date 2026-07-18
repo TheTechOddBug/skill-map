@@ -1011,7 +1011,7 @@
         "hasOpenFindings"
       ],
       "additionalProperties": false,
-      "description": "One launcher entry of the `node.prob-extensions` catalog (the inspector's two-state finder buttons). `state` is the live queue state for this (node, extension) pair from `state_jobs` (`queued` / `running` when an active job exists, else `idle`); `lastJudged` is the latest recorded execution for the pair (`null` when never judged). `fixerIds` is the finder's matching fixers (empty for standalone entries and for finders with none); `hasOpenFindings` drives the Detect ⇄ Fix morph. See the launcher-envelope variant for the `finders` / `standalone` classification.",
+      "description": "One launcher entry of the `node.prob-extensions` catalog (the inspector's two-state finder buttons). `state` is the live queue state from `state_jobs` for the BUTTON's active job (`queued` / `running` when one exists, else `idle`). Because a finder button also submits its fixer in the Fix state, the state is computed over the union of `{id} ∪ fixerIds` on this node, so a queued/running FIXER lights the finder's button (running wins over queued); `jobId` is that active job's id. `lastJudged` is the latest recorded execution for the finder itself (`null` when never judged). `fixerIds` is the finder's matching fixers (empty for standalone entries and for finders with none); `hasOpenFindings` drives the Detect ⇄ Fix morph. See the launcher-envelope variant for the `finders` / `standalone` classification.",
       "properties": {
         "id": {
           "type": "string",
@@ -1073,7 +1073,7 @@
             "string",
             "null"
           ],
-          "description": "The ACTIVE queued/running job's id for this node+extension, the handle the UI's stop/restart affordance cancels via POST /api/jobs/:jobId/cancel. `null` when idle."
+          "description": "The ACTIVE queued/running job's id for this button (the finder OR any of its `fixerIds` on this node, see `state`), the handle the UI's stop affordance cancels via POST /api/jobs/:jobId/cancel. `null` when idle."
         }
       }
     }

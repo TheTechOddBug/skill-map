@@ -58,6 +58,7 @@ import {
   type TPrepareError,
   type TSubmitOutcome,
 } from '../../core/jobs/submit-engine.js';
+import { buildFreshResolver } from '../../core/runtime/fresh-resolver.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import type { JobStatus, Node } from '../../kernel/types.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
@@ -121,11 +122,10 @@ export interface INodeJobsRouteDeps extends IRouteDeps {
 }
 
 export function registerNodeJobsRoute(app: Hono, deps: INodeJobsRouteDeps): void {
-  // Composed once at boot from the cached plugin runtime (audit M3),
-  // same discipline as the prob-extensions catalog route.
-  const runtime = buildActionRuntime(deps.pluginRuntime, (line) =>
-    log.warn(sanitizeForTerminal(line)),
-  );
+  // Plugin-runtime discovery warnings are static per boot; emit them
+  // once here (the per-request runtime build below uses a noop sink so a
+  // mid-session recompose never re-spams the server log).
+  for (const line of deps.pluginRuntime.warnings) log.warn(sanitizeForTerminal(line));
 
   app.post('/api/nodes/:pathB64/jobs', async (c) => {
     const startedAt = Date.now();
@@ -143,6 +143,27 @@ export function registerNodeJobsRoute(app: Hono, deps: INodeJobsRouteDeps): void
         message: SERVER_TEXTS.jobsNoProcessingAgent,
       });
     }
+
+    // Build the submit runtime against a fresh resolver from the LIVE
+    // layered config so a finder enabled mid-session (PATCH
+    // /api/plugins[/...] + configService.reload(), or `sm plugins enable`
+    // side by side) is not only SHOWN by the launcher catalog but also
+    // SUBMITTABLE here, without an `sm serve` restart, else clicking the
+    // just-enabled button 400s "not probabilistic / not found". Cheap
+    // in-memory re-filter of the boot-cached runtime (audit M3); a
+    // drop-in that booted `startsAsDisabled` still needs a restart. See
+    // `core/runtime/fresh-resolver.ts`.
+    const resolveEnabled = await buildFreshResolver({
+      effectiveConfig: () => deps.configService.effective(),
+    });
+    const runtime = buildActionRuntime(
+      deps.pluginRuntime,
+      () => {
+        /* discard: warnings emitted once at registration */
+      },
+      undefined,
+      resolveEnabled,
+    );
 
     const prep = prepareSubmitContext({
       runtime,

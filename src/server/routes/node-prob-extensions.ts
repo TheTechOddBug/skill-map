@@ -32,11 +32,18 @@
  * extension never judged this node; a failed / cancelled execution
  * produced no judgment, so it does not count).
  *
- * The extension catalogs are composed ONCE at route registration from
- * the BOOT-CACHED plugin runtime (audit M3: never re-walk
- * `.skill-map/plugins/` per request), matching the watcher's "loaded
- * once at boot" contract; a plugin installed or toggled mid-session
- * registers on the next `sm serve` restart.
+ * The extension catalogs are recomposed PER REQUEST from the
+ * BOOT-CACHED plugin runtime (audit M3: never re-walk
+ * `.skill-map/plugins/` per request) against a fresh enabled-resolver
+ * built from the LIVE layered config. So a probabilistic analyzer / its
+ * fixer toggled mid-session (via `PATCH /api/plugins[/...]` +
+ * `configService.reload()`, or `sm plugins enable` running side by side)
+ * surfaces here WITHOUT restarting `sm serve`, the same parity the scan
+ * route already has (`core/runtime/fresh-resolver.ts`). The recompose is
+ * an in-memory re-filter of the boot-cached runtime, no discovery pass.
+ * A newly-INSTALLED plugin, or a drop-in that booted `startsAsDisabled`,
+ * still needs an `sm serve` restart (the documented exception: its
+ * handlers were never bucketed into the runtime).
  *
  * A VIRTUAL node answers 200 with three empty arrays: it has no backing
  * file to render, so nothing is launchable against it (the submit route
@@ -57,6 +64,8 @@ import {
   type IFixerCandidateAction,
 } from '../../core/jobs/auto-fix-chain.js';
 import { fixerAnalyzerIds, nodeMatchesPrecondition } from '../../core/jobs/submit-engine.js';
+import { buildFreshResolver } from '../../core/runtime/fresh-resolver.js';
+import type { IPluginRuntime } from '../../core/runtime/plugin-runtime.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import type { IAction, IAnalyzer } from '../../kernel/extensions/index.js';
 import { isProbabilistic } from '../../kernel/jobs/index.js';
@@ -112,35 +121,25 @@ export interface IProbExtensionsCatalog {
 }
 
 export function registerNodeProbExtensionsRoute(app: Hono, deps: IRouteDeps): void {
-  // Composed once at boot from the cached plugin runtime (audit M3);
-  // plugin-runtime warnings land in the server log exactly once.
-  const runtime = buildActionRuntime(deps.pluginRuntime, (line) =>
-    log.warn(sanitizeForTerminal(line)),
-  );
-  const probAnalyzers = runtime.analyzers.filter((a) => isProbabilistic(a));
-  const probActions = runtime.actions.filter((a) => isProbabilistic(a));
-  // The composed probabilistic Actions projected once (boot-cached, audit
-  // M3) to the minimal `{ id, analyzerIds }` shape the shared inverse
-  // Modelo-B resolver reads, mirroring the hook / record-path projection.
-  const projectedActions: IFixerCandidateAction[] = probActions.map((a) => ({
-    id: qualifiedExtensionId(a.pluginId, a.id),
-    analyzerIds: a.precondition?.analyzerIds ?? [],
-  }));
+  // Plugin-runtime discovery warnings are static per boot; emit them
+  // once here so the per-request recompose below (which uses a noop
+  // sink) never re-spams the server log.
+  emitPluginRuntimeWarnings(deps.pluginRuntime);
 
   app.get('/api/nodes/:pathB64/prob-extensions', async (c) => {
     const nodePath = decodePathB64Or404(c.req.param('pathB64'));
+
+    // Recompose the probabilistic catalogs per request against a fresh
+    // resolver from the LIVE layered config so a mid-session toggle is
+    // honoured without an `sm serve` restart (see the module header).
+    const sources = await composeProbSources(deps);
 
     const item = await tryWithSqlite(
       { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
       async (adapter) => {
         const bundle = await adapter.scans.findNode(nodePath);
         if (!bundle) return null;
-        return buildCatalog(adapter, bundle.node, {
-          probAnalyzers,
-          probActions,
-          projectedActions,
-          runtime,
-        });
+        return buildCatalog(adapter, bundle.node, sources);
       },
     );
     if (item === null) {
@@ -159,6 +158,49 @@ export function registerNodeProbExtensionsRoute(app: Hono, deps: IRouteDeps): vo
       ),
     );
   });
+}
+
+/**
+ * Emit the plugin-runtime's boot-time discovery warnings to the server
+ * log exactly once. The set is static per boot, so re-emitting it on the
+ * per-request recompose path would only spam the log; the catalog is
+ * recomposed fresh, the warnings are not.
+ */
+function emitPluginRuntimeWarnings(pluginRuntime: IPluginRuntime): void {
+  for (const line of pluginRuntime.warnings) log.warn(sanitizeForTerminal(line));
+}
+
+/**
+ * Build the probabilistic catalog sources for one request. A fresh
+ * enabled-resolver is derived from the live layered config
+ * (`configService.effective()`) and threaded into `buildActionRuntime`
+ * so a mid-session enable/disable is honoured without restarting
+ * `sm serve` (audit M3: in-memory re-filter of the boot-cached runtime,
+ * no discovery pass). The warn sink is a noop here, warnings already
+ * went to the log once at registration. See `core/runtime/fresh-resolver.ts`.
+ */
+async function composeProbSources(deps: IRouteDeps): Promise<ICatalogSources> {
+  const resolveEnabled = await buildFreshResolver({
+    effectiveConfig: () => deps.configService.effective(),
+  });
+  const runtime = buildActionRuntime(
+    deps.pluginRuntime,
+    () => {
+      /* discard: warnings emitted once at registration */
+    },
+    undefined,
+    resolveEnabled,
+  );
+  const probAnalyzers = runtime.analyzers.filter((a) => isProbabilistic(a));
+  const probActions = runtime.actions.filter((a) => isProbabilistic(a));
+  // The composed probabilistic Actions projected to the minimal
+  // `{ id, analyzerIds }` shape the shared inverse Modelo-B resolver
+  // reads, mirroring the hook / record-path projection.
+  const projectedActions: IFixerCandidateAction[] = probActions.map((a) => ({
+    id: qualifiedExtensionId(a.pluginId, a.id),
+    analyzerIds: a.precondition?.analyzerIds ?? [],
+  }));
+  return { probAnalyzers, probActions, projectedActions, runtime };
 }
 
 interface ICatalogSources {
@@ -266,7 +308,13 @@ async function buildEntry(
   extras: { fixerIds: string[]; hasOpenFindings: boolean },
 ): Promise<IProbExtensionEntry> {
   const qualified = qualifiedExtensionId(extension.pluginId, extension.id);
-  const mine = activeJobs.filter((j) => j.extensionId === qualified);
+  // The BUTTON's active job is the finder's OR any of its fixers' (the Fix
+  // state submits the fixer, so a queued/running fixer must light the
+  // finder button, else clicking Fix looks ignored). Union `{finder} ∪
+  // fixerIds`; standalone entries have no fixerIds so this is just the
+  // extension itself.
+  const buttonIds = new Set<string>([qualified, ...extras.fixerIds]);
+  const mine = activeJobs.filter((j) => buttonIds.has(j.extensionId));
   // `running` wins over `queued` when both exist (distinct content
   // hashes can hold one of each); an idle pair has no active row. The
   // exposed `jobId` is the row that DECIDED the state (the running one

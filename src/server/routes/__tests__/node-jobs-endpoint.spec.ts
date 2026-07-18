@@ -24,7 +24,7 @@
  */
 
 import { strict as assert } from 'node:assert';
-import { appendFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, beforeEach, describe, it } from 'node:test';
@@ -314,6 +314,61 @@ describe('POST /api/nodes/:pathB64/jobs', () => {
         autoFix: 'yes',
       });
       assert.equal(badAutoFix.status, 400);
+    });
+  });
+
+  it('mid-session enable: a just-enabled finder becomes SUBMITTABLE without a restart', async () => {
+    // Boot ONCE with `prob-finder/quality-check` config-disabled at the
+    // extension level, submit against it (refused, it is not in the
+    // composed runtime), then enable it through the running server's own
+    // PATCH route and submit again on the SAME server, no reboot. This is
+    // the launcher's other half: the catalog now SHOWS the finder after a
+    // mid-session enable, and this proves the button it renders actually
+    // enqueues instead of 404-ing.
+    const live = await setupProbProject(join(tmpRoot, `proj-live-${counter}`), [SKILL_NODE], {
+      installSkill: true,
+    });
+    writeFileSync(
+      join(live.root, '.skill-map', 'settings.json'),
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          plugins: { 'prob-finder': { extensions: { 'quality-check': { enabled: false } } } },
+        },
+        null,
+        2,
+      ),
+    );
+    await bootAndUse(live, async (handle) => {
+      // Before: the disabled finder is not in the composed runtime, so
+      // the submit engine cannot resolve it -> 404 not-found (identical
+      // to an unknown extension id).
+      const before = await postJob(handle, SKILL_NODE.path, { extension: FINDER_ID });
+      assert.equal(before.status, 404, 'a config-disabled finder is unsubmittable');
+      assert.equal(((await before.json()) as IErrorBody).error.code, 'not-found');
+
+      // Enable it through the running server's PATCH route (writes
+      // settings.json + configService.reload() inside the handler).
+      const patch = await fetch(
+        serverUrl(handle, '/api/plugins/prob-finder/extensions/quality-check'),
+        {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ enabled: true }),
+        },
+      );
+      assert.equal(patch.status, 200, 'the enable PATCH succeeds');
+
+      // After: the SAME server resolves + enqueues the finder, no reboot.
+      const after = await postJob(handle, SKILL_NODE.path, { extension: FINDER_ID });
+      assert.equal(after.status, 200, 'the just-enabled finder submits without a restart');
+      const env = (await after.json()) as IJobSubmittedEnvelope;
+      assert.equal(env.value.extensionId, FINDER_ID);
+    });
+    await withProjectDb(live, async (adapter) => {
+      const [job] = await adapter.jobs.list({ extensionId: FINDER_ID });
+      assert.ok(job, 'the finder job was enqueued on the running server');
+      assert.equal(job.status, 'queued');
     });
   });
 

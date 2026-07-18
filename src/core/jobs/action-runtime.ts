@@ -78,6 +78,18 @@ export function buildActionRuntime(
   pluginRuntime: IPluginRuntime,
   warn: TActionRuntimeWarn,
   killSwitches?: IConformanceKillSwitches,
+  /**
+   * Optional fresh enabled-resolver (built from the LIVE layered config)
+   * that overrides the runtime's boot-time `resolveEnabled`. The
+   * long-lived BFF passes one so a plugin toggled mid-session (e.g. a
+   * fresh project enabling the experimental AI actions) is honoured
+   * WITHOUT restarting `sm serve`: built-ins are always in memory, so the
+   * override just re-applies the filter. CLI callers omit it (the runtime
+   * is loaded fresh per invocation). Drop-in plugins that booted
+   * `startsAsDisabled` are still absent from the runtime and need a
+   * restart, the documented exception. See `core/runtime/fresh-resolver.ts`.
+   */
+  resolveEnabledOverride?: (id: string) => boolean,
 ): IActionRuntime {
   for (const line of pluginRuntime.warnings) {
     warn(line);
@@ -86,6 +98,7 @@ export function buildActionRuntime(
     noBuiltIns: false,
     pluginRuntime,
     ...(killSwitches !== undefined ? { killSwitches } : {}),
+    ...(resolveEnabledOverride !== undefined ? { resolveEnabled: resolveEnabledOverride } : {}),
   }) ?? { providers: [], extractors: [], analyzers: [], hooks: [], actions: [] };
   return {
     actions: composed.actions,

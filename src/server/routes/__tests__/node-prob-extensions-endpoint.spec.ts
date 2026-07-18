@@ -31,7 +31,7 @@
  */
 
 import { strict as assert } from 'node:assert';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
@@ -249,6 +249,101 @@ describe('GET /api/nodes/:pathB64/prob-extensions', () => {
       await withProjectDb(project, async (adapter) => {
         await adapter.jobs.cancelAllActive(Date.now());
       });
+    }
+  });
+
+  it('a queued FIXER lights its finder button (state/jobId over {finder} ∪ fixerIds)', async () => {
+    // The Fix state submits the fixer, so a queued/running fixer must show
+    // on the finder button, else clicking Fix looks completely ignored.
+    await withProjectDb(project, async (adapter) => {
+      await adapter.jobs.submit(
+        {
+          id: 'd-20260718-000000-ffff',
+          extensionId: FIXER_ID,
+          extensionVersion: '1.0.0',
+          extensionKind: 'action',
+          nodeId: SKILL_NODE.path,
+          contentHash: 'f'.repeat(64),
+          nonce: 'n'.repeat(32),
+          priority: 0,
+          status: 'queued',
+          ttlSeconds: null,
+          createdAt: Date.now(),
+        },
+        { contentHash: 'f'.repeat(64), content: 'rendered', createdAt: Date.now() },
+      );
+    });
+    try {
+      await bootAndUse(project, async (handle) => {
+        const env = await fetchCatalog(handle, SKILL_NODE.path);
+        const finder = byId(env.item.finders, FINDER_ID);
+        assert.ok(finder);
+        assert.equal(finder.state, 'queued', 'the fixer job lights the finder button');
+        assert.equal(finder.jobId, 'd-20260718-000000-ffff', 'stop targets the fixer job');
+      });
+    } finally {
+      await withProjectDb(project, async (adapter) => {
+        await adapter.jobs.cancelAllActive(Date.now());
+      });
+    }
+  });
+
+  it('mid-session enable: a per-extension-disabled finder appears WITHOUT a restart', async () => {
+    // A dedicated project so the settings.json mutation never leaks into
+    // the shared-fixture cases above. Boot ONCE with
+    // `prob-finder/quality-check` config-disabled at the extension level
+    // (the plugin still loads and buckets its handler, only the leaf
+    // toggle is off), then flip it through the running server's own PATCH
+    // route and re-read on the SAME server, no reboot.
+    const midRoot = mkdtempSync(join(tmpdir(), 'skill-map-prob-ext-live-'));
+    try {
+      const live = await setupProbProject(midRoot, [SKILL_NODE], { installSkill: true });
+      // Commit the per-extension disable to the settings.json the running
+      // server reads. The key is the LEAF extension id `quality-check`
+      // (the plugin id is already the parent key), not the qualified id.
+      writeFileSync(
+        join(live.root, '.skill-map', 'settings.json'),
+        JSON.stringify(
+          {
+            schemaVersion: 1,
+            plugins: { 'prob-finder': { extensions: { 'quality-check': { enabled: false } } } },
+          },
+          null,
+          2,
+        ),
+      );
+      await bootAndUse(live, async (handle) => {
+        // Before: the disabled finder is filtered out of the composed
+        // set, so it is in NEITHER bucket.
+        const before = await fetchCatalog(handle, SKILL_NODE.path);
+        assert.equal(
+          byId(before.item.finders, FINDER_ID),
+          undefined,
+          'a config-disabled finder is absent at boot',
+        );
+        assert.equal(byId(before.item.standalone, FINDER_ID), undefined);
+
+        // Enable it through the running server's own PATCH route (writes
+        // settings.json + configService.reload() inside the handler).
+        const patch = await fetch(
+          serverUrl(handle, '/api/plugins/prob-finder/extensions/quality-check'),
+          {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ enabled: true }),
+          },
+        );
+        assert.equal(patch.status, 200, 'the enable PATCH succeeds');
+
+        // After: the SAME server recomposes the finder fresh from the
+        // live config, so it shows up in `finders` carrying its fixer.
+        const after = await fetchCatalog(handle, SKILL_NODE.path);
+        const finder = byId(after.item.finders, FINDER_ID);
+        assert.ok(finder, 'the just-enabled finder appears without a restart');
+        assert.deepEqual(finder.fixerIds, [FIXER_ID], 'its inverse Modelo-B fixer is composed too');
+      });
+    } finally {
+      rmSync(midRoot, { recursive: true, force: true });
     }
   });
 

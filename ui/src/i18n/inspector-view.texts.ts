@@ -53,7 +53,7 @@ export const INSPECTOR_VIEW_TEXTS = {
      * carries `autoFix: true`); when off, the button morphs Detect ⇄ Fix.
      */
     autoFix: {
-      label: 'Automatic',
+      label: 'Auto-fixer',
       tooltip:
         'When on, one click runs the finder and auto-fixes its findings. When off, the button switches between Detect and Fix.',
     },
