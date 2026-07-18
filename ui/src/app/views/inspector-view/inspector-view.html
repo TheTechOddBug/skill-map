@@ -195,52 +195,60 @@
                     }}</label>
                   </div>
                 }
-                @for (group of aiActionLauncherGroups(); track group.id) {
-                  <div
-                    class="inspector__ai-actions-group"
-                    [attr.data-testid]="'inspector-ai-actions-group-' + group.id"
-                  >
-                    <span class="inspector__ai-actions-group-label">{{ group.label }}</span>
-                    <div class="inspector__ai-actions-group-buttons">
-                      @for (entry of group.entries; track entry.id) {
-                        <span class="inspector__ai-actions-entry">
-                          <p-button
-                            [label]="aiActionLauncherLabel(entry)"
-                            [icon]="aiActionLauncherIcon(entry, group.id === 'finders')"
-                            size="small"
-                            [disabled]="aiActionLauncherDisabled(entry)"
-                            [loading]="aiActionLauncherBusy(entry)"
-                            [pTooltip]="aiActionLauncherTooltip(entry, group.id === 'finders')"
-                            tooltipPosition="left"
-                            appendTo="body"
-                            (onClick)="onLauncherClick(entry, group.id === 'finders')"
-                            [attr.data-testid]="'inspector-ai-action-launch-' + entry.id"
-                            [attr.data-state]="aiActionEntryState(entry)"
-                            [attr.data-action]="group.id === 'finders' ? finderActionMode(entry) : 'run'"
-                          />
-                          <!-- Stop companion (user decision 2026-07-17;
-                               the restart twin was dropped same day): only
-                               beside an active launcher whose payload
-                               carries the server-confirmed job handle. -->
-                          @if (aiActionCompanionsVisible(entry)) {
-                            <p-button
-                              icon="pi pi-times"
-                              severity="danger"
-                              size="small"
-                              [disabled]="aiActionCompanionDisabled(entry)"
-                              [pTooltip]="texts.aiActions.stopTooltip"
-                              tooltipPosition="left"
-                              appendTo="body"
-                              [ariaLabel]="texts.aiActions.stopTooltip"
-                              (onClick)="stopAiAction(entry)"
-                              [attr.data-testid]="'inspector-ai-action-stop-' + entry.id"
-                            />
-                          }
-                        </span>
+                <!-- One flat button row (labels retired 2026-07-18): ALL
+                     first, then finders, then standalone, order preserved. -->
+                <div
+                  class="inspector__ai-actions-group-buttons"
+                  data-testid="inspector-ai-actions-launchers-row"
+                >
+                  <span class="inspector__ai-actions-entry">
+                    <p-button
+                      [label]="texts.aiActions.all"
+                      size="small"
+                      [pTooltip]="texts.aiActions.allTooltip"
+                      tooltipPosition="left"
+                      appendTo="body"
+                      (onClick)="onLauncherAll()"
+                      data-testid="inspector-ai-action-launch-all"
+                    />
+                  </span>
+                  @for (item of aiActionLauncherEntries(); track item.entry.id) {
+                    <span class="inspector__ai-actions-entry">
+                      <p-button
+                        [label]="aiActionLauncherLabel(item.entry)"
+                        [icon]="aiActionLauncherIcon(item.entry, item.isFinder)"
+                        size="small"
+                        [disabled]="aiActionLauncherDisabled(item.entry)"
+                        [loading]="aiActionLauncherBusy(item.entry)"
+                        [pTooltip]="aiActionLauncherTooltip(item.entry, item.isFinder)"
+                        tooltipPosition="left"
+                        appendTo="body"
+                        (onClick)="onLauncherClick(item.entry, item.isFinder)"
+                        [attr.data-testid]="'inspector-ai-action-launch-' + item.entry.id"
+                        [attr.data-state]="aiActionEntryState(item.entry)"
+                        [attr.data-action]="item.isFinder ? finderActionMode(item.entry) : 'run'"
+                      />
+                      <!-- Stop companion (user decision 2026-07-17; the
+                           restart twin was dropped same day): only beside an
+                           active launcher whose payload carries the
+                           server-confirmed job handle. -->
+                      @if (aiActionCompanionsVisible(item.entry)) {
+                        <p-button
+                          icon="pi pi-times"
+                          severity="danger"
+                          size="small"
+                          [disabled]="aiActionCompanionDisabled(item.entry)"
+                          [pTooltip]="texts.aiActions.stopTooltip"
+                          tooltipPosition="left"
+                          appendTo="body"
+                          [ariaLabel]="texts.aiActions.stopTooltip"
+                          (onClick)="stopAiAction(item.entry)"
+                          [attr.data-testid]="'inspector-ai-action-stop-' + item.entry.id"
+                        />
                       }
-                    </div>
-                  </div>
-                }
+                    </span>
+                  }
+                </div>
               </div>
             }
             @if (aiActionsError(); as err) {

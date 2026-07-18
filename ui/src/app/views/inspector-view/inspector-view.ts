@@ -477,20 +477,32 @@ export class InspectorView implements OnInit {
    * fixer + Actions with no `analyzerIds`, single-action buttons).
    */
   protected readonly aiActionLauncherGroups = computed<
-    { id: 'finders' | 'standalone'; label: string; entries: IProbExtensionEntryApi[] }[]
+    { id: 'finders' | 'standalone'; entries: IProbExtensionEntryApi[] }[]
   >(() => {
     const probs = this.probExtensions();
     if (probs === null) return [];
-    const t = this.texts.aiActions.groups;
     return (
       [
-        { id: 'finders', label: t.finders, entries: probs.finders },
-        { id: 'standalone', label: t.standalone, entries: probs.standalone },
+        { id: 'finders', entries: probs.finders },
+        { id: 'standalone', entries: probs.standalone },
       ] as const
     )
       .filter((g) => g.entries.length > 0)
-      .map((g) => ({ id: g.id, label: g.label, entries: [...g.entries] }));
+      .map((g) => ({ id: g.id, entries: [...g.entries] }));
   });
+
+  /**
+   * Flattened launcher entries (finders first, then standalone), each
+   * tagged with whether it is a two-state finder, for the single-row
+   * render and the ALL button.
+   */
+  protected readonly aiActionLauncherEntries = computed<
+    { entry: IProbExtensionEntryApi; isFinder: boolean }[]
+  >(() =>
+    this.aiActionLauncherGroups().flatMap((g) =>
+      g.entries.map((entry) => ({ entry, isFinder: g.id === 'finders' })),
+    ),
+  );
 
   /**
    * Automatic toggle (Step 16), persisted at inspector level like the
@@ -611,6 +623,21 @@ export class InspectorView implements OnInit {
       default:
         void this.aiActions.submit(entry.id, false);
         break;
+    }
+  }
+
+  /**
+   * ALL launcher button: queue every finder + standalone on THIS node in
+   * one click, each in its current mode (the same submit a per-button
+   * click does). Entries already busy are skipped (a re-submit would be a
+   * queue duplicate anyway).
+   */
+  protected onLauncherAll(): void {
+    for (const { entry, isFinder } of this.aiActionLauncherEntries()) {
+      if (this.aiActionLauncherDisabled(entry)) {
+        continue;
+      }
+      this.onLauncherClick(entry, isFinder);
     }
   }
 

@@ -42,11 +42,9 @@ export const INSPECTOR_VIEW_TEXTS = {
    * deterministic "Findings" section above (analyzer issues).
    */
   aiActions: {
-    /** Launcher group headings, classified manifest-mechanically. */
-    groups: {
-      finders: 'Finders',
-      standalone: 'Standalone',
-    },
+    /** The ALL launcher button: queue every finder + standalone for the node. */
+    all: 'ALL',
+    allTooltip: 'Queue every analysis on this node at once (each finder and standalone action).',
     /**
      * Automatic toggle (Step 16): when on, one click on a finder button
      * runs the finder AND auto-chains its fixers (the finder submit

@@ -2060,7 +2060,7 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     ).toBeNull();
   });
 
-  it('renders the finders + standalone groups (no fixers group) with two-state labels', async () => {
+  it('renders one flat launcher row: ALL then finder + standalone buttons (no group labels)', async () => {
     const { fixture } = await bootAiActions({
       probs: makeProbExtensions({
         finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'] })],
@@ -2069,12 +2069,12 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     });
     const dom: HTMLElement = fixture.nativeElement;
     expect(dom.querySelector('[data-testid="inspector-card-ai-actions"]')).not.toBeNull();
-    // Finders + standalone groups render; the retired fixers group never does.
-    expect(dom.querySelector('[data-testid="inspector-ai-actions-group-finders"]')).not.toBeNull();
-    expect(
-      dom.querySelector('[data-testid="inspector-ai-actions-group-standalone"]'),
-    ).not.toBeNull();
-    expect(dom.querySelector('[data-testid="inspector-ai-actions-group-fixers"]')).toBeNull();
+    // One flat row (group labels + wrappers retired): the ALL button leads,
+    // then the finder and standalone buttons; no per-group wrappers.
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-launchers-row"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-action-launch-all"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-group-finders"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-group-standalone"]')).toBeNull();
     // The button LABEL is always the kind (short name); the Detect/Fix
     // state rides `data-action` + the icon, not the label (user call
     // 2026-07-18).
@@ -2095,6 +2095,25 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     // stand alone (empty-state removed per user call 2026-07-17).
     expect(dom.querySelector('[data-testid="inspector-ai-actions-empty"]')).toBeNull();
     expect(dom.querySelector('[data-testid="inspector-ai-actions-list"]')).toBeNull();
+  });
+
+  it('the ALL button queues every finder + standalone on this node in one click', async () => {
+    const { fixture, dataSource, node } = await bootAiActions({
+      probs: makeProbExtensions({
+        finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'], hasOpenFindings: false })],
+        standalone: [makeProbEntry({ id: 'core/summarizer', description: 'Summarizes the node.' })],
+      }),
+    });
+    const all = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-ai-action-launch-all"]',
+    ) as HTMLElement;
+    expect(all).not.toBeNull();
+    (all.querySelector('button') as HTMLButtonElement).click();
+    await flush(fixture);
+    // One submit per entry: the finder in Detect mode + the standalone action.
+    expect(dataSource.submitNodeJob).toHaveBeenCalledWith(node.path, 'core/todo-finder', false);
+    expect(dataSource.submitNodeJob).toHaveBeenCalledWith(node.path, 'core/summarizer', false);
+    expect(dataSource.submitNodeJob).toHaveBeenCalledTimes(2);
   });
 
   it('morphs a finder-with-fixer button Detect => Fix by hasOpenFindings', async () => {

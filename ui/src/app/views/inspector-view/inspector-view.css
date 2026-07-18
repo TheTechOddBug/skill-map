@@ -709,21 +709,6 @@
   cursor: pointer;
 }
 
-.inspector__ai-actions-group {
-  display: flex;
-  align-items: baseline;
-  gap: 0.6rem;
-}
-
-.inspector__ai-actions-group-label {
-  flex: 0 0 5.2rem;
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--p-text-muted-color);
-}
-
 .inspector__ai-actions-group-buttons {
   display: flex;
   flex-wrap: wrap;
