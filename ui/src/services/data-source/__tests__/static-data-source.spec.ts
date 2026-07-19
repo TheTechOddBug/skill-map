@@ -442,6 +442,11 @@ describe('StaticDataSource', () => {
     });
   });
 
+  it('listJobs() returns an empty queue (static bundle records no jobs)', async () => {
+    await expect(ds.listJobs()).resolves.toEqual([]);
+    await expect(ds.listJobs({ status: 'queued' })).resolves.toEqual([]);
+  });
+
   it('listLinks() with no filters returns the pre-derived envelope', async () => {
     await expect(ds.listLinks()).resolves.toEqual(META_FIXTURE.links);
   });

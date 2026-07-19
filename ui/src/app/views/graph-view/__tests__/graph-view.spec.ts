@@ -173,6 +173,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     elapsedMs: 0,
   }),
   cancelJob: vi.fn().mockResolvedValue(undefined),
+  listJobs: vi.fn().mockResolvedValue([]),
   listLinks: vi.fn().mockResolvedValue({
     schemaVersion: '1',
     kind: 'links',

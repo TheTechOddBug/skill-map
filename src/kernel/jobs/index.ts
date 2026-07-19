@@ -73,3 +73,4 @@ export {
   JobNotRunningError,
   JobRenderError,
 } from './errors.js';
+export { toPublicJob, type PublicJob } from './public-job.js';

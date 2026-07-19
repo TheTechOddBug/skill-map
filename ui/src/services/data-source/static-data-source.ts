@@ -44,6 +44,7 @@ import type {
   IFolderNodeLite,
   IHealthResponseApi,
   IIssueApi,
+  IJobApi,
   IJobSubmittedEnvelopeApi,
   ILinkApi,
   IListEnvelopeApi,
@@ -84,6 +85,7 @@ import {
   type IDataSourcePort,
   type IActionDispatchOpts,
   type IIssuesQuery,
+  type IJobsQuery,
   type ILinksQuery,
   type INodesQuery,
   type IPluginChange,
@@ -821,6 +823,15 @@ export class StaticDataSource implements IDataSourcePort {
       'demo-readonly',
       'Job cancellation is not available in demo mode (static bundle is immutable).',
     );
+  }
+
+  /**
+   * Demo mode: the static bundle records no queue (there is no BFF and no
+   * processing agent), so the job list is honestly empty. Mirrors the
+   * empty-tray posture of `getNodeFindings` / `getNodeProbExtensions`.
+   */
+  async listJobs(_query: IJobsQuery = {}): Promise<IJobApi[]> {
+    return [];
   }
 
   /**

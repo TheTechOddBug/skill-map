@@ -64,7 +64,14 @@ export type TEnvelopeKind =
   //     `action.applied`).
   | 'findings'
   | 'node.prob-extensions'
-  | 'job.submitted';
+  | 'job.submitted'
+  // Cross-corpus job-queue list from `GET /api/jobs` (read side of the UI
+  // queue inspector). A registry-less list shape: the queue projection is
+  // orthogonal to the kind / provider / contribution catalogs (like the
+  // action-result and catalog envelopes), so it embeds none of them and the
+  // route serving it keeps a narrow deps bag (dbPath only). Built by
+  // `buildJobsEnvelope` below.
+  | 'jobs';
 
 export interface IPageInfo {
   offset: number;
@@ -238,6 +245,24 @@ export interface IListEnvelope<TItem> {
   contributionsRegistry: TContributionsRegistry;
 }
 
+/**
+ * Registry-less list envelope for `GET /api/jobs` (`kind: 'jobs'`). Unlike
+ * `IListEnvelope`, it carries no kind / provider / contribution registries:
+ * a job-queue projection is orthogonal to those catalogs (same rationale as
+ * the action-result and annotation / contribution catalog variants in
+ * `rest-envelope.schema.json`), and dropping them lets the route stay on a
+ * narrow deps bag. The endpoint does not paginate, so `counts.total` equals
+ * `counts.returned` equals `items.length`.
+ */
+export interface IJobsEnvelope<TItem> {
+  schemaVersion: typeof REST_ENVELOPE_SCHEMA_VERSION;
+  kind: 'jobs';
+  items: TItem[];
+  /** Echo of the applied filters (`status` / `extension` / `node`). */
+  filters: Record<string, unknown>;
+  counts: { total: number; returned: number };
+}
+
 export interface ISingleEnvelope<TItem> {
   schemaVersion: typeof REST_ENVELOPE_SCHEMA_VERSION;
   kind: TEnvelopeKind;
@@ -306,6 +331,24 @@ export function buildListEnvelope<TItem>(opts: IBuildListEnvelopeOpts<TItem>): I
     kindRegistry: opts.kindRegistry,
     providerRegistry: opts.providerRegistry,
     contributionsRegistry: opts.contributionsRegistry,
+  };
+}
+
+/**
+ * Build the registry-less `kind: 'jobs'` list envelope for `GET /api/jobs`.
+ * `counts.total` / `counts.returned` are both derived from `items.length`
+ * (the endpoint does not paginate) so a caller cannot drift them apart.
+ */
+export function buildJobsEnvelope<TItem>(
+  items: TItem[],
+  filters: Record<string, unknown>,
+): IJobsEnvelope<TItem> {
+  return {
+    schemaVersion: REST_ENVELOPE_SCHEMA_VERSION,
+    kind: 'jobs',
+    items,
+    filters,
+    counts: { total: items.length, returned: items.length },
   };
 }
 

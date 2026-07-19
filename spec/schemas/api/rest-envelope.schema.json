@@ -32,9 +32,10 @@
         "contributions.registered",
         "findings",
         "node.prob-extensions",
-        "job.submitted"
+        "job.submitted",
+        "jobs"
       ],
-      "description": "Discriminator. List kinds (`nodes`, `links`, `issues`, `plugins`) carry `items` + `filters` + `counts` + `kindRegistry`. The `node` kind carries `item` + `kindRegistry`. The `config` kind carries `value` + `kindRegistry`. The `sidecar.bumped` kind (Step 9.6.5, BFF half) carries `value` + `elapsedMs` (no `filters` / `counts` / `kindRegistry`, it's an action-result projection orthogonal to the kindRegistry surface). The `annotations.registered` kind (Step 9.6.6, BFF half) carries `items` + `counts.total` (no `filters` / `kindRegistry`, pure read-only catalog projection). Step 16 piece 1 kinds: `findings` (list shape, `GET /api/nodes/:pathB64/findings`, `counts` additionally requires `fixedExcluded` / `staleExcluded`), `node.prob-extensions` (single shape, `GET /api/nodes/:pathB64/prob-extensions`), `job.submitted` (action-result shape, `POST /api/nodes/:pathB64/jobs`). The `health` / `scan` / `graph` values are reserved for documentation parity with the routes that DON'T use this envelope."
+      "description": "Discriminator. List kinds (`nodes`, `links`, `issues`, `plugins`) carry `items` + `filters` + `counts` + `kindRegistry`. The `node` kind carries `item` + `kindRegistry`. The `config` kind carries `value` + `kindRegistry`. The `sidecar.bumped` kind (Step 9.6.5, BFF half) carries `value` + `elapsedMs` (no `filters` / `counts` / `kindRegistry`, it's an action-result projection orthogonal to the kindRegistry surface). The `annotations.registered` kind (Step 9.6.6, BFF half) carries `items` + `counts.total` (no `filters` / `kindRegistry`, pure read-only catalog projection). Step 16 piece 1 kinds: `findings` (list shape, `GET /api/nodes/:pathB64/findings`, `counts` additionally requires `fixedExcluded` / `staleExcluded`), `node.prob-extensions` (single shape, `GET /api/nodes/:pathB64/prob-extensions`), `job.submitted` (action-result shape, `POST /api/nodes/:pathB64/jobs`). The `jobs` kind (`GET /api/jobs`, the cross-corpus job list) rides a registry-less list shape (`items` + `filters` + `counts`, no `kindRegistry` / `providerRegistry` / `contributionsRegistry`). The `health` / `scan` / `graph` values are reserved for documentation parity with the routes that DON'T use this envelope."
     },
     "items": {
       "type": "array",
@@ -568,6 +569,145 @@
           {
             "required": [
               "elapsedMs"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "description": "Cross-corpus job-queue list envelope served by `GET /api/jobs` (the read side of the UI queue inspector; HTTP face of `sm jobs list`). A REGISTRY-LESS list shape: `items` (each a public `Job` projection: every `job.schema.json` field EXCEPT the `nonce` record credential, which `job-lifecycle.md` §Atomic claim · Nonce exposure forbids on read surfaces) + `filters` (echo of the applied `status` / `extension` / `node`, `null` when absent) + `counts` (`total` = `returned` = `items.length`; the endpoint does not paginate). The kind / provider / contribution registries are intentionally absent, the queue projection is orthogonal to those catalogs (same rationale as the action-result and annotation / contribution-catalog variants), the SPA already holds them cached from a prior list call, and dropping them keeps the route on a narrow read-only deps bag. Rows are newest-first (`createdAt DESC, id DESC`).",
+      "required": [
+        "items",
+        "counts",
+        "filters"
+      ],
+      "properties": {
+        "kind": {
+          "const": "jobs"
+        },
+        "counts": {
+          "required": [
+            "total",
+            "returned"
+          ]
+        },
+        "items": {
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "extensionId",
+              "extensionVersion",
+              "extensionKind",
+              "nodeId",
+              "contentHash",
+              "status",
+              "ttlSeconds",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^d-\\d{8}-\\d{6}-[0-9a-f]{4}$",
+                "description": "Job id: `d-YYYYMMDD-HHMMSS-XXXX`. Human-readable, sortable."
+              },
+              "extensionId": {
+                "type": "string",
+                "description": "Qualified id of the submitted probabilistic extension (Action or Analyzer)."
+              },
+              "extensionVersion": {
+                "type": "string",
+                "description": "Semver of the extension implementation at submit time. Frozen for this job."
+              },
+              "extensionKind": {
+                "type": "string",
+                "enum": ["action", "analyzer"],
+                "description": "Extension kind resolved at submit time, frozen like the version."
+              },
+              "autoFix": {
+                "type": "boolean",
+                "description": "Per-job auto-fix opt-in, frozen at submit. `true` only on a finder job whose fixers `sm record` chains on completion. Default `false`.",
+                "default": false
+              },
+              "nodeId": {
+                "type": "string",
+                "description": "Target `node.path`."
+              },
+              "contentHash": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$",
+                "description": "sha256 duplicate-detection key over the rendered-content tuple."
+              },
+              "priority": {
+                "type": "integer",
+                "description": "Higher = claimed first. Default 0.",
+                "default": 0
+              },
+              "status": {
+                "type": "string",
+                "enum": ["queued", "running", "completed", "failed", "cancelled"],
+                "description": "Lifecycle state. Three terminal states: `completed`, `failed`, `cancelled`."
+              },
+              "failureReason": {
+                "type": ["string", "null"],
+                "enum": ["runner-error", "report-invalid", "timeout", "abandoned", "job-file-missing", "user-failed", null],
+                "description": "Populated ONLY when `status = failed`; `null` otherwise."
+              },
+              "runner": {
+                "type": ["string", "null"],
+                "enum": ["agent", "in-process", null]
+              },
+              "ttlSeconds": {
+                "type": ["integer", "null"],
+                "minimum": 1,
+                "description": "Optional TTL resolved at submit from explicit operator sources only. NULL (the default) = the job never expires."
+              },
+              "createdAt": { "type": "integer", "description": "Unix ms. Submit time." },
+              "claimedAt": { "type": ["integer", "null"], "description": "Unix ms. Null while queued." },
+              "finishedAt": { "type": ["integer", "null"], "description": "Unix ms. Null while not terminal." },
+              "expiresAt": {
+                "type": ["integer", "null"],
+                "description": "Derived = claimedAt + ttlSeconds × 1000 for TTL-armed jobs. Null while queued and for the life of a TTL-less job."
+              },
+              "submittedBy": {
+                "type": ["string", "null"],
+                "description": "Free-form provenance: username, CI job id, or `skill:<skill-id>`."
+              }
+            }
+          }
+        }
+      },
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "item"
+            ]
+          },
+          {
+            "required": [
+              "value"
+            ]
+          },
+          {
+            "required": [
+              "elapsedMs"
+            ]
+          },
+          {
+            "required": [
+              "kindRegistry"
+            ]
+          },
+          {
+            "required": [
+              "providerRegistry"
+            ]
+          },
+          {
+            "required": [
+              "contributionsRegistry"
             ]
           }
         ]

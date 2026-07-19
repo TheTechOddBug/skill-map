@@ -62,6 +62,7 @@ import type { IJobsConfig } from '../../kernel/config/loader.js';
 import {
   generateRunId,
   type ISuppressionMatch,
+  toPublicJob,
   unescapeUserContentClose,
 } from '../../kernel/jobs/index.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
@@ -130,18 +131,6 @@ function parseIntFlag(raw: string | undefined): number | undefined {
  * `defaults.json` value; kept in code so a hand-built config still resolves.
  */
 const DEFAULT_CLAIM_WAIT_SECONDS = 2;
-
-/**
- * Public projection of a `Job` for the read surfaces (`sm jobs list --json`
- * / `sm jobs show --json`): every field EXCEPT `nonce`. The nonce is the
- * sole record credential and travels only on the contracted carriers,
- * `sm jobs submit --json` (creator envelope) and `sm jobs claim --json`
- * (handover). See `spec/job-lifecycle.md` §Atomic claim · Nonce exposure.
- */
-function toPublicJob(job: Job): Omit<Job, 'nonce'> {
-  const { nonce: _nonce, ...pub } = job;
-  return pub;
-}
 
 // ---------------------------------------------------------------------------
 // sm jobs submit

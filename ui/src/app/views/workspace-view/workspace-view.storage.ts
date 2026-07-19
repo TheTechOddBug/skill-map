@@ -8,6 +8,10 @@
 
 const RAIL_WIDTH_KEY = 'sm.workspace.rail-width';
 const RAIL_COLLAPSED_KEY = 'sm.workspace.rail-collapsed';
+const RAIL_SECTION_KEY = 'sm.workspace.rail-section';
+
+/** Which panel the rail shows: the files navigator or the job queue. */
+export type TWorkspaceSection = 'files' | 'queue';
 
 export function readStoredRailWidth(): number | null {
   let raw: string | null = null;
@@ -49,6 +53,29 @@ export function readStoredRailCollapsed(): boolean | null {
 export function writeStoredRailCollapsed(collapsed: boolean): void {
   try {
     localStorage.setItem(RAIL_COLLAPSED_KEY, collapsed ? '1' : '0');
+  } catch {
+    // Quota exceeded or storage blocked, the preference just won't persist.
+  }
+}
+
+/**
+ * Which panel the rail shows (`'files'` navigator or `'queue'`
+ * inspector). `null` when the user has never switched (or storage is
+ * blocked / malformed): the caller falls back to the files default.
+ */
+export function readStoredActiveSection(): TWorkspaceSection | null {
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(RAIL_SECTION_KEY);
+  } catch {
+    return null;
+  }
+  return raw === 'files' || raw === 'queue' ? raw : null;
+}
+
+export function writeStoredActiveSection(section: TWorkspaceSection): void {
+  try {
+    localStorage.setItem(RAIL_SECTION_KEY, section);
   } catch {
     // Quota exceeded or storage blocked, the preference just won't persist.
   }

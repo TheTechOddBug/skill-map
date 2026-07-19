@@ -30,6 +30,8 @@ import type {
   IFolderNodeLite,
   IHealthResponseApi,
   IIssueApi,
+  IJobApi,
+  IJobsEnvelopeApi,
   IJobSubmittedEnvelopeApi,
   IKindRegistryApi,
   ILinkApi,
@@ -75,6 +77,7 @@ import {
   type IDataSourcePort,
   type IActionDispatchOpts,
   type IIssuesQuery,
+  type IJobsQuery,
   type ILinksQuery,
   type INodesQuery,
   type IPluginChange,
@@ -573,6 +576,24 @@ export class RestDataSource implements IDataSourcePort {
       { extension: extensionId, autoFix },
       'POST',
     );
+  }
+
+  /**
+   * `GET /api/jobs`, the queue projection for the workspace queue
+   * inspector. Returns the registry-less `kind: 'jobs'` envelope's
+   * `items`; any 4xx/5xx propagates as `DataSourceError` (via
+   * `translateError`, threaded through `getJson`).
+   */
+  async listJobs(query: IJobsQuery = {}): Promise<IJobApi[]> {
+    const params = new URLSearchParams();
+    if (query.status) params.set('status', query.status);
+    if (query.extension) params.set('extension', query.extension);
+    if (query.node) params.set('node', query.node);
+    const qs = params.toString();
+    const envelope = await this.getJson<IJobsEnvelopeApi<IJobApi>>(
+      `${BASE}/jobs${qs ? `?${qs}` : ''}`,
+    );
+    return envelope.items;
   }
 
   /**

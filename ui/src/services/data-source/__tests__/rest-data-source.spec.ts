@@ -425,6 +425,48 @@ describe('RestDataSource', () => {
     });
   });
 
+  it('listJobs() GETs /api/jobs with no query string and returns the envelope items', async () => {
+    const items = [
+      { id: 'j1', extensionId: 'core/x', status: 'queued', nodeId: 'a.md', createdAt: 1 },
+      { id: 'j2', extensionId: 'core/y', status: 'running', nodeId: 'b.md', createdAt: 2 },
+    ];
+    const promise = ds.listJobs();
+    const req = httpMock.expectOne('/api/jobs');
+    expect(req.request.method).toBe('GET');
+    req.flush({
+      schemaVersion: '1',
+      kind: 'jobs',
+      items,
+      filters: { status: null, extension: null, node: null },
+      counts: { total: 2, returned: 2 },
+    });
+    await expect(promise).resolves.toEqual(items);
+  });
+
+  it('listJobs(query) encodes status / extension / node filters into the query string', async () => {
+    const promise = ds.listJobs({ status: 'queued', extension: 'core/x', node: 'docs/a.md' });
+    const req = httpMock.expectOne('/api/jobs?status=queued&extension=core%2Fx&node=docs%2Fa.md');
+    expect(req.request.method).toBe('GET');
+    req.flush({
+      schemaVersion: '1',
+      kind: 'jobs',
+      items: [],
+      filters: { status: 'queued', extension: 'core/x', node: 'docs/a.md' },
+      counts: { total: 0, returned: 0 },
+    });
+    await expect(promise).resolves.toEqual([]);
+  });
+
+  it('listJobs() surfaces a 5xx error envelope via DataSourceError', async () => {
+    const promise = ds.listJobs();
+    const req = httpMock.expectOne('/api/jobs');
+    req.flush(
+      { ok: false, error: { code: 'internal', message: 'boom' } },
+      { status: 500, statusText: 'Internal Server Error' },
+    );
+    await expect(promise).rejects.toMatchObject({ name: 'DataSourceError', code: 'internal' });
+  });
+
   it('listLinks() builds the kind/from/to query string', async () => {
     const promise = ds.listLinks({ kind: ['invokes'], from: 'a.md', to: 'b.md' });
     const req = httpMock.expectOne('/api/links?kind=invokes&from=a.md&to=b.md');

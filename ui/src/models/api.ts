@@ -1625,6 +1625,67 @@ export interface IJobSubmittedEnvelopeApi {
 }
 
 /**
+ * Queue job lifecycle state, mirror of the kernel's `JobStatus`
+ * (`src/kernel/types.ts`). The queue inspector tints / glyphs each state:
+ * `queued` / `running` are non-terminal (cancellable); `completed` /
+ * `failed` / `cancelled` are terminal.
+ */
+export type TJobStatusApi = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+/**
+ * One `state_jobs` row as projected by `GET /api/jobs` (`kind: 'jobs'`).
+ * Mirror of the BFF's `PublicJob` (`src/kernel/jobs/public-job.ts`): every
+ * `Job` field EXCEPT the record credential `nonce`, which never crosses a
+ * read surface. Timestamps are Unix ms.
+ */
+export interface IJobApi {
+  /** `d-YYYYMMDD-HHMMSS-XXXX`, human-readable + sortable. */
+  id: string;
+  extensionId: string;
+  extensionVersion: string;
+  /** `action` | `analyzer`, frozen at submit. */
+  extensionKind: string;
+  /** Per-job auto-fix opt-in (a finder job chains its fixers on completion). */
+  autoFix: boolean;
+  /** Target `node.path`. */
+  nodeId: string;
+  contentHash: string;
+  priority: number;
+  status: TJobStatusApi;
+  /** Populated on a failed job; `null` otherwise. */
+  failureReason: string | null;
+  /** `agent` | `in-process`; `null` until claimed. */
+  runner: string | null;
+  /** Optional TTL in seconds; `null` = never expires (the default). */
+  ttlSeconds: number | null;
+  createdAt: number;
+  /** `null` until a processing agent claims the job. */
+  claimedAt: number | null;
+  /** `null` until the job reaches a terminal state. */
+  finishedAt: number | null;
+  /** Reaper deadline; `null` when the job never expires. */
+  expiresAt: number | null;
+  /** Free-form submitter tag; `null` when unset. */
+  submittedBy: string | null;
+}
+
+/**
+ * Registry-less `GET /api/jobs` list envelope (`kind: 'jobs'`). Mirror of
+ * the BFF's `IJobsEnvelope` (`src/server/envelope.ts`): unlike the other
+ * list envelopes it carries NO kind / provider / contributions registries
+ * (a queue projection is orthogonal to those catalogs). The endpoint does
+ * not paginate, so `counts.total` equals `counts.returned`.
+ */
+export interface IJobsEnvelopeApi<TItem> {
+  schemaVersion: typeof REST_ENVELOPE_SCHEMA_VERSION;
+  kind: 'jobs';
+  items: TItem[];
+  /** Echo of the applied filters (`status` / `extension` / `node`). */
+  filters: Record<string, unknown>;
+  counts: { total: number; returned: number };
+}
+
+/**
  * One registered annotation contribution declared by a plugin manifest
  * and surfaced by `GET /api/annotations/registered`. Mirror of the
  * kernel's `IRegisteredAnnotationKey`.

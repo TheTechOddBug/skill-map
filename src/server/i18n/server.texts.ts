@@ -694,4 +694,9 @@ export const SERVER_TEXTS = {
   // the CLI's `sm jobs cancel` messages (`jobs-queue.texts.ts`).
   jobCancelNotFound: 'job {{id}} not found',
   jobCancelAlreadyTerminal: 'job {{id}} is already terminal; nothing to cancel',
+
+  // Query validation on `GET /api/jobs` (the cross-corpus job list). An
+  // unknown `status` filter value is the only 400 the route can raise.
+  jobsListBadStatus:
+    'unknown status {{value}}; expected one of {{allowed}}',
 } as const;

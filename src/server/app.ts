@@ -113,6 +113,7 @@ import { registerActivitySummaryRoute } from './routes/activity-summary.js';
 import { registerAgentInstallRoutes } from './routes/agent-install.js';
 import { registerJobCancelRoute } from './routes/job-cancel.js';
 import { registerJobEventsRoute } from './routes/job-events.js';
+import { registerJobsRoute } from './routes/jobs.js';
 import { registerScanRoute } from './routes/scan.js';
 import { registerUpdateStatusRoute } from './routes/update-status.js';
 import { createSpaFallback, createStaticHandler } from './static.js';
@@ -606,6 +607,11 @@ export function createApp(deps: IAppDeps): Hono {
   registerNodeProbExtensionsRoute(app, routeDeps);
   registerNodeJobsRoute(app, { ...routeDeps, broadcaster: deps.broadcaster });
   registerJobCancelRoute(app, { options: routeDeps.options, broadcaster: deps.broadcaster });
+  // Cross-corpus job list (`GET /api/jobs`), the read side of the coming UI
+  // queue inspector. Narrow read-only bag (dbPath only), like the cancel
+  // route; strips the nonce off every row (`spec/job-lifecycle.md`
+  // §Nonce exposure).
+  registerJobsRoute(app, { options: routeDeps.options });
   registerLinksRoute(app, routeDeps);
   registerIssuesRoute(app, routeDeps);
   registerFoldersRoute(app, routeDeps);

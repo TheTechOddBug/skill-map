@@ -39,8 +39,53 @@
   border-bottom: 1px solid var(--sm-border);
 }
 
-.workspace__rail.is-collapsed .workspace__rail-bar {
-  justify-content: center;
+/* Collapsed activity bar: a centered vertical stack of section icons
+   (Files / Queue today). Sized to sit inside the 44px collapsed rail. */
+.workspace__activity-bar {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0;
+}
+
+/* Open tab strip: the Files / Queue tabs on the left, the collapse
+   chevron pushed to the right edge. */
+.workspace__rail-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.35rem 0.4rem 0;
+}
+
+.workspace__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.6rem;
+  border: none;
+  border-radius: var(--sm-radius-lg);
+  background: transparent;
+  color: var(--p-text-muted-color);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.workspace__tab:hover {
+  background: var(--p-content-hover-background);
+  color: var(--p-text-color);
+}
+
+.workspace__tab i {
+  font-size: 0.8rem;
+}
+
+/* Chevron pins to the right edge of the tab strip. */
+.workspace__rail-collapse {
+  margin-left: auto;
 }
 
 .workspace__search {
@@ -112,10 +157,12 @@
   cursor: default;
 }
 
-/* Behavior toggles (search → map coupling, files-follows-selection): lit
-   when active, muted at rest. Shared lit-state for every rail toggle that
-   carries `is-active`; the reset / collapse buttons never set it. */
-.workspace__rail-btn.is-active {
+/* Behavior toggles (search → map coupling, files-follows-selection) AND
+   the section tabs / icons: lit when active, muted at rest. Shared
+   lit-state for every rail control that carries `is-active`; the reset /
+   collapse buttons never set it. */
+.workspace__rail-btn.is-active,
+.workspace__tab.is-active {
   color: var(--p-primary-color);
   background: var(--p-highlight-background);
 }
@@ -130,8 +177,11 @@
 
 /* Host-level overrides: the files view is authored as a centered, padded
    standalone page. Inside the rail it must fill edge-to-edge. The host
-   element lives in this template, so no ::ng-deep is needed for these. */
-.workspace__rail-body sm-files-view {
+   element lives in this template, so no ::ng-deep is needed for these.
+   The queue view is embedded on the same footing, so it gets the analogous
+   rule. */
+.workspace__rail-body sm-files-view,
+.workspace__rail-body sm-queue-view {
   display: flex;
   flex-direction: column;
   flex: 1;

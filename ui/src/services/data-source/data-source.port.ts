@@ -38,6 +38,7 @@ import type { IActionsPort } from './ports/actions.port';
 import type { IActivityPort } from './ports/activity.port';
 import type { IAgentPort } from './ports/agent.port';
 import type { ICorpusPort } from './ports/corpus.port';
+import type { IJobsPort } from './ports/jobs.port';
 import type { IPluginsPort } from './ports/plugins.port';
 import type { ISettingsPort } from './ports/settings.port';
 
@@ -49,6 +50,7 @@ export type {
   TGraphFormat,
 } from './ports/corpus.port';
 export type { IPluginsPort, TPluginItem, IPluginChange } from './ports/plugins.port';
+export type { IJobsPort, IJobsQuery } from './ports/jobs.port';
 export type { ISettingsPort } from './ports/settings.port';
 export type { IActivityPort } from './ports/activity.port';
 export type { IAgentPort } from './ports/agent.port';
@@ -64,7 +66,8 @@ export interface IDataSourcePort
     ISettingsPort,
     IActivityPort,
     IAgentPort,
-    IActionsPort {
+    IActionsPort,
+    IJobsPort {
   /**
    * WebSocket-backed event stream. In live mode, returns the
    * `WsEventStreamService` multicast observable that connects to `/ws`
