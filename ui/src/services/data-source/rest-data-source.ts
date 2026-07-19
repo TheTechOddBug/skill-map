@@ -612,6 +612,28 @@ export class RestDataSource implements IDataSourcePort {
     }
   }
 
+  /** `POST /api/jobs/cancel-all`, cancel every active job. Answers `204`. */
+  async cancelAllJobs(): Promise<void> {
+    try {
+      await firstValueFrom(this.http.post(`${BASE}/jobs/cancel-all`, null));
+    } catch (err) {
+      throw this.translateError(err);
+    }
+  }
+
+  /**
+   * `POST /api/jobs/prune[?status=]`, delete terminal jobs now (all terminal
+   * states, or just the given one). Answers `204`.
+   */
+  async pruneJobs(status?: 'completed' | 'failed' | 'cancelled'): Promise<void> {
+    const url = status ? `${BASE}/jobs/prune?status=${status}` : `${BASE}/jobs/prune`;
+    try {
+      await firstValueFrom(this.http.post(url, null));
+    } catch (err) {
+      throw this.translateError(err);
+    }
+  }
+
   async getUpdateStatus(): Promise<IUpdateStatusResponseApi> {
     return this.getJson<IUpdateStatusResponseApi>(`${BASE}/update-status`);
   }

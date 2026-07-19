@@ -2,9 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { EMPTY, Subject, BehaviorSubject } from 'rxjs';
 import { ActivatedRoute, convertToParamMap, type ParamMap } from '@angular/router';
+import { ConfirmationService } from 'primeng/api';
 
 import { QueueView } from '../queue-view';
-import { DATA_SOURCE } from '../../../../services/data-source/data-source.port';
+import {
+  DATA_SOURCE,
+  DataSourceError,
+} from '../../../../services/data-source/data-source.port';
 import { WsEventStreamService } from '../../../../services/ws-event-stream';
 import { NODE_OPEN_INTENT } from '../../../slots/node-open-intent';
 import type { IJobApi } from '../../../../models/api';
@@ -42,12 +46,18 @@ function makeJob(overrides: Partial<IJobApi> = {}): IJobApi {
 interface IStubDataSource {
   listJobs: ReturnType<typeof vi.fn>;
   cancelJob: ReturnType<typeof vi.fn>;
+  submitNodeJob: ReturnType<typeof vi.fn>;
+  cancelAllJobs: ReturnType<typeof vi.fn>;
+  pruneJobs: ReturnType<typeof vi.fn>;
 }
 
 function makeDataSource(jobs: IJobApi[] = []): IStubDataSource {
   return {
     listJobs: vi.fn().mockResolvedValue(jobs),
     cancelJob: vi.fn().mockResolvedValue(undefined),
+    submitNodeJob: vi.fn().mockResolvedValue({ value: {} }),
+    cancelAllJobs: vi.fn().mockResolvedValue(undefined),
+    pruneJobs: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -394,5 +404,141 @@ describe('QueueView', () => {
     await flush(fixture);
 
     expect(openIntent.open).not.toHaveBeenCalled();
+  });
+
+  it('offers Cancel only on active rows and Retry only on failed rows', async () => {
+    const jobs = [
+      makeJob({ id: 'active', status: 'running', claimedAt: Date.now() }),
+      makeJob({ id: 'failed', status: 'failed', finishedAt: Date.now() }),
+      makeJob({ id: 'done', status: 'completed', finishedAt: Date.now() }),
+    ];
+    const { fixture } = bootstrap({ jobs });
+    await flush(fixture);
+
+    // Active row: Cancel, no Retry.
+    expect(dom(fixture).querySelector('[data-testid="queue-cancel-active"]')).not.toBeNull();
+    expect(dom(fixture).querySelector('[data-testid="queue-retry-active"]')).toBeNull();
+    // Failed row: Retry, no Cancel.
+    expect(dom(fixture).querySelector('[data-testid="queue-retry-failed"]')).not.toBeNull();
+    expect(dom(fixture).querySelector('[data-testid="queue-cancel-failed"]')).toBeNull();
+    // Completed row: no action (retry is failed-only).
+    expect(dom(fixture).querySelector('[data-testid="queue-retry-done"]')).toBeNull();
+    expect(dom(fixture).querySelector('[data-testid="queue-cancel-done"]')).toBeNull();
+    // The Fail affordance is gone entirely.
+    expect(dom(fixture).querySelector('[data-testid="queue-fail-active"]')).toBeNull();
+  });
+
+  it('retries a terminal row: re-submits the same extension+node with the frozen autoFix', async () => {
+    const { fixture, dataSource } = bootstrap({
+      jobs: [
+        makeJob({
+          id: 'j1',
+          status: 'failed',
+          finishedAt: Date.now(),
+          autoFix: true,
+          nodeId: 'docs/x.md',
+          extensionId: 'core/ai-redundancy-analyzer',
+        }),
+      ],
+    });
+    await flush(fixture);
+
+    (dom(fixture).querySelector('[data-testid="queue-retry-j1"] button') as HTMLButtonElement).click();
+    await flush(fixture);
+
+    expect(dataSource.submitNodeJob).toHaveBeenCalledWith(
+      'docs/x.md',
+      'core/ai-redundancy-analyzer',
+      true,
+    );
+  });
+
+  it('retry tolerates a duplicate-job refusal without surfacing an error', async () => {
+    const ds = makeDataSource([makeJob({ id: 'j1', status: 'failed', finishedAt: Date.now() })]);
+    ds.submitNodeJob.mockRejectedValueOnce(new DataSourceError('duplicate-job', 'already queued'));
+    const { fixture } = bootstrap({ dataSource: ds });
+    await flush(fixture);
+
+    (dom(fixture).querySelector('[data-testid="queue-retry-j1"] button') as HTMLButtonElement).click();
+    await flush(fixture);
+
+    expect(ds.submitNodeJob).toHaveBeenCalled();
+    // A duplicate is a no-op: no error strip renders.
+    expect(dom(fixture).querySelector('p-message')).toBeNull();
+  });
+
+  it('bulk cancel-all: confirms first, cancels every active job on accept', async () => {
+    const { fixture, dataSource } = bootstrap({
+      jobs: [
+        makeJob({ id: 'j1', status: 'queued' }),
+        makeJob({ id: 'j2', status: 'running', claimedAt: Date.now() }),
+      ],
+    });
+    await flush(fixture);
+
+    const confirm = fixture.debugElement.injector.get(ConfirmationService);
+    const confirmSpy = vi.spyOn(confirm, 'confirm');
+
+    (dom(fixture).querySelector('[data-testid="queue-cancel-all"]') as HTMLButtonElement).click();
+    await flush(fixture);
+
+    // The click only opens the confirm; the mutation waits for accept.
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(dataSource.cancelAllJobs).not.toHaveBeenCalled();
+
+    const config = confirmSpy.mock.calls[0]![0] as { accept?: () => void };
+    config.accept?.();
+    await flush(fixture);
+
+    expect(dataSource.cancelAllJobs).toHaveBeenCalledTimes(1);
+  });
+
+  it('clear finished: shown when terminal jobs exist, clears them all on accept', async () => {
+    const { fixture, dataSource } = bootstrap({
+      jobs: [makeJob({ id: 'j1', status: 'completed', finishedAt: Date.now() })],
+    });
+    await flush(fixture);
+
+    const btn = dom(fixture).querySelector(
+      '[data-testid="queue-clear-finished"]',
+    ) as HTMLButtonElement;
+    expect(btn).not.toBeNull();
+    // No active jobs → no cancel-all; no failed jobs → no clear-failed.
+    expect(dom(fixture).querySelector('[data-testid="queue-cancel-all"]')).toBeNull();
+    expect(dom(fixture).querySelector('[data-testid="queue-clear-failed"]')).toBeNull();
+
+    const confirm = fixture.debugElement.injector.get(ConfirmationService);
+    const confirmSpy = vi.spyOn(confirm, 'confirm');
+    btn.click();
+    await flush(fixture);
+    (confirmSpy.mock.calls[0]![0] as { accept?: () => void }).accept?.();
+    await flush(fixture);
+
+    // No status argument → clears every terminal state.
+    expect(dataSource.pruneJobs).toHaveBeenCalledWith();
+  });
+
+  it('clear failed: shown only when failed jobs exist, clears just failed on accept', async () => {
+    const jobs = [
+      makeJob({ id: 'f1', status: 'failed', finishedAt: Date.now() }),
+      makeJob({ id: 'c1', status: 'completed', finishedAt: Date.now() }),
+    ];
+    const { fixture, dataSource } = bootstrap({ jobs });
+    await flush(fixture);
+
+    const btn = dom(fixture).querySelector(
+      '[data-testid="queue-clear-failed"]',
+    ) as HTMLButtonElement;
+    expect(btn).not.toBeNull();
+
+    const confirm = fixture.debugElement.injector.get(ConfirmationService);
+    const confirmSpy = vi.spyOn(confirm, 'confirm');
+    btn.click();
+    await flush(fixture);
+    (confirmSpy.mock.calls[0]![0] as { accept?: () => void }).accept?.();
+    await flush(fixture);
+
+    // Scoped prune: only the failed state.
+    expect(dataSource.pruneJobs).toHaveBeenCalledWith('failed');
   });
 });

@@ -149,4 +149,24 @@ export interface IActionsPort {
    * client. Demo mode rejects with `'demo-readonly'`.
    */
   cancelJob(jobId: string): Promise<void>;
+
+  /**
+   * `POST /api/jobs/cancel-all`, cancel EVERY active (queued/running) job
+   * in one transaction, the HTTP face of `sm jobs cancel --all`. Resolves
+   * on `204` (a per-id `job.cancelled` broadcast fans out; the caller
+   * re-fetches). Demo mode rejects with `'demo-readonly'`.
+   */
+  cancelAllJobs(): Promise<void>;
+
+  /**
+   * `POST /api/jobs/prune[?status=]`, delete terminal jobs now. With no
+   * `status` it clears every terminal state (completed + failed +
+   * cancelled), the queue inspector's "clear finished"; with a single
+   * terminal `status` it clears just that state (e.g. `'failed'` for "clear
+   * failed"). DELIBERATELY distinct from the retention-based CLI
+   * `sm jobs prune` (which keeps `failed`). Resolves on `204`; prune emits
+   * NO WS event, so the caller MUST re-fetch. Demo mode rejects with
+   * `'demo-readonly'`.
+   */
+  pruneJobs(status?: 'completed' | 'failed' | 'cancelled'): Promise<void>;
 }

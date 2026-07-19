@@ -118,6 +118,8 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       elapsedMs: 0,
     }),
   cancelJob: () => Promise.resolve(),
+  cancelAllJobs: () => Promise.resolve(),
+  pruneJobs: () => Promise.resolve(),
   listJobs: () => Promise.resolve([]),
   listLinks: () =>
     Promise.resolve({

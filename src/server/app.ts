@@ -111,6 +111,7 @@ import { registerActivityDetailRoutes } from './routes/activity-detail.js';
 import { registerActivityInstallRoutes } from './routes/activity-install.js';
 import { registerActivitySummaryRoute } from './routes/activity-summary.js';
 import { registerAgentInstallRoutes } from './routes/agent-install.js';
+import { registerJobBulkRoutes } from './routes/job-bulk.js';
 import { registerJobCancelRoute } from './routes/job-cancel.js';
 import { registerJobEventsRoute } from './routes/job-events.js';
 import { registerJobsRoute } from './routes/jobs.js';
@@ -607,10 +608,13 @@ export function createApp(deps: IAppDeps): Hono {
   registerNodeProbExtensionsRoute(app, routeDeps);
   registerNodeJobsRoute(app, { ...routeDeps, broadcaster: deps.broadcaster });
   registerJobCancelRoute(app, { options: routeDeps.options, broadcaster: deps.broadcaster });
-  // Cross-corpus job list (`GET /api/jobs`), the read side of the coming UI
-  // queue inspector. Narrow read-only bag (dbPath only), like the cancel
-  // route; strips the nonce off every row (`spec/job-lifecycle.md`
-  // §Nonce exposure).
+  // Queue-inspector bulk affordances: cancel-all (broadcasts one
+  // `job.cancelled` per affected id) and prune (silent GC of all terminal
+  // jobs). Same narrow bag as the single-job cancel route.
+  registerJobBulkRoutes(app, { options: routeDeps.options, broadcaster: deps.broadcaster });
+  // Cross-corpus job list (`GET /api/jobs`), the read side of the UI queue
+  // inspector. Narrow read-only bag (dbPath only), like the cancel route;
+  // strips the nonce off every row (`spec/job-lifecycle.md` §Nonce exposure).
   registerJobsRoute(app, { options: routeDeps.options });
   registerLinksRoute(app, routeDeps);
   registerIssuesRoute(app, routeDeps);

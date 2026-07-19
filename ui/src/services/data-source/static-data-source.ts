@@ -825,6 +825,20 @@ export class StaticDataSource implements IDataSourcePort {
     );
   }
 
+  async cancelAllJobs(): Promise<void> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Bulk job cancellation is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async pruneJobs(): Promise<void> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Pruning jobs is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
   /**
    * Demo mode: the static bundle records no queue (there is no BFF and no
    * processing agent), so the job list is honestly empty. Mirrors the

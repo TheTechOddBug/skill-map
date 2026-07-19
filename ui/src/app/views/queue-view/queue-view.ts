@@ -1,14 +1,18 @@
 /**
- * `<sm-queue-view>`, the workspace rail's job-queue inspector (Slice 1).
+ * `<sm-queue-view>`, the workspace rail's job-queue inspector.
  *
  * Self-contained like `<sm-files-view>`: no `@Input`s, it injects the
  * data-source port and the WS stream directly. It reads the queue on
  * mount (the rail creates it when the Queue tab becomes active) and
  * re-fetches, debounced, on any `job.*` lifecycle frame, the same live
- * posture as the inspector's AI-actions card. Cancelling a queued /
- * running row optimistically flips it to `cancelled`; the `job.cancelled`
- * broadcast (plus the re-fetch it triggers) reconciles the authoritative
- * state.
+ * posture as the inspector's AI-actions card.
+ *
+ * Row actions: an active (queued / running) row can be CANCELLED or FAILED
+ * (optimistically flipped, reconciled by the WS broadcast + re-fetch); a
+ * terminal row can be RETRIED (a fresh re-submit for the same
+ * extension+node, since the lifecycle has no terminal->queued edge). Bulk
+ * actions (cancel-all / fail-all all active, prune all terminal) run behind
+ * a confirm dialog and re-fetch.
  */
 
 import {
@@ -30,6 +34,8 @@ import { MessageModule } from 'primeng/message';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { ConfirmationService } from 'primeng/api';
 
 import type { IJobApi, TJobStatusApi } from '../../../models/api';
 import { shortExtensionLabel } from '../../../models/extension-label';
@@ -54,6 +60,13 @@ const QUEUE_LIVE_REFRESH_DEBOUNCE_MS = 400;
  * optimistic cancel until the server confirms the job left them.
  */
 const ACTIVE_STATUSES: ReadonlySet<TJobStatusApi> = new Set(['queued', 'running']);
+
+/** Terminal states: retryable (re-submit), and the prune target. */
+const TERMINAL_STATUSES: ReadonlySet<TJobStatusApi> = new Set([
+  'completed',
+  'failed',
+  'cancelled',
+]);
 
 /** Lifecycle order for the status filter chips (and their stable pulse). */
 const ALL_STATUSES: readonly TJobStatusApi[] = [
@@ -91,7 +104,14 @@ interface IQueueRow {
   nodeId: string;
   age: string;
   ageTooltip: string;
+  /** Frozen auto-fix flag, replayed when a failed job is retried. */
+  autoFix: boolean;
+  /** Active (queued / running): can be cancelled. */
   cancellable: boolean;
+  /** Cancel-button tooltip; a running job warns the stop is best-effort. */
+  cancelTooltip: string;
+  /** Failed: can be retried (a fresh re-submit). */
+  retryable: boolean;
 }
 
 @Component({
@@ -106,7 +126,11 @@ interface IQueueRow {
     IconFieldModule,
     InputIconModule,
     InputTextModule,
+    ConfirmDialogModule,
   ],
+  // Component-scoped confirm service (the app has no global provider; the
+  // established pattern from `graph-view`): each host provides its own.
+  providers: [ConfirmationService],
   templateUrl: './queue-view.html',
   styleUrl: './queue-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -116,6 +140,7 @@ export class QueueView {
   private readonly ws = inject(WsEventStreamService);
   private readonly route = inject(ActivatedRoute);
   private readonly nodeOpenIntent = inject(NODE_OPEN_INTENT);
+  private readonly confirmation = inject(ConfirmationService);
   protected readonly texts = QUEUE_VIEW_TEXTS;
 
   /** Fixed page size for the bottom paginator (the queue pages by 100). */
@@ -138,13 +163,14 @@ export class QueueView {
   protected readonly error = signal<string | null>(null);
 
   /**
-   * Job ids optimistically flipped to `cancelled` after a successful
-   * cancel; reconciled away once the server reports the job terminal /
-   * gone (see `reconcileOptimistic`).
+   * Job ids optimistically flipped to `cancelled` after a successful cancel;
+   * reconciled away once the server reports the job terminal / gone (see
+   * `reconcileOptimistic`).
    */
   private readonly optimisticCancelled = signal<ReadonlySet<string>>(new Set());
-  /** Job ids with a cancel round-trip in flight (disables the button). */
+  /** Job ids with a per-row round-trip in flight (disables that button). */
   private readonly cancelling = signal<ReadonlySet<string>>(new Set());
+  private readonly retrying = signal<ReadonlySet<string>>(new Set());
 
   /**
    * Rendered rows: the fetched jobs projected to the view shape with the
@@ -155,8 +181,26 @@ export class QueueView {
   protected readonly rows = computed<IQueueRow[]>(() => {
     const cancelled = this.optimisticCancelled();
     const now = Date.now();
-    return this.jobs().map((job) => this.toRow(job, cancelled.has(job.id), now));
+    // Strict age order, newest first: sort by the SAME clock the age cell
+    // shows (since-claimed for a running job, else since-created), so the age
+    // column reads monotonically top to bottom regardless of status.
+    return [...this.jobs()]
+      .sort((a, b) => ageBase(b) - ageBase(a))
+      .map((job) => this.toRow(job, cancelled.has(job.id) ? 'cancelled' : null, now));
   });
+
+  /** Active (queued + running) job count, drives the bulk cancel / fail. */
+  protected readonly activeCount = computed(
+    () => this.rows().filter((r) => ACTIVE_STATUSES.has(r.status)).length,
+  );
+  /** Terminal (completed + failed + cancelled) count, drives "clear finished". */
+  protected readonly terminalCount = computed(
+    () => this.rows().filter((r) => TERMINAL_STATUSES.has(r.status)).length,
+  );
+  /** Failed count, drives the narrower "clear failed" button. */
+  protected readonly failedCount = computed(
+    () => this.rows().filter((r) => r.status === 'failed').length,
+  );
 
   /**
    * Local (client-side) filters over the fetched rows. The search matches a
@@ -233,6 +277,10 @@ export class QueueView {
     return this.cancelling().has(jobId);
   }
 
+  protected isRetrying(jobId: string): boolean {
+    return this.retrying().has(jobId);
+  }
+
   /**
    * Select this row's node: writes the shared `?path` selection so the graph
    * reveals + selects it, the inspector opens it, and every queue row for the
@@ -293,45 +341,114 @@ export class QueueView {
   }
 
   /**
-   * Cancel one job. Optimistically flips the row to `cancelled`; the
-   * `job.cancelled` WS broadcast (and the debounced re-fetch it triggers,
-   * plus the direct re-fetch here) reconciles server-side. A `job-terminal`
-   * refusal is NOT an error, the job finished in the race and the re-fetch
-   * settles it.
+   * Cancel one active job. Optimistically flips the row to `cancelled`; the
+   * `job.cancelled` WS broadcast (and the re-fetch it triggers, plus the
+   * direct re-fetch here) reconciles server-side. A `job-terminal` refusal
+   * is NOT an error, the job finished in the race and the re-fetch settles it.
    */
   protected async cancel(row: IQueueRow): Promise<void> {
     if (this.cancelling().has(row.id)) return;
-    this.cancelling.update((s) => new Set(s).add(row.id));
-    this.optimisticCancelled.update((s) => new Set(s).add(row.id));
+    this.cancelling.update((s) => withAdded(s, row.id));
+    this.optimisticCancelled.update((s) => withAdded(s, row.id));
     try {
       await this.dataSource.cancelJob(row.id);
     } catch (err) {
       if (err instanceof DataSourceError && err.code === 'job-terminal') {
         // Finished in the race: keep the flip, the re-fetch reconciles.
       } else {
-        // Real failure: revert the optimistic flip and surface the message.
-        this.optimisticCancelled.update((s) => {
-          const next = new Set(s);
-          next.delete(row.id);
-          return next;
-        });
+        this.optimisticCancelled.update((s) => withRemoved(s, row.id));
         this.error.set(err instanceof Error ? err.message : String(err));
       }
     } finally {
-      this.cancelling.update((s) => {
-        const next = new Set(s);
-        next.delete(row.id);
-        return next;
-      });
+      this.cancelling.update((s) => withRemoved(s, row.id));
       void this.fetch();
     }
   }
 
-  private toRow(job: IJobApi, optimisticallyCancelled: boolean, now: number): IQueueRow {
-    const status: TJobStatusApi = optimisticallyCancelled ? 'cancelled' : job.status;
+  /**
+   * Retry a FAILED job: re-submit a fresh job for the same extension + node
+   * (the lifecycle has no terminal->queued edge), replaying the frozen
+   * `autoFix`. No optimistic flip (this enqueues a NEW row, it does not mutate
+   * the failed one). The re-submit still respects preconditions, so a
+   * `duplicate-job` refusal (an identical active job already exists) is a
+   * no-op, while `node-drifted` / `no-findings` surface as the error; the
+   * re-fetch shows the live queued job.
+   */
+  protected async retry(row: IQueueRow): Promise<void> {
+    if (this.retrying().has(row.id)) return;
+    this.retrying.update((s) => withAdded(s, row.id));
+    try {
+      await this.dataSource.submitNodeJob(row.nodeId, row.extensionId, row.autoFix);
+      this.error.set(null);
+    } catch (err) {
+      if (err instanceof DataSourceError && err.code === 'duplicate-job') {
+        // Already re-queued: nothing to do.
+      } else {
+        this.error.set(err instanceof Error ? err.message : String(err));
+      }
+    } finally {
+      this.retrying.update((s) => withRemoved(s, row.id));
+      void this.fetch();
+    }
+  }
+
+  /** Confirm + cancel every active job (`sm jobs cancel --all`). */
+  protected confirmCancelAll(): void {
+    this.confirmBulk(this.texts.bulk.cancelAll, this.activeCount(), () =>
+      this.dataSource.cancelAllJobs(),
+    );
+  }
+
+  /** Confirm + clear every FAILED job (delete now). */
+  protected confirmClearFailed(): void {
+    this.confirmBulk(this.texts.bulk.clearFailedConfirm, this.failedCount(), () =>
+      this.dataSource.pruneJobs('failed'),
+    );
+  }
+
+  /** Confirm + clear every terminal job (completed + failed + cancelled). */
+  protected confirmClearFinished(): void {
+    this.confirmBulk(this.texts.bulk.clearFinishedConfirm, this.terminalCount(), () =>
+      this.dataSource.pruneJobs(),
+    );
+  }
+
+  /**
+   * Open the shared confirm dialog for a bulk mutation; on accept run the
+   * port op and re-fetch (bulk routes broadcast per id, but prune is silent,
+   * so the direct re-fetch is what refreshes THIS client either way).
+   */
+  private confirmBulk(
+    copy: { header: string; accept: string; message: (count: number) => string },
+    count: number,
+    op: () => Promise<void>,
+  ): void {
+    this.confirmation.confirm({
+      header: copy.header,
+      message: copy.message(count),
+      icon: 'pi pi-exclamation-triangle',
+      acceptButtonProps: { label: copy.accept, severity: 'danger' },
+      rejectButtonProps: { label: this.texts.bulk.reject, severity: 'secondary', outlined: true },
+      accept: () => void this.runBulk(op),
+    });
+  }
+
+  private async runBulk(op: () => Promise<void>): Promise<void> {
+    try {
+      await op();
+      this.error.set(null);
+    } catch (err) {
+      this.error.set(err instanceof Error ? err.message : String(err));
+    } finally {
+      void this.fetch();
+    }
+  }
+
+  private toRow(job: IJobApi, optimisticStatus: TJobStatusApi | null, now: number): IQueueRow {
+    const status: TJobStatusApi = optimisticStatus ?? job.status;
     // Age reads the current-state clock: since claimed for a running job,
     // else since it entered the queue.
-    const base = job.claimedAt ?? job.createdAt;
+    const base = ageBase(job);
     return {
       id: job.id,
       status,
@@ -345,9 +462,31 @@ export class QueueView {
       nodeId: job.nodeId,
       age: formatRelativeAge(base, now),
       ageTooltip: this.texts.ageTooltip(new Date(job.createdAt).toISOString()),
+      autoFix: job.autoFix,
       cancellable: ACTIVE_STATUSES.has(status),
+      cancelTooltip:
+        status === 'running' ? this.texts.cancelRunningTooltip : this.texts.cancelTooltip,
+      retryable: status === 'failed',
     };
   }
+}
+
+/** The clock the age cell + the row sort read: since-claimed for a running
+ *  job, else since-created. */
+function ageBase(job: IJobApi): number {
+  return job.claimedAt ?? job.createdAt;
+}
+
+/** Immutably add an id to a readonly set (new set, for signal updates). */
+function withAdded(set: ReadonlySet<string>, id: string): ReadonlySet<string> {
+  return new Set(set).add(id);
+}
+
+/** Immutably remove an id from a readonly set. */
+function withRemoved(set: ReadonlySet<string>, id: string): ReadonlySet<string> {
+  const next = new Set(set);
+  next.delete(id);
+  return next;
 }
 
 /**

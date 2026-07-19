@@ -139,6 +139,43 @@
   color: var(--sm-severity-error);
 }
 
+/* Bulk action toolbar: compact text + icon buttons under the chips (cancel
+   / fail all active, prune all terminal). */
+.queue__bulk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.queue__bulk-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-lg);
+  background: transparent;
+  color: var(--p-text-muted-color);
+  font: inherit;
+  font-size: var(--queue-fs-xs);
+  cursor: pointer;
+}
+
+.queue__bulk-btn i {
+  font-size: 0.7rem;
+}
+
+.queue__bulk-btn:hover {
+  color: var(--p-text-color);
+  border-color: var(--p-primary-color);
+}
+
+/* Prune is destructive: tint the hover to the error hue. */
+.queue__bulk-btn--danger:hover {
+  color: var(--sm-severity-error);
+  border-color: var(--sm-severity-error);
+}
+
 /* Compact "no match" state: jobs exist but the filter hides them all. */
 .empty-state--compact {
   padding: 1.25rem 1rem;
@@ -211,7 +248,19 @@
 }
 
 .queue__col-status {
-  width: 3.25rem;
+  width: 4.5rem;
+}
+
+/* Status cell: the state glyph plus the row's single inline action (Cancel on
+   an active row, Retry on a failed one), replacing the old actions column. */
+.queue__status-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.queue__row-action {
+  display: inline-flex;
 }
 
 /* Node + extension carry px min/max widths (mirrors the files view's tree
@@ -234,10 +283,6 @@
 .queue__col-age {
   width: 4rem;
   text-align: right;
-}
-
-.queue__col-actions {
-  width: 2.5rem;
 }
 
 /* Status glyph, tinted per lifecycle state. Queued / running stay neutral
@@ -318,10 +363,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.queue__cell-actions {
-  text-align: right;
-}
-
 /* Rows are clickable: a click selects the row's node (writes `?path`), which
    the graph + inspector pick up. */
 .queue__row {
@@ -338,4 +379,13 @@
 
 .queue__row.is-selected td:first-child {
   box-shadow: inset 3px 0 0 0 var(--p-primary-color);
+}
+
+/* A cancelled job reads as struck out across the row's text (the status /
+   kind icons stay clean). Cancelled is the one terminal state with no
+   follow-up action, so the strikethrough marks it as "discarded". */
+.queue__row[data-status='cancelled'] .queue__node,
+.queue__row[data-status='cancelled'] .queue__ext-name,
+.queue__row[data-status='cancelled'] .queue__cell-age {
+  text-decoration: line-through;
 }
