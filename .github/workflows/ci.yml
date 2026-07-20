@@ -85,7 +85,7 @@ jobs:
     # track @playwright/test in e2e/package.json (1.59.1) so the bundled
     # browser revision matches; on a mismatch the `prevalidate:test` hook
     # would fall back to a CDN download. Bump both together.
-    container: mcr.microsoft.com/playwright:v1.59.1-noble
+    container: mcr.microsoft.com/playwright:v1.61.1-noble
     # Generous bound: image pull + install + full validate. No browser
     # download left to stall on.
     timeout-minutes: 20

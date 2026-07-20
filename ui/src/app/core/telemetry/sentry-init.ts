@@ -141,8 +141,20 @@ export function captureUiException(error: unknown): void {
 
 /** The SDK's `breadcrumbsIntegration` factory (erased type-only import). */
 type BreadcrumbsFactory = (typeof import('@sentry/angular'))['breadcrumbsIntegration'];
-/** A Sentry integration, as produced by the SDK's own factories. */
-export type UiIntegration = ReturnType<BreadcrumbsFactory>;
+/**
+ * A Sentry integration, in its GENERAL shape: an element of the SDK's own
+ * default set (erased type-only access, so the SDK stays lazily loaded).
+ * Not `ReturnType<BreadcrumbsFactory>`: since @sentry/angular 10.66 the
+ * factories return name-narrowed subtypes (`Integration & { name:
+ * "Breadcrumbs" }`), which would poison the whole defaults array with
+ * the literal and break both the `init` callback assignment and the
+ * `BrowserSession` name comparison below. The `Integration` interface
+ * itself is not re-exported by `@sentry/angular`, so it is derived from
+ * `getDefaultIntegrations` instead.
+ */
+export type UiIntegration = ReturnType<
+  (typeof import('@sentry/angular'))['getDefaultIntegrations']
+>[number];
 
 /**
  * Build the UI integration set from the SDK defaults. Pure (no SDK init,

@@ -55,10 +55,16 @@ describe('sentry-init (dormant unless consent)', () => {
  */
 describe('buildUiIntegrations (privacy posture)', () => {
   const make = (name: string): UiIntegration => ({ name }) as UiIntegration;
+  // The SDK's breadcrumbs factory returns a name-narrowed subtype since
+  // @sentry/angular 10.66; the fake mirrors that so it satisfies the
+  // `BreadcrumbsFactory` parameter without loosening production types.
+  type BreadcrumbsIntegration = ReturnType<Parameters<typeof buildUiIntegrations>[0]>;
+  const makeBreadcrumbs = (): BreadcrumbsIntegration =>
+    ({ name: 'Breadcrumbs' }) as BreadcrumbsIntegration;
 
   it('drops the BrowserSession integration so no release-health beacon is sent', () => {
     const out = buildUiIntegrations(
-      () => make('Breadcrumbs'),
+      () => makeBreadcrumbs(),
       [make('BrowserSession'), make('Breadcrumbs'), make('GlobalHandlers')],
     );
     expect(out.some((i) => i.name === 'BrowserSession')).toBe(false);
@@ -70,7 +76,7 @@ describe('buildUiIntegrations (privacy posture)', () => {
     const out = buildUiIntegrations(
       (options) => {
         captured = options;
-        return make('Breadcrumbs');
+        return makeBreadcrumbs();
       },
       [make('Breadcrumbs')],
     );
@@ -81,7 +87,7 @@ describe('buildUiIntegrations (privacy posture)', () => {
 
   it('passes every other default integration through untouched', () => {
     const out = buildUiIntegrations(
-      () => make('Breadcrumbs'),
+      () => makeBreadcrumbs(),
       [make('GlobalHandlers'), make('LinkedErrors'), make('HttpContext')],
     );
     expect(out.map((i) => i.name)).toEqual(['GlobalHandlers', 'LinkedErrors', 'HttpContext']);
