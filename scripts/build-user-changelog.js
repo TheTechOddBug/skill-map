@@ -219,7 +219,19 @@ function extractUserFacing(body) {
 const BUMP_RANK = { patch: 1, minor: 2, major: 3 };
 
 /** Pre-1.0 cap: any major while still in 0.x.y → minor instead. */
-function applyBumpType(currentVersion, bumpType) {
+export function applyBumpType(currentVersion, bumpType) {
+  // Changesets pre mode (release/rc channel): the version carries a
+  // `-<tag>.<n>` prerelease suffix, e.g. `0.89.0-rc.0`. During pre mode the
+  // numeric base is frozen (it was already bumped when the base last changed);
+  // each further iteration only increments the prerelease counter. Mirror that
+  // here so the changelog entry label matches the version changesets actually
+  // publishes (`0.89.0-rc.0` → `0.89.0-rc.1`), rather than crashing on the
+  // suffix the base-only regex below cannot parse.
+  const pre = /^(\d+\.\d+\.\d+)-([0-9A-Za-z.-]*?)(\d+)$/.exec(currentVersion);
+  if (pre) {
+    const [, base, prefix, counter] = pre;
+    return `${base}-${prefix}${Number(counter) + 1}`;
+  }
   const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(currentVersion);
   if (!m) {
     throw new Error(`build-user-changelog: cannot parse version "${currentVersion}"`);
