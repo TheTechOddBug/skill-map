@@ -2,6 +2,412 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.89.0",
+      "date": "2026-07-20",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**Leaner Activity timeline.** Each node keeps its 15 most recent runs and up to 10 conversations. AI-run rows now show each run's full name and only flag its status when it failed or was cancelled.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The inspector's Activity panel now shows a combined timeline of live agent activity and skill-map's own analysis runs, with a filter to focus on either.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "A node's error/warning count on the map card now includes its AI findings, not just deterministic issues, so a node flagged only by an analysis run still shows a count. Hover the chip to see the split.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "New fix-it job for broken links: after a scan flags a broken reference, queue `core/ai-reference-action` and the agent repoints the link to where the file actually lives in your project (asking first before it looks outside the project).",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Clicking a finder's Fix now shows the fixer running instead of looking like nothing happened; enabling AI-action plugins takes effect without restarting the server; and the auto toggle is now labelled \"Auto-fixer\".",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Drift shows out of the box.** Scans now flag when a skill's `.sm` sidecar has fallen out of sync with its `.md`, no need to enable anything first. The inspector's Metadata section also drops the old `never bumped` line.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Health check and action catalog.** `sm doctor` now reports DB integrity, pending migrations, queue consistency, and broken plugins. `sm actions list` shows every action you can queue, `sm actions show <id>` its full manifest.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Fixed: the agent drain skill told agents never to edit files, which blocked the new fix-it jobs from doing their work. Run `sm agent install` to update your copy.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "After an agent applies a fix it now re-scans that file, so results stop describing the version it just replaced. Run `sm agent install` to update your copy.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "When your project database is outdated after an upgrade, the error now just says to run `sm scan` (which rebuilds it in one step) instead of a two-command sequence.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "When skill-map's local cache predates an upgrade, commands now tell you exactly that and how to fix it (`sm scan`), instead of crashing with a database error or claiming an extension does not exist.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Two new AI reviews for your files, on by default: contradiction (including risky directive combinations) and incoherence detection. Queue with `sm job submit`, read results with `sm findings`.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Queuing an analysis on a file where you already dismissed that finding now warns you upfront that the result will be dropped, so you can skip the run instead of paying for it.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Findings a fix could not settle now read `human-decision` (your call), not \"declined\". Fixed findings show whether you or the agent decided them, and `sm findings resolve <id>` lets you mark one handled yourself.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Once a fix runs, that finding moves to a `fixed` state and drops out of your default `sm findings` list (see it with `--fixed`), instead of lingering as if still open. Re-run the finder to confirm it is really gone.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "`sm findings --fixed` now lists just the fixed findings (and `--stale` just the stale ones) instead of mixing them into the full list, so reviewing what a fixer did no longer means scrolling past everything else.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Dismissing an AI finding now hides it instead of deleting it.** `sm findings suppressions` lists your dismissals, `sm findings undismiss` brings one back instantly, re-running a finder un-hides its findings, and `sm findings clear` wipes a node's (or all) stored findings.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm findings dismiss <id>` permanently silences a finding you have decided is fine (it stays gone across re-scans, recorded in the file's `.sm` sidecar). Enable the new `core/auto-fix` plugin to have fixers run automatically after their finder.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "New `sm findings` command lists what LLM reviews recorded about your files, including prompt-injection warnings, and hides results for files you edited since. `sm job list --action` is now `--extension`, and `sm check` drops the never-functional `--include-prob`.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm findings` used to say \"No findings\" after you edited a file, hiding results that were merely outdated. It now tells you how many are hidden and how to see them (`--stale`) or refresh them.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Fix findings from the row.** Each finding now has its own fix, dismiss, and delete buttons; stale findings show inline with a stale mark instead of hiding; a finder with open findings waits until you handle them; and deleting a `.sm` no longer hides its file until rescan.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm findings` now shows each finding's id at the start of its row, so you can pass it straight to `sm findings resolve <id>` without digging through `--json`.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Two more fix-it jobs, on by default: reconcile conflicting or jointly-risky directives, and clarify incoherent docs (dangling references, drifting terms, missing context). Queue one with `sm job submit`.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "New fix-it jobs: after an AI review flags issues, queue a matching fixer (like `core/ai-redundancy-action` for repetition) and the draining agent edits the file to resolve exactly what was flagged.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "When an AI fix needs a call only you can make, the agent now asks you to pick from concrete options right there (via the Claude Code question interface) and applies your choice, instead of only leaving a note for later.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Re-queueing a fix for a file no longer piles up outdated fix jobs: the newer one replaces the stale queued one automatically. Jobs an agent is already working on are left alone.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "A fixer's outcome now travels with the finding: see which ones it says it fixed, and, crucially, which it refused and why. Its \"you need to decide this\" note is no longer lost, `sm findings` names those rows even when they are hidden.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "A fix action no longer counts findings you already resolved: the number beside a fixer button now reflects only what still needs fixing.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Fix jobs now tell agents to read the live file instead of trusting a possibly-outdated snapshot, and to check with you before editing when you are there. Run `sm agent install` to refresh the skill.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "You can now queue every fixer for a file in a row: fixing one issue no longer blocks the rest with \"no findings to resolve\". Agents check each older finding against the current text and skip the ones already gone.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Know when your copied skills drift from upstream.** Annotate a node with its GitHub `source`, enable the GitHub plugin and `allowNetworkActions`, and `sm refresh` tells you whether your local copy still matches the original.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The map is now keyboard-navigable: Tab into it, move between nodes with the arrow keys (Ctrl+arrow follows the links), Home/End jump to the first/last node, Space plus arrows moves a node, and +/- zoom. The selected node opens in the inspector, same as clicking.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Typing a bare namespace like `sm jobs` now tells you how many more subcommands exist beyond the three examples shown, instead of looking like a complete list.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The inspector Activity tab now shows a finished AI review right away, even when the run did not change any file (finder or summarizer runs); before, those sometimes only appeared after navigating away and back.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**One-click run everything.** The inspector's analysis launcher loses its group labels and lines every button up in a single row. A new ALL button on the left runs every analysis on the selected node at once, each in its current mode.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The node inspector now shows the AI findings for the file and lets you run analyzers from buttons: detectors are always available, and fix actions appear only when there is a finding for them to resolve. Queued work still runs through your own agent.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The AI-action buttons in the inspector now match the app theme instead of rendering in a flat grey.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The inspector's findings panel is now \"AI actions\" with cleaner button names, and the processing skill reports more concisely and re-scans correctly after a fix.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Inspector tooltips and the capture badge.** Button tooltips in the inspector now open toward the screen instead of getting clipped at the right edge, and the \"capture on\" badge shows only on nodes that kept conversations, not on every node while capture is on.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Clearer message when your project database is out of date.** After upgrading `sm`, a command that writes to an outdated `.skill-map` database now prints a short \"run `sm db reset --hard`, then `sm scan`\" advisory instead of crashing with a cryptic error.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Queued jobs now carry their exact answer format inside the prompt, so agents draining your queue stop guessing (and failing) on report fields. New `sm findings prune` clears out findings that refer to file versions you have since edited.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The inspector now updates the moment your agent picks up or finishes a job: state changes made from the terminal show up live in the browser without reloading.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Preview your latest job instantly.** After `sm job submit`, run `sm job preview --last` to read the rendered prompt without copying the job id.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Run your job queue against the LLM.** `sm job run` (and `--all`) now runs and records jobs end-to-end through `claude`. Two security fixes: a job's record credential no longer leaks via `job list`/`show --json`, and the injection delimiter resists cased or padded close tags.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Leave your agent watching the queue: `sm jobs claim --wait` waits for the next job instead of stopping when the queue is empty, so it wakes up only when there is work. Set how often it checks with `--interval` seconds, or the `jobs.claimWaitSeconds` setting.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Submitting an analysis job now checks that an agent is actually set up to run it: if you never ran `sm agent install`, the submit stops and tells you how the queue works instead of leaving the job waiting forever.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "You can now stop a running or queued analysis from the inspector: a killed or stuck agent's job no longer sits there forever, one click cancels it.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Summarize anything (opt-in).** Enable it with `sm plugins enable core/ai-summarizer-action`, then `sm job submit ai-summarizer-action` works on every node (skills, agents, commands, hooks, markdown); `--all` queues a summary for your whole map.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Analyses now remember which AI model produced them: agents report their model when closing a job, and `sm findings` / `sm show` display it next to each result together with its date.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "New AI review that flags repeated instructions inside a file, on by default: queue it with `sm job submit ai-redundancy-analyzer` and read the judgments with `sm findings`.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Queued jobs no longer time out on their own, so an agent can pause mid-job and ask you how to proceed without losing the work. Set `--ttl` (or the `jobs.ttlSeconds` setting) if you want expiring jobs back; `sm doctor` now flags jobs running far longer than expected.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "`sm plugins show` now displays the full prompt and answer format of any LLM-backed extension, so you can read exactly what a queued job will ask an agent to do before submitting anything.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The safety instructions inside every queued job got a v2: agents may now edit files when a job's own instructions say so (never because of file content), which enables upcoming fix-it jobs.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**See and manage the whole job queue.** A new Queue tab lists every job with its status, lets you search and filter them, cancel jobs inline, and page through the list. Selecting a job highlights its node on the map, and vice versa.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Manage jobs from the queue panel.** Retry a failed job, cancel a running one inline, or use the bulk buttons to cancel every active job or clear out failed / finished ones at once. Cancelled jobs show struck-through, and cancelling a running job is best-effort.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Your agent runs the jobs, not skill-map.** `sm job run` is gone: point any agent (Claude Code, Codex, whatever you use) at the queue and it drains it with `sm job claim` and `sm record`. Nothing gets executed behind your back.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Install the drain skill from the UI.** Settings → Project now offers \"Install skill\" (and \"Update skill\" when your copy is outdated): one click teaches your agent to drain the job queue, no terminal needed.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Teach your agent to drain the queue.** Run `sm agent install` once and your agent (Claude Code, Codex, or any runtime reading the skill folder) picks up the `sm-run-queue` skill: ask it to \"drain the queue\" and it claims, executes, and records your jobs.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Each analysis button in the inspector now detects, then turns into its fix once something is found, so there is one button instead of two. Flip the Automatic toggle to make it detect and fix in a single click.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Small visual fixes: some banners and chips recover rounded corners and warning colors that a stale style reference had silently dropped, and the selected-node glow on the map is back.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm job ...` is now `sm jobs ...` and `sm sidecar ...` is `sm sidecars ...` (no old aliases, update scripts). The queue-processing skill is renamed `sm-process-jobs`; run `sm agent install` to get it.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.88.0",
       "date": "2026-07-11",
       "kind": "user-facing",
