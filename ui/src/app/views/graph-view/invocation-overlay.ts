@@ -7,7 +7,7 @@
  *
  * LAYERED BESIDE `graph()` like the spawn overlay: nothing here reaches
  * `fullLayout`, the reconciler, persisted positions, or the fit bbox.
- * Connector ids reuse the cards' own `-out` / `-in` anchors (Foblex
+ * Connector ids are the cards' own unified fConnector ids (Foblex
  * connections are connector-to-connector, connectors are shared with
  * the scan-link edges).
  *
@@ -23,9 +23,9 @@ import type { IPoint } from './graph-layout';
 export interface IInvocationOverlayEdge {
   /** Stable track key (`<caller>>><target>`). */
   key: string;
-  /** Foblex connector ids (`<caller>-out` -> `<target>-in`). */
-  outputId: string;
-  inputId: string;
+  /** Foblex connector ids (plain node paths, unified fConnector registry). */
+  sourceId: string;
+  targetId: string;
   /** The invoked tool, rendered as the edge label. */
   label: string;
 }
@@ -56,8 +56,8 @@ export function resolveInvocationOverlay(
     if (!args.positionOf(caller) || !args.positionOf(target)) continue;
     edges.push({
       key: `${caller}>>${target}`,
-      outputId: `${caller}-out`,
-      inputId: `${target}-in`,
+      sourceId: `${caller}`,
+      targetId: `${target}`,
       label: inv.detail,
     });
   }

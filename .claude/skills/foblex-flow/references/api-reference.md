@@ -6,7 +6,7 @@ Curated API reference for `@foblex/flow`, the graph visualization layer used by 
 
 Foblex Flow is an Angular-first library that provides rendering, connectors, interactions, selection, zoom, and connection drawing for graph-based UIs. Your application owns the graph state — Foblex Flow handles the visual layer and user interactions.
 
-- Version: 18.5.0
+- Version: 19.1.2 (installed; migrated from 18.6.1)
 - Angular compatibility: 17.3+
 - License: MIT
 - Documentation: https://flow.foblex.com
@@ -56,23 +56,24 @@ Include the default theme in angular.json:
 - Angular templates render the current state.
 - User actions emit events from fDraggable or model outputs.
 - Your app updates state, Angular rerenders.
-- Connections are connector-to-connector (fOutputId → fInputId), not generic node-to-node edges.
+- Connections are connector-to-connector (fSourceId → fTargetId, matching fConnectorId values), not generic node-to-node edges.
 - Do NOT assume React Flow style APIs such as [nodes], [edges], setNodes(), addEdge().
+- v19 unified the connector model: one `[fConnector]` directive (role via `fConnectorType`) replaces the legacy `fNodeInput` / `fNodeOutput` / `fNodeOutlet` directives, and connector ids live in ONE registry (no separate input/output namespaces). Legacy directives and legacy `f-connection` input names remain functional but deprecated.
 
 ## Minimal Working Example
 
 ```html
 <f-flow fDraggable>
   <f-canvas>
-    <f-connection fOutputId="output1" fInputId="input1"></f-connection>
+    <f-connection fSourceId="node1" fTargetId="node2"></f-connection>
 
     <div fNode fDragHandle [fNodePosition]="{ x: 24, y: 24 }"
-         fNodeOutput fOutputId="output1" fOutputConnectableSide="right">
+         fConnector fConnectorType="source" fConnectorId="node1">
       Source Node
     </div>
 
     <div fNode fDragHandle [fNodePosition]="{ x: 244, y: 24 }"
-         fNodeInput fInputId="input1" fInputConnectableSide="left">
+         fConnector fConnectorType="target" fConnectorId="node2">
       Target Node
     </div>
   </f-canvas>
@@ -260,7 +261,37 @@ Selector: `[fGroup]`
 
 ---
 
+### fConnector (FConnectorDirective), the v19 unified connector
+
+Marks an element as a connector. Replaces the legacy `fNodeInput` / `fNodeOutput` / `fNodeOutlet` directives with a single directive whose role is chosen by `fConnectorType`. A connector has exactly ONE id, registered in one flow-wide registry (no separate input/output namespaces); `<f-connection>` references it via `fSourceId` / `fTargetId`. Must live inside a `[fNode]` / `[fGroup]`; the same-element pattern (directive on the node host itself) is what skill-map uses.
+
+Selector: `[fConnector]`
+
+#### Inputs
+
+| Input | Type | Default | Description |
+|-------|------|---------|-------------|
+| fConnectorId | InputSignal\<string\> | generated | Unique connector id (one registry for all roles) |
+| fConnectorType | InputSignal\<FConnectorType\> | 'source-target' | Role: 'source' \| 'target' \| 'source-target' \| 'outlet' |
+| fConnectorConnectableSide | EFConnectableSide | AUTO | Preferred dock side (auto/top/right/bottom/left/calculate variants) |
+| fConnectorMultiple | InputSignal\<boolean\> | true | Allow multiple connections. NOTE: legacy outputs defaulted to single (`fOutputMultiple: false`) |
+| fConnectorDisabled | InputSignal\<boolean\> | false | Disable this connector for new connections |
+| fConnectorSelfConnectable | boolean | true | Allow a connection to start and end on the same node |
+| fConnectorCategory | InputSignal\<string \| undefined\> | undefined | Category matched by source connection limits |
+| fCanBeConnectedTo | InputSignal\<string[]\> | [] | Allow-list of target connector ids or categories (replaces legacy `fCanBeConnectedInputs`) |
+| fConnectionFromOutlet | InputSignal\<boolean\> | false | Outlet-only: draw the preview from the outlet rect (the emitted `sourceId` is still the resolved real source connector) |
+
+`fConnectorType` semantics: `source` can start a connection and be used as `fSourceId`; `target` can accept one and be used as `fTargetId`; `source-target` (default) makes one id serve both roles; `outlet` is a shared start surface that delegates to the node's real source connectors.
+
+#### CSS Classes
+
+`.f-component`, `.f-connector`, role classes `.f-connector-source` / `.f-connector-target` / `.f-connector-source-target` / `.f-connector-outlet`, state classes `.f-connector-multiple`, `.f-connector-disabled`, `.f-connector-connectable`. Host also carries `data-f-connector-id` and `data-f-connector-type` attributes.
+
+---
+
 ### fNodeOutput (FNodeOutputDirective)
+
+**Deprecated since v19, still functional.** Use `[fConnector]` with `fConnectorType="source"`.
 
 Marks an element as an output connector — the source endpoint for connections.
 
@@ -285,6 +316,8 @@ Selector: `[fNodeOutput]`
 
 ### fNodeInput (FNodeInputDirective)
 
+**Deprecated since v19, still functional.** Use `[fConnector]` with `fConnectorType="target"`.
+
 Marks an element as an input connector — the target endpoint for connections.
 
 Selector: `[fNodeInput]`
@@ -306,6 +339,8 @@ Selector: `[fNodeInput]`
 ---
 
 ### fNodeOutlet (FNodeOutletDirective)
+
+**Deprecated since v19, still functional.** Use `[fConnector]` with `fConnectorType="outlet"`.
 
 Single shared start-connection point for nodes with multiple outputs.
 
@@ -337,8 +372,14 @@ Selector: `f-connection`
 | Input | Type | Default | Description |
 |-------|------|---------|-------------|
 | fConnectionId | InputSignal\<string\> | f-connection-{id} | Unique connection id |
-| fOutputId | InputSignal\<string\> | required | Source output connector id |
-| fInputId | InputSignal\<string\> | required | Target input connector id |
+| fSourceId | InputSignal\<string\> | required | Source connector id (a registered `fConnectorId`) |
+| fTargetId | InputSignal\<string\> | required | Target connector id (a registered `fConnectorId`) |
+| fSourceSide | InputSignal\<EFConnectionConnectableSide\> | DEFAULT | Side the connection leaves the source connector from |
+| fTargetSide | InputSignal\<EFConnectionConnectableSide\> | DEFAULT | Side the connection enters the target connector from |
+| fOutputId | InputSignal\<string\> | — | Deprecated since v19, still functional. Use `fSourceId` |
+| fInputId | InputSignal\<string\> | — | Deprecated since v19, still functional. Use `fTargetId` |
+| fOutputSide | InputSignal\<EFConnectionConnectableSide\> | — | Deprecated since v19, still functional. Use `fSourceSide` |
+| fInputSide | InputSignal\<EFConnectionConnectableSide\> | — | Deprecated since v19, still functional. Use `fTargetSide` |
 | fReassignDisabled | InputSignal\<boolean\> | false | Disable drag-to-reassign |
 | fSelectionDisabled | InputSignal\<boolean\> | false | Disable selection |
 | fBehavior | InputSignal\<EFConnectionBehavior\> | FIXED | Connection behavior (FIXED or FLOATING) |
@@ -475,6 +516,7 @@ Must be placed on the `f-flow` element.
 | Output | Type | Description |
 |--------|------|-------------|
 | fSelectionChange | EventEmitter\<FSelectionChangeEvent\> | Selection changed |
+| fDeleteSelected | EventEmitter\<FDeleteSelectedEvent\> | v19: removal of the current selection requested (keyboard layer Delete/Backspace); the library never mutates the graph, your app removes the items |
 | fCreateNode | EventEmitter\<FCreateNodeEvent\> | External item dropped to create node |
 | fMoveNodes | EventEmitter\<FMoveNodesEvent\> | Nodes moved (drag ended) |
 | fCreateConnection | EventEmitter\<FCreateConnectionEvent\> | New connection created |
@@ -702,7 +744,7 @@ Selector: `f-magnetic-rects`
 
 ### f-line-alignment (FLineAlignmentComponent)
 
-**Deprecated.** Use `f-magnetic-lines` instead. Will be removed in v19.0.0.
+**Deprecated.** Use `f-magnetic-lines` instead. Upstream announced removal for v19.0.0, but it still ships (and works) in 19.1.2; treat it as borrowed time.
 
 Selector: `f-line-alignment`
 
@@ -761,11 +803,62 @@ Control when behaviors activate with `FEventTrigger = (event: MouseEvent | Touch
 
 ---
 
+## Flow-Level Features (provideFFlow, v19)
+
+`provideFFlow(...features)` composes flow-level features in the host component's `providers` array. Also accepts an optional leading `IFFlowConfig` object: `provideFFlow(config, ...features)`. Available features: `withA11y(...)` (accessibility / keyboard layer), `withControlScheme(...)` (alternative pointer/wheel gesture schemes, e.g. `F_SCROLL_PAN_CONTROL_SCHEME`), `withConnectionFlow(...)` (alternative connection-creation gestures, e.g. click-to-connect), `withFCanvas(...)`, `withFlowState(...)`, `withReflowOnResize(...)`. Registering a feature twice replaces the earlier configuration (last-wins provider semantics).
+
+### withA11y(config?: IFA11yConfig)
+
+Two layers:
+
+- **Semantic layer** (roles, `aria-roledescription`, accessible names, live-region announcements): ALWAYS on in v19, with or without `withA11y`.
+- **Keyboard layer** (arrow-key spatial navigation, grab-and-move, keyboard connect, delete, select-all, zoom keys): strictly opt-in, activates only when `withA11y(...)` is installed.
+
+```typescript
+@Component({
+  providers: [
+    provideFFlow(
+      withA11y({
+        keys: { connect: [], deleteSelected: [] }, // unbind actions (read-only graph)
+      }),
+    ),
+  ],
+})
+```
+
+#### IFA11yConfig
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| keyboard | boolean | true (once installed) | Master switch for the keyboard layer |
+| moveStep | number | 10 | Canvas units per arrow key while a node is grabbed |
+| coarseMoveStep | number | 50 | Step for Shift+arrow movement |
+| messages | Partial\<IFA11yMessages\> | English catalog | Overrides for every spoken/attached string |
+| keys | IFA11yKeys | see below | Per-action key binding overrides |
+
+#### IFA11yKeys
+
+`KeyboardEvent.key` values per action; single characters match case-insensitively; an **empty array disables the action**. Arrows, Enter, and Escape are structural and stay fixed.
+
+| Action | Default | Description |
+|--------|---------|-------------|
+| grab | `[' ']` (Space) | Grab/drop the selection for arrow-key movement |
+| connect | `['c']` | Start a keyboard connection from the selected node |
+| deleteSelected | `['Delete', 'Backspace']` | Emit `fDeleteSelected` for the current selection |
+| selectAll | `['a']` | Select all (requires Ctrl/Cmd) |
+| zoomIn | `['+', '=']` | Zoom in |
+| zoomOut | `['-', '_']` | Zoom out |
+| zoomReset | `['0']` | Reset zoom |
+
+Related exports: `F_DEFAULT_A11Y_KEYS`, `F_DEFAULT_A11Y_MESSAGES`, `F_DEFAULT_A11Y_CONFIG`, `F_A11Y_CONFIG` (injection token holding the resolved config), `mergeA11yConfig`.
+
+---
+
 ## Connection Rules
 
 Restrict which inputs can accept connections from specific outputs.
 
-Use `fCanBeConnectedInputs` on output/outlet directives to whitelist valid targets by input id or category.
+On the unified `[fConnector]` directive use `fCanBeConnectedTo` (ids or categories of target connectors). The legacy `fCanBeConnectedInputs` below applies to the deprecated output/outlet directives and still works.
 
 ```html
 <!-- Only connects to inputs with id "db-input" or category "database" -->
@@ -823,10 +916,20 @@ interface FCanvasChangeEvent {
   scale: number;
 }
 
-interface FSelectionChangeEvent {
-  nodeIds: string[];
-  groupIds: string[];
-  connectionIds: string[];
+class FSelectionChangeEvent {
+  readonly nodeIds: string[];
+  readonly groupIds: string[];
+  readonly connectionIds: string[];
+  /** Deprecated aliases, still functional: fNodeIds, fGroupIds, fConnectionIds */
+  get fNodeIds(): string[];
+  get fGroupIds(): string[];
+  get fConnectionIds(): string[];
+}
+
+class FDeleteSelectedEvent {
+  readonly nodeIds: string[];
+  readonly groupIds: string[];
+  readonly connectionIds: string[];
 }
 
 interface FDragStartedEvent {
@@ -852,13 +955,35 @@ enum EFConnectionType {
   ADAPTIVE_CURVE = 'adaptive-curve'
 }
 
+// Connector-level sides (fConnectorConnectableSide and the legacy
+// per-direction side inputs).
 enum EFConnectableSide {
-  AUTO = 'auto',
+  LEFT = 'left',
   TOP = 'top',
   RIGHT = 'right',
   BOTTOM = 'bottom',
-  LEFT = 'left'
+  CALCULATE = 'calculate',
+  CALCULATE_HORIZONTAL = 'calculate_horizontal',
+  CALCULATE_VERTICAL = 'calculate_vertical',
+  AUTO = 'auto'
 }
+
+// Connection-level sides (fSourceSide / fTargetSide on <f-connection>,
+// and the side hints on f-connection-for-create). This is the enum
+// skill-map uses; connector-level sides stay unset in this repo.
+enum EFConnectionConnectableSide {
+  DEFAULT = 'default',
+  TOP = 'top',
+  BOTTOM = 'bottom',
+  LEFT = 'left',
+  RIGHT = 'right',
+  CALCULATE = 'calculate',
+  CALCULATE_HORIZONTAL = 'calculate_horizontal',
+  CALCULATE_VERTICAL = 'calculate_vertical'
+}
+
+// Role of a unified [fConnector].
+type FConnectorType = 'source' | 'target' | 'source-target' | 'outlet';
 
 enum EFResizeHandleType {
   LEFT,
@@ -940,7 +1065,7 @@ Globals are for rules that are genuinely app-wide. View-specific Foblex override
 Foblex ships two built-in marker components that project inside `<f-connection>`:
 
 ```html
-<f-connection [fOutputId]="..." [fInputId]="...">
+<f-connection [fSourceId]="..." [fTargetId]="...">
   <f-connection-marker-arrow type="end" />
 </f-connection>
 ```
@@ -1121,8 +1246,8 @@ interface IConnection {
         @for (connection of connections(); track connection.id) {
           <f-connection
             [fConnectionId]="connection.id"
-            [fOutputId]="connection.sourceId"
-            [fInputId]="connection.targetId"
+            [fSourceId]="connection.sourceId"
+            [fTargetId]="connection.targetId"
             fType="segment">
           </f-connection>
         }
@@ -1131,19 +1256,11 @@ interface IConnection {
 
         @for (node of nodes(); track node.id) {
           <div fNode fDragHandle
+               fConnector fConnectorType="source-target"
                [fNodeId]="node.id"
+               [fConnectorId]="node.id"
                [fNodePosition]="node.position"
                (fNodePositionChange)="onNodePositionChange(node.id, $event)">
-            <div fNodeOutput
-                 [fOutputId]="node.id + '-output'"
-                 fOutputConnectableSide="right"
-                 class="connector right">
-            </div>
-            <div fNodeInput
-                 [fInputId]="node.id + '-input'"
-                 fInputConnectableSide="left"
-                 class="connector left">
-            </div>
             {{ node.label }}
           </div>
         }
@@ -1162,7 +1279,7 @@ export class EditorComponent {
   ]);
 
   connections = signal<IConnection[]>([
-    { id: 'conn-1', sourceId: 'node-1-output', targetId: 'node-2-input' },
+    { id: 'conn-1', sourceId: 'node-1', targetId: 'node-2' },
   ]);
 
   onCreateConnection(event: FCreateConnectionEvent): void {
@@ -1262,6 +1379,7 @@ onCreateNode(event: FCreateNodeEvent): void {
 
 | @foblex/flow | Angular    |
 |-------------|------------|
+| 19.x        | 17.3+ (peer dep floor; this repo runs it on Angular 21) |
 | 18.x        | 17.3 – 21  |
 | 17.x        | 17.3 – 19  |
 | 16.x        | 16.x       |

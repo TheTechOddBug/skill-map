@@ -23,8 +23,8 @@ describe('resolveInvocationOverlay', () => {
     expect(edges).toHaveLength(1);
     expect(edges[0]).toMatchObject({
       key: `${AGENT}>>${MCP}`,
-      outputId: `${AGENT}-out`,
-      inputId: `${MCP}-in`,
+      sourceId: AGENT,
+      targetId: MCP,
       label: 'notion-create-pages',
     });
   });

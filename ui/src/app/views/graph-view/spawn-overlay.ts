@@ -21,7 +21,7 @@
  *   - a session anchor renders only while >= 1 of its edges survives,
  *     and floats above the centroid of its visible children.
  *
- * Connector id contract: node endpoints reuse the SAME `-out` / `-in`
+ * Connector id contract: node endpoints reuse the SAME unified fConnector
  * connector ids the scan-link edges use (Foblex connections are
  * connector-to-connector and connectors are shared); session anchors
  * own their single `session:<owner>-out` output.
@@ -45,9 +45,9 @@ export const SESSION_NODE_GAP = 80;
 
 export interface ISpawnOverlayEdge {
   spawnId: string;
-  /** Foblex connector ids (`<path>-out` / `session:<owner>-out` -> `<path>-in`). */
-  outputId: string;
-  inputId: string;
+  /** Foblex connector ids (plain node paths / `session:<owner>`). */
+  sourceId: string;
+  targetId: string;
   /** True when the parent anchor is a session node. */
   fromSession: boolean;
   /**
@@ -161,8 +161,8 @@ export function resolveSpawnOverlay(args: IResolveSpawnOverlayArgs): ISpawnOverl
       }
       edges.push({
         spawnId: spawn.spawnId,
-        outputId: `${spawn.parentNodePath}-out`,
-        inputId: `${child}-in`,
+        sourceId: `${spawn.parentNodePath}`,
+        targetId: `${child}`,
         fromSession: false,
         pairKey,
       });
@@ -172,8 +172,8 @@ export function resolveSpawnOverlay(args: IResolveSpawnOverlayArgs): ISpawnOverl
     const owner = spawn.parentSession ?? spawn.parentOwner;
     edges.push({
       spawnId: spawn.spawnId,
-      outputId: `${SESSION_NODE_ID_PREFIX}${owner}-out`,
-      inputId: `${child}-in`,
+      sourceId: `${SESSION_NODE_ID_PREFIX}${owner}`,
+      targetId: `${child}`,
       fromSession: true,
       // Session parents key by the raw OWNER (the server accumulator's
       // identity), never the synthetic `session:<owner>` node id.
