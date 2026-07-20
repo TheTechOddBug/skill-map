@@ -655,16 +655,17 @@ describe('sm plugins doctor, disabled is not a failure', () => {
     const r = sm(['plugins', 'doctor'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // Disabled is intentional, never an error: exit stays 0. The count
-    // is 6, the disabled `mock-h` drop-in plus the five experimental
-    // built-in extensions that ship disabled by default: the gated bump
-    // pair `core/node-bump` + `core/annotation-stale`, the
-    // declared-network provenance verifier `github/enrichment`, the
-    // opt-in `core/auto-fix` hook, and the universal summarizer
-    // `core/ai-summarizer-action` (experimental until its Step 16 UI
-    // surface lands). The deterministic-analyzer fixer
-    // `core/ai-reference-action` (fixes `core/reference-broken`) graduated
-    // to stable and now ships enabled, so it no longer counts here, joining
-    // the three probabilistic finders (`core/ai-redundancy-analyzer` /
+    // is 5, the disabled `mock-h` drop-in plus the four experimental
+    // built-in extensions that ship disabled by default: the sidecar
+    // writer `core/node-bump`, the declared-network provenance verifier
+    // `github/enrichment`, the opt-in `core/auto-fix` hook, and the
+    // universal summarizer `core/ai-summarizer-action` (experimental until
+    // its Step 16 UI surface lands). The drift analyzer
+    // `core/annotation-stale` graduated to stable (2026-07-19) and now
+    // ships enabled, so it no longer counts here (its writer `core/node-bump`
+    // stays experimental, the pair is no longer gated as a unit), joining
+    // the deterministic-analyzer fixer `core/ai-reference-action`, the
+    // three probabilistic finders (`core/ai-redundancy-analyzer` /
     // `core/ai-contradiction-analyzer` / `core/ai-incoherence-analyzer`)
     // and the three finder-paired fixers (`core/ai-redundancy-action` /
     // `core/ai-contradiction-action` / `core/ai-incoherence-action`) that
@@ -672,7 +673,7 @@ describe('sm plugins doctor, disabled is not a failure', () => {
     // so it no longer counts here; `antigravity/antigravity` and
     // `codex/codex` are beta and `agent-skills/agent-skills` is stable +
     // locked, so all ship enabled.)
-    assert.match(r.stdout, /disabled\s+6/);
+    assert.match(r.stdout, /disabled\s+5/);
   });
 });
 

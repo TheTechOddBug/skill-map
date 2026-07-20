@@ -94,10 +94,12 @@ export const nodeBumpAction: IBuiltInManifest<IAction> = {
   kind: 'action',
   description:
     'Marks a node as updated: bumps `annotations.version`, refreshes sidecar hashes, and records the timestamp.',
-  // Ships experimental (disabled by default, Decision #128), gated as a
-  // unit with the companion `core/annotation-stale` analyzer: a disabled
-  // action projects no Bump button, so the button never appears without
-  // the drift analyzer that motivates it.
+  // Ships experimental (disabled by default, Decision #128): this action
+  // WRITES the sidecar, so it stays opt-in. Its companion
+  // `core/annotation-stale` analyzer graduated to stable (2026-07-19), so
+  // drift is surfaced by default while the Bump button this action
+  // self-projects stays gated behind enabling it (a disabled action
+  // projects no Bump button); the two are no longer gated as a unit.
   stability: 'experimental',
   mode: 'deterministic',
   // Declares the sidecar-write capability: `invoke()` returns a

@@ -168,7 +168,7 @@
     "files": {
       "CHANGELOG.md": "f637c724c6599986cdfd59237235764280897f463e54174b33c9a916348e36e2",
       "README.md": "4470a4fb5e04bcd63ce75c961fdbd07af1f0e8a33230f18f6ceb44e698cf14f0",
-      "architecture.md": "559ea3ccf765353778f45b8884c7763ebe654d6da820ada356750f5a4840ec74",
+      "architecture.md": "ae9c327591da629cf348f79a8d5ba5ce3ada0365842c75072d87a5778ee8c4cf",
       "cli-contract.md": "684655963e39ad94041dde7d0e7993327d228767a03ae42a7955c35ded2d979a",
       "conformance/README.md": "7c7eca326a713cdd03ebadfe682807c1b994cef7ad74333a5faf50a453fa898f",
       "conformance/cases/backtick-path-extraction.json": "4620e7f8bc161fc57cb44001e9d99879c7e22b4865a0c27a20dc28969cd936d9",
@@ -186,7 +186,7 @@
       "conformance/cases/preamble-bitwise-match.json": "82c144bba21108b80a5bfc3fba487fbe245474cd6531fa203db3362e7cd85aee",
       "conformance/cases/reference-broken-existence.json": "4664a1cf83fbebf2524cc55038ef758894bd64c45e312e9bc0dde2395f498546",
       "conformance/cases/score-phase-confidence.json": "aa3a06149d78ff056dd1a47852baaedc200e47b0d5b1e778d3459ae62f65f390",
-      "conformance/cases/sidecar-end-to-end.json": "06374e619df1691f1593b0847b3671299318525d4a7bf4ff9bfda3ab03032a5f",
+      "conformance/cases/sidecar-end-to-end.json": "b25a77e324eb1d2ed1adadcd508ed760a377f4fc4002e89f46906151965f429c",
       "conformance/cases/view-action-button.json": "51331f725be1c3655351f8fca6fc9d3d301ae68ea1741ff6c79998332ba2dfeb",
       "conformance/cases/view-contribution-payloads.json": "e8f54ed62e64a2a0f86729866e507abb1f4246683f0e60d538280536f7cd3ecc",
       "conformance/cases/view-slots-all.json": "05284e0324dd2da72b6b21d397c11b355802229a68053e9dddc323f69b3a1eba",

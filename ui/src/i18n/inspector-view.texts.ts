@@ -172,8 +172,6 @@ export const INSPECTOR_VIEW_TEXTS = {
    * the title.
    */
   audit: {
-    /** Empty-state line shown by the Metadata panel when no audit data. */
-    headerEmpty: 'never bumped',
     fields: {
       lastBumpedAt: 'Last bumped',
       lastBumpedBy: 'by',

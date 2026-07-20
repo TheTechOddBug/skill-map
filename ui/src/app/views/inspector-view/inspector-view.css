@@ -564,7 +564,12 @@
   flex-direction: column;
 }
 
-.inspector__metadata > sm-inspector-debug-panel {
+/* Separator only when a populated audit block sits above the debug panel;
+   an empty audit panel (`.audit-panel--empty`) leaves nothing to divide
+   from, so the debug panel sits flush under the section hairline. */
+.inspector__metadata
+  > sm-inspector-audit-panel:not(.audit-panel--empty)
+  + sm-inspector-debug-panel {
   margin-top: 0.5rem;
   padding-top: 0.7rem;
   border-top: 1px solid var(--sm-border);

@@ -935,12 +935,12 @@ describe('InspectorView, collapsible sections (catalog curation)', () => {
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
     // The section renders (the node has a sidecar), but collapsed: its
-    // body (the audit panel) is NOT in the DOM until the user expands it.
+    // body (the debug panel) is NOT in the DOM until the user expands it.
     expect(
       fixture.nativeElement.querySelector('[data-testid="inspector-card-metadata"]'),
     ).not.toBeNull();
     expect(
-      fixture.nativeElement.querySelector('[data-testid="inspector-audit-panel-empty"]'),
+      fixture.nativeElement.querySelector('[data-testid="inspector-debug-panel"]'),
     ).toBeNull();
   });
 
@@ -952,9 +952,9 @@ describe('InspectorView, collapsible sections (catalog curation)', () => {
     const { fixture } = bootstrap({ loader, dataSource });
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
-    // Collapsed by default: the audit-panel-empty body is absent.
+    // Collapsed by default: the metadata body is absent.
     expect(
-      fixture.nativeElement.querySelector('[data-testid="inspector-audit-panel-empty"]'),
+      fixture.nativeElement.querySelector('[data-testid="inspector-debug-panel"]'),
     ).toBeNull();
     const toggle = fixture.nativeElement.querySelector(
       '[data-testid="inspector-metadata-toggle"]',
@@ -964,7 +964,7 @@ describe('InspectorView, collapsible sections (catalog curation)', () => {
     await flush(fixture);
     // After expanding, the body appears in the DOM.
     expect(
-      fixture.nativeElement.querySelector('[data-testid="inspector-audit-panel-empty"]'),
+      fixture.nativeElement.querySelector('[data-testid="inspector-debug-panel"]'),
     ).not.toBeNull();
   });
 
@@ -1073,10 +1073,8 @@ describe('InspectorView, debug panel inside the merged metadata section', () => 
     expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-panel"]')).toBeNull();
     toggle.click(); // expand
     await flush(fixture);
-    // Both sub-panels appear: the audit empty-state and the debug grid.
-    expect(
-      fixture.nativeElement.querySelector('[data-testid="inspector-audit-panel-empty"]'),
-    ).not.toBeNull();
+    // The debug grid appears (the audit panel self-hides here: this node's
+    // sidecar carries no populated audit block).
     expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-panel"]')).not.toBeNull();
     toggle.click(); // collapse again
     await flush(fixture);

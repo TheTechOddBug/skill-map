@@ -597,13 +597,12 @@ describe('sm show', () => {
 
 describe('sm scan exit code', () => {
   it('warn / info issues only → exit 0', async () => {
-    // `annotation-stale` (the former info source here) now ships
-    // experimental / disabled by default, and this goes through the real
-    // scan resolver, so instead plant an ORPHAN sidecar: a `.sm` with no
-    // sibling `.md` makes the still-default-on `annotation-orphan`
-    // analyzer fire at `warn`, exercising the "no errors → exit 0" branch
-    // in isolation (the body carries no broken @ / triggers, so nothing
-    // escalates to `error`).
+    // Plant an ORPHAN sidecar: a `.sm` with no sibling `.md` makes the
+    // `annotation-orphan` analyzer fire at `warn`, exercising the "no
+    // errors → exit 0" branch in isolation. The clean `architect.md` node
+    // carries no sidecar, so the now-default-on `annotation-stale` analyzer
+    // (stable since 2026-07-19) finds no drift and stays silent; the body
+    // has no broken @ / triggers, so nothing escalates to `error`.
     const fixture = freshFixture('scan-warns');
     writeFixtureFile(
       fixture,
