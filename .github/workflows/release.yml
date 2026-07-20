@@ -83,24 +83,50 @@ jobs:
 
       - name: Detect release pass
         id: pass
-        # This workflow fires on every push to main that bumps a package.json
-        # or lands a changeset, so it runs in two distinct passes per cycle:
-        #   - version-PR pass: pending .changeset/*.md exist, the changesets
-        #     action only opens / updates the "version packages" PR (no publish).
-        #   - publish pass: no pending changesets (versions already bumped on
-        #     main), the action runs `changeset publish`.
+        # This workflow fires on every push to main or release/rc that bumps a
+        # package.json or lands a changeset, so it runs in two distinct passes
+        # per cycle:
+        #   - version-PR pass: fresh (unconsumed) changesets exist, the
+        #     changesets action only opens / updates the "version packages" PR.
+        #   - publish pass: no fresh changesets (versions already bumped), the
+        #     action runs `changeset publish`.
         # Only the publish pass needs the built dist + sourcemaps (the npm
         # tarball ships them); opening the version PR just bumps versions and
         # changelogs. Detecting the pass here lets every heavy build step below
         # self-skip on the version-PR pass, saving the build minutes that each
         # changeset push would otherwise waste.
+        #
+        # "Fresh" is the subtle part. Outside pre mode, `changeset version`
+        # DELETES the .md it consumes, so any .md on disk is fresh. Inside pre
+        # mode (.changeset/pre.json present, i.e. the release/rc channel) the
+        # consumed .md are KEPT on disk and their ids are recorded in
+        # pre.json.changesets so they can accumulate across rc.N iterations and
+        # all land in the eventual stable. A raw file count therefore reads a
+        # publish pass as a version pass, skips the build, and the changesets
+        # action publishes a dist-less tarball (regression that shipped a broken
+        # 0.89.0-rc.0). So subtract the recorded ids: a .md is fresh only if its
+        # id is NOT already in pre.json.changesets.
         run: |
-          if [ -n "$(find .changeset -maxdepth 1 -name '*.md' ! -name 'README.md' -print -quit)" ]; then
+          recorded=""
+          if [ -f .changeset/pre.json ]; then
+            recorded="$(jq -r '.changesets[]?' .changeset/pre.json)"
+          fi
+          fresh=0
+          for f in .changeset/*.md; do
+            [ -e "$f" ] || continue
+            base="$(basename "$f" .md)"
+            [ "$base" = "README" ] && continue
+            if ! printf '%s\n' "$recorded" | grep -qxF "$base"; then
+              fresh=1
+              break
+            fi
+          done
+          if [ "$fresh" = "1" ]; then
             echo "publish=false" >> "$GITHUB_OUTPUT"
-            echo "Pending changeset(s) present -> version-PR pass (skipping build)."
+            echo "Fresh changeset(s) present -> version-PR pass (skipping build)."
           else
             echo "publish=true" >> "$GITHUB_OUTPUT"
-            echo "No pending changesets -> publish pass (building dist)."
+            echo "No fresh changesets -> publish pass (building dist)."
           fi
 
       - name: Build UI
