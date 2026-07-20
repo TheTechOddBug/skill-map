@@ -315,15 +315,20 @@
           "minimum": 0,
           "description": "Rows actually carried in `items` (≤ `limit`). Present on list-kind envelopes (`nodes`, `links`, `issues`, `plugins`, `findings`); absent on `'annotations.registered'` (no pagination, no filters, the catalog ships in its entirety in every response)."
         },
+        "dismissedExcluded": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Findings the default view held back because their (extension, type) class matches an ACTIVE sidecar suppression (`sm findings dismiss`, the read-time dismissal lens; top precedence over fixed and stale). REQUIRED on `kind: 'findings'` envelopes, absent elsewhere; 0 under an explicit `?dismissed=1` / `?fixed=1` / `?stale=1` bucket filter, mirroring `sm findings --json`."
+        },
         "fixedExcluded": {
           "type": "integer",
           "minimum": 0,
-          "description": "Findings the default view held back because their `resolution` is `'fixed'` (already handled; a row that is BOTH fixed and stale counts here, state precedence). REQUIRED on `kind: 'findings'` envelopes, absent elsewhere. The default-view honesty device mirrored from `sm findings --json`: an empty `items` with a non-zero excluded count never claims a clean node. Always 0 when an explicit `?fixed=1` / `?stale=1` bucket filter is active (an explicit bucket view holds nothing back to report)."
+          "description": "Findings the default view held back because their `resolution` is `'fixed'` (already handled; a row that is BOTH fixed and stale counts here, state precedence; a suppressed row counts as dismissed instead). REQUIRED on `kind: 'findings'` envelopes, absent elsewhere. The default-view honesty device mirrored from `sm findings --json`: an empty `items` with a non-zero excluded count never claims a clean node. Always 0 when an explicit bucket filter is active (an explicit bucket view holds nothing back to report)."
         },
         "staleExcluded": {
           "type": "integer",
           "minimum": 0,
-          "description": "Findings the default view held back for staleness (the node body changed since the judgment, or the node left the scan) that are NOT fixed (the disjoint complement of `fixedExcluded`). REQUIRED on `kind: 'findings'` envelopes, absent elsewhere; 0 under an explicit bucket filter, mirroring `sm findings --json`."
+          "description": "Findings the default view held back for staleness (the node body changed since the judgment, or the node left the scan) that are neither dismissed nor fixed (the disjoint remainder). REQUIRED on `kind: 'findings'` envelopes, absent elsewhere; 0 under an explicit bucket filter, mirroring `sm findings --json`."
         },
         "page": {
           "type": "object",
@@ -399,7 +404,7 @@
       }
     },
     {
-      "description": "Findings list envelope, the per-node judgment tray served by `GET /api/nodes/:pathB64/findings` (Step 16 piece 1). Rides the list shape (`items` + `filters` + `counts` + the three registries) with two deltas locked here: `counts` additionally REQUIRES the default-view honesty pair `fixedExcluded` / `staleExcluded` (what the default view held back under the same filters, both 0 under an explicit `?fixed=1` / `?stale=1` bucket filter, mirroring `sm findings`), and each item is one `state_findings` row projection (camelCase, the `sm findings --json` row shape plus the derived `stale` boolean; the internal `bodyHashAtGeneration` is NOT exposed).",
+      "description": "Findings list envelope, the per-node judgment tray served by `GET /api/nodes/:pathB64/findings` (Step 16 piece 1). Rides the list shape (`items` + `filters` + `counts` + the three registries) with two deltas locked here: `counts` additionally REQUIRES the default-view honesty triple `dismissedExcluded` / `fixedExcluded` / `staleExcluded` (what the default view held back under the same filters, all 0 under an explicit `?dismissed=1` / `?fixed=1` / `?stale=1` bucket filter, mirroring `sm findings`; dismissed = the class matches an active sidecar suppression, the read-time lens, top precedence), and each item is one `state_findings` row projection (camelCase, the `sm findings --json` row shape plus the derived `stale` boolean; the internal `bodyHashAtGeneration` is NOT exposed).",
       "required": [
         "items",
         "counts",
@@ -416,6 +421,7 @@
           "required": [
             "total",
             "returned",
+            "dismissedExcluded",
             "fixedExcluded",
             "staleExcluded"
           ]

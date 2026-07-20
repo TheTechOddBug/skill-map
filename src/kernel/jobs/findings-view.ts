@@ -8,42 +8,57 @@
  *
  *   - The DEFAULT view shows the needs-attention rows: OPEN rows plus
  *     non-stale `human-decision` rows (the author's TODO). It hides
- *     `fixed` rows (already handled) and stale rows (the node body
- *     changed since the judgment, or the node left the scan).
- *   - The bucket flags are FILTERS, not additive reveals: `fixed` shows
- *     ONLY the fixed bucket, `stale` ONLY the stale bucket, together
- *     their union. `fixed` takes precedence: a row that is BOTH fixed
- *     and stale counts as fixed (state precedence).
- *   - The excluded-count pair (`fixedExcluded` / `staleExcluded`) is a
- *     DEFAULT-view honesty device: what the default view held back under
- *     the same filters, disjointly. Both are 0 whenever a bucket filter
- *     is active (an explicit bucket view holds nothing back to report).
+ *     DISMISSED rows (their class matches an active sidecar suppression,
+ *     the operator's explicit silence), `fixed` rows (already handled) and
+ *     stale rows (the node body changed since the judgment, or the node
+ *     left the scan).
+ *   - The bucket flags are FILTERS, not additive reveals: `dismissed`
+ *     shows ONLY the suppressed bucket, `fixed` ONLY the fixed bucket,
+ *     `stale` ONLY the stale bucket; together their union. Precedence
+ *     `dismissed` > `fixed` > `stale`: a suppressed row counts as
+ *     dismissed no matter its resolution or staleness (the operator's
+ *     explicit silence is the strongest state), and a fixed+stale row
+ *     counts as fixed.
+ *   - The excluded-count triple (`dismissedExcluded` / `fixedExcluded` /
+ *     `staleExcluded`) is a DEFAULT-view honesty device: what the default
+ *     view held back under the same filters, disjointly. All are 0
+ *     whenever a bucket filter is active (an explicit bucket view holds
+ *     nothing back to report).
  *
  * Everything here is pure over already-fetched `IFindingRecord` rows;
  * callers source the list with `includeStale: true` (the adapter hides
- * stale rows by default) and partition here.
+ * stale rows by default), supply `isSuppressed` from the node's
+ * suppressions (the write-through `scan_nodes.annotations_json` mirror,
+ * see `spec/db-schema.md` §state_findings), and partition here.
  */
 
 import type { IFindingRecord } from '../types/storage.js';
 
-/** The two bucket-filter flags (`--fixed` / `--stale`, `?fixed=1` / `?stale=1`). */
+/** Per-row suppression test, built by the caller from the node's entries. */
+export type TFindingSuppressedTest = (finding: IFindingRecord) => boolean;
+
+/** The bucket-filter flags (`--dismissed` / `--fixed` / `--stale`, `?…=1`). */
 export interface IFindingsBucketFlags {
+  dismissed: boolean;
   fixed: boolean;
   stale: boolean;
 }
 
 /**
- * True when `fixed` and/or `stale` narrows the view to those buckets. A
- * bucket filter omits the needs-attention rows and turns off the
- * excluded-count reporting (the operator's own narrowing, like `--type`).
+ * True when a bucket flag narrows the view to those buckets. A bucket
+ * filter omits the needs-attention rows and turns off the excluded-count
+ * reporting (the operator's own narrowing, like `--type`).
  */
 export function bucketFilterActive(flags: IFindingsBucketFlags): boolean {
-  return flags.fixed || flags.stale;
+  return flags.dismissed || flags.fixed || flags.stale;
 }
 
 /**
  * Row visibility under the given bucket flags:
  *
+ *   - suppressed (the read-time dismissal lens): shown ONLY under the
+ *     dismissed bucket, no matter its resolution or staleness (the
+ *     operator's explicit silence takes precedence over every state).
  *   - `resolution === 'fixed'`: shown ONLY under the fixed bucket, even
  *     when the row also went stale (state precedence).
  *   - not fixed but `stale`: shown ONLY under the stale bucket. Covers
@@ -55,7 +70,9 @@ export function bucketFilterActive(flags: IFindingsBucketFlags): boolean {
 export function isFindingShown(
   finding: IFindingRecord,
   flags: IFindingsBucketFlags,
+  isSuppressed: TFindingSuppressedTest,
 ): boolean {
+  if (isSuppressed(finding)) return flags.dismissed;
   if (finding.resolution === 'fixed') return flags.fixed;
   if (finding.stale) return flags.stale;
   return !bucketFilterActive(flags);
@@ -66,9 +83,9 @@ export interface IFindingsViewPartition {
   /** Rows the view renders, in the input order. */
   shown: IFindingRecord[];
   /**
-   * Rows the DEFAULT view held back (fixed + stale). Always EMPTY under
-   * an explicit bucket filter: the excluded-count honesty device is a
-   * default-view feature only.
+   * Rows the DEFAULT view held back (dismissed + fixed + stale). Always
+   * EMPTY under an explicit bucket filter: the excluded-count honesty
+   * device is a default-view feature only.
    */
   hidden: IFindingRecord[];
 }
@@ -82,22 +99,43 @@ export interface IFindingsViewPartition {
 export function partitionFindingsView(
   all: readonly IFindingRecord[],
   flags: IFindingsBucketFlags,
+  isSuppressed: TFindingSuppressedTest,
 ): IFindingsViewPartition {
-  const shown = all.filter((f) => isFindingShown(f, flags));
-  const hidden = bucketFilterActive(flags) ? [] : all.filter((f) => !isFindingShown(f, flags));
+  const shown = all.filter((f) => isFindingShown(f, flags, isSuppressed));
+  const hidden = bucketFilterActive(flags)
+    ? []
+    : all.filter((f) => !isFindingShown(f, flags, isSuppressed));
   return { shown, hidden };
 }
 
-/** Hidden rows a fixer / human moved to `fixed` (state precedence over stale). */
-export function countFixedHidden(hidden: readonly IFindingRecord[]): number {
-  return hidden.filter((f) => f.resolution === 'fixed').length;
+/** Hidden rows silenced by an active suppression (top precedence). */
+export function countDismissedHidden(
+  hidden: readonly IFindingRecord[],
+  isSuppressed: TFindingSuppressedTest,
+): number {
+  return hidden.filter(isSuppressed).length;
+}
+
+/** Hidden rows a fixer / human moved to `fixed` (and not suppressed). */
+export function countFixedHidden(
+  hidden: readonly IFindingRecord[],
+  isSuppressed: TFindingSuppressedTest,
+): number {
+  return hidden.filter((f) => !isSuppressed(f) && f.resolution === 'fixed').length;
 }
 
 /**
- * Hidden rows held back for staleness (everything hidden that is NOT
- * fixed): a hidden row is either fixed-hidden or stale-hidden, disjointly,
- * so the stale bucket is the complement of the fixed one.
+ * Hidden rows held back for staleness (everything hidden that is neither
+ * dismissed nor fixed): a hidden row lands in exactly one of the three
+ * buckets, so the stale bucket is the remainder.
  */
-export function countStaleHidden(hidden: readonly IFindingRecord[]): number {
-  return hidden.length - countFixedHidden(hidden);
+export function countStaleHidden(
+  hidden: readonly IFindingRecord[],
+  isSuppressed: TFindingSuppressedTest,
+): number {
+  return (
+    hidden.length -
+    countDismissedHidden(hidden, isSuppressed) -
+    countFixedHidden(hidden, isSuppressed)
+  );
 }

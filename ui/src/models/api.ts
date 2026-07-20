@@ -1510,11 +1510,14 @@ export interface IFindingApi {
 
 /**
  * `counts` block of the `findings` envelope: the list pair plus the
- * REQUIRED default-view honesty pair (`fixedExcluded` / `staleExcluded`,
- * what the default view held back; both 0 under an explicit bucket
- * filter, mirroring `sm findings --json`).
+ * REQUIRED default-view honesty triple (`dismissedExcluded` /
+ * `fixedExcluded` / `staleExcluded`, what the default view held back;
+ * dismissed = the class matches an active sidecar suppression, top
+ * precedence; all 0 under an explicit bucket filter, mirroring
+ * `sm findings --json`).
  */
 export interface IFindingsCountsApi extends IEnvelopeCountsApi {
+  dismissedExcluded: number;
   fixedExcluded: number;
   staleExcluded: number;
 }

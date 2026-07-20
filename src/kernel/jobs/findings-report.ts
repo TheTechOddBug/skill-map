@@ -79,8 +79,8 @@ export function findReservedFindingTypes(report: Record<string, unknown>): strin
 }
 
 /**
- * One active sidecar suppression entry (`annotations.suppressions`,
- * `spec/schemas/annotations.schema.json`) as the finder-lane filter reads
+ * One active suppression entry (`annotations.suppressions`,
+ * `spec/schemas/annotations.schema.json`) as the read-time lens matches
  * it: the qualified (or bare) finder `extension` it silences, and an
  * optional `type` slug that narrows it (absent = every type from that
  * extension).
@@ -91,12 +91,53 @@ export interface ISuppressionMatch {
 }
 
 /**
+ * A suppression entry with its operator-facing `note` kept: the display
+ * shape `sm findings suppressions` lists and `sm findings undismiss`
+ * echoes (`note` never affects matching).
+ */
+export interface ISuppressionEntry extends ISuppressionMatch {
+  note?: string;
+}
+
+/**
+ * Project a node's `annotations` object (the `.sm` sidecar's block, or its
+ * denormalized `scan_nodes.annotations_json` mirror) to its active
+ * suppression entries. Non-array or absent `suppressions` yields `[]`;
+ * entries without a string `extension` are skipped (defensive, AJV pins
+ * the shape on the write side).
+ */
+export function suppressionsFromAnnotations(annotations: unknown): ISuppressionEntry[] {
+  if (typeof annotations !== 'object' || annotations === null) return [];
+  const raw = (annotations as Record<string, unknown>)['suppressions'];
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map(toSuppressionEntry)
+    .filter((entry): entry is ISuppressionEntry => entry !== null);
+}
+
+/** Narrow one raw `suppressions[]` entry, `null` without a string `extension`. */
+function toSuppressionEntry(entry: unknown): ISuppressionEntry | null {
+  if (typeof entry !== 'object' || entry === null) return null;
+  const record = entry as Record<string, unknown>;
+  const extension = record['extension'];
+  if (typeof extension !== 'string' || extension.length === 0) return null;
+  const projected: ISuppressionEntry = { extension };
+  if (typeof record['type'] === 'string') projected.type = record['type'];
+  if (typeof record['note'] === 'string' && record['note'].length > 0) {
+    projected.note = record['note'];
+  }
+  return projected;
+}
+
+/**
  * True when an active suppression silences a finding of `type` emitted by
- * `extensionId` (`spec/db-schema.md` §state_findings, finder-lane
- * suppression filter): the suppression's `extension` matches the finder
+ * `extensionId` (`spec/db-schema.md` §state_findings, the read-time
+ * suppression lens): the suppression's `extension` matches the finder
  * (qualified or bare, `matchesQualifiedExtensionFilter`, mirroring
  * `sm check --analyzers`) and, when it narrows by `type`, the finding's
- * type equals it.
+ * type equals it. Rows are never deleted or dropped over a suppression;
+ * matching rows are HIDDEN at read time (the `dismissed` bucket) until
+ * the entry leaves the `.sm` file.
  */
 export function isFindingSuppressed(
   extensionId: string,
@@ -116,21 +157,15 @@ export function isFindingSuppressed(
  * never calls this for an Action (an Action report carrying a `findings`
  * array is not routed).
  *
- * When `opts` is supplied, any finding matching an active sidecar
- * suppression on the node is DROPPED before the row lands
- * (`spec/db-schema.md` §state_findings, finder-lane suppression filter):
- * a user-dismissed judgment class never returns until the suppression is
- * removed from the `.sm` file. Safety-lane rows are never suppressed (they
- * are `origin = 'kernel'` and never pass through here). The caller reads
- * the suppressions from the node's LIVE `.sm` sidecar (the source of
- * truth), never the denormalized `scan_nodes.annotations_json`.
+ * Suppressions play NO role here: every judged row lands
+ * (`spec/db-schema.md` §state_findings, the read-time suppression lens).
+ * The LLM already judged the class either way, so dropping rows at record
+ * time saved nothing and made an un-dismiss unable to show anything until
+ * the next run; the lens hides suppressed classes at READ time instead.
  */
-export function extensionFindingRows(
-  report: Record<string, unknown>,
-  opts?: { extensionId: string; suppressions: readonly ISuppressionMatch[] },
-): IFindingRowInput[] {
+export function extensionFindingRows(report: Record<string, unknown>): IFindingRowInput[] {
   const fallbackConfidence = reportConfidence(report);
-  const rows = findingEntries(report).map((entry) => ({
+  return findingEntries(report).map((entry) => ({
     origin: 'extension' as const,
     type: typeof entry['type'] === 'string' ? entry['type'] : '',
     severity: entrySeverity(entry['severity']),
@@ -139,8 +174,6 @@ export function extensionFindingRows(
     confidence:
       typeof entry['confidence'] === 'number' ? entry['confidence'] : fallbackConfidence,
   }));
-  if (opts === undefined || opts.suppressions.length === 0) return rows;
-  return rows.filter((row) => !isFindingSuppressed(opts.extensionId, row.type, opts.suppressions));
 }
 
 /** AJV already pinned the enum; degrade off-contract values to `info`. */

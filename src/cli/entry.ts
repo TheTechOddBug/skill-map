@@ -58,7 +58,15 @@ import { CONFORMANCE_COMMANDS } from './commands/conformance.js';
 import { DB_COMMANDS } from './commands/db.js';
 import { ExampleCommand } from './commands/example.js';
 import { ExportCommand } from './commands/export.js';
-import { FindingsCommand, FindingsDismissCommand, FindingsPruneCommand, FindingsResolveCommand } from './commands/findings.js';
+import {
+  FindingsClearCommand,
+  FindingsCommand,
+  FindingsDismissCommand,
+  FindingsPruneCommand,
+  FindingsResolveCommand,
+  FindingsSuppressionsCommand,
+  FindingsUndismissCommand,
+} from './commands/findings.js';
 import { GraphCommand } from './commands/graph.js';
 import { HelpCommand, RootHelpCommand, registeredVerbPaths, routeHelpArgs } from './commands/help.js';
 import { ACTIVITY_COMMANDS } from './commands/activity.js';
@@ -110,8 +118,11 @@ cli.register(ShowCommand);
 cli.register(CheckCommand);
 cli.register(FindingsCommand);
 cli.register(FindingsPruneCommand);
+cli.register(FindingsClearCommand);
 cli.register(FindingsResolveCommand);
 cli.register(FindingsDismissCommand);
+cli.register(FindingsSuppressionsCommand);
+cli.register(FindingsUndismissCommand);
 cli.register(GraphCommand);
 cli.register(ExportCommand);
 cli.register(HistoryCommand);

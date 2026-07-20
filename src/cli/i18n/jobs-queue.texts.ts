@@ -77,7 +77,15 @@ export const JOBS_QUEUE_TEXTS = {
   // (stderr); never a refusal (the kernel safety lane still screens the
   // node, and a finder may emit types the suppression does not cover).
   submitSuppressedLine:
-    '{{glyph}}  {{node}} suppresses {{what}} from {{extension}}; matching findings will be dropped at record\n',
+    '{{glyph}}  {{node}} suppresses {{what}} from {{extension}}; matching findings will be recorded but hidden until un-dismissed\n',
+  /**
+   * Auto-undismiss line (spec §Submit): the finder submit removed the
+   * node's standing suppression through the gated sidecar channel (the
+   * standing consent let it through), so the class shows again and the
+   * fresh judgment will land visible.
+   */
+  submitSuppressionLifted:
+    '{{glyph}}  {{node}}: standing suppression on {{what}} from {{extension}} removed; the judgment shows again\n',
   /** {{what}} phrase for type-narrowed suppressions: quoted comma-joined types. */
   submitSuppressedTypes: '{{types}} findings',
   /** {{what}} phrase when a type-less suppression silences the whole finder. */

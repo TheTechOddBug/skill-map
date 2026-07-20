@@ -86,15 +86,21 @@ export interface IEnvelopeCounts {
   /** Pagination window. Present only when the endpoint paginates. */
   page?: IPageInfo;
   /**
-   * Findings the default view held back as `fixed` (state precedence: a
-   * fixed+stale row counts here). REQUIRED on `kind: 'findings'`
-   * envelopes, absent elsewhere; always 0 under an explicit `?fixed=1` /
-   * `?stale=1` bucket filter (`rest-envelope.schema.json`).
+   * Findings the default view held back as DISMISSED (their class matches
+   * an active sidecar suppression, top precedence). REQUIRED on
+   * `kind: 'findings'` envelopes, absent elsewhere; always 0 under an
+   * explicit bucket filter (`rest-envelope.schema.json`).
+   */
+  dismissedExcluded?: number;
+  /**
+   * Findings the default view held back as `fixed` (a fixed+stale row
+   * counts here; a suppressed one counts as dismissed). Same presence
+   * rules.
    */
   fixedExcluded?: number;
   /**
-   * Findings the default view held back for staleness that are NOT fixed
-   * (the disjoint complement of `fixedExcluded`). Same presence rules.
+   * Findings the default view held back for staleness (the remainder:
+   * neither dismissed nor fixed). Same presence rules.
    */
   staleExcluded?: number;
 }
@@ -294,11 +300,11 @@ export interface IBuildListEnvelopeOpts<TItem> {
   /** Pagination window. Omit when the endpoint does not paginate. */
   page?: IPageInfo;
   /**
-   * The `kind: 'findings'` honesty pair (`counts.fixedExcluded` /
-   * `counts.staleExcluded`, REQUIRED on that kind per
-   * `rest-envelope.schema.json`). Omit on every other kind.
+   * The `kind: 'findings'` honesty triple (`counts.dismissedExcluded` /
+   * `counts.fixedExcluded` / `counts.staleExcluded`, REQUIRED on that
+   * kind per `rest-envelope.schema.json`). Omit on every other kind.
    */
-  excluded?: { fixedExcluded: number; staleExcluded: number };
+  excluded?: { dismissedExcluded: number; fixedExcluded: number; staleExcluded: number };
   /** Active kindRegistry, every payload-bearing envelope embeds it. */
   kindRegistry: TKindRegistry;
   /** Active providerRegistry, every payload-bearing envelope embeds it. */
@@ -319,6 +325,7 @@ export function buildListEnvelope<TItem>(opts: IBuildListEnvelopeOpts<TItem>): I
   };
   if (opts.page) counts.page = opts.page;
   if (opts.excluded) {
+    counts.dismissedExcluded = opts.excluded.dismissedExcluded;
     counts.fixedExcluded = opts.excluded.fixedExcluded;
     counts.staleExcluded = opts.excluded.staleExcluded;
   }

@@ -408,6 +408,7 @@ describe('StaticDataSource', () => {
     expect(env!.counts).toEqual({
       total: 0,
       returned: 0,
+      dismissedExcluded: 0,
       fixedExcluded: 0,
       staleExcluded: 0,
     });

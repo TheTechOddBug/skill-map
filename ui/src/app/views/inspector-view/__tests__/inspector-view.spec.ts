@@ -154,7 +154,7 @@ function makeStubDataSource(): IStubDataSource {
       kind: 'findings',
       items: [],
       filters: {},
-      counts: { total: 0, returned: 0, fixedExcluded: 0, staleExcluded: 0 },
+      counts: { total: 0, returned: 0, dismissedExcluded: 0, fixedExcluded: 0, staleExcluded: 0 },
       kindRegistry: {},
     }),
     getNodeProbExtensions: vi.fn().mockResolvedValue({
@@ -2036,6 +2036,7 @@ function makeFindingsEnvelope(
     counts: {
       total: items.length,
       returned: items.length,
+      dismissedExcluded: 0,
       fixedExcluded: 0,
       staleExcluded: 0,
       ...countsOverrides,

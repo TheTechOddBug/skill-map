@@ -125,7 +125,7 @@ import {
   rowToLink,
   rowToNode,
 } from './scan-load.js';
-import { persistScanResult } from './scan-persistence.js';
+import { persistScanResult, updateNodeAnnotations } from './scan-persistence.js';
 import {
   listStaleStateEnrichments,
   listStateEnrichmentsForNode,
@@ -133,13 +133,15 @@ import {
 } from './enrichments.js';
 import { listSummariesForNode } from './summaries.js';
 import {
+  countAllFindings,
   countUnresolvedFindingsByPath,
   countStaleFindings,
-  deleteFindingClass,
+  deleteAllFindings,
   deleteStaleFindings,
   getFindingById,
   listFindings,
   resolveFindingByHuman,
+  suppressionsByPath,
 } from './findings.js';
 import {
   listAllContributionErrors,
@@ -348,6 +350,8 @@ export class SqliteStorageAdapter implements StoragePort {
       issueCountsByPath: () => loadIssueCountsByPath(this.db),
       effectiveMaxRenderNodes: () => loadEffectiveMaxRenderNodes(this.db),
       loadBranch: (prefixes, limit) => loadBranch(this.db, prefixes, limit),
+      refreshAnnotations: (path, annotations) =>
+        updateNodeAnnotations(this.db, path, annotations),
     };
 
     this.contributions = {
@@ -422,8 +426,9 @@ export class SqliteStorageAdapter implements StoragePort {
       pruneStale: () => deleteStaleFindings(this.db),
       resolveByHuman: (id, note, nowMs) => resolveFindingByHuman(this.db, id, note, nowMs),
       get: (id) => getFindingById(this.db, id),
-      dismissClass: (nodeId, extensionId, type) =>
-        deleteFindingClass(this.db, nodeId, extensionId, type),
+      suppressionsByPath: (paths) => suppressionsByPath(this.db, paths),
+      countClearable: (nodeId) => countAllFindings(this.db, nodeId),
+      clear: (nodeId) => deleteAllFindings(this.db, nodeId),
     };
 
     this.favorites = {

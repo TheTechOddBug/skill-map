@@ -294,9 +294,6 @@ export class RecordCommand extends SmCommand {
         resolveExtensionRecord(await getRuntime(), job.extensionId, job.extensionKind),
       metrics: this.toRecordMetrics(metrics),
       now,
-      // Threaded so the finder lane can read the node's LIVE `.sm`
-      // sidecar suppressions and drop dismissed findings (spec §state_findings).
-      cwd,
     });
 
     if (outcome.kind === 'schema-unresolved') {

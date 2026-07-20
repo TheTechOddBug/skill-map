@@ -36,6 +36,7 @@ import type {
   IPersistedEnrichment,
 } from '../orchestrator.js';
 import type { IPriorExtractorRun } from '../adapters/sqlite/scan-load.js';
+import type { ISuppressionEntry } from '../jobs/findings-report.js';
 import type { IUpdateCheckCache } from '../update-check/index.js';
 import type { IDiscoveredPlugin } from './plugin-loader.js';
 import type {
@@ -237,6 +238,16 @@ export interface StoragePort {
      * hydrates into memory.
      */
     loadBranch(prefixes: string[], limit: number): Promise<IBranchProjection>;
+    /**
+     * Refresh ONE node's denormalized `scan_nodes.annotations_json`
+     * mirror from its just-written `.sm` annotations, the write-through
+     * half of `sm findings dismiss` / `undismiss` (`spec/db-schema.md`
+     * §state_findings, read-time suppression lens). The sidecar stays the
+     * source of truth; `sm scan` remains the wholesale refresher (a
+     * hand-edited `.sm` reconciles at the next scan). `null` clears the
+     * column; a path not in the scan is a no-op.
+     */
+    refreshAnnotations(path: string, annotations: Record<string, unknown> | null): Promise<void>;
   };
 
   // --- contributions namespace -----------------------------------------
@@ -639,14 +650,33 @@ export interface StoragePort {
      */
     get(id: number): Promise<IFindingRecord | null>;
     /**
-     * `sm findings dismiss <id>` DB half (`spec/cli-contract.md` §sm
-     * findings dismiss): after the durable `annotations.suppressions` entry
-     * lands in the node's `.sm` sidecar, delete every `state_findings` row
-     * on `nodeId` matching `(extensionId, type)`, the whole judgment CLASS
-     * (findings have no stable cross-run identity, so the class is the
-     * grain). Returns the deleted row count.
+     * Active suppression entries per node path, read from the
+     * write-through `scan_nodes.annotations_json` mirror
+     * (`spec/db-schema.md` §state_findings, read-time suppression lens):
+     * the `.sm` sidecar is the source of truth, dismiss / undismiss
+     * refresh the column for the touched node, `sm scan` refreshes it
+     * wholesale. Backs the findings view's `dismissed` bucket, the card
+     * counters, and `sm findings suppressions`; ZERO file reads. `paths`
+     * narrows; absent reads every node. Nodes without suppressions are
+     * absent from the map.
      */
-    dismissClass(nodeId: string, extensionId: string, type: string): Promise<number>;
+    suppressionsByPath(paths?: readonly string[]): Promise<Map<string, ISuppressionEntry[]>>;
+    /**
+     * Count the rows `clear(nodeId?)` would delete (fresh included, all
+     * origins); the `sm findings clear` dry-run / confirmation count.
+     * `nodeId` narrows to one node, absent counts the whole table.
+     */
+    countClearable(nodeId?: string): Promise<number>;
+    /**
+     * `sm findings clear` (`spec/cli-contract.md` §sm findings clear):
+     * wholesale delete of `state_findings` rows, FRESH included, all
+     * origins (finder judgments AND kernel safety rows; a delete cannot
+     * silence future warnings, unlike a suppression, so the safety lane is
+     * deletable here while `sm findings dismiss` refuses it). `nodeId`
+     * narrows to one node, absent clears the whole table. A reset, not a
+     * suppression: a finder re-run re-judges. Returns the deleted count.
+     */
+    clear(nodeId?: string): Promise<number>;
   };
 
   // --- summaries namespace ----------------------------------------------

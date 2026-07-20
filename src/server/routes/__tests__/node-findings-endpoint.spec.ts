@@ -46,6 +46,7 @@ interface IFindingsEnvelope {
   counts: {
     total: number;
     returned: number;
+    dismissedExcluded: number;
     fixedExcluded: number;
     staleExcluded: number;
   };
@@ -104,9 +105,10 @@ describe('GET /api/nodes/:pathB64/findings', () => {
       assert.deepEqual(types(env), ['needs-author', 'open-fresh']);
       assert.equal(env.counts.total, 2);
       assert.equal(env.counts.returned, 2);
+      assert.equal(env.counts.dismissedExcluded, 0);
       assert.equal(env.counts.fixedExcluded, 1);
       assert.equal(env.counts.staleExcluded, 1);
-      assert.deepEqual(env.filters, { fixed: false, stale: false });
+      assert.deepEqual(env.filters, { dismissed: false, fixed: false, stale: false });
       // The internal stamp never reaches the wire; the derived `stale`
       // boolean and the resolution fields do.
       for (const item of env.items) {
@@ -127,7 +129,7 @@ describe('GET /api/nodes/:pathB64/findings', () => {
       assert.equal(env.items[0]!['resolutionActor'], 'human');
       assert.equal(env.counts.fixedExcluded, 0);
       assert.equal(env.counts.staleExcluded, 0);
-      assert.deepEqual(env.filters, { fixed: true, stale: false });
+      assert.deepEqual(env.filters, { dismissed: false, fixed: true, stale: false });
     });
   });
 
@@ -150,6 +152,54 @@ describe('GET /api/nodes/:pathB64/findings', () => {
       const env = (await res.json()) as IFindingsEnvelope;
       assert.deepEqual(types(env), ['open-stale', 'to-fix']);
     });
+  });
+
+  it('a suppressed class hides as dismissed; ?dismissed=1 reveals it; envelope validates', async () => {
+    // The read-time dismissal lens, sourced from the write-through
+    // `scan_nodes.annotations_json` mirror (no `.sm` file involved on the
+    // read path). Restored at the end: the fixture is shared.
+    await withProjectDb(project, async (adapter) => {
+      await adapter.scans.refreshAnnotations(SKILL_NODE.path, {
+        suppressions: [{ extension: FINDER_ID, type: 'open-fresh' }],
+      });
+    });
+    try {
+      const validate = compileEnvelopeValidator();
+      await bootAndUse(project, async (handle) => {
+        // Default view: the suppressed class hides with TOP precedence and
+        // the honesty triple reports it.
+        const res = await fetch(findingsUrl(handle));
+        assert.equal(res.status, 200);
+        const env = (await res.json()) as IFindingsEnvelope;
+        assert.deepEqual(types(env), ['needs-author']);
+        assert.equal(env.counts.dismissedExcluded, 1);
+        assert.equal(env.counts.fixedExcluded, 1);
+        assert.equal(env.counts.staleExcluded, 1);
+        assert.equal(
+          validate(env),
+          true,
+          `default envelope must validate: ${JSON.stringify(validate.errors)}`,
+        );
+
+        // ?dismissed=1 is a bucket FILTER: only the suppressed class,
+        // excluded counts 0.
+        const revealed = await fetch(findingsUrl(handle, '?dismissed=1'));
+        assert.equal(revealed.status, 200);
+        const revEnv = (await revealed.json()) as IFindingsEnvelope;
+        assert.deepEqual(types(revEnv), ['open-fresh']);
+        assert.deepEqual(revEnv.filters, { dismissed: true, fixed: false, stale: false });
+        assert.equal(revEnv.counts.dismissedExcluded, 0);
+        assert.equal(
+          validate(revEnv),
+          true,
+          `bucket envelope must validate: ${JSON.stringify(validate.errors)}`,
+        );
+      });
+    } finally {
+      await withProjectDb(project, async (adapter) => {
+        await adapter.scans.refreshAnnotations(SKILL_NODE.path, null);
+      });
+    }
   });
 
   it('200 envelope validates against rest-envelope.schema.json (findings variant)', async () => {

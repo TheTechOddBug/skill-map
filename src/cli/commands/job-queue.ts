@@ -52,6 +52,8 @@
  * adapter internals. DB paths resolve through `cli/util/db-path.ts`.
  */
 
+import { resolve } from 'node:path';
+
 import { Command, Option } from 'clipanion';
 
 import type { Job } from '../../kernel/types.js';
@@ -65,6 +67,12 @@ import {
   toPublicJob,
   unescapeUserContentClose,
 } from '../../kernel/jobs/index.js';
+import { readSidecarFor, sidecarPathFor } from '../../kernel/sidecar/index.js';
+import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
+import {
+  EConsentRequiredError,
+  ensureSidecarWritesAllowed,
+} from '../../core/config/sidecar-consent.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import {
@@ -93,6 +101,44 @@ import { recordFailedOutcome } from './record-outcome.js';
 // ---------------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------------
+
+/** Outcome of the finder-submit suppression handling (auto-undismiss). */
+type TSuppressionHandling =
+  | { kind: 'none' }
+  | { kind: 'lifted'; matching: readonly ISuppressionMatch[] }
+  | { kind: 'kept'; matching: readonly ISuppressionMatch[] };
+
+/**
+ * Remove EVERY `annotations.suppressions` entry of `extensionId` (typed and
+ * blanket, the finder re-judges all its types) from the node's `.sm`
+ * sidecar through the gated channel. `false` when the project has no
+ * standing `.sm` consent (nothing written, the entry is kept); `true` when
+ * the write landed. Other entries are preserved verbatim.
+ */
+async function removeSuppressionEntries(
+  cwd: string,
+  nodeId: string,
+  extensionId: string,
+): Promise<boolean> {
+  const mdAbs = resolve(cwd, nodeId);
+  const raw = readSidecarFor(mdAbs).parsed?.annotations?.['suppressions'];
+  const entries = Array.isArray(raw)
+    ? raw.filter((e): e is Record<string, unknown> => typeof e === 'object' && e !== null)
+    : [];
+  const remaining = entries.filter((e) => e['extension'] !== extensionId);
+  try {
+    const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
+    await store.applyPatch(
+      sidecarPathFor(mdAbs),
+      { annotations: { suppressions: remaining } },
+      { confirm: false, always: false, cwd },
+    );
+  } catch (err) {
+    if (err instanceof EConsentRequiredError) return false;
+    throw err;
+  }
+  return true;
+}
 
 /**
  * Comma-joined finder ids of a fixer submit, for the no-findings advisory
@@ -373,7 +419,7 @@ export class JobSubmitCommand extends SmCommand {
     for (const node of targets) {
       outcomes.push(await submitOneJob(adapter, node, prepared));
     }
-    return this.reportAll(outcomes, targets.length, prepared);
+    return this.reportAll(adapter, outcomes, targets.length, prepared);
   }
 
   // --- output --------------------------------------------------------------
@@ -429,6 +475,9 @@ export class JobSubmitCommand extends SmCommand {
         supersededIds: outcome.supersededIds,
       },
     });
+    // Auto-undismiss (spec §Submit): the MUTATION runs in every output
+    // mode; only the stderr line is human-gated below.
+    const suppression = await this.liftSuppressionsFor(adapter, prepared, outcome.nodeId);
     if (this.json) {
       // --json stdout stays the plain new Job (the submit contract): a
       // supersession is a human-mode stderr advisory only, per spec §Supersede.
@@ -436,7 +485,7 @@ export class JobSubmitCommand extends SmCommand {
       this.printer!.data(JSON.stringify(job) + '\n');
     } else {
       this.emitSupersededAdvisory(outcome.supersededIds);
-      this.emitSuppressedAdvisory(prepared, outcome.nodeId);
+      this.emitSuppressionHandling(prepared, outcome.nodeId, suppression);
       this.printer!.data(outcome.id + '\n');
     }
     return ExitCode.Ok;
@@ -455,32 +504,70 @@ export class JobSubmitCommand extends SmCommand {
   }
 
   /**
-   * Suppressed-judgment advisory (`spec/job-lifecycle.md` §Submit): a FINDER
-   * submit whose target node's LIVE `.sm` sidecar suppresses the finder's
-   * judgment (a standing `sm findings dismiss`) queues anyway, but warns the
-   * operator that the record path will drop the matching findings, BEFORE
-   * the agent pass is spent. Never a refusal (the kernel safety lane is
-   * never suppressed, and a finder may emit types the suppression does not
-   * cover). Human mode only (stderr); no-op for Action submits and for
-   * nodes with no matching suppression.
+   * Suppressed-judgment handling on a FINDER submit (`spec/job-lifecycle.md`
+   * §Submit): asking for a fresh judgment IS asking to see it, so a submit
+   * over a node whose `.sm` sidecar suppresses the finder AUTO-UNDISMISSES
+   * it: the matching `annotations.suppressions` entries are removed through
+   * the same gated sidecar channel as `sm findings undismiss` (a standing
+   * `allowEditSmFiles` grant, the one the original dismiss persisted, lets
+   * it through silently) and the write-through `scan_nodes.annotations_json`
+   * mirror is refreshed, so the class's stored findings show again
+   * immediately and the fresh judgment lands visible. Without a standing
+   * grant (e.g. a hand-authored suppression in a project that never
+   * consented) the entry is KEPT and the pre-spend advisory fires instead
+   * (recorded but hidden). Never a refusal; no-op for Action submits and
+   * for nodes with no matching suppression. The MUTATION runs in every
+   * output mode; the stderr lines are human-mode only (the caller gates).
    */
-  private emitSuppressedAdvisory(prepared: ISubmitContext, nodeId: string): void {
-    if (prepared.extensionKind !== 'analyzer') return;
+  private async liftSuppressionsFor(
+    adapter: StoragePort,
+    prepared: ISubmitContext,
+    nodeId: string,
+  ): Promise<TSuppressionHandling> {
+    if (prepared.extensionKind !== 'analyzer') return { kind: 'none' };
     const matching = readActiveSuppressions(prepared.cwd, nodeId).filter(
       (s) => s.extension === prepared.extensionId,
     );
-    if (matching.length === 0) return;
+    const lifted =
+      matching.length > 0 &&
+      (await removeSuppressionEntries(prepared.cwd, nodeId, prepared.extensionId));
+    // Self-heal write-through, UNCONDITIONAL for analyzer submits: mirror
+    // the node's CURRENT live annotations even when nothing matched, so a
+    // `.sm` edited or deleted outside skill-map stops lying through the
+    // stale `scan_nodes.annotations_json` column on the first touch
+    // instead of waiting for the next scan (observed live: a hand-deleted
+    // sidecar left the mirror claiming a suppression, the view hid the
+    // fresh judgment, and the lift saw nothing to remove).
+    const mdAbs = resolve(prepared.cwd, nodeId);
+    await adapter.scans.refreshAnnotations(
+      nodeId,
+      readSidecarFor(mdAbs).parsed?.annotations ?? null,
+    );
+    if (matching.length === 0) return { kind: 'none' };
+    return lifted ? { kind: 'lifted', matching } : { kind: 'kept', matching };
+  }
+
+  /** Human-mode stderr line for the suppression handling outcome. */
+  private emitSuppressionHandling(
+    prepared: ISubmitContext,
+    nodeId: string,
+    handling: TSuppressionHandling,
+  ): void {
+    if (handling.kind === 'none') return;
+    const vars = {
+      node: nodeId,
+      what: suppressedWhatLabel(handling.matching),
+      extension: prepared.extensionId,
+    };
     this.printer!.info(
-      tx(T.submitSuppressedLine, {
-        glyph: this.warnGlyph(),
-        node: nodeId,
-        what: suppressedWhatLabel(matching),
-        extension: prepared.extensionId,
-      }),
+      handling.kind === 'lifted'
+        ? tx(T.submitSuppressionLifted, { glyph: this.okGlyph(), ...vars })
+        : tx(T.submitSuppressedLine, { glyph: this.warnGlyph(), ...vars }),
     );
   }
 
   private async reportAll(
+    adapter: StoragePort,
     outcomes: readonly TSubmitOutcome[],
     total: number,
     prepared: ISubmitContext,
@@ -508,6 +595,12 @@ export class JobSubmitCommand extends SmCommand {
         },
       });
     }
+    // Auto-undismiss per queued node (spec §Submit): the MUTATION runs in
+    // every output mode; the stderr lines are human-gated below.
+    const suppressions = new Map<string, TSuppressionHandling>();
+    for (const o of submitted) {
+      suppressions.set(o.nodeId, await this.liftSuppressionsFor(adapter, prepared, o.nodeId));
+    }
     if (this.json) {
       this.printer!.data(
         JSON.stringify({
@@ -529,9 +622,13 @@ export class JobSubmitCommand extends SmCommand {
       // Per-node fixer supersede advisory (each fan-out submit applies the
       // Supersede rule independently, spec §Findings injection for fixers).
       this.emitSupersededAdvisory(o.supersededIds);
-      // Per-node suppressed-judgment advisory (spec §Submit): fan-out finder
-      // submits warn on every queued node whose sidecar dismisses them.
-      this.emitSuppressedAdvisory(prepared, o.nodeId);
+      // Per-node suppression handling line (spec §Submit): lifted (the
+      // auto-undismiss went through) or kept (no consent, recorded hidden).
+      this.emitSuppressionHandling(
+        prepared,
+        o.nodeId,
+        suppressions.get(o.nodeId) ?? { kind: 'none' },
+      );
     }
     for (const o of refused) {
       this.printer!.info(this.toRefusedLine(o, prepared));

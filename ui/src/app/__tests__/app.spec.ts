@@ -105,7 +105,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       kind: 'findings',
       items: [],
       filters: {},
-      counts: { total: 0, returned: 0, fixedExcluded: 0, staleExcluded: 0 },
+      counts: { total: 0, returned: 0, dismissedExcluded: 0, fixedExcluded: 0, staleExcluded: 0 },
       kindRegistry: {},
     }),
   getNodeProbExtensions: () =>

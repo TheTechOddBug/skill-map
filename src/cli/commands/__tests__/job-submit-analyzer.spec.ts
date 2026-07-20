@@ -12,11 +12,11 @@
  *   - the deterministic refusal keeps the conformance-pinned phrase.
  */
 
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { strictEqual, ok, match, doesNotMatch } from 'node:assert';
+import { strictEqual, deepStrictEqual, ok, match, doesNotMatch } from 'node:assert';
 import { after, before, describe, it } from 'node:test';
 
 import type { BaseContext } from 'clipanion';
@@ -412,7 +412,7 @@ describe('suppressed-judgment advisory (spec §Submit)', () => {
       err,
       /suppresses 'contradiction', 'redundancy' findings from prob-finder\/quality-check/,
     );
-    match(err, /dropped at record/);
+    match(err, /recorded but hidden/);
     strictEqual((await lastJob(proj)).extensionId, 'prob-finder/quality-check', 'job queued');
   });
 
@@ -446,5 +446,73 @@ describe('suppressed-judgment advisory (spec §Submit)', () => {
     doesNotMatch(err, /suppresses/);
     const job = JSON.parse(out) as { extensionId: string };
     strictEqual(job.extensionId, 'prob-finder/quality-check');
+  });
+
+  it('self-heals a stale mirror: deleted .sm, column still claims a suppression', async () => {
+    const proj = await setupProject();
+    // The divergence observed live: the mirror carries a suppression the
+    // live sidecar no longer does (the operator deleted the `.sm` by hand,
+    // no scan ran since). NO sidecar file is written here.
+    const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      await adapter.scans.refreshAnnotations(SKILL.path, {
+        suppressions: [{ extension: 'prob-finder/quality-check', type: 'redundancy' }],
+      });
+    } finally {
+      await adapter.close();
+    }
+
+    const { code, err } = await submit(proj, 'prob-finder/quality-check');
+    strictEqual(code, 0);
+    // Nothing matched in the live file: no lifted line, no kept advisory.
+    doesNotMatch(err, /suppress/i);
+
+    // The submit reconciled the mirror from the (absent) live sidecar, so
+    // the view stops hiding what the truth no longer silences.
+    const verify = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+    await verify.init();
+    try {
+      const byPath = await verify.findings.suppressionsByPath([SKILL.path]);
+      strictEqual(byPath.get(SKILL.path), undefined, 'mirror healed to no suppressions');
+    } finally {
+      await verify.close();
+    }
+  });
+
+  it('AUTO-UNDISMISSES with a standing consent: removes the matching entries, keeps others', async () => {
+    const proj = await setupProject();
+    // The standing grant the original dismiss would have persisted.
+    writeFileSync(
+      join(proj.root, '.skill-map/settings.local.json'),
+      JSON.stringify({ allowEditSmFiles: true }) + '\n',
+    );
+    writeSuppressionSidecar(proj, [
+      { extension: 'prob-finder/quality-check', type: 'redundancy' },
+      { extension: 'prob-finder/quality-check' },
+      { extension: 'other/finder', type: 'redundancy' },
+    ]);
+
+    const { code, err } = await submit(proj, 'prob-finder/quality-check');
+    strictEqual(code, 0);
+    // The lifted line replaces the kept advisory.
+    match(err, /standing suppression on .* removed; the judgment shows again/);
+    doesNotMatch(err, /recorded but hidden/);
+
+    // Every entry of the submitted finder left the sidecar (typed AND
+    // blanket); the other extension's entry stands.
+    const raw = readFileSync(join(proj.root, '.claude/skills/foo/SKILL.sm'), 'utf8');
+    doesNotMatch(raw, /prob-finder\/quality-check/);
+    match(raw, /other\/finder/);
+
+    // Write-through: the annotations mirror no longer suppresses the finder.
+    const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      const byPath = await adapter.findings.suppressionsByPath([SKILL.path]);
+      deepStrictEqual(byPath.get(SKILL.path), [{ extension: 'other/finder', type: 'redundancy' }]);
+    } finally {
+      await adapter.close();
+    }
   });
 });

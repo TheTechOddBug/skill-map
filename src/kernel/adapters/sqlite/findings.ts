@@ -36,6 +36,11 @@ import type {
   TFindingResolveOutcome,
 } from '../../types/storage.js';
 import type { Severity } from '../../types.js';
+import {
+  isFindingSuppressed,
+  suppressionsFromAnnotations,
+  type ISuppressionEntry,
+} from '../../jobs/findings-report.js';
 import { matchesQualifiedExtensionFilter } from '../../util/analyzer-filter.js';
 import type { IDatabase } from './schema.js';
 
@@ -255,26 +260,72 @@ export async function deleteStaleFindings(db: TDbOrTx): Promise<number> {
 }
 
 /**
- * Delete every `state_findings` row on `nodeId` whose `(extensionId, type)`
- * matches: the whole judgment CLASS a `sm findings dismiss <id>` silences
- * (`spec/cli-contract.md` §sm findings dismiss, `spec/db-schema.md`
- * §state_findings). NOT just the dismissed id: findings carry no stable
- * identity across finder runs, so the honest durable grain is the
- * (extension, type) class on the node, mirroring the sidecar suppression
- * this delete accompanies. Returns the deleted row count.
+ * Active suppression entries per node path, read from the write-through
+ * `scan_nodes.annotations_json` mirror (`spec/db-schema.md`
+ * §state_findings, read-time suppression lens): the `.sm` sidecar is the
+ * source of truth, `sm findings dismiss` / `undismiss` refresh this
+ * column for the touched node in the same operation, and `sm scan`
+ * refreshes it wholesale (a hand-edited `.sm` reconciles at the next
+ * scan, the same rule as any content edit). `paths` narrows the read;
+ * absent reads every node. Nodes without suppressions are absent from
+ * the map.
  */
-export async function deleteFindingClass(
+export async function suppressionsByPath(
   db: TDbOrTx,
-  nodeId: string,
-  extensionId: string,
-  type: string,
-): Promise<number> {
-  const result = await db
-    .deleteFrom('state_findings')
-    .where('nodeId', '=', nodeId)
-    .where('extensionId', '=', extensionId)
-    .where('type', '=', type)
-    .executeTakeFirst();
+  paths?: readonly string[],
+): Promise<Map<string, ISuppressionEntry[]>> {
+  const out = new Map<string, ISuppressionEntry[]>();
+  if (paths !== undefined && paths.length === 0) return out;
+  let query = db
+    .selectFrom('scan_nodes')
+    .select(['path', 'annotationsJson'])
+    .where('annotationsJson', 'is not', null);
+  if (paths !== undefined) query = query.where('path', 'in', [...paths]);
+  for (const row of await query.execute()) {
+    const entries = suppressionsFromAnnotations(parseAnnotations(row.annotationsJson));
+    if (entries.length > 0) out.set(row.path, entries);
+  }
+  return out;
+}
+
+/** Parse an `annotations_json` cell, `null`-safe (malformed yields none). */
+function parseAnnotations(raw: string | null): unknown {
+  if (raw === null) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Count the rows `deleteAllFindings` would remove for the same scope:
+ * the `sm findings clear` dry-run / confirmation count. `nodeId` narrows
+ * to one node, absent counts the whole table.
+ */
+export async function countAllFindings(db: TDbOrTx, nodeId?: string): Promise<number> {
+  let query = db
+    .selectFrom('state_findings')
+    .select((eb) => eb.fn.countAll<number>().as('count'));
+  if (nodeId !== undefined) query = query.where('nodeId', '=', nodeId);
+  const row = await query.executeTakeFirst();
+  return Number(row?.count ?? 0);
+}
+
+/**
+ * Wholesale delete of `state_findings` rows (`sm findings clear`,
+ * `spec/cli-contract.md` §sm findings clear): FRESH rows included and no
+ * origin filter, kernel safety rows go too (a delete cannot silence future
+ * warnings, unlike the sidecar suppression `dismiss` writes, so the safety
+ * lane is deletable here while dismiss refuses it). `nodeId` narrows to one
+ * node, absent clears the whole table. A reset, not a suppression: a finder
+ * re-run re-judges the node and regenerates whatever still applies. Returns
+ * the deleted row count.
+ */
+export async function deleteAllFindings(db: TDbOrTx, nodeId?: string): Promise<number> {
+  let query = db.deleteFrom('state_findings');
+  if (nodeId !== undefined) query = query.where('nodeId', '=', nodeId);
+  const result = await query.executeTakeFirst();
   return Number(result.numDeletedRows ?? 0);
 }
 
@@ -555,14 +606,32 @@ export async function countUnresolvedFindingsByPath(
     .where((eb) =>
       eb('scan_nodes.bodyHash', '=', eb.ref('state_findings.bodyHashAtGeneration')),
     )
-    .select(['state_findings.nodeId as nodeId', 'state_findings.severity as severity'])
-    .select((eb) => eb.fn.countAll<number>().as('c'))
-    .groupBy(['state_findings.nodeId', 'state_findings.severity'])
+    // The row-level fields + the node's denormalized annotations ride the
+    // SAME query so the suppression lens costs no extra round-trip; the
+    // (extension, type)-class matching happens in JS (the fold below),
+    // which is why this is a row fetch, not a SQL GROUP BY.
+    .select([
+      'state_findings.nodeId as nodeId',
+      'state_findings.extensionId as extensionId',
+      'state_findings.type as type',
+      'state_findings.severity as severity',
+      'scan_nodes.annotationsJson as annotationsJson',
+    ])
     .execute();
+  // Fold in JS, skipping rows silenced by an active suppression (the
+  // read-time dismissal lens, `spec/db-schema.md` §state_findings): a
+  // dismissed class must not light a card chip.
+  const suppressionsCache = new Map<string, ISuppressionEntry[]>();
   for (const row of rows) {
+    let suppressions = suppressionsCache.get(row.nodeId);
+    if (suppressions === undefined) {
+      suppressions = suppressionsFromAnnotations(parseAnnotations(row.annotationsJson));
+      suppressionsCache.set(row.nodeId, suppressions);
+    }
+    if (isFindingSuppressed(row.extensionId, row.type, suppressions)) continue;
     const bucket = out.get(row.nodeId) ?? { warn: 0, error: 0 };
-    if (row.severity === 'error') bucket.error = Number(row.c);
-    else if (row.severity === 'warn') bucket.warn = Number(row.c);
+    if (row.severity === 'error') bucket.error += 1;
+    else if (row.severity === 'warn') bucket.warn += 1;
     out.set(row.nodeId, bucket);
   }
   return out;

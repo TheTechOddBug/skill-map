@@ -46,22 +46,24 @@ export const FINDINGS_CLI_TEXTS = {
     '\n{{glyph}}  {{breakdown}} hidden{{humanDecision}}.\n' +
     '   {{hint}}\n',
   /**
-   * The two disjoint hidden-tally fragments, joined by
+   * The disjoint hidden-tally fragments, joined by
    * `hiddenBreakdownJoiner` into `{{breakdown}}` (a zero count is omitted,
-   * never `0 fixed`). No noun inflection: the shared trailing `hidden` in
-   * the templates above carries it once.
+   * never `0 fixed`; precedence dismissed > fixed > stale). No noun
+   * inflection: the shared trailing `hidden` in the templates above
+   * carries it once.
    */
+  hiddenDismissedFragment: '{{count}} dismissed',
   hiddenFixedFragment: '{{count}} fixed',
   hiddenStaleFragment: '{{count}} stale',
   hiddenBreakdownJoiner: ', ',
   /**
-   * The reveal flag(s) named in the remedy hint, picked by which buckets
-   * are actually hidden (both / fixed-only / stale-only). Flag literals,
-   * authored by the CLI.
+   * The reveal flag literals named in the remedy hint, joined by
+   * `hiddenFlagsJoiner`; only the buckets actually hidden contribute.
    */
-  hiddenFlagsBoth: '--fixed / --stale',
-  hiddenFlagsFixedOnly: '--fixed',
-  hiddenFlagsStaleOnly: '--stale',
+  hiddenFlagDismissed: '--dismissed',
+  hiddenFlagFixed: '--fixed',
+  hiddenFlagStale: '--stale',
+  hiddenFlagsJoiner: ' / ',
   /**
    * Appended (yellow) to either hidden-breakdown shape when some hidden
    * row carries `resolution = 'human-decision'` (`spec/cli-contract.md`
@@ -178,6 +180,81 @@ export const FINDINGS_CLI_TEXTS = {
     '{{glyph}}  Would delete {{wouldDelete}} stale finding{{plural}}{{dryTag}}\n',
   pruneDryRunTag: '  (dry-run)',
 
+  // --- sm findings clear ---------------------------------------------------
+  /** Exit 2: neither or both of the two required targets were passed. */
+  clearBadTarget:
+    '{{glyph}}  findings clear: pass exactly one target.\n' +
+    '   {{hint}}\n',
+  clearBadTargetHint:
+    'Use -n <node.path> to clear one node, or --all to clear the whole project.',
+  /** Zero rows in the target scope: friendly no-op. */
+  clearNone: '{{glyph}}  No findings to clear{{scope}}.\n',
+  /** Scope fragments appended to the lines above/below (empty for --all). */
+  clearScopeNode: ' on {{node}}',
+  clearConfirm:
+    'sm findings clear is about to delete {{count}} finding{{plural}}{{scope}}, ' +
+    'FRESH judgments and safety rows included.\n' +
+    'This is a reset, not a suppression: re-running a finder re-judges. Proceed?',
+  clearAborted: '{{glyph}}  sm findings clear: aborted by user. No rows deleted.\n',
+  clearSummary: '{{glyph}}  Deleted {{deleted}} finding{{plural}}{{scope}}.\n',
+  clearSummaryDryRun:
+    '{{glyph}}  Would delete {{wouldDelete}} finding{{plural}}{{scope}}{{dryTag}}\n',
+  clearDryRunTag: '  (dry-run)',
+
+  // --- sm findings suppressions --------------------------------------------
+  /** Zero active suppressions across the queried scope. */
+  suppressionsNone: '{{glyph}}  No active suppressions.\n',
+  /** Header over the listing: total entry count. */
+  suppressionsHeader: 'sm findings suppressions: {{count}} active\n\n',
+  /**
+   * One suppression row: node, the silenced (extension, type) class, the
+   * optional note. `{{type}}` renders the literal type slug or the
+   * all-types marker below; `{{noteSuffix}}` is empty or the note shape.
+   */
+  suppressionsRow: '  {{node}}  {{extension}}  {{type}}{{noteSuffix}}\n',
+  /** `type` cell when the entry silences EVERY type from the extension. */
+  suppressionsAllTypes: '(all types)',
+  /** The dim `  note` tail on a row; omitted when the entry has no note. */
+  suppressionsNoteSuffix: '  {{note}}',
+  /** Footer hint pointing at the escape hatch. */
+  suppressionsTip:
+    '\nTip: `sm findings undismiss -n <path> --extension <id> [--type <slug>]` removes one; its findings show again instantly.\n',
+
+  // --- sm findings undismiss -----------------------------------------------
+  /**
+   * Success: the suppression entry left the sidecar; the class's rows
+   * (never deleted under the read-time lens) show again immediately.
+   */
+  undismissDone:
+    '{{glyph}}  Un-dismissed: {{extension}} {{type}} on {{node}} shows again ' +
+    '(removed from {{sidecar}}).\n' +
+    '   {{hint}}\n',
+  undismissDoneHint:
+    'Its stored findings are visible in `sm findings` right away; the next finder run keeps re-judging as usual.',
+  /** Exit 5: no suppression entry matches the named (extension, type). */
+  undismissNoMatch:
+    '{{glyph}}  No suppression for {{extension}} {{type}} on {{node}}.\n' +
+    '   {{hint}}\n',
+  undismissNoMatchHint:
+    'Run `sm findings suppressions -n <path>` to list the active entries (a typed entry needs its --type; omit --type only for the all-types entry).',
+  /** Exit 5: the node is not in the current scan. */
+  undismissNodeGone:
+    '{{glyph}}  Node {{node}} is not in the current scan.\n' +
+    '   {{hint}}\n',
+  undismissNodeGoneHint: 'Run `sm scan` to re-index the node, then undismiss again.',
+  /**
+   * Exit 2: a bare `--extension` matched more than one qualified entry
+   * (two plugins sharing a bare name); removing both silently would
+   * over-reach, so the verb demands the qualified id.
+   */
+  undismissAmbiguous:
+    '{{glyph}}  --extension "{{value}}" matches {{count}} suppressions on {{node}}.\n' +
+    '   {{hint}}\n',
+  undismissAmbiguousHint:
+    'Pass the qualified extension id (see `sm findings suppressions -n <path>`).',
+  /** `type` echo when the target is the all-types blanket entry. */
+  undismissAllTypes: '(all types)',
+
   // --- flag validation (exit 2) ------------------------------------------
   errBadSeverity:
     '{{glyph}}  --severity: invalid value "{{value}}".\n' +
@@ -220,14 +297,15 @@ export const FINDINGS_CLI_TEXTS = {
   // --- sm findings dismiss <id> ------------------------------------------
   /**
    * Success line for `sm findings dismiss <id>`: the durable
-   * `annotations.suppressions` entry landed in the node's `.sm` sidecar and
-   * the whole (extension, type) judgment class was deleted. Names the
-   * silenced class + node so the operator sees exactly what stops being
-   * reported. Every interpolated value is sanitized at the call site.
+   * `annotations.suppressions` entry landed in the node's `.sm` sidecar;
+   * the whole (extension, type) judgment class now HIDES from the default
+   * view (rows kept, `--dismissed` reveals, `undismiss` restores). Names
+   * the silenced class + node so the operator sees exactly what stops
+   * being shown. Every interpolated value is sanitized at the call site.
    */
   dismissDone:
-    '{{glyph}}  Dismissed: {{extension}} {{type}} on {{node}} will no longer be reported ' +
-    '(recorded in {{sidecar}}).\n',
+    '{{glyph}}  Dismissed: {{extension}} {{type}} on {{node}} is now hidden ' +
+    '(recorded in {{sidecar}}; `--dismissed` reveals it, `undismiss` restores it).\n',
   /** Exit 5: no finding carries that id. */
   dismissNotFound:
     '{{glyph}}  Finding {{id}} not found.\n' +

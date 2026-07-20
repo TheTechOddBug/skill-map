@@ -29,7 +29,12 @@ import { after, before, describe, it } from 'node:test';
 
 import type { BaseContext } from 'clipanion';
 
-import { FindingsDismissCommand } from '../findings.js';
+import {
+  FindingsCommand,
+  FindingsDismissCommand,
+  FindingsSuppressionsCommand,
+  FindingsUndismissCommand,
+} from '../findings.js';
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
 import { replaceFindingsForNode } from '../../../kernel/adapters/sqlite/findings.js';
 import { readSidecarFor, sidecarPathFor } from '../../../kernel/sidecar/index.js';
@@ -170,7 +175,10 @@ function buildDismiss(
   return cmd;
 }
 
-async function run(cmd: FindingsDismissCommand, cap: ICaptured): Promise<number> {
+async function run(
+  cmd: { context: BaseContext; execute(): Promise<number> },
+  cap: ICaptured,
+): Promise<number> {
   cmd.context = cap.context;
   return cmd.execute();
 }
@@ -219,7 +227,7 @@ after(() => {
 });
 
 describe('sm findings dismiss', () => {
-  it('writes the suppression entry AND deletes the (extension, type) class', async () => {
+  it('writes the suppression entry, KEEPS the rows, refreshes the annotations mirror', async () => {
     const proj = await setupProject();
     const id = await findingId(proj, 'contradiction');
 
@@ -232,8 +240,25 @@ describe('sm findings dismiss', () => {
     const supp = readSuppressions(proj.root);
     deepStrictEqual(supp, [{ extension: FINDER_EXT, type: 'contradiction' }]);
 
-    // The whole contradiction class is gone; the sibling redundancy stays.
-    deepStrictEqual(await findingTypes(proj), ['redundancy']);
+    // Read-time lens: NOTHING deleted, both rows persist in the table.
+    deepStrictEqual((await findingTypes(proj)).sort(), ['contradiction', 'redundancy']);
+
+    // Write-through: the denormalized mirror carries the suppression, so
+    // the read surfaces (view + counters) see the dismissal without a scan.
+    const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      const byPath = await adapter.findings.suppressionsByPath([NODE]);
+      deepStrictEqual(byPath.get(NODE), [{ extension: FINDER_EXT, type: 'contradiction' }]);
+      // And the card counters skip the dismissed class: only the sibling
+      // counts... (both seeded rows are error/info: contradiction is error,
+      // redundancy is info which never reaches a chip), so the node counts
+      // ZERO chips after the dismissal.
+      const counts = await adapter.findings.countUnresolvedByPath([NODE]);
+      strictEqual(counts.get(NODE), undefined, 'dismissed error row lights no chip');
+    } finally {
+      await adapter.close();
+    }
   });
 
   it('records the optional --note on the suppression entry', async () => {
@@ -247,7 +272,7 @@ describe('sm findings dismiss', () => {
     ]);
   });
 
-  it('--json emits the written suppression entry', async () => {
+  it('--json emits the written suppression entry (no delete count, nothing is deleted)', async () => {
     const proj = await setupProject();
     const id = await findingId(proj, 'contradiction');
     const cap = captureContext();
@@ -255,18 +280,12 @@ describe('sm findings dismiss', () => {
       run(buildDismiss(String(id), { yes: true, json: true }), cap),
     );
     strictEqual(code, 0);
-    const body = JSON.parse(cap.stdout()) as {
-      ok: boolean;
-      kind: string;
-      suppression: Record<string, unknown>;
-      node: string;
-      deleted: number;
-    };
-    strictEqual(body.ok, true);
-    strictEqual(body.kind, 'suppression');
-    deepStrictEqual(body.suppression, { extension: FINDER_EXT, type: 'contradiction' });
-    strictEqual(body.node, NODE);
-    strictEqual(body.deleted, 1);
+    const body = JSON.parse(cap.stdout()) as Record<string, unknown>;
+    strictEqual(body['ok'], true);
+    strictEqual(body['kind'], 'suppression');
+    deepStrictEqual(body['suppression'], { extension: FINDER_EXT, type: 'contradiction' });
+    strictEqual(body['node'], NODE);
+    strictEqual('deleted' in body, false, 'the lens deletes nothing');
   });
 
   it('exit 5 when the id does not exist (nothing written)', async () => {
@@ -335,6 +354,50 @@ describe('sm findings dismiss', () => {
     deepStrictEqual(readSuppressions(proj.root), [{ extension: FINDER_EXT, type: 'contradiction' }]);
   });
 
+  it('read-time lens round-trip: default view hides the class, --dismissed reveals it, undismiss restores it instantly', async () => {
+    const proj = await setupProject();
+    const id = await findingId(proj, 'contradiction');
+    await withCwd(proj.root, async () =>
+      run(buildDismiss(String(id), { yes: true }), captureContext()),
+    );
+
+    // Default view: the dismissed class hides, the sibling shows, and the
+    // excluded breakdown reports it honestly.
+    const after = await readFindingsJson(proj);
+    deepStrictEqual(
+      after.findings.map((f) => f['type'] as string),
+      ['redundancy'],
+      'dismissed class hidden from the default view',
+    );
+    strictEqual(after.dismissedExcluded, 1);
+
+    // --dismissed reveals ONLY the suppressed bucket.
+    const revealed = await readFindingsJson(proj, { dismissed: true });
+    deepStrictEqual(
+      revealed.findings.map((f) => f['type'] as string),
+      ['contradiction'],
+    );
+
+    // Undismiss: rows were never deleted, so the class shows again
+    // IMMEDIATELY, no finder re-run.
+    strictEqual(
+      await withCwd(proj.root, async () =>
+        run(
+          buildUndismiss({ extension: FINDER_EXT, type: 'contradiction', yes: true }),
+          captureContext(),
+        ),
+      ),
+      0,
+    );
+    const restored = await readFindingsJson(proj);
+    deepStrictEqual(
+      restored.findings.map((f) => f['type'] as string).sort(),
+      ['contradiction', 'redundancy'],
+      'instant reappearance',
+    );
+    strictEqual(restored.dismissedExcluded, 0);
+  });
+
   it('a different type from the same extension appends a distinct entry', async () => {
     const proj = await setupProject();
     const contradictionId = await findingId(proj, 'contradiction');
@@ -360,5 +423,312 @@ describe('sm findings dismiss', () => {
     // No sidecar written and the class rows are intact.
     strictEqual(existsSync(join(proj.root, sidecarPathFor(NODE))), false);
     deepStrictEqual((await findingTypes(proj)).sort(), ['contradiction', 'redundancy']);
+  });
+});
+
+function buildSuppressions(
+  opts: { node?: string; json?: boolean } = {},
+): FindingsSuppressionsCommand {
+  const cmd = new FindingsSuppressionsCommand();
+  cmd.node = opts.node;
+  cmd.json = opts.json ?? false;
+  cmd.db = undefined;
+  return cmd;
+}
+
+function buildUndismiss(opts: {
+  node?: string;
+  extension: string;
+  type?: string;
+  yes?: boolean;
+  json?: boolean;
+}): FindingsUndismissCommand {
+  const cmd = new FindingsUndismissCommand();
+  cmd.node = opts.node ?? NODE;
+  cmd.extension = opts.extension;
+  cmd.type = opts.type;
+  cmd.yes = opts.yes ?? false;
+  cmd.json = opts.json ?? false;
+  cmd.db = undefined;
+  return cmd;
+}
+
+/** Run the `sm findings --json` read verb against the project. */
+async function readFindingsJson(
+  proj: IProject,
+  flags: { dismissed?: boolean } = {},
+): Promise<{ findings: Array<Record<string, unknown>>; dismissedExcluded: number }> {
+  const cmd = new FindingsCommand();
+  cmd.node = undefined;
+  cmd.extension = undefined;
+  cmd.type = undefined;
+  cmd.severity = undefined;
+  cmd.since = undefined;
+  cmd.threshold = undefined;
+  cmd.stale = false;
+  cmd.fixed = false;
+  cmd.dismissed = flags.dismissed ?? false;
+  cmd.json = true;
+  cmd.db = undefined;
+  const cap = captureContext();
+  strictEqual(await withCwd(proj.root, async () => run(cmd, cap)), 0);
+  return JSON.parse(cap.stdout()) as {
+    findings: Array<Record<string, unknown>>;
+    dismissedExcluded: number;
+  };
+}
+
+/** Dismiss the seeded finding of `type` (consented), leaving its suppression. */
+async function dismissType(proj: IProject, type: string): Promise<void> {
+  const id = await findingId(proj, type);
+  const code = await withCwd(proj.root, async () =>
+    run(buildDismiss(String(id), { yes: true }), captureContext()),
+  );
+  strictEqual(code, 0, `dismiss of ${type} succeeds`);
+}
+
+describe('sm findings suppressions', () => {
+  it('lists the active entries (node, extension, type) after dismisses', async () => {
+    const proj = await setupProject();
+    await dismissType(proj, 'contradiction');
+    await dismissType(proj, 'redundancy');
+
+    const cap = captureContext();
+    const code = await withCwd(proj.root, async () => run(buildSuppressions({ json: true }), cap));
+    strictEqual(code, 0);
+    const body = JSON.parse(cap.stdout()) as {
+      ok: boolean;
+      kind: string;
+      suppressions: Array<Record<string, unknown>>;
+    };
+    strictEqual(body.ok, true);
+    strictEqual(body.kind, 'suppressions');
+    deepStrictEqual(body.suppressions, [
+      { node: NODE, extension: FINDER_EXT, type: 'contradiction' },
+      { node: NODE, extension: FINDER_EXT, type: 'redundancy' },
+    ]);
+  });
+
+  it('human mode renders the rows and the undismiss tip', async () => {
+    const proj = await setupProject();
+    await dismissType(proj, 'contradiction');
+    const cap = captureContext();
+    strictEqual(await withCwd(proj.root, async () => run(buildSuppressions(), cap)), 0);
+    ok(/1 active/.test(cap.stdout()), cap.stdout());
+    ok(new RegExp(`${NODE}.*${FINDER_EXT}.*contradiction`).test(cap.stdout()), cap.stdout());
+    ok(/undismiss/.test(cap.stdout()), 'points at the escape hatch');
+  });
+
+  it('-n narrows to the named node; a node without entries yields none', async () => {
+    const proj = await setupProject();
+    await dismissType(proj, 'contradiction');
+    const hit = captureContext();
+    strictEqual(
+      await withCwd(proj.root, async () => run(buildSuppressions({ node: NODE, json: true }), hit)),
+      0,
+    );
+    strictEqual(
+      (JSON.parse(hit.stdout()) as { suppressions: unknown[] }).suppressions.length,
+      1,
+    );
+
+    const miss = captureContext();
+    strictEqual(
+      await withCwd(proj.root, async () =>
+        run(buildSuppressions({ node: 'other.md', json: true }), miss),
+      ),
+      0,
+    );
+    strictEqual(
+      (JSON.parse(miss.stdout()) as { suppressions: unknown[] }).suppressions.length,
+      0,
+    );
+  });
+
+  it('friendly empty line when nothing is suppressed', async () => {
+    const proj = await setupProject();
+    const cap = captureContext();
+    strictEqual(await withCwd(proj.root, async () => run(buildSuppressions(), cap)), 0);
+    ok(/No active suppressions/.test(cap.stdout()), cap.stdout());
+  });
+});
+
+describe('sm findings undismiss', () => {
+  it('removes the matching typed entry, keeps the sibling, echoes the removal', async () => {
+    const proj = await setupProject();
+    await dismissType(proj, 'contradiction');
+    await dismissType(proj, 'redundancy');
+
+    const cap = captureContext();
+    const code = await withCwd(proj.root, async () =>
+      run(
+        buildUndismiss({ extension: FINDER_EXT, type: 'contradiction', yes: true, json: true }),
+        cap,
+      ),
+    );
+    strictEqual(code, 0);
+    const body = JSON.parse(cap.stdout()) as {
+      ok: boolean;
+      kind: string;
+      removed: Record<string, unknown>;
+      node: string;
+    };
+    strictEqual(body.ok, true);
+    strictEqual(body.kind, 'unsuppression');
+    deepStrictEqual(body.removed, { extension: FINDER_EXT, type: 'contradiction' });
+    strictEqual(body.node, NODE);
+
+    // The sidecar keeps ONLY the sibling entry: the class is eligible again.
+    deepStrictEqual(readSuppressions(proj.root), [{ extension: FINDER_EXT, type: 'redundancy' }]);
+  });
+
+  it('matches the extension by bare id too', async () => {
+    const proj = await setupProject();
+    await dismissType(proj, 'contradiction');
+    const code = await withCwd(proj.root, async () =>
+      run(buildUndismiss({ extension: 'finder-a', type: 'contradiction', yes: true }), captureContext()),
+    );
+    strictEqual(code, 0);
+    deepStrictEqual(readSuppressions(proj.root), []);
+  });
+
+  it('exit 5 when no entry matches (wrong type, or omitting --type for a typed entry)', async () => {
+    const proj = await setupProject();
+    await dismissType(proj, 'contradiction');
+
+    const wrongType = captureContext();
+    strictEqual(
+      await withCwd(proj.root, async () =>
+        run(buildUndismiss({ extension: FINDER_EXT, type: 'redundancy', yes: true }), wrongType),
+      ),
+      5,
+    );
+    ok(/No suppression/.test(wrongType.stderr()), wrongType.stderr());
+
+    // Omitting --type targets the type-less blanket entry ONLY; the typed
+    // contradiction entry does not match.
+    const blanket = captureContext();
+    strictEqual(
+      await withCwd(proj.root, async () =>
+        run(buildUndismiss({ extension: FINDER_EXT, yes: true }), blanket),
+      ),
+      5,
+    );
+    deepStrictEqual(readSuppressions(proj.root), [
+      { extension: FINDER_EXT, type: 'contradiction' },
+    ]);
+  });
+
+  it('exit 5 when the node is not in the current scan', async () => {
+    const proj = await setupProject();
+    const cap = captureContext();
+    const code = await withCwd(proj.root, async () =>
+      run(buildUndismiss({ node: 'ghost.md', extension: FINDER_EXT, yes: true }), cap),
+    );
+    strictEqual(code, 5);
+    ok(/not in the current scan/.test(cap.stderr()), cap.stderr());
+  });
+
+  it('exit 2 when a bare --extension matches entries from two qualified ids', async () => {
+    // Two finders sharing the bare name `finder-a` under different plugins,
+    // both dismissed for the same type.
+    const proj = await setupProject(
+      [extRow('contradiction', 'error')],
+      async (adapter) => {
+        await replaceFindingsForNode(adapter.db, NODE, 'other/finder-a', [
+          extRow('contradiction', 'error'),
+        ]);
+      },
+    );
+    // Dismiss each extension's occurrence by ITS OWN id (the type alone is
+    // ambiguous here, both extensions carry a contradiction row).
+    for (const extension of [FINDER_EXT, 'other/finder-a']) {
+      const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+      await adapter.init();
+      let id: number;
+      try {
+        const target = (await adapter.findings.list({ nodeId: NODE, includeStale: true })).find(
+          (f) => f.extensionId === extension,
+        );
+        ok(target, `${extension} finding exists`);
+        id = target.id;
+      } finally {
+        await adapter.close();
+      }
+      strictEqual(
+        await withCwd(proj.root, async () =>
+          run(buildDismiss(String(id), { yes: true }), captureContext()),
+        ),
+        0,
+      );
+    }
+
+    const cap = captureContext();
+    const code = await withCwd(proj.root, async () =>
+      run(buildUndismiss({ extension: 'finder-a', type: 'contradiction', yes: true }), cap),
+    );
+    strictEqual(code, 2);
+    ok(/matches 2 suppressions/.test(cap.stderr()), cap.stderr());
+    // Both entries stand untouched.
+    strictEqual(readSuppressions(proj.root).length, 2);
+  });
+
+  it('no-match self-heals a stale mirror: hand-deleted .sm stops hiding the rows', async () => {
+    const proj = await setupProject();
+    await dismissType(proj, 'contradiction');
+    // The row is hidden by the mirror-backed lens.
+    strictEqual((await readFindingsJson(proj)).dismissedExcluded, 1);
+
+    // The operator deletes the sidecar OUTSIDE skill-map (observed live):
+    // the file truth carries no suppression, the mirror still does.
+    rmSync(join(proj.root, sidecarPathFor(NODE)));
+    _resetSidecarValidatorCacheForTests();
+
+    // Undismiss finds nothing in the live file -> exit 5, but it SELF-HEALS
+    // the mirror first, so the view stops hiding the class.
+    const cap = captureContext();
+    const code = await withCwd(proj.root, async () =>
+      run(buildUndismiss({ extension: FINDER_EXT, type: 'contradiction', yes: true }), cap),
+    );
+    strictEqual(code, 5);
+    ok(/No suppression/.test(cap.stderr()), cap.stderr());
+
+    const after = await readFindingsJson(proj);
+    strictEqual(after.dismissedExcluded, 0, 'mirror healed');
+    deepStrictEqual(
+      after.findings.map((f) => f['type'] as string).sort(),
+      ['contradiction', 'redundancy'],
+      'the rows show again',
+    );
+  });
+
+  it('consent gate honored: a non-TTY caller without --yes refuses (exit 2), entry stays', async () => {
+    // Hand-author the sidecar instead of dismissing first: a consented
+    // dismiss persists the grant (`always: true` flips allowEditSmFiles),
+    // which would let the undismiss through and void the gate under test.
+    const proj = await setupProject();
+    writeFileSync(
+      join(proj.root, sidecarPathFor(NODE)),
+      [
+        'annotations:',
+        '  suppressions:',
+        `    - extension: ${FINDER_EXT}`,
+        '      type: contradiction',
+        'identity:',
+        `  bodyHash: ${HASH}`,
+        `  frontmatterHash: ${'f'.repeat(64)}`,
+        `  path: ${NODE}`,
+        '',
+      ].join('\n'),
+    );
+    const cap = captureContext();
+    const code = await withCwd(proj.root, async () =>
+      run(buildUndismiss({ extension: FINDER_EXT, type: 'contradiction', yes: false }), cap),
+    );
+    strictEqual(code, 2);
+    ok(/consent required/.test(cap.stderr()), cap.stderr());
+    deepStrictEqual(readSuppressions(proj.root), [
+      { extension: FINDER_EXT, type: 'contradiction' },
+    ]);
   });
 });

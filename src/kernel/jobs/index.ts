@@ -43,6 +43,8 @@ export {
   isFindingSuppressed,
   kernelSafetyRows,
   RESERVED_FINDING_TYPES,
+  suppressionsFromAnnotations,
+  type ISuppressionEntry,
   type ISuppressionMatch,
 } from './findings-report.js';
 export {
@@ -60,12 +62,14 @@ export {
 } from './findings-injection.js';
 export {
   bucketFilterActive,
+  countDismissedHidden,
   countFixedHidden,
   countStaleHidden,
   isFindingShown,
   partitionFindingsView,
   type IFindingsBucketFlags,
   type IFindingsViewPartition,
+  type TFindingSuppressedTest,
 } from './findings-view.js';
 export {
   InvalidTtlError,

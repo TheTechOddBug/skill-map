@@ -70,12 +70,17 @@ import type { StoragePort } from '../../kernel/ports/storage.js';
 import type { Severity } from '../../kernel/types.js';
 import {
   bucketFilterActive,
+  countDismissedHidden,
   countFixedHidden,
   countStaleHidden,
+  isFindingSuppressed,
   partitionFindingsView,
+  type ISuppressionEntry,
+  type TFindingSuppressedTest,
 } from '../../kernel/jobs/index.js';
 import { readSidecarFor, sidecarPathFor } from '../../kernel/sidecar/index.js';
 import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
+import { matchesQualifiedExtensionFilter } from '../../kernel/util/analyzer-filter.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import {
@@ -166,6 +171,9 @@ export class FindingsCommand extends SmCommand {
   fixed = Option.Boolean('--fixed', false, {
     description: 'Show only fixed findings (a fixer resolved them), marked with the fixer.',
   });
+  dismissed = Option.Boolean('--dismissed', false, {
+    description: 'Show only dismissed findings (their class matches an active suppression).',
+  });
 
   protected async run(): Promise<number> {
     const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
@@ -183,44 +191,54 @@ export class FindingsCommand extends SmCommand {
         versionCheck: buildReadVersionCheck(this.printer!, this.ansiFor('stderr')),
       },
       async (adapter) => {
-        // ONE pass, every row INCLUDED (stale + fixed), partitioned via the
-        // shared kernel view helper (`kernel/jobs/findings-view.ts`, the
-        // single source of the default-view / bucket semantics also
-        // consumed by the BFF findings route). Two reasons over a filtered
-        // list + companion counts: the table is walked once for numbers
-        // this result set already holds, and the hidden breakdown inherits
-        // every active filter for free (-n / --type / --severity /
-        // --extension / --since / --threshold), so it reports what the
-        // user actually asked about instead of a table-wide total that is
-        // a lie of a different shape. The hidden ROWS ride along, not just
-        // counts: the DEFAULT view's human line must name the
-        // `human-decision` subset among them (the author's TODO, otherwise
-        // invisible behind the stale filter).
+        // ONE pass, every row INCLUDED (stale + fixed + dismissed),
+        // partitioned via the shared kernel view helper
+        // (`kernel/jobs/findings-view.ts`, the single source of the
+        // default-view / bucket semantics also consumed by the BFF findings
+        // route). Two reasons over a filtered list + companion counts: the
+        // table is walked once for numbers this result set already holds,
+        // and the hidden breakdown inherits every active filter for free
+        // (-n / --type / --severity / --extension / --since / --threshold),
+        // so it reports what the user actually asked about instead of a
+        // table-wide total that is a lie of a different shape. The hidden
+        // ROWS ride along, not just counts: the DEFAULT view's human line
+        // must name the `human-decision` subset among them (the author's
+        // TODO, otherwise invisible behind the stale filter).
         const all = await adapter.findings.list({ ...filter, includeStale: true });
-        const { shown, hidden } = partitionFindingsView(all, this.bucketFlags());
+        // The dismissal lens: suppressions come from the write-through
+        // `scan_nodes.annotations_json` mirror, ONE query for the result
+        // set's nodes, zero file reads (`spec/db-schema.md`
+        // §state_findings).
+        const suppressions = await adapter.findings.suppressionsByPath([
+          ...new Set(all.map((f) => f.nodeId)),
+        ]);
+        const isSuppressed: TFindingSuppressedTest = (f) =>
+          isFindingSuppressed(f.extensionId, f.type, suppressions.get(f.nodeId) ?? []);
+        const { shown, hidden } = partitionFindingsView(all, this.bucketFlags(), isSuppressed);
         return this.json
-          ? this.emitJson(shown, hidden)
-          : this.emitHuman(shown, hidden, all.length === 0);
+          ? this.emitJson(shown, hidden, isSuppressed)
+          : this.emitHuman(shown, hidden, all.length === 0, isSuppressed);
       },
     );
   }
 
-  /** The `--fixed` / `--stale` bucket flags in the shared helper's shape. */
-  private bucketFlags(): { fixed: boolean; stale: boolean } {
-    return { fixed: this.fixed, stale: this.stale };
+  /** The bucket flags (`--dismissed` / `--fixed` / `--stale`) in the shared shape. */
+  private bucketFlags(): { dismissed: boolean; fixed: boolean; stale: boolean } {
+    return { dismissed: this.dismissed, fixed: this.fixed, stale: this.stale };
   }
 
   /**
-   * `{ ok, kind, findings, total, fixedExcluded, staleExcluded }`. `total`
-   * keeps its meaning (the RETURNED rows). The two excluded counts are a
-   * DEFAULT-view honesty device: the disjoint tally of what the default
-   * view held back under the same filters (a fixed+stale row counts as
-   * fixed). Both are 0 whenever a bucket filter (`--fixed` / `--stale`) is
+   * `{ ok, kind, findings, total, dismissedExcluded, fixedExcluded,
+   * staleExcluded }`. `total` keeps its meaning (the RETURNED rows). The
+   * excluded counts are a DEFAULT-view honesty device: the disjoint tally
+   * of what the default view held back under the same filters (precedence
+   * dismissed > fixed > stale). All are 0 whenever a bucket filter is
    * active, since an explicit bucket view holds nothing back to report.
    */
   private emitJson(
     findings: readonly IFindingRecord[],
     hidden: readonly IFindingRecord[],
+    isSuppressed: TFindingSuppressedTest,
   ): TExitCode {
     this.printer!.data(
       JSON.stringify({
@@ -228,8 +246,9 @@ export class FindingsCommand extends SmCommand {
         kind: 'findings',
         findings,
         total: findings.length,
-        fixedExcluded: countFixedHidden(hidden),
-        staleExcluded: countStaleHidden(hidden),
+        dismissedExcluded: countDismissedHidden(hidden, isSuppressed),
+        fixedExcluded: countFixedHidden(hidden, isSuppressed),
+        staleExcluded: countStaleHidden(hidden, isSuppressed),
       }) + '\n',
     );
     return ExitCode.Ok;
@@ -244,13 +263,14 @@ export class FindingsCommand extends SmCommand {
     findings: readonly IFindingRecord[],
     hidden: readonly IFindingRecord[],
     noRowsAtAll: boolean,
+    isSuppressed: TFindingSuppressedTest,
   ): TExitCode {
     const ansi = this.ansiFor('stdout');
     if (findings.length === 0) {
-      this.printer!.data(this.emptyLine(hidden, noRowsAtAll, ansi));
+      this.printer!.data(this.emptyLine(hidden, noRowsAtAll, ansi, isSuppressed));
       return ExitCode.Ok;
     }
-    this.printer!.data(renderHuman(findings, hidden, ansi));
+    this.printer!.data(renderHuman(findings, hidden, ansi, isSuppressed));
     // Advisory by construction: content never drives the exit code.
     return ExitCode.Ok;
   }
@@ -274,10 +294,14 @@ export class FindingsCommand extends SmCommand {
     hidden: readonly IFindingRecord[],
     noRowsAtAll: boolean,
     ansi: IAnsi,
+    isSuppressed: TFindingSuppressedTest,
   ): string {
     if (noRowsAtAll) return tx(T.noFindings, { glyph: ansi.green('✓') });
     if (bucketFilterActive(this.bucketFlags())) return tx(T.noMatch, { glyph: ansi.cyan('ℹ') });
-    return tx(T.noFreshFindings, { glyph: ansi.cyan('ℹ'), ...staleHiddenVars(hidden, ansi) });
+    return tx(T.noFreshFindings, {
+      glyph: ansi.cyan('ℹ'),
+      ...staleHiddenVars(hidden, ansi, isSuppressed),
+    });
   }
 
   /**
@@ -606,17 +630,18 @@ export class FindingsResolveCommand extends SmCommand {
  * state (`spec/cli-contract.md` §sm findings dismiss): it writes a standing
  * `annotations.suppressions` entry to the node's `.sm` sidecar (through the
  * gated sidecar write channel, same consent as `sm bump`) keyed by the
- * finding's emitting extension + `type`, then deletes every
- * `state_findings` row of that (extension, type) class on the node. The
- * finder's record path drops matching findings before they land, so the
- * judgment CLASS stays silenced across re-runs until the entry is removed
- * from the `.sm` file. Suppression grain is per (extension, type): findings
- * have no stable cross-run identity, so the honest durable grain is the
- * judgment class.
+ * finding's emitting extension + `type`, then refreshes the write-through
+ * `scan_nodes.annotations_json` mirror. The rows are NOT deleted: the
+ * suppression is a READ-TIME lens (`spec/db-schema.md` §state_findings),
+ * the class hides from the default view (`--dismissed` reveals it), keeps
+ * being judged and recorded on re-runs (hidden), and `sm findings
+ * undismiss` restores it instantly. Suppression grain is per
+ * (extension, type): findings have no stable cross-run identity, so the
+ * honest durable grain is the judgment class.
  *
  * Distinct from `resolve` (marks a finding FIXED, a resolution) and `prune`
  * (clears stale rows): dismiss says "this judgment does not apply here,
- * stop making it".
+ * stop showing it".
  *
  * Kernel safety-lane findings (`origin = 'kernel'`: `injection-detected` /
  * `content-suspicious` / `content-malformed`) are NOT dismissible (exit 2).
@@ -631,10 +656,11 @@ export class FindingsDismissCommand extends SmCommand {
     details: `
       Writes a standing annotations.suppressions entry to the node's .sm
       sidecar (keyed by the finding's emitting extension + type, through the
-      same consent gate as sm bump), then deletes every state_findings row
-      of that (extension, type) class on the node. The finder's record path
-      then drops matching findings before they land, so the judgment stays
-      silenced across re-runs until you remove the entry from the .sm file.
+      same consent gate as sm bump). The rows are NOT deleted: the
+      suppression is a read-time lens, the judgment class hides from the
+      default sm findings view (--dismissed reveals it) and stays hidden
+      across finder re-runs until sm findings undismiss removes the entry,
+      which restores visibility instantly.
 
       Suppression grain is per (extension, type): findings carry no stable
       identity across finder runs, so the honest durable grain is the
@@ -642,7 +668,7 @@ export class FindingsDismissCommand extends SmCommand {
 
       Distinct from sm findings resolve (marks a finding fixed) and sm
       findings prune (clears stale rows): dismiss says "this judgment does
-      not apply here, stop making it".
+      not apply here, stop showing it".
 
       Kernel safety findings (injection-detected / content-suspicious /
       content-malformed) are NOT dismissible (exit 2). Exit 5 if the id does
@@ -698,9 +724,14 @@ export class FindingsDismissCommand extends SmCommand {
 
   /**
    * The durable half: write the suppression entry to the node's `.sm`
-   * sidecar (gated), then delete the (extension, type) class. `applyPatch`
-   * throws `EConsentRequiredError` BEFORE any disk write, so on the first
-   * (declined) pass nothing has changed and `runWithConsent` can re-run.
+   * sidecar (gated), then refresh the write-through
+   * `scan_nodes.annotations_json` mirror so the read surfaces see the
+   * dismissal without a scan. The rows are NOT deleted (`spec/db-schema.md`
+   * §state_findings, read-time suppression lens): the class hides from the
+   * default view (`--dismissed` reveals it) and `sm findings undismiss`
+   * restores it instantly. `applyPatch` throws `EConsentRequiredError`
+   * BEFORE any disk write, so on the first (declined) pass nothing has
+   * changed and `runWithConsent` can re-run.
    */
   private async dismiss(
     adapter: StoragePort,
@@ -734,12 +765,8 @@ export class FindingsDismissCommand extends SmCommand {
       always: this.yes,
       cwd,
     });
-    const deleted = await adapter.findings.dismissClass(
-      finding.nodeId,
-      finding.extensionId,
-      finding.type,
-    );
-    return this.reportDismissed(finding, entry, deleted);
+    await refreshAnnotationsMirror(adapter, finding.nodeId, mdAbs);
+    return this.reportDismissed(finding, entry);
   }
 
   /**
@@ -756,51 +783,28 @@ export class FindingsDismissCommand extends SmCommand {
 
   /**
    * Wrap the sidecar-writing dispatch with the `.sm` consent gate (mirror
-   * of `sm bump`): on the first `EConsentRequiredError`, prompt when stdin
-   * is a TTY and `--yes` was not passed; on accept flip `--yes` and re-run
-   * (the second pass passes `always: true` and persists the flag). On
-   * decline or non-TTY without `--yes`, print the directed message + exit 2.
+   * of `sm bump`); shared shape with `sm findings undismiss`, see
+   * `runWithSidecarConsentGate`.
    */
   private async runWithConsent(dispatch: () => Promise<TExitCode>): Promise<TExitCode> {
-    const ansi = this.ansiFor('stderr');
-    try {
-      return await dispatch();
-    } catch (err) {
-      if (!(err instanceof EConsentRequiredError)) throw err;
-      const stdin = this.context.stdin as NodeJS.ReadStream;
-      const stderr = this.context.stderr as NodeJS.WriteStream;
-      const isTTY = stdin.isTTY === true;
-      if (!isTTY || this.yes) {
-        this.printer!.error(
-          tx(CONSENT_TEXTS.consentRequiredNonTty, {
-            glyph: ansi.red('✕'),
-            verb: 'sm findings dismiss',
-            hint: ansi.dim(CONSENT_TEXTS.consentRequiredNonTtyHint),
-          }),
-        );
-        return ExitCode.Error;
-      }
-      const ok = await confirm(
-        tx(CONSENT_TEXTS.consentPrompt, { glyph: ansi.cyan('ℹ') }),
-        { stdin, stderr },
-        { defaultAnswer: 'yes' },
-      );
-      if (!ok) {
-        this.printer!.error(
-          tx(CONSENT_TEXTS.consentAborted, { glyph: ansi.cyan('ℹ'), verb: 'sm findings dismiss' }),
-        );
-        return ExitCode.Error;
-      }
-      this.yes = true;
-      return await dispatch();
-    }
+    return runWithSidecarConsentGate({
+      verb: 'sm findings dismiss',
+      yes: this.yes,
+      setYes: () => {
+        this.yes = true;
+      },
+      stdin: this.context.stdin as NodeJS.ReadStream,
+      stderr: this.context.stderr as NodeJS.WriteStream,
+      ansi: this.ansiFor('stderr'),
+      printError: (message) => this.printer!.error(message),
+      dispatch,
+    });
   }
 
-  /** Success: the suppression landed + the class was deleted. */
+  /** Success: the suppression landed; the class hides from the default view. */
   private reportDismissed(
     finding: IFindingRecord,
     entry: Record<string, unknown>,
-    deleted: number,
   ): TExitCode {
     if (this.json) {
       this.printer!.data(
@@ -809,7 +813,6 @@ export class FindingsDismissCommand extends SmCommand {
           kind: 'suppression',
           suppression: entry,
           node: finding.nodeId,
-          deleted,
         }) + '\n',
       );
       return ExitCode.Ok;
@@ -879,6 +882,538 @@ export class FindingsDismissCommand extends SmCommand {
       }),
     );
     return ExitCode.NotFound;
+  }
+}
+
+/**
+ * `sm findings clear (-n <node.path> | --all) [--dry-run] [--yes] [--json]`
+ *
+ * Wholesale delete of `state_findings` rows, FRESH included, all origins:
+ * finder judgments AND kernel safety rows (`spec/cli-contract.md`
+ * §sm findings clear). The clean-slate escape hatch: clear suppresses
+ * NOTHING going forward, re-running a finder re-judges the node and
+ * regenerates whatever still applies (which is exactly why deleting the
+ * safety lane is fine here while `dismiss` refuses it: a suppression WOULD
+ * silence future warnings, a delete cannot).
+ *
+ * Exactly ONE of `-n <node.path>` / `--all` is required (neither or both
+ * is a usage error, exit 2). Destructive-verb convention (mirror of
+ * `sm findings prune`): interactive confirmation reporting the row count,
+ * `--yes` bypass, `--dry-run` reports without deleting and never prompts.
+ * `--json` envelope: `{ deleted, wouldDelete, elapsedMs }`. Absent DB ->
+ * exit 5; a target with zero rows is a friendly no-op.
+ */
+export class FindingsClearCommand extends SmCommand {
+  static override paths = [['findings', 'clear']];
+  static override usage = Command.Usage({
+    category: 'Browse',
+    description: 'Delete findings wholesale (one node or the whole project), fresh included.',
+    details: `
+      Deletes state_findings rows regardless of freshness or origin: finder
+      judgments AND kernel safety rows go. Scope with -n <node.path> for one
+      node or --all for the whole project; exactly one of the two is
+      required.
+
+      This is a reset, not a suppression: nothing is silenced going
+      forward, re-running a finder re-judges the node and regenerates
+      whatever still applies. To permanently silence a judgment class use
+      sm findings dismiss instead; to delete only stale rows use sm
+      findings prune.
+
+      Without --dry-run the verb prompts for interactive confirmation
+      reporting the row count (per the destructive-verb convention); --yes
+      bypasses the prompt for non-interactive callers; --dry-run reports
+      what would be deleted without touching anything and never prompts.
+    `,
+    examples: [
+      ['Count what one node would lose', '$0 findings clear -n skills/foo.md --dry-run'],
+      ['Clear one node (interactive)', '$0 findings clear -n skills/foo.md'],
+      ['Clear the whole project (non-interactive)', '$0 findings clear --all --yes'],
+    ],
+  });
+
+  node = Option.String('-n,--node', {
+    description: 'Clear only the findings whose node path equals the given path.',
+  });
+  all = Option.Boolean('--all', false, {
+    description: 'Clear every finding in the project.',
+  });
+  dryRun = Option.Boolean('--dry-run', false);
+  yes = Option.Boolean('--yes,--force', false, {
+    description:
+      'Skip the interactive confirmation prompt. Required for non-interactive callers (CI, scripts).',
+  });
+
+  protected async run(): Promise<number> {
+    // Exactly one target: bare `findings clear` deleting everything by
+    // default would be a footgun, and `-n` + `--all` contradict.
+    if ((this.node !== undefined) === this.all) return this.failBadTarget();
+    const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    if (dbExit !== null) return dbExit;
+    // Write verb: refuse a drifted DB before any table mutation
+    // (spec/cli-contract.md §Schema-drift rebuild).
+    assertNoDriftForWrite(dbPath);
+
+    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
+      const count = await adapter.findings.countClearable(this.node);
+      if (count === 0) return this.reportNone();
+      if (this.dryRun) return this.reportDryRun(count);
+      // Destructive-verb convention: confirm interactively unless --yes,
+      // reporting the row count the delete is about to erase.
+      if (!this.yes && !(await this.confirmClear(count))) {
+        this.printer!.info(tx(T.clearAborted, { glyph: this.ansiFor('stderr').cyan('ℹ') }));
+        return ExitCode.Ok;
+      }
+      return this.reportDeleted(await adapter.findings.clear(this.node));
+    });
+  }
+
+  /** The ` on <node>` scope fragment (empty under `--all`). */
+  private scope(): string {
+    return this.node !== undefined
+      ? tx(T.clearScopeNode, { node: sanitizeForTerminal(this.node) })
+      : '';
+  }
+
+  /** Exit 2: neither or both of the two required targets. */
+  private failBadTarget(): TExitCode {
+    const ansi = this.ansiFor('stderr');
+    this.printer!.error(
+      tx(T.clearBadTarget, { glyph: ansi.red('✕'), hint: ansi.dim(T.clearBadTargetHint) }),
+    );
+    return ExitCode.Error;
+  }
+
+  /** Zero rows in scope: nothing to clear, the friendly line. */
+  private reportNone(): TExitCode {
+    if (this.json) {
+      this.emitEnvelope({ deleted: 0, wouldDelete: 0 });
+    } else {
+      this.printer!.data(
+        tx(T.clearNone, { glyph: this.ansiFor('stdout').green('✓'), scope: this.scope() }),
+      );
+    }
+    return ExitCode.Ok;
+  }
+
+  /** `--dry-run`: report the would-delete count, touch nothing, no prompt. */
+  private reportDryRun(count: number): TExitCode {
+    if (this.json) {
+      this.emitEnvelope({ deleted: 0, wouldDelete: count });
+    } else {
+      const ansi = this.ansiFor('stdout');
+      this.printer!.data(
+        tx(T.clearSummaryDryRun, {
+          glyph: ansi.yellow('⋯'),
+          wouldDelete: count,
+          plural: count === 1 ? '' : 's',
+          scope: this.scope(),
+          dryTag: ansi.dim(T.clearDryRunTag),
+        }),
+      );
+    }
+    return ExitCode.Ok;
+  }
+
+  /** Interactive confirmation naming the row count about to be erased. */
+  private async confirmClear(count: number): Promise<boolean> {
+    return confirm(
+      tx(T.clearConfirm, { count, plural: count === 1 ? '' : 's', scope: this.scope() }),
+      { stdin: this.context.stdin, stderr: this.context.stderr },
+    );
+  }
+
+  /** Post-delete summary (or the deleted-count envelope). */
+  private reportDeleted(deleted: number): TExitCode {
+    if (this.json) {
+      this.emitEnvelope({ deleted, wouldDelete: 0 });
+    } else {
+      this.printer!.data(
+        tx(T.clearSummary, {
+          glyph: this.ansiFor('stdout').green('✓'),
+          deleted,
+          plural: deleted === 1 ? '' : 's',
+          scope: this.scope(),
+        }),
+      );
+    }
+    return ExitCode.Ok;
+  }
+
+  /** `{ deleted, wouldDelete, elapsedMs }` per the cli-contract row. */
+  private emitEnvelope(counts: { deleted: number; wouldDelete: number }): void {
+    this.printer!.data(
+      JSON.stringify({ ...counts, elapsedMs: this.elapsed!.ms() }) + '\n',
+    );
+  }
+}
+
+/**
+ * `sm findings suppressions [-n <node.path>] [--json]`
+ *
+ * READ verb, the visibility half of the dismiss escape hatch
+ * (`spec/cli-contract.md` §sm findings suppressions): lists every ACTIVE
+ * suppression so a silenced judgment class is never invisible state.
+ * Reads the write-through `scan_nodes.annotations_json` mirror (the `.sm`
+ * sidecar stays the source of truth; dismiss / undismiss keep the column
+ * fresh, a hand-edited `.sm` reconciles at the next scan), ONE query and
+ * zero file reads. `-n` narrows to one node. Always exit 0.
+ */
+export class FindingsSuppressionsCommand extends SmCommand {
+  static override paths = [['findings', 'suppressions']];
+  static override usage = Command.Usage({
+    category: 'Browse',
+    description: 'List active finding suppressions (judgment classes silenced by dismiss).',
+    details: `
+      Lists every standing annotations.suppressions entry across the
+      scanned nodes: which (extension, type) judgment classes sm findings
+      dismiss silenced, where, and why (the recorded note). Without this
+      view a dismissed class is invisible state.
+
+      -n restricts to one node path. Remove an entry with sm findings
+      undismiss; the class's stored findings show again instantly.
+    `,
+    examples: [
+      ['List every active suppression', '$0 findings suppressions'],
+      ['One node', '$0 findings suppressions -n skills/foo.md'],
+    ],
+  });
+
+  node = Option.String('-n,--node', {
+    description: 'Restrict to the suppressions of this node path.',
+  });
+
+  protected async run(): Promise<number> {
+    const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    if (dbExit !== null) return dbExit;
+    return withSqlite(
+      {
+        databasePath: dbPath,
+        autoBackup: false,
+        versionCheck: buildReadVersionCheck(this.printer!, this.ansiFor('stderr')),
+      },
+      async (adapter) => {
+        // The write-through `scan_nodes.annotations_json` mirror: ONE
+        // query, zero file reads (dismiss / undismiss keep it fresh; a
+        // hand-edited `.sm` reconciles at the next scan).
+        const byPath = await adapter.findings.suppressionsByPath(
+          this.node !== undefined ? [this.node] : undefined,
+        );
+        const rows = [...byPath]
+          .flatMap(([node, entries]) => entries.map((entry) => ({ node, ...entry })))
+          .sort(
+            (a, b) =>
+              a.node.localeCompare(b.node) ||
+              a.extension.localeCompare(b.extension) ||
+              (a.type ?? '').localeCompare(b.type ?? ''),
+          );
+        return this.report(rows);
+      },
+    );
+  }
+
+  private report(rows: Array<{ node: string } & ISuppressionEntry>): TExitCode {
+    if (this.json) {
+      this.printer!.data(
+        JSON.stringify({ ok: true, kind: 'suppressions', suppressions: rows }) + '\n',
+      );
+      return ExitCode.Ok;
+    }
+    const ansi = this.ansiFor('stdout');
+    if (rows.length === 0) {
+      this.printer!.data(tx(T.suppressionsNone, { glyph: ansi.green('✓') }));
+      return ExitCode.Ok;
+    }
+    let out = tx(T.suppressionsHeader, { count: rows.length });
+    for (const row of rows) {
+      out += tx(T.suppressionsRow, {
+        node: sanitizeForTerminal(row.node),
+        extension: sanitizeForTerminal(row.extension),
+        type: row.type !== undefined ? sanitizeForTerminal(row.type) : T.suppressionsAllTypes,
+        noteSuffix:
+          row.note !== undefined
+            ? ansi.dim(tx(T.suppressionsNoteSuffix, { note: sanitizeForTerminal(row.note) }))
+            : '',
+      });
+    }
+    out += ansi.dim(T.suppressionsTip);
+    this.printer!.data(out);
+    return ExitCode.Ok;
+  }
+}
+
+/**
+ * `sm findings undismiss -n <node.path> --extension <id> [--type <slug>]
+ * [--yes] [--json]`
+ *
+ * Remove ONE suppression entry from the node's `.sm` sidecar, the inverse
+ * of `sm findings dismiss` (`spec/cli-contract.md` §sm findings
+ * undismiss). Identity is exact, mirroring the dismiss merge rules:
+ * `--extension` (qualified or bare) plus `--type` targets that typed
+ * entry; omitting `--type` targets the extension's type-less blanket
+ * entry ONLY. The write rides the SAME gated sidecar channel as dismiss,
+ * and refreshes the write-through `scan_nodes.annotations_json` mirror.
+ *
+ * Because the suppression is a read-time lens (rows were never deleted),
+ * removing the entry makes the class's stored findings visible again
+ * IMMEDIATELY, no re-run needed. No matching entry, or the node absent
+ * from the scan, exit 5; a bare `--extension` matching more than one
+ * qualified entry is ambiguous, exit 2.
+ */
+export class FindingsUndismissCommand extends SmCommand {
+  static override paths = [['findings', 'undismiss']];
+  static override usage = Command.Usage({
+    category: 'Browse',
+    description: 'Remove a suppression written by dismiss; the judgment class shows again instantly.',
+    details: `
+      Removes the matching annotations.suppressions entry from the node's
+      .sm sidecar (through the same consent gate as sm findings dismiss).
+      --extension takes the qualified or bare extension id; --type names
+      the typed entry, and omitting it targets the extension's type-less
+      blanket entry only.
+
+      The suppression is a read-time lens, so the class's stored findings
+      were never deleted: removing the entry makes them visible in sm
+      findings immediately, no finder re-run needed. List the active
+      entries with sm findings suppressions.
+    `,
+    examples: [
+      ['Un-dismiss a typed suppression', '$0 findings undismiss -n skills/foo.md --extension core/ai-redundancy-analyzer --type redundancy'],
+      ['Un-dismiss an all-types entry', '$0 findings undismiss -n skills/foo.md --extension core/ai-redundancy-analyzer'],
+    ],
+  });
+
+  node = Option.String('-n,--node', {
+    required: true,
+    description: 'Node path whose sidecar holds the suppression.',
+  });
+  extension = Option.String('--extension', {
+    required: true,
+    description: 'Qualified or bare extension id of the suppressed class.',
+  });
+  type = Option.String('--type', {
+    required: false,
+    description: 'Type slug of the suppressed class; omit for the all-types entry.',
+  });
+  yes = Option.Boolean('--yes', false, {
+    description: 'Confirm writing .sm sidecar files in this project (sets allowEditSmFiles=true on first run).',
+  });
+
+  protected async run(): Promise<number> {
+    const ctx = defaultRuntimeContext();
+    const dbPath = resolveDbPath({ db: this.db, ...ctx });
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    if (dbExit !== null) return dbExit;
+    return withSqlite(
+      {
+        databasePath: dbPath,
+        autoBackup: false,
+        versionCheck: buildReadVersionCheck(this.printer!, this.ansiFor('stderr')),
+      },
+      async (adapter) => {
+        // Scan membership anchors the sidecar path and guards typos; the
+        // suppression itself lives on disk, not in the DB.
+        const bundle = await adapter.scans.findNode(this.node);
+        if (!bundle) return this.failNodeGone();
+        return runWithSidecarConsentGate({
+          verb: 'sm findings undismiss',
+          yes: this.yes,
+          setYes: () => {
+            this.yes = true;
+          },
+          stdin: this.context.stdin as NodeJS.ReadStream,
+          stderr: this.context.stderr as NodeJS.WriteStream,
+          ansi: this.ansiFor('stderr'),
+          printError: (message) => this.printer!.error(message),
+          dispatch: () => this.undismiss(adapter, ctx.cwd),
+        });
+      },
+    );
+  }
+
+  /**
+   * Remove the matching entry, write the remaining list back through the
+   * gated channel, and refresh the write-through
+   * `scan_nodes.annotations_json` mirror: the class's rows become visible
+   * again IMMEDIATELY (they were never deleted, `spec/db-schema.md`
+   * §state_findings). `applyPatch` replaces arrays wholesale, so the
+   * remaining list (possibly empty) is handed over in full.
+   */
+  private async undismiss(adapter: StoragePort, cwd: string): Promise<TExitCode> {
+    const mdAbs = resolve(cwd, this.node);
+    const sidecarAbs = sidecarPathFor(mdAbs);
+    const existing = existingSuppressions(readSidecarFor(mdAbs).parsed?.annotations);
+    const matches = existing.filter((entry) => this.isTarget(entry));
+    if (matches.length === 0) {
+      // Self-heal before failing: the mirror may still claim a suppression
+      // the live `.sm` no longer carries (edited or deleted outside
+      // skill-map), which would keep the view hiding rows the truth no
+      // longer silences. Reconciling here costs one row UPDATE and makes
+      // the exit-5 honest: after it, view and file agree.
+      await refreshAnnotationsMirror(adapter, this.node, mdAbs);
+      return this.failNoMatch();
+    }
+    // A bare --extension can match two different qualified ids carrying
+    // the same bare name; removing both silently would over-reach.
+    if (matches.length > 1) return this.failAmbiguous(matches.length);
+    const remaining = existing.filter((entry) => !this.isTarget(entry));
+    const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
+    await store.applyPatch(
+      sidecarAbs,
+      { annotations: { suppressions: remaining } },
+      { confirm: this.yes, always: this.yes, cwd },
+    );
+    await refreshAnnotationsMirror(adapter, this.node, mdAbs);
+    return this.reportRemoved(matches[0]!);
+  }
+
+  /** Exact-identity match: extension (qualified or bare) + type (absent = blanket). */
+  private isTarget(entry: Record<string, unknown>): boolean {
+    const extension = entry['extension'];
+    if (typeof extension !== 'string') return false;
+    if (!matchesQualifiedExtensionFilter(extension, [this.extension])) return false;
+    return normalizeType(entry['type']) === this.type;
+  }
+
+  /** The human echo for the removed entry's type cell. */
+  private typeEcho(entry: Record<string, unknown>): string {
+    const type = normalizeType(entry['type']);
+    return type !== undefined ? sanitizeForTerminal(type) : T.undismissAllTypes;
+  }
+
+  /** Success: the entry left the sidecar; remind that the finder re-judges. */
+  private reportRemoved(entry: Record<string, unknown>): TExitCode {
+    if (this.json) {
+      this.printer!.data(
+        JSON.stringify({ ok: true, kind: 'unsuppression', removed: entry, node: this.node }) +
+          '\n',
+      );
+      return ExitCode.Ok;
+    }
+    const ansi = this.ansiFor('stdout');
+    this.printer!.data(
+      tx(T.undismissDone, {
+        glyph: ansi.green('✓'),
+        extension: sanitizeForTerminal(String(entry['extension'])),
+        type: this.typeEcho(entry),
+        node: sanitizeForTerminal(this.node),
+        sidecar: sanitizeForTerminal(sidecarPathFor(this.node)),
+        hint: ansi.dim(T.undismissDoneHint),
+      }),
+    );
+    return ExitCode.Ok;
+  }
+
+  /** Exit 5: no suppression entry matches the named (extension, type). */
+  private failNoMatch(): TExitCode {
+    const ansi = this.ansiFor('stderr');
+    this.printer!.error(
+      tx(T.undismissNoMatch, {
+        glyph: ansi.red('✕'),
+        extension: sanitizeForTerminal(this.extension),
+        type: this.type !== undefined ? sanitizeForTerminal(this.type) : T.undismissAllTypes,
+        node: sanitizeForTerminal(this.node),
+        hint: ansi.dim(T.undismissNoMatchHint),
+      }),
+    );
+    return ExitCode.NotFound;
+  }
+
+  /** Exit 2: a bare --extension matched more than one qualified entry. */
+  private failAmbiguous(count: number): TExitCode {
+    const ansi = this.ansiFor('stderr');
+    this.printer!.error(
+      tx(T.undismissAmbiguous, {
+        glyph: ansi.red('✕'),
+        value: sanitizeForTerminal(this.extension),
+        count,
+        node: sanitizeForTerminal(this.node),
+        hint: ansi.dim(T.undismissAmbiguousHint),
+      }),
+    );
+    return ExitCode.Error;
+  }
+
+  /** Exit 5: the node is not in the current scan. */
+  private failNodeGone(): TExitCode {
+    const ansi = this.ansiFor('stderr');
+    this.printer!.error(
+      tx(T.undismissNodeGone, {
+        glyph: ansi.red('✕'),
+        node: sanitizeForTerminal(this.node),
+        hint: ansi.dim(T.undismissNodeGoneHint),
+      }),
+    );
+    return ExitCode.NotFound;
+  }
+}
+
+/**
+ * Write-through half of a sidecar suppression edit (`dismiss` /
+ * `undismiss`): re-read the just-written `.sm` and mirror its
+ * `annotations` block into `scan_nodes.annotations_json`, so every read
+ * surface (the findings view, the card counters) sees the change without
+ * a scan and without per-node file reads (`spec/db-schema.md`
+ * §state_findings, read-time suppression lens). The sidecar stays the
+ * source of truth; a hand-edited `.sm` reconciles at the next scan.
+ */
+async function refreshAnnotationsMirror(
+  adapter: StoragePort,
+  nodeId: string,
+  mdAbs: string,
+): Promise<void> {
+  const annotations = readSidecarFor(mdAbs).parsed?.annotations ?? null;
+  await adapter.scans.refreshAnnotations(nodeId, annotations);
+}
+
+/**
+ * The `.sm` consent gate shared by the sidecar-writing findings verbs
+ * (`dismiss` / `undismiss`), mirror of `sm bump`: on the first
+ * `EConsentRequiredError`, prompt when stdin is a TTY and `--yes` was not
+ * passed; on accept flip `--yes` (via `setYes`) and re-run the dispatch
+ * (the second pass passes `always: true` and persists the flag). On
+ * decline or non-TTY without `--yes`, print the directed message + exit 2.
+ */
+async function runWithSidecarConsentGate(opts: {
+  verb: string;
+  yes: boolean;
+  setYes: () => void;
+  stdin: NodeJS.ReadStream;
+  stderr: NodeJS.WriteStream;
+  ansi: IAnsi;
+  printError: (message: string) => void;
+  dispatch: () => Promise<TExitCode>;
+}): Promise<TExitCode> {
+  try {
+    return await opts.dispatch();
+  } catch (err) {
+    if (!(err instanceof EConsentRequiredError)) throw err;
+    const isTTY = opts.stdin.isTTY === true;
+    if (!isTTY || opts.yes) {
+      opts.printError(
+        tx(CONSENT_TEXTS.consentRequiredNonTty, {
+          glyph: opts.ansi.red('✕'),
+          verb: opts.verb,
+          hint: opts.ansi.dim(CONSENT_TEXTS.consentRequiredNonTtyHint),
+        }),
+      );
+      return ExitCode.Error;
+    }
+    const ok = await confirm(
+      tx(CONSENT_TEXTS.consentPrompt, { glyph: opts.ansi.cyan('ℹ') }),
+      { stdin: opts.stdin, stderr: opts.stderr },
+      { defaultAnswer: 'yes' },
+    );
+    if (!ok) {
+      opts.printError(
+        tx(CONSENT_TEXTS.consentAborted, { glyph: opts.ansi.cyan('ℹ'), verb: opts.verb }),
+      );
+      return ExitCode.Error;
+    }
+    opts.setYes();
+    return await opts.dispatch();
   }
 }
 
@@ -960,6 +1495,7 @@ function renderHuman(
   findings: readonly IFindingRecord[],
   hidden: readonly IFindingRecord[],
   ansi: IAnsi,
+  isSuppressed: TFindingSuppressedTest,
 ): string {
   const rows = findings.map(toRenderRow);
 
@@ -991,17 +1527,21 @@ function renderHuman(
   const footer =
     hidden.length === 0
       ? ''
-      : tx(T.staleHiddenFooter, { glyph: ansi.cyan('ℹ'), ...staleHiddenVars(hidden, ansi) });
+      : tx(T.staleHiddenFooter, {
+          glyph: ansi.cyan('ℹ'),
+          ...staleHiddenVars(hidden, ansi, isSuppressed),
+        });
   return header + body.replace(/\n$/, '') + footer + T.tipLine;
 }
 
 /**
  * The breakdown + remedy vars shared by the two hidden-count shapes (the
  * empty `noFreshFindings` block and the listing footer). `breakdown` is
- * the disjoint tally `N fixed, M stale` (a zero count is OMITTED, never
- * `0 fixed`); `flags` names only the reveal flag(s) that actually apply;
- * the hint's pronoun (`it` / `them`) plural-corrects on the total. The
- * hint is pre-dimmed at this boundary.
+ * the disjoint tally `N dismissed, M fixed, K stale` (a zero count is
+ * OMITTED, never `0 fixed`; precedence dismissed > fixed > stale);
+ * `flags` names only the reveal flag(s) that actually apply; the hint's
+ * pronoun (`it` / `them`) plural-corrects on the total. The hint is
+ * pre-dimmed at this boundary.
  *
  * `humanDecision` names the subset of the hidden rows awaiting the author's
  * choice (`spec/cli-contract.md` §sm findings). It takes the hidden ROWS
@@ -1015,27 +1555,41 @@ function renderHuman(
 function staleHiddenVars(
   hidden: readonly IFindingRecord[],
   ansi: IAnsi,
+  isSuppressed: TFindingSuppressedTest,
 ): { breakdown: string; humanDecision: string; hint: string } {
   const single = hidden.length === 1;
-  const fixed = countFixedHidden(hidden);
-  const stale = countStaleHidden(hidden);
-  const humanDecision = hidden.filter((f) => f.resolution === 'human-decision').length;
+  const dismissed = countDismissedHidden(hidden, isSuppressed);
+  const fixed = countFixedHidden(hidden, isSuppressed);
+  const stale = countStaleHidden(hidden, isSuppressed);
+  const humanDecision = hidden.filter(
+    (f) => !isSuppressed(f) && f.resolution === 'human-decision',
+  ).length;
   const fragments: string[] = [];
-  if (fixed > 0) fragments.push(tx(T.hiddenFixedFragment, { count: fixed }));
-  if (stale > 0) fragments.push(tx(T.hiddenStaleFragment, { count: stale }));
-  const flags =
-    fixed > 0 && stale > 0
-      ? T.hiddenFlagsBoth
-      : fixed > 0
-        ? T.hiddenFlagsFixedOnly
-        : T.hiddenFlagsStaleOnly;
+  const flagNames: string[] = [];
+  if (dismissed > 0) {
+    fragments.push(tx(T.hiddenDismissedFragment, { count: dismissed }));
+    flagNames.push(T.hiddenFlagDismissed);
+  }
+  if (fixed > 0) {
+    fragments.push(tx(T.hiddenFixedFragment, { count: fixed }));
+    flagNames.push(T.hiddenFlagFixed);
+  }
+  if (stale > 0) {
+    fragments.push(tx(T.hiddenStaleFragment, { count: stale }));
+    flagNames.push(T.hiddenFlagStale);
+  }
   return {
     breakdown: fragments.join(T.hiddenBreakdownJoiner),
     humanDecision:
       humanDecision === 0
         ? ''
         : ansi.yellow(tx(T.staleHiddenHumanDecisionFragment, { count: humanDecision })),
-    hint: ansi.dim(tx(T.staleHiddenHint, { pronoun: single ? 'it' : 'them', flags })),
+    hint: ansi.dim(
+      tx(T.staleHiddenHint, {
+        pronoun: single ? 'it' : 'them',
+        flags: flagNames.join(T.hiddenFlagsJoiner),
+      }),
+    ),
   };
 }
 

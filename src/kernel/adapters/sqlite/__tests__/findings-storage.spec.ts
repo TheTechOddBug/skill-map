@@ -489,3 +489,100 @@ describe('recordJobTerminal findings write-through (same transaction)', () => {
     }
   });
 });
+
+describe('findings.clear + countClearable (wholesale delete)', () => {
+  const OTHER = 'notes/other.md';
+
+  /** Seed two nodes with fresh, stale, and kernel-origin rows. */
+  async function seedMixed(adapter: SqliteStorageAdapter): Promise<void> {
+    await insertNode(adapter, { path: NODE_PATH, bodyHash: BODY_HASH });
+    await insertNode(adapter, { path: OTHER, bodyHash: BODY_HASH });
+    await replaceFindingsForNode(adapter.db, NODE_PATH, FINDER_ID, [
+      insertRow({ type: 'fresh-a' }),
+      // Stale by hash drift: judged against a body the node no longer has.
+      insertRow({ type: 'stale-a', bodyHashAtGeneration: 'd'.repeat(64) }),
+    ]);
+    await replaceFindingsForNode(adapter.db, NODE_PATH, 'other/checker', [
+      insertRow({ type: 'injection-detected', origin: 'kernel' }),
+    ]);
+    await replaceFindingsForNode(adapter.db, OTHER, FINDER_ID, [
+      insertRow({ type: 'fresh-b' }),
+    ]);
+  }
+
+  it('clear() with no node wipes the whole table, kernel safety rows included', async () => {
+    const adapter = await openAdapter(freshDbPath('clear-all'));
+    try {
+      await seedMixed(adapter);
+      strictEqual(await adapter.findings.countClearable(), 4, 'count twin sees every row');
+
+      strictEqual(await adapter.findings.clear(), 4, 'deleted count');
+      deepStrictEqual(await adapter.findings.list({ includeStale: true }), [], 'table empty');
+      strictEqual(await adapter.findings.countClearable(), 0);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('clear(nodeId) deletes only that node (fresh AND stale AND kernel), others survive', async () => {
+    const adapter = await openAdapter(freshDbPath('clear-node'));
+    try {
+      await seedMixed(adapter);
+      strictEqual(await adapter.findings.countClearable(NODE_PATH), 3, 'scoped count');
+
+      strictEqual(await adapter.findings.clear(NODE_PATH), 3);
+      const rows = await adapter.findings.list({ includeStale: true });
+      deepStrictEqual(
+        rows.map((r) => [r.nodeId, r.type]),
+        [[OTHER, 'fresh-b']],
+        'the other node keeps its row',
+      );
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('empty table: count and clear both report 0', async () => {
+    const adapter = await openAdapter(freshDbPath('clear-empty'));
+    try {
+      strictEqual(await adapter.findings.countClearable(), 0);
+      strictEqual(await adapter.findings.clear(), 0);
+    } finally {
+      await adapter.close();
+    }
+  });
+});
+
+describe('findings.suppressionsByPath (mirror-backed lens source)', () => {
+  it('narrows by path, skips malformed annotations_json and entry shapes defensively', async () => {
+    const adapter = await openAdapter(freshDbPath('supp-by-path'));
+    try {
+      await insertNode(adapter, { path: 'a.md', bodyHash: BODY_HASH });
+      await insertNode(adapter, { path: 'b.md', bodyHash: BODY_HASH });
+      await insertNode(adapter, { path: 'c.md', bodyHash: BODY_HASH });
+      await adapter.scans.refreshAnnotations('a.md', {
+        suppressions: [
+          { extension: 'plug/x', type: 't', note: 'why' },
+          // Defensive: entries without a string extension are skipped.
+          { type: 'orphan' } as unknown as Record<string, unknown>,
+        ],
+      });
+      // Malformed cell: parse failure yields no entries, never a throw.
+      await adapter.db
+        .updateTable('scan_nodes')
+        .set({ annotationsJson: '{not-json' })
+        .where('path', '=', 'b.md')
+        .execute();
+
+      const all = await adapter.findings.suppressionsByPath();
+      deepStrictEqual([...all.keys()], ['a.md'], 'only the valid carrier appears');
+      deepStrictEqual(all.get('a.md'), [{ extension: 'plug/x', type: 't', note: 'why' }]);
+
+      // Path narrowing: an empty list short-circuits, a miss yields none.
+      strictEqual((await adapter.findings.suppressionsByPath([])).size, 0);
+      strictEqual((await adapter.findings.suppressionsByPath(['c.md'])).size, 0);
+    } finally {
+      await adapter.close();
+    }
+  });
+});

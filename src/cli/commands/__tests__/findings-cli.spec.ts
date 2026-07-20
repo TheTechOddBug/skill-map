@@ -30,14 +30,19 @@
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { strictEqual, ok, match, doesNotMatch } from 'node:assert';
+import { strictEqual, deepStrictEqual, ok, match, doesNotMatch } from 'node:assert';
 import { after, before, describe, it } from 'node:test';
 
 import { Readable } from 'node:stream';
 
 import type { BaseContext } from 'clipanion';
 
-import { FindingsCommand, FindingsPruneCommand, FindingsResolveCommand } from '../findings.js';
+import {
+  FindingsClearCommand,
+  FindingsCommand,
+  FindingsPruneCommand,
+  FindingsResolveCommand,
+} from '../findings.js';
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
 import {
   replaceFindingsForNode,
@@ -275,6 +280,7 @@ interface IFlags {
   threshold?: string;
   stale?: boolean;
   fixed?: boolean;
+  dismissed?: boolean;
   json?: boolean;
 }
 
@@ -288,6 +294,7 @@ function buildFindings(flags: IFlags = {}): FindingsCommand {
   cmd.threshold = flags.threshold;
   cmd.stale = flags.stale ?? false;
   cmd.fixed = flags.fixed ?? false;
+  cmd.dismissed = flags.dismissed ?? false;
   cmd.json = flags.json ?? false;
   cmd.db = undefined;
   return cmd;
@@ -1492,5 +1499,224 @@ describe('sm findings prune', () => {
     mkdirSync(bare, { recursive: true });
     const code = await withCwd(bare, async () => run(buildPrune({ yes: true }), captureContext()));
     strictEqual(code, 5);
+  });
+});
+
+describe('sm findings clear', () => {
+  interface IClearFlags {
+    node?: string;
+    all?: boolean;
+    dryRun?: boolean;
+    yes?: boolean;
+    json?: boolean;
+  }
+
+  function buildClear(flags: IClearFlags = {}): FindingsClearCommand {
+    const cmd = new FindingsClearCommand();
+    cmd.node = flags.node;
+    cmd.all = flags.all ?? false;
+    cmd.dryRun = flags.dryRun ?? false;
+    cmd.yes = flags.yes ?? false;
+    cmd.json = flags.json ?? false;
+    cmd.db = undefined;
+    return cmd;
+  }
+
+  /** Capture context carrying a scripted stdin for the confirm prompt. */
+  function captureWithStdin(answer: string): ICaptured {
+    const cap = captureContext();
+    (cap.context as { stdin?: unknown }).stdin = Readable.from([answer]);
+    return cap;
+  }
+
+  async function allRows(proj: IProject): Promise<IFindingRecord[]> {
+    const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      return await adapter.findings.list({ includeStale: true });
+    } finally {
+      await adapter.close();
+    }
+  }
+
+  it('exits 2 when neither -n nor --all is passed (and when both are)', async () => {
+    const proj = await setupProject();
+    const neither = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const code = await run(buildClear({ yes: true }), cap);
+      return { code, err: cap.stderr() };
+    });
+    strictEqual(neither.code, 2);
+    match(neither.err, /pass exactly one target/);
+
+    const both = await withCwd(proj.root, async () =>
+      run(buildClear({ node: NODE_A, all: true, yes: true }), captureContext()),
+    );
+    strictEqual(both, 2);
+    strictEqual((await allRows(proj)).length, 4, 'nothing deleted on a usage error');
+  });
+
+  it('-n --yes clears ONLY that node (fresh AND stale), other nodes survive', async () => {
+    const proj = await setupProject();
+    strictEqual((await allRows(proj)).length, 4, 'seed: 3 on NODE_A + 1 on NODE_B');
+
+    const outcome = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const code = await run(buildClear({ node: NODE_A, yes: true, json: true }), cap);
+      return { code, body: JSON.parse(cap.stdout()) as Record<string, unknown> };
+    });
+    strictEqual(outcome.code, 0);
+    strictEqual(outcome.body['deleted'], 3, 'fresh + stale rows of the node');
+    strictEqual(outcome.body['wouldDelete'], 0);
+    ok(typeof outcome.body['elapsedMs'] === 'number', 'envelope carries elapsedMs');
+
+    const rows = await allRows(proj);
+    strictEqual(rows.length, 1, 'the other node survives');
+    strictEqual(rows[0]!.nodeId, NODE_B);
+  });
+
+  it('--all --yes clears the whole table, kernel safety rows included', async () => {
+    const proj = await setupProject();
+    const outcome = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const code = await run(buildClear({ all: true, yes: true, json: true }), cap);
+      return { code, body: JSON.parse(cap.stdout()) as Record<string, unknown> };
+    });
+    strictEqual(outcome.code, 0);
+    // 4 seeded rows, one of them the kernel-origin injection-detected row.
+    strictEqual(outcome.body['deleted'], 4);
+    strictEqual((await allRows(proj)).length, 0, 'table empty, safety lane included');
+  });
+
+  it('--dry-run reports the count without deleting and never prompts', async () => {
+    const proj = await setupProject();
+    const outcome = await withCwd(proj.root, async () => {
+      // No stdin at all: a prompt would hang / crash, proving dry-run
+      // never asks.
+      const cap = captureContext();
+      const code = await run(buildClear({ all: true, dryRun: true, json: true }), cap);
+      return { code, body: JSON.parse(cap.stdout()) as Record<string, unknown> };
+    });
+    strictEqual(outcome.code, 0);
+    strictEqual(outcome.body['deleted'], 0);
+    strictEqual(outcome.body['wouldDelete'], 4);
+    strictEqual((await allRows(proj)).length, 4, 'nothing deleted');
+  });
+
+  it('interactive decline aborts without deleting; accept clears', async () => {
+    const proj = await setupProject();
+    const declined = await withCwd(proj.root, async () => {
+      const cap = captureWithStdin('n\n');
+      const code = await run(buildClear({ all: true }), cap);
+      return { code, err: cap.stderr() };
+    });
+    strictEqual(declined.code, 0);
+    match(declined.err, /about to delete 4 findings/);
+    match(declined.err, /aborted by user/);
+    strictEqual((await allRows(proj)).length, 4, 'nothing deleted after decline');
+
+    const accepted = await withCwd(proj.root, async () => {
+      const cap = captureWithStdin('y\n');
+      const code = await run(buildClear({ all: true }), cap);
+      return { code, out: cap.stdout() };
+    });
+    strictEqual(accepted.code, 0);
+    match(accepted.out, /Deleted 4 findings/);
+    strictEqual((await allRows(proj)).length, 0);
+  });
+
+  it('prints the friendly no-op line for a node with zero findings', async () => {
+    const proj = await setupProject();
+    const outcome = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const code = await run(buildClear({ node: 'unjudged.md', yes: true }), cap);
+      return { code, out: cap.stdout() };
+    });
+    strictEqual(outcome.code, 0);
+    match(outcome.out, /No findings to clear on unjudged\.md\./);
+    strictEqual((await allRows(proj)).length, 4, 'untouched');
+  });
+
+  it('exits 5 when the DB file is missing', async () => {
+    counter += 1;
+    const bare = join(tmpRoot, `clear-bare-${counter}`);
+    mkdirSync(bare, { recursive: true });
+    const code = await withCwd(bare, async () =>
+      run(buildClear({ all: true, yes: true }), captureContext()),
+    );
+    strictEqual(code, 5);
+  });
+});
+
+describe('sm findings dismissed bucket (read-time suppression lens)', () => {
+  /** Suppress a class on NODE_A via the write-through mirror (no `.sm` file). */
+  async function suppressOnMirror(
+    proj: IProject,
+    entries: Array<{ extension: string; type?: string }>,
+  ): Promise<void> {
+    const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      await adapter.scans.refreshAnnotations(NODE_A, { suppressions: entries });
+    } finally {
+      await adapter.close();
+    }
+  }
+
+  it('mixed hidden buckets: breakdown names dismissed + stale, hint lists both flags', async () => {
+    // Seed: NODE_A carries contradiction (fresh) + redundancy (fresh) +
+    // incoherence (stale). Suppressing contradiction leaves redundancy as
+    // the only shown row, with one dismissed + one stale hidden.
+    const proj = await setupProject();
+    await suppressOnMirror(proj, [{ extension: 'plug/finder-a', type: 'contradiction' }]);
+
+    const out = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      strictEqual(await run(buildFindings({ node: NODE_A }), cap), 0);
+      return cap.stdout();
+    });
+    match(out, /redundancy/);
+    doesNotMatch(out, /contradiction/);
+    match(out, /1 dismissed, 1 stale hidden/);
+    match(out, /--dismissed \/ --stale/);
+
+    // --dismissed reveals ONLY the suppressed class.
+    const revealed = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      strictEqual(
+        await run(buildFindings({ node: NODE_A, dismissed: true, json: true }), cap),
+        0,
+      );
+      return JSON.parse(cap.stdout()) as { findings: Array<{ type: string }> };
+    });
+    deepStrictEqual(
+      revealed.findings.map((f) => f.type),
+      ['contradiction'],
+    );
+  });
+
+  it('precedence: a suppressed row counts as dismissed even when it is fixed', async () => {
+    const proj = await setupProject();
+    await stampResolutionOnType(proj, { type: 'contradiction', state: 'fixed', note: 'done' });
+    await suppressOnMirror(proj, [{ extension: 'plug/finder-a', type: 'contradiction' }]);
+
+    const body = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      strictEqual(await run(buildFindings({ node: NODE_A, json: true }), cap), 0);
+      return JSON.parse(cap.stdout()) as {
+        dismissedExcluded: number;
+        fixedExcluded: number;
+      };
+    });
+    strictEqual(body.dismissedExcluded, 1, 'suppression wins the bucket');
+    strictEqual(body.fixedExcluded, 0, 'never double-counted as fixed');
+
+    // --fixed no longer surfaces it (it lives in the dismissed bucket).
+    const fixedView = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      strictEqual(await run(buildFindings({ node: NODE_A, fixed: true, json: true }), cap), 0);
+      return JSON.parse(cap.stdout()) as { findings: Array<{ type: string }> };
+    });
+    strictEqual(fixedView.findings.some((f) => f.type === 'contradiction'), false);
   });
 });

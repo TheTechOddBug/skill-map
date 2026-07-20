@@ -638,12 +638,14 @@ describe('model attribution (sm record --model)', () => {
   });
 });
 
-describe('finder-lane suppression filter (sm findings dismiss durability)', () => {
+describe('read-time suppression lens (record keeps every judged row)', () => {
   /**
    * Write a valid `.sm` sidecar next to the SKILL node carrying the given
-   * standing suppressions (`spec/schemas/annotations.schema.json`). The
-   * record path reads this LIVE file (the source of truth) and drops
-   * matching findings before they land.
+   * standing suppressions (`spec/schemas/annotations.schema.json`). Under
+   * the read-time lens (`spec/db-schema.md` §state_findings) the record
+   * path IGNORES suppressions: every judged row lands, and the view hides
+   * the class instead (so an undismiss shows the current judgment
+   * immediately).
    */
   function writeSuppressionSidecar(
     proj: IProject,
@@ -665,7 +667,7 @@ describe('finder-lane suppression filter (sm findings dismiss durability)', () =
     writeFileSync(join(proj.root, '.claude/skills/foo/SKILL.sm'), lines.join('\n') + '\n');
   }
 
-  it('drops a suppressed finding at record; a different type from the same finder still lands', async () => {
+  it('a suppressed class still LANDS at record (hidden at read time, not dropped)', async () => {
     const proj = await setupProject();
     // Standing suppression for the contradiction judgment class only.
     writeSuppressionSidecar(proj, [{ extension: FINDER_ID, type: 'contradiction' }]);
@@ -673,16 +675,19 @@ describe('finder-lane suppression filter (sm findings dismiss durability)', () =
     const { code } = await runFullLoop(proj, FINDER_ID, FINDER_REPORT);
     strictEqual(code, 0);
 
-    // contradiction is dropped before the write; redundancy (a different
-    // type from the SAME finder) still lands.
-    deepStrictEqual((await findingsFor(proj)).map((r) => r.type), ['redundancy']);
+    // BOTH rows land; the suppression is a read-time lens, never a
+    // record-time drop.
+    deepStrictEqual(
+      (await findingsFor(proj)).map((r) => r.type).sort(),
+      ['contradiction', 'redundancy'],
+    );
   });
 
-  it('an extension-wide suppression (no type) drops every finding from that finder', async () => {
+  it('an extension-wide suppression (no type) also drops nothing at record', async () => {
     const proj = await setupProject();
     writeSuppressionSidecar(proj, [{ extension: FINDER_ID }]);
     const { code } = await runFullLoop(proj, FINDER_ID, FINDER_REPORT);
     strictEqual(code, 0);
-    strictEqual((await findingsFor(proj)).length, 0);
+    strictEqual((await findingsFor(proj)).length, 2, 'every judged row persists');
   });
 });

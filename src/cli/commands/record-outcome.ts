@@ -59,7 +59,6 @@ import {
   kernelSafetyRows,
   summaryKindOfReportSchema,
 } from '../../kernel/jobs/index.js';
-import { readActiveSuppressions } from '../util/sidecar-suppressions.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
@@ -294,15 +293,6 @@ export async function recordCompletedOutcome(opts: {
   resolve: () => Promise<TExtensionRecordResolution>;
   metrics: IRecordMetrics;
   now: number;
-  /**
-   * Runtime cwd, threaded so the finder lane can read the node's LIVE
-   * `.sm` sidecar suppressions (`spec/db-schema.md` §state_findings) and
-   * drop dismissed findings before they land. The sidecar is the source
-   * of truth (`sm findings dismiss` writes it directly), NOT the
-   * denormalized `scan_nodes.annotations_json` (stale between a dismiss
-   * and the next scan).
-   */
-  cwd: string;
 }): Promise<TRecordCompletedOutcome> {
   const { adapter, job, metrics, now } = opts;
 
@@ -366,7 +356,7 @@ export async function recordCompletedOutcome(opts: {
     reportJson,
   });
   const summary = buildSummaryIntent(job, resolution.record, reportJson, now, metrics);
-  const findings = buildFindingsIntent(job, extensionKind, report, now, metrics, opts.cwd);
+  const findings = buildFindingsIntent(job, extensionKind, report, now, metrics);
   const resolutions = buildResolutionIntent(job, resolution.record, report, now);
   await adapter.jobs.recordTerminal(execution, summary, findings, resolutions);
   return { kind: 'completed', execution };
@@ -446,12 +436,10 @@ function buildSummaryIntent(
  * origins), so a clean report erases a prior trouble flag instead of
  * letting it linger.
  *
- * The finder lane drops any finding matching an active sidecar suppression
- * on the node (`spec/db-schema.md` §state_findings, finder-lane suppression
- * filter): a `sm findings dismiss`ed judgment class never returns until the
- * operator removes the entry from the `.sm` file. The safety lane is never
- * suppressed (its rows are `origin = 'kernel'`, and suppressions only carry
- * finder extension ids anyway).
+ * Sidecar suppressions play NO role here (`spec/db-schema.md`
+ * §state_findings, read-time suppression lens): every judged row lands,
+ * and a `sm findings dismiss`ed class is HIDDEN at read time instead,
+ * so an undismiss shows the current judgment immediately.
  */
 function buildFindingsIntent(
   job: Job,
@@ -459,10 +447,7 @@ function buildFindingsIntent(
   report: Record<string, unknown>,
   now: number,
   metrics: IRecordMetrics,
-  cwd: string,
 ): IFindingsWriteIntent {
-  const suppressions =
-    extensionKind === 'analyzer' ? readActiveSuppressions(cwd, job.nodeId) : [];
   return {
     extensionId: job.extensionId,
     extensionVersion: job.extensionVersion,
@@ -471,9 +456,7 @@ function buildFindingsIntent(
     // Stamped onto EVERY row, both lanes (spec §state_findings).
     model: metrics.model ?? null,
     rows: [
-      ...(extensionKind === 'analyzer'
-        ? extensionFindingRows(report, { extensionId: job.extensionId, suppressions })
-        : []),
+      ...(extensionKind === 'analyzer' ? extensionFindingRows(report) : []),
       ...kernelSafetyRows(report),
     ],
   };

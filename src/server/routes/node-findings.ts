@@ -6,12 +6,15 @@
  * SHARED kernel helper (`kernel/jobs/findings-view.ts`, single source):
  *
  *   - DEFAULT view: the needs-attention rows (open + non-stale
- *     `human-decision`), with the excluded-count honesty pair
- *     (`counts.fixedExcluded` / `counts.staleExcluded`) reporting what
- *     the default view held back under the same filters.
- *   - `?fixed=1` / `?stale=1` are bucket FILTERS (only that bucket,
- *     together their union), mirroring `--fixed` / `--stale`; under an
- *     explicit bucket filter both excluded counts are 0.
+ *     `human-decision`), with the excluded-count honesty triple
+ *     (`counts.dismissedExcluded` / `counts.fixedExcluded` /
+ *     `counts.staleExcluded`) reporting what the default view held back
+ *     under the same filters. Dismissed rows (their class matches an
+ *     active sidecar suppression, read from the write-through
+ *     `scan_nodes.annotations_json` mirror) hide with top precedence.
+ *   - `?dismissed=1` / `?fixed=1` / `?stale=1` are bucket FILTERS (only
+ *     that bucket, together their union), mirroring the CLI flags; under
+ *     an explicit bucket filter every excluded count is 0.
  *
  * Wire shape: the `kind: 'findings'` list variant of
  * `rest-envelope.schema.json`. Each item is one `state_findings` row
@@ -28,10 +31,14 @@ import { HTTPException } from 'hono/http-exception';
 
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import {
+  countDismissedHidden,
   countFixedHidden,
   countStaleHidden,
+  isFindingSuppressed,
   partitionFindingsView,
   type IFindingsBucketFlags,
+  type ISuppressionEntry,
+  type TFindingSuppressedTest,
 } from '../../kernel/jobs/index.js';
 import type { IFindingRecord } from '../../kernel/types/storage.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
@@ -55,9 +62,10 @@ function toWireRow(finding: IFindingRecord): TFindingWireRow {
   return wire;
 }
 
-/** `?fixed=1` / `?stale=1` bucket flags (mirrors the `?fresh=1` idiom). */
+/** `?dismissed=1` / `?fixed=1` / `?stale=1` bucket flags (mirrors `?fresh=1`). */
 function parseBucketFlags(query: (name: string) => string | undefined): IFindingsBucketFlags {
   return {
+    dismissed: query('dismissed') === '1',
     fixed: query('fixed') === '1',
     stale: query('stale') === '1',
   };
@@ -68,15 +76,22 @@ export function registerNodeFindingsRoute(app: Hono, deps: IRouteDeps): void {
     const nodePath = decodePathB64Or404(c.req.param('pathB64'));
     const flags = parseBucketFlags((name) => c.req.query(name));
 
-    // ONE read-posture open for both the node-existence check and the
-    // findings rows. `includeStale: true` because the adapter hides
+    // ONE read-posture open for the node-existence check, the findings
+    // rows, and the node's suppressions (the read-time dismissal lens,
+    // sourced from the write-through `scan_nodes.annotations_json` mirror,
+    // zero file reads). `includeStale: true` because the adapter hides
     // stale rows by default and the shared view helper partitions them.
     const loaded = await tryWithSqlite(
       { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
       async (adapter) => {
         const bundle = await adapter.scans.findNode(nodePath);
         if (!bundle) return null;
-        return adapter.findings.list({ nodeId: nodePath, includeStale: true });
+        return {
+          rows: await adapter.findings.list({ nodeId: nodePath, includeStale: true }),
+          suppressions:
+            (await adapter.findings.suppressionsByPath([nodePath])).get(nodePath) ??
+            ([] as ISuppressionEntry[]),
+        };
       },
     );
     // Missing DB (tryWithSqlite -> null) and unknown node collapse to the
@@ -87,18 +102,21 @@ export function registerNodeFindingsRoute(app: Hono, deps: IRouteDeps): void {
       });
     }
 
-    const { shown, hidden } = partitionFindingsView(loaded, flags);
+    const isSuppressed: TFindingSuppressedTest = (f) =>
+      isFindingSuppressed(f.extensionId, f.type, loaded.suppressions);
+    const { shown, hidden } = partitionFindingsView(loaded.rows, flags, isSuppressed);
     return c.json(
       buildListEnvelope<TFindingWireRow>({
         kind: 'findings',
         items: shown.map(toWireRow),
-        filters: { fixed: flags.fixed, stale: flags.stale },
+        filters: { dismissed: flags.dismissed, fixed: flags.fixed, stale: flags.stale },
         // No pagination on this endpoint: `total` keeps the `sm findings
         // --json` meaning (the returned rows), like the CLI's `total`.
         total: shown.length,
         excluded: {
-          fixedExcluded: countFixedHidden(hidden),
-          staleExcluded: countStaleHidden(hidden),
+          dismissedExcluded: countDismissedHidden(hidden, isSuppressed),
+          fixedExcluded: countFixedHidden(hidden, isSuppressed),
+          staleExcluded: countStaleHidden(hidden, isSuppressed),
         },
         kindRegistry: deps.kindRegistry,
         providerRegistry: deps.providerRegistry,
