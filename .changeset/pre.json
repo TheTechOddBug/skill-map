@@ -84,6 +84,7 @@
     "queue-inspector-panel",
     "queue-inspector-write-actions",
     "remove-job-run-agent-drain",
+    "republish-rc-with-dist",
     "retire-on-disk-job-files-model",
     "settings-install-drain-skill-button",
     "sm-agent-install-run-queue-skill",
