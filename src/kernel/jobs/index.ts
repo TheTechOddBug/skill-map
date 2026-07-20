@@ -64,7 +64,6 @@ export {
   bucketFilterActive,
   countDismissedHidden,
   countFixedHidden,
-  countStaleHidden,
   isFindingShown,
   partitionFindingsView,
   type IFindingsBucketFlags,

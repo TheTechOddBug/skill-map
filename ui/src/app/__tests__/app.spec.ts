@@ -105,7 +105,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       kind: 'findings',
       items: [],
       filters: {},
-      counts: { total: 0, returned: 0, dismissedExcluded: 0, fixedExcluded: 0, staleExcluded: 0 },
+      counts: { total: 0, returned: 0, dismissedExcluded: 0, fixedExcluded: 0 },
       kindRegistry: {},
     }),
   getNodeProbExtensions: () =>
@@ -118,6 +118,10 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       elapsedMs: 0,
     }),
   cancelJob: () => Promise.resolve(),
+  dismissFinding: () => Promise.resolve(),
+  resolveFinding: () => Promise.resolve(),
+  undismissFinding: () => Promise.resolve(),
+  deleteFinding: () => Promise.resolve(),
   cancelAllJobs: () => Promise.resolve(),
   pruneJobs: () => Promise.resolve(),
   listJobs: () => Promise.resolve([]),
@@ -249,7 +253,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     stale: false,
     removed: false,
   }),
-  getActivitySummary: () => Promise.resolve({ since: 0, nodes: {}, pairs: {} }),
+  getActivitySummary: () => Promise.resolve({ since: 0, nodes: {}, pairs: {}, runNodes: [] }),
   getNodeActivity: () =>
     Promise.resolve({
       stats: { count: 0, lastStartAt: 0, distinctOwners: 0 },

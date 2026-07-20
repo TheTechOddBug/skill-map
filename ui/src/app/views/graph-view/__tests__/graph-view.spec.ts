@@ -160,7 +160,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     kind: 'findings',
     items: [],
     filters: {},
-    counts: { total: 0, returned: 0, dismissedExcluded: 0, fixedExcluded: 0, staleExcluded: 0 },
+    counts: { total: 0, returned: 0, dismissedExcluded: 0, fixedExcluded: 0 },
     kindRegistry: {},
   }),
   getNodeProbExtensions: vi
@@ -173,6 +173,10 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     elapsedMs: 0,
   }),
   cancelJob: vi.fn().mockResolvedValue(undefined),
+  dismissFinding: vi.fn().mockResolvedValue(undefined),
+  resolveFinding: vi.fn().mockResolvedValue(undefined),
+  undismissFinding: vi.fn().mockResolvedValue(undefined),
+  deleteFinding: vi.fn().mockResolvedValue(undefined),
   cancelAllJobs: vi.fn().mockResolvedValue(undefined),
   pruneJobs: vi.fn().mockResolvedValue(undefined),
   listJobs: vi.fn().mockResolvedValue([]),
@@ -295,7 +299,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     stale: false,
     removed: false,
   }),
-  getActivitySummary: vi.fn().mockResolvedValue({ since: 0, nodes: {}, pairs: {} }),
+  getActivitySummary: vi.fn().mockResolvedValue({ since: 0, nodes: {}, pairs: {}, runNodes: [] }),
   getNodeActivity: vi.fn().mockResolvedValue({
     stats: { count: 0, lastStartAt: 0, distinctOwners: 0 },
     recent: [],
@@ -1161,7 +1165,7 @@ describe('GraphView, edge conversation-count labels + historical click', () => {
     // summary; each test seeds the mock BEFORE bootstrap.
     vi.mocked(STUB_DATA_SOURCE.getActivitySummary)
       .mockReset()
-      .mockResolvedValue({ since: 0, nodes: {}, pairs: {} });
+      .mockResolvedValue({ since: 0, nodes: {}, pairs: {}, runNodes: [] });
     vi.mocked(STUB_DATA_SOURCE.getSpawnRecord).mockReset().mockResolvedValue(null);
     vi.mocked(STUB_DATA_SOURCE.getNodeActivity).mockReset().mockResolvedValue({
       stats: { count: 0, lastStartAt: 0, distinctOwners: 0 },
@@ -1177,6 +1181,7 @@ describe('GraphView, edge conversation-count labels + historical click', () => {
       since: 0,
       nodes: {},
       pairs,
+      runNodes: [],
     });
   }
 

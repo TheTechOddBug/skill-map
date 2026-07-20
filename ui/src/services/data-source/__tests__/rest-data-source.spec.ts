@@ -282,7 +282,7 @@ describe('RestDataSource', () => {
       kind: 'findings',
       items: [{ id: 12, type: 'stale-todo', severity: 'warn' }],
       filters: {},
-      counts: { total: 1, returned: 1, dismissedExcluded: 0, fixedExcluded: 2, staleExcluded: 0 },
+      counts: { total: 1, returned: 1, dismissedExcluded: 0, fixedExcluded: 2 },
       kindRegistry: {},
     };
     const promise = ds.getNodeFindings(path);

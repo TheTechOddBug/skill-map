@@ -21,7 +21,6 @@ import { strict as assert } from 'node:assert';
 
 import { ANNOTATION_FIELD_UNKNOWN_TEXTS } from '../annotation-field-unknown/annotation-field-unknown.texts.js';
 import { ANNOTATION_ORPHAN_TEXTS } from '../annotation-orphan/annotation-orphan.texts.js';
-import { ANNOTATION_STALE_TEXTS } from '../annotation-stale/annotation-stale.texts.js';
 import { EXTRACTOR_COLLISION_TEXTS } from '../extractor-collision/extractor-collision.texts.js';
 import { LINK_KIND_CONFLICT_TEXTS } from '../link-kind-conflict/link-kind-conflict.texts.js';
 import { LINK_SELF_LOOP_TEXTS } from '../link-self-loop/link-self-loop.texts.js';
@@ -38,9 +37,8 @@ const BODY_TEMPLATES: ReadonlyArray<readonly [string, string]> = [
   ['annotation-field-unknown.unknownRootKey', ANNOTATION_FIELD_UNKNOWN_TEXTS.unknownRootKey],
   ['annotation-field-unknown.pluginNamespaceInvalid', ANNOTATION_FIELD_UNKNOWN_TEXTS.pluginNamespaceInvalid],
   ['annotation-orphan.message', ANNOTATION_ORPHAN_TEXTS.message],
-  ['annotation-stale.bodyDrift', ANNOTATION_STALE_TEXTS.bodyDrift],
-  ['annotation-stale.frontmatterDrift', ANNOTATION_STALE_TEXTS.frontmatterDrift],
-  ['annotation-stale.bothDrift', ANNOTATION_STALE_TEXTS.bothDrift],
+  // annotation-stale emits no issue since 2026-07-20 (icon-only surfaces);
+  // its texts are tooltips, not formatFinding bodies.
   ['extractor-collision.message', EXTRACTOR_COLLISION_TEXTS.message],
   ['link-kind-conflict.message', LINK_KIND_CONFLICT_TEXTS.message],
   ['link-self-loop.message', LINK_SELF_LOOP_TEXTS.message],

@@ -5,13 +5,14 @@
  * Mirrors the `sm findings -n <path>` view semantics 1:1 through the
  * SHARED kernel helper (`kernel/jobs/findings-view.ts`, single source):
  *
- *   - DEFAULT view: the needs-attention rows (open + non-stale
- *     `human-decision`), with the excluded-count honesty triple
- *     (`counts.dismissedExcluded` / `counts.fixedExcluded` /
- *     `counts.staleExcluded`) reporting what the default view held back
- *     under the same filters. Dismissed rows (their class matches an
- *     active sidecar suppression, read from the write-through
- *     `scan_nodes.annotations_json` mirror) hide with top precedence.
+ *   - DEFAULT view: the needs-attention rows (open, `human-decision`,
+ *     and STALE rows riding inline with their per-row `stale` flag,
+ *     user call 2026-07-20), with the excluded-count honesty pair
+ *     (`counts.dismissedExcluded` / `counts.fixedExcluded`) reporting
+ *     what the default view held back under the same filters. Dismissed
+ *     rows (their class matches an active sidecar suppression, read
+ *     from the write-through `scan_nodes.annotations_json` mirror) hide
+ *     with top precedence.
  *   - `?dismissed=1` / `?fixed=1` / `?stale=1` are bucket FILTERS (only
  *     that bucket, together their union), mirroring the CLI flags; under
  *     an explicit bucket filter every excluded count is 0.
@@ -33,7 +34,6 @@ import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import {
   countDismissedHidden,
   countFixedHidden,
-  countStaleHidden,
   isFindingSuppressed,
   partitionFindingsView,
   type IFindingsBucketFlags,
@@ -116,7 +116,6 @@ export function registerNodeFindingsRoute(app: Hono, deps: IRouteDeps): void {
         excluded: {
           dismissedExcluded: countDismissedHidden(hidden, isSuppressed),
           fixedExcluded: countFixedHidden(hidden, isSuppressed),
-          staleExcluded: countStaleHidden(hidden, isSuppressed),
         },
         kindRegistry: deps.kindRegistry,
         providerRegistry: deps.providerRegistry,

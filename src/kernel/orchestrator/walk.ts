@@ -624,8 +624,12 @@ interface IWalkIncrementalArgs {
  * Watcher incremental fast path. Enumerates the corpus from the prior
  * snapshot rather than traversing the roots:
  *
- *   1. Map any changed / removed `.sm` sidecar path to its `.md` node so
- *      a sidecar edit re-processes the node.
+ *   1. Map any changed `.sm` sidecar path to its `.md` node so a sidecar
+ *      edit re-processes the node. A REMOVED `.sm` maps to its `.md` as
+ *      CHANGED too, never as removed: the node file is still on disk,
+ *      only its overlay must recompute (user bug 2026-07-20: routing the
+ *      sibling into `removed` vanished the node until a full rescan).
+ *      Only non-sidecar paths stay in the removed set.
  *   2. CHANGED pass: run each active provider's walk with `scopedPaths`
  *      set to the absolute changed paths, so only those files are read +
  *      re-extracted through the existing `processRawNode` (full path:
@@ -642,8 +646,19 @@ interface IWalkIncrementalArgs {
  * nodes), surfaced as `filesWalked`.
  */
 async function walkIncremental(args: IWalkIncrementalArgs): Promise<number> {
-  const changed = expandSidecarPaths(args.changedPaths.changed, args.wctx.priorNodesByPath);
-  const removed = expandSidecarPaths(args.changedPaths.removed, args.wctx.priorNodesByPath);
+  // A removed `.sm` re-processes its sibling `.md` (the node LOST its
+  // overlay, the file itself is intact), so those siblings join the
+  // CHANGED set; only non-sidecar removals mean a node disappeared.
+  const removedSidecars = new Set(
+    [...args.changedPaths.removed].filter((p) => p.endsWith('.sm')),
+  );
+  const changed = new Set([
+    ...expandSidecarPaths(args.changedPaths.changed, args.wctx.priorNodesByPath),
+    ...expandSidecarPaths(removedSidecars, args.wctx.priorNodesByPath),
+  ]);
+  const removed = new Set(
+    [...args.changedPaths.removed].filter((p) => !p.endsWith('.sm')),
+  );
   let filesWalked = 0;
 
   // CHANGED pass: scoped read of only the changed files, routed through

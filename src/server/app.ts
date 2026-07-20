@@ -93,6 +93,7 @@ import { registerGraphRoute } from './routes/graph.js';
 import { registerHealthRoute } from './routes/health.js';
 import { registerIssuesRoute } from './routes/issues.js';
 import { registerLinksRoute } from './routes/links.js';
+import { registerNodeFindingActionsRoutes } from './routes/node-finding-actions.js';
 import { registerNodeFindingsRoute } from './routes/node-findings.js';
 import { registerNodeJobsRoute } from './routes/node-jobs.js';
 import { registerNodeProbExtensionsRoute } from './routes/node-prob-extensions.js';
@@ -160,6 +161,11 @@ export type TErrorCode =
   // `spec/cli-contract.md` route row): the job is already terminal.
   // Carried by `ConflictError`.
   | 'job-terminal'
+  // Finding-action 409s (`POST /api/nodes/:pathB64/findings/:id/...`,
+  // the inspector's per-finding dismiss / resolve; `spec/cli-contract.md`
+  // route rows). Carried by `ConflictError`.
+  | 'finding-not-dismissible'
+  | 'finding-already-fixed'
   | 'internal';
 
 export interface IErrorEnvelope {
@@ -288,7 +294,12 @@ export class ActivityTokenError extends OpaqueForbiddenError {
  * dispatch (the typed `code` is).
  */
 export class ConflictError extends HTTPException {
-  readonly code: 'scan-busy' | 'sidecar-fresh' | 'job-terminal';
+  readonly code:
+    | 'scan-busy'
+    | 'sidecar-fresh'
+    | 'job-terminal'
+    | 'finding-not-dismissible'
+    | 'finding-already-fixed';
 
   constructor(init: { code: ConflictError['code']; message: string }) {
     super(409, { message: init.message });
@@ -605,6 +616,9 @@ export function createApp(deps: IAppDeps): Hono {
   //   `POST /api/jobs/:jobId/cancel`             -> launcher stop
   //     (broadcasts `job.cancelled` on success).
   registerNodeFindingsRoute(app, routeDeps);
+  // Per-finding mutations (inspector tray): dismiss / resolve / undismiss,
+  // the HTTP faces of the `sm findings` verbs (read-time suppression lens).
+  registerNodeFindingActionsRoutes(app, routeDeps);
   registerNodeProbExtensionsRoute(app, routeDeps);
   registerNodeJobsRoute(app, { ...routeDeps, broadcaster: deps.broadcaster });
   registerJobCancelRoute(app, { options: routeDeps.options, broadcaster: deps.broadcaster });
@@ -671,7 +685,7 @@ export function createApp(deps: IAppDeps): Hono {
   // Execution-stats snapshot, `GET /api/activity/summary` (client
   // hydration on connect / reconnect / re-enable). Stats-only; no
   // token, loopback-gated like every /api/* route.
-  registerActivitySummaryRoute(app, { stats: deps.activityStats });
+  registerActivitySummaryRoute(app, { stats: deps.activityStats, options: deps.options });
   // Per-node + per-spawn activity detail, `GET /api/activity/node/:pathB64`
   // and `GET /api/activity/spawns/:spawnId` (inspector Activity section
   // + spawn-edge click). Conversation content only while the capture

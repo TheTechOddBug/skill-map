@@ -174,15 +174,21 @@ export interface ICorpusPort {
 
   /**
    * Per-node AI-actions tray (`GET /api/nodes/:pathB64/findings`, Step 16
-   * piece 1). Returns the `findings` envelope: FRESH open rows in
-   * `items` (the `sm findings -n <path>` default view) with the
-   * excluded-count honesty pair on `counts` (`fixedExcluded` /
-   * `staleExcluded`) so the UI can render the same "N fixed, M stale
-   * hidden" line as the CLI. Returns `null` when the BFF responds 404
-   * (unknown node / missing DB), mirroring `getNode`. The static (demo)
-   * data source returns an empty tray (the bundle records no AI actions).
+   * piece 1). Returns the `findings` envelope: the needs-attention rows
+   * in `items` (the `sm findings -n <path>` default view; stale rows
+   * ride inline with their per-row `stale` flag) with the excluded-count
+   * honesty pair on `counts` (`dismissedExcluded` / `fixedExcluded`) so
+   * the UI can render the same "N dismissed, M fixed hidden" line as the
+   * CLI. `bucket` narrows to ONE hidden bucket instead (the
+   * `?dismissed=1` / `?fixed=1` filters), backing the tray's reveal
+   * toggles. Returns `null` when the BFF responds 404 (unknown node /
+   * missing DB), mirroring `getNode`. The static (demo) data source
+   * returns an empty tray (the bundle records no AI actions).
    */
-  getNodeFindings(path: string): Promise<IFindingsEnvelopeApi | null>;
+  getNodeFindings(
+    path: string,
+    bucket?: 'dismissed' | 'fixed',
+  ): Promise<IFindingsEnvelopeApi | null>;
 
   /**
    * Per-node probabilistic launcher catalog

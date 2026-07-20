@@ -17,6 +17,12 @@ export { computeDriftStatus } from './drift.js';
 export { discoverOrphanSidecars } from './discover-orphans.js';
 export type { IOrphanSidecar } from './discover-orphans.js';
 export {
+  buildSuppressionEntry,
+  existingSuppressions,
+  mergeSuppression,
+  normalizeSuppressionType,
+} from './suppression-edit.js';
+export {
   FilesystemSidecarStore,
   deepMerge,
   _resetSidecarStoreValidatorCacheForTests,

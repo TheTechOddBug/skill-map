@@ -523,7 +523,8 @@ no token (operator surface, like §Install management). Response `200`:
       "lastOwner": "main:6cfe5636-2e56-4271-91a6-87fc3d4355be",
       "distinctOwners": 2
     }
-  }
+  },
+  "runNodes": [".claude/agents/architect.md"]
 }
 ```
 
@@ -532,10 +533,18 @@ The response also carries the per-pair spawn counters under `"pairs"`, keyed
 accumulator uses), each `{ "count": <n>, "lastStartAt": <ms> }`, so edge
 labels hydrate together with the node counters.
 
-Stats-only by design: the summary carries NO live claim or spawn state. Live
-lighting and spawn edges rebuild from the WS stream as events arrive; clients
-treat both this snapshot and the WS `stats` / `pairCount` fields as overwrites
-from the single server-side source of truth.
+It ALSO carries `"runNodes"`: the distinct node paths holding persistent
+AI-run history (`state_executions` rows, any status). The boot-scoped
+counters reset on every server restart but the DB history does not, so
+without this list a client that derives Activity visibility from the
+counters would hide a node's recorded runs until fresh runtime activity
+happens to touch it. Read per request from the project DB; a missing DB
+degrades to `[]` (the runtime half still answers).
+
+Stats-only by design otherwise: the summary carries NO live claim or spawn
+state. Live lighting and spawn edges rebuild from the WS stream as events
+arrive; clients treat both this snapshot and the WS `stats` / `pairCount`
+fields as overwrites from the single server-side source of truth.
 
 ### `GET /api/activity/node/<pathB64>`
 

@@ -48,30 +48,31 @@ export const INSPECTOR_VIEW_TEXTS = {
     /**
      * Automatic toggle (Step 16): when on, one click on a finder button
      * runs the finder AND auto-chains its fixers (the finder submit
-     * carries `autoFix: true`); when off, the button morphs Detect ⇄ Fix.
+     * carries `autoFix: true`); when off, it just detects. Fixing an
+     * already-open finding lives on the finding row (user call
+     * 2026-07-20), so the button never morphs.
      */
     autoFix: {
       label: 'Auto-fixer',
       tooltip:
-        'When on, one click runs the finder and auto-fixes its findings. When off, the button switches between Detect and Fix.',
+        'When on, one click runs the finder and auto-fixes its findings. When off, it just detects; fix each finding from its row.',
     },
     /**
-     * Two-state finder button labels (a finder that has a fixer): Detect
-     * runs the finder, Fix runs its fixer(s), Detect + fix runs both in
-     * one click (automatic toggle on). Standalone entries use their short
-     * extension name instead.
+     * Finder button action names (tooltip prefix): Detect runs the
+     * finder, Detect + fix runs it with the fixer chain (automatic
+     * toggle on). Standalone entries use their short extension name
+     * instead. The old third `Fix` state moved into the finding rows.
      */
     buttons: {
       detect: 'Detect',
-      fix: 'Fix',
       detectAndFix: 'Detect + fix',
     },
     /**
-     * Per-row AI-action provenance: confidence percent plus the
-     * recording model when the agent declared one.
+     * Per-row AI-action provenance: the confidence percent alone (the
+     * recording model was dropped from the row, user call 2026-07-20;
+     * `sm findings` in the terminal still shows it).
      */
-    confidenceModel: (pct: number, model: string | null): string =>
-      model === null ? `(${pct}%)` : `(${pct}% · ${model})`,
+    confidence: (pct: number): string => `(${pct}%)`,
     /** Submit-failure banner, prefix + envelope message. */
     errorPrefix: 'Submit failed:',
     dismissErrorAriaLabel: 'Dismiss submit error',
@@ -85,11 +86,53 @@ export const INSPECTOR_VIEW_TEXTS = {
     stateQueued: 'queued',
     stateRunning: 'running',
     /**
+     * Disabled-reason suffix on a finder whose findings are still open
+     * (user call 2026-07-20: re-running it makes no sense; handle the
+     * findings first and the button re-enables).
+     */
+    stateOpenFindings: 'findings open, handle them first',
+    /**
      * Icon-only stop / restart companions beside an active launcher
      * (user decision 2026-07-17). Each string doubles as the tooltip
      * and the accessible label.
      */
     stopTooltip: 'Stop this job',
+    /** Per-finding actions (the read-time suppression lens). */
+    finding: {
+      /** The AUTOMATIC fix: queue the finder's fixer(s) for this class. */
+      fixTooltip: 'Auto-fix',
+      fixAriaLabel: (id: number) => `Queue the fixer for finding ${id}`,
+      dismissTooltip: 'Dismiss',
+      dismissAriaLabel: (id: number) => `Dismiss finding ${id}`,
+      resolveTooltip: 'Mark fixed (I handled this)',
+      resolveAriaLabel: (id: number) => `Mark finding ${id} fixed`,
+      restoreTooltip: 'Restore',
+      restoreAriaLabel: (id: number) => `Restore finding ${id}`,
+      deleteTooltip: 'Delete',
+      deleteAriaLabel: (id: number) => `Delete finding ${id}`,
+      /**
+       * Inline per-row mark on a stale finding (the node body changed
+       * since the judgment); stale rows ride the tray, never a hidden
+       * bucket (user call 2026-07-20).
+       */
+      staleTag: 'stale',
+      staleTagTooltip: 'The node body changed since this judgment; re-run the finder to re-check.',
+      /**
+       * Inline per-row mark on a `human-decision` finding: the fixer
+       * deliberately left it to the author, so the row shows no fix
+       * button (the submit gate refuses to re-inject decided work) and
+       * this mark explains the two valid exits.
+       */
+      decisionTag: 'needs decision',
+      decisionTagTooltip:
+        'The fixer left this one to you: fix it yourself, then mark it fixed, or dismiss it.',
+    },
+    /** The hidden-buckets reveal chips under the tray (dismissed / fixed). */
+    hidden: {
+      dismissed: (count: number) => `${count} dismissed`,
+      fixed: (count: number) => `${count} fixed`,
+      chipTooltip: 'Show / hide this bucket',
+    },
   },
   /**
    * Activity section (spec/provider-activity.md §Execution stats /

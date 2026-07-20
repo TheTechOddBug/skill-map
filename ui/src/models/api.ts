@@ -1291,6 +1291,12 @@ export interface IActivitySummaryApi {
   nodes: Record<string, INodeActivityStatsApi>;
   /** Per-pair spawn counters, keyed via `activityPairKeyOf`. */
   pairs: Record<string, IActivityPairStatsApi>;
+  /**
+   * Distinct node paths with persistent AI-run history
+   * (`state_executions`): the counters above reset on server restart,
+   * this list does not, so Activity visibility survives a reboot.
+   */
+  runNodes: string[];
 }
 
 /** One entry of a node's recent-executions ring (most recent first). */
@@ -1510,16 +1516,16 @@ export interface IFindingApi {
 
 /**
  * `counts` block of the `findings` envelope: the list pair plus the
- * REQUIRED default-view honesty triple (`dismissedExcluded` /
- * `fixedExcluded` / `staleExcluded`, what the default view held back;
- * dismissed = the class matches an active sidecar suppression, top
- * precedence; all 0 under an explicit bucket filter, mirroring
- * `sm findings --json`).
+ * REQUIRED default-view honesty pair (`dismissedExcluded` /
+ * `fixedExcluded`, what the default view held back; dismissed = the
+ * class matches an active sidecar suppression, top precedence; both 0
+ * under an explicit bucket filter, mirroring `sm findings --json`).
+ * Stale rows are never held back: they ride `items` inline with their
+ * per-row `stale` flag (user call 2026-07-20).
  */
 export interface IFindingsCountsApi extends IEnvelopeCountsApi {
   dismissedExcluded: number;
   fixedExcluded: number;
-  staleExcluded: number;
 }
 
 /**

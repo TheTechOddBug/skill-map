@@ -131,7 +131,7 @@ Assertion types beyond this list MAY be proposed via spec-vX.Y.Z minor bumps. Im
 | `extension-mode-routing-deterministic` | The deterministic half: `sm jobs submit` refuses a deterministic Action with exit 2 and the in-process advisory. |
 | `plugin-missing-ui-rejected` | Drop-in Provider whose `kinds[*]` entry omits the required `ui` block fails AJV validation with `invalid-manifest`; the rest of the pipeline keeps running. |
 | `score-phase-confidence` | Drop-in analyzer declaring `phase: 'score'` composes a confidence adjustment (`delta -0.4`, then a no-op `floor 0.5`) on top of the kernel's 1.0 baseline (a clean resolved link keeps that baseline, no built-in op); the folded `scan_links.confidence` lands at exactly `0.6`. |
-| `sidecar-end-to-end` | Co-located `.sm` sidecar shape, stale / orphan detection, populated `Node.sidecar` overlay, both `annotation-stale` and `annotation-orphan` issues emitted. |
+| `sidecar-end-to-end` | Co-located `.sm` sidecar shape, stale / orphan detection, populated `Node.sidecar` overlay, the `annotation-orphan` issue emitted (drift is icon-only, no `annotation-stale` issue). |
 | `view-action-button` | An analyzer declaring the unified `inspector.header.badge` + the new `inspector.action.button` slots loads clean, while a sibling declaring the retired `inspector.header.badge.counter` slot fails as `invalid-manifest`; `sm scan` survives. |
 
 ### Provider-owned (per `<plugin-dir>/conformance/`)

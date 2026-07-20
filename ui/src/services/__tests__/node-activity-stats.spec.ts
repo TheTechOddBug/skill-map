@@ -58,6 +58,7 @@ interface IHarness {
 function bootstrap(
   summaryNodes: Record<string, INodeActivityStatsApi> = {},
   summaryPairs: Record<string, IActivityPairStatsApi> = {},
+  summaryRunNodes: string[] = [],
 ): IHarness {
   TestBed.resetTestingModule();
   const events$ = new Subject<IWsNodeActivityEvent>();
@@ -68,9 +69,12 @@ function bootstrap(
     agentSpawn$: spawns$,
     stableConnected: stable.asReadonly(),
   } as unknown as WsEventStreamService;
-  const getActivitySummary = vi
-    .fn()
-    .mockResolvedValue({ since: 1_700_000_000_000, nodes: summaryNodes, pairs: summaryPairs });
+  const getActivitySummary = vi.fn().mockResolvedValue({
+    since: 1_700_000_000_000,
+    nodes: summaryNodes,
+    pairs: summaryPairs,
+    runNodes: summaryRunNodes,
+  });
   TestBed.configureTestingModule({
     providers: [
       { provide: WsEventStreamService, useValue: ws },
@@ -111,6 +115,14 @@ describe('NodeActivityStatsService', () => {
     const { service } = bootstrap({ [SKILL]: stats(3) });
     await settled();
     expect(service.stats().get(SKILL)?.count).toBe(3);
+  });
+
+  it('adopts the persistent-runs set from the summary (survives counter resets)', async () => {
+    const { service } = bootstrap({}, {}, [SKILL]);
+    await settled();
+    expect(service.runNodes().has(SKILL)).toBe(true);
+    // A summary without the field degrades to empty, never undefined.
+    expect(service.runNodes().has('other.md')).toBe(false);
   });
 
   it('count OVERWRITES from frames, never client-accumulates', async () => {

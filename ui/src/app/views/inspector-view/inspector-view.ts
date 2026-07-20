@@ -98,6 +98,7 @@ import {
 import {
   setupAiActions,
   type IAiActionsHandle,
+  type TFindingsBucket,
 } from './inspector-ai-actions.controller';
 import { setupAutoFix, type IAutoFixHandle } from './inspector-auto-fix.controller';
 import type { INodeView } from '../../../models/node';
@@ -463,11 +464,116 @@ export class InspectorView implements OnInit {
     dataSource: this.dataSource,
     jobEvents$: this.wsEvents.jobEvents$,
     scanCompleted$: this.wsEvents.scanCompleted$,
+    // The dismiss / restore flows park their consent retries behind the
+    // SAME dialog the action buttons use (one instance, one service).
+    requestSmConsent: (retry) => this.actionDispatch.requestSmConsent(retry),
   });
   protected readonly aiActionFindings = this.aiActions.findings;
   protected readonly aiActionsAvailable = this.aiActions.available;
   protected readonly aiActionsError = this.aiActions.error;
   protected readonly probExtensions = this.aiActions.probExtensions;
+  protected readonly aiActionCounts = this.aiActions.counts;
+  protected readonly aiActionRevealedBucket = this.aiActions.revealedBucket;
+  protected readonly aiActionRevealedRows = this.aiActions.revealedRows;
+
+  /** Direct dismiss (no prompt): one click hides the class, reversible. */
+  protected dismissAiActionFinding(finding: IFindingApi): void {
+    void this.aiActions.dismissFinding(finding);
+  }
+
+  protected resolveAiActionFinding(finding: IFindingApi): void {
+    void this.aiActions.resolveFinding(finding);
+  }
+
+  protected restoreAiActionFinding(finding: IFindingApi): void {
+    void this.aiActions.restoreFinding(finding);
+  }
+
+  /** Hard-delete a revealed dismissed / fixed row from the DB. */
+  protected deleteAiActionFinding(finding: IFindingApi): void {
+    void this.aiActions.deleteFinding(finding);
+  }
+
+  /**
+   * The finder entry backing a finding row, when it has fixer(s) to
+   * queue: extension-origin findings only (kernel safety rows have no
+   * fixer), matched by the row's qualified `extensionId` against the
+   * launcher catalog. `null` = the row renders no automatic-fix button.
+   */
+  private findingFinderEntry(finding: IFindingApi): IProbExtensionEntryApi | null {
+    if (finding.origin !== 'extension') return null;
+    const probs = this.aiActions.probExtensions();
+    const entry = probs?.finders.find((e) => e.id === finding.extensionId);
+    return entry !== undefined && entry.fixerIds.length > 0 ? entry : null;
+  }
+
+  /**
+   * Whether the row shows the AUTOMATIC fix button: a fixer exists AND
+   * the row is genuinely open. A `human-decision` row is EXCLUDED (user
+   * call 2026-07-20): the fixer already decided it belongs to the
+   * author, the submit gate refuses to re-inject it, so offering the
+   * button would only dead-end; the row carries the needs-decision mark
+   * instead and keeps mark-fixed / dismiss as its two valid exits.
+   */
+  protected aiActionFindingFixable(finding: IFindingApi): boolean {
+    return finding.resolution === null && this.findingFinderEntry(finding) !== null;
+  }
+
+  /**
+   * Queue the finding's fixer(s), the AUTOMATIC fix on the row (user
+   * call 2026-07-20: fixing lives on the finding, beside the manual ✓;
+   * the launcher button never morphs to Fix anymore). Busy state rides
+   * the finder's entry (submitFixers keys it there).
+   */
+  protected fixAiActionFinding(finding: IFindingApi): void {
+    const entry = this.findingFinderEntry(finding);
+    if (entry === null) return;
+    void this.aiActions.submitFixers(entry.id, entry.fixerIds);
+  }
+
+  /** Fix button busy/disabled: the fixer round-trip or an active job. */
+  protected aiActionFindingFixBusy(finding: IFindingApi): boolean {
+    const entry = this.findingFinderEntry(finding);
+    if (entry === null) return false;
+    return this.aiActionEntryState(entry) !== 'idle' || this.aiActions.isSubmitting(entry.id);
+  }
+
+  protected aiActionFindingBusy(findingId: number): boolean {
+    return this.aiActions.isFindingBusy(findingId);
+  }
+
+  protected toggleAiActionBucket(bucket: TFindingsBucket): void {
+    void this.aiActions.toggleBucket(bucket);
+  }
+
+  /** Chip label for one hidden bucket ("2 dismissed", "1 fixed", ...). */
+  protected aiActionHiddenChipLabel(chip: { bucket: TFindingsBucket; count: number }): string {
+    return this.texts.aiActions.hidden[chip.bucket](chip.count);
+  }
+
+  /**
+   * The hidden-bucket chips in render order: only non-zero buckets, each
+   * with its live count and whether it is the revealed one.
+   */
+  protected readonly aiActionHiddenBuckets = computed<
+    Array<{ bucket: TFindingsBucket; count: number; revealed: boolean }>
+  >(() => {
+    const counts = this.aiActionCounts();
+    if (counts === null) return [];
+    const revealed = this.aiActionRevealedBucket();
+    return (
+      [
+        { bucket: 'dismissed' as const, count: counts.dismissedExcluded },
+        { bucket: 'fixed' as const, count: counts.fixedExcluded },
+      ]
+        // Zero-count chips never render (user call 2026-07-20); when a
+        // revealed bucket empties, the controller collapses the reveal
+        // in the same refresh, so no orphan sublist survives the chip.
+        // No stale chip: stale rows ride the tray inline, marked.
+        .filter((b) => b.count > 0)
+        .map((b) => ({ ...b, revealed: b.bucket === revealed }))
+    );
+  });
 
   /**
    * Launcher groups in render order, empty groups filtered out so the
@@ -534,23 +640,22 @@ export class InspectorView implements OnInit {
   }
 
   /**
-   * The action a two-state finder button performs on click, given the
-   * Automatic toggle and the finder's open-findings state:
-   *   - toggle on  → `detectAndFix` (submit the finder with `autoFix`).
-   *   - toggle off, no open findings → `detect` (submit the finder).
-   *   - toggle off, open findings    → `fix` (submit the fixer(s)).
+   * The action a finder button performs on click, given the Automatic
+   * toggle: on → `detectAndFix` (submit the finder with `autoFix`),
+   * off → `detect` (submit the finder). The old third `fix` mode is
+   * GONE (user call 2026-07-20): fixing moved into each finding row,
+   * the launcher never morphs.
    */
-  protected finderActionMode(entry: IProbExtensionEntryApi): 'detect' | 'fix' | 'detectAndFix' {
-    if (this.autoFixEnabled()) return 'detectAndFix';
-    return entry.hasOpenFindings ? 'fix' : 'detect';
+  protected finderActionMode(entry: IProbExtensionEntryApi): 'detect' | 'detectAndFix' {
+    return this.autoFixEnabled() ? 'detectAndFix' : 'detect';
   }
 
   /**
    * Launcher label: always the extension KIND (the segment after the
    * slash, minus the `node-` prefix, via `shortExtensionLabel`), for
-   * finders and standalone alike (user call 2026-07-18). The two-state
-   * Detect ⇄ Fix morph is carried by the icon (`aiActionLauncherIcon`)
-   * and the tooltip, not the label.
+   * finders and standalone alike (user call 2026-07-18). The action is
+   * carried by the icon (`aiActionLauncherIcon`) and the tooltip, not
+   * the label.
    */
   protected aiActionLauncherLabel(entry: IProbExtensionEntryApi): string {
     return shortExtensionLabel(entry.id);
@@ -558,27 +663,22 @@ export class InspectorView implements OnInit {
 
   /**
    * Mode icon (the label is the kind, so the icon shows the action): a
-   * queued job pins the clock; otherwise a finder-with-fixer shows its
-   * `finderActionMode` glyph (detect / fix / detect+fix) and a standalone
-   * shows the run glyph.
+   * queued job pins the clock; otherwise a finder shows detect or
+   * detect+fix per the Automatic toggle and a standalone shows the run
+   * glyph. Auto-fix is the MAGIC glyph (user call 2026-07-20, shared
+   * with the per-finding fix button).
    */
   protected aiActionLauncherIcon(entry: IProbExtensionEntryApi, isFinder: boolean): string {
     if (this.aiActionEntryState(entry) === 'queued') return 'pi pi-clock';
     if (!isFinder) return 'pi pi-play';
-    switch (this.finderActionMode(entry)) {
-      case 'fix':
-        return 'pi pi-wrench';
-      case 'detectAndFix':
-        return 'pi pi-bolt';
-      default:
-        return 'pi pi-search';
-    }
+    return this.finderActionMode(entry) === 'detectAndFix' ? 'pi pi-sparkles' : 'pi pi-search';
   }
 
   /**
-   * Tooltip: the manifest description, the current action (Detect / Fix /
+   * Tooltip: the manifest description, the current action (Detect /
    * Detect + fix) for finders so the icon reads unambiguously, plus the
-   * live state when not idle.
+   * live state when not idle, or the open-findings reason while the
+   * button sits disabled by them.
    */
   protected aiActionLauncherTooltip(entry: IProbExtensionEntryApi, isFinder: boolean): string {
     const action = isFinder ? `${this.texts.aiActions.buttons[this.finderActionMode(entry)]} · ` : '';
@@ -588,13 +688,26 @@ export class InspectorView implements OnInit {
         ? ` (${this.texts.aiActions.stateQueued})`
         : state === 'running'
           ? ` (${this.texts.aiActions.stateRunning})`
-          : '';
+          : entry.hasOpenFindings
+            ? ` (${this.texts.aiActions.stateOpenFindings})`
+            : '';
     return `${action}${entry.description}${suffix}`;
   }
 
-  /** True while the launcher button must sit disabled (non-idle or in flight). */
+  /**
+   * True while the launcher button must sit disabled: non-idle, a submit
+   * in flight, or OPEN FINDINGS from this finder (user call 2026-07-20:
+   * re-running a finder whose findings are still open makes no sense;
+   * handle them first, via fix / resolve / dismiss / delete, and the
+   * button re-enables). Standalone entries always carry
+   * `hasOpenFindings: false`, so the guard only bites finders.
+   */
   protected aiActionLauncherDisabled(entry: IProbExtensionEntryApi): boolean {
-    return this.aiActionEntryState(entry) !== 'idle' || this.aiActions.isSubmitting(entry.id);
+    return (
+      this.aiActionEntryState(entry) !== 'idle' ||
+      this.aiActions.isSubmitting(entry.id) ||
+      entry.hasOpenFindings
+    );
   }
 
   /** True while the launcher shows the busy spinner (running or submitting). */
@@ -604,26 +717,18 @@ export class InspectorView implements OnInit {
 
   /**
    * Launcher click. Standalone entries submit their own extension. A
-   * finder-with-fixer button branches on `finderActionMode`: Detect
-   * submits the finder, Fix submits each of the finder's `fixerIds`
-   * (chain all), Detect + fix submits the finder with `autoFix: true`.
+   * finder submits itself, with `autoFix: true` when the Automatic
+   * toggle is on (the kernel chains its fixers on record). Fixing an
+   * already-open finding lives on the finding row, not here.
    */
   protected onLauncherClick(entry: IProbExtensionEntryApi, isFinder: boolean): void {
-    if (!isFinder) {
-      void this.aiActions.submit(entry.id, false);
-      return;
-    }
-    switch (this.finderActionMode(entry)) {
-      case 'fix':
-        void this.aiActions.submitFixers(entry.id, entry.fixerIds);
-        break;
-      case 'detectAndFix':
-        void this.aiActions.submit(entry.id, true);
-        break;
-      default:
-        void this.aiActions.submit(entry.id, false);
-        break;
-    }
+    void this.launcherSubmit(entry, isFinder);
+  }
+
+  /** The submit a launcher click dispatches, exposed as a promise for ALL. */
+  private launcherSubmit(entry: IProbExtensionEntryApi, isFinder: boolean): Promise<void> {
+    const autoFix = isFinder && this.finderActionMode(entry) === 'detectAndFix';
+    return this.aiActions.submit(entry.id, autoFix);
   }
 
   /**
@@ -631,14 +736,23 @@ export class InspectorView implements OnInit {
    * one click, each in its current mode (the same submit a per-button
    * click does). Entries already busy are skipped (a re-submit would be a
    * queue duplicate anyway).
+   *
+   * SEQUENTIAL, finders first (user call 2026-07-20): the entries list
+   * is already finders-then-standalone, and each submit is awaited so
+   * the queue's created_at order matches. Fire-and-forget submits raced
+   * and could land a file-EDITING standalone action between two finder
+   * jobs, staling the judgments recorded before the edit; with finders
+   * ahead, every finder judges the same body and the actions run last.
    */
   protected onLauncherAll(): void {
-    for (const { entry, isFinder } of this.aiActionLauncherEntries()) {
-      if (this.aiActionLauncherDisabled(entry)) {
-        continue;
+    void (async (): Promise<void> => {
+      for (const { entry, isFinder } of this.aiActionLauncherEntries()) {
+        if (this.aiActionLauncherDisabled(entry)) {
+          continue;
+        }
+        await this.launcherSubmit(entry, isFinder);
       }
-      this.onLauncherClick(entry, isFinder);
-    }
+    })();
   }
 
   /**
@@ -669,10 +783,7 @@ export class InspectorView implements OnInit {
 
   /** Per-row provenance: `(confidence% · model)`, model omitted when undeclared. */
   protected aiActionConfidenceModel(finding: IFindingApi): string {
-    return this.texts.aiActions.confidenceModel(
-      Math.round(finding.confidence * 100),
-      finding.model,
-    );
+    return this.texts.aiActions.confidence(Math.round(finding.confidence * 100));
   }
 
   /**
@@ -682,8 +793,11 @@ export class InspectorView implements OnInit {
    * the "no recorded runs" placeholder. Visibility derives from the
    * same per-node mirror the node-card pill and the edge labels read
    * (`NodeActivityStatsService`, summary snapshot + WS overwrites): a
-   * stats entry for the node, or a spawn pair touching it as parent or
-   * child. With real-time activity OFF the mirror may be un-hydrated
+   * stats entry for the node, a spawn pair touching it as parent or
+   * child, or PERSISTENT AI-run history (the summary's `runNodes`; the
+   * boot-scoped counters reset on server restart, the DB history does
+   * not, so recorded runs must keep the section visible after a
+   * reboot). With real-time activity OFF the mirror may be un-hydrated
    * (the boot fetch is skipped), so emptiness is unknowable and the
    * section stays available like it always was.
    */
@@ -692,6 +806,7 @@ export class InspectorView implements OnInit {
     if (path === undefined) return false;
     if (!this.livePrefs.activityEnabled()) return true;
     if (this.activityStats.stats().has(path)) return true;
+    if (this.activityStats.runNodes().has(path)) return true;
     for (const key of this.activityStats.pairCounts().keys()) {
       if (activityPairKeyTouches(key, path)) return true;
     }
@@ -858,17 +973,19 @@ export class InspectorView implements OnInit {
   });
 
   /**
-   * AI-run row text: `<extensionId> · <status?> · <duration> · <model>`,
-   * nullable segments omitted. The extension shows its FULL qualified id
-   * (not the `node-`-stripped short form), and the status is surfaced ONLY
-   * when it deviates from the happy-path `completed`: a failed / cancelled
-   * run shows its state, a completed one does not repeat the obvious.
+   * AI-run row text: `<extension> · <status?> · <duration>`, nullable
+   * segments omitted. The built-in `core/` plugin prefix is stripped (it
+   * is the overwhelming default and reads as noise; external plugins keep
+   * their qualifier), the recording model is not shown (user call
+   * 2026-07-20, matching the findings rows; `sm findings` in the terminal
+   * still has it), and the status is surfaced ONLY when it deviates from
+   * the happy-path `completed`: a failed / cancelled run shows its state,
+   * a completed one does not repeat the obvious.
    */
   protected runRowLabel(run: IActivityRunApi): string {
-    const parts = [run.extensionId];
+    const parts = [run.extensionId.replace(/^core\//, '')];
     if (run.status !== 'completed') parts.push(run.status);
     if (run.durationMs !== null) parts.push(this.texts.activity.runDuration(run.durationMs));
-    if (run.model !== null) parts.push(run.model);
     return parts.join(' · ');
   }
 

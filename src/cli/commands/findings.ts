@@ -16,35 +16,37 @@
  * severity (`warn` keeps warn + error); `--since` ISO date on
  * `generated_at`; `--threshold` minimum confidence.
  *
- * The default view shows what needs attention (open and `human-decision`
- * rows), hiding two DISJOINT kinds of row: `fixed` rows
- * (`resolution = 'fixed'`, already handled) and stale rows (body hash
- * drifted since generation, or the node gone from the scan). A row that is
- * BOTH fixed and stale counts as fixed (the state takes precedence).
+ * The default view shows what needs attention: open rows,
+ * `human-decision` rows, AND stale rows (body hash drifted since
+ * generation, or the node gone from the scan), the latter riding inline
+ * marked `(stale)` per row (user call 2026-07-20: staleness is a per-row
+ * annotation, not a hidden bucket). It hides `fixed` rows
+ * (`resolution = 'fixed'`, already handled) and dismissed rows. A row
+ * that is BOTH fixed and stale counts as fixed (state precedence).
  *
  * The bucket flags are FILTERS, not additive reveals: `--fixed` shows ONLY
- * the fixed bucket (marked with the deciding actor), `--stale` shows ONLY
- * the stale bucket (marked `(stale)`), together their union. With either
- * present the needs-attention rows are omitted and the excluded-count
- * reporting does NOT apply (it is a default-view honesty device, exactly
- * like `--type` is the operator's own narrowing). An empty bucket-filter
- * result reads the same no-match line as an empty `--type` view, never the
- * clean verdict, never the `No fresh findings` breakdown.
+ * the fixed bucket (marked with the deciding actor), `--stale` narrows to
+ * ONLY the stale rows, together their union. With either present the
+ * default-view rows are omitted and the excluded-count reporting does NOT
+ * apply (it is a default-view honesty device, exactly like `--type` is
+ * the operator's own narrowing). An empty bucket-filter result reads the
+ * same no-match line as an empty `--type` view, never the clean verdict,
+ * never the `No fresh findings` breakdown.
  *
  * In the DEFAULT view, excluded rows are never silently swallowed:
  * whatever it hides is reported under the SAME filters, as a human footer
- * / empty-state line and as `fixedExcluded` + `staleExcluded` in JSON. An
- * empty result with hidden rows reads `No fresh findings` plus the hidden
- * breakdown, never a bare `No findings`, which would assert a clean node
- * while judgments sit hidden (observed live: the operator read it as his
- * data having been deleted). Zero rows at all is the only clean-verdict
- * output. A `fixed` row is a STATE, not a verdict: re-running the finder
- * is how the operator confirms it (clean deletes it, still-present reopens
- * it). A `fixed` row also carries `resolutionActor` (`human` / `fixer`),
- * rendered under the checkmark.
+ * / empty-state line and as `dismissedExcluded` + `fixedExcluded` in
+ * JSON. An empty result with hidden rows reads `No fresh findings` plus
+ * the hidden breakdown, never a bare `No findings`, which would assert a
+ * clean node while judgments sit hidden (observed live: the operator read
+ * it as his data having been deleted). Zero rows at all is the only
+ * clean-verdict output. A `fixed` row is a STATE, not a verdict:
+ * re-running the finder is how the operator confirms it (clean deletes
+ * it, still-present reopens it). A `fixed` row also carries
+ * `resolutionActor` (`human` / `fixer`), rendered under the checkmark.
  *
  * `--json` emits `{ ok, kind: 'findings', findings[], total,
- * fixedExcluded, staleExcluded }`, each entry mirroring the
+ * dismissedExcluded, fixedExcluded }`, each entry mirroring the
  * `state_findings` row (camelCase, incl. the `resolution*` fields) plus
  * the derived `stale` boolean. `total` is the returned row count.
  *
@@ -72,13 +74,19 @@ import {
   bucketFilterActive,
   countDismissedHidden,
   countFixedHidden,
-  countStaleHidden,
   isFindingSuppressed,
   partitionFindingsView,
   type ISuppressionEntry,
   type TFindingSuppressedTest,
 } from '../../kernel/jobs/index.js';
-import { readSidecarFor, sidecarPathFor } from '../../kernel/sidecar/index.js';
+import {
+  buildSuppressionEntry,
+  existingSuppressions,
+  mergeSuppression,
+  normalizeSuppressionType,
+  readSidecarFor,
+  sidecarPathFor,
+} from '../../kernel/sidecar/index.js';
 import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
 import { matchesQualifiedExtensionFilter } from '../../kernel/util/analyzer-filter.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
@@ -110,19 +118,20 @@ export class FindingsCommand extends SmCommand {
       sm record), plus the kernel-derived safety rows (injection-detected /
       content-suspicious / content-malformed).
 
-      The default view shows what needs attention (open and human-decision
-      rows), hiding two disjoint kinds of row: fixed rows (already handled)
-      and stale rows (the node body changed since the judgment, or the node
-      left the scan). The bucket flags are FILTERS, not additive reveals:
-      --fixed shows ONLY the fixed bucket (marked with the deciding actor),
-      --stale shows ONLY the stale bucket (marked), together their union.
-      With either present the needs-attention rows are omitted and the
+      The default view shows what needs attention: open rows,
+      human-decision rows, and stale rows (the node body changed since the
+      judgment, or the node left the scan), stale ones riding inline
+      marked (stale). It hides fixed rows (already handled) and dismissed
+      rows. The bucket flags are FILTERS, not additive reveals: --fixed
+      shows ONLY the fixed bucket (marked with the deciding actor),
+      --stale narrows to ONLY the stale rows, together their union. With
+      either present the default-view rows are omitted and the
       excluded-count reporting does not apply; an empty result reads the
       same no-match line as an empty --type view.
 
       In the DEFAULT view, whatever it hides is always reported: the hidden
-      breakdown rides in the human output and on fixedExcluded /
-      staleExcluded in --json, so an empty result never claims a clean node
+      breakdown rides in the human output and on dismissedExcluded /
+      fixedExcluded in --json, so an empty result never claims a clean node
       while judgments sit hidden. --severity is a MINIMUM (warn keeps warn +
       error); --threshold is a minimum confidence; --extension accepts
       qualified or bare ids like sm check --analyzers.
@@ -166,7 +175,7 @@ export class FindingsCommand extends SmCommand {
     description: 'Minimum confidence, 0..1.',
   });
   stale = Option.Boolean('--stale', false, {
-    description: 'Show only stale findings (body changed since generation), marked (stale).',
+    description: 'Narrow to only the stale findings (body changed since generation).',
   });
   fixed = Option.Boolean('--fixed', false, {
     description: 'Show only fixed findings (a fixer resolved them), marked with the fixer.',
@@ -203,7 +212,7 @@ export class FindingsCommand extends SmCommand {
         // table-wide total that is a lie of a different shape. The hidden
         // ROWS ride along, not just counts: the DEFAULT view's human line
         // must name the `human-decision` subset among them (the author's
-        // TODO, otherwise invisible behind the stale filter).
+        // TODO, otherwise invisible behind their own dismissal).
         const all = await adapter.findings.list({ ...filter, includeStale: true });
         // The dismissal lens: suppressions come from the write-through
         // `scan_nodes.annotations_json` mirror, ONE query for the result
@@ -228,12 +237,14 @@ export class FindingsCommand extends SmCommand {
   }
 
   /**
-   * `{ ok, kind, findings, total, dismissedExcluded, fixedExcluded,
-   * staleExcluded }`. `total` keeps its meaning (the RETURNED rows). The
+   * `{ ok, kind, findings, total, dismissedExcluded, fixedExcluded }`.
+   * `total` keeps its meaning (the RETURNED rows). The
    * excluded counts are a DEFAULT-view honesty device: the disjoint tally
    * of what the default view held back under the same filters (precedence
-   * dismissed > fixed > stale). All are 0 whenever a bucket filter is
-   * active, since an explicit bucket view holds nothing back to report.
+   * dismissed > fixed; stale rows ride the default view inline since
+   * 2026-07-20, flagged per row, so they are never held back). Both are 0
+   * whenever a bucket filter is active, since an explicit bucket view
+   * holds nothing back to report.
    */
   private emitJson(
     findings: readonly IFindingRecord[],
@@ -248,7 +259,6 @@ export class FindingsCommand extends SmCommand {
         total: findings.length,
         dismissedExcluded: countDismissedHidden(hidden, isSuppressed),
         fixedExcluded: countFixedHidden(hidden, isSuppressed),
-        staleExcluded: countStaleHidden(hidden, isSuppressed),
       }) + '\n',
     );
     return ExitCode.Ok;
@@ -769,16 +779,9 @@ export class FindingsDismissCommand extends SmCommand {
     return this.reportDismissed(finding, entry);
   }
 
-  /**
-   * The suppression entry to append: `{ extension, type?, note? }`. `type`
-   * rides when the finding carries one (finder findings always do); `note`
-   * rides when `--note` was passed.
-   */
+  /** The suppression entry to append (shared shape, `buildSuppressionEntry`). */
   private buildSuppression(finding: IFindingRecord): Record<string, unknown> {
-    const entry: Record<string, unknown> = { extension: finding.extensionId };
-    if (finding.type.length > 0) entry['type'] = finding.type;
-    if (this.note !== undefined && this.note.length > 0) entry['note'] = this.note;
-    return entry;
+    return buildSuppressionEntry(finding.extensionId, finding.type, this.note);
   }
 
   /**
@@ -1274,12 +1277,12 @@ export class FindingsUndismissCommand extends SmCommand {
     const extension = entry['extension'];
     if (typeof extension !== 'string') return false;
     if (!matchesQualifiedExtensionFilter(extension, [this.extension])) return false;
-    return normalizeType(entry['type']) === this.type;
+    return normalizeSuppressionType(entry['type']) === this.type;
   }
 
   /** The human echo for the removed entry's type cell. */
   private typeEcho(entry: Record<string, unknown>): string {
-    const type = normalizeType(entry['type']);
+    const type = normalizeSuppressionType(entry['type']);
     return type !== undefined ? sanitizeForTerminal(type) : T.undismissAllTypes;
   }
 
@@ -1418,42 +1421,6 @@ async function runWithSidecarConsentGate(opts: {
 }
 
 /**
- * Existing `annotations.suppressions` entries from a parsed sidecar, kept
- * verbatim (they already validated on their own write). Non-array or
- * absent yields `[]`. `applyPatch` REPLACES arrays wholesale, so the
- * caller must hand it the FULL merged list, never just the new entry.
- */
-function existingSuppressions(
-  annotations: Record<string, unknown> | null | undefined,
-): Record<string, unknown>[] {
-  const raw = annotations?.['suppressions'];
-  if (!Array.isArray(raw)) return [];
-  return raw.filter((e): e is Record<string, unknown> => typeof e === 'object' && e !== null);
-}
-
-/**
- * Append `entry` to the existing suppressions unless an identical
- * (extension, type) entry already stands (idempotent per
- * `spec/cli-contract.md` §sm findings dismiss: a repeat dismiss is a
- * no-op, never a duplicate). Note is NOT part of the identity, so a second
- * dismiss with a different `--note` does not add a row.
- */
-function mergeSuppression(
-  existing: readonly Record<string, unknown>[],
-  entry: Record<string, unknown>,
-): Record<string, unknown>[] {
-  const dup = existing.some(
-    (e) => e['extension'] === entry['extension'] && normalizeType(e['type']) === normalizeType(entry['type']),
-  );
-  return dup ? [...existing] : [...existing, entry];
-}
-
-/** A suppression's `type` normalized for identity comparison (absent === undefined). */
-function normalizeType(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : undefined;
-}
-
-/**
  * Parse a comma-separated id-list flag. Returns `undefined` when the
  * flag is absent or holds only empty tokens (no filter); empty entries
  * are dropped so a trailing comma does not change the matched set
@@ -1537,20 +1504,19 @@ function renderHuman(
 /**
  * The breakdown + remedy vars shared by the two hidden-count shapes (the
  * empty `noFreshFindings` block and the listing footer). `breakdown` is
- * the disjoint tally `N dismissed, M fixed, K stale` (a zero count is
- * OMITTED, never `0 fixed`; precedence dismissed > fixed > stale);
+ * the disjoint tally `N dismissed, M fixed` (a zero count is OMITTED,
+ * never `0 fixed`; precedence dismissed > fixed; stale rows stopped
+ * hiding on 2026-07-20, they ride the default view flagged per row);
  * `flags` names only the reveal flag(s) that actually apply; the hint's
  * pronoun (`it` / `them`) plural-corrects on the total. The hint is
  * pre-dimmed at this boundary.
  *
- * `humanDecision` names the subset of the hidden rows awaiting the author's
- * choice (`spec/cli-contract.md` §sm findings). It takes the hidden ROWS
- * rather than their count for exactly this: a fixer's edits for sibling
- * findings stale the whole node, so the one finding it left for the author
- * to decide hides behind the stale filter (a `human-decision` row is never
- * fixed), and a bare count would report the operator's TODO as ordinary
- * staleness. Yellow, so the eye lands on it; the line's own glyph stays
- * neutral (it still reports what is hidden, not a failure).
+ * `humanDecision` names the subset of the hidden rows awaiting the
+ * author's choice (`spec/cli-contract.md` §sm findings): with stale
+ * inline, only a SUPPRESSED `human-decision` row can hide, so the
+ * fragment now guards the operator's TODO against their own dismissals.
+ * Yellow, so the eye lands on it; the line's own glyph stays neutral
+ * (it still reports what is hidden, not a failure).
  */
 function staleHiddenVars(
   hidden: readonly IFindingRecord[],
@@ -1560,10 +1526,7 @@ function staleHiddenVars(
   const single = hidden.length === 1;
   const dismissed = countDismissedHidden(hidden, isSuppressed);
   const fixed = countFixedHidden(hidden, isSuppressed);
-  const stale = countStaleHidden(hidden, isSuppressed);
-  const humanDecision = hidden.filter(
-    (f) => !isSuppressed(f) && f.resolution === 'human-decision',
-  ).length;
+  const humanDecision = hidden.filter((f) => f.resolution === 'human-decision').length;
   const fragments: string[] = [];
   const flagNames: string[] = [];
   if (dismissed > 0) {
@@ -1573,10 +1536,6 @@ function staleHiddenVars(
   if (fixed > 0) {
     fragments.push(tx(T.hiddenFixedFragment, { count: fixed }));
     flagNames.push(T.hiddenFlagFixed);
-  }
-  if (stale > 0) {
-    fragments.push(tx(T.hiddenStaleFragment, { count: stale }));
-    flagNames.push(T.hiddenFlagStale);
   }
   return {
     breakdown: fragments.join(T.hiddenBreakdownJoiner),

@@ -160,17 +160,192 @@
                         >{{ f.severity }}</span
                       >
                       <code class="inspector__finding-analyzer">{{ f.type }}</code>
+                      <!-- Inline stale mark: stale rows ride the tray
+                           (never a hidden bucket, user call 2026-07-20). -->
+                      @if (f.stale) {
+                        <span
+                          class="inspector__finding-stale"
+                          [pTooltip]="texts.aiActions.finding.staleTagTooltip"
+                          tooltipPosition="top"
+                          [attr.data-testid]="'inspector-finding-stale-' + f.id"
+                          >{{ texts.aiActions.finding.staleTag }}</span
+                        >
+                      }
+                      <!-- The fixer left this one to the author: no fix
+                           button (the gate refuses to re-inject it), the
+                           mark says why. -->
+                      @if (f.resolution === 'human-decision') {
+                        <span
+                          class="inspector__finding-decision"
+                          [pTooltip]="texts.aiActions.finding.decisionTagTooltip"
+                          tooltipPosition="top"
+                          [attr.data-testid]="'inspector-finding-decision-' + f.id"
+                          >{{ texts.aiActions.finding.decisionTag }}</span
+                        >
+                      }
                       <span
                         class="inspector__ai-action-provenance"
                         [attr.data-testid]="'inspector-ai-action-provenance-' + f.id"
                         >{{ aiActionConfidenceModel(f) }}</span
                       >
                       <span class="inspector__ai-action-id" aria-hidden="true">#{{ f.id }}</span>
+                      <!-- Per-finding actions: AUTOMATIC fix (queue the
+                           fixer, when the finder has one), manual mark
+                           fixed, or dismiss (hide the class; reversible). -->
+                      <span class="inspector__finding-actions">
+                        @if (aiActionFindingFixable(f)) {
+                          <p-button
+                            icon="pi pi-sparkles"
+                            severity="info"
+                            size="small"
+                            [rounded]="true"
+                            [text]="true"
+                            [disabled]="aiActionFindingFixBusy(f) || aiActionFindingBusy(f.id)"
+                            [loading]="aiActionFindingFixBusy(f)"
+                            [pTooltip]="texts.aiActions.finding.fixTooltip"
+                            tooltipPosition="left"
+                            appendTo="body"
+                            [ariaLabel]="texts.aiActions.finding.fixAriaLabel(f.id)"
+                            (onClick)="fixAiActionFinding(f)"
+                            [attr.data-testid]="'inspector-finding-fix-' + f.id"
+                          />
+                        }
+                        <!-- The manual pair disables while the AUTOMATIC
+                             fix is queued / running: resolving or
+                             dismissing a finding mid-fix contradicts the
+                             fixer already working on it. -->
+                        <p-button
+                          icon="pi pi-wrench"
+                          severity="success"
+                          size="small"
+                          [rounded]="true"
+                          [text]="true"
+                          [disabled]="aiActionFindingBusy(f.id) || aiActionFindingFixBusy(f)"
+                          [loading]="aiActionFindingBusy(f.id)"
+                          [pTooltip]="texts.aiActions.finding.resolveTooltip"
+                          tooltipPosition="left"
+                          appendTo="body"
+                          [ariaLabel]="texts.aiActions.finding.resolveAriaLabel(f.id)"
+                          (onClick)="resolveAiActionFinding(f)"
+                          [attr.data-testid]="'inspector-finding-resolve-' + f.id"
+                        />
+                        <p-button
+                          icon="pi pi-times"
+                          severity="secondary"
+                          size="small"
+                          [rounded]="true"
+                          [text]="true"
+                          [disabled]="aiActionFindingBusy(f.id) || aiActionFindingFixBusy(f)"
+                          [loading]="aiActionFindingBusy(f.id)"
+                          [pTooltip]="texts.aiActions.finding.dismissTooltip"
+                          tooltipPosition="left"
+                          appendTo="body"
+                          [ariaLabel]="texts.aiActions.finding.dismissAriaLabel(f.id)"
+                          (onClick)="dismissAiActionFinding(f)"
+                          [attr.data-testid]="'inspector-finding-dismiss-' + f.id"
+                        />
+                      </span>
                     </div>
                     <p class="inspector__finding-message">{{ f.message }}</p>
                   </li>
                 }
               </ul>
+            }
+            <!-- Hidden-buckets honesty line (mirror of the CLI's
+                 "N dismissed, M fixed, K stale hidden"): one chip per
+                 non-zero bucket, click reveals that bucket below. -->
+            @if (aiActionHiddenBuckets().length > 0) {
+              <div class="inspector__ai-hidden" data-testid="inspector-ai-hidden">
+                @for (chip of aiActionHiddenBuckets(); track chip.bucket) {
+                  <button
+                    type="button"
+                    class="inspector__ai-hidden-chip"
+                    [class.is-on]="chip.revealed"
+                    [attr.aria-pressed]="chip.revealed"
+                    [pTooltip]="texts.aiActions.hidden.chipTooltip"
+                    tooltipPosition="top"
+                    (click)="toggleAiActionBucket(chip.bucket)"
+                    [attr.data-testid]="'inspector-ai-hidden-' + chip.bucket"
+                  >
+                    {{ aiActionHiddenChipLabel(chip) }}
+                  </button>
+                }
+              </div>
+              @if (aiActionRevealedBucket(); as bucket) {
+                <ul
+                  class="inspector__findings-list inspector__findings-list--revealed"
+                  data-testid="inspector-ai-revealed-list"
+                >
+                  @for (f of aiActionRevealedRows(); track f.id) {
+                    <li
+                      class="inspector__finding inspector__finding--revealed"
+                      [attr.data-severity]="f.severity"
+                      [attr.data-testid]="'inspector-ai-revealed-' + f.id"
+                    >
+                      <div class="inspector__finding-head">
+                        <span
+                          class="inspector__finding-severity"
+                          [attr.data-severity]="f.severity"
+                          >{{ f.severity }}</span
+                        >
+                        <code class="inspector__finding-analyzer">{{ f.type }}</code>
+                        @if (f.stale) {
+                          <span
+                            class="inspector__finding-stale"
+                            [pTooltip]="texts.aiActions.finding.staleTagTooltip"
+                            tooltipPosition="top"
+                            >{{ texts.aiActions.finding.staleTag }}</span
+                          >
+                        }
+                        <span class="inspector__ai-action-provenance">{{
+                          aiActionConfidenceModel(f)
+                        }}</span>
+                        <span class="inspector__ai-action-id" aria-hidden="true">#{{ f.id }}</span>
+                        <!-- Dismissed rows: restore + delete; fixed rows:
+                             delete only. The delete X hard-removes the row
+                             from the DB (no consent, no sidecar touch). -->
+                        @if (bucket === 'dismissed' || bucket === 'fixed') {
+                          <span class="inspector__finding-actions">
+                            @if (bucket === 'dismissed') {
+                              <p-button
+                                icon="pi pi-undo"
+                                severity="secondary"
+                                size="small"
+                                [rounded]="true"
+                                [text]="true"
+                                [disabled]="aiActionFindingBusy(f.id)"
+                                [loading]="aiActionFindingBusy(f.id)"
+                                [pTooltip]="texts.aiActions.finding.restoreTooltip"
+                                tooltipPosition="left"
+                                appendTo="body"
+                                [ariaLabel]="texts.aiActions.finding.restoreAriaLabel(f.id)"
+                                (onClick)="restoreAiActionFinding(f)"
+                                [attr.data-testid]="'inspector-finding-restore-' + f.id"
+                              />
+                            }
+                            <p-button
+                              icon="pi pi-times"
+                              severity="danger"
+                              size="small"
+                              [rounded]="true"
+                              [text]="true"
+                              [disabled]="aiActionFindingBusy(f.id)"
+                              [loading]="aiActionFindingBusy(f.id)"
+                              [pTooltip]="texts.aiActions.finding.deleteTooltip"
+                              tooltipPosition="left"
+                              appendTo="body"
+                              [ariaLabel]="texts.aiActions.finding.deleteAriaLabel(f.id)"
+                              (onClick)="deleteAiActionFinding(f)"
+                              [attr.data-testid]="'inspector-finding-delete-' + f.id"
+                            />
+                          </span>
+                        }
+                      </div>
+                      <p class="inspector__finding-message">{{ f.message }}</p>
+                    </li>
+                  }
+                </ul>
+              }
             }
             @if (aiActionLauncherGroups().length > 0) {
               <div class="inspector__ai-actions-launchers" data-testid="inspector-ai-actions-launchers">
@@ -402,9 +577,10 @@
                           </li>
                         } @else {
                           <!-- AI-run row (state_executions history): sparkles
-                               icon + `<extension> · <status> · <duration> ·
-                               <model>`. A failed run carries its
-                               failureReason in the row title. -->
+                               icon + `<extension> · <status> · <duration>`
+                               (core/ prefix stripped, no model). A failed
+                               run carries its failureReason in the row
+                               title. -->
                           @let run = entry.run;
                           <li
                             class="inspector__activity-recent-row inspector__activity-recent-row--run"
@@ -647,6 +823,7 @@
       [open]="consentOpen()"
       (decision)="onConsentDecision($event)"
     />
+
 
     <!--
       Conversation viewer for the Activity section's thread list. The

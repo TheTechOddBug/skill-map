@@ -77,13 +77,11 @@ describe('annotation-stale analyzer, surfaces (issue + footer chip + header badg
     strictEqual(contributions.length, 0);
   });
 
-  it('emits issue + footer chip + header badge on stale-body', async () => {
+  it('emits footer chip + header badge on stale-body, NO issue (icon-only since 2026-07-20)', async () => {
     const node = mockNode('notes/x.md', sidecar('stale-body'));
     const { ctx: c, contributions } = ctx([node]);
     const issues = await annotationStaleAnalyzer.evaluate!(c);
-    strictEqual(issues.length, 1);
-    strictEqual(issues[0]!.severity, 'info');
-    deepStrictEqual(issues[0]!.nodeIds, ['notes/x.md']);
+    strictEqual(issues.length, 0);
     strictEqual(contributions.length, 2);
     strictEqual(contributions[0]!.nodePath, 'notes/x.md');
     strictEqual(contributions[0]!.ref, annotationStaleAnalyzer.ui!['staleIcon']);
@@ -97,7 +95,7 @@ describe('annotation-stale analyzer, surfaces (issue + footer chip + header badg
     const node = mockNode('notes/x.md', sidecar('stale-frontmatter'));
     const { ctx: c, contributions } = ctx([node]);
     const issues = await annotationStaleAnalyzer.evaluate!(c);
-    strictEqual(issues.length, 1);
+    strictEqual(issues.length, 0);
     deepStrictEqual(
       contributions.map((c2) => c2.ref),
       [
@@ -119,7 +117,7 @@ describe('annotation-stale analyzer, surfaces (issue + footer chip + header badg
     const node = mockNode('notes/x.md', sidecar('stale-both'));
     const { ctx: c, contributions } = ctx([node]);
     const issues = await annotationStaleAnalyzer.evaluate!(c);
-    strictEqual(issues.length, 1);
+    strictEqual(issues.length, 0);
     deepStrictEqual(
       contributions.map((c2) => c2.ref),
       [

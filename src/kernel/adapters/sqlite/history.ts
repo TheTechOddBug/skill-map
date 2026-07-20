@@ -125,6 +125,23 @@ export async function listExecutions(
 }
 
 /**
+ * Distinct node paths holding at least one `state_executions` row, any
+ * status (the activity summary's `runNodes`, `spec/provider-activity.md`
+ * §GET /api/activity/summary). JSON1 expansion of `node_ids_json` so a
+ * multi-node execution contributes every path once.
+ */
+export async function listNodesWithRuns(db: TDbOrTx): Promise<string[]> {
+  const rows = await db
+    .selectFrom([
+      'state_executions',
+      sql<{ value: string }>`json_each(state_executions.node_ids_json)`.as('je'),
+    ])
+    .select(sql<string>`DISTINCT je.value`.as('nodePath'))
+    .execute();
+  return rows.map((r) => r.nodePath);
+}
+
+/**
  * Apply every optional filter from `IListExecutionsFilter` to a
  * Kysely SELECT. Each guard is one branch; folding them into the
  * caller would trip the lint cap and obscure that the function is a

@@ -329,6 +329,21 @@ export async function deleteAllFindings(db: TDbOrTx, nodeId?: string): Promise<n
   return Number(result.numDeletedRows ?? 0);
 }
 
+/**
+ * Hard-delete ONE `state_findings` row by id, the per-row twin of
+ * `deleteAllFindings` behind `DELETE /api/nodes/:pathB64/findings/:id`
+ * (the inspector's delete X on a revealed dismissed / fixed row). Same
+ * all-origins rationale as clear; the sidecar `annotations.suppressions`
+ * are untouched. Returns whether a row was deleted (false = unknown id).
+ */
+export async function deleteFindingById(db: TDbOrTx, id: number): Promise<boolean> {
+  const result = await db
+    .deleteFrom('state_findings')
+    .where('id', '=', id)
+    .executeTakeFirst();
+  return Number(result.numDeletedRows ?? 0) > 0;
+}
+
 /** Rank used by the minimum-severity filter: `info` < `warn` < `error`. */
 const SEVERITY_RANK: Record<Severity, number> = { info: 0, warn: 1, error: 2 };
 

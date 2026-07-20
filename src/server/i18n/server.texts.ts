@@ -699,4 +699,15 @@ export const SERVER_TEXTS = {
   // unknown `status` filter value is the only 400 the route can raise.
   jobsListBadStatus:
     'unknown status {{value}}; expected one of {{allowed}}',
+
+  // Per-finding mutation routes (`POST /api/nodes/:pathB64/findings/...`);
+  // wording mirrors the CLI's `sm findings dismiss / resolve / undismiss`.
+  findingBodyNotJson: 'request body must be JSON',
+  findingBodyNotObject: 'request body must be a JSON object',
+  findingExtensionRequired: 'body.extension is required (the qualified extension id)',
+  findingNotFound: 'finding {{id}} not found on this node',
+  findingNotDismissible:
+    'finding {{id}} ({{type}}) is a kernel safety finding and cannot be dismissed',
+  findingAlreadyFixed: 'finding {{id}} is already fixed',
+  suppressionNotFound: 'no suppression for {{extension}} on {{node}}',
 } as const;

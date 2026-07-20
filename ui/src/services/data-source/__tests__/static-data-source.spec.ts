@@ -410,7 +410,6 @@ describe('StaticDataSource', () => {
       returned: 0,
       dismissedExcluded: 0,
       fixedExcluded: 0,
-      staleExcluded: 0,
     });
   });
 

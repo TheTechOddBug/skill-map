@@ -1,7 +1,7 @@
 {
   "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
   "id": "sidecar-end-to-end",
-  "description": "Step 9.6.6 — co-located `.sm` sidecar end-to-end. Scanning a fixture that carries a stale sidecar (wrong `identity.{bodyHash,frontmatterHash}`) plus an orphan sidecar (no sibling `.md`) MUST surface `sidecar.status` on the node and emit two issues from the built-in core analyzers: the `annotation-orphan` warning (per orphan `.sm`) and the `annotation-stale` info (drift on the node). Since 2026-07-19 the `annotation-stale` drift analyzer ships stable / enabled by default, so a default scan emits the info stale issue alongside the derived `sidecar.status` on the node.",
+  "description": "Step 9.6.6 — co-located `.sm` sidecar end-to-end. Scanning a fixture that carries a stale sidecar (wrong `identity.{bodyHash,frontmatterHash}`) plus an orphan sidecar (no sibling `.md`) MUST surface `sidecar.status` on the node and emit the `annotation-orphan` warning (per orphan `.sm`) from the built-in core analyzers. Drift is icon-only since 2026-07-20: the `annotation-stale` analyzer surfaces the derived `sidecar.status` via card contributions and emits NO issue, so a default scan yields exactly one issue for this corpus.",
   "fixture": "sidecar-end-to-end",
   "invoke": {
     "verb": "scan",
@@ -15,12 +15,9 @@
     { "type": "json-path", "path": "$.nodes[0].sidecar.present", "equals": true },
     { "type": "json-path", "path": "$.nodes[0].sidecar.status", "matches": "^stale-(body|frontmatter|both)$" },
     { "type": "json-path", "path": "$.nodes[0].sidecar.annotations.version", "equals": 7 },
-    { "type": "json-path", "path": "$.stats.issuesCount", "equals": 2 },
+    { "type": "json-path", "path": "$.stats.issuesCount", "equals": 1 },
     { "type": "json-path", "path": "$.issues[0].analyzerId", "equals": "annotation-orphan" },
     { "type": "json-path", "path": "$.issues[0].severity", "equals": "warn" },
-    { "type": "json-path", "path": "$.issues[0].data.expectedMdPath", "equals": ".claude/agents/orphan.md" },
-    { "type": "json-path", "path": "$.issues[1].analyzerId", "equals": "annotation-stale" },
-    { "type": "json-path", "path": "$.issues[1].severity", "equals": "info" },
-    { "type": "json-path", "path": "$.issues[1].data.status", "matches": "^stale-(body|frontmatter|both)$" }
+    { "type": "json-path", "path": "$.issues[0].data.expectedMdPath", "equals": ".claude/agents/orphan.md" }
   ]
 }

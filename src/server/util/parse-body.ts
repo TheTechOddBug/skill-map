@@ -66,16 +66,32 @@ export interface IBodyValidatorMessages {
 
 export type TBodyValidator<T> = (req: Request) => Promise<T>;
 
+export interface IBodyValidatorOptions<T> {
+  /**
+   * When set, an ABSENT or empty request body resolves to this value
+   * instead of the `notJson` 400. For verbs whose body is optional by
+   * contract (e.g. the finding DELETE, where the consent flags only
+   * ride along when a suppression lift needs them); a PRESENT body
+   * still validates in full.
+   */
+  emptyAs?: T;
+}
+
 export function makeBodyValidator<T>(
   schema: object,
   messages: IBodyValidatorMessages,
+  options: IBodyValidatorOptions<T> = {},
 ): TBodyValidator<T> {
   const ajv = new Ajv2020({ strict: false, allErrors: false });
   const validate = ajv.compile<T>(schema);
   return async function parseBody(req: Request): Promise<T> {
+    const text = await req.text();
+    if (options.emptyAs !== undefined && text.trim().length === 0) {
+      return options.emptyAs;
+    }
     let raw: unknown;
     try {
-      raw = await req.json();
+      raw = JSON.parse(text) as unknown;
     } catch {
       throw new HTTPException(400, { message: messages.notJson });
     }

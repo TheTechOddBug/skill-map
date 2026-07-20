@@ -5,9 +5,11 @@
  * plugins + a scanned skill node + seeded `state_findings` rows) and
  * asserts the contract from `spec/cli-contract.md` §Serve route table:
  *
- *   - default view = the needs-attention rows (open + non-stale
- *     `human-decision`), with the `counts.fixedExcluded` /
- *     `counts.staleExcluded` honesty pair reporting what was held back.
+ *   - default view = open rows, `human-decision` rows AND stale rows
+ *     (riding inline with their derived `stale` flag), with the
+ *     `counts.dismissedExcluded` / `counts.fixedExcluded` honesty pair
+ *     reporting the held-back dismissed / fixed rows. `staleExcluded`
+ *     no longer exists (stale stopped hiding on 2026-07-20).
  *   - `?fixed=1` / `?stale=1` are bucket FILTERS (only that bucket,
  *     union together), both excluded counts 0 under a bucket filter.
  *   - item shape = the `sm findings --json` row projection; the internal
@@ -48,7 +50,6 @@ interface IFindingsEnvelope {
     returned: number;
     dismissedExcluded: number;
     fixedExcluded: number;
-    staleExcluded: number;
   };
 }
 
@@ -59,10 +60,11 @@ before(async () => {
   tmpRoot = mkdtempSync(join(tmpdir(), 'skill-map-node-findings-'));
   project = await setupProbProject(tmpRoot, [SKILL_NODE], { installSkill: true });
 
-  // Four rows on the skill node, one per bucket:
+  // Four rows on the skill node, one per lifecycle shape:
   //   open-fresh     -> default view
   //   to-fix         -> resolved to `fixed` below (hidden, --fixed bucket)
-  //   open-stale     -> stale bucket (bodyHashAtGeneration drifted)
+  //   open-stale     -> default view too, riding inline with stale: true
+  //                     (bodyHashAtGeneration drifted; ?stale=1 narrows to it)
   //   human-decision -> default view (needs-attention, author's TODO)
   await seedFindings(project, SKILL_NODE.path, FINDER_ID, [
     { type: 'open-fresh' },
@@ -96,19 +98,22 @@ function types(env: IFindingsEnvelope): string[] {
 }
 
 describe('GET /api/nodes/:pathB64/findings', () => {
-  it('default view: needs-attention rows only, honest excluded counts', async () => {
+  it('default view: open + human-decision + inline stale rows, honest excluded pair', async () => {
     await bootAndUse(project, async (handle) => {
       const res = await fetch(findingsUrl(handle));
       assert.equal(res.status, 200);
       const env = (await res.json()) as IFindingsEnvelope;
       assert.equal(env.kind, 'findings');
-      assert.deepEqual(types(env), ['needs-author', 'open-fresh']);
-      assert.equal(env.counts.total, 2);
-      assert.equal(env.counts.returned, 2);
+      assert.deepEqual(types(env), ['needs-author', 'open-fresh', 'open-stale']);
+      assert.equal(env.counts.total, 3);
+      assert.equal(env.counts.returned, 3);
       assert.equal(env.counts.dismissedExcluded, 0);
       assert.equal(env.counts.fixedExcluded, 1);
-      assert.equal(env.counts.staleExcluded, 1);
+      assert.equal('staleExcluded' in env.counts, false, 'the stale bucket no longer exists');
       assert.deepEqual(env.filters, { dismissed: false, fixed: false, stale: false });
+      const staleRow = env.items.find((i) => i['type'] === 'open-stale');
+      assert.ok(staleRow, 'the stale row rides the default view');
+      assert.equal(staleRow['stale'], true, 'flagged inline, per row');
       // The internal stamp never reaches the wire; the derived `stale`
       // boolean and the resolution fields do.
       for (const item of env.items) {
@@ -128,12 +133,12 @@ describe('GET /api/nodes/:pathB64/findings', () => {
       assert.equal(env.items[0]!['resolution'], 'fixed');
       assert.equal(env.items[0]!['resolutionActor'], 'human');
       assert.equal(env.counts.fixedExcluded, 0);
-      assert.equal(env.counts.staleExcluded, 0);
+      assert.equal(env.counts.dismissedExcluded, 0);
       assert.deepEqual(env.filters, { dismissed: false, fixed: true, stale: false });
     });
   });
 
-  it('?stale=1 shows only the non-fixed stale bucket', async () => {
+  it('?stale=1 NARROWS to the non-fixed stale rows only', async () => {
     await bootAndUse(project, async (handle) => {
       const res = await fetch(findingsUrl(handle, '?stale=1'));
       assert.equal(res.status, 200);
@@ -141,7 +146,8 @@ describe('GET /api/nodes/:pathB64/findings', () => {
       assert.deepEqual(types(env), ['open-stale']);
       assert.equal(env.items[0]!['stale'], true);
       assert.equal(env.counts.fixedExcluded, 0);
-      assert.equal(env.counts.staleExcluded, 0);
+      assert.equal(env.counts.dismissedExcluded, 0);
+      assert.equal('staleExcluded' in env.counts, false, 'the stale count no longer exists');
     });
   });
 
@@ -167,14 +173,14 @@ describe('GET /api/nodes/:pathB64/findings', () => {
       const validate = compileEnvelopeValidator();
       await bootAndUse(project, async (handle) => {
         // Default view: the suppressed class hides with TOP precedence and
-        // the honesty triple reports it.
+        // the honesty pair reports it; the stale row keeps riding inline.
         const res = await fetch(findingsUrl(handle));
         assert.equal(res.status, 200);
         const env = (await res.json()) as IFindingsEnvelope;
-        assert.deepEqual(types(env), ['needs-author']);
+        assert.deepEqual(types(env), ['needs-author', 'open-stale']);
         assert.equal(env.counts.dismissedExcluded, 1);
         assert.equal(env.counts.fixedExcluded, 1);
-        assert.equal(env.counts.staleExcluded, 1);
+        assert.equal('staleExcluded' in env.counts, false);
         assert.equal(
           validate(env),
           true,

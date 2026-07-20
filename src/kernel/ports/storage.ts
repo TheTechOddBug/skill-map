@@ -677,6 +677,14 @@ export interface StoragePort {
      * suppression: a finder re-run re-judges. Returns the deleted count.
      */
     clear(nodeId?: string): Promise<number>;
+    /**
+     * Hard-delete ONE row by id, the per-row twin of `clear` behind
+     * `DELETE /api/nodes/:pathB64/findings/:id` (the inspector's delete X
+     * on a revealed dismissed / fixed row). Same all-origins rationale as
+     * `clear`; leaves `annotations.suppressions` untouched. Returns
+     * whether a row was deleted (false = unknown id).
+     */
+    removeById(id: number): Promise<boolean>;
   };
 
   // --- summaries namespace ----------------------------------------------
@@ -753,6 +761,14 @@ export interface StoragePort {
   history: {
     /** List `state_executions` rows (paginated by filter). */
     list(filter: IListExecutionsFilter): Promise<ExecutionRecord[]>;
+    /**
+     * Distinct node paths holding at least one `state_executions` row
+     * (any status). Feeds the activity summary's `runNodes` list
+     * (`spec/provider-activity.md` §GET /api/activity/summary): the
+     * boot-scoped counters reset on restart, the DB history does not,
+     * so Activity visibility needs this persistent signal.
+     */
+    nodesWithRuns(): Promise<string[]>;
     /**
      * Append a single `state_executions` row (the table is append-only
      * through v1.0). The primitive history write the port previously

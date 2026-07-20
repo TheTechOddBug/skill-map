@@ -87,44 +87,43 @@ async function plantClaudeFixture(root: string): Promise<void> {
 }
 
 /**
- * Plant a minimal non-error fixture, single agent with a deliberately
- * stale sidecar that makes the `annotation-stale` analyzer fire at
- * `info`. Used by the tests that exercise the "no error-severity → exit 0"
- * contract; `plantClaudeFixture` cannot serve that role since
- * `reference-broken` (which the default fixture exercises via
- * `/unknown` + `@backend-lead`) emits at `error` severity.
- *
- * The body is intentionally free of broken refs so no other analyzer
- * accidentally escalates the run. The sidecar carries a sentinel
- * `bodyHash` (64 `a`s) that cannot match any real `sha256(body)`, so the
- * kernel resolves `sidecar.status` to `stale-body` and the
- * `annotation-stale` rule emits its info issue.
+ * Plant a minimal fixture whose only issue is `reference-redundant`
+ * at `info`: the architect references helper through TWO syntactic
+ * forms (an `@helper` mention plus a markdown link), so both edges
+ * resolve to the same target and the rule fires. Used by the tests
+ * that exercise the "no error-severity → exit 0" contract;
+ * `plantClaudeFixture` cannot serve that role since `reference-broken`
+ * (which the default fixture exercises via `/unknown` +
+ * `@backend-lead`) emits at `error` severity. (This helper used the
+ * `annotation-stale` info issue until 2026-07-20, when that analyzer
+ * went icon-only and stopped emitting issues.)
  */
-async function plantStaleFixture(root: string): Promise<void> {
-  const nodeRel = '.claude/agents/architect.md';
+async function plantInfoFixture(root: string): Promise<void> {
   writeFixtureFile(
     root,
-    nodeRel,
+    '.claude/agents/architect.md',
     [
       '---',
       'name: architect',
-      'description: Warn-only fixture, single agent with a stale sidecar.',
+      'description: Info-only fixture, redundant double reference to helper.',
+      '---',
+      '',
+      'Coordinate with @helper on the plan.',
+      'Background reading: [helper](./helper.md).',
+    ].join('\n'),
+  );
+  writeFixtureFile(
+    root,
+    '.claude/agents/helper.md',
+    [
+      '---',
+      'name: helper',
+      'description: Referenced twice by the architect.',
       '---',
       '',
       'Body without any broken @ or / triggers.',
     ].join('\n'),
   );
-  const sidecarRel = nodeRel.replace(/\.md$/, '.sm');
-  const lines = [
-    'identity:',
-    `  path: ${nodeRel}`,
-    `  bodyHash: ${'a'.repeat(64)}`,
-    `  frontmatterHash: ${'a'.repeat(64)}`,
-    'annotations:',
-    '  version: 1',
-    '',
-  ];
-  writeFixtureFile(root, sidecarRel, lines.join('\n'));
 }
 
 async function primeDb(fixture: string, dbPath: string): Promise<void> {
@@ -693,12 +692,12 @@ describe('sm check', () => {
   });
 
   it('info-severity issue with no error-severity → exit 0', async () => {
-    // Uses the stale fixture so the verb-side "exit 0 when no
+    // Uses the info fixture so the verb-side "exit 0 when no
     // errors" branch is exercised in isolation. The default
     // claude fixture's `reference-broken` is now `error` (per the
     // chip-vs-issue policy in `context/view-slots.md`).
     const fixture = freshFixture('check-warns');
-    await plantStaleFixture(fixture);
+    await plantInfoFixture(fixture);
     const dbPath = freshDbPath('check-warns');
     await primeDb(fixture, dbPath);
 
@@ -708,9 +707,9 @@ describe('sm check', () => {
     const code = await cmd.execute();
 
     strictEqual(code, 0, `expected exit 0 with no error-severity issues, got ${code}`);
-    // Layout: severity glyph + dim analyzer id. annotation-stale is
+    // Layout: severity glyph + dim analyzer id. reference-redundant is
     // the info-only finding planted by the fixture.
-    match(cap.stdout(), /ℹ\s+annotation-stale/);
+    match(cap.stdout(), /ℹ\s+reference-redundant/);
   });
 
   it('error-severity issue present → exit 1', async () => {

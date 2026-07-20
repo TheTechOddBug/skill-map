@@ -1,6 +1,6 @@
 /**
  * `GET /api/nodes/:pathB64/prob-extensions`, the per-node probabilistic
- * launcher catalog for the inspector's two-state finder buttons (Step 16,
+ * launcher catalog for the inspector's finder buttons (Step 16,
  * `spec/cli-contract.md` §Serve route table; classification per ROADMAP
  * §Step 16, manifest-mechanical). Two buckets:
  *
@@ -10,9 +10,11 @@
  *     `fixerIds` non-empty. `fixerIds` is the inverse Modelo-B lookup
  *     (`resolveMatchingFixerIds` over the composed probabilistic Actions,
  *     the SAME shared resolver the auto-fix hook and the record chain
- *     use). `hasOpenFindings` drives the Detect <-> Fix morph: true when
- *     the node carries >= 1 UNRESOLVED (not `fixed`), non-stale finding
- *     of THIS finder's extension id.
+ *     use). `hasOpenFindings` DISABLES the finder button (user call
+ *     2026-07-20: re-running a finder whose findings are open makes no
+ *     sense; the fix lives on each finding row): true when the node
+ *     carries >= 1 UNRESOLVED (not `fixed`), non-stale finding of THIS
+ *     finder's extension id.
  *   - `standalone`: probabilistic Analyzers matching the node with NO
  *     fixer (`fixerIds` empty), PLUS probabilistic Actions WITHOUT
  *     `analyzerIds` (listed whenever their precondition matches), PLUS a
@@ -22,11 +24,10 @@
  *     from those analyzerIds. Single action buttons: `fixerIds` empty,
  *     `hasOpenFindings` always false.
  *
- * A fixer paired with a PROBABILISTIC finder is the second state of that
- * finder's button, never its own launcher, so those probabilistic Actions
- * WITH `analyzerIds` are not listed here (they surface through their
- * finder's `fixerIds`); the former per-finder-fixer split and the `fixers`
- * bucket stay RETIRED. The deterministic-analyzer fixer is the sole
+ * A fixer paired with a PROBABILISTIC finder is never its own launcher:
+ * it surfaces through its finder's `fixerIds` (the per-finding fix button
+ * in the tray submits them); the former per-finder-fixer split and the
+ * `fixers` bucket stay RETIRED. The deterministic-analyzer fixer is the sole
  * exception: its analyzer emits `scan_issues`, never `state_findings`, so
  * there is no finder button for it to ride, and it appears as its own
  * standalone launcher whenever the node has a matching open Issue.
@@ -77,7 +78,11 @@ import { buildFreshResolver } from '../../core/runtime/fresh-resolver.js';
 import type { IPluginRuntime } from '../../core/runtime/plugin-runtime.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import type { IAction, IAnalyzer } from '../../kernel/extensions/index.js';
-import { isProbabilistic } from '../../kernel/jobs/index.js';
+import {
+  isFindingSuppressed,
+  isProbabilistic,
+  type ISuppressionEntry,
+} from '../../kernel/jobs/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import type { Job, Node } from '../../kernel/types.js';
 import type { IFindingRecord } from '../../kernel/types/storage.js';
@@ -110,16 +115,16 @@ export interface IProbExtensionEntry {
    * name this finder (the inverse Modelo-B lookup). Non-empty ONLY on
    * `finders`-bucket entries; empty for standalone entries (finders with
    * no fixer, Actions without `analyzerIds`, and deterministic-analyzer
-   * fixers surfaced by a matching open Issue). In manual mode the
-   * button's Fix state submits each of these; in automatic mode the
-   * finder submits with `autoFix: true` and the kernel chains them.
+   * fixers surfaced by a matching open Issue). The tray's per-finding
+   * fix button submits each of these; in automatic mode the finder
+   * submits with `autoFix: true` and the kernel chains them.
    */
   fixerIds: string[];
   /**
    * True when the node carries >= 1 UNRESOLVED (not `fixed`), non-stale
-   * finding emitted by THIS finder's extension id. Drives the two-state
-   * button: `false` -> Detect (submit the finder), `true` -> Fix (submit
-   * `fixerIds`). Always `false` for standalone entries.
+   * finding emitted by THIS finder's extension id. DISABLES the finder
+   * button (handle the open findings first, from their rows; the button
+   * re-enables once none is open). Always `false` for standalone entries.
    */
   hasOpenFindings: boolean;
 }
@@ -236,10 +241,14 @@ async function buildCatalog(
   if (node.virtual === true) return { finders: [], standalone: [] };
 
   // ONE findings read (stale included, we filter staleness ourselves for
-  // the `hasOpenFindings` morph) and ONE jobs read for the whole catalog;
-  // the per-entry decoration only touches `state_executions` for the
-  // extensions that survived.
+  // `hasOpenFindings`), ONE suppressions read (the read-time dismissal
+  // lens: a dismissed class is NOT "open", the disabled state must agree
+  // with the tray), and ONE jobs read for the whole
+  // catalog; the per-entry decoration only touches `state_executions` for
+  // the extensions that survived.
   const findings = await adapter.findings.list({ nodeId: node.path, includeStale: true });
+  const suppressions =
+    (await adapter.findings.suppressionsByPath([node.path])).get(node.path) ?? [];
   const activeJobs = (await adapter.jobs.list({ nodeId: node.path })).filter(
     (j) => j.status === 'queued' || j.status === 'running',
   );
@@ -252,12 +261,12 @@ async function buildCatalog(
     const qualified = qualifiedExtensionId(analyzer.pluginId, analyzer.id);
     const fixerIds = resolveMatchingFixerIds(qualified, sources.projectedActions);
     if (fixerIds.length > 0) {
-      // A finder WITH a fixer: it becomes a two-state button. Report its
-      // fixer(s) + whether it has open findings to drive Detect <-> Fix.
+      // A finder WITH a fixer: report its fixer(s) (the per-finding fix
+      // button submits them) + whether open findings disable the button.
       finders.push(
         await buildEntry(adapter, node, analyzer, activeJobs, {
           fixerIds,
-          hasOpenFindings: nodeHasOpenFindings(findings, qualified),
+          hasOpenFindings: nodeHasOpenFindings(findings, suppressions, qualified),
         }),
       );
     } else {
@@ -326,11 +335,12 @@ async function classifyProbAction(
  * non-stale finding emitted by `finderQualifiedId`
  * (`rest-envelope.schema.json#/$defs/ProbExtensionEntry.hasOpenFindings`).
  * A `fixed` row is done (re-checkable), a stale row awaits a re-run, so
- * neither keeps the button in its Fix state. `human-decision` rows count
- * (they are not `fixed`): the finder still surfaced something open.
+ * neither keeps the button disabled. `human-decision` rows count (they
+ * are not `fixed`): the finder still surfaced something open.
  */
 function nodeHasOpenFindings(
   findings: readonly IFindingRecord[],
+  suppressions: readonly ISuppressionEntry[],
   finderQualifiedId: string,
 ): boolean {
   return findings.some(
@@ -338,7 +348,10 @@ function nodeHasOpenFindings(
       f.origin === 'extension' &&
       f.extensionId === finderQualifiedId &&
       f.resolution !== 'fixed' &&
-      f.stale === false,
+      f.stale === false &&
+      // The read-time dismissal lens: a suppressed class is hidden from
+      // the tray, so it must not morph the button to Fix either.
+      !isFindingSuppressed(f.extensionId, f.type, suppressions),
   );
 }
 
@@ -351,9 +364,9 @@ async function buildEntry(
   extras: { fixerIds: string[]; hasOpenFindings: boolean },
 ): Promise<IProbExtensionEntry> {
   const qualified = qualifiedExtensionId(extension.pluginId, extension.id);
-  // The BUTTON's active job is the finder's OR any of its fixers' (the Fix
-  // state submits the fixer, so a queued/running fixer must light the
-  // finder button, else clicking Fix looks ignored). Union `{finder} ∪
+  // The BUTTON's active job is the finder's OR any of its fixers' (the
+  // per-finding fix button submits the fixer, so a queued/running fixer
+  // must light the finder button and the row's fix affordance). Union `{finder} ∪
   // fixerIds`; standalone entries have no fixerIds so this is just the
   // extension itself.
   const buttonIds = new Set<string>([qualified, ...extras.fixerIds]);

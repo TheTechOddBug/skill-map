@@ -197,9 +197,22 @@
   width: 100%;
 }
 
+:host ::ng-deep .queue__table {
+  /* UNIFORM row height, with or without the inline cancel / retry icon:
+     the theme's cell padding is overridden via its own TOKENS (both size
+     variants; a token wins regardless of which theme rule consumes it,
+     unlike the plain padding override PrimeNG out-specified), sized so
+     the capped 1.6rem action button plus padding lands exactly on the
+     2rem the cells reserve below. A text-only row stretches to the same
+     2rem, so rows never move when an action appears. */
+  --p-datatable-body-cell-padding: 0.2rem 0.5rem;
+  --p-datatable-body-cell-sm-padding: 0.2rem 0.5rem;
+}
+
 :host ::ng-deep .queue__table .p-datatable-tbody td {
   font-size: var(--queue-fs-sm);
   vertical-align: middle;
+  height: 2rem;
 }
 
 /* Rail mode: pin the datatable surface tokens to `--sm-bg-content` so the
@@ -261,6 +274,15 @@
 
 .queue__row-action {
   display: inline-flex;
+}
+
+/* The inline action must not grow the row: PrimeNG's small icon button
+   pads taller than the compact text line, so cap it to fit inside the
+   row's natural height (same cap as the inspector's finding actions). */
+:host ::ng-deep .queue__row-action .p-button {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
 }
 
 /* Node + extension carry px min/max widths (mirrors the files view's tree

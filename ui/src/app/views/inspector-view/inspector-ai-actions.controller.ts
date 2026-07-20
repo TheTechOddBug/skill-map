@@ -46,9 +46,20 @@ import type {
 import type { INodeView } from '../../../models/node';
 import type { IWsEvent, IWsScanCompletedEvent } from '../../../models/ws-event';
 import {
+  isSmConsentRequired,
+  type ISmConsentGrant,
+} from '../../../services/action-dispatch';
+import {
   DataSourceError,
   type IDataSourcePort,
 } from '../../../services/data-source/data-source.port';
+
+/**
+ * The two hidden buckets the tray can reveal (the CLI's bucket flags).
+ * Stale stopped being a bucket on 2026-07-20: stale rows ride the
+ * default tray inline with a per-row mark.
+ */
+export type TFindingsBucket = 'dismissed' | 'fixed';
 
 /**
  * Debounce for the live re-fetch. `job.*` frames arrive in bursts when a
@@ -75,6 +86,13 @@ export interface IAiActionsSetupDeps {
   jobEvents$: Observable<IWsEvent>;
   /** Watcher re-scan signal, findings staleness derives from the scan. */
   scanCompleted$: Observable<IWsScanCompletedEvent>;
+  /**
+   * Park a `.sm`-consent retry behind the shared consent dialog
+   * (`ActionDispatchService.requestSmConsent`): the dismiss / restore
+   * flows hit the same gate the action buttons do, and reuse the same
+   * dialog instance.
+   */
+  requestSmConsent(retry: (grant: ISmConsentGrant) => void): void;
 }
 
 export interface IAiActionsHandle {
@@ -111,6 +129,26 @@ export interface IAiActionsHandle {
   /** Cancel the entry's active job (the stop companion). */
   stop(entry: IProbExtensionEntryApi): Promise<void>;
   dismissError(): void;
+
+  // --- per-finding actions (the read-time suppression lens) ---------------
+  /** Dismiss a finding directly (consent-aware; hides the class, reversible). */
+  dismissFinding(finding: IFindingApi): Promise<void>;
+  /** Mark a finding fixed by the operator. */
+  resolveFinding(finding: IFindingApi): Promise<void>;
+  /** Restore (undismiss) a finding from the revealed dismissed bucket. */
+  restoreFinding(finding: IFindingApi): Promise<void>;
+  /** Hard-delete a revealed dismissed / fixed row from the DB (no consent). */
+  deleteFinding(finding: IFindingApi): Promise<void>;
+  /** True while a per-finding round-trip is in flight for this id. */
+  isFindingBusy(findingId: number): boolean;
+
+  // --- hidden buckets (dismissed / fixed / stale) --------------------------
+  /** The bucket currently revealed under the tray, or `null`. */
+  revealedBucket: Signal<TFindingsBucket | null>;
+  /** Rows of the revealed bucket (empty while none / loading). */
+  revealedRows: Signal<IFindingApi[]>;
+  /** Toggle a bucket's reveal (one at a time; same bucket toggles off). */
+  toggleBucket(bucket: TFindingsBucket): Promise<void>;
 }
 
 export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
@@ -142,6 +180,11 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
   const submitting = signal<ReadonlySet<string>>(new Set());
   /** Extension ids with a stop flow in flight (disables the companion). */
   const cancelling = signal<ReadonlySet<string>>(new Set());
+  /** Finding ids with a dismiss / resolve / restore round-trip in flight. */
+  const findingBusy = signal<ReadonlySet<number>>(new Set());
+  /** The hidden bucket currently revealed under the tray (one at a time). */
+  const revealedBucket = signal<TFindingsBucket | null>(null);
+  const revealedRows = signal<IFindingApi[]>([]);
 
   /**
    * Last path the fetch effect ran for. Distinguishes a navigation
@@ -165,6 +208,34 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     counts.set(findingsEnv?.counts ?? null);
     probExtensions.set(probs);
     if (probs !== null) reconcileOptimistic(probs);
+    // A revealed bucket whose count dropped to zero collapses on its
+    // own (user call 2026-07-20: a zero chip must not render, so there
+    // would be nothing left to toggle it off with). Transient fetch
+    // errors (null counts) keep the reveal, only a confirmed zero closes.
+    const bucket = revealedBucket();
+    if (bucket !== null && findingsEnv !== null && bucketExcludedCount(findingsEnv.counts, bucket) === 0) {
+      revealedBucket.set(null);
+      revealedRows.set([]);
+      return;
+    }
+    // Keep an open revealed bucket in step with the default view.
+    void refreshRevealed(path);
+  }
+
+  /** The hidden-count field backing one bucket's chip. */
+  function bucketExcludedCount(c: IFindingsCountsApi, bucket: TFindingsBucket): number {
+    return bucket === 'dismissed' ? c.dismissedExcluded : c.fixedExcluded;
+  }
+
+  /** Re-fetch the revealed bucket's rows (no-op when none is open). */
+  async function refreshRevealed(path: string): Promise<void> {
+    const bucket = revealedBucket();
+    if (bucket === null) return;
+    const env = await deps.dataSource.getNodeFindings(path, bucket).catch(() => null);
+    // Guard both the path and the bucket (the user may have toggled away
+    // while the round-trip was in flight).
+    if (fetchedPath !== path || revealedBucket() !== bucket) return;
+    revealedRows.set(env?.items ?? []);
   }
 
   /**
@@ -224,6 +295,9 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
       error.set(null);
       optimisticQueued.set(new Set());
       optimisticIdle.set(new Set());
+      findingBusy.set(new Set());
+      revealedBucket.set(null);
+      revealedRows.set([]);
       fetchedPath = path;
     }
     if (!path) return;
@@ -246,11 +320,15 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     });
 
   const available = computed<boolean>(() => {
-    // Fresh findings or at least one launcher; held-back counts alone no
-    // longer keep the card up (the honesty line moved to the Activity
-    // timeline, user call 2026-07-17, so a hidden-only card would render
-    // title-only).
+    // Fresh findings, at least one launcher, or HELD-BACK rows: since the
+    // hidden-buckets chips landed (the reveal / restore surface), a
+    // hidden-only card carries real content again, and hiding it would
+    // strand an all-dismissed node with no way to restore. (Between
+    // 2026-07-17 and the chips, held-back counts alone rendered
+    // title-only and did NOT keep the card up.)
     if (findings().length > 0) return true;
+    const c = counts();
+    if (c !== null && c.dismissedExcluded + c.fixedExcluded > 0) return true;
     const probs = probExtensions();
     if (probs === null) return false;
     return probs.finders.length > 0 || probs.standalone.length > 0;
@@ -375,6 +453,138 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
   }
 
 
+  /** Immutable add / remove for the per-finding busy set. */
+  function setFindingBusy(id: number, busy: boolean): void {
+    findingBusy.update((s) => {
+      const next = new Set(s);
+      if (busy) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  /** Re-fetch the whole tray (default view + revealed bucket). */
+  function refreshTray(): void {
+    const path = fetchedPath;
+    if (path) void fetchBoth(path);
+  }
+
+  /**
+   * Dismiss one finding directly (the read-time suppression lens: the
+   * class hides, rows kept, reversible, no prompt). Consent-aware: a
+   * first-write `.sm` gate parks a retry behind the shared consent dialog
+   * and re-runs with the granted flags; the busy marker covers each
+   * attempt.
+   */
+  async function dismissFinding(
+    finding: IFindingApi,
+    consent: ISmConsentGrant | Record<string, never> = {},
+  ): Promise<void> {
+    const path = deps.node()?.path;
+    if (!path || findingBusy().has(finding.id)) return;
+    error.set(null);
+    setFindingBusy(finding.id, true);
+    try {
+      await deps.dataSource.dismissFinding(path, finding.id, consent);
+    } catch (err) {
+      if (!('confirm' in consent) && isSmConsentRequired(err)) {
+        deps.requestSmConsent((grant) => void dismissFinding(finding, grant));
+        return; // busy + refresh settle in finally; the retry re-enters
+      }
+      recordSubmitError(err);
+    } finally {
+      setFindingBusy(finding.id, false);
+      refreshTray();
+    }
+  }
+
+  /** Restore (undismiss) a finding from the revealed dismissed bucket. */
+  async function restoreFinding(
+    finding: IFindingApi,
+    consent: ISmConsentGrant | Record<string, never> = {},
+  ): Promise<void> {
+    const path = deps.node()?.path;
+    if (!path || findingBusy().has(finding.id)) return;
+    error.set(null);
+    setFindingBusy(finding.id, true);
+    try {
+      await deps.dataSource.undismissFinding(
+        path,
+        { extension: finding.extensionId, type: finding.type },
+        consent,
+      );
+    } catch (err) {
+      if (!('confirm' in consent) && isSmConsentRequired(err)) {
+        deps.requestSmConsent((grant) => void restoreFinding(finding, grant));
+        return;
+      }
+      recordSubmitError(err);
+    } finally {
+      setFindingBusy(finding.id, false);
+      refreshTray();
+    }
+  }
+
+  /** Mark a finding fixed by the operator (no consent, a DB row state). */
+  async function resolveFinding(finding: IFindingApi): Promise<void> {
+    const path = deps.node()?.path;
+    if (!path || findingBusy().has(finding.id)) return;
+    error.set(null);
+    setFindingBusy(finding.id, true);
+    try {
+      await deps.dataSource.resolveFinding(path, finding.id);
+    } catch (err) {
+      recordSubmitError(err);
+    } finally {
+      setFindingBusy(finding.id, false);
+      refreshTray();
+    }
+  }
+
+  /**
+   * Hard-delete a finding row from the DB (the X on a REVEALED dismissed
+   * / fixed row: the row is already handled, the operator wants it gone
+   * for good). Deleting the last row of a dismissed class also lifts its
+   * suppression entry server-side, so the call is consent-aware like
+   * dismiss: a first-write `.sm` gate parks a retry behind the shared
+   * consent dialog.
+   */
+  async function deleteFinding(
+    finding: IFindingApi,
+    consent: ISmConsentGrant | Record<string, never> = {},
+  ): Promise<void> {
+    const path = deps.node()?.path;
+    if (!path || findingBusy().has(finding.id)) return;
+    error.set(null);
+    setFindingBusy(finding.id, true);
+    try {
+      await deps.dataSource.deleteFinding(path, finding.id, consent);
+    } catch (err) {
+      if (!('confirm' in consent) && isSmConsentRequired(err)) {
+        deps.requestSmConsent((grant) => void deleteFinding(finding, grant));
+        return;
+      }
+      recordSubmitError(err);
+    } finally {
+      setFindingBusy(finding.id, false);
+      refreshTray();
+    }
+  }
+
+  /** Reveal / hide one hidden bucket (one at a time). */
+  async function toggleBucket(bucket: TFindingsBucket): Promise<void> {
+    const path = deps.node()?.path;
+    if (!path) return;
+    if (revealedBucket() === bucket) {
+      revealedBucket.set(null);
+      revealedRows.set([]);
+      return;
+    }
+    revealedBucket.set(bucket);
+    revealedRows.set([]);
+    await refreshRevealed(path);
+  }
+
   return {
     findings: findings.asReadonly(),
     counts: counts.asReadonly(),
@@ -393,5 +603,13 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     submitFixers,
     stop,
     dismissError: () => error.set(null),
+    dismissFinding: (finding) => dismissFinding(finding),
+    resolveFinding,
+    restoreFinding: (finding) => restoreFinding(finding),
+    deleteFinding: (finding) => deleteFinding(finding),
+    isFindingBusy: (findingId) => findingBusy().has(findingId),
+    revealedBucket: revealedBucket.asReadonly(),
+    revealedRows: revealedRows.asReadonly(),
+    toggleBucket,
   };
 }

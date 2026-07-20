@@ -223,11 +223,14 @@ export class RestDataSource implements IDataSourcePort {
    * 404 (unknown node / missing DB) resolves to `null`, mirroring
    * `getNode`; every other failure propagates as `DataSourceError`.
    */
-  async getNodeFindings(path: string): Promise<IFindingsEnvelopeApi | null> {
+  async getNodeFindings(
+    path: string,
+    bucket?: 'dismissed' | 'fixed',
+  ): Promise<IFindingsEnvelopeApi | null> {
     const encoded = encodeNodePath(path);
     try {
       const envelope = await this.getJson<IFindingsEnvelopeApi>(
-        `${BASE}/nodes/${encoded}/findings`,
+        `${BASE}/nodes/${encoded}/findings${bucket ? `?${bucket}=1` : ''}`,
       );
       this.ingestRegistry(envelope.kindRegistry);
       this.ingestContributionsRegistry(envelope.contributionsRegistry);
@@ -616,6 +619,81 @@ export class RestDataSource implements IDataSourcePort {
   async cancelAllJobs(): Promise<void> {
     try {
       await firstValueFrom(this.http.post(`${BASE}/jobs/cancel-all`, null));
+    } catch (err) {
+      throw this.translateError(err);
+    }
+  }
+
+  /**
+   * `POST /api/nodes/:pathB64/findings/:id/dismiss` (204-style raw post,
+   * mirror of `cancelJob`; `confirm-required` / `finding-not-dismissible`
+   * / `not-found` propagate as `DataSourceError`).
+   */
+  async dismissFinding(
+    nodePath: string,
+    findingId: number,
+    opts: { confirm?: boolean; always?: boolean } = {},
+  ): Promise<void> {
+    try {
+      await firstValueFrom(
+        this.http.post(
+          `${BASE}/nodes/${encodeNodePath(nodePath)}/findings/${findingId}/dismiss`,
+          opts,
+        ),
+      );
+    } catch (err) {
+      throw this.translateError(err);
+    }
+  }
+
+  /** `POST /api/nodes/:pathB64/findings/:id/resolve` (204-style raw post). */
+  async resolveFinding(nodePath: string, findingId: number, note?: string): Promise<void> {
+    try {
+      await firstValueFrom(
+        this.http.post(
+          `${BASE}/nodes/${encodeNodePath(nodePath)}/findings/${findingId}/resolve`,
+          note !== undefined ? { note } : {},
+        ),
+      );
+    } catch (err) {
+      throw this.translateError(err);
+    }
+  }
+
+  /**
+   * `DELETE /api/nodes/:pathB64/findings/:id` (204-style; hard row
+   * delete; the consent flags ride the body for the orphan-suppression
+   * lift on a dismissed class's last row).
+   */
+  async deleteFinding(
+    nodePath: string,
+    findingId: number,
+    opts: { confirm?: boolean; always?: boolean } = {},
+  ): Promise<void> {
+    try {
+      await firstValueFrom(
+        this.http.delete(`${BASE}/nodes/${encodeNodePath(nodePath)}/findings/${findingId}`, {
+          body: opts,
+        }),
+      );
+    } catch (err) {
+      throw this.translateError(err);
+    }
+  }
+
+  /** `POST /api/nodes/:pathB64/findings/undismiss` (204-style raw post). */
+  async undismissFinding(
+    nodePath: string,
+    entry: { extension: string; type?: string },
+    opts: { confirm?: boolean; always?: boolean } = {},
+  ): Promise<void> {
+    try {
+      await firstValueFrom(
+        this.http.post(`${BASE}/nodes/${encodeNodePath(nodePath)}/findings/undismiss`, {
+          ...entry,
+          ...opts,
+        }),
+      );
     } catch (err) {
       throw this.translateError(err);
     }

@@ -644,6 +644,34 @@
   color: var(--p-text-muted-color);
 }
 
+/* Inline stale mark on a finding row (stale rows ride the tray,
+   never a hidden bucket): same badge geometry as the severity chip,
+   outlined warn tint so it reads as an annotation, not a state. */
+.inspector__finding-stale {
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--sm-radius-sm);
+  color: var(--sm-severity-warn);
+  border: 1px solid var(--sm-severity-warn);
+}
+
+/* Inline needs-decision mark (a `human-decision` row: the fixer left it
+   to the author, no fix button renders): same outlined-annotation
+   geometry as the stale mark, info tint to read as guidance. */
+.inspector__finding-decision {
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--sm-radius-sm);
+  color: var(--sm-severity-info);
+  border: 1px solid var(--sm-severity-info);
+}
+
 .inspector__finding-message {
   margin: 0;
   font-size: 0.88rem;
@@ -692,6 +720,66 @@
   color: var(--p-text-muted-color);
   opacity: 0.6;
 }
+
+/* Per-finding actions (mark fixed / dismiss / restore), tucked after the
+   id at the row's right edge. Compact: the small rounded-text buttons
+   shrink to icon size. */
+.inspector__finding-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.inspector__finding-actions .p-button {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+}
+
+/* Hidden-buckets honesty line: the CLI's "N dismissed, M fixed, K stale
+   hidden" as reveal chips. */
+.inspector__ai-hidden {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+}
+
+.inspector__ai-hidden-label {
+  font-size: 0.75rem;
+  color: var(--p-text-muted-color);
+}
+
+.inspector__ai-hidden-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-lg);
+  background: transparent;
+  color: var(--p-text-muted-color);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.inspector__ai-hidden-chip:hover {
+  color: var(--p-text-color);
+}
+
+.inspector__ai-hidden-chip.is-on {
+  background: var(--p-highlight-background);
+  color: var(--p-text-color);
+}
+
+/* Revealed bucket rows: slightly inset + dimmed border so they read as a
+   sub-list of the honesty line, not fresh findings. */
+.inspector__findings-list--revealed {
+  margin-top: 0.35rem;
+  opacity: 0.85;
+}
+
 
 
 .inspector__ai-actions-launchers {

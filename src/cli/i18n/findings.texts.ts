@@ -28,11 +28,12 @@ export const FINDINGS_CLI_TEXTS = {
    */
   noMatch: '{{glyph}}  No findings match the current filter.\n',
   /**
-   * Empty result while the default filter holds rows BACK (fixed and/or
-   * stale). Not a clean verdict: judgments exist for the node, they just
-   * sit hidden, so the line names the hidden breakdown and its remedy
-   * under the neutral `ℹ` (a green `✓` here would assert a clean node and
-   * read as "your data is gone", the exact lie this shape exists to kill).
+   * Empty result while the default filter holds rows BACK (dismissed
+   * and/or fixed). Not a clean verdict: judgments exist for the node,
+   * they just sit hidden, so the line names the hidden breakdown and its
+   * remedy under the neutral `ℹ` (a green `✓` here would assert a clean
+   * node and read as "your data is gone", the exact lie this shape
+   * exists to kill).
    */
   noFreshFindings:
     '{{glyph}}  No fresh findings. {{breakdown}} hidden{{humanDecision}}.\n' +
@@ -48,13 +49,13 @@ export const FINDINGS_CLI_TEXTS = {
   /**
    * The disjoint hidden-tally fragments, joined by
    * `hiddenBreakdownJoiner` into `{{breakdown}}` (a zero count is omitted,
-   * never `0 fixed`; precedence dismissed > fixed > stale). No noun
-   * inflection: the shared trailing `hidden` in the templates above
+   * never `0 fixed`; precedence dismissed > fixed; stale rows stopped
+   * hiding on 2026-07-20, they ride the default view marked per row). No
+   * noun inflection: the shared trailing `hidden` in the templates above
    * carries it once.
    */
   hiddenDismissedFragment: '{{count}} dismissed',
   hiddenFixedFragment: '{{count}} fixed',
-  hiddenStaleFragment: '{{count}} stale',
   hiddenBreakdownJoiner: ', ',
   /**
    * The reveal flag literals named in the remedy hint, joined by
@@ -62,19 +63,15 @@ export const FINDINGS_CLI_TEXTS = {
    */
   hiddenFlagDismissed: '--dismissed',
   hiddenFlagFixed: '--fixed',
-  hiddenFlagStale: '--stale',
   hiddenFlagsJoiner: ' / ',
   /**
    * Appended (yellow) to either hidden-breakdown shape when some hidden
    * row carries `resolution = 'human-decision'` (`spec/cli-contract.md`
    * §sm findings: the excluded-count line MUST name the human-decision
-   * subset).
-   *
-   * Why this exists: a fixer's edits for the OTHER findings stale the
-   * whole node, so a finding it left for the author (a proposal awaiting
-   * a decision) hides behind the default stale filter, exactly the TODO
-   * the operator most needs. The bare count would report it as ordinary
-   * staleness. No plural form (the phrase does not inflect).
+   * subset). With stale rows inline (2026-07-20) only a SUPPRESSED
+   * `human-decision` row can hide, so the fragment guards the operator's
+   * TODO against their own dismissals. No plural form (the phrase does
+   * not inflect).
    */
   staleHiddenHumanDecisionFragment: ' ({{count}} awaiting your decision)',
   /**
@@ -106,7 +103,8 @@ export const FINDINGS_CLI_TEXTS = {
    * severity marker (✕ / ⚠ / ℹ) wrapped in color at the call site;
    * `extensionId` and `type` are padded by the renderer so messages align;
    * `confidence` renders dim; `{{staleTag}}` carries the optional yellow
-   * ` (stale)` marker under `--stale`.
+   * ` (stale)` marker on any stale row (they ride the default view
+   * inline since 2026-07-20).
    */
   findingRow: '{{idCol}}  {{glyph}}  {{extensionId}}  {{type}}  {{message}}  {{confidence}}{{staleTag}}\n',
   /** Confidence column value, composed dim at the call site. */
@@ -118,7 +116,7 @@ export const FINDINGS_CLI_TEXTS = {
    * summary joiner.
    */
   confidenceWithModelValue: '({{percent}}% · {{model}})',
-  /** Marker appended (yellow) to a stale row when `--stale` includes it. */
+  /** Marker appended (yellow) to any stale row in the listing. */
   staleTag: '  (stale)',
   /**
    * Optional detail line under a finding row (the finder's longer

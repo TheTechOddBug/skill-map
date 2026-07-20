@@ -66,6 +66,7 @@ import {
   aggregateHistoryStats,
   insertExecution,
   listExecutions,
+  listNodesWithRuns,
   migrateNodeFks,
 } from './history.js';
 import type {
@@ -137,6 +138,7 @@ import {
   countUnresolvedFindingsByPath,
   countStaleFindings,
   deleteAllFindings,
+  deleteFindingById,
   deleteStaleFindings,
   getFindingById,
   listFindings,
@@ -383,6 +385,7 @@ export class SqliteStorageAdapter implements StoragePort {
 
     this.history = {
       list: (filter: IListExecutionsFilter) => listExecutions(this.db, filter),
+      nodesWithRuns: () => listNodesWithRuns(this.db),
       insertExecution: (record) => insertExecution(this.db, record),
       aggregateStats: (
         range: IHistoryStatsRange,
@@ -429,6 +432,7 @@ export class SqliteStorageAdapter implements StoragePort {
       suppressionsByPath: (paths) => suppressionsByPath(this.db, paths),
       countClearable: (nodeId) => countAllFindings(this.db, nodeId),
       clear: (nodeId) => deleteAllFindings(this.db, nodeId),
+      removeById: (id) => deleteFindingById(this.db, id),
     };
 
     this.favorites = {

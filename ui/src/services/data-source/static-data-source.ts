@@ -398,7 +398,10 @@ export class StaticDataSource implements IDataSourcePort {
    * is honestly empty. Unknown paths still resolve `null` to mirror the
    * live 404-as-null contract.
    */
-  async getNodeFindings(path: string): Promise<IFindingsEnvelopeApi | null> {
+  async getNodeFindings(
+    path: string,
+    _bucket?: 'dismissed' | 'fixed',
+  ): Promise<IFindingsEnvelopeApi | null> {
     const scan = await this.loadData();
     if (!scan.nodes.some((n) => n.path === path)) return null;
     return {
@@ -406,7 +409,7 @@ export class StaticDataSource implements IDataSourcePort {
       kind: 'findings',
       items: [],
       filters: {},
-      counts: { total: 0, returned: 0, dismissedExcluded: 0, fixedExcluded: 0, staleExcluded: 0 },
+      counts: { total: 0, returned: 0, dismissedExcluded: 0, fixedExcluded: 0 },
       kindRegistry: {},
     };
   }
@@ -743,7 +746,7 @@ export class StaticDataSource implements IDataSourcePort {
    * and the one write rejects like every other demo mutation.
    */
   async getActivitySummary(): Promise<IActivitySummaryApi> {
-    return { since: Date.now(), nodes: {}, pairs: {} };
+    return { since: Date.now(), nodes: {}, pairs: {}, runNodes: [] };
   }
 
   async getNodeActivity(_path: string): Promise<IActivityNodeDetailApi | null> {
@@ -829,6 +832,34 @@ export class StaticDataSource implements IDataSourcePort {
     throw new DataSourceError(
       'demo-readonly',
       'Bulk job cancellation is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async dismissFinding(): Promise<void> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Dismissing findings is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async resolveFinding(): Promise<void> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Resolving findings is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async undismissFinding(): Promise<void> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Restoring findings is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async deleteFinding(): Promise<void> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Deleting findings is not available in demo mode (static bundle is immutable).',
     );
   }
 

@@ -9,6 +9,7 @@ import { EMPTY, Subject } from 'rxjs';
 
 import { InspectorView } from '../inspector-view';
 import { NODE_OPEN_INTENT } from '../../../slots/node-open-intent';
+import { ActionDispatchService } from '../../../../services/action-dispatch';
 import { WsEventStreamService } from '../../../../services/ws-event-stream';
 import {
   DATA_SOURCE,
@@ -58,6 +59,10 @@ type IStubDataSource = IDataSourcePort & {
   getNodeProbExtensions: ReturnType<typeof vi.fn>;
   submitNodeJob: ReturnType<typeof vi.fn>;
   cancelJob: ReturnType<typeof vi.fn>;
+  dismissFinding: ReturnType<typeof vi.fn>;
+  resolveFinding: ReturnType<typeof vi.fn>;
+  undismissFinding: ReturnType<typeof vi.fn>;
+  deleteFinding: ReturnType<typeof vi.fn>;
 };
 
 type IStubLoader = {
@@ -154,7 +159,7 @@ function makeStubDataSource(): IStubDataSource {
       kind: 'findings',
       items: [],
       filters: {},
-      counts: { total: 0, returned: 0, dismissedExcluded: 0, fixedExcluded: 0, staleExcluded: 0 },
+      counts: { total: 0, returned: 0, dismissedExcluded: 0, fixedExcluded: 0 },
       kindRegistry: {},
     }),
     getNodeProbExtensions: vi.fn().mockResolvedValue({
@@ -168,6 +173,10 @@ function makeStubDataSource(): IStubDataSource {
       elapsedMs: 1,
     }),
     cancelJob: vi.fn().mockResolvedValue(undefined),
+    dismissFinding: vi.fn().mockResolvedValue(undefined),
+    resolveFinding: vi.fn().mockResolvedValue(undefined),
+    undismissFinding: vi.fn().mockResolvedValue(undefined),
+    deleteFinding: vi.fn().mockResolvedValue(undefined),
     bumpSidecar: vi.fn(),
     dispatchAction: vi.fn().mockResolvedValue({
       schemaVersion: '1',
@@ -224,6 +233,8 @@ interface IBootstrapOpts {
   activityStats?: ReadonlyMap<string, INodeActivityStatsApi>;
   /** Seeds the per-pair spawn counters (Activity gate, spawn side). */
   activityPairs?: ReadonlyMap<string, number>;
+  /** Seeds the persistent-runs set (Activity gate, DB-history side). */
+  activityRunNodes?: ReadonlySet<string>;
   /** Real-time activity preference (default ON, like the app). */
   activityEnabled?: boolean;
 }
@@ -292,6 +303,7 @@ function bootstrap(opts: IBootstrapOpts = {}): {
             opts.activityStats ?? new Map(),
           ),
           pairCounts: signal<ReadonlyMap<string, number>>(opts.activityPairs ?? new Map()),
+          runNodes: signal<ReadonlySet<string>>(opts.activityRunNodes ?? new Set()),
         } as unknown as NodeActivityStatsService,
       },
       {
@@ -1132,6 +1144,25 @@ describe('InspectorView, activity section visibility gate', () => {
     ).not.toBeNull();
   });
 
+  it('shows the section on PERSISTENT run history alone (server restarted, counters reset)', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    // No stats entry, no spawn pair: only the summary's runNodes carries
+    // the node (its state_executions history survived the reboot).
+    const { fixture } = bootstrap({
+      loader,
+      dataSource,
+      activityRunNodes: new Set([node.path]),
+    });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-card-activity"]'),
+    ).not.toBeNull();
+  });
+
   it('shows the section when a spawn pair touches the node as child', async () => {
     const node = makeNode();
     const loader = makeStubLoader([node]);
@@ -1622,7 +1653,7 @@ describe('InspectorView, activity merged timeline (runtime + AI runs)', () => {
     expect(rows[3]!.getAttribute('data-testid')).toBe('inspector-activity-run-row'); // null, sinks
   });
 
-  it('renders an AI-run row visually distinguished: sparkles icon + full extension · duration · model (completed status omitted)', async () => {
+  it('renders an AI-run row visually distinguished: sparkles icon + extension · duration (no core/ prefix, no model, completed status omitted)', async () => {
     const fixture = await bootWithTimeline(
       [{ at: 3000, owner: 'main:abc' }],
       [makeRun({ executionId: 'e1', finishedAt: 2000 })],
@@ -1634,8 +1665,11 @@ describe('InspectorView, activity merged timeline (runtime + AI runs)', () => {
     const icon = row!.querySelector('[data-testid="inspector-activity-run-icon"]');
     expect(icon).not.toBeNull();
     expect(icon!.classList.contains('pi-sparkles')).toBe(true);
-    // Full qualified extension id; the happy-path `completed` status is omitted.
-    expect(row!.textContent).toContain('core/ai-redundancy-analyzer · 2s · claude-sonnet');
+    // The `core/` built-in prefix and the model are dropped from the row
+    // (user call 2026-07-20); the happy-path `completed` status is omitted.
+    expect(row!.textContent).toContain('ai-redundancy-analyzer · 2s');
+    expect(row!.textContent).not.toContain('core/');
+    expect(row!.textContent).not.toContain('claude-sonnet');
     expect(row!.textContent).not.toContain('completed');
     // A clean run carries no failure tooltip.
     expect(row!.getAttribute('title')).toBeNull();
@@ -1657,8 +1691,8 @@ describe('InspectorView, activity merged timeline (runtime + AI runs)', () => {
       '[data-testid="inspector-activity-run-row"]',
     );
     expect(row!.getAttribute('title')).toBe('agent timed out');
-    // A non-completed status IS surfaced, alongside the full extension id.
-    expect(row!.textContent).toContain('core/ai-redundancy-analyzer · failed · 2s · claude-sonnet');
+    // A non-completed status IS surfaced, on the prefix-stripped id.
+    expect(row!.textContent).toContain('ai-redundancy-analyzer · failed · 2s');
   });
 
   it('shows AI runs even when the runtime half is quiet (empty stats)', async () => {
@@ -2038,7 +2072,6 @@ function makeFindingsEnvelope(
       returned: items.length,
       dismissedExcluded: 0,
       fixedExcluded: 0,
-      staleExcluded: 0,
       ...countsOverrides,
     },
     kindRegistry: {},
@@ -2162,8 +2195,8 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     expect(dataSource.submitNodeJob).toHaveBeenCalledTimes(2);
   });
 
-  it('morphs a finder-with-fixer button Detect => Fix by hasOpenFindings', async () => {
-    // Detect state (no open findings): the button submits the FINDER.
+  it('a finder with open findings sits DISABLED (no more Detect => Fix morph)', async () => {
+    // No open findings: the button submits the FINDER on click.
     const detect = await bootAiActions({
       probs: makeProbExtensions({
         finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'], hasOpenFindings: false })],
@@ -2182,8 +2215,9 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
       false,
     );
 
-    // Fix state (open findings): the SAME button submits the fixer(s).
-    const fix = await bootAiActions({
+    // Open findings: the button DISABLES (re-running is pointless; the
+    // fix lives on each finding row, user call 2026-07-20).
+    const open = await bootAiActions({
       probs: makeProbExtensions({
         finders: [
           makeProbEntry({
@@ -2193,29 +2227,94 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
         ],
       }),
     });
-    const fixBtn = fix.fixture.nativeElement.querySelector(
-      '[data-testid="inspector-ai-action-launch-core/todo-finder"]',
-    ) as HTMLElement;
-    expect(fixBtn.textContent).toContain('todo-finder');
-    expect(fixBtn.getAttribute('data-action')).toBe('fix');
-    (fixBtn.querySelector('button') as HTMLButtonElement).click();
-    await flush(fix.fixture);
+    const openBtn = open.fixture.nativeElement.querySelector(
+      '[data-testid="inspector-ai-action-launch-core/todo-finder"] button',
+    ) as HTMLButtonElement;
+    expect(openBtn.disabled).toBe(true);
+    openBtn.click();
+    await flush(open.fixture);
+    expect(open.dataSource.submitNodeJob).not.toHaveBeenCalled();
+  });
+
+  it('the per-finding wrench queues the fixer(s); rows without a fixer render none', async () => {
+    const { fixture, dataSource, node } = await bootAiActions({
+      findings: makeFindingsEnvelope([
+        makeFinding(),
+        makeFinding({ id: 30, extensionId: 'core/orphan-finder' }),
+      ]),
+      probs: makeProbExtensions({
+        finders: [
+          makeProbEntry({
+            fixerIds: ['core/todo-fixer', 'core/todo-fixer-2'],
+            hasOpenFindings: true,
+          }),
+        ],
+      }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    // The finding of an unknown finder (no catalog entry) has no wrench.
+    expect(dom.querySelector('[data-testid="inspector-finding-fix-30"]')).toBeNull();
+
+    (
+      dom.querySelector('[data-testid="inspector-finding-fix-12"] button') as HTMLButtonElement
+    ).click();
+    await flush(fixture);
     // Chains all fixers, autoFix false, and never submits the finder itself.
-    expect(fix.dataSource.submitNodeJob).toHaveBeenCalledWith(
-      fix.node.path,
-      'core/todo-fixer',
-      false,
-    );
-    expect(fix.dataSource.submitNodeJob).toHaveBeenCalledWith(
-      fix.node.path,
-      'core/todo-fixer-2',
-      false,
-    );
-    expect(fix.dataSource.submitNodeJob).not.toHaveBeenCalledWith(
-      fix.node.path,
+    expect(dataSource.submitNodeJob).toHaveBeenCalledWith(node.path, 'core/todo-fixer', false);
+    expect(dataSource.submitNodeJob).toHaveBeenCalledWith(node.path, 'core/todo-fixer-2', false);
+    expect(dataSource.submitNodeJob).not.toHaveBeenCalledWith(
+      node.path,
       'core/todo-finder',
       expect.anything(),
     );
+  });
+
+  it('a human-decision row shows the needs-decision mark and NO fix button', async () => {
+    // The fixer left this one to the author (resolution = human-decision):
+    // the submit gate refuses to re-inject it, so the bolt must not
+    // render; mark-fixed + dismiss remain as the two valid exits.
+    const { fixture } = await bootAiActions({
+      findings: makeFindingsEnvelope([
+        makeFinding({ resolution: 'human-decision', resolutionActor: 'fixer' }),
+      ]),
+      probs: makeProbExtensions({
+        finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'], hasOpenFindings: true })],
+      }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(dom.querySelector('[data-testid="inspector-finding-fix-12"]')).toBeNull();
+    const mark = dom.querySelector('[data-testid="inspector-finding-decision-12"]');
+    expect(mark).not.toBeNull();
+    expect(mark!.textContent).toContain('needs decision');
+    expect(dom.querySelector('[data-testid="inspector-finding-resolve-12"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-finding-dismiss-12"]')).not.toBeNull();
+  });
+
+  it('an active fix disables the row: wrench, resolve and dismiss all sit disabled', async () => {
+    // The finder entry reports a RUNNING job (the fixer union lights it),
+    // so the whole row must lock: acting on a finding mid-fix contradicts
+    // the fixer already working on it.
+    const { fixture } = await bootAiActions({
+      findings: makeFindingsEnvelope([makeFinding()]),
+      probs: makeProbExtensions({
+        finders: [
+          makeProbEntry({
+            fixerIds: ['core/todo-fixer'],
+            hasOpenFindings: true,
+            state: 'running',
+            jobId: 'job-9',
+          }),
+        ],
+      }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    for (const action of ['fix', 'resolve', 'dismiss']) {
+      const btn = dom.querySelector(
+        `[data-testid="inspector-finding-${action}-12"] button`,
+      ) as HTMLButtonElement;
+      expect(btn, action).not.toBeNull();
+      expect(btn.disabled, action).toBe(true);
+    }
   });
 
   it('renders finding rows with severity, type, message, provenance, and the dimmed id', async () => {
@@ -2234,10 +2333,11 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     expect(first!.textContent).toContain('stale-todo');
     expect(first!.textContent).toContain('The TODO at line 4 looks abandoned.');
     expect(first!.textContent).toContain('#12');
-    // Provenance: percent + model when declared, percent alone otherwise.
+    // Provenance: the confidence percent alone (the model was dropped
+    // from the row, user call 2026-07-20; the terminal still shows it).
     expect(
       dom.querySelector('[data-testid="inspector-ai-action-provenance-12"]')!.textContent,
-    ).toBe('(87% · claude-opus-4)');
+    ).toBe('(87%)');
     expect(
       dom.querySelector('[data-testid="inspector-ai-action-provenance-13"]')!.textContent,
     ).toBe('(50%)');
@@ -2245,9 +2345,25 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     expect(dom.querySelector('[data-testid="inspector-ai-actions-empty"]')).toBeNull();
   });
 
+  it('a stale row rides the DEFAULT tray inline with the stale mark (no stale bucket)', async () => {
+    const { fixture } = await bootAiActions({
+      findings: makeFindingsEnvelope([
+        makeFinding(),
+        makeFinding({ id: 21, stale: true }),
+      ]),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    // Both rows render; only the stale one carries the mark.
+    expect(dom.querySelector('[data-testid="inspector-ai-action-21"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-finding-stale-21"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-finding-stale-12"]')).toBeNull();
+    // And there is no stale reveal chip anymore.
+    expect(dom.querySelector('[data-testid="inspector-ai-hidden-stale"]')).toBeNull();
+  });
+
   it('renders no honesty line (the run history lives in Activity, user call 2026-07-17)', async () => {
     const { fixture } = await bootAiActions({
-      findings: makeFindingsEnvelope([], { total: 3, fixedExcluded: 2, staleExcluded: 1 }),
+      findings: makeFindingsEnvelope([], { total: 3, fixedExcluded: 2, dismissedExcluded: 1 }),
       probs: makeProbExtensions({ finders: [makeProbEntry()] }),
     });
     expect(
@@ -2255,15 +2371,18 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     ).toBeNull();
   });
 
-  it('hides the card on hidden-only counts (no fresh rows, no launchers, nothing to show)', async () => {
-    // The honesty line moved to the Activity timeline (user call
-    // 2026-07-17), so exclusions alone would render a title-only card.
+  it('keeps the card up on hidden-only counts: the reveal chips are its content', async () => {
+    // Flipped when the hidden-buckets chips landed: a hidden-only card now
+    // carries the reveal / restore surface, and hiding it would strand an
+    // all-dismissed node with no way back from the UI.
     const { fixture } = await bootAiActions({
       findings: makeFindingsEnvelope([], { total: 1, fixedExcluded: 1 }),
     });
-    expect(
-      fixture.nativeElement.querySelector('[data-testid="inspector-card-ai-actions"]'),
-    ).toBeNull();
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(dom.querySelector('[data-testid="inspector-card-ai-actions"]')).not.toBeNull();
+    const chip = dom.querySelector('[data-testid="inspector-ai-hidden-fixed"]');
+    expect(chip).not.toBeNull();
+    expect(chip!.textContent).toContain('1 fixed');
   });
 
   it('submits the extension on click and flips the button to queued optimistically', async () => {
@@ -2614,14 +2733,14 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     localStorage.setItem('skill-map.ui.inspector.autoFix', 'true');
     const { fixture, dataSource, node } = await bootAiActions({
       probs: makeProbExtensions({
-        finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'], hasOpenFindings: true })],
+        finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'], hasOpenFindings: false })],
       }),
     });
     const btn = fixture.nativeElement.querySelector(
       '[data-testid="inspector-ai-action-launch-core/todo-finder"]',
     ) as HTMLElement;
-    // Automatic overrides the Detect/Fix morph: data-action becomes
-    // detectAndFix (the label stays the kind).
+    // Automatic flips the action: data-action becomes detectAndFix (the
+    // label stays the kind).
     expect(btn.textContent).toContain('todo-finder');
     expect(btn.getAttribute('data-action')).toBe('detectAndFix');
     (btn.querySelector('button') as HTMLButtonElement).click();
@@ -2669,5 +2788,167 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
       '[data-testid="inspector-ai-action-launch-core/todo-finder"]',
     ) as HTMLElement;
     expect(btn.getAttribute('data-action')).toBe('detect');
+  });
+
+  it('the dismiss X dismisses DIRECTLY (no prompt, no note)', async () => {
+    const { fixture, dataSource, node } = await bootAiActions({
+      findings: makeFindingsEnvelope([makeFinding()]),
+    });
+    (
+      fixture.nativeElement.querySelector(
+        '[data-testid="inspector-finding-dismiss-12"] button',
+      ) as HTMLButtonElement
+    ).click();
+    await flush(fixture);
+    expect(dataSource.dismissFinding).toHaveBeenCalledWith(node.path, 12, {});
+  });
+
+  it('a consent-gated dismiss parks a retry behind the shared dialog and retries on accept', async () => {
+    const { fixture, dataSource, node } = await bootAiActions({
+      findings: makeFindingsEnvelope([makeFinding()]),
+    });
+    dataSource.dismissFinding.mockRejectedValueOnce(
+      new DataSourceError('confirm-required', 'consent required', { key: 'allowEditSmFiles' }),
+    );
+    (
+      fixture.nativeElement.querySelector(
+        '[data-testid="inspector-finding-dismiss-12"] button',
+      ) as HTMLButtonElement
+    ).click();
+    await flush(fixture);
+
+    // The gate parked the retry behind the SHARED consent dialog.
+    const dispatcher = TestBed.inject(ActionDispatchService);
+    expect(dispatcher.consentOpen()).toBe(true);
+    dispatcher.resolveConsent({ accepted: true, always: false });
+    await flush(fixture);
+    expect(dataSource.dismissFinding).toHaveBeenLastCalledWith(node.path, 12, { confirm: true });
+  });
+
+  it('the check mark resolves a finding (fixed by the operator)', async () => {
+    const { fixture, dataSource, node } = await bootAiActions({
+      findings: makeFindingsEnvelope([makeFinding()]),
+    });
+    (
+      fixture.nativeElement.querySelector(
+        '[data-testid="inspector-finding-resolve-12"] button',
+      ) as HTMLButtonElement
+    ).click();
+    await flush(fixture);
+    expect(dataSource.resolveFinding).toHaveBeenCalledWith(node.path, 12);
+  });
+
+  it('hidden chips reveal a bucket; restore un-dismisses from the dismissed rows', async () => {
+    const hiddenOnly = makeFindingsEnvelope([], { dismissedExcluded: 1 });
+    const { fixture, dataSource, node } = await bootAiActions({ findings: hiddenOnly });
+    // The card stays up on hidden-only content (the reveal surface).
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(dom.querySelector('[data-testid="inspector-card-ai-actions"]')).not.toBeNull();
+    const chip = dom.querySelector(
+      '[data-testid="inspector-ai-hidden-dismissed"]',
+    ) as HTMLButtonElement;
+    expect(chip).not.toBeNull();
+    expect(chip.textContent).toContain('1 dismissed');
+
+    // Revealing fetches the bucket rows (the ?dismissed=1 filter).
+    dataSource.getNodeFindings.mockImplementation(
+      (_path: string, bucket?: string): Promise<IFindingsEnvelopeApi> =>
+        Promise.resolve(
+          bucket === 'dismissed' ? makeFindingsEnvelope([makeFinding({ id: 33 })]) : hiddenOnly,
+        ),
+    );
+    chip.click();
+    await flush(fixture);
+    expect(dataSource.getNodeFindings).toHaveBeenCalledWith(node.path, 'dismissed');
+    const revealed = dom.querySelector('[data-testid="inspector-ai-revealed-33"]');
+    expect(revealed).not.toBeNull();
+
+    // Restore un-dismisses with the row's EXACT class identity.
+    (
+      dom.querySelector('[data-testid="inspector-finding-restore-33"] button') as HTMLButtonElement
+    ).click();
+    await flush(fixture);
+    expect(dataSource.undismissFinding).toHaveBeenCalledWith(
+      node.path,
+      { extension: 'core/todo-finder', type: 'stale-todo' },
+      {},
+    );
+  });
+
+  it('a zero-count chip never renders: emptying the revealed bucket collapses chip + sublist', async () => {
+    const hiddenOnly = makeFindingsEnvelope([], { dismissedExcluded: 1 });
+    const { fixture, dataSource } = await bootAiActions({ findings: hiddenOnly });
+    const dom: HTMLElement = fixture.nativeElement;
+    dataSource.getNodeFindings.mockImplementation(
+      (_path: string, bucket?: string): Promise<IFindingsEnvelopeApi> =>
+        Promise.resolve(
+          bucket === 'dismissed' ? makeFindingsEnvelope([makeFinding({ id: 33 })]) : hiddenOnly,
+        ),
+    );
+    (
+      dom.querySelector('[data-testid="inspector-ai-hidden-dismissed"]') as HTMLButtonElement
+    ).click();
+    await flush(fixture);
+    expect(dom.querySelector('[data-testid="inspector-ai-revealed-33"]')).not.toBeNull();
+
+    // Restoring the LAST row: the refetched counts drop to zero, so the
+    // chip disappears and the revealed sublist auto-collapses with it.
+    dataSource.getNodeFindings.mockResolvedValue(
+      makeFindingsEnvelope([makeFinding({ id: 33 })], { dismissedExcluded: 0 }),
+    );
+    (
+      dom.querySelector('[data-testid="inspector-finding-restore-33"] button') as HTMLButtonElement
+    ).click();
+    // Two rounds: the restore settles, then its tray refetch lands.
+    await flush(fixture);
+    await flush(fixture);
+    expect(dom.querySelector('[data-testid="inspector-ai-hidden-dismissed"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-revealed-list"]')).toBeNull();
+  });
+
+  it('a revealed dismissed row also carries a delete X that hard-deletes the row', async () => {
+    const hiddenOnly = makeFindingsEnvelope([], { dismissedExcluded: 1 });
+    const { fixture, dataSource, node } = await bootAiActions({ findings: hiddenOnly });
+    const dom: HTMLElement = fixture.nativeElement;
+    dataSource.getNodeFindings.mockImplementation(
+      (_path: string, bucket?: string): Promise<IFindingsEnvelopeApi> =>
+        Promise.resolve(
+          bucket === 'dismissed' ? makeFindingsEnvelope([makeFinding({ id: 33 })]) : hiddenOnly,
+        ),
+    );
+    (
+      dom.querySelector('[data-testid="inspector-ai-hidden-dismissed"]') as HTMLButtonElement
+    ).click();
+    await flush(fixture);
+
+    (
+      dom.querySelector('[data-testid="inspector-finding-delete-33"] button') as HTMLButtonElement
+    ).click();
+    await flush(fixture);
+    expect(dataSource.deleteFinding).toHaveBeenCalledWith(node.path, 33, {});
+  });
+
+  it('revealed fixed rows carry the delete X (no restore) and delete hard-removes', async () => {
+    const hiddenOnly = makeFindingsEnvelope([], { fixedExcluded: 1 });
+    const { fixture, dataSource, node } = await bootAiActions({ findings: hiddenOnly });
+    const dom: HTMLElement = fixture.nativeElement;
+    dataSource.getNodeFindings.mockImplementation(
+      (_path: string, bucket?: string): Promise<IFindingsEnvelopeApi> =>
+        Promise.resolve(
+          bucket === 'fixed' ? makeFindingsEnvelope([makeFinding({ id: 44 })]) : hiddenOnly,
+        ),
+    );
+    (
+      dom.querySelector('[data-testid="inspector-ai-hidden-fixed"]') as HTMLButtonElement
+    ).click();
+    await flush(fixture);
+
+    // Fixed rows: delete only, no restore (nothing to un-dismiss).
+    expect(dom.querySelector('[data-testid="inspector-finding-restore-44"]')).toBeNull();
+    (
+      dom.querySelector('[data-testid="inspector-finding-delete-44"] button') as HTMLButtonElement
+    ).click();
+    await flush(fixture);
+    expect(dataSource.deleteFinding).toHaveBeenCalledWith(node.path, 44, {});
   });
 });

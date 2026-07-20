@@ -159,6 +159,7 @@ interface ISummaryEnvelope {
     { count: number; lastStartAt: number; lastOwner?: string; distinctOwners: number }
   >;
   pairs: Record<string, { count: number; lastStartAt: number }>;
+  runNodes: string[];
 }
 
 async function getSummary(handle: IServerHandle): Promise<ISummaryEnvelope> {
@@ -175,6 +176,44 @@ describe('GET /api/activity/summary', () => {
       assert.ok(summary.since <= Date.now());
       assert.deepEqual(summary.nodes, {});
       assert.deepEqual(summary.pairs, {});
+      assert.deepEqual(summary.runNodes, []);
+    });
+  });
+
+  it('runNodes carries nodes with persistent AI-run history (survives a restart)', async () => {
+    // Seed one state_executions row BEFORE boot: the boot-scoped
+    // counters know nothing about it, but runNodes must (that is the
+    // whole point, the counters reset on restart and the history not).
+    const adapter = new SqliteStorageAdapter({ databasePath: root.dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      await adapter.history.insertExecution({
+        id: 'e-20260720-000001-test',
+        kind: 'action',
+        extensionId: 'core/ai-redundancy-analyzer',
+        extensionVersion: '0.1.0',
+        nodeIds: ['.claude/skills/deploy/SKILL.md'],
+        contentHash: null,
+        status: 'completed',
+        failureReason: null,
+        exitCode: null,
+        runner: 'agent',
+        startedAt: Date.now() - 1000,
+        finishedAt: Date.now(),
+        durationMs: 1000,
+        tokensIn: null,
+        tokensOut: null,
+        model: null,
+        reportPath: null,
+        jobId: null,
+      });
+    } finally {
+      await adapter.close();
+    }
+    await bootAndUse(async (handle) => {
+      const summary = await getSummary(handle);
+      assert.deepEqual(summary.nodes, {}, 'counters are boot-scoped, still empty');
+      assert.deepEqual(summary.runNodes, ['.claude/skills/deploy/SKILL.md']);
     });
   });
 

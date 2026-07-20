@@ -159,6 +159,63 @@ export interface IActionsPort {
   cancelAllJobs(): Promise<void>;
 
   /**
+   * `POST /api/nodes/:pathB64/findings/:id/dismiss`, the inspector's
+   * per-finding X (the read-time suppression lens: the class HIDES, rows
+   * kept, reversible). A sidecar write behind the `.sm` consent gate:
+   * without a standing grant the BFF answers `412` `confirm-required`
+   * (`details.key = 'allowEditSmFiles'`), surfaced as a `DataSourceError`
+   * the consent dialog answers by retrying with `confirm` / `always`.
+   * Kernel safety rows refuse with `'finding-not-dismissible'` (409);
+   * unknown id `'not-found'` (404). Resolves on `204`; the caller
+   * re-fetches (no WS frame fires). Demo rejects `'demo-readonly'`.
+   */
+  dismissFinding(
+    nodePath: string,
+    findingId: number,
+    opts?: { confirm?: boolean; always?: boolean },
+  ): Promise<void>;
+
+  /**
+   * `POST /api/nodes/:pathB64/findings/:id/resolve`, mark a finding fixed
+   * by the OPERATOR (`resolution = 'fixed'`, `resolution_actor =
+   * 'human'`). No consent (a DB row state). `'finding-already-fixed'`
+   * (409) / `'not-found'` (404). Resolves on `204`; the caller
+   * re-fetches. Demo rejects `'demo-readonly'`.
+   */
+  resolveFinding(nodePath: string, findingId: number, note?: string): Promise<void>;
+
+  /**
+   * `POST /api/nodes/:pathB64/findings/undismiss`, the restore button on
+   * a revealed dismissed row. EXACT identity (the row's qualified
+   * `extension` + `type`); same consent handshake as `dismissFinding`.
+   * The class's stored rows show again immediately (read-time lens).
+   * No-match `'not-found'` (404, the BFF self-heals the mirror first).
+   * Resolves on `204`. Demo rejects `'demo-readonly'`.
+   */
+  undismissFinding(
+    nodePath: string,
+    entry: { extension: string; type?: string },
+    opts?: { confirm?: boolean; always?: boolean },
+  ): Promise<void>;
+
+  /**
+   * `DELETE /api/nodes/:pathB64/findings/:id`, the delete X on a REVEALED
+   * dismissed / fixed row: hard-deletes the row from `state_findings`
+   * (per-row twin of `sm findings clear`, all origins). Deleting the
+   * LAST row of a dismissed class also lifts its exact suppression
+   * entry from the `.sm` (else a re-found class comes back hidden),
+   * so THAT case shares dismiss's consent handshake (`412`
+   * `confirm-required` answered by retrying with `confirm` / `always`);
+   * a plain delete needs none. Unknown id `'not-found'` (404). Resolves
+   * on `204`; the caller re-fetches. Demo rejects `'demo-readonly'`.
+   */
+  deleteFinding(
+    nodePath: string,
+    findingId: number,
+    opts?: { confirm?: boolean; always?: boolean },
+  ): Promise<void>;
+
+  /**
    * `POST /api/jobs/prune[?status=]`, delete terminal jobs now. With no
    * `status` it clears every terminal state (completed + failed +
    * cancelled), the queue inspector's "clear finished"; with a single
