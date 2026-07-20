@@ -46,7 +46,7 @@
     "@types/markdown-it": "14.1.2",
     "jsdom": "29.1.1",
     "source-map-explorer": "2.5.3",
-    "typescript": "5.9.3",
+    "typescript": "6.0.3",
     "vitest": "4.1.9"
   }
 }

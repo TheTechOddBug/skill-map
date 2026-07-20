@@ -71,7 +71,7 @@
   color: inherit;
   border: 1px solid currentColor;
   padding: 0.25rem 0.75rem;
-  border-radius: var(--p-border-radius);
+  border-radius: var(--sm-radius-md);
   font: inherit;
   font-size: 0.8125rem;
   font-weight: 500;

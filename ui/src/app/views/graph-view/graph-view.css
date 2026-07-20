@@ -307,7 +307,7 @@
    The ring outset (3px) puts the multi-select halo OUTSIDE the inner
    card frame so the two rings are visually distinguishable. */
 .sm-gnode-host.f-selected {
-  filter: drop-shadow(0 0 6px var(--p-primary-color-300));
+  filter: drop-shadow(0 0 6px var(--p-primary-300));
 }
 .sm-gnode-host.f-selected > .sm-gnode {
   box-shadow:

@@ -168,8 +168,8 @@
   letter-spacing: 0.03em;
   padding: 0.05rem 0.35rem;
   border-radius: var(--sm-radius-md);
-  color: var(--p-warn-color);
-  border: 1px solid var(--p-warn-color);
+  color: var(--sm-severity-warn);
+  border: 1px solid var(--sm-severity-warn);
   cursor: help;
 }
 
@@ -207,5 +207,5 @@
   margin-top: 0.15rem;
   font-size: 0.75rem;
   font-style: italic;
-  color: var(--p-warn-color);
+  color: var(--sm-severity-warn);
 }
