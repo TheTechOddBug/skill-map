@@ -1,5 +1,23 @@
 # Spec changelog
 
+## 0.81.0-rc.1
+
+### Minor Changes
+
+- Extensions gain an optional `defaultEnabled` manifest field that overrides the stability-derived installed default; the bump contract now accepts a versionless fresh sidecar and stamps `version: 1` (only a fresh sidecar already carrying a version refuses); summaries get a normative `DELETE /api/nodes/:pathB64/summary` route; the auto-fix hook leaves the normative narrative; and a new architecture §Storage rule seals machine output to the DB vs human curation to the `.sm` sidecar.
+
+- The job lifecycle gains a normative disable cascade (`job-lifecycle.md` §Cancellation): disabling an extension also cancels its `queued` jobs through the same primitive as `sm jobs cancel`, one `job.cancelled` event per affected id plus one aggregated operations-log line; `running` jobs stay untouched and re-enabling resurrects nothing. `cli-contract.md` documents the cascade on `sm plugins disable` and the three `PATCH /api/plugins` toggle routes.
+
+- New `cli-contract.md` §Operations log: every mutating operation appends one JSONL line to the gitignored `.skill-map/operations.log` (`{at, op, target, extension?, channel, outcome, id?/detail?}`), fire-and-forget, silent without a `.skill-map/` directory, single-generation 1 MiB rotation. The REST envelope schema's value-envelope variant gains the `config.resolution` kind backing the new `GET /api/config/resolution` route.
+
+- `core/ai-summarizer-action` graduates from experimental back to stable / enabled by default now that its UI surface landed: a new `GET /api/nodes/:pathB64/summary` route (spec route-table row, direct shape) serves the node's stored summaries with per-row staleness, and the inspector header gains a sparkles button that queues the summarizer and expands the analysis (subject, key facts, quality notes, confidence, stale mark, re-run) under the identity strip.
+
+  ## User-facing
+
+  **Analyze any file from its header.** A magic button next to the file's title runs an AI analysis; when it finishes (or the file already has one) the header shows what the file covers, key facts and quality notes. Outdated analyses are marked and can be re-run in one click.
+
+- New canonical tagger-report schema `tags/markdown.schema.json` (1-8 lowercase kebab-case topical tags) plus the `job-lifecycle.md` §Tags write-through contract (record-side union merge into sidecar `annotations.tags`, standing `.sm` consent only, storage-rule delegated-curation carve-out), and enabled-gate wording: `POST /api/actions/:id` answers 404 for a disabled Action, `sm bump` refuses while `core/node-bump` is disabled, and boot/shutdown hook dispatch honours the enabled toggle.
+
 ## 0.81.0-rc.0
 
 ### Minor Changes
