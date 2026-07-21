@@ -156,3 +156,21 @@ function parseReport(json: string): Record<string, unknown> {
     return {};
   }
 }
+
+/**
+ * Hard-delete a node's summaries (`DELETE /api/nodes/:pathB64/summary`):
+ * one action's row when `summarizerActionId` is given, else every row
+ * the node has. Returns the deleted count.
+ */
+export async function deleteSummaries(
+  db: TDbOrTx,
+  nodeId: string,
+  summarizerActionId?: string,
+): Promise<number> {
+  let query = db.deleteFrom('state_summaries').where('nodeId', '=', nodeId);
+  if (summarizerActionId !== undefined) {
+    query = query.where('summarizerActionId', '=', summarizerActionId);
+  }
+  const result = await query.executeTakeFirst();
+  return Number(result.numDeletedRows ?? 0);
+}

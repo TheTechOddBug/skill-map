@@ -208,7 +208,7 @@ export class JobSubmitCommand extends SmCommand {
       --auto-fix freezes this finder submit so sm record chains the
       finder's fixers on completion (additive, default off; ignored on a
       non-finder target). It runs independently of the opt-in global
-      core/auto-fix hook.
+      per-job auto-fix chain.
 
       Exit codes: 0 on success, 2 on bad flags / non-probabilistic
       extension / unresolved prompt, 3 on a single-target duplicate

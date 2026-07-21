@@ -1,32 +1,37 @@
 /**
- * End-to-end test for the opt-in `core/auto-fix` hook wiring (Decision
- * #144). Proves the finder -> fixer chain runs automatically INSIDE
- * `sm record`: recording a completed finder job dispatches `job.completed`
- * to the enabled hooks, and `core/auto-fix` resolves the inverse of Modelo B
- * (`spec/architecture.md` §Modelo B · Auto-fix) and queues each matching
- * fixer for the node, RENDERED with the findings-to-resolve section injected
- * (the shared `submitFixerJob` helper, not a bare row).
+ * End-to-end test for the record-side hook-dispatch wiring (Decision
+ * #144; the `core/auto-fix` BUILT-IN was removed 2026-07-21 as redundant
+ * with the per-job flag, but the MECHANISM stays public for drop-in
+ * hooks). Proves the finder -> fixer chain runs automatically INSIDE
+ * `sm record`: recording a completed finder job dispatches
+ * `job.completed` to the enabled hooks, and a drop-in hook can resolve
+ * matching fixers and `ctx.queue` them for the node, RENDERED with the
+ * findings-to-resolve section injected (the shared `submitFixerJob`
+ * helper, not a bare row).
  *
  * Fixtures: `prob-finder` (a probabilistic finder) + `prob-fixer` (a
  * probabilistic fixer declaring `precondition.analyzerIds:
- * ['prob-finder/quality-check']`). Runs against a real project DB (never
+ * ['prob-finder/quality-check']`) + `prob-hook` (a `job.completed`
+ * drop-in hook queueing every matching fixer, the drop-in equivalent of
+ * the removed built-in). Runs against a real project DB (never
  * `:memory:`, see feedback_sqlite_in_memory_workaround).
  *
  * Coverage:
- *   - enabled + matching fixer: a fixer job appears in state_jobs for the
- *     node, its content carrying the `## Findings to resolve` section.
+ *   - hook installed + matching fixer: a fixer job appears in state_jobs
+ *     for the node, its content carrying the `## Findings to resolve`
+ *     section.
  *   - the fixer job is superseded when the finder re-runs with a changed
  *     finding set (the shared supersede rule).
  *   - a finder that found nothing queues nothing (no-findings refusal
  *     swallowed).
- *   - auto-fix DISABLED queues nothing (the default).
+ *   - no hook installed queues nothing (the default).
  *   - a finder with no matching fixer queues nothing.
  *
  * Plus the PER-JOB auto-fix chain (`spec/job-lifecycle.md` §Auto-fix chain
- * (per-job)), the second, hook-independent entry point:
+ * (per-job)), the hook-independent entry point:
  *   - a finder submitted `--auto-fix` chains ALL matching fixers on record
- *     EVEN WHEN the global `core/auto-fix` hook is disabled.
- *   - hook enabled AND the job flagged: the two entry points dedupe to
+ *     EVEN WITH no hook installed.
+ *   - hook installed AND the job flagged: the two entry points dedupe to
  *     exactly one fixer job per `(fixer, node)`.
  */
 
@@ -60,6 +65,12 @@ const FIXER_ID = 'prob-fixer/apply-fix';
 // finder). Proves the per-job chain queues ALL matching fixers, not just one.
 const FIXER2_PLUGIN_ID = 'prob-fixer2';
 const FIXER2_ID = 'prob-fixer2/apply-fix';
+
+// The drop-in `job.completed` hook (chain-fixers): queues every matching
+// fixer after a finder completes, standing in for the removed
+// `core/auto-fix` built-in so the record-side dispatch stays covered.
+const HOOK_FIXTURE = fileURLToPath(new URL('./fixtures/prob-hook', import.meta.url));
+const HOOK_PLUGIN_ID = 'prob-hook';
 
 const SKILL = { path: '.claude/skills/foo/SKILL.md', kind: 'skill', provider: 'claude' };
 const CLEAN_SAFETY = { injectionDetected: false, contentQuality: 'clean' };
@@ -156,11 +167,9 @@ async function setupProject(opts: {
     cpSync(FIXER_FIXTURE, join(root, '.skill-map', 'plugins', FIXER2_PLUGIN_ID), { recursive: true });
   }
   if (opts.enableAutoFix) {
-    // Enable the experimental (ships-disabled) core/auto-fix hook.
-    writeFileSync(
-      join(root, '.skill-map', 'settings.json'),
-      JSON.stringify({ plugins: { core: { extensions: { 'auto-fix': { enabled: true } } } } }),
-    );
+    // Install the drop-in chain hook (the record path dispatches
+    // `job.completed` to every enabled + trusted hook).
+    cpSync(HOOK_FIXTURE, join(root, '.skill-map', 'plugins', HOOK_PLUGIN_ID), { recursive: true });
   }
 
   const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
@@ -173,6 +182,7 @@ async function setupProject(opts: {
     await adapter.trust.set(FINDER_PLUGIN_ID, true);
     if (opts.includeFixer) await adapter.trust.set(FIXER_PLUGIN_ID, true);
     if (opts.secondFixer) await adapter.trust.set(FIXER2_PLUGIN_ID, true);
+    if (opts.enableAutoFix) await adapter.trust.set(HOOK_PLUGIN_ID, true);
   } finally {
     await adapter.close();
   }
@@ -288,7 +298,7 @@ after(() => {
   rmSync(tmpRoot, { recursive: true, force: true });
 });
 
-describe('core/auto-fix chain (sm record dispatches job.completed)', () => {
+describe('drop-in hook chain (sm record dispatches job.completed)', () => {
   it('queues the matching fixer, rendered with the findings-to-resolve section', async () => {
     const proj = await setupProject({ enableAutoFix: true, includeFixer: true });
     await recordFinder(proj, REPORT_WITH_FINDINGS);
@@ -331,7 +341,7 @@ describe('core/auto-fix chain (sm record dispatches job.completed)', () => {
     strictEqual((await fixerJobs(proj)).length, 0);
   });
 
-  it('queues nothing when auto-fix is DISABLED (the default)', async () => {
+  it('queues nothing when no chain hook is installed (the default)', async () => {
     const proj = await setupProject({ enableAutoFix: false, includeFixer: true });
     await recordFinder(proj, REPORT_WITH_FINDINGS);
     strictEqual((await fixerJobs(proj)).length, 0);
@@ -352,7 +362,7 @@ describe('core/auto-fix chain (sm record dispatches job.completed)', () => {
 });
 
 describe('per-job auto-fix chain (state_jobs.auto_fix, hook-independent)', () => {
-  it('chains ALL matching fixers on record with the global hook DISABLED', async () => {
+  it('chains ALL matching fixers on record with NO chain hook installed', async () => {
     // Hook OFF (the default) + two fixers serving the finder. The per-job
     // branch fires purely off the frozen auto_fix flag.
     const proj = await setupProject({

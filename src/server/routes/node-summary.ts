@@ -12,12 +12,20 @@
  * (same rule `sm show` applies). A node with no summaries answers an
  * empty `items`, never 404; malformed `pathB64`, unknown node, and
  * missing DB all answer 404 `not-found`.
+ *
+ * `DELETE /api/nodes/:pathB64/summary[?summarizer=<qualifiedId>]` hard-
+ * deletes the node's stored summaries (one action's row with the query
+ * param, all of them without): a regenerable machine judgment, so no
+ * consent and no sidecar touch, mirror of the findings delete. Nothing
+ * matched → 404; success `204`, and the operation logs one
+ * `summaries.delete` line.
  */
 
 import type { Hono } from 'hono';
 // eslint-disable-next-line import-x/extensions
 import { HTTPException } from 'hono/http-exception';
 
+import { appendOperation } from '../../core/operations-log.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -59,5 +67,31 @@ export function registerNodeSummaryRoute(app: Hono, deps: IRouteDeps): void {
       });
     }
     return c.json(loaded);
+  });
+
+  app.delete('/api/nodes/:pathB64/summary', async (c) => {
+    const nodePath = decodePathB64Or404(c.req.param('pathB64'));
+    const summarizer = c.req.query('summarizer');
+    const deleted = await tryWithSqlite(
+      { databasePath: deps.options.dbPath, autoBackup: false },
+      async (adapter) => {
+        if ((await adapter.scans.findNode(nodePath)) === null) return null;
+        return adapter.summaries.remove(nodePath, summarizer);
+      },
+    );
+    if (deleted === null || deleted === 0) {
+      throw new HTTPException(404, {
+        message: tx(SERVER_TEXTS.nodeNotFound, { path: sanitizeForTerminal(nodePath) }),
+      });
+    }
+    appendOperation(deps.runtimeContext.cwd, {
+      op: 'summaries.delete',
+      target: nodePath,
+      ...(summarizer !== undefined ? { extension: summarizer } : {}),
+      channel: 'ui',
+      outcome: 'ok',
+      detail: `deleted=${deleted}`,
+    });
+    return c.body(null, 204);
   });
 }

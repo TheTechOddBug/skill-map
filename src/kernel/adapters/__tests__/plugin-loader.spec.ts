@@ -168,6 +168,35 @@ describe('PluginLoader', () => {
     strictEqual(result[0]!.extensions?.[0]?.stability, 'beta');
   });
 
+  it('stamps the declared defaultEnabled override on the loaded extension', async () => {
+    // The orthogonal opt-in axis (spec base.schema.json#/defaultEnabled,
+    // 2026-07-21): the loader must surface it as a typed field so the
+    // enabled resolvers apply the declared installed default.
+    const root = makePluginsDir('default-enabled');
+    const extractorSource = `
+      export default {
+        version: '1.0.0',
+        description: 'Counts external URLs',
+        defaultEnabled: false,
+      };
+    `;
+    writePlugin(
+      root,
+      'optin-plugin',
+      {
+        version: '0.1.0',
+        description: 'test',
+        specCompat: '>=0.0.0',
+        catalogCompat: '*',
+      },
+      { 'extractor/url-counter.mjs': extractorSource },
+    );
+
+    const result = await loaderFor(root).discoverAndLoadAll();
+    strictEqual(result[0]!.status, 'enabled');
+    strictEqual(result[0]!.extensions?.[0]?.defaultEnabled, false);
+  });
+
   it('invalid-manifest: stability outside the closed enum', async () => {
     const root = makePluginsDir('stability-invalid');
     const extractorSource = `

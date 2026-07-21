@@ -100,6 +100,6 @@ export function filterBuiltInManifests(
     // `m.stability` flows the experimental gate into the installed
     // default so a disabled-by-default extension stays out of the
     // registry (and therefore `sm help`) until the operator enables it.
-    return isPluginEntryEnabled(plugin, m.id, resolveEnabled, m.stability);
+    return isPluginEntryEnabled(plugin, m.id, resolveEnabled, m.stability, m.defaultEnabled);
   });
 }

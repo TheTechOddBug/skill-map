@@ -193,6 +193,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   loadConfig: vi.fn(),
   getConfigResolution: vi.fn().mockResolvedValue([]),
   getNodeSummary: vi.fn().mockResolvedValue([]),
+  deleteNodeSummary: vi.fn().mockResolvedValue(undefined),
   listPlugins: vi.fn(),
   setPluginEnabled: vi.fn(),
   setPluginExtensionEnabled: vi.fn(),

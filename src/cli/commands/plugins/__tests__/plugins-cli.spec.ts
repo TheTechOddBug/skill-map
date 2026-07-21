@@ -655,13 +655,16 @@ describe('sm plugins doctor, disabled is not a failure', () => {
     const r = sm(['plugins', 'doctor'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // Disabled is intentional, never an error: exit stays 0. The count
-    // is 4, the disabled `mock-h` drop-in plus the three experimental
-    // built-in extensions that ship disabled by default: the sidecar
-    // writer `core/node-bump`, the declared-network provenance verifier
-    // `github/enrichment`, and the opt-in `core/auto-fix` hook. The
+    // is 4, the disabled `mock-h` drop-in plus the three built-in
+    // extensions that ship disabled by default: the sidecar writers
+    // `core/node-bump` and `core/node-set-stability` (both STABLE with
+    // `defaultEnabled: false` since 2026-07-21, the orthogonal opt-in
+    // axis) and the declared-network provenance verifier
+    // `github/enrichment` (experimental). The `core/auto-fix` hook was
+    // REMOVED the same day (redundant with the per-job flag) and the
     // universal summarizer `core/ai-summarizer-action` graduated to
-    // stable / enabled on 2026-07-21 (its header affordance landed), so
-    // it no longer counts here. The drift analyzer
+    // stable / enabled (its header affordance landed), so neither
+    // counts here. The drift analyzer
     // `core/annotation-stale` graduated to stable (2026-07-19) and now
     // ships enabled, so it no longer counts here (its writer `core/node-bump`
     // stays experimental, the pair is no longer gated as a unit), joining

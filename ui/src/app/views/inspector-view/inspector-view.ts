@@ -121,6 +121,13 @@ const ACTIVITY_LIVE_REFRESH_DEBOUNCE_MS = 400;
  */
 const SUMMARIZER_EXTENSION_ID = 'core/ai-summarizer-action';
 
+/**
+ * Action-button contributions the inspector re-homes onto the HEADER
+ * (the stability chip and the version/bump chip, user calls
+ * 2026-07-21): excluded from the Actions section and its gating.
+ */
+const HEADER_HOMED_ACTION_IDS = ['core/node-set-stability', 'core/node-bump'];
+
 /** Per-node cap on the conversation threads the Activity section renders. */
 const SPAWN_THREADS_LIMIT = 10;
 
@@ -373,7 +380,14 @@ export class InspectorView implements OnInit {
    * former always-visible toolbar did.
    */
   protected readonly hasActions = computed<boolean>(() =>
-    (this.node()?.contributions ?? []).some((c) => c.slot === 'inspector.action.button'),
+    (this.node()?.contributions ?? []).some(
+      (c) =>
+        c.slot === 'inspector.action.button' &&
+        // Header-homed actions (user calls 2026-07-21): Set stability
+        // lives on the stability chip and Bump on the version chip;
+        // alone they must not keep an empty Actions section up.
+        !HEADER_HOMED_ACTION_IDS.includes(`${c.pluginId}/${c.extensionId}`),
+    ),
   );
 
   /** Active node's description rendered as inline markdown (emphasis / code / links). */
@@ -1009,6 +1023,18 @@ export class InspectorView implements OnInit {
     if (state !== 'idle') return;
     this.summaryAwaiting = true;
     void this.aiActions.submit(SUMMARIZER_EXTENSION_ID, false);
+  }
+
+  /** Delete one stored summary; the refetch collapses the empty block. */
+  protected onSummaryDelete(summarizerActionId: string): void {
+    const path = this.node()?.path;
+    if (!path) return;
+    void this.dataSource
+      .deleteNodeSummary(path, summarizerActionId)
+      .catch(() => {
+        // Progressive enhancement: a failed delete keeps the block.
+      })
+      .then(() => this.fetchSummary(path));
   }
 
   /** Re-run from the expanded block (stale or not, a fresh judgment). */

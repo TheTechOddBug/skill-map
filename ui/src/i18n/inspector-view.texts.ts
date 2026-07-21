@@ -20,7 +20,7 @@ export const INSPECTOR_VIEW_TEXTS = {
       'The YAML frontmatter could not be parsed, so name, description and other metadata are unavailable. Check the Findings section for the parser error.',
     /**
      * Semantic-analysis affordance (user shape 2026-07-21): the
-     * question-mark-with-magic button beside the title, and the
+     * magic (sparkles) button beside the title, and the
      * expandable analysis block it reveals once the summarizer's
      * judgment lands.
      */
@@ -33,7 +33,20 @@ export const INSPECTOR_VIEW_TEXTS = {
       staleTag: 'stale',
       staleTooltip: 'The file changed since this analysis; re-run it to refresh.',
       refreshTooltip: 'Analyze again',
+      deleteTooltip: 'Delete this analysis',
       qualityLabel: 'Quality notes',
+    },
+    /** The stability chip doubles as the Set stability affordance. */
+    stabilityTooltip: 'Set stability',
+    /**
+     * The version chip doubles as the Bump affordance (user call
+     * 2026-07-21): `placeholder` is the short label for a versionless
+     * file while the plugin is enabled, with its own invitation tooltip.
+     */
+    bump: {
+      placeholder: 'v?',
+      placeholderTooltip: 'Stamp the version?',
+      tooltip: 'Bump the version',
     },
   },
   /**

@@ -20,13 +20,18 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  inject,
   input,
   output,
+  signal,
 } from '@angular/core';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
+import { ActionDispatchService } from '../../../services/action-dispatch';
+import { ActionPromptDialog } from '../../renderers/node-action-button/action-prompt-dialog';
+import type { IInputTypeDescriptor, TInputTypeValue } from '../../renderers/input-type-control/input-type-control';
 import type { INodeSummaryRowApi } from '../../../models/api';
 import type { INodeView, TStability } from '../../../models/node';
 import {
@@ -56,7 +61,7 @@ const CLAUDE_VENDOR_COLORS: ReadonlySet<string> = new Set([
 
 @Component({
   selector: 'sm-inspector-header',
-  imports: [TooltipModule, KindIcon, NodeTags, ViewContributionsHost],
+  imports: [ActionPromptDialog, TooltipModule, KindIcon, NodeTags, ViewContributionsHost],
   templateUrl: './inspector-header.html',
   styleUrl: './inspector-header.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -109,6 +114,8 @@ export class InspectorHeader {
   readonly summarizeClick = output<void>();
   /** Re-run from the expanded block (fresh judgment). */
   readonly summaryRefresh = output<void>();
+  /** Delete the stored summary (carries the block's summarizer id). */
+  readonly summaryDelete = output<string>();
 
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
   /** Reused so the card and the inspector header speak the same language. */
@@ -145,6 +152,135 @@ export class InspectorHeader {
   protected reportConfidence(row: INodeSummaryRowApi): number | null {
     const value = row.report['confidence'];
     return typeof value === 'number' ? Math.round(value * 100) : null;
+  }
+
+  // --- stability chip = the Set stability affordance (user call 2026-07-21)
+
+  private readonly dispatcher = inject(ActionDispatchService);
+
+  /**
+   * The `core/node-set-stability` action-button contribution, re-homed:
+   * its button left the Actions section and the header's stability chip
+   * (ALWAYS rendered, defaulting to `stable` when unset) became the
+   * affordance. Clicking the chip opens the SAME enum-pick prompt dialog
+   * the button used, seeded from the contribution's payload; the plugin
+   * scheme is untouched, the action still projects onto
+   * `inspector.action.button`, the header just consumes that payload
+   * directly (documented UI exception, mirror of the host's
+   * `excludeExtensionIds`).
+   */
+  protected readonly stabilityPayload = computed<{
+    prompt: { inputType: string; paramKey: string; label: string; options?: { value: string; label: string }[]; defaultValue?: string | string[] };
+    enabled: boolean;
+  } | null>(() => {
+    const contribution = (this.node().contributions ?? []).find(
+      (c) =>
+        c.slot === 'inspector.action.button' &&
+        `${c.pluginId}/${c.extensionId}` === 'core/node-set-stability',
+    );
+    const payload = contribution?.payload;
+    if (typeof payload !== 'object' || payload === null) return null;
+    const typed = payload as { prompt?: { inputType?: string; paramKey?: string; label?: string; options?: { value: string; label: string }[]; defaultValue?: string | string[] }; enabled?: boolean };
+    if (!typed.prompt?.inputType || !typed.prompt.paramKey) return null;
+    return {
+      prompt: typed.prompt as { inputType: string; paramKey: string; label: string },
+      enabled: typed.enabled !== false,
+    };
+  });
+
+  /** The chip's display value: the effective stability, `stable` by default. */
+  protected readonly stabilityDisplay = computed<TStability | 'stable'>(
+    () => this.headerStability() ?? 'stable',
+  );
+
+  protected readonly stabilityPromptOpen = signal(false);
+  /** Sticky @defer latch, mirror of the action-button renderer. */
+  protected readonly stabilityPromptOpened = signal(false);
+  protected readonly stabilityBusy = signal(false);
+
+  protected readonly stabilityDescriptor = computed<IInputTypeDescriptor>(() => {
+    const p = this.stabilityPayload()?.prompt;
+    return {
+      inputType: p?.inputType ?? '',
+      label: p?.label ?? '',
+      options: p?.options,
+      defaultValue: p?.defaultValue,
+    };
+  });
+
+  protected onStabilityChipClick(): void {
+    if (this.stabilityPayload() === null || this.stabilityBusy()) return;
+    this.stabilityPromptOpened.set(true);
+    this.stabilityPromptOpen.set(true);
+  }
+
+  protected async onStabilityConfirmed(value: TInputTypeValue): Promise<void> {
+    const payload = this.stabilityPayload();
+    if (payload === null) return;
+    this.stabilityPromptOpen.set(false);
+    this.stabilityBusy.set(true);
+    try {
+      await this.dispatcher.dispatch('core/node-set-stability', this.node().path, {
+        [payload.prompt.paramKey]: value,
+      });
+    } finally {
+      this.stabilityBusy.set(false);
+    }
+  }
+
+  protected cancelStabilityPrompt(): void {
+    this.stabilityPromptOpen.set(false);
+  }
+
+  // --- version chip = the Bump affordance (user call 2026-07-21) ----------
+
+  /**
+   * The `core/node-bump` action-button contribution, re-homed like the
+   * stability chip: the header's version chip IS the bump affordance.
+   * With the plugin enabled the chip always renders (the effective
+   * version, or the short `bump` placeholder for a versionless file)
+   * and clicking it dispatches the bump directly (no prompt; the
+   * payload's `enabled` gate and `disabledReason` are honored). Plugin
+   * off -> no version surface in the header at all, mirror of the
+   * stability rule.
+   */
+  protected readonly bumpPayload = computed<{
+    enabled: boolean;
+    disabledReason?: string;
+  } | null>(() => {
+    const contribution = (this.node().contributions ?? []).find(
+      (c) =>
+        c.slot === 'inspector.action.button' &&
+        `${c.pluginId}/${c.extensionId}` === 'core/node-bump',
+    );
+    const payload = contribution?.payload;
+    if (typeof payload !== 'object' || payload === null) return null;
+    const typed = payload as { enabled?: boolean; disabledReason?: string };
+    return {
+      enabled: typed.enabled !== false,
+      ...(typed.disabledReason !== undefined ? { disabledReason: typed.disabledReason } : {}),
+    };
+  });
+
+  protected readonly bumpBusy = signal(false);
+
+  protected bumpTooltip(): string {
+    const payload = this.bumpPayload();
+    if (payload !== null && !payload.enabled) return payload.disabledReason ?? '';
+    // Versionless file: the chip invites stamping the first version.
+    if (this.headerVersion() === null) return this.texts.header.bump.placeholderTooltip;
+    return this.texts.header.bump.tooltip;
+  }
+
+  protected async onBumpClick(): Promise<void> {
+    const payload = this.bumpPayload();
+    if (payload === null || !payload.enabled || this.bumpBusy()) return;
+    this.bumpBusy.set(true);
+    try {
+      await this.dispatcher.dispatch('core/node-bump', this.node().path, undefined);
+    } finally {
+      this.bumpBusy.set(false);
+    }
   }
 
   // ---------------------------------------------------------------------------

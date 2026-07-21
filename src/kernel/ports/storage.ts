@@ -704,6 +704,14 @@ export interface StoragePort {
      * current `scan_nodes.body_hash`.
      */
     forNode(nodeId: string): Promise<ISummaryRecord[]>;
+    /**
+     * Hard-delete the node's stored summaries: with `summarizerActionId`
+     * only that action's row, without it every summary the node has
+     * (`DELETE /api/nodes/:pathB64/summary`, the inspector's delete X).
+     * A regenerable machine judgment, so no ceremony; returns the
+     * deleted count (0 = nothing matched).
+     */
+    remove(nodeId: string, summarizerActionId?: string): Promise<number>;
   };
 
   // --- preferences namespace -------------------------------------------

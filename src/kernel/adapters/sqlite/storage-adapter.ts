@@ -132,7 +132,7 @@ import {
   listStateEnrichmentsForNode,
   upsertStateEnrichment,
 } from './enrichments.js';
-import { listSummariesForNode } from './summaries.js';
+import { deleteSummaries, listSummariesForNode } from './summaries.js';
 import {
   countAllFindings,
   countUnresolvedFindingsByPath,
@@ -420,6 +420,7 @@ export class SqliteStorageAdapter implements StoragePort {
 
     this.summaries = {
       forNode: (nodeId) => listSummariesForNode(this.db, nodeId),
+      remove: (nodeId, summarizerActionId) => deleteSummaries(this.db, nodeId, summarizerActionId),
     };
 
     this.findings = {

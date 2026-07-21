@@ -664,10 +664,12 @@ export class PluginLoader implements PluginLoaderPort {
       instance['kinds'] = discoveredKinds;
     }
 
-    // `stability` passed the kind schema's AJV check above (enum or
-    // absent), so the cast is safe. Stamped as a typed field so list /
-    // show / BFF consumers never shape-check `instance` for it.
+    // `stability` / `defaultEnabled` passed the kind schema's AJV check
+    // above (enum / boolean or absent), so the casts are safe. Stamped as
+    // typed fields so list / show / BFF consumers never shape-check
+    // `instance` for them.
     const stability = exported['stability'] as TExtensionStability | undefined;
+    const defaultEnabled = exported['defaultEnabled'] as boolean | undefined;
 
     return { ok: true, extension: {
       kind,
@@ -675,6 +677,7 @@ export class PluginLoader implements PluginLoaderPort {
       pluginId,
       version: exported['version'] as string,
       ...(stability !== undefined ? { stability } : {}),
+      ...(defaultEnabled !== undefined ? { defaultEnabled } : {}),
       entryPath: abs,
       module: mod,
       instance,

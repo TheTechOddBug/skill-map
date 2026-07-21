@@ -522,6 +522,13 @@ export class StaticDataSource implements IDataSourcePort {
     return [];
   }
 
+  async deleteNodeSummary(): Promise<void> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Deleting summaries is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
   async listPlugins(): Promise<IListEnvelopeApi<TPluginItem>> {
     const meta = await this.loadMeta();
     this.kindRegistry.ingest(meta.plugins.kindRegistry);

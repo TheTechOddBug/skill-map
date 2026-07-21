@@ -94,13 +94,15 @@ export const nodeBumpAction: IBuiltInManifest<IAction> = {
   kind: 'action',
   description:
     'Marks a node as updated: bumps `annotations.version`, refreshes sidecar hashes, and records the timestamp.',
-  // Ships experimental (disabled by default, Decision #128): this action
-  // WRITES the sidecar, so it stays opt-in. Its companion
-  // `core/annotation-stale` analyzer graduated to stable (2026-07-19), so
-  // drift is surfaced by default while the Bump button this action
-  // self-projects stays gated behind enabling it (a disabled action
-  // projects no Bump button); the two are no longer gated as a unit.
-  stability: 'experimental',
+  // Deliberate opt-in (Decision #128, re-labeled 2026-07-21): this
+  // action WRITES the sidecar, so it ships disabled by default, but it
+  // is NOT experimental; the orthogonal `defaultEnabled` axis carries
+  // the opt-in honestly. Its companion `core/annotation-stale` analyzer
+  // graduated to stable (2026-07-19), so drift is surfaced by default
+  // while the Bump button this action self-projects stays gated behind
+  // enabling it (a disabled action projects no Bump button).
+  stability: 'stable',
+  defaultEnabled: false,
   mode: 'deterministic',
   // Declares the sidecar-write capability: `invoke()` returns a
   // `{ kind: 'sidecar' }` write, so consumers (the `allowSidecarWriters`
@@ -113,10 +115,15 @@ export const nodeBumpAction: IBuiltInManifest<IAction> = {
     for (const node of ctx.nodes) {
       // Real nodes only (a synthetic node has no file to anchor a `.sm`).
       // Enabled when there is something to write: no sidecar yet (the bump
-      // creates it) or a stale one (the bump refreshes it); disabled only on
-      // a fresh sidecar where there is nothing to bump.
+      // creates it), a stale one (the bump refreshes it), or a fresh one
+      // that carries NO version yet (the bump stamps the first version,
+      // 2026-07-21: the header's version chip invites exactly that);
+      // disabled only on a fresh, already-versioned sidecar.
       if (node.virtual === true) continue;
-      const enabled = node.sidecar?.present !== true || staleStatus(node.sidecar) !== null;
+      const enabled =
+        node.sidecar?.present !== true ||
+        staleStatus(node.sidecar) !== null ||
+        !overlayHasVersion(node.sidecar);
       emitBumpButton(ctx, node.path, enabled);
     }
   },
@@ -166,9 +173,8 @@ function invokeBump(
   ctx: IActionContext,
 ): IActionResult<INodeBumpReport> {
   const overlay = ctx.node.sidecar ?? null;
-  const isFresh = overlay?.present === true && overlay.status === 'fresh';
 
-  if (isFresh) {
+  if (refusesAsFresh(overlay)) {
     return input.force === true
       ? { report: { ok: true, noop: true } }
       : { report: { ok: false, reason: 'fresh' } };
@@ -220,6 +226,27 @@ function buildChanges(
  * Falls back to `0` (so the first bump produces `1`) when the overlay
  * is absent or carries no version.
  */
+/**
+ * Fresh only REFUSES while a version already exists; a fresh sidecar
+ * with no `annotations.version` accepts the bump and stamps the first
+ * version (spec §Bump model, 2026-07-21).
+ */
+function refusesAsFresh(
+  overlay: ({ present?: boolean; status?: string | null } & {
+    annotations?: Record<string, unknown> | null;
+  }) | null,
+): boolean {
+  return overlay?.present === true && overlay.status === 'fresh' && overlayHasVersion(overlay);
+}
+
+/** True when the overlay carries a finite numeric `annotations.version`. */
+function overlayHasVersion(
+  overlay: { annotations?: Record<string, unknown> | null } | null | undefined,
+): boolean {
+  const v = overlay?.annotations?.['version'];
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
 function pickCurrentVersion(
   overlay: { annotations?: Record<string, unknown> | null } | null,
 ): number {

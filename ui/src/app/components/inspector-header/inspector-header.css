@@ -125,13 +125,27 @@
   font-weight: 500;
   text-transform: lowercase;
   white-space: nowrap;
+  /* Chip-as-button (the Set stability affordance): neutral chrome so
+     the visual stays the familiar chip. */
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-family: inherit;
 }
 
-.inspector__stability-dot {
-  margin-right: 0.25rem;
-  font-size: 0.55rem;
-  vertical-align: middle;
+.inspector__stability--actionable {
+  cursor: pointer;
 }
+
+.inspector__stability--actionable:hover {
+  text-decoration: underline;
+}
+
+.inspector__stability:disabled {
+  cursor: default;
+}
+
 
 .inspector__stability[data-stability='stable'] {
   color: var(--sm-severity-success);
@@ -323,4 +337,29 @@
 
 .inspector__summary-list--quality {
   margin-top: 0.2rem;
+}
+
+/* Version-chip-as-button (the Bump affordance): outlined TAG look with
+   the mono (code) font, user call 2026-07-21. The base
+   `.inspector__name-version` already carries the mono font + size; the
+   button variant swaps the filled background for the outlined-tag
+   geometry the stale / decision marks use. */
+.inspector__version-btn {
+  border: 1px solid var(--sm-border);
+  background: transparent;
+  color: var(--p-text-muted-color);
+  cursor: pointer;
+}
+
+.inspector__version-btn:hover:not(:disabled) {
+  color: var(--p-text-color);
+  border-color: var(--p-text-muted-color);
+}
+
+.inspector__version-btn:disabled {
+  cursor: default;
+}
+
+.inspector__summary-delete:hover {
+  color: var(--sm-severity-error);
 }

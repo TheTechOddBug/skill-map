@@ -317,6 +317,19 @@ export class RestDataSource implements IDataSourcePort {
     }
   }
 
+  /** `DELETE /api/nodes/:pathB64/summary?summarizer=<id>` (204-style). */
+  async deleteNodeSummary(path: string, summarizerActionId: string): Promise<void> {
+    try {
+      await firstValueFrom(
+        this.http.delete(
+          `${BASE}/nodes/${encodeNodePath(path)}/summary?summarizer=${encodeURIComponent(summarizerActionId)}`,
+        ),
+      );
+    } catch (err) {
+      throw this.translateError(err);
+    }
+  }
+
   async getConfigResolution(): Promise<IConfigResolutionRowApi[]> {
     const envelope = await this.getJson<
       IValueEnvelopeApi<{ rows: IConfigResolutionRowApi[] }>

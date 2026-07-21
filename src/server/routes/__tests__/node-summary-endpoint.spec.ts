@@ -5,7 +5,7 @@
  */
 
 import { strict as assert } from 'node:assert';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
@@ -96,5 +96,33 @@ describe('GET /api/nodes/:pathB64/summary', () => {
       );
       assert.equal(byId.get('other/summarizer')?.stale, true);
     });
+  });
+
+  it('DELETE removes one summarizer with ?summarizer=, all without; empty 404; logs the op', async () => {
+    await bootAndUse(project, async (handle) => {
+      const one = await fetch(
+        `${url(handle, SKILL_NODE.path)}?summarizer=${encodeURIComponent('other/summarizer')}`,
+        { method: 'DELETE' },
+      );
+      assert.equal(one.status, 204);
+
+      const rest = await fetch(url(handle, SKILL_NODE.path), { method: 'DELETE' });
+      assert.equal(rest.status, 204);
+
+      // Nothing left to delete -> 404, and the GET reads empty.
+      const empty = await fetch(url(handle, SKILL_NODE.path), { method: 'DELETE' });
+      assert.equal(empty.status, 404);
+      const get = await fetch(url(handle, SKILL_NODE.path));
+      assert.deepEqual((await get.json()) as ISummaryPayload, { items: [] });
+    });
+    // Operations log carries the two deletes (spec §Operations log).
+    const log = readFileSync(join(project.root, '.skill-map', 'operations.log'), 'utf8');
+    const ops = log
+      .trimEnd()
+      .split('\n')
+      .map((l) => JSON.parse(l) as { op: string; target: string })
+      .filter((l) => l.op === 'summaries.delete');
+    assert.equal(ops.length, 2);
+    assert.equal(ops[0]!.target, SKILL_NODE.path);
   });
 });

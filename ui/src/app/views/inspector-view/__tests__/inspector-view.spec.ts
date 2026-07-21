@@ -58,6 +58,7 @@ type IStubDataSource = IDataSourcePort & {
   getNodeActivity: ReturnType<typeof vi.fn>;
   getNodeFindings: ReturnType<typeof vi.fn>;
   getNodeSummary: ReturnType<typeof vi.fn>;
+  deleteNodeSummary: ReturnType<typeof vi.fn>;
   getNodeProbExtensions: ReturnType<typeof vi.fn>;
   submitNodeJob: ReturnType<typeof vi.fn>;
   cancelJob: ReturnType<typeof vi.fn>;
@@ -180,6 +181,7 @@ function makeStubDataSource(): IStubDataSource {
     undismissFinding: vi.fn().mockResolvedValue(undefined),
     deleteFinding: vi.fn().mockResolvedValue(undefined),
     getNodeSummary: vi.fn().mockResolvedValue([]),
+    deleteNodeSummary: vi.fn().mockResolvedValue(undefined),
     bumpSidecar: vi.fn(),
     dispatchAction: vi.fn().mockResolvedValue({
       schemaVersion: '1',
@@ -828,12 +830,30 @@ describe('InspectorView, actions section (contribution-driven)', () => {
       frontmatter: { name: 'architect', description: 'd', metadata: { version: '1' } },
       contributions: [
         {
+          pluginId: 'my-plugin',
+          extensionId: 'my-action',
+          nodePath: 'agents/architect.md',
+          contributionId: 'myButton',
+          slot: 'inspector.action.button',
+          payload: { actionId: 'my-plugin/my-action', label: 'Do it', enabled: true },
+        },
+        // Set stability AND Bump moved to the header chips (user calls
+        // 2026-07-21): neither renders inside the Actions section.
+        {
           pluginId: 'core',
           extensionId: 'node-set-stability',
           nodePath: 'agents/architect.md',
           contributionId: 'setStabilityButton',
           slot: 'inspector.action.button',
           payload: { actionId: 'core/node-set-stability', label: 'Set stability', enabled: true },
+        },
+        {
+          pluginId: 'core',
+          extensionId: 'node-bump',
+          nodePath: 'agents/architect.md',
+          contributionId: 'bumpButton',
+          slot: 'inspector.action.button',
+          payload: { actionId: 'core/node-bump', label: 'Bump', enabled: true },
         },
       ],
     };
@@ -850,6 +870,12 @@ describe('InspectorView, actions section (contribution-driven)', () => {
     expect(section!.querySelector('sm-view-contributions-host')).not.toBeNull();
     // No hardcoded bump button; it arrives as a contribution.
     expect(dom.querySelector('[data-testid="inspector-bump"]')).toBeNull();
+    // The set-stability and bump buttons are EXCLUDED from the section
+    // (they live on the header's stability / version chips now).
+    expect(section!.querySelector('[data-testid="action-core/node-set-stability"]')).toBeNull();
+    expect(section!.querySelector('[data-testid="action-core/node-bump"]')).toBeNull();
+    // The neutral third-party action still renders.
+    expect(section!.querySelector('[data-testid="action-my-plugin/my-action"]')).not.toBeNull();
   });
 
   it('does NOT render the Actions section when the node has no action contributions', async () => {
@@ -2014,7 +2040,36 @@ describe('InspectorView, activity live refresh (node.activity re-fetch)', () => 
 });
 
 describe('InspectorView, header version (catalog curation)', () => {
-  it('renders sidecar.annotations.version as a header suffix', async () => {
+  it('renders sidecar.annotations.version on the bump chip while core/node-bump is enabled', async () => {
+    // The version chip is the Bump affordance (user call 2026-07-21):
+    // it renders only while the `core/node-bump` contribution is present.
+    const node = makeNodeWithSidecar({
+      present: true,
+      status: 'fresh',
+      annotations: { version: 7 },
+    });
+    node.contributions = [
+      {
+        pluginId: 'core',
+        extensionId: 'node-bump',
+        nodePath: node.path,
+        contributionId: 'bumpButton',
+        slot: 'inspector.action.button',
+        payload: { actionId: 'core/node-bump', label: 'Bump', enabled: false, disabledReason: 'fresh' },
+      },
+    ];
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const v = fixture.nativeElement.querySelector('[data-testid="inspector-version"]');
+    expect(v).not.toBeNull();
+    expect(v!.textContent).toContain('v7');
+  });
+
+  it('shows NO version surface with the plugin disabled (no contribution)', async () => {
     const node = makeNodeWithSidecar({
       present: true,
       status: 'fresh',
@@ -2026,9 +2081,9 @@ describe('InspectorView, header version (catalog curation)', () => {
     const { fixture } = bootstrap({ loader, dataSource });
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
-    const v = fixture.nativeElement.querySelector('[data-testid="inspector-version"]');
-    expect(v).not.toBeNull();
-    expect(v!.textContent).toContain('v7');
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-version"]'),
+    ).toBeNull();
   });
 });
 
@@ -2338,6 +2393,40 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     btn.click();
     await flush(fixture);
     expect(dom.querySelector('[data-testid="inspector-summary"]')).toBeNull();
+  });
+
+  it('the summary delete X removes the analysis and the header falls back to idle', async () => {
+    const { fixture, dataSource, node } = await bootAiActions({
+      probs: makeProbExtensions({
+        standalone: [makeProbEntry({ id: 'core/ai-summarizer-action', description: 'S.' })],
+      }),
+      summaries: [
+        {
+          summarizerActionId: 'core/ai-summarizer-action',
+          generatedAt: 1000,
+          stale: false,
+          report: { whatItCovers: 'Covers deploys.' },
+        },
+      ],
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    // Auto-expanded on load; after the delete the refetch returns empty.
+    expect(dom.querySelector('[data-testid="inspector-summary"]')).not.toBeNull();
+    dataSource.getNodeSummary.mockResolvedValue([]);
+    (
+      dom.querySelector('[data-testid="inspector-summary-delete"]') as HTMLButtonElement
+    ).click();
+    await flush(fixture);
+    await flush(fixture);
+    expect(dataSource.deleteNodeSummary).toHaveBeenCalledWith(
+      node.path,
+      'core/ai-summarizer-action',
+    );
+    expect(dom.querySelector('[data-testid="inspector-summary"]')).toBeNull();
+    // Back to the idle invitation state.
+    expect(
+      dom.querySelector('[data-testid="inspector-summarize"]')!.getAttribute('data-state'),
+    ).toBe('idle');
   });
 
   it('a human-decision row shows the needs-decision mark and NO fix button', async () => {

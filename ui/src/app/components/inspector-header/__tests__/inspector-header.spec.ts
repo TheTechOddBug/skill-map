@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
-import { TestBed, type ComponentFixture } from '@angular/core/testing';
+import { DeferBlockBehavior, TestBed, type ComponentFixture } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 
 import { InspectorHeader } from '../inspector-header';
@@ -43,15 +43,23 @@ function nodeWithTags(tags: string[]): INodeView {
   return makeNode({ sidecar: { present: true, status: 'fresh', annotations: { tags } } });
 }
 
-function bootstrap(node: INodeView): ComponentFixture<InspectorHeader> {
+async function bootstrap(
+  node: INodeView,
+  dispatcher: ReturnType<typeof makeStub> = makeStub(),
+): Promise<ComponentFixture<InspectorHeader>> {
   TestBed.resetTestingModule();
-  TestBed.configureTestingModule({
+  // The header hosts deferred dialog chunks (`@defer`), which need the
+  // async compile step + playthrough behavior under the test rig (same
+  // pattern as the node-action-button spec).
+  await TestBed.configureTestingModule({
+    imports: [InspectorHeader],
     providers: [
       provideZonelessChangeDetection(),
-      { provide: ActionDispatchService, useValue: makeStub() },
+      { provide: ActionDispatchService, useValue: dispatcher },
       { provide: CollectionLoaderService, useValue: { nodes: signal<INodeView[]>([]) } },
     ],
-  });
+    deferBlockBehavior: DeferBlockBehavior.Playthrough,
+  }).compileComponents();
   const fixture = TestBed.createComponent(InspectorHeader);
   fixture.componentRef.setInput('node', node);
   fixture.detectChanges();
@@ -63,22 +71,22 @@ function nodeTags(fixture: ComponentFixture<InspectorHeader>): NodeTags {
 }
 
 describe('InspectorHeader tag row delegation', () => {
-  it('mounts <sm-node-tags> with the node tags and path', () => {
-    const fixture = bootstrap(nodeWithTags(['infra', 'review']));
+  it('mounts <sm-node-tags> with the node tags and path', async () => {
+    const fixture = await bootstrap(nodeWithTags(['infra', 'review']));
     const child = nodeTags(fixture);
     expect(child.tags()).toEqual(['infra', 'review']);
     expect(child.nodePath()).toBe('agents/architect.md');
   });
 
-  it('mounts the row even when the node has no tags (so the first can be added)', () => {
-    const fixture = bootstrap(makeNode());
+  it('mounts the row even when the node has no tags (so the first can be added)', async () => {
+    const fixture = await bootstrap(makeNode());
     const child = nodeTags(fixture);
     expect(child).toBeTruthy();
     expect(child.tags()).toEqual([]);
   });
 
-  it('forwards the child tagClick through its own tagClick output', () => {
-    const fixture = bootstrap(nodeWithTags(['infra', 'review']));
+  it('forwards the child tagClick through its own tagClick output', async () => {
+    const fixture = await bootstrap(nodeWithTags(['infra', 'review']));
     const emitted: string[] = [];
     fixture.componentInstance.tagClick.subscribe((t: string) => emitted.push(t));
 
@@ -87,10 +95,169 @@ describe('InspectorHeader tag row delegation', () => {
     expect(emitted).toEqual(['review']);
   });
 
-  it('passes the active tag down to the child', () => {
-    const fixture = bootstrap(nodeWithTags(['infra', 'review']));
+  it('passes the active tag down to the child', async () => {
+    const fixture = await bootstrap(nodeWithTags(['infra', 'review']));
     fixture.componentRef.setInput('activeTag', 'review');
     fixture.detectChanges();
     expect(nodeTags(fixture).activeTag()).toBe('review');
+  });
+});
+
+describe('InspectorHeader stability chip (the Set stability affordance)', () => {
+  it('hides entirely without the contribution, even when the annotation is set', async () => {
+    // The surface follows the PLUGIN (user call 2026-07-21): with
+    // `core/node-set-stability` disabled the header shows no stability
+    // at all; the data stays untouched in the `.sm`.
+    for (const node of [
+      makeNode(),
+      makeNode({
+        sidecar: { present: true, status: 'fresh', annotations: { stability: 'experimental' } },
+      }),
+    ]) {
+      const fixture = await bootstrap(node);
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector(
+          '[data-testid="inspector-stability-tag"]',
+        ),
+      ).toBeNull();
+    }
+  });
+
+  it('with the set-stability contribution the chip is clickable and opens the prompt dialog', async () => {
+    const fixture = await bootstrap(
+      makeNode({
+        contributions: [
+          {
+            pluginId: 'core',
+            extensionId: 'node-set-stability',
+            nodePath: 'agents/architect.md',
+            contributionId: 'setStabilityButton',
+            slot: 'inspector.action.button',
+            payload: {
+              actionId: 'core/node-set-stability',
+              label: 'Set stability',
+              enabled: true,
+              prompt: {
+                inputType: 'enum-pick',
+                paramKey: 'stability',
+                label: 'Set stability',
+                options: [
+                  { value: 'stable', label: 'stable' },
+                  { value: 'beta', label: 'beta' },
+                ],
+                defaultValue: 'stable',
+              },
+            },
+          },
+        ],
+      }),
+    );
+    const chip = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="inspector-stability-tag"]',
+    ) as HTMLButtonElement;
+    expect(chip.disabled).toBe(false);
+    chip.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    // The shared action-prompt dialog mounted (deferred, playthrough).
+    expect(document.querySelector('sm-action-prompt-dialog')).not.toBeNull();
+  });
+
+  it('confirming the prompt dispatches core/node-set-stability with the picked value', async () => {
+    const stub = makeStub();
+    const fixture = await bootstrap(
+      makeNode({
+        contributions: [
+          {
+            pluginId: 'core',
+            extensionId: 'node-set-stability',
+            nodePath: 'agents/architect.md',
+            contributionId: 'setStabilityButton',
+            slot: 'inspector.action.button',
+            payload: {
+              actionId: 'core/node-set-stability',
+              label: 'Set stability',
+              enabled: true,
+              prompt: {
+                inputType: 'enum-pick',
+                paramKey: 'stability',
+                label: 'Set stability',
+                options: [{ value: 'stable', label: 'stable' }],
+                defaultValue: 'stable',
+              },
+            },
+          },
+        ],
+      }),
+      stub,
+    );
+    // Drive the confirm through the component seam (the dialog's inner
+    // select widgets are its own spec's concern).
+    interface IStabilityProto {
+      onStabilityConfirmed(value: string): Promise<void>;
+    }
+    await (fixture.componentInstance as unknown as IStabilityProto).onStabilityConfirmed('stable');
+    expect(stub.dispatch).toHaveBeenCalledWith('core/node-set-stability', 'agents/architect.md', {
+      stability: 'stable',
+    });
+  });
+});
+
+describe('InspectorHeader version chip (the Bump affordance)', () => {
+  const bumpContribution = (enabled = true) => ({
+    pluginId: 'core',
+    extensionId: 'node-bump',
+    nodePath: 'agents/architect.md',
+    contributionId: 'bumpButton',
+    slot: 'inspector.action.button',
+    payload: {
+      actionId: 'core/node-bump',
+      label: 'Bump',
+      enabled,
+      ...(enabled ? {} : { disabledReason: 'nothing to bump' }),
+    },
+  });
+
+  it('hides entirely without the contribution, even when a version exists', async () => {
+    const fixture = await bootstrap(makeNode());
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector(
+        '[data-testid="inspector-version"]',
+      ),
+    ).toBeNull();
+  });
+
+  it('shows the bump placeholder for a versionless file and dispatches on click', async () => {
+    const stub = makeStub();
+    const fixture = await bootstrap(
+      makeNode({
+        frontmatter: { name: 'architect', description: '' },
+        contributions: [bumpContribution()],
+      }),
+      stub,
+    );
+    const chip = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="inspector-version"]',
+    ) as HTMLButtonElement;
+    expect(chip).not.toBeNull();
+    expect(chip.textContent).toContain('v?');
+    expect(chip.disabled).toBe(false);
+    chip.click();
+    await fixture.whenStable();
+    expect(stub.dispatch).toHaveBeenCalledWith('core/node-bump', 'agents/architect.md', undefined);
+  });
+
+  it('shows the effective version and honors the disabled gate', async () => {
+    const fixture = await bootstrap(
+      makeNode({
+        sidecar: { present: true, status: 'fresh', annotations: { version: 3 } },
+        contributions: [bumpContribution(false)],
+      }),
+    );
+    const chip = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="inspector-version"]',
+    ) as HTMLButtonElement;
+    expect(chip.textContent).toContain('v3');
+    expect(chip.disabled).toBe(true);
   });
 });

@@ -260,9 +260,9 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/ai-contradiction-analyzer` + `core/ai-incoherence-analyzer` (the rest of the wave-1 finder roster, same experimental/disabled mold; finders judge independently, no cross-sibling deferrals) bring it to 45.
     // `core/ai-redundancy-action` (the FIRST fixer: a probabilistic Action declaring `precondition.analyzerIds: ['core/ai-redundancy-analyzer']`; experimental, ships disabled; resolves redundancy findings via a template-mandated file edit) brings it to 46.
     // `core/ai-contradiction-action` (fixer for `core/ai-contradiction-analyzer`, `precondition.analyzerIds: ['core/ai-contradiction-analyzer']`; resolves conflicting / jointly-risky directive pairs) + `core/ai-incoherence-action` (fixer for `core/ai-incoherence-analyzer`; fixes dangling references, drifting terminology, missing context), both experimental and ships disabled, bring it to 48.
-    // `core/auto-fix` (the second built-in hook; subscribes to `job.completed` filtered to `extensionKind: 'analyzer'` and queues the matching fixers after a finder completes; experimental, ships disabled, opt-in) brings it to 49.
-    // `core/ai-reference-action` (the first DETERMINISTIC-analyzer fixer: a probabilistic Action declaring `precondition.analyzerIds: ['core/reference-broken']`, so its submit-time trigger is that rule's `scan_issues` rows injected as `## Issues to resolve`, not `state_findings`; experimental, ships disabled, exempt from the finder/fixer pairing convention) brings it to 50.
-    assert.equal(rows.length, 50);
+    // `core/auto-fix` (the former second built-in hook) was REMOVED on 2026-07-21: redundant with the per-job `auto_fix` flag; the record-side hook dispatch stays for drop-in hooks, keeping the count at 48.
+    // `core/ai-reference-action` (the first DETERMINISTIC-analyzer fixer: a probabilistic Action declaring `precondition.analyzerIds: ['core/reference-broken']`, so its submit-time trigger is that rule's `scan_issues` rows injected as `## Issues to resolve`, not `state_findings`; experimental, ships disabled, exempt from the finder/fixer pairing convention) brings it to 49.
+    assert.equal(rows.length, 49);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a

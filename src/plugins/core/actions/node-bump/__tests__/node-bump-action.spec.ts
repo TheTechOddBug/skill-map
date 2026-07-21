@@ -129,6 +129,20 @@ describe('built-in bump action, refusal / no-op paths', () => {
     strictEqual(result.report.noop, true);
     strictEqual(result.writes, undefined);
   });
+
+  it('a fresh node with NO version is NOT a refusal: stamps the first version', () => {
+    // Spec §Bump model (2026-07-21): fresh only refuses while a version
+    // already exists; versionless-fresh accepts and stamps `version: 1`
+    // (the header's `v?` chip invites exactly that).
+    const node = makeNode({
+      sidecar: { present: true, status: 'fresh', annotations: {} },
+    });
+    const result = callBump({}, makeCtx(node, '/abs/example.md'));
+
+    strictEqual(result.report.ok, true);
+    strictEqual(result.report.version, 1);
+    strictEqual(result.writes?.length, 1);
+  });
 });
 
 describe('built-in bump action, stale path produces a patch', () => {

@@ -344,7 +344,7 @@ export class RecordCommand extends SmCommand {
       id: job.id,
     });
     // Now chain the finder -> fixer auto-fix, from its two independent
-    // entry points (the opt-in global `core/auto-fix` hook AND this job's
+    // entry points (any enabled `job.completed` hook AND this job's
     // frozen `auto_fix` flag). Best-effort and AFTER the transaction, so
     // it never alters the record's success (spec §Hook: hooks react, never
     // block; spec/job-lifecycle.md §Auto-fix chain (per-job)).
@@ -360,8 +360,8 @@ export class RecordCommand extends SmCommand {
    *   1. the per-job `auto_fix` flag frozen at submit
    *      (`spec/job-lifecycle.md` §Auto-fix chain (per-job)): fires when the
    *      recorded job is a flagged finder, INDEPENDENTLY of the hook gate
-   *      (so it runs even when `core/auto-fix` is disabled);
-   *   2. the opt-in global `core/auto-fix` hook: fires for every finder
+   *      (so it runs with no hook installed);
+   *   2. any enabled `job.completed` hook: fires for every finder
    *      completion when enabled, resolving the same inverse of Modelo B via
    *      `ctx.queue`.
    *
@@ -406,7 +406,7 @@ export class RecordCommand extends SmCommand {
   /**
    * Dispatch `job.completed` to the composed (enabled) hooks and feed every
    * fixer they `ctx.queue` into `add`. A no-op (and no DB read) when nothing
-   * subscribes to `job.completed` (the default: `core/auto-fix` ships
+   * subscribes to `job.completed` (the default: no chain hook ships
    * disabled, `core/update-check` is a boot hook). The node rides the
    * INTERNAL dispatch event (`buildHookContext` lifts it to `ctx.node`); it
    * is NOT part of the spec ndjson `job.completed` shape.
@@ -582,7 +582,8 @@ export class RecordCommand extends SmCommand {
    * `job.completed` event data (`spec/job-events.md`). Carries the job's
    * frozen `extensionId` / `extensionKind` so a hook can filter to a kind
    * (`kind: 'analyzer'`) or a specific extension, this is what the opt-in
-   * `core/auto-fix` hook keys on to chain finder -> fixer (Decision #144).
+   * a chain hook keys on to chain finder -> fixer (Decision #144; the
+   * `core/auto-fix` built-in was removed 2026-07-21, drop-ins remain).
    */
   private completedEventData(execution: ExecutionRecord, job: Job): Record<string, unknown> {
     return {
@@ -647,7 +648,7 @@ function summaryEventData(execution: ExecutionRecord, completed: boolean): Recor
 
 /**
  * Shared fixer-submit sink for BOTH auto-fix entry points (the per-job
- * `auto_fix` branch and the opt-in `core/auto-fix` hook): for each
+ * `auto_fix` branch and any enabled `job.completed` hook): for each
  * `(fixerId, nodeId)` request submit the fixer through the SAME
  * `submitFixerJob` path the CLI uses (full render, findings injection,
  * supersede, drift verification) and, on a real created job, push its

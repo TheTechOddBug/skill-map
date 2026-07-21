@@ -43,6 +43,7 @@
       (tagClick)="tagSelect.emit($event)"
       (summarizeClick)="onSummarizeClick()"
       (summaryRefresh)="onSummaryRefresh()"
+      (summaryDelete)="onSummaryDelete($event)"
     />
 
     <!-- Scroll area: the fixed header above stays put while everything from
@@ -77,7 +78,14 @@
       >
         @if (expanded('actions')) {
           <div class="inspector__actions">
-            <sm-view-contributions-host slot="inspector.action.button" [node]="n" />
+            <!-- Set stability and Bump are excluded: their affordances
+                 moved to the header's stability / version chips (user
+                 calls 2026-07-21). -->
+            <sm-view-contributions-host
+              slot="inspector.action.button"
+              [node]="n"
+              [excludeExtensionIds]="['core/node-set-stability', 'core/node-bump']"
+            />
           </div>
         }
       </sm-collapsible-section>

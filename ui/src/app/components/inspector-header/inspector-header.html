@@ -34,18 +34,44 @@
           {{ texts.header.invalidFrontmatter }}
         </span>
       }
-      @if (headerVersion(); as v) {
-        <span class="inspector__name-version" data-testid="inspector-version">{{ v }}</span>
+      <!-- The version chip IS the Bump affordance (user call 2026-07-21):
+           renders ONLY while the `core/node-bump` contribution is present
+           (plugin enabled), showing the effective version or the short
+           `bump` placeholder for a versionless file; clicking dispatches
+           the bump (direct, honoring the payload's enabled gate). Plugin
+           off -> no version surface, mirror of the stability chip. -->
+      @if (bumpPayload() !== null) {
+        <button
+          type="button"
+          class="inspector__name-version inspector__version-btn"
+          [disabled]="!bumpPayload()!.enabled || bumpBusy()"
+          [pTooltip]="bumpTooltip()"
+          tooltipPosition="left"
+          (click)="onBumpClick()"
+          data-testid="inspector-version"
+        >{{ headerVersion() ?? texts.header.bump.placeholder }}</button>
       }
-      @if (headerStability(); as s) {
-        <span
-          class="inspector__stability"
-          [attr.data-stability]="s"
-          data-testid="inspector-stability-tag"
-        >
-          <span class="inspector__stability-dot" aria-hidden="true">●</span>
-          {{ s }}
-        </span>
+      <!-- The stability chip IS the Set stability affordance (user call
+           2026-07-21): it renders ONLY while the `core/node-set-stability`
+           contribution is present (plugin enabled), always then (default
+           `stable` when unset), opening the same enum-pick dialog its
+           button used. Plugin off -> no stability in the header at all,
+           even when the annotation is set (second user call same day:
+           the surface follows the plugin, the data stays in the .sm). -->
+      @if (stabilityPayload() !== null) {
+      <button
+        type="button"
+        class="inspector__stability"
+        [class.inspector__stability--actionable]="stabilityPayload() !== null"
+        [attr.data-stability]="stabilityDisplay()"
+        [disabled]="stabilityPayload() === null || stabilityBusy()"
+        [pTooltip]="stabilityPayload() !== null ? texts.header.stabilityTooltip : ''"
+        tooltipPosition="left"
+        (click)="onStabilityChipClick()"
+        data-testid="inspector-stability-tag"
+      >
+        {{ stabilityDisplay() }}
+      </button>
       }
     </div>
     <code class="inspector__path-code" data-testid="inspector-path">{{ n.path }}</code>
@@ -160,6 +186,18 @@
             >
               <i class="pi pi-refresh" aria-hidden="true"></i>
             </button>
+            <!-- Delete the stored summary (machine judgment, DB row per
+                 the storage rule): direct, regenerable, no ceremony. -->
+            <button
+              type="button"
+              class="inspector__summary-refresh inspector__summary-delete"
+              [pTooltip]="texts.header.summary.deleteTooltip"
+              [attr.aria-label]="texts.header.summary.deleteTooltip"
+              (click)="summaryDelete.emit(row.summarizerActionId)"
+              data-testid="inspector-summary-delete"
+            >
+              <i class="pi pi-times" aria-hidden="true"></i>
+            </button>
           </div>
           @if (reportList(row, 'keyFacts').length > 0) {
             <ul class="inspector__summary-list">
@@ -179,5 +217,18 @@
         </div>
       }
     </div>
+  }
+
+  @defer (when stabilityPromptOpened(); prefetch on idle) {
+    @if (stabilityPayload(); as payload) {
+      <sm-action-prompt-dialog
+        [open]="stabilityPromptOpen()"
+        [descriptor]="stabilityDescriptor()"
+        [headerText]="payload.prompt.label"
+        [busy]="stabilityBusy()"
+        (confirmed)="onStabilityConfirmed($event)"
+        (closed)="cancelStabilityPrompt()"
+      />
+    }
   }
 </header>

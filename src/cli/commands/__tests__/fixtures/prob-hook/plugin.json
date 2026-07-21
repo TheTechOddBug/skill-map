@@ -1,0 +1,6 @@
+{
+  "version": "1.0.0",
+  "description": "Test-only plugin shipping one job.completed hook (chain-fixers) that queues matching fixers after a finder completes; drives the record-side hook-dispatch end-to-end tests (the drop-in equivalent of the removed core/auto-fix built-in).",
+  "specCompat": ">=0.0.0",
+  "catalogCompat": "*"
+}

@@ -37,7 +37,7 @@ import { log } from '../util/logger.js';
 /**
  * Optional runtime capabilities the DRIVER supplies so a hook can react
  * beyond pure observation. Only the record-path dispatch wires these today
- * (for the opt-in `core/auto-fix` hook); the scan / boot dispatchers omit
+ * (for chain hooks subscribing `job.completed`); the scan / boot dispatchers omit
  * them and the fields stay `undefined` on `IHookContext`.
  *
  *   - `queue`, enqueue a probabilistic Action as a deferred job. Attached

@@ -96,13 +96,25 @@ describe('node-bump action, project() inspector button', () => {
     strictEqual(contributions.length, 0);
   });
 
-  it('emits a disabled bump button when status is fresh', () => {
-    const { ctx: c, contributions } = ctx([mockNode('notes/x.md', sidecar('fresh'))]);
+  it('emits a DISABLED bump button only on fresh + already-versioned', () => {
+    // Fresh alone no longer disables (2026-07-21): a versionless fresh
+    // sidecar accepts the first-version stamp, so the gate needs BOTH
+    // fresh AND an existing `annotations.version` to switch off.
+    const { ctx: c, contributions } = ctx([
+      mockNode('notes/x.md', { ...sidecar('fresh'), annotations: { version: 3 } }),
+    ]);
     project(c);
     strictEqual(contributions.length, 1);
     strictEqual(contributions[0]!.nodePath, 'notes/x.md');
     strictEqual(contributions[0]!.ref, nodeBumpAction.ui!['bumpButton']);
     deepStrictEqual(contributions[0]!.payload, DISABLED_BUMP);
+  });
+
+  it('emits an ENABLED bump button on a fresh sidecar with NO version (stamp the first)', () => {
+    const { ctx: c, contributions } = ctx([mockNode('notes/x.md', sidecar('fresh'))]);
+    project(c);
+    strictEqual(contributions.length, 1);
+    deepStrictEqual(contributions[0]!.payload, ENABLED_BUMP);
   });
 
   it('emits an enabled bump button on stale-body', () => {

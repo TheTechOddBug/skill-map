@@ -151,8 +151,9 @@ export interface IHookContext {
    * wires `ctx.queue` (the record path, on `job.*` dispatch). Lets a hook
    * resolve the INVERSE of Modelo B (the fixer Actions a finder's findings
    * feed, `spec/architecture.md` §Analyzer ↔ Action relationship) without
-   * importing the registry: the opt-in `core/auto-fix` hook filters this
-   * list by `analyzerIds` and `ctx.queue`s each match. Absent for drivers
+   * importing the registry: a chain hook (e.g. a drop-in subscribing
+   * `job.completed`) filters this list by `analyzerIds` and `ctx.queue`s
+   * each match. Absent for drivers
    * that do not queue (they never dispatch a hook that needs it).
    */
   actions?: readonly IHookActionInfo[];

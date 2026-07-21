@@ -177,6 +177,14 @@ export interface ICorpusPort {
   getNodeSummary(path: string): Promise<INodeSummaryRowApi[] | null>;
 
   /**
+   * `DELETE /api/nodes/:pathB64/summary?summarizer=<id>`: hard-delete
+   * the node's stored summary for that action (the block's delete X).
+   * A regenerable machine judgment, no consent. Resolves on `204`; the
+   * caller re-fetches. Demo rejects `'demo-readonly'`.
+   */
+  deleteNodeSummary(path: string, summarizerActionId: string): Promise<void>;
+
+  /**
    * Phase 4 / View contribution system, lazy lookup for a single
    * contribution emitted on a single node. Used by the slot host
    * when the bulk endpoint omitted contributions because
