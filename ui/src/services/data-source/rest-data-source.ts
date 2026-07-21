@@ -25,6 +25,7 @@ import { type Observable, firstValueFrom } from 'rxjs';
 import { DATA_SOURCE_TEXTS } from '../../i18n/data-source.texts';
 import type {
   IBranchResponseApi,
+  IConfigResolutionRowApi,
   IErrorEnvelopeApi,
   IFindingsEnvelopeApi,
   IFolderNodeLite,
@@ -300,6 +301,13 @@ export class RestDataSource implements IDataSourcePort {
     this.ingestContributionsRegistry(envelope.contributionsRegistry);
     this.ingestProviderRegistry(envelope.providerRegistry);
     return envelope.value;
+  }
+
+  async getConfigResolution(): Promise<IConfigResolutionRowApi[]> {
+    const envelope = await this.getJson<
+      IValueEnvelopeApi<{ rows: IConfigResolutionRowApi[] }>
+    >(`${BASE}/config/resolution`);
+    return envelope.value.rows;
   }
 
   async listPlugins(): Promise<IListEnvelopeApi<TPluginItem>> {

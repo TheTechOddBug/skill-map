@@ -46,6 +46,7 @@ import type { ScanResult } from '../../kernel/index.js';
 import { buildFreshResolver } from '../../core/runtime/fresh-resolver.js';
 import { runScanForCommand } from '../../core/runtime/scan-runner.js';
 import type { IPrinter } from '../../core/runtime/printer.js';
+import { appendOperation } from '../../core/operations-log.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { bffReadVersionCheck } from '../util/db-read-check.js';
 import { log } from '../../kernel/util/logger.js';
@@ -142,6 +143,13 @@ async function runPersistedScan(c: Context, deps: IScanRouteDeps): Promise<Respo
             : outcome.message,
         });
       }
+      appendOperation(deps.runtimeContext.cwd, {
+        op: 'scan',
+        target: '*',
+        channel: 'ui',
+        outcome: 'ok',
+        detail: `nodes=${outcome.result.stats.nodesCount} issues=${outcome.result.stats.issuesCount}`,
+      });
       return c.json(outcome.result);
     });
   } catch (err) {

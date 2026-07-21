@@ -12,6 +12,7 @@
  */
 
 import type {
+  IConfigResolutionRowApi,
   IBranchResponseApi,
   IContributionApi,
   IFindingsEnvelopeApi,
@@ -156,6 +157,14 @@ export interface ICorpusPort {
 
   /** Project configuration as the BFF resolved it. */
   loadConfig(): Promise<IProjectConfigApi>;
+
+  /**
+   * `GET /api/config/resolution`: the effective config flattened to
+   * leaf rows with per-key layer provenance (the Settings > About
+   * hierarchy viewer). Secret-typed plugin settings arrive MASKED. The
+   * static (demo) source returns an empty list (no layered project).
+   */
+  getConfigResolution(): Promise<IConfigResolutionRowApi[]>;
 
   /**
    * Phase 4 / View contribution system, lazy lookup for a single

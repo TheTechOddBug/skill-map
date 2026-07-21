@@ -46,6 +46,7 @@ import { loadConfig } from '../../kernel/config/loader.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { appendOperation } from '../../core/operations-log.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { JOBS_TEXTS } from '../i18n/jobs.texts.js';
@@ -174,6 +175,19 @@ export class JobPruneCommand extends SmCommand {
       return ExitCode.Error;
     }
 
+    if (!this.dryRun) {
+      const deleted =
+        out.retention.completed.deleted +
+        out.retention.failed.deleted +
+        out.retention.cancelled.deleted;
+      appendOperation(ctx.cwd, {
+        op: 'jobs.prune',
+        target: '*',
+        channel: 'cli',
+        outcome: 'ok',
+        detail: `deleted=${deleted}`,
+      });
+    }
     if (this.json) {
       this.printer!.data(JSON.stringify(out) + '\n');
       return ExitCode.Ok;

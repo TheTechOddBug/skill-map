@@ -43,6 +43,9 @@ export type TEnvelopeKind =
   | 'issues'
   | 'plugins'
   | 'config'
+  // `/api/config/resolution`, the settings-hierarchy viewer's flattened
+  // effective config with per-key layer provenance (value shape).
+  | 'config.resolution'
   | 'graph'
   | 'node'
   | 'health'

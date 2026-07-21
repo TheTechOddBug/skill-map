@@ -124,6 +124,19 @@ export function defaultProjectPluginsDir(ctx: IRuntimeContext): string {
   return resolve(ctx.cwd, SKILL_MAP_DIR, PLUGINS_DIRNAME);
 }
 
+/** The operations-log filename (`spec/cli-contract.md` §Operations log). */
+export const OPERATIONS_LOG_FILENAME = 'operations.log';
+
+/**
+ * Default project operations log (`<cwd>/.skill-map/operations.log`),
+ * the append-only JSONL every mutating verb writes one line to
+ * (`spec/cli-contract.md` §Operations log). Consumers go through
+ * `core/operations-log.ts`, never compose this themselves.
+ */
+export function defaultProjectOperationsLogPath(ctx: IRuntimeContext): string {
+  return resolve(ctx.cwd, SKILL_MAP_DIR, OPERATIONS_LOG_FILENAME);
+}
+
 /**
  * `<dbDir>/backups` for a DB file path: where `sm db backup` writes and
  * where the migrations runner drops its pre-migrate snapshots. Derives

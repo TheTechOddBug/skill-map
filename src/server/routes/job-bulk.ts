@@ -31,6 +31,7 @@ import type { Hono } from 'hono';
 // eslint-disable-next-line import-x/extensions
 import { HTTPException } from 'hono/http-exception';
 
+import { appendOperation } from '../../core/operations-log.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -50,6 +51,8 @@ type TerminalStatus = (typeof TERMINAL_STATUSES)[number];
 export interface IJobBulkRouteDeps {
   options: IServerOptions;
   broadcaster: WsBroadcaster;
+  /** Project root, solely for the operations-log append. */
+  runtimeContext: { cwd: string };
 }
 
 export function registerJobBulkRoutes(app: Hono, deps: IJobBulkRouteDeps): void {
@@ -60,6 +63,13 @@ export function registerJobBulkRoutes(app: Hono, deps: IJobBulkRouteDeps): void 
       (adapter) => adapter.jobs.cancelAllActive(Date.now()),
     );
     for (const id of ids ?? []) deps.broadcaster.broadcast(buildJobCancelledEvent(id));
+    appendOperation(deps.runtimeContext.cwd, {
+      op: 'jobs.cancel',
+      target: '*',
+      channel: 'ui',
+      outcome: 'cancelled',
+      detail: `cancelled=${(ids ?? []).length}`,
+    });
     return c.body(null, 204);
   });
 
@@ -78,6 +88,13 @@ export function registerJobBulkRoutes(app: Hono, deps: IJobBulkRouteDeps): void 
         }
       },
     );
+    appendOperation(deps.runtimeContext.cwd, {
+      op: 'jobs.prune',
+      target: '*',
+      channel: 'ui',
+      outcome: 'ok',
+      detail: `statuses=${statuses.join('+')}`,
+    });
     return c.body(null, 204);
   });
 }

@@ -39,6 +39,7 @@ import { EMPTY, type Observable } from 'rxjs';
 import { DATA_SOURCE_TEXTS } from '../../i18n/data-source.texts';
 import type {
   IBranchResponseApi,
+  IConfigResolutionRowApi,
   IContributionsRegistryApi,
   IFindingsEnvelopeApi,
   IFolderNodeLite,
@@ -508,6 +509,11 @@ export class StaticDataSource implements IDataSourcePort {
     this.providerRegistry.ingest(meta.config.providerRegistry);
     this.primeContributionsRegistry(meta);
     return meta.config.value;
+  }
+
+  /** Demo bundle: no layered project config, honestly empty. */
+  async getConfigResolution(): Promise<IConfigResolutionRowApi[]> {
+    return [];
   }
 
   async listPlugins(): Promise<IListEnvelopeApi<TPluginItem>> {

@@ -51,6 +51,7 @@ import { HTTPException } from 'hono/http-exception';
 
 import { processingSkillPresence } from '../../core/agent-skill/targets.js';
 import { buildActionRuntime } from '../../core/jobs/action-runtime.js';
+import { appendOperation } from '../../core/operations-log.js';
 import {
   prepareSubmitContext,
   submitOneJob,
@@ -192,6 +193,14 @@ export function registerNodeJobsRoute(app: Hono, deps: INodeJobsRouteDeps): void
     }
 
     const value = toSubmittedValue(submitted, nodePath, prep.prepared);
+    appendOperation(deps.runtimeContext.cwd, {
+      op: 'jobs.submit',
+      target: nodePath,
+      extension: value.extensionId,
+      channel: 'ui',
+      outcome: 'queued',
+      id: value.jobId,
+    });
     deps.broadcaster.broadcast(
       buildJobSubmittedEvent(value.jobId, {
         nodePath: value.nodePath,

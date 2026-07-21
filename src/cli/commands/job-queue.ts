@@ -90,6 +90,7 @@ import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
 import { processingSkillPresence } from '../../core/agent-skill/targets.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { JOBS_QUEUE_TEXTS as T } from '../i18n/jobs-queue.texts.js';
+import { appendOperation } from '../../core/operations-log.js';
 import { pushJobEvent } from '../util/job-event-push.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { readActiveSuppressions } from '../util/sidecar-suppressions.js';
@@ -474,6 +475,14 @@ export class JobSubmitCommand extends SmCommand {
         extensionId: prepared.extensionId,
         supersededIds: outcome.supersededIds,
       },
+    });
+    appendOperation(prepared.cwd, {
+      op: 'jobs.submit',
+      target: outcome.nodeId,
+      extension: prepared.extensionId,
+      channel: 'cli',
+      outcome: 'queued',
+      id: outcome.id,
     });
     // Auto-undismiss (spec §Submit): the MUTATION runs in every output
     // mode; only the stderr line is human-gated below.
@@ -1306,6 +1315,13 @@ export class JobCancelCommand extends SmCommand {
         data: {},
       });
     }
+    appendOperation(cwd, {
+      op: 'jobs.cancel',
+      target: '*',
+      channel: 'cli',
+      outcome: 'cancelled',
+      detail: `cancelled=${ids.length}`,
+    });
     if (this.json) {
       this.printer!.data(JSON.stringify({ cancelled: ids.length }) + '\n');
       return ExitCode.Ok;
@@ -1332,6 +1348,13 @@ export class JobCancelCommand extends SmCommand {
       runId: generateRunId('queue'),
       jobId: this.id!,
       data: {},
+    });
+    appendOperation(cwd, {
+      op: 'jobs.cancel',
+      target: '*',
+      channel: 'cli',
+      outcome: 'cancelled',
+      id: this.id!,
     });
     if (this.json) {
       this.printer!.data(JSON.stringify({ id: this.id, cancelled: true }) + '\n');

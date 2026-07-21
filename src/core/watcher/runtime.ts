@@ -65,6 +65,7 @@ import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { resolveActiveProvider } from '../config/active-provider.js';
+import { appendOperation } from '../operations-log.js';
 import { buildSettingsResolver } from '../config/plugin-settings.js';
 import { walkReferencePaths } from '../runtime/reference-paths-walker.js';
 import {
@@ -790,6 +791,14 @@ export function createWatcherRuntime(
           freshlyRunTuples,
         }),
       );
+
+      appendOperation(cwd, {
+        op: 'scan',
+        target: '*',
+        channel: 'watcher',
+        outcome: 'ok',
+        detail: `nodes=${result.stats.nodesCount} issues=${result.stats.issuesCount}`,
+      });
 
       return result;
     };

@@ -26,12 +26,15 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ButtonModule } from 'primeng/button';
+import { DialogModule } from 'primeng/dialog';
 import { MessageModule } from 'primeng/message';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
+import { TooltipModule } from 'primeng/tooltip';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
-import type { IPreferencesApi, IPreferencesPatchApi } from '../../../models/api';
+import type { IConfigResolutionRowApi, IPreferencesApi, IPreferencesPatchApi } from '../../../models/api';
 import {
   DATA_SOURCE,
   DataSourceError,
@@ -109,7 +112,7 @@ function fromExtraThemeWire(value: TExtraThemeWire): TExtraTheme {
 
 @Component({
   selector: 'sm-settings-general',
-  imports: [FormsModule, MessageModule, SelectButtonModule, ToggleSwitchModule],
+  imports: [ButtonModule, DialogModule, FormsModule, MessageModule, SelectButtonModule, ToggleSwitchModule, TooltipModule],
   templateUrl: './settings-general.html',
   styleUrl: './settings-general.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -247,6 +250,38 @@ export class SettingsGeneral {
       after.delete(def.key);
       this.pending.set(after);
     }
+  }
+
+  // --- config resolution (nested dialog, user shape 2026-07-21) -----------
+
+  /**
+   * The settings-hierarchy viewer: a dialog OVER the Settings dialog
+   * showing the effective config columnized, one row per leaf key with
+   * the layer that won. Fetched lazily on first open, then kept (the
+   * config only changes through mutating routes; close and reopen
+   * re-reads nothing by design, the surface is diagnostic).
+   */
+  protected readonly resolutionOpen = signal(false);
+  protected readonly resolutionRows = signal<IConfigResolutionRowApi[] | null>(null);
+  protected readonly resolutionError = signal<string | null>(null);
+
+  protected openResolution(): void {
+    this.resolutionOpen.set(true);
+    if (this.resolutionRows() === null) void this.loadResolution();
+  }
+
+  private async loadResolution(): Promise<void> {
+    this.resolutionError.set(null);
+    try {
+      this.resolutionRows.set(await this.dataSource.getConfigResolution());
+    } catch (err) {
+      this.resolutionError.set(formatErr(err));
+    }
+  }
+
+  /** Value cell: strings bare, everything else compact JSON. */
+  protected resolutionValue(row: IConfigResolutionRowApi): string {
+    return typeof row.value === 'string' ? row.value : JSON.stringify(row.value);
   }
 }
 

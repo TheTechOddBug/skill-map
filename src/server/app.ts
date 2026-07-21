@@ -621,11 +621,19 @@ export function createApp(deps: IAppDeps): Hono {
   registerNodeFindingActionsRoutes(app, routeDeps);
   registerNodeProbExtensionsRoute(app, routeDeps);
   registerNodeJobsRoute(app, { ...routeDeps, broadcaster: deps.broadcaster });
-  registerJobCancelRoute(app, { options: routeDeps.options, broadcaster: deps.broadcaster });
+  registerJobCancelRoute(app, {
+    options: routeDeps.options,
+    broadcaster: deps.broadcaster,
+    runtimeContext: routeDeps.runtimeContext,
+  });
   // Queue-inspector bulk affordances: cancel-all (broadcasts one
   // `job.cancelled` per affected id) and prune (silent GC of all terminal
   // jobs). Same narrow bag as the single-job cancel route.
-  registerJobBulkRoutes(app, { options: routeDeps.options, broadcaster: deps.broadcaster });
+  registerJobBulkRoutes(app, {
+    options: routeDeps.options,
+    broadcaster: deps.broadcaster,
+    runtimeContext: routeDeps.runtimeContext,
+  });
   // Cross-corpus job list (`GET /api/jobs`), the read side of the UI queue
   // inspector. Narrow read-only bag (dbPath only), like the cancel route;
   // strips the nonce off every row (`spec/job-lifecycle.md` §Nonce exposure).

@@ -22,6 +22,7 @@
         "issues",
         "plugins",
         "config",
+        "config.resolution",
         "graph",
         "node",
         "health",
@@ -801,7 +802,7 @@
       }
     },
     {
-      "description": "Value envelope, `value` payload + `kindRegistry` + `providerRegistry` + `contributionsRegistry`, no `counts` / `filters`. Used by `/api/config`.",
+      "description": "Value envelope, `value` payload + `kindRegistry` + `providerRegistry` + `contributionsRegistry`, no `counts` / `filters`. Used by `/api/config` and by `GET /api/config/resolution` (kind `config.resolution`), whose `value.rows[]` is the flattened effective config: one entry per leaf key as `{ key, value, layer, secret }`, `layer` naming the winning config layer (`defaults` / `project` / `project-local` / `override`, the loader's per-key provenance) and `secret: true` meaning the value was MASKED server-side (a plugin-extension setting declared `type: 'secret'` never reaches the wire in clear).",
       "required": [
         "value",
         "kindRegistry",
@@ -810,7 +811,10 @@
       ],
       "properties": {
         "kind": {
-          "const": "config"
+          "enum": [
+            "config",
+            "config.resolution"
+          ]
         }
       },
       "not": {

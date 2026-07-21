@@ -375,6 +375,23 @@ export const SETTINGS_TEXTS = {
   /** Em dash here is the missing-value glyph, not narrative punctuation: kept verbatim. */
   aboutUnknown: '-',
   aboutErrorPrefix: 'Could not read health endpoint:',
+
+  /**
+   * Settings-hierarchy viewer (user shape 2026-07-21): a button at the
+   * end of the General section (same line as the storage hint) opening
+   * a nested dialog with the effective settings columnized, one row per
+   * leaf key plus the layer that won it.
+   */
+  settingsResolutionButton: 'Settings resolution',
+  settingsResolutionTooltip: 'Show every effective setting and which config layer set it.',
+  settingsResolution: {
+    header: 'Settings resolution',
+    keyColumn: 'Key',
+    valueColumn: 'Value',
+    layerColumn: 'Layer',
+    empty: 'No settings rows to show.',
+    errorPrefix: 'Could not read the settings resolution:',
+  },
   aboutLinksHeading: 'Links',
   aboutWebsiteLabel: 'Website',
   aboutGithubLabel: 'GitHub',

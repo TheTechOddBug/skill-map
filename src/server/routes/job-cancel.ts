@@ -37,6 +37,7 @@ import { HTTPException } from 'hono/http-exception';
 
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
+import { appendOperation } from '../../core/operations-log.js';
 import { tx } from '../../kernel/util/tx.js';
 import { ConflictError } from '../app.js';
 import type { WsBroadcaster } from '../broadcaster.js';
@@ -53,6 +54,8 @@ import type { IServerOptions } from '../options.js';
 export interface IJobCancelRouteDeps {
   options: IServerOptions;
   broadcaster: WsBroadcaster;
+  /** Project root, solely for the operations-log append. */
+  runtimeContext: { cwd: string };
 }
 
 export function registerJobCancelRoute(app: Hono, deps: IJobCancelRouteDeps): void {
@@ -84,6 +87,13 @@ export function registerJobCancelRoute(app: Hono, deps: IJobCancelRouteDeps): vo
 
     // After the transition committed (`tryWithSqlite` closed the DB):
     // the id echoed on the envelope matched a real row by construction.
+    appendOperation(deps.runtimeContext.cwd, {
+      op: 'jobs.cancel',
+      target: '*',
+      channel: 'ui',
+      outcome: 'cancelled',
+      id: jobId,
+    });
     deps.broadcaster.broadcast(buildJobCancelledEvent(jobId));
     return c.body(null, 204);
   });

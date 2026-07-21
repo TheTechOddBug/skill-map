@@ -85,6 +85,7 @@ import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { pushJobEvent } from '../util/job-event-push.js';
 import { RECORD_TEXTS as T } from '../i18n/record.texts.js';
+import { appendOperation } from '../../core/operations-log.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
 import { withSqlite } from '../util/with-sqlite.js';
@@ -334,6 +335,14 @@ export class RecordCommand extends SmCommand {
       jobId: job.id,
       data: this.completedEventData(outcome.execution, job),
     });
+    appendOperation(cwd, {
+      op: 'jobs.record',
+      target: job.nodeId,
+      extension: job.extensionId,
+      channel: 'cli',
+      outcome: 'completed',
+      id: job.id,
+    });
     // Now chain the finder -> fixer auto-fix, from its two independent
     // entry points (the opt-in global `core/auto-fix` hook AND this job's
     // frozen `auto_fix` flag). Best-effort and AFTER the transaction, so
@@ -481,6 +490,14 @@ export class RecordCommand extends SmCommand {
       runId,
       jobId: job.id,
       data: this.failedEventData(execution),
+    });
+    appendOperation(cwd, {
+      op: 'jobs.record',
+      target: job.nodeId,
+      extension: job.extensionId,
+      channel: 'cli',
+      outcome: 'failed',
+      id: job.id,
     });
     return this.reportSuccess(execution, job, runId);
   }

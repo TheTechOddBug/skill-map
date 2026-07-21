@@ -60,6 +60,8 @@
 
 import { resolve } from 'node:path';
 
+import { appendOperation } from '../../core/operations-log.js';
+
 import { Command, Option } from 'clipanion';
 
 import type {
@@ -430,7 +432,15 @@ export class FindingsPruneCommand extends SmCommand {
         this.printer!.info(tx(T.pruneAborted, { glyph: this.ansiFor('stderr').cyan('ℹ') }));
         return ExitCode.Ok;
       }
-      return this.reportDeleted(await adapter.findings.pruneStale());
+      const deleted = await adapter.findings.pruneStale();
+      appendOperation(defaultRuntimeContext().cwd, {
+        op: 'findings.prune',
+        target: '*',
+        channel: 'cli',
+        outcome: 'ok',
+        detail: `deleted=${deleted}`,
+      });
+      return this.reportDeleted(deleted);
     });
   }
 
@@ -595,6 +605,14 @@ export class FindingsResolveCommand extends SmCommand {
 
   /** Success: the finding is now fixed-by-human. Row echoed under `--json`. */
   private reportResolved(id: number, finding: IFindingRecord): TExitCode {
+    appendOperation(defaultRuntimeContext().cwd, {
+      op: 'findings.resolve',
+      target: finding.nodeId,
+      extension: finding.extensionId,
+      channel: 'cli',
+      outcome: 'ok',
+      detail: `id=${id}`,
+    });
     if (this.json) {
       this.printer!.data(JSON.stringify({ ok: true, kind: 'finding', finding }) + '\n');
     } else {
@@ -809,6 +827,14 @@ export class FindingsDismissCommand extends SmCommand {
     finding: IFindingRecord,
     entry: Record<string, unknown>,
   ): TExitCode {
+    appendOperation(defaultRuntimeContext().cwd, {
+      op: 'findings.dismiss',
+      target: finding.nodeId,
+      extension: finding.extensionId,
+      channel: 'cli',
+      outcome: 'ok',
+      detail: `type=${finding.type}`,
+    });
     if (this.json) {
       this.printer!.data(
         JSON.stringify({
@@ -968,7 +994,15 @@ export class FindingsClearCommand extends SmCommand {
         this.printer!.info(tx(T.clearAborted, { glyph: this.ansiFor('stderr').cyan('ℹ') }));
         return ExitCode.Ok;
       }
-      return this.reportDeleted(await adapter.findings.clear(this.node));
+      const deleted = await adapter.findings.clear(this.node);
+      appendOperation(defaultRuntimeContext().cwd, {
+        op: 'findings.clear',
+        target: this.node ?? '*',
+        channel: 'cli',
+        outcome: 'ok',
+        detail: `deleted=${deleted}`,
+      });
+      return this.reportDeleted(deleted);
     });
   }
 
@@ -1288,6 +1322,13 @@ export class FindingsUndismissCommand extends SmCommand {
 
   /** Success: the entry left the sidecar; remind that the finder re-judges. */
   private reportRemoved(entry: Record<string, unknown>): TExitCode {
+    appendOperation(defaultRuntimeContext().cwd, {
+      op: 'findings.undismiss',
+      target: this.node,
+      extension: String(entry['extension']),
+      channel: 'cli',
+      outcome: 'ok',
+    });
     if (this.json) {
       this.printer!.data(
         JSON.stringify({ ok: true, kind: 'unsuppression', removed: entry, node: this.node }) +

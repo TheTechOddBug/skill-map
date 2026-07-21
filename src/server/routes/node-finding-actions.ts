@@ -41,6 +41,7 @@ import type { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 
 import { ensureSidecarWritesAllowed } from '../../core/config/sidecar-consent.js';
+import { appendOperation } from '../../core/operations-log.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
 import type { IFindingRecord } from '../../kernel/types/storage.js';
@@ -184,6 +185,13 @@ export function registerNodeFindingActionsRoutes(
       },
     );
     if (outcome === null) throw findingNotFound(id);
+    appendOperation(deps.runtimeContext.cwd, {
+      op: 'findings.dismiss',
+      target: nodePath,
+      channel: 'ui',
+      outcome: 'ok',
+      detail: `id=${id}`,
+    });
     reloadOnPersistedGrant(deps, body.always);
     return c.body(null, 204);
   });
@@ -206,6 +214,13 @@ export function registerNodeFindingActionsRoutes(
         message: tx(SERVER_TEXTS.findingAlreadyFixed, { id }),
       });
     }
+    appendOperation(deps.runtimeContext.cwd, {
+      op: 'findings.resolve',
+      target: nodePath,
+      channel: 'ui',
+      outcome: 'ok',
+      detail: `id=${id}`,
+    });
     return c.body(null, 204);
   });
 
@@ -254,6 +269,13 @@ export function registerNodeFindingActionsRoutes(
         }),
       });
     }
+    appendOperation(deps.runtimeContext.cwd, {
+      op: 'findings.undismiss',
+      target: nodePath,
+      extension: body.extension,
+      channel: 'ui',
+      outcome: 'ok',
+    });
     reloadOnPersistedGrant(deps, body.always);
     return c.body(null, 204);
   });
@@ -274,6 +296,13 @@ export function registerNodeFindingActionsRoutes(
       },
     );
     if (outcome !== true) throw findingNotFound(id);
+    appendOperation(deps.runtimeContext.cwd, {
+      op: 'findings.delete',
+      target: nodePath,
+      channel: 'ui',
+      outcome: 'ok',
+      detail: `id=${id}`,
+    });
     reloadOnPersistedGrant(deps, body.always);
     return c.body(null, 204);
   });

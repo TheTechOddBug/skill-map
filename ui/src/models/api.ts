@@ -372,6 +372,20 @@ export interface IBranchResponseApi {
  * UI boundary today, the SPA reads only the fields it needs and treats
  * unknowns as inert.
  */
+/**
+ * One row of `GET /api/config/resolution` (the Settings > About
+ * settings-hierarchy viewer): a flattened effective-config LEAF key,
+ * its resolved value, and the config layer that last wrote it.
+ * `secret: true` means the BFF masked the value server-side (a
+ * plugin-extension setting declared `type: 'secret'`).
+ */
+export interface IConfigResolutionRowApi {
+  key: string;
+  value: unknown;
+  layer: 'defaults' | 'project' | 'project-local' | 'override';
+  secret: boolean;
+}
+
 export interface IProjectConfigApi {
   schemaVersion?: number;
   tokenizer?: string;

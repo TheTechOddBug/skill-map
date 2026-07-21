@@ -12,6 +12,7 @@ import { tryParsePositiveInt } from '../util/option-validators.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import { relativeIfBelow } from '../util/path-display.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { appendOperation } from '../../core/operations-log.js';
 import { runScanForCommand } from '../util/scan-runner.js';
 import { setScanExtensions } from '../telemetry/posthog-init.js';
 import { buildScanExtensionSet } from '../telemetry/usage-collector.js';
@@ -189,6 +190,15 @@ export class ScanCommand extends SmCommand {
       // presence only) so the single `cli.<verb>` event emitted at exit carries
       // it as `extensions`. See spec/telemetry.md.
       setScanExtensions(buildScanExtensionSet(outcome.executedExtensionIds));
+      if (!this.dryRun) {
+        appendOperation(defaultRuntimeContext().cwd, {
+          op: 'scan',
+          target: '*',
+          channel: 'cli',
+          outcome: 'ok',
+          detail: `nodes=${outcome.result.stats.nodesCount} issues=${outcome.result.stats.issuesCount}`,
+        });
+      }
       return this.renderOutcome(
         outcome.result,
         outcome.persistedTo,

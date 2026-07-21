@@ -92,6 +92,44 @@ future locale, theme). Constraints:
 
 Everything else under `$HOME` MUST NOT be touched.
 
+### Operations log
+
+Every operation that mutates project state appends ONE line to a plain
+append-only JSONL file at `<cwd>/.skill-map/operations.log` (the
+`.skill-map/` directory is gitignored wholesale, so the log is too;
+user decision 2026-07-21, a BASIC log built only from data the mutating
+verb already holds in hand, nothing derived or newly captured). Line
+shape:
+
+```json
+{"at":"2026-07-21T14:32:05.123Z","op":"jobs.submit","target":"playground.md","extension":"core/ai-contradiction-analyzer","channel":"ui","outcome":"queued","id":"d-20260721-143205-7823"}
+```
+
+- `at`: ISO-8601 timestamp. `op`: dotted `family.action` slug
+  (`scan`, `jobs.submit`, `jobs.cancel`, `jobs.record`, `jobs.prune`,
+  `findings.dismiss`, `findings.undismiss`, `findings.resolve`,
+  `findings.delete`, `findings.clear`, `findings.prune`). `target`:
+  the node path, or `*` for project-wide operations. `extension`:
+  the qualified extension id when the operation has one. `channel`:
+  which surface drove it, `cli` / `ui` / `watcher` / `hook`.
+  `outcome`: the operation's result word (`ok`, `queued`,
+  `completed`, `failed`, `cancelled`, ...). `id` / `detail`: the
+  operation's own handle (job id) or a short free-form note
+  (`deleted=16`), only when the verb already has it.
+- **Fire-and-forget**: a log write failure MUST NOT fail or delay the
+  operation; writers swallow errors silently. When no `.skill-map/`
+  directory exists (no project), nothing is written.
+- **Retention**: single-generation size rotation. When the file
+  exceeds the cap (1 MiB in the reference impl) it is renamed to
+  `operations.log.1` (replacing any previous generation) and a fresh
+  file starts. No other GC; manual truncation is always safe.
+- **Read surface**: the file itself. No query verb and no UI surface
+  are part of this contract (a pretty-printer MAY come later).
+- The reference implementation composes the path via the shared
+  `.skill-map/` path helpers and writes through ONE module
+  (`src/core/operations-log.ts`); mutating verbs never compose the
+  literal path themselves.
+
 ### Telemetry consent
 
 skill-map sends nothing off the machine by default. Opt-in, anonymous
@@ -678,6 +716,7 @@ The reference implementation ships a Hono BFF rooted at `src/server/`. One Node 
 | `GET /api/branch?path=<prefix>&path=<prefix>&limit=<n>` | implemented | Branch projection for the map. `path` is **repeatable**: the response is the UNION of the subtrees under every given prefix (forward-slash; a node matches a prefix when its path equals it or starts with `<prefix>/`). No `path` (or a single empty one) = the whole corpus. The union is capped at `limit` nodes (default and effective max = the scan's `maxRenderNodes`), so the response stays bounded regardless of how many prefixes are sent. Direct shape (no envelope wrap, like `/api/scan`): `{ schemaVersion, kind: 'branch', branch: { paths, total, rendered, truncated, cap }, nodes: Node[], links: Link[], issues: Issue[] }`, where `paths` echoes the requested prefixes. `nodes` is the first `rendered` nodes of the union in stable path order; `links` carries only edges whose source AND **resolved target** are in `nodes` (the resolved target is `resolvedTarget`, the node a trigger-style `invokes` / `mentions` link points to, falling back to the raw `target` for path-style links; a genuinely-broken link whose target resolves to no node is excluded); `issues` carries those touching `nodes`. `truncated` is `total > cap`. Lets the SPA render a multi-folder selection without hydrating the full `ScanResult`. DB absent → empty branch (zero nodes). Validation: `limit` integer ≥ 1 else 400 `bad-query`. |
 | `GET /api/graph?format=ascii\|json\|md` | implemented | formatter-rendered graph. `Content-Type` per format: `text/plain` (ascii), `application/json` (json), `text/markdown` (md / mermaid). Default `format=ascii`. Unknown format → 400 `bad-query`. |
 | `GET /api/config` | implemented | `RestEnvelope` (`kind: 'config'`), merged effective config (defaults → user → user-local → project → project-local → override). |
+| `GET /api/config/resolution` | implemented | `RestEnvelope` (`kind: 'config.resolution'`), the settings-hierarchy viewer's data (user shape 2026-07-21): `value.rows[]` flattens the effective config to one entry per LEAF key, `{ key, value, layer, secret }`, where `layer` is the loader's per-key provenance (which of `defaults` / `project` / `project-local` / `override` last wrote it) and `secret: true` marks a plugin-extension setting declared `type: 'secret'`, whose value is MASKED server-side and never reaches the wire in clear. Read-only; rendered by the Settings > General nested dialog. |
 | `GET /api/plugins` | implemented | `RestEnvelope` (`kind: 'plugins'`), list of installed plugins (built-in + drop-in) with status. Item shape: `{ id, version, kinds, status, reason, source: 'built-in'\|'project', description?: string, locked?: boolean, startsAsDisabled?: boolean, trusted?: boolean, extensions?: Array<{ id, kind, version, enabled, description?: string, stability?: 'experimental'\|'beta'\|'stable'\|'deprecated', locked?: boolean }> }`. The plugin row has no granular toggle axis; its `status` aggregates the children (`'enabled'` when at least one extension is enabled, else `'disabled'`). An **untrusted** drop-in reads `'disabled'` regardless of the config-enable axis (its code never loaded, see §Plugin enable vs import trust in `architecture.md`), so a `beta` plugin that ships config-enabled still shows `'disabled'` until it is trusted, never a misleading `'enabled'` for code that is not running. The `description` carries the manifest-declared description (built-ins: hardcoded on `IBuiltInPlugin`; drop-ins: `plugin.json#/description`); each `extensions[]` entry carries its manifest's `description` per `IExtensionBase` (`extensions/base.schema.json#/properties/description`), plus the optional `stability` lifecycle label per `extensions/base.schema.json#/properties/stability` (omitted when undeclared; missing means `stable`. The SPA badges only non-default values, `experimental` / `beta` / `deprecated`, next to the extension row; `stable` renders nothing. Presentation-only EXCEPT `experimental` and `deprecated`, which each flip the extension's installed default to disabled). The SPA's Settings list renders descriptions as muted secondary text and indexes them for substring search alongside the ids. The `extensions` array is present whenever the plugin declares any extension AND loaded successfully. Each entry's `enabled` reflects the per-extension config resolution (`settings.local.json` over `settings.json` over installed default, where the default is `false` for `experimental` and `deprecated` extensions and `true` otherwise); enable no longer reads from the DB. The optional `locked: true` flag is stamped when the plugin id (or qualified extension id) appears in the host's lock-list (`src/server/locked-plugins.ts`); locked items render the toggle disabled in the SPA and any `PATCH` returns `403 locked`. Omitted when false. The optional `trusted: true` flag is stamped on a drop-in plugin that carries a local import-trust grant (a `config_plugins` trust row); omitted when false, so an untrusted project-local plugin reads `trusted` absent (built-ins omit it, they are never trust-gated). The optional `startsAsDisabled: true` flag is stamped on a drop-in plugin (never built-ins) that was config-disabled at `sm serve` boot (discovery-time `status: 'disabled'` for a reason OTHER than untrust), so the handlers were never bucketed into the runtime; an untrusted plugin carries the one-time untrusted boot notice instead and does NOT get `startsAsDisabled`. The SPA renders a per-row hint when `startsAsDisabled` is set AND the user re-enables at least one of the plugin's extensions in the buffered state, since re-enabling requires `sm serve` restart (the rest of the toggle pipeline applies live). Omitted when false. |
 | `PATCH /api/plugins/:id` | implemented | **Bundle (aggregate) macro endpoint**: fans the toggle out across every extension inside the plugin. `:id` MUST be a top-level plugin id (no slash); qualified-id form is the sibling route below. Body `{ enabled: boolean }` (JSON). Writes the per-extension `enabled` (`plugins.<id>.extensions.<ext>.enabled`) for every child to the config layers (the shared `settings.json`); locked children are silently dropped, mirroring the CLI's bulk-mode lock semantics. Response is the canonical `RestEnvelope` (`kind: 'plugins'`) reflecting the post-write state. **Lock**, rejected with 403 `locked` when the plugin id itself is in the host lock-list (`src/server/locked-plugins.ts`). **Apply window**, the override applies on the next scan; both the BFF and the watcher build a fresh resolver from the config layers before composing extensions, so the toggle is honoured without restarting `sm serve`. The endpoint purges `scan_contributions` rows for each disabled extension immediately so the UI stops rendering its chips before the next scan. **Exception**, drop-in plugins whose discovery-time `status` was `'disabled'` (carried as `startsAsDisabled: true`) are NOT in the runtime extension buckets; re-enabling them via PATCH persists the override but requires `sm serve` restart for the handlers to load. The SPA surfaces this per-row. The endpoint does NOT broadcast a WS event today. |
 | `PATCH /api/plugins/:pluginId/extensions/:extensionId` | implemented | Canonical per-extension toggle. Body `{ enabled: boolean }`. Both segments are URL-path-segment-encoded (no slash inside `:pluginId` or `:extensionId`). 404 `not-found` when the plugin id is unknown or the extension id does not belong to that plugin. **Lock**, rejected with 403 `locked` when either the plugin id or the qualified `pluginId/extensionId` appears in the host lock-list. Same persistence + apply-window semantics as the bundle macro form (including the `startsAsDisabled` exception). The SPA's buffered Settings modal posts here for every per-row flip. |

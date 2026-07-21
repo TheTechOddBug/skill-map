@@ -158,3 +158,4 @@
 .settings-about__star:focus-visible .settings-about__star-cta {
   background: color-mix(in oklab, var(--star-accent) 88%, white);
 }
+
