@@ -160,44 +160,54 @@
     <div class="inspector__summary" data-testid="inspector-summary">
       @for (row of summaryRows(); track row.summarizerActionId) {
         <div class="inspector__summary-block">
+          <!-- Only the TITLE row is split (user call 2026-07-21): subject
+               on the left, the stacked controls column on the right; the
+               lists below span the full width. -->
           <div class="inspector__summary-head">
             <i class="pi pi-sparkles inspector__summary-icon" aria-hidden="true"></i>
             <span class="inspector__summary-subject" data-testid="inspector-summary-subject">{{
               reportSubject(row)
             }}</span>
-            @if (row.stale) {
-              <span
-                class="inspector__summary-stale"
-                [pTooltip]="texts.header.summary.staleTooltip"
-                data-testid="inspector-summary-stale"
-                >{{ texts.header.summary.staleTag }}</span
+            <aside class="inspector__summary-side">
+              <button
+                type="button"
+                class="inspector__summary-refresh inspector__summary-delete"
+                [pTooltip]="texts.header.summary.deleteTooltip"
+                tooltipPosition="left"
+                [attr.aria-label]="texts.header.summary.deleteTooltip"
+                (click)="summaryDelete.emit(row.summarizerActionId)"
+                data-testid="inspector-summary-delete"
               >
-            }
-            @if (reportConfidence(row); as pct) {
-              <span class="inspector__summary-confidence">({{ pct }}%)</span>
-            }
-            <button
-              type="button"
-              class="inspector__summary-refresh"
-              [pTooltip]="texts.header.summary.refreshTooltip"
-              [attr.aria-label]="texts.header.summary.refreshTooltip"
-              (click)="summaryRefresh.emit()"
-              data-testid="inspector-summary-refresh"
-            >
-              <i class="pi pi-refresh" aria-hidden="true"></i>
-            </button>
-            <!-- Delete the stored summary (machine judgment, DB row per
-                 the storage rule): direct, regenerable, no ceremony. -->
-            <button
-              type="button"
-              class="inspector__summary-refresh inspector__summary-delete"
-              [pTooltip]="texts.header.summary.deleteTooltip"
-              [attr.aria-label]="texts.header.summary.deleteTooltip"
-              (click)="summaryDelete.emit(row.summarizerActionId)"
-              data-testid="inspector-summary-delete"
-            >
-              <i class="pi pi-times" aria-hidden="true"></i>
-            </button>
+                <i class="pi pi-times" aria-hidden="true"></i>
+              </button>
+              <button
+                type="button"
+                class="inspector__summary-refresh"
+                [pTooltip]="texts.header.summary.refreshTooltip"
+                tooltipPosition="left"
+                [attr.aria-label]="texts.header.summary.refreshTooltip"
+                (click)="summaryRefresh.emit()"
+                data-testid="inspector-summary-refresh"
+              >
+                <i class="pi pi-refresh" aria-hidden="true"></i>
+              </button>
+              @if (reportConfidence(row); as pct) {
+                <span
+                  class="inspector__summary-confidence"
+                  [pTooltip]="texts.header.summary.confidenceTooltip"
+                  tooltipPosition="left"
+                  >{{ pct }}%</span
+                >
+              }
+              @if (row.stale) {
+                <span
+                  class="inspector__summary-stale"
+                  [pTooltip]="texts.header.summary.staleTooltip"
+                  data-testid="inspector-summary-stale"
+                  >{{ texts.header.summary.staleTag }}</span
+                >
+              }
+            </aside>
           </div>
           @if (reportList(row, 'keyFacts').length > 0) {
             <ul class="inspector__summary-list">

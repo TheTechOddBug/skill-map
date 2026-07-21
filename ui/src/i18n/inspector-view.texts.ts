@@ -34,6 +34,7 @@ export const INSPECTOR_VIEW_TEXTS = {
       staleTooltip: 'The file changed since this analysis; re-run it to refresh.',
       refreshTooltip: 'Analyze again',
       deleteTooltip: 'Delete this analysis',
+      confidenceTooltip: 'Confidence',
       qualityLabel: 'Quality notes',
     },
     /** The stability chip doubles as the Set stability affordance. */

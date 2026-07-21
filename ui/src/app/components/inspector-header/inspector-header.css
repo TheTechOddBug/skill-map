@@ -261,10 +261,13 @@
   background: var(--p-highlight-background);
 }
 
-/* The expanded analysis block, full-width under the identity strip. */
+/* The expanded analysis block, full-width under the identity strip.
+   A size container so the controls layout below responds to the
+   INSPECTOR's width, not the viewport's. */
 .inspector__summary {
   grid-column: 1 / -1;
   margin-top: 0.5rem;
+  container-type: inline-size;
 }
 
 .inspector__summary-block {
@@ -273,9 +276,30 @@
   font-size: 0.85rem;
 }
 
+/* Stacked controls column on the TITLE row only: X, re-analyze,
+   confidence, stale (user-fixed order). */
+.inspector__summary-side {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* Responsive (user call 2026-07-21): with more than 400px of block
+   width the controls lie flat as a ROW; the column is the narrow-rail
+   layout. */
+@container (min-width: 400px) {
+  .inspector__summary-side {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.4rem;
+  }
+}
+
 .inspector__summary-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.4rem;
 }
 
