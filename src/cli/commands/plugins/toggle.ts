@@ -36,7 +36,11 @@
 import { Command, Option } from 'clipanion';
 
 import { writeConfigValue } from '../../../core/config/helper.js';
+import { cancelQueuedJobsForKeys } from '../../../core/jobs/cancel-disabled.js';
+import { appendOperation } from '../../../core/operations-log.js';
 import { isPluginLocked } from '../../../kernel/config/locked-plugins.js';
+import { generateRunId } from '../../../kernel/jobs/index.js';
+import { pushJobEvent } from '../../util/job-event-push.js';
 import { qualifiedExtensionId } from '../../../kernel/registry.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
@@ -299,10 +303,11 @@ abstract class TogglePluginsBase extends SmCommand {
    * the config layers (`plugins.<plugin>.extensions.<ext>.enabled`),
    * targeting `settings.json` by default or `settings.local.json` with
    * `--local`. On disable, also purge the plugin's `scan_contributions`
-   * rows immediately (matches the BFF route, see
-   * `server/routes/plugins.ts:applyChangeToAdapter`). Every key is
-   * `<plugin>/<ext>` shape so both the config dot-path and the
-   * contribution purge split into `(pluginId, extensionId)` cleanly.
+   * rows immediately AND cancel each key's `queued` jobs (the disable
+   * cascade, `spec/job-lifecycle.md` §Cancellation; matches the BFF
+   * route). Every key is `<plugin>/<ext>` shape so both the config
+   * dot-path and the contribution purge split into
+   * `(pluginId, extensionId)` cleanly.
    */
   async #persistKeys(keys: string[], enabled: boolean): Promise<void> {
     const ctx = defaultRuntimeContext();
@@ -311,12 +316,39 @@ abstract class TogglePluginsBase extends SmCommand {
       writeConfigValue(toEnableConfigKey(id), enabled, { target, cwd: ctx.cwd });
     }
     // On disable, purge persisted contributions so the UI stops
-    // rendering the plugin's chips before the next scan. Open the DB
-    // only for that (enable no longer writes to the DB).
+    // rendering the plugin's chips before the next scan, and cancel the
+    // keys' queued jobs. Open the DB only for that (enable no longer
+    // writes to the DB).
     if (enabled) return;
     const dbPath = resolveDbPath({ db: undefined, cwd: ctx.cwd });
-    await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-      for (const id of keys) await purgeContributionsFor(adapter, id);
+    const cancelledIds = await withSqlite(
+      { databasePath: dbPath, autoBackup: false },
+      async (adapter) => {
+        for (const id of keys) await purgeContributionsFor(adapter, id);
+        return cancelQueuedJobsForKeys(adapter, keys, Date.now());
+      },
+    );
+    if (cancelledIds.length === 0) return;
+    // Live-transition push per cancelled job (spec/job-events.md
+    // §job.cancelled): one queue-mode runId spans the cascade. After the
+    // transitions committed; cannot throw. One aggregated ops-log line
+    // (mirror of `sm jobs cancel --all`).
+    const runId = generateRunId('queue');
+    for (const id of cancelledIds) {
+      await pushJobEvent(ctx.cwd, {
+        type: 'job.cancelled',
+        timestamp: Date.now(),
+        runId,
+        jobId: id,
+        data: {},
+      });
+    }
+    appendOperation(ctx.cwd, {
+      op: 'jobs.cancel',
+      target: '*',
+      channel: 'cli',
+      outcome: 'cancelled',
+      detail: `extension-disabled cancelled=${cancelledIds.length}`,
     });
   }
 

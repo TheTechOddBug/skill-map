@@ -646,7 +646,9 @@ export function createApp(deps: IAppDeps): Hono {
   registerBranchRoute(app, routeDeps);
   registerGraphRoute(app, routeDeps);
   registerConfigRoute(app, routeDeps);
-  registerPluginsRoute(app, routeDeps);
+  // Carries the broadcaster for the disable cascade's per-job
+  // `job.cancelled` fan-out (spec/job-lifecycle.md §Cancellation).
+  registerPluginsRoute(app, { ...routeDeps, broadcaster: deps.broadcaster });
   // Step 17, `POST /api/actions/:qualifiedId` (generic Action
   // dispatch). Generalises the retired `POST /api/sidecar/bump`:
   // resolves any qualified action id off the kernel registry, invokes

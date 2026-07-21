@@ -69,6 +69,10 @@ import type { IDiscoveredPlugin } from '../../kernel/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { tx } from '../../kernel/util/tx.js';
 import { BulkValidationError, DbMissingError } from '../app.js';
+import type { WsBroadcaster } from '../broadcaster.js';
+import { buildJobCancelledEvent } from '../events.js';
+import { appendOperation } from '../../core/operations-log.js';
+import { cancelQueuedJobsForKeys } from '../../core/jobs/cancel-disabled.js';
 import { buildListEnvelope } from '../envelope.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
 import { makeBodyValidator } from '../util/parse-body.js';
@@ -323,7 +327,16 @@ type TPluginHandle =
   | { kind: 'built-in'; plugin: IBuiltInPlugin }
   | { kind: 'discovered'; plugin: IDiscoveredPlugin };
 
-export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
+/**
+ * Plugins-route deps: the shared read bag plus the `/ws` broadcaster,
+ * consumed by the disable cascade's per-job `job.cancelled` fan-out
+ * (`spec/job-lifecycle.md` §Cancellation).
+ */
+export interface IPluginsRouteDeps extends IRouteDeps {
+  broadcaster: WsBroadcaster;
+}
+
+export function registerPluginsRoute(app: Hono, deps: IPluginsRouteDeps): void {
   app.get('/api/plugins', async (c) => {
     // Build the resolver fresh on every GET so a `PATCH` from the same
     // session (or from `sm plugins enable/disable` running side-by-side)
@@ -837,7 +850,7 @@ function attachRuntimeContributionErrors(
  */
 async function persistManyAndProject(
   c: Context,
-  deps: IRouteDeps,
+  deps: IPluginsRouteDeps,
   keys: readonly string[],
   enabled: boolean,
 ): Promise<Response> {
@@ -846,9 +859,10 @@ async function persistManyAndProject(
     writeConfigValue(toEnableConfigKey(key), enabled, { target: 'project', cwd });
   }
   // On disable, purge persisted contributions so the UI stops rendering
-  // the plugin's chips before the next scan. Best-effort: a missing DB
-  // (no scan yet) simply has nothing to purge.
-  if (!enabled && keys.length > 0) await purgeContributionsForKeys(deps, keys);
+  // the plugin's chips before the next scan, and run the disable cascade
+  // over the keys' queued jobs. Best-effort: a missing DB (no scan yet)
+  // simply has nothing to purge or cancel.
+  if (!enabled && keys.length > 0) await applyDisableCascade(deps, keys);
   // Enable writes mutated settings.json; drop the cached layered view so
   // the projection (and any later read) sees the fresh values.
   if (keys.length > 0) deps.configService.reload();
@@ -893,30 +907,44 @@ function toEnableConfigKey(id: string): string {
 }
 
 /**
- * Open the DB once and purge persisted `scan_contributions` rows for
- * every disabled key. Mirrors the CLI's `sm plugins disable` purge path
- * (`src/cli/commands/plugins/toggle.ts`). Each key is a bare plugin id
- * or qualified `<plugin>/<ext>`; the split mirrors how
- * `scan_contributions` rows are grouped. Best-effort: a missing DB
- * returns null (nothing to purge).
+ * Full disable side-effect cascade for a set of freshly-disabled keys
+ * (`spec/job-lifecycle.md` §Cancellation): one DB open covering the
+ * `scan_contributions` purge (each key is a bare plugin id or a
+ * qualified `<plugin>/<ext>`, mirroring how the rows are grouped; same
+ * split as the CLI's `sm plugins disable` path) AND the queued-job
+ * cancellation, then one
+ * `job.cancelled` WS broadcast per affected id plus one aggregated
+ * operations-log line (mirror of the CLI toggle). Best-effort: a
+ * missing DB has nothing to purge or cancel.
  */
-async function purgeContributionsForKeys(
-  deps: IRouteDeps,
+async function applyDisableCascade(
+  deps: IPluginsRouteDeps,
   keys: readonly string[],
 ): Promise<void> {
-  await tryWithSqlite(
-    { databasePath: deps.options.dbPath, autoBackup: false },
-    async (adapter) => {
-      for (const key of keys) {
-        const slash = key.indexOf('/');
-        if (slash < 0) {
-          await adapter.contributions.purgeByPlugin(key);
-        } else {
-          await adapter.contributions.purgeByPlugin(key.slice(0, slash), key.slice(slash + 1));
+  const cancelledIds =
+    (await tryWithSqlite(
+      { databasePath: deps.options.dbPath, autoBackup: false },
+      async (adapter) => {
+        for (const key of keys) {
+          const slash = key.indexOf('/');
+          if (slash < 0) {
+            await adapter.contributions.purgeByPlugin(key);
+          } else {
+            await adapter.contributions.purgeByPlugin(key.slice(0, slash), key.slice(slash + 1));
+          }
         }
-      }
-    },
-  );
+        return cancelQueuedJobsForKeys(adapter, keys, Date.now());
+      },
+    )) ?? [];
+  if (cancelledIds.length === 0) return;
+  for (const id of cancelledIds) deps.broadcaster.broadcast(buildJobCancelledEvent(id));
+  appendOperation(deps.runtimeContext.cwd, {
+    op: 'jobs.cancel',
+    target: '*',
+    channel: 'ui',
+    outcome: 'cancelled',
+    detail: `extension-disabled cancelled=${cancelledIds.length}`,
+  });
 }
 
 /**
@@ -1128,7 +1156,7 @@ function handleExtensionSettings(
  */
 async function persistBulkAndProject(
   c: Context,
-  deps: IRouteDeps,
+  deps: IPluginsRouteDeps,
   changes: readonly IBulkChange[],
 ): Promise<Response> {
   // 1. Enable toggles land in the config layers (settings.json). Bare
@@ -1140,10 +1168,11 @@ async function persistBulkAndProject(
   //    `writeConfigValue` (file writes, AJV-revalidated per write).
   const settingsTouched = persistBulkSettings(deps, changes);
 
-  // 3. Purge contributions for every disabled key so the UI stops
-  //    rendering its chips before the next scan (best-effort; a missing
-  //    DB simply has nothing to purge).
-  if (disabledKeys.length > 0) await purgeContributionsForKeys(deps, disabledKeys);
+  // 3. Purge contributions AND cancel queued jobs for every disabled
+  //    key (the disable cascade) so the UI stops rendering its chips and
+  //    the queue drops its pending work before the next scan
+  //    (best-effort; a missing DB simply has nothing to purge or cancel).
+  if (disabledKeys.length > 0) await applyDisableCascade(deps, disabledKeys);
 
   // 4. The on-disk config mutated; drop the cached layered view so the
   //    projection below (and any later read) sees the fresh values.

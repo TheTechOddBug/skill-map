@@ -251,6 +251,8 @@ Implementations MUST handle each of the following:
 
 `--all` cancels every `queued` and `running` job in one pass and reports the count. A missing `<job.id>` is exit 5. Passing neither `<job.id>` nor `--all` (or both) is a usage error (exit 2).
 
+**Disable cascade** (user decision 2026-07-21, the active-cancellation option): disabling an extension also cancels its `queued` jobs. Every disable surface (`sm plugins disable`, the three `PATCH /api/plugins[...]` toggle forms) cascades: after persisting the toggle, jobs with `status = queued` whose `extension_id` matches a disabled key (exact qualified id, or any extension of a bare disabled plugin id) transition to the terminal `cancelled` state through the same primitive as `sm jobs cancel`, one `job.cancelled` live event per affected id, and one aggregated operations-log line (`op: jobs.cancel`, detail naming the disable trigger and the count) when at least one job was cancelled. `running` jobs are NOT touched: the processing agent already claimed the work, its record still lands, and the record-side write-throughs independently degrade to history-only while the extension is disabled. Re-enabling does NOT resurrect cancelled jobs; the operator re-submits. A toggle that disables an extension with no queued jobs cancels nothing and logs nothing.
+
 ---
 
 ## Fail

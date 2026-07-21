@@ -209,6 +209,60 @@ describe('sm plugins enable / disable', () => {
     assert.match(list.stdout, /✓\s+mock-b\b/);
   });
 
+  it('disable cascades over the queue: cancels the disabled extension queued jobs only', async () => {
+    // Disable cascade (spec/job-lifecycle.md §Cancellation, user decision
+    // 2026-07-21). Seed two queued jobs straight into the scope DB, one
+    // for the plugin being disabled and one for another extension; the
+    // verb must cancel the first and leave the second queued.
+    const scope = freshScope('disable-cascade');
+    sm(['init', '--no-scan'], scope);
+    dropMockPlugin(scope, 'mock-j');
+
+    const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
+    const seed = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await seed.init();
+    try {
+      const base = {
+        extensionVersion: '1.0.0',
+        extensionKind: 'action' as const,
+        contentHash: 'h'.repeat(64),
+        nonce: 'n'.repeat(32),
+        priority: 0,
+        status: 'queued' as const,
+        ttlSeconds: 3600,
+        createdAt: Date.now(),
+      };
+      for (const [id, extensionId] of [
+        ['casc-1', 'mock-j/mock-j-extractor'],
+        ['casc-2', 'core/ai-tagger-action'],
+      ] as const) {
+        await seed.jobs.submit(
+          { ...base, id, extensionId, nodeId: `${id}.md` },
+          { contentHash: base.contentHash, content: `RENDERED ${id}`, createdAt: base.createdAt },
+        );
+      }
+    } finally {
+      await seed.close();
+    }
+
+    const r = sm(['plugins', 'disable', 'mock-j'], scope);
+    assert.equal(r.status, 0, r.stderr);
+
+    const check = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await check.init();
+    try {
+      assert.equal((await check.jobs.get('casc-1'))?.status, 'cancelled', 'disabled ext cancelled');
+      assert.equal((await check.jobs.get('casc-2'))?.status, 'queued', 'other ext untouched');
+    } finally {
+      await check.close();
+    }
+
+    // The cascade appended the aggregated ops-log line.
+    const opsLog = readFileSync(join(scope.cwd, '.skill-map', 'operations.log'), 'utf8');
+    assert.match(opsLog, /"op":"jobs\.cancel"/);
+    assert.match(opsLog, /extension-disabled cancelled=1/);
+  });
+
   it('--all cascades across every plugin when invoked with --yes', async () => {
     const scope = freshScope('disable-all');
     sm(['init', '--no-scan'], scope);
