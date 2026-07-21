@@ -113,6 +113,21 @@ export function createLiveBffFixture(repoRoot: string): ILiveBffFixture {
   mkdirSync(agentsDir, { recursive: true });
   writeFileSync(join(agentsDir, 'stale-agent.md'), STALE_AGENT_MD, 'utf8');
   writeFileSync(join(agentsDir, 'stale-agent.sm'), STALE_AGENT_SM, 'utf8');
+  // `core/node-bump` ships `defaultEnabled: false` (2026-07-21 enabled-gate
+  // sweep) and its surface is the header version chip, so the bump spec
+  // needs the explicit opt-in. Project layer only: `.sm` write consent
+  // stays UNgranted, the spec exercises the 412 consent dialog.
+  const smDir = join(cwd, '.skill-map');
+  mkdirSync(smDir, { recursive: true });
+  writeFileSync(
+    join(smDir, 'settings.json'),
+    JSON.stringify(
+      { plugins: { core: { extensions: { 'node-bump': { enabled: true } } } } },
+      null,
+      2,
+    ) + '\n',
+    'utf8',
+  );
   return {
     cwd,
     stalePath: '.claude/agents/stale-agent.md',
