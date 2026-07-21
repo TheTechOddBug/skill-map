@@ -31,7 +31,7 @@
  */
 
 import type { IEffectiveConfig } from '../../kernel/config/loader.js';
-import { makeEnabledResolver } from '../../kernel/config/plugin-resolver.js';
+import { makeEnabledResolver, type EnabledResolver } from '../../kernel/config/plugin-resolver.js';
 
 export interface IFreshResolverDeps {
   /**
@@ -50,7 +50,7 @@ export interface IFreshResolverDeps {
  */
 export async function buildFreshResolver(
   deps: IFreshResolverDeps,
-): Promise<(id: string) => boolean> {
+): Promise<EnabledResolver> {
   return makeEnabledResolver(deps.effectiveConfig());
 }
 
@@ -62,6 +62,6 @@ export async function buildFreshResolver(
  */
 export function composeResolver(
   effectiveConfig: Pick<IEffectiveConfig, 'plugins'>,
-): (id: string) => boolean {
+): EnabledResolver {
   return makeEnabledResolver(effectiveConfig);
 }

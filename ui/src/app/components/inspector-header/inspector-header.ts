@@ -38,6 +38,7 @@ import {
   effectiveStability,
   effectiveUserTags,
   effectiveVersion,
+  hasActionButtonContribution,
 } from '../../../models/node-derived';
 import { KindIcon } from '../kind-icon/kind-icon';
 import { NodeTags } from '../node-tags/node-tags';
@@ -116,6 +117,14 @@ export class InspectorHeader {
   readonly summaryRefresh = output<void>();
   /** Delete the stored summary (carries the block's summarizer id). */
   readonly summaryDelete = output<string>();
+
+  /**
+   * Auto-tag affordance (user request 2026-07-21), pure passthrough to
+   * `<sm-node-tags>`: the host owns the `core/ai-tagger-action` queue
+   * state and the submit; the header only threads the wires.
+   */
+  readonly autoTagState = input<'hidden' | 'idle' | 'queued' | 'running'>('hidden');
+  readonly autoTagClick = output<void>();
 
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
   /** Reused so the card and the inspector header speak the same language. */
@@ -323,6 +332,18 @@ export class InspectorHeader {
    */
   protected readonly headerTags = computed<readonly string[]>(() =>
     effectiveUserTags(this.node()),
+  );
+
+  /**
+   * Whether the inline tag row renders at all: it follows the
+   * `core/node-set-tags` action-button contribution, the same
+   * surface-follows-the-plugin rule as the stability / version chips
+   * and the card tag chips (user calls 2026-07-21). Plugin off -> no
+   * tag row in the inspector, even when the node carries tags (the
+   * data stays in the `.sm`).
+   */
+  protected readonly tagsRowPresent = computed<boolean>(() =>
+    hasActionButtonContribution(this.node(), 'core/node-set-tags'),
   );
 
   protected onFavoriteClick(event: MouseEvent): void {

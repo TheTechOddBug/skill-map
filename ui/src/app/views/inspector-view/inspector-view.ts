@@ -122,11 +122,24 @@ const ACTIVITY_LIVE_REFRESH_DEBOUNCE_MS = 400;
 const SUMMARIZER_EXTENSION_ID = 'core/ai-summarizer-action';
 
 /**
- * Action-button contributions the inspector re-homes onto the HEADER
- * (the stability chip and the version/bump chip, user calls
- * 2026-07-21): excluded from the Actions section and its gating.
+ * The auto-tagger's qualified id. It owns the tag row's sparkles
+ * affordance and, like the summarizer, is EXCLUDED from the AI-actions
+ * launcher row / ALL button (user request 2026-07-21).
  */
-const HEADER_HOMED_ACTION_IDS = ['core/node-set-stability', 'core/node-bump'];
+const TAGGER_EXTENSION_ID = 'core/ai-tagger-action';
+
+/**
+ * Action-button contributions the inspector re-homes onto the HEADER
+ * (the stability chip, the version/bump chip, and the inline tag row,
+ * user calls 2026-07-21): excluded from the Actions section and its
+ * gating. `core/node-set-tags` projects no visible button anywhere; its
+ * contribution's presence is what gates the tag row.
+ */
+const HEADER_HOMED_ACTION_IDS = [
+  'core/node-set-stability',
+  'core/node-bump',
+  'core/node-set-tags',
+];
 
 /** Per-node cap on the conversation threads the Activity section renders. */
 const SPAWN_THREADS_LIMIT = 10;
@@ -608,10 +621,13 @@ export class InspectorView implements OnInit {
   >(() => {
     const probs = this.probExtensions();
     if (probs === null) return [];
-    // The summarizer never rides the launcher row: it owns the header's
-    // semantic-analysis affordance instead (user shape 2026-07-21), and
-    // the ALL button skips it for the same reason.
-    const standalone = probs.standalone.filter((e) => e.id !== SUMMARIZER_EXTENSION_ID);
+    // The summarizer and the auto-tagger never ride the launcher row:
+    // they own the header's semantic-analysis affordance and the tag
+    // row's sparkles button respectively (user shape 2026-07-21), and
+    // the ALL button skips them for the same reason.
+    const standalone = probs.standalone.filter(
+      (e) => e.id !== SUMMARIZER_EXTENSION_ID && e.id !== TAGGER_EXTENSION_ID,
+    );
     return (
       [
         { id: 'finders', entries: probs.finders },
@@ -1035,6 +1051,34 @@ export class InspectorView implements OnInit {
         // Progressive enhancement: a failed delete keeps the block.
       })
       .then(() => this.fetchSummary(path));
+  }
+
+  // --- auto-tag (tag-row affordance, user request 2026-07-21) -------------
+
+  /** The auto-tagger's launcher entry (queue state), when enabled. */
+  private readonly taggerEntry = computed<IProbExtensionEntryApi | null>(() => {
+    const probs = this.probExtensions();
+    return probs?.standalone.find((e) => e.id === TAGGER_EXTENSION_ID) ?? null;
+  });
+
+  /**
+   * Tag-row affordance state: `hidden` (tagger unavailable), `queued` /
+   * `running` (job in flight), `idle` (clickable). No `ready` state: the
+   * inferred tags land in the sidecar via the record-side write-through
+   * and surface as ordinary chips on the next scan broadcast.
+   */
+  protected readonly autoTagState = computed<'hidden' | 'idle' | 'queued' | 'running'>(() => {
+    const entry = this.taggerEntry();
+    if (entry === null) return 'hidden';
+    const entryState = this.aiActions.entryState(entry);
+    if (entryState === 'queued' || entryState === 'running') return entryState;
+    return 'idle';
+  });
+
+  /** Queue an auto-tag run for the inspected node. */
+  protected onAutoTagClick(): void {
+    if (this.autoTagState() !== 'idle') return;
+    void this.aiActions.submit(TAGGER_EXTENSION_ID, false);
   }
 
   /** Re-run from the expanded block (stale or not, a fresh judgment). */

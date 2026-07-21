@@ -114,6 +114,43 @@
   opacity: 0.7;
 }
 
+/* Auto-tag (sparkles) button: same chrome as the pencil, disabled while
+   the queued / running job is in flight. */
+.node-tags__auto {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--sm-radius-sm);
+  background: var(--sm-bg-hover);
+  color: var(--p-text-color);
+  cursor: pointer;
+  transition: background 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
+}
+
+.node-tags__auto:hover:not(:disabled) {
+  border-color: var(--sm-border);
+  color: var(--p-primary-color);
+}
+
+.node-tags__auto:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.node-tags__auto:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 1px;
+}
+
+.node-tags__auto .pi {
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
 .node-tags__edit:hover .pi {
   opacity: 1;
 }

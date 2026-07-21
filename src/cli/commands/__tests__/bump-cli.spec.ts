@@ -78,6 +78,14 @@ function preGrantConsent(fixture: string): void {
     JSON.stringify({ allowEditSmFiles: true }),
     'utf8',
   );
+  // `core/node-bump` ships `defaultEnabled: false` and `sm bump` refuses
+  // when the extension is disabled (the 2026-07-21 enabled-gate sweep),
+  // so the fixture opts it in; the gate has its own dedicated spec.
+  writeFileSync(
+    join(fixture, '.skill-map', 'settings.json'),
+    JSON.stringify({ plugins: { core: { extensions: { 'node-bump': { enabled: true } } } } }),
+    'utf8',
+  );
 }
 
 /**
@@ -164,6 +172,33 @@ function makeBump(): BumpCommand {
   cmd.nodePath = undefined;
   return cmd;
 }
+
+describe('sm bump, enabled gate (core/node-bump defaultEnabled: false)', () => {
+  it('refuses up front (exit 2) when the extension has no explicit opt-in', async () => {
+    const fixture = freshFixture('gate');
+    const dbPath = freshDbPath('gate');
+    // Drop the opt-in the fixture helper wrote: with no explicit entry
+    // the extension falls back to its installed default (disabled), and
+    // the verb must refuse BEFORE touching the DB or any sidecar.
+    writeFileSync(join(fixture, '.skill-map', 'settings.json'), JSON.stringify({}), 'utf8');
+    writeFile(fixture, '.claude/skills/gated.md',
+      ['---', 'name: gated', '---', 'Body.'].join('\n'),
+    );
+    process.chdir(fixture);
+    await runScanAndPersist(fixture, dbPath);
+
+    const cap = captureContext();
+    const cmd = makeBump();
+    cmd.db = dbPath;
+    cmd.nodePath = '.claude/skills/gated.md';
+    cmd.context = cap.context;
+    const code = await cmd.execute();
+
+    strictEqual(code, 2);
+    ok(/node-bump extension is disabled/.test(cap.stderr()), cap.stderr());
+    ok(!existsSync(join(fixture, '.claude/skills/gated.sm')), 'no sidecar written');
+  });
+});
 
 describe('sm bump <node-path>, single-node mode', () => {
   it('first-time bump creates the .sm file with audit + version=1', async () => {

@@ -84,6 +84,20 @@ function makeNode(overrides: Partial<INodeView> = {}): INodeView {
       description: 'The architect.',
       metadata: { version: '1.0.0' },
     },
+    // The `core/node-set-tags` contribution gates the header's tag row
+    // (surface follows the plugin); default it on so the tag-row and
+    // auto-tag specs keep their surface. Override with `contributions`
+    // to model other rosters (it replaces this default).
+    contributions: [
+      {
+        pluginId: 'core',
+        extensionId: 'node-set-tags',
+        nodePath: 'agents/architect.md',
+        contributionId: 'editTagsButton',
+        slot: 'inspector.action.button',
+        payload: { actionId: 'core/node-set-tags', label: 'Edit tags', enabled: true },
+      },
+    ],
     ...overrides,
   };
 }
@@ -2357,6 +2371,46 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
       'core/ai-summarizer-action',
       false,
     );
+  });
+
+  it('the tag-row sparkles queues the auto-tagger; the tagger never rides the launcher row', async () => {
+    const { fixture, dataSource, node } = await bootAiActions({
+      probs: makeProbExtensions({
+        standalone: [
+          makeProbEntry({ id: 'core/ai-tagger-action', description: 'Tags.' }),
+          makeProbEntry({ id: 'core/other-action', description: 'Other.' }),
+        ],
+      }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    // Excluded from the launchers (it owns the tag-row affordance)...
+    expect(
+      dom.querySelector('[data-testid="inspector-ai-action-launch-core/ai-tagger-action"]'),
+    ).toBeNull();
+    expect(
+      dom.querySelector('[data-testid="inspector-ai-action-launch-core/other-action"]'),
+    ).not.toBeNull();
+    // ...and the tag row shows the idle sparkles button.
+    const btn = dom.querySelector('[data-testid="node-tags-auto"]') as HTMLButtonElement;
+    expect(btn).not.toBeNull();
+    expect(btn.getAttribute('data-state')).toBe('idle');
+    btn.click();
+    await flush(fixture);
+    expect(dataSource.submitNodeJob).toHaveBeenCalledWith(
+      node.path,
+      'core/ai-tagger-action',
+      false,
+    );
+  });
+
+  it('without the tagger extension the tag row shows no sparkles button', async () => {
+    const { fixture } = await bootAiActions({
+      probs: makeProbExtensions({
+        standalone: [makeProbEntry({ id: 'core/other-action', description: 'Other.' })],
+      }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(dom.querySelector('[data-testid="node-tags-auto"]')).toBeNull();
   });
 
   it('with a stored summary the header button is ready and toggles the analysis block', async () => {

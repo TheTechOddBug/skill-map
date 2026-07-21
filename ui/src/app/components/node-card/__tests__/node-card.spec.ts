@@ -25,6 +25,22 @@ import type {
  * markup to assert against.
  */
 
+/**
+ * The `core/node-set-tags` action-button contribution the card's tag
+ * chips key their visibility off (surface follows the plugin, mirror of
+ * the inspector tag row). Tag fixtures attach it; the gate test omits it.
+ */
+function setTagsContribution() {
+  return {
+    pluginId: 'core',
+    extensionId: 'node-set-tags',
+    nodePath: 'a.md',
+    contributionId: 'editTagsButton',
+    slot: 'inspector.action.button',
+    payload: { actionId: 'core/node-set-tags', label: 'Edit tags', enabled: true },
+  };
+}
+
 function makeNode(overlay?: ISidecarOverlay): INodeView {
   const view: INodeView = {
     path: 'agents/architect.md',
@@ -103,6 +119,7 @@ describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
         status: 'fresh',
         annotations: { tags: ['x', 'y', 'z'] },
       },
+      contributions: [setTagsContribution()],
     };
     const dom = bootstrap(node);
     const tagsBlock = dom.querySelector('[data-testid="node-card-tags"]');
@@ -121,6 +138,7 @@ describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
         status: 'fresh',
         annotations: { tags: ['a', 'b', 'c', 'd', 'e'] },
       },
+      contributions: [setTagsContribution()],
     };
     const dom = bootstrap(node);
     expect(dom.querySelectorAll('.sm-gnode__tag-chip').length).toBe(3);
@@ -131,6 +149,24 @@ describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
 
   it('hides the tags row entirely when there are no tags', () => {
     const dom = bootstrap(makeNode());
+    expect(dom.querySelector('[data-testid="node-card-tags"]')).toBeNull();
+  });
+
+  it('hides the tag chips without the core/node-set-tags contribution, even with tags set', () => {
+    // Surface follows the plugin (user call 2026-07-21, mirror of the
+    // inspector tag row): extension disabled -> the action projects
+    // nothing -> no chips on the card; the tags stay in the .sm.
+    const node: INodeView = {
+      path: 'a.md',
+      kind: 'agent',
+      frontmatter: { name: 'a', description: '', metadata: { version: '' } },
+      sidecar: {
+        present: true,
+        status: 'fresh',
+        annotations: { tags: ['x', 'y'] },
+      },
+    };
+    const dom = bootstrap(node);
     expect(dom.querySelector('[data-testid="node-card-tags"]')).toBeNull();
   });
 
@@ -186,6 +222,7 @@ describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
       kind: 'agent',
       frontmatter: { name: 'a', description: '', metadata: { version: '' } },
       sidecar: { present: true, status: 'fresh', annotations: { tags: ['infra', 'review'] } },
+      contributions: [setTagsContribution()],
     };
     const fixture = TestBed.createComponent(NodeCard);
     fixture.componentRef.setInput('node', node);

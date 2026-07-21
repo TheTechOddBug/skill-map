@@ -69,10 +69,12 @@ import { HTTPException } from 'hono/http-exception';
 import { relative, resolve } from 'node:path';
 
 import { assertContained } from '../../core/paths/path-guard.js';
+import { composeResolver } from '../../core/runtime/fresh-resolver.js';
 import { ActionRefusedError } from '../app.js';
 import { EConsentRequiredError, ESidecarWritersForbiddenError, ensureSidecarWritesAllowed } from '../../core/config/sidecar-consent.js';
 import type { IAction, IActionContext, IActionResult, TActionWrite } from '../../kernel/extensions/index.js';
 import type { Kernel } from '../../kernel/index.js';
+import { installedDefaultEnabled } from '../../kernel/config/plugin-resolver.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
 import type { Node } from '../../kernel/types.js';
@@ -203,6 +205,7 @@ export function registerActionsRoutes(app: Hono, deps: IActionsRouteDeps): void 
     const shortId = parseSegment(c.req.param('actionId'), 'actionId');
     const actionId = qualifiedExtensionId(pluginId, shortId);
     const action = resolveInvokableAction(deps.kernel, actionId);
+    assertActionEnabled(deps, actionId, action);
     const body = await parseBody(c.req.raw);
     const node = await loadNode(deps, body.nodePath);
 
@@ -305,6 +308,32 @@ function parseSegment(value: string, name: string): string {
  * contract). The id is sanitised before interpolation into the 404
  * envelope.
  */
+/**
+ * Live enabled gate (spec/view-slots.md §Dispatch): a disabled Action is
+ * not dispatchable, indistinguishable from an unknown one (404). The
+ * resolver derives from the layered config on EVERY dispatch, so a
+ * mid-session disable is honoured without restarting `sm serve` and a
+ * stale (or hand-crafted) client cannot invoke a switched-off action by
+ * qualified id. The installed default comes from the registered
+ * extension's own manifest (`stability` + `defaultEnabled`, same
+ * derivation the composer applies), so an opt-in built-in like
+ * `core/node-bump` is refused even when the project settings carry no
+ * explicit entry for it.
+ */
+function assertActionEnabled(
+  deps: IActionsRouteDeps,
+  actionId: string,
+  action: IAction,
+): void {
+  const resolveEnabled = composeResolver(deps.configService.effective());
+  const installedDefault = installedDefaultEnabled(action.stability, action.defaultEnabled);
+  if (!resolveEnabled(actionId, installedDefault)) {
+    throw new HTTPException(404, {
+      message: tx(SERVER_TEXTS.actionUnknown, { actionId: sanitizeForTerminal(actionId) }),
+    });
+  }
+}
+
 function resolveInvokableAction(kernel: Kernel, actionId: string): IAction {
   const ext = kernel.registry.get('action', actionId);
   const action = ext as IAction | undefined;

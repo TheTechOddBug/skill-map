@@ -104,6 +104,8 @@ const SCHEMA_FILES: Record<TSchemaName, string> = {
  * schema `$ref`ing it is the enricher signal
  * (`kernel/enrichments/enrichment-schema.ts`) and `sm refresh` validates
  * the report through `validateActionReport` against it.
+ * `tags/markdown.schema.json` mirrors summaries for the TAGGER signal
+ * (`kernel/jobs/tags-schema.ts`, the sidecar tags write-through).
  * `findings/report.schema.json` (the canonical findings envelope) is the
  * probabilistic-Analyzer counterpart: a finder's `report.schema.json`
  * MUST `$ref` it (`kernel/jobs/findings-schema.ts`) and `sm record`
@@ -113,6 +115,7 @@ const SUPPORTING_SCHEMAS: string[] = [
   'schemas/extensions/base.schema.json',
   'schemas/frontmatter/base.schema.json',
   'schemas/summaries/markdown.schema.json',
+  'schemas/tags/markdown.schema.json',
   'schemas/enrichments/github.schema.json',
   'schemas/findings/report.schema.json',
   'schemas/view-slots.schema.json',

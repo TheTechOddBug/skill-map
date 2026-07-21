@@ -32,6 +32,34 @@
     >
       <i class="pi pi-pencil" aria-hidden="true"></i>
     </button>
+    <!-- Auto-tag affordance (user request 2026-07-21): idle queues
+         `core/ai-tagger-action`; the record path writes the inferred tags
+         into the sidecar, so the chips refresh on the next broadcast. -->
+    @if (autoTagState() !== 'hidden') {
+      <button
+        type="button"
+        class="node-tags__auto"
+        [disabled]="autoTagState() === 'queued' || autoTagState() === 'running'"
+        [pTooltip]="autoTagTooltip()"
+        tooltipPosition="left"
+        [attr.aria-label]="autoTagTooltip()"
+        (click)="onAutoTagClick()"
+        [attr.data-state]="autoTagState()"
+        data-testid="node-tags-auto"
+      >
+        @switch (autoTagState()) {
+          @case ('queued') {
+            <i class="pi pi-clock" aria-hidden="true"></i>
+          }
+          @case ('running') {
+            <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+          }
+          @default {
+            <i class="pi pi-sparkles" aria-hidden="true"></i>
+          }
+        }
+      </button>
+    }
   </div>
 } @else {
   <div class="node-tags node-tags--editing" data-testid="node-tags-editor">

@@ -72,6 +72,14 @@ function preGrantConsent(fixture: string): void {
     JSON.stringify({ allowEditSmFiles: true }),
     'utf8',
   );
+  // `core/node-bump` ships `defaultEnabled: false` and `sm bump` refuses
+  // when the extension is disabled (the 2026-07-21 enabled-gate sweep),
+  // so the fixture opts it in; the gate has its own dedicated spec.
+  writeFileSync(
+    join(fixture, '.skill-map', 'settings.json'),
+    JSON.stringify({ plugins: { core: { extensions: { 'node-bump': { enabled: true } } } } }),
+    'utf8',
+  );
 }
 
 before(() => {

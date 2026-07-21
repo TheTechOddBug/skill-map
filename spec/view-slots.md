@@ -226,7 +226,7 @@ ctx.emitContribution(nodePath, 'bump', {
 });
 ```
 
-**Dispatch**: a click sends `POST /api/actions/:id` with the qualified `actionId`; the kernel resolves the Action in its registry (unknown id → 404), runs it against the open node, and answers an `action.applied` envelope (`{ value: { actionId, nodePath, report }, elapsedMs }`). `.sm`-writing actions still pass through the write-consent gate (see [`architecture.md`](./architecture.md) §Annotation system → Write consent).
+**Dispatch**: a click sends `POST /api/actions/:id` with the qualified `actionId`; the kernel resolves the Action in its registry (unknown OR disabled id → 404: a disabled Action is not dispatchable, the surface follows the plugin, so the route re-checks the live enabled state on every dispatch rather than trusting that the button was projected), runs it against the open node, and answers an `action.applied` envelope (`{ value: { actionId, nodePath, report }, elapsedMs }`). `.sm`-writing actions still pass through the write-consent gate (see [`architecture.md`](./architecture.md) §Annotation system → Write consent).
 
 **Reserved fields** (no effect yet, declared so the contract is stable before the parametrized-action steps land):
 

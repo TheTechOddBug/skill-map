@@ -20,6 +20,7 @@ import { makeEvent, makeHookDispatcher } from '../kernel/extensions/hook-dispatc
 import { configureLogger } from '../kernel/util/logger.js';
 import { tx } from '../kernel/util/tx.js';
 import { builtIns } from '../plugins/built-ins.js';
+import { builtInEnabledResolverFor } from '../core/runtime/built-in-enabled.js';
 import { ENTRY_TEXTS } from './i18n/entry.texts.js';
 import {
   Logger,
@@ -187,15 +188,19 @@ if (telemetryVerb !== 'serve') {
 // entry (the kernel only dispatches the eight pipeline-driven
 // triggers from inside `runScan`). Built-in hooks are loaded
 // statically from the bundle so the boot path stays free of
-// `loadPluginRuntime` (FS walk + AJV compile per call). User-plugin
-// hooks that subscribe to `boot` / `shutdown` are loaded but do not
-// dispatch in this path today, see `spec/architecture.md` §Hook ·
-// curated trigger set for the limitation note. The dispatcher's
-// emitter is a throwaway InMemoryProgressEmitter, `extension.error`
-// events from a misbehaving hook surface in its buffer but the entry
-// never reads it back; the policy is "log, don't block."
+// `loadPluginRuntime` (FS walk + AJV compile per call), but they are
+// STILL filtered against the project's layered config (one cheap
+// settings read, no plugin discovery): a disabled hook must not fire
+// on any trigger (2026-07-21 sweep; spec §Hook · curated trigger set).
+// User-plugin hooks that subscribe to `boot` / `shutdown` are loaded
+// but do not dispatch in this path today, see the same spec section
+// for the limitation note. The dispatcher's emitter is a throwaway
+// InMemoryProgressEmitter, `extension.error` events from a misbehaving
+// hook surface in its buffer but the entry never reads it back; the
+// policy is "log, don't block."
+const bootHookEnabled = builtInEnabledResolverFor(process.cwd());
 const lifecycleDispatcher = makeHookDispatcher(
-  builtIns().hooks ?? [],
+  (builtIns().hooks ?? []).filter((hook) => bootHookEnabled(hook)),
   new InMemoryProgressEmitter(),
 );
 await lifecycleDispatcher.dispatch(

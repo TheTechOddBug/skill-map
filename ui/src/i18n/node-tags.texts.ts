@@ -13,6 +13,17 @@ export const NODE_TAGS_TEXTS = {
   editTooltip: 'Edit tags',
   /** Tooltip / aria-label on the pencil when the node has no tags yet. */
   addTooltip: 'Add tags',
+  /**
+   * Auto-tag affordance (user request 2026-07-21): the magic (sparkles)
+   * button on the tag row queues `core/ai-tagger-action`; the inferred
+   * tags land in the sidecar via the record-side write-through and the
+   * chips refresh on the next scan broadcast.
+   */
+  autoTag: {
+    tooltipIdle: 'Auto-tag this file',
+    tooltipQueued: 'Auto-tag queued',
+    tooltipRunning: 'Inferring tags…',
+  },
   /** Inline title for the view-mode tag row (renders as `TAGS:`). */
   viewLabel: 'Tags',
   /** Label above the inline tag editor input. */

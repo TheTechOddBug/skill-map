@@ -29,4 +29,14 @@ export const RECORD_TEXTS = {
   // --- success lines (human mode) ----------------------------------------
   completedLine: '{{glyph}}  recorded {{execId}}: job {{id}} completed\n',
   failedLine: '{{glyph}}  recorded {{execId}}: job {{id}} failed ({{reason}})\n',
+
+  /**
+   * Tags write-through advisories (spec/job-lifecycle.md §Tags
+   * write-through): the applied line echoes the node's FULL merged tag
+   * list; the consent line explains why nothing was written (the report
+   * still carries the tags).
+   */
+  tagsApplied: '{{glyph}}  tags on {{node}}: {{tags}}\n',
+  tagsConsentMissing:
+    '{{glyph}}  tags not applied to {{node}}: no standing .sm consent (allowEditSmFiles); the report keeps them\n',
 } as const;

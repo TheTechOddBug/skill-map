@@ -113,6 +113,26 @@ export function effectiveUserTags(node: INodeView | null | undefined): string[] 
 }
 
 /**
+ * Whether `node` carries the `inspector.action.button` contribution of
+ * the given qualified action id. The header chips, the inline tag row,
+ * AND the card tag chips key their visibility off this presence
+ * (surface follows the plugin, user calls 2026-07-21): the action's
+ * scan-time `project()` only emits while the extension is enabled, so
+ * a disabled plugin removes every surface it owns without any UI-side
+ * knowledge of the config.
+ */
+export function hasActionButtonContribution(
+  node: INodeView | null | undefined,
+  qualifiedActionId: string,
+): boolean {
+  return (node?.contributions ?? []).some(
+    (c) =>
+      c.slot === 'inspector.action.button' &&
+      `${c.pluginId}/${c.extensionId}` === qualifiedActionId,
+  );
+}
+
+/**
  * Sidecar drift tooltip, picks the matching string from the i18n
  * dictionary based on the overlay status. Returns `''` when the node
  * is fresh / has no overlay so the call site can bind it

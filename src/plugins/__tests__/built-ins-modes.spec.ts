@@ -18,7 +18,7 @@ import { describe, it } from 'node:test';
 
 import { builtIns, listBuiltIns } from '../built-ins.js';
 import { enrichmentKindOfReportSchema } from '../../kernel/enrichments/enrichment-schema.js';
-import { summaryKindOfReportSchema } from '../../kernel/jobs/index.js';
+import { isTagsReportSchema, summaryKindOfReportSchema } from '../../kernel/jobs/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { composeScanExtensions, emptyPluginRuntime } from '../../core/runtime/plugin-runtime.js';
 
@@ -262,7 +262,8 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/ai-contradiction-action` (fixer for `core/ai-contradiction-analyzer`, `precondition.analyzerIds: ['core/ai-contradiction-analyzer']`; resolves conflicting / jointly-risky directive pairs) + `core/ai-incoherence-action` (fixer for `core/ai-incoherence-analyzer`; fixes dangling references, drifting terminology, missing context), both experimental and ships disabled, bring it to 48.
     // `core/auto-fix` (the former second built-in hook) was REMOVED on 2026-07-21: redundant with the per-job `auto_fix` flag; the record-side hook dispatch stays for drop-in hooks, keeping the count at 48.
     // `core/ai-reference-action` (the first DETERMINISTIC-analyzer fixer: a probabilistic Action declaring `precondition.analyzerIds: ['core/reference-broken']`, so its submit-time trigger is that rule's `scan_issues` rows injected as `## Issues to resolve`, not `state_findings`; experimental, ships disabled, exempt from the finder/fixer pairing convention) brings it to 49.
-    assert.equal(rows.length, 49);
+    // `core/ai-tagger-action` (the taxonomy sibling of the summarizer: stable probabilistic Action whose report `$ref`s the canonical tags schema; the record path merges its `tags[]` into the sidecar through the consent-gated write-through) brings it to 50.
+    assert.equal(rows.length, 50);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a
@@ -325,6 +326,40 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
       summaryKindOfReportSchema(action.reportSchema as Record<string, unknown>),
       'markdown',
       'the summaries $ref must register the action as a markdown summarizer',
+    );
+  });
+
+  it('the built-in `core/ai-tagger-action` is a stable probabilistic tagger with its inlined siblings', () => {
+    const set = builtIns();
+    const action = set.actions.find((a) => a.id === 'ai-tagger-action');
+    if (!action) throw new Error('expected the ai-tagger-action action to be bundled');
+    assert.equal(action.pluginId, 'core');
+    assert.equal(action.mode, 'probabilistic');
+    assert.equal(action.stability, 'stable');
+    assert.equal(action.probExpectedDurationSeconds, 60);
+    assert.equal(typeof action.promptTemplate, 'string');
+    assert.ok(
+      (action.promptTemplate ?? '').includes('{{userContent}}'),
+      'inlined promptTemplate must carry the {{userContent}} placeholder',
+    );
+    // The report schema's $ref to the canonical tags shape IS the tagger
+    // signal the record path gates the sidecar write-through on
+    // (`isTagsReportSchema`, spec/job-lifecycle.md §Tags write-through).
+    assert.ok(
+      action.reportSchema !== null && typeof action.reportSchema === 'object',
+      'inlined reportSchema must be a parsed object',
+    );
+    const tagSchema = action.reportSchema as { allOf?: Array<{ $ref?: string }> };
+    assert.ok(
+      (tagSchema.allOf ?? []).some(
+        (s) => s.$ref === 'https://skill-map.ai/spec/v0/tags/markdown.schema.json',
+      ),
+      'reportSchema must extend tags/markdown by its absolute $id',
+    );
+    assert.equal(
+      isTagsReportSchema(action.reportSchema as Record<string, unknown>),
+      true,
+      'the tags $ref must register the action as a tagger',
     );
   });
 

@@ -16,23 +16,33 @@
  * trimmed, no empties, deduped) so a free-form input never produces a
  * schema-violating sidecar.
  *
- * No self-projected button: unlike `node-set-stability` / `node-bump`,
- * this Action does NOT emit an `inspector.action.button`. Tag editing
- * lives inline in the inspector's tag row (`<sm-node-tags>`), which seeds
- * itself from the node's current tags and dispatches this Action by
- * qualified id (`core/node-set-tags`) on save. The Action therefore has
- * no `project()` / `ui` surface; it is purely an on-demand executor.
+ * Dual surface (mirrors `node-set-stability` / `node-bump`):
+ *   - `project(ctx)` (scan-time, read-only graph): self-projects an
+ *     `inspector.action.button` per real (non-virtual) node. The button
+ *     is NOT rendered as a button: its PRESENCE is what gates the
+ *     inspector's inline tag row (`<sm-node-tags>`, the re-homed
+ *     affordance, same documented UI exception as the stability /
+ *     version chips), so a disabled action removes the row entirely
+ *     (the enabled gate is applied by `composeScanExtensions` before
+ *     `runActionProjections`). The row seeds itself from the node's
+ *     current tags and dispatches this Action by qualified id
+ *     (`core/node-set-tags`) on save; no `prompt` block is projected
+ *     because the row hosts its own inline editor.
+ *   - `invoke(input, ctx)` (on-demand executor): writes `annotations.tags`.
  */
 
 import type {
   IAction,
   IActionContext,
+  IActionProjectionContext,
   IActionResult,
   IBuiltInManifest,
   TActionWrite,
 } from '../../../../kernel/extensions/index.js';
+import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
 import { sidecarPathFor } from '../../../../kernel/sidecar/parse.js';
 import { CORE_PLUGIN_ID as PLUGIN_ID } from '../../../ids.js';
+import { NODE_SET_TAGS_TEXTS } from './node-set-tags.texts.js';
 
 /**
  * Input parameters accepted by `node-set-tags`.
@@ -59,6 +69,16 @@ export interface INodeSetTagsReport {
 
 const ID = 'node-set-tags';
 
+// Inspector action button this action self-projects. Module-level const
+// so the manifest `ui` map and the `project()` emit reference the SAME
+// object (the orchestrator recovers the contribution id + slot by object
+// identity). The inspector re-homes it onto the inline tag row: the
+// contribution's presence gates the row, mirroring the stability chip.
+const editTagsButton = {
+  slot: 'inspector.action.button',
+  priority: 14,
+} satisfies IViewContribution;
+
 export const nodeSetTagsAction: IBuiltInManifest<IAction> = {
   id: ID,
   pluginId: PLUGIN_ID,
@@ -70,6 +90,24 @@ export const nodeSetTagsAction: IBuiltInManifest<IAction> = {
   // `{ kind: 'sidecar' }` write, so the `allowSidecarWriters` policy can
   // gate this action without invoking it.
   writes: ['sidecar'],
+
+  ui: { editTagsButton },
+
+  project(ctx: IActionProjectionContext): void {
+    for (const node of ctx.nodes) {
+      // Skip synthetic nodes (no file on disk to anchor a `.sm`). Every
+      // real node gets the contribution whether or not it already has a
+      // sidecar; the write creates the `.sm` when absent (gated by the
+      // write-consent flow).
+      if (node.virtual === true) continue;
+      ctx.emitContribution(node.path, editTagsButton, {
+        actionId: 'core/node-set-tags',
+        label: NODE_SET_TAGS_TEXTS.editLabel,
+        icon: 'pi-tags',
+        enabled: true,
+      });
+    }
+  },
 
   // The runtime contract uses generic <TInput, TReport>; this narrows
   // both. The cast is the standard pattern for built-ins that want

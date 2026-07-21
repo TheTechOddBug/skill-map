@@ -19,6 +19,7 @@ import {
   effectiveStability,
   effectiveUserTags,
   effectiveVersion,
+  hasActionButtonContribution,
 } from '../../../models/node-derived';
 import type { INodeActivityStatsApi } from '../../../models/api';
 import { pathBasenameForLink } from '../../../services/path-basename';
@@ -324,8 +325,17 @@ export class NodeCard {
    * the fallback for un-migrated `.md` files (see `effectiveUserTags`).
    * The former author source (`frontmatter.tags`) was retired, so the
    * card renders one chip style with no source discriminator.
+   *
+   * The chip row follows the `core/node-set-tags` contribution, same
+   * surface-follows-the-plugin rule as the inspector's tag row (user
+   * call 2026-07-21): extension off -> no tag chips on the card either,
+   * the data stays in the `.sm`.
    */
-  protected readonly tagChips = computed<readonly string[]>(() => effectiveUserTags(this.node()));
+  protected readonly tagChips = computed<readonly string[]>(() =>
+    hasActionButtonContribution(this.node(), 'core/node-set-tags')
+      ? effectiveUserTags(this.node())
+      : [],
+  );
 
   /** Top-3 chips rendered on the card. */
   protected readonly visibleTagChips = computed(() => this.tagChips().slice(0, 3));

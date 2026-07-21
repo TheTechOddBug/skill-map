@@ -85,7 +85,16 @@ import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { pushJobEvent } from '../util/job-event-push.js';
 import { RECORD_TEXTS as T } from '../i18n/record.texts.js';
+import { resolve as resolvePath } from 'node:path';
+
 import { appendOperation } from '../../core/operations-log.js';
+import {
+  EConsentRequiredError,
+  ensureSidecarWritesAllowed,
+} from '../../core/config/sidecar-consent.js';
+import { isTagsReportSchema } from '../../kernel/jobs/index.js';
+import { readSidecarFor, sidecarPathFor } from '../../kernel/sidecar/index.js';
+import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
 import { withSqlite } from '../util/with-sqlite.js';
@@ -349,7 +358,55 @@ export class RecordCommand extends SmCommand {
     // it never alters the record's success (spec §Hook: hooks react, never
     // block; spec/job-lifecycle.md §Auto-fix chain (per-job)).
     await this.chainAutoFix(adapter, job, cwd, getRuntime, runId);
+    // Tags write-through (spec/job-lifecycle.md §Tags write-through): a
+    // TAGGER's completed report merges its tags into the node's sidecar
+    // through the gated channel, AFTER the transaction (best-effort,
+    // never alters the exit code).
+    await this.applyTagsWriteThrough(adapter, job, outcome.execution, cwd, getRuntime);
     return this.reportSuccess(outcome.execution, job, runId);
+  }
+
+  /**
+   * Merge a completed TAGGER report's `tags[]` into the node's sidecar
+   * `annotations.tags` (union, case-insensitive dedup, existing kept
+   * first) via the gated `.sm` channel, then refresh the write-through
+   * annotations mirror. Detection is the report-schema namespace
+   * (`isTagsReportSchema`, mirror of the summaries signal). Honours the
+   * STANDING consent only: a missing grant surfaces a human advisory
+   * and applies nothing (the report still carries the tags). Every
+   * other failure is swallowed, the write-through is best-effort by
+   * contract.
+   */
+  private async applyTagsWriteThrough(
+    adapter: StoragePort,
+    job: Job,
+    execution: ExecutionRecord,
+    cwd: string,
+    getRuntime: () => Promise<IActionRuntime>,
+  ): Promise<void> {
+    try {
+      const tags = taggerReportTags(await getRuntime(), job, execution);
+      if (tags.length === 0) return;
+      const merged = await writeMergedTags(adapter, job.nodeId, tags, cwd);
+      if (merged === null) return;
+      this.printer!.info(
+        tx(T.tagsApplied, {
+          glyph: this.ansiFor('stderr').green('✓'),
+          tags: merged.join(', '),
+          node: job.nodeId,
+        }),
+      );
+    } catch (err) {
+      if (err instanceof EConsentRequiredError) {
+        this.printer!.info(
+          tx(T.tagsConsentMissing, {
+            glyph: this.ansiFor('stderr').yellow('⚠'),
+            node: job.nodeId,
+          }),
+        );
+      }
+      // Best-effort: the record's success never depends on the apply.
+    }
   }
 
   /**
@@ -714,4 +771,88 @@ function projectHookActions(actions: readonly IAction[]): IHookActionInfo[] {
 function silentEmitter(): ProgressEmitterPort {
   // eslint-disable-next-line @typescript-eslint/no-empty-function
   return { emit: () => {} } as unknown as ProgressEmitterPort;
+}
+
+/**
+ * The tags a completed TAGGER report wants applied, or `[]` when the
+ * recorded extension is not a tagger (kind, schema namespace) or the
+ * report carries no usable tags.
+ */
+function taggerReportTags(
+  runtime: IActionRuntime,
+  job: Job,
+  execution: ExecutionRecord,
+): string[] {
+  const resolution = resolveExtensionRecord(runtime, job.extensionId, job.extensionKind);
+  if (!resolution.ok || resolution.record.extensionKind !== 'action') return [];
+  if (!isTagsReportSchema(resolution.record.schema)) return [];
+  return reportTags(execution.reportPath ?? null);
+}
+
+/**
+ * Merge `tags` into the node's sidecar `annotations.tags` through the
+ * gated `.sm` channel (standing consent only), refresh the annotations
+ * mirror, and return the merged list. `null` = nothing written (a
+ * brand-new sidecar with no live scan node to source the identity from).
+ * Consent failures propagate as `EConsentRequiredError`.
+ */
+async function writeMergedTags(
+  adapter: StoragePort,
+  nodeId: string,
+  tags: readonly string[],
+  cwd: string,
+): Promise<string[] | null> {
+  const mdAbs = resolvePath(cwd, nodeId);
+  const read = readSidecarFor(mdAbs);
+  const merged = mergeTagLists(existingTags(read.parsed?.annotations), tags);
+  const changes: Record<string, unknown> = { annotations: { tags: merged } };
+  if (read.parsed === null) {
+    // Brand-new sidecar: source the required identity block from the
+    // live scan node (same rule as the dismiss write).
+    const bundle = await adapter.scans.findNode(nodeId);
+    if (!bundle) return null;
+    changes['identity'] = {
+      path: bundle.node.path,
+      bodyHash: bundle.node.bodyHash,
+      frontmatterHash: bundle.node.frontmatterHash,
+    };
+  }
+  const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
+  await store.applyPatch(sidecarPathFor(mdAbs), changes, { confirm: false, always: false, cwd });
+  await adapter.scans.refreshAnnotations(nodeId, readSidecarFor(mdAbs).parsed?.annotations ?? null);
+  return merged;
+}
+
+/** Parse the recorded report JSON and extract a clean `tags[]`. */
+function reportTags(reportJson: string | null): string[] {
+  if (reportJson === null) return [];
+  try {
+    const parsed = JSON.parse(reportJson) as { tags?: unknown };
+    if (!Array.isArray(parsed.tags)) return [];
+    return parsed.tags.filter((t): t is string => typeof t === 'string' && t.trim().length > 0);
+  } catch {
+    return [];
+  }
+}
+
+/** The sidecar's current `annotations.tags`, defensively read. */
+function existingTags(annotations: Record<string, unknown> | null | undefined): string[] {
+  const raw = annotations?.['tags'];
+  return Array.isArray(raw) ? raw.filter((t): t is string => typeof t === 'string') : [];
+}
+
+/**
+ * Union merge (spec §Tags write-through): existing entries first in
+ * their order, new tags appended, case-insensitive dedup.
+ */
+function mergeTagLists(existing: readonly string[], incoming: readonly string[]): string[] {
+  const seen = new Set(existing.map((t) => t.toLowerCase()));
+  const merged = [...existing];
+  for (const tag of incoming) {
+    const key = tag.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(tag);
+  }
+  return merged;
 }

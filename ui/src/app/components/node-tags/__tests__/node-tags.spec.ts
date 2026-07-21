@@ -141,6 +141,43 @@ describe('NodeTags view mode', () => {
   });
 });
 
+describe('NodeTags auto-tag affordance', () => {
+  it('hides the sparkles button by default (host has not enabled the tagger)', async () => {
+    const fixture = await bootstrap(['infra']);
+    expect(el(fixture, 'node-tags-auto')).toBeNull();
+  });
+
+  it('idle renders an enabled sparkles button that emits autoTagClick', async () => {
+    const fixture = await bootstrap(['infra']);
+    fixture.componentRef.setInput('autoTagState', 'idle');
+    fixture.detectChanges();
+    let clicks = 0;
+    fixture.componentInstance.autoTagClick.subscribe(() => (clicks += 1));
+
+    const btn = el(fixture, 'node-tags-auto') as HTMLButtonElement;
+    expect(btn).not.toBeNull();
+    expect(btn.disabled).toBe(false);
+    expect(btn.getAttribute('data-state')).toBe('idle');
+    btn.click();
+    expect(clicks).toBe(1);
+  });
+
+  it('queued / running disable the button and never emit', async () => {
+    const fixture = await bootstrap(['infra']);
+    let clicks = 0;
+    fixture.componentInstance.autoTagClick.subscribe(() => (clicks += 1));
+    for (const state of ['queued', 'running'] as const) {
+      fixture.componentRef.setInput('autoTagState', state);
+      fixture.detectChanges();
+      const btn = el(fixture, 'node-tags-auto') as HTMLButtonElement;
+      expect(btn.disabled).toBe(true);
+      expect(btn.getAttribute('data-state')).toBe(state);
+      btn.click();
+    }
+    expect(clicks).toBe(0);
+  });
+});
+
 describe('NodeTags edit mode', () => {
   it('enters edit mode on the pencil, seeding the draft with the current tags', async () => {
     const fixture = await bootstrap(['infra', 'review']);

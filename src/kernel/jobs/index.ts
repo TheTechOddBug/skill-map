@@ -32,6 +32,7 @@ export {
   summaryKindOfReportSchema,
   SUMMARY_SCHEMA_ID_PREFIX,
 } from './summary-schema.js';
+export { isTagsReportSchema, TAGS_SCHEMA_ID_PREFIX } from './tags-schema.js';
 export {
   reportSchemaExtendsFindings,
   FINDINGS_SCHEMA_ID_PREFIX,

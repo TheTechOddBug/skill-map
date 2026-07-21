@@ -69,6 +69,19 @@ export class NodeTags {
   readonly nodePath = input.required<string>();
 
   /**
+   * Auto-tag affordance state (user request 2026-07-21), owned by the
+   * inspector host like the header's summary machine: `hidden` (the
+   * `core/ai-tagger-action` extension is unavailable), `idle` (clickable,
+   * queues a run), `queued` / `running` (job in flight). There is no
+   * `ready` state: the inferred tags land in the sidecar through the
+   * record-side write-through and simply show up as chips.
+   */
+  readonly autoTagState = input<'hidden' | 'idle' | 'queued' | 'running'>('hidden');
+
+  /** Emitted when the user clicks the idle auto-tag (sparkles) button. */
+  readonly autoTagClick = output<void>();
+
+  /**
    * Emitted when the user clicks a tag chip in VIEW mode. Carries the tag
    * string; the host forwards it to the graph's tag-selection. Edit mode
    * never emits this (its chips are remove affordances, not filters).
@@ -130,6 +143,23 @@ export class NodeTags {
   protected readonly editTooltip = computed<string>(() =>
     this.tags().length === 0 ? this.texts.addTooltip : this.texts.editTooltip,
   );
+
+  /** Auto-tag button tooltip / aria, per host-owned state. */
+  protected readonly autoTagTooltip = computed<string>(() => {
+    switch (this.autoTagState()) {
+      case 'queued':
+        return this.texts.autoTag.tooltipQueued;
+      case 'running':
+        return this.texts.autoTag.tooltipRunning;
+      default:
+        return this.texts.autoTag.tooltipIdle;
+    }
+  });
+
+  protected onAutoTagClick(): void {
+    if (this.autoTagState() !== 'idle') return;
+    this.autoTagClick.emit();
+  }
 
   protected isActive(tag: string): boolean {
     return this.activeTag() === tag;

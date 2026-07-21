@@ -39,11 +39,13 @@
       [summaryRows]="nodeSummaries() ?? []"
       [summaryExpanded]="summaryExpanded()"
       [summaryStale]="summaryStale()"
+      [autoTagState]="autoTagState()"
       (favoriteToggle)="onHeaderFavoriteToggle($event)"
       (tagClick)="tagSelect.emit($event)"
       (summarizeClick)="onSummarizeClick()"
       (summaryRefresh)="onSummaryRefresh()"
       (summaryDelete)="onSummaryDelete($event)"
+      (autoTagClick)="onAutoTagClick()"
     />
 
     <!-- Scroll area: the fixed header above stays put while everything from

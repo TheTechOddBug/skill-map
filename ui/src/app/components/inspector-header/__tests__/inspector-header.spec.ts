@@ -30,11 +30,30 @@ function makeStub() {
   };
 }
 
+/**
+ * The `core/node-set-tags` action-button contribution whose PRESENCE
+ * gates the inline tag row (surface follows the plugin, mirror of the
+ * stability / version chips). Default on every fixture node so the tag
+ * row specs keep exercising the row; pass `contributions: []` to model
+ * the disabled plugin.
+ */
+function setTagsContribution() {
+  return {
+    pluginId: 'core',
+    extensionId: 'node-set-tags',
+    nodePath: 'agents/architect.md',
+    contributionId: 'editTagsButton',
+    slot: 'inspector.action.button',
+    payload: { actionId: 'core/node-set-tags', label: 'Edit tags', enabled: true },
+  };
+}
+
 function makeNode(overrides: Partial<INodeView> = {}): INodeView {
   return {
     path: 'agents/architect.md',
     kind: 'agent',
     frontmatter: { name: 'architect', description: '', metadata: { version: '1.0.0' } },
+    contributions: [setTagsContribution()],
     ...overrides,
   } as INodeView;
 }
@@ -100,6 +119,19 @@ describe('InspectorHeader tag row delegation', () => {
     fixture.componentRef.setInput('activeTag', 'review');
     fixture.detectChanges();
     expect(nodeTags(fixture).activeTag()).toBe('review');
+  });
+
+  it('hides the row entirely without the core/node-set-tags contribution, even with tags set', async () => {
+    // Surface follows the plugin (user call 2026-07-21, mirror of the
+    // stability chip): action disabled -> no tag row, no chips, no
+    // editor; the tags stay in the .sm.
+    const fixture = await bootstrap(
+      makeNode({
+        sidecar: { present: true, status: 'fresh', annotations: { tags: ['infra'] } },
+        contributions: [],
+      }),
+    );
+    expect(fixture.debugElement.query(By.directive(NodeTags))).toBeNull();
   });
 });
 
