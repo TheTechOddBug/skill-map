@@ -1,5 +1,47 @@
 # skill-map
 
+## 0.89.0-rc.2
+
+### Minor Changes
+
+- New `core/ai-tagger-action` built-in (taxonomy sibling of the summarizer): `sm record` merges its report tags into the sidecar `annotations.tags` under standing `.sm` consent, and the inspector tag row gains a sparkles auto-tag button. Enabled-gate sweep: tag surfaces follow a self-projected `core/node-set-tags` contribution, `POST /api/actions/:id` re-checks the live enabled state (disabled = 404), `sm bump` refuses while `core/node-bump` is off, and boot/shutdown hooks skip disabled ones.
+
+  ## User-facing
+
+  **Auto-tag.** A sparkles button on the tag row asks the AI to suggest topical tags for the file; they merge into your tags once you grant the sidecar write consent. Disabled extensions now stay off everywhere: their buttons, chips, verbs and hooks disappear or refuse to run.
+
+- Every disable surface (`sm plugins disable` and the three `PATCH /api/plugins` toggle routes) now cancels the disabled extension's `queued` jobs via the shared `core/jobs/cancel-disabled.ts` helper, inside the same DB open as the contributions purge: one `job.cancelled` push or WS broadcast per affected id and one aggregated `jobs.cancel` operations-log line when any job was cancelled; `running` jobs are untouched.
+
+  ## User-facing
+
+  **Switching a plugin off cancels its pending jobs.** Turning a plugin or extension off now also cancels its queued jobs, so nothing keeps processing work for something you switched off. Jobs already running finish normally, and re-enabling does not bring cancelled jobs back.
+
+- The `defaultEnabled` axis is honored end to end (`core/node-set-stability` and a now-stable `core/node-bump` ship disabled by default), the redundant `core/auto-fix` built-in is removed while the `job.completed` dispatch stays public, bump stamps `version: 1` on a versionless fresh sidecar, the inspector header hosts the stability and version chips as the Set-stability and Bump affordances, and stored analyses gain a delete endpoint and language-matched prompts.
+
+  ## User-facing
+
+  **Stability and version now live next to the file's title.** Enable their plugins to see the chips; a versionless file shows "v?" and bump stamps v1. Analyses get a delete X and are written in the file's language. The auto-fix plugin is gone, the Auto-fixer toggle covers it.
+
+- Every mutating operation now appends a one-line JSONL record to `.skill-map/operations.log` via the new single writer in `src/core/operations-log.ts`, wired across `sm scan`, watcher persists, and the job and finding lifecycles on both CLI verbs and BFF routes. A new `GET /api/config/resolution` endpoint flattens the effective config to per-key rows with layer provenance (secrets masked), rendered by the new Settings resolution dialog in Settings > General.
+
+  ## User-facing
+
+  **Operations log and settings resolution.** Every scan, job and finding operation now leaves a line in `.skill-map/operations.log`, and Settings > General gained a "Settings resolution" viewer showing each setting's effective value and which config file set it.
+
+- `core/ai-summarizer-action` graduates from experimental back to stable / enabled by default now that its UI surface landed: a new `GET /api/nodes/:pathB64/summary` route (spec route-table row, direct shape) serves the node's stored summaries with per-row staleness, and the inspector header gains a sparkles button that queues the summarizer and expands the analysis (subject, key facts, quality notes, confidence, stale mark, re-run) under the identity strip.
+
+  ## User-facing
+
+  **Analyze any file from its header.** A magic button next to the file's title runs an AI analysis; when it finishes (or the file already has one) the header shows what the file covers, key facts and quality notes. Outdated analyses are marked and can be re-run in one click.
+
+### Patch Changes
+
+- The inspector's analysis block splits its title row: sparkles and subject on the left, a stacked controls column on the right (delete, re-analyze, confidence, stale), with the confidence percent shown bare with a tooltip; a container query on the summary block lays the column flat as a row when the inspector panel is wider than 400px.
+
+  ## User-facing
+
+  **Tidier analysis controls.** In a file's analysis block, delete, re-analyze, confidence and freshness now sit in a compact column on narrow panels and lie flat in a row when the inspector is wide.
+
 ## 0.89.0-rc.1
 
 ### Patch Changes
