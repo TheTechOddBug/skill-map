@@ -146,6 +146,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   loadGraph: () => Promise.resolve(''),
   loadConfig: () => Promise.resolve({}),
   getConfigResolution: () => Promise.resolve([]),
+  getNodeSummary: () => Promise.resolve([]),
   listPlugins: () =>
     Promise.resolve({
       schemaVersion: '1',

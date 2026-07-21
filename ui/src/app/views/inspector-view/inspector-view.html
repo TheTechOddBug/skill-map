@@ -35,8 +35,14 @@
       [node]="n"
       [frontmatterInvalid]="frontmatterInvalid()"
       [activeTag]="activeTag()"
+      [summaryState]="summaryHeaderState()"
+      [summaryRows]="nodeSummaries() ?? []"
+      [summaryExpanded]="summaryExpanded()"
+      [summaryStale]="summaryStale()"
       (favoriteToggle)="onHeaderFavoriteToggle($event)"
       (tagClick)="tagSelect.emit($event)"
+      (summarizeClick)="onSummarizeClick()"
+      (summaryRefresh)="onSummaryRefresh()"
     />
 
     <!-- Scroll area: the fixed header above stays put while everything from

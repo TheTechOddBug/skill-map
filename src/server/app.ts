@@ -95,6 +95,7 @@ import { registerIssuesRoute } from './routes/issues.js';
 import { registerLinksRoute } from './routes/links.js';
 import { registerNodeFindingActionsRoutes } from './routes/node-finding-actions.js';
 import { registerNodeFindingsRoute } from './routes/node-findings.js';
+import { registerNodeSummaryRoute } from './routes/node-summary.js';
 import { registerNodeJobsRoute } from './routes/node-jobs.js';
 import { registerNodeProbExtensionsRoute } from './routes/node-prob-extensions.js';
 import { registerNodesRoutes } from './routes/nodes.js';
@@ -616,6 +617,7 @@ export function createApp(deps: IAppDeps): Hono {
   //   `POST /api/jobs/:jobId/cancel`             -> launcher stop
   //     (broadcasts `job.cancelled` on success).
   registerNodeFindingsRoute(app, routeDeps);
+  registerNodeSummaryRoute(app, routeDeps);
   // Per-finding mutations (inspector tray): dismiss / resolve / undismiss,
   // the HTTP faces of the `sm findings` verbs (read-time suppression lens).
   registerNodeFindingActionsRoutes(app, routeDeps);

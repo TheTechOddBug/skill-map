@@ -28,6 +28,7 @@ import type {
   IActivityRunApi,
   IFindingApi,
   IFindingsEnvelopeApi,
+  INodeSummaryRowApi,
   INodeDetailApi,
   INodeApi,
   INodeActivityStatsApi,
@@ -56,6 +57,7 @@ type IStubDataSource = IDataSourcePort & {
   getNode: ReturnType<typeof vi.fn>;
   getNodeActivity: ReturnType<typeof vi.fn>;
   getNodeFindings: ReturnType<typeof vi.fn>;
+  getNodeSummary: ReturnType<typeof vi.fn>;
   getNodeProbExtensions: ReturnType<typeof vi.fn>;
   submitNodeJob: ReturnType<typeof vi.fn>;
   cancelJob: ReturnType<typeof vi.fn>;
@@ -177,6 +179,7 @@ function makeStubDataSource(): IStubDataSource {
     resolveFinding: vi.fn().mockResolvedValue(undefined),
     undismissFinding: vi.fn().mockResolvedValue(undefined),
     deleteFinding: vi.fn().mockResolvedValue(undefined),
+    getNodeSummary: vi.fn().mockResolvedValue([]),
     bumpSidecar: vi.fn(),
     dispatchAction: vi.fn().mockResolvedValue({
       schemaVersion: '1',
@@ -2111,7 +2114,8 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
   interface IAiActionsBoot {
     findings?: IFindingsEnvelopeApi;
     probs?: IProbExtensionsApi;
-  }
+    summaries?: INodeSummaryRowApi[];
+}
 
   async function bootAiActions(opts: IAiActionsBoot = {}): Promise<{
     fixture: ComponentFixture<InspectorView>;
@@ -2125,6 +2129,7 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
     if (opts.findings) dataSource.getNodeFindings.mockResolvedValue(opts.findings);
     if (opts.probs) dataSource.getNodeProbExtensions.mockResolvedValue(opts.probs);
+    if (opts.summaries) dataSource.getNodeSummary.mockResolvedValue(opts.summaries);
     const { fixture, jobEvents$ } = bootstrap({ loader, dataSource });
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
@@ -2267,6 +2272,72 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
       'core/todo-finder',
       expect.anything(),
     );
+  });
+
+  it('the header summarize ? queues the summarizer; the summarizer never rides the launcher row', async () => {
+    const { fixture, dataSource, node } = await bootAiActions({
+      probs: makeProbExtensions({
+        standalone: [
+          makeProbEntry({ id: 'core/ai-summarizer-action', description: 'Summarizes.' }),
+          makeProbEntry({ id: 'core/other-action', description: 'Other.' }),
+        ],
+      }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    // Excluded from the launchers (it owns the header affordance)...
+    expect(
+      dom.querySelector('[data-testid="inspector-ai-action-launch-core/ai-summarizer-action"]'),
+    ).toBeNull();
+    expect(
+      dom.querySelector('[data-testid="inspector-ai-action-launch-core/other-action"]'),
+    ).not.toBeNull();
+    // ...and the header shows the idle ?-with-magic button.
+    const btn = dom.querySelector('[data-testid="inspector-summarize"]') as HTMLButtonElement;
+    expect(btn).not.toBeNull();
+    expect(btn.getAttribute('data-state')).toBe('idle');
+    btn.click();
+    await flush(fixture);
+    expect(dataSource.submitNodeJob).toHaveBeenCalledWith(
+      node.path,
+      'core/ai-summarizer-action',
+      false,
+    );
+  });
+
+  it('with a stored summary the header button is ready and toggles the analysis block', async () => {
+    const { fixture } = await bootAiActions({
+      probs: makeProbExtensions({
+        standalone: [makeProbEntry({ id: 'core/ai-summarizer-action', description: 'S.' })],
+      }),
+      summaries: [
+        {
+          summarizerActionId: 'core/ai-summarizer-action',
+          generatedAt: 1000,
+          stale: false,
+          report: {
+            whatItCovers: 'Deploys the service to production.',
+            topics: ['deploy', 'ops'],
+            keyFacts: ['Runs on push to main.'],
+            qualityNotes: ['The rollback step is undocumented.'],
+          },
+        },
+      ],
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    const btn = dom.querySelector('[data-testid="inspector-summarize"]') as HTMLButtonElement;
+    expect(btn.getAttribute('data-state')).toBe('ready');
+    // A summarized node opens with its analysis VISIBLE (user call
+    // 2026-07-21); the button collapses / re-expands it.
+    const block = dom.querySelector('[data-testid="inspector-summary"]');
+    expect(block).not.toBeNull();
+    expect(block!.textContent).toContain('Deploys the service to production.');
+    // Topics and related files are deliberately NOT rendered (user call
+    // 2026-07-21); facts and quality notes are.
+    expect(block!.textContent).toContain('Runs on push to main.');
+    expect(block!.textContent).toContain('The rollback step is undocumented.');
+    btn.click();
+    await flush(fixture);
+    expect(dom.querySelector('[data-testid="inspector-summary"]')).toBeNull();
   });
 
   it('a human-decision row shows the needs-decision mark and NO fix button', async () => {

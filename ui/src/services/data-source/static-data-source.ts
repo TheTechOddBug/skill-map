@@ -51,6 +51,7 @@ import type {
   IListEnvelopeApi,
   INodeApi,
   INodeDetailApi,
+  INodeSummaryRowApi,
   IProbExtensionsApi,
   IPreferencesApi,
   IPreferencesPatchApi,
@@ -513,6 +514,11 @@ export class StaticDataSource implements IDataSourcePort {
 
   /** Demo bundle: no layered project config, honestly empty. */
   async getConfigResolution(): Promise<IConfigResolutionRowApi[]> {
+    return [];
+  }
+
+  /** Demo bundle: records no AI summaries, honestly empty. */
+  async getNodeSummary(): Promise<INodeSummaryRowApi[] | null> {
     return [];
   }
 

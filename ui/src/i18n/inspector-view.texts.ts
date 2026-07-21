@@ -18,6 +18,23 @@ export const INSPECTOR_VIEW_TEXTS = {
     invalidFrontmatter: 'invalid frontmatter',
     invalidFrontmatterTooltip:
       'The YAML frontmatter could not be parsed, so name, description and other metadata are unavailable. Check the Findings section for the parser error.',
+    /**
+     * Semantic-analysis affordance (user shape 2026-07-21): the
+     * question-mark-with-magic button beside the title, and the
+     * expandable analysis block it reveals once the summarizer's
+     * judgment lands.
+     */
+    summary: {
+      tooltipIdle: 'Analyze and summarize this file',
+      tooltipQueued: 'Analysis queued',
+      tooltipRunning: 'Analyzing…',
+      tooltipReady: 'Show / hide the semantic analysis',
+      tooltipReadyStale: 'Show / hide the semantic analysis (outdated: the file changed since)',
+      staleTag: 'stale',
+      staleTooltip: 'The file changed since this analysis; re-run it to refresh.',
+      refreshTooltip: 'Analyze again',
+      qualityLabel: 'Quality notes',
+    },
   },
   /**
    * Section headers the inspector body renders directly. Vendor-frontmatter

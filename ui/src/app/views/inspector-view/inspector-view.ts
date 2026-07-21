@@ -102,7 +102,7 @@ import {
 } from './inspector-ai-actions.controller';
 import { setupAutoFix, type IAutoFixHandle } from './inspector-auto-fix.controller';
 import type { INodeView } from '../../../models/node';
-import type { IFindingApi, IProbExtensionEntryApi } from '../../../models/api';
+import type { IFindingApi, INodeSummaryRowApi, IProbExtensionEntryApi } from '../../../models/api';
 
 /**
  * Debounce for the Activity section's live re-fetch. Live `node.activity`
@@ -113,6 +113,13 @@ import type { IFindingApi, IProbExtensionEntryApi } from '../../../models/api';
  * re-fetch always reflects the final state.
  */
 const ACTIVITY_LIVE_REFRESH_DEBOUNCE_MS = 400;
+
+/**
+ * The universal summarizer's qualified id. It owns the header's
+ * semantic-analysis affordance and is EXCLUDED from the AI-actions
+ * launcher row / ALL button (user shape 2026-07-21).
+ */
+const SUMMARIZER_EXTENSION_ID = 'core/ai-summarizer-action';
 
 /** Per-node cap on the conversation threads the Activity section renders. */
 const SPAWN_THREADS_LIMIT = 10;
@@ -587,10 +594,14 @@ export class InspectorView implements OnInit {
   >(() => {
     const probs = this.probExtensions();
     if (probs === null) return [];
+    // The summarizer never rides the launcher row: it owns the header's
+    // semantic-analysis affordance instead (user shape 2026-07-21), and
+    // the ALL button skips it for the same reason.
+    const standalone = probs.standalone.filter((e) => e.id !== SUMMARIZER_EXTENSION_ID);
     return (
       [
         { id: 'finders', entries: probs.finders },
-        { id: 'standalone', entries: probs.standalone },
+        { id: 'standalone', entries: standalone },
       ] as const
     )
       .filter((g) => g.entries.length > 0)
@@ -903,6 +914,109 @@ export class InspectorView implements OnInit {
       // line); activity is a progressive enhancement, never an error
       // banner.
     }
+  }
+
+  // --- semantic summary (header affordance, user shape 2026-07-21) --------
+
+  /**
+   * The node's stored semantic summaries. `null` = not loaded for the
+   * current node yet. Fetched eagerly per node (one cheap row read) and
+   * silently re-fetched on job frames / scan completions so the header
+   * flips to its "ready" state the moment the agent records the run.
+   */
+  protected readonly nodeSummaries = signal<INodeSummaryRowApi[] | null>(null);
+  /** Whether the header's summary block is expanded. */
+  protected readonly summaryExpanded = signal(false);
+  /** Set on summarize click: the NEXT non-empty refetch auto-expands. */
+  private summaryAwaiting = false;
+  private summaryPath: string | undefined = undefined;
+
+  private readonly summaryLoaderEffect = effect(() => {
+    const path = this.node()?.path;
+    if (path === this.summaryPath) return;
+    this.summaryPath = path;
+    this.nodeSummaries.set(null);
+    this.summaryExpanded.set(false);
+    this.summaryAwaiting = false;
+    if (path) void this.fetchSummary(path);
+  });
+
+  private readonly summaryLiveRefresh = merge(
+    this.wsEvents.jobEvents$,
+    this.wsEvents.scanCompleted$,
+  )
+    .pipe(debounceTime(ACTIVITY_LIVE_REFRESH_DEBOUNCE_MS), takeUntilDestroyed())
+    .subscribe(() => {
+      const path = this.summaryPath;
+      if (path) void this.fetchSummary(path);
+    });
+
+  private async fetchSummary(path: string): Promise<void> {
+    try {
+      const rows = await this.dataSource.getNodeSummary(path);
+      if (this.summaryPath !== path) return;
+      const firstLoad = this.nodeSummaries() === null;
+      this.nodeSummaries.set(rows ?? []);
+      // Auto-expand when there is something to show: on the node's FIRST
+      // load (user call 2026-07-21, a summarized node opens with its
+      // analysis visible) and when the run the user launched just landed.
+      // Silent WS refetches never re-expand a block the user collapsed.
+      if ((firstLoad || this.summaryAwaiting) && (rows ?? []).length > 0) {
+        this.summaryAwaiting = false;
+        this.summaryExpanded.set(true);
+      }
+    } catch {
+      // Progressive enhancement: keep whatever is shown, no banner.
+    }
+  }
+
+  /** The summarizer's launcher entry (queue state), when enabled. */
+  private readonly summarizerEntry = computed<IProbExtensionEntryApi | null>(() => {
+    const probs = this.probExtensions();
+    return probs?.standalone.find((e) => e.id === SUMMARIZER_EXTENSION_ID) ?? null;
+  });
+
+  /**
+   * Header affordance state machine: `hidden` (no summarizer available
+   * AND nothing stored), `queued` / `running` (the job is in flight),
+   * `ready` (a summary exists, the button toggles the block), `idle`
+   * (summarizable, nothing stored yet).
+   */
+  protected readonly summaryHeaderState = computed<
+    'hidden' | 'idle' | 'queued' | 'running' | 'ready'
+  >(() => {
+    const rows = this.nodeSummaries();
+    const entry = this.summarizerEntry();
+    const entryState = entry === null ? null : this.aiActions.entryState(entry);
+    if (entryState === 'queued' || entryState === 'running') return entryState;
+    if (rows !== null && rows.length > 0) return 'ready';
+    if (entry === null) return 'hidden';
+    return rows === null ? 'hidden' : 'idle';
+  });
+
+  /** Any stored summary went stale (body changed since the judgment). */
+  protected readonly summaryStale = computed<boolean>(() =>
+    (this.nodeSummaries() ?? []).some((row) => row.stale),
+  );
+
+  /** The header button: idle queues the run, ready toggles the block. */
+  protected onSummarizeClick(): void {
+    const state = this.summaryHeaderState();
+    if (state === 'ready') {
+      this.summaryExpanded.update((v) => !v);
+      return;
+    }
+    if (state !== 'idle') return;
+    this.summaryAwaiting = true;
+    void this.aiActions.submit(SUMMARIZER_EXTENSION_ID, false);
+  }
+
+  /** Re-run from the expanded block (stale or not, a fresh judgment). */
+  protected onSummaryRefresh(): void {
+    const entry = this.summarizerEntry();
+    if (entry === null || this.aiActions.entryState(entry) !== 'idle') return;
+    this.summaryAwaiting = true;
+    void this.aiActions.submit(SUMMARIZER_EXTENSION_ID, false);
   }
 
   /** True when the fetched detail has nothing to show (quiet node). */

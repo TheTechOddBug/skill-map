@@ -27,6 +27,7 @@ import { TooltipModule } from 'primeng/tooltip';
 
 import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
+import type { INodeSummaryRowApi } from '../../../models/api';
 import type { INodeView, TStability } from '../../../models/node';
 import {
   effectiveStability,
@@ -92,9 +93,59 @@ export class InspectorHeader {
    */
   readonly tagClick = output<string>();
 
+  /**
+   * Semantic-analysis affordance (user shape 2026-07-21): the header
+   * hosts the summarizer's magic button and, once a
+   * summary exists, the expandable analysis block under the tags row.
+   * The header stays presentational: the host owns the state machine
+   * (`hidden` / `idle` / `queued` / `running` / `ready`), the rows, and
+   * the expansion; the header only renders and re-emits clicks.
+   */
+  readonly summaryState = input<'hidden' | 'idle' | 'queued' | 'running' | 'ready'>('hidden');
+  readonly summaryRows = input<INodeSummaryRowApi[]>([]);
+  readonly summaryExpanded = input<boolean>(false);
+  readonly summaryStale = input<boolean>(false);
+  /** Idle -> queue the run; ready -> toggle the block. */
+  readonly summarizeClick = output<void>();
+  /** Re-run from the expanded block (fresh judgment). */
+  readonly summaryRefresh = output<void>();
+
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
   /** Reused so the card and the inspector header speak the same language. */
   protected readonly cardTexts = NODE_CARD_TEXTS;
+
+  /** Tooltip for the summary affordance, per state. */
+  protected summaryTooltip(): string {
+    const t = this.texts.header.summary;
+    switch (this.summaryState()) {
+      case 'queued':
+        return t.tooltipQueued;
+      case 'running':
+        return t.tooltipRunning;
+      case 'ready':
+        return this.summaryStale() ? t.tooltipReadyStale : t.tooltipReady;
+      default:
+        return t.tooltipIdle;
+    }
+  }
+
+  /** String list read from a summary report field (defensive). */
+  protected reportList(row: INodeSummaryRowApi, field: string): string[] {
+    const value = row.report[field];
+    return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+  }
+
+  /** The report's required subject line. */
+  protected reportSubject(row: INodeSummaryRowApi): string {
+    const value = row.report['whatItCovers'];
+    return typeof value === 'string' ? value : '';
+  }
+
+  /** Confidence percent, or null when the report omitted it. */
+  protected reportConfidence(row: INodeSummaryRowApi): number | null {
+    const value = row.report['confidence'];
+    return typeof value === 'number' ? Math.round(value * 100) : null;
+  }
 
   // ---------------------------------------------------------------------------
   // Header computeds, all derived from `node()`. Effective values follow

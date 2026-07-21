@@ -215,3 +215,112 @@
 
 /* The tag row moved to `<sm-node-tags>` (filter chips + inline editor);
  * its chip styles now live in node-tags.css. */
+
+/* Semantic-analysis affordance: the ?-with-magic launcher in the
+   actions cluster, sized like the favorite button beside it. */
+.inspector__summary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  border: none;
+  background: transparent;
+  padding: 0.2rem;
+  cursor: pointer;
+  color: var(--p-text-muted-color);
+  border-radius: var(--sm-radius-sm);
+  font-size: 0.85rem;
+}
+
+.inspector__summary-btn:hover:not(:disabled) {
+  color: var(--p-text-color);
+}
+
+.inspector__summary-btn:disabled {
+  cursor: default;
+}
+
+.inspector__summary-btn--ready {
+  color: var(--p-primary-color);
+}
+
+.inspector__summary-btn--open {
+  background: var(--p-highlight-background);
+}
+
+/* The expanded analysis block, full-width under the identity strip. */
+.inspector__summary {
+  grid-column: 1 / -1;
+  margin-top: 0.5rem;
+}
+
+.inspector__summary-block {
+  border-top: 1px solid var(--sm-border);
+  padding-top: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.inspector__summary-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.inspector__summary-icon {
+  color: var(--p-primary-color);
+}
+
+.inspector__summary-subject {
+  flex: 1 1 auto;
+  font-weight: 600;
+}
+
+.inspector__summary-stale {
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--sm-radius-sm);
+  color: var(--sm-severity-warn);
+  border: 1px solid var(--sm-severity-warn);
+}
+
+.inspector__summary-confidence {
+  color: var(--p-text-muted-color);
+  font-size: 0.78rem;
+}
+
+.inspector__summary-refresh {
+  border: none;
+  background: transparent;
+  padding: 0.15rem;
+  cursor: pointer;
+  color: var(--p-text-muted-color);
+  border-radius: var(--sm-radius-sm);
+}
+
+.inspector__summary-refresh:hover {
+  color: var(--p-text-color);
+}
+
+.inspector__summary-list {
+  margin: 0.4rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.inspector__summary-list li {
+  margin-bottom: 0.15rem;
+}
+
+.inspector__summary-quality-label {
+  margin-top: 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--p-text-muted-color);
+}
+
+.inspector__summary-list--quality {
+  margin-top: 0.2rem;
+}

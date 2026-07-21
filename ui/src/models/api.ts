@@ -373,6 +373,20 @@ export interface IBranchResponseApi {
  * unknowns as inert.
  */
 /**
+ * One row of `GET /api/nodes/:pathB64/summary` (direct shape, no
+ * envelope): a stored semantic summary recorded by a summarizer Action,
+ * with `stale` derived server-side against the node's live body hash.
+ * `report` follows `summaries/markdown.schema.json` (`whatItCovers`,
+ * `topics`, `keyFacts`, `relatedNodes`, `qualityNotes`, `confidence`).
+ */
+export interface INodeSummaryRowApi {
+  summarizerActionId: string;
+  generatedAt: number;
+  stale: boolean;
+  report: Record<string, unknown>;
+}
+
+/**
  * One row of `GET /api/config/resolution` (the Settings > About
  * settings-hierarchy viewer): a flattened effective-config LEAF key,
  * its resolved value, and the config layer that last wrote it.

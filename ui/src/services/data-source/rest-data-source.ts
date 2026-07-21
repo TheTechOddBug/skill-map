@@ -39,6 +39,7 @@ import type {
   IListEnvelopeApi,
   INodeApi,
   INodeDetailApi,
+  INodeSummaryRowApi,
   INodeProbExtensionsEnvelopeApi,
   IProbExtensionsApi,
   IPreferencesApi,
@@ -301,6 +302,19 @@ export class RestDataSource implements IDataSourcePort {
     this.ingestContributionsRegistry(envelope.contributionsRegistry);
     this.ingestProviderRegistry(envelope.providerRegistry);
     return envelope.value;
+  }
+
+  /** `GET /api/nodes/:pathB64/summary` (direct shape; 404 -> null). */
+  async getNodeSummary(path: string): Promise<INodeSummaryRowApi[] | null> {
+    try {
+      const payload = await this.getJson<{ items: INodeSummaryRowApi[] }>(
+        `${BASE}/nodes/${encodeNodePath(path)}/summary`,
+      );
+      return payload.items;
+    } catch (err) {
+      if (err instanceof DataSourceError && err.code === 'not-found') return null;
+      throw err;
+    }
   }
 
   async getConfigResolution(): Promise<IConfigResolutionRowApi[]> {

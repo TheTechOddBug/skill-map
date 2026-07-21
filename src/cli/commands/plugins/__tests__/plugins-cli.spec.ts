@@ -655,12 +655,13 @@ describe('sm plugins doctor, disabled is not a failure', () => {
     const r = sm(['plugins', 'doctor'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // Disabled is intentional, never an error: exit stays 0. The count
-    // is 5, the disabled `mock-h` drop-in plus the four experimental
+    // is 4, the disabled `mock-h` drop-in plus the three experimental
     // built-in extensions that ship disabled by default: the sidecar
     // writer `core/node-bump`, the declared-network provenance verifier
-    // `github/enrichment`, the opt-in `core/auto-fix` hook, and the
-    // universal summarizer `core/ai-summarizer-action` (experimental until
-    // its Step 16 UI surface lands). The drift analyzer
+    // `github/enrichment`, and the opt-in `core/auto-fix` hook. The
+    // universal summarizer `core/ai-summarizer-action` graduated to
+    // stable / enabled on 2026-07-21 (its header affordance landed), so
+    // it no longer counts here. The drift analyzer
     // `core/annotation-stale` graduated to stable (2026-07-19) and now
     // ships enabled, so it no longer counts here (its writer `core/node-bump`
     // stays experimental, the pair is no longer gated as a unit), joining
@@ -673,7 +674,7 @@ describe('sm plugins doctor, disabled is not a failure', () => {
     // so it no longer counts here; `antigravity/antigravity` and
     // `codex/codex` are beta and `agent-skills/agent-skills` is stable +
     // locked, so all ship enabled.)
-    assert.match(r.stdout, /disabled\s+5/);
+    assert.match(r.stdout, /disabled\s+4/);
   });
 });
 

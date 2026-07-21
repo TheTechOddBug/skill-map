@@ -23,6 +23,7 @@ import type {
   IListEnvelopeApi,
   INodeApi,
   INodeDetailApi,
+  INodeSummaryRowApi,
   IProbExtensionsApi,
   IProjectConfigApi,
   IScanResultApi,
@@ -165,6 +166,15 @@ export interface ICorpusPort {
    * static (demo) source returns an empty list (no layered project).
    */
   getConfigResolution(): Promise<IConfigResolutionRowApi[]>;
+
+  /**
+   * `GET /api/nodes/:pathB64/summary`: the node's stored semantic
+   * summaries (recorded by a summarizer Action through the job queue),
+   * each with its server-derived `stale` flag. Returns `null` on 404
+   * (unknown node / missing DB), mirroring `getNode`; a summarized-never
+   * node returns an empty array. Demo returns `[]`.
+   */
+  getNodeSummary(path: string): Promise<INodeSummaryRowApi[] | null>;
 
   /**
    * Phase 4 / View contribution system, lazy lookup for a single

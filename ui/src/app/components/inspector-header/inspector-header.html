@@ -52,6 +52,40 @@
   </div>
 
   <div class="inspector__actions-cluster">
+    <!-- Semantic-analysis affordance (user shape 2026-07-21): the
+         magic launcher (sparkles). Idle queues the summarizer
+         through the job queue; queued/running shows the usual loading;
+         ready (a summary exists) toggles the analysis block below. -->
+    @if (summaryState() !== 'hidden') {
+      <button
+        type="button"
+        class="inspector__summary-btn"
+        [class.inspector__summary-btn--ready]="summaryState() === 'ready'"
+        [class.inspector__summary-btn--open]="summaryExpanded()"
+        [disabled]="summaryState() === 'queued' || summaryState() === 'running'"
+        [pTooltip]="summaryTooltip()"
+        tooltipPosition="left"
+        [attr.aria-label]="summaryTooltip()"
+        (click)="summarizeClick.emit()"
+        data-testid="inspector-summarize"
+        [attr.data-state]="summaryState()"
+      >
+        @switch (summaryState()) {
+          @case ('queued') {
+            <i class="pi pi-clock" aria-hidden="true"></i>
+          }
+          @case ('running') {
+            <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+          }
+          @case ('ready') {
+            <i class="pi pi-sparkles" aria-hidden="true"></i>
+          }
+          @default {
+            <i class="pi pi-sparkles" aria-hidden="true"></i>
+          }
+        }
+      </button>
+    }
     <button
       type="button"
       class="inspector__favorite"
@@ -93,4 +127,57 @@
     [nodePath]="n.path"
     (tagClick)="tagClick.emit($event)"
   />
+
+  <!-- The semantic analysis, expanded under the identity strip: one
+       magic-iconed block per stored summary (one summarizer today). -->
+  @if (summaryExpanded() && summaryRows().length > 0) {
+    <div class="inspector__summary" data-testid="inspector-summary">
+      @for (row of summaryRows(); track row.summarizerActionId) {
+        <div class="inspector__summary-block">
+          <div class="inspector__summary-head">
+            <i class="pi pi-sparkles inspector__summary-icon" aria-hidden="true"></i>
+            <span class="inspector__summary-subject" data-testid="inspector-summary-subject">{{
+              reportSubject(row)
+            }}</span>
+            @if (row.stale) {
+              <span
+                class="inspector__summary-stale"
+                [pTooltip]="texts.header.summary.staleTooltip"
+                data-testid="inspector-summary-stale"
+                >{{ texts.header.summary.staleTag }}</span
+              >
+            }
+            @if (reportConfidence(row); as pct) {
+              <span class="inspector__summary-confidence">({{ pct }}%)</span>
+            }
+            <button
+              type="button"
+              class="inspector__summary-refresh"
+              [pTooltip]="texts.header.summary.refreshTooltip"
+              [attr.aria-label]="texts.header.summary.refreshTooltip"
+              (click)="summaryRefresh.emit()"
+              data-testid="inspector-summary-refresh"
+            >
+              <i class="pi pi-refresh" aria-hidden="true"></i>
+            </button>
+          </div>
+          @if (reportList(row, 'keyFacts').length > 0) {
+            <ul class="inspector__summary-list">
+              @for (fact of reportList(row, 'keyFacts'); track fact) {
+                <li>{{ fact }}</li>
+              }
+            </ul>
+          }
+          @if (reportList(row, 'qualityNotes').length > 0) {
+            <div class="inspector__summary-quality-label">{{ texts.header.summary.qualityLabel }}</div>
+            <ul class="inspector__summary-list inspector__summary-list--quality">
+              @for (note of reportList(row, 'qualityNotes'); track note) {
+                <li>{{ note }}</li>
+              }
+            </ul>
+          }
+        </div>
+      }
+    </div>
+  }
 </header>
