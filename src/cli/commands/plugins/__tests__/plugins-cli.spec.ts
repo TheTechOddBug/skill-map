@@ -489,6 +489,134 @@ describe('sm plugins enable / disable', () => {
   });
 });
 
+// Pair toggle (spec/plugin-author-guide.md §Paired extensions): a fixer
+// Action and the analyzer(s) in its `precondition.analyzerIds` move as a
+// unit. Enable is symmetric and eager; disable is reference-counted over
+// the direct edges. Companions surface as informational stderr lines and
+// ride every downstream side effect (config write, purge, job cancel).
+describe('sm plugins enable / disable, pair toggle', () => {
+  it('disabling a finder also disables its paired fixer', () => {
+    const scope = freshScope('pair-disable-finder');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'disable', 'core/ai-verbosity-analyzer'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    // Informational pair line on stderr, naming the companion + the via key.
+    assert.match(r.stderr, /pair toggle: 1 paired extension\(s\) also disabled/);
+    assert.match(r.stderr, /core\/ai-verbosity-action \(paired with core\/ai-verbosity-analyzer\)/);
+    // The applied receipt covers BOTH keys (companion inside `keys`).
+    assert.match(r.stdout, /disabled: 2 extension\(s\)/);
+
+    assert.equal(readEnabled(scope, 'core/ai-verbosity-analyzer'), false);
+    assert.equal(readEnabled(scope, 'core/ai-verbosity-action'), false);
+  });
+
+  it('enabling a fixer re-enables its paired finder', () => {
+    const scope = freshScope('pair-enable-fixer');
+    sm(['init', '--no-scan'], scope);
+    sm(['plugins', 'disable', 'core/ai-verbosity-analyzer'], scope); // pulls both off
+
+    const r = sm(['plugins', 'enable', 'core/ai-verbosity-action'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stderr, /pair toggle: 1 paired extension\(s\) also enabled/);
+    assert.match(r.stderr, /core\/ai-verbosity-analyzer \(paired with core\/ai-verbosity-action\)/);
+
+    assert.equal(readEnabled(scope, 'core/ai-verbosity-analyzer'), true);
+    assert.equal(readEnabled(scope, 'core/ai-verbosity-action'), true);
+  });
+
+  it('disabling a fixer also disables its finder (mirrored refcount)', () => {
+    const scope = freshScope('pair-disable-fixer');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'disable', 'core/ai-verbosity-action'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stderr, /core\/ai-verbosity-analyzer \(paired with core\/ai-verbosity-action\)/);
+
+    assert.equal(readEnabled(scope, 'core/ai-verbosity-analyzer'), false);
+    assert.equal(readEnabled(scope, 'core/ai-verbosity-action'), false);
+  });
+
+  it('deterministic pairs participate: disabling name-mismatch pulls ai-name-action', () => {
+    // Uniform cascade (user decision 2026-07-22): edges to deterministic
+    // analyzers behave exactly like probabilistic finder edges.
+    const scope = freshScope('pair-deterministic');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'disable', 'core/name-mismatch'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.equal(readEnabled(scope, 'core/name-mismatch'), false);
+    assert.equal(readEnabled(scope, 'core/ai-name-action'), false);
+  });
+
+  it('companion disable cancels the companion queued jobs too', async () => {
+    const scope = freshScope('pair-job-cancel');
+    sm(['init', '--no-scan'], scope);
+
+    // Seed a queued job for the FIXER only; disabling the FINDER must
+    // cascade the disable to the fixer and cancel the fixer's job.
+    const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
+    const seed = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await seed.init();
+    try {
+      await seed.jobs.submit(
+        {
+          id: 'pair-1',
+          extensionId: 'core/ai-verbosity-action',
+          extensionVersion: '1.0.0',
+          extensionKind: 'action',
+          nodeId: 'pair-1.md',
+          contentHash: 'h'.repeat(64),
+          nonce: 'n'.repeat(32),
+          priority: 0,
+          status: 'queued',
+          ttlSeconds: 3600,
+          createdAt: Date.now(),
+        },
+        { contentHash: 'h'.repeat(64), content: 'RENDERED pair-1', createdAt: Date.now() },
+      );
+    } finally {
+      await seed.close();
+    }
+
+    const r = sm(['plugins', 'disable', 'core/ai-verbosity-analyzer'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+
+    const check = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await check.init();
+    try {
+      assert.equal((await check.jobs.get('pair-1'))?.status, 'cancelled');
+    } finally {
+      await check.close();
+    }
+    const opsLog = readFileSync(join(scope.cwd, '.skill-map', 'operations.log'), 'utf8');
+    assert.match(opsLog, /extension-disabled cancelled=1/);
+  });
+
+  it('--local carries the companion into settings.local.json', () => {
+    const scope = freshScope('pair-local');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'disable', 'core/ai-trigger-analyzer', '--local'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+
+    const local = JSON.parse(
+      readFileSync(join(scope.cwd, '.skill-map', 'settings.local.json'), 'utf8'),
+    ) as { plugins?: { core?: { extensions?: Record<string, { enabled?: boolean }> } } };
+    assert.equal(local.plugins?.core?.extensions?.['ai-trigger-analyzer']?.enabled, false);
+    assert.equal(local.plugins?.core?.extensions?.['ai-trigger-action']?.enabled, false);
+  });
+
+  it('bare-id macro emits no pair lines (companions already in the set)', () => {
+    const scope = freshScope('pair-macro-silent');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'disable', 'core', '--yes'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.equal(/pair toggle:/.test(r.stderr), false);
+  });
+});
+
 // Trust is the SECURITY axis, orthogonal to enable. `sm plugins trust /
 // untrust` write a per-plugin row to the `config_plugins` DB store
 // (bare plugin id) and never touch the config-layer enable state. A
@@ -709,10 +837,9 @@ describe('sm plugins doctor, disabled is not a failure', () => {
     const r = sm(['plugins', 'doctor'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // Disabled is intentional, never an error: exit stays 0. The count
-    // is 5: the disabled `mock-h` drop-in, the experimental
-    // `core/ai-frontmatter-action` (ships disabled until its live pass;
-    // all five optimization pairs graduated on 2026-07-22), plus the
-    // three built-in
+    // is 4: the disabled `mock-h` drop-in (all five optimization pairs
+    // AND `core/ai-frontmatter-action` graduated on 2026-07-22) plus
+    // the three built-in
     // extensions that ship disabled by default: the sidecar writers
     // `core/node-bump` and `core/node-set-stability` (both STABLE with
     // `defaultEnabled: false` since 2026-07-21, the orthogonal opt-in
@@ -734,7 +861,7 @@ describe('sm plugins doctor, disabled is not a failure', () => {
     // so it no longer counts here; `antigravity/antigravity` and
     // `codex/codex` are beta and `agent-skills/agent-skills` is stable +
     // locked, so all ship enabled.)
-    assert.match(r.stdout, /disabled\s+5/);
+    assert.match(r.stdout, /disabled\s+4/);
   });
 });
 

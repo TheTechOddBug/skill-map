@@ -117,6 +117,15 @@ Two id shapes resolve at the toggle surface:
 
 Resolution order per id (the operational ENABLE axis): per-extension config (`plugins.<id>.extensions.<ext>.enabled`) > plugin-level config (`plugins.<id>.enabled`) > installed default, resolved through the config layers (`settings.local.json` over `settings.json`). The installed default is `true` for ordinary extensions and `false` for extensions declaring `stability: 'experimental'` or `stability: 'deprecated'` (they ship disabled until the operator opts in; see [Extension manifests](#extension-manifests)). Enable no longer reads from the DB; the `config_plugins` table now holds only the per-plugin import-trust grant (the security axis, see Import trust above). Persisted enable keys are written per qualified `<plugin>/<ext>` (the bundle macro expands at write time).
 
+#### Paired extensions (pair toggle)
+
+A fixer Action and the Analyzer(s) named in its `precondition.analyzerIds` form a **pair** ([Modelo B](./architecture.md#analyzer--action-relationship-modelo-b)), and the toggle surface keeps pairs coherent so a pair never ends up half-armed (a fixer without the analyzer that feeds it, or an analyzer whose fix affordance silently vanished):
+
+- **Enable is symmetric and eager**: enabling a fixer also enables every analyzer it references; enabling an analyzer also enables every fixer that references it.
+- **Disable is reference-counted over the edges**: disabling an analyzer also disables each fixer referencing it UNLESS that fixer still references another enabled analyzer; disabling a fixer also disables each referenced analyzer UNLESS another enabled fixer still references it.
+
+Scope and mechanics: only **direct edges** participate (no transitive closure across the pair graph); edges to deterministic analyzers (e.g. `core/ai-name-action` -> `core/name-mismatch`) participate exactly like probabilistic finder edges; companions never re-prompt (the bundle-macro confirm covers only the ids the user named; companions are reported as informational `pair toggle:` lines); locked companions are skipped silently (the bulk lock posture); a companion already in the requested set or already in the target state is a no-op, so repeated invocations and macro forms are stable. Companion writes land in the same config layer as the request (`--local` included) and companion disables run the full disable side effects (contributions purge, queued-job cancellation, `job.cancelled` push). Extensions without pairing edges are fully independent. An `analyzerIds` entry that resolves to no known analyzer contributes no edge (same posture as findings injection's benign-race handling).
+
 ### Extractor / Analyzer / Action `precondition`, narrow the pipeline
 
 An Extractor, Analyzer, or Action MAY declare an optional `precondition` block. When declared, the kernel runs the extension **only** against nodes that satisfy every declared sub-filter, fail-fast (no context built, no method call), wasting zero CPU on nodes it cannot process. The shape is shared across the three kinds:

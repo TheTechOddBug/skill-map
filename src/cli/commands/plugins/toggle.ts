@@ -56,12 +56,23 @@ import { defaultRuntimeContext } from '../../util/runtime-context.js';
 import { SmCommand } from '../../util/sm-command.js';
 import { withSqlite } from '../../util/with-sqlite.js';
 import {
+  buildResolver,
   loadAll,
   pluginCatalogue,
   parseQualifiedExtensionId,
   renderQualifiedIdError,
   type IPluginCatalogueEntry,
 } from './shared.js';
+import {
+  buildPairEnabledProbe,
+  collectPairEdges,
+  expandPairToggle,
+  pairEdgeSourcesFromBuiltIns,
+  pairEdgeSourcesFromDiscovered,
+  toEnableConfigKey,
+} from '../../../core/plugins/pair-toggle.js';
+import { builtInPlugins } from '../../../plugins/built-ins.js';
+import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
 
 interface IResolvedTarget {
   /** Origin of the resolution, used by the macro-prompt path. */
@@ -123,7 +134,12 @@ abstract class TogglePluginsBase extends SmCommand {
     if (typeof lockError === 'number') return lockError;
     targets = lockError;
 
-    const keys = expandToKeys(targets);
+    // Pair toggle (spec/plugin-author-guide.md §Paired extensions):
+    // expand the requested keys over the Modelo B edges AFTER the macro
+    // confirm (companions never re-prompt) and re-apply the lock filter
+    // to the additions (silently, bulk posture: a companion is never
+    // the user's single intended target).
+    const keys = await this.#expandPairs(expandToKeys(targets), enabled, plugins);
     await this.#persistKeys(keys, enabled);
     // Usage analytics (opt-in, default OFF; no-op unless active): record which
     // plugins were enabled / disabled. Built-in qualified ids pass through,
@@ -299,6 +315,50 @@ abstract class TogglePluginsBase extends SmCommand {
   }
 
   /**
+   * Pair toggle (spec/plugin-author-guide.md §Paired extensions): expand
+   * the requested keys over the Modelo B `analyzerIds` edges. Enable is
+   * symmetric and eager; disable is reference-counted (a companion
+   * survives while another still-enabled extension keeps its edge
+   * alive). Locked companions are dropped silently (bulk lock posture;
+   * a companion is never the user's single intended target). Kept
+   * companions are reported as informational lines, never a prompt (the
+   * macro confirm already ran).
+   */
+  async #expandPairs(
+    requestedKeys: string[],
+    enabled: boolean,
+    discovered: IDiscoveredPlugin[],
+  ): Promise<string[]> {
+    const sources = [
+      ...pairEdgeSourcesFromBuiltIns(builtInPlugins),
+      ...pairEdgeSourcesFromDiscovered(discovered),
+    ];
+    const { added } = expandPairToggle({
+      requestedKeys,
+      enabled,
+      edges: collectPairEdges(sources),
+      isCurrentlyEnabled: buildPairEnabledProbe(sources, await buildResolver()),
+    });
+    const kept = added.filter((a) => !isPluginLocked(a.key));
+    if (kept.length === 0) return requestedKeys;
+    this.printer!.info(
+      tx(PLUGINS_TEXTS.pairToggleHeader, {
+        count: String(kept.length),
+        verbPast: enabled ? 'enabled' : 'disabled',
+      }),
+    );
+    for (const a of kept) {
+      this.printer!.info(
+        tx(PLUGINS_TEXTS.pairToggleRow, {
+          id: sanitizeForTerminal(a.key),
+          via: sanitizeForTerminal(a.via),
+        }),
+      );
+    }
+    return [...requestedKeys, ...kept.map((a) => a.key)];
+  }
+
+  /**
    * Persist the per-extension `enabled` toggle for every qualified id in
    * the config layers (`plugins.<plugin>.extensions.<ext>.enabled`),
    * targeting `settings.json` by default or `settings.local.json` with
@@ -405,18 +465,6 @@ async function purgeContributionsFor(
   await adapter.contributions.purgeByPlugin(id.slice(0, slash), id.slice(slash + 1));
 }
 
-/**
- * Map a toggle key to its config dot-path. Every key arriving here is the
- * qualified `<plugin>/<ext>` shape (bare ids were expanded to their
- * children upstream), so the path is always the per-extension
- * `plugins.<plugin>.extensions.<ext>.enabled`. A bare id (defensive
- * fall-through) maps to the plugin-level `plugins.<plugin>.enabled`.
- */
-function toEnableConfigKey(id: string): string {
-  const slash = id.indexOf('/');
-  if (slash < 0) return `plugins.${id}.enabled`;
-  return `plugins.${id.slice(0, slash)}.extensions.${id.slice(slash + 1)}.enabled`;
-}
 
 export class PluginsEnableCommand extends TogglePluginsBase {
   static override paths = [['plugins', 'enable']];
@@ -441,6 +489,11 @@ export class PluginsEnableCommand extends TogglePluginsBase {
       Batches are all-or-nothing: a single unknown id aborts before
       any write. Repeated ids are deduped. Locked extensions inside a
       batch are silently skipped.
+
+      Pair toggle: enabling a fixer action also enables the analyzer(s)
+      it references via precondition.analyzerIds, and enabling an
+      analyzer also enables the fixers referencing it. Companions are
+      reported as informational lines and follow the same --local target.
     `,
   });
 
@@ -471,6 +524,13 @@ export class PluginsDisableCommand extends TogglePluginsBase {
       Batches are all-or-nothing: a single unknown id aborts before
       any write. Repeated ids are deduped. Locked extensions inside a
       batch are silently skipped.
+
+      Pair toggle (reference-counted): disabling an analyzer also
+      disables each fixer referencing it via precondition.analyzerIds,
+      unless another still-enabled analyzer keeps that fixer alive; and
+      symmetrically when disabling a fixer. Companion disables run the
+      full disable side effects (contribution purge, queued-job
+      cancellation).
     `,
   });
 
