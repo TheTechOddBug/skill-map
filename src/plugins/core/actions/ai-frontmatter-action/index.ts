@@ -29,10 +29,11 @@
  * Structure-as-truth siblings (`prompt.md` + `report.schema.json`) are
  * inlined onto the emitted manifest by the built-ins codegen.
  *
- * Ships `stability: 'experimental'`: DISABLED by default (the birth
- * convention; graduates once the prompt proves itself in the live
- * playground like the five optimization pairs did). Enable with
- * `sm plugins enable core/ai-frontmatter-action`.
+ * GRADUATED to `stability: 'stable'` (enabled by default) on
+ * 2026-07-22, the same day it was born: the live playground pass
+ * (frontmatter stripped, action queued from the standalone launcher)
+ * produced the correct block, name aligned to the file handle and the
+ * description in the body's language, first try.
  */
 
 import type { IAction, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
@@ -44,8 +45,8 @@ export const aiFrontmatterAction: IBuiltInManifest<IAction> = {
   kind: 'action',
   description:
     'Writes the frontmatter a file is missing: a name matching the filename and a description saying what the file does and when to use it. Never touches fields you already wrote.',
-  // Experimental: ships disabled until the prompt proves itself.
-  stability: 'experimental',
+  // Graduated 2026-07-22 after its live playground pass.
+  stability: 'stable',
   mode: 'probabilistic',
   // ADVISORY wall-clock estimate (Decision #139: never arms a TTL); a
   // single-node frontmatter fill is a light pass on a mid-tier model.
