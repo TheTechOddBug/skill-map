@@ -19,9 +19,12 @@
  * schema `$ref`s the canonical findings envelope (the finder routing
  * signal) and narrows `findings[].type` to the const `'scope'`.
  *
- * Ships `stability: 'experimental'`: DISABLED by default (wave-1 birth
- * convention; graduate once the prompt proves itself). Enable with
- * `sm plugins enable core/ai-scope-analyzer`.
+ * Ships `stability: 'stable'`: ENABLED by default (graduated
+ * 2026-07-22, the last of the five optimization pairs to prove itself
+ * live: both seeded off-mission sections found with the responsibility
+ * each serves named, the cross-reference / history / on-mission
+ * controls respected). Disable with
+ * `sm plugins disable core/ai-scope-analyzer`.
  */
 
 import type { IAnalyzer, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
@@ -33,8 +36,9 @@ export const aiScopeAnalyzer: IBuiltInManifest<IAnalyzer> = {
   kind: 'analyzer',
   description:
     'Flags content that belongs somewhere else: sections doing a different job than the one this file declares, so each file stays focused on one thing.',
-  // Experimental: ships disabled until the prompt proves itself.
-  stability: 'experimental',
+  // Stable: enabled by default (graduated 2026-07-22 after the live
+  // playground test; the operator can disable it).
+  stability: 'stable',
   mode: 'probabilistic',
   // ADVISORY wall-clock estimate (Decision #139: never arms a TTL); a
   // single-node judgment is a light pass on a mid-tier model.
