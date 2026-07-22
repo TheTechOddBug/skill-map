@@ -74,8 +74,12 @@ export const INSPECTOR_VIEW_TEXTS = {
    */
   aiActions: {
     /** The ALL launcher button: queue every finder + standalone for the node. */
+    /** Single-group card: the bare label; both groups present: type-qualified. */
     all: 'ALL',
-    allTooltip: 'Queue every analysis on this node at once (each finder and standalone action).',
+    allFinders: 'ALL finders',
+    allFindersTooltip: 'Queue every finder on this node at once.',
+    allStandalone: 'ALL standalone',
+    allStandaloneTooltip: 'Queue every standalone action on this node at once.',
     /**
      * Automatic toggle (Step 16): when on, one click on a finder button
      * runs the finder AND auto-chains its fixers (the finder submit

@@ -385,24 +385,27 @@
                     }}</label>
                   </div>
                 }
-                <!-- One flat button row (labels retired 2026-07-18): ALL
-                     first, then finders, then standalone, order preserved. -->
+                <!-- Two rows (user call 2026-07-22): finders on top,
+                     standalone below, each led by its own type-scoped ALL
+                     button that queues ONLY its group. -->
+                @for (group of aiActionLauncherGroups(); track group.id) {
                 <div
                   class="inspector__ai-actions-group-buttons"
-                  data-testid="inspector-ai-actions-launchers-row"
+                  [attr.data-testid]="'inspector-ai-actions-launchers-row-' + group.id"
                 >
                   <span class="inspector__ai-actions-entry">
                     <p-button
-                      [label]="texts.aiActions.all"
+                      [label]="launcherAllLabel(group.id)"
                       size="small"
-                      [pTooltip]="texts.aiActions.allTooltip"
+                      [pTooltip]="group.id === 'finders' ? texts.aiActions.allFindersTooltip : texts.aiActions.allStandaloneTooltip"
                       tooltipPosition="left"
                       appendTo="body"
-                      (onClick)="onLauncherAll()"
-                      data-testid="inspector-ai-action-launch-all"
+                      (onClick)="onLauncherAllGroup(group.id)"
+                      [attr.data-testid]="'inspector-ai-action-launch-all-' + group.id"
                     />
                   </span>
-                  @for (item of aiActionLauncherEntries(); track item.entry.id) {
+                  @for (entry of group.entries; track entry.id) {
+                    @let item = { entry: entry, isFinder: group.id === 'finders' };
                     <span class="inspector__ai-actions-entry">
                       <p-button
                         [label]="aiActionLauncherLabel(item.entry)"
@@ -439,6 +442,7 @@
                     </span>
                   }
                 </div>
+                }
               </div>
             }
             @if (aiActionsError(); as err) {

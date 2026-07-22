@@ -2217,7 +2217,7 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     ).toBeNull();
   });
 
-  it('renders one flat launcher row: ALL then finder + standalone buttons (no group labels)', async () => {
+  it('renders TWO launcher rows: finders (with their ALL) on top, standalone (with theirs) below', async () => {
     const { fixture } = await bootAiActions({
       probs: makeProbExtensions({
         finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'] })],
@@ -2226,12 +2226,25 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     });
     const dom: HTMLElement = fixture.nativeElement;
     expect(dom.querySelector('[data-testid="inspector-card-ai-actions"]')).not.toBeNull();
-    // One flat row (group labels + wrappers retired): the ALL button leads,
-    // then the finder and standalone buttons; no per-group wrappers.
-    expect(dom.querySelector('[data-testid="inspector-ai-actions-launchers-row"]')).not.toBeNull();
-    expect(dom.querySelector('[data-testid="inspector-ai-action-launch-all"]')).not.toBeNull();
-    expect(dom.querySelector('[data-testid="inspector-ai-actions-group-finders"]')).toBeNull();
-    expect(dom.querySelector('[data-testid="inspector-ai-actions-group-standalone"]')).toBeNull();
+    // Two rows (user call 2026-07-22), each led by its type-scoped ALL.
+    expect(
+      dom.querySelector('[data-testid="inspector-ai-actions-launchers-row-finders"]'),
+    ).not.toBeNull();
+    expect(
+      dom.querySelector('[data-testid="inspector-ai-actions-launchers-row-standalone"]'),
+    ).not.toBeNull();
+    // Both rows present: the ALL buttons are type-qualified (user call
+    // 2026-07-22); with a single group the label stays a bare "ALL".
+    const allFinders = dom.querySelector(
+      '[data-testid="inspector-ai-action-launch-all-finders"]',
+    );
+    const allStandalone = dom.querySelector(
+      '[data-testid="inspector-ai-action-launch-all-standalone"]',
+    );
+    expect(allFinders).not.toBeNull();
+    expect(allStandalone).not.toBeNull();
+    expect(allFinders!.textContent).toContain('ALL finders');
+    expect(allStandalone!.textContent).toContain('ALL standalone');
     // The button LABEL is always the kind (short name); the Detect/Fix
     // state rides `data-action` + the icon, not the label (user call
     // 2026-07-18).
@@ -2254,21 +2267,41 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     expect(dom.querySelector('[data-testid="inspector-ai-actions-list"]')).toBeNull();
   });
 
-  it('the ALL button queues every finder + standalone on this node in one click', async () => {
+  it('a single-group card keeps the bare ALL label', async () => {
+    const { fixture } = await bootAiActions({
+      probs: makeProbExtensions({
+        finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'] })],
+      }),
+    });
+    const all = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-ai-action-launch-all-finders"]',
+    ) as HTMLElement;
+    expect(all).not.toBeNull();
+    expect(all.textContent).toContain('ALL');
+    expect(all.textContent).not.toContain('ALL finders');
+  });
+
+  it('each ALL button queues ONLY its own type', async () => {
     const { fixture, dataSource, node } = await bootAiActions({
       probs: makeProbExtensions({
         finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'], hasOpenFindings: false })],
         standalone: [makeProbEntry({ id: 'core/summarizer', description: 'Summarizes the node.' })],
       }),
     });
-    const all = fixture.nativeElement.querySelector(
-      '[data-testid="inspector-ai-action-launch-all"]',
-    ) as HTMLElement;
-    expect(all).not.toBeNull();
-    (all.querySelector('button') as HTMLButtonElement).click();
+    const dom: HTMLElement = fixture.nativeElement;
+    const allFinders = dom.querySelector(
+      '[data-testid="inspector-ai-action-launch-all-finders"] button',
+    ) as HTMLButtonElement;
+    allFinders.click();
     await flush(fixture);
-    // One submit per entry: the finder in Detect mode + the standalone action.
     expect(dataSource.submitNodeJob).toHaveBeenCalledWith(node.path, 'core/todo-finder', false);
+    expect(dataSource.submitNodeJob).toHaveBeenCalledTimes(1);
+
+    const allStandalone = dom.querySelector(
+      '[data-testid="inspector-ai-action-launch-all-standalone"] button',
+    ) as HTMLButtonElement;
+    allStandalone.click();
+    await flush(fixture);
     expect(dataSource.submitNodeJob).toHaveBeenCalledWith(node.path, 'core/summarizer', false);
     expect(dataSource.submitNodeJob).toHaveBeenCalledTimes(2);
   });
