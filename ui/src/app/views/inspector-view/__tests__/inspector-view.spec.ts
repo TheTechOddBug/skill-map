@@ -2806,7 +2806,7 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     ).toBeNull();
   });
 
-  it('renders the advisory plus the sm agent install hint on no-processing-agent', async () => {
+  it('no-processing-agent: friendly UI message plus the Settings + skill-invocation hint', async () => {
     const { fixture, dataSource } = await bootAiActions({
       probs: makeProbExtensions({ finders: [makeProbEntry()] }),
     });
@@ -2825,10 +2825,15 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     const dom: HTMLElement = fixture.nativeElement;
     const error = dom.querySelector('[data-testid="inspector-ai-actions-error"]');
     expect(error).not.toBeNull();
-    expect(error!.textContent).toContain('No processing agent skill is installed');
+    // The strip swaps the CLI-worded envelope message for the UI's own
+    // wording (user call 2026-07-22); the hint names the Settings path
+    // first, the CLI verb as the alternate.
+    expect(error!.textContent).toContain('no agent is set up to process jobs');
+    expect(error!.textContent).not.toContain('No processing agent skill is installed');
     const hint = dom.querySelector('[data-testid="inspector-ai-actions-agent-hint"]');
     expect(hint).not.toBeNull();
-    expect(hint!.textContent).toContain('sm agent install');
+    expect(hint!.textContent).toContain('Settings');
+    expect(hint!.textContent).toContain('/sm-process-jobs watch');
     // The refusal never flips the button: it stays idle and clickable.
     expect(host.getAttribute('data-state')).toBe('idle');
   });

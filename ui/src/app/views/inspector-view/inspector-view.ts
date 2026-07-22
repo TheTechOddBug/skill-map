@@ -892,6 +892,16 @@ export class InspectorView implements OnInit {
     this.aiActions.dismissError();
   }
 
+  /**
+   * Error-strip text: `no-processing-agent` swaps the envelope message
+   * (which names the CLI verb) for the UI's own friendly wording; every
+   * other code surfaces the server message verbatim (user call
+   * 2026-07-22).
+   */
+  protected aiActionsErrorText(err: { code: string; message: string }): string {
+    return err.code === 'no-processing-agent' ? this.texts.aiActions.noAgentMessage : err.message;
+  }
+
   /** Per-row provenance: `(confidence% · model)`, model omitted when undeclared. */
   protected aiActionConfidenceModel(finding: IFindingApi): string {
     return this.texts.aiActions.confidence(Math.round(finding.confidence * 100));

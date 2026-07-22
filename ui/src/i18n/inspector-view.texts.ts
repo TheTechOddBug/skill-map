@@ -112,11 +112,15 @@ export const INSPECTOR_VIEW_TEXTS = {
     errorPrefix: 'Submit failed:',
     dismissErrorAriaLabel: 'Dismiss submit error',
     /**
-     * Extra hint under a `no-processing-agent` refusal: the queue works
-     * pull-only, so the operator needs the processing skill installed.
+     * Friendly `no-processing-agent` refusal (user wording 2026-07-22:
+     * the server message names the CLI verb, the UI points at its own
+     * path): the strip swaps the envelope message for `noAgentMessage`,
+     * and the hint names the Settings install row plus the skill
+     * invocation the agent runs.
      */
+    noAgentMessage: 'no agent is set up to process jobs.',
     agentInstallHint:
-      'Run "sm agent install" to install the processing skill, then ask your agent to process the queue.',
+      'Install the processing skill from Settings, Project section ("Install skill"), then run it from your agent\'s terminal: "/sm-process-jobs watch".',
     /** Launcher button state tooltips (appended after the description). */
     stateQueued: 'queued',
     stateRunning: 'running',

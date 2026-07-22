@@ -478,6 +478,8 @@
                           icon="pi pi-times"
                           severity="danger"
                           size="small"
+                          [rounded]="true"
+                          [text]="true"
                           [disabled]="aiActionCompanionDisabled(item.entry)"
                           [pTooltip]="texts.aiActions.stopTooltip"
                           tooltipPosition="left"
@@ -501,7 +503,7 @@
                 data-testid="inspector-ai-actions-error"
               >
                 <span class="inspector__ai-actions-error-text"
-                  >{{ texts.aiActions.errorPrefix }} {{ err.message }}</span
+                  >{{ texts.aiActions.errorPrefix }} {{ aiActionsErrorText(err) }}</span
                 >
                 <button
                   type="button"
@@ -515,7 +517,8 @@
               </div>
               @if (err.code === 'no-processing-agent') {
                 <!-- The queue is pull-only: without the processing skill
-                     nothing drains it, so point at the installer verb. -->
+                     nothing drains it. Point at the UI's own install row
+                     (Settings > Project) and the skill invocation. -->
                 <p class="inspector__ai-actions-hint" data-testid="inspector-ai-actions-agent-hint">
                   {{ texts.aiActions.agentInstallHint }}
                 </p>

@@ -884,6 +884,15 @@
   justify-content: flex-start;
 }
 
+/* The stop companion matches the per-finding action buttons: compact
+   rounded-text icon (user call 2026-07-22: the stock small button read
+   huge next to the flat launcher rows). */
+.inspector__ai-actions-entry > p-button:not(:first-child) .p-button {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+}
+
 .inspector__ai-actions-entry .p-button-label {
   overflow: hidden;
   text-overflow: ellipsis;
