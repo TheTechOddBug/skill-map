@@ -1,5 +1,89 @@
 # skill-map
 
+## 0.89.0-rc.3
+
+### Minor Changes
+
+- New built-in `core/ai-frontmatter-action` (experimental, ships disabled) generates or completes a node's missing frontmatter (path-aligned `name`, use-when `description` in the body's language) without overwriting existing fields, gated by the new `frontmatterMissing` precondition so complete files never list it; deterministic-analyzer fixers moved out of the standalone launcher row and now render as a fix button on each matching deterministic issue row.
+
+  ## User-facing
+
+  **AI can fill in missing frontmatter.** A new AI action writes the name and description a file is missing, and only appears while something is actually missing. Fix buttons for scan warnings now sit on the warning row itself instead of a separate launcher row.
+
+- Every built-in `identifierMismatch` knob now declares `warn`, and the new built-in `core/ai-name-action` fixer (mirror of `ai-reference-action`, preconditioned on `core/name-mismatch`) queues a job that aligns the declared `name` with the file-derived handle. The never-implemented `core/contribution-orphan` stub was deleted, and `name-mismatch` plus `schema-violation` findings gained `fix.summary` remediation hints.
+
+  ## User-facing
+
+  **Name mismatches are now warnings, with an AI fix.** A file whose declared name differs from its filename now shows as a warning everywhere, and a new AI fix can align the name for you. A diagnostic rule that could never produce results was removed.
+
+- Fixer jobs can target a finding subset: `sm jobs submit --finding <id>` (BFF `findingIds`) freezes the ids on the job, the injection narrows to them, and the supersede/duplicate/running gates become overlap-scoped; `fixerBusy` joins the prob-extensions wire. Finding resolution adds a row-grain `dismissed` state via `sm findings dismiss` (`--class` keeps the sidecar suppression) and a new `sm findings reopen` verb plus BFF routes; five optimization finder/fixer pairs ship experimental.
+
+  ## User-facing
+
+  **Finer-grained finding control.** Fixing or dismissing one finding now affects only that finding (dismissing a whole kind stays available in the CLI), fix buttons no longer flicker while a fix starts, and `sm findings reopen` undoes a dismissal.
+
+- The `core/ai-frontmatter-action` standalone action graduated from experimental to stable and now ships enabled by default, after its live playground pass produced the correct frontmatter block first try (name aligned to the file handle, description in the body's language); doctor's default disabled count drops to 4.
+
+  ## User-facing
+
+  **The AI action that fills in missing frontmatter now comes enabled out of the box.** It writes a name matching the filename and a description saying when to use the file, and its button only appears on files actually missing one of those fields.
+
+- The `ai-scope` optimization pair (finder analyzer plus fixer action) graduated from experimental to stable and now ships enabled by default, after proving its prompts in the live playground: both seeded off-mission sections were found naming the responsibility each serves, and the fixer held its conservative bar, parking both relocations as human-decision with the document untouched. All five built-in optimization pairs now ship stable and enabled, completing the one-by-one live pass.
+
+  ## User-facing
+
+  **The focus review now comes enabled out of the box.** It flags content that belongs in another file, completing the set of five built-in content reviews; its fixes always ask you before removing or moving anything.
+
+- The `ai-structure` and `ai-trigger` optimization pairs (finder analyzer plus fixer action each) graduated from experimental to stable and now ship enabled by default, after each proved its prompts end to end in the live playground; the trigger and scope finder prompts now instruct the agent to read the live file for the frontmatter `description`, since the job snapshot carries the body only. Only the `ai-scope` pair stays experimental and disabled.
+
+  ## User-facing
+
+  **Structure and description-check reviews now come enabled out of the box.** Both show up on every file's AI actions row with per-finding fixes, and the description check now reads a file's frontmatter so it actually sees the description it audits.
+
+- The `ai-verbosity` and `ai-vagueness` optimization pairs (finder analyzer plus fixer action each) graduated from experimental to stable and now ship enabled by default, after each proved its prompts end to end in the live playground; the three remaining optimization pairs (`ai-structure`, `ai-trigger`, `ai-scope`) stay experimental and disabled.
+
+  ## User-facing
+
+  **Verbosity and vagueness reviews now come enabled out of the box.** Their finders show up on every file's AI actions row and their fixes can be applied per finding; turn either off in Settings if you don't want them.
+
+- Enable/disable now applies a pair toggle over Modelo B edges: enabling a fixer action also enables the analyzer(s) in its `precondition.analyzerIds` (and vice versa), and disabling is reference-counted, so a companion falls only when its last enabled edge partner goes down. Covers `sm plugins enable / disable` and the `PATCH /api/plugins*` routes (bulk form keeps explicit-wins semantics). Normative wording in `plugin-author-guide.md` §Paired extensions.
+
+  ## User-facing
+
+  **Reviews and their fixes now switch together.** Turning on a fix also turns on the review that feeds it, and turning off a review turns off its fix unless another review still uses it. No more half-armed pairs after toggling one side in the Settings panel or the CLI.
+
+- The three curation built-ins (`core/node-bump`, `core/node-set-stability`, `core/node-set-tags`) declare their re-homed `surface` in the action-button payload, and the UI now selects the header version and stability chips, the tag row, and the card's version label and tag chips by that declaration instead of matching extension ids; the card version label thereby follows the Bump extension's enabled state like the other surfaces.
+
+  ## User-facing
+
+  **The card version label follows its plugin.** The version label on map cards now appears only while the Bump extension is enabled, matching how the version and stability chips and the tag row already follow their plugins.
+
+### Patch Changes
+
+- The inspector's AI-actions submit strip now replaces the CLI-worded `no-processing-agent` server message with the UI's own wording plus a hint naming the Settings install row and the `/sm-process-jobs watch` invocation, and the stop companion beside a running launcher is a compact rounded text icon matching the per-finding action buttons.
+
+  ## User-facing
+
+  **Clearer "no agent" error.** If no agent is set up to process jobs, the error now says so plainly and points at Settings to install the processing skill, with the exact command to run. The stop button next to a running action is now a compact icon.
+
+- The inspector's Findings card now hosts everything found on a node: the AI finding rows and the hidden-buckets chips moved in below the deterministic issues (title count sums both), the AI actions card slimmed down to a launcher-only surface with Finders and Standalone groups in dynamic full-width columns, and the Auto-fixer switch got a compact size via design tokens.
+
+  ## User-facing
+
+  **One Findings card.** Everything found on a file now lives in one Findings card, AI results included. The AI Actions card is just the launch buttons, grouped and tidier, with a smaller Auto-fixer switch.
+
+- The inspector's AI-actions launcher splits into two rows, finders on top and standalone actions below, each led by its own type-scoped ALL button that queues only its group (sequential within the batch, replacing the combined ALL); ALL labels type-qualify when both rows render, and standalone launcher buttons wear the sparkles icon instead of play.
+
+  ## User-facing
+
+  **Launcher rows by type.** The AI-actions launcher now shows finders and standalone actions on separate rows, each with its own run-all button that only queues its type; standalone actions wear the magic icon.
+
+- The SPA's node corpus now also refreshes on WS `job.completed` frames (debounced 500ms), not only on `scan.completed`, so the aggregate severity chips folded from open findings at read time reach map cards as soon as an AI action records its result, without an F5.
+
+  ## User-facing
+
+  **Card counters update on their own.** The warning and error chips on map cards now refresh automatically when an AI review finishes, so new findings show up right away, no page reload needed.
+
 ## 0.89.0-rc.2
 
 ### Minor Changes

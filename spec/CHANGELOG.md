@@ -1,5 +1,27 @@
 # Spec changelog
 
+## 0.81.0-rc.2
+
+### Minor Changes
+
+- Fixer jobs can target a finding subset: `sm jobs submit --finding <id>` (BFF `findingIds`) freezes the ids on the job, the injection narrows to them, and the supersede/duplicate/running gates become overlap-scoped; `fixerBusy` joins the prob-extensions wire. Finding resolution adds a row-grain `dismissed` state via `sm findings dismiss` (`--class` keeps the sidecar suppression) and a new `sm findings reopen` verb plus BFF routes; five optimization finder/fixer pairs ship experimental.
+
+  ## User-facing
+
+  **Finer-grained finding control.** Fixing or dismissing one finding now affects only that finding (dismissing a whole kind stays available in the CLI), fix buttons no longer flicker while a fix starts, and `sm findings reopen` undoes a dismissal.
+
+- The Action manifest's `precondition` gains a `frontmatterMissing` gate (the action applies only while the node's frontmatter is missing at least one listed field), and the `node.prob-extensions` envelope now carries a third `issueFixers` bucket (`IssueFixerEntry`) for probabilistic Actions whose `analyzerIds` resolve to a deterministic analyzer; the `standalone` bucket no longer lists them.
+
+- Identifier agreement reworked in `architecture.md`: every built-in kind now declares `identifierMismatch: 'warn'` (a node answering to two names is ambiguity worth a warning even where the runtime documents the override as legal), while the `info` tier stays in the enum for external providers. The `core/contribution-orphan` bullet is gone from the analyzer catalog and `IAnalyzerContext.viewContributions` is now described as a generic context surface.
+
+- Enable/disable now applies a pair toggle over Modelo B edges: enabling a fixer action also enables the analyzer(s) in its `precondition.analyzerIds` (and vice versa), and disabling is reference-counted, so a companion falls only when its last enabled edge partner goes down. Covers `sm plugins enable / disable` and the `PATCH /api/plugins*` routes (bulk form keeps explicit-wins semantics). Normative wording in `plugin-author-guide.md` §Paired extensions.
+
+  ## User-facing
+
+  **Reviews and their fixes now switch together.** Turning on a fix also turns on the review that feeds it, and turning off a review turns off its fix unless another review still uses it. No more half-armed pairs after toggling one side in the Settings panel or the CLI.
+
+- The `inspector.action.button` payload gains an optional `surface` enum (`version` | `stability` | `tags`) plus the `view-slots.md` §Re-homed surfaces contract: a payload declaring a surface IS the named UI surface instead of a generic Actions button, the UI selects it by this declaration and dispatches the payload's `actionId` (never matching extension ids), and when several contributions claim one surface the first by priority order wins.
+
 ## 0.81.0-rc.1
 
 ### Minor Changes
