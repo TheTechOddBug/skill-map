@@ -54,6 +54,40 @@ function newChangesets(base) {
   }
 }
 
+/**
+ * Versioned-workspace `package.json` versions this PR BUMPS relative to
+ * the base. A PR that bumps a workspace version without adding
+ * changesets is a versioning PR by behaviour (the changesets action's
+ * own branch, or a manual stable-promote that ran `changeset version`
+ * on the branch), so the gate exempts it: it cannot be asked to ADD
+ * changesets while its whole point is consuming them. Detected via the
+ * version field (not deleted `.changeset/*.md`) because a promote
+ * branch both ADDS and DELETES the changesets inside its own history,
+ * leaving no net trace in a three-dot diff against the base.
+ */
+function bumpedWorkspaceVersions(base) {
+  // Compare against the merge-base (what the three-dot diff sees), so a
+  // base branch that moved ahead with its own version bumps never
+  // exempts an unrelated feature PR.
+  let fork;
+  try {
+    fork = git(`merge-base ${base} HEAD`);
+  } catch {
+    return [];
+  }
+  const bumped = [];
+  for (const ws of VERSIONED_WORKSPACES) {
+    try {
+      const baseVersion = JSON.parse(git(`show ${fork}:${ws}/package.json`)).version;
+      const headVersion = JSON.parse(git(`show HEAD:${ws}/package.json`)).version;
+      if (baseVersion !== headVersion) bumped.push(`${ws} ${baseVersion} -> ${headVersion}`);
+    } catch {
+      // Workspace manifest missing on either side: nothing to compare.
+    }
+  }
+  return bumped;
+}
+
 function currentBranch() {
   if (process.env.GITHUB_HEAD_REF) return process.env.GITHUB_HEAD_REF;
   try {
@@ -84,6 +118,14 @@ const RELEASE_NOTE_FILE = /(^|\/)CHANGELOG\.md$/;
 const branch = currentBranch();
 if (branch.startsWith('changeset-release/')) {
   console.log('Version Packages PR — changeset check skipped.');
+  process.exit(0);
+}
+
+const bumped = bumpedWorkspaceVersions(baseRef);
+if (bumped.length > 0) {
+  console.log(
+    `Versioning PR by behaviour (${bumped.join(', ')}) — changeset check skipped.`,
+  );
   process.exit(0);
 }
 
