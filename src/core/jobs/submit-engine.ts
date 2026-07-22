@@ -74,20 +74,51 @@ import { SUBMIT_ENGINE_TEXTS as T } from './i18n/submit-engine.texts.js';
  */
 export function nodeMatchesPrecondition(node: Node, precondition?: IActionPrecondition): boolean {
   if (!precondition) return true;
-  if (precondition.provider && precondition.provider.length > 0) {
-    if (!precondition.provider.includes(node.provider)) return false;
-  }
-  if (precondition.kind && precondition.kind.length > 0) {
-    const qualified = `${node.provider}/${node.kind}`;
-    const ok = precondition.kind.some((entry) => {
-      if (entry === qualified) return true;
-      const slash = entry.indexOf('/');
-      const kindOnly = slash === -1 ? entry : entry.slice(slash + 1);
-      return kindOnly === node.kind;
-    });
-    if (!ok) return false;
-  }
-  return true;
+  return (
+    matchesProviderLeg(node, precondition.provider) &&
+    matchesKindLeg(node, precondition.kind) &&
+    matchesFrontmatterLeg(node, precondition.frontmatterMissing)
+  );
+}
+
+/** The `provider` leg of the matcher; absent = pass. */
+function matchesProviderLeg(node: Node, providers?: readonly string[]): boolean {
+  if (!providers || providers.length === 0) return true;
+  return providers.includes(node.provider);
+}
+
+/** The `frontmatterMissing` leg of the matcher; absent = pass. */
+function matchesFrontmatterLeg(node: Node, fields?: readonly string[]): boolean {
+  if (!fields || fields.length === 0) return true;
+  return nodeIsMissingFrontmatterField(node, fields);
+}
+
+/** The `kind` leg of the matcher (segment-after-slash semantics); absent = pass. */
+function matchesKindLeg(node: Node, kinds?: readonly string[]): boolean {
+  if (!kinds || kinds.length === 0) return true;
+  const qualified = `${node.provider}/${node.kind}`;
+  return kinds.some((entry) => {
+    if (entry === qualified) return true;
+    const slash = entry.indexOf('/');
+    const kindOnly = slash === -1 ? entry : entry.slice(slash + 1);
+    return kindOnly === node.kind;
+  });
+}
+
+/**
+ * The `frontmatterMissing` gap gate (spec
+ * `action.schema.json#/properties/precondition`): true when at least
+ * one listed field is absent from the node's frontmatter or carries an
+ * empty string. A valueless YAML key (`name:` parses to null) counts as
+ * absent; any other non-string value counts as present (the action only
+ * writes strings, so it has nothing to add there). A node with no
+ * frontmatter block at all is missing every field.
+ */
+function nodeIsMissingFrontmatterField(node: Node, fields: readonly string[]): boolean {
+  return fields.some((field) => {
+    const value = node.frontmatter?.[field];
+    return value === undefined || value === null || value === '';
+  });
 }
 
 /**

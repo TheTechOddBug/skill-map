@@ -40,6 +40,7 @@ import { debounceTime, merge, type Observable } from 'rxjs';
 import type {
   IFindingApi,
   IFindingsCountsApi,
+  IIssueFixerEntryApi,
   IProbExtensionEntryApi,
   IProbExtensionsApi,
 } from '../../../models/api';
@@ -106,8 +107,12 @@ export interface IAiActionsHandle {
   available: Signal<boolean>;
   /** Last submit failure, or `null`. */
   error: Signal<IAiActionsError | null>;
-  /** Effective launcher state: the optimistic `queued` / `idle` flips win over a stale payload. */
-  entryState(entry: IProbExtensionEntryApi): 'idle' | 'queued' | 'running';
+  /**
+   * Effective launcher state: the optimistic `queued` / `idle` flips win
+   * over a stale payload. Accepts `issueFixers` entries too (the fix
+   * button on deterministic issue rows shares the submit flow).
+   */
+  entryState(entry: IProbExtensionEntryApi | IIssueFixerEntryApi): 'idle' | 'queued' | 'running';
   /** True while this extension's submit round-trip is in flight. */
   isSubmitting(extensionId: string): boolean;
   /**
@@ -273,7 +278,9 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     if (queued.size === 0 && idle.size === 0) return;
     const idleIds = new Set<string>();
     const activeIds = new Set<string>();
-    for (const entry of [...probs.finders, ...probs.standalone]) {
+    // Issue fixers reconcile too: their fix button submits through the
+    // same flow, so a confirmed payload must retire its optimistic flip.
+    for (const entry of [...probs.finders, ...probs.standalone, ...probs.issueFixers]) {
       if (entry.state === 'idle') idleIds.add(entry.id);
       else activeIds.add(entry.id);
     }

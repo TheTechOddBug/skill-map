@@ -28,6 +28,8 @@ import type {
   IActivityRunApi,
   IFindingApi,
   IFindingsEnvelopeApi,
+  IIssueApi,
+  IIssueFixerEntryApi,
   INodeSummaryRowApi,
   INodeDetailApi,
   INodeApi,
@@ -55,6 +57,7 @@ beforeEach(() => {
 
 type IStubDataSource = IDataSourcePort & {
   getNode: ReturnType<typeof vi.fn>;
+  listIssues: ReturnType<typeof vi.fn>;
   getNodeActivity: ReturnType<typeof vi.fn>;
   getNodeFindings: ReturnType<typeof vi.fn>;
   getNodeSummary: ReturnType<typeof vi.fn>;
@@ -183,6 +186,7 @@ function makeStubDataSource(): IStubDataSource {
     getNodeProbExtensions: vi.fn().mockResolvedValue({
       finders: [],
       standalone: [],
+      issueFixers: [],
     }),
     submitNodeJob: vi.fn().mockResolvedValue({
       schemaVersion: '1',
@@ -2173,7 +2177,30 @@ function makeProbEntry(overrides: Partial<IProbExtensionEntryApi> = {}): IProbEx
 }
 
 function makeProbExtensions(overrides: Partial<IProbExtensionsApi> = {}): IProbExtensionsApi {
-  return { finders: [], standalone: [], ...overrides };
+  return { finders: [], standalone: [], issueFixers: [], ...overrides };
+}
+
+function makeIssueFixer(overrides: Partial<IIssueFixerEntryApi> = {}): IIssueFixerEntryApi {
+  return {
+    id: 'core/ai-reference-action',
+    description: 'Repairs broken references.',
+    state: 'idle',
+    jobId: null,
+    lastJudged: null,
+    // The SHORT persisted form (`scan_issues.analyzerId`), the row-match key.
+    analyzerIds: ['reference-broken'],
+    ...overrides,
+  };
+}
+
+function makeIssue(overrides: Partial<IIssueApi> = {}): IIssueApi {
+  return {
+    analyzerId: 'reference-broken',
+    severity: 'error',
+    nodeIds: ['skills/deploy/SKILL.md'],
+    message: 'references arrow points at "docs/missing.md" which is not in the scan',
+    ...overrides,
+  };
 }
 
 describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
@@ -2188,6 +2215,8 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     findings?: IFindingsEnvelopeApi;
     probs?: IProbExtensionsApi;
     summaries?: INodeSummaryRowApi[];
+    /** Deterministic `scan_issues` rows for the findings card (issue-fixer cases). */
+    issues?: IIssueApi[];
 }
 
   async function bootAiActions(opts: IAiActionsBoot = {}): Promise<{
@@ -2202,6 +2231,16 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
     if (opts.findings) dataSource.getNodeFindings.mockResolvedValue(opts.findings);
     if (opts.probs) dataSource.getNodeProbExtensions.mockResolvedValue(opts.probs);
+    if (opts.issues) {
+      dataSource.listIssues.mockResolvedValue({
+        schemaVersion: '1',
+        kind: 'issues',
+        items: opts.issues,
+        filters: { severity: null, analyzerId: null, node: null },
+        counts: { total: opts.issues.length, returned: opts.issues.length },
+        kindRegistry: {},
+      });
+    }
     if (opts.summaries) dataSource.getNodeSummary.mockResolvedValue(opts.summaries);
     const { fixture, jobEvents$ } = bootstrap({ loader, dataSource });
     fixture.componentRef.setInput('path', node.path);
@@ -2388,6 +2427,57 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
       (dom.querySelector('[data-testid="inspector-finding-fix-12"] button') as HTMLButtonElement)
         .disabled,
     ).toBe(true);
+  });
+
+  it('deterministic issue rows: the sparkles queues the issue fixer; unmatched rows render none', async () => {
+    // Issue-fixer placement (user decision 2026-07-22): the fix
+    // affordance of a deterministic-analyzer fixer rides the ISSUE row
+    // it resolves, matched by the entry's SHORT analyzerIds; an issue
+    // no enabled fixer covers renders no button, and the fixer never
+    // appears in the launcher rows.
+    const { fixture, dataSource, node } = await bootAiActions({
+      issues: [makeIssue(), makeIssue({ analyzerId: 'name-collision', severity: 'warn' })],
+      probs: makeProbExtensions({ issueFixers: [makeIssueFixer()] }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    const fixBtn = dom.querySelector(
+      '[data-testid="inspector-issue-fix-reference-broken"] button',
+    ) as HTMLButtonElement;
+    expect(fixBtn).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-issue-fix-name-collision"]')).toBeNull();
+    // The fixer is NOT a launcher button (it left the standalone row).
+    expect(
+      dom.querySelector('[data-testid="inspector-ai-action-launch-core/ai-reference-action"]'),
+    ).toBeNull();
+
+    fixBtn.click();
+    await flush(fixture);
+    expect(dataSource.submitNodeJob).toHaveBeenCalledWith(
+      node.path,
+      'core/ai-reference-action',
+      false,
+    );
+    // Optimistic queued flip: the button disables until a payload confirms.
+    expect(
+      (
+        dom.querySelector(
+          '[data-testid="inspector-issue-fix-reference-broken"] button',
+        ) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+  });
+
+  it('an active issue-fixer job renders the row sparkles busy', async () => {
+    const { fixture } = await bootAiActions({
+      issues: [makeIssue()],
+      probs: makeProbExtensions({
+        issueFixers: [makeIssueFixer({ state: 'running', jobId: 'job-9' })],
+      }),
+    });
+    const btn = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-issue-fix-reference-broken"] button',
+    ) as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
   });
 
   it('the header summarize ? queues the summarizer; the summarizer never rides the launcher row', async () => {

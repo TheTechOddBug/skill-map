@@ -121,6 +121,31 @@
                     >{{ issue.severity }}</span
                   >
                   <code class="inspector__finding-analyzer">{{ issue.analyzerId }}</code>
+                  <!-- AI fix (issueFixers bucket): a probabilistic fixer
+                       of THIS deterministic analyzer is enabled and the
+                       node has matching open issues, so the affordance
+                       rides the row it resolves, never the standalone
+                       launcher (user decision 2026-07-22). One submit
+                       fixes every matching issue of the node. -->
+                  @if (issueFixerForRow(issue); as fixer) {
+                    <span class="inspector__finding-actions inspector__finding-actions--push">
+                      <p-button
+                        icon="pi pi-sparkles"
+                        severity="info"
+                        size="small"
+                        [rounded]="true"
+                        [text]="true"
+                        [disabled]="issueFixBusy(fixer)"
+                        [loading]="issueFixBusy(fixer)"
+                        [pTooltip]="fixer.description"
+                        tooltipPosition="left"
+                        appendTo="body"
+                        [ariaLabel]="texts.issueFixAriaLabel(fixer.id)"
+                        (onClick)="fixIssue(fixer)"
+                        [attr.data-testid]="'inspector-issue-fix-' + issue.analyzerId"
+                      />
+                    </span>
+                  }
                 </div>
                 <p class="inspector__finding-message">{{ issue.message }}</p>
                 @if (issue.fix?.summary; as fixSummary) {

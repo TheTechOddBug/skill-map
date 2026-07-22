@@ -109,7 +109,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       kindRegistry: {},
     }),
   getNodeProbExtensions: () =>
-    Promise.resolve({ finders: [], standalone: [] }),
+    Promise.resolve({ finders: [], standalone: [], issueFixers: [] }),
   submitNodeJob: () =>
     Promise.resolve({
       schemaVersion: '1',

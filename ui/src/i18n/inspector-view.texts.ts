@@ -245,6 +245,13 @@ export const INSPECTOR_VIEW_TEXTS = {
   /** Findings list, fix hint label rendered before the per-issue summary. */
   findingHintLabel: 'Hint:',
   /**
+   * Per-issue AI fix button (deterministic findings card): rendered on
+   * each issue row a probabilistic issue-fixer matches. The tooltip is
+   * the action manifest's own description; only the aria label lives
+   * here.
+   */
+  issueFixAriaLabel: (actionId: string) => `Queue ${actionId} to fix the matching findings`,
+  /**
    * Metadata section (the `audit:` sidecar block). Field labels for the
    * panel body; the section no longer shows an inline summary next to
    * the title.

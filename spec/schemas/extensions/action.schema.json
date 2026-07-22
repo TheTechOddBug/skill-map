@@ -61,6 +61,13 @@
             "pattern": "^[a-z][a-z0-9-]*/[a-z][a-z0-9-]*(:[a-z][a-z0-9-]*)?$"
           },
           "description": "Qualified analyzer ids whose findings this action is intended to resolve (Modelo B, replaces the deprecated `Analyzer.recommendedActions`). The UI surfaces matching actions in the node inspector under 'Resolve this issue' when the analyzer's id matches an entry here. Format `<plugin>/<analyzer>` or `<plugin>/<analyzer>:<sub-id>` when the analyzer emits sub-typed issues. Dangling references warn via `recommended-action-missing` in `sm plugins doctor` but do NOT block load."
+        },
+        "frontmatterMissing": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Frontmatter-gap gate: the action applies ONLY to nodes whose frontmatter is missing at least one of the listed fields (no frontmatter block, absent field, or empty-string value; a non-string value counts as present). Evaluated by the same node matcher as `kind` / `provider` (BFF launcher classification, `--all` fan-out), so a node already carrying every listed field never lists the action nor receives a fan-out job. E.g. `core/ai-frontmatter-action` declares `[\"name\", \"description\"]`: its standalone launcher renders only while the file is missing one of them."
         }
       }
     },

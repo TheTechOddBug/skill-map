@@ -103,7 +103,12 @@ import {
 import { setupAutoFix, type IAutoFixHandle } from './inspector-auto-fix.controller';
 import { contributionSurface } from '../../../models/node-derived';
 import type { INodeView } from '../../../models/node';
-import type { IFindingApi, INodeSummaryRowApi, IProbExtensionEntryApi } from '../../../models/api';
+import type {
+  IFindingApi,
+  IIssueFixerEntryApi,
+  INodeSummaryRowApi,
+  IProbExtensionEntryApi,
+} from '../../../models/api';
 
 /**
  * Debounce for the Activity section's live re-fetch. Live `node.activity`
@@ -498,6 +503,33 @@ export class InspectorView implements OnInit {
   protected readonly aiActionCounts = this.aiActions.counts;
   protected readonly aiActionRevealedBucket = this.aiActions.revealedBucket;
   protected readonly aiActionRevealedRows = this.aiActions.revealedRows;
+
+  /**
+   * The `issueFixers` entry matching a deterministic issue row, or
+   * `null` when no enabled probabilistic fixer covers its analyzer. The
+   * catalog only lists an issue fixer while the node has a matching open
+   * Issue, so the fix sparkles renders exactly on the rows it resolves
+   * (user decision 2026-07-22 replacing the standalone-launcher
+   * placement). Matching is by the entry's SHORT `analyzerIds` against
+   * the row's `analyzerId`, both in the persisted `scan_issues` form.
+   */
+  protected issueFixerForRow(issue: IIssueApi): IIssueFixerEntryApi | null {
+    const fixers = this.aiActions.probExtensions()?.issueFixers ?? [];
+    return fixers.find((f) => f.analyzerIds.includes(issue.analyzerId)) ?? null;
+  }
+
+  /**
+   * Busy state of an issue row's fix button. One submit fixes EVERY
+   * matching issue of the node in a single job, so all rows matching the
+   * same fixer share it.
+   */
+  protected issueFixBusy(fixer: IIssueFixerEntryApi): boolean {
+    return this.aiActions.entryState(fixer) !== 'idle' || this.aiActions.isSubmitting(fixer.id);
+  }
+
+  protected fixIssue(fixer: IIssueFixerEntryApi): void {
+    void this.aiActions.submit(fixer.id);
+  }
 
   /** Direct dismiss (no prompt): one click hides the class, reversible. */
   protected dismissAiActionFinding(finding: IFindingApi): void {

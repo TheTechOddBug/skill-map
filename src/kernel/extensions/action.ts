@@ -155,6 +155,18 @@ export interface IActionPrecondition {
    * do NOT block load.
    */
   analyzerIds?: string[];
+  /**
+   * Frontmatter-gap gate: the action applies ONLY to nodes whose
+   * frontmatter is missing at least one of the listed fields (no
+   * frontmatter block, absent field, or empty-string value; a
+   * non-string value counts as present). Evaluated by the same shared
+   * matcher as `kind` / `provider` (`nodeMatchesPrecondition`), so it
+   * gates the BFF launcher classification and the `--all` fan-out
+   * alike. E.g. `core/ai-frontmatter-action` declares
+   * `['name', 'description']` so its standalone launcher renders only
+   * while the file is missing one of them.
+   */
+  frontmatterMissing?: string[];
 }
 
 export interface IAction extends IExtensionBase {

@@ -736,6 +736,13 @@
   padding: 0;
 }
 
+/* Deterministic issue rows have no dimmed #id pushing the tail right
+   (issues carry no stable id), so the actions span pushes itself,
+   keeping the fix button on the row's right edge like the AI rows. */
+.inspector__finding-actions--push {
+  margin-left: auto;
+}
+
 /* Hidden-buckets honesty line: the CLI's "N dismissed, M fixed, K stale
    hidden" as reveal chips. */
 .inspector__ai-hidden {

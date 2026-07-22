@@ -126,6 +126,7 @@ precondition?: {
   kind?: string[];       // qualified `<plugin>/<kindName>` ids
   provider?: string[];   // plugin ids
   analyzerIds?: string[]; // Action only: which analyzers' findings this action resolves (Modelo B)
+  frontmatterMissing?: string[]; // Action only: applies only while the node's frontmatter is missing one of these fields
 };
 ```
 
@@ -136,6 +137,7 @@ precondition?: {
 | `{ kind: ['claude/skill', 'agent-skills/skill'] }` | Runs on skills from either provider. |
 | `{ provider: ['claude'] }` | Coarser: runs on every kind the `claude` plugin declares. |
 | `{ kind: ['claude/skill'], provider: ['claude'] }` | Both filters apply (AND). |
+| `{ frontmatterMissing: ['name', 'description'] }` | Action only. Applies only while the node's frontmatter lacks at least one listed field (no block, absent field, or empty-string value; non-string values count as present). ANDs with the other filters. |
 
 Prefer `precondition.kind` over `precondition.provider` when the filter is really about the kind. There is no wildcard syntax, omitting the field IS the wildcard.
 

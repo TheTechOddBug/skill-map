@@ -7,7 +7,7 @@ import { CollectionLoaderService } from '../collection-loader';
 import { DATA_SOURCE, type IDataSourcePort } from '../data-source/data-source.port';
 import { MapVisibilityService } from '../map-visibility';
 import { WsEventStreamService, type TWsConnectionState } from '../ws-event-stream';
-import type { IWsScanCompletedEvent, IWsSidecarBumpedEvent } from '../../models/ws-event';
+import type { IWsEvent, IWsScanCompletedEvent, IWsSidecarBumpedEvent } from '../../models/ws-event';
 import type {
   IBranchResponseApi,
   IFolderNodeLite,
@@ -93,13 +93,14 @@ function makeWsStub(
   sidecarBumped$: Subject<IWsSidecarBumpedEvent> | null = null,
   connectionState: WritableSignal<TWsConnectionState> = signal('connecting'),
   stableConnected: WritableSignal<boolean> = signal(false),
+  jobEvents$: Subject<IWsEvent> | null = null,
 ): WsEventStreamService {
   return {
     events$: EMPTY,
     scanCompleted$: scanCompleted$.asObservable(),
     sidecarBumped$: sidecarBumped$ ? sidecarBumped$.asObservable() : EMPTY,
     // Consumed by the job-completed corpus refresh (fold freshness).
-    jobEvents$: EMPTY,
+    jobEvents$: jobEvents$ ? jobEvents$.asObservable() : EMPTY,
     connectionState,
     stableConnected,
   } as unknown as WsEventStreamService;
@@ -273,6 +274,37 @@ describe('CollectionLoaderService, three-fetch lazy boot', () => {
     expect(stub.loadScanMeta).toHaveBeenCalledTimes(2);
     expect(stub.loadFolders).toHaveBeenCalledTimes(2);
     expect(stub.loadBranch).toHaveBeenCalledTimes(2);
+  });
+
+  it('refreshes the corpus on job.completed, debounced (fold freshness, user report 2026-07-22)', async () => {
+    // A completed job lands findings whose severity fold rides the node
+    // corpus; without this refresh the card counters lag until an F5.
+    vi.useFakeTimers();
+    try {
+      const jobEvents$ = new Subject<IWsEvent>();
+      const svc = bootstrap(stub, makeWsStub(scanCompleted$, null, undefined, undefined, jobEvents$));
+      await svc.load();
+      expect(stub.loadScanMeta).toHaveBeenCalledTimes(1);
+
+      // A burst of records (an ALL run draining) coalesces into ONE reload.
+      jobEvents$.next({ type: 'job.completed', timestamp: 1, jobId: 'j-1', data: {} } as IWsEvent);
+      jobEvents$.next({ type: 'job.completed', timestamp: 2, jobId: 'j-2', data: {} } as IWsEvent);
+      // A non-completed lifecycle frame alone must NOT refresh.
+      jobEvents$.next({ type: 'job.claimed', timestamp: 3, jobId: 'j-3', data: {} } as IWsEvent);
+
+      await vi.advanceTimersByTimeAsync(499);
+      expect(stub.loadScanMeta).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(2);
+      expect(stub.loadScanMeta).toHaveBeenCalledTimes(2);
+      expect(stub.loadBranch).toHaveBeenCalledTimes(2);
+
+      // The claimed frame's own debounce window elapsed with no
+      // completion behind it: no third reload.
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(stub.loadScanMeta).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('coalesces a refresh that arrives while load() is in flight', async () => {

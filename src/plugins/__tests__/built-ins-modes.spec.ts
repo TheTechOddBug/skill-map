@@ -266,7 +266,8 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/contribution-orphan` (the Phase 7 soft-warning stub that emitted [] waiting for a `contributionsRows` context field that never landed) was DELETED on 2026-07-22 (analyzer review pass closure), dropping the total to 49; `IAnalyzerContext.viewContributions` stays as a generic context surface.
     // `core/ai-name-action` (the second deterministic-analyzer fixer, `precondition.analyzerIds: ['core/name-mismatch']`, mirror of ai-reference-action: stable, enabled; settles a dual identity by aligning `frontmatter.name` to the file-derived handle, renames only by author choice) brings it back to 50.
     // The five OPTIMIZATION finder/fixer pairs (2026-07-22, user decision: the monolithic `skill-optimizer` capability decomposed into topics): `ai-verbosity-*`, `ai-vagueness-*`, `ai-structure-*`, `ai-trigger-*`, `ai-scope-*`, each an experimental ships-disabled probabilistic pair on the wave-1 mold, bring it to 60.
-    assert.equal(rows.length, 60);
+    // `core/ai-frontmatter-action` (standalone probabilistic Action that generates or completes a node's missing frontmatter: a path-aligned `name` + a use-when `description`, never overwriting existing fields; experimental ships-disabled until its live playground pass) brings it to 61.
+    assert.equal(rows.length, 61);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a

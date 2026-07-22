@@ -424,7 +424,7 @@ export class StaticDataSource implements IDataSourcePort {
   async getNodeProbExtensions(path: string): Promise<IProbExtensionsApi | null> {
     const scan = await this.loadData();
     if (!scan.nodes.some((n) => n.path === path)) return null;
-    return { finders: [], standalone: [] };
+    return { finders: [], standalone: [], issueFixers: [] };
   }
 
   async listLinks(q: ILinksQuery = {}): Promise<IListEnvelopeApi<ILinkApi>> {

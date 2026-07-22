@@ -2,7 +2,7 @@
  * `GET /api/nodes/:pathB64/prob-extensions`, the per-node probabilistic
  * launcher catalog for the inspector's finder buttons (Step 16,
  * `spec/cli-contract.md` §Serve route table; classification per ROADMAP
- * §Step 16, manifest-mechanical). Two buckets:
+ * §Step 16, manifest-mechanical). Three buckets:
  *
  *   - `finders`: probabilistic Analyzers whose precondition matches the
  *     node (the same `nodeMatchesPrecondition` gate the CLI `--all`
@@ -17,20 +17,25 @@
  *     finder's extension id.
  *   - `standalone`: probabilistic Analyzers matching the node with NO
  *     fixer (`fixerIds` empty), PLUS probabilistic Actions WITHOUT
- *     `analyzerIds` (listed whenever their precondition matches), PLUS a
- *     probabilistic Action whose `analyzerIds` resolve to a DETERMINISTIC
- *     analyzer (e.g. `core/ai-reference-action` over
- *     `core/reference-broken`) but ONLY when the node carries >= 1 Issue
- *     from those analyzerIds. Single action buttons: `fixerIds` empty,
- *     `hasOpenFindings` always false.
+ *     `analyzerIds` (listed whenever their precondition matches,
+ *     including the `frontmatterMissing` gap gate when declared).
+ *     Single action buttons: `fixerIds` empty, `hasOpenFindings`
+ *     always false.
+ *   - `issueFixers`: probabilistic Actions whose `analyzerIds` resolve
+ *     to a DETERMINISTIC analyzer (e.g. `core/ai-reference-action` over
+ *     `core/reference-broken`), listed ONLY while the node carries >= 1
+ *     Issue from those analyzerIds. The UI renders each as a fix button
+ *     ON the matching deterministic issue rows (matched via the entry's
+ *     SHORT `analyzerIds`), never as a launcher button (user decision
+ *     2026-07-22 replacing the former standalone placement): the
+ *     analyzer emits `scan_issues`, never `state_findings`, so there is
+ *     no finder button for it to ride and the affordance belongs on the
+ *     issue it resolves.
  *
  * A fixer paired with a PROBABILISTIC finder is never its own launcher:
  * it surfaces through its finder's `fixerIds` (the per-finding fix button
  * in the tray submits them); the former per-finder-fixer split and the
- * `fixers` bucket stay RETIRED. The deterministic-analyzer fixer is the sole
- * exception: its analyzer emits `scan_issues`, never `state_findings`, so
- * there is no finder button for it to ride, and it appears as its own
- * standalone launcher whenever the node has a matching open Issue.
+ * `fixers` bucket stay RETIRED.
  *
  * Each entry adds the live queue `state` (`queued` / `running` when an
  * active `state_jobs` row exists for the (node, extension) pair, else
@@ -140,10 +145,28 @@ export interface IProbExtensionEntry {
   fixerBusy: { all: boolean; findingIds: number[] } | null;
 }
 
+/**
+ * One `issueFixers` entry
+ * (`rest-envelope.schema.json#/$defs/IssueFixerEntry`): a probabilistic
+ * Action fixing a DETERMINISTIC analyzer's issues, rendered as a fix
+ * button on the matching issue rows. `state` / `jobId` cover the
+ * action's OWN jobs only; `analyzerIds` carries the SHORT ids (as
+ * persisted on `scan_issues.analyzerId`) the UI matches rows against.
+ */
+export interface IIssueFixerEntry {
+  id: string;
+  description: string;
+  state: 'idle' | 'queued' | 'running';
+  jobId: string | null;
+  lastJudged: { at: number; model: string | null } | null;
+  analyzerIds: string[];
+}
+
 /** The `item` payload of the `node.prob-extensions` single envelope. */
 export interface IProbExtensionsCatalog {
   finders: IProbExtensionEntry[];
   standalone: IProbExtensionEntry[];
+  issueFixers: IIssueFixerEntry[];
 }
 
 export function registerNodeProbExtensionsRoute(app: Hono, deps: IRouteDeps): void {
@@ -249,7 +272,7 @@ async function buildCatalog(
 ): Promise<IProbExtensionsCatalog> {
   // A virtual node has no backing file: nothing is launchable, the
   // submit route refuses it, so the catalog is honestly empty.
-  if (node.virtual === true) return { finders: [], standalone: [] };
+  if (node.virtual === true) return { finders: [], standalone: [], issueFixers: [] };
 
   // ONE findings read (stale included, we filter staleness ourselves for
   // `hasOpenFindings`), ONE suppressions read (the read-time dismissal
@@ -266,6 +289,7 @@ async function buildCatalog(
 
   const finders: IProbExtensionEntry[] = [];
   const standalone: IProbExtensionEntry[] = [];
+  const issueFixers: IIssueFixerEntry[] = [];
 
   for (const analyzer of sources.probAnalyzers) {
     if (!nodeMatchesPrecondition(node, analyzer.precondition)) continue;
@@ -292,28 +316,47 @@ async function buildCatalog(
     }
   }
   for (const action of sources.probActions) {
-    const entry = await classifyProbAction(adapter, node, action, activeJobs, sources);
-    if (entry !== null) standalone.push(entry);
+    const classified = await classifyProbAction(adapter, node, action, activeJobs, sources);
+    pushClassifiedAction(classified, standalone, issueFixers);
   }
 
-  return { finders, standalone };
+  return { finders, standalone, issueFixers };
 }
 
+/** Land a classified action in its bucket (`null` = unlisted). */
+function pushClassifiedAction(
+  classified: TClassifiedProbAction | null,
+  standalone: IProbExtensionEntry[],
+  issueFixers: IIssueFixerEntry[],
+): void {
+  if (classified === null) return;
+  if (classified.bucket === 'standalone') standalone.push(classified.entry);
+  else issueFixers.push(toIssueFixerEntry(classified.entry, classified.analyzerIds));
+}
+
+/** `classifyProbAction`'s verdict: which bucket the action lands in. */
+type TClassifiedProbAction =
+  | { bucket: 'standalone'; entry: IProbExtensionEntry }
+  | { bucket: 'issue-fixer'; entry: IProbExtensionEntry; analyzerIds: string[] };
+
 /**
- * Classify one probabilistic Action against the node into a `standalone`
- * launcher entry, or `null` when it does not belong in the catalog:
+ * Classify one probabilistic Action against the node, or `null` when it
+ * does not belong in the catalog:
  *
  *   - a fixer pairing a PROBABILISTIC finder (a non-empty `analyzerIds`
  *     resolving to a probabilistic analyzer) is UNLISTED: it is the second
  *     state of its finder's button, surfaced through the finder's `fixerIds`,
  *     never its own launcher.
  *   - a fixer of a DETERMINISTIC analyzer (`core/ai-reference-action` over
- *     `core/reference-broken`) becomes its OWN standalone launcher, but ONLY
- *     when the node carries >= 1 Issue from those analyzerIds: the analyzer
- *     emits `scan_issues`, not `state_findings`, so there is no finder button
- *     to ride and nothing to fix without an open Issue.
- *   - an Action WITHOUT `analyzerIds` is a plain standalone launcher listed
- *     whenever its precondition matches the node.
+ *     `core/reference-broken`) lands in `issueFixers`, but ONLY when the
+ *     node carries >= 1 Issue from those analyzerIds: the analyzer emits
+ *     `scan_issues`, not `state_findings`, so there is no finder button to
+ *     ride and nothing to fix without an open Issue. The UI renders it on
+ *     the matching issue rows (user decision 2026-07-22), never as a
+ *     launcher button.
+ *   - an Action WITHOUT `analyzerIds` is a plain `standalone` launcher
+ *     listed whenever its precondition matches the node (including the
+ *     `frontmatterMissing` gap gate).
  */
 async function classifyProbAction(
   adapter: StoragePort,
@@ -321,7 +364,7 @@ async function classifyProbAction(
   action: IAction,
   activeJobs: readonly Job[],
   sources: ICatalogSources,
-): Promise<IProbExtensionEntry | null> {
+): Promise<TClassifiedProbAction | null> {
   const analyzerIds = fixerAnalyzerIds('action', action);
   const standaloneExtras = { fixerIds: [] as string[], hasOpenFindings: false };
   if (analyzerIds !== undefined) {
@@ -335,10 +378,42 @@ async function classifyProbAction(
       limit: 1,
     });
     if (issues.total === 0) return null;
-    return buildEntry(adapter, node, action, activeJobs, standaloneExtras);
+    const entry = await buildEntry(adapter, node, action, activeJobs, standaloneExtras);
+    return { bucket: 'issue-fixer', entry, analyzerIds: [...analyzerIds] };
   }
   if (!nodeMatchesPrecondition(node, action.precondition)) return null;
-  return buildEntry(adapter, node, action, activeJobs, standaloneExtras);
+  const entry = await buildEntry(adapter, node, action, activeJobs, standaloneExtras);
+  return { bucket: 'standalone', entry };
+}
+
+/**
+ * Project a built launcher entry to the `issueFixers` wire shape:
+ * drop the finder-only fields and attach the SHORT analyzer ids (plugin
+ * prefix and `:sub-id` stripped from the action's declared
+ * `precondition.analyzerIds`, matching how `scan_issues.analyzerId`
+ * persists them), the key the UI matches issue rows against.
+ */
+function toIssueFixerEntry(
+  entry: IProbExtensionEntry,
+  declaredAnalyzerIds: readonly string[],
+): IIssueFixerEntry {
+  const shortIds = [...new Set(declaredAnalyzerIds.map(shortAnalyzerId))];
+  return {
+    id: entry.id,
+    description: entry.description,
+    state: entry.state,
+    jobId: entry.jobId,
+    lastJudged: entry.lastJudged,
+    analyzerIds: shortIds,
+  };
+}
+
+/** `core/reference-broken:sub` → `reference-broken` (the persisted issue id form). */
+function shortAnalyzerId(qualified: string): string {
+  const slash = qualified.indexOf('/');
+  const bare = slash === -1 ? qualified : qualified.slice(slash + 1);
+  const colon = bare.indexOf(':');
+  return colon === -1 ? bare : bare.slice(0, colon);
 }
 
 /**

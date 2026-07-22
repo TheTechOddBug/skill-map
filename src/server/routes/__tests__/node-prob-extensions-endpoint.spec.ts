@@ -1,8 +1,8 @@
 /**
  * `GET /api/nodes/:pathB64/prob-extensions` integration tests (Step 16).
  *
- * Exercises the manifest-mechanical classification into the two-bucket
- * `{ finders, standalone }` catalog against the fixture plugins
+ * Exercises the manifest-mechanical classification into the three-bucket
+ * `{ finders, standalone, issueFixers }` catalog against the fixture plugins
  * (`prob-finder/quality-check` = probabilistic Analyzer with a
  * `claude/skill` precondition, `prob-fixer/apply-fix` = probabilistic
  * Action declaring `precondition.analyzerIds: ['prob-finder/quality-check']`,
@@ -21,10 +21,11 @@
  *     is NOT listed in any bucket: it is the second state of its finder's
  *     button, not a launcher.
  *   - a FIXER Action of a DETERMINISTIC analyzer
- *     (`core/ai-reference-action` over `core/reference-broken`) DOES land
- *     in `standalone` (empty `fixerIds`, `hasOpenFindings: false`), but
+ *     (`core/ai-reference-action` over `core/reference-broken`) lands in
+ *     `issueFixers` (carrying the SHORT `analyzerIds` row-match key; user
+ *     decision 2026-07-22 replacing the former standalone placement), but
  *     only when the node carries >= 1 matching `scan_issues` row; absent
- *     that Issue it is in neither bucket.
+ *     that Issue it is in no bucket.
  *   - a finder whose only fixer is NOT composed (untrusted) falls to
  *     `standalone` with empty `fixerIds`.
  *   - `hasOpenFindings` tracks the finder lane: an open non-stale finding
@@ -32,7 +33,7 @@
  *     leaves it false.
  *   - `state` / `jobId` reflect the live `state_jobs` row; `lastJudged`
  *     the latest COMPLETED execution.
- *   - a VIRTUAL node answers 200 with two empty arrays.
+ *   - a VIRTUAL node answers 200 with three empty arrays.
  *   - the 200 envelope validates against `rest-envelope.schema.json`.
  *   - malformed `pathB64` / unknown node -> 404.
  */
@@ -44,7 +45,7 @@ import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
 import { encodeNodePath } from '../../path-codec.js';
-import type { IProbExtensionEntry, IProbExtensionsCatalog } from '../node-prob-extensions.js';
+import type { IProbExtensionsCatalog } from '../node-prob-extensions.js';
 import {
   bootAndUse,
   compileEnvelopeValidator,
@@ -62,6 +63,8 @@ import {
 const STALE_HASH = 'e'.repeat(64);
 /** The built-in deterministic-analyzer fixer (`core/reference-broken` over `scan_issues`). */
 const AI_REFERENCE_ID = 'core/ai-reference-action';
+/** The built-in standalone gated by `precondition.frontmatterMissing`. */
+const AI_FRONTMATTER_ID = 'core/ai-frontmatter-action';
 /** The analyzerId a `reference-broken` Issue persists (SHORT, no slash per issue.schema.json). */
 const REFERENCE_BROKEN_SHORT = 'reference-broken';
 const NOTE_NODE = { path: 'notes/readme.md', kind: 'markdown', provider: 'markdown' } as const;
@@ -105,7 +108,7 @@ async function fetchCatalog(
   return (await res.json()) as IProbExtensionsEnvelope;
 }
 
-function byId(entries: readonly IProbExtensionEntry[], id: string): IProbExtensionEntry | undefined {
+function byId<T extends { id: string }>(entries: readonly T[], id: string): T | undefined {
   return entries.find((e) => e.id === id);
 }
 
@@ -123,6 +126,24 @@ function enableAiReferenceAction(root: string): void {
       {
         schemaVersion: 1,
         plugins: { core: { extensions: { 'ai-reference-action': { enabled: true } } } },
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+/**
+ * Enable the built-in `core/ai-frontmatter-action` (experimental, ships
+ * disabled) so the `frontmatterMissing` gate cases below classify it.
+ */
+function enableAiFrontmatterAction(root: string): void {
+  writeFileSync(
+    join(root, '.skill-map', 'settings.json'),
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        plugins: { core: { extensions: { 'ai-frontmatter-action': { enabled: true } } } },
       },
       null,
       2,
@@ -402,11 +423,12 @@ describe('GET /api/nodes/:pathB64/prob-extensions', () => {
     }
   });
 
-  it('deterministic-analyzer fixer shows in standalone iff the node has a reference-broken Issue', async () => {
+  it('deterministic-analyzer fixer lands in issueFixers iff the node has a reference-broken Issue', async () => {
     // `core/ai-reference-action` fixes the DETERMINISTIC `core/reference-broken`
     // analyzer, which emits `scan_issues`, not `state_findings`. It has no
-    // finder button to ride, so it must surface as its OWN standalone launcher,
-    // gated on the node actually carrying a reference-broken Issue.
+    // finder button to ride; it surfaces in the `issueFixers` bucket (the UI
+    // renders it ON the matching issue rows, user decision 2026-07-22), gated
+    // on the node actually carrying a reference-broken Issue.
     const root = mkdtempSync(join(tmpdir(), 'skill-map-prob-ext-airef-'));
     try {
       const proj = await setupProbProject(root, [SKILL_NODE], { installSkill: true });
@@ -414,10 +436,14 @@ describe('GET /api/nodes/:pathB64/prob-extensions', () => {
       await seedReferenceBrokenIssue(proj, SKILL_NODE.path);
       await bootAndUse(proj, async (handle) => {
         const env = await fetchCatalog(handle, SKILL_NODE.path);
-        const entry = byId(env.item.standalone, AI_REFERENCE_ID);
-        assert.ok(entry, 'the deterministic-analyzer fixer surfaces as a standalone launcher');
-        assert.deepEqual(entry.fixerIds, [], 'a deterministic-analyzer fixer carries no fixerIds');
-        assert.equal(entry.hasOpenFindings, false, 'standalone entries are never in Fix state');
+        const entry = byId(env.item.issueFixers, AI_REFERENCE_ID);
+        assert.ok(entry, 'the deterministic-analyzer fixer surfaces in issueFixers');
+        assert.deepEqual(
+          entry.analyzerIds,
+          [REFERENCE_BROKEN_SHORT],
+          'the row-match key is the SHORT analyzer id (plugin prefix stripped)',
+        );
+        assert.equal(byId(env.item.standalone, AI_REFERENCE_ID), undefined, 'never standalone');
         assert.equal(byId(env.item.finders, AI_REFERENCE_ID), undefined, 'never a finder');
 
         // Regression: a probabilistic finder+fixer node still classifies
@@ -432,7 +458,7 @@ describe('GET /api/nodes/:pathB64/prob-extensions', () => {
     }
   });
 
-  it('deterministic-analyzer fixer is ABSENT from both buckets with no reference-broken Issue', async () => {
+  it('deterministic-analyzer fixer is ABSENT from every bucket with no reference-broken Issue', async () => {
     const root = mkdtempSync(join(tmpdir(), 'skill-map-prob-ext-airef-none-'));
     try {
       const proj = await setupProbProject(root, [SKILL_NODE], { installSkill: true });
@@ -441,10 +467,11 @@ describe('GET /api/nodes/:pathB64/prob-extensions', () => {
       await bootAndUse(proj, async (handle) => {
         const env = await fetchCatalog(handle, SKILL_NODE.path);
         assert.equal(
-          byId(env.item.standalone, AI_REFERENCE_ID),
+          byId(env.item.issueFixers, AI_REFERENCE_ID),
           undefined,
-          'no matching Issue -> the fixer is not a launcher',
+          'no matching Issue -> the fixer is not listed',
         );
+        assert.equal(byId(env.item.standalone, AI_REFERENCE_ID), undefined);
         assert.equal(byId(env.item.finders, AI_REFERENCE_ID), undefined);
       });
     } finally {
@@ -452,10 +479,46 @@ describe('GET /api/nodes/:pathB64/prob-extensions', () => {
     }
   });
 
-  it('virtual node: 200 with two empty arrays', async () => {
+  it('frontmatterMissing gate: the frontmatter action lists standalone only while a field is missing', async () => {
+    // `core/ai-frontmatter-action` declares
+    // `precondition.frontmatterMissing: ['name', 'description']`: it is a
+    // plain standalone launcher on a node missing either field and
+    // disappears once the file carries both (user call 2026-07-22).
+    const root = mkdtempSync(join(tmpdir(), 'skill-map-prob-ext-fm-'));
+    try {
+      const missing = { path: 'notes/missing-fm.md', kind: 'markdown', provider: 'markdown' };
+      const complete = {
+        path: 'notes/complete-fm.md',
+        kind: 'markdown',
+        provider: 'markdown',
+        frontmatter: { name: 'complete-fm', description: 'A complete guide.' },
+      };
+      const proj = await setupProbProject(root, [missing, complete], { installSkill: true });
+      enableAiFrontmatterAction(proj.root);
+      await bootAndUse(proj, async (handle) => {
+        const gapEnv = await fetchCatalog(handle, missing.path);
+        const entry = byId(gapEnv.item.standalone, AI_FRONTMATTER_ID);
+        assert.ok(entry, 'missing frontmatter -> the action is a standalone launcher');
+        assert.equal(byId(gapEnv.item.issueFixers, AI_FRONTMATTER_ID), undefined);
+
+        const fullEnv = await fetchCatalog(handle, complete.path);
+        assert.equal(
+          byId(fullEnv.item.standalone, AI_FRONTMATTER_ID),
+          undefined,
+          'complete frontmatter -> the launcher hides (nothing to fill)',
+        );
+        assert.equal(byId(fullEnv.item.finders, AI_FRONTMATTER_ID), undefined);
+        assert.equal(byId(fullEnv.item.issueFixers, AI_FRONTMATTER_ID), undefined);
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('virtual node: 200 with three empty arrays', async () => {
     await bootAndUse(project, async (handle) => {
       const env = await fetchCatalog(handle, VIRTUAL_NODE.path);
-      assert.deepEqual(env.item, { finders: [], standalone: [] });
+      assert.deepEqual(env.item, { finders: [], standalone: [], issueFixers: [] });
     });
   });
 

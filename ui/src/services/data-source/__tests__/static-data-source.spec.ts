@@ -421,6 +421,7 @@ describe('StaticDataSource', () => {
     await expect(ds.getNodeProbExtensions('b.md')).resolves.toEqual({
       finders: [],
       standalone: [],
+      issueFixers: [],
     });
   });
 

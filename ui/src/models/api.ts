@@ -1622,18 +1622,48 @@ export interface IProbExtensionEntryApi {
 }
 
 /**
+ * One `issueFixers` entry: a probabilistic Action fixing a
+ * DETERMINISTIC analyzer's issues (e.g. `core/ai-reference-action` over
+ * `core/reference-broken`), listed only while the node carries at least
+ * one matching open Issue. Rendered as a fix button ON each matching
+ * deterministic issue row (matched via the SHORT `analyzerIds`), never
+ * as a launcher button (user decision 2026-07-22). One submit fixes
+ * every matching issue of the node, so all matching rows share the
+ * entry's busy state.
+ */
+export interface IIssueFixerEntryApi {
+  /** Qualified action id, the submit target. */
+  id: string;
+  /** Manifest `description`, rendered as the fix button's tooltip. */
+  description: string;
+  state: TProbExtensionStateApi;
+  /** The ACTIVE queued/running job's id, `null` when idle. */
+  jobId: string | null;
+  /** Latest recorded execution for the pair; `null` when never judged. */
+  lastJudged: { at: number; model: string | null } | null;
+  /**
+   * SHORT analyzer ids (as persisted on `scan_issues.analyzerId`): the
+   * row-match key against each issue's `analyzerId`.
+   */
+  analyzerIds: string[];
+}
+
+/**
  * The `item` of the `node.prob-extensions` envelope: the node's
  * probabilistic launcher catalog, classified manifest-mechanically
  * (ROADMAP §Step 16). `finders` are probabilistic Analyzers matching the
  * node that HAVE at least one fixer (rendered as two-state Detect ⇄ Fix
  * buttons); `standalone` are finders WITHOUT a fixer plus probabilistic
- * Actions with no `analyzerIds` (single-action buttons). The former
- * `fixers` bucket is retired: a fixer is now the second state of its
- * finder's button, never a standalone launcher.
+ * Actions with no `analyzerIds` (single-action buttons); `issueFixers`
+ * are deterministic-analyzer fixers rendered on the matching issue rows.
+ * The former `fixers` bucket is retired: a fixer paired with a
+ * probabilistic finder is the second state of its finder's button,
+ * never a standalone launcher.
  */
 export interface IProbExtensionsApi {
   finders: IProbExtensionEntryApi[];
   standalone: IProbExtensionEntryApi[];
+  issueFixers: IIssueFixerEntryApi[];
 }
 
 /**

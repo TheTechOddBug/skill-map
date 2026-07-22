@@ -58,6 +58,12 @@ export interface INodeSeed {
   kind: string;
   provider: string;
   virtual?: boolean;
+  /**
+   * Persisted frontmatter (default `{}`): the `frontmatterMissing`
+   * precondition gate reads it, so a fixture asserting that gate seeds
+   * a complete `{ name, description }` pair here.
+   */
+  frontmatter?: Record<string, unknown>;
 }
 
 export interface IProbProject {
@@ -89,7 +95,7 @@ async function insertNode(adapter: SqliteStorageAdapter, node: INodeSeed): Promi
       sidecarStatus: null,
       annotationsJson: null,
       sidecarRootJson: null,
-      frontmatterJson: '{}',
+      frontmatterJson: JSON.stringify(node.frontmatter ?? {}),
       // The REAL hash of the written body: the submit-time drift
       // verification recomputes it from disk and refuses on a mismatch.
       bodyHash: node.virtual ? 'b'.repeat(64) : liveBodyHash(node.path),
