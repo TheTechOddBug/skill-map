@@ -101,6 +101,7 @@ import {
   type TFindingsBucket,
 } from './inspector-ai-actions.controller';
 import { setupAutoFix, type IAutoFixHandle } from './inspector-auto-fix.controller';
+import { contributionSurface } from '../../../models/node-derived';
 import type { INodeView } from '../../../models/node';
 import type { IFindingApi, INodeSummaryRowApi, IProbExtensionEntryApi } from '../../../models/api';
 
@@ -127,19 +128,6 @@ const SUMMARIZER_EXTENSION_ID = 'core/ai-summarizer-action';
  * launcher row / ALL button (user request 2026-07-21).
  */
 const TAGGER_EXTENSION_ID = 'core/ai-tagger-action';
-
-/**
- * Action-button contributions the inspector re-homes onto the HEADER
- * (the stability chip, the version/bump chip, and the inline tag row,
- * user calls 2026-07-21): excluded from the Actions section and its
- * gating. `core/node-set-tags` projects no visible button anywhere; its
- * contribution's presence is what gates the tag row.
- */
-const HEADER_HOMED_ACTION_IDS = [
-  'core/node-set-stability',
-  'core/node-bump',
-  'core/node-set-tags',
-];
 
 /** Per-node cap on the conversation threads the Activity section renders. */
 const SPAWN_THREADS_LIMIT = 10;
@@ -396,10 +384,11 @@ export class InspectorView implements OnInit {
     (this.node()?.contributions ?? []).some(
       (c) =>
         c.slot === 'inspector.action.button' &&
-        // Header-homed actions (user calls 2026-07-21): Set stability
-        // lives on the stability chip and Bump on the version chip;
-        // alone they must not keep an empty Actions section up.
-        !HEADER_HOMED_ACTION_IDS.includes(`${c.pluginId}/${c.extensionId}`),
+        // Re-homed surfaces (spec/view-slots.md): a payload declaring a
+        // `surface` IS a dedicated affordance (version / stability /
+        // tags chips + row), never a generic button; alone they must
+        // not keep an empty Actions section up.
+        contributionSurface(c.payload) === null,
     ),
   );
 

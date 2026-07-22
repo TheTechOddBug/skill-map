@@ -28,6 +28,7 @@ import {
   type INodeView,
   type TStability,
 } from './node';
+import type { IContributionApi } from './api';
 
 /**
  * Sidecar drift tooltip dictionary. Card and inspector both pass their
@@ -113,22 +114,43 @@ export function effectiveUserTags(node: INodeView | null | undefined): string[] 
 }
 
 /**
- * Whether `node` carries the `inspector.action.button` contribution of
- * the given qualified action id. The header chips, the inline tag row,
- * AND the card tag chips key their visibility off this presence
- * (surface follows the plugin, user calls 2026-07-21): the action's
- * scan-time `project()` only emits while the extension is enabled, so
- * a disabled plugin removes every surface it owns without any UI-side
- * knowledge of the config.
+ * The re-homed action surfaces (`spec/view-slots.md` §Re-homed
+ * surfaces): an `inspector.action.button` payload may DECLARE that it
+ * is a named UI surface instead of a generic button. The UI selects
+ * re-homed contributions by this declaration and dispatches the
+ * payload's `actionId`; it never matches extension ids, so any plugin
+ * may claim a surface and a disabled extension removes it (the
+ * projection stops emitting).
  */
-export function hasActionButtonContribution(
+export type TActionSurface = 'version' | 'stability' | 'tags';
+
+/** A loosely-typed view over an action-button payload's declared fields. */
+interface ISurfacePayloadProbe {
+  surface?: unknown;
+}
+
+/** The `surface` a contribution payload declares, or `null`. */
+export function contributionSurface(payload: unknown): TActionSurface | null {
+  if (typeof payload !== 'object' || payload === null) return null;
+  const value = (payload as ISurfacePayloadProbe).surface;
+  return value === 'version' || value === 'stability' || value === 'tags' ? value : null;
+}
+
+/**
+ * The node's `inspector.action.button` contribution claiming `surface`,
+ * or `null` when none does (extension disabled -> the projection stops
+ * -> the surface disappears). When several claim the same surface the
+ * first in contribution order wins (the wire order follows contribution
+ * priority).
+ */
+export function actionSurfaceContribution(
   node: INodeView | null | undefined,
-  qualifiedActionId: string,
-): boolean {
-  return (node?.contributions ?? []).some(
-    (c) =>
-      c.slot === 'inspector.action.button' &&
-      `${c.pluginId}/${c.extensionId}` === qualifiedActionId,
+  surface: TActionSurface,
+): IContributionApi | null {
+  return (
+    (node?.contributions ?? []).find(
+      (c) => c.slot === 'inspector.action.button' && contributionSurface(c.payload) === surface,
+    ) ?? null
   );
 }
 

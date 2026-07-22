@@ -65,6 +65,7 @@ function button(defaultValue: string): unknown {
     actionId: 'core/node-set-stability',
     label: NODE_SET_STABILITY_TEXTS.setLabel,
     icon: 'pi-flag',
+    surface: 'stability',
     enabled: true,
     prompt: {
       inputType: 'enum-pick',

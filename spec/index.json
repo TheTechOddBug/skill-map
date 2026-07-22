@@ -282,7 +282,7 @@
       "schemas/summaries/markdown.schema.json": "a09d785d8d8b6aba04784b4dc9aa0f37773ac714ee46a7239b93ac2822c2a6e0",
       "schemas/tags/markdown.schema.json": "f2ef3e69bfc74d327483d3e695c202f1b77d0452502df892e221f614cf621788",
       "schemas/user-settings.schema.json": "d155552ffca9c7dd4c6e31398aff4950dd9721d2a1f4b308cf0fe33000ca31b5",
-      "schemas/view-slots.schema.json": "886487a1f38fd7e4270fa6213653664c0cf906043e8aa9e832017149932bf6a2",
+      "schemas/view-slots.schema.json": "ee642d4f1c03c26a2a60bd2f1c25bbeb9c648027369b4f8dd90fcf8d6e56c211",
       "telemetry.md": "46ab28d6306cbd02180323a2c89c7a18ad2449df5981d0e95a5246a192091d2d",
       "versioning.md": "142c9cd4521e001216114d477b635d8dff6e38a9a33105cef814b6ca2d2eecf2"
     }

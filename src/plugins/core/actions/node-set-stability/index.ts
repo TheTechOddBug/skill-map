@@ -139,6 +139,10 @@ function emitSetStabilityButton(ctx: IActionProjectionContext, node: Node): void
     actionId: 'core/node-set-stability',
     label: NODE_SET_STABILITY_TEXTS.setLabel,
     icon: 'pi-flag',
+    // Re-homed affordance declaration (spec/view-slots.md §Re-homed
+    // surfaces): this contribution IS the stability chip; the UI
+    // selects it by this field, never by id.
+    surface: 'stability',
     enabled: true,
     prompt: {
       inputType: 'enum-pick',

@@ -35,10 +35,10 @@ import type { IInputTypeDescriptor, TInputTypeValue } from '../../renderers/inpu
 import type { INodeSummaryRowApi } from '../../../models/api';
 import type { INodeView, TStability } from '../../../models/node';
 import {
+  actionSurfaceContribution,
   effectiveStability,
   effectiveUserTags,
   effectiveVersion,
-  hasActionButtonContribution,
 } from '../../../models/node-derived';
 import { KindIcon } from '../kind-icon/kind-icon';
 import { NodeTags } from '../node-tags/node-tags';
@@ -168,30 +168,25 @@ export class InspectorHeader {
   private readonly dispatcher = inject(ActionDispatchService);
 
   /**
-   * The `core/node-set-stability` action-button contribution, re-homed:
-   * its button left the Actions section and the header's stability chip
-   * (ALWAYS rendered, defaulting to `stable` when unset) became the
-   * affordance. Clicking the chip opens the SAME enum-pick prompt dialog
-   * the button used, seeded from the contribution's payload; the plugin
-   * scheme is untouched, the action still projects onto
-   * `inspector.action.button`, the header just consumes that payload
-   * directly (documented UI exception, mirror of the host's
-   * `excludeExtensionIds`).
+   * The action-button contribution claiming the STABILITY surface
+   * (`spec/view-slots.md` §Re-homed surfaces), selected by its payload
+   * declaration, never by extension id: its button left the Actions
+   * section and the header's stability chip (ALWAYS rendered while
+   * claimed, defaulting to `stable` when unset) became the affordance.
+   * Clicking the chip opens the enum-pick prompt dialog seeded from the
+   * payload and dispatches the payload's `actionId`.
    */
   protected readonly stabilityPayload = computed<{
+    actionId: string;
     prompt: { inputType: string; paramKey: string; label: string; options?: { value: string; label: string }[]; defaultValue?: string | string[] };
     enabled: boolean;
   } | null>(() => {
-    const contribution = (this.node().contributions ?? []).find(
-      (c) =>
-        c.slot === 'inspector.action.button' &&
-        `${c.pluginId}/${c.extensionId}` === 'core/node-set-stability',
-    );
-    const payload = contribution?.payload;
+    const payload = actionSurfaceContribution(this.node(), 'stability')?.payload;
     if (typeof payload !== 'object' || payload === null) return null;
-    const typed = payload as { prompt?: { inputType?: string; paramKey?: string; label?: string; options?: { value: string; label: string }[]; defaultValue?: string | string[] }; enabled?: boolean };
-    if (!typed.prompt?.inputType || !typed.prompt.paramKey) return null;
+    const typed = payload as { actionId?: string; prompt?: { inputType?: string; paramKey?: string; label?: string; options?: { value: string; label: string }[]; defaultValue?: string | string[] }; enabled?: boolean };
+    if (!typed.actionId || !typed.prompt?.inputType || !typed.prompt.paramKey) return null;
     return {
+      actionId: typed.actionId,
       prompt: typed.prompt as { inputType: string; paramKey: string; label: string },
       enabled: typed.enabled !== false,
     };
@@ -229,7 +224,7 @@ export class InspectorHeader {
     this.stabilityPromptOpen.set(false);
     this.stabilityBusy.set(true);
     try {
-      await this.dispatcher.dispatch('core/node-set-stability', this.node().path, {
+      await this.dispatcher.dispatch(payload.actionId, this.node().path, {
         [payload.prompt.paramKey]: value,
       });
     } finally {
@@ -244,28 +239,26 @@ export class InspectorHeader {
   // --- version chip = the Bump affordance (user call 2026-07-21) ----------
 
   /**
-   * The `core/node-bump` action-button contribution, re-homed like the
-   * stability chip: the header's version chip IS the bump affordance.
-   * With the plugin enabled the chip always renders (the effective
-   * version, or the short `bump` placeholder for a versionless file)
-   * and clicking it dispatches the bump directly (no prompt; the
-   * payload's `enabled` gate and `disabledReason` are honored). Plugin
-   * off -> no version surface in the header at all, mirror of the
-   * stability rule.
+   * The action-button contribution claiming the VERSION surface
+   * (`spec/view-slots.md` §Re-homed surfaces), selected by its payload
+   * declaration, never by extension id: the header's version chip IS
+   * the bump affordance. While claimed the chip always renders (the
+   * effective version, or the short placeholder for a versionless
+   * file) and clicking it dispatches the payload's `actionId` directly
+   * (no prompt; `enabled` / `disabledReason` honored). Claiming
+   * extension off -> no version surface in the header at all.
    */
   protected readonly bumpPayload = computed<{
+    actionId: string;
     enabled: boolean;
     disabledReason?: string;
   } | null>(() => {
-    const contribution = (this.node().contributions ?? []).find(
-      (c) =>
-        c.slot === 'inspector.action.button' &&
-        `${c.pluginId}/${c.extensionId}` === 'core/node-bump',
-    );
-    const payload = contribution?.payload;
+    const payload = actionSurfaceContribution(this.node(), 'version')?.payload;
     if (typeof payload !== 'object' || payload === null) return null;
-    const typed = payload as { enabled?: boolean; disabledReason?: string };
+    const typed = payload as { actionId?: string; enabled?: boolean; disabledReason?: string };
+    if (!typed.actionId) return null;
     return {
+      actionId: typed.actionId,
       enabled: typed.enabled !== false,
       ...(typed.disabledReason !== undefined ? { disabledReason: typed.disabledReason } : {}),
     };
@@ -286,7 +279,7 @@ export class InspectorHeader {
     if (payload === null || !payload.enabled || this.bumpBusy()) return;
     this.bumpBusy.set(true);
     try {
-      await this.dispatcher.dispatch('core/node-bump', this.node().path, undefined);
+      await this.dispatcher.dispatch(payload.actionId, this.node().path, undefined);
     } finally {
       this.bumpBusy.set(false);
     }
@@ -335,16 +328,20 @@ export class InspectorHeader {
   );
 
   /**
-   * Whether the inline tag row renders at all: it follows the
-   * `core/node-set-tags` action-button contribution, the same
-   * surface-follows-the-plugin rule as the stability / version chips
-   * and the card tag chips (user calls 2026-07-21). Plugin off -> no
-   * tag row in the inspector, even when the node carries tags (the
-   * data stays in the `.sm`).
+   * The action-button contribution claiming the TAGS surface
+   * (`spec/view-slots.md` §Re-homed surfaces): its presence gates the
+   * inline tag row (and the card chips), and its `actionId` is what the
+   * row dispatches on save. Selected by the payload declaration, never
+   * by extension id; claiming extension off -> no tag row in the
+   * inspector, even when the node carries tags (the data stays in the
+   * `.sm`).
    */
-  protected readonly tagsRowPresent = computed<boolean>(() =>
-    hasActionButtonContribution(this.node(), 'core/node-set-tags'),
-  );
+  protected readonly tagsSurface = computed<{ actionId: string } | null>(() => {
+    const payload = actionSurfaceContribution(this.node(), 'tags')?.payload;
+    if (typeof payload !== 'object' || payload === null) return null;
+    const typed = payload as { actionId?: string };
+    return typed.actionId ? { actionId: typed.actionId } : null;
+  });
 
   protected onFavoriteClick(event: MouseEvent): void {
     event.stopPropagation();

@@ -95,7 +95,7 @@ function makeNode(overrides: Partial<INodeView> = {}): INodeView {
         nodePath: 'agents/architect.md',
         contributionId: 'editTagsButton',
         slot: 'inspector.action.button',
-        payload: { actionId: 'core/node-set-tags', label: 'Edit tags', enabled: true },
+        payload: { actionId: 'core/node-set-tags', surface: 'tags', label: 'Edit tags', enabled: true },
       },
     ],
     ...overrides,
@@ -859,7 +859,7 @@ describe('InspectorView, actions section (contribution-driven)', () => {
           nodePath: 'agents/architect.md',
           contributionId: 'setStabilityButton',
           slot: 'inspector.action.button',
-          payload: { actionId: 'core/node-set-stability', label: 'Set stability', enabled: true },
+          payload: { actionId: 'core/node-set-stability', surface: 'stability', label: 'Set stability', enabled: true },
         },
         {
           pluginId: 'core',
@@ -867,7 +867,7 @@ describe('InspectorView, actions section (contribution-driven)', () => {
           nodePath: 'agents/architect.md',
           contributionId: 'bumpButton',
           slot: 'inspector.action.button',
-          payload: { actionId: 'core/node-bump', label: 'Bump', enabled: true },
+          payload: { actionId: 'core/node-bump', surface: 'version', label: 'Bump', enabled: true },
         },
       ],
     };
@@ -2069,7 +2069,7 @@ describe('InspectorView, header version (catalog curation)', () => {
         nodePath: node.path,
         contributionId: 'bumpButton',
         slot: 'inspector.action.button',
-        payload: { actionId: 'core/node-bump', label: 'Bump', enabled: false, disabledReason: 'fresh' },
+        payload: { actionId: 'core/node-bump', surface: 'version', label: 'Bump', enabled: false, disabledReason: 'fresh' },
       },
     ];
     const loader = makeStubLoader([node]);

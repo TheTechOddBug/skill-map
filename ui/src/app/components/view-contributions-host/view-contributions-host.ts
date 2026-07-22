@@ -28,6 +28,7 @@ import { TooltipModule } from 'primeng/tooltip';
 
 import { DebugSlotsService } from '../../services/debug-slots';
 import type { IContributionApi } from '../../../models/api';
+import { contributionSurface } from '../../../models/node-derived';
 
 /**
  * Minimal node shape this host needs. Decoupled from `INodeApi` /
@@ -133,16 +134,6 @@ export class ViewContributionsHost {
    */
   readonly node = input<IHostNode | null>(null);
 
-  /**
-   * Qualified `pluginId/extensionId` ids whose contributions this host
-   * instance SKIPS. Exception hook for contributions that moved to a
-   * dedicated surface while their extension keeps emitting on the
-   * generic slot (today: `core/node-set-stability`, whose button left
-   * the Actions section for the header's stability chip, user call
-   * 2026-07-21). Empty by default: hosts render everything.
-   */
-  readonly excludeExtensionIds = input<readonly string[]>([]);
-
   /** DEBUG-SLOTS: drives the host bindings above. */
   private readonly debugSlots = inject(DebugSlotsService);
   protected readonly debugVisible = this.debugSlots.visible;
@@ -161,11 +152,14 @@ export class ViewContributionsHost {
     const contributions = node.contributions ?? [];
     if (contributions.length === 0) return [];
     const slot = this.slot();
-    const excluded = this.excludeExtensionIds();
     const matching = contributions
       .filter((c) => c.slot === slot)
       .filter((c) => isKnownSlot(c.slot))
-      .filter((c) => !excluded.includes(`${c.pluginId}/${c.extensionId}`));
+      // Re-homed surfaces (spec/view-slots.md): an action-button payload
+      // declaring a `surface` IS a dedicated affordance (version /
+      // stability chips, tag row) and is never rendered as a generic
+      // button. Contract-level skip, not per-host configuration.
+      .filter((c) => contributionSurface(c.payload) === null);
     return this.sortBySlotOrder(matching, slot).map((c) => ({
       qualifiedId: `${c.pluginId}/${c.extensionId}/${c.contributionId}`,
       slot: c.slot as TSlotId,

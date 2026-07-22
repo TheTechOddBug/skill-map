@@ -104,6 +104,10 @@ export const nodeSetTagsAction: IBuiltInManifest<IAction> = {
         actionId: 'core/node-set-tags',
         label: NODE_SET_TAGS_TEXTS.editLabel,
         icon: 'pi-tags',
+        // Re-homed affordance declaration (spec/view-slots.md §Re-homed
+        // surfaces): this contribution IS the tag surface (inline row,
+        // card chips); the UI selects it by this field, never by id.
+        surface: 'tags',
         enabled: true,
       });
     }

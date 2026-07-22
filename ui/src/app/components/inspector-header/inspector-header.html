@@ -144,16 +144,18 @@
     forwarded up via `tagClick` -> host -> graph `onTagSelect`, with the
     active one highlighted) plus the inline editor (pencil -> add / remove,
     dispatching `core/node-set-tags`). The header stays read-only and only
-    re-emits `tagClick`. The row follows the `core/node-set-tags`
-    contribution (surface follows the plugin, mirror of the stability /
-    version chips): while the action is enabled the row always mounts, so
-    a tagless node can still gain its first tag; action off -> no row.
+    re-emits `tagClick`. The row follows the contribution claiming the
+    TAGS surface (spec/view-slots.md par. Re-homed surfaces, mirror of the
+    stability / version chips), which also supplies the action id the
+    editor dispatches: while claimed the row always mounts, so a tagless
+    node can still gain its first tag; claiming extension off -> no row.
   -->
-  @if (tagsRowPresent()) {
+  @if (tagsSurface(); as tagsAction) {
     <sm-node-tags
       [tags]="headerTags()"
       [activeTag]="activeTag()"
       [nodePath]="n.path"
+      [setTagsActionId]="tagsAction.actionId"
       [autoTagState]="autoTagState()"
       (tagClick)="tagClick.emit($event)"
       (autoTagClick)="autoTagClick.emit()"

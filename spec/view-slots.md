@@ -213,7 +213,9 @@ ctx.emitContribution('stale', { icon: 'pi-clock', tooltip: 'Sidecar drift' });
 
 The manifest declares only `{ slot }`. The per-node payload carries the action id, label, and dynamic `enabled` flag; the kernel re-emits the row every scan so the button refreshes.
 
-**Payload shape**: `{ actionId, label (1-48), enabled, icon?, severity?, disabledReason? (≤128), input?, prompt?, confirm? }`. Required: `actionId` (qualified `<plugin>/<action>`, pattern-checked), `label`, and `enabled` (boolean). `disabledReason` is the tooltip shown when `enabled` is false. `input`, `prompt`, and `confirm` are **reserved for parametrized actions** (Steps 2+, see below) and carry no behaviour today.
+**Payload shape**: `{ actionId, label (1-48), enabled, icon?, severity?, disabledReason? (≤128), input?, prompt?, confirm?, surface? }`. Required: `actionId` (qualified `<plugin>/<action>`, pattern-checked), `label`, and `enabled` (boolean). `disabledReason` is the tooltip shown when `enabled` is false. `input`, `prompt`, and `confirm` are **reserved for parametrized actions** (Steps 2+, see below) and carry no behaviour today.
+
+**Re-homed surfaces** (`surface`, optional enum `version | stability | tags`): a payload declaring a `surface` is NOT rendered as a generic button; the contribution IS the named UI surface instead: `version` = the header version chip (and the card's `vN` label), `stability` = the header stability chip, `tags` = the inline tag row (and the card's tag chips). The UI selects re-homed contributions by this declaration and dispatches the payload's `actionId`; it never matches extension ids, so any plugin may claim a surface and disabling the claiming extension removes the surface (the projection stops). A declared surface excludes the contribution from the generic Actions section. At most one contribution per node should claim a given surface; when several do, the UI uses the first by contribution priority order. First adopters: `core/node-bump` (`version`), `core/node-set-stability` (`stability`), `core/node-set-tags` (`tags`).
 
 **Emit**:
 ```ts

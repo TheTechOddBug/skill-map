@@ -149,6 +149,10 @@ function emitBumpButton(
     actionId: 'core/node-bump',
     label: BUMP_TEXTS.bumpLabel,
     icon: 'pi-arrow-up-right',
+    // Re-homed affordance declaration (spec/view-slots.md §Re-homed
+    // surfaces): this contribution IS the version surface (header chip,
+    // card vN label); the UI selects it by this field, never by id.
+    surface: 'version',
     enabled,
     ...(enabled ? {} : { disabledReason: BUMP_TEXTS.bumpDisabledReason }),
   });

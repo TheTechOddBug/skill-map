@@ -37,7 +37,24 @@ function setTagsContribution() {
     nodePath: 'a.md',
     contributionId: 'editTagsButton',
     slot: 'inspector.action.button',
-    payload: { actionId: 'core/node-set-tags', label: 'Edit tags', enabled: true },
+    payload: { actionId: 'core/node-set-tags', surface: 'tags', label: 'Edit tags', enabled: true },
+  };
+}
+
+/**
+ * The `core/node-bump` action-button contribution the card's version
+ * label keys its visibility off (surface follows the plugin, mirror of
+ * the header version chip). Version fixtures attach it; the gate test
+ * omits it.
+ */
+function bumpContribution() {
+  return {
+    pluginId: 'core',
+    extensionId: 'node-bump',
+    nodePath: 'a.md',
+    contributionId: 'bumpButton',
+    slot: 'inspector.action.button',
+    payload: { actionId: 'core/node-bump', surface: 'version', label: 'Bump', enabled: true },
   };
 }
 
@@ -76,6 +93,7 @@ describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
         status: 'fresh',
         annotations: { version: 7 },
       },
+      contributions: [bumpContribution()],
     };
     const dom = bootstrap(node);
     const v = dom.querySelector('[data-testid="node-card-version"]');
@@ -92,6 +110,7 @@ describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
         description: 'd',
         metadata: { version: '1.2.3' },
       },
+      contributions: [bumpContribution()],
     };
     const dom = bootstrap(node);
     const v = dom.querySelector('[data-testid="node-card-version"]');
@@ -104,6 +123,25 @@ describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
       path: 'a.md',
       kind: 'markdown',
       frontmatter: { name: 'a', description: '', metadata: { version: '' } },
+      contributions: [bumpContribution()],
+    };
+    const dom = bootstrap(node);
+    expect(dom.querySelector('[data-testid="node-card-version"]')).toBeNull();
+  });
+
+  it('hides the version label without the core/node-bump contribution, even with a version set', () => {
+    // Surface follows the plugin (user call 2026-07-22, mirror of the
+    // header version chip and the tag chips): extension disabled -> no
+    // version on the card; the data stays in the .sm.
+    const node: INodeView = {
+      path: 'a.md',
+      kind: 'agent',
+      frontmatter: { name: 'a', description: '', metadata: { version: '' } },
+      sidecar: {
+        present: true,
+        status: 'fresh',
+        annotations: { version: 7 },
+      },
     };
     const dom = bootstrap(node);
     expect(dom.querySelector('[data-testid="node-card-version"]')).toBeNull();

@@ -44,7 +44,7 @@ function setTagsContribution() {
     nodePath: 'agents/architect.md',
     contributionId: 'editTagsButton',
     slot: 'inspector.action.button',
-    payload: { actionId: 'core/node-set-tags', label: 'Edit tags', enabled: true },
+    payload: { actionId: 'core/node-set-tags', surface: 'tags', label: 'Edit tags', enabled: true },
   };
 }
 
@@ -167,6 +167,7 @@ describe('InspectorHeader stability chip (the Set stability affordance)', () => 
             slot: 'inspector.action.button',
             payload: {
               actionId: 'core/node-set-stability',
+              surface: 'stability',
               label: 'Set stability',
               enabled: true,
               prompt: {
@@ -208,6 +209,7 @@ describe('InspectorHeader stability chip (the Set stability affordance)', () => 
             slot: 'inspector.action.button',
             payload: {
               actionId: 'core/node-set-stability',
+              surface: 'stability',
               label: 'Set stability',
               enabled: true,
               prompt: {
@@ -244,6 +246,7 @@ describe('InspectorHeader version chip (the Bump affordance)', () => {
     slot: 'inspector.action.button',
     payload: {
       actionId: 'core/node-bump',
+      surface: 'version',
       label: 'Bump',
       enabled,
       ...(enabled ? {} : { disabledReason: 'nothing to bump' }),

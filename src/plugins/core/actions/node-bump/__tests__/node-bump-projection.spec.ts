@@ -69,6 +69,7 @@ const ENABLED_BUMP = {
   actionId: 'core/node-bump',
   label: BUMP_TEXTS.bumpLabel,
   icon: 'pi-arrow-up-right',
+  surface: 'version',
   enabled: true,
 };
 
@@ -76,6 +77,7 @@ const DISABLED_BUMP = {
   actionId: 'core/node-bump',
   label: BUMP_TEXTS.bumpLabel,
   icon: 'pi-arrow-up-right',
+  surface: 'version',
   enabled: false,
   disabledReason: BUMP_TEXTS.bumpDisabledReason,
 };

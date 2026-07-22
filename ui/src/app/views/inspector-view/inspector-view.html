@@ -80,13 +80,12 @@
       >
         @if (expanded('actions')) {
           <div class="inspector__actions">
-            <!-- Set stability and Bump are excluded: their affordances
-                 moved to the header's stability / version chips (user
-                 calls 2026-07-21). -->
+            <!-- Re-homed contributions (payloads declaring a `surface`)
+                 are skipped by the host itself per the slot contract:
+                 those affordances live on the header chips / tag row. -->
             <sm-view-contributions-host
               slot="inspector.action.button"
               [node]="n"
-              [excludeExtensionIds]="['core/node-set-stability', 'core/node-bump']"
             />
           </div>
         }

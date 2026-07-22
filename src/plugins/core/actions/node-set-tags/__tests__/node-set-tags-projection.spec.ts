@@ -60,6 +60,7 @@ const BUTTON_PAYLOAD = {
   actionId: 'core/node-set-tags',
   label: NODE_SET_TAGS_TEXTS.editLabel,
   icon: 'pi-tags',
+  surface: 'tags',
   enabled: true,
 };
 

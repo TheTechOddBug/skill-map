@@ -82,6 +82,9 @@ async function bootstrap(
   const fixture = TestBed.createComponent(NodeTags);
   fixture.componentRef.setInput('tags', tags);
   fixture.componentRef.setInput('nodePath', nodePath);
+  // Sourced by the real host from the contribution claiming the TAGS
+  // surface; the spec pins the canonical claimer's id.
+  fixture.componentRef.setInput('setTagsActionId', 'core/node-set-tags');
   fixture.componentRef.setInput('activeTag', activeTag);
   fixture.detectChanges();
   return fixture;
