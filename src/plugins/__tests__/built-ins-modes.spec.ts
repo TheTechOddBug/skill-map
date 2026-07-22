@@ -267,7 +267,11 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/ai-name-action` (the second deterministic-analyzer fixer, `precondition.analyzerIds: ['core/name-mismatch']`, mirror of ai-reference-action: stable, enabled; settles a dual identity by aligning `frontmatter.name` to the file-derived handle, renames only by author choice) brings it back to 50.
     // The five OPTIMIZATION finder/fixer pairs (2026-07-22, user decision: the monolithic `skill-optimizer` capability decomposed into topics): `ai-verbosity-*`, `ai-vagueness-*`, `ai-structure-*`, `ai-trigger-*`, `ai-scope-*`, each an experimental ships-disabled probabilistic pair on the wave-1 mold, bring it to 60.
     // `core/ai-frontmatter-action` (standalone probabilistic Action that generates or completes a node's missing frontmatter: a path-aligned `name` + a use-when `description`, never overwriting existing fields; graduated stable/enabled 2026-07-22 after its live playground pass) brings it to 61.
-    assert.equal(rows.length, 61);
+    // The two security finders (`core/ai-security-analyzer` for hygiene the
+    // author fixes, `core/ai-suspicion-analyzer` for adversarial content that
+    // gets quarantined, deliberately fixer-less; both graduated
+    // stable/enabled 2026-07-23 after their live playground passes) bring it to 63.
+    assert.equal(rows.length, 63);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a

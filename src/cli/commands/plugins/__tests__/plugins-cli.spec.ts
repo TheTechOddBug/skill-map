@@ -837,9 +837,9 @@ describe('sm plugins doctor, disabled is not a failure', () => {
     const r = sm(['plugins', 'doctor'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // Disabled is intentional, never an error: exit stays 0. The count
-    // is 4: the disabled `mock-h` drop-in (all five optimization pairs
-    // AND `core/ai-frontmatter-action` graduated on 2026-07-22) plus
-    // the three built-in
+    // is 4: the disabled `mock-h` drop-in (all five optimization pairs,
+    // `core/ai-frontmatter-action`, and the two security finders have
+    // all graduated stable/enabled) plus the three built-in
     // extensions that ship disabled by default: the sidecar writers
     // `core/node-bump` and `core/node-set-stability` (both STABLE with
     // `defaultEnabled: false` since 2026-07-21, the orthogonal opt-in

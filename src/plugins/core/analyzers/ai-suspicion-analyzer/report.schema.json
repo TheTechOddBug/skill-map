@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.ai/spec/v0/core/ai-suspicion-analyzer-report.schema.json",
+  "title": "AiSuspicionAnalyzerReport",
+  "description": "Report shape for the built-in `core/ai-suspicion-analyzer` probabilistic finder Analyzer. Extends the canonical findings envelope (`findings/report.schema.json`); that reference is BOTH the load-time gate and the record-path routing signal (the validated `findings[]` land in `state_findings`, see `job-lifecycle.md` §Record). Narrows every finding's `type` to the const `suspicion`, deliberately DISTINCT from the three kernel-reserved safety slugs (`injection-detected` / `content-suspicious` / `content-malformed`, which extensions must never emit): those rows are the processing model's passive self-report, these are the finder's active judgments. Stability: experimental.",
+  "allOf": [{ "$ref": "https://skill-map.ai/spec/v0/findings/report.schema.json" }],
+  "type": "object",
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": { "const": "suspicion" }
+        }
+      }
+    }
+  }
+}
