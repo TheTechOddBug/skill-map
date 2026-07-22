@@ -24,9 +24,10 @@
  * so the operator's visual vocabulary stays consistent across views.
  *
  * MUST run AFTER every issue-emitting analyzer so the accumulator is
- * complete. Today this is enforced by ordering in the built-ins
- * registry (`src/plugins/built-ins.ts`); a future phase mechanism
- * would make the ordering declarative.
+ * complete. Enforced declaratively by the manifest's `phase:
+ * 'aggregate'` below: `orderAnalyzersByPhase`
+ * (`kernel/orchestrator/analyzers.ts`) schedules every `detect`-phase
+ * analyzer first, aggregate phase last, regardless of registry order.
  *
  * Dependency note: this analyzer only aggregates, it never detects. Its
  * output is exactly as complete as the set of ENABLED detect analyzers.

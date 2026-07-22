@@ -342,7 +342,7 @@ Implementations MUST treat an absent `identifiers` field exactly like `[]`: the 
 
 Each `kinds` entry MAY also declare an optional `identifierMismatch: 'warn' | 'info'`. It travels the same lane as `identifiers` itself: built-ins set it on the TypeScript `IProviderKind`, external Providers set it in `kind.json` (both optional keys on `provider-kind.schema.json`). When declared, the kernel compares, per node of the kind, the NORMALISED `frontmatter.name` against every declared path-derived source (`filename-basename`, `dirname`) that yields a value, and the built-in `core/name-mismatch` analyzer emits one issue per divergent pair with the declared severity. The comparison runs both sides through the §Extractor · trigger normalization pipeline, so `Deploy` vs `deploy` and `my_skill` vs `my-skill` do NOT mismatch: they collapse to one entry in the name index (the bucket-collapse rule above), so there is no dual identity to flag. Exact-case or pattern violations remain the per-kind frontmatter schema's territory (`frontmatter-invalid`, e.g. the agent-skills `name` pattern). Virtual nodes (`virtual: true`) never derive path sources (an `mcp://<server>` path has no meaningful basename), so they never mismatch.
 
-The severity encodes the kind's contract with its runtime: the shared open-standard `skill` kind declares `'warn'` because the Agent Skills specification REQUIRES `name` to equal the parent directory name (a cross-field rule no frontmatter schema can express); Anthropic's own kinds declare `'info'` because their runtimes document the divergence as legal (for skills the dirname is canonical and `frontmatter.name` an override; agents and commands fall back to the filename), yet the node still answers to BOTH names in the resolution index, which is worth surfacing. Absent = no diagnostic; single-source kinds (`mcp`, plain `markdown`, filename-only kinds) cannot meaningfully mismatch.
+The severity encodes the kind's contract with its runtime. The shared open-standard `skill` kind declares `'warn'` because the Agent Skills specification REQUIRES `name` to equal the parent directory name (a cross-field rule no frontmatter schema can express). Since 2026-07-22 (user decision) EVERY built-in kind that declares the knob declares `'warn'`: even where the runtime documents the divergence as legal (Anthropic skills / agents / commands, OpenAI Codex agents), the node still answers to BOTH names in the resolution index, and that dual identity is ambiguity worth a warning, not a footnote. The `'info'` tier stays in the enum for external Providers that consider the override fully idiomatic. Absent = no diagnostic; single-source kinds (`mcp`, plain `markdown`, filename-only kinds) cannot meaningfully mismatch.
 
 `--strict` does NOT promote `name-mismatch`, or any analyzer-emitted issue: strict promotion is scoped to the kernel-stamped frontmatter and body-syntax findings. Exit codes are unaffected by `warn` / `info` analyzer issues.
 
@@ -918,7 +918,7 @@ Settings are read once at extension invocation; changing one requires `sm scan` 
 
 The kernel exposes a runtime catalog (`Kernel.getRegisteredViewContributions()`) listing every plugin-contributed view contribution with its `pluginId`, `extensionId`, `contributionId`, `slot`, and the manifest-declared `label` / `tooltip` / `icon` / `emptyText` / `emitWhenEmpty`. Built once at boot from every loaded extension's `ui` map, AJV-validated, and frozen, same lifecycle as `getRegisteredAnnotationKeys()`.
 
-Analyzers see the catalog through `IAnalyzerContext.viewContributions` so cross-cutting checks (`core/unknown-slot`, `core/contribution-orphan`) can reason about emissions.
+Analyzers see the catalog through `IAnalyzerContext.viewContributions` so cross-cutting checks can reason about emissions (a generic context surface; the two original built-in consumers retired: `core/unknown-slot` moved to `sm plugins doctor`, `core/contribution-orphan` was deleted 2026-07-22 as a never-implemented stub).
 
 ### Emit path
 
@@ -1011,7 +1011,6 @@ Same honest-note posture as [`plugin-kv-api.md`](./plugin-kv-api.md): isolated a
 Two built-ins ship with the system to cover catalog evolution and rename edge cases:
 
 - **`core/unknown-slot`**, walks every loaded plugin's `ui[*].slot`; emits an `Issue` of severity `warn` for any slot not in the current kernel catalog. Parallel to `core/annotation-field-unknown` for annotations. AJV at manifest load already rejects unknown slots as `invalid-manifest`; this analyzer covers the soft-warning path when a plugin stays loaded across a catalog version bump.
-- **`core/contribution-orphan`**, joins `scan_contributions` against the live `scan_nodes` set; emits an `Issue` of severity `warn` for emissions whose `node_path` no longer exists (post-rename heuristic miss).
 
 ### Catalog versioning
 

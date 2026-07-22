@@ -84,22 +84,22 @@ describe('name-mismatch (end-to-end)', () => {
     });
   });
 
-  it('claude skill with name != dirname → info (documented override)', async () => {
+  it('claude skill with name != dirname → warn (dual identity, 2026-07-22 decision)', async () => {
     const fixture = freshFixture('claude-skill');
     writeNode(fixture, '.claude/skills/deploy/SKILL.md', md('deploy-tool'));
     const result = await scan(fixture, 'claude');
     const issues = mismatchesFor(result, '.claude/skills/deploy/SKILL.md');
     assert.equal(issues.length, 1);
-    assert.equal(issues[0]!.severity, 'info');
+    assert.equal(issues[0]!.severity, 'warn');
   });
 
-  it('claude agent with name != filename stem → info', async () => {
+  it('claude agent with name != filename stem → warn', async () => {
     const fixture = freshFixture('claude-agent');
     writeNode(fixture, '.claude/agents/reviewer.md', md('architect'));
     const result = await scan(fixture, 'claude');
     const issues = mismatchesFor(result, '.claude/agents/reviewer.md');
     assert.equal(issues.length, 1);
-    assert.equal(issues[0]!.severity, 'info');
+    assert.equal(issues[0]!.severity, 'warn');
     assert.match(issues[0]!.message, /filename stem/);
   });
 
@@ -140,7 +140,7 @@ describe('name-mismatch (end-to-end)', () => {
     });
     const again = mismatchesFor(second, '.claude/agents/reviewer.md');
     assert.equal(again.length, 1, `expected the verdict to survive; got: ${JSON.stringify(second.issues)}`);
-    assert.equal(again[0]!.severity, 'info');
+    assert.equal(again[0]!.severity, 'warn');
   });
 });
 

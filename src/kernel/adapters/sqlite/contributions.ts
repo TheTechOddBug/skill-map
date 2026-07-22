@@ -1,7 +1,7 @@
 /**
  * `scan_contributions` adapter, replace-all writer used by
  * `persistScanResult`, plus read helpers consumed by the BFF
- * (`/api/contributions/...`) and rules (`core/contribution-orphan`).
+ * (`/api/contributions/...`).
  *
  * One row per `(plugin_id, extension_id, node_path, contribution_id)`
  * tuple. See `spec/architecture.md` § View contribution system →

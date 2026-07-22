@@ -186,7 +186,7 @@ export const claudeProvider: IBuiltInManifest<IProvider> = {
       identifiers: ['frontmatter.name', 'filename-basename'],
       // Declared name != file stem is legal (the name wins at runtime)
       // but the agent answers to both handles here: surfaced as `info`.
-      identifierMismatch: 'info',
+      identifierMismatch: 'warn',
     },
     command: {
       schema: './schemas/command.schema.json',
@@ -206,7 +206,7 @@ export const claudeProvider: IBuiltInManifest<IProvider> = {
       // `.claude/commands/<name>.md`.
       identifiers: ['frontmatter.name', 'filename-basename'],
       // Same legal-but-dual-identity posture as `agent`: `info`.
-      identifierMismatch: 'info',
+      identifierMismatch: 'warn',
     },
     skill: {
       schema: './schemas/skill.schema.json',
@@ -226,7 +226,7 @@ export const claudeProvider: IBuiltInManifest<IProvider> = {
       // The override is documented-legal for Anthropic skills (unlike
       // the open-standard kind, which REQUIRES name == dirname and
       // declares 'warn'): `info`.
-      identifierMismatch: 'info',
+      identifierMismatch: 'warn',
     },
     /**
      * Phase 5 of the active-lens migration: MCP servers surface as

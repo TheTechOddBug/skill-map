@@ -17,6 +17,14 @@ export const NAME_MISMATCH_TEXTS = {
     'Declared name differs from the {{sourceLabel}} "{{derivedName}}"; the node answers to ' +
     'both names when references resolve',
   /**
+   * Remediation hint (`fix.summary`, not autofixable). Renaming either
+   * side settles the identity; the override can also be deliberate
+   * (the info-tier kinds document it as legal).
+   */
+  fixSummary:
+    'Rename the file or folder to match the declared name, or align `name` with the path; ' +
+    'keep the override if the dual identity is deliberate.',
+  /**
    * Human labels for the path-derived identifier sources, interpolated
    * into `message` as `{{sourceLabel}}`.
    */

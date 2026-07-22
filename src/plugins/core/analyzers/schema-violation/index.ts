@@ -46,22 +46,9 @@ export const schemaViolationAnalyzer: IBuiltInManifest<IAnalyzer> = {
   // unchanged.
   ui: {},
 
-  // Pre-existing complexity: validates every node + every link
-   // against multiple schemas with per-severity aggregation. The
-   // branching mirrors the schema catalog and splitting scatters the
-   // validation contract. Tracked as tech-debt; surfaced when an
-   // unrelated change touched the lint cache.
-  // eslint-disable-next-line complexity
   evaluate(ctx: IAnalyzerContext): Issue[] {
     const validators = loadSchemaValidators();
     const findings: Issue[] = [];
-    // Per-node tally + worst severity so the contribution surfaces
-    // ONE alert / chip per node (mirrors broken-ref's aggregation) and
-    // paints in the right colour: `danger` (red) as soon as any
-    // finding is `error`, `warn` (yellow) when every finding is warn.
-    type TWorst = 'warn' | 'danger';
-    const perNode = new Map<string, { count: number; worst: TWorst }>();
-
     // Frontmatter `name` / `description` requiredness is NOT re-derived
     // here: each Provider's per-kind schema decides it (Claude agent,
     // OpenAI Codex agent and the Agent Skills skill declare `required`;
@@ -71,34 +58,11 @@ export const schemaViolationAnalyzer: IBuiltInManifest<IAnalyzer> = {
     // re-impose the requirement on the kinds that deliberately relaxed it,
     // so the per-kind schema stays the single source of truth.
     for (const node of ctx.nodes) {
-      const before = findings.length;
       collectNodeFindings(validators, node, findings);
-      if (findings.length > before) {
-        let worst: TWorst = 'warn';
-        for (let i = before; i < findings.length; i++) {
-          if (findings[i]!.severity === 'error') {
-            worst = 'danger';
-            break;
-          }
-        }
-        const prev = perNode.get(node.path);
-        perNode.set(node.path, {
-          count: (prev?.count ?? 0) + (findings.length - before),
-          worst: prev?.worst === 'danger' ? 'danger' : worst,
-        });
-      }
     }
     for (const link of ctx.links) {
       collectLinkFindings(validators, link, findings);
     }
-
-    // Per-node aggregation that fed the now-removed chip emission
-    // stays computed in case future surfaces (inspector, sm check
-    // verbose) want the per-node summary; today the values are
-    // discarded after the loop. Keeping the dead arithmetic is cheap
-    // (N ≤ nodes) and avoids a partial revert when re-enabling.
-    void perNode;
-
     return findings;
   },
 };
@@ -116,6 +80,7 @@ function collectNodeFindings(v: ISchemaValidators, node: Node, out: Issue[]): vo
       }),
     }),
     data: { target: 'node', path: node.path },
+    fix: { summary: tx(SCHEMA_VIOLATION_TEXTS.fixSummary) },
   });
 }
 
@@ -133,6 +98,7 @@ function collectLinkFindings(v: ISchemaValidators, link: Link, out: Issue[]): vo
       }),
     }),
     data: { target: 'link', source: link.source, to: link.target },
+    fix: { summary: tx(SCHEMA_VIOLATION_TEXTS.fixSummary) },
   });
 }
 

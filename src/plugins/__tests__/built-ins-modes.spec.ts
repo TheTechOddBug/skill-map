@@ -263,6 +263,8 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/auto-fix` (the former second built-in hook) was REMOVED on 2026-07-21: redundant with the per-job `auto_fix` flag; the record-side hook dispatch stays for drop-in hooks, keeping the count at 48.
     // `core/ai-reference-action` (the first DETERMINISTIC-analyzer fixer: a probabilistic Action declaring `precondition.analyzerIds: ['core/reference-broken']`, so its submit-time trigger is that rule's `scan_issues` rows injected as `## Issues to resolve`, not `state_findings`; experimental, ships disabled, exempt from the finder/fixer pairing convention) brings it to 49.
     // `core/ai-tagger-action` (the taxonomy sibling of the summarizer: stable probabilistic Action whose report `$ref`s the canonical tags schema; the record path merges its `tags[]` into the sidecar through the consent-gated write-through) brings it to 50.
+    // `core/contribution-orphan` (the Phase 7 soft-warning stub that emitted [] waiting for a `contributionsRows` context field that never landed) was DELETED on 2026-07-22 (analyzer review pass closure), dropping the total to 49; `IAnalyzerContext.viewContributions` stays as a generic context surface.
+    // `core/ai-name-action` (the second deterministic-analyzer fixer, `precondition.analyzerIds: ['core/name-mismatch']`, mirror of ai-reference-action: stable, enabled; settles a dual identity by aligning `frontmatter.name` to the file-derived handle, renames only by author choice) brings it back to 50.
     assert.equal(rows.length, 50);
   });
 

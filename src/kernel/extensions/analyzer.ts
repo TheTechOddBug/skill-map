@@ -100,10 +100,11 @@ export interface IAnalyzerContext {
    * Step 11.x, runtime catalog of plugin-contributed view contributions,
    * as exposed by `kernel.getRegisteredViewContributions()`. Threaded
    * through so analyzers can reason about emissions without reaching
-   * back into the kernel (built-in `core/contribution-orphan` joins it
-   * with the live node set to flag dangling emissions). Slot catalog
-   * drift detection is NOT a scan concern, it lives at load time and
-   * surfaces via `sm plugins doctor`. Empty array when no extension
+   * back into the kernel; a generic context surface for cross-cutting
+   * checks (no built-in consumes it today; the former
+   * `core/contribution-orphan` stub was deleted 2026-07-22). Slot
+   * catalog drift detection is NOT a scan concern, it lives at load
+   * time and surfaces via `sm plugins doctor`. Empty array when no extension
    * declares view contributions; absent for legacy callers (older
    * runScan sites that never wired the catalog through).
    */
