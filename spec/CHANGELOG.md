@@ -1,5 +1,277 @@
 # Spec changelog
 
+## 0.81.0
+
+### Minor Changes
+
+- The per-node Activity section tightens retention: the runtime recent-executions ring and the AI-run history each cap at 15 (was 20), and the conversation view renders at most 10 threads per node. `spec/provider-activity.md` lowers the normative `runs` cap to 15. AI-run rows now show the full qualified extension id and surface a run status only when it deviates from `completed` (failed and cancelled runs show their state).
+
+  ## User-facing
+
+  **Leaner Activity timeline.** Each node keeps its 15 most recent runs and up to 10 conversations. AI-run rows now show each run's full name and only flag its status when it failed or was cancelled.
+
+- The inspector's Activity section interleaves two provenances: live runtime activity and skill-map's own AI-run history from `state_executions` (persistent). `GET /api/activity/node/:pathB64` gains a lean `runs` array (newest-first, capped 20; no report/nonce). The two are distinguished behind a three-way filter (all / runtime / AI runs) persisted at inspector level; the old Executions/Last-start/Contexts/Totals stat grid was dropped.
+
+  ## User-facing
+
+  The inspector's Activity panel now shows a combined timeline of live agent activity and skill-map's own analysis runs, with a filter to focus on either.
+
+- The CLI contract gains §Agent drain skill: `sm agent install / uninstall / status` materialise the canonical, CLI-versioned `sm-run-queue` skill into the active lens's `scaffold.skillDir`, teaching any agent runtime the claim → execute → record drain protocol (byte-exact staleness probe, idempotent reinstall, no separate package and no network fetch).
+
+- The HTTP API gains the agent-drain-skill install surface, mirroring the activity-hooks endpoints: `GET /api/agent/install?provider=` (status probe with `supported` / `installed` / `stale`, the fields behind the UI button's Install / Update / Up to date states), and the 412-consent-gated `POST /api/agent/install` (three-state `outcome`) and `POST /api/agent/uninstall` (`removed`). The materialised skill folder is a bundled ignore default: skill-map infrastructure never surfaces as a node.
+
+- The node card's aggregate `warn` / `error` severity chips now sum both provenances: deterministic issues PLUS a node's unresolved, non-stale findings (open + `human-decision`). `issue-counter` and `sm scan` are unchanged; the findings are added at read time by the BFF node decoration under issue-counter's own chip ids, with a provenance-breakdown tooltip, on every endpoint that embeds contributions (`/api/nodes`, `/api/scan`, `/api/branch`).
+
+  ## User-facing
+
+  A node's error/warning count on the map card now includes its AI findings, not just deterministic issues, so a node flagged only by an analysis run still shows a count. Hover the chip to see the split.
+
+- New built-in fixer `core/ai-reference-action` (stable, enabled by default), the first fixer for a DETERMINISTIC analyzer: it repairs broken reference links that `core/reference-broken` flagged by injecting that analyzer's Issues (`scan_issues`) into a `## Issues to resolve` job section keyed on the broken target. The agent repoints each link at its real in-project target, asking permission before searching outside the project; the inspector button shows only on nodes with such Issues.
+
+  ## User-facing
+
+  New fix-it job for broken links: after a scan flags a broken reference, queue `core/ai-reference-action` and the agent repoints the link to where the file actually lives in your project (asking first before it looks outside the project).
+
+- Three inspector AI-actions fixes. The two-state finder button reflects its FIXER's job: `prob-extensions` computes `state` / `jobId` over `{finder} ∪ fixerIds`, so clicking Fix shows queued/running, not nothing. A plugin toggled mid-session is honored without restarting `sm serve`: the launcher and submit endpoints re-read the enabled set per request via a fresh resolver (drop-ins that booted disabled still need a restart). And the Automatic toggle is relabelled "Auto-fixer".
+
+  ## User-facing
+
+  Clicking a finder's Fix now shows the fixer running instead of looking like nothing happened; enabling AI-action plugins takes effect without restarting the server; and the auto toggle is now labelled "Auto-fixer".
+
+- The `core/annotation-stale` drift analyzer graduates from experimental to stable, so a default scan now surfaces sidecar (`.sm`) drift out of the box as an `info` issue; its read-only detection is safe on by default while the companion writer `core/node-bump` stays experimental (opt-in), decoupling the former bump pair. The `sidecar-end-to-end` conformance case now expects the extra issue, and the inspector drops the `never bumped` audit empty-state.
+
+  ## User-facing
+
+  **Drift shows out of the box.** Scans now flag when a skill's `.sm` sidecar has fallen out of sync with its `.md`, no need to enable anything first. The inspector's Metadata section also drops the old `never bumped` line.
+
+- Add `POST /api/jobs/cancel-all` and `POST /api/jobs/prune[?status=]`, the bulk write endpoints behind the queue inspector toolbar. cancel-all moves every queued/running job to terminal cancelled and broadcasts one `job.cancelled` per id; prune deletes terminal jobs immediately (all terminal states, or just one via `?status=completed|failed|cancelled`) as a silent GC with no WS event. A non-terminal or unknown status returns `400 bad-query`. Additive; route rows land in `cli-contract.md`.
+
+- Add `GET /api/jobs?status=&extension=&node=`, the cross-corpus job-queue list read endpoint (HTTP face of `sm jobs list`), plus a new registry-less `kind: 'jobs'` list variant in the REST envelope schema. Each row is a public `Job` projection carrying every field except the `nonce`, all three filters are optional, and an unknown `status` value returns `400 bad-query`. Additive API surface; a route row lands in `cli-contract.md`.
+
+- Extensions gain an optional `defaultEnabled` manifest field that overrides the stability-derived installed default; the bump contract now accepts a versionless fresh sidecar and stamps `version: 1` (only a fresh sidecar already carrying a version refuses); summaries get a normative `DELETE /api/nodes/:pathB64/summary` route; the auto-fix hook leaves the normative narrative; and a new architecture §Storage rule seals machine output to the DB vs human curation to the `.sm` sidecar.
+
+- Removes the `writesSummary` flag from the Action contract. An Action is now a summarizer iff its `report.schema.json` extends a canonical `summaries/<kind>.schema.json` via `$ref`; `sm record` detects the signal from the schema and upserts the validated report into `state_summaries`. The kernel AJV now registers the `summaries/*` schemas so report schemas can reference them.
+
+- The job lifecycle gains a normative disable cascade (`job-lifecycle.md` §Cancellation): disabling an extension also cancels its `queued` jobs through the same primitive as `sm jobs cancel`, one `job.cancelled` event per affected id plus one aggregated operations-log line; `running` jobs stay untouched and re-enabling resurrects nothing. `cli-contract.md` documents the cascade on `sm plugins disable` and the three `PATCH /api/plugins` toggle routes.
+
+- The `sm doctor` contract section now pins the error-level vs warning split (DB corruption and missing job-content rows are the two error-level findings) and the `--json` envelope: `{ ok, kind: 'doctor', checks[] }` with one `{ id, status, message }` entry per check over the closed eight-check id vocabulary.
+
+- Schema-drift hygiene for non-drift-owning verbs: read verbs whose query fails because of drift now surface the clean drift advisory (exit 2, naming `sm scan` as the remedy) instead of a raw SQL error, and every row-mutating verb (the `sm job` family, `sm record`, `sm findings prune`, `sm refresh`, `sm plugins trust` / `enable` / `disable`, `sm orphans reconcile` / `undo-rename`) refuses cleanly on drift BEFORE loading the plugin runtime, instead of misleading symptoms like `extension not found`.
+
+  ## User-facing
+
+  When skill-map's local cache predates an upgrade, commands now tell you exactly that and how to fix it (`sm scan`), instead of crashing with a database error or claiming an extension does not exist.
+
+- Two conformance cases lock the dual-mode dispatch contract: `extension-mode-routing` (a probabilistic Action submitted via `sm job submit` lands as a queued `state_jobs` row, asserted through `sm job list --json`) and `extension-mode-routing-deterministic` (a deterministic Action is refused with exit 2 and the in-process advisory). Coverage row for `job.schema.json` moves to partial.
+
+- Suppressed-judgment advisory on finder submits: `sm jobs submit` over a node whose `.sm` sidecar suppresses the finder's judgment (a standing `sm findings dismiss`) now warns on stderr, naming the suppressed types, before the agent pass is spent, and queues anyway (the kernel safety lane is never suppressed, and a finder may emit types the suppression does not cover). Human mode only; the `--json` stdout contract is unchanged (`spec/job-lifecycle.md` §Submit).
+
+  ## User-facing
+
+  Queuing an analysis on a file where you already dismissed that finding now warns you upfront that the result will be dropped, so you can skip the run instead of paying for it.
+
+- The finding state `declined` is renamed `human-decision` (Decision #143): it is a fixer's proposal awaiting the author's choice, not a dead-end. A `fixed` finding now records who decided it via `resolution_actor` (`human` / `fixer`): any user interaction is `human`, only a zero-interaction autonomous fix is `fixer`. The fixer report's `resolved[]` entry declares `state` plus `by` when fixed, and a new `sm findings resolve <id>` verb lets the operator mark a finding fixed-by-human directly.
+
+  ## User-facing
+
+  Findings a fix could not settle now read `human-decision` (your call), not "declined". Fixed findings show whether you or the agent decided them, and `sm findings resolve <id>` lets you mark one handled yourself.
+
+- Findings gain a lifecycle state (Decision #142): a fixer puts a finding into `fixed` or `declined` (the report's `resolved[]` declares `state`, not an `applied` boolean). A `fixed` finding hides from the default `sm findings` view, marked with the fixer that handled it, and stays re-checkable (re-running the finder verifies and closes it); `declined` stays visible as the author's decision. The exclusion line reports `fixed` and `stale` counts separately, and `--fixed` reveals the fixed rows.
+
+  ## User-facing
+
+  Once a fix runs, that finding moves to a `fixed` state and drops out of your default `sm findings` list (see it with `--fixed`), instead of lingering as if still open. Re-run the finder to confirm it is really gone.
+
+- Fixer jobs can target a finding subset: `sm jobs submit --finding <id>` (BFF `findingIds`) freezes the ids on the job, the injection narrows to them, and the supersede/duplicate/running gates become overlap-scoped; `fixerBusy` joins the prob-extensions wire. Finding resolution adds a row-grain `dismissed` state via `sm findings dismiss` (`--class` keeps the sidecar suppression) and a new `sm findings reopen` verb plus BFF routes; five optimization finder/fixer pairs ship experimental.
+
+  ## User-facing
+
+  **Finer-grained finding control.** Fixing or dismissing one finding now affects only that finding (dismissing a whole kind stays available in the CLI), fix buttons no longer flicker while a fix starts, and `sm findings reopen` undoes a dismissal.
+
+- `sm findings` grows three verb rows in the CLI contract (`clear` for wholesale deletion, `suppressions`, `undismiss`), dismiss is respecified as a read-time suppression lens sourced from the write-through annotations mirror (db-schema read rule, eraser list, single-node self-heal), finder submits auto-undismiss the suppressed class (job-lifecycle), and the findings REST envelope requires the new `dismissedExcluded` count.
+
+- Two findings additions (Decision #144). `sm findings dismiss <id>` silences a finding the operator judged acceptable by writing a durable `annotations.suppressions` entry to the node's `.sm` sidecar (keyed by extension + type); the finder's record path then drops matching findings so the judgment stays silenced across re-runs, unlike a row a re-scan erases. And the finder-to-fixer chain can run automatically via the opt-in `core/auto-fix` hook (ships disabled) on `job.completed`.
+
+  ## User-facing
+
+  `sm findings dismiss <id>` permanently silences a finding you have decided is fine (it stays gone across re-scans, recorded in the file's `.sm` sidecar). Enable the new `core/auto-fix` plugin to have fixers run automatically after their finder.
+
+- The findings REST envelope honesty counts reduce to the `dismissedExcluded` / `fixedExcluded` pair (stale rows now ride `items` inline, flagged per row, with `?stale=1` demoted to a narrowing filter), the serve route table adds `DELETE /api/nodes/:pathB64/findings/:id` (per-row hard delete that also lifts a last-row suppression), the activity summary gains `runNodes` (persistent-run node list), and `annotation-stale` emits card contributions only, no issue (conformance case updated).
+
+- Semantic capabilities ship as extensions, not verbs (Decision #137): the planned LLM-verb set is dropped and `sm findings` becomes the generic reader of the new `state_findings` table. Probabilistic Analyzers (finders) share the job queue via `prompt.md` plus a report schema extending the new canonical `findings/report.schema.json`; `sm record` routes analyzer reports to findings and derives safety rows from any probabilistic report. `state_jobs` renames `action_id` to `extension_id`.
+
+- `sm findings` no longer reports a clean node while hiding stale judgments. The default filter excludes stale rows, but the empty result printed a bare `No findings` with a success glyph, which reads as "nothing was found" when the finders had in fact judged the node and an edit merely aged their verdicts. Human mode now says `No fresh findings` plus the hidden count and its remedy, listings footer the hidden count, and `--json` carries `staleExcluded`.
+
+  ## User-facing
+
+  `sm findings` used to say "No findings" after you edited a file, hiding results that were merely outdated. It now tells you how many are hidden and how to see them (`--stale`) or refresh them.
+
+- Fixer findings injection (Decision #141) plus the first fixer `core/ai-redundancy-action`. Submitting a probabilistic Action that declares `precondition.analyzerIds` now injects the node's non-stale matching findings into a `## Findings to resolve` section of the rendered job (folded into `promptTemplateHash`), and refuses when the node has none. `core/ai-redundancy-action` (stable) resolves `core/ai-redundancy-analyzer` findings via a template-mandated file edit.
+
+  ## User-facing
+
+  New fix-it jobs: after an AI review flags issues, queue a matching fixer (like `core/ai-redundancy-action` for repetition) and the draining agent edits the file to resolve exactly what was flagged.
+
+- A fixer submit now SUPERSEDES a stale queued sibling: when a queued job exists for the same fixer and node but with a different rendered content (the findings or body changed), the old job is cancelled and the new one enqueued in one transaction, instead of both sitting in the queue and wasting an agent pass on findings already resolved. An identical submit keeps the duplicate refusal, and a running job is never superseded.
+
+  ## User-facing
+
+  Re-queueing a fix for a file no longer piles up outdated fix jobs: the newer one replaces the stale queued one automatically. Jobs an agent is already working on are left alone.
+
+- A fixer's outcome now rides the finding it addressed. `state_findings` gains four `resolution*` columns; injected findings carry their `id`, the fixer echoes it back per `resolved[]` entry, and `sm record` stamps the claim onto the matching row in the record transaction, scoped to the job's node and the fixer's `analyzerIds`. `sm findings` and `sm show` render it: `applied` as an unverified claim, `declined` with its note, and the stale excluded-count line names hidden declined rows.
+
+  ## User-facing
+
+  A fixer's outcome now travels with the finding: see which ones it says it fixed, and, crucially, which it refused and why. Its "you need to decide this" note is no longer lost, `sm findings` names those rows even when they are hidden.
+
+- Fixer selection is now open-findings-only: `selectFixerFindings` filters to `resolution IS NULL`, so a `fixed` or `human-decision` row no longer feeds a fixer submit, its injection, or the inspector's `findingCount` / launcher visibility (a resolved judgment is decided, not "to resolve"). Stale-but-open rows still ride flagged as before. Fixes the launcher showing a `(1)` count on a node the operator already corrected (`spec/job-lifecycle.md` §Findings injection, Selection).
+
+  ## User-facing
+
+  A fix action no longer counts findings you already resolved: the number beside a fixer button now reflects only what still needs fixing.
+
+- Fixers no longer refuse a node whose findings merely went stale. Staleness is node-level, so any fix stales every finding on the node, including ones about untouched sections whose defects are still present; excluding them discarded valid judgments and forced a re-detection between fixes. The injection now includes stale findings flagged `stale: true`, the agent verifies each against the current body and declines what no longer applies, and submit refuses only when no matching findings exist.
+
+  ## User-facing
+
+  You can now queue every fixer for a file in a row: fixing one issue no longer blocks the rest with "no findings to resolve". Agents check each older finding against the current text and skip the ones already gone.
+
+- The Action manifest's `precondition` gains a `frontmatterMissing` gate (the action applies only while the node's frontmatter is missing at least one listed field), and the `node.prob-extensions` envelope now carries a third `issueFixers` bucket (`IssueFixerEntry`) for probabilistic Actions whose `analyzerIds` resolve to a deterministic analyzer; the `standalone` bucket no longer lists them.
+
+- Identifier agreement reworked in `architecture.md`: every built-in kind now declares `identifierMismatch: 'warn'` (a node answering to two names is ambiguity worth a warning even where the runtime documents the override as legal), while the `info` tier stays in the enum for external providers. The `core/contribution-orphan` bullet is gone from the analyzer catalog and `IAnalyzerContext.viewContributions` is now described as a generic context surface.
+
+- Step 16 piece 1, the inspector findings workbench: three BFF endpoints (`GET /api/nodes/:pathB64/findings` with honesty counts, `GET .../prob-extensions` classifying finder / fixer / standalone launchers, `POST .../jobs` via the same submit engine as the CLI, extracted to `core/jobs/submit-engine.ts`), three new REST envelope kinds, and the inspector "Judgments" card: fresh findings with provenance plus launcher buttons (fixers appear only when a matching finding exists).
+
+  ## User-facing
+
+  The node inspector now shows the AI findings for the file and lets you run analyzers from buttons: detectors are always available, and fix actions appear only when there is a finding for them to resolve. Queued work still runs through your own agent.
+
+- Add a distinct `cancelled` terminal job state and a symmetric `sm job fail` verb. `sm job cancel` now moves a queued/running job to `cancelled` (no `failureReason`) instead of `failed`, while `sm job fail` forces `failed` with reason `user-failed`, which replaces the removed `user-cancelled` value across the job, execution-record, history-stats, and db-schema enums. Adds `jobs.retention.cancelled` (default 30d) and documents the three write-side schema-drift response modes in `db-schema.md`.
+
+- Rendered job content becomes self-contained (Decision #138): the submit render inlines the report contract verbatim after the extension template (the extension's `report.schema.json` plus the canonical envelope chain), hashed into `promptTemplateHash`, so a draining agent learns the exact output shape, enums included, without disk access. Alongside, `sm findings prune` deletes stale findings rows on demand (destructive-verb pattern with `--dry-run` / `--yes`).
+
+  ## User-facing
+
+  Queued jobs now carry their exact answer format inside the prompt, so agents draining your queue stop guessing (and failing) on report fields. New `sm findings prune` clears out findings that refer to file versions you have since edited.
+
+- Live job-transition push: every job-transitioning CLI verb (`sm jobs submit` / `claim` / `cancel` / `fail`, `sm record`) now pushes its event envelope to the running server (`POST /api/job-events`, discovered and token-authenticated via `serve.json`, best-effort fire-and-forget), which rebroadcasts it verbatim over `/ws`. The catalog gains `job.submitted` / `job.cancelled` and the `queue` runId mode; the BFF submit route's broadcast uses the same canonical envelope.
+
+  ## User-facing
+
+  The inspector now updates the moment your agent picks up or finishes a job: state changes made from the terminal show up live in the browser without reloading.
+
+- `sm jobs claim` gains `--wait`: on an empty queue it blocks, re-reaping and re-claiming every `--interval` seconds (flag -> `jobs.claimWaitSeconds` config -> default 2) until a job is claimable, instead of exiting 1; `--timeout <seconds>` bounds the wait. The `sm-process-jobs` skill gains a resident watch mode that arms the blocking claim and processes each job as it arrives. Progress stays on stderr, so the `--json` handover is byte-unchanged.
+
+  ## User-facing
+
+  Leave your agent watching the queue: `sm jobs claim --wait` waits for the next job instead of stopping when the queue is empty, so it wakes up only when there is work. Set how often it checks with `--interval` seconds, or the `jobs.claimWaitSeconds` setting.
+
+- Processing-agent gate on `sm jobs submit`: with no `sm-process-jobs` skill installed under any Provider destination, the submit now refuses (exit 2) with an advisory explaining the pull-only mechanism and the remedy (`sm agent install`), instead of enqueuing work nothing will ever claim. An installed-but-outdated skill passes with a refresh advisory; the auto-fix hook's internal fixer submits bypass the gate. New conformance case `jobs-submit-agent-gate`.
+
+  ## User-facing
+
+  Submitting an analysis job now checks that an agent is actually set up to run it: if you never ran `sm agent install`, the submit stops and tells you how the queue works instead of leaving the job waiting forever.
+
+- The inspector's AI-actions launcher gains a Stop control for an active job: `POST /api/jobs/:jobId/cancel` moves a queued/running job to `cancelled` through the same transition as `sm jobs cancel`, broadcasts the canonical `job.cancelled` envelope, and answers 204 (409 `job-terminal` on an already-closed job). Each prob-extension entry now carries the active `jobId`. This resolves the zombie case (a killed agent holding a claim) without dropping to the CLI, no global TTL needed.
+
+  ## User-facing
+
+  You can now stop a running or queued analysis from the inspector: a killed or stuck agent's job no longer sits there forever, one click cancels it.
+
+- `sm record --model <name>` is now persisted instead of dropped: the agent's self-declared model id lands on `state_executions.model` and is denormalized onto the `state_findings.model` / `state_summaries.model` rows the same record writes, so every probabilistic analysis answers "which model, when" without joins. `sm findings` renders it alongside the confidence, and the drain skill instructs agents to declare it.
+
+  ## User-facing
+
+  Analyses now remember which AI model produced them: agents report their model when closing a job, and `sm findings` / `sm show` display it next to each result together with its date.
+
+- Model A provenance enrichment lands in the contract: Actions gain the declared `io: ['network']` purity carve-out (injected `ctx.fetch`, gated by the new committed `allowNetworkActions` policy, default false), `sm refresh` executes enrichment Actions in-process with an `enrichments/` write-through convention mirroring the summaries one, and `enrichments/github.schema.json` pins the verification report shape (`verified`, `method: raw-sha | api-ref`, `resolvedSha`, body-hash comparison fields).
+
+- First built-in finder Analyzer: `core/ai-redundancy-analyzer` (probabilistic, stable, enabled by default) judges a node for internal redundancy through the job queue and lands `type: redundancy` rows in `state_findings`; its report schema narrows the finding type so the finder can only emit its own judgment. The spec gains the `findings-contract` / `findings-contract-kind` conformance pair covering the rendered findings-envelope report contract and the frozen `extensionKind: analyzer` job row.
+
+  ## User-facing
+
+  New AI review that flags repeated instructions inside a file, on by default: queue it with `sm job submit ai-redundancy-analyzer` and read the judgments with `sm findings`.
+
+- New `cli-contract.md` §Operations log: every mutating operation appends one JSONL line to the gitignored `.skill-map/operations.log` (`{at, op, target, extension?, channel, outcome, id?/detail?}`), fire-and-forget, silent without a `.skill-map/` directory, single-generation 1 MiB rotation. The REST envelope schema's value-envelope variant gains the `config.resolution` kind backing the new `GET /api/config/resolution` route.
+
+- Jobs never expire by default (Decision #139): an interactive drain can hold a claim while its user deliberates. `state_jobs.ttl_seconds` is nullable; expiry arms only from explicit operator sources (`--ttl`, with `0` disarming, `jobs.perExtensionTtl`, or the global opt-in `jobs.ttlSeconds`), the estimate-driven grace formula and its `graceMultiplier` / `minimumTtlSeconds` config keys are retired, and the new `jobs-overdue` doctor check advises on long-running TTL-less jobs.
+
+  ## User-facing
+
+  Queued jobs no longer time out on their own, so an agent can pause mid-job and ask you how to proceed without losing the work. Set `--ttl` (or the `jobs.ttlSeconds` setting) if you want expiring jobs back; `sm doctor` now flags jobs running far longer than expected.
+
+- Enable/disable now applies a pair toggle over Modelo B edges: enabling a fixer action also enables the analyzer(s) in its `precondition.analyzerIds` (and vice versa), and disabling is reference-counted, so a companion falls only when its last enabled edge partner goes down. Covers `sm plugins enable / disable` and the `PATCH /api/plugins*` routes (bulk form keeps explicit-wins semantics). Normative wording in `plugin-author-guide.md` §Paired extensions.
+
+  ## User-facing
+
+  **Reviews and their fixes now switch together.** Turning on a fix also turns on the review that feeds it, and turning off a review turns off its fix unless another review still uses it. No more half-armed pairs after toggling one side in the Settings panel or the CLI.
+
+- `sm plugins show <plugin>/<ext>` now renders a probabilistic extension's two contract files inline: the verbatim `prompt.md` template under a Prompt section and the pretty-printed `report.schema.json` under a Report schema section (`--json` gains `promptTemplate` / `reportSchema`). The prompt is the extension's essence under the forms model, so the inspector surfaces it without disk spelunking.
+
+  ## User-facing
+
+  `sm plugins show` now displays the full prompt and answer format of any LLM-backed extension, so you can read exactly what a queued job will ask an agent to do before submitting anything.
+
+- Lands the deferred `preamble-bitwise-match` conformance case: a `ai-summarizer-action` job submitted over a scanned markdown node must render content containing `preamble-v1.txt` byte-for-byte, read back via `sm job preview --last`. The case format grows `setup.priorInvokes` (ordered staging invocations that must exit 0, run after the fixture copy) and the `stdout-contains-verbatim` assertion; the CLI contract adds the `--last` selector to `sm job preview`.
+
+- Preamble v2 (Decision #140): rule 4 now permits file edits ONLY when the extension template explicitly directs an edit as the job's purpose (unblocking fixer Actions; code execution and URL fetching stay absolutely forbidden, user-content can never mandate anything), the wording moves from "runs actions" to "prepares analysis jobs" with "extension" throughout, and the closing line names the Report contract section. Conformance fixture recut as `preamble-v2.txt`; every job re-keys.
+
+  ## User-facing
+
+  The safety instructions inside every queued job got a v2: agents may now edit files when a job's own instructions say so (never because of file content), which enables upcoming fix-it jobs.
+
+- The queue is pull-only: skill-map never invokes an agent. `RunnerPort` leaves the architecture (§Execution handover: external agents drain via `sm job claim` + `sm record`), the `sm job run` verbs leave the contract, the `runner` enum becomes `agent | in-process`, reap moves to the start of every claim, and the job-events catalog prunes the spawn-path events, with `sm record --json`'s synthetic `r-ext-` envelope as the canonical emission.
+
+- Two internal spec contradictions reconciled. `interfaces/security-scanner.md` is rewritten over the findings pipeline: scanners are finder Analyzers extending the findings envelope (categories become finding `type` slugs, stable cross-run ids retired, kernel safety slugs reserved). And the architecture mode matrix now matches the schemas and runtime: Action `mode` is optional, defaulting to `deterministic`; a probabilistic Action missing `mode` still fails at load via the `prompt.md` rule.
+
+- `core/ai-summarizer-action` graduates from experimental back to stable / enabled by default now that its UI surface landed: a new `GET /api/nodes/:pathB64/summary` route (spec route-table row, direct shape) serves the node's stored summaries with per-row staleness, and the inspector header gains a sparkles button that queues the summarizer and expands the analysis (subject, key facts, quality notes, confidence, stale mark, re-run) under the identity strip.
+
+  ## User-facing
+
+  **Analyze any file from its header.** A magic button next to the file's title runs an AI analysis; when it finishes (or the file already has one) the header shows what the file covers, key facts and quality notes. Outdated analyses are marked and can be re-run in one click.
+
+- Summarizer Actions (report schema extends `summaries/<kind>`) drive a `state_summaries` write-through when `sm record` closes a completed job, shown by `sm show` with a `(stale)` marker. Tightens the `</user-content>` escaping to be case/whitespace-insensitive, adds a submit-time body-hash drift check refusing stale bytes, hides the `nonce` from `job list`/`show --json`, has read verbs advise not refuse on schema drift, and reconciles the `sm record` exit codes (2 = not running, 5 = not found).
+
+- New canonical tagger-report schema `tags/markdown.schema.json` (1-8 lowercase kebab-case topical tags) plus the `job-lifecycle.md` §Tags write-through contract (record-side union merge into sidecar `annotations.tags`, standing `.sm` consent only, storage-rule delegated-curation carve-out), and enabled-gate wording: `POST /api/actions/:id` answers 404 for a disabled Action, `sm bump` refuses while `core/node-bump` is disabled, and boot/shutdown hook dispatch honours the enabled toggle.
+
+- The inspector's AI-actions launcher becomes two-state finder buttons plus an Automatic toggle: a finder with a matching fixer is ONE button that morphs Detect ⇄ Fix by the node's open findings (the fixers row is retired), and the toggle makes it one-click detect+fix. Backing it, a per-job `autoFix` flag frozen at submit (`--auto-fix`, POST body, or toggle) chains all matching fixers at record. `prob-extensions` reshapes to `{ finders, standalone }` with `fixerIds` + `hasOpenFindings`.
+
+  ## User-facing
+
+  Each analysis button in the inspector now detects, then turns into its fix once something is found, so there is one button instead of two. Flip the Automatic toggle to make it detect and fix in a single click.
+
+- The summarizer is universal: the per-kind summary schemas (`summaries/{skill,agent,command,hook}.schema.json`) are removed and `summaries/markdown.schema.json` becomes the single canonical node-summary shape (`markdown` names the body format every node shares, not the node kind). The summarizer detection convention in `job-lifecycle.md` §Record is now "report schema extends a schema under `summaries/`"; per-kind summarizers are dropped from the plan.
+
+- The collection verb namespaces go plural (breaking, pre-1.0): `sm job` becomes `sm jobs` and `sm sidecar` becomes `sm sidecars`, aligning them with `plugins` / `actions` / `findings` under one rule (a browsed collection is plural). No singular alias. The queue-processing concept renames from "drain" to "process", and the agent skill is renamed `sm-run-queue` to `sm-process-jobs`.
+
+  ## User-facing
+
+  `sm job ...` is now `sm jobs ...` and `sm sidecar ...` is `sm sidecars ...` (no old aliases, update scripts). The queue-processing skill is renamed `sm-process-jobs`; run `sm agent install` to get it.
+
+- The `inspector.action.button` payload gains an optional `surface` enum (`version` | `stability` | `tags`) plus the `view-slots.md` §Re-homed surfaces contract: a payload declaring a surface IS the named UI surface instead of a generic Actions button, the UI selects it by this declaration and dispatches the payload's `actionId` (never matching extension ids), and when several contributions claim one surface the first by priority order wins.
+
+### Patch Changes
+
+- Schema-drift advisories now point at `sm scan` alone: scan is a drift-owning verb that deletes and recreates the drifted DB by itself, so the previously prescribed `sm db reset --hard` first step was a redundant detour for the same outcome. The write-refusal, read-failure, and read-warn advisories all drop it (`spec/db-schema.md` §Schema drift).
+
+  ## User-facing
+
+  When your project database is outdated after an upgrade, the error now just says to run `sm scan` (which rebuilds it in one step) instead of a two-command sequence.
+
+- The `sm findings` bucket flags become filters: `--fixed` now shows ONLY the fixed rows and `--stale` ONLY the stale ones (their union when combined), instead of appending the hidden bucket to the default listing. The excluded-count reporting stays a default-view-only honesty device; an explicit bucket filter is the operator's own narrowing, like `--type`.
+
+  ## User-facing
+
+  `sm findings --fixed` now lists just the fixed findings (and `--stale` just the stale ones) instead of mixing them into the full list, so reviewing what a fixer did no longer means scrolling past everything else.
+
+- `sm findings` human output now prefixes each finding row with its numeric id (right-aligned per node section so the severity glyphs stay in one column), the handle you pass to `sm findings resolve <id>`. Previously the id showed only in `--json`, forcing a jq/grep detour to act on a finding.
+
+  ## User-facing
+
+  `sm findings` now shows each finding's id at the start of its row, so you can pass it straight to `sm findings resolve <id>` without digging through `--json`.
+
+- Correct the job `contentHash` formula to include `node.path` and NUL-delimit its inputs. The rendered content embeds `node.path` via `<user-content id>`, so the previous formula (which omitted it) let two nodes with identical body and frontmatter share one content row while rendering different text, breaking the "same hash, same content" invariant. Also clarify that `--force` bypasses the duplicate pre-check but never the unique partial index, so it only re-runs terminal jobs.
+
 ## 0.81.0-rc.2
 
 ### Minor Changes
