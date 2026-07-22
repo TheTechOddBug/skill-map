@@ -276,6 +276,7 @@ Decisions from working sessions 2026-04-19 / 20 / 21 plus pre-session carry-over
 - **`sm jobs reap` as explicit verb**, auto-reap on `sm jobs run` is sufficient.
 - **Skills.sh enrichment**, see `ROADMAP.md` §Enrichment (dropped; no public API after investigation).
 - **URL liveness in the core product**, post-`v1.0` plugin if demand appears.
+- **Wave-2 graph-scoped jobs** (cross-node finders: dedupe, trigger-clustering, plus the `/skill-map:explore` meta-skill riding the arc), dropped outright 2026-07-23 after first being deferred post-release; the job queue stays strictly per-node (`extension + node + contentHash`) and no cross-node job model is planned.
 - **Multi-turn jobs in the kernel**, kernel stays single-turn; conversation lives in agent skill.
 - **`skill-manager` / `skillctl` naming**, `skill-map` preserved.
 - **Per-verb `explore-*` skills**, single `/skill-map:explore` meta-skill.
