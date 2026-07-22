@@ -19,9 +19,13 @@
  * schema `$ref`s the canonical findings envelope (the finder routing
  * signal) and narrows `findings[].type` to the const `'trigger'`.
  *
- * Ships `stability: 'experimental'`: DISABLED by default (wave-1 birth
- * convention; graduate once the prompt proves itself). Enable with
- * `sm plugins enable core/ai-trigger-analyzer`.
+ * Ships `stability: 'stable'`: ENABLED by default (graduated
+ * 2026-07-22 after the live playground test: the under-sell and
+ * over-promise mismatches both found with precise reasoning, the
+ * missing use-when cue correctly subsumed into the proposed rewrites;
+ * the test also surfaced and fixed the body-only snapshot gap, the
+ * prompt now reads the live file for the frontmatter). Disable with
+ * `sm plugins disable core/ai-trigger-analyzer`.
  */
 
 import type { IAnalyzer, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
@@ -33,8 +37,9 @@ export const aiTriggerAnalyzer: IBuiltInManifest<IAnalyzer> = {
   kind: 'analyzer',
   description:
     'Flags a description that will misfire: it promises things the file does not do, hides things it does, or never says when to use it, so the file gets picked at the right moments.',
-  // Experimental: ships disabled until the prompt proves itself.
-  stability: 'experimental',
+  // Stable: enabled by default (graduated 2026-07-22 after the live
+  // playground test; the operator can disable it).
+  stability: 'stable',
   mode: 'probabilistic',
   // ADVISORY wall-clock estimate (Decision #139: never arms a TTL); a
   // single-node judgment is a light pass on a mid-tier model.

@@ -16,9 +16,10 @@
  * Structure-as-truth siblings (`prompt.md` + `report.schema.json`) are
  * inlined onto the emitted manifest by the built-ins codegen.
  *
- * Ships `stability: 'experimental'`: DISABLED by default (wave-1 birth
- * convention, in lock-step with its finder). Enable with
- * `sm plugins enable core/ai-structure-action`.
+ * Ships `stability: 'stable'`: ENABLED by default (graduated
+ * 2026-07-22 in lock-step with its finder: the live fix reordered and
+ * re-leveled without losing a sentence); disable with
+ * `sm plugins disable core/ai-structure-action`.
  */
 
 import type { IAction, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
@@ -30,8 +31,9 @@ export const aiStructureAction: IBuiltInManifest<IAction> = {
   kind: 'action',
   description:
     'Fixes the layout problems a review found: moves and regroups the flagged content so the important rules lead, without changing what anything says.',
-  // Experimental: ships disabled until the prompt proves itself.
-  stability: 'experimental',
+  // Stable: enabled by default (graduated 2026-07-22 after the live
+  // playground test; the operator can disable it).
+  stability: 'stable',
   mode: 'probabilistic',
   // ADVISORY wall-clock estimate (Decision #139: never arms a TTL); a
   // single-node fix pass on a mid-tier model.

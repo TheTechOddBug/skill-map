@@ -1,55 +1,47 @@
 ---
 name: playground
-description: Campo de pruebas de findings, borrar despues de testear
+description: Guia paso a paso para desplegar la aplicacion; usar cuando alguien pregunte como desplegar o revertir un despliegue.
 ---
 
 # Guia de despliegue
 
 Guia para desplegar la aplicacion.
 
-## Ejemplos
-
-```bash
-node scripts/deploy.js --target staging
-node scripts/deploy.js --target production --confirm
-```
-
-Estos comandos muestran los dos despliegues tipicos; el flag `--confirm`
-es obligatorio en produccion.
-
 ## Proceso
 
-Para desplegar primero corre la suite de tests con pnpm test y despues el
-build con pnpm build y una vez que ambos terminan sin errores ejecuta las
-migraciones con node scripts/migrate.js teniendo en cuenta que la base de
-datos tiene que estar respaldada antes con node scripts/backup.js y que el
-`API_TOKEN` tiene que estar configurado en el entorno porque sin el token
-el servidor rechaza todas las escrituras con 401 y despues de las
-migraciones publicas con node scripts/deploy.js y al final avisas en el
-canal del equipo que el despliegue termino y si algo fallo en cualquier
-paso ejecutas node scripts/rollback.js para volver al estado anterior y
-revisas los logs para entender que paso. Las migraciones nunca deben
-ejecutarse dos veces sobre la misma base: la segunda corrida corrompe las
-tablas de forma irreversible.
+Pasos, en orden:
+
+1. Corre los tests: `pnpm test`.
+2. Corre el build: `pnpm build`. No sigas hasta que ambos terminen sin errores.
+3. Respalda la base: `node scripts/backup.js`.
+4. Verifica que `API_TOKEN` este configurado en el entorno; sin el token el servidor rechaza todas las escrituras con 401.
+5. Ejecuta las migraciones: `node scripts/migrate.js`. Nunca dos veces sobre la misma base: la segunda corrida corrompe las tablas.
+6. Publica: `node scripts/deploy.js`.
+7. Avisa en el canal del equipo que el despliegue termino.
+
+Si algo falla en cualquier paso, ejecuta `node scripts/rollback.js` y revisa los logs.
 
 ## Monitoreo
 
 Despues del despliegue, mira el dashboard de Grafana
 (`https://grafana.interno/deploys`) durante 15 minutos. Si la tasa de
-errores supera el 2%, ejecuta el rollback de inmediato.
+errores supera el 2%, ejecuta el rollback de inmediato. Para configurar
+los paneles de Grafana, ver `docs/grafana.md`.
 
-#### Alertas criticas
+## Estilo de mensajes de commit
 
-Si llega una alerta de PagerDuty durante la ventana de monitoreo, el
-rollback es obligatorio aunque las metricas se vean bien.
+Los mensajes de commit siguen conventional commits: `feat:`, `fix:`,
+`chore:`, con el scope entre parentesis y la descripcion en minuscula.
+El subject no supera los 70 caracteres y el body explica el porque del
+cambio, no el como. Los breaking changes llevan `BREAKING CHANGE:` en el
+footer. Nunca uses "WIP" como subject: describi el diff objetivamente.
 
-## Checklist rapida
+## Configuracion del editor
 
-- Tests y build verdes.
-- Backup hecho.
-- `API_TOKEN` configurado.
-- Migraciones una sola vez.
-- 15 minutos de dashboard tras publicar.
+El equipo usa VSCode con format-on-save activado y la extension de
+ESLint. El archivo `.vscode/settings.json` del repo ya trae la
+configuracion; no lo pises con settings personales. Para los que usan
+otros editores, el `.editorconfig` cubre indentacion y line endings.
 
 ## Historia
 

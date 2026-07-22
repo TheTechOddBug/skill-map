@@ -19,9 +19,11 @@
  * schema `$ref`s the canonical findings envelope (the finder routing
  * signal) and narrows `findings[].type` to the const `'structure'`.
  *
- * Ships `stability: 'experimental'`: DISABLED by default (wave-1 birth
- * convention; graduate once the prompt proves itself). Enable with
- * `sm plugins enable core/ai-structure-analyzer`.
+ * Ships `stability: 'stable'`: ENABLED by default (graduated
+ * 2026-07-22 after the live playground test: wall-of-text, buried
+ * constraint, examples-before-rules and heading-skip all found, the
+ * checklist and narrative controls respected); disable with
+ * `sm plugins disable core/ai-structure-analyzer`.
  */
 
 import type { IAnalyzer, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
@@ -33,8 +35,9 @@ export const aiStructureAnalyzer: IBuiltInManifest<IAnalyzer> = {
   kind: 'analyzer',
   description:
     'Flags content that is easy to miss where it sits: key rules buried at the bottom, walls of text, examples before the rule they show, so what matters gets read first.',
-  // Experimental: ships disabled until the prompt proves itself.
-  stability: 'experimental',
+  // Stable: enabled by default (graduated 2026-07-22 after the live
+  // playground test; the operator can disable it).
+  stability: 'stable',
   mode: 'probabilistic',
   // ADVISORY wall-clock estimate (Decision #139: never arms a TTL); a
   // single-node judgment is a light pass on a mid-tier model.
