@@ -440,11 +440,12 @@
                         : texts.aiActions.groupTitles.standalone
                     }}</span>
                     <p-button
-                      [label]="launcherAllLabel(group.id)"
+                      [label]="texts.aiActions.runAll"
                       size="small"
                       [text]="true"
+                      styleClass="inspector__ai-actions-run-all"
                       [pTooltip]="group.id === 'finders' ? texts.aiActions.allFindersTooltip : texts.aiActions.allStandaloneTooltip"
-                      tooltipPosition="left"
+                      tooltipPosition="right"
                       appendTo="body"
                       (onClick)="onLauncherAllGroup(group.id)"
                       [attr.data-testid]="'inspector-ai-action-launch-all-' + group.id"

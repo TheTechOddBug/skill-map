@@ -846,15 +846,22 @@
   align-items: center;
 }
 
-/* Group header line: muted uppercase title left, its type-scoped ALL as
-   a quiet text button on the right edge. */
+/* Group header line: muted uppercase title with its "(run all)" link
+   right after it (user pick 2026-07-23, replacing the right-edge ALL
+   buttons). */
 .inspector__ai-actions-group-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+  gap: 0.15rem;
   border-bottom: 1px solid var(--p-content-border-color);
   padding-bottom: 0.1rem;
+}
+
+/* The run-all link matches the title's quiet scale: no button chrome,
+   just slightly-accented small text. */
+.inspector__ai-actions-group-head .inspector__ai-actions-run-all {
+  padding: 0 0.25rem;
+  font-size: 0.68rem;
 }
 
 .inspector__ai-actions-group-title {

@@ -73,12 +73,13 @@ export const INSPECTOR_VIEW_TEXTS = {
    * deterministic "Findings" section above (analyzer issues).
    */
   aiActions: {
-    /** The ALL launcher button: queue every finder + standalone for the node. */
-    /** Single-group card: the bare label; both groups present: type-qualified. */
-    all: 'ALL',
-    allFinders: 'ALL finders',
+    /**
+     * The run-all affordance: a quiet parenthesised link right after each
+     * group title (user pick 2026-07-23, replacing the "ALL finders" /
+     * "ALL standalone" buttons). Queues every entry of ITS group only.
+     */
+    runAll: '(run all)',
     allFindersTooltip: 'Queue every finder on this node at once.',
-    allStandalone: 'ALL standalone',
     allStandaloneTooltip: 'Queue every standalone action on this node at once.',
     /**
      * Automatic toggle (Step 16): when on, one click on a finder button

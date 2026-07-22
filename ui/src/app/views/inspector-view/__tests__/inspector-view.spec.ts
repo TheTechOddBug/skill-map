@@ -2272,8 +2272,8 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     expect(
       dom.querySelector('[data-testid="inspector-ai-actions-launchers-row-standalone"]'),
     ).not.toBeNull();
-    // Both rows present: the ALL buttons are type-qualified (user call
-    // 2026-07-22); with a single group the label stays a bare "ALL".
+    // Each group header carries its quiet "(run all)" link right after
+    // the title (user pick 2026-07-23, replacing the ALL buttons).
     const allFinders = dom.querySelector(
       '[data-testid="inspector-ai-action-launch-all-finders"]',
     );
@@ -2282,8 +2282,8 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     );
     expect(allFinders).not.toBeNull();
     expect(allStandalone).not.toBeNull();
-    expect(allFinders!.textContent).toContain('ALL finders');
-    expect(allStandalone!.textContent).toContain('ALL standalone');
+    expect(allFinders!.textContent).toContain('(run all)');
+    expect(allStandalone!.textContent).toContain('(run all)');
     // The button LABEL is always the kind (short name); the Detect/Fix
     // state rides `data-action` + the icon, not the label (user call
     // 2026-07-18).
@@ -2306,7 +2306,7 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     expect(dom.querySelector('[data-testid="inspector-ai-actions-list"]')).toBeNull();
   });
 
-  it('a single-group card keeps the bare ALL label', async () => {
+  it('a single-group card keeps the same "(run all)" link (no group-qualified label)', async () => {
     const { fixture } = await bootAiActions({
       probs: makeProbExtensions({
         finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'] })],
@@ -2316,8 +2316,7 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
       '[data-testid="inspector-ai-action-launch-all-finders"]',
     ) as HTMLElement;
     expect(all).not.toBeNull();
-    expect(all.textContent).toContain('ALL');
-    expect(all.textContent).not.toContain('ALL finders');
+    expect(all.textContent).toContain('(run all)');
   });
 
   it('each ALL button queues ONLY its own type', async () => {

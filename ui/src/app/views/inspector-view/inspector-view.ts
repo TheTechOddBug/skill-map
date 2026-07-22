@@ -841,18 +841,6 @@ export class InspectorView implements OnInit {
    * the former combined ALL so a file-editing action can never land
    * between two finders of the same batch.
    */
-  /**
-   * ALL-button label: bare "ALL" when the card shows a single group,
-   * type-qualified ("ALL finders" / "ALL standalone") when both rows are
-   * present (user call 2026-07-22).
-   */
-  protected launcherAllLabel(groupId: 'finders' | 'standalone'): string {
-    if (this.aiActionLauncherGroups().length < 2) return this.texts.aiActions.all;
-    return groupId === 'finders'
-      ? this.texts.aiActions.allFinders
-      : this.texts.aiActions.allStandalone;
-  }
-
   protected onLauncherAllGroup(groupId: 'finders' | 'standalone'): void {
     void (async (): Promise<void> => {
       const group = this.aiActionLauncherGroups().find((g) => g.id === groupId);
