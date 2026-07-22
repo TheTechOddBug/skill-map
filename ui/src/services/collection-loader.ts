@@ -49,6 +49,7 @@
 
 import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { debounceTime, filter } from 'rxjs';
 
 import type {
   INodeView,
@@ -67,6 +68,13 @@ import { WsEventStreamService } from './ws-event-stream';
 
 /** Debounce (ms) collapsing a burst of selection checkbox clicks into one fetch. */
 const SELECTION_FETCH_DEBOUNCE_MS = 150;
+
+/**
+ * Debounce for the `job.completed`-driven corpus refresh: an ALL run
+ * drains several records in a burst; one trailing reload is enough (the
+ * server folds are read-time, the last reload sees everything).
+ */
+const JOB_COMPLETED_REFRESH_DEBOUNCE_MS = 500;
 
 @Injectable({ providedIn: 'root' })
 export class CollectionLoaderService {
@@ -207,6 +215,24 @@ export class CollectionLoaderService {
     // subscription never fires.
     this.wsEvents.scanCompleted$
       .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        void this.load();
+      });
+
+    // A completed job lands findings / summaries / tag write-throughs
+    // whose read-time folds ride the node corpus (the card's aggregate
+    // severity chips fold fresh open findings in on `/api/scan` /
+    // `/api/branch`), so the corpus must refresh on `job.completed` too,
+    // NOT only on scans (user report 2026-07-22: AI-action warnings
+    // missing from the card until an F5). Debounced: a burst of records
+    // (an ALL run draining) coalesces into one reload, and `load()`
+    // itself coalesces concurrent refreshes.
+    this.wsEvents.jobEvents$
+      .pipe(
+        filter((e) => e.type === 'job.completed'),
+        debounceTime(JOB_COMPLETED_REFRESH_DEBOUNCE_MS),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe(() => {
         void this.load();
       });

@@ -98,6 +98,8 @@ function makeWsStub(
     events$: EMPTY,
     scanCompleted$: scanCompleted$.asObservable(),
     sidecarBumped$: sidecarBumped$ ? sidecarBumped$.asObservable() : EMPTY,
+    // Consumed by the job-completed corpus refresh (fold freshness).
+    jobEvents$: EMPTY,
     connectionState,
     stableConnected,
   } as unknown as WsEventStreamService;
