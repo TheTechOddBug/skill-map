@@ -1,5 +1,23 @@
 # skill-map
 
+## 0.89.0-rc.4
+
+### Minor Changes
+
+- Two new built-in probabilistic finders split the security lane: `core/ai-security-analyzer` finds hygiene problems the author fixes (plaintext credentials, piped-to-shell installs, unguarded destructive commands, over-broad permissions), while `core/ai-suspicion-analyzer` flags content designed to manipulate AI agents (instruction overrides, human-invisible instructions, purpose-foreign exfiltration) and never gets a fixer by design. Both ship stable and enabled after live playground passes.
+
+  ## User-facing
+
+  **Two new AI security checks, on by default.** One finds security slip-ups in your files (pasted credentials, risky commands), the other flags content that tries to manipulate an AI agent (hidden instructions, data-leak requests). Findings appear alongside the other AI checks.
+
+### Patch Changes
+
+- The inspector's AI actions launcher replaces the right-edge "ALL finders" / "ALL standalone" header buttons with a quiet parenthesised "(run all)" text link right after each group title; same handler and testids, each link still queues only its own group, and the conditional bare-vs-qualified ALL label logic is removed.
+
+  ## User-facing
+
+  **Run-all is now a quiet link.** The launcher's ALL buttons are now a small (run all) link next to each group title, Finders and Standalone. Each link still queues every action of its own group only.
+
 ## 0.89.0-rc.3
 
 ### Minor Changes
