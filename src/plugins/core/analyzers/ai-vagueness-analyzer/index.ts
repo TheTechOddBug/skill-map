@@ -19,9 +19,10 @@
  * schema `$ref`s the canonical findings envelope (the finder routing
  * signal) and narrows `findings[].type` to the const `'vagueness'`.
  *
- * Ships `stability: 'experimental'`: DISABLED by default (wave-1 birth
- * convention; graduate once the prompt proves itself). Enable with
- * `sm plugins enable core/ai-vagueness-analyzer`.
+ * Ships `stability: 'stable'`: ENABLED by default (graduated
+ * 2026-07-22 after the live playground test: six seeded vague
+ * directives found, controls respected, fixes landed end to end);
+ * disable with `sm plugins disable core/ai-vagueness-analyzer`.
  */
 
 import type { IAnalyzer, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
@@ -33,8 +34,9 @@ export const aiVaguenessAnalyzer: IBuiltInManifest<IAnalyzer> = {
   kind: 'analyzer',
   description:
     'Flags instructions too vague to follow: "handle it properly", formats never specified, thresholds with no number, so every directive says exactly what to do.',
-  // Experimental: ships disabled until the prompt proves itself.
-  stability: 'experimental',
+  // Stable: enabled by default (graduated 2026-07-22 after the live
+  // playground test; the operator can disable it).
+  stability: 'stable',
   mode: 'probabilistic',
   // ADVISORY wall-clock estimate (Decision #139: never arms a TTL); a
   // single-node judgment is a light pass on a mid-tier model.

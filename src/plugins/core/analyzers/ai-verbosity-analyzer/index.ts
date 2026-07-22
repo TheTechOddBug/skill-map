@@ -19,9 +19,10 @@
  * schema `$ref`s the canonical findings envelope (the finder routing
  * signal) and narrows `findings[].type` to the const `'verbosity'`.
  *
- * Ships `stability: 'experimental'`: DISABLED by default (wave-1 birth
- * convention; graduate once the prompt proves itself). Enable with
- * `sm plugins enable core/ai-verbosity-analyzer`.
+ * Ships `stability: 'stable'`: ENABLED by default (graduated
+ * 2026-07-22, the first of the five optimization pairs to prove its
+ * prompt in the live playground); the operator can disable it with
+ * `sm plugins disable core/ai-verbosity-analyzer`.
  */
 
 import type { IAnalyzer, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
@@ -33,8 +34,9 @@ export const aiVerbosityAnalyzer: IBuiltInManifest<IAnalyzer> = {
   kind: 'analyzer',
   description:
     'Flags wording that adds length but not meaning: filler phrases, empty hedging, over-explaining the obvious, so the file reads faster and costs fewer tokens. Careful: the fix can lose information, review its edits.',
-  // Experimental: ships disabled until the prompt proves itself.
-  stability: 'experimental',
+  // Stable: enabled by default (graduated 2026-07-22 after the live
+  // playground test; the operator can disable it).
+  stability: 'stable',
   mode: 'probabilistic',
   // ADVISORY wall-clock estimate (Decision #139: never arms a TTL); a
   // single-node judgment is a light pass on a mid-tier model.

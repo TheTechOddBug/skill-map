@@ -16,9 +16,9 @@
  * Structure-as-truth siblings (`prompt.md` + `report.schema.json`) are
  * inlined onto the emitted manifest by the built-ins codegen.
  *
- * Ships `stability: 'experimental'`: DISABLED by default (wave-1 birth
- * convention, in lock-step with its finder). Enable with
- * `sm plugins enable core/ai-vagueness-action`.
+ * Ships `stability: 'stable'`: ENABLED by default (graduated
+ * 2026-07-22 in lock-step with its finder after the live playground
+ * test); disable with `sm plugins disable core/ai-vagueness-action`.
  */
 
 import type { IAction, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
@@ -30,8 +30,9 @@ export const aiVaguenessAction: IBuiltInManifest<IAction> = {
   kind: 'action',
   description:
     'Fixes the vague instructions a review found: rewrites each one into something concrete and checkable, and asks you when only you know what was meant.',
-  // Experimental: ships disabled until the prompt proves itself.
-  stability: 'experimental',
+  // Stable: enabled by default (graduated 2026-07-22 after the live
+  // playground test; the operator can disable it).
+  stability: 'stable',
   mode: 'probabilistic',
   // ADVISORY wall-clock estimate (Decision #139: never arms a TTL); a
   // single-node fix pass on a mid-tier model.
