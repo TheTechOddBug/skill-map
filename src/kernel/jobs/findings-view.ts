@@ -74,6 +74,10 @@ export function isFindingShown(
   isSuppressed: TFindingSuppressedTest,
 ): boolean {
   if (isSuppressed(finding)) return flags.dismissed;
+  // Row-grain dismissal (`resolution = 'dismissed'`, 2026-07-22): rides
+  // the SAME dismissed bucket as the class suppression; the two hide
+  // mechanisms are one concept to the operator.
+  if (finding.resolution === 'dismissed') return flags.dismissed;
   if (finding.resolution === 'fixed') return flags.fixed;
   if (bucketFilterActive(flags)) return flags.stale && finding.stale;
   return true;
@@ -114,7 +118,7 @@ export function countDismissedHidden(
   hidden: readonly IFindingRecord[],
   isSuppressed: TFindingSuppressedTest,
 ): number {
-  return hidden.filter(isSuppressed).length;
+  return hidden.filter((f) => isSuppressed(f) || f.resolution === 'dismissed').length;
 }
 
 /**
@@ -126,5 +130,7 @@ export function countFixedHidden(
   hidden: readonly IFindingRecord[],
   isSuppressed: TFindingSuppressedTest,
 ): number {
-  return hidden.filter((f) => !isSuppressed(f) && f.resolution === 'fixed').length;
+  return hidden.filter(
+    (f) => !isSuppressed(f) && f.resolution === 'fixed',
+  ).length;
 }

@@ -833,6 +833,7 @@ export class StaticDataSource implements IDataSourcePort {
     _nodePath: string,
     _extensionId: string,
     _autoFix = false,
+    _findingIds?: readonly number[],
   ): Promise<IJobSubmittedEnvelopeApi> {
     throw new DataSourceError(
       'demo-readonly',
@@ -865,6 +866,13 @@ export class StaticDataSource implements IDataSourcePort {
     throw new DataSourceError(
       'demo-readonly',
       'Resolving findings is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async reopenFinding(): Promise<void> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Finding actions are not available in demo mode (static bundle is immutable).',
     );
   }
 

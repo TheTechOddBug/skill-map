@@ -183,17 +183,18 @@ interface ISubmitResult {
 
 async function submit(
   proj: IProject,
-  opts: { node?: string; all?: boolean; json?: boolean },
+  opts: { node?: string; all?: boolean; json?: boolean; extension?: string; finding?: number[] },
 ): Promise<ISubmitResult> {
   return withCwd(proj.root, async () => {
     const cap = captureContext();
     const cmd = new JobSubmitCommand();
-    cmd.extension = 'ai-redundancy-action';
+    cmd.extension = opts.extension ?? 'ai-redundancy-action';
     cmd.node = opts.node;
     cmd.all = opts.all ?? false;
     cmd.force = false;
     cmd.ttl = undefined;
     cmd.priority = undefined;
+    if (opts.finding !== undefined) cmd.finding = opts.finding.map(String);
     cmd.json = opts.json ?? false;
     cmd.db = undefined;
     const code = await run(cmd, cap);
@@ -358,5 +359,102 @@ describe('sm jobs submit, fixer supersede', () => {
     const jobs = await listJobs(proj);
     strictEqual(jobs.find((j) => j.id === firstId)?.status, 'cancelled');
     strictEqual(jobs.filter((j) => j.status === 'queued').length, 1);
+  });
+});
+
+describe('sm jobs submit, finding-subset targeting (spec §Finding-subset targeting)', () => {
+  it('disjoint subsets coexist as independent queued jobs, each frozen', async () => {
+    const proj = await setupProject([NOTE]);
+    const idA = await seedFinding(proj, NOTE, 'repeat A');
+    const idB = await seedFinding(proj, NOTE, 'repeat B');
+
+    strictEqual((await submit(proj, { node: NOTE, finding: [idA] })).code, 0);
+    strictEqual((await submit(proj, { node: NOTE, finding: [idB] })).code, 0);
+
+    const queued = (await listJobs(proj)).filter((j) => j.status === 'queued');
+    strictEqual(queued.length, 2, 'both subset jobs queued, nothing superseded');
+    const sets = queued.map((j) => JSON.stringify(j.findingIds)).sort();
+    strictEqual(sets[0], JSON.stringify([idA]));
+    strictEqual(sets[1], JSON.stringify([idB]));
+  });
+
+  it('an overlapping subset supersedes the stale sibling; whole-node supersedes every subset', async () => {
+    const proj = await setupProject([NOTE]);
+    const idA = await seedFinding(proj, NOTE, 'repeat A');
+    const idB = await seedFinding(proj, NOTE, 'repeat B');
+
+    strictEqual((await submit(proj, { node: NOTE, finding: [idA] })).code, 0);
+    // [A, B] overlaps [A] with a different rendered set -> supersede.
+    strictEqual((await submit(proj, { node: NOTE, finding: [idA, idB] })).code, 0);
+    let jobs = await listJobs(proj);
+    strictEqual(jobs.filter((j) => j.status === 'queued').length, 1);
+    strictEqual(jobs.filter((j) => j.status === 'cancelled').length, 1);
+
+    // A whole-node submit (no subset) overlaps everything. A third
+    // finding first: with only [A, B] open, the whole-node render would
+    // be byte-identical to the queued [A, B] job and correctly refuse
+    // as a duplicate (same contentHash); the new finding re-keys it.
+    await seedFinding(proj, NOTE, 'repeat C');
+    strictEqual((await submit(proj, { node: NOTE })).code, 0);
+    jobs = await listJobs(proj);
+    const queued = jobs.filter((j) => j.status === 'queued');
+    strictEqual(queued.length, 1);
+    strictEqual(queued[0]!.findingIds, null, 'the survivor is the whole-node job');
+    strictEqual(jobs.filter((j) => j.status === 'cancelled').length, 2);
+  });
+
+  it('a RUNNING disjoint subset blocks nothing; a running overlap refuses (exit 3)', async () => {
+    const proj = await setupProject([NOTE]);
+    const idA = await seedFinding(proj, NOTE, 'repeat A');
+    const idB = await seedFinding(proj, NOTE, 'repeat B');
+
+    strictEqual((await submit(proj, { node: NOTE, finding: [idA] })).code, 0);
+    await claim(proj); // [A] now running
+
+    const disjoint = await submit(proj, { node: NOTE, finding: [idB] });
+    strictEqual(disjoint.code, 0, `disjoint submit must queue: ${disjoint.err}`);
+
+    const overlap = await submit(proj, { node: NOTE, finding: [idA, idB] });
+    strictEqual(overlap.code, 3, 'overlapping a running job refuses');
+  });
+
+  it('the injected section narrows to the frozen subset', async () => {
+    const proj = await setupProject([NOTE]);
+    const idA = await seedFinding(proj, NOTE, 'only-this-one');
+    await seedFinding(proj, NOTE, 'not-this-one');
+
+    strictEqual((await submit(proj, { node: NOTE, finding: [idA] })).code, 0);
+    const job = (await listJobs(proj)).find((j) => j.status === 'queued')!;
+    const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+    try {
+      await adapter.init();
+      const content = await adapter.jobs.getContent(job.contentHash);
+      ok(content !== null && content.includes('only-this-one'), 'subset finding injected');
+      ok(!content!.includes('not-this-one'), 'other finding excluded');
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('an all-unmatched subset hits the no-findings refusal (exit 2)', async () => {
+    const proj = await setupProject([NOTE]);
+    await seedFinding(proj, NOTE, 'repeat A');
+    const r = await submit(proj, { node: NOTE, finding: [99999] });
+    strictEqual(r.code, 2, r.err);
+    match(r.err, /no .*findings/i);
+  });
+
+  it('--finding on a non-fixer target refuses as a usage error (exit 2)', async () => {
+    const proj = await setupProject([NOTE]);
+    const r = await submit(proj, { node: NOTE, extension: 'ai-summarizer-action', finding: [1] });
+    strictEqual(r.code, 2, r.err);
+    match(r.err, /--finding/);
+  });
+
+  it('--finding on an issues-fixer (deterministic analyzer) refuses as a usage error (exit 2)', async () => {
+    const proj = await setupProject([NOTE]);
+    const r = await submit(proj, { node: NOTE, extension: 'ai-reference-action', finding: [1] });
+    strictEqual(r.code, 2, r.err);
+    match(r.err, /--finding/);
   });
 });

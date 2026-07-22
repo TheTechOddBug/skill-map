@@ -34,6 +34,8 @@ import type {
   IFindingsListFilter,
   IFindingsWriteIntent,
   TFindingResolveOutcome,
+  TFindingRowDismissOutcome,
+  TFindingReopenOutcome,
 } from '../../types/storage.js';
 import type { Severity } from '../../types.js';
 import {
@@ -52,6 +54,8 @@ export type {
   IFindingsListFilter,
   IFindingsWriteIntent,
   TFindingResolveOutcome,
+  TFindingRowDismissOutcome,
+  TFindingReopenOutcome,
 } from '../../types/storage.js';
 
 type TDbOrTx = Kysely<IDatabase> | Transaction<IDatabase>;
@@ -563,6 +567,80 @@ export async function resolveFindingByHuman(
   // The update just landed, so the re-read always finds the row; the
   // defensive `not-found` keeps the return total.
   return finding ? { kind: 'resolved', finding } : { kind: 'not-found' };
+}
+
+/**
+ * `sm findings dismiss <id>` (ROW grain, 2026-07-22): mark a finding
+ * `dismissed` by the operator. Sets `resolution = 'dismissed'`,
+ * `resolution_actor = 'human'`, `resolution_by = NULL`, the optional
+ * `note`, `resolution_at = nowMs`. No sidecar, no consent: a row state
+ * that hides under the dismissed bucket and dies with the row when the
+ * finder re-judges. A row already `dismissed` refuses
+ * (`already-dismissed`); unknown id is `not-found`. A `fixed` /
+ * `human-decision` row CAN be dismissed (the operator overrides the
+ * fixer's state with their own judgment).
+ */
+export async function dismissFindingByHuman(
+  db: TDbOrTx,
+  id: number,
+  note: string | null,
+  nowMs: number,
+): Promise<TFindingRowDismissOutcome> {
+  const existing = await db
+    .selectFrom('state_findings')
+    .select(['id', 'resolution'])
+    .where('id', '=', id)
+    .executeTakeFirst();
+  if (!existing) return { kind: 'not-found' };
+  if (existing.resolution === 'dismissed') return { kind: 'already-dismissed' };
+  await db
+    .updateTable('state_findings')
+    .set({
+      resolution: 'dismissed',
+      resolutionActor: 'human',
+      resolutionBy: null,
+      resolutionNote: note,
+      resolutionAt: nowMs,
+    })
+    .where('id', '=', id)
+    .execute();
+  const finding = await getFindingById(db, id);
+  return finding ? { kind: 'dismissed', finding } : { kind: 'not-found' };
+}
+
+/**
+ * `sm findings reopen <id>`: clear ANY resolution back to open (the
+ * inverse of the row-grain states: `dismissed`, `fixed`,
+ * `human-decision`). Refuses an already-open row (`already-open`);
+ * unknown id is `not-found`. Class suppressions are untouched (lift
+ * those with `sm findings undismiss`).
+ */
+export async function reopenFinding(
+  db: TDbOrTx,
+  id: number,
+  nowMs: number,
+): Promise<TFindingReopenOutcome> {
+  void nowMs;
+  const existing = await db
+    .selectFrom('state_findings')
+    .select(['id', 'resolution'])
+    .where('id', '=', id)
+    .executeTakeFirst();
+  if (!existing) return { kind: 'not-found' };
+  if (existing.resolution === null) return { kind: 'already-open' };
+  await db
+    .updateTable('state_findings')
+    .set({
+      resolution: null,
+      resolutionActor: null,
+      resolutionBy: null,
+      resolutionNote: null,
+      resolutionAt: null,
+    })
+    .where('id', '=', id)
+    .execute();
+  const finding = await getFindingById(db, id);
+  return finding ? { kind: 'reopened', finding } : { kind: 'not-found' };
 }
 
 /**

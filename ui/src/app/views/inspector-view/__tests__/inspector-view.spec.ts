@@ -63,6 +63,7 @@ type IStubDataSource = IDataSourcePort & {
   submitNodeJob: ReturnType<typeof vi.fn>;
   cancelJob: ReturnType<typeof vi.fn>;
   dismissFinding: ReturnType<typeof vi.fn>;
+  reopenFinding: ReturnType<typeof vi.fn>;
   resolveFinding: ReturnType<typeof vi.fn>;
   undismissFinding: ReturnType<typeof vi.fn>;
   deleteFinding: ReturnType<typeof vi.fn>;
@@ -191,6 +192,7 @@ function makeStubDataSource(): IStubDataSource {
     }),
     cancelJob: vi.fn().mockResolvedValue(undefined),
     dismissFinding: vi.fn().mockResolvedValue(undefined),
+    reopenFinding: vi.fn().mockResolvedValue(undefined),
     resolveFinding: vi.fn().mockResolvedValue(undefined),
     undismissFinding: vi.fn().mockResolvedValue(undefined),
     deleteFinding: vi.fn().mockResolvedValue(undefined),
@@ -2164,6 +2166,8 @@ function makeProbEntry(overrides: Partial<IProbExtensionEntryApi> = {}): IProbEx
     // the Fix state fixtures additionally pass `hasOpenFindings: true`.
     fixerIds: [],
     hasOpenFindings: false,
+    // No active fixer job: every row's fix affordance idle.
+    fixerBusy: null,
     ...overrides,
   };
 }
@@ -2333,14 +2337,24 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
       dom.querySelector('[data-testid="inspector-finding-fix-12"] button') as HTMLButtonElement
     ).click();
     await flush(fixture);
-    // Chains all fixers, autoFix false, and never submits the finder itself.
-    expect(dataSource.submitNodeJob).toHaveBeenCalledWith(node.path, 'core/todo-fixer', false);
-    expect(dataSource.submitNodeJob).toHaveBeenCalledWith(node.path, 'core/todo-fixer-2', false);
+    // Chains all fixers, autoFix false, TARGETING ONLY THIS ROW's
+    // finding (user decision 2026-07-22: per-finding fix jobs), and
+    // never submits the finder itself.
+    expect(dataSource.submitNodeJob).toHaveBeenCalledWith(node.path, 'core/todo-fixer', false, [12]);
+    expect(dataSource.submitNodeJob).toHaveBeenCalledWith(node.path, 'core/todo-fixer-2', false, [12]);
     expect(dataSource.submitNodeJob).not.toHaveBeenCalledWith(
       node.path,
       'core/todo-finder',
       expect.anything(),
     );
+    // No flicker (user report 2026-07-22): the submit round-trip ended
+    // but the refetched entry does not yet report the fixer job; the
+    // optimistic overlay keeps THIS row's bolt disabled until a payload
+    // confirms, while the sibling row stays free.
+    expect(
+      (dom.querySelector('[data-testid="inspector-finding-fix-12"] button') as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
   });
 
   it('the header summarize ? queues the summarizer; the summarizer never rides the launcher row', async () => {
@@ -2502,6 +2516,35 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     expect(mark!.textContent).toContain('needs decision');
     expect(dom.querySelector('[data-testid="inspector-finding-resolve-12"]')).not.toBeNull();
     expect(dom.querySelector('[data-testid="inspector-finding-dismiss-12"]')).not.toBeNull();
+  });
+
+  it('a subset fixer job disables ONLY its row; the sibling stays clickable', async () => {
+    // Per-finding fix (user decision 2026-07-22): the entry reports an
+    // active fixer job frozen to finding 12; row 30 (same finder) must
+    // stay fully actionable.
+    const { fixture } = await bootAiActions({
+      findings: makeFindingsEnvelope([makeFinding(), makeFinding({ id: 30 })]),
+      probs: makeProbExtensions({
+        finders: [
+          makeProbEntry({
+            fixerIds: ['core/todo-fixer'],
+            hasOpenFindings: true,
+            state: 'queued',
+            jobId: 'job-9',
+            fixerBusy: { all: false, findingIds: [12] },
+          }),
+        ],
+      }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    const busyBtn = dom.querySelector(
+      '[data-testid="inspector-finding-fix-12"] button',
+    ) as HTMLButtonElement;
+    const freeBtn = dom.querySelector(
+      '[data-testid="inspector-finding-fix-30"] button',
+    ) as HTMLButtonElement;
+    expect(busyBtn.disabled).toBe(true);
+    expect(freeBtn.disabled).toBe(false);
   });
 
   it('an active fix disables the row: wrench, resolve and dismiss all sit disabled', async () => {
@@ -3017,27 +3060,23 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     expect(dataSource.dismissFinding).toHaveBeenCalledWith(node.path, 12, {});
   });
 
-  it('a consent-gated dismiss parks a retry behind the shared dialog and retries on accept', async () => {
+  it('the row X dismisses ONLY this finding: no consent, row-grain body', async () => {
+    // 2026-07-22 user decision: the X is a resolution state on the row,
+    // not the class suppression, so no `.sm` write and no consent gate.
     const { fixture, dataSource, node } = await bootAiActions({
       findings: makeFindingsEnvelope([makeFinding()]),
     });
-    dataSource.dismissFinding.mockRejectedValueOnce(
-      new DataSourceError('confirm-required', 'consent required', { key: 'allowEditSmFiles' }),
-    );
     (
       fixture.nativeElement.querySelector(
         '[data-testid="inspector-finding-dismiss-12"] button',
       ) as HTMLButtonElement
     ).click();
     await flush(fixture);
-
-    // The gate parked the retry behind the SHARED consent dialog.
     const dispatcher = TestBed.inject(ActionDispatchService);
-    expect(dispatcher.consentOpen()).toBe(true);
-    dispatcher.resolveConsent({ accepted: true, always: false });
-    await flush(fixture);
-    expect(dataSource.dismissFinding).toHaveBeenLastCalledWith(node.path, 12, { confirm: true });
+    expect(dispatcher.consentOpen()).toBe(false);
+    expect(dataSource.dismissFinding).toHaveBeenCalledWith(node.path, 12, {});
   });
+
 
   it('the check mark resolves a finding (fixed by the operator)', async () => {
     const { fixture, dataSource, node } = await bootAiActions({

@@ -56,6 +56,27 @@ export type { IPruneResult } from '../../types/storage.js';
 /** The queued/running statuses the duplicate pre-check and index cover. */
 const ACTIVE_STATUSES: readonly JobStatus[] = ['queued', 'running'];
 
+/**
+ * Parse the frozen `finding_ids_json` column (JSON int array; NULL =
+ * whole-node targeting). Defensive: a malformed blob degrades to
+ * whole-node rather than throwing on a read path.
+ */
+function parseFindingIds(raw: string | null): readonly number[] | null {
+  if (raw === null) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return null;
+    return parsed.filter((v): v is number => Number.isInteger(v));
+  } catch {
+    return null;
+  }
+}
+
+/** Serialize a submit row's finding subset for `finding_ids_json`. */
+function findingIdsToJson(ids: readonly number[] | undefined): string | null {
+  return ids === undefined ? null : JSON.stringify([...ids]);
+}
+
 /** Map a `state_jobs` row to the domain `Job` shape. */
 function rowToJob(row: Selectable<IStateJobsTable>): Job {
   return {
@@ -65,6 +86,7 @@ function rowToJob(row: Selectable<IStateJobsTable>): Job {
     extensionKind: row.extensionKind,
     // SQLite has no boolean: the frozen 0/1 column bridges to a runtime flag.
     autoFix: row.autoFix !== 0,
+    findingIds: parseFindingIds(row.findingIdsJson),
     nodeId: row.nodeId,
     contentHash: row.contentHash,
     nonce: row.nonce,
@@ -118,6 +140,7 @@ export async function submitJob(
         extensionVersion: row.extensionVersion,
         extensionKind: row.extensionKind,
         autoFix: row.autoFix ? 1 : 0,
+        findingIdsJson: findingIdsToJson(row.findingIds),
         nodeId: row.nodeId,
         contentHash: row.contentHash,
         nonce: row.nonce,
@@ -168,37 +191,57 @@ export async function submitFixerJob(
   content: IJobContentInput,
 ): Promise<TFixerSubmitOutcome> {
   return db.transaction().execute(async (trx) => {
+    // Overlap gate (spec/job-lifecycle.md §Supersede): the frozen finding
+    // subsets decide which siblings this submit touches. A whole-node job
+    // (NULL set) overlaps everything; two explicit sets overlap when they
+    // share an id; disjoint explicit sets coexist (per-finding fixes are
+    // independent work, user decision 2026-07-22).
+    const newIds = row.findingIds === undefined ? null : new Set(row.findingIds);
+    const overlapsNew = (siblingJson: string | null): boolean => {
+      if (newIds === null) return true;
+      const sibling = parseFindingIds(siblingJson);
+      if (sibling === null) return true;
+      return sibling.some((id) => newIds.has(id));
+    };
+
     const running = await trx
       .selectFrom('state_jobs')
-      .select('id')
+      .select(['id', 'findingIdsJson'])
       .where('extensionId', '=', row.extensionId)
       .where('nodeId', '=', row.nodeId)
       .where('status', '=', 'running')
       .orderBy('claimedAt', 'asc')
-      .limit(1)
-      .executeTakeFirst();
-    if (running) return { outcome: 'running-conflict', runningId: running.id };
+      .execute();
+    const runningOverlap = running.find((r) => overlapsNew(r.findingIdsJson));
+    if (runningOverlap) return { outcome: 'running-conflict', runningId: runningOverlap.id };
 
-    const duplicate = await trx
+    const queued = await trx
       .selectFrom('state_jobs')
-      .select('id')
+      .select(['id', 'contentHash', 'findingIdsJson'])
       .where('extensionId', '=', row.extensionId)
       .where('nodeId', '=', row.nodeId)
       .where('status', '=', 'queued')
-      .where('contentHash', '=', row.contentHash)
-      .limit(1)
-      .executeTakeFirst();
+      .execute();
+    // Same hash implies the same rendered findings section, so a
+    // same-hash sibling is inherently overlapping; the explicit overlap
+    // check is belt and braces.
+    const duplicate = queued.find(
+      (q) => q.contentHash === row.contentHash && overlapsNew(q.findingIdsJson),
+    );
     if (duplicate) return { outcome: 'duplicate', existingId: duplicate.id };
 
-    const superseded = await trx
-      .updateTable('state_jobs')
-      .set({ status: 'cancelled', failureReason: null, finishedAt: row.createdAt })
-      .where('extensionId', '=', row.extensionId)
-      .where('nodeId', '=', row.nodeId)
-      .where('status', '=', 'queued')
-      .where('contentHash', '!=', row.contentHash)
-      .returning('id')
-      .execute();
+    const staleIds = queued
+      .filter((q) => q.contentHash !== row.contentHash && overlapsNew(q.findingIdsJson))
+      .map((q) => q.id);
+    const superseded =
+      staleIds.length === 0
+        ? []
+        : await trx
+            .updateTable('state_jobs')
+            .set({ status: 'cancelled', failureReason: null, finishedAt: row.createdAt })
+            .where('id', 'in', staleIds)
+            .returning('id')
+            .execute();
 
     await trx
       .insertInto('state_job_contents')
@@ -218,6 +261,7 @@ export async function submitFixerJob(
         extensionVersion: row.extensionVersion,
         extensionKind: row.extensionKind,
         autoFix: row.autoFix ? 1 : 0,
+        findingIdsJson: findingIdsToJson(row.findingIds),
         nodeId: row.nodeId,
         contentHash: row.contentHash,
         nonce: row.nonce,

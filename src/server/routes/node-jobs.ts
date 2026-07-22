@@ -85,6 +85,13 @@ interface IJobSubmitBody {
    * (per-job)); CLAMPED to `false` on a non-finder target by the engine.
    */
   autoFix?: boolean;
+  /**
+   * Finding-subset targeting for a findings-branch fixer submit
+   * (`spec/job-lifecycle.md` §Finding-subset targeting): the tray's
+   * per-row fix button sends the single row id so each finding fixes
+   * individually. 400 on any other target.
+   */
+  findingIds?: number[];
 }
 
 const JOB_BODY_SCHEMA = {
@@ -94,6 +101,11 @@ const JOB_BODY_SCHEMA = {
   properties: {
     extension: { type: 'string', minLength: 1 },
     autoFix: { type: 'boolean', default: false },
+    findingIds: {
+      type: 'array',
+      minItems: 1,
+      items: { type: 'integer', minimum: 1 },
+    },
   },
 } as const;
 
@@ -175,6 +187,7 @@ export function registerNodeJobsRoute(app: Hono, deps: INodeJobsRouteDeps): void
       flagTtl: undefined,
       flagPriority: undefined,
       autoFix: body.autoFix ?? false,
+      ...(body.findingIds !== undefined ? { findingIds: body.findingIds } : {}),
     });
     if (!prep.ok) throw prepareErrorToHttp(prep.error, body.extension);
 
@@ -333,39 +346,51 @@ function submitRefusal(
  * Map a `prepareSubmitContext` failure to its HTTP refusal: unknown
  * extension -> 404 (the CLI's exit 5), everything else -> 400
  * `bad-query` (the CLI's exit-2 refusals). The client-supplied id is
- * sanitised before interpolation.
+ * sanitised before interpolation. Lookup-shaped (one formatter per
+ * kind) so the catalog grows without pushing the function over the
+ * complexity cap.
  */
+const PREPARE_ERROR_TO_HTTP: {
+  [K in TPrepareError['kind']]: (
+    error: Extract<TPrepareError, { kind: K }>,
+    extension: string,
+  ) => HTTPException;
+} = {
+  'not-found': (_e, extension) =>
+    new HTTPException(404, { message: tx(SERVER_TEXTS.jobsExtensionNotFound, { extension }) }),
+  deterministic: (e, extension) =>
+    new HTTPException(400, {
+      message: tx(SERVER_TEXTS.jobsExtensionNotProbabilistic, { extension, mode: e.mode }),
+    }),
+  ambiguous: (e, extension) =>
+    new HTTPException(400, {
+      message: tx(SERVER_TEXTS.jobsExtensionAmbiguous, {
+        extension,
+        actionId: e.actionId,
+        analyzerId: e.analyzerId,
+      }),
+    }),
+  'prompt-unresolved': (e, extension) =>
+    new HTTPException(400, {
+      message: tx(SERVER_TEXTS.jobsPromptUnresolved, { extension, detail: e.detail }),
+    }),
+  'report-schema-unresolved': (e, extension) =>
+    new HTTPException(400, {
+      message: tx(SERVER_TEXTS.jobsReportSchemaUnresolved, { extension, detail: e.detail }),
+    }),
+  'finding-ids-unsupported': (_e, extension) =>
+    new HTTPException(400, {
+      message: tx(SERVER_TEXTS.jobsFindingIdsUnsupported, { extension }),
+    }),
+  'invalid-ttl': (e) =>
+    new HTTPException(400, { message: tx(SERVER_TEXTS.jobsConfigInvalid, { detail: e.message }) }),
+  'invalid-priority': (e) =>
+    new HTTPException(400, { message: tx(SERVER_TEXTS.jobsConfigInvalid, { detail: e.message }) }),
+};
+
 function prepareErrorToHttp(error: TPrepareError, extensionInput: string): HTTPException {
   const extension = sanitizeForTerminal(extensionInput);
-  switch (error.kind) {
-    case 'not-found':
-      return new HTTPException(404, {
-        message: tx(SERVER_TEXTS.jobsExtensionNotFound, { extension }),
-      });
-    case 'deterministic':
-      return new HTTPException(400, {
-        message: tx(SERVER_TEXTS.jobsExtensionNotProbabilistic, { extension, mode: error.mode }),
-      });
-    case 'ambiguous':
-      return new HTTPException(400, {
-        message: tx(SERVER_TEXTS.jobsExtensionAmbiguous, {
-          extension,
-          actionId: error.actionId,
-          analyzerId: error.analyzerId,
-        }),
-      });
-    case 'prompt-unresolved':
-      return new HTTPException(400, {
-        message: tx(SERVER_TEXTS.jobsPromptUnresolved, { extension, detail: error.detail }),
-      });
-    case 'report-schema-unresolved':
-      return new HTTPException(400, {
-        message: tx(SERVER_TEXTS.jobsReportSchemaUnresolved, { extension, detail: error.detail }),
-      });
-    case 'invalid-ttl':
-    case 'invalid-priority':
-      return new HTTPException(400, {
-        message: tx(SERVER_TEXTS.jobsConfigInvalid, { detail: error.message }),
-      });
-  }
+  return (
+    PREPARE_ERROR_TO_HTTP[error.kind] as (e: TPrepareError, ext: string) => HTTPException
+  )(error, extension);
 }

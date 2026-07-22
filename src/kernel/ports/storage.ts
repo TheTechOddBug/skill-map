@@ -80,6 +80,8 @@ import type {
   ISummaryRecord,
   ISummaryWriteIntent,
   TFindingResolveOutcome,
+  TFindingRowDismissOutcome,
+  TFindingReopenOutcome,
   TFixerSubmitOutcome,
   THistoryStatsPeriod,
   TJobTransitionOutcome,
@@ -642,6 +644,25 @@ export interface StoragePort {
       note: string | null,
       nowMs: number,
     ): Promise<TFindingResolveOutcome>;
+    /**
+     * `sm findings dismiss <id>` (ROW grain, 2026-07-22): mark the row
+     * `dismissed` by the operator (`resolution = 'dismissed'`, actor
+     * `human`; no sidecar, no consent). Hides under the dismissed
+     * bucket, dies with the row when the finder re-judges. Refuses an
+     * already-dismissed row; the durable class suppression is the
+     * separate `--class` / silence-type path.
+     */
+    dismissByHuman(
+      id: number,
+      note: string | null,
+      nowMs: number,
+    ): Promise<TFindingRowDismissOutcome>;
+    /**
+     * `sm findings reopen <id>`: clear ANY resolution (`dismissed` /
+     * `fixed` / `human-decision`) back to open. Refuses an already-open
+     * row. Class suppressions are untouched (`sm findings undismiss`).
+     */
+    reopen(id: number, nowMs: number): Promise<TFindingReopenOutcome>;
     /**
      * Read one finding by id with the derived `stale` flag. `null` when no
      * row carries the id. Backs `sm findings dismiss <id>`, which loads the

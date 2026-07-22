@@ -143,6 +143,8 @@ import {
   getFindingById,
   listFindings,
   resolveFindingByHuman,
+  dismissFindingByHuman,
+  reopenFinding,
   suppressionsByPath,
 } from './findings.js';
 import {
@@ -429,6 +431,8 @@ export class SqliteStorageAdapter implements StoragePort {
       countStale: () => countStaleFindings(this.db),
       pruneStale: () => deleteStaleFindings(this.db),
       resolveByHuman: (id, note, nowMs) => resolveFindingByHuman(this.db, id, note, nowMs),
+      dismissByHuman: (id, note, nowMs) => dismissFindingByHuman(this.db, id, note, nowMs),
+      reopen: (id, nowMs) => reopenFinding(this.db, id, nowMs),
       get: (id) => getFindingById(this.db, id),
       suppressionsByPath: (paths) => suppressionsByPath(this.db, paths),
       countClearable: (nodeId) => countAllFindings(this.db, nodeId),

@@ -110,6 +110,12 @@ export interface IAiActionsHandle {
   entryState(entry: IProbExtensionEntryApi): 'idle' | 'queued' | 'running';
   /** True while this extension's submit round-trip is in flight. */
   isSubmitting(extensionId: string): boolean;
+  /**
+   * Whether a finding-subset fixer submit round-trip is in flight for
+   * this finder + finding (the per-row bolt's own key, see
+   * `fixerBusyKey`).
+   */
+  isFixerSubmitting(finderId: string, findingId: number): boolean;
   /** True while this extension's stop flow is in flight. */
   isCancelling(extensionId: string): boolean;
   /**
@@ -125,7 +131,11 @@ export interface IAiActionsHandle {
    * finder itself is not queued, only its fixers are, and the button
    * morphs back to Detect once the fixer resolves the open findings.
    */
-  submitFixers(finderId: string, fixerIds: readonly string[]): Promise<void>;
+  submitFixers(
+    finderId: string,
+    fixerIds: readonly string[],
+    findingIds?: readonly number[],
+  ): Promise<void>;
   /** Cancel the entry's active job (the stop companion). */
   stop(entry: IProbExtensionEntryApi): Promise<void>;
   dismissError(): void;
@@ -177,6 +187,16 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
    * clears the other).
    */
   const optimisticIdle = signal<ReadonlySet<string>>(new Set());
+  /**
+   * Optimistic fixer-busy overlay, keyed by finder id: the finding ids
+   * (or `'all'` for a whole-node fix) whose fix jobs were JUST submitted
+   * and not yet reflected by a `fixerBusy` refetch. Bridges the gap
+   * between the submit round-trip ending and the debounced
+   * prob-extensions refetch landing, so the row's bolt never flickers
+   * enabled in between (user report 2026-07-22). Confirmation-only
+   * reconcile, mirror of `optimisticQueued`.
+   */
+  const optimisticFixerBusy = signal<ReadonlyMap<string, 'all' | ReadonlySet<number>>>(new Map());
   const submitting = signal<ReadonlySet<string>>(new Set());
   /** Extension ids with a stop flow in flight (disables the companion). */
   const cancelling = signal<ReadonlySet<string>>(new Set());
@@ -207,7 +227,10 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     findings.set(findingsEnv?.items ?? []);
     counts.set(findingsEnv?.counts ?? null);
     probExtensions.set(probs);
-    if (probs !== null) reconcileOptimistic(probs);
+    if (probs !== null) {
+      reconcileOptimistic(probs);
+      reconcileFixerBusy(probs);
+    }
     // A revealed bucket whose count dropped to zero collapses on its
     // own (user call 2026-07-20: a zero chip must not render, so there
     // would be nothing left to toggle it off with). Transient fetch
@@ -260,6 +283,28 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     if (nextIdle.size !== idle.size) optimisticIdle.set(nextIdle);
   }
 
+  /**
+   * Drop optimistic fixer-busy overlays the server has confirmed: an
+   * entry whose `fixerBusy` now covers the flipped target (all, or every
+   * flipped id) carries the truth itself, so the overlay retires. An
+   * entry absent from the payload keeps its overlay (nothing to compare).
+   */
+  function reconcileFixerBusy(probs: IProbExtensionsApi): void {
+    const overlays = optimisticFixerBusy();
+    if (overlays.size === 0) return;
+    const next = new Map(overlays);
+    for (const entry of [...probs.finders, ...probs.standalone]) {
+      const overlay = next.get(entry.id);
+      if (overlay === undefined) continue;
+      const busy = entry.fixerBusy;
+      if (busy === null) continue;
+      const confirmed =
+        busy.all || (overlay !== 'all' && [...overlay].every((id) => busy.findingIds.includes(id)));
+      if (confirmed) next.delete(entry.id);
+    }
+    if (next.size !== overlays.size) optimisticFixerBusy.set(next);
+  }
+
   /** Optimistic `queued` flip; clears any opposite `idle` flip for the id. */
   function flipToQueued(extensionId: string): void {
     optimisticQueued.update((s) => new Set(s).add(extensionId));
@@ -267,6 +312,20 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
       if (!s.has(extensionId)) return s;
       const next = new Set(s);
       next.delete(extensionId);
+      return next;
+    });
+  }
+
+  /** Optimistic fixer-busy flip for a just-submitted fix (see the signal doc). */
+  function flipFixerBusy(finderId: string, findingIds: readonly number[] | undefined): void {
+    optimisticFixerBusy.update((m) => {
+      const next = new Map(m);
+      const prev = next.get(finderId);
+      if (findingIds === undefined || prev === 'all') {
+        next.set(finderId, 'all');
+      } else {
+        next.set(finderId, new Set([...(prev ?? []), ...findingIds]));
+      }
       return next;
     });
   }
@@ -295,6 +354,7 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
       error.set(null);
       optimisticQueued.set(new Set());
       optimisticIdle.set(new Set());
+      optimisticFixerBusy.set(new Map());
       findingBusy.set(new Set());
       revealedBucket.set(null);
       revealedRows.set([]);
@@ -374,18 +434,21 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
   async function submitFixers(
     finderId: string,
     fixerIds: readonly string[],
+    findingIds?: readonly number[],
   ): Promise<void> {
     const path = deps.node()?.path;
-    if (!path || fixerIds.length === 0 || submitting().has(finderId)) return;
+    // The busy key scopes to the TARGET: a whole-node fix keys the
+    // finder's button; a finding-subset fix (the per-row bolt) keys
+    // `<finderId>#<ids>` so other rows stay clickable and each finding
+    // fixes individually (user decision 2026-07-22).
+    const busyKey = findingIds === undefined ? finderId : fixerBusyKey(finderId, findingIds);
+    if (!path || fixerIds.length === 0 || submitting().has(busyKey)) return;
     error.set(null);
-    // Key the busy state on the FINDER's button (the fixer entries are
-    // not rendered), so the two-state button shows a spinner + disables
-    // during the round-trip. No `queued` flip: the finder is not queued.
-    submitting.update((s) => new Set(s).add(finderId));
+    submitting.update((s) => new Set(s).add(busyKey));
     try {
       for (const fixerId of fixerIds) {
         try {
-          await deps.dataSource.submitNodeJob(path, fixerId, false);
+          await deps.dataSource.submitNodeJob(path, fixerId, false, findingIds);
         } catch (err) {
           // A duplicate fixer job is already active (e.g. a double-click
           // or the global auto-fix hook beat us): harmless, keep chaining.
@@ -393,12 +456,15 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
           throw err;
         }
       }
+      // Optimistic busy overlay until the refetch reflects the queued
+      // fixer job, so the row's bolt never flickers enabled in between.
+      flipFixerBusy(finderId, findingIds);
     } catch (err) {
       recordSubmitError(err);
     } finally {
       submitting.update((s) => {
         const next = new Set(s);
-        next.delete(finderId);
+        next.delete(busyKey);
         return next;
       });
     }
@@ -476,21 +542,16 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
    * and re-runs with the granted flags; the busy marker covers each
    * attempt.
    */
-  async function dismissFinding(
-    finding: IFindingApi,
-    consent: ISmConsentGrant | Record<string, never> = {},
-  ): Promise<void> {
+  async function dismissFinding(finding: IFindingApi): Promise<void> {
+    // ROW-grain default (2026-07-22): a resolution state on this row
+    // only, no sidecar and therefore NO consent handshake.
     const path = deps.node()?.path;
     if (!path || findingBusy().has(finding.id)) return;
     error.set(null);
     setFindingBusy(finding.id, true);
     try {
-      await deps.dataSource.dismissFinding(path, finding.id, consent);
+      await deps.dataSource.dismissFinding(path, finding.id, {});
     } catch (err) {
-      if (!('confirm' in consent) && isSmConsentRequired(err)) {
-        deps.requestSmConsent((grant) => void dismissFinding(finding, grant));
-        return; // busy + refresh settle in finally; the retry re-enters
-      }
       recordSubmitError(err);
     } finally {
       setFindingBusy(finding.id, false);
@@ -498,7 +559,13 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     }
   }
 
-  /** Restore (undismiss) a finding from the revealed dismissed bucket. */
+
+  /**
+   * Restore a finding from the revealed dismissed bucket. Branches on
+   * the hide mechanism: a ROW-dismissed row (resolution `dismissed`)
+   * reopens (no consent); a class-suppressed row lifts its suppression
+   * entry (consent-gated sidecar write).
+   */
   async function restoreFinding(
     finding: IFindingApi,
     consent: ISmConsentGrant | Record<string, never> = {},
@@ -508,6 +575,10 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     error.set(null);
     setFindingBusy(finding.id, true);
     try {
+      if (finding.resolution === 'dismissed') {
+        await deps.dataSource.reopenFinding(path, finding.id);
+        return;
+      }
       await deps.dataSource.undismissFinding(
         path,
         { extension: finding.extensionId, type: finding.type },
@@ -598,6 +669,17 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
       return optimisticIdle().has(entry.id) ? 'idle' : entry.state;
     },
     isSubmitting: (extensionId) => submitting().has(extensionId),
+    isFixerSubmitting: (finderId, findingId) => {
+      if (
+        [...submitting()].some(
+          (key) => key.startsWith(`${finderId}#`) && keyCoversFinding(key, findingId),
+        )
+      ) {
+        return true;
+      }
+      const overlay = optimisticFixerBusy().get(finderId);
+      return overlay !== undefined && (overlay === 'all' || overlay.has(findingId));
+    },
     isCancelling: (extensionId) => cancelling().has(extensionId),
     submit,
     submitFixers,
@@ -612,4 +694,19 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     revealedRows: revealedRows.asReadonly(),
     toggleBucket,
   };
+}
+
+/**
+ * Busy-set key for a finding-subset fixer submit: `<finderId>#<ids>`
+ * (sorted, comma-joined). Scopes the round-trip spinner to the rows the
+ * submit targets instead of the whole finder.
+ */
+function fixerBusyKey(finderId: string, findingIds: readonly number[]): string {
+  return `${finderId}#${[...findingIds].sort((a, b) => a - b).join(',')}`;
+}
+
+/** Whether a busy-set key's id list covers `findingId`. */
+function keyCoversFinding(key: string, findingId: number): boolean {
+  const ids = key.slice(key.indexOf('#') + 1).split(',');
+  return ids.includes(String(findingId));
 }

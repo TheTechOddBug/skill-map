@@ -158,6 +158,8 @@ CREATE TABLE state_jobs (
   -- record transaction commits, independently of the opt-in global
   -- core/auto-fix hook (see spec/job-lifecycle.md §Auto-fix chain (per-job)).
   auto_fix INTEGER NOT NULL DEFAULT 0,
+  -- Finding-subset targeting for fixer jobs (JSON int array; NULL = whole node).
+  finding_ids_json TEXT,
   node_id TEXT NOT NULL,
   content_hash TEXT NOT NULL,
   nonce TEXT NOT NULL,
@@ -336,7 +338,7 @@ CREATE TABLE state_findings (
   job_id TEXT,
   CONSTRAINT ck_state_findings_origin CHECK (origin IN ('extension','kernel')),
   CONSTRAINT ck_state_findings_severity CHECK (severity IN ('info','warn','error')),
-  CONSTRAINT ck_state_findings_resolution CHECK (resolution IS NULL OR resolution IN ('fixed','human-decision')),
+  CONSTRAINT ck_state_findings_resolution CHECK (resolution IS NULL OR resolution IN ('fixed','human-decision','dismissed')),
   CONSTRAINT ck_state_findings_resolution_actor CHECK (resolution_actor IS NULL OR resolution_actor IN ('human','fixer'))
 );
 CREATE INDEX ix_state_findings_node_id ON state_findings(node_id);

@@ -1531,7 +1531,7 @@ export interface IFindingApi {
   /** Recording agent's self-reported model id; `null` when undeclared. */
   model: string | null;
   /** Lifecycle state; `null` = open (`db-schema.md` §state_findings). */
-  resolution: 'fixed' | 'human-decision' | null;
+  resolution: 'fixed' | 'human-decision' | 'dismissed' | null;
   resolutionActor: 'human' | 'fixer' | null;
   resolutionNote: string | null;
   resolutionBy: string | null;
@@ -1611,6 +1611,14 @@ export interface IProbExtensionEntryApi {
    * → Fix state (submit the `fixerIds`). Always `false` for `standalone`.
    */
   hasOpenFindings: boolean;
+  /**
+   * Frozen finding targets of the ACTIVE fixer jobs for this finder:
+   * `all: true` when a whole-node fixer job is active, `findingIds` the
+   * union of the active subset jobs' ids. The tray derives each row's
+   * fix-button busy state from it so fixing one finding no longer spins
+   * every row. `null` when no fixer job is active.
+   */
+  fixerBusy: { all: boolean; findingIds: number[] } | null;
 }
 
 /**

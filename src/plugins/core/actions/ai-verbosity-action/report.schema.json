@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.ai/spec/v0/core/ai-verbosity-action-report.schema.json",
+  "title": "AiVerbosityActionReport",
+  "description": "Report shape for the built-in `core/ai-verbosity-action` probabilistic fixer Action. A fixer is NOT a finder: its report is execution-only, so it extends `report-base.schema.json` directly for the `confidence` + `safety` fields the preamble mandates, rather than the `findings/` envelope. `resolved` records, per `verbosity` finding the processing agent acted on, the finding's `id`, the `state` it moved the finding into, the deciding actor `by` (on a `fixed` entry), and a one-line note; the record path stamps each entry onto the finding the `id` names. `editsSummary` describes the edits made to the node file. skill-map never writes the body, the processing agent performs the edit.",
+  "allOf": [
+    {
+      "$ref": "https://skill-map.ai/spec/v0/report-base.schema.json"
+    }
+  ],
+  "type": "object",
+  "required": [
+    "resolved",
+    "editsSummary"
+  ],
+  "properties": {
+    "resolved": {
+      "type": "array",
+      "description": "One entry per `verbosity` finding the agent considered, keyed by the finding's `id`. `state` is `fixed` when the tightening was applied, `human-decision` when the fix needs a choice only the author can make (with your PROPOSAL in `note`) and you left the document untouched.",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "state",
+          "note"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "The finding's `id`, copied VERBATIM from the injected `## Findings to resolve` section. This is what ties the outcome back to the finding: `sm record` stamps the resolution onto this row. An id that does not match a current finding of this node is ignored."
+          },
+          "type": {
+            "type": "string",
+            "description": "Optional echo of the finding's `type` slug (`verbosity`), for report readability only. The `id` is what the record path matches on."
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "fixed",
+              "human-decision"
+            ],
+            "description": "The lifecycle state you moved the finding into: `fixed` when you edited the document to resolve it; `human-decision` when the fix needs a choice only the author can make, leaving the document untouched (your `note` is your PROPOSAL for that choice). `fixed` is a state, not a verdict: it never closes the finding, only the finder re-judging does."
+          },
+          "by": {
+            "type": "string",
+            "enum": [
+              "fixer",
+              "human"
+            ],
+            "description": "WHO decided a `fixed` finding: `fixer` if you resolved it with ZERO user interaction (a fully autonomous fix), `human` if ANY user interaction was involved (an approval, a choice among options, an operator edit). REQUIRED when `state` is `fixed`; ignored otherwise. Stamped onto the finding's `resolution_actor`."
+          },
+          "note": {
+            "type": "string",
+            "description": "One-line note: what changed, or your PROPOSAL for the human-decision. On a `human-decision` entry this is surfaced to the author as their TODO, so make the proposal actionable."
+          }
+        },
+        "if": {
+          "properties": {
+            "state": {
+              "const": "fixed"
+            }
+          }
+        },
+        "then": {
+          "required": [
+            "by"
+          ]
+        }
+      }
+    },
+    "editsSummary": {
+      "type": "string",
+      "description": "Short prose summary of the edits the agent made to the node file (which spans were tightened). Empty string when every finding was left for a human decision."
+    }
+  }
+}

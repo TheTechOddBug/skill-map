@@ -174,6 +174,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   }),
   cancelJob: vi.fn().mockResolvedValue(undefined),
   dismissFinding: vi.fn().mockResolvedValue(undefined),
+  reopenFinding: vi.fn().mockResolvedValue(undefined),
   resolveFinding: vi.fn().mockResolvedValue(undefined),
   undismissFinding: vi.fn().mockResolvedValue(undefined),
   deleteFinding: vi.fn().mockResolvedValue(undefined),

@@ -244,6 +244,54 @@ describe('POST /api/nodes/:pathB64/jobs', () => {
     });
   });
 
+  it('findingIds freezes the subset on the fixer row; disjoint subsets coexist', async () => {
+    await seedFindings(project, SKILL_NODE.path, FINDER_ID, [
+      { type: 'defect-a' },
+      { type: 'defect-b' },
+    ]);
+    const ids = await withProjectDb(project, async (adapter) =>
+      (await adapter.findings.list({ nodeId: SKILL_NODE.path, includeStale: true }))
+        .map((f) => f.id)
+        .sort((a, b) => a - b),
+    );
+    await bootAndUse(project, async (handle) => {
+      const first = await postJob(handle, SKILL_NODE.path, {
+        extension: FIXER_ID,
+        findingIds: [ids[0]!],
+      });
+      assert.equal(first.status, 200);
+      // Disjoint subset: coexists, nothing superseded.
+      const second = await postJob(handle, SKILL_NODE.path, {
+        extension: FIXER_ID,
+        findingIds: [ids[1]!],
+      });
+      assert.equal(second.status, 200);
+      const env = (await second.json()) as IJobSubmittedEnvelope;
+      assert.deepEqual(env.value.supersededIds, [], 'disjoint subsets coexist');
+    });
+    await withProjectDb(project, async (adapter) => {
+      const queued = (await adapter.jobs.list({ extensionId: FIXER_ID })).filter(
+        (j) => j.status === 'queued',
+      );
+      assert.equal(queued.length, 2);
+      const sets = queued.map((j) => JSON.stringify(j.findingIds)).sort();
+      assert.deepEqual(sets, [JSON.stringify([ids[0]]), JSON.stringify([ids[1]])]);
+    });
+  });
+
+  it('400 bad-query: findingIds on a non-fixer target', async () => {
+    await bootAndUse(project, async (handle) => {
+      const res = await postJob(handle, SKILL_NODE.path, {
+        extension: FINDER_ID,
+        findingIds: [1],
+      });
+      assert.equal(res.status, 400);
+      const body = (await res.json()) as IErrorBody;
+      assert.equal(body.error.code, 'bad-query');
+      assert.match(body.error.message, /findingIds/);
+    });
+  });
+
   it('autoFix defaults false when the body omits it', async () => {
     await bootAndUse(project, async (handle) => {
       const res = await postJob(handle, SKILL_NODE.path, { extension: FINDER_ID });

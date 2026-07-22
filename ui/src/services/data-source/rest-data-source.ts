@@ -607,11 +607,18 @@ export class RestDataSource implements IDataSourcePort {
     nodePath: string,
     extensionId: string,
     autoFix = false,
+    findingIds?: readonly number[],
   ): Promise<IJobSubmittedEnvelopeApi> {
     const encoded = encodeNodePath(nodePath);
     return this.patchJson<IJobSubmittedEnvelopeApi>(
       `${BASE}/nodes/${encoded}/jobs`,
-      { extension: extensionId, autoFix },
+      {
+        extension: extensionId,
+        autoFix,
+        ...(findingIds !== undefined && findingIds.length > 0
+          ? { findingIds: [...findingIds] }
+          : {}),
+      },
       'POST',
     );
   }
@@ -667,13 +674,31 @@ export class RestDataSource implements IDataSourcePort {
   async dismissFinding(
     nodePath: string,
     findingId: number,
-    opts: { confirm?: boolean; always?: boolean } = {},
+    opts: { confirm?: boolean; always?: boolean; class?: boolean } = {},
   ): Promise<void> {
     try {
       await firstValueFrom(
         this.http.post(
           `${BASE}/nodes/${encodeNodePath(nodePath)}/findings/${findingId}/dismiss`,
           opts,
+        ),
+      );
+    } catch (err) {
+      throw this.translateError(err);
+    }
+  }
+
+  /**
+   * `POST /api/nodes/:pathB64/findings/:id/reopen` (204-style raw post):
+   * clear a row's resolution back to open (the row-dismiss / fixed
+   * inverse; no sidecar, no consent).
+   */
+  async reopenFinding(nodePath: string, findingId: number): Promise<void> {
+    try {
+      await firstValueFrom(
+        this.http.post(
+          `${BASE}/nodes/${encodeNodePath(nodePath)}/findings/${findingId}/reopen`,
+          {},
         ),
       );
     } catch (err) {

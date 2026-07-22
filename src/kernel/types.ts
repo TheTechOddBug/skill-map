@@ -664,6 +664,13 @@ export interface Job {
    * `false` for Action jobs and by default. Persisted as 0/1 in SQLite.
    */
   autoFix: boolean;
+  /**
+   * Finding-subset targeting for FIXER jobs
+   * (`job.schema.json#/properties/findingIds`, frozen at submit): the
+   * `state_findings` ids this job resolves. `null` = whole-node
+   * targeting. Persisted as JSON in `state_jobs.finding_ids_json`.
+   */
+  findingIds: readonly number[] | null;
   /** Target `node.path`. */
   nodeId: string;
   contentHash: string;

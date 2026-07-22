@@ -73,6 +73,12 @@ export type TFindingActionsRouteDeps = Pick<
 >;
 
 interface IDismissBody {
+  /**
+   * `true` = the DURABLE class suppression (sidecar write, consent
+   * gated). Absent/false = the ROW-grain dismissal (resolution state,
+   * no consent), the default since 2026-07-22.
+   */
+  class?: boolean;
   confirm?: boolean;
   always?: boolean;
 }
@@ -103,7 +109,7 @@ const BODY_MESSAGES = {
 const parseDismissBody = makeBodyValidator<IDismissBody>(
   {
     type: 'object',
-    properties: { ...CONSENT_PROPS },
+    properties: { ...CONSENT_PROPS, class: { type: 'boolean' } },
     additionalProperties: false,
   },
   BODY_MESSAGES,
@@ -166,8 +172,9 @@ export function registerNodeFindingActionsRoutes(
       { databasePath: deps.options.dbPath, autoBackup: false },
       async (adapter) => {
         const finding = await loadFindingOr404(adapter, id, nodePath);
-        // Kernel safety-lane rows are not suppressible (spec §sm findings
-        // dismiss): they flag injection / malformed content.
+        // Kernel safety-lane rows are not dismissible in either mode
+        // (spec §sm findings dismiss): they flag injection / malformed
+        // content.
         if (finding.origin === 'kernel') {
           throw new ConflictError({
             code: 'finding-not-dismissible',
@@ -176,6 +183,19 @@ export function registerNodeFindingActionsRoutes(
               type: sanitizeForTerminal(finding.type),
             }),
           });
+        }
+        if (body.class !== true) {
+          // ROW-grain default (2026-07-22): a resolution state, no
+          // sidecar, no consent; dies when the finder re-judges.
+          const rowOutcome = await adapter.findings.dismissByHuman(id, null, Date.now());
+          if (rowOutcome.kind === 'already-dismissed') {
+            throw new ConflictError({
+              code: 'finding-terminal',
+              message: tx(SERVER_TEXTS.findingAlreadyDismissed, { id }),
+            });
+          }
+          if (rowOutcome.kind === 'not-found') return null;
+          return 'dismissed';
         }
         await writeSuppressions(adapter, deps, nodePath, (entries) =>
           mergeSuppression(entries, buildSuppressionEntry(finding.extensionId, finding.type, undefined)),
@@ -190,9 +210,39 @@ export function registerNodeFindingActionsRoutes(
       target: nodePath,
       channel: 'ui',
       outcome: 'ok',
-      detail: `id=${id}`,
+      detail: `id=${id}${body.class === true ? ' class' : ' row'}`,
     });
     reloadOnPersistedGrant(deps, body.always);
+    return c.body(null, 204);
+  });
+
+  // Row-grain restore (`sm findings reopen`): clears ANY resolution back
+  // to open. No sidecar, no consent; class suppressions restore via the
+  // undismiss route instead (the tray branches on the row's resolution).
+  app.post('/api/nodes/:pathB64/findings/:id/reopen', async (c) => {
+    const nodePath = decodePathB64Or404(c.req.param('pathB64'));
+    const id = parseFindingId(c.req.param('id'));
+    const outcome = await tryWithSqlite(
+      { databasePath: deps.options.dbPath, autoBackup: false },
+      async (adapter) => {
+        await loadFindingOr404(adapter, id, nodePath);
+        return adapter.findings.reopen(id, Date.now());
+      },
+    );
+    if (outcome === null || outcome.kind === 'not-found') throw findingNotFound(id);
+    if (outcome.kind === 'already-open') {
+      throw new ConflictError({
+        code: 'finding-open',
+        message: tx(SERVER_TEXTS.findingAlreadyOpen, { id }),
+      });
+    }
+    appendOperation(deps.runtimeContext.cwd, {
+      op: 'findings.reopen',
+      target: nodePath,
+      channel: 'ui',
+      outcome: 'ok',
+      detail: `id=${id}`,
+    });
     return c.body(null, 204);
   });
 

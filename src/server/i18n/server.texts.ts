@@ -673,6 +673,8 @@ export const SERVER_TEXTS = {
     'cannot resolve the prompt template for {{extension}} ({{detail}})',
   jobsReportSchemaUnresolved:
     'cannot resolve the report schema for {{extension}} ({{detail}})',
+  jobsFindingIdsUnsupported:
+    'findingIds targets specific findings, which {{extension}} does not resolve (only a fixer of a probabilistic finder does)',
   jobsConfigInvalid: 'invalid jobs config: {{detail}}',
 
   // Node-side refusals.
@@ -709,5 +711,7 @@ export const SERVER_TEXTS = {
   findingNotDismissible:
     'finding {{id}} ({{type}}) is a kernel safety finding and cannot be dismissed',
   findingAlreadyFixed: 'finding {{id}} is already fixed',
+  findingAlreadyDismissed: 'finding {{id}} is already dismissed',
+  findingAlreadyOpen: 'finding {{id}} is already open (no resolution to clear)',
   suppressionNotFound: 'no suppression for {{extension}} on {{node}}',
 } as const;

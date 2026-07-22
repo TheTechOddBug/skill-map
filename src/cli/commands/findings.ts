@@ -676,36 +676,122 @@ export class FindingsResolveCommand extends SmCommand {
  * Exit 5 if the id does not exist; exit 2 if the id is not a positive
  * integer. `--json` emits the written suppression entry. Absent DB -> exit 5.
  */
+export class FindingsReopenCommand extends SmCommand {
+  static override paths = [['findings', 'reopen']];
+  static override usage = Command.Usage({
+    category: 'Browse',
+    description: 'Clear a finding resolution back to open (undo dismiss / fixed / needs-decision).',
+    details: `
+      The inverse of the row-grain states: a dismissed, fixed, or
+      human-decision finding returns to the default sm findings view and to
+      fixer injection. Class-suppressed findings are NOT touched by this
+      verb; lift those with sm findings undismiss.
+
+      Exit 5 if the id does not exist; exit 2 if the row is already open or
+      the id is not a positive integer. --json emits the reopened row.
+    `,
+    examples: [['Reopen finding 42', '$0 findings reopen 42']],
+  });
+
+  id = Option.String({ required: true });
+
+  protected async run(): Promise<number> {
+    const ctx = defaultRuntimeContext();
+    const dbPath = resolveDbPath({ db: this.db, ...ctx });
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    if (dbExit !== null) return dbExit;
+
+    const parsed = Number(this.id);
+    if (!Number.isInteger(parsed) || parsed < 1) {
+      const ansi = this.ansiFor('stderr');
+      this.printer!.error(
+        tx(T.resolveBadId, {
+          glyph: ansi.red('✕'),
+          value: sanitizeForTerminal(this.id),
+          hint: ansi.dim(T.resolveBadIdHint),
+        }),
+      );
+      return ExitCode.Error;
+    }
+
+    // Write verb: refuse a drifted DB before any table mutation
+    // (spec/cli-contract.md §Schema-drift rebuild).
+    assertNoDriftForWrite(dbPath);
+
+    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
+      const outcome = await adapter.findings.reopen(parsed, Date.now());
+      if (outcome.kind === 'not-found') {
+        this.printer!.error(
+          tx(T.resolveNotFound, {
+            glyph: this.ansiFor('stderr').red('✕'),
+            id: String(parsed),
+            hint: this.ansiFor('stderr').dim(T.resolveNotFoundHint),
+          }),
+        );
+        return ExitCode.NotFound;
+      }
+      if (outcome.kind === 'already-open') {
+        this.printer!.error(
+          tx(T.reopenErrAlreadyOpen, {
+            glyph: this.ansiFor('stderr').red('✕'),
+            id: String(parsed),
+          }),
+        );
+        return ExitCode.Error;
+      }
+      appendOperation(ctx.cwd, {
+        op: 'findings.reopen',
+        target: '*',
+        channel: 'cli',
+        outcome: 'reopened',
+        id: String(parsed),
+      });
+      if (this.json) {
+        this.printer!.data(JSON.stringify(outcome.finding) + '\n');
+        return ExitCode.Ok;
+      }
+      this.printer!.info(
+        tx(T.reopenDone, {
+          glyph: this.ansiFor('stderr').green('✓'),
+          id: String(parsed),
+        }),
+      );
+      return ExitCode.Ok;
+    });
+  }
+}
+
 export class FindingsDismissCommand extends SmCommand {
   static override paths = [['findings', 'dismiss']];
   static override usage = Command.Usage({
     category: 'Browse',
-    description: 'Permanently silence a finding you judged acceptable (durable sidecar suppression).',
+    description: 'Dismiss one finding (row state), or silence its whole class with --class.',
     details: `
-      Writes a standing annotations.suppressions entry to the node's .sm
-      sidecar (keyed by the finding's emitting extension + type, through the
-      same consent gate as sm bump). The rows are NOT deleted: the
-      suppression is a read-time lens, the judgment class hides from the
-      default sm findings view (--dismissed reveals it) and stays hidden
-      across finder re-runs until sm findings undismiss removes the entry,
-      which restores visibility instantly.
+      DEFAULT: a ROW-grain dismissal. Sets resolution = dismissed on THIS
+      finding only (actor human, optional --note); no sidecar write, no
+      consent. The row hides under the dismissed bucket and the state dies
+      when the finder re-judges the node, so a re-found defect reappears.
+      sm findings reopen <id> restores it instantly.
 
-      Suppression grain is per (extension, type): findings carry no stable
-      identity across finder runs, so the honest durable grain is the
-      judgment CLASS, not one occurrence.
+      With --class the historical DURABLE behaviour applies: a standing
+      annotations.suppressions entry lands in the node's .sm sidecar
+      (keyed by the finding's emitting extension + type, through the same
+      consent gate as sm bump) and the judgment CLASS stays hidden across
+      finder re-runs until sm findings undismiss lifts it.
 
       Distinct from sm findings resolve (marks a finding fixed) and sm
-      findings prune (clears stale rows): dismiss says "this judgment does
-      not apply here, stop showing it".
+      findings prune (clears stale rows).
 
       Kernel safety findings (injection-detected / content-suspicious /
-      content-malformed) are NOT dismissible (exit 2). Exit 5 if the id does
-      not exist; exit 2 if the id is not a positive integer. --json emits
-      the written suppression entry.
+      content-malformed) are NOT dismissible in either mode (exit 2). Exit
+      5 if the id does not exist; exit 2 on a non-positive-integer id or a
+      row already dismissed. --json emits the updated row (or, with
+      --class, the written suppression entry).
     `,
     examples: [
-      ['Dismiss finding 42', '$0 findings dismiss 42'],
+      ['Dismiss finding 42 (this row only)', '$0 findings dismiss 42'],
       ['Dismiss it with a reason', '$0 findings dismiss 42 --note "Intentional; the two steps are alternatives."'],
+      ['Silence every finding of its class on the node', '$0 findings dismiss 42 --class'],
     ],
   });
 
@@ -716,6 +802,10 @@ export class FindingsDismissCommand extends SmCommand {
   });
   yes = Option.Boolean('--yes', false, {
     description: 'Confirm writing .sm sidecar files in this project (sets allowEditSmFiles=true on first run).',
+  });
+  classWide = Option.Boolean('--class', false, {
+    description:
+      'Silence the whole judgment class (extension + type) durably via the .sm suppression instead of dismissing this one row.',
   });
 
   protected async run(): Promise<number> {
@@ -734,14 +824,53 @@ export class FindingsDismissCommand extends SmCommand {
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       const finding = await adapter.findings.get(id);
       if (!finding) return this.failNotFound(id);
-      // Kernel safety-lane rows are not suppressible (spec §sm findings
-      // dismiss): they flag injection / malformed content, not a prose
-      // judgment the operator can wave off.
+      // Kernel safety-lane rows are not dismissible in either mode (spec
+      // §sm findings dismiss): they flag injection / malformed content,
+      // not a prose judgment the operator can wave off.
       if (finding.origin === 'kernel') return this.failNotDismissible(id, finding.type);
+      if (this.classWide !== true) return this.dismissRow(adapter, id, ctx.cwd);
       // The sidecar write goes through the same consent gate as sm bump;
       // wrap so a first EConsentRequiredError surfaces as a prompt / retry.
       return this.runWithConsent(() => this.dismiss(adapter, finding, ctx.cwd));
     });
+  }
+
+  /**
+   * The ROW-grain default (2026-07-22): `resolution = 'dismissed'` on
+   * this finding only. No sidecar, no consent; the state dies with the
+   * row on the finder's next re-judgement.
+   */
+  private async dismissRow(adapter: StoragePort, id: number, cwd: string): Promise<TExitCode> {
+    const outcome = await adapter.findings.dismissByHuman(id, this.note ?? null, Date.now());
+    if (outcome.kind === 'not-found') return this.failNotFound(id);
+    if (outcome.kind === 'already-dismissed') {
+      this.printer!.error(
+        tx(T.dismissErrAlreadyDismissed, {
+          glyph: this.ansiFor('stderr').red('✕'),
+          id: String(id),
+        }),
+      );
+      return ExitCode.Error;
+    }
+    appendOperation(cwd, {
+      op: 'findings.dismiss',
+      target: '*',
+      channel: 'cli',
+      outcome: 'dismissed',
+      id: String(id),
+      detail: 'row',
+    });
+    if (this.json) {
+      this.printer!.data(JSON.stringify(outcome.finding) + '\n');
+      return ExitCode.Ok;
+    }
+    this.printer!.info(
+      tx(T.dismissRowDone, {
+        glyph: this.ansiFor('stderr').green('✓'),
+        id: String(id),
+      }),
+    );
+    return ExitCode.Ok;
   }
 
   /** Parse the positional id to a positive integer, or `null` when invalid. */

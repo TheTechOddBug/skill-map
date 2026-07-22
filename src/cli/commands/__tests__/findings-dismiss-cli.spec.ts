@@ -32,6 +32,7 @@ import type { BaseContext } from 'clipanion';
 import {
   FindingsCommand,
   FindingsDismissCommand,
+  FindingsReopenCommand,
   FindingsSuppressionsCommand,
   FindingsUndismissCommand,
 } from '../findings.js';
@@ -164,13 +165,16 @@ async function withCwd<T>(dir: string, fn: () => Promise<T>): Promise<T> {
 
 function buildDismiss(
   id: string,
-  opts: { note?: string; json?: boolean; yes?: boolean } = {},
+  opts: { note?: string; json?: boolean; yes?: boolean; row?: boolean } = {},
 ): FindingsDismissCommand {
   const cmd = new FindingsDismissCommand();
   cmd.id = id;
   cmd.note = opts.note;
   cmd.json = opts.json ?? false;
   cmd.yes = opts.yes ?? false;
+  // These tests exercise the historical CLASS suppression unless a case
+  // opts into the 2026-07-22 row-grain default explicitly.
+  cmd.classWide = opts.row === true ? false : true;
   cmd.db = undefined;
   return cmd;
 }
@@ -730,5 +734,60 @@ describe('sm findings undismiss', () => {
     deepStrictEqual(readSuppressions(proj.root), [
       { extension: FINDER_EXT, type: 'contradiction' },
     ]);
+  });
+});
+
+describe('sm findings dismiss (row grain, the 2026-07-22 default) + reopen', () => {
+  async function findingIds(proj: IProject): Promise<number[]> {
+    const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      return (await adapter.findings.list({ nodeId: NODE, includeStale: true }))
+        .map((f) => f.id)
+        .sort((x, y) => x - y);
+    } finally {
+      await adapter.close();
+    }
+  }
+
+  async function resolutionOf(proj: IProject, id: number): Promise<string | null> {
+    const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      return (await adapter.findings.get(id))?.resolution ?? null;
+    } finally {
+      await adapter.close();
+    }
+  }
+
+  it('dismisses ONLY the targeted row, no sidecar; reopen restores it', async () => {
+    const proj = await setupProject();
+    const [a, b] = await findingIds(proj);
+
+    await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      strictEqual(await run(buildDismiss(String(a), { row: true }), cap), 0, cap.stderr());
+    });
+    strictEqual(await resolutionOf(proj, a!), 'dismissed');
+    strictEqual(await resolutionOf(proj, b!), null, 'the sibling stays open');
+    strictEqual(existsSync(join(proj.root, sidecarPathFor(NODE))), false, 'no sidecar written');
+
+    await withCwd(proj.root, async () => {
+      // Repeat refuses (exit 2); reopen restores; reopen again refuses.
+      strictEqual(await run(buildDismiss(String(a), { row: true }), captureContext()), 2);
+      const reopen = new FindingsReopenCommand();
+      reopen.id = String(a);
+      reopen.json = false;
+      reopen.db = undefined;
+      strictEqual(await run(reopen, captureContext()), 0);
+    });
+    strictEqual(await resolutionOf(proj, a!), null, 'reopened');
+    await withCwd(proj.root, async () => {
+      const again = new FindingsReopenCommand();
+      again.id = String(a);
+      again.json = false;
+      again.db = undefined;
+      strictEqual(await run(again, captureContext()), 2, 'already open refuses');
+    });
   });
 });

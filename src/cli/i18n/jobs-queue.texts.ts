@@ -26,6 +26,9 @@ export const JOBS_QUEUE_TEXTS = {
     'cannot resolve the prompt template for {{extension}} ({{detail}})',
   submitErrReportSchemaUnresolved:
     'cannot resolve the report schema for {{extension}} ({{detail}})',
+  submitErrBadFinding: '--finding expects a positive integer finding id, got {{value}}',
+  submitErrFindingIdsUnsupported:
+    '--finding targets specific findings, which {{extension}} does not resolve (only a fixer of a probabilistic finder does; issue-based fixers have no stable finding ids)',
   submitErrNodeNotFound: 'node {{node}} is not in the latest scan',
   submitErrNodeVirtual: 'node {{node}} is virtual (no backing file to render)',
   submitErrNodeDrifted:

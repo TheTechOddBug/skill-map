@@ -124,11 +124,17 @@ export interface IActionsPort {
    * finder submit it freezes `state_jobs.auto_fix` so the record path
    * chains the finder's fixers on completion (the inspector's automatic
    * toggle sends it). Ignored by the kernel on a non-finder target.
+   *
+   * `findingIds` (fixer submits only) rides the body as `findingIds`,
+   * freezing a finding subset onto the job so each tray row fixes
+   * individually; disjoint-subset fixer jobs coexist, overlap
+   * supersedes (`spec/job-lifecycle.md` §Finding-subset targeting).
    */
   submitNodeJob(
     nodePath: string,
     extensionId: string,
     autoFix?: boolean,
+    findingIds?: readonly number[],
   ): Promise<IJobSubmittedEnvelopeApi>;
 
   /**
@@ -161,7 +167,9 @@ export interface IActionsPort {
   /**
    * `POST /api/nodes/:pathB64/findings/:id/dismiss`, the inspector's
    * per-finding X (the read-time suppression lens: the class HIDES, rows
-   * kept, reversible). A sidecar write behind the `.sm` consent gate:
+   * kept, reversible). DEFAULT = the ROW-grain dismissal (resolution
+   * state, no consent; 2026-07-22). `opts.class: true` = the DURABLE
+   * class suppression, a sidecar write behind the `.sm` consent gate:
    * without a standing grant the BFF answers `412` `confirm-required`
    * (`details.key = 'allowEditSmFiles'`), surfaced as a `DataSourceError`
    * the consent dialog answers by retrying with `confirm` / `always`.
@@ -172,8 +180,17 @@ export interface IActionsPort {
   dismissFinding(
     nodePath: string,
     findingId: number,
-    opts?: { confirm?: boolean; always?: boolean },
+    opts?: { confirm?: boolean; always?: boolean; class?: boolean },
   ): Promise<void>;
+
+  /**
+   * `POST /api/nodes/:pathB64/findings/:id/reopen`, the restore on a
+   * ROW-dismissed (or fixed) revealed row: clears the resolution back to
+   * open. No sidecar, no consent. `'finding-open'` (409) /
+   * `'not-found'` (404). Resolves on `204`. Demo rejects
+   * `'demo-readonly'`.
+   */
+  reopenFinding(nodePath: string, findingId: number): Promise<void>;
 
   /**
    * `POST /api/nodes/:pathB64/findings/:id/resolve`, mark a finding fixed

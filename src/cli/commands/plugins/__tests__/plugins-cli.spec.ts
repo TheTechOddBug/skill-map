@@ -709,7 +709,10 @@ describe('sm plugins doctor, disabled is not a failure', () => {
     const r = sm(['plugins', 'doctor'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // Disabled is intentional, never an error: exit stays 0. The count
-    // is 4, the disabled `mock-h` drop-in plus the three built-in
+    // is 14: the disabled `mock-h` drop-in, the ten OPTIMIZATION
+    // finder / fixer pairs (`ai-verbosity/-vagueness/-structure/-trigger/
+    // -scope` x analyzer+action, all experimental ships-disabled since
+    // 2026-07-22), plus the three built-in
     // extensions that ship disabled by default: the sidecar writers
     // `core/node-bump` and `core/node-set-stability` (both STABLE with
     // `defaultEnabled: false` since 2026-07-21, the orthogonal opt-in
@@ -731,7 +734,7 @@ describe('sm plugins doctor, disabled is not a failure', () => {
     // so it no longer counts here; `antigravity/antigravity` and
     // `codex/codex` are beta and `agent-skills/agent-skills` is stable +
     // locked, so all ship enabled.)
-    assert.match(r.stdout, /disabled\s+4/);
+    assert.match(r.stdout, /disabled\s+14/);
   });
 });
 

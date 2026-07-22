@@ -64,6 +64,7 @@ import {
   FindingsCommand,
   FindingsDismissCommand,
   FindingsPruneCommand,
+  FindingsReopenCommand,
   FindingsResolveCommand,
   FindingsSuppressionsCommand,
   FindingsUndismissCommand,
@@ -121,6 +122,7 @@ cli.register(FindingsCommand);
 cli.register(FindingsPruneCommand);
 cli.register(FindingsClearCommand);
 cli.register(FindingsResolveCommand);
+cli.register(FindingsReopenCommand);
 cli.register(FindingsDismissCommand);
 cli.register(FindingsSuppressionsCommand);
 cli.register(FindingsUndismissCommand);

@@ -543,27 +543,42 @@ export class InspectorView implements OnInit {
   }
 
   /**
-   * Queue the finding's fixer(s), the AUTOMATIC fix on the row (user
-   * call 2026-07-20: fixing lives on the finding, beside the manual ✓;
-   * the launcher button never morphs to Fix anymore). Busy state rides
-   * the finder's entry (submitFixers keys it there).
+   * Queue the finding's fixer(s) for THIS row only (user call
+   * 2026-07-22: the bolt targets the single finding, `findingIds:
+   * [f.id]` frozen on the job, so each finding fixes individually and
+   * the other rows stay clickable; the Detect+fix launcher and the
+   * auto-fix chain keep the whole-node batch).
    */
   protected fixAiActionFinding(finding: IFindingApi): void {
     const entry = this.findingFinderEntry(finding);
     if (entry === null) return;
-    void this.aiActions.submitFixers(entry.id, entry.fixerIds);
+    void this.aiActions.submitFixers(entry.id, entry.fixerIds, [finding.id]);
   }
 
-  /** Fix button busy/disabled: the fixer round-trip or an active job. */
+  /**
+   * Fix button busy/disabled, PER ROW: this row's own submit
+   * round-trip, or an ACTIVE fixer job whose frozen finding target
+   * covers it (`fixerBusy` on the entry: a whole-node job covers every
+   * row, a subset job only its ids). A busy sibling row no longer
+   * disables this one.
+   */
   protected aiActionFindingFixBusy(finding: IFindingApi): boolean {
     const entry = this.findingFinderEntry(finding);
     if (entry === null) return false;
-    return this.aiActionEntryState(entry) !== 'idle' || this.aiActions.isSubmitting(entry.id);
+    if (this.aiActions.isFixerSubmitting(entry.id, finding.id)) return true;
+    if (this.aiActions.isSubmitting(entry.id)) return true;
+    const busy = entry.fixerBusy;
+    // No fixer job active: any non-idle entry state means the FINDER
+    // itself is re-judging, which will replace this row, so the whole
+    // tray locks (the historical behaviour).
+    if (busy === null) return this.aiActionEntryState(entry) !== 'idle';
+    return busy.all || busy.findingIds.includes(finding.id);
   }
 
   protected aiActionFindingBusy(findingId: number): boolean {
     return this.aiActions.isFindingBusy(findingId);
   }
+
 
   protected toggleAiActionBucket(bucket: TFindingsBucket): void {
     void this.aiActions.toggleBucket(bucket);

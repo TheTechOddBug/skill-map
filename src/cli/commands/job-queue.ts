@@ -231,6 +231,12 @@ export class JobSubmitCommand extends SmCommand {
   // state_jobs.auto_fix so `sm record` chains this finder's fixers on
   // completion. Additive, default off; ignored on a non-finder target.
   autoFix = Option.Boolean('--auto-fix', false);
+  // Finding-subset targeting for a findings-branch fixer submit
+  // (spec/job-lifecycle.md §Finding-subset targeting): repeatable
+  // `--finding <id>`; freezes state_jobs.finding_ids_json so the
+  // injection narrows to the named findings and disjoint fixer jobs
+  // coexist. Usage error on any other target.
+  finding = Option.Array('--finding', { required: false });
 
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
@@ -246,7 +252,7 @@ export class JobSubmitCommand extends SmCommand {
     const flagExit = this.validateFlags();
     if (flagExit !== null) return flagExit;
 
-    const flags = this.parseNumericFlags();
+    const flags = this.parseSubmitFlags();
     if (typeof flags === 'number') return flags;
 
     const jobs = this.loadJobsConfig(ctx);
@@ -267,6 +273,7 @@ export class JobSubmitCommand extends SmCommand {
       // `=== true`: normalize the Clipanion Boolean to a strict boolean
       // (production-identical; the same idiom as `this.dryRun === true`).
       autoFix: this.autoFix === true,
+      ...(flags.findingIds !== undefined ? { findingIds: flags.findingIds } : {}),
     });
     if (!prep.ok) return this.failPrepare(prep.error);
 
@@ -302,42 +309,26 @@ export class JobSubmitCommand extends SmCommand {
    * Map a `prepareSubmitContext` failure to this command's directed error
    * output + exit code, preserving the exact messages / codes the extracted
    * methods used to emit (unresolved extension -> 5; non-probabilistic /
-   * ambiguous / unresolved prompt or schema / bad ttl-priority -> 2).
+   * ambiguous / unresolved prompt or schema / bad ttl-priority / bad
+   * --finding target -> 2). Message rendering lives in the lookup below
+   * so the growing error catalog never trips the complexity cap.
    */
   private failPrepare(error: TPrepareError): TExitCode {
-    switch (error.kind) {
-      case 'not-found':
-        this.printer!.error(
-          tx(T.submitErrPrefix, {
-            glyph: this.errGlyph(),
-            message: tx(T.submitErrExtensionNotFound, { extension: this.extension }),
-          }),
-        );
-        return ExitCode.NotFound;
-      case 'deterministic':
-        return this.fail(
-          tx(T.submitErrExtensionNotProbabilistic, { extension: this.extension, mode: error.mode }),
-        );
-      case 'ambiguous':
-        return this.fail(
-          tx(T.submitErrAmbiguousExtension, {
-            extension: this.extension,
-            actionId: error.actionId,
-            analyzerId: error.analyzerId,
-          }),
-        );
-      case 'prompt-unresolved':
-        return this.fail(
-          tx(T.submitErrPromptUnresolved, { extension: this.extension, detail: error.detail }),
-        );
-      case 'report-schema-unresolved':
-        return this.fail(
-          tx(T.submitErrReportSchemaUnresolved, { extension: this.extension, detail: error.detail }),
-        );
-      case 'invalid-ttl':
-      case 'invalid-priority':
-        return this.fail(error.message);
+    if (error.kind === 'not-found') {
+      this.printer!.error(
+        tx(T.submitErrPrefix, {
+          glyph: this.errGlyph(),
+          message: tx(T.submitErrExtensionNotFound, { extension: this.extension }),
+        }),
+      );
+      return ExitCode.NotFound;
     }
+    return this.fail(
+      (PREPARE_FAIL_MESSAGES[error.kind] as (e: TPrepareError, ext: string) => string)(
+        error,
+        this.extension,
+      ),
+    );
   }
 
   /** Flag-shape validation (mutual exclusion, target presence). */
@@ -347,8 +338,13 @@ export class JobSubmitCommand extends SmCommand {
     return null;
   }
 
-  /** Parse `--ttl` / `--priority`. Returns the values or an exit-2 code. */
-  private parseNumericFlags(): { ttl: number | undefined; priority: number | undefined } | TExitCode {
+  /**
+   * Parse `--ttl` / `--priority` / `--finding`. Returns the values or an
+   * exit-2 code (one seam so `run` stays inside the complexity budget).
+   */
+  private parseSubmitFlags():
+    | { ttl: number | undefined; priority: number | undefined; findingIds: readonly number[] | undefined }
+    | TExitCode {
     let ttl: number | undefined;
     let priority: number | undefined;
     try {
@@ -361,7 +357,29 @@ export class JobSubmitCommand extends SmCommand {
     } catch (err) {
       return this.fail(tx(T.submitErrBadPriority, { value: (err as Error).message }));
     }
-    return { ttl, priority };
+    const findingIds = this.parseFindingFlags();
+    if (typeof findingIds === 'number') return findingIds;
+    return { ttl, priority, findingIds };
+  }
+
+  /**
+   * Parse the repeatable `--finding <id>` values into integers, or an
+   * exit-2 code on a non-integer. `undefined` when the flag is absent
+   * (whole-node targeting).
+   */
+  private parseFindingFlags(): readonly number[] | undefined | TExitCode {
+    // `Array.isArray` also covers direct construction in tests, where the
+    // un-parsed Clipanion Option field is a descriptor, not a value.
+    if (!Array.isArray(this.finding) || this.finding.length === 0) return undefined;
+    const ids: number[] = [];
+    for (const raw of this.finding) {
+      const value = Number(raw);
+      if (!Number.isInteger(value) || value < 1) {
+        return this.fail(tx(T.submitErrBadFinding, { value: raw }));
+      }
+      ids.push(value);
+    }
+    return ids;
   }
 
   /** Load the jobs config slice, or an exit-2 code on a config failure. */
@@ -1483,3 +1501,32 @@ export const JOB_QUEUE_COMMANDS = [
   JobCancelCommand,
   JobFailCommand,
 ];
+
+/**
+ * Exit-2 message per `prepareSubmitContext` failure kind (`not-found`
+ * exits 5 and renders separately in `failPrepare`). Lookup-shaped so the
+ * catalog grows without pushing `failPrepare` over the complexity cap.
+ */
+const PREPARE_FAIL_MESSAGES: {
+  [K in Exclude<TPrepareError['kind'], 'not-found'>]: (
+    error: Extract<TPrepareError, { kind: K }>,
+    extension: string,
+  ) => string;
+} = {
+  deterministic: (e, extension) =>
+    tx(T.submitErrExtensionNotProbabilistic, { extension, mode: e.mode }),
+  ambiguous: (e, extension) =>
+    tx(T.submitErrAmbiguousExtension, {
+      extension,
+      actionId: e.actionId,
+      analyzerId: e.analyzerId,
+    }),
+  'prompt-unresolved': (e, extension) =>
+    tx(T.submitErrPromptUnresolved, { extension, detail: e.detail }),
+  'report-schema-unresolved': (e, extension) =>
+    tx(T.submitErrReportSchemaUnresolved, { extension, detail: e.detail }),
+  'finding-ids-unsupported': (_e, extension) =>
+    tx(T.submitErrFindingIdsUnsupported, { extension }),
+  'invalid-ttl': (e) => e.message,
+  'invalid-priority': (e) => e.message,
+};

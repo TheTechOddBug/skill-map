@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.ai/spec/v0/core/ai-scope-analyzer-report.schema.json",
+  "title": "AiScopeAnalyzerReport",
+  "description": "Report shape for the built-in `core/ai-scope-analyzer` probabilistic finder Analyzer (one of the five optimization finders). Extends the canonical findings envelope (`findings/report.schema.json`); that reference is BOTH the load-time gate and the record-path routing signal (the validated `findings[]` land in `state_findings`, see `job-lifecycle.md` \u00a7Record). Narrows every finding's `type` to the const `scope` so this finder can only emit its own judgment; any other slug fails the record as `report-invalid`.",
+  "allOf": [
+    {
+      "$ref": "https://skill-map.ai/spec/v0/findings/report.schema.json"
+    }
+  ],
+  "type": "object",
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "const": "scope"
+          }
+        }
+      }
+    }
+  }
+}

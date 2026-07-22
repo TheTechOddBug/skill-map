@@ -276,6 +276,15 @@ export interface ISubmitContext {
    * for non-fixer submits (`analyzerIds` undefined).
    */
   analyzerMode: TAnalyzerMode | undefined;
+  /**
+   * Finding-subset targeting (`spec/job-lifecycle.md` §Findings injection
+   * for fixers · Finding-subset targeting), frozen onto
+   * `state_jobs.finding_ids_json`: the selection narrows to these ids and
+   * the fixer supersede/duplicate/running gates apply per set overlap.
+   * `undefined` = whole-node (the historical behaviour). Only valid on a
+   * FINDINGS-branch fixer; `prepareSubmitContext` refuses it elsewhere.
+   */
+  findingIds: readonly number[] | undefined;
   /** Optional operator-armed TTL; `null` = never expires (the default). */
   ttlSeconds: number | null;
   priority: number;
@@ -328,7 +337,14 @@ async function resolveJobRenderInputs(
     return resolveIssueRenderInputs(adapter, node, prepared);
   }
   const nodeFindings = await adapter.findings.list({ nodeId: node.path, includeStale: true });
-  const selected = selectFixerFindings(nodeFindings, prepared.analyzerIds);
+  const all = selectFixerFindings(nodeFindings, prepared.analyzerIds);
+  // Finding-subset targeting: narrow to the frozen ids when present
+  // (unmatched ids simply do not select; an all-unmatched set hits the
+  // shared empty-selection refusal below).
+  const selected =
+    prepared.findingIds === undefined
+      ? all
+      : all.filter((f) => prepared.findingIds!.includes(f.id));
   if (selected.length === 0) return 'no-findings';
   const findingsSection = buildFindingsSection(selected);
   return {
@@ -392,6 +408,7 @@ async function insertJobRow(
     extensionVersion: prepared.extensionVersion,
     extensionKind: prepared.extensionKind,
     autoFix: prepared.autoFix,
+    ...(prepared.findingIds !== undefined ? { findingIds: prepared.findingIds } : {}),
     nodeId: node.path,
     contentHash,
     nonce: generateNonce(),
@@ -443,6 +460,7 @@ async function insertFixerJobRow(
     extensionVersion: prepared.extensionVersion,
     extensionKind: prepared.extensionKind,
     autoFix: prepared.autoFix,
+    ...(prepared.findingIds !== undefined ? { findingIds: prepared.findingIds } : {}),
     nodeId: node.path,
     contentHash,
     nonce: generateNonce(),
@@ -543,7 +561,14 @@ export type TPrepareError =
   | { kind: 'prompt-unresolved'; detail: string }
   | { kind: 'report-schema-unresolved'; detail: string }
   | { kind: 'invalid-ttl'; message: string }
-  | { kind: 'invalid-priority'; message: string };
+  | { kind: 'invalid-priority'; message: string }
+  /**
+   * `findingIds` on a target that cannot honour it: a non-fixer, or a
+   * deterministic-analyzer fixer whose triggers are `scan_issues` rows
+   * (no stable ids). Usage error (exit 2 / 400),
+   * `spec/job-lifecycle.md` §Finding-subset targeting.
+   */
+  | { kind: 'finding-ids-unsupported' };
 
 export type TPrepareOutcome =
   | { ok: true; extension: TQueueableExtension; prepared: ISubmitContext }
@@ -575,6 +600,13 @@ export function prepareSubmitContext(opts: {
    * (`spec/job-lifecycle.md` §Auto-fix chain (per-job)).
    */
   autoFix?: boolean;
+  /**
+   * Finding-subset targeting for a FINDINGS-branch fixer target (`--finding`
+   * / BFF body `findingIds`). Refused (`finding-ids-unsupported`) on any
+   * other target. Deduped + sorted here so the frozen column and the
+   * rendered section are deterministic regardless of input order.
+   */
+  findingIds?: readonly number[];
 }): TPrepareOutcome {
   const target = resolveQueueTarget(opts.runtime, opts.extensionId);
   if (!target.ok) return target;
@@ -587,19 +619,18 @@ export function prepareSubmitContext(opts: {
     return { ok: false, error: { kind: 'report-schema-unresolved', detail: reportContract.detail } };
   }
   const preamble = loadCanonicalPreamble();
-  let ttlSeconds: number | null;
-  let priority: number;
-  try {
-    ttlSeconds = resolveTtl(extension, opts.jobs, opts.flagTtl);
-    priority = resolvePriority(extension, opts.jobs, opts.flagPriority);
-  } catch (err) {
-    if (err instanceof InvalidTtlError) return { ok: false, error: { kind: 'invalid-ttl', message: err.message } };
-    if (err instanceof InvalidPriorityError) {
-      return { ok: false, error: { kind: 'invalid-priority', message: err.message } };
-    }
-    throw err;
-  }
+  const scheduling = resolveSchedulingKnobs(extension, opts.jobs, opts.flagTtl, opts.flagPriority);
+  if ('error' in scheduling) return { ok: false, error: scheduling.error };
+  const { ttlSeconds, priority } = scheduling;
   const analyzerIds = fixerAnalyzerIds(extensionKind, extension);
+  const analyzerMode =
+    analyzerIds !== undefined
+      ? referencedAnalyzerMode(opts.runtime.analyzers, analyzerIds)
+      : undefined;
+  const findingIds = normalizeFindingIds(opts.findingIds, analyzerIds, analyzerMode);
+  if (findingIds === 'unsupported') {
+    return { ok: false, error: { kind: 'finding-ids-unsupported' } };
+  }
   const prepared: ISubmitContext = {
     extensionId: qualified,
     extensionVersion: extension.version,
@@ -611,10 +642,8 @@ export function prepareSubmitContext(opts: {
     analyzerIds,
     // Modelo B: resolve the referenced analyzer's mode ONCE, so the per-node
     // render branches (Issues vs findings) without re-resolving per fan-out.
-    analyzerMode:
-      analyzerIds !== undefined
-        ? referencedAnalyzerMode(opts.runtime.analyzers, analyzerIds)
-        : undefined,
+    analyzerMode,
+    findingIds,
     promptTemplateHash: computePromptTemplateHash({
       preamble,
       template: promptTemplate.text,
@@ -627,6 +656,50 @@ export function prepareSubmitContext(opts: {
     providers: opts.runtime.providers,
   };
   return { ok: true, extension, prepared };
+}
+
+/**
+ * Resolve the TTL + priority knobs, mapping their typed failures to the
+ * structured prepare errors (extracted so `prepareSubmitContext` stays
+ * inside the complexity cap).
+ */
+function resolveSchedulingKnobs(
+  extension: TQueueableExtension,
+  jobs: IJobsConfig,
+  flagTtl: number | undefined,
+  flagPriority: number | undefined,
+): { ttlSeconds: number | null; priority: number } | { error: TPrepareError } {
+  try {
+    return {
+      ttlSeconds: resolveTtl(extension, jobs, flagTtl),
+      priority: resolvePriority(extension, jobs, flagPriority),
+    };
+  } catch (err) {
+    if (err instanceof InvalidTtlError) return { error: { kind: 'invalid-ttl', message: err.message } };
+    if (err instanceof InvalidPriorityError) {
+      return { error: { kind: 'invalid-priority', message: err.message } };
+    }
+    throw err;
+  }
+}
+
+/**
+ * Normalize + validate the finding-subset request
+ * (`spec/job-lifecycle.md` §Finding-subset targeting): dedup + sort so
+ * the frozen column and the rendered section are deterministic
+ * regardless of input order. Only meaningful where the injected triggers
+ * ARE `state_findings` rows (a findings-branch fixer): a non-fixer has
+ * no injection, and a deterministic-analyzer fixer's triggers are
+ * `scan_issues` rows with no stable ids, so those return `'unsupported'`.
+ */
+function normalizeFindingIds(
+  requested: readonly number[] | undefined,
+  analyzerIds: readonly string[] | undefined,
+  analyzerMode: TAnalyzerMode | undefined,
+): readonly number[] | undefined | 'unsupported' {
+  if (requested === undefined) return undefined;
+  if (analyzerIds === undefined || analyzerMode === 'deterministic') return 'unsupported';
+  return [...new Set(requested)].sort((a, b) => a - b);
 }
 
 /**
@@ -779,21 +852,24 @@ function toFixerSubmitResult(outcome: TSubmitOutcome): TFixerSubmitResult {
   }
 }
 
-/** A short, log-only description of a prepare failure (never user-facing). */
+/**
+ * A short, log-only description of a prepare failure (never
+ * user-facing). Lookup-shaped (one formatter per kind) so the catalog
+ * grows without pushing the function over the complexity cap.
+ */
+const PREPARE_ERROR_DESCRIPTIONS: {
+  [K in TPrepareError['kind']]: (error: Extract<TPrepareError, { kind: K }>) => string;
+} = {
+  'not-found': () => 'extension not found',
+  deterministic: (e) => `not probabilistic (mode ${e.mode})`,
+  ambiguous: () => 'ambiguous extension id',
+  'prompt-unresolved': (e) => `prompt unresolved: ${e.detail}`,
+  'report-schema-unresolved': (e) => `report schema unresolved: ${e.detail}`,
+  'finding-ids-unsupported': () => 'findingIds on a target without stable finding ids',
+  'invalid-ttl': (e) => e.message,
+  'invalid-priority': (e) => e.message,
+};
+
 function describePrepareError(error: TPrepareError): string {
-  switch (error.kind) {
-    case 'not-found':
-      return 'extension not found';
-    case 'deterministic':
-      return `not probabilistic (mode ${error.mode})`;
-    case 'ambiguous':
-      return 'ambiguous extension id';
-    case 'prompt-unresolved':
-      return `prompt unresolved: ${error.detail}`;
-    case 'report-schema-unresolved':
-      return `report schema unresolved: ${error.detail}`;
-    case 'invalid-ttl':
-    case 'invalid-priority':
-      return error.message;
-  }
+  return (PREPARE_ERROR_DESCRIPTIONS[error.kind] as (e: TPrepareError) => string)(error);
 }

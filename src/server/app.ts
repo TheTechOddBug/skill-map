@@ -167,6 +167,8 @@ export type TErrorCode =
   // route rows). Carried by `ConflictError`.
   | 'finding-not-dismissible'
   | 'finding-already-fixed'
+  | 'finding-terminal'
+  | 'finding-open'
   | 'internal';
 
 export interface IErrorEnvelope {
@@ -300,7 +302,9 @@ export class ConflictError extends HTTPException {
     | 'sidecar-fresh'
     | 'job-terminal'
     | 'finding-not-dismissible'
-    | 'finding-already-fixed';
+    | 'finding-already-fixed'
+    | 'finding-terminal'
+    | 'finding-open';
 
   constructor(init: { code: ConflictError['code']; message: string }) {
     super(409, { message: init.message });

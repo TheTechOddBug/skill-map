@@ -305,7 +305,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed.analyzers.length >= 5, 'every core rule should survive');
     });
 
-    it('(b) disable core/name-collision → only that rule skips; other 15 core analyzers stay', () => {
+    it('(b) disable core/name-collision → only that rule skips; every other core analyzer stays', () => {
       const runtime = emptyPluginRuntime();
       runtime.resolveEnabled = (id: string) => id !== 'core/name-collision';
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: runtime });
@@ -324,7 +324,9 @@ describe('plugin-runtime, branch coverage', () => {
       // to be reintroduced under a probabilistic evaluation model;
       // `core/name-mismatch` joined for the declared-vs-path-handle
       // divergence). This custom resolver enables every id except
-      // `core/name-collision`, so 18 compose, listed below in
+      // `core/name-collision`, so 23 compose (the five optimization
+      // finders ai-verbosity/-vagueness/-structure/-trigger/-scope joined
+      // 2026-07-22, experimental but enabled by this resolver), listed below in
       // alphabetical order (`issue-counter` is the lone aggregate-phase
       // analyzer; `name-reserved` + `reference-broken` are the
       // score-phase ones; the three `ai-*` finders are probabilistic,
@@ -335,6 +337,11 @@ describe('plugin-runtime, branch coverage', () => {
         'ai-contradiction-analyzer',
         'ai-incoherence-analyzer',
         'ai-redundancy-analyzer',
+        'ai-scope-analyzer',
+        'ai-structure-analyzer',
+        'ai-trigger-analyzer',
+        'ai-vagueness-analyzer',
+        'ai-verbosity-analyzer',
         'annotation-field-unknown',
         'annotation-orphan',
         'annotation-stale',

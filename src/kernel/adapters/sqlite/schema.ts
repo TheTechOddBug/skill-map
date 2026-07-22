@@ -473,6 +473,13 @@ export interface IStateJobsTable {
    * §Auto-fix chain (per-job)).
    */
   autoFix: Generated<number>;
+  /**
+   * Finding-subset targeting for FIXER jobs (`finding_ids_json`, NULL =
+   * whole node): JSON int array of `state_findings` ids frozen at
+   * submit, bridged to `Job.findingIds`
+   * (`spec/job-lifecycle.md` §Findings injection for fixers).
+   */
+  findingIdsJson: string | null;
   nodeId: string;
   contentHash: string;
   nonce: string;
@@ -571,7 +578,7 @@ export type TFindingOrigin = 'extension' | 'kernel';
  * Neither is "verified": only the finder re-judging the current body deletes
  * or reopens a `fixed` row. `null` = open.
  */
-export type TFindingResolution = 'fixed' | 'human-decision';
+export type TFindingResolution = 'fixed' | 'human-decision' | 'dismissed';
 
 /**
  * WHO decided a `fixed` finding (`state_findings.resolution_actor`). One

@@ -127,6 +127,17 @@ export interface IProbExtensionEntry {
    * re-enables once none is open). Always `false` for standalone entries.
    */
   hasOpenFindings: boolean;
+  /**
+   * Frozen finding targets of the ACTIVE fixer jobs for this finder
+   * (`spec/cli-contract.md` §GET /api/nodes/:pathB64/prob-extensions):
+   * `all: true` when a whole-node fixer job (no `findingIds`) is active,
+   * `findingIds` the union of the active subset jobs' ids. The tray
+   * derives each row's fix-button busy state from it so fixing one
+   * finding no longer spins every row (user decision 2026-07-22).
+   * `null` when no fixer job is active (and always on standalone
+   * entries).
+   */
+  fixerBusy: { all: boolean; findingIds: number[] } | null;
 }
 
 /** The `item` payload of the `node.prob-extensions` single envelope. */
@@ -348,6 +359,9 @@ function nodeHasOpenFindings(
       f.origin === 'extension' &&
       f.extensionId === finderQualifiedId &&
       f.resolution !== 'fixed' &&
+      // Row-grain dismissal (2026-07-22): a dismissed row is not open
+      // either, same posture as the class lens below.
+      f.resolution !== 'dismissed' &&
       f.stale === false &&
       // The read-time dismissal lens: a suppressed class is hidden from
       // the tray, so it must not morph the button to Fix either.
@@ -356,6 +370,20 @@ function nodeHasOpenFindings(
 }
 
 /** Base entry: id, description, live queue state + active job handle, last judgment, fixer fields. */
+/**
+ * Per-row fix busy (spec §prob-extensions `fixerBusy`): summarize the
+ * ACTIVE fixer jobs' frozen finding targets. A whole-node job (null
+ * `findingIds`) covers every row; subset jobs union their ids. `null`
+ * when no fixer job is active.
+ */
+function computeFixerBusy(fixerJobs: readonly Job[]): IProbExtensionEntry['fixerBusy'] {
+  if (fixerJobs.length === 0) return null;
+  return {
+    all: fixerJobs.some((j) => j.findingIds === null),
+    findingIds: [...new Set(fixerJobs.flatMap((j) => j.findingIds ?? []))].sort((a, b) => a - b),
+  };
+}
+
 async function buildEntry(
   adapter: StoragePort,
   node: Node,
@@ -379,6 +407,7 @@ async function buildEntry(
   const runningJob = mine.find((j) => j.status === 'running');
   const activeJob = runningJob ?? mine[0];
   const state = runningJob !== undefined ? 'running' : mine.length > 0 ? 'queued' : 'idle';
+  const fixerBusy = computeFixerBusy(mine.filter((j) => j.extensionId !== qualified));
   // Latest COMPLETED execution for the pair (`history.list` orders
   // `startedAt` desc); `at` is the record stamp (`finishedAt`).
   const [latest] = await adapter.history.list({
@@ -395,5 +424,6 @@ async function buildEntry(
     lastJudged: latest ? { at: latest.finishedAt, model: latest.model ?? null } : null,
     fixerIds: extras.fixerIds,
     hasOpenFindings: extras.hasOpenFindings,
+    fixerBusy,
   };
 }

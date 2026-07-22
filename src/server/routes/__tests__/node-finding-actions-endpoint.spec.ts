@@ -127,7 +127,7 @@ async function mirrorSuppressions(): Promise<unknown> {
 describe('POST /api/nodes/:pathB64/findings/:id/dismiss', () => {
   it('412 confirm-required without consent; confirm:true dismisses (rows kept, mirror fresh)', async () => {
     await bootAndUse(project, async (handle) => {
-      const refused = await post(handle, `/findings/${ids.get('redundancy')}/dismiss`, {});
+      const refused = await post(handle, `/findings/${ids.get('redundancy')}/dismiss`, { class: true });
       assert.equal(refused.status, 412);
       const body = (await refused.json()) as IErrorBody;
       assert.equal(body.error.code, 'confirm-required');
@@ -138,6 +138,7 @@ describe('POST /api/nodes/:pathB64/findings/:id/dismiss', () => {
       // the body carries consent flags only (no note field; a `note` in
       // the body would 400 on `additionalProperties: false`).
       const ok = await post(handle, `/findings/${ids.get('redundancy')}/dismiss`, {
+        class: true,
         confirm: true,
       });
       assert.equal(ok.status, 204);
@@ -157,7 +158,7 @@ describe('POST /api/nodes/:pathB64/findings/:id/dismiss', () => {
 
   it('the findings GET hides the dismissed class and counts it', async () => {
     await bootAndUse(project, async (handle) => {
-      await post(handle, `/findings/${ids.get('redundancy')}/dismiss`, { confirm: true });
+      await post(handle, `/findings/${ids.get('redundancy')}/dismiss`, { class: true, confirm: true });
       const res = await fetch(url('/findings')(handle));
       const env = (await res.json()) as {
         items: Array<{ type: string }>;
@@ -171,16 +172,57 @@ describe('POST /api/nodes/:pathB64/findings/:id/dismiss', () => {
   it('always:true persists the standing grant', async () => {
     await bootAndUse(project, async (handle) => {
       const ok = await post(handle, `/findings/${ids.get('redundancy')}/dismiss`, {
+        class: true,
         confirm: true,
         always: true,
       });
       assert.equal(ok.status, 204);
       // The grant persisted: a SECOND sidecar write sails through bare.
-      const second = await post(handle, `/findings/${ids.get('contradiction')}/dismiss`, {});
+      const second = await post(handle, `/findings/${ids.get('contradiction')}/dismiss`, { class: true });
       assert.equal(second.status, 204);
     });
     const local = readFileSync(join(project.root, '.skill-map/settings.local.json'), 'utf8');
     assert.match(local, /"allowEditSmFiles"\s*:\s*true/);
+  });
+
+  it('DEFAULT body {} is the ROW-grain dismissal: no sidecar, reopen restores', async () => {
+    await bootAndUse(project, async (handle) => {
+      const ok = await post(handle, `/findings/${ids.get('redundancy')}/dismiss`, {});
+      assert.equal(ok.status, 204);
+      assert.equal(existsSync(sidecarAbs()), false, 'no sidecar written for a row dismiss');
+
+      // Repeat -> 409 finding-terminal.
+      const twice = await post(handle, `/findings/${ids.get('redundancy')}/dismiss`, {});
+      assert.equal(twice.status, 409);
+      assert.equal(((await twice.json()) as IErrorBody).error.code, 'finding-terminal');
+
+      // Reopen restores; a second reopen is 409 finding-open.
+      const reopened = await post(handle, `/findings/${ids.get('redundancy')}/reopen`, {});
+      assert.equal(reopened.status, 204);
+      const again = await post(handle, `/findings/${ids.get('redundancy')}/reopen`, {});
+      assert.equal(again.status, 409);
+      assert.equal(((await again.json()) as IErrorBody).error.code, 'finding-open');
+    });
+    await withProjectDb(project, async (adapter) => {
+      const row = await adapter.findings.get(ids.get('redundancy')!);
+      assert.equal(row?.resolution, null, 'reopen cleared the resolution');
+    });
+  });
+
+  it('a row dismiss hides the row under the dismissed bucket and counts it', async () => {
+    await bootAndUse(project, async (handle) => {
+      await post(handle, `/findings/${ids.get('redundancy')}/dismiss`, {});
+      const res = await fetch(url('/findings')(handle));
+      const env = (await res.json()) as {
+        items: Array<{ id: number }>;
+        counts: { dismissedExcluded: number };
+      };
+      assert.ok(
+        env.items.every((f) => f.id !== ids.get('redundancy')),
+        'row hidden from the default view',
+      );
+      assert.ok(env.counts.dismissedExcluded >= 1, 'counted in the dismissed bucket');
+    });
   });
 
   it('409 finding-not-dismissible for a kernel safety row; 404 for unknown ids', async () => {
@@ -229,7 +271,7 @@ describe('POST /api/nodes/:pathB64/findings/:id/resolve', () => {
 describe('POST /api/nodes/:pathB64/findings/undismiss', () => {
   it('204 removes the exact entry; the class shows again; no-match 404 self-heals the mirror', async () => {
     await bootAndUse(project, async (handle) => {
-      await post(handle, `/findings/${ids.get('redundancy')}/dismiss`, { confirm: true });
+      await post(handle, `/findings/${ids.get('redundancy')}/dismiss`, { class: true, confirm: true });
       assert.notEqual(await mirrorSuppressions(), undefined);
 
       const ok = await post(handle, '/findings/undismiss', {
@@ -289,7 +331,7 @@ describe('DELETE /api/nodes/:pathB64/findings/:id', () => {
       // X serves. Deleting the class's LAST row must ALSO remove the
       // suppression entry (an orphan dismissal would hide the class when
       // a later finder run re-finds it, user call 2026-07-20).
-      await post(handle, `/findings/${ids.get('redundancy')}/dismiss`, { confirm: true });
+      await post(handle, `/findings/${ids.get('redundancy')}/dismiss`, { class: true, confirm: true });
 
       // Without consent the lift is gated: 412 and NOTHING mutates
       // (sidecar first, row second by design).
@@ -331,7 +373,7 @@ describe('DELETE /api/nodes/:pathB64/findings/:id', () => {
       );
       const pair = rows.filter((f) => f.type === 'redundancy');
       assert.equal(pair.length, 2, 'precondition: two rows of the class');
-      await post(handle, `/findings/${pair[0]!.id}/dismiss`, { confirm: true });
+      await post(handle, `/findings/${pair[0]!.id}/dismiss`, { class: true, confirm: true });
 
       // No consent flags needed: the sibling keeps the entry, so the
       // delete touches no sidecar.

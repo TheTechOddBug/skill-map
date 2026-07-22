@@ -274,6 +274,15 @@ export const FINDINGS_CLI_TEXTS = {
    * re-running the finder verifies the defect is gone).
    */
   resolveDone: '{{glyph}}  Finding {{id}} marked fixed by you.\n',
+  /** Row-grain dismissal done (`sm findings dismiss`, the default). */
+  dismissRowDone:
+    '{{glyph}}  Finding {{id}} dismissed (this row only; the finder re-judging brings it back if still present). Undo with `sm findings reopen {{id}}`.\n',
+  /** Exit 2: the row is already dismissed. */
+  dismissErrAlreadyDismissed: '{{glyph}}  Finding {{id}} is already dismissed.\n',
+  /** Reopen done (`sm findings reopen`). */
+  reopenDone: '{{glyph}}  Finding {{id}} reopened (back in the default view and fixer injection).\n',
+  /** Exit 2: the row is already open. */
+  reopenErrAlreadyOpen: '{{glyph}}  Finding {{id}} is already open (no resolution to clear).\n',
   /** Exit 5: no finding carries that id. */
   resolveNotFound:
     '{{glyph}}  Finding {{id}} not found.\n' +

@@ -41,7 +41,7 @@ export type TFindingOrigin = 'extension' | 'kernel';
  * deletes or reopens it). `human-decision` stays VISIBLE: its note is the
  * fixer's PROPOSAL, the author's TODO. `null` = open.
  */
-export type TFindingResolution = 'fixed' | 'human-decision';
+export type TFindingResolution = 'fixed' | 'human-decision' | 'dismissed';
 
 /**
  * WHO decided a `fixed` finding (`state_findings.resolution_actor`,
@@ -234,6 +234,27 @@ export interface IFindingRecord {
 export type TFindingResolveOutcome =
   | { kind: 'resolved'; finding: IFindingRecord }
   | { kind: 'already-fixed' }
+  | { kind: 'not-found' };
+
+/**
+ * Outcome of `port.findings.dismissByHuman(id, note, nowMs)`, the
+ * ROW-grain dismissal (`sm findings dismiss <id>`, the tray's X;
+ * 2026-07-22): `dismissed` carries the updated row; `already-dismissed`
+ * exits 2; `not-found` exits 5.
+ */
+export type TFindingRowDismissOutcome =
+  | { kind: 'dismissed'; finding: IFindingRecord }
+  | { kind: 'already-dismissed' }
+  | { kind: 'not-found' };
+
+/**
+ * Outcome of `port.findings.reopen(id, nowMs)` (`sm findings reopen`):
+ * `reopened` carries the updated row; `already-open` exits 2;
+ * `not-found` exits 5.
+ */
+export type TFindingReopenOutcome =
+  | { kind: 'reopened'; finding: IFindingRecord }
+  | { kind: 'already-open' }
   | { kind: 'not-found' };
 
 /**
@@ -692,6 +713,14 @@ export interface IJobSubmitRow {
    * flagged `--auto-fix` (`spec/job-lifecycle.md` §Auto-fix chain (per-job)).
    */
   autoFix?: boolean;
+  /**
+   * Finding-subset targeting for FIXER jobs, frozen at submit
+   * (`spec/job-lifecycle.md` §Findings injection for fixers ·
+   * Finding-subset targeting): the `state_findings` ids this job
+   * resolves. Absent/undefined = whole-node targeting (the column
+   * stores NULL). Meaningless on non-fixer jobs.
+   */
+  findingIds?: readonly number[];
   nodeId: string;
   contentHash: string;
   nonce: string;
