@@ -2751,15 +2751,17 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     ).toBeNull();
   });
 
-  it('keeps the card up on hidden-only counts: the reveal chips are its content', async () => {
-    // Flipped when the hidden-buckets chips landed: a hidden-only card now
-    // carries the reveal / restore surface, and hiding it would strand an
-    // all-dismissed node with no way back from the UI.
+  it('keeps the FINDINGS card up on hidden-only counts: the reveal chips are its content', async () => {
+    // The reveal / restore surface rides the Findings card since the
+    // rows moved there (user call 2026-07-22); hiding it would strand an
+    // all-dismissed node with no way back from the UI. The AI actions
+    // card gates on launchers alone, so with none composed it hides.
     const { fixture } = await bootAiActions({
       findings: makeFindingsEnvelope([], { total: 1, fixedExcluded: 1 }),
     });
     const dom: HTMLElement = fixture.nativeElement;
-    expect(dom.querySelector('[data-testid="inspector-card-ai-actions"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-findings"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-card-ai-actions"]')).toBeNull();
     const chip = dom.querySelector('[data-testid="inspector-ai-hidden-fixed"]');
     expect(chip).not.toBeNull();
     expect(chip!.textContent).toContain('1 fixed');
@@ -3217,9 +3219,10 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
   it('hidden chips reveal a bucket; restore un-dismisses from the dismissed rows', async () => {
     const hiddenOnly = makeFindingsEnvelope([], { dismissedExcluded: 1 });
     const { fixture, dataSource, node } = await bootAiActions({ findings: hiddenOnly });
-    // The card stays up on hidden-only content (the reveal surface).
+    // The FINDINGS card stays up on hidden-only content (the reveal
+    // surface lives there since the rows moved, user call 2026-07-22).
     const dom: HTMLElement = fixture.nativeElement;
-    expect(dom.querySelector('[data-testid="inspector-card-ai-actions"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-findings"]')).not.toBeNull();
     const chip = dom.querySelector(
       '[data-testid="inspector-ai-hidden-dismissed"]',
     ) as HTMLButtonElement;

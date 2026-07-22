@@ -442,6 +442,19 @@ export class InspectorView implements OnInit {
    * user asked for basic.
    */
   protected readonly issues = signal<IIssueApi[]>([]);
+
+  /**
+   * Findings card visibility: deterministic issues, probabilistic (AI)
+   * finding rows (mixed into this card, user call 2026-07-22), or
+   * held-back buckets (dismissed / fixed) whose honesty chips must stay
+   * reachable so an all-dismissed node can restore.
+   */
+  protected readonly findingsSectionAvailable = computed<boolean>(() => {
+    if (this.issues().length > 0) return true;
+    if (this.aiActions.findings().length > 0) return true;
+    const c = this.aiActions.counts();
+    return c !== null && c.dismissedExcluded + c.fixedExcluded > 0;
+  });
   /**
    * Last path the issues effect fetched for. Lets the effect tell a
    * navigation (path changed) apart from a same-path reload (the loader

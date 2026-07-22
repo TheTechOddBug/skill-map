@@ -120,6 +120,11 @@ export const INSPECTOR_VIEW_TEXTS = {
     /** Launcher button state tooltips (appended after the description). */
     stateQueued: 'queued',
     stateRunning: 'running',
+    /** Column headers of the launcher columns (user pick 2026-07-22). */
+    groupTitles: {
+      finders: 'Finders',
+      standalone: 'Standalone',
+    },
     /**
      * Disabled-reason suffix on a finder whose findings are still open
      * (user call 2026-07-20: re-running it makes no sense; handle the

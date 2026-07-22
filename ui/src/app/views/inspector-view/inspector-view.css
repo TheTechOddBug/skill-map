@@ -609,6 +609,15 @@
   background: var(--sm-severity-info-bg);
 }
 
+/* Findings card body: the deterministic issues list, the AI finding
+   rows below them (mixed card, user call 2026-07-22), and the
+   hidden-buckets honesty line, stacked with one shared gap. */
+.inspector__findings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
 .inspector__finding-head {
   display: flex;
   align-items: center;
@@ -803,25 +812,83 @@
   gap: 0.5rem;
 }
 
+/* Compact switch (user call 2026-07-22: the stock size reads too big
+   next to the small launcher rows): shrink via the component's own
+   design tokens, keeping the themed colors and focus ring intact. */
+.inspector__ai-actions-autofix .p-toggleswitch {
+  --p-toggleswitch-width: 2.1rem;
+  --p-toggleswitch-height: 1.2rem;
+  --p-toggleswitch-handle-size: 0.85rem;
+}
+
 .inspector__ai-actions-autofix-label {
   font-size: 0.8rem;
   color: var(--p-text-color);
   cursor: pointer;
 }
 
+/* One launcher group block (user pick 2026-07-22): full-width, Finders
+   above Standalone, header line then the rows. */
 .inspector__ai-actions-group-buttons {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
 }
 
-/* One launcher plus its stop / restart companions: a tighter inner gap
-   than the between-entries one, so the trio wraps as a single unit and
-   reads as one affordance. */
+/* Inside a group the rows flow into DYNAMIC columns: the available
+   width decides how many (auto-fill), each row keeping its list shape
+   (button stretched, stop at its right edge). */
+.inspector__ai-actions-group-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.1rem 0.8rem;
+  align-items: center;
+}
+
+/* Group header line: muted uppercase title left, its type-scoped ALL as
+   a quiet text button on the right edge. */
+.inspector__ai-actions-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--p-content-border-color);
+  padding-bottom: 0.1rem;
+}
+
+.inspector__ai-actions-group-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--p-text-muted-color);
+}
+
+/* One launcher row: launch button stretched left (icon + name reading
+   as a list item), stop companion at the right edge when active. */
 .inspector__ai-actions-entry {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 0.15rem;
+  min-width: 0;
+}
+
+.inspector__ai-actions-entry > p-button:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.inspector__ai-actions-entry > p-button:first-child .p-button {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.inspector__ai-actions-entry .p-button-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 0 1 auto;
 }
 
 .inspector__ai-actions-error {

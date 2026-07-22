@@ -387,15 +387,11 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     });
 
   const available = computed<boolean>(() => {
-    // Fresh findings, at least one launcher, or HELD-BACK rows: since the
-    // hidden-buckets chips landed (the reveal / restore surface), a
-    // hidden-only card carries real content again, and hiding it would
-    // strand an all-dismissed node with no way to restore. (Between
-    // 2026-07-17 and the chips, held-back counts alone rendered
-    // title-only and did NOT keep the card up.)
-    if (findings().length > 0) return true;
-    const c = counts();
-    if (c !== null && c.dismissedExcluded + c.fixedExcluded > 0) return true;
+    // Launchers only (user call 2026-07-22): the finding rows and the
+    // hidden-buckets chips moved into the Findings card (mixed with the
+    // deterministic issues), so this card exists purely to LAUNCH:
+    // no finder or standalone entry -> no card. Findings-side
+    // visibility lives in the view's `findingsSectionAvailable`.
     const probs = probExtensions();
     if (probs === null) return false;
     return probs.finders.length > 0 || probs.standalone.length > 0;

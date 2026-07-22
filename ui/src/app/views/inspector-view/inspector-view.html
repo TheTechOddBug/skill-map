@@ -92,7 +92,7 @@
       </sm-collapsible-section>
     }
 
-    @if (issues().length > 0) {
+    @if (findingsSectionAvailable()) {
       <sm-collapsible-section
         [title]="texts.sections.findings"
         [expanded]="expanded('findings')"
@@ -100,8 +100,14 @@
         (toggle)="toggleSection('findings')"
         data-testid="inspector-findings"
       >
-        <span class="sm-block__count" smSectionTitleExtra>({{ issues().length }})</span>
+        @if (issues().length + aiActionFindings().length > 0) {
+          <span class="sm-block__count" smSectionTitleExtra>({{
+            issues().length + aiActionFindings().length
+          }})</span>
+        }
         @if (expanded('findings')) {
+          <div class="inspector__findings-body">
+            @if (issues().length > 0) {
           <ul class="inspector__findings-list">
             <!-- Content-keyed track (issues carry no id): a silent
                  refresh that returns the same findings keeps every row's
@@ -156,32 +162,12 @@
               </li>
             }
           </ul>
-        }
-      </sm-collapsible-section>
-    }
-
-    <!--
-      AI actions section (Step 16 piece 1, the findings workbench):
-      the node's PROBABILISTIC findings tray plus the launcher buttons
-      for finder / fixer / standalone extensions. Distinct from the
-      deterministic Findings card above (analyzer issues): these rows
-      are agent AI actions recorded through the job queue. Gated like
-      every other section: hidden when the node has no launchers, no
-      fresh findings, and nothing held back by the default view.
-    -->
-    @if (aiActionsAvailable()) {
-      <sm-collapsible-section
-        [title]="texts.sections.aiActions"
-        [expanded]="expanded('aiActions')"
-        toggleTestid="inspector-ai-actions-toggle"
-        (toggle)="toggleSection('aiActions')"
-        data-testid="inspector-card-ai-actions"
-      >
-        @if (aiActionFindings().length > 0) {
-          <span class="sm-block__count" smSectionTitleExtra>({{ aiActionFindings().length }})</span>
-        }
-        @if (expanded('aiActions')) {
-          <div class="inspector__ai-actions">
+            }
+            <!-- Probabilistic (AI) finding rows, MIXED into this card
+                 below the deterministic issues (user call 2026-07-22:
+                 every finding lives here; the launcher buttons stay in
+                 the AI actions card). Same row anatomy, plus the
+                 per-finding actions and the hidden-buckets honesty line. -->
             @if (aiActionFindings().length > 0) {
               <ul class="inspector__findings-list" data-testid="inspector-ai-actions-list">
                 <!-- Finding rows carry a stable DB id, so tracking it keeps
@@ -387,6 +373,28 @@
                 </ul>
               }
             }
+          </div>
+        }
+      </sm-collapsible-section>
+    }
+
+    <!--
+      AI actions section: the LAUNCHERS only (finder / standalone
+      buttons + the Automatic toggle + the submit error strip). The
+      probabilistic finding rows moved INTO the Findings card above,
+      mixed with the deterministic issues (user call 2026-07-22), so
+      this card gates purely on having something to launch.
+    -->
+    @if (aiActionsAvailable()) {
+      <sm-collapsible-section
+        [title]="texts.sections.aiActions"
+        [expanded]="expanded('aiActions')"
+        toggleTestid="inspector-ai-actions-toggle"
+        (toggle)="toggleSection('aiActions')"
+        data-testid="inspector-card-ai-actions"
+      >
+        @if (expanded('aiActions')) {
+          <div class="inspector__ai-actions">
             @if (aiActionLauncherGroups().length > 0) {
               <div class="inspector__ai-actions-launchers" data-testid="inspector-ai-actions-launchers">
                 <!-- Automatic toggle (Step 16): one control for every
@@ -410,25 +418,39 @@
                     }}</label>
                   </div>
                 }
-                <!-- Two rows (user call 2026-07-22): finders on top,
-                     standalone below, each led by its own type-scoped ALL
-                     button that queues ONLY its group. -->
+                <!-- Launcher groups (user pick 2026-07-22, iterated the
+                     same day): Finders always on top, Standalone below,
+                     each a FULL-WIDTH block, and INSIDE each block the
+                     extension rows flow into dynamic columns (auto-fill,
+                     the width decides how many). Each block: a header
+                     line (title + its type-scoped ALL, which queues ONLY
+                     its group), then the rows: launch button stretched
+                     left, stop companion at the right when a job is
+                     active. No last-run meta on the rows (user call:
+                     when it ran does not matter here). -->
                 @for (group of aiActionLauncherGroups(); track group.id) {
                 <div
                   class="inspector__ai-actions-group-buttons"
                   [attr.data-testid]="'inspector-ai-actions-launchers-row-' + group.id"
                 >
-                  <span class="inspector__ai-actions-entry">
+                  <div class="inspector__ai-actions-group-head">
+                    <span class="inspector__ai-actions-group-title">{{
+                      group.id === 'finders'
+                        ? texts.aiActions.groupTitles.finders
+                        : texts.aiActions.groupTitles.standalone
+                    }}</span>
                     <p-button
                       [label]="launcherAllLabel(group.id)"
                       size="small"
+                      [text]="true"
                       [pTooltip]="group.id === 'finders' ? texts.aiActions.allFindersTooltip : texts.aiActions.allStandaloneTooltip"
                       tooltipPosition="left"
                       appendTo="body"
                       (onClick)="onLauncherAllGroup(group.id)"
                       [attr.data-testid]="'inspector-ai-action-launch-all-' + group.id"
                     />
-                  </span>
+                  </div>
+                  <div class="inspector__ai-actions-group-grid">
                   @for (entry of group.entries; track entry.id) {
                     @let item = { entry: entry, isFinder: group.id === 'finders' };
                     <span class="inspector__ai-actions-entry">
@@ -436,6 +458,7 @@
                         [label]="aiActionLauncherLabel(item.entry)"
                         [icon]="aiActionLauncherIcon(item.entry, item.isFinder)"
                         size="small"
+                        [text]="true"
                         [disabled]="aiActionLauncherDisabled(item.entry)"
                         [loading]="aiActionLauncherBusy(item.entry)"
                         [pTooltip]="aiActionLauncherTooltip(item.entry, item.isFinder)"
@@ -466,6 +489,7 @@
                       }
                     </span>
                   }
+                  </div>
                 </div>
                 }
               </div>
