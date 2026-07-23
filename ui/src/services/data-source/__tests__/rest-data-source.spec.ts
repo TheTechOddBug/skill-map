@@ -33,6 +33,7 @@ const HEALTH_FIXTURE = {
   db: 'present' as const,
   cwd: '/tmp/test',
   dbPath: '/tmp/test/.skill-map/scan.db',
+  mcp: false,
 };
 
 const SCAN_FIXTURE = {

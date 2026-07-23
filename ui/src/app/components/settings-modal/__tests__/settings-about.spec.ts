@@ -41,6 +41,7 @@ function health(overrides: Partial<IHealthResponseApi> = {}): IHealthResponseApi
     db: 'present',
     cwd: '~/projects/demo',
     dbPath: '~/projects/demo/.skill-map/skill-map.db',
+    mcp: false,
     ...overrides,
   };
 }

@@ -146,6 +146,19 @@
           data-testid="shell-live-activity-toggle"
         />
       </span>
+      <!-- Quick Start (readiness) panel, to the right of Real Time. -->
+      <p-button
+        icon="fa-solid fa-rocket"
+        [ariaLabel]="quickStartTexts.triggerAriaLabel"
+        [pTooltip]="quickStartTexts.triggerTooltip"
+        tooltipPosition="bottom"
+        severity="secondary"
+        [text]="true"
+        [rounded]="true"
+        size="small"
+        (onClick)="openQuickStart()"
+        data-testid="action-quick-start"
+      />
       <button
         type="button"
         class="shell__refresh"
@@ -196,6 +209,13 @@
       [visible]="settingsOpen()"
       [initialSection]="settingsInitialSection()"
       (visibleChange)="onSettingsVisibleChange($event)"
+    />
+  }
+
+  @defer (when quickStartOpen()) {
+    <sm-quick-start-modal
+      [visible]="quickStartOpen()"
+      (visibleChange)="onQuickStartVisibleChange($event)"
     />
   }
 </div>

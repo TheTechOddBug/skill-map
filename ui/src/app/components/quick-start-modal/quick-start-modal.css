@@ -1,0 +1,143 @@
+:host {
+  display: contents;
+  /* Re-pin error red within the modal scope. The matrix theme retints
+   * errors to green for graph immersion (themes/matrix.css); form-level
+   * failures inside this modal need to read as failures, so the universal
+   * red signal is preserved here only. Light / dark themes leave these
+   * untouched, so the cascade falls back to their defaults. */
+  --p-message-error-color: #fca5a5;
+  --p-message-error-background: color-mix(in srgb, #ef4444 14%, transparent);
+  --p-message-error-border-color: color-mix(in srgb, #ef4444 45%, transparent);
+}
+
+/* PrimeNG injects [styleClass] on the dialog root. A single-column,
+ * comfortably-narrow readiness panel: the 92vw / 90vh caps keep it inside
+ * the viewport on small windows, the fixed size targets a scannable list
+ * on desktop. */
+:host ::ng-deep .quick-start-modal__dialog {
+  width: 760px;
+  height: 720px;
+  max-width: 92vw;
+  max-height: 90vh;
+}
+
+/* PrimeNG injects [contentStyleClass] on the dialog's body wrapper. Strip
+ * its default padding so our own scroll container fills the frame. */
+:host ::ng-deep .quick-start-modal__content {
+  padding: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Two-pane layout mirroring the Settings dialog: a left rail listing the
+ * three capability groups (parents), and a right panel that swaps to the
+ * active group's rows. */
+.quick-start-modal__layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  min-height: 0;
+}
+
+/* The rail scrolls independently of the panel. `min-height: 0` lets the
+ * grid track shrink below its content so its own overflow can kick in. */
+.quick-start-modal__sidebar {
+  border-right: 1px solid var(--p-content-border-color);
+  background: var(--p-content-background);
+  padding: 0.5rem;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.quick-start-modal__sidebar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.quick-start-modal__sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  border: none;
+  border-radius: var(--sm-radius-md);
+  background: transparent;
+  color: var(--p-text-color);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.quick-start-modal__sidebar-item:hover {
+  background: var(--p-content-hover-background);
+}
+
+/* A little more distinct than the Settings rail: keep the highlight fill,
+ * add a left accent bar so the active group reads as a selected tab. */
+.quick-start-modal__sidebar-item.is-active {
+  background: var(--p-highlight-background);
+  color: var(--p-highlight-color);
+  box-shadow: inset 3px 0 0 0 var(--p-primary-color);
+}
+
+.quick-start-modal__sidebar-icon {
+  flex: 0 0 auto;
+  font-size: 1rem;
+  color: var(--p-text-muted-color);
+}
+
+.quick-start-modal__sidebar-item.is-active .quick-start-modal__sidebar-icon {
+  color: inherit;
+}
+
+.quick-start-modal__sidebar-label {
+  flex: 1;
+  font-size: 1rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quick-start-modal__main {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The scroll surface for the active group: intro line, error banner, rows. */
+.quick-start-modal__panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.25rem 1.5rem;
+}
+
+.quick-start-modal__intro {
+  margin: 0 0 1.25rem 0;
+  font-style: italic;
+  font-size: 0.85rem;
+  color: var(--sm-text-muted);
+  line-height: 1.5;
+}
+
+:host ::ng-deep .quick-start-modal__panel p-message {
+  display: block;
+  margin-bottom: 1rem;
+}
+
+/* Bring the small-size PrimeNG buttons to the modal's dense scale, matching
+ * the Settings dialog's treatment (size="small" only trims padding). */
+:host ::ng-deep .quick-start-modal__dialog .p-button {
+  font-size: 0.8rem;
+}

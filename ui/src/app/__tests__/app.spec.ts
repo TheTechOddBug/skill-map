@@ -42,6 +42,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       db: 'missing',
       cwd: '/tmp/test',
       dbPath: '/tmp/test/.skill-map/scan.db',
+      mcp: false,
     }),
   loadScan: () =>
     Promise.resolve({
@@ -621,7 +622,7 @@ describe('App, Real Time toggle', () => {
     )!;
   }
 
-  it('renders first in the actions cluster and toggles the shared activity preference', async () => {
+  it('follows the setup rocket in the actions cluster and toggles the shared activity preference', async () => {
     await configureWithReadiness(true);
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
@@ -629,10 +630,12 @@ describe('App, Real Time toggle', () => {
 
     const root = fixture.nativeElement as HTMLElement;
     const actions = root.querySelector('.shell__actions')!;
-    // FIRST control in the cluster: the wrapper span hosts the button.
-    expect(
-      actions.firstElementChild?.getAttribute('data-testid'),
-    ).toBe('shell-live-activity-tooltip-wrap');
+    // The Real Time toggle wrapper (which hosts the button) leads the
+    // cluster; the Quick Start rocket sits to its right, second.
+    expect(actions.firstElementChild?.getAttribute('data-testid')).toBe(
+      'shell-live-activity-tooltip-wrap',
+    );
+    expect(actions.children[1]?.getAttribute('data-testid')).toBe('action-quick-start');
 
     const btn = toggleButton(root);
     expect(btn.disabled).toBe(false);

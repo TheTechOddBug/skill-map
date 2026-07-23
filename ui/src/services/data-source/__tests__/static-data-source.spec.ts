@@ -40,6 +40,7 @@ const META_FIXTURE: IDemoMetaPayload = {
     db: 'present',
     cwd: '/tmp/test',
     dbPath: '/tmp/test/.skill-map/scan.db',
+    mcp: false,
   },
   nodes: {
     schemaVersion: '1',

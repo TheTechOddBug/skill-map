@@ -1159,6 +1159,17 @@ Acceptance: every CLI verb shipped at Step 11 has a UI flow that does not requir
 
 ---
 
+### Step 18, Quick Start (readiness) panel (onboarding without the tutorial)
+
+✅ landed 2026-07-24 (user request: testers dislike full tutorials, yet the tool gates a lot of capability behind setup steps and permissions; give them a zero-friction "what do I need to use X?" surface). A standalone rocket-icon modal in the topbar (next to the Real Time toggle), independent of Settings, reporting readiness per capability across three groups: **Live update** (live updates, follow external symlinks), **Real Time** (real-time hook, node activity, conversation capture), **AI Actions** (MCP server live, MCP registered in the project, agent skill installed, agent attending jobs). Each row shows a live status plus one action (enable / install through the same 412-consent handshake the Settings Project rows use, a per-lens MCP register-command copy, or the liveness check). NOT a tutorial and NOT `sm doctor` (health / troubleshooting): this is forward-looking enablement, and it consults endpoints that already exist. Only two backend pieces are new:
+
+- **`GET /api/health` gained `mcp: boolean`** (spec `cli-contract.md` §GET /api/health), the LIVE `/mcp`-mounted state (resolved `IServerOptions.mcpServer`), distinct from the `mcpServerEnabled` preference, so the panel can tell a reachable endpoint from an opted-in-but-not-restarted one.
+- **`core/ai-ping-action`**, a hidden SYSTEM liveness probe: a probabilistic Action carrying `locked: true`, so it is always-on, non-toggleable, trust-exempt, and stripped from every discovery surface (the Settings plugins list and MCP `list_extensions`, which now skips locked ids). The "agent attending jobs" row submits it against a real node and watches `/ws` for a `job.claimed` within a short window; a claim proves an external agent is draining the queue, a timeout cancels the still-queued ping (jobs never auto-expire, Decision #139) so it never lingers. Its report extends `report-base` only (no summary / no finding write-through), and it rides the `ai-<subject>-<kind>` probabilistic-built-in naming convention (user call 2026-07-24, conform to the convention rather than exempt the locked extension).
+
+"MCP registered in the project" is verified from the scanned graph (the `mcp://skill-map` node) for lenses that carry a project-local MCP config (Claude / Codex); home-scoped lenses (e.g. Antigravity) degrade to copy-guidance without claiming a verdict.
+
+---
+
 ### Step 15, Distribution polish
 
 - **Single npm package**: `@skill-map/cli` ships CLI + UI built (`ui/dist/` copied into the package at publish time). Two `bin` entries, `sm` (short, daily use) and `skill-map` (full name, scripting). Same binary, two aliases. Single version applies to both surfaces; CLI ↔ UI key mismatches degrade gracefully (unknown keys are warned + ignored, never fatal). Versioning details in §Stack conventions.

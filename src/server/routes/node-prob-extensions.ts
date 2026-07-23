@@ -89,6 +89,7 @@ import {
   type ISuppressionEntry,
 } from '../../kernel/jobs/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
+import { isLockedBuiltIn } from '../../plugins/locked-built-ins.js';
 import type { Job, Node } from '../../kernel/types.js';
 import type { IFindingRecord } from '../../kernel/types/storage.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
@@ -240,8 +241,13 @@ async function composeProbSources(deps: IRouteDeps): Promise<ICatalogSources> {
     undefined,
     resolveEnabled,
   );
-  const probAnalyzers = runtime.analyzers.filter((a) => isProbabilistic(a));
-  const probActions = runtime.actions.filter((a) => isProbabilistic(a));
+  // Locked = hidden SYSTEM extension (e.g. `core/ai-ping-action`, the
+  // liveness probe): never a user-facing launcher affordance, the same way
+  // it is hidden from MCP `list_extensions`. The platform enqueues it by id.
+  const isVisibleProb = (a: IAnalyzer | IAction): boolean =>
+    isProbabilistic(a) && !isLockedBuiltIn(qualifiedExtensionId(a.pluginId, a.id));
+  const probAnalyzers = runtime.analyzers.filter(isVisibleProb);
+  const probActions = runtime.actions.filter(isVisibleProb);
   // The composed probabilistic Actions projected to the minimal
   // `{ id, analyzerIds }` shape the shared inverse Modelo-B resolver
   // reads, mirroring the hook / record-path projection.

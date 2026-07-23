@@ -1,0 +1,24 @@
+<div class="quick-start__row" [attr.data-testid]="testid()">
+  <div class="quick-start__row-text">
+    <div class="quick-start__row-label">{{ label() }}</div>
+    <div class="quick-start__row-description">{{ description() }}</div>
+    @if (meta(); as hint) {
+      <div class="quick-start__row-meta">
+        <span class="quick-start__meta-line" [attr.data-testid]="testid() + '-meta'">{{ hint }}</span>
+      </div>
+    }
+  </div>
+  <div class="quick-start__row-actions">
+    <span
+      class="quick-start__status"
+      [class.quick-start__status--ready]="status() === 'ready'"
+      [class.quick-start__status--not-ready]="status() === 'not-ready'"
+      [class.quick-start__status--unknown]="status() === 'unknown'"
+      [attr.data-testid]="testid() + '-status'"
+    >
+      <i [class]="statusIcon()" aria-hidden="true"></i>
+      <span class="quick-start__status-text">{{ statusText() }}</span>
+    </span>
+    <ng-content />
+  </div>
+</div>

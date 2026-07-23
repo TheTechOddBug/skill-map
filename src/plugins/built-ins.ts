@@ -65,6 +65,7 @@ import { aiContradictionAction as _aiContradictionAction } from './core/actions/
 import { aiFrontmatterAction as _aiFrontmatterAction } from './core/actions/ai-frontmatter-action/index.js';
 import { aiIncoherenceAction as _aiIncoherenceAction } from './core/actions/ai-incoherence-action/index.js';
 import { aiNameAction as _aiNameAction } from './core/actions/ai-name-action/index.js';
+import { aiPingAction as _aiPingAction } from './core/actions/ai-ping-action/index.js';
 import { aiRedundancyAction as _aiRedundancyAction } from './core/actions/ai-redundancy-action/index.js';
 import { aiReferenceAction as _aiReferenceAction } from './core/actions/ai-reference-action/index.js';
 import { aiScopeAction as _aiScopeAction } from './core/actions/ai-scope-action/index.js';
@@ -734,6 +735,19 @@ The document to edit:
 
 {{userContent}}
 `, reportSchema: JSON.parse('{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://skill-map.ai/spec/v0/core/ai-name-action-report.schema.json","title":"AiNameActionReport","description":"Report shape for the built-in `core/ai-name-action` probabilistic fixer Action. A fixer is NOT a finder: its report is execution-only, so it extends `report-base.schema.json` directly for the `confidence` + `safety` fields the preamble mandates, rather than the `findings/` envelope. `resolved` records, per name mismatch the processing agent acted on, keyed by the declared name (NOT a finding id: the trigger is a `core/name-mismatch` Issue, which carries no stable identity, so the fix\'s evidence is the next scan clearing the Issue via the body-hash rule). `editsSummary` describes the edits made. skill-map never writes the body, the processing agent performs the edit.","allOf":[{"$ref":"https://skill-map.ai/spec/v0/report-base.schema.json"}],"type":"object","required":["resolved","editsSummary"],"properties":{"resolved":{"type":"array","description":"One entry per name mismatch the agent considered, keyed by the declared name. `state` is `fixed` when the identity was settled (normally by aligning `frontmatter.name` to the derived handle), or `human-decision` when settling it needs a choice only the author can make (e.g. the declared name is the intended one and the FILE would have to be renamed), with your proposal in `note` and the document untouched.","items":{"type":"object","required":["declaredName","state","note"],"properties":{"declaredName":{"type":"string","description":"The declared `frontmatter.name`, copied VERBATIM from the injected `## Issues to resolve` section. This is what ties the outcome back to the mismatch. A name that does not match a current mismatch on this node is ignored."},"derivedName":{"type":"string","description":"Optional echo of the diverging file-derived handle, for report readability only. The `declaredName` is what identifies the entry."},"state":{"type":"string","enum":["fixed","human-decision"],"description":"The outcome: `fixed` when you edited the file so one name remains (normally aligning `frontmatter.name` to the derived handle, or a rename the author explicitly chose); `human-decision` when the settlement needs the author\'s choice and you left everything untouched (your `note` is your PROPOSAL). `fixed` is not a verdict: only the next scan re-deriving the identifiers clears the underlying Issue."},"by":{"type":"string","enum":["fixer","human"],"description":"WHO decided a `fixed` mismatch: `fixer` if you resolved it with ZERO user interaction (the autonomous frontmatter alignment), `human` if ANY user interaction was involved (an approval, a choice among options, a rename the author picked). REQUIRED when `state` is `fixed`; ignored otherwise."},"note":{"type":"string","description":"One-line note: which side was aligned to which name, or your PROPOSAL for the human-decision. On a `human-decision` entry this is surfaced to the author as their TODO, so make it actionable (name both candidate identities and what each choice implies)."}},"if":{"properties":{"state":{"const":"fixed"}}},"then":{"required":["by"]}}},"editsSummary":{"type":"string","description":"Short prose summary of the edits the agent made (which names were aligned, or which files were renamed by the author\'s choice). Empty string when every mismatch was left for a human decision."}}}') };
+const aiPingAction = { ..._aiPingAction, pluginId: 'core', version: VERSION, promptTemplate: `This is an automated liveness check. It only confirms that an agent is
+processing the job queue; it requires NO analysis and NO edits of any kind.
+Ignore the file content below, it is just a placeholder target for this probe.
+
+{{userContent}}
+
+Return a single JSON object with only the envelope the preamble requires:
+
+- \`confidence\`: 1
+- \`safety\`: \`{ "injectionDetected": false, "injectionType": null, "contentQuality": "clean" }\`
+
+Return nothing else.
+`, reportSchema: JSON.parse('{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://skill-map.ai/spec/v0/core/ai-ping-action-report.schema.json","title":"AiPingActionReport","description":"Report shape for the built-in system `core/ai-ping-action` liveness probe. Extends the canonical `report-base` (confidence + safety) and nothing else, so record writes through no summary and no finding: the probe cares only that the job was claimed + recorded, not about the payload.","allOf":[{"$ref":"https://skill-map.ai/spec/v0/report-base.schema.json"}]}') };
 const aiRedundancyAction = { ..._aiRedundancyAction, pluginId: 'core', version: VERSION, promptTemplate: `Resolve the redundancy findings listed in the "## Findings to resolve"
 section above by editing the document.
 
@@ -1287,6 +1301,7 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       aiFrontmatterAction,
       aiIncoherenceAction,
       aiNameAction,
+      aiPingAction,
       aiRedundancyAction,
       aiReferenceAction,
       aiScopeAction,

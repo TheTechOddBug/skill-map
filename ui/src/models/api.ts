@@ -930,6 +930,13 @@ export interface IHealthResponseApi {
   /** Absolute path to the project DB file. */
   dbPath: string;
   /**
+   * `true` when the read-only MCP server is mounted at `/mcp` right now
+   * (resolved `IServerOptions.mcpServer`). Distinct from the
+   * `mcpServerEnabled` project preference (opt-in intent); this is the
+   * LIVE endpoint state the Setup panel reads. Always present.
+   */
+  mcp: boolean;
+  /**
    * `true` when the BFF is running from a local checkout of the
    * `skill-map` repo (detected via the helper's own filesystem path,
    * see `src/kernel/util/dev-mode.ts`). Omitted from the wire shape

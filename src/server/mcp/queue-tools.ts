@@ -52,6 +52,7 @@ import {
 } from '../../core/jobs/submit-engine.js';
 import { isProbabilistic } from '../../kernel/jobs/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
+import { isLockedBuiltIn } from '../../plugins/locked-built-ins.js';
 import { appendOperation } from '../../core/operations-log.js';
 import { buildFreshResolver } from '../../core/runtime/fresh-resolver.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
@@ -140,6 +141,20 @@ export interface IListExtensionsResult {
 }
 
 /**
+ * Discovery gate for `list_extensions`: a probabilistic extension that is
+ * NOT a hidden system (`locked`) one. Locked extensions (e.g. the
+ * `core/ai-ping-action` liveness probe) are never offered as submittable
+ * capabilities, the platform enqueues them by id and claims / records them
+ * directly, so they stay out of the agent-facing catalog.
+ */
+function isDiscoverableProbabilistic(
+  ext: Parameters<typeof isProbabilistic>[0],
+  qualifiedId: string,
+): boolean {
+  return isProbabilistic(ext) && !isLockedBuiltIn(qualifiedId);
+}
+
+/**
  * List every ENABLED probabilistic extension the agent can pass to
  * `submit_job` (finders = probabilistic analyzers; fixers / standalone =
  * probabilistic actions), so the valid extension ids are DISCOVERABLE over
@@ -150,19 +165,21 @@ export async function listExtensions(ctx: IMcpWriteContext): Promise<IListExtens
   const runtime = await buildMcpRuntime(ctx);
   const extensions: IMcpExtensionInfo[] = [];
   for (const analyzer of runtime.analyzers) {
-    if (!isProbabilistic(analyzer)) continue;
+    const id = qualifiedExtensionId(analyzer.pluginId, analyzer.id);
+    if (!isDiscoverableProbabilistic(analyzer, id)) continue;
     extensions.push({
-      id: qualifiedExtensionId(analyzer.pluginId, analyzer.id),
+      id,
       kind: 'analyzer',
       role: 'finder',
       description: analyzer.description,
     });
   }
   for (const action of runtime.actions) {
-    if (!isProbabilistic(action)) continue;
+    const id = qualifiedExtensionId(action.pluginId, action.id);
+    if (!isDiscoverableProbabilistic(action, id)) continue;
     const analyzerIds = fixerAnalyzerIds('action', action);
     extensions.push({
-      id: qualifiedExtensionId(action.pluginId, action.id),
+      id,
       kind: 'action',
       role: analyzerIds !== undefined ? 'fixer' : 'standalone',
       description: action.description,

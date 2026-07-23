@@ -68,6 +68,16 @@ export interface IHealthResponse {
    */
   dbPath: string;
   /**
+   * `true` when the read-only MCP server is actually mounted at `/mcp`
+   * right now (resolved `IServerOptions.mcpServer`: `--mcp` flag >
+   * `mcp.server.enabled` config > default off). Distinct from the
+   * `mcpServerEnabled` project PREFERENCE (the opt-in intent); this
+   * reflects the LIVE endpoint so the Setup panel can tell "opted-in
+   * but needs a restart" from "actually reachable". Always present (a
+   * plain boolean) so the SPA distinguishes off from unknown.
+   */
+  mcp: boolean;
+  /**
    * `true` when the running CLI was loaded from a local checkout
    * (detected via `kernel/util/dev-mode.ts:isDevBuild`). Omitted from
    * the wire shape when `false` so a published install carries no
@@ -90,6 +100,8 @@ export interface IHealthDeps {
    * Node's resolution graph on each request.
    */
   specVersion: string;
+  /** Resolved `IServerOptions.mcpServer`: is `/mcp` mounted this boot. */
+  mcpServer: boolean;
 }
 
 const FALLBACK_SCHEMA_VERSION = '1';
@@ -108,6 +120,7 @@ export function buildHealth(deps: IHealthDeps): IHealthResponse {
     db: existsSync(deps.dbPath) ? 'present' : 'missing',
     cwd: deps.cwd,
     dbPath: deps.dbPath,
+    mcp: deps.mcpServer,
     // Only emit when truthy so a published install keeps the wire
     // shape lean and consumers branch on presence alone.
     ...(dev ? { dev: true as const } : {}),

@@ -8,6 +8,7 @@ import { TooltipModule } from 'primeng/tooltip';
 
 import { APP_TEXTS } from '../i18n/app.texts';
 import { SETTINGS_TEXTS } from '../i18n/settings.texts';
+import { QUICK_START_TEXTS } from '../i18n/quick-start.texts';
 import { THEME_TEXTS } from '../i18n/theme.texts';
 import { UPDATE_CHECK_TEXTS } from '../i18n/update-check.texts';
 import { CollectionLoaderService } from '../services/collection-loader';
@@ -28,12 +29,13 @@ import { OversizedBanner } from './components/oversized-banner/oversized-banner'
 import { SkippedFilesBanner } from './components/skipped-files-banner/skipped-files-banner';
 import { ConnectionBanner } from './components/connection-banner/connection-banner';
 import { SettingsModal, type TSettingsSection } from './components/settings-modal/settings-modal';
+import { QuickStartModal } from './components/quick-start-modal/quick-start-modal';
 /* DEBUG-SLOTS: remove with debug-slots.css. */
 import { ViewContributionsHost } from './components/view-contributions-host/view-contributions-host';
 
 @Component({
   selector: 'sm-root',
-  imports: [RouterOutlet, ButtonModule, InputTextModule, TooltipModule, FormsModule, NgOptimizedImage, DemoBanner, TutorialReminderBanner, ProviderMarkerDriftBanner, OversizedBanner, SkippedFilesBanner, ConnectionBanner, SettingsModal, /* DEBUG-SLOTS */ ViewContributionsHost],
+  imports: [RouterOutlet, ButtonModule, InputTextModule, TooltipModule, FormsModule, NgOptimizedImage, DemoBanner, TutorialReminderBanner, ProviderMarkerDriftBanner, OversizedBanner, SkippedFilesBanner, ConnectionBanner, SettingsModal, QuickStartModal, /* DEBUG-SLOTS */ ViewContributionsHost],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -56,6 +58,7 @@ export class App {
 
   protected readonly texts = APP_TEXTS;
   protected readonly settingsTexts = SETTINGS_TEXTS;
+  protected readonly quickStartTexts = QUICK_START_TEXTS;
   /**
    * Settings modal visibility. The modal is `@defer`-wrapped in the
    * template so its chunk (Dialog + ToggleSwitch + Message) only loads
@@ -75,6 +78,23 @@ export class App {
   protected openSettings(): void {
     this.settingsOpen.set(true);
     this.usageTracker.trackFeature('settings');
+  }
+
+  /**
+   * Quick Start modal visibility. Like Settings, the modal is
+   * `@defer`-wrapped in the template so its chunk (Dialog + Message +
+   * ConfirmDialog + rows) only loads on first open; subsequent opens flip
+   * the signal and the modal's effects re-probe every row.
+   */
+  protected readonly quickStartOpen = signal(false);
+
+  protected openQuickStart(): void {
+    this.quickStartOpen.set(true);
+    this.usageTracker.trackFeature('quick-start');
+  }
+
+  protected onQuickStartVisibleChange(open: boolean): void {
+    this.quickStartOpen.set(open);
   }
 
   /**

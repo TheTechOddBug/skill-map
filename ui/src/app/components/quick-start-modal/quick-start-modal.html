@@ -1,0 +1,244 @@
+<p-dialog
+  [visible]="visible()"
+  (visibleChange)="onVisibleChange($event)"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [closable]="true"
+  [closeOnEscape]="true"
+  [dismissableMask]="true"
+  styleClass="quick-start-modal__dialog"
+  contentStyleClass="quick-start-modal__content"
+  [header]="texts.modalTitle"
+  data-testid="quick-start-modal"
+>
+  <div class="quick-start-modal__layout">
+    <nav
+      class="quick-start-modal__sidebar"
+      [attr.aria-label]="texts.modalTitle"
+      data-testid="quick-start-modal-sidebar"
+    >
+      <ul class="quick-start-modal__sidebar-list" role="list">
+        @for (group of groups; track group.id) {
+          <li>
+            <button
+              type="button"
+              class="quick-start-modal__sidebar-item"
+              [class.is-active]="activeGroup() === group.id"
+              [attr.aria-current]="activeGroup() === group.id ? 'page' : null"
+              (click)="selectGroup(group.id)"
+              [attr.data-testid]="'quick-start-nav-' + group.id"
+            >
+              <i class="quick-start-modal__sidebar-icon {{ group.icon }}" aria-hidden="true"></i>
+              <span class="quick-start-modal__sidebar-label">{{ group.heading }}</span>
+            </button>
+          </li>
+        }
+      </ul>
+    </nav>
+
+    <div class="quick-start-modal__main" data-testid="quick-start-modal-main">
+      <div class="quick-start-modal__panel">
+        <p class="quick-start-modal__intro">{{ texts.intro }}</p>
+
+        @if (error(); as err) {
+          <p-message severity="error" [closable]="false" data-testid="quick-start-modal-error">
+            {{ texts.errorPrefix }} {{ err }}
+          </p-message>
+        }
+
+        @switch (activeGroup()) {
+          @case ('live') {
+            <section class="quick-start-modal__group" data-testid="quick-start-group-live">
+              <sm-quick-start-row
+                testid="quick-start-row-live-updates"
+                [label]="texts.rows.liveUpdates.label"
+                [description]="texts.rows.liveUpdates.description"
+                [status]="liveUpdatesStatus()"
+                [statusText]="liveUpdatesStatusText()"
+              >
+                <p-button
+                  [label]="liveUpdatesActionLabel()"
+                  [severity]="wsEnabled() ? 'secondary' : 'primary'"
+                  [outlined]="wsEnabled()"
+                  size="small"
+                  (onClick)="onLiveUpdatesToggle()"
+                  data-testid="quick-start-row-live-updates-action"
+                />
+              </sm-quick-start-row>
+
+              <sm-quick-start-row
+                testid="quick-start-row-follow-symlinks"
+                [label]="texts.rows.followSymlinks.label"
+                [description]="texts.rows.followSymlinks.description"
+                [status]="followStatus()"
+                [statusText]="followStatusText()"
+              >
+                <p-button
+                  [label]="followActionLabel()"
+                  [severity]="followSymlinks() ? 'secondary' : 'primary'"
+                  [outlined]="followSymlinks()"
+                  [disabled]="followActionDisabled()"
+                  size="small"
+                  (onClick)="onFollowSymlinksToggle()"
+                  data-testid="quick-start-row-follow-symlinks-action"
+                />
+              </sm-quick-start-row>
+            </section>
+          }
+
+          @case ('realtime') {
+            <section class="quick-start-modal__group" data-testid="quick-start-group-realtime">
+              <sm-quick-start-row
+                testid="quick-start-row-hook"
+                [label]="texts.rows.hook.label"
+                [description]="texts.rows.hook.description"
+                [status]="hookRowStatus()"
+                [statusText]="hookStatusText()"
+                [meta]="hookMeta()"
+              >
+                <p-button
+                  [label]="hookActionLabel()"
+                  [severity]="hookStatus()?.installed ? 'secondary' : 'primary'"
+                  [outlined]="hookStatus()?.installed === true"
+                  [disabled]="hookActionDisabled()"
+                  size="small"
+                  (onClick)="onHookToggle()"
+                  data-testid="quick-start-row-hook-action"
+                />
+              </sm-quick-start-row>
+
+              <sm-quick-start-row
+                testid="quick-start-row-realtime"
+                [label]="texts.rows.realtime.label"
+                [description]="texts.rows.realtime.description"
+                [status]="realtimeStatus()"
+                [statusText]="realtimeStatusText()"
+                [meta]="realtimeMeta()"
+              >
+                <p-button
+                  [label]="realtimeActionLabel()"
+                  [severity]="activityEnabled() ? 'secondary' : 'primary'"
+                  [outlined]="activityEnabled()"
+                  [disabled]="realtimeActionDisabled()"
+                  size="small"
+                  (onClick)="onRealtimeToggle()"
+                  data-testid="quick-start-row-realtime-action"
+                />
+              </sm-quick-start-row>
+
+              <sm-quick-start-row
+                testid="quick-start-row-capture"
+                [label]="texts.rows.capture.label"
+                [description]="texts.rows.capture.description"
+                [status]="captureRowStatus()"
+                [statusText]="captureStatusText()"
+              >
+                <p-button
+                  [label]="captureActionLabel()"
+                  [severity]="captureEnabled() ? 'secondary' : 'primary'"
+                  [outlined]="captureEnabled()"
+                  [disabled]="captureActionDisabled()"
+                  size="small"
+                  (onClick)="onCaptureToggle()"
+                  data-testid="quick-start-row-capture-action"
+                />
+              </sm-quick-start-row>
+            </section>
+          }
+
+          @case ('ai') {
+            <section class="quick-start-modal__group" data-testid="quick-start-group-ai">
+              <sm-quick-start-row
+                testid="quick-start-row-mcp-live"
+                [label]="texts.rows.mcpLive.label"
+                [description]="texts.rows.mcpLive.description"
+                [status]="mcpLiveStatus()"
+                [statusText]="mcpLiveStatusText()"
+                [meta]="mcpLiveMeta()"
+              >
+                @if (mcpLiveShowAction()) {
+                  <p-button
+                    [label]="texts.action.enable"
+                    severity="primary"
+                    [disabled]="mcpLiveActionDisabled()"
+                    size="small"
+                    (onClick)="onMcpServerEnable()"
+                    data-testid="quick-start-row-mcp-live-action"
+                  />
+                }
+              </sm-quick-start-row>
+
+              <sm-quick-start-row
+                testid="quick-start-row-mcp-installed"
+                [label]="texts.rows.mcpInstalled.label"
+                [description]="texts.rows.mcpInstalled.description"
+                [status]="mcpInstalledStatus()"
+                [statusText]="mcpInstalledStatusText()"
+                [meta]="mcpInstalledMeta()"
+              >
+                <p-button
+                  [label]="mcpCopyLabel()"
+                  [icon]="mcpCopied() ? 'pi pi-check' : 'pi pi-copy'"
+                  severity="secondary"
+                  [outlined]="true"
+                  size="small"
+                  (onClick)="onCopyMcpCommand()"
+                  data-testid="quick-start-row-mcp-installed-action"
+                />
+              </sm-quick-start-row>
+
+              <sm-quick-start-row
+                testid="quick-start-row-agent-skill"
+                [label]="texts.rows.agentSkill.label"
+                [description]="texts.rows.agentSkill.description"
+                [status]="skillRowStatus()"
+                [statusText]="skillStatusText()"
+              >
+                @if (skillShowAction()) {
+                  <p-button
+                    [label]="skillActionLabel()"
+                    severity="primary"
+                    [disabled]="skillActionDisabled()"
+                    size="small"
+                    (onClick)="onSkillInstall()"
+                    data-testid="quick-start-row-agent-skill-action"
+                  />
+                }
+              </sm-quick-start-row>
+
+              <sm-quick-start-row
+                testid="quick-start-row-agent-jobs"
+                [label]="texts.rows.agentJobs.label"
+                [description]="texts.rows.agentJobs.description"
+                [status]="agentJobsStatus()"
+                [statusText]="agentJobsStatusText()"
+                [meta]="agentJobsMeta()"
+              >
+                <p-button
+                  [label]="agentJobsActionLabel()"
+                  severity="secondary"
+                  [outlined]="true"
+                  [disabled]="agentJobsActionDisabled()"
+                  [loading]="isPending('ping')"
+                  size="small"
+                  (onClick)="onAgentJobsCheck()"
+                  data-testid="quick-start-row-agent-jobs-action"
+                />
+              </sm-quick-start-row>
+            </section>
+          }
+        }
+      </div>
+    </div>
+  </div>
+
+  <!--
+    Consent dialog for the 412-gated actions (follow-symlinks enable,
+    real-time hook install/uninstall, agent-skill install/update). Lives
+    at the end of the p-dialog content, like the Settings chassis, so
+    ConfirmationService renders its body-portal overlay while the host
+    element carries only the wiring.
+  -->
+  <p-confirmdialog />
+</p-dialog>

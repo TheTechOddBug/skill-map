@@ -24,7 +24,7 @@ import { captureUiUsage, registerUsageSuperProps } from '../core/telemetry/posth
 import { ThemeService } from '../../services/theme';
 
 /** Feature surfaces tracked on explicit open (not route-driven). */
-export type TUsageFeatureSurface = 'inspector' | 'settings';
+export type TUsageFeatureSurface = 'inspector' | 'settings' | 'quick-start';
 
 @Injectable({ providedIn: 'root' })
 export class UsageTrackerService {

@@ -1,0 +1,90 @@
+/* Row vocabulary for the Quick Start modal, mirrored from the
+ * Settings Project-section rows (`settings-project-rows.css`). Duplicated
+ * here rather than imported because Angular's emulated encapsulation
+ * scopes each component's styles to its own template. */
+
+:host {
+  display: block;
+}
+
+.quick-start__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: var(--sm-radius-lg);
+  background: var(--p-content-background);
+  margin-bottom: 0.75rem;
+}
+
+.quick-start__row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.quick-start__row-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--p-text-color);
+}
+
+.quick-start__row-description {
+  font-size: 0.8rem;
+  color: var(--sm-text-muted);
+  line-height: 1.45;
+}
+
+.quick-start__row-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.75rem;
+  color: var(--p-text-muted-color);
+}
+
+.quick-start__meta-line {
+  line-height: 1.3;
+  font-style: italic;
+}
+
+/* Right-hand cluster: the readiness indicator + the projected action.
+ * Intrinsic size so the long-form description on the left cannot squeeze
+ * the controls. */
+.quick-start__row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+}
+
+/* Readiness indicator: icon + short status text, toned per state. */
+.quick-start__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.quick-start__status--ready {
+  color: var(--sm-severity-success);
+}
+
+.quick-start__status--not-ready {
+  color: var(--p-text-muted-color);
+}
+
+.quick-start__status--unknown {
+  color: var(--sm-text-muted);
+  opacity: 0.75;
+}
+
+.quick-start__status-text {
+  line-height: 1.2;
+}

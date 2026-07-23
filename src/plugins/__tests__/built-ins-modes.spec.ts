@@ -79,6 +79,34 @@ describe('built-in extensions, execution modes', () => {
     }
   });
 
+  // Every probabilistic built-in's prompt MUST reference the
+  // `{{userContent}}` placeholder: the render engine
+  // (`kernel/jobs/render.ts` validateTemplate) throws `JobRenderError` at
+  // SUBMIT time otherwise, so a prompt missing it only fails when a job is
+  // actually queued, not at build. Asserted here so a new probabilistic
+  // built-in cannot ship an un-submittable prompt (regression guard:
+  // `core/ai-ping-action` first shipped without the placeholder).
+  it('every probabilistic built-in prompt references {{userContent}}', () => {
+    const set = builtIns();
+    const probs = [
+      ...set.analyzers.filter((a) => a.mode === 'probabilistic'),
+      ...set.actions.filter((a) => a.mode === 'probabilistic'),
+    ];
+    assert.ok(probs.length > 0, 'expected at least one probabilistic built-in');
+    for (const ext of probs) {
+      assert.equal(
+        typeof ext.promptTemplate,
+        'string',
+        `probabilistic ${ext.kind} '${ext.id}' must inline a prompt template`,
+      );
+      assert.match(
+        ext.promptTemplate ?? '',
+        /\{\{userContent\}\}/,
+        `probabilistic ${ext.kind} '${ext.id}' prompt must reference {{userContent}}`,
+      );
+    }
+  });
+
   // Fixer / finder pairing (user decision 2026-07-18): a fixer is named
   // after the finder it serves, so `ai-<subject>-action` pairs with
   // `ai-<subject>-analyzer` (`ai-redundancy-action` fixes
@@ -271,7 +299,11 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // author fixes, `core/ai-suspicion-analyzer` for adversarial content that
     // gets quarantined, deliberately fixer-less; both graduated
     // stable/enabled 2026-07-23 after their live playground passes) bring it to 63.
-    assert.equal(rows.length, 63);
+    // `core/ai-ping-action` (the hidden `locked` liveness probe: a probabilistic
+    // Action an external agent claims + records so the Setup panel can tell an
+    // agent is attending the queue; follows the ai- naming convention, stripped
+    // from every discovery surface) brings it to 64.
+    assert.equal(rows.length, 64);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a

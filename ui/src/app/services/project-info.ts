@@ -40,6 +40,15 @@ export class ProjectInfoService {
   readonly dev = computed<boolean>(() => this.status()?.dev === true);
 
   /**
+   * `true` when `/api/health` reported `mcp: true`, the read-only MCP
+   * server is actually mounted at `/mcp` this boot. Distinct from the
+   * `mcpServerEnabled` preference; the Setup panel reads this to tell a
+   * reachable endpoint from an opted-in-but-not-restarted one. `false`
+   * until health resolves so a consumer never flashes "live" early.
+   */
+  readonly mcp = computed<boolean>(() => this.status()?.mcp === true);
+
+  /**
    * Active provider lens id (`claude`, `gemini`, `markdown`, …) or
    * `null` when no lens is detected / configured. Drives the topbar
    * lens chip. Loaded alongside `/api/health` in `load()`; failure is
