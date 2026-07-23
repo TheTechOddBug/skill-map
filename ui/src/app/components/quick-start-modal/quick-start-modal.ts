@@ -125,13 +125,38 @@ export class QuickStartModal {
    * Left-rail groups (parents), mirroring the Settings section rail: the
    * rail lists them, the right panel swaps to the active one's rows.
    */
-  protected readonly groups: ReadonlyArray<{ id: TQuickStartGroup; heading: string; icon: string }> = [
-    { id: 'live', heading: QUICK_START_TEXTS.groups.live.heading, icon: 'pi pi-sync' },
-    { id: 'realtime', heading: QUICK_START_TEXTS.groups.realtime.heading, icon: 'pi pi-wave-pulse' },
-    { id: 'ai', heading: QUICK_START_TEXTS.groups.ai.heading, icon: 'pi pi-sparkles' },
+  protected readonly groups: ReadonlyArray<{
+    id: TQuickStartGroup;
+    heading: string;
+    icon: string;
+    description: string;
+  }> = [
+    {
+      id: 'live',
+      heading: QUICK_START_TEXTS.groups.live.heading,
+      icon: 'pi pi-sync',
+      description: QUICK_START_TEXTS.groups.live.description,
+    },
+    {
+      id: 'realtime',
+      heading: QUICK_START_TEXTS.groups.realtime.heading,
+      icon: 'pi pi-wave-pulse',
+      description: QUICK_START_TEXTS.groups.realtime.description,
+    },
+    {
+      id: 'ai',
+      heading: QUICK_START_TEXTS.groups.ai.heading,
+      icon: 'pi pi-sparkles',
+      description: QUICK_START_TEXTS.groups.ai.description,
+    },
   ];
   /** Active rail item; the right panel renders this group's rows. */
   protected readonly activeGroup = signal<TQuickStartGroup>('live');
+
+  /** Active group's OWN description, shown as the panel lead (per tab). */
+  protected readonly activeGroupDescription = computed<string>(
+    () => this.groups.find((g) => g.id === this.activeGroup())?.description ?? '',
+  );
 
   protected selectGroup(id: TQuickStartGroup): void {
     this.activeGroup.set(id);

@@ -123,9 +123,9 @@
   padding: 1.25rem 1.5rem;
 }
 
-.quick-start-modal__intro {
+/* Per-tab lead line: the active group's own description. */
+.quick-start-modal__group-desc {
   margin: 0 0 1.25rem 0;
-  font-style: italic;
   font-size: 0.85rem;
   color: var(--sm-text-muted);
   line-height: 1.5;

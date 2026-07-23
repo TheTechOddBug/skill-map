@@ -39,7 +39,10 @@
 
     <div class="quick-start-modal__main" data-testid="quick-start-modal-main">
       <div class="quick-start-modal__panel">
-        <p class="quick-start-modal__intro">{{ texts.intro }}</p>
+        <p
+          class="quick-start-modal__group-desc"
+          data-testid="quick-start-group-desc"
+        >{{ activeGroupDescription() }}</p>
 
         @if (error(); as err) {
           <p-message severity="error" [closable]="false" data-testid="quick-start-modal-error">

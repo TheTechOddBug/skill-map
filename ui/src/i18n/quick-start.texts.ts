@@ -54,7 +54,6 @@ export const QUICK_START_TEXTS = {
 
   /** Modal chrome. */
   modalTitle: 'Quick Start',
-  intro: 'Check what each capability needs and switch it on from one place.',
   errorPrefix: 'Something went wrong:',
 
   /** Shared status words (drive the per-row indicator text). */
@@ -91,11 +90,20 @@ export const QUICK_START_TEXTS = {
     recheck: 'Recheck',
   },
 
-  /** The three capability groups. */
+  /** The three capability groups (rail label + its own panel description). */
   groups: {
-    live: { heading: 'Live update' },
-    realtime: { heading: 'Real Time' },
-    ai: { heading: 'AI Actions' },
+    live: {
+      heading: 'Live update',
+      description: 'See the map update instantly as files change in your project.',
+    },
+    realtime: {
+      heading: 'Real Time',
+      description: 'Watch the map light up as your AI assistant works, and capture what agents say.',
+    },
+    ai: {
+      heading: 'AI Actions',
+      description: 'Connect an AI agent to improve your nodes semantically, probabilistically.',
+    },
   },
 
   /** Per-row label / description (+ contextual hints). */
@@ -103,13 +111,11 @@ export const QUICK_START_TEXTS = {
     liveUpdates: {
       label: 'Live updates',
       description:
-        'Keep the map in sync with sm: scan refreshes, live events, node activity.',
+        'Keep the map in sync with your file system. Change a file and you see it update instantly.',
     },
     followSymlinks: {
       label: 'Follow external symlinks',
-      description:
-        'Follow symbolic links whose target is outside the project. Enabling ' +
-        'this asks for confirmation first.',
+      description: 'Follow symbolic links even outside the project. Note this carries a risk.',
       confirmHeader: 'Follow links that leave this project?',
       confirmIntro:
         'Security risk: external links can expose files outside the project ' +
@@ -120,7 +126,7 @@ export const QUICK_START_TEXTS = {
     hook: {
       label: 'Real-time hook installed',
       description:
-        'Wire the active lens runtime so the map lights up each node the moment it runs.',
+        'Install the hooks to connect your agent with the map and see it in real time.',
       unsupportedHint: 'This lens has no real-time hook yet.',
       installConfirmHeader: 'Install the real-time hook?',
       installConfirmIntroPrefix: 'skill-map will write',
@@ -134,14 +140,13 @@ export const QUICK_START_TEXTS = {
     realtime: {
       label: 'Real-time node activity',
       description:
-        'Light up nodes on the map the moment your AI assistant invokes them.',
+        'Connect the map with your agent and watch the nodes light up as they run.',
       blockedHint: 'Turn on Live updates and install the real-time hook above first.',
     },
     capture: {
       label: 'Capture conversations',
       description:
-        'Record the prompts and responses that flow between your agents, so ' +
-        'spawn edges can show what was said.',
+        'Inspect what your agents say to each other (click a connector to see it).',
       enableConfirmHeader: 'Capture conversation content?',
       enableConfirmIntro:
         'Prompts and responses between agents will be recorded in this ' +
@@ -155,22 +160,18 @@ export const QUICK_START_TEXTS = {
     mcpLive: {
       label: 'MCP server live',
       description:
-        'Expose the read-only MCP endpoint at /mcp so an MCP-capable assistant ' +
-        'can query the map and drive the job queue.',
+        'Expose skill-map so another agent can read the map, and you can manage the job queue too.',
       restartHint: 'Restart sm serve --mcp to apply.',
     },
     mcpInstalled: {
-      label: 'MCP installed in project',
+      label: 'MCP installed',
       description:
-        'Register skill-map as an MCP server in your agent so it can reach ' +
-        'the endpoint. Copy the command for your lens and run it.',
+        'Install the MCP server in your agent so it can run queued jobs on your harness.',
       copiedHint: 'Command copied to the clipboard.',
     },
     agentSkill: {
       label: 'Agent skill installed',
-      description:
-        'Teach your agent to work through the job queue: installs the ' +
-        'sm-process-jobs skill in this project.',
+      description: 'Install the skill that will process the queue.',
       installConfirmHeader: 'Install the agent skill?',
       installConfirmIntroPrefix: 'skill-map will write',
       installConfirmIntroSuffix: 'in this project. Nothing else is touched.',
@@ -184,10 +185,8 @@ export const QUICK_START_TEXTS = {
       confirmReject: 'Cancel',
     },
     agentJobs: {
-      label: 'Agent attending jobs',
-      description:
-        'Whether an agent is running the sm-process-jobs skill and answering ' +
-        'the queue right now. Depends on the agent skill above being installed.',
+      label: 'Agent waiting for jobs',
+      description: 'Check whether the agent is ready and processing the queue.',
       needsSkillHint: 'Install the agent skill above, then check.',
     },
   },
