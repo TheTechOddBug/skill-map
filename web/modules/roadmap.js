@@ -1,10 +1,10 @@
 // ============================================================
 // Roadmap timeline: phase-based interactive milestones
 // ------------------------------------------------------------
-// Seven segments (Phase 0 / A / B / C / D / E / F) on a horizontal strip.
+// Six segments (Phase 0 / A / B / C / D / E) on a horizontal strip.
 // Each segment shows internal progress and opens a detail panel
 // with a brief plus a sub-list (highlights for 0, steps for
-// A/B/C/D/E, sketches for F). Phase data is colocated EN/ES inline
+// A/B/C/D/E). Phase data is colocated EN/ES inline
 // because it's content, not UI chrome; the framework strings
 // (status labels, section headers, hint) live in i18n.json.
 // ============================================================
@@ -142,40 +142,10 @@
       },
       list: 'steps',
       items: [
-        { id: '12',  status: 'planned', title: { en: 'Additional formatters',           es: 'Formatters adicionales' },                  body: { en: 'Mermaid · DOT / Graphviz · subgraph export with filters',                                                                          es: 'Mermaid · DOT / Graphviz · export de subgrafos con filtros' } },
-        { id: '13',  status: 'current', title: { en: 'Multi-host Providers',            es: 'Providers multi-host' },                    body: { en: 'Copilot · generic Provider (frontmatter-driven fallback) · per-host skill namespace · Provider conformance suite (Codex, Agent Skills and Antigravity already landed)', es: 'Copilot · Provider genérico (fallback por frontmatter) · namespace de skills por host · suite de conformance por Provider (Codex, Agent Skills y Antigravity ya aterrizaron)' } },
-        { id: '17',  status: 'current', title: { en: 'UI: AI surfaces v2 (deeper)',     es: 'UI: superficies AI v2 (más profundo)' },    body: { en: 'Connected AI agents driving the job queue over MCP (already landed) · settings hierarchy viewer · accessibility (WCAG AA) pass',                     es: 'Agentes AI conectados manejando la cola de jobs vía MCP (ya aterrizó) · visor de jerarquía de settings · pase de accesibilidad (WCAG AA)' } },
-        { id: '15a', status: 'current', title: { en: 'Distribution: single package',    es: 'Distribución: paquete único' },             body: { en: '@skill-map/cli with UI bundled · sm + skill-map binary aliases · sm ui sub-command · settings loader + runtime-settings schema · CI wiring of npm run validate (e2e smoke included) · web/demo/ deploy on every release', es: '@skill-map/cli con UI incluida · alias de binarios sm + skill-map · sub-comando sm ui · loader de settings + schema runtime-settings · wiring en CI de npm run validate (e2e smoke incluido) · deploy de web/demo/ en cada release' } },
+        { id: '17',  status: 'current', title: { en: 'UI: AI surfaces v2 (deeper)',     es: 'UI: superficies AI v2 (más profundo)' },    body: { en: 'Connected AI agents driving the job queue over MCP (already landed) · settings hierarchy viewer (already landed) · accessibility (WCAG AA) pass',                     es: 'Agentes AI conectados manejando la cola de jobs vía MCP (ya aterrizó) · visor de jerarquía de settings (ya aterrizó) · pase de accesibilidad (WCAG AA)' } },
+        { id: '15a', status: 'done',    title: { en: 'Distribution: single package',    es: 'Distribución: paquete único' },             body: { en: '@skill-map/cli with UI bundled · sm + skill-map binary aliases · settings loader + runtime-settings schema · CI wiring of npm run validate (e2e smoke included) · web/demo/ deploy on every release', es: '@skill-map/cli con UI incluida · alias de binarios sm + skill-map · loader de settings + schema runtime-settings · wiring en CI de npm run validate (e2e smoke incluido) · deploy de web/demo/ en cada release' } },
         { id: '15b', status: 'planned', title: { en: 'Documentation site',              es: 'Sitio de documentación' },                  body: { en: 'Astro Starlight · plugin API reference (JSDoc → Starlight) · llms.txt + llms-full.txt for AI ingestion · skill-map.ai launch polish · context7 registration', es: 'Astro Starlight · referencia de la API de plugins (JSDoc → Starlight) · llms.txt + llms-full.txt para ingesta por LLMs · pulido del launch de skill-map.ai · registro en context7' } },
-        { id: '15c', status: 'current', title: { en: 'Release infrastructure',          es: 'Infraestructura de release' },              body: { en: 'GitHub Actions release + changelog · telemetry opt-in · compatibility matrix · breaking-changes / deprecation policy · sm doctor install diagnostics · Claude Code plugin wrapper', es: 'Release con GitHub Actions + changelog · telemetría opt-in · matriz de compatibilidad · política de breaking-changes / deprecación · diagnósticos de install de sm doctor · wrapper de plugin para Claude Code' } },
-      ],
-    },
-    {
-      id: 'F',
-      status: 'pending',
-      release: { en: 'target: post-v1.0', es: 'objetivo: post-v1.0' },
-      title: { en: 'Beyond', es: 'Más allá' },
-      sub: { en: 'Bigger bets to evaluate after 1.0.', es: 'Apuestas más grandes a evaluar después de 1.0.' },
-      brief: {
-        en: 'Bigger bets that come after 1.0, to evaluate as the product and its users mature: streaming an agent conversation turn-by-turn on top of the LLM layer, a plugin marketplace, third-party UI and BFF extensions, plugin-to-plugin dependencies, and a standalone single-binary distribution.',
-        es: 'Apuestas más grandes para después de 1.0, a evaluar a medida que el producto y sus usuarios maduran: streaming de la conversación de un agente turno a turno sobre la capa de LLM, un marketplace de plugins, extensiones de terceros para UI y BFF, dependencias entre plugins, y una distribución standalone de un solo binario.',
-      },
-      list: 'sketches',
-      items: [
-        { en: 'Live agent conversation · stream the LLM transcript turn-by-turn into the UI Job inspector (prompts, deltas, tool calls, tool results) so the operator can watch what the agent is thinking and catch a runaway prompt early. Persisted as a bounded ring under .skill-map/jobs/<id>/conversation.ndjson, with a CLI mirror via sm job tail --conversation',
-          es: 'Conversación de agentes en vivo · streaming del transcript LLM turno a turno en el inspector de Jobs de la UI (prompts, deltas, tool calls, tool results) para ver qué está pensando el agente y atrapar un prompt fuera de control a tiempo. Persistido como ring acotado bajo .skill-map/jobs/<id>/conversation.ndjson, con espejo en CLI vía sm job tail --conversation' },
-        { en: 'Marketplace ? · plugin discovery and distribution, to evaluate', es: 'Marketplace ? · descubrimiento y distribución de plugins, a evaluar' },
-        { en: 'Third-party UI + BFF extensions · plugins contribute Angular components (extra inspector tabs, list-view columns, custom views) and Hono routes (mounted under /api/plugins/<id>/*). Sandboxing + auth design pending',
-          es: 'Extensiones de terceros para UI + BFF · plugins aportan componentes Angular (tabs extra en el inspector, columnas en list-view, vistas custom) y rutas Hono (montadas bajo /api/plugins/<id>/*). Sandboxing y diseño de auth pendientes' },
-        { en: 'Plugin-to-plugin dependencies · manifest field requires: { "<plugin-id>": "<semver-range>" } so e.g. a Markdown-validation Rule can declare it needs the Markdown Extractor. Load fails with missing-dependency / incompatible-dependency / cycle status',
-          es: 'Dependencias entre plugins · campo del manifest requires: { "<plugin-id>": "<rango-semver>" } para que, p.ej., una Rule de validación de Markdown declare que necesita el Extractor de Markdown. La carga falla con missing-dependency / incompatible-dependency / ciclo' },
-        { en: 'Standalone executable · single self-contained binary per OS via bun build --compile · no Node required on the host · ships in parallel with the npm package, not as a replacement',
-          es: 'Ejecutable standalone · binario único auto-contenido por OS vía bun build --compile · sin Node en la máquina del usuario · se distribuye en paralelo al paquete npm, no en reemplazo' },
-        // Previous "Deferred" items, kept for reference, hidden from render:
-        // { en: 'Write-back from UI · edit / create / refactor skills',           es: 'Escritura desde la UI · editar / crear / refactorizar skills' },
-        // { en: 'Pluggable storage & runner · Postgres, OpenAI, mock',            es: 'Storage y runner pluggables · Postgres, OpenAI, mock' },
-        // { en: 'URL liveness · optional plugin for broken-external-ref',         es: 'URL viva · plugin opcional para broken-external-ref' },
-        // { en: 'Schema v2 + migration tooling',                                  es: 'Schema v2 + tooling de migración' },
+        { id: '15c', status: 'done',    title: { en: 'Release infrastructure',          es: 'Infraestructura de release' },              body: { en: 'GitHub Actions release + changelog · telemetry opt-in · breaking-changes / deprecation policy · sm doctor install diagnostics', es: 'Release con GitHub Actions + changelog · telemetría opt-in · política de breaking-changes / deprecación · diagnósticos de install de sm doctor' } },
       ],
     },
   ];
@@ -191,7 +161,6 @@
   const SECTION_LABEL = {
     highlights: { en: 'Milestones', es: 'Milestones' },
     steps:      { en: 'Milestones', es: 'Milestones' },
-    sketches:   { en: 'Milestones', es: 'Milestones' },
   };
 
   const tx = (obj) => obj[lang] ?? obj.en;
@@ -204,7 +173,7 @@
   let selected = -1;
 
   // For phases with a `steps` list, count how many steps are done so the
-  // segment can show a `done of total` progress bar. Highlights / sketches
+  // segment can show a `done of total` progress bar. Highlights
   // phases return null and the segment shows the release line instead.
   function progressOf(p) {
     if (p.list !== 'steps') return null;

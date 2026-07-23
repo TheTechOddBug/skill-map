@@ -2505,10 +2505,9 @@ svg    { display: block; max-width: 100%; }
   gap: 6px;
 }
 
-/* All phase detail lists (Phase 0 / A / B / C / D) */
+/* All phase detail lists (Phase 0 / A / B / C / D / E) */
 .roadmap__detail-list--steps li,
-.roadmap__detail-list--highlights li,
-.roadmap__detail-list--sketches li {
+.roadmap__detail-list--highlights li {
   display: grid;
   grid-template-columns: 22px 1fr;
   gap: 12px;
@@ -2596,8 +2595,7 @@ svg    { display: block; max-width: 100%; }
   }
   .roadmap__detail-title { font-size: 22px; }
   .roadmap__detail-list--steps li,
-  .roadmap__detail-list--highlights li,
-  .roadmap__detail-list--sketches li {
+  .roadmap__detail-list--highlights li {
     grid-template-columns: 18px 1fr;
     gap: 10px;
   }
