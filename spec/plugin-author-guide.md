@@ -640,9 +640,9 @@ Prefix-discriminated by the UI resolver:
 
 A bare name without a prefix (`"search"`) is rejected at load. Emoji is the cross-platform safe choice; PrimeIcons covers generic UI glyphs; FontAwesome Free's `regular` set is limited.
 
-### Slot catalog (closed, 14 slots)
+### Slot catalog (closed, 19 slots)
 
-The kernel ships exactly these 14 slots. Each fixes a renderer + a payload shape; the **per-slot semantics, edge cases, and exact payload schemas are the canonical reference in [`view-slots.md`](./view-slots.md)** (and [`schemas/view-slots.schema.json`](./schemas/view-slots.schema.json) at `$defs/payloads/<slot>`). Read those before emitting. Adding a slot needs a spec / UI / scaffolder round-trip.
+The kernel ships exactly these 19 slots. Each fixes a renderer + a payload shape; the **per-slot semantics, edge cases, and exact payload schemas are the canonical reference in [`view-slots.md`](./view-slots.md)** (and [`schemas/view-slots.schema.json`](./schemas/view-slots.schema.json) at `$defs/payloads/<slot>`). Read those before emitting. Adding a slot needs a spec / UI / scaffolder round-trip.
 
 | Slot | Renderer |
 |---|---|

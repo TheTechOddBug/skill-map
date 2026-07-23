@@ -26,6 +26,7 @@ import {
   signal,
 } from '@angular/core';
 import { TooltipModule } from 'primeng/tooltip';
+import { DebugSurface } from '../../slots/debug-surface.directive';
 
 import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
@@ -35,10 +36,11 @@ import type { IInputTypeDescriptor, TInputTypeValue } from '../../renderers/inpu
 import type { INodeSummaryRowApi } from '../../../models/api';
 import type { INodeView, TStability } from '../../../models/node';
 import {
-  actionSurfaceContribution,
+  surfaceContribution,
   effectiveStability,
   effectiveUserTags,
   effectiveVersion,
+  type TSurfaceSlot,
 } from '../../../models/node-derived';
 import { KindIcon } from '../kind-icon/kind-icon';
 import { NodeTags } from '../node-tags/node-tags';
@@ -62,7 +64,8 @@ const CLAUDE_VENDOR_COLORS: ReadonlySet<string> = new Set([
 
 @Component({
   selector: 'sm-inspector-header',
-  imports: [ActionPromptDialog, TooltipModule, KindIcon, NodeTags, ViewContributionsHost],
+  imports: [
+    DebugSurface,ActionPromptDialog, TooltipModule, KindIcon, NodeTags, ViewContributionsHost],
   templateUrl: './inspector-header.html',
   styleUrl: './inspector-header.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -181,7 +184,7 @@ export class InspectorHeader {
     prompt: { inputType: string; paramKey: string; label: string; options?: { value: string; label: string }[]; defaultValue?: string | string[] };
     enabled: boolean;
   } | null>(() => {
-    const payload = actionSurfaceContribution(this.node(), 'stability')?.payload;
+    const payload = surfaceContribution(this.node(), 'inspector.surface.stability')?.payload;
     if (typeof payload !== 'object' || payload === null) return null;
     const typed = payload as { actionId?: string; prompt?: { inputType?: string; paramKey?: string; label?: string; options?: { value: string; label: string }[]; defaultValue?: string | string[] }; enabled?: boolean };
     if (!typed.actionId || !typed.prompt?.inputType || !typed.prompt.paramKey) return null;
@@ -253,7 +256,7 @@ export class InspectorHeader {
     enabled: boolean;
     disabledReason?: string;
   } | null>(() => {
-    const payload = actionSurfaceContribution(this.node(), 'version')?.payload;
+    const payload = surfaceContribution(this.node(), 'inspector.surface.version')?.payload;
     if (typeof payload !== 'object' || payload === null) return null;
     const typed = payload as { actionId?: string; enabled?: boolean; disabledReason?: string };
     if (!typed.actionId) return null;
@@ -337,7 +340,7 @@ export class InspectorHeader {
    * `.sm`).
    */
   protected readonly tagsSurface = computed<{ actionId: string } | null>(() => {
-    const payload = actionSurfaceContribution(this.node(), 'tags')?.payload;
+    const payload = surfaceContribution(this.node(), 'inspector.surface.tags')?.payload;
     if (typeof payload !== 'object' || payload === null) return null;
     const typed = payload as { actionId?: string };
     return typed.actionId ? { actionId: typed.actionId } : null;
@@ -347,4 +350,23 @@ export class InspectorHeader {
     event.stopPropagation();
     this.favoriteToggle.emit(this.node().path);
   }
+
+  /** DEBUG-SLOTS: qualified id of the claim on `slot`, for the overlay tooltip. */
+  private surfaceClaimId(slot: TSurfaceSlot): string | null {
+    const c = surfaceContribution(this.node(), slot);
+    return c ? `${c.pluginId}/${c.extensionId}/${c.contributionId}` : null;
+  }
+
+  protected readonly versionClaimId = computed<string | null>(() =>
+    this.surfaceClaimId('inspector.surface.version'),
+  );
+  protected readonly stabilityClaimId = computed<string | null>(() =>
+    this.surfaceClaimId('inspector.surface.stability'),
+  );
+  protected readonly tagsClaimId = computed<string | null>(() =>
+    this.surfaceClaimId('inspector.surface.tags'),
+  );
+  protected readonly summaryClaimId = computed<string | null>(() =>
+    this.surfaceClaimId('inspector.surface.summary'),
+  );
 }

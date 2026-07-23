@@ -113,14 +113,17 @@ interface IChassisProbe {
 
 describe('SettingsModal, dynamic plugin sections', () => {
   it('splices a plugin:<id> section for each settings-declaring plugin, between Plugins and Changelog', async () => {
+    // Wire `order` stamped like the BFF does (core first in the
+    // canonical presentation order, the beacon drop-in after); the SPA
+    // keeps no pinned twin (kernel-agnosticism sweep 2026-07-23).
     const items = [
-      pluginWithSettings('beacon', [
+      { ...pluginWithSettings('beacon', [
         { id: 'name', type: 'single-string', label: 'Name' },
-      ]),
-      plainPlugin('claude'),
-      pluginWithSettings('core', [
+      ]), order: 2 },
+      { ...plainPlugin('claude'), order: 1 },
+      { ...pluginWithSettings('core', [
         { id: 'limit', type: 'integer', label: 'Limit' },
-      ]),
+      ]), order: 0 },
     ];
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
     const { cmp, fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
@@ -133,7 +136,7 @@ describe('SettingsModal, dynamic plugin sections', () => {
     const ids = probe.sections().map((s) => s.id);
 
     // Full render order: static general/project/plugins, then the
-    // dynamic plugin sections (core sorts before beacon by pin order),
+    // dynamic plugin sections (core sorts before beacon by the wire order),
     // then the remaining static changelog/about.
     expect(ids).toEqual([
       'general',
@@ -150,12 +153,12 @@ describe('SettingsModal, dynamic plugin sections', () => {
 
   it('brackets the dynamic group with dividerBefore on the first plugin section and on changelog', async () => {
     const items = [
-      pluginWithSettings('beacon', [
+      { ...pluginWithSettings('beacon', [
         { id: 'name', type: 'single-string', label: 'Name' },
-      ]),
-      pluginWithSettings('core', [
+      ]), order: 1 },
+      { ...pluginWithSettings('core', [
         { id: 'limit', type: 'integer', label: 'Limit' },
-      ]),
+      ]), order: 0 },
     ];
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
     const { cmp, fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);

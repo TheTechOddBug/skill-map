@@ -173,6 +173,11 @@ export const agentSkillsProvider: IBuiltInManifest<IProvider> = {
   // it cannot be disabled out from under that role. Auto-detects `.agents/`
   // and classifies skills under its own lens.
   stability: 'stable',
+  // Host-locked (spec architecture.md §Locked extensions): the open
+  // default lens is the resolver's floor, the lens a project falls back
+  // to when no vendor marker is present; disabling it would leave a
+  // no-vendor project with no selectable lens.
+  locked: true,
 
   // Auto-detect marker: a `.agents/` directory marks an open-standard
   // project. This is also the marker a Google/Antigravity project carries

@@ -36,8 +36,8 @@ function setTagsContribution() {
     extensionId: 'node-set-tags',
     nodePath: 'a.md',
     contributionId: 'editTagsButton',
-    slot: 'inspector.action.button',
-    payload: { actionId: 'core/node-set-tags', surface: 'tags', label: 'Edit tags', enabled: true },
+    slot: 'inspector.surface.tags',
+    payload: { actionId: 'core/node-set-tags', label: 'Edit tags', enabled: true },
   };
 }
 
@@ -53,8 +53,8 @@ function bumpContribution() {
     extensionId: 'node-bump',
     nodePath: 'a.md',
     contributionId: 'bumpButton',
-    slot: 'inspector.action.button',
-    payload: { actionId: 'core/node-bump', surface: 'version', label: 'Bump', enabled: true },
+    slot: 'inspector.surface.version',
+    payload: { actionId: 'core/node-bump', label: 'Bump', enabled: true },
   };
 }
 

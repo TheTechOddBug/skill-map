@@ -110,6 +110,21 @@ export interface IExtensionBase {
    */
   defaultEnabled?: boolean;
   /**
+   * HOST-RESERVED lock (spec `architecture.md` §Locked extensions,
+   * decision 2026-07-23 replacing the hardcoded kernel lock-list so the
+   * kernel stays plugin-agnostic). `true` = this extension may never be
+   * disabled: the enabled-resolver returns `true` before consulting any
+   * config layer, toggle surfaces reject writes (403 `locked`), and the
+   * id is never trust-gated. BUILT-IN ONLY: deliberately absent from
+   * `base.schema.json`, so an external plugin declaring it fails load
+   * (`invalid-manifest`, `unevaluatedProperties: false`); only the
+   * typed built-ins compiled into the CLI can carry it. Nothing
+   * experimental is lockable (the built-ins codegen rejects the
+   * combination). The host layers consume the flag through
+   * `src/plugins/locked-built-ins.ts`, never by naming ids.
+   */
+  locked?: boolean;
+  /**
    * Optional inspector-only ordering hint (default 100). Inside the
    * owning plugin's inspector section, orders this extension's
    * `inspector.body.panel.*` bricks relative to its sibling extensions.

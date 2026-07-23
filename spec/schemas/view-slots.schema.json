@@ -14,7 +14,12 @@
         { "const": "card.footer.right", "description": "Counter chip in the right footer of the card." },
         { "const": "graph.node.alert", "description": "Reserved corner badge on the graph node, special-case signals only. No core analyzer emits here; routine \"this node has a problem\" findings belong in `card.footer.right`." },
         { "const": "inspector.header.badge", "description": "Unified badge in the inspector header cluster: icon and/or label and/or count, optional severity. Multi-cardinality, priority order, modeled on card.footer.left. Replaces the retired inspector.header.badge.counter and inspector.header.badge.tag sub-slots." },
-        { "const": "inspector.action.button", "description": "Action button in the inspector. Click dispatches a kernel Action by qualified id via POST /api/actions/:id. Always emitted; the payload `enabled` flag carries the dynamic condition (e.g. isStale for the bump button)." },
+        { "const": "inspector.action.button", "description": "Action button in the inspector's generic Actions section. Click dispatches a kernel Action by qualified id via POST /api/actions/:id. Always emitted; the payload `enabled` flag carries the dynamic condition (e.g. isStale for the bump button)." },
+        { "const": "inspector.surface.version", "description": "The node's VERSION surface (header version chip + the card's vN label). The claiming Action owns the affordance; click dispatches the payload's actionId (the bump flow). Single-cardinality logical surface." },
+        { "const": "inspector.surface.stability", "description": "The node's STABILITY surface (header stability chip + card badge). The claiming Action owns the affordance; click opens the payload prompt and dispatches its actionId. Single-cardinality logical surface." },
+        { "const": "inspector.surface.tags", "description": "The node's TAG-ROW surface (inline tag editor + the card's tag chips). The claiming Action owns the affordance; edits dispatch the payload's actionId. Single-cardinality logical surface." },
+        { "const": "inspector.surface.summary", "description": "The header's semantic-analysis (summarize) affordance. The claiming probabilistic Action owns it; click submits a job for the payload's actionId. Single-cardinality logical surface." },
+        { "const": "inspector.surface.auto-tag", "description": "The tag row's auto-tag (sparkles) affordance. The claiming probabilistic Action owns it; click submits a job for the payload's actionId. Single-cardinality logical surface." },
         { "const": "inspector.body.panel.breakdown", "description": "Top-N labeled values rendered as a bar chart in the inspector body." },
         { "const": "inspector.body.panel.records", "description": "Tabular data (rows × columns ≤ 50 × 6) in the inspector body." },
         { "const": "inspector.body.panel.tree", "description": "Recursive label/children hierarchy (depth ≤ 6, total ≤ 200) in the inspector body." },
@@ -183,15 +188,54 @@
             "type": "boolean",
             "default": false,
             "description": "Reserved. Require an extra confirm step before dispatch (destructive actions)."
-          },
-          "surface": {
-            "type": "string",
-            "enum": ["version", "stability", "tags"],
-            "description": "Re-homed affordance declaration: instead of rendering as a generic button in the inspector Actions section, this contribution IS the named UI surface (the header version chip, the header stability chip, the inline tag row and its card twins). The UI selects re-homed contributions by THIS field and dispatches the payload's `actionId`; it never matches extension ids, so any plugin may claim a surface and a disabled extension removes it. A declared surface excludes the contribution from the generic Actions section. At most one contribution per node should claim a given surface; when several do, the UI uses the first by contribution priority order."
           }
         },
-        "description": "An action button rendered in the inspector. The manifest declares only `{ slot: 'inspector.action.button' }`; the per-node payload carries the action id, label, and the dynamic `enabled` flag. Click dispatches the Action via POST /api/actions/:id. `emitWhenEmpty` does not apply (a button is always meaningful). A payload carrying `surface` is not rendered as a button at all: it re-homes onto the named UI surface instead (see `surface`)."
+        "description": "An action button rendered in the inspector's generic Actions section. The manifest declares only `{ slot: 'inspector.action.button' }`; the per-node payload carries the action id, label, and the dynamic `enabled` flag. Click dispatches the Action via POST /api/actions/:id. `emitWhenEmpty` does not apply (a button is always meaningful). An affordance that owns a NAMED UI surface (version chip, stability chip, tag row, ...) does not emit here: it emits on its dedicated `inspector.surface.*` slot (the former payload-level `surface` re-homing field is retired)."
       },
+      "_SurfaceAction": {
+        "title": "SurfaceActionPayload",
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["actionId", "label", "enabled"],
+        "properties": {
+          "actionId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*/[a-z][a-z0-9-]*$",
+            "description": "Qualified Action id `<plugin>/<action>` the surface dispatches (deterministic surfaces POST /api/actions/:id; probabilistic surfaces submit a job for this extension). The UI selects the surface by SLOT and dispatches this id; it never matches extension ids, so any plugin may claim the surface and disabling the claiming extension removes it (the projection stops)."
+          },
+          "label": { "type": "string", "minLength": 1, "maxLength": 48 },
+          "icon": { "$ref": "#/$defs/IconString" },
+          "severity": { "$ref": "#/$defs/Severity" },
+          "enabled": {
+            "type": "boolean",
+            "description": "Dynamic gate. The surface is ALWAYS emitted while the claiming extension is enabled; `false` renders it disabled (e.g. a stale sidecar disabling the bump chip)."
+          },
+          "disabledReason": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Tooltip shown when `enabled` is false."
+          },
+          "input": {
+            "type": "object",
+            "description": "Reserved. Static input merged into the dispatch body for parametrized actions that need no user prompt."
+          },
+          "prompt": {
+            "$ref": "#/$defs/payloads/_ActionPrompt",
+            "description": "Declares an input-type prompt the UI collects before dispatching (enum-pick for stability, single-string for tags)."
+          },
+          "confirm": {
+            "type": "boolean",
+            "default": false,
+            "description": "Reserved. Require an extra confirm step before dispatch (destructive actions)."
+          }
+        },
+        "description": "Shared payload of the five `inspector.surface.*` slots (the dedicated-surface family that replaced the retired `ActionButtonPayload.surface` re-homing field, decision 2026-07-23). A slot in this family is a LOGICAL surface: the UI decides where it echoes (the version surface renders as the header chip AND the card's vN label). Single-cardinality per node: when several contributions land on one surface slot, the UI uses the first by contribution priority order and `sm plugins doctor` warns."
+      },
+      "inspector.surface.version": { "$ref": "#/$defs/payloads/_SurfaceAction" },
+      "inspector.surface.stability": { "$ref": "#/$defs/payloads/_SurfaceAction" },
+      "inspector.surface.tags": { "$ref": "#/$defs/payloads/_SurfaceAction" },
+      "inspector.surface.summary": { "$ref": "#/$defs/payloads/_SurfaceAction" },
+      "inspector.surface.auto-tag": { "$ref": "#/$defs/payloads/_SurfaceAction" },
       "_ActionPrompt": {
         "title": "ActionPrompt",
         "type": "object",

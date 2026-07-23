@@ -58,6 +58,7 @@ import {
   defaultResolveEnabled,
 } from './resolver.js';
 import { makeTrustResolver } from '../../../kernel/config/plugin-resolver.js';
+import { lockedBuiltInIds } from '../../../plugins/locked-built-ins.js';
 import { bucketLoaded } from './bucketing.js';
 import {
   emitWarnings,
@@ -220,7 +221,7 @@ export async function loadPluginRuntime(
   // must NOT auto-execute. `trustMap` defaults to empty when the
   // config/DB read failed above, so the gate fails closed rather than open.
   if (!opts.pluginDir) {
-    loaderOpts.resolveImportTrust = makeTrustResolver(trustMap ?? new Map());
+    loaderOpts.resolveImportTrust = makeTrustResolver(trustMap ?? new Map(), lockedBuiltInIds());
   }
   const loader = createPluginLoader(loaderOpts);
   const discovered = await loader.discoverAndLoadAll();

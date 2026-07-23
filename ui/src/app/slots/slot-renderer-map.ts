@@ -69,6 +69,17 @@ export const SLOT_RENDERERS: Record<TSlotId, Type<unknown>> = {
   'graph.node.alert': NodeAlert,
   'inspector.header.badge': NodeBadge,
   'inspector.action.button': NodeActionButton,
+  // The five dedicated surface slots are consumed by their OWN
+  // components (inspector header chips, tag row, node card echoes) via
+  // `surfaceContribution`; the generic host never mounts them. The
+  // entries keep the closed Record total (isKnownSlot accepts them) and
+  // point at the action renderer as the nominal payload-compatible
+  // component.
+  'inspector.surface.version': NodeActionButton,
+  'inspector.surface.stability': NodeActionButton,
+  'inspector.surface.tags': NodeActionButton,
+  'inspector.surface.summary': NodeActionButton,
+  'inspector.surface.auto-tag': NodeActionButton,
   'inspector.body.panel.breakdown': NodeBreakdown,
   'inspector.body.panel.records': NodeRecords,
   'inspector.body.panel.tree': NodeTree,

@@ -32,6 +32,7 @@
 
 import type { IEffectiveConfig } from '../../kernel/config/loader.js';
 import { makeEnabledResolver, type EnabledResolver } from '../../kernel/config/plugin-resolver.js';
+import { lockedBuiltInIds } from '../../plugins/locked-built-ins.js';
 
 export interface IFreshResolverDeps {
   /**
@@ -51,7 +52,7 @@ export interface IFreshResolverDeps {
 export async function buildFreshResolver(
   deps: IFreshResolverDeps,
 ): Promise<EnabledResolver> {
-  return makeEnabledResolver(deps.effectiveConfig());
+  return makeEnabledResolver(deps.effectiveConfig(), lockedBuiltInIds());
 }
 
 /**
@@ -63,5 +64,5 @@ export async function buildFreshResolver(
 export function composeResolver(
   effectiveConfig: Pick<IEffectiveConfig, 'plugins'>,
 ): EnabledResolver {
-  return makeEnabledResolver(effectiveConfig);
+  return makeEnabledResolver(effectiveConfig, lockedBuiltInIds());
 }

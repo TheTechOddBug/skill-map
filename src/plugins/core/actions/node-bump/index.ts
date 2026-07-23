@@ -84,7 +84,7 @@ const ID = 'node-bump';
 // `enabled` flag carries the dynamic gate (enabled with no sidecar or a
 // stale one, disabled on a fresh sidecar).
 const bumpButton = {
-  slot: 'inspector.action.button',
+  slot: 'inspector.surface.version',
   priority: 10,
 } satisfies IViewContribution;
 
@@ -149,10 +149,6 @@ function emitBumpButton(
     actionId: 'core/node-bump',
     label: BUMP_TEXTS.bumpLabel,
     icon: 'pi-arrow-up-right',
-    // Re-homed affordance declaration (spec/view-slots.md §Re-homed
-    // surfaces): this contribution IS the version surface (header chip,
-    // card vN label); the UI selects it by this field, never by id.
-    surface: 'version',
     enabled,
     ...(enabled ? {} : { disabledReason: BUMP_TEXTS.bumpDisabledReason }),
   });

@@ -19,7 +19,7 @@ The plugin author **picks a slot**. The slot fixes both the renderer (which Angu
 
 ## Slot catalog
 
-14 slots, listed in `spec/schemas/view-slots.schema.json#/$defs/SlotName` and mirrored in `src/kernel/types/view-catalog.ts#TSlotName`. To add a new slot:
+19 slots, listed in `spec/schemas/view-slots.schema.json#/$defs/SlotName` and mirrored in `src/kernel/types/view-catalog.ts#TSlotName`. Five of them are the `inspector.surface.*` family (2026-07-23): dedicated single-cardinality slots, one per named UI surface (version, stability, tags, summary, auto-tag), consumed by their own components via `surfaceContribution` in `ui/src/models/node-derived.ts`, never mounted by the generic host; they replaced the retired payload-level `surface` re-homing field on `inspector.action.button`, and an extension claiming one is generically excluded from the AI-actions launcher rows (no id literals in the UI). To add a new slot:
 
 1. **Spec first** (per `AGENTS.md`): add the slot id to the closed enum in `view-slots.schema.json`, add a `$defs.payloads.<slot>` schema (or `$ref` to a shared shape), regenerate `spec/index.json`.
 2. Mirror the type in `src/kernel/types/view-catalog.ts#TSlotName`.

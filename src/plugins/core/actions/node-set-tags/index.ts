@@ -75,7 +75,7 @@ const ID = 'node-set-tags';
 // identity). The inspector re-homes it onto the inline tag row: the
 // contribution's presence gates the row, mirroring the stability chip.
 const editTagsButton = {
-  slot: 'inspector.action.button',
+  slot: 'inspector.surface.tags',
   priority: 14,
 } satisfies IViewContribution;
 
@@ -104,11 +104,7 @@ export const nodeSetTagsAction: IBuiltInManifest<IAction> = {
         actionId: 'core/node-set-tags',
         label: NODE_SET_TAGS_TEXTS.editLabel,
         icon: 'pi-tags',
-        // Re-homed affordance declaration (spec/view-slots.md §Re-homed
-        // surfaces): this contribution IS the tag surface (inline row,
-        // card chips); the UI selects it by this field, never by id.
-        surface: 'tags',
-        enabled: true,
+            enabled: true,
       });
     }
   },

@@ -37,6 +37,10 @@ export const schemaViolationAnalyzer: IBuiltInManifest<IAnalyzer> = {
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
   description: 'Flags nodes or links that violate the project schemas.',
+  // Host-locked (spec architecture.md §Locked extensions): this check
+  // backs the invariant "what reaches the DB conforms to the spec";
+  // disabling it would persist non-conformant content silently.
+  locked: true,
   mode: 'deterministic',
 
   // No `ui` declaration: the per-node failure-count chip used to live

@@ -54,7 +54,7 @@ import { applyExportQuery } from '../../kernel/index.js';
 import type { IPersistedContribution } from '../../kernel/ports/storage.js';
 import type { IFindingSeverityCount } from '../../kernel/types/storage.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
-import { foldFindingsIntoSeverityChips } from '../aggregate-severity-fold.js';
+import { foldFindingsIntoSeverityChips } from '../../plugins/core/analyzers/issue-counter/severity-fold.js';
 import { bffReadVersionCheck } from '../util/db-read-check.js';
 import { tx } from '../../kernel/util/tx.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
@@ -117,7 +117,7 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
         const contributions = await adapter.contributions.listForNode(b.node.path);
         const tagRows = await adapter.tags.listForNode(b.node.path);
         // Read-time aggregate: fresh open findings summed into
-        // issue-counter's severity chips below (see aggregate-severity-fold).
+        // issue-counter's severity chips below (see issue-counter/severity-fold).
         const findingCounts =
           (await adapter.findings.countUnresolvedByPath([b.node.path])).get(b.node.path) ??
           ({ warn: 0, error: 0 } as IFindingSeverityCount);

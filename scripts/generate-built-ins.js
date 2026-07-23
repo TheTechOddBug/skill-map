@@ -275,6 +275,19 @@ function discoverPlugin(pluginId) {
       if (!isDir) continue;
       const indexTs = join(entryDir, 'index.ts');
       if (!existsSync(indexTs)) continue;
+      // Lock guard: nothing experimental / deprecated is lockable (the
+      // lock arm bypasses the config layers, so a locked-but-unready
+      // extension could never be turned off). Source-level scan, same
+      // posture as `isProbabilisticSource`.
+      const indexSource = readFileSync(indexTs, 'utf8');
+      if (
+        /\block(ed)?\s*:\s*true/.test(indexSource) &&
+        /\bstability\s*:\s*['"](experimental|deprecated)['"]/.test(indexSource)
+      ) {
+        throw new Error(
+          `${pluginId}/${entry}: 'locked: true' on an experimental/deprecated extension. Nothing experimental is lockable; graduate it first.`,
+        );
+      }
       const extension = {
         kind,
         name: entry,

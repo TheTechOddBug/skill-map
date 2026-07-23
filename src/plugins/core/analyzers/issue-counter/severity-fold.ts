@@ -21,12 +21,19 @@
  * tooltip) exactly as emitted.
  */
 
-import type { IPersistedContribution } from '../kernel/ports/storage.js';
-import type { IFindingSeverityCount } from '../kernel/types/storage.js';
-import { tx } from '../kernel/util/tx.js';
-import { CORE_PLUGIN_ID } from '../plugins/ids.js';
-import type { TContributionsRegistry } from './envelope.js';
-import { SERVER_TEXTS } from './i18n/server.texts.js';
+import type { IPersistedContribution } from '../../../../kernel/ports/storage.js';
+import type { IFindingSeverityCount } from '../../../../kernel/types/storage.js';
+import { tx } from '../../../../kernel/util/tx.js';
+import { CORE_PLUGIN_ID } from '../../../ids.js';
+import { SEVERITY_FOLD_TEXTS } from './severity-fold.texts.js';
+
+/**
+ * Minimal structural view of the BFF's contributions registry (the
+ * shape `server/contributions-registry.ts` builds): the fold only needs
+ * to confirm the extension is registered (enabled) and copy its `slot`.
+ * Declared locally so this plugin module never imports server code.
+ */
+export type TSeverityFoldRegistry = Readonly<Record<string, { readonly slot: string }>>;
 
 /** The extension id that owns the aggregate chips (built-in `core` plugin). */
 const ISSUE_COUNTER_EXTENSION_ID = 'issue-counter';
@@ -56,15 +63,15 @@ const TIERS: readonly ITier[] = [
     severityKey: 'warn',
     contributionId: 'warnCount',
     chipSeverity: 'warn',
-    severitySingular: SERVER_TEXTS.aggregateChipSeverityWarnSingular,
-    severityPlural: SERVER_TEXTS.aggregateChipSeverityWarnPlural,
+    severitySingular: SEVERITY_FOLD_TEXTS.aggregateChipSeverityWarnSingular,
+    severityPlural: SEVERITY_FOLD_TEXTS.aggregateChipSeverityWarnPlural,
   },
   {
     severityKey: 'error',
     contributionId: 'errorCount',
     chipSeverity: 'danger',
-    severitySingular: SERVER_TEXTS.aggregateChipSeverityErrorSingular,
-    severityPlural: SERVER_TEXTS.aggregateChipSeverityErrorPlural,
+    severitySingular: SEVERITY_FOLD_TEXTS.aggregateChipSeverityErrorSingular,
+    severityPlural: SEVERITY_FOLD_TEXTS.aggregateChipSeverityErrorPlural,
   },
 ];
 
@@ -76,7 +83,7 @@ const TIERS: readonly ITier[] = [
 export function foldFindingsIntoSeverityChips(
   contributions: readonly IPersistedContribution[],
   findingCounts: IFindingSeverityCount,
-  registry: TContributionsRegistry,
+  registry: TSeverityFoldRegistry,
   nodePath: string,
 ): IPersistedContribution[] {
   // Fast path: no fresh open findings on this node -> the chips stay
@@ -135,7 +142,7 @@ function combineChip(
 function synthesizeChip(
   tier: ITier,
   findingCount: number,
-  registry: TContributionsRegistry,
+  registry: TSeverityFoldRegistry,
   nodePath: string,
 ): IPersistedContribution | null {
   const qualifiedId = `${CORE_PLUGIN_ID}/${ISSUE_COUNTER_EXTENSION_ID}/${tier.contributionId}`;
@@ -167,15 +174,15 @@ function synthesizeChip(
  */
 function buildTooltip(tier: ITier, checks: number, ai: number): string {
   const total = checks + ai;
-  return tx(SERVER_TEXTS.aggregateChipTooltip, {
+  return tx(SEVERITY_FOLD_TEXTS.aggregateChipTooltip, {
     total,
     severity: pick(total, tier.severitySingular, tier.severityPlural),
     checks: tx(
-      pick(checks, SERVER_TEXTS.aggregateChipChecksSingular, SERVER_TEXTS.aggregateChipChecksPlural),
+      pick(checks, SEVERITY_FOLD_TEXTS.aggregateChipChecksSingular, SEVERITY_FOLD_TEXTS.aggregateChipChecksPlural),
       { count: checks },
     ),
     ai: tx(
-      pick(ai, SERVER_TEXTS.aggregateChipAiSingular, SERVER_TEXTS.aggregateChipAiPlural),
+      pick(ai, SEVERITY_FOLD_TEXTS.aggregateChipAiSingular, SEVERITY_FOLD_TEXTS.aggregateChipAiPlural),
       { count: ai },
     ),
   });

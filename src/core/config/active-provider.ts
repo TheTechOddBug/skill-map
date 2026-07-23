@@ -43,7 +43,8 @@ export type { IProviderDetectInput };
  * NOT a qualified id: the active lens is compared against `provider.id`
  * everywhere (walk gate, detect, BFF `selectable`). A unit test asserts this
  * equals `agentSkillsProvider.id` so the short-vs-qualified mismatch can never
- * regress. `agent-skills` is locked-enabled (see `kernel/config/locked-plugins.ts`),
+ * regress. `agent-skills` is locked-enabled (manifest `locked: true`,
+ * see `src/plugins/locked-built-ins.ts`),
  * so the floor lens is always a valid, selectable target.
  */
 export const DEFAULT_LENS_ID = 'agent-skills';

@@ -88,7 +88,7 @@ const ID = 'node-set-stability';
 // identity). Emitted for every node that already has a sidecar; the
 // prompt pre-loads the current stability as its `defaultValue`.
 const setStabilityButton = {
-  slot: 'inspector.action.button',
+  slot: 'inspector.surface.stability',
   priority: 15,
 } satisfies IViewContribution;
 
@@ -139,10 +139,6 @@ function emitSetStabilityButton(ctx: IActionProjectionContext, node: Node): void
     actionId: 'core/node-set-stability',
     label: NODE_SET_STABILITY_TEXTS.setLabel,
     icon: 'pi-flag',
-    // Re-homed affordance declaration (spec/view-slots.md §Re-homed
-    // surfaces): this contribution IS the stability chip; the UI
-    // selects it by this field, never by id.
-    surface: 'stability',
     enabled: true,
     prompt: {
       inputType: 'enum-pick',

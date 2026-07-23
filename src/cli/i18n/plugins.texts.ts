@@ -17,7 +17,7 @@ export const PLUGINS_TEXTS = {
     '{{glyph}}  Plugin "{{id}}" is locked by the host and cannot be toggled.\n' +
     '   {{hint}}\n',
   pluginLockedHint:
-    'Locked plugins are mandatory for correct operation. To remove the lock, edit `src/kernel/config/locked-plugins.ts`.',
+    'Locked extensions are mandatory for correct operation; the lock is declared on the extension manifest (`locked: true`) and is not user-editable.',
 
   qualifiedIdNotFound:
     '{{glyph}}  Qualified extension id not found: {{id}}\n' +

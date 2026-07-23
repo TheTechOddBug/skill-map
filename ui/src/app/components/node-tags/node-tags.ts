@@ -41,6 +41,7 @@ import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { effectiveUserTags } from '../../../models/node-derived';
+import { DebugSurface } from '../../slots/debug-surface.directive';
 import { ActionDispatchService } from '../../../services/action-dispatch';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import {
@@ -52,7 +53,8 @@ import { NODE_TAGS_TEXTS } from '../../../i18n/node-tags.texts';
 
 @Component({
   selector: 'sm-node-tags',
-  imports: [ButtonModule, TooltipModule, InputTypeControl],
+  imports: [
+    DebugSurface,ButtonModule, TooltipModule, InputTypeControl],
   templateUrl: './node-tags.html',
   styleUrl: './node-tags.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

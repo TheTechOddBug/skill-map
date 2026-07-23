@@ -61,7 +61,7 @@ import type { Issue, Link, Node } from '../../kernel/index.js';
 import type { IPersistedContribution } from '../../kernel/ports/storage.js';
 import type { IFindingSeverityCount } from '../../kernel/types/storage.js';
 import type { TContributionsRegistry } from '../envelope.js';
-import { foldFindingsIntoSeverityChips } from '../aggregate-severity-fold.js';
+import { foldFindingsIntoSeverityChips } from '../../plugins/core/analyzers/issue-counter/severity-fold.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { bffReadVersionCheck } from '../util/db-read-check.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -126,7 +126,7 @@ export function registerBranchRoute(app: Hono, deps: IRouteDeps): void {
           adapter.tags.listForPaths(paths),
           adapter.contributions.listForPaths(paths),
           // Read-time aggregate: fresh unresolved findings summed into
-          // issue-counter's severity chips (see aggregate-severity-fold),
+          // issue-counter's severity chips (see issue-counter/severity-fold),
           // same fold as /api/nodes + /api/scan. The workspace graph loads
           // its cards from THIS endpoint, so without it the map card shows
           // the deterministic-only chip.

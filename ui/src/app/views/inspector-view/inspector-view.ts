@@ -101,7 +101,7 @@ import {
   type TFindingsBucket,
 } from './inspector-ai-actions.controller';
 import { setupAutoFix, type IAutoFixHandle } from './inspector-auto-fix.controller';
-import { contributionSurface } from '../../../models/node-derived';
+import { surfaceContribution, type TSurfaceSlot } from '../../../models/node-derived';
 import type { INodeView } from '../../../models/node';
 import type {
   IFindingApi,
@@ -119,20 +119,6 @@ import type {
  * re-fetch always reflects the final state.
  */
 const ACTIVITY_LIVE_REFRESH_DEBOUNCE_MS = 400;
-
-/**
- * The universal summarizer's qualified id. It owns the header's
- * semantic-analysis affordance and is EXCLUDED from the AI-actions
- * launcher row / ALL button (user shape 2026-07-21).
- */
-const SUMMARIZER_EXTENSION_ID = 'core/ai-summarizer-action';
-
-/**
- * The auto-tagger's qualified id. It owns the tag row's sparkles
- * affordance and, like the summarizer, is EXCLUDED from the AI-actions
- * launcher row / ALL button (user request 2026-07-21).
- */
-const TAGGER_EXTENSION_ID = 'core/ai-tagger-action';
 
 /** Per-node cap on the conversation threads the Activity section renders. */
 const SPAWN_THREADS_LIMIT = 10;
@@ -386,15 +372,9 @@ export class InspectorView implements OnInit {
    * former always-visible toolbar did.
    */
   protected readonly hasActions = computed<boolean>(() =>
-    (this.node()?.contributions ?? []).some(
-      (c) =>
-        c.slot === 'inspector.action.button' &&
-        // Re-homed surfaces (spec/view-slots.md): a payload declaring a
-        // `surface` IS a dedicated affordance (version / stability /
-        // tags chips + row), never a generic button; alone they must
-        // not keep an empty Actions section up.
-        contributionSurface(c.payload) === null,
-    ),
+    // Dedicated surfaces live on their own `inspector.surface.*` slots
+    // (2026-07-23), so a plain slot match is the whole gate again.
+    (this.node()?.contributions ?? []).some((c) => c.slot === 'inspector.action.button'),
   );
 
   /** Active node's description rendered as inline markdown (emphasis / code / links). */
@@ -670,13 +650,13 @@ export class InspectorView implements OnInit {
   >(() => {
     const probs = this.probExtensions();
     if (probs === null) return [];
-    // The summarizer and the auto-tagger never ride the launcher row:
-    // they own the header's semantic-analysis affordance and the tag
-    // row's sparkles button respectively (user shape 2026-07-21), and
-    // the ALL button skips them for the same reason.
-    const standalone = probs.standalone.filter(
-      (e) => e.id !== SUMMARIZER_EXTENSION_ID && e.id !== TAGGER_EXTENSION_ID,
-    );
+    // An extension that CLAIMS a dedicated surface (the summarizer's
+    // header affordance, the tagger's sparkles) never rides the
+    // launcher row nor the run-all button: the generic rule is
+    // "claims a surface on this node" (no extension ids in the UI,
+    // kernel-agnosticism sweep 2026-07-23).
+    const claimed = this.surfaceClaimedActionIds();
+    const standalone = probs.standalone.filter((e) => !claimed.has(e.id));
     return (
       [
         { id: 'finders', entries: probs.finders },
@@ -1068,10 +1048,42 @@ export class InspectorView implements OnInit {
     }
   }
 
-  /** The summarizer's launcher entry (queue state), when enabled. */
+  /** `payload.actionId` of the contribution claiming `slot`, or `null`. */
+  private surfaceActionId(slot: TSurfaceSlot): string | null {
+    const payload = surfaceContribution(this.node(), slot)?.payload;
+    if (typeof payload !== 'object' || payload === null) return null;
+    const id = (payload as { actionId?: unknown }).actionId;
+    return typeof id === 'string' ? id : null;
+  }
+
+  /**
+   * Every actionId claimed by a surface contribution on this node.
+   * Drives the launcher exclusion generically: whoever claims a
+   * surface is not a launcher (no id literals in the UI).
+   */
+  private readonly surfaceClaimedActionIds = computed<ReadonlySet<string>>(() => {
+    const out = new Set<string>();
+    for (const c of this.node()?.contributions ?? []) {
+      if (!c.slot.startsWith('inspector.surface.')) continue;
+      const payload = c.payload;
+      if (typeof payload !== 'object' || payload === null) continue;
+      const id = (payload as { actionId?: unknown }).actionId;
+      if (typeof id === 'string') out.add(id);
+    }
+    return out;
+  });
+
+  /**
+   * The summarizer's launcher entry (queue state): the prob-extensions
+   * standalone entry whose id matches the `inspector.surface.summary`
+   * claim. Placement comes from the contribution, live state from the
+   * catalog; both vanish when the claiming extension is disabled.
+   */
   private readonly summarizerEntry = computed<IProbExtensionEntryApi | null>(() => {
+    const claimed = this.surfaceActionId('inspector.surface.summary');
+    if (claimed === null) return null;
     const probs = this.probExtensions();
-    return probs?.standalone.find((e) => e.id === SUMMARIZER_EXTENSION_ID) ?? null;
+    return probs?.standalone.find((e) => e.id === claimed) ?? null;
   });
 
   /**
@@ -1106,7 +1118,8 @@ export class InspectorView implements OnInit {
     }
     if (state !== 'idle') return;
     this.summaryAwaiting = true;
-    void this.aiActions.submit(SUMMARIZER_EXTENSION_ID, false);
+    const id = this.surfaceActionId('inspector.surface.summary');
+    if (id !== null) void this.aiActions.submit(id, false);
   }
 
   /** Delete one stored summary; the refetch collapses the empty block. */
@@ -1126,7 +1139,9 @@ export class InspectorView implements OnInit {
   /** The auto-tagger's launcher entry (queue state), when enabled. */
   private readonly taggerEntry = computed<IProbExtensionEntryApi | null>(() => {
     const probs = this.probExtensions();
-    return probs?.standalone.find((e) => e.id === TAGGER_EXTENSION_ID) ?? null;
+    const claimed = this.surfaceActionId('inspector.surface.auto-tag');
+    if (claimed === null) return null;
+    return probs?.standalone.find((e) => e.id === claimed) ?? null;
   });
 
   /**
@@ -1146,7 +1161,8 @@ export class InspectorView implements OnInit {
   /** Queue an auto-tag run for the inspected node. */
   protected onAutoTagClick(): void {
     if (this.autoTagState() !== 'idle') return;
-    void this.aiActions.submit(TAGGER_EXTENSION_ID, false);
+      const id = this.surfaceActionId('inspector.surface.auto-tag');
+    if (id !== null) void this.aiActions.submit(id, false);
   }
 
   /** Re-run from the expanded block (stale or not, a fresh judgment). */
@@ -1154,7 +1170,8 @@ export class InspectorView implements OnInit {
     const entry = this.summarizerEntry();
     if (entry === null || this.aiActions.entryState(entry) !== 'idle') return;
     this.summaryAwaiting = true;
-    void this.aiActions.submit(SUMMARIZER_EXTENSION_ID, false);
+    const id = this.surfaceActionId('inspector.surface.summary');
+    if (id !== null) void this.aiActions.submit(id, false);
   }
 
   /** True when the fetched detail has nothing to show (quiet node). */

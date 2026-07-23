@@ -15,7 +15,7 @@ import {
   type TSummary,
 } from '../../../models/node';
 import {
-  actionSurfaceContribution,
+  surfaceContribution,
   compactNumber,
   effectiveStability,
   effectiveUserTags,
@@ -319,7 +319,7 @@ export class NodeCard {
    * the `.sm`. Selected by declaration, never by extension id.
    */
   protected readonly version = computed(() =>
-    actionSurfaceContribution(this.node(), 'version') !== null
+    surfaceContribution(this.node(), 'inspector.surface.version') !== null
       ? effectiveVersion(this.node())
       : null,
   );
@@ -343,7 +343,7 @@ export class NodeCard {
    * Selected by declaration, never by extension id.
    */
   protected readonly tagChips = computed<readonly string[]>(() =>
-    actionSurfaceContribution(this.node(), 'tags') !== null
+    surfaceContribution(this.node(), 'inspector.surface.tags') !== null
       ? effectiveUserTags(this.node())
       : [],
   );

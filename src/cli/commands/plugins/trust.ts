@@ -23,7 +23,7 @@
 import { Command, Option } from 'clipanion';
 
 import { builtInPlugins } from '../../../plugins/built-ins.js';
-import { isPluginLocked } from '../../../kernel/config/locked-plugins.js';
+import { isLockedBuiltIn } from '../../../plugins/locked-built-ins.js';
 import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
@@ -191,7 +191,7 @@ function collapseToPluginId(id: string): string {
  * which is import-trust-gated. Trust verbs reject these.
  */
 function isBuiltInOrLocked(id: string): boolean {
-  if (isPluginLocked(id)) return true;
+  if (isLockedBuiltIn(id)) return true;
   return builtInPlugins.some((p) => p.id === id);
 }
 

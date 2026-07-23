@@ -40,6 +40,10 @@ export const asciiFormatter: IBuiltInManifest<IFormatter> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'formatter',
+  // Host-locked (spec architecture.md §Locked extensions): the only
+  // built-in formatter and the `sm graph` default; disabling it breaks
+  // the verb with no fallback. Revisit when more formatters land.
+  locked: true,
   formatId: ID,
   description: 'Renders the scan as plain text in three sections: nodes (grouped by kind), arrows, and issues. Used by `sm scan --format ascii`.',
 

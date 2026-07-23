@@ -19,18 +19,39 @@
  *
  * Why this lives next to `bump.ts` rather than under `plugins/`:
  * `computeBumpPlan` is CLI-specific glue. It consumes `Node` rows from
- * a persisted scan, wraps `nodeBumpAction.invoke` with the `assertContained`
+ * a persisted scan, wraps the catalog-resolved bump action's `invoke` with the `assertContained`
  * path guard, and produces a shape consumed by the CLI verb. The
  * Action itself stays self-contained in `plugins/core/actions/bump/`.
  */
 
 import { resolve } from 'node:path';
 
-import {
-  nodeBumpAction,
-  type INodeBumpInput,
-  type INodeBumpReport,
+import type {
+  INodeBumpInput,
+  INodeBumpReport,
 } from '../../plugins/core/actions/node-bump/index.js';
+import { builtIns } from '../../plugins/built-ins.js';
+import { qualifiedExtensionId } from '../../kernel/registry.js';
+import type { IAction } from '../../kernel/extensions/index.js';
+
+/**
+ * The verb's contract: `sm bump` wraps this qualified Action id
+ * (spec `cli-contract.md` §sm bump). Resolved from the built-ins
+ * CATALOG at call time (never a deep import of the implementation,
+ * kernel-agnosticism sweep 2026-07-23), so the verb goes through the
+ * same registry-style lookup the BFF dispatch uses, without the
+ * plugin-dir walk of the full composed runtime (boot cost).
+ */
+const BUMP_ACTION_ID = 'core/node-bump';
+
+/** The catalog manifest backing the verb; throws if the catalog drifts. */
+export function resolveBumpAction(): IAction {
+  const action = builtIns().actions.find(
+    (a) => qualifiedExtensionId(a.pluginId, a.id) === BUMP_ACTION_ID,
+  );
+  if (!action) throw new Error(`built-in catalog is missing ${BUMP_ACTION_ID}`);
+  return action;
+}
 import { assertContained } from '../../core/paths/path-guard.js';
 import type { TActionWrite } from '../../kernel/extensions/index.js';
 import type { Node } from '../../kernel/types.js';
@@ -168,10 +189,9 @@ async function planOne(
 /**
  * Invoke the built-in `core/node-bump` Action against `node`. Returns the
  * full `IActionResult<INodeBumpReport>` so the caller decides whether to
- * materialise the writes or inspect the report. Exported because
- * the route-level invoker in the BFF (`server/routes/sidecar.ts`)
- * needs the same shape; the CLI verb consumes it through
- * `computeBumpPlan` above.
+ * materialise the writes or inspect the report. Sole consumer today:
+ * `computeBumpPlan` above (the former BFF `sidecar.ts` route consumer
+ * was retired with the generic actions route).
  */
 export async function invokeBumpFor(
   node: Node,
@@ -179,6 +199,7 @@ export async function invokeBumpFor(
   force: boolean,
   invoker: string,
 ): Promise<{ report: INodeBumpReport; writes?: TActionWrite[] }> {
+  const nodeBumpAction = resolveBumpAction();
   if (!nodeBumpAction.invoke) {
     throw new Error('built-in bump action is missing its invoke()');
   }

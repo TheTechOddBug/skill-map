@@ -66,7 +66,7 @@ import {
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { bffReadVersionCheck } from '../util/db-read-check.js';
 import type { IContributionErrorRecord } from '../../kernel/adapters/sqlite/contributions.js';
-import { isPluginLocked } from '../../kernel/config/locked-plugins.js';
+import { isLockedBuiltIn } from '../../plugins/locked-built-ins.js';
 import {
   installedDefaultEnabled,
   type EnabledResolver,
@@ -107,7 +107,7 @@ export interface IPluginExtensionItem {
    *  `stable`. The SPA badges only the non-default values
    *  (`experimental` / `beta` / `deprecated`). */
   stability?: TExtensionStability;
-  /** Host-enforced lock (mirrors `src/server/locked-plugins.ts`). When
+  /** Host-enforced lock (manifest `locked` flag via `locked-built-ins.ts`). When
    *  true, the SPA renders the toggle disabled with a "locked" tag and
    *  the PATCH route returns 403 `locked`. Omitted when false to keep
    *  the wire shape lean for the common case. */
@@ -172,6 +172,14 @@ export interface IPluginListItem {
   /** Host-enforced lock at the plugin level (see `IPluginExtensionItem.locked`). */
   locked?: boolean;
   /**
+   * Presentation position in the canonical listing (0-based). Computed
+   * by the BFF from `sortPluginsForPresentation`, the SINGLE source of
+   * plugin presentation order; the SPA sorts by this field instead of
+   * keeping its own pinned-order twin (kernel-agnosticism sweep
+   * 2026-07-23).
+   */
+  order: number;
+  /**
    * Stamped `true` on drop-in plugins whose discovery-time `status` was
    * `'disabled'` for a reason OTHER than untrust, that is, the user had
    * them disabled in the config layers (`settings.json` /
@@ -205,6 +213,9 @@ export interface IPluginListItem {
    */
   runtimeContributionErrors?: IPluginRuntimeContributionError[];
 }
+
+/** Builder-side item before the composition site stamps `order`. */
+type TPluginListItemDraft = Omit<IPluginListItem, 'order'>;
 
 interface IBulkChange {
   id: string;
@@ -400,7 +411,7 @@ export function registerPluginsRoute(app: Hono, deps: IPluginsRouteDeps): void {
         message: tx(SERVER_TEXTS.pluginsUnknown, { id }),
       });
     }
-    if (isPluginLocked(id)) {
+    if (isLockedBuiltIn(id)) {
       throw new HTTPException(403, {
         message: tx(SERVER_TEXTS.pluginsLocked, { id }),
       });
@@ -410,7 +421,7 @@ export function registerPluginsRoute(app: Hono, deps: IPluginsRouteDeps): void {
     // Drop locked children silently to mirror the CLI bulk semantics
     // (`#applyLockGate` in toggle.ts), so a multi-child cascade does
     // not abort when one extension happens to be locked.
-    const writable = childIds.filter((q) => !isPluginLocked(q));
+    const writable = childIds.filter((q) => !isLockedBuiltIn(q));
     // Pair toggle: a companion may live OUTSIDE this plugin (a user
     // plugin's fixer pairing a core analyzer), so expand after the
     // child fan-out.
@@ -436,7 +447,7 @@ export function registerPluginsRoute(app: Hono, deps: IPluginsRouteDeps): void {
       });
     }
     const qualified = qualifiedExtensionId(pluginId, extensionId);
-    if (isPluginLocked(qualified) || isPluginLocked(pluginId)) {
+    if (isLockedBuiltIn(qualified) || isLockedBuiltIn(pluginId)) {
       throw new HTTPException(403, {
         message: tx(SERVER_TEXTS.pluginsExtensionLocked, { pluginId, extensionId }),
       });
@@ -467,7 +478,7 @@ export function registerPluginsRoute(app: Hono, deps: IPluginsRouteDeps): void {
     }
     // Built-ins and host-locked ids are never import-trust-gated; reject
     // with 403 (mirrors the spec's `locked` envelope for trust).
-    if (handle.kind === 'built-in' || isPluginLocked(id)) {
+    if (handle.kind === 'built-in' || isLockedBuiltIn(id)) {
       throw new HTTPException(403, {
         message: tx(SERVER_TEXTS.pluginsTrustBuiltIn, { id }),
       });
@@ -526,10 +537,15 @@ function listItems(
   // that mutate the config call `configService.reload()` before
   // re-projecting, so this view is always current for the response.
   const config = deps.configService.effective();
-  return [
+  const items = [
     ...(deps.options.noBuiltIns ? [] : buildBuiltInItems(resolveEnabled, config)),
     ...buildDiscoveredItems(deps.pluginRuntime.discovered, deps, resolveEnabled, config, trust),
   ];
+  // Presentation `order` = position in this canonical listing (built-ins
+  // in `sortPluginsForPresentation` order, then drop-ins). The SPA sorts
+  // by this field; it keeps NO pinned-order twin (kernel-agnosticism
+  // sweep 2026-07-23).
+  return items.map((item, index) => ({ ...item, order: index }));
 }
 
 /**
@@ -549,17 +565,17 @@ async function loadTrustState(deps: IRouteDeps): Promise<ITrustState> {
 function buildBuiltInItems(
   resolveEnabled: EnabledResolver,
   config: IEffectiveConfig,
-): IPluginListItem[] {
+): TPluginListItemDraft[] {
   // Presentation order: `core` first, then vendor plugins. Mirrors
-  // `sm plugins list` and the SPA's `PINNED_PLUGIN_ORDER`. Runtime
-  // iteration of `builtInPlugins` keeps `core` last so `core/markdown`
-  // stays the terminal provider; the wire shape inverts that for the
-  // UI's benefit (the SPA can sort or pin on top of this baseline).
+  // `sm plugins list`; the SPA sorts by the stamped wire `order` (no
+  // pinned twin). Runtime iteration of `builtInPlugins` keeps `core`
+  // last so `core/markdown` stays the terminal provider; the wire shape
+  // inverts that for the UI's benefit.
   return sortPluginsForPresentation(builtInPlugins).map((plugin) => {
-    const pluginLocked = isPluginLocked(plugin.id);
+    const pluginLocked = isLockedBuiltIn(plugin.id);
     const extensions: IPluginExtensionItem[] = plugin.extensions.map((ext) => {
       const qualified = qualifiedExtensionId(plugin.id, ext.id);
-      const extLocked = pluginLocked || isPluginLocked(qualified);
+      const extLocked = pluginLocked || isLockedBuiltIn(qualified);
       // Built-in extension objects ARE the manifest, so the declared
       // `settings` map is read directly off `ext`.
       const settings = projectExtensionSettings(
@@ -603,7 +619,7 @@ function buildDiscoveredItems(
   resolveEnabled: (id: string) => boolean,
   config: IEffectiveConfig,
   trust: ITrustState,
-): IPluginListItem[] {
+): TPluginListItemDraft[] {
   return discovered.map((plugin) => buildDiscoveredItem(plugin, deps, resolveEnabled, config, trust));
 }
 
@@ -613,8 +629,8 @@ function buildDiscoveredItem(
   resolveEnabled: (id: string) => boolean,
   config: IEffectiveConfig,
   trust: ITrustState,
-): IPluginListItem {
-  const pluginLocked = isPluginLocked(plugin.id);
+): TPluginListItemDraft {
+  const pluginLocked = isLockedBuiltIn(plugin.id);
   const extensions = projectExtensionRows(plugin, resolveEnabled, pluginLocked, config);
   const optional = optionalDiscoveredFields(plugin, extensions);
   return {
@@ -688,7 +704,7 @@ function projectExtensionRows(
   return plugin.extensions.map((ext) => {
     const description = readInstanceDescription(ext.instance);
     const qualified = qualifiedExtensionId(plugin.id, ext.id);
-    const extLocked = pluginLocked || isPluginLocked(qualified);
+    const extLocked = pluginLocked || isLockedBuiltIn(qualified);
     // Discovered extensions carry the cloned manifest on `instance`; the
     // declared `settings` map is read off it the same way `description`
     // is.
@@ -948,8 +964,8 @@ function expandPairKeys(
   });
   const kept = added.filter(
     (a) =>
-      !isPluginLocked(a.key) &&
-      !isPluginLocked(a.key.slice(0, a.key.indexOf('/'))) &&
+      !isLockedBuiltIn(a.key) &&
+      !isLockedBuiltIn(a.key.slice(0, a.key.indexOf('/'))) &&
       batchExplicit?.has(a.key) !== true,
   );
   return [...keys, ...kept.map((a) => a.key)];
@@ -1082,7 +1098,7 @@ function validateBareBulkChange(
       message: tx(SERVER_TEXTS.pluginsUnknown, { id: change.id }),
     };
   }
-  if (isPluginLocked(change.id)) {
+  if (isLockedBuiltIn(change.id)) {
     return {
       status: 403,
       code: 'locked',
@@ -1125,7 +1141,7 @@ function validateQualifiedBulkChange(
       message: tx(SERVER_TEXTS.pluginsExtensionUnknown, { pluginId, extensionId }),
     };
   }
-  if (isPluginLocked(change.id) || isPluginLocked(pluginId)) {
+  if (isLockedBuiltIn(change.id) || isLockedBuiltIn(pluginId)) {
     return {
       status: 403,
       code: 'locked',
@@ -1330,7 +1346,7 @@ function expandBulkChangeKeys(change: IBulkChange, deps: IRouteDeps): string[] {
   if (!handle) return [];
   return pluginExtensionIds(handle)
     .map((extId) => qualifiedExtensionId(change.id, extId))
-    .filter((q) => !isPluginLocked(q));
+    .filter((q) => !isLockedBuiltIn(q));
 }
 
 /**

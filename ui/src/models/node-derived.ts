@@ -114,44 +114,33 @@ export function effectiveUserTags(node: INodeView | null | undefined): string[] 
 }
 
 /**
- * The re-homed action surfaces (`spec/view-slots.md` §Re-homed
- * surfaces): an `inspector.action.button` payload may DECLARE that it
- * is a named UI surface instead of a generic button. The UI selects
- * re-homed contributions by this declaration and dispatches the
- * payload's `actionId`; it never matches extension ids, so any plugin
- * may claim a surface and a disabled extension removes it (the
- * projection stops emitting).
+ * The dedicated surface slots (`spec/view-slots.md`
+ * §`inspector.surface.*`, decision 2026-07-23 replacing the retired
+ * payload-level `surface` re-homing field): each named UI surface is a
+ * slot of its own. The UI selects the claiming contribution by SLOT and
+ * dispatches the payload's `actionId`; it never matches extension ids,
+ * so any plugin may claim a surface and a disabled extension removes it
+ * (the projection stops emitting).
  */
-export type TActionSurface = 'version' | 'stability' | 'tags';
-
-/** A loosely-typed view over an action-button payload's declared fields. */
-interface ISurfacePayloadProbe {
-  surface?: unknown;
-}
-
-/** The `surface` a contribution payload declares, or `null`. */
-export function contributionSurface(payload: unknown): TActionSurface | null {
-  if (typeof payload !== 'object' || payload === null) return null;
-  const value = (payload as ISurfacePayloadProbe).surface;
-  return value === 'version' || value === 'stability' || value === 'tags' ? value : null;
-}
+export type TSurfaceSlot =
+  | 'inspector.surface.version'
+  | 'inspector.surface.stability'
+  | 'inspector.surface.tags'
+  | 'inspector.surface.summary'
+  | 'inspector.surface.auto-tag';
 
 /**
- * The node's `inspector.action.button` contribution claiming `surface`,
- * or `null` when none does (extension disabled -> the projection stops
- * -> the surface disappears). When several claim the same surface the
- * first in contribution order wins (the wire order follows contribution
- * priority).
+ * The node's contribution claiming `slot`, or `null` when none does
+ * (extension disabled -> the projection stops -> the surface
+ * disappears). Single-cardinality by contract: when several land on one
+ * surface slot the first in contribution order wins (the wire order
+ * follows contribution priority; `sm plugins doctor` warns).
  */
-export function actionSurfaceContribution(
+export function surfaceContribution(
   node: INodeView | null | undefined,
-  surface: TActionSurface,
+  slot: TSurfaceSlot,
 ): IContributionApi | null {
-  return (
-    (node?.contributions ?? []).find(
-      (c) => c.slot === 'inspector.action.button' && contributionSurface(c.payload) === surface,
-    ) ?? null
-  );
+  return (node?.contributions ?? []).find((c) => c.slot === slot) ?? null;
 }
 
 /**

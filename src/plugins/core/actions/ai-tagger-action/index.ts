@@ -21,13 +21,33 @@
  * tags land in the CURATION store as the documented delegated-curation
  * carve-out, the operator launched the tagger, and afterwards the tags
  * are ordinary human-owned annotations (editable via the tags row).
+ *
+ * **Owns the `inspector.surface.auto-tag` slot** (2026-07-23, the
+ * kernel-agnosticism sweep): the tag row's sparkles affordance is
+ * claimed by the deterministic `project()` below instead of a hardcoded
+ * extension id in the UI. Mirror of the summarizer's surface claim.
  */
 
-import type { IAction, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
+import type {
+  IAction,
+  IActionProjectionContext,
+  IBuiltInManifest,
+} from '../../../../kernel/extensions/index.js';
+import type { IViewContribution } from '../../../../kernel/types/view-catalog.js';
 import { CORE_PLUGIN_ID as PLUGIN_ID } from '../../../ids.js';
 
+const ID = 'ai-tagger-action';
+
+// Module-level const so the manifest `ui` map and the `project()` emit
+// reference the SAME object (the orchestrator recovers the contribution
+// id + slot by object identity), mirroring `node-bump`.
+const autoTagSurface = {
+  slot: 'inspector.surface.auto-tag',
+  priority: 10,
+} satisfies IViewContribution;
+
 export const aiTaggerAction: IBuiltInManifest<IAction> = {
-  id: 'ai-tagger-action',
+  id: ID,
   pluginId: PLUGIN_ID,
   kind: 'action',
   description:
@@ -39,4 +59,19 @@ export const aiTaggerAction: IBuiltInManifest<IAction> = {
   probExpectedDurationSeconds: 60,
   // No precondition: the tagger is universal, `--all` fans out to every
   // non-virtual node regardless of kind.
+  ui: { autoTagSurface },
+  // Claims the auto-tag sparkles for every real node; static payload,
+  // live queue state comes from the prob-extensions catalog entry
+  // matching this `actionId` (same pattern as the summarizer surface).
+  project(ctx: IActionProjectionContext): void {
+    for (const node of ctx.nodes) {
+      if (node.virtual === true) continue;
+      ctx.emitContribution(node.path, autoTagSurface, {
+        actionId: `${PLUGIN_ID}/${ID}`,
+        label: 'Auto-tag',
+        icon: 'pi-sparkles',
+        enabled: true,
+      });
+    }
+  },
 };

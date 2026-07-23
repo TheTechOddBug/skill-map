@@ -38,6 +38,11 @@ export type TSlotId =
   | 'graph.node.alert'
   | 'inspector.header.badge'
   | 'inspector.action.button'
+  | 'inspector.surface.version'
+  | 'inspector.surface.stability'
+  | 'inspector.surface.tags'
+  | 'inspector.surface.summary'
+  | 'inspector.surface.auto-tag'
   | 'inspector.body.panel.breakdown'
   | 'inspector.body.panel.records'
   | 'inspector.body.panel.tree'
@@ -131,6 +136,22 @@ export interface ISlotConfig {
  * `card.footer.left` profile (priority order, severity-aware) since
  * the generic badge is modelled on the card footer cluster.
  */
+/**
+ * Shared config of the five `inspector.surface.*` slots: single
+ * cardinality (one claimant per surface; competing emissions warn and
+ * last-load-wins, mirroring the slot machinery's contract), priority
+ * order for the deterministic first-wins pick.
+ */
+function surfaceSlotConfig(id: TSlotId): ISlotConfig {
+  return {
+    id,
+    cardinality: 'single',
+    order: 'priority',
+    strategy: 'replace-with-warning',
+    respectSeverity: true,
+  };
+}
+
 export const SLOT_REGISTRY: Record<TSlotId, ISlotConfig> = {
   'topbar.nav.start': {
     id: 'topbar.nav.start',
@@ -157,6 +178,16 @@ export const SLOT_REGISTRY: Record<TSlotId, ISlotConfig> = {
     strategy: 'append',
     respectSeverity: true,
   },
+  // The five dedicated surface slots (2026-07-23). Consumed by their
+  // OWN components (inspector header chips, tag row, node card echoes)
+  // via `surfaceContribution`, never mounted by the generic host; the
+  // registry entries exist so `isKnownSlot` accepts them and the
+  // single-cardinality contract is recorded.
+  'inspector.surface.version': surfaceSlotConfig('inspector.surface.version'),
+  'inspector.surface.stability': surfaceSlotConfig('inspector.surface.stability'),
+  'inspector.surface.tags': surfaceSlotConfig('inspector.surface.tags'),
+  'inspector.surface.summary': surfaceSlotConfig('inspector.surface.summary'),
+  'inspector.surface.auto-tag': surfaceSlotConfig('inspector.surface.auto-tag'),
   'inspector.body.panel.breakdown': {
     id: 'inspector.body.panel.breakdown',
     cardinality: 'multi',

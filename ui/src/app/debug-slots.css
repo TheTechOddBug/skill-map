@@ -77,6 +77,14 @@ html.is-debug-slots .sm-debug-slot[data-debug-slot="inspector.body.panel.key-val
 html.is-debug-slots .sm-debug-slot[data-debug-slot="inspector.body.panel.link-list"]   { box-shadow: 0 0 0 3px #8b5cf6; display: block; min-height: 60px; }
 html.is-debug-slots .sm-debug-slot[data-debug-slot="inspector.body.panel.markdown"]    { box-shadow: 0 0 0 3px #d946ef; display: block; min-height: 60px; }
 html.is-debug-slots .sm-debug-slot[data-debug-slot="graph.node.alert"]         { box-shadow: 0 0 0 3px #00ff66; }
+/* Dedicated surface slots (2026-07-23): consumed by their own
+   components, marked via the DebugSurface directive
+   (app/slots/debug-surface.directive.ts) instead of a host mount. */
+html.is-debug-slots .sm-debug-slot[data-debug-slot="inspector.surface.version"]   { box-shadow: 0 0 0 3px #22c55e; }
+html.is-debug-slots .sm-debug-slot[data-debug-slot="inspector.surface.stability"] { box-shadow: 0 0 0 3px #84cc16; }
+html.is-debug-slots .sm-debug-slot[data-debug-slot="inspector.surface.tags"]      { box-shadow: 0 0 0 3px #eab308; display: block; }
+html.is-debug-slots .sm-debug-slot[data-debug-slot="inspector.surface.summary"]   { box-shadow: 0 0 0 3px #f43f5e; }
+html.is-debug-slots .sm-debug-slot[data-debug-slot="inspector.surface.auto-tag"]  { box-shadow: 0 0 0 3px #ec4899; }
 html.is-debug-slots .sm-debug-slot[data-debug-slot="topbar.nav.start"] { box-shadow: 0 0 0 3px #ffd400; }
 
 /* Per-contribution outline inside each slot host. Lets the operator see

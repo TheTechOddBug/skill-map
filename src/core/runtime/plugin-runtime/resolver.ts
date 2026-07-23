@@ -22,6 +22,7 @@ import {
   makeEnabledResolver,
   type EnabledResolver,
 } from '../../../kernel/config/plugin-resolver.js';
+import { lockedBuiltInIds } from '../../../plugins/locked-built-ins.js';
 import type { TExtensionStability } from '../../../kernel/extensions/base.js';
 import { qualifiedExtensionId } from '../../../kernel/registry.js';
 import { resolveDbPath } from '../../paths/db-path.js';
@@ -126,7 +127,7 @@ export async function buildResolverInputs(
       (adapter) => adapter.trust.loadTrustMap(),
     )) ?? new Map<string, boolean>();
   return {
-    resolveEnabled: makeEnabledResolver(cfg),
+    resolveEnabled: makeEnabledResolver(cfg, lockedBuiltInIds()),
     trustMap,
   };
 }

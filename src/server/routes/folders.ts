@@ -9,12 +9,17 @@
  * with per-folder issue badges without hydrating the full `ScanResult`
  * (the graph map lazy-loads its branch via `/api/branch`).
  *
- * `errorCount` / `warnCount` are the count of error / warn issues whose
- * `nodeIds` include that path, the same per-node incidence the UI's
- * `countIssuesByPath` rolls up across descendants. They are computed in
- * SQL via `port.scans.issueCountsByPath()` (`json_each` + `GROUP BY`),
- * never by loading every issue into memory. The `info` severity is
- * intentionally ignored (the tree badges only error / warn).
+ * `errorCount` / `warnCount` are the node's TOTAL problem incidence per
+ * severity, BOTH provenances summed (user call 2026-07-23, matching the
+ * card's aggregate severity chips): deterministic issues whose `nodeIds`
+ * include the path (`port.scans.issueCountsByPath()`, `json_each` +
+ * `GROUP BY`) PLUS the node's fresh unresolved probabilistic findings
+ * (`port.findings.countUnresolvedByPath()`, the same read-time source
+ * the severity fold on /api/scan / /api/branch consumes). Both are
+ * computed in SQL, never by loading rows into memory. The `info`
+ * severity is intentionally ignored (the tree badges only error /
+ * warn). Live freshness rides the collection loader's existing
+ * refresh triggers (scan.completed + job.completed + reconnect).
  *
  * `sidecarStatus` is the node's sidecar drift status
  * (`scan_nodes.sidecar_status`), `null` when there is no parseable
@@ -58,25 +63,18 @@ export function registerFoldersRoute(app: Hono, deps: IRouteDeps): void {
           adapter.scans.listLiteNodes(),
           adapter.scans.issueCountsByPath(),
         ]);
-        return { liteNodes, issueCounts };
+        const findingCounts = await adapter.findings.countUnresolvedByPath(
+          liteNodes.map((n) => n.path),
+        );
+        return { liteNodes, issueCounts, findingCounts };
       },
     );
     const liteNodes = loaded?.liteNodes ?? [];
     const issueCounts = loaded?.issueCounts ?? new Map();
-    const items: IFolderItem[] = liteNodes.map((n) => {
-      const counts = issueCounts.get(n.path);
-      return {
-        path: n.path,
-        kind: n.kind,
-        linksInCount: n.linksInCount,
-        linksOutCount: n.linksOutCount,
-        tokensTotal: n.tokensTotal,
-        modifiedAtMs: n.modifiedAtMs,
-        errorCount: counts?.error ?? 0,
-        warnCount: counts?.warn ?? 0,
-        sidecarStatus: n.sidecarStatus,
-      };
-    });
+    const findingCounts = loaded?.findingCounts ?? new Map();
+    const items: IFolderItem[] = liteNodes.map((n) =>
+      toFolderItem(n, issueCounts.get(n.path), findingCounts.get(n.path)),
+    );
 
     return c.json(
       buildListEnvelope({
@@ -91,3 +89,44 @@ export function registerFoldersRoute(app: Hono, deps: IRouteDeps): void {
     );
   });
 }
+
+/**
+ * One wire item; the badge counts SUM both provenances (deterministic
+ * issues + fresh unresolved findings), matching the card's aggregate
+ * severity chips. Split out of the route closure for the complexity cap.
+ */
+function toFolderItem(
+  n: {
+    path: string;
+    kind: string;
+    linksInCount: number;
+    linksOutCount: number;
+    tokensTotal: number | null;
+    modifiedAtMs: number | null;
+    sidecarStatus: string | null;
+  },
+  issues: { error: number; warn: number } | undefined,
+  findings: { error: number; warn: number } | undefined,
+): IFolderItem {
+  return {
+    path: n.path,
+    kind: n.kind,
+    linksInCount: n.linksInCount,
+    linksOutCount: n.linksOutCount,
+    tokensTotal: n.tokensTotal,
+    modifiedAtMs: n.modifiedAtMs,
+    errorCount: badgeCount(issues, findings, 'error'),
+    warnCount: badgeCount(issues, findings, 'warn'),
+    sidecarStatus: n.sidecarStatus,
+  };
+}
+
+/** Sum one severity across both provenance maps (absent entry = 0). */
+function badgeCount(
+  issues: { error: number; warn: number } | undefined,
+  findings: { error: number; warn: number } | undefined,
+  key: 'error' | 'warn',
+): number {
+  return (issues?.[key] ?? 0) + (findings?.[key] ?? 0);
+}
+

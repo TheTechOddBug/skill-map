@@ -3,7 +3,7 @@
  * self-projection (the button formerly emitted by the `core/node-stability`
  * analyzer, now folded into the action that dispatches it, mirroring
  * `node-set-tags` / `node-bump`):
- *   - Emits one `inspector.action.button` per node that already has a
+ *   - Emits one `inspector.surface.stability` per node that already has a
  *     sidecar, dispatching `core/node-set-stability`, carrying an
  *     `enum-pick` prompt whose `defaultValue` pre-loads the node's effective
  *     stability (sidecar first, legacy frontmatter `metadata.stability` next,
@@ -65,8 +65,7 @@ function button(defaultValue: string): unknown {
     actionId: 'core/node-set-stability',
     label: NODE_SET_STABILITY_TEXTS.setLabel,
     icon: 'pi-flag',
-    surface: 'stability',
-    enabled: true,
+      enabled: true,
     prompt: {
       inputType: 'enum-pick',
       paramKey: 'stability',
@@ -155,10 +154,10 @@ describe('node-set-stability action, project() inspector button', () => {
     deepStrictEqual(contributions[1]!.payload, button('stable'));
   });
 
-  it('declares the inspector.action.button contribution slot', () => {
+  it('declares the inspector.surface.stability contribution slot', () => {
     deepStrictEqual(nodeSetStabilityAction.ui, {
       setStabilityButton: {
-        slot: 'inspector.action.button',
+        slot: 'inspector.surface.stability',
         priority: 15,
       },
     });

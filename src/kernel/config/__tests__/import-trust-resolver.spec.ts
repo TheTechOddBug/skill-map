@@ -3,7 +3,7 @@
  *
  *   - `makeTrustResolver(trustMap)`, the import-trust gate (security).
  *     `trustMap` is keyed by BARE plugin id; a `trusted = true` row OR a
- *     locked host id grants trust. An empty map trusts nothing
+ *     an id in the caller-threaded locked set grants trust. An empty map trusts nothing
  *     (fail-closed, a fresh clone).
  *   - `resolvePluginEnabled(id, cfg, installedDefault)`, the operational
  *     enable axis (config-only). Bare ids read the plugin-level toggle;
@@ -54,8 +54,13 @@ describe('makeTrustResolver', () => {
     assert.equal(resolve('my-plugin'), false);
   });
 
-  it('always trusts a locked host id (defense-in-depth arm)', () => {
-    assert.equal(trust([])('core/markdown'), true);
+  it('always trusts an id in the threaded locked set (defense-in-depth arm)', () => {
+    // The lock set is manifest-derived and THREADED by the caller
+    // (kernel-agnosticism sweep 2026-07-23: the kernel bakes no ids in).
+    const locked = new Set(['locked-plugin/ext']);
+    assert.equal(makeTrustResolver(new Map(), locked)('locked-plugin/ext'), true);
+    // Without the set (default), nothing is implicitly trusted.
+    assert.equal(trust([])('locked-plugin/ext'), false);
   });
 });
 
@@ -81,10 +86,13 @@ describe('resolvePluginEnabled, config-only enable axis', () => {
     assert.equal(resolvePluginEnabled('foo/ext', cfg({}), false), false);
   });
 
-  it('locked ids are always enabled regardless of config', () => {
+  it('locked ids are always enabled regardless of config (threaded set)', () => {
+    const locked = new Set(['foo/ext']);
     assert.equal(
-      resolvePluginEnabled('core/markdown', cfg({ core: { enabled: false } })),
+      resolvePluginEnabled('foo/ext', cfg({ foo: { enabled: false } }), true, locked),
       true,
     );
+    // Without the threaded set the same config disables it.
+    assert.equal(resolvePluginEnabled('foo/ext', cfg({ foo: { enabled: false } })), false);
   });
 });

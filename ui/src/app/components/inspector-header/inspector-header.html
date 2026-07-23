@@ -48,6 +48,8 @@
           [pTooltip]="bumpTooltip()"
           tooltipPosition="left"
           (click)="onBumpClick()"
+          smDebugSurface="inspector.surface.version"
+          [smDebugSurfaceClaim]="versionClaimId()"
           data-testid="inspector-version"
         >{{ headerVersion() ?? texts.header.bump.placeholder }}</button>
       }
@@ -68,6 +70,8 @@
         [pTooltip]="stabilityPayload() !== null ? texts.header.stabilityTooltip : ''"
         tooltipPosition="left"
         (click)="onStabilityChipClick()"
+        smDebugSurface="inspector.surface.stability"
+        [smDebugSurfaceClaim]="stabilityClaimId()"
         data-testid="inspector-stability-tag"
       >
         {{ stabilityDisplay() }}
@@ -93,6 +97,8 @@
         tooltipPosition="left"
         [attr.aria-label]="summaryTooltip()"
         (click)="summarizeClick.emit()"
+        smDebugSurface="inspector.surface.summary"
+        [smDebugSurfaceClaim]="summaryClaimId()"
         data-testid="inspector-summarize"
         [attr.data-state]="summaryState()"
       >
@@ -157,6 +163,8 @@
       [nodePath]="n.path"
       [setTagsActionId]="tagsAction.actionId"
       [autoTagState]="autoTagState()"
+      smDebugSurface="inspector.surface.tags"
+      [smDebugSurfaceClaim]="tagsClaimId()"
       (tagClick)="tagClick.emit($event)"
       (autoTagClick)="autoTagClick.emit()"
     />

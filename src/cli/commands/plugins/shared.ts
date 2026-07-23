@@ -42,6 +42,7 @@ import {
   makeEnabledResolver,
   type EnabledResolver,
 } from '../../../kernel/config/plugin-resolver.js';
+import { lockedBuiltInIds } from '../../../plugins/locked-built-ins.js';
 import { qualifiedExtensionId } from '../../../kernel/registry.js';
 import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
@@ -77,7 +78,7 @@ export function resolveSearchPaths(opts: IPluginDirOption, cwd: string): string[
 export async function buildResolver(): Promise<EnabledResolver> {
   const ctx = defaultRuntimeContext();
   const { effective: cfg } = loadConfig({ cwd: ctx.cwd });
-  return makeEnabledResolver(cfg);
+  return makeEnabledResolver(cfg, lockedBuiltInIds());
 }
 
 /**

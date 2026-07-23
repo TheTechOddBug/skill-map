@@ -123,3 +123,11 @@ Two built-in extractors claim the universal `@` and `/` prefixes and ship LLM-al
 - **Both extractors stay provider-agnostic.** `cross-provider invariance (claude / codex / agent-skills / antigravity)` in `src/plugins/core/extractors/__tests__/extractors.spec.ts` locks the invariant: for the same body, the same link set lands regardless of which provider classified the host file. The active lens (Phase 4b mudanza) only changes WHICH `precondition.provider`-gated extractors run; the `core/*` family runs everywhere by design.
 
 When writing a new built-in extractor that consumes prose, default to the same shape: strip code regions first, key your match on context-sensitive boundaries (not just on the bare sigil), and add a cross-provider test if the extractor lives in `core/`.
+
+## Kernel agnosticism invariants
+
+Two hard invariants, born from the 2026-07-23 audit (user ruling: "el kernel no tiene que conocer a los plugins"):
+
+1. **No plugin or extension identity literals inside `src/kernel/`** (comments exempt). Plugins execute dynamically; the kernel validates and forwards without knowing who exists. Knowledge that used to violate this (the hardcoded lock-list) now lives on each manifest (`locked: true`) and is projected by `src/plugins/locked-built-ins.ts` for the host layers. Enforced automatically: `src/__tests__/kernel-agnosticism.spec.ts` scans every kernel source for qualified-id string literals and fails the suite on any hit.
+2. **Affordance visibility never lives in the kernel.** Whether a button / chip / surface renders is decided by (a) the owning extension's `project()` (the payload `enabled` value and whether it emits at all) and (b) the UI (the render of that state). The kernel's contribution phase is validate-and-forward only: it checks the ref was declared and the payload matches the slot schema, then persists; it never filters or gates by slot, surface, or any UI condition. Normative wording: `spec/architecture.md` §View contribution system.
+

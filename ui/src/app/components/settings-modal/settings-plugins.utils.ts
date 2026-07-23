@@ -6,7 +6,7 @@
  *
  * Includes the ordering / filtering constants the helpers consume:
  *   - `KIND_FILTER_OPTIONS`: closed segment list for the kind filter.
- *   - `PINNED_PLUGIN_ORDER`: built-in plugin pin order.
+ *   - wire `order` (stamped by the BFF listing) drives the plugin sort.
  *
  * Storage helpers live in `./settings-plugins.storage.ts` so this
  * file has zero `localStorage` access, every function here is a
@@ -87,14 +87,6 @@ export const SOURCE_FILTER_CHIPS: readonly TSourceChip[] = ['built-in', 'project
  * thing the user touches first should be at the top of the list).
  * Keeping the two lists separate makes the asymmetry explicit.
  */
-export const PINNED_PLUGIN_ORDER: readonly string[] = [
-  'core',
-  'claude',
-  'antigravity',
-  'codex',
-  'opencode',
-  'agent-skills',
-];
 
 export function qualifiedKey(pluginId: string, extensionId: string): string {
   return `${pluginId}/${extensionId}`;
@@ -441,8 +433,9 @@ export function pluginDisplayName(
 /**
  * Canonical Settings → Plugins ordering:
  *
- *   1. `PINNED_PLUGIN_ORDER` first in that exact sequence.
- *   2. Everything else after, alphabetical by plugin id.
+ *   1. The wire `order` stamped by the BFF (built-ins first in the
+ *      canonical presentation order, then drop-ins).
+ *   2. Items without the field after, alphabetical by plugin id.
  *   3. Inner extensions are sorted alphabetically by extension id.
  *
  * The unknown-plugin bucket falls to the end so a new built-in or a
@@ -450,11 +443,13 @@ export function pluginDisplayName(
  * file to know about it.
  */
 export function sortPluginsByPin(plugins: IPluginItemApi[]): IPluginItemApi[] {
+  // The BFF stamps each item's presentation `order` (single source:
+  // `src/plugins/presentation-order.ts`); the SPA keeps NO pinned twin
+  // (kernel-agnosticism sweep 2026-07-23). Items without the field
+  // (older fixtures) fall to the end, alphabetical.
   const sortedTop = plugins.slice().sort((a, b) => {
-    const aIdx = PINNED_PLUGIN_ORDER.indexOf(a.id);
-    const bIdx = PINNED_PLUGIN_ORDER.indexOf(b.id);
-    const aKey = aIdx >= 0 ? aIdx : PINNED_PLUGIN_ORDER.length;
-    const bKey = bIdx >= 0 ? bIdx : PINNED_PLUGIN_ORDER.length;
+    const aKey = a.order ?? Number.MAX_SAFE_INTEGER;
+    const bKey = b.order ?? Number.MAX_SAFE_INTEGER;
     if (aKey !== bKey) return aKey - bKey;
     return a.id.localeCompare(b.id);
   });

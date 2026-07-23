@@ -26,6 +26,7 @@ import type { INodeView, ISidecarOverlay } from '../../../../models/node';
 import { activityPairKeyOf } from '../../../../models/api';
 import type {
   IActivityRunApi,
+  IContributionApi,
   IFindingApi,
   IFindingsEnvelopeApi,
   IIssueApi,
@@ -98,8 +99,8 @@ function makeNode(overrides: Partial<INodeView> = {}): INodeView {
         extensionId: 'node-set-tags',
         nodePath: 'agents/architect.md',
         contributionId: 'editTagsButton',
-        slot: 'inspector.action.button',
-        payload: { actionId: 'core/node-set-tags', surface: 'tags', label: 'Edit tags', enabled: true },
+        slot: 'inspector.surface.tags',
+        payload: { actionId: 'core/node-set-tags', label: 'Edit tags', enabled: true },
       },
     ],
     ...overrides,
@@ -864,16 +865,16 @@ describe('InspectorView, actions section (contribution-driven)', () => {
           extensionId: 'node-set-stability',
           nodePath: 'agents/architect.md',
           contributionId: 'setStabilityButton',
-          slot: 'inspector.action.button',
-          payload: { actionId: 'core/node-set-stability', surface: 'stability', label: 'Set stability', enabled: true },
+          slot: 'inspector.surface.stability',
+          payload: { actionId: 'core/node-set-stability', label: 'Set stability', enabled: true },
         },
         {
           pluginId: 'core',
           extensionId: 'node-bump',
           nodePath: 'agents/architect.md',
           contributionId: 'bumpButton',
-          slot: 'inspector.action.button',
-          payload: { actionId: 'core/node-bump', surface: 'version', label: 'Bump', enabled: true },
+          slot: 'inspector.surface.version',
+          payload: { actionId: 'core/node-bump', label: 'Bump', enabled: true },
         },
       ],
     };
@@ -2074,8 +2075,8 @@ describe('InspectorView, header version (catalog curation)', () => {
         extensionId: 'node-bump',
         nodePath: node.path,
         contributionId: 'bumpButton',
-        slot: 'inspector.action.button',
-        payload: { actionId: 'core/node-bump', surface: 'version', label: 'Bump', enabled: false, disabledReason: 'fresh' },
+        slot: 'inspector.surface.version',
+        payload: { actionId: 'core/node-bump', label: 'Bump', enabled: false, disabledReason: 'fresh' },
       },
     ];
     const loader = makeStubLoader([node]);
@@ -2193,6 +2194,19 @@ function makeIssueFixer(overrides: Partial<IIssueFixerEntryApi> = {}): IIssueFix
   };
 }
 
+/** A dedicated-surface claim (`inspector.surface.*`) for boot fixtures. */
+function makeSurfaceClaim(slot: string, actionId: string): IContributionApi {
+  const extensionId = actionId.slice(actionId.indexOf('/') + 1);
+  return {
+    pluginId: 'core',
+    extensionId,
+    nodePath: 'agents/architect.md',
+    contributionId: 'surface',
+    slot,
+    payload: { actionId, label: extensionId, enabled: true },
+  };
+}
+
 function makeIssue(overrides: Partial<IIssueApi> = {}): IIssueApi {
   return {
     analyzerId: 'reference-broken',
@@ -2217,6 +2231,8 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     summaries?: INodeSummaryRowApi[];
     /** Deterministic `scan_issues` rows for the findings card (issue-fixer cases). */
     issues?: IIssueApi[];
+    /** Extra node contributions (e.g. `inspector.surface.*` claims). */
+    contributions?: IContributionApi[];
 }
 
   async function bootAiActions(opts: IAiActionsBoot = {}): Promise<{
@@ -2225,7 +2241,7 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     node: INodeView;
     jobEvents$: Subject<void>;
   }> {
-    const node = makeNode();
+    const node = makeNode(opts.contributions ? { contributions: opts.contributions } : {});
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
     dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
@@ -2481,6 +2497,10 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
 
   it('the header summarize ? queues the summarizer; the summarizer never rides the launcher row', async () => {
     const { fixture, dataSource, node } = await bootAiActions({
+      // The affordance is claimed via the surface CONTRIBUTION (no id
+      // literals in the UI, kernel-agnosticism sweep 2026-07-23); the
+      // catalog entry supplies the live queue state.
+      contributions: [makeSurfaceClaim('inspector.surface.summary', 'core/ai-summarizer-action')],
       probs: makeProbExtensions({
         standalone: [
           makeProbEntry({ id: 'core/ai-summarizer-action', description: 'Summarizes.' }),
@@ -2511,6 +2531,12 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
 
   it('the tag-row sparkles queues the auto-tagger; the tagger never rides the launcher row', async () => {
     const { fixture, dataSource, node } = await bootAiActions({
+      contributions: [
+        // The tag ROW mounts off the tags-surface claim; the sparkles
+        // rides it via the auto-tag claim.
+        makeSurfaceClaim('inspector.surface.tags', 'core/node-set-tags'),
+        makeSurfaceClaim('inspector.surface.auto-tag', 'core/ai-tagger-action'),
+      ],
       probs: makeProbExtensions({
         standalone: [
           makeProbEntry({ id: 'core/ai-tagger-action', description: 'Tags.' }),
@@ -2551,6 +2577,7 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
 
   it('with a stored summary the header button is ready and toggles the analysis block', async () => {
     const { fixture } = await bootAiActions({
+      contributions: [makeSurfaceClaim('inspector.surface.summary', 'core/ai-summarizer-action')],
       probs: makeProbExtensions({
         standalone: [makeProbEntry({ id: 'core/ai-summarizer-action', description: 'S.' })],
       }),
@@ -2587,6 +2614,7 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
 
   it('the summary delete X removes the analysis and the header falls back to idle', async () => {
     const { fixture, dataSource, node } = await bootAiActions({
+      contributions: [makeSurfaceClaim('inspector.surface.summary', 'core/ai-summarizer-action')],
       probs: makeProbExtensions({
         standalone: [makeProbEntry({ id: 'core/ai-summarizer-action', description: 'S.' })],
       }),

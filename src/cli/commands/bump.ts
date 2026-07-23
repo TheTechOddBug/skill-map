@@ -5,7 +5,7 @@
  * Step 9.6.4 (Decision #125). Wraps the built-in deterministic
  * `core/node-bump` Action: the verb hydrates a `Node` from the
  * persisted scan (so the sidecar overlay produced by the 9.6.2 reader
- * rides along), invokes `nodeBumpAction.invoke()`, then materialises
+ * rides along), invokes the catalog-resolved bump action, then materialises
  * any returned `{ kind: 'sidecar', path, changes }` writes through
  * `FilesystemSidecarStore`.
  *
@@ -72,11 +72,11 @@ import { tryWithSqlite } from '../util/with-sqlite.js';
 
 import {
   computeBumpPlan,
+  resolveBumpAction,
   type IBumpPlan,
   type TBumpPlanItem,
 } from './bump-plan.js';
 import { isBuiltInEnabledFor } from '../../core/runtime/built-in-enabled.js';
-import { nodeBumpAction } from '../../plugins/core/actions/node-bump/index.js';
 
 /**
  * Per-node outcome accumulated by the batch flow. `--json` envelope
@@ -177,7 +177,7 @@ export class BumpCommand extends SmCommand {
     // which ships `defaultEnabled: false`; a disabled extension must not
     // work through ANY surface, the CLI verb included (2026-07-21
     // sweep). Checked before any read so the refusal is instant.
-    if (!isBuiltInEnabledFor(ctx.cwd, nodeBumpAction)) {
+    if (!isBuiltInEnabledFor(ctx.cwd, resolveBumpAction())) {
       this.printer!.error(
         tx(BUMP_TEXTS.extensionDisabled, {
           glyph: ansi.red('✕'),

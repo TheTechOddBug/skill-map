@@ -61,7 +61,7 @@ import { noopWritable } from '../util/noop-writable.js';
 import { parseBooleanFlag } from '../util/parse-query.js';
 import { buildBroadcasterEmitter } from '../watcher.js';
 import type { IRouteDeps } from './deps.js';
-import { foldFindingsIntoSeverityChips } from '../aggregate-severity-fold.js';
+import { foldFindingsIntoSeverityChips } from '../../plugins/core/analyzers/issue-counter/severity-fold.js';
 
 export interface IScanRouteDeps extends IRouteDeps {
   broadcaster: WsBroadcaster;
@@ -222,7 +222,7 @@ async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
         adapter.tags.listForPaths(paths),
         // Read-time aggregate: fresh unresolved findings summed into
         // issue-counter's severity chips below, same fold as /api/nodes
-        // (see aggregate-severity-fold), so a cold boot / F5 shows the
+        // (see issue-counter/severity-fold), so a cold boot / F5 shows the
         // combined count without waiting for the first per-node fetch.
         adapter.findings.countUnresolvedByPath(paths),
       ]);

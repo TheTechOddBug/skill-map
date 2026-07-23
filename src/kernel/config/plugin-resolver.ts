@@ -25,7 +25,17 @@
 
 import type { TExtensionStability } from '../extensions/base.js';
 import type { IEffectiveConfig } from './loader.js';
-import { isPluginLocked } from './locked-plugins.js';
+
+/**
+ * Host-locked qualified extension ids. The kernel does NOT know which
+ * ids are locked (it must stay plugin-agnostic, decision 2026-07-23):
+ * the set is DERIVED from the manifests' `locked` flag by
+ * `src/plugins/locked-built-ins.ts` and threaded in by each resolver
+ * construction site. An empty set (the default) means no lock arm.
+ */
+export type TLockedIds = ReadonlySet<string>;
+
+const NO_LOCKS: TLockedIds = new Set();
 
 /**
  * Resolver signature consumed across the runtime. The optional
@@ -91,16 +101,18 @@ export function resolvePluginEnabled(
   pluginId: string,
   cfg: Pick<IEffectiveConfig, 'plugins'>,
   installedDefault = true,
+  lockedIds: TLockedIds = NO_LOCKS,
 ): boolean {
-  // Defense in depth, the host lock-list (`./locked-plugins.ts`) is
-  // policy. Both the CLI (`sm plugins enable|disable`) and the BFF
+  // Defense in depth, the manifest-declared lock is policy. Both the
+  // CLI (`sm plugins enable|disable`) and the BFF
   // (`PATCH /api/plugins/...`) reject writes against locked ids up
   // front, but if a hand-edited `settings.json` ever slips one through,
   // the resolver overrides it and returns enabled. This makes "lock"
   // unbreakable at runtime regardless of persisted state. (Nothing
   // experimental is lockable, so the lock arm intentionally ignores
-  // `installedDefault`.)
-  if (isPluginLocked(pluginId)) return true;
+  // `installedDefault`.) Membership is qualified-id only; the caller
+  // derives the set from the manifests (`locked-built-ins.ts`).
+  if (lockedIds.has(pluginId)) return true;
 
   const slash = pluginId.indexOf('/');
   if (slash >= 0) {
@@ -145,9 +157,10 @@ function resolveQualifiedEnabled(
  */
 export function makeEnabledResolver(
   cfg: Pick<IEffectiveConfig, 'plugins'>,
+  lockedIds: TLockedIds = NO_LOCKS,
 ): EnabledResolver {
   return (pluginId, installedDefault) =>
-    resolvePluginEnabled(pluginId, cfg, installedDefault);
+    resolvePluginEnabled(pluginId, cfg, installedDefault, lockedIds);
 }
 
 /**
@@ -165,11 +178,13 @@ export function makeEnabledResolver(
  * `trustMap` is keyed by BARE plugin id (trust is per-plugin); the loader
  * calls `resolveImportTrust(pluginId)` with a bare id, so shapes match.
  *
- * Locked host plugins (built-ins) are always trusted, they never reach
- * the disk loader, but the arm keeps the gate total.
+ * Locked host extensions (built-ins) are always trusted, they never
+ * reach the disk loader, but the arm keeps the gate total. Membership
+ * is the same manifest-derived set the enable arm consumes.
  */
 export function makeTrustResolver(
   trustMap: Map<string, boolean>,
+  lockedIds: TLockedIds = NO_LOCKS,
 ): (pluginId: string) => boolean {
-  return (pluginId) => isPluginLocked(pluginId) || trustMap.get(pluginId) === true;
+  return (pluginId) => lockedIds.has(pluginId) || trustMap.get(pluginId) === true;
 }

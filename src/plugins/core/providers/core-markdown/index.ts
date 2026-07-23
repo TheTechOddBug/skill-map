@@ -42,6 +42,11 @@ export const coreMarkdownProvider: IBuiltInManifest<IProvider> = {
   pluginId: CORE_PLUGIN_ID,
   kind: 'provider',
   description: 'Universal `.md` fallback. Claims any markdown file that no vendor-specific provider has classified.',
+  // Host-locked (spec architecture.md §Locked extensions): disabling the
+  // universal fallback would make every orphan markdown silently
+  // invisible, a foot-gun the host product does not expose. The
+  // enabled-resolver treats the id as always-on; toggles reject it.
+  locked: true,
 
   // Provider identity. `hideChip: true` suppresses the per-card provider
   // chip: this fallback carries the majority of nodes in any project, so

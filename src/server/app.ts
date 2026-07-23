@@ -825,7 +825,7 @@ function codeForStatus(status: number): TErrorCode {
   if (status === 400) return 'bad-query';
   // 403, host-enforced policy refusal. Today only the plugin-lock
   // route uses it (`PATCH /api/plugins/:id` against an entry in
-  // `src/server/locked-plugins.ts`).
+  // the manifest `locked` flag via `src/plugins/locked-built-ins.ts`).
   if (status === 403) return 'locked';
   // 412, preconditions not met. Today only the project-preferences
   // route uses it: a privacy-sensitive write that would expand the

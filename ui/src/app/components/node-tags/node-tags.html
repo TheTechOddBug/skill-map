@@ -45,6 +45,7 @@
         [attr.aria-label]="autoTagTooltip()"
         (click)="onAutoTagClick()"
         [attr.data-state]="autoTagState()"
+        smDebugSurface="inspector.surface.auto-tag"
         data-testid="node-tags-auto"
       >
         @switch (autoTagState()) {

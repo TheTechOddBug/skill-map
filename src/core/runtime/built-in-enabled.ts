@@ -25,6 +25,7 @@ import {
   installedDefaultEnabled,
   makeEnabledResolver,
 } from '../../kernel/config/plugin-resolver.js';
+import { lockedBuiltInIds } from '../../plugins/locked-built-ins.js';
 import type { TExtensionStability } from '../../kernel/extensions/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 
@@ -45,7 +46,7 @@ export interface IBuiltInEnabledProbe {
 export function builtInEnabledResolverFor(
   cwd: string,
 ): (ext: IBuiltInEnabledProbe) => boolean {
-  const resolveEnabled = makeEnabledResolver(loadConfig({ cwd }).effective);
+  const resolveEnabled = makeEnabledResolver(loadConfig({ cwd }).effective, lockedBuiltInIds());
   return (ext) =>
     resolveEnabled(
       qualifiedExtensionId(ext.pluginId, ext.id),

@@ -216,8 +216,12 @@ describe('makeTrustResolver', () => {
     assert.equal(trust('my-plugin'), false);
   });
 
-  it('always trusts a locked host id (defense-in-depth arm)', () => {
-    assert.equal(makeTrustResolver(new Map())('core/markdown'), true);
+  it('always trusts an id in the threaded locked set (defense-in-depth arm)', () => {
+    // Manifest-derived set threaded by the caller; the kernel bakes no
+    // ids in (kernel-agnosticism sweep 2026-07-23).
+    const locked = new Set(['locked-plugin']);
+    assert.equal(makeTrustResolver(new Map(), locked)('locked-plugin'), true);
+    assert.equal(makeTrustResolver(new Map())('locked-plugin'), false);
   });
 });
 

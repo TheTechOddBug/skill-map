@@ -12,6 +12,8 @@
  *   - empty / absent DB → zero items.
  *   - one item per node with `{ path, kind, sidecarStatus }`.
  *   - errorCount / warnCount roll up issue incidence; info ignored.
+ *   - fresh unresolved probabilistic findings SUM into the same badges
+ *     (2026-07-23, matching the card's aggregate severity chips).
  *   - no pagination (counts.total == items.length, no counts.page).
  *
  * Per-test fixture path uses `mkdtempSync` (the SqliteStorageAdapter does
@@ -25,6 +27,10 @@ import { join } from 'node:path';
 import { after, before, beforeEach, describe, it } from 'node:test';
 
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
+import {
+  replaceFindingsForNode,
+  type IFindingInsertRow,
+} from '../../../kernel/adapters/sqlite/findings.js';
 import { persistScanResult } from '../../../kernel/adapters/sqlite/scan-persistence.js';
 import type { Issue, Node, ScanResult, SidecarStatus } from '../../../kernel/types.js';
 import {
@@ -226,6 +232,59 @@ describe('GET /api/folders', () => {
       assert.deepEqual(
         { error: byPath.get('baz.md')!.errorCount, warn: byPath.get('baz.md')!.warnCount },
         { error: 0, warn: 0 },
+      );
+    });
+  });
+
+  it('fresh unresolved findings sum into the badges alongside issues', async () => {
+    // One deterministic warn on foo + two findings (warn + error) on foo,
+    // and one finding-only node: the tree badges show the TOTAL problem
+    // incidence, both provenances (user call 2026-07-23; same semantics
+    // as the card's aggregate severity chips).
+    await prime([makeNode('foo.md'), makeNode('only-findings.md')], [makeIssue('warn', ['foo.md'])]);
+    const adapter = new SqliteStorageAdapter({ databasePath: root.dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      const rows = (
+        specs: readonly { severity: 'warn' | 'error'; resolution?: string }[],
+      ): IFindingInsertRow[] =>
+        specs.map((r, i) => ({
+          origin: 'extension',
+          type: 'quality',
+          severity: r.severity,
+          message: `finding ${i}`,
+          detail: null,
+          confidence: 0.9,
+          extensionVersion: '1.0.0',
+          model: null,
+          bodyHashAtGeneration: HASH,
+          generatedAt: Date.now(),
+          jobId: null,
+        }));
+      await replaceFindingsForNode(adapter.db, 'foo.md', 'test-finder/quality', [
+        ...rows([{ severity: 'warn' }, { severity: 'error' }]),
+      ]);
+      await replaceFindingsForNode(adapter.db, 'only-findings.md', 'test-finder/quality', [
+        ...rows([{ severity: 'warn' }]),
+      ]);
+    } finally {
+      await adapter.close();
+    }
+    await bootAndUse(async (handle) => {
+      const res = await fetch(url(handle, '/api/folders'));
+      const body = (await res.json()) as IFoldersBody;
+      const byPath = new Map(body.items.map((i) => [i.path, i]));
+      assert.deepEqual(
+        { error: byPath.get('foo.md')!.errorCount, warn: byPath.get('foo.md')!.warnCount },
+        { error: 1, warn: 2 },
+      );
+      // A node with NO deterministic issues still badges its findings.
+      assert.deepEqual(
+        {
+          error: byPath.get('only-findings.md')!.errorCount,
+          warn: byPath.get('only-findings.md')!.warnCount,
+        },
+        { error: 0, warn: 1 },
       );
     });
   });

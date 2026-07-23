@@ -2,7 +2,7 @@
  * Coverage for the `node-set-tags` action's scan-time `project()`
  * self-projection (added in the 2026-07-21 enabled-gate sweep, mirroring
  * `node-set-stability` / `node-bump`): the emitted
- * `inspector.action.button` contribution is not rendered as a button,
+ * `inspector.surface.tags` contribution is not rendered as a button,
  * its PRESENCE gates the inspector's inline tag row and the card tag
  * chips (surface follows the plugin), so a disabled action removes
  * every tag surface.
@@ -60,7 +60,6 @@ const BUTTON_PAYLOAD = {
   actionId: 'core/node-set-tags',
   label: NODE_SET_TAGS_TEXTS.editLabel,
   icon: 'pi-tags',
-  surface: 'tags',
   enabled: true,
 };
 
@@ -105,10 +104,10 @@ describe('node-set-tags action, project() tag-row gate contribution', () => {
     );
   });
 
-  it('declares the inspector.action.button contribution slot', () => {
+  it('declares the inspector.surface.tags contribution slot', () => {
     deepStrictEqual(nodeSetTagsAction.ui, {
       editTagsButton: {
-        slot: 'inspector.action.button',
+        slot: 'inspector.surface.tags',
         priority: 14,
       },
     });

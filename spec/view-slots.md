@@ -23,6 +23,11 @@ Architectural narrative is in [`architecture.md`](./architecture.md) §View cont
 | [`graph.node.alert`](#graphnodealert) | corner badge | icon + optional severity / count |
 | [`inspector.header.badge`](#inspectorheaderbadge) | badge | icon and/or label and/or count, optional severity |
 | [`inspector.action.button`](#inspectoractionbutton) | action button | actionId + label + enabled gate |
+| [`inspector.surface.version`](#inspectorsurface-the-dedicated-surface-family) | version surface (header chip + card label) | actionId + label + enabled gate |
+| [`inspector.surface.stability`](#inspectorsurface-the-dedicated-surface-family) | stability surface (header chip + card badge) | actionId + label + enabled gate |
+| [`inspector.surface.tags`](#inspectorsurface-the-dedicated-surface-family) | tag-row surface (editor + card chips) | actionId + label + enabled gate |
+| [`inspector.surface.summary`](#inspectorsurface-the-dedicated-surface-family) | header summarize affordance | actionId + label + enabled gate |
+| [`inspector.surface.auto-tag`](#inspectorsurface-the-dedicated-surface-family) | tag-row sparkles affordance | actionId + label + enabled gate |
 | [`inspector.body.panel.breakdown`](#inspectorbodypanelbreakdown) | bar chart | top-N labeled values |
 | [`inspector.body.panel.records`](#inspectorbodypanelrecords) | table | rows × columns ≤ 50 × 6 |
 | [`inspector.body.panel.tree`](#inspectorbodypaneltree) | indented tree | recursive label/children, depth ≤ 6, total ≤ 200 |
@@ -213,9 +218,9 @@ ctx.emitContribution('stale', { icon: 'pi-clock', tooltip: 'Sidecar drift' });
 
 The manifest declares only `{ slot }`. The per-node payload carries the action id, label, and dynamic `enabled` flag; the kernel re-emits the row every scan so the button refreshes.
 
-**Payload shape**: `{ actionId, label (1-48), enabled, icon?, severity?, disabledReason? (≤128), input?, prompt?, confirm?, surface? }`. Required: `actionId` (qualified `<plugin>/<action>`, pattern-checked), `label`, and `enabled` (boolean). `disabledReason` is the tooltip shown when `enabled` is false. `input`, `prompt`, and `confirm` are **reserved for parametrized actions** (Steps 2+, see below) and carry no behaviour today.
+**Payload shape**: `{ actionId, label (1-48), enabled, icon?, severity?, disabledReason? (≤128), input?, prompt?, confirm? }`. Required: `actionId` (qualified `<plugin>/<action>`, pattern-checked), `label`, and `enabled` (boolean). `disabledReason` is the tooltip shown when `enabled` is false. `input`, `prompt`, and `confirm` are **reserved for parametrized actions** (Steps 2+, see below) and carry no behaviour today.
 
-**Re-homed surfaces** (`surface`, optional enum `version | stability | tags`): a payload declaring a `surface` is NOT rendered as a generic button; the contribution IS the named UI surface instead: `version` = the header version chip (and the card's `vN` label), `stability` = the header stability chip, `tags` = the inline tag row (and the card's tag chips). The UI selects re-homed contributions by this declaration and dispatches the payload's `actionId`; it never matches extension ids, so any plugin may claim a surface and disabling the claiming extension removes the surface (the projection stops). A declared surface excludes the contribution from the generic Actions section. At most one contribution per node should claim a given surface; when several do, the UI uses the first by contribution priority order. First adopters: `core/node-bump` (`version`), `core/node-set-stability` (`stability`), `core/node-set-tags` (`tags`).
+**Named surfaces moved out** (decision 2026-07-23): the former payload-level `surface` re-homing field is RETIRED. An affordance that owns a named UI surface (the version chip, the stability chip, the tag row, the summarize button, the auto-tag sparkles) emits on its dedicated `inspector.surface.*` slot (next section) instead of this one; `inspector.action.button` is exclusively the generic Actions-section button again, restoring "slot picks ONE place" with no exception.
 
 **Emit**:
 ```ts
@@ -239,6 +244,26 @@ ctx.emitContribution(nodePath, 'bump', {
 **Empty**: not applicable. `emitWhenEmpty` does not apply (a button is always meaningful), and the `enabled` flag (not absence) carries the "nothing to do" state.
 
 **Where it renders**: inspector body, action cluster.
+
+---
+
+## `inspector.surface.*` (the dedicated-surface family)
+
+Five single-cardinality slots, one per NAMED UI surface, sharing the `SurfaceActionPayload` shape (the action-button payload without the retired `surface` field): `inspector.surface.version`, `inspector.surface.stability`, `inspector.surface.tags`, `inspector.surface.summary`, `inspector.surface.auto-tag`. They replace the former `ActionButtonPayload.surface` re-homing mechanism (decision 2026-07-23: placement belongs in the slot catalog, not in a payload field; the generic Actions host no longer needs to skip anything).
+
+**Use for**: claiming ownership of one named affordance. The UI selects the surface by SLOT and dispatches the payload's `actionId`; it never matches extension ids, so any plugin may claim a surface, and disabling the claiming extension removes the affordance (the projection stops). A claiming extension is also excluded from the AI-actions launcher rows by the generic rule "claims a surface" (no id lists in the UI).
+
+**A slot here is a LOGICAL surface**: the UI decides where it echoes. `version` renders as the header version chip AND the card's `vN` label; `stability` as the header chip and card badge; `tags` as the inline tag editor and the card's tag chips; `summary` as the header's semantic-analysis button; `auto-tag` as the tag row's sparkles button.
+
+**Dispatch**: deterministic claimants (`version`, `stability`, `tags` today) dispatch `POST /api/actions/:id` exactly like `inspector.action.button`. Probabilistic claimants (`summary`, `auto-tag` today) submit a queue job for the payload's `actionId` (`POST /api/nodes/:pathB64/jobs`); their live queue state comes from the prob-extensions catalog entry whose id matches the payload's `actionId`.
+
+**Cardinality**: single per node. When several contributions land on one surface slot, the UI uses the first by contribution priority order and `sm plugins doctor` surfaces a warning.
+
+**Claimants today**: `core/node-bump` (`version`), `core/node-set-stability` (`stability`), `core/node-set-tags` (`tags`), `core/ai-summarizer-action` (`summary`), `core/ai-tagger-action` (`auto-tag`).
+
+**Empty**: not applicable, same as `inspector.action.button`.
+
+**Where it renders**: per surface (inspector header, tag row, node card echoes).
 
 ---
 
@@ -436,7 +461,7 @@ ctx.emitScopeContribution('total', { value: ctx.nodes.length });
 
 ## Stability
 
-- The catalog of 14 slots above is the v1 surface, including the unified `inspector.header.badge` and the `inspector.action.button` dispatch slot.
+- The catalog of 19 slots above is the current surface, including the unified `inspector.header.badge`, the `inspector.action.button` dispatch slot, and the five-slot `inspector.surface.*` family (2026-07-23, replacing the payload-level `surface` re-homing).
 - Adding a new slot is a **catalog-minor bump**; renaming or removing one is a **catalog-major bump** and triggers `sm plugins upgrade` migration of dependent plugins. Folding the two header sub-slots into `inspector.header.badge` was such a removal.
 - The `inspector.action.button` reserved fields (`input`, `prompt`, `confirm`) are declared but inert; wiring them in the parametrized-action steps is additive (minor bump). The `_ActionPrompt` payload shape is reserved for the same steps.
 - The `IViewContribution` seven-field declaration shape (`slot`, `label?`, `tooltip?`, `icon?`, `emptyText?`, `emitWhenEmpty?`, `priority?`) is stable. Adding a new optional field is a minor bump; making a field required or removing one is a catalog-major bump.

@@ -4,7 +4,7 @@
  * `core/annotation-stale` analyzer, now folded into the action that
  * dispatches it; the analyzer keeps its stale chip / badge + drift
  * issue):
- *   - Emits one `inspector.action.button` per real (non-virtual) node,
+ *   - Emits one `inspector.surface.version` per real (non-virtual) node,
  *     dispatching `core/node-bump`. The payload's `enabled` flag carries
  *     the dynamic gate: enabled with no sidecar (the bump creates it) or a
  *     stale one (the bump refreshes it), disabled on a fresh sidecar.
@@ -69,7 +69,6 @@ const ENABLED_BUMP = {
   actionId: 'core/node-bump',
   label: BUMP_TEXTS.bumpLabel,
   icon: 'pi-arrow-up-right',
-  surface: 'version',
   enabled: true,
 };
 
@@ -77,7 +76,6 @@ const DISABLED_BUMP = {
   actionId: 'core/node-bump',
   label: BUMP_TEXTS.bumpLabel,
   icon: 'pi-arrow-up-right',
-  surface: 'version',
   enabled: false,
   disabledReason: BUMP_TEXTS.bumpDisabledReason,
 };
@@ -137,10 +135,10 @@ describe('node-bump action, project() inspector button', () => {
     }
   });
 
-  it('declares the inspector.action.button contribution slot', () => {
+  it('declares the inspector.surface.version contribution slot', () => {
     deepStrictEqual(nodeBumpAction.ui, {
       bumpButton: {
-        slot: 'inspector.action.button',
+        slot: 'inspector.surface.version',
         priority: 10,
       },
     });

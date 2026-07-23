@@ -742,7 +742,7 @@ export interface IPluginExtensionApi {
    *  badges only the non-default values (`experimental` / `beta` /
    *  `deprecated`); `stable` renders nothing. */
   stability?: TExtensionStabilityApi;
-  /** Host-enforced lock (BFF `src/server/locked-plugins.ts`). When true,
+  /** Host-enforced lock (the extension manifest's `locked` flag). When true,
    *  Settings renders the toggle disabled with a "locked" tag and the
    *  PATCH route returns 403. */
   locked?: boolean;
@@ -787,6 +787,12 @@ export interface IPluginItemApi {
   /** Host-enforced lock at the plugin level (mirrors the BFF
    *  `IPluginListItem.locked`). */
   locked?: boolean;
+  /**
+   * Presentation position stamped by the BFF listing (0-based; single
+   * source `src/plugins/presentation-order.ts`). The Settings list
+   * sorts by it; absent on older fixtures, which fall to the end.
+   */
+  order?: number;
   /**
    * Local import-trust grant (security axis, per-plugin). Stamped `true`
    * on a drop-in (`source: 'project'`) plugin the operator has trusted on

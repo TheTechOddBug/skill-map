@@ -38,7 +38,7 @@ import { Command, Option } from 'clipanion';
 import { writeConfigValue } from '../../../core/config/helper.js';
 import { cancelQueuedJobsForKeys } from '../../../core/jobs/cancel-disabled.js';
 import { appendOperation } from '../../../core/operations-log.js';
-import { isPluginLocked } from '../../../kernel/config/locked-plugins.js';
+import { isLockedBuiltIn } from '../../../plugins/locked-built-ins.js';
 import { generateRunId } from '../../../kernel/jobs/index.js';
 import { pushJobEvent } from '../../util/job-event-push.js';
 import { qualifiedExtensionId } from '../../../kernel/registry.js';
@@ -288,7 +288,8 @@ abstract class TogglePluginsBase extends SmCommand {
   }
 
   /**
-   * Host lock, see `src/kernel/config/locked-plugins.ts`. Bulk modes
+   * Host lock, manifest-declared `locked: true` (see
+   * `src/plugins/locked-built-ins.ts`). Bulk modes
    * (`--all`, an explicit batch of >1 targets, or a macro expansion
    * with >1 keys) silently skip locked extensions so the user can
    * still toggle the rest. Single-extension mode surfaces a directed
@@ -299,11 +300,11 @@ abstract class TogglePluginsBase extends SmCommand {
     const totalKeys = targets.reduce((acc, t) => acc + t.keys.length, 0);
     const bulk = this.all || this.ids.length > 1 || totalKeys > 1;
     if (bulk) {
-      return targets.map((t) => ({ ...t, keys: t.keys.filter((k) => !isPluginLocked(k)) }));
+      return targets.map((t) => ({ ...t, keys: t.keys.filter((k) => !isLockedBuiltIn(k)) }));
     }
     // Single-key path: targets has length 1 and keys has length 1.
     const onlyKey = targets[0]?.keys[0];
-    if (!onlyKey || !isPluginLocked(onlyKey)) return targets;
+    if (!onlyKey || !isLockedBuiltIn(onlyKey)) return targets;
     this.printer!.error(
       tx(PLUGINS_TEXTS.pluginLocked, {
         glyph: ansi.red('✕'),
@@ -339,7 +340,7 @@ abstract class TogglePluginsBase extends SmCommand {
       edges: collectPairEdges(sources),
       isCurrentlyEnabled: buildPairEnabledProbe(sources, await buildResolver()),
     });
-    const kept = added.filter((a) => !isPluginLocked(a.key));
+    const kept = added.filter((a) => !isLockedBuiltIn(a.key));
     if (kept.length === 0) return requestedKeys;
     this.printer!.info(
       tx(PLUGINS_TEXTS.pairToggleHeader, {
