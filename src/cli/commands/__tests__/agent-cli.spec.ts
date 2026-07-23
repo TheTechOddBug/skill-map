@@ -40,7 +40,19 @@ import { after, before, describe, it } from 'node:test';
 
 import type { BaseContext } from 'clipanion';
 
-import { PROCESS_JOBS_SKILL_CONTENT } from '../../../core/agent-skill/skill-template.js';
+import {
+  PROCESS_JOBS_SKILL_CONTENT,
+  PROCESS_JOBS_SKILL_FILES,
+} from '../../../core/agent-skill/skill-template.js';
+
+/** Materialised body of one skill file, by its folder-relative path. */
+function skillFileBody(path: string): string {
+  const file = PROCESS_JOBS_SKILL_FILES.find((f) => f.path === path);
+  ok(file !== undefined, `skill file ${path} exists in the canonical set`);
+  return file.content;
+}
+const MCP_MODE_BODY = skillFileBody('mcp.md');
+const CLI_MODE_BODY = skillFileBody('cli.md');
 import {
   AgentInstallCommand,
   AgentStatusCommand,
@@ -123,7 +135,8 @@ async function withCwd<T>(dir: string, fn: () => Promise<T>): Promise<T> {
   }
 }
 
-const CLAUDE_SKILL_REL = join('.claude', 'skills', 'sm-process-jobs', 'SKILL.md');
+const CLAUDE_SKILL_FOLDER = join('.claude', 'skills', 'sm-process-jobs');
+const CLAUDE_SKILL_REL = join(CLAUDE_SKILL_FOLDER, 'SKILL.md');
 
 before(() => {
   tmpRoot = mkdtempSync(join(tmpdir(), 'skill-map-agent-cli-'));
@@ -147,6 +160,31 @@ describe('sm agent install', () => {
     ok(outcome.out.includes('✓  sm agent: installed the sm-process-jobs skill'), 'installed wording');
     ok(outcome.out.includes('.claude/skills/sm-process-jobs/SKILL.md'), 'relative path named');
     ok(outcome.out.includes('(claude lens)'), 'lens named');
+  });
+
+  it('materialises every file in the canonical set with verbatim bytes', async () => {
+    const dir = freshDir();
+    await withCwd(dir, async () => run(buildInstall('claude'), captureContext()));
+    for (const f of PROCESS_JOBS_SKILL_FILES) {
+      const path = join(dir, CLAUDE_SKILL_FOLDER, f.path);
+      ok(existsSync(path), `${f.path} materialised on disk`);
+      strictEqual(readFileSync(path, 'utf8'), f.content, `${f.path} written verbatim`);
+    }
+  });
+
+  it('a partial copy (a sibling file deleted) reinstalls as "updated"', async () => {
+    const dir = freshDir();
+    const outcome = await withCwd(dir, async () => {
+      await run(buildInstall('claude'), captureContext());
+      // An older CLI shipped only SKILL.md; drop a mode file to simulate.
+      rmSync(join(dir, CLAUDE_SKILL_FOLDER, 'mcp.md'));
+      const second = captureContext();
+      const code = await run(buildInstall('claude'), second);
+      return { code, out: second.stdout() };
+    });
+    strictEqual(outcome.code, 0);
+    ok(outcome.out.includes('✓  sm agent: updated the sm-process-jobs skill'), 'missing sibling => updated');
+    ok(existsSync(join(dir, CLAUDE_SKILL_FOLDER, 'mcp.md')), 'the missing file is restored');
   });
 
   it('reinstall over drifted bytes reports "updated" and restores the canonical copy', async () => {
@@ -374,6 +412,166 @@ describe('the canonical sm-process-jobs skill, fixer-edit guidance', () => {
     ok(
       PROCESS_JOBS_SKILL_CONTENT.includes('Jobs carry no TTL by default'),
       'the skill states why pausing mid-claim is safe',
+    );
+  });
+
+  /**
+   * Split into three progressive-disclosure files 2026-07-23: SKILL.md
+   * (probe + routing + shared processing loop + Rules) always loads; the
+   * per-mode management surface lives in mcp.md / cli.md, read on demand.
+   */
+  it('materialises three files: SKILL.md plus the per-mode mcp.md / cli.md', () => {
+    deepStrictEqual(
+      PROCESS_JOBS_SKILL_FILES.map((f) => f.path),
+      ['SKILL.md', 'mcp.md', 'cli.md'],
+      'entry file first, then the two mode resources',
+    );
+    strictEqual(
+      skillFileBody('SKILL.md'),
+      PROCESS_JOBS_SKILL_CONTENT,
+      'SKILL.md content is the exported canonical constant',
+    );
+  });
+
+  it('routes management per mode: MCP tools in mcp.md, sm verbs in cli.md', () => {
+    // SKILL.md hosts the probe + routing and the shared processing loop.
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('HYBRID mode, recommended'),
+      'SKILL.md leads with the hybrid-MCP recommendation',
+    );
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('PROCESS with the CLI'),
+      'processing stays on the blocking CLI claim in SKILL.md',
+    );
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('`mcp.md` in this folder'),
+      'SKILL.md routes MCP management to mcp.md',
+    );
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('do NOT announce the mode') &&
+        PROCESS_JOBS_SKILL_CONTENT.includes("no 'MCP is live'"),
+      'in hybrid mode the skill proceeds silently, no mode/probe announcement',
+    );
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('`cli.md` in this'),
+      'SKILL.md routes CLI-only management to cli.md',
+    );
+    // mcp.md names the typed tools; cli.md names the sm verbs.
+    ok(
+      MCP_MODE_BODY.includes('list_extensions') && MCP_MODE_BODY.includes('list_findings'),
+      'mcp.md documents the typed queue + findings tools',
+    );
+    ok(
+      CLI_MODE_BODY.includes('`sm jobs submit') && CLI_MODE_BODY.includes('`sm findings'),
+      'cli.md documents the sm verb equivalents',
+    );
+  });
+
+  it('opens with a one-line MCP tip when processing without MCP', () => {
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('make your FIRST line to the user a'),
+      'a non-MCP run recommends enabling MCP on its first line',
+    );
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('enable the MCP server in Settings > Project'),
+      'the tip points at the Settings toggle',
+    );
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('a one-time first line') &&
+        PROCESS_JOBS_SKILL_CONTENT.includes('do not restate that MCP is off'),
+      'the MCP tip is one-time, never repeated in later reports',
+    );
+  });
+
+  /**
+   * The setup diagnosis must be a three-step ORDERED checklist (user,
+   * 2026-07-23): (1) is `sm serve` up on the port, (2) is the MCP server
+   * toggle active, (3) has the client registered it. A live agent skipped
+   * to step 3 because an open port 4242 (the `sm serve` UI) is not the
+   * same as `/mcp` being mounted.
+   */
+  it('tips MCP setup as an ordered checklist: serve up, then MCP toggle, then client registration', () => {
+    const serveAt = PROCESS_JOBS_SKILL_CONTENT.indexOf('Is `sm` up on the port');
+    const toggleAt = PROCESS_JOBS_SKILL_CONTENT.indexOf('enable the MCP server in Settings');
+    const registerAt = PROCESS_JOBS_SKILL_CONTENT.indexOf(
+      'claude mcp add --transport http --scope local skill-map http://127.0.0.1:4242/mcp',
+    );
+    ok(serveAt !== -1, 'step 1 (serve up on the port) is present');
+    ok(toggleAt !== -1, 'step 2 (enable the MCP toggle in Settings) is present');
+    ok(registerAt !== -1, 'step 3 (project-local client registration) is present');
+    ok(serveAt < toggleAt && toggleAt < registerAt, 'checked in order: serve up -> MCP toggle -> register');
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('the MCP server is a separate toggle'),
+      'warns that an open serve port does not by itself mount /mcp',
+    );
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('Do NOT start it yourself'),
+      'step 1 notifies the user, the agent never starts the server',
+    );
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('`claude mcp list`'),
+      'step 3 can be confirmed up front via the runtime MCP-server listing',
+    );
+    // A registered-but-"Failed to connect" server is a step-2 (toggle off)
+    // symptom, NOT a step-3 client problem; the skill must route it to
+    // Settings, not to re-adding / restarting the client.
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('"Failed to connect"') &&
+        PROCESS_JOBS_SKILL_CONTENT.includes('it is not a client problem'),
+      'a failed-connect on a registered server points at the toggle (step 2), not the client',
+    );
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('Do not reconfigure the client'),
+      'step 3 forbids re-adding / restarting the client while step 2 is unmet',
+    );
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('a 200 from `/` is only the'),
+      'the checklist verifies /mcp itself, not a plain hit to the port root',
+    );
+  });
+
+  /**
+   * The skill must reach for MCP on startup, not fall straight through to
+   * the CLI claim. Observed live 2026-07-23: the agent went to the CLI
+   * fallback without ever probing for the MCP tools.
+   */
+  it('probes for the MCP tools as its very first action', () => {
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('## First: probe for the MCP tools'),
+      'the skill leads with an MCP probe section before any claim',
+    );
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('Your very first action, before you claim anything'),
+      'the probe is framed as the first action',
+    );
+  });
+
+  /**
+   * Default inverted 2026-07-23: the skill stays resident and watches by
+   * default (arming the blocking `--wait` claim), and only processes a
+   * single pass when invoked with `once`. The old default (single-pass,
+   * opt-in watch) is gone.
+   */
+  it('defaults to the resident watch loop and processes a single pass only on `once`', () => {
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('## Process the queue (default: stay resident and watch)'),
+      'the default processing loop is resident/watch',
+    );
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('Claim (arm the wait)**: run `sm jobs claim --wait --json`'),
+      'the default claim is the blocking wait',
+    );
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('## Single pass (once)'),
+      'a `once` single-pass mode exists',
+    );
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('Run `sm jobs claim --json` (plain, no `--wait`)'),
+      'the single pass uses the plain, non-blocking claim',
+    );
+    ok(
+      !PROCESS_JOBS_SKILL_CONTENT.includes('Repeat until the queue is empty'),
+      'the old single-pass-by-default framing is gone',
     );
   });
 

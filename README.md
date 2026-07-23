@@ -114,11 +114,20 @@ What lights up depends on what each runtime's hook system exposes:
 
 Full contract (bridge invariants, privacy posture, per-provider signal notes): [`spec/provider-activity.md`](./spec/provider-activity.md).
 
-## Query the map from Claude Code (MCP)
+## Query and drive skill-map from Claude Code (MCP)
 
-`sm serve` can expose your map as a read-only [MCP](https://modelcontextprotocol.io) server at `/mcp`, so Claude Code (or any MCP host) queries the graph as tools and reads it as resources, with live updates as the map changes. It is **off by default** and strictly read-only: it answers questions about the map, it never runs your skills or agents.
+`sm serve` can expose skill-map as an [MCP](https://modelcontextprotocol.io) server at `/mcp`, so Claude Code (or any MCP host) works with your project as typed tools and resources, with live updates as the map changes. It is **off by default**; one toggle exposes the whole surface:
 
-Turn it on with `sm serve --mcp` (or the Settings → Project toggle), then point Claude Code at it in your project's `.mcp.json`:
+- **Read the map** (always read-only): query the graph as tools and read it as resources, it answers questions about the map and never touches it.
+- **Operate the queue and findings**: submit / claim / record / cancel jobs and read / resolve / dismiss / delete findings over the same contract as the `sm` verbs, so an MCP host can BE the processing agent with no shell. Sidecar-writing tools honour the same `.sm` consent gate as everywhere else.
+
+Turn it on with `sm serve --mcp` (or the Settings → Project toggle), then register it with your host. For Claude Code, project-local scope keeps it private to you (not shared with the team):
+
+```
+claude mcp add --transport http --scope local skill-map http://127.0.0.1:4242/mcp
+```
+
+Or commit a shared `.mcp.json` at the project root when the whole team should get it:
 
 ```json
 {

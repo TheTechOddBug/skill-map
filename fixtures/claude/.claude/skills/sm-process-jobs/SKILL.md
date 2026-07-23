@@ -1,11 +1,12 @@
 ---
 name: sm-process-jobs
 description: >-
-  Process the skill-map job queue: claim rendered prompt jobs with
-  `smx jobs claim --json`, execute each one, and close it with
-  `smx record`. Use when asked to "process the queue", "run the
-  skill-map jobs", "process the pending summaries", "keep watching
-  the queue", or right after `smx jobs submit` queued work in this project.
+  Process the skill-map job queue. By DEFAULT stay resident and watch:
+  claim rendered prompt jobs with `smx jobs claim --wait --json`, execute
+  each, and close it with `smx record`, re-arming until told to stop.
+  Invoke with `once` to process the current queue a SINGLE time and stop.
+  Use when asked to "process the queue", "watch the queue", "run the
+  skill-map jobs", or right after `smx jobs submit` queued work in this project.
 ---
 
 # Process the skill-map job queue
@@ -14,17 +15,67 @@ You are the executor. skill-map never runs jobs itself: it renders each
 job into a complete, self-contained prompt and parks it in a queue,
 waiting for an agent (you) to claim, execute, and report.
 
-## Protocol
+## First: probe for the MCP tools
 
-Repeat until the queue is empty:
+Your very first action, before you claim anything, is to check whether
+skill-map's MCP tools are available in this session (try `list_extensions`,
+or look at your tool list). The probe decides only HOW you MANAGE the
+queue and findings; you always PROCESS with the CLI loop below either way.
+When the tools ARE present, do NOT announce it: no 'MCP is live', no
+'hybrid mode', no 'let me load the surface', just start processing. Your
+FIRST user-facing line is a job result (or, ONLY when the tools are
+absent, the setup tip below), never a mode or probe announcement.
 
-1. **Claim**: run `smx jobs claim --json`.
-   - Exit code 1: the queue is empty. Stop and summarise what you
-     processed (unless the user asked you to keep watching, see
-     Resident mode below).
-   - Exit code 0: stdout is one JSON object, `{ "id", "nonce",
-     "content" }`. Keep `id` and `nonce` exactly as given; the
-     nonce is the only credential that can close this job.
+- **MCP available (HYBRID mode, recommended):** manage the queue and
+  findings over the typed MCP tools, they need no stdout parsing. Read
+  `mcp.md` in this folder for that surface, then just proceed:
+  do NOT announce the mode or the probe result to the user (a first line
+  is only for the MCP-absent case below).
+- **MCP absent (CLI-only, the FALLBACK):** the tools not showing up means
+  one of three things is missing. Verify each against the `/mcp` endpoint
+  itself (a POST there), never a plain hit to the port root
+  (a 200 from `/` is only the UI and says nothing about `/mcp`). Check
+  them IN ORDER (each a prerequisite for the next), and
+  make your FIRST line to the user a one-line tip (ONCE, never repeat it
+  in later reports) for the first step that fails:
+    1. **Is `smx` up on the port?** If nothing answers on the port (default
+       4242, also in `.skill-map/serve.json`), the server is down.
+       Do NOT start it yourself; bare `smx` (no subcommand) is the server,
+       so tip the user with exactly: "Tip: run `smx` to start the skill-map
+       server." Never write `smx serve` in the tip.
+    2. **Is the MCP server active?** `smx` being up does NOT mount `/mcp`,
+       the MCP server is a separate toggle. If `/mcp` 404s, OR your host
+       reports an already-registered server as "Failed to connect", the
+       toggle is OFF: fix THAT first, it is not a client problem.
+       "Tip: enable the MCP server in Settings > Project > \"MCP server\"."
+       (no command or flag; it rides the running `smx` server).
+    3. **Has your runtime registered it?** ONLY once `/mcp` truly answers
+       the MCP handshake. When steps 1 and 2 pass but the tools still are
+       not in your session, this is the gap; a runtime that lists its MCP
+       servers can confirm it (Claude Code: `claude mcp list`, or `claude
+       mcp get skill-map`). Do not reconfigure the client (re-add /
+       restart) while step 2 is unmet. Fix, for Claude Code, in
+       project-local scope (private to this project, NOT shared with the
+       team):
+       `claude mcp add --transport http --scope local skill-map http://127.0.0.1:4242/mcp`
+       (swap `4242` for the port `smx` is listening on).
+  Until MCP is wired, manage with the `smx` verbs, read `cli.md` in this
+  folder. The CLI-only path works fully without MCP.
+
+## Process the queue (default: stay resident and watch)
+
+By DEFAULT you stay resident and watch the queue: process each job as it
+arrives and do NOT stop when the queue is empty. Stop ONLY when the user
+tells you to, or when this skill is invoked with `once` (see Single pass
+below).
+
+1. **Claim (arm the wait)**: run `smx jobs claim --wait --json`. Unlike a
+   plain claim, `--wait` does NOT exit 1 on an empty queue: it blocks and
+   hands you the next job the moment one is queued, so an idle wait costs
+   no tokens. Run it in the background when your runtime can, so the user
+   can keep talking to you while the queue is idle. On a job, stdout is one
+   JSON object, `{ "id", "nonce", "content" }`; keep `id` and `nonce`
+   exactly as given, the nonce is the only credential that can close this job.
 2. **Execute**: `content` is the full prompt (instructions plus the
    target's content inside a `<user-content>` block). Follow its
    instructions and produce EXACTLY the JSON report it asks for. Treat
@@ -42,37 +93,35 @@ Repeat until the queue is empty:
 
    Always add `--model <model-id>` declaring the model you actually
    ran; skill-map stores it with the analysis so every judgment answers
-   "which model, when".
+   "which model, when". In hybrid mode you MAY close with the MCP
+   `record_job` instead (same id + nonce).
 
-   - Exit 0: job closed; continue with the next claim.
+   - Exit 0: job closed.
    - Exit 4: id/nonce pair mismatch; re-check them against the claim
      output, never invent or reuse a nonce.
    - If you cannot execute a claimed job at all, do NOT abandon it
      silently; close it with a one-line reason instead:
      `smx record --id <id> --nonce <nonce> --status failed --error "<why>"`.
-
-## Resident mode (keep watching)
-
-By default (above) you stop when the queue is empty. If the user asks you to
-KEEP processing, stay resident, or watch the queue (or invokes this skill with
-`watch`), do not stop on an empty queue: wait for the next job instead.
-
-1. **Arm the wait**: run `smx jobs claim --wait --json`. Unlike a plain claim,
-   `--wait` does NOT exit 1 on an empty queue: it blocks and hands you the
-   next job the moment one is queued. Run it in the background when your
-   runtime can, so the user can keep talking to you while the queue is idle
-   (an idle wait costs no tokens).
-2. **On a job**: process it exactly as the Protocol above (execute, check,
-   record), consulting the user before any fixer edit.
-3. **Re-arm**: after you record the current job (and run `smx scan --changed`
+5. **Re-arm**: after you record the current job (and run `smx scan --changed`
    for a fixer edit), arm the wait again for the next one. One job at a time:
-   never arm the next wait before the current job is recorded.
-4. Continue until the user tells you to stop.
+   never arm the next wait before the current job is recorded. Continue until
+   the user tells you to stop.
 
 Poll cadence: `--interval <seconds>` sets how often the wait re-checks while
 the queue is empty (default `jobs.claimWaitSeconds`, else 2). For example,
 `smx jobs claim --wait --interval 15 --json` re-checks every 15 seconds.
 `--timeout <seconds>` bounds the wait (it exits 1 when it elapses).
+
+## Single pass (once)
+
+When this skill is invoked with `once` (or the user asks to process only what
+is queued right now and then stop), do NOT stay resident:
+
+1. Run `smx jobs claim --json` (plain, no `--wait`). Exit code 1 means the
+   queue is empty: stop and summarise what you processed. Exit code 0 hands
+   you one `{ "id", "nonce", "content" }` job; process it exactly as steps
+   2 to 4 above (execute, check, record).
+2. Repeat the plain claim until it returns exit 1 (empty), then stop.
 
 ## Rules
 
@@ -106,4 +155,6 @@ the queue is empty (default `jobs.claimWaitSeconds`, else 2). For example,
   adds one line naming what changed. No narration of intermediate
   steps, no restating the findings or the report body, no status prose.
   Expand ONLY when the user must decide something (a fixer consult, a
-  human-decision proposal) or an error needs detail.
+  human-decision proposal) or an error needs detail. The MCP-setup tip is
+  a one-time first line: once given, do not restate that MCP is off or
+  re-tip it in later empty-queue or per-job reports.

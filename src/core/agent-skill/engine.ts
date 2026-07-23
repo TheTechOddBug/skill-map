@@ -18,9 +18,9 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join } from 'node:path';
 
 import {
-  PROCESS_JOBS_SKILL_CONTENT,
   PROCESS_JOBS_SKILL_DIR,
   PROCESS_JOBS_SKILL_FILE,
+  PROCESS_JOBS_SKILL_FILES,
 } from './skill-template.js';
 
 /** Outcome of `installAgentSkill` (see the module header). */
@@ -37,31 +37,51 @@ export function agentSkillFolder(cwd: string, skillDir: string): string {
   return join(cwd, skillDir, PROCESS_JOBS_SKILL_DIR);
 }
 
-/** Absolute `SKILL.md` path inside the skill folder. */
+/** Absolute `SKILL.md` (entry file + install marker) inside the folder. */
 export function agentSkillFile(cwd: string, skillDir: string): string {
   return join(agentSkillFolder(cwd, skillDir), PROCESS_JOBS_SKILL_FILE);
 }
 
 /**
- * Materialise the canonical skill. Three-state outcome: fresh install,
- * update (bytes differ from the canonical template, an older CLI's
- * copy) rewritten verbatim, or already up to date (identical bytes,
- * nothing written). Also drops the lens `marker` directory when the
- * Provider declares one (shared `.agents/skills` territory). Throws on
- * IO failure; callers own the error surface.
+ * True when EVERY materialised skill file exists in `folder` with bytes
+ * identical to the canonical template. The install / status contract is
+ * atomic over the set: a single missing or drifted file (an older CLI
+ * that shipped only `SKILL.md`, a manual edit) makes the whole skill
+ * `stale` / `updated`.
+ */
+function allSkillFilesMatch(folder: string): boolean {
+  return PROCESS_JOBS_SKILL_FILES.every((f) => {
+    const path = join(folder, f.path);
+    return existsSync(path) && readFileSync(path, 'utf8') === f.content;
+  });
+}
+
+/**
+ * Materialise the canonical skill folder. Three-state outcome: fresh
+ * install (the entry file was absent), update (any file differs from or
+ * is missing against the canonical set, an older CLI's copy) rewritten
+ * verbatim, or already up to date (every file identical, nothing
+ * written). Also drops the lens `marker` directory when the Provider
+ * declares one (shared `.agents/skills` territory). Throws on IO
+ * failure; callers own the error surface.
  */
 export function installAgentSkill(
   cwd: string,
   skillDir: string,
   marker?: string,
 ): TInstallOutcome {
-  const file = agentSkillFile(cwd, skillDir);
-  const existing = existsSync(file) ? readFileSync(file, 'utf8') : null;
-  const outcome: TInstallOutcome =
-    existing === null ? 'installed' : existing === PROCESS_JOBS_SKILL_CONTENT ? 'up-to-date' : 'updated';
+  const folder = agentSkillFolder(cwd, skillDir);
+  const entryExists = existsSync(agentSkillFile(cwd, skillDir));
+  const outcome: TInstallOutcome = !entryExists
+    ? 'installed'
+    : allSkillFilesMatch(folder)
+      ? 'up-to-date'
+      : 'updated';
   if (outcome !== 'up-to-date') {
-    mkdirSync(agentSkillFolder(cwd, skillDir), { recursive: true });
-    writeFileSync(file, PROCESS_JOBS_SKILL_CONTENT);
+    mkdirSync(folder, { recursive: true });
+    for (const f of PROCESS_JOBS_SKILL_FILES) {
+      writeFileSync(join(folder, f.path), f.content);
+    }
   }
   if (marker !== undefined) {
     mkdirSync(join(cwd, marker), { recursive: true });
@@ -82,13 +102,13 @@ export function uninstallAgentSkill(cwd: string, skillDir: string): boolean {
 }
 
 /**
- * Read-only install probe. `stale` = the materialised bytes differ
- * from the canonical constant (older CLI install or manual edit), the
- * same comparison `installAgentSkill` reports as `updated`.
+ * Read-only install probe. `installed` tracks the entry file; `stale` =
+ * any materialised file differs from or is missing against the canonical
+ * set (older CLI install, partial copy, or manual edit), the same
+ * comparison `installAgentSkill` reports as `updated`.
  */
 export function agentSkillStatus(cwd: string, skillDir: string): IAgentSkillStatus {
-  const file = agentSkillFile(cwd, skillDir);
-  const installed = existsSync(file);
-  const stale = installed && readFileSync(file, 'utf8') !== PROCESS_JOBS_SKILL_CONTENT;
+  const installed = existsSync(agentSkillFile(cwd, skillDir));
+  const stale = installed && !allSkillFilesMatch(agentSkillFolder(cwd, skillDir));
   return { installed, stale };
 }

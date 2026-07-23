@@ -1045,7 +1045,7 @@ The **isolation honest-note** (accidents, not hostile code) is the same posture 
 ## See also
 
 - [`cli-contract.md`](./cli-contract.md), verb surface of the CLI driving adapter.
-- [`mcp-server.md`](./mcp-server.md), optional read-only Model Context Protocol server exposed by the Server adapter (`/mcp`).
+- [`mcp-server.md`](./mcp-server.md), optional Model Context Protocol server exposed by the Server adapter (`/mcp`): read-only map tools/resources plus the operable queue + findings-lifecycle tools (one toggle, off by default).
 - [`db-schema.md`](./db-schema.md), table catalog backing `StoragePort`.
 - [`job-lifecycle.md`](./job-lifecycle.md), state machine for jobs, atomic claim, TTL/reap.
 - [`job-events.md`](./job-events.md), event stream emitted through `ProgressEmitterPort`.

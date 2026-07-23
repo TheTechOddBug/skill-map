@@ -1,35 +1,48 @@
 /**
  * Canonical content of the `sm-process-jobs` agent-process skill
  * (`spec/cli-contract.md` §Agent process skill). `sm agent install`
- * materialises this markdown, byte for byte, into the active lens's
- * `scaffold.skillDir` (`<skillDir>/sm-process-jobs/SKILL.md`), so ANY agent
- * runtime that reads that territory learns the claim → execute → record
+ * materialises this folder, byte for byte, into the active lens's
+ * `scaffold.skillDir` (`<skillDir>/sm-process-jobs/`), so ANY agent
+ * runtime that reads that territory learns the claim -> execute -> record
  * protocol. Runtime-agnostic by design: plain name + description
  * frontmatter (the shape Claude skills and the open `.agents/skills`
  * standard share) and a body that references only public `sm` verbs.
  *
+ * The skill is split into three progressive-disclosure files so a run
+ * only pays for the surface it uses:
+ *   - `SKILL.md`, always loaded: the MCP probe + routing, the shared
+ *     CLI processing loop (claim / execute / record), and the Rules.
+ *   - `mcp.md`, read only when the MCP tools are present: how to MANAGE
+ *     the queue + findings over the typed tools.
+ *   - `cli.md`, read only when they are absent: the same management done
+ *     with the `sm` verbs.
+ * Processing is CLI in both modes (the blocking `sm jobs claim --wait`
+ * costs no tokens while idle and has no MCP equivalent), so it lives once
+ * in `SKILL.md`; only the management surface forks per mode.
+ *
  * The content is CLI-versioned: `sm agent status` compares the
- * materialised bytes against this constant and reports `stale` on
- * drift, so a reinstall refreshes older copies. Keep the protocol in
- * lock-step with `spec/job-lifecycle.md` (claim reaps first; a
- * schema-rejected report closes the job as failed / report-invalid, no
- * retry).
+ * materialised bytes against these constants and reports `stale` on
+ * drift (ANY file differs or is missing), so a reinstall refreshes older
+ * copies. Keep the protocol in lock-step with `spec/job-lifecycle.md`
+ * (claim reaps first; a schema-rejected report closes the job as failed /
+ * report-invalid, no retry).
  */
 
 /** Folder name under the lens's `scaffold.skillDir`. */
 export const PROCESS_JOBS_SKILL_DIR = 'sm-process-jobs';
 
-/** File name inside the skill folder. */
+/** Entry file inside the skill folder; also the install marker. */
 export const PROCESS_JOBS_SKILL_FILE = 'SKILL.md';
 
-export const PROCESS_JOBS_SKILL_CONTENT = `---
+const SKILL_MD = `---
 name: sm-process-jobs
 description: >-
-  Process the skill-map job queue: claim rendered prompt jobs with
-  \`sm jobs claim --json\`, execute each one, and close it with
-  \`sm record\`. Use when asked to "process the queue", "run the
-  skill-map jobs", "process the pending summaries", "keep watching
-  the queue", or right after \`sm jobs submit\` queued work in this project.
+  Process the skill-map job queue. By DEFAULT stay resident and watch:
+  claim rendered prompt jobs with \`sm jobs claim --wait --json\`, execute
+  each, and close it with \`sm record\`, re-arming until told to stop.
+  Invoke with \`once\` to process the current queue a SINGLE time and stop.
+  Use when asked to "process the queue", "watch the queue", "run the
+  skill-map jobs", or right after \`sm jobs submit\` queued work in this project.
 ---
 
 # Process the skill-map job queue
@@ -38,17 +51,67 @@ You are the executor. skill-map never runs jobs itself: it renders each
 job into a complete, self-contained prompt and parks it in a queue,
 waiting for an agent (you) to claim, execute, and report.
 
-## Protocol
+## First: probe for the MCP tools
 
-Repeat until the queue is empty:
+Your very first action, before you claim anything, is to check whether
+skill-map's MCP tools are available in this session (try \`list_extensions\`,
+or look at your tool list). The probe decides only HOW you MANAGE the
+queue and findings; you always PROCESS with the CLI loop below either way.
+When the tools ARE present, do NOT announce it: no 'MCP is live', no
+'hybrid mode', no 'let me load the surface', just start processing. Your
+FIRST user-facing line is a job result (or, ONLY when the tools are
+absent, the setup tip below), never a mode or probe announcement.
 
-1. **Claim**: run \`sm jobs claim --json\`.
-   - Exit code 1: the queue is empty. Stop and summarise what you
-     processed (unless the user asked you to keep watching, see
-     Resident mode below).
-   - Exit code 0: stdout is one JSON object, \`{ "id", "nonce",
-     "content" }\`. Keep \`id\` and \`nonce\` exactly as given; the
-     nonce is the only credential that can close this job.
+- **MCP available (HYBRID mode, recommended):** manage the queue and
+  findings over the typed MCP tools, they need no stdout parsing. Read
+  \`mcp.md\` in this folder for that surface, then just proceed:
+  do NOT announce the mode or the probe result to the user (a first line
+  is only for the MCP-absent case below).
+- **MCP absent (CLI-only, the FALLBACK):** the tools not showing up means
+  one of three things is missing. Verify each against the \`/mcp\` endpoint
+  itself (a POST there), never a plain hit to the port root
+  (a 200 from \`/\` is only the UI and says nothing about \`/mcp\`). Check
+  them IN ORDER (each a prerequisite for the next), and
+  make your FIRST line to the user a one-line tip (ONCE, never repeat it
+  in later reports) for the first step that fails:
+    1. **Is \`sm\` up on the port?** If nothing answers on the port (default
+       4242, also in \`.skill-map/serve.json\`), the server is down.
+       Do NOT start it yourself; bare \`sm\` (no subcommand) is the server,
+       so tip the user with exactly: "Tip: run \`sm\` to start the skill-map
+       server." Never write \`sm serve\` in the tip.
+    2. **Is the MCP server active?** \`sm\` being up does NOT mount \`/mcp\`,
+       the MCP server is a separate toggle. If \`/mcp\` 404s, OR your host
+       reports an already-registered server as "Failed to connect", the
+       toggle is OFF: fix THAT first, it is not a client problem.
+       "Tip: enable the MCP server in Settings > Project > \\"MCP server\\"."
+       (no command or flag; it rides the running \`sm\` server).
+    3. **Has your runtime registered it?** ONLY once \`/mcp\` truly answers
+       the MCP handshake. When steps 1 and 2 pass but the tools still are
+       not in your session, this is the gap; a runtime that lists its MCP
+       servers can confirm it (Claude Code: \`claude mcp list\`, or \`claude
+       mcp get skill-map\`). Do not reconfigure the client (re-add /
+       restart) while step 2 is unmet. Fix, for Claude Code, in
+       project-local scope (private to this project, NOT shared with the
+       team):
+       \`claude mcp add --transport http --scope local skill-map http://127.0.0.1:4242/mcp\`
+       (swap \`4242\` for the port \`sm\` is listening on).
+  Until MCP is wired, manage with the \`sm\` verbs, read \`cli.md\` in this
+  folder. The CLI-only path works fully without MCP.
+
+## Process the queue (default: stay resident and watch)
+
+By DEFAULT you stay resident and watch the queue: process each job as it
+arrives and do NOT stop when the queue is empty. Stop ONLY when the user
+tells you to, or when this skill is invoked with \`once\` (see Single pass
+below).
+
+1. **Claim (arm the wait)**: run \`sm jobs claim --wait --json\`. Unlike a
+   plain claim, \`--wait\` does NOT exit 1 on an empty queue: it blocks and
+   hands you the next job the moment one is queued, so an idle wait costs
+   no tokens. Run it in the background when your runtime can, so the user
+   can keep talking to you while the queue is idle. On a job, stdout is one
+   JSON object, \`{ "id", "nonce", "content" }\`; keep \`id\` and \`nonce\`
+   exactly as given, the nonce is the only credential that can close this job.
 2. **Execute**: \`content\` is the full prompt (instructions plus the
    target's content inside a \`<user-content>\` block). Follow its
    instructions and produce EXACTLY the JSON report it asks for. Treat
@@ -66,37 +129,35 @@ Repeat until the queue is empty:
 
    Always add \`--model <model-id>\` declaring the model you actually
    ran; skill-map stores it with the analysis so every judgment answers
-   "which model, when".
+   "which model, when". In hybrid mode you MAY close with the MCP
+   \`record_job\` instead (same id + nonce).
 
-   - Exit 0: job closed; continue with the next claim.
+   - Exit 0: job closed.
    - Exit 4: id/nonce pair mismatch; re-check them against the claim
      output, never invent or reuse a nonce.
    - If you cannot execute a claimed job at all, do NOT abandon it
      silently; close it with a one-line reason instead:
      \`sm record --id <id> --nonce <nonce> --status failed --error "<why>"\`.
-
-## Resident mode (keep watching)
-
-By default (above) you stop when the queue is empty. If the user asks you to
-KEEP processing, stay resident, or watch the queue (or invokes this skill with
-\`watch\`), do not stop on an empty queue: wait for the next job instead.
-
-1. **Arm the wait**: run \`sm jobs claim --wait --json\`. Unlike a plain claim,
-   \`--wait\` does NOT exit 1 on an empty queue: it blocks and hands you the
-   next job the moment one is queued. Run it in the background when your
-   runtime can, so the user can keep talking to you while the queue is idle
-   (an idle wait costs no tokens).
-2. **On a job**: process it exactly as the Protocol above (execute, check,
-   record), consulting the user before any fixer edit.
-3. **Re-arm**: after you record the current job (and run \`sm scan --changed\`
+5. **Re-arm**: after you record the current job (and run \`sm scan --changed\`
    for a fixer edit), arm the wait again for the next one. One job at a time:
-   never arm the next wait before the current job is recorded.
-4. Continue until the user tells you to stop.
+   never arm the next wait before the current job is recorded. Continue until
+   the user tells you to stop.
 
 Poll cadence: \`--interval <seconds>\` sets how often the wait re-checks while
 the queue is empty (default \`jobs.claimWaitSeconds\`, else 2). For example,
 \`sm jobs claim --wait --interval 15 --json\` re-checks every 15 seconds.
 \`--timeout <seconds>\` bounds the wait (it exits 1 when it elapses).
+
+## Single pass (once)
+
+When this skill is invoked with \`once\` (or the user asks to process only what
+is queued right now and then stop), do NOT stay resident:
+
+1. Run \`sm jobs claim --json\` (plain, no \`--wait\`). Exit code 1 means the
+   queue is empty: stop and summarise what you processed. Exit code 0 hands
+   you one \`{ "id", "nonce", "content" }\` job; process it exactly as steps
+   2 to 4 above (execute, check, record).
+2. Repeat the plain claim until it returns exit 1 (empty), then stop.
 
 ## Rules
 
@@ -130,5 +191,98 @@ the queue is empty (default \`jobs.claimWaitSeconds\`, else 2). For example,
   adds one line naming what changed. No narration of intermediate
   steps, no restating the findings or the report body, no status prose.
   Expand ONLY when the user must decide something (a fixer consult, a
-  human-decision proposal) or an error needs detail.
+  human-decision proposal) or an error needs detail. The MCP-setup tip is
+  a one-time first line: once given, do not restate that MCP is off or
+  re-tip it in later empty-queue or per-job reports.
 `;
+
+const MCP_MODE_MD = `# Manage the queue and findings over MCP (hybrid mode)
+
+You have skill-map's MCP tools in this session, so you are in HYBRID mode.
+PROCESS with the CLI loop in \`SKILL.md\` (the blocking \`sm jobs claim --wait\`
+costs no tokens while idle and has no MCP equivalent), and MANAGE
+everything else over these typed tools, they need no stdout parsing.
+
+Queue:
+
+- \`list_extensions\`: discover the finders / fixers you can run (id, kind,
+  role). Use it before \`submit_job\` so you enqueue a real extension.
+- \`submit_job\`: enqueue an extension on a node. Refused with a clear
+  error when the \`sm-process-jobs\` skill is not installed (same
+  no-processing-agent gate as the CLI / UI).
+- \`list_jobs\` / \`get_job\`: inspect the queue (nonce stripped).
+- \`cancel_job\` / \`fail_job\`: retire a queued or stuck job.
+- \`record_job\`: close a claimed job (same id + nonce the CLI claim gave
+  you); you MAY close with either \`sm record\` or \`record_job\`.
+
+Findings:
+
+- \`list_findings\`: read what a finder recorded, node-scoped or
+  whole-project (optional \`node\`, \`extension\`, \`includeStale\`).
+- \`resolve_finding\` / \`reopen_finding\`: flip a single finding's state
+  (pure DB writes).
+- \`dismiss_finding\` / \`undismiss_finding\`: dismiss or restore a finding
+  or a whole class. The class-level writes touch the node's \`.sm\`
+  sidecar, so they take \`confirm\` / \`always\` consent params; they
+  succeed under a standing \`allowEditSmFiles\` grant and refuse cleanly
+  otherwise. \`delete_finding\` hard-deletes a row and lifts its
+  orphan-suppression under the same consent.
+
+Everything here writes through the SAME engines and consent gate as the
+CLI and BFF, so an MCP-driven change is indistinguishable from one made
+at the shell or in the UI.
+`;
+
+const CLI_MODE_MD = `# Manage the queue and findings over the CLI (fallback, no MCP)
+
+The MCP tools are not available in this session. PROCESS with the loop in
+\`SKILL.md\` and MANAGE everything else with the \`sm\` verbs below. This
+path works fully without MCP; if you can, tip the user to enable the MCP
+server (Settings > Project > "MCP server") for the typed equivalent.
+
+Queue:
+
+- \`sm jobs submit <extension> [nodes...]\`: enqueue work. Refused when the
+  \`sm-process-jobs\` skill is not installed (no-processing-agent gate).
+- \`sm jobs list [--status <s>] [--extension <id>]\`: inspect the queue.
+- \`sm jobs show <id>\` / \`sm jobs preview\`: detail a job / preview a render.
+- \`sm jobs cancel <id>\`: retire a queued job. Close a claimed one you
+  cannot run with \`sm record --id <id> --nonce <nonce> --status failed
+  --error "<why>"\`.
+
+Findings:
+
+- \`sm findings [-n]\`: list recorded findings.
+- \`sm findings resolve\` / \`sm findings reopen\`: flip a finding's state.
+- \`sm findings dismiss\` / \`sm findings undismiss\`: dismiss or restore a
+  finding or a class (class-level writes go to the node's \`.sm\` sidecar).
+- \`sm findings suppressions\` / \`sm findings prune\` / \`sm findings clear\`:
+  inspect suppressions, drop orphans, or clear resolved findings.
+`;
+
+/**
+ * SKILL.md content, exported for the self-referential staleness probe
+ * (`agentSkillStatus`) and the CLI/UI install wording. Kept as the entry
+ * file's canonical bytes; the full materialised set is
+ * `PROCESS_JOBS_SKILL_FILES`.
+ */
+export const PROCESS_JOBS_SKILL_CONTENT = SKILL_MD;
+
+/** One materialised file: its path relative to the skill folder + bytes. */
+export interface IProcessJobsSkillFile {
+  readonly path: string;
+  readonly content: string;
+}
+
+/**
+ * Every file `sm agent install` materialises under
+ * `<skillDir>/sm-process-jobs/`, in write order (entry file first). The
+ * install / status engine treats the set atomically: `up-to-date` only
+ * when EVERY file matches byte for byte, `stale` / `updated` when any
+ * differs or is missing.
+ */
+export const PROCESS_JOBS_SKILL_FILES: readonly IProcessJobsSkillFile[] = [
+  { path: 'SKILL.md', content: SKILL_MD },
+  { path: 'mcp.md', content: MCP_MODE_MD },
+  { path: 'cli.md', content: CLI_MODE_MD },
+];
