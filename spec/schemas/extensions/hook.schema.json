@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.ai/spec/v0/extensions/hook.schema.json",
   "title": "ExtensionHook",
-  "description": "Manifest shape for a `Hook` extension. Subscribes declaratively to a curated set of kernel lifecycle events. **Hooks are deterministic-only** since the structure-as-truth refactor: the `mode` field was removed; LLM-dependent lifecycle behaviour is modeled as a deterministic hook that enqueues a probabilistic Action via `ctx.queue('<plugin>/<action>', payload)`. Hooks react to events; they cannot block or alter the main pipeline. The set of hookable triggers is intentionally small, ten events out of the full job-events catalog. Eight are pipeline-driven (emitted from inside `runScan`); two (`boot`, `shutdown`) are CLI-process-driven (emitted by the driving binary before / after the verb runs, fire-and-forget so `process.exit` is never blocked). Other events (per-node `scan.progress`, `model.delta`, `run.*`, internal job lifecycle) are deliberately not hookable: too verbose for a reactive surface, internal to the runner, or covered elsewhere. Declaring a trigger outside the hookable set yields `invalid-manifest` at load time.",
+  "description": "Manifest shape for a `Hook` extension. Subscribes declaratively to a curated set of kernel lifecycle events. **Hooks are deterministic-only** since the structure-as-truth refactor: the `mode` field was removed; LLM-dependent lifecycle behaviour is modeled as a deterministic hook that enqueues a probabilistic Action via `ctx.queue('<plugin>/<action>', payload)`. Hooks react to events; they cannot block or alter the main pipeline. The set of hookable triggers is intentionally small, nine events out of the full job-events catalog. Seven are pipeline-driven (emitted from inside `runScan` or the record path); two (`boot`, `shutdown`) are CLI-process-driven (emitted by the driving binary before / after the verb runs, fire-and-forget so `process.exit` is never blocked). Other events (per-node `scan.progress`, `run.*`, internal job lifecycle) are deliberately not hookable: too verbose for a reactive surface, or covered elsewhere. Declaring a trigger outside the hookable set yields `invalid-manifest` at load time.",
   "type": "object",
   "required": ["version", "description", "triggers"],
   "unevaluatedProperties": false,
@@ -11,7 +11,7 @@
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
-      "description": "List of lifecycle events this hook subscribes to. Each entry MUST be one of the hookable triggers below. Declaring an unknown event (e.g. `scan.progress`, `model.delta`) is rejected at load time with `invalid-manifest`, the curated set is the contract.",
+      "description": "List of lifecycle events this hook subscribes to. Each entry MUST be one of the hookable triggers below. Declaring an unknown event (e.g. `scan.progress`, `run.started`) is rejected at load time with `invalid-manifest`, the curated set is the contract.",
       "items": {
         "type": "string",
         "enum": [
@@ -21,7 +21,6 @@
           "extractor.completed",
           "analyzer.completed",
           "action.completed",
-          "job.spawning",
           "job.completed",
           "job.failed",
           "shutdown"

@@ -7,10 +7,91 @@
     [attr.aria-label]="texts.rail.label"
     data-testid="workspace-rail"
   >
-    <!-- In-panel chrome lives on the rail's own bar (not the topbar):
-         a compact search next to the collapse handle. -->
-    <div class="workspace__rail-bar">
-      @if (!railCollapsed()) {
+    @if (railCollapsed()) {
+      <!-- Collapsed: a vertical activity bar of open-section buttons. The
+           panel is closed, so no button reads as "selected", the lit /
+           tab-selected state belongs to the open tab strip below. Built as
+           a simple vertical list so more sections can be added. -->
+      <div
+        class="workspace__activity-bar"
+        role="toolbar"
+        [attr.aria-label]="texts.sections.ariaLabel"
+      >
+        <button
+          type="button"
+          class="workspace__rail-btn"
+          [pTooltip]="texts.sections.filesTooltip"
+          tooltipPosition="right"
+          [attr.aria-label]="texts.sections.filesTooltip"
+          (click)="openSection('files')"
+          data-testid="workspace-section-files"
+        >
+          <i class="pi pi-folder" aria-hidden="true"></i>
+        </button>
+        <button
+          type="button"
+          class="workspace__rail-btn"
+          [pTooltip]="texts.sections.queueTooltip"
+          tooltipPosition="right"
+          [attr.aria-label]="texts.sections.queueTooltip"
+          (click)="openSection('queue')"
+          data-testid="workspace-section-queue"
+        >
+          <i class="pi pi-list" aria-hidden="true"></i>
+        </button>
+      </div>
+    } @else {
+      <!-- Open: a tab strip (Files / Queue) plus the collapse chevron,
+           above the shared search cluster and the swappable body. -->
+      <div
+        class="workspace__rail-tabs"
+        role="tablist"
+        [attr.aria-label]="texts.sections.ariaLabel"
+      >
+        <button
+          type="button"
+          class="workspace__tab"
+          role="tab"
+          [class.is-active]="activeSection() === 'files'"
+          [attr.aria-selected]="activeSection() === 'files'"
+          (click)="openSection('files')"
+          data-testid="workspace-section-files"
+        >
+          <i class="pi pi-folder" aria-hidden="true"></i>
+          <span>{{ texts.sections.files }}</span>
+        </button>
+        <button
+          type="button"
+          class="workspace__tab"
+          role="tab"
+          [class.is-active]="activeSection() === 'queue'"
+          [attr.aria-selected]="activeSection() === 'queue'"
+          (click)="openSection('queue')"
+          data-testid="workspace-section-queue"
+        >
+          <i class="pi pi-list" aria-hidden="true"></i>
+          <span>{{ texts.sections.queue }}</span>
+        </button>
+        <!-- Chevron: collapse-only, shown ONLY when open (no glyph swap). -->
+        <button
+          type="button"
+          class="workspace__rail-btn workspace__rail-collapse"
+          [pTooltip]="texts.rail.collapse"
+          tooltipPosition="bottom"
+          [attr.aria-label]="texts.rail.collapse"
+          (click)="collapse()"
+          data-testid="workspace-rail-toggle"
+        >
+          <i class="pi pi-angle-left" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <!-- In-panel chrome for FILES only: a compact search + the map / follow
+           / reset toggles. Exclusive to the Files section (search filters the
+           file tree and, via the map toggle, the graph), so it is gated on the
+           active tab and hidden on Queue. -->
+      @if (activeSection() === 'files') {
+      <div class="workspace__rail-bar">
         <p-iconfield iconPosition="left" class="workspace__search">
           <p-inputicon styleClass="pi pi-search" />
           <input
@@ -87,28 +168,17 @@
         >
           <i class="pi pi-filter-slash" aria-hidden="true"></i>
         </button>
+      </div>
       }
-      <button
-        type="button"
-        class="workspace__rail-btn"
-        [pTooltip]="railCollapsed() ? texts.rail.expand : texts.rail.collapse"
-        tooltipPosition="bottom"
-        [attr.aria-label]="railCollapsed() ? texts.rail.expand : texts.rail.collapse"
-        (click)="toggleRail()"
-        data-testid="workspace-rail-toggle"
-      >
-        <i
-          class="pi"
-          [class.pi-angle-left]="!railCollapsed()"
-          [class.pi-angle-right]="railCollapsed()"
-          aria-hidden="true"
-        ></i>
-      </button>
-    </div>
 
-    @if (!railCollapsed()) {
+      <!-- Body: swaps its child on the active section. Only the active
+           section's component is mounted, so each tab boots fresh. -->
       <div class="workspace__rail-body">
-        <sm-files-view />
+        @if (activeSection() === 'files') {
+          <sm-files-view />
+        } @else {
+          <sm-queue-view />
+        }
       </div>
       <div
         class="workspace__rail-resize"

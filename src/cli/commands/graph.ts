@@ -33,6 +33,7 @@ import {
   emptyPluginRuntime,
   loadPluginRuntime,
 } from '../util/plugin-runtime.js';
+import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { withSqlite } from '../util/with-sqlite.js';
 
 const DEFAULT_FORMAT = 'ascii';
@@ -96,7 +97,10 @@ export class GraphCommand extends SmCommand {
       return ExitCode.Error;
     }
 
-    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
+    // Read verb: advise on drift, never refuse (spec/db-schema.md §Schema
+    // drift, read-side opens advise).
+    const versionCheck = buildReadVersionCheck(this.printer!, this.ansiFor('stderr'));
+    return withSqlite({ databasePath: dbPath, autoBackup: false, versionCheck }, async (adapter) => {
       const scan = await adapter.scans.load();
       const text = formatter.format({
         nodes: scan.nodes,

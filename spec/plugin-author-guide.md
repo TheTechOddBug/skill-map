@@ -117,6 +117,15 @@ Two id shapes resolve at the toggle surface:
 
 Resolution order per id (the operational ENABLE axis): per-extension config (`plugins.<id>.extensions.<ext>.enabled`) > plugin-level config (`plugins.<id>.enabled`) > installed default, resolved through the config layers (`settings.local.json` over `settings.json`). The installed default is `true` for ordinary extensions and `false` for extensions declaring `stability: 'experimental'` or `stability: 'deprecated'` (they ship disabled until the operator opts in; see [Extension manifests](#extension-manifests)). Enable no longer reads from the DB; the `config_plugins` table now holds only the per-plugin import-trust grant (the security axis, see Import trust above). Persisted enable keys are written per qualified `<plugin>/<ext>` (the bundle macro expands at write time).
 
+#### Paired extensions (pair toggle)
+
+A fixer Action and the Analyzer(s) named in its `precondition.analyzerIds` form a **pair** ([Modelo B](./architecture.md#analyzer--action-relationship-modelo-b)), and the toggle surface keeps pairs coherent so a pair never ends up half-armed (a fixer without the analyzer that feeds it, or an analyzer whose fix affordance silently vanished):
+
+- **Enable is symmetric and eager**: enabling a fixer also enables every analyzer it references; enabling an analyzer also enables every fixer that references it.
+- **Disable is reference-counted over the edges**: disabling an analyzer also disables each fixer referencing it UNLESS that fixer still references another enabled analyzer; disabling a fixer also disables each referenced analyzer UNLESS another enabled fixer still references it.
+
+Scope and mechanics: only **direct edges** participate (no transitive closure across the pair graph); edges to deterministic analyzers (e.g. `core/ai-name-action` -> `core/name-mismatch`) participate exactly like probabilistic finder edges; companions never re-prompt (the bundle-macro confirm covers only the ids the user named; companions are reported as informational `pair toggle:` lines); locked companions are skipped silently (the bulk lock posture); a companion already in the requested set or already in the target state is a no-op, so repeated invocations and macro forms are stable. Companion writes land in the same config layer as the request (`--local` included) and companion disables run the full disable side effects (contributions purge, queued-job cancellation, `job.cancelled` push). Extensions without pairing edges are fully independent. An `analyzerIds` entry that resolves to no known analyzer contributes no edge (same posture as findings injection's benign-race handling).
+
 ### Extractor / Analyzer / Action `precondition`, narrow the pipeline
 
 An Extractor, Analyzer, or Action MAY declare an optional `precondition` block. When declared, the kernel runs the extension **only** against nodes that satisfy every declared sub-filter, fail-fast (no context built, no method call), wasting zero CPU on nodes it cannot process. The shape is shared across the three kinds:
@@ -126,6 +135,7 @@ precondition?: {
   kind?: string[];       // qualified `<plugin>/<kindName>` ids
   provider?: string[];   // plugin ids
   analyzerIds?: string[]; // Action only: which analyzers' findings this action resolves (Modelo B)
+  frontmatterMissing?: string[]; // Action only: applies only while the node's frontmatter is missing one of these fields
 };
 ```
 
@@ -136,6 +146,7 @@ precondition?: {
 | `{ kind: ['claude/skill', 'agent-skills/skill'] }` | Runs on skills from either provider. |
 | `{ provider: ['claude'] }` | Coarser: runs on every kind the `claude` plugin declares. |
 | `{ kind: ['claude/skill'], provider: ['claude'] }` | Both filters apply (AND). |
+| `{ frontmatterMissing: ['name', 'description'] }` | Action only. Applies only while the node's frontmatter lacks at least one listed field (no block, absent field, or empty-string value; non-string values count as present). ANDs with the other filters. |
 
 Prefer `precondition.kind` over `precondition.provider` when the filter is really about the kind. There is no wildcard syntax, omitting the field IS the wildcard.
 
@@ -209,7 +220,7 @@ The kernel knows six categories. Each has a JSON Schema under [`schemas/extensio
 |---|---|---|---|---|
 | `provider` | `walk` / `classify` | filesystem roots, candidate path | `{ kind, provider } \| null` | deterministic only |
 | `extractor` | `extract(ctx)` | one node + body + frontmatter + callbacks | `void` (via `ctx.emitLink` / `ctx.enrichNode` / `ctx.emitContribution` / `ctx.store`) | deterministic only |
-| `analyzer` | `evaluate(ctx)` | full graph | `Issue[]` | dual-mode |
+| `analyzer` | `evaluate(ctx)` (deterministic only; a probabilistic finder has no method, it ships `prompt.md` + `report.schema.json`) | full graph (deterministic) / rendered job content (probabilistic) | `Issue[]` (deterministic) / findings report → `state_findings` (probabilistic) | dual-mode |
 | `action` | `invoke(input, ctx)` + optional `project(ctx)` | `invoke`: one node + input; `project`: full graph + `emitContribution` | `invoke`: report / rendered prompt; `project`: `void` (its own view contributions) | `invoke`: dual-mode; `project`: deterministic |
 | `formatter` | `format(ctx)` | full graph | `string` | deterministic only |
 | `hook` | `on(ctx)` | a curated lifecycle event payload | `void` (side effects) | **deterministic only** |
@@ -257,6 +268,8 @@ export default {
 
 Cross-node reasoning over the merged graph; runs after every Provider and extractor. Dual-mode (`mode: 'deterministic'` default, `'probabilistic'` opt-in). Deterministic analyzers run synchronously inside `sm scan` / `sm check`; probabilistic ones dispatch as jobs and NEVER participate in the deterministic scan pipeline. Optional `precondition` and `ui`. Spec at [`schemas/extensions/analyzer.schema.json`](./schemas/extensions/analyzer.schema.json).
 
+A **probabilistic analyzer** (a finder: it JUDGES nodes, emitting findings like `contradiction`, `redundancy`, `low-quality`) shares the Action queue verbatim and has NO `evaluate()`; the processing agent does the reasoning. It ships files-by-convention, exactly like a probabilistic Action: `<analyzer-dir>/prompt.md` (the judging prompt) plus `<analyzer-dir>/report.schema.json` extending the canonical findings envelope ([`schemas/findings/report.schema.json`](./schemas/findings/report.schema.json)) via `$ref`, and declares `probExpectedDurationSeconds` for the TTL. Queue it with `sm jobs submit <plugin>/<id> -n <node>` (or `--all`); `sm record` validates the report and writes the `findings[]` rows to `state_findings`, read back via `sm findings`. Findings are advisory by construction: they never alter exit codes. A fixer Action names the finder in `precondition.analyzerIds` (Modelo B) to surface as its recommended fix.
+
 The analyzer↔action relationship is declared from the **Action** side via `precondition.analyzerIds` (Modelo B); no `recommendedActions` field on the Analyzer.
 
 ```javascript
@@ -280,7 +293,7 @@ export default {
 };
 ```
 
-> Until the job subsystem ships (Step 10), probabilistic analyzers are skipped silently by `sm scan`; `sm check --include-prob` loads them, lists them on stderr, and the `--async` companion is a reserved no-op.
+> `sm check` stays deterministic-only, full stop: probabilistic analyzers never contribute to it (the transitional `--include-prob` / `--async` stubs were retired when the findings pipeline landed). Their surface is the queue (`sm jobs submit`) on the way in and `sm findings` on the way out.
 
 ### Score-phase analyzers
 
@@ -341,7 +354,7 @@ export default {
 
 Declarative subscribers to a curated set of kernel lifecycle events. **Deterministic-only**: a hook reacts to events and cannot mutate the pipeline, block emission, or alter outputs. Errors are caught by the dispatcher (logged as `extension.error` with `kind: 'hook-error'`) and NEVER block the main flow. LLM-dependent reactions are modeled as a deterministic Hook that enqueues a probabilistic Action via `ctx.queue('<plugin>/<action>', payload)`. Spec at [`schemas/extensions/hook.schema.json`](./schemas/extensions/hook.schema.json); triggers at [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set).
 
-The ten hookable triggers (any other yields `invalid-manifest`): eight pipeline-driven, `scan.started`, `scan.completed`, `extractor.completed`, `analyzer.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`, plus two CLI-process-driven, `boot` (before verb routing) and `shutdown` (after the verb's exit code resolves).
+The nine hookable triggers (any other yields `invalid-manifest`): seven pipeline-driven, `scan.started`, `scan.completed`, `extractor.completed`, `analyzer.completed`, `action.completed`, `job.completed`, `job.failed`, plus two CLI-process-driven, `boot` (before verb routing) and `shutdown` (after the verb's exit code resolves).
 
 ```javascript
 export default {
@@ -391,7 +404,7 @@ An Action whose `invoke()` returns a sidecar write (`writes: [{ kind: 'sidecar',
 
 An Action has two independent surfaces:
 
-- **`invoke(input, ctx)`**, the on-demand executor the user triggers (deterministic in-process code, or a probabilistic rendered prompt the runner executes). Unit-test deterministic ones by calling `invoke(input, ctx)` with a fake context; probabilistic ones still need a live kernel until Step 10 lands the job subsystem.
+- **`invoke(input, ctx)`**, the on-demand executor the user triggers (deterministic in-process code; a probabilistic Action has NO `invoke`, its rendered prompt is processed by an external agent via `sm jobs claim` + `sm record`). Unit-test deterministic ones by calling `invoke(input, ctx)` with a fake context; probabilistic ones are tested through the queue (submit, then record a report against the schema).
 - **`project(ctx)`** (optional), a deterministic, side-effect-free, scan-time method with read-only graph access (`ctx.nodes`, `ctx.links`) plus `ctx.emitContribution(nodePath, ref, payload)`. Use it to self-project the Action's own UI affordance, typically an `inspector.action.button` declared in the manifest `ui` map (see [View contributions](#view-contributions)), computing the per-node `enabled` / prompt `options` from the live graph. It stays deterministic even when `invoke` is probabilistic, and runs every scan (same cost as an analyzer's emit). This is how built-in buttons like Set stability / Bump are produced: the dispatching Action owns its button, no separate "projector" analyzer. Unit-test it by calling `project(ctx)` with a fake `{ nodes, links, emitContribution }` and asserting the captured payload.
 
 ---
@@ -455,7 +468,7 @@ A schema file missing / unparseable / AJV-rejected at load flips the plugin to `
 
 Analyzer and Action declare `mode` (optional, default `'deterministic'`); Provider / Extractor / Formatter / Hook are deterministic-only by spec and MUST NOT declare it.
 
-A `probabilistic` Analyzer / Action receives `ctx.runner` (a `RunnerPort`) and dispatches its work to the configured LLM runner; it runs ONLY as a queued job (`sm job submit <kind>:<id>`), never in `sm scan`. The full per-kind capability matrix lives in [`architecture.md` §Execution modes](./architecture.md#execution-modes).
+A `probabilistic` Analyzer / Action never receives an LLM handle: its contribution is the prompt (`prompt.md`) plus the report contract (`report.schema.json`), rendered into a queued job (`sm jobs submit`) that an external agent processes via `sm jobs claim` + `sm record`; it never runs in `sm scan`. The full per-kind capability matrix lives in [`architecture.md` §Execution modes](./architecture.md#execution-modes).
 
 ---
 
@@ -756,7 +769,7 @@ test('emits one reference per [[ref:<name>]] token', async () => {
 });
 ```
 
-Analyzers take a `ctx` with `nodes`, `links`, and (if you assert on view contributions) an `emitContribution` spy, returning the issue array. Formatters take `{ nodes, links, issues }` and return a string. For probabilistic Actions, shape a fake `ctx.runner` that records the calls your test cares about. The public TypeScript types (`IExtractor`, `IAnalyzer`, `IFormatter`, the matching `*Context` types, `Node`, `Link`, `Issue`, ...) re-export from `@skill-map/cli`.
+Analyzers take a `ctx` with `nodes`, `links`, and (if you assert on view contributions) an `emitContribution` spy, returning the issue array. Formatters take `{ nodes, links, issues }` and return a string. For probabilistic extensions (Actions AND finder Analyzers), test the queue round-trip: submit against a fixture node, then `sm record` a handcrafted report and assert it validates against your `report.schema.json`; for a finder, additionally assert the rows land in `state_findings` (`sm findings --json`). The public TypeScript types (`IExtractor`, `IAnalyzer`, `IFormatter`, the matching `*Context` types, `Node`, `Link`, `Issue`, ...) re-export from `@skill-map/cli`.
 
 ---
 

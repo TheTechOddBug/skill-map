@@ -15,13 +15,14 @@ import { after, before, beforeEach, describe, it } from 'node:test';
 
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
 import { persistScanResult } from '../../../kernel/adapters/sqlite/scan-persistence.js';
-import type { Node, ScanResult } from '../../../kernel/types.js';
+import type { ExecutionRecord, Node, ScanResult } from '../../../kernel/types.js';
 import {
   createServer,
   type IServerOptions,
   type IServerHandle,
 } from '../../index.js';
 import { encodeNodePath } from '../../path-codec.js';
+import { RUNS_LIMIT } from '../activity-detail.js';
 
 const HASH_BODY = 'a'.repeat(64);
 const HASH_FRONTMATTER = 'b'.repeat(64);
@@ -103,6 +104,44 @@ async function primeFixture(): Promise<void> {
   }
 }
 
+const RUN_BASE_MS = 1_700_000_000_000;
+
+/**
+ * One seedable `state_executions` row targeting `ORCHESTRATOR` by
+ * default. `startedAt` grows with `n` so newest-first ordering is
+ * deterministic. `reportPath` is populated on purpose: the endpoint
+ * must never let it (or any report content) reach the wire.
+ */
+function makeExecution(n: number, overrides: Partial<ExecutionRecord> = {}): ExecutionRecord {
+  return {
+    id: `e-run-${String(n).padStart(3, '0')}`,
+    kind: 'action',
+    extensionId: 'core/skill-summarizer',
+    extensionVersion: '1.0.0',
+    nodeIds: [ORCHESTRATOR],
+    status: 'completed',
+    startedAt: RUN_BASE_MS + n * 1000,
+    finishedAt: RUN_BASE_MS + n * 1000 + 500,
+    durationMs: 500,
+    model: 'test-model',
+    reportPath: '{"secret":"never-on-the-wire"}',
+    ...overrides,
+  };
+}
+
+async function seedExecutions(execs: ExecutionRecord[]): Promise<void> {
+  const adapter = new SqliteStorageAdapter({
+    databasePath: root.dbPath,
+    autoBackup: false,
+  });
+  await adapter.init();
+  try {
+    for (const exec of execs) await adapter.history.insertExecution(exec);
+  } finally {
+    await adapter.close();
+  }
+}
+
 function makeNode(path: string, kind: string): Node {
   return {
     path,
@@ -173,6 +212,7 @@ interface INodeDetailEnvelope {
   recent: { at: number; owner?: string }[];
   spawns: Record<string, unknown>[];
   captureEnabled: boolean;
+  runs: Record<string, unknown>[];
 }
 
 async function getNodeDetail(handle: IServerHandle, path: string): Promise<Response> {
@@ -199,6 +239,92 @@ describe('GET /api/activity/node/:pathB64', () => {
         recent: [],
         spawns: [],
         captureEnabled: false,
+        runs: [],
+      });
+    });
+  });
+
+  it('runs: seeded state_executions rows, newest-first, capped at RUNS_LIMIT, lean projection', async () => {
+    // 22 orchestrator rows (well over the cap; the newest one failed) plus
+    // one row on a DIFFERENT node that must not bleed into the list.
+    const seeded = Array.from({ length: 21 }, (_, i) => makeExecution(i + 1));
+    seeded.push(
+      makeExecution(22, {
+        status: 'failed',
+        failureReason: 'timeout',
+        model: null,
+        durationMs: null,
+      }),
+      makeExecution(99, { nodeIds: ['.claude/skills/deploy/SKILL.md'] }),
+    );
+    await seedExecutions(seeded);
+    await bootAndUse(async (handle) => {
+      const res = await getNodeDetail(handle, ORCHESTRATOR);
+      assert.equal(res.status, 200);
+      const detail = (await res.json()) as INodeDetailEnvelope;
+      assert.equal(detail.runs.length, RUNS_LIMIT);
+      // Newest first: 22 (failed) at the top; the oldest rows past the cap fall off.
+      assert.deepEqual(detail.runs[0], {
+        executionId: 'e-run-022',
+        extensionId: 'core/skill-summarizer',
+        status: 'failed',
+        model: null,
+        durationMs: null,
+        finishedAt: RUN_BASE_MS + 22 * 1000 + 500,
+        failureReason: 'timeout',
+      });
+      assert.deepEqual(detail.runs[1], {
+        executionId: 'e-run-021',
+        extensionId: 'core/skill-summarizer',
+        status: 'completed',
+        model: 'test-model',
+        durationMs: 500,
+        finishedAt: RUN_BASE_MS + 21 * 1000 + 500,
+        failureReason: null,
+      });
+      // Newest first from the 22 seeded rows: the oldest kept is
+      // e-run-<22 - RUNS_LIMIT + 1> at the last kept index; older rows fall off.
+      assert.equal(
+        detail.runs[RUNS_LIMIT - 1]?.['executionId'],
+        `e-run-${String(22 - RUNS_LIMIT + 1).padStart(3, '0')}`,
+      );
+      // Lean wire: exactly the spec key set, nothing from the report /
+      // job linkage / token family leaks onto any entry.
+      for (const entry of detail.runs) {
+        assert.deepEqual(Object.keys(entry).sort(), [
+          'durationMs',
+          'executionId',
+          'extensionId',
+          'failureReason',
+          'finishedAt',
+          'model',
+          'status',
+        ]);
+      }
+      // The other node sees only its own run.
+      const other = await getNodeDetail(handle, '.claude/skills/deploy/SKILL.md');
+      const otherDetail = (await other.json()) as INodeDetailEnvelope;
+      assert.deepEqual(
+        otherDetail.runs.map((r) => r['executionId']),
+        ['e-run-099'],
+      );
+    });
+  });
+
+  it('missing DB: degrades to runs: [] with the runtime half still answering', async () => {
+    await bootAndUse(async (handle) => {
+      rmSync(root.dbPath, { force: true });
+      rmSync(`${root.dbPath}-wal`, { force: true });
+      rmSync(`${root.dbPath}-shm`, { force: true });
+      const res = await getNodeDetail(handle, ORCHESTRATOR);
+      assert.equal(res.status, 200);
+      const detail = (await res.json()) as INodeDetailEnvelope;
+      assert.deepEqual(detail, {
+        stats: { count: 0, lastStartAt: 0, distinctOwners: 0 },
+        recent: [],
+        spawns: [],
+        captureEnabled: false,
+        runs: [],
       });
     });
   });

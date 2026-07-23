@@ -299,23 +299,28 @@ Matching [`schemas/job.schema.json`](./schemas/job.schema.json). See [`job-lifec
 | Column | Type | Constraint |
 |---|---|---|
 | `id` | TEXT | PRIMARY KEY |
-| `action_id` | TEXT | NOT NULL |
-| `action_version` | TEXT | NOT NULL |
+| `extension_id` | TEXT | NOT NULL |
+| `extension_version` | TEXT | NOT NULL |
+| `extension_kind` | TEXT | NOT NULL, CHECK in (`action`, `analyzer`) |
 | `node_id` | TEXT | NOT NULL |
 | `content_hash` | TEXT | NOT NULL |
 | `nonce` | TEXT | NOT NULL |
 | `priority` | INTEGER | NOT NULL DEFAULT 0 |
-| `status` | TEXT | NOT NULL, CHECK in (`queued`, `running`, `completed`, `failed`) |
-| `failure_reason` | TEXT | NULL, CHECK in (`runner-error`, `report-invalid`, `timeout`, `abandoned`, `job-file-missing`, `user-cancelled`) |
-| `runner` | TEXT | NULL, CHECK in (`cli`, `skill`, `in-process`) |
-| `ttl_seconds` | INTEGER | NOT NULL |
+| `auto_fix` | INTEGER | NOT NULL DEFAULT 0 (per-job auto-fix opt-in frozen at submit, [`job-lifecycle.md`](./job-lifecycle.md) §Auto-fix chain (per-job)) |
+| `finding_ids_json` | TEXT | NULL (JSON array of `state_findings` ids frozen at submit for a finding-subset FIXER job; NULL = whole-node targeting, [`job-lifecycle.md`](./job-lifecycle.md) §Findings injection for fixers · Finding-subset targeting) |
+| `status` | TEXT | NOT NULL, CHECK in (`queued`, `running`, `completed`, `failed`, `cancelled`) |
+| `failure_reason` | TEXT | NULL, CHECK in (`runner-error`, `report-invalid`, `timeout`, `abandoned`, `job-file-missing`, `user-failed`). NULL for a `cancelled` job (self-explanatory, no reason). |
+| `runner` | TEXT | NULL, CHECK in (`agent`, `in-process`) |
+| `ttl_seconds` | INTEGER | NULL (NULL = never expires; armed only by explicit operator sources, see `job-lifecycle.md` §TTL resolution) |
 | `created_at` | INTEGER | NOT NULL |
 | `claimed_at` | INTEGER | NULL |
 | `finished_at` | INTEGER | NULL |
 | `expires_at` | INTEGER | NULL |
 | `submitted_by` | TEXT | NULL |
 
-Indexes: `ix_state_jobs_status`, `ix_state_jobs_action_node_hash` (unique partial index WHERE `status IN ('queued','running')` for duplicate detection).
+Indexes: `ix_state_jobs_status`, `ix_state_jobs_extension_node_hash` (unique partial index WHERE `status IN ('queued','running')` for duplicate detection).
+
+The queue is kind-agnostic: `extension_id` names a probabilistic **Action** or a probabilistic **Analyzer** (qualified id, version frozen at submit). The columns were renamed from `action_id` / `action_version` when Analyzers joined the queue; `state_executions.extension_id` set the naming precedent. `extension_kind` freezes the RESOLVED kind at submit time (like the version): it is what `sm record` routes on, so a plugin shipping a probabilistic Action AND Analyzer under one extension id stays unambiguous end-to-end (the submit-side `<kind>:` prefix picks, the row remembers).
 
 The rendered job content is NOT stored on this table. It lives in `state_job_contents` keyed by `content_hash` so multiple jobs with identical action + node + template pairs share one physical blob. See `state_job_contents` below for the storage shape and GC contract.
 
@@ -333,9 +338,9 @@ No indexes (PK covers lookup by hash; the table is keyed-by-hash exclusively).
 
 **Insertion semantics**: `INSERT OR IGNORE INTO state_job_contents(content_hash, content, created_at) VALUES (?, ?, ?)`, an existing row for the same hash is a no-op (the prior insert already paid the storage cost).
 
-**GC contract**: `sm job prune` MUST delete every row whose `content_hash` is no longer referenced by any `state_jobs` row, in the same transaction that prunes the job rows. Implementations MUST NOT delete `state_job_contents` rows on `sm job cancel` (a cancelled job's content is recoverable via `sm job submit --force` of the same content_hash and dedup is desirable).
+**GC contract**: `sm jobs prune` MUST delete every row whose `content_hash` is no longer referenced by any `state_jobs` row, in the same transaction that prunes the job rows. Implementations MUST NOT delete `state_job_contents` rows on `sm jobs cancel` (a cancelled job's content is recoverable via `sm jobs submit --force` of the same content_hash and dedup is desirable).
 
-`content_hash` is the same hash `state_jobs.content_hash` carries, computed at submit time as `sha256(actionId + actionVersion + bodyHash + frontmatterHash + promptTemplateHash)`. Two jobs with identical `content_hash` MUST render to identical content (the formula is deterministic over all rendering inputs); the table relies on this to dedup.
+`content_hash` is the same hash `state_jobs.content_hash` carries, computed at submit time as `sha256` over the NUL-joined (`0x00`) tuple `(extensionId, extensionVersion, node.path, bodyHash, frontmatterHash, promptTemplateHash)`. Two jobs with identical `content_hash` MUST render to identical content (the formula covers every rendering input, including `node.path`, which the render embeds via the `<user-content id>` attribute); the table relies on this to dedup.
 
 FK enforcement: SQLite foreign keys are off by default and the kernel does not currently turn them on (per `dialect.ts`). The `state_jobs.content_hash → state_job_contents.content_hash` relationship is enforced procedurally by the storage adapter (insert content row before job row in the same transaction; never delete content while jobs reference it). A future foreign-key push may upgrade this to a true FK without breaking the contract.
 
@@ -360,12 +365,15 @@ Matching [`schemas/execution-record.schema.json`](./schemas/execution-record.sch
 | `duration_ms` | INTEGER | NULL |
 | `tokens_in` | INTEGER | NULL |
 | `tokens_out` | INTEGER | NULL |
+| `model` | TEXT | NULL |
 | `report_json` | TEXT | NULL |
 | `job_id` | TEXT | NULL |
 
 Indexes: `ix_state_executions_extension_id`, `ix_state_executions_started_at`, `ix_state_executions_job_id`.
 
-The full report payload (the JSON the model returned, validated against the action's `reportSchemaRef`) is stored inline in `report_json`. No on-disk report file. `sm job show <id>` and `sm history --json` read the column directly.
+The full report payload (the JSON the model returned, validated against the action's `reportSchemaRef`) is stored inline in `report_json`. No on-disk report file. `sm jobs show <id>` and `sm history --json` read the column directly.
+
+`model` is the executing model's name as SELF-REPORTED by the recording agent via `sm record --model <name>` (unverifiable by design, exactly like the token counts; NULL when the agent does not declare one). It answers "which model produced this analysis, and when" together with the timestamps, and is denormalized onto `state_findings.model` / `state_summaries.model` at record time for join-free display.
 
 ### `state_summaries`
 
@@ -379,13 +387,68 @@ One row per `(node_id, summarizer_action_id)`. See [`schemas/summaries/`](./sche
 | `summarizer_version` | TEXT | NOT NULL |
 | `body_hash_at_generation` | TEXT | NOT NULL |
 | `generated_at` | INTEGER | NOT NULL |
+| `model` | TEXT | NULL |
 | `summary_json` | TEXT | NOT NULL |
 
 Primary key: `(node_id, summarizer_action_id)`. Indexes: `ix_state_summaries_generated_at`.
 
+**Writer.** `sm record` populates this table: when it closes a `completed` job for a summarizer Action (its `report.schema.json` extends the canonical node-summary schema under [`schemas/summaries/`](./schemas/summaries/) via `$ref`, see [`job-lifecycle.md` §Record](./job-lifecycle.md#record-callback)), it upserts the validated report here (`INSERT ... ON CONFLICT(node_id, summarizer_action_id) DO UPDATE`) inside the same transaction as the `state_executions` insert + job transition. `summary_json` holds the validated report; `summarizer_action_id` / `summarizer_version` mirror the job's `extension_id` / `extension_version` (a summarizer is always an Action, so the summary-side column keeps the specific name); `kind` mirrors the target `scan_nodes.kind`; `model` mirrors the recording agent's self-reported `--model` (NULL when undeclared); and `body_hash_at_generation` captures the node's `body_hash` at record time. The write is skipped (no row) when the target node has disappeared from `scan_nodes` between submit and record.
+
+**Stale rule.** `sm show <node>` renders any stored summary for the node and marks it `(stale)` when `body_hash_at_generation` differs from the node's current `scan_nodes.body_hash` (the body was edited and rescanned since the summary was generated). The row is never auto-deleted on staleness; a fresh `sm record` for the same `(node_id, summarizer_action_id)` overwrites it in place.
+
+### `state_findings`
+
+Probabilistic findings: the judgments recorded by finder Analyzers (`mode: 'probabilistic'`), plus the kernel-derived safety rows synthesized from any probabilistic report's `safety` block. Read by `sm findings` and the UI findings surfaces. See [`schemas/findings/report.schema.json`](./schemas/findings/report.schema.json) for the report envelope and [`job-lifecycle.md` §Record](./job-lifecycle.md#record-callback) for the write path.
+
+| Column | Type | Constraint |
+|---|---|---|
+| `id` | INTEGER | PRIMARY KEY |
+| `node_id` | TEXT | NOT NULL |
+| `extension_id` | TEXT | NOT NULL |
+| `extension_version` | TEXT | NOT NULL |
+| `origin` | TEXT | NOT NULL, CHECK in (`extension`, `kernel`) |
+| `type` | TEXT | NOT NULL |
+| `severity` | TEXT | NOT NULL, CHECK in (`info`, `warn`, `error`) |
+| `message` | TEXT | NOT NULL |
+| `detail` | TEXT | NULL |
+| `confidence` | REAL | NOT NULL |
+| `model` | TEXT | NULL |
+| `resolution` | TEXT | NULL, CHECK in (`fixed`, `human-decision`, `dismissed`) |
+| `resolution_actor` | TEXT | NULL, CHECK in (`human`, `fixer`) |
+| `resolution_note` | TEXT | NULL |
+| `resolution_by` | TEXT | NULL |
+| `resolution_at` | INTEGER | NULL |
+| `body_hash_at_generation` | TEXT | NOT NULL |
+| `generated_at` | INTEGER | NOT NULL |
+| `job_id` | TEXT | NULL |
+
+Indexes: `ix_state_findings_node_id`, `ix_state_findings_extension_id`, `ix_state_findings_generated_at`.
+
+**Writer.** `sm record` populates this table when it closes a `completed` job, in the SAME transaction as the `state_executions` insert and the job transition, through two lanes:
+
+- **Finder lane** (`origin = 'extension'`): when the job's extension is a probabilistic **Analyzer**, each entry of the validated report's `findings[]` array becomes one row, suppressions included. **The read-time suppression lens**: an active sidecar suppression on the node (`annotations.suppressions`, matched by the emitting `extension_id` and, when the suppression narrows, the finding `type`; see [`schemas/annotations.schema.json`](./schemas/annotations.schema.json)) never drops or deletes rows, it HIDES the matching class at read time (`sm findings` reports it as the `dismissed` bucket; the card counters skip it). Rationale: the LLM already judged the class either way, so a record-time drop saved nothing and left `sm findings undismiss` with nothing to show until the next run; with the lens, an un-dismiss restores the current judgment instantly. Read surfaces source the suppressions from the write-through `scan_nodes.annotations_json` mirror (the `.sm` sidecar is the source of truth; dismiss / undismiss refresh the column for the touched node, `sm scan` refreshes it wholesale), ONE query and zero per-node file reads. **Single-node self-heal**: a `.sm` edited or deleted OUTSIDE skill-map leaves the mirror stale until reconciled; besides the scan, every single-node suppression touch reconciles the mirror from the live file on the spot: a finder submit refreshes it unconditionally (matched or not) and an `sm findings undismiss` whose target entry is absent from the file refreshes it before its exit-5, so the view stops hiding rows the truth no longer silences without waiting for a scan. A finder submit over a node with a matching suppression AUTO-UNDISMISSES it (asking for a fresh judgment is asking to see it; the entry is removed through the gated sidecar channel when the standing consent allows, else kept with an ahead-of-spend stderr advisory warning the judgment will be recorded hidden, see [`job-lifecycle.md` §Submit](./job-lifecycle.md#submit)). `extension_id` / `extension_version` mirror the job's columns; per-row `confidence` is the finding's own value when present, else the report-level `confidence`; `model` mirrors the recording agent's self-reported `--model` (NULL when undeclared); `body_hash_at_generation` captures the node's `scan_nodes.body_hash` at record time; `job_id` records provenance.
+- **Safety lane** (`origin = 'kernel'`): for EVERY probabilistic report (Action or Analyzer) whose `safety` block flags trouble, the kernel synthesizes rows with the reserved type slugs: `injection-detected` (severity `warn`) when `safety.injectionDetected = true`, `content-suspicious` (severity `info`) / `content-malformed` (severity `warn`) when `safety.contentQuality` is not `clean`. `extension_id` is the REPORTING extension's id (the summarizer or finder whose run surfaced the flag); `confidence` is the report-level value; `message` carries the kernel-templated statement (wording implementation-defined, `safety.injectionDetails` folded into `detail` when present). Extensions MUST NOT emit the reserved slugs themselves (enforced by convention in the canonical envelope; implementations SHOULD reject them at record time as `report-invalid`).
+
+**Finding lifecycle state.** The `resolution` column is a lifecycle STATE the finding moves through (`NULL` = open, `human-decision`, `fixed`, `dismissed`), with `resolution_note` (the one-line reason, verbatim), `resolution_by` (the qualified id of the fixer extension involved, NULL for a purely human resolution), `resolution_at`, and, on `fixed`, `resolution_actor` (who made the decision, see below). Two writers set it:
+
+- **`sm record`**, when a fixer Action (one declaring `precondition.analyzerIds`) closes a job: per entry of its report's `resolved[]`, the kernel matches the finding by `id` and stamps the declared state. Entries whose `id` no longer exists, or whose finding does not belong to the job's target node AND one of the fixer's `analyzerIds`, are SKIPPED silently (a benign race, or a fixer reaching outside its scope, which it can never do).
+- **`sm findings resolve <id>`** (and the equivalent UI action), the operator marking a finding `fixed` themselves ("I already handled this"): sets `resolution = 'fixed'`, `resolution_actor = 'human'`, `resolution_by = NULL` (no fixer ran), `resolution_note` optional.
+- **`sm findings dismiss <id>`** (and the tray's per-row X), the ROW-grain dismissal (2026-07-22, user decision after a per-row X silently silenced a whole six-finding class): sets `resolution = 'dismissed'`, `resolution_actor = 'human'`, `resolution_by = NULL`, `resolution_note` optional. A row state, NOT the durable class suppression: no sidecar write, no consent, and the state dies with the row when the finder re-judges the node (a re-found defect reappears fresh, the honest outcome). Hidden from the default view under the same `dismissed` bucket as class-suppressed rows (`dismissedExcluded` counts both). `sm findings reopen <id>` (and the revealed row's restore) clears ANY resolution back to open. The durable class suppression stays available as `sm findings dismiss <id> --class` / the tray's silence-type affordance.
+
+The states:
+
+- **`human-decision`** (a fixer proposed but the choice is the author's; renamed from the earlier `declined`, which read as a dead-end when it is the opposite: the most action-demanding state). The fixer's `note` is its PROPOSAL, not a refusal. Stays VISIBLE in the default view (it is the author's TODO); the excluded-count line names any `human-decision` row that also went stale so it is never lost (see [`cli-contract.md`](./cli-contract.md)). `resolution_actor` is NULL (undecided).
+- **`fixed`**, resolved. HIDDEN from the default `sm findings` view (handled), but NOT deleted: the row persists as the record that a fix ran and stays re-checkable. `fixed` is honest, it means "resolved", NOT "verified gone"; re-running the finder over the current body confirms (a clean verdict deletes the row, a still-present defect reopens it). `resolution_actor` records WHO decided the fix, by one rule: **any user interaction makes it `human`; only a fully autonomous fix with zero user interaction is `fixer`.** So an unattended processing run that applies a clear-cut fix is `fixer`; an interactive processing run where the operator approved the edit, chose among the fixer's options, or a `sm findings resolve` marks it `human`, because the judgment was the operator's even when the agent's tools did the typing. `resolution_by` still records which fixer extension ran (NULL for a pure `sm findings resolve`).
+
+**Replace semantics.** Recording a completed job for `(node_id, extension_id)` first DELETEs every existing row for that pair (both origins), then inserts the fresh rows, in the same transaction. An empty `findings[]` with a clean safety block therefore ERASES the finder's previous judgment for the node: a clean verdict, not a no-op. The write is skipped entirely (previous rows kept) when the target node has disappeared from `scan_nodes` between submit and record, same rule as `state_summaries`.
+
+**Stale rule.** A row whose `body_hash_at_generation` differs from the node's current `scan_nodes.body_hash` is **stale**: the judged body no longer exists. `sm findings` shows stale rows INLINE marked `(stale)` (`--stale` narrows to only them; staleness is a per-row annotation, not a hidden bucket, user call 2026-07-20); `sm show` marks them `(stale)` inline. Rows are never auto-deleted on staleness; the legitimate erasers are: a fresh record for the pair (replace semantics above), `sm findings prune` (stale rows only, the hygiene verb), `sm findings clear` (wholesale, per node or project-wide, fresh rows and kernel safety rows included; a reset, not a suppression, so a finder re-run regenerates whatever still applies, see [`cli-contract.md`](./cli-contract.md)), the per-row `DELETE /api/nodes/:pathB64/findings/:id` route (one row, the inspector's delete X on a revealed dismissed / fixed row; same all-origins rationale as clear, and deleting the last row of a dismissed class also lifts its exact `annotations.suppressions` entry so the class does not come back hidden, see [`cli-contract.md`](./cli-contract.md)), and the schema-drift rebuild (which wipes every `state_*` table). `sm findings dismiss` deletes NOTHING (the read-time suppression lens above hides the class instead). `sm scan` never touches this table (the probabilistic layer persists across scans).
+
 ### `state_enrichments`
 
-One row per `(node_id, provider_id)`.
+One row per `(node_id, provider_id)`; `provider_id` carries the enriching Action's qualified id (e.g. `github/enrichment`).
+
+**Writer.** `sm refresh` populates this table through the enrichments write-through convention (the mirror of the summaries one): an enabled deterministic Action whose report schema extends a schema under [`schemas/enrichments/`](./schemas/enrichments/) has its validated report upserted here (`data_json`), with `verified` lifted from the report when present, `fetched_at` stamped, and `stale_after` computed from the action's declared refresh policy (null = only body-hash drift marks it stale). Execution is gated by the `allowNetworkActions` project policy when the Action declares `io: ['network']`.
 
 | Column | Type | Constraint |
 |---|---|---|
@@ -423,7 +486,7 @@ Per-node "favorite" flag set by the local user from the UI. One row per favorite
 
 No indexes (PK covers lookup by path; the table is keyed-by-path exclusively).
 
-`node_path` is FK-semantic to `scan_nodes.path`. Per `§ Rename detection` below, the rename heuristic MUST migrate rows here when a path is renamed (same protocol as `state_jobs` / `state_summaries` / `state_enrichments` / `state_plugin_kvs`). A simple PK update suffices; no composite key, so collisions cannot occur (if the destination path already has a row, the migrating row is dropped to preserve the live one).
+`node_path` is FK-semantic to `scan_nodes.path`. Per `§ Rename detection` below, the rename heuristic MUST migrate rows here when a path is renamed (same protocol as `state_jobs` / `state_summaries` / `state_findings` / `state_enrichments` / `state_plugin_kvs`). A simple PK update suffices; no composite key, so collisions cannot occur (if the destination path already has a row, the migrating row is dropped to preserve the live one).
 
 The BFF's `/api/nodes` route loads the full set of favorited paths once per request (`SELECT node_path FROM state_node_favorites`) and decorates each emitted `Node` with a derived `isFavorite` boolean by Set membership: no SQL JOIN against `scan_nodes`, zero per-scan persistence transactions.
 
@@ -504,13 +567,15 @@ The project DB is a derived cache: every `scan_*` row is regenerable, and the op
 - **Stored fingerprint differs from the recomputed one**: drifted. Any inline edit to a migration file changes the fingerprint and trips this axis independently of the version axis.
 - **Stored fingerprint is NULL** (a DB written by a pre-fingerprint CLI, or whose `schema_fingerprint` column does not exist): drifted. Forces a one-time rebuild on upgrade so the very column that detects drift gets provisioned.
 
-When **either axis** reports drift, the entire DB file (plus its `-wal` / `-shm` sidecars) is deleted and recreated from the current migrations; the scan then repopulates it. No backup is written (the cache is derived). `state_*` and `config_*` are wiped along with `scan_*`; pre-1.0 they are transient. `.sm` sidecars are never touched. The drift message names the reason (version skew vs schema fingerprint).
+An open reacts to drift in one of three ways, by open kind:
 
-A DB that was never scanned (no `scan_meta` row) is **not** drift: no recorded version, no recorded fingerprint, no signal. The open proceeds untouched (the next scan writes both fields). Reading the stored fingerprint is defensive: a missing `scan_meta` table and a missing `schema_fingerprint` column are both tolerated (column-absent maps to NULL, i.e. drift; row-absent maps to no-signal).
+**Drift-owning write opens rebuild.** `sm scan`, `sm watch`, and `sm serve` (boot) own drift resolution. When **either axis** reports drift, the entire DB file (plus its `-wal` / `-shm` sidecars) is deleted and recreated from the current migrations; the scan then repopulates it. No backup is written (the cache is derived). `state_*` and `config_*` are wiped along with `scan_*`; pre-1.0 they are transient. `.sm` sidecars are never touched. The drift message names the reason (version skew vs schema fingerprint). The rebuild is confirmed interactively on a TTY (`sm scan`, and `sm serve` before it starts listening) unless `--yes` is passed; non-interactive callers (piped stdin, CI, the BFF scan route, the watcher) rebuild without prompting. Declining the prompt aborts (exit `2`) without deleting anything.
 
-The rebuild is confirmed interactively on a TTY (`sm scan`, and `sm serve` before it starts listening) unless `--yes` is passed; non-interactive callers (piped stdin, CI, the BFF scan route, the watcher) rebuild without prompting. Declining the prompt aborts (exit `2`) without deleting anything.
+**Other mutating opens refuse.** Every other DB-mutating open, the ones that do NOT own drift (the mutating job verbs `sm jobs submit` / `claim` / `run` / `cancel` / `fail` / `prune`, `sm plugins enable/disable`, `sm config set`, `sm record`, and any future write verb), runs a write-side guard on the **schema-fingerprint axis** at open time. When the stored fingerprint has drifted (differs, is NULL, or the column is absent) the open refuses with a typed `DbSchemaDriftError` advisory instead of proceeding into the mutation, which would otherwise crash with a cryptic `CHECK constraint failed` / `no such column` runtime error against the older columns. On the CLI the advisory renders to stderr and the verb exits `2`; on a mutating `/api/*` request the BFF returns a clean `db-drift` error envelope (not a `500` stack). The advisory names schema drift as the reason and points at `sm scan` to rebuild: scan is a drift-OWNING verb (previous paragraph), so it deletes and recreates the drifted DB by itself, and prescribing a `sm db reset --hard` detour first would be a redundant second step for the same outcome. The guard is fingerprint-only: a pure version bump with no schema change keeps the fingerprint stable and never trips it (the same columns are safe to write). Maintenance opens that must run against a drifted DB regardless (`sm db backup`, a raw file copy taken BEFORE a reset) opt out of the guard.
 
-Read-side verbs (`sm check`, `sm list`, `sm show`, `GET /api/*`) do NOT rebuild. They surface a prominent advisory (warn on an older DB or a fingerprint mismatch, refuse on a newer or different-major DB) so a read never silently discards the cache nor crashes cryptically on a missing column. The advisory points at `sm scan` (rebuild on the next write) or `sm db reset`.
+A DB that was never scanned (no `scan_meta` row) is **not** drift on any of these paths: no recorded version, no recorded fingerprint, no signal. The open proceeds untouched (the next scan writes both fields). Reading the stored fingerprint is defensive: a missing `scan_meta` table and a missing `schema_fingerprint` column are both tolerated (column-absent maps to NULL, i.e. drift; row-absent maps to no-signal).
+
+**Read-side opens advise.** Read verbs (`sm check`, `sm list`, `sm show`, `sm history`, `sm export`, `sm graph`, `sm orphans` (listing), the read-side job verbs `sm jobs list` / `show` / `status` / `preview`, and every `GET /api/*` route) do NOT rebuild and do NOT refuse on a fingerprint mismatch. They surface a prominent advisory (warn on an older DB or a fingerprint mismatch, refuse on a newer or different-major DB) so a read never silently discards the cache nor crashes cryptically on a missing column. The advisory points at `sm scan` (the drift-owning rebuild).
 
 This is a pre-1.0 affordance. The first `1.0.0` replaces it with real up-only migrations (see §Migrations): drift detection by version / fingerprint becomes drift repair by migration, and `state_*` / `config_*` stop being disposable.
 
@@ -571,7 +636,7 @@ Backups include `state_*` + `config_*` only; `scan_*` is regenerated after resto
 
 ## Rename detection (automatic)
 
-`scan_nodes.path` is the canonical node identifier in v0. Moving a file rewrites the primary key, which would orphan every `state_*` row referencing the old path (`state_executions.node_ids_json`, `state_jobs.node_id`, `state_summaries.node_id`, `state_enrichments.node_id`, `state_plugin_kvs.node_id`, `state_node_favorites.node_path`).
+`scan_nodes.path` is the canonical node identifier in v0. Moving a file rewrites the primary key, which would orphan every `state_*` row referencing the old path (`state_executions.node_ids_json`, `state_jobs.node_id`, `state_summaries.node_id`, `state_findings.node_id`, `state_enrichments.node_id`, `state_plugin_kvs.node_id`, `state_node_favorites.node_path`).
 
 Implementations MUST apply a rename heuristic at scan time **before** committing the new scan transaction:
 
@@ -606,10 +671,10 @@ Both verbs operate on FK ownership only; neither edits files on disk.
 - `PRAGMA quick_check` (or equivalent) returns OK.
 - Applied migration version matches code-bundled migrations.
 - No `state_jobs` rows whose `content_hash` is missing from `state_job_contents` (corrupt state, the content row was deleted out from under a live job).
-- No `state_job_contents` rows whose `content_hash` is referenced by zero `state_jobs` rows (GC stragglers `sm job prune` should have collected).
+- No `state_job_contents` rows whose `content_hash` is referenced by zero `state_jobs` rows (GC stragglers `sm jobs prune` should have collected).
 - No plugin in `load-error` or `incompatible-spec` status.
 
-Failures are reported with suggested remediation (e.g., "run `sm db migrate`", "run `sm job prune`").
+Failures are reported with suggested remediation (e.g., "run `sm db migrate`", "run `sm jobs prune`").
 
 ---
 

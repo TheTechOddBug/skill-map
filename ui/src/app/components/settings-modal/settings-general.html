@@ -75,8 +75,73 @@
 
   </ul>
 
-  <p class="settings-general__storage-hint" data-testid="settings-general-storage-hint">
-    {{ texts.general.storageHintLabel }}
-    <code class="settings-general__storage-hint-path">{{ texts.general.storageHintPath }}</code>
-  </p>
+  <!-- Footer line: the storage hint on the left, the settings-hierarchy
+       viewer's launcher on the right (nested dialog over the Settings
+       dialog with the effective settings columnized). -->
+  <div class="settings-general__footer">
+    <p class="settings-general__storage-hint" data-testid="settings-general-storage-hint">
+      {{ texts.general.storageHintLabel }}
+      <code class="settings-general__storage-hint-path">{{ texts.general.storageHintPath }}</code>
+    </p>
+    <p-button
+      [label]="texts.settingsResolutionButton"
+      icon="pi pi-cog"
+      severity="secondary"
+      size="small"
+      [outlined]="true"
+      [pTooltip]="texts.settingsResolutionTooltip"
+      (onClick)="openResolution()"
+      data-testid="settings-general-config-resolution"
+    />
+  </div>
+
+  <p-dialog
+    [header]="texts.settingsResolution.header"
+    [visible]="resolutionOpen()"
+    (visibleChange)="resolutionOpen.set($event)"
+    [modal]="true"
+    [dismissableMask]="true"
+    [style]="{ width: '46rem', maxWidth: '95vw' }"
+    styleClass="settings-config-resolution__dialog"
+    data-testid="settings-config-resolution-dialog"
+  >
+    @if (resolutionError(); as error) {
+      <p class="settings-config-resolution__error" data-testid="settings-config-resolution-error">
+        {{ texts.settingsResolution.errorPrefix }} {{ error }}
+      </p>
+    } @else if (resolutionRows(); as rows) {
+      @if (rows.length === 0) {
+        <p class="settings-config-resolution__empty">{{ texts.settingsResolution.empty }}</p>
+      } @else {
+        <div class="settings-config-resolution__scroll">
+          <table class="settings-config-resolution__table" data-testid="settings-config-resolution-table">
+            <thead>
+              <tr>
+                <th>{{ texts.settingsResolution.keyColumn }}</th>
+                <th>{{ texts.settingsResolution.valueColumn }}</th>
+                <th>{{ texts.settingsResolution.layerColumn }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of rows; track row.key) {
+                <tr [attr.data-testid]="'settings-config-resolution-row-' + row.key">
+                  <td class="settings-config-resolution__key">{{ row.key }}</td>
+                  <td class="settings-config-resolution__value">{{ resolutionValue(row) }}</td>
+                  <td>
+                    <span
+                      class="settings-config-resolution__layer"
+                      [attr.data-layer]="row.layer"
+                      >{{ row.layer }}</span
+                    >
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    } @else {
+      <p class="settings-config-resolution__empty">{{ texts.aboutLoading }}</p>
+    }
+  </p-dialog>
 </section>

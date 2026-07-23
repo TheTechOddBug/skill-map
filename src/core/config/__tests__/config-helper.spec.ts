@@ -91,10 +91,10 @@ describe('readConfigValue', () => {
   });
 
   it('falls back to opts.default when the key is absent everywhere', () => {
-    // `jobs.perActionTtl` defaults to an empty map, so no layer writes a
+    // `jobs.perExtensionTtl` defaults to an empty map, so no layer writes a
     // value for an arbitrary action id and the `default` arg is what
     // surfaces.
-    const value = readConfigValue<number>('jobs.perActionTtl.some-action', {
+    const value = readConfigValue<number>('jobs.perExtensionTtl.some-extension', {
       cwd,
       default: 999,
     });

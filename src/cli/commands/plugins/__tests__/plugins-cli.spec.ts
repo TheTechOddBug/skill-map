@@ -14,8 +14,10 @@
 import { strict as assert } from 'node:assert';
 import { spawnSync } from 'node:child_process';
 import {
+  cpSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -205,6 +207,60 @@ describe('sm plugins enable / disable', () => {
 
     const list = sm(['plugins', 'list'], scope);
     assert.match(list.stdout, /✓\s+mock-b\b/);
+  });
+
+  it('disable cascades over the queue: cancels the disabled extension queued jobs only', async () => {
+    // Disable cascade (spec/job-lifecycle.md §Cancellation, user decision
+    // 2026-07-21). Seed two queued jobs straight into the scope DB, one
+    // for the plugin being disabled and one for another extension; the
+    // verb must cancel the first and leave the second queued.
+    const scope = freshScope('disable-cascade');
+    sm(['init', '--no-scan'], scope);
+    dropMockPlugin(scope, 'mock-j');
+
+    const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
+    const seed = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await seed.init();
+    try {
+      const base = {
+        extensionVersion: '1.0.0',
+        extensionKind: 'action' as const,
+        contentHash: 'h'.repeat(64),
+        nonce: 'n'.repeat(32),
+        priority: 0,
+        status: 'queued' as const,
+        ttlSeconds: 3600,
+        createdAt: Date.now(),
+      };
+      for (const [id, extensionId] of [
+        ['casc-1', 'mock-j/mock-j-extractor'],
+        ['casc-2', 'core/ai-tagger-action'],
+      ] as const) {
+        await seed.jobs.submit(
+          { ...base, id, extensionId, nodeId: `${id}.md` },
+          { contentHash: base.contentHash, content: `RENDERED ${id}`, createdAt: base.createdAt },
+        );
+      }
+    } finally {
+      await seed.close();
+    }
+
+    const r = sm(['plugins', 'disable', 'mock-j'], scope);
+    assert.equal(r.status, 0, r.stderr);
+
+    const check = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await check.init();
+    try {
+      assert.equal((await check.jobs.get('casc-1'))?.status, 'cancelled', 'disabled ext cancelled');
+      assert.equal((await check.jobs.get('casc-2'))?.status, 'queued', 'other ext untouched');
+    } finally {
+      await check.close();
+    }
+
+    // The cascade appended the aggregated ops-log line.
+    const opsLog = readFileSync(join(scope.cwd, '.skill-map', 'operations.log'), 'utf8');
+    assert.match(opsLog, /"op":"jobs\.cancel"/);
+    assert.match(opsLog, /extension-disabled cancelled=1/);
   });
 
   it('--all cascades across every plugin when invoked with --yes', async () => {
@@ -433,6 +489,134 @@ describe('sm plugins enable / disable', () => {
   });
 });
 
+// Pair toggle (spec/plugin-author-guide.md §Paired extensions): a fixer
+// Action and the analyzer(s) in its `precondition.analyzerIds` move as a
+// unit. Enable is symmetric and eager; disable is reference-counted over
+// the direct edges. Companions surface as informational stderr lines and
+// ride every downstream side effect (config write, purge, job cancel).
+describe('sm plugins enable / disable, pair toggle', () => {
+  it('disabling a finder also disables its paired fixer', () => {
+    const scope = freshScope('pair-disable-finder');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'disable', 'core/ai-verbosity-analyzer'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    // Informational pair line on stderr, naming the companion + the via key.
+    assert.match(r.stderr, /pair toggle: 1 paired extension\(s\) also disabled/);
+    assert.match(r.stderr, /core\/ai-verbosity-action \(paired with core\/ai-verbosity-analyzer\)/);
+    // The applied receipt covers BOTH keys (companion inside `keys`).
+    assert.match(r.stdout, /disabled: 2 extension\(s\)/);
+
+    assert.equal(readEnabled(scope, 'core/ai-verbosity-analyzer'), false);
+    assert.equal(readEnabled(scope, 'core/ai-verbosity-action'), false);
+  });
+
+  it('enabling a fixer re-enables its paired finder', () => {
+    const scope = freshScope('pair-enable-fixer');
+    sm(['init', '--no-scan'], scope);
+    sm(['plugins', 'disable', 'core/ai-verbosity-analyzer'], scope); // pulls both off
+
+    const r = sm(['plugins', 'enable', 'core/ai-verbosity-action'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stderr, /pair toggle: 1 paired extension\(s\) also enabled/);
+    assert.match(r.stderr, /core\/ai-verbosity-analyzer \(paired with core\/ai-verbosity-action\)/);
+
+    assert.equal(readEnabled(scope, 'core/ai-verbosity-analyzer'), true);
+    assert.equal(readEnabled(scope, 'core/ai-verbosity-action'), true);
+  });
+
+  it('disabling a fixer also disables its finder (mirrored refcount)', () => {
+    const scope = freshScope('pair-disable-fixer');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'disable', 'core/ai-verbosity-action'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stderr, /core\/ai-verbosity-analyzer \(paired with core\/ai-verbosity-action\)/);
+
+    assert.equal(readEnabled(scope, 'core/ai-verbosity-analyzer'), false);
+    assert.equal(readEnabled(scope, 'core/ai-verbosity-action'), false);
+  });
+
+  it('deterministic pairs participate: disabling name-mismatch pulls ai-name-action', () => {
+    // Uniform cascade (user decision 2026-07-22): edges to deterministic
+    // analyzers behave exactly like probabilistic finder edges.
+    const scope = freshScope('pair-deterministic');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'disable', 'core/name-mismatch'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.equal(readEnabled(scope, 'core/name-mismatch'), false);
+    assert.equal(readEnabled(scope, 'core/ai-name-action'), false);
+  });
+
+  it('companion disable cancels the companion queued jobs too', async () => {
+    const scope = freshScope('pair-job-cancel');
+    sm(['init', '--no-scan'], scope);
+
+    // Seed a queued job for the FIXER only; disabling the FINDER must
+    // cascade the disable to the fixer and cancel the fixer's job.
+    const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
+    const seed = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await seed.init();
+    try {
+      await seed.jobs.submit(
+        {
+          id: 'pair-1',
+          extensionId: 'core/ai-verbosity-action',
+          extensionVersion: '1.0.0',
+          extensionKind: 'action',
+          nodeId: 'pair-1.md',
+          contentHash: 'h'.repeat(64),
+          nonce: 'n'.repeat(32),
+          priority: 0,
+          status: 'queued',
+          ttlSeconds: 3600,
+          createdAt: Date.now(),
+        },
+        { contentHash: 'h'.repeat(64), content: 'RENDERED pair-1', createdAt: Date.now() },
+      );
+    } finally {
+      await seed.close();
+    }
+
+    const r = sm(['plugins', 'disable', 'core/ai-verbosity-analyzer'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+
+    const check = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await check.init();
+    try {
+      assert.equal((await check.jobs.get('pair-1'))?.status, 'cancelled');
+    } finally {
+      await check.close();
+    }
+    const opsLog = readFileSync(join(scope.cwd, '.skill-map', 'operations.log'), 'utf8');
+    assert.match(opsLog, /extension-disabled cancelled=1/);
+  });
+
+  it('--local carries the companion into settings.local.json', () => {
+    const scope = freshScope('pair-local');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'disable', 'core/ai-trigger-analyzer', '--local'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+
+    const local = JSON.parse(
+      readFileSync(join(scope.cwd, '.skill-map', 'settings.local.json'), 'utf8'),
+    ) as { plugins?: { core?: { extensions?: Record<string, { enabled?: boolean }> } } };
+    assert.equal(local.plugins?.core?.extensions?.['ai-trigger-analyzer']?.enabled, false);
+    assert.equal(local.plugins?.core?.extensions?.['ai-trigger-action']?.enabled, false);
+  });
+
+  it('bare-id macro emits no pair lines (companions already in the set)', () => {
+    const scope = freshScope('pair-macro-silent');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'disable', 'core', '--yes'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.equal(/pair toggle:/.test(r.stderr), false);
+  });
+});
+
 // Trust is the SECURITY axis, orthogonal to enable. `sm plugins trust /
 // untrust` write a per-plugin row to the `config_plugins` DB store
 // (bare plugin id) and never touch the config-layer enable state. A
@@ -653,13 +837,31 @@ describe('sm plugins doctor, disabled is not a failure', () => {
     const r = sm(['plugins', 'doctor'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // Disabled is intentional, never an error: exit stays 0. The count
-    // is 3, the disabled `mock-h` drop-in plus the two experimental
-    // built-in extensions that ship disabled by default: the gated bump
-    // pair `core/node-bump` + `core/annotation-stale`. (`core/mcp-tools`
-    // is now beta and ships enabled, so it no longer counts here;
-    // `antigravity/antigravity` and `codex/codex` are beta and
-    // `agent-skills/agent-skills` is stable + locked, so all ship enabled.)
-    assert.match(r.stdout, /disabled\s+3/);
+    // is 4: the disabled `mock-h` drop-in (all five optimization pairs,
+    // `core/ai-frontmatter-action`, and the two security finders have
+    // all graduated stable/enabled) plus the three built-in
+    // extensions that ship disabled by default: the sidecar writers
+    // `core/node-bump` and `core/node-set-stability` (both STABLE with
+    // `defaultEnabled: false` since 2026-07-21, the orthogonal opt-in
+    // axis) and the declared-network provenance verifier
+    // `github/enrichment` (experimental). The `core/auto-fix` hook was
+    // REMOVED the same day (redundant with the per-job flag) and the
+    // universal summarizer `core/ai-summarizer-action` graduated to
+    // stable / enabled (its header affordance landed), so neither
+    // counts here. The drift analyzer
+    // `core/annotation-stale` graduated to stable (2026-07-19) and now
+    // ships enabled, so it no longer counts here (its writer `core/node-bump`
+    // stays experimental, the pair is no longer gated as a unit), joining
+    // the deterministic-analyzer fixer `core/ai-reference-action`, the
+    // three probabilistic finders (`core/ai-redundancy-analyzer` /
+    // `core/ai-contradiction-analyzer` / `core/ai-incoherence-analyzer`)
+    // and the three finder-paired fixers (`core/ai-redundancy-action` /
+    // `core/ai-contradiction-action` / `core/ai-incoherence-action`) that
+    // graduated earlier. (`core/mcp-tools` is now beta and ships enabled,
+    // so it no longer counts here; `antigravity/antigravity` and
+    // `codex/codex` are beta and `agent-skills/agent-skills` is stable +
+    // locked, so all ship enabled.)
+    assert.match(r.stdout, /disabled\s+4/);
   });
 });
 
@@ -997,3 +1199,127 @@ describe('sm plugins list <id> + show <plugin>/<ext>, extension detail', () => {
   });
 });
 
+
+
+// `sm plugins show <plugin>/<ext>` for PROBABILISTIC extensions renders
+// the two contract files (spec/cli-contract.md, the show row): a `Prompt`
+// section with the verbatim template and a `Report schema` section with
+// the pretty-printed report schema; `--json` carries the raw
+// `promptTemplate` / `reportSchema` fields. Deterministic extensions are
+// byte-identical to the pre-feature shape (no sections, no fields).
+describe('sm plugins show, probabilistic contract sections', () => {
+  const FINDER_FIXTURE = resolve(
+    HERE,
+    '..',
+    '..',
+    '__tests__',
+    'fixtures',
+    'prob-finder',
+  );
+
+  /** Copy the prob-finder fixture into the scope's plugins dir. */
+  function dropFinderFixture(scope: IScope): string {
+    const dest = join(scope.cwd, '.skill-map', 'plugins', 'prob-finder');
+    cpSync(FINDER_FIXTURE, dest, { recursive: true });
+    return dest;
+  }
+
+  it('on-disk probabilistic analyzer: Prompt + Report schema sections in human mode', () => {
+    const scope = freshScope('show-prob-finder');
+    sm(['init', '--no-scan'], scope);
+    dropFinderFixture(scope);
+
+    const r = sm(['plugins', 'show', 'prob-finder/quality-check'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stdout, /^  Prompt$/m, 'Prompt section heading');
+    assert.match(r.stdout, /Judge the quality of the skill below\./, 'template verbatim');
+    assert.match(r.stdout, /^  Report schema$/m, 'Report schema section heading');
+    assert.match(
+      r.stdout,
+      /findings\/report\.schema\.json/,
+      'pretty-printed schema carries the findings envelope $ref',
+    );
+  });
+
+  it('on-disk probabilistic analyzer: --json gains raw promptTemplate + reportSchema', () => {
+    const scope = freshScope('show-prob-finder-json');
+    sm(['init', '--no-scan'], scope);
+    const dest = dropFinderFixture(scope);
+
+    const r = sm(['plugins', 'show', 'prob-finder/quality-check', '--json'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    const payload = JSON.parse(r.stdout);
+    assert.equal(
+      payload.promptTemplate,
+      readFileSync(join(dest, 'analyzers', 'quality-check', 'prompt.md'), 'utf8'),
+      'raw prompt bytes on the machine surface',
+    );
+    assert.equal(
+      payload.reportSchema.allOf[0].$ref,
+      'https://skill-map.ai/spec/v0/findings/report.schema.json',
+      'reportSchema rides as an object',
+    );
+  });
+
+  it('built-in probabilistic action (ai-summarizer-action): sections + json fields', () => {
+    const scope = freshScope('show-prob-builtin');
+    sm(['init', '--no-scan'], scope);
+
+    const human = sm(['plugins', 'show', 'core/ai-summarizer-action'], scope);
+    assert.equal(human.status, 0, `stderr: ${human.stderr}`);
+    assert.match(human.stdout, /^  Prompt$/m);
+    assert.match(human.stdout, /\{\{userContent\}\}/, 'template placeholder verbatim');
+    assert.match(human.stdout, /^  Report schema$/m);
+
+    const json = sm(['plugins', 'show', 'core/ai-summarizer-action', '--json'], scope);
+    assert.equal(json.status, 0, `stderr: ${json.stderr}`);
+    const payload = JSON.parse(json.stdout);
+    assert.equal(typeof payload.promptTemplate, 'string');
+    assert.ok(payload.promptTemplate.includes('{{userContent}}'));
+    assert.ok(
+      JSON.stringify(payload.reportSchema).includes(
+        'https://skill-map.ai/spec/v0/summaries/markdown.schema.json',
+      ),
+      'built-in reportSchema extends the summaries envelope',
+    );
+  });
+
+  it('deterministic extension: no sections, no json fields (unchanged output)', () => {
+    const scope = freshScope('show-deterministic');
+    sm(['init', '--no-scan'], scope);
+
+    const human = sm(['plugins', 'show', 'core/link-counter'], scope);
+    assert.equal(human.status, 0, `stderr: ${human.stderr}`);
+    assert.doesNotMatch(human.stdout, /^  Prompt$/m);
+    assert.doesNotMatch(human.stdout, /^  Report schema$/m);
+
+    const json = sm(['plugins', 'show', 'core/link-counter', '--json'], scope);
+    assert.equal(json.status, 0, `stderr: ${json.stderr}`);
+    const payload = JSON.parse(json.stdout);
+    assert.equal('promptTemplate' in payload, false);
+    assert.equal('reportSchema' in payload, false);
+  });
+
+  it('ANSI-hostile prompt content is sanitized in human mode but raw in --json', () => {
+    const scope = freshScope('show-hostile-prompt');
+    sm(['init', '--no-scan'], scope);
+    const dest = dropFinderFixture(scope);
+    // A hostile template trying to clear the screen + fake a prompt.
+    const hostile = 'Judge this.\n\n\u001b[2J\u001b[1;1Hpwned> {{userContent}}\n';
+    writeFileSync(join(dest, 'analyzers', 'quality-check', 'prompt.md'), hostile);
+
+    const human = sm(['plugins', 'show', 'prob-finder/quality-check'], scope);
+    assert.equal(human.status, 0, `stderr: ${human.stderr}`);
+    assert.ok(human.stdout.includes('pwned>'), 'text content survives');
+    assert.equal(
+      human.stdout.includes('\u001b['),
+      false,
+      'escape sequences stripped at render',
+    );
+
+    const json = sm(['plugins', 'show', 'prob-finder/quality-check', '--json'], scope);
+    assert.equal(json.status, 0, `stderr: ${json.stderr}`);
+    const payload = JSON.parse(json.stdout);
+    assert.equal(payload.promptTemplate, hostile, 'machine surface stays raw');
+  });
+});

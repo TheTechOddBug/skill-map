@@ -305,7 +305,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed.analyzers.length >= 5, 'every core rule should survive');
     });
 
-    it('(b) disable core/name-collision → only that rule skips; other 15 core analyzers stay', () => {
+    it('(b) disable core/name-collision → only that rule skips; every other core analyzer stays', () => {
       const runtime = emptyPluginRuntime();
       runtime.resolveEnabled = (id: string) => id !== 'core/name-collision';
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: runtime });
@@ -324,15 +324,29 @@ describe('plugin-runtime, branch coverage', () => {
       // to be reintroduced under a probabilistic evaluation model;
       // `core/name-mismatch` joined for the declared-vs-path-handle
       // divergence). This custom resolver enables every id except
-      // `core/name-collision`, so 15 compose, listed below in
+      // `core/name-collision`, so 23 compose (the five optimization
+      // finders ai-verbosity/-vagueness/-structure/-trigger/-scope joined
+      // 2026-07-22, experimental but enabled by this resolver), listed below in
       // alphabetical order (`issue-counter` is the lone aggregate-phase
       // analyzer; `name-reserved` + `reference-broken` are the
-      // score-phase ones).
+      // score-phase ones; the three `ai-*` finders are probabilistic,
+      // present in the composed catalog as queue targets but excluded
+      // from every scan-time phase by the orchestrator's mode gate, and
+      // sort first because `ai-` precedes `annotation-`).
       assert.deepEqual(analyzerIds, [
+        'ai-contradiction-analyzer',
+        'ai-incoherence-analyzer',
+        'ai-redundancy-analyzer',
+        'ai-scope-analyzer',
+        'ai-security-analyzer',
+        'ai-structure-analyzer',
+        'ai-suspicion-analyzer',
+        'ai-trigger-analyzer',
+        'ai-vagueness-analyzer',
+        'ai-verbosity-analyzer',
         'annotation-field-unknown',
         'annotation-orphan',
         'annotation-stale',
-        'contribution-orphan',
         'extractor-collision',
         'issue-counter',
         'link-counter',
@@ -363,14 +377,16 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 6, 'claude + antigravity (beta) + codex (beta) + opencode (beta) + agent-skills (stable, locked) + core-markdown load by default');
       assert.equal(composed.extractors.length, 12, 'all 12 extractors load by default; core/mcp-tools was promoted experimental → beta so it now ships enabled (the codex grammar extractors and the code-region siblings backtick-mention + backtick-slash + backtick-dollar load too)');
-      assert.equal(composed.analyzers.length, 15, '15 of 16 analyzers loaded; core/annotation-stale is experimental so it ships disabled by default (the former projector analyzers core/supersede + core/tags were deleted; the remaining inspector buttons self-project from their actions and tag editing moved inline; core/score-resolution was deleted, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model; core/name-mismatch joined for declared-vs-path-handle divergences)');
+      assert.equal(composed.analyzers.length, 25, 'all 25 analyzers load by default; after core/annotation-stale graduated to stable (2026-07-19) no built-in analyzer is experimental, so every analyzer ships enabled, while the three probabilistic finders (ai-redundancy-analyzer / ai-contradiction-analyzer / ai-incoherence-analyzer) are STABLE queue targets excluded from scan-time phases by the mode gate (the former projector analyzers core/supersede + core/tags were deleted; the remaining inspector buttons self-project from their actions and tag editing moved inline; core/score-resolution was deleted, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model; core/name-mismatch joined for declared-vs-path-handle divergences; core/contribution-orphan, the never-implemented stub, was deleted 2026-07-22; all five optimization finders ai-verbosity/-vagueness/-structure/-trigger/-scope graduated stable/enabled on 2026-07-22 after the one-by-one live playground pass; the two security finders ai-security-analyzer / ai-suspicion-analyzer graduated 2026-07-23 after theirs)');
       // Actions load into the pipeline as dispatch targets; those with a
       // `project()` also self-project an inspector button (e.g.
       // `core/node-set-stability`). `core/node-set-tags` is stable and
       // loads by default but no longer self-projects a button (tag editing
-      // is inline in the inspector); `core/node-bump` is experimental,
-      // gated as a unit with the `core/annotation-stale` drift analyzer,
-      // so it ships disabled (no Bump button by default).
+      // is inline in the inspector); `core/node-bump` stays experimental
+      // (the sidecar writer opts in), so it ships disabled (no Bump button
+      // by default), while its companion `core/annotation-stale` drift
+      // analyzer graduated to stable and surfaces drift by default, the two
+      // are no longer gated as a unit.
       const actionIds = composed.actions.map((a) => a.id).sort();
       assert.ok(actionIds.includes('node-set-tags'), 'core/node-set-tags is stable and loads by default (dispatched on-demand)');
       assert.ok(
@@ -420,10 +436,12 @@ describe('plugin-runtime, branch coverage', () => {
     it('(f) a beta extractor ships enabled; an experimental extension stays disabled unless overridden', () => {
       // `core/mcp-tools` was promoted experimental → beta, so it now ships
       // ENABLED by default and composes without any override.
-      // `core/annotation-stale` is still experimental, so with the default
-      // resolver it must NOT compose; an explicit enable override for its
-      // qualified id beats the installed default and brings it back, just
-      // like any other extension.
+      // `core/node-bump` is still experimental (the sidecar writer opts
+      // in), so with the default resolver it must NOT compose; an explicit
+      // enable override for its qualified id beats the installed default
+      // and brings it back, just like any other extension. (Its former
+      // pair-mate `core/annotation-stale` graduated to stable on
+      // 2026-07-19, so it no longer serves as the experimental example.)
       const off = composeScanExtensions({
         noBuiltIns: false,
         pluginRuntime: emptyPluginRuntime(),
@@ -434,20 +452,22 @@ describe('plugin-runtime, branch coverage', () => {
         'beta core/mcp-tools ships enabled and composes by default',
       );
       assert.equal(
-        off.analyzers.some((a) => a.id === 'annotation-stale'),
+        off.actions.some((a) => a.id === 'node-bump'),
         false,
-        'experimental core/annotation-stale is excluded from the default pipeline',
+        'experimental core/node-bump is excluded from the default pipeline',
       );
 
       const runtime = emptyPluginRuntime();
-      // An explicit override is a 2-arg-aware enable: it ignores the
-      // installed default and returns true for the opted-in id only.
-      runtime.resolveEnabled = (id: string) => id === 'core/annotation-stale';
+      // An explicit override force-enables the opted-in experimental id on
+      // top of the installed defaults (an action alone would not make the
+      // pipeline non-empty, so the rest of the default catalog rides along).
+      const baseResolve = runtime.resolveEnabled.bind(runtime);
+      runtime.resolveEnabled = (id: string) => id === 'core/node-bump' || baseResolve(id);
       const on = composeScanExtensions({ noBuiltIns: false, pluginRuntime: runtime });
       assert.ok(on);
       assert.ok(
-        on.analyzers.some((a) => a.id === 'annotation-stale'),
-        'an explicit enable override restores the experimental analyzer',
+        on.actions.some((a) => a.id === 'node-bump'),
+        'an explicit enable override restores the experimental action',
       );
     });
 
@@ -500,7 +520,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
       assert.equal(composed.extractors.length, 12, 'extractors untouched (12: core/mcp-tools is now beta so it ships enabled; the codex grammar extractors and the three code-region trigger siblings load)');
-      assert.equal(composed.analyzers.length, 15, 'analyzers untouched (15: core/annotation-stale is experimental so it ships disabled; the projector analyzers core/supersede + core/tags were deleted; core/score-resolution was deleted, the kernel seeds the 1.0 baseline directly; core/job-file-orphan was removed; core/name-mismatch joined)');
+      assert.equal(composed.analyzers.length, 25, 'analyzers untouched (all 25: core/annotation-stale graduated to stable so no built-in analyzer is experimental, and the three probabilistic finders are STABLE queue targets; the projector analyzers core/supersede + core/tags were deleted; core/score-resolution was deleted, the kernel seeds the 1.0 baseline directly; core/job-file-orphan was removed; core/name-mismatch joined; the contribution-orphan stub was deleted)');
     });
 
     it('(b) killSwitches.extractors empties only the extractors bucket', () => {
@@ -512,7 +532,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 6, 'providers untouched (6: claude + antigravity (beta) + codex (beta) + opencode (beta) + agent-skills (stable, locked) + core-markdown load)');
       assert.equal(composed.extractors.length, 0);
-      assert.equal(composed.analyzers.length, 15);
+      assert.equal(composed.analyzers.length, 25, 'analyzers untouched (all 25: no built-in analyzer is experimental since core/annotation-stale graduated to stable; the three probabilistic finders are stable queue targets)');
     });
 
     it('(c) killSwitches.analyzers empties only the rules bucket', () => {

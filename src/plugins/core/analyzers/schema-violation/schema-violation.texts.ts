@@ -17,8 +17,11 @@ export const SCHEMA_VIOLATION_TEXTS = {
   /** `<target>` subject + `Link failed schema validation; <errors>` */
   linkFailure: 'Link failed schema validation; {{errors}}',
 
-  /** Singular tooltip on the alert / chip when a node has exactly one validation failure. */
-  alertTooltipSingle: 'Frontmatter or schema validation failed.',
-  /** Plural tooltip; `{{count}}` capped at 99 in the chip badge but the tooltip text shows the raw count. */
-  alertTooltipMany: '{{count}} schema validation issues on this node.',
+  /**
+   * Remediation hint (`fix.summary`, not autofixable), shared by the
+   * node and link findings: the AJV message already names each
+   * offending field, so the hint points at correcting those.
+   */
+  fixSummary:
+    'Correct the fields the message lists so the record satisfies its schema; the error names each offending path.',
 } as const;

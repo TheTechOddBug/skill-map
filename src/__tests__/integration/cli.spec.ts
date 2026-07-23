@@ -110,7 +110,9 @@ describe('CLI binary', () => {
     // The row is indented two spaces and the key is padded against
     // the longest column ("db-schema"), so the regex tolerates
     // leading whitespace + variable inter-column padding.
-    assert.match(r.stdout, /^\s*sm\s+\d+\.\d+\.\d+\s+\[dev\]\s*$/m);
+    // The version may carry a prerelease suffix on the rc channel
+    // (e.g. 0.89.0-rc.0); the chip must match either shape.
+    assert.match(r.stdout, /^\s*sm\s+\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\s+\[dev\]\s*$/m);
   });
 
   it('`sm version` reports the applied migration version once a DB is provisioned', () => {

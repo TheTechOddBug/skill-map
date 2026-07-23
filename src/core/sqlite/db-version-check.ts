@@ -231,3 +231,34 @@ export class DbVersionMismatchError extends Error {
     this.humanMessage = args.humanMessage;
   }
 }
+
+/**
+ * Typed error thrown by the WRITE-side drift guard (the default
+ * `withSqlite` open, no `versionCheck` bag, not opted out via
+ * `skipDriftCheck`). Fires when the schema-fingerprint axis reports drift
+ * (`classifyFingerprint(dbPath).kind === 'drift'`): the on-disk schema is
+ * older than the bundled migrations (a pre-1.0 inline `001_initial.sql`
+ * edit with no version bump), so a mutation would otherwise blow up with a
+ * cryptic `CHECK constraint failed` / `no such column` runtime error. The
+ * guard refuses instead.
+ *
+ * Two rendered forms, single-sourced from `db-version.texts.ts`:
+ *   - `message` (from `super`), a plain, glyph-free sentence for the BFF
+ *     error envelope and any programmatic consumer.
+ *   - `humanMessage`, the §3.1b block (`✕` glyph + dim hint) the CLI
+ *     writes to stderr.
+ *
+ * Both advisories name schema drift as the cause and point at `sm scan`
+ * (a drift-owning verb: it rebuilds the DB by itself, no `db reset`
+ * detour). See `spec/db-schema.md` §Schema drift.
+ */
+export class DbSchemaDriftError extends Error {
+  readonly kind = 'schema-drift' as const;
+  readonly humanMessage: string;
+
+  constructor(args: { message: string; humanMessage: string }) {
+    super(args.message);
+    this.name = 'DbSchemaDriftError';
+    this.humanMessage = args.humanMessage;
+  }
+}

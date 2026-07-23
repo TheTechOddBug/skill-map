@@ -143,7 +143,7 @@ export const codexProvider: IBuiltInManifest<IProvider> = {
       // A declared name diverging from the file stem is legal (the stem
       // is the documented reference handle) but leaves the agent
       // answering to both: surfaced as `info`.
-      identifierMismatch: 'info',
+      identifierMismatch: 'warn',
     },
     // Open-standard `skill` kind, inherited from `agent-skills` by manifest
     // composition (same schema + UI every standard adopter shares).

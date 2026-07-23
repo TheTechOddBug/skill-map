@@ -131,6 +131,16 @@ beforeEach(async () => {
  */
 async function primeFixture(grantConsent: boolean): Promise<void> {
   mkdirSync(join(root.fixtureRoot, '.skill-map'), { recursive: true });
+  // `core/node-bump` ships `defaultEnabled: false` and the dispatch route
+  // re-checks the live enabled state (disabled -> 404), so the fixture
+  // opts it in explicitly; the disabled-dispatch test overrides this.
+  writeFileSync(
+    join(root.fixtureRoot, '.skill-map', 'settings.json'),
+    JSON.stringify({
+      plugins: { core: { extensions: { 'node-bump': { enabled: true } } } },
+    }),
+    'utf8',
+  );
   if (grantConsent) {
     writeFileSync(
       join(root.fixtureRoot, '.skill-map', 'settings.local.json'),
@@ -363,6 +373,41 @@ describe('POST /api/actions/:pluginId/:actionId', () => {
     });
   });
 
+  it('404: DISABLED action id -> not-found, NO broadcast (surface follows the plugin)', async () => {
+    // Drop the fixture's bump opt-in: with NO explicit settings entry the
+    // extension falls back to its installed default (`core/node-bump`
+    // ships `defaultEnabled: false`), so the route must refuse exactly
+    // like an unknown id. This is the sharper regression: the gate has to
+    // derive the installed default from the registered manifest, not
+    // assume enabled-unless-config-says-otherwise.
+    writeFileSync(
+      join(root.fixtureRoot, '.skill-map', 'settings.json'),
+      JSON.stringify({}),
+      'utf8',
+    );
+    await bootAndUse(async (handle) => {
+      const client = makeFakeClient();
+      handle.broadcaster.register(client);
+
+      const res = await fetch(actionUrl(handle, BUMP_ACTION_ID), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ nodePath: 'docs/stale.md' }),
+      });
+      assert.equal(res.status, 404);
+      const body = (await res.json()) as { ok: boolean; error: { code: string } };
+      assert.equal(body.ok, false);
+      assert.equal(body.error.code, 'not-found');
+      assert.equal(client.sent.length, 0);
+
+      // Sidecar untouched: the disabled action never ran.
+      const parsed = yamlLoad(
+        readFileSync(join(root.fixtureRoot, 'docs/stale.sm'), 'utf8'),
+      ) as Record<string, unknown>;
+      assert.equal((parsed['annotations'] as Record<string, unknown>)['version'], 3);
+    });
+  });
+
   it('409: refusal report (fresh node, no force) -> reason becomes code, NO broadcast', async () => {
     await bootAndUse(async (handle) => {
       const client = makeFakeClient();
@@ -525,7 +570,13 @@ describe('POST /api/actions/:pluginId/:actionId', () => {
       // policy must win over the local consent.
       writeFileSync(
         join(root.fixtureRoot, '.skill-map', 'settings.json'),
-        JSON.stringify({ allowSidecarWriters: false }),
+        JSON.stringify({
+          allowSidecarWriters: false,
+          // Keep the bump opt-in from the base fixture (this overwrite
+          // replaces the whole file): without it the dispatch 404s on the
+          // enabled gate before the policy under test is ever consulted.
+          plugins: { core: { extensions: { 'node-bump': { enabled: true } } } },
+        }),
         'utf8',
       );
     });

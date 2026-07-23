@@ -1,5 +1,5 @@
 /**
- * `sm check [--json] [-n <node.path>] [--analyzers <ids>] [--include-prob] [--async]`
+ * `sm check [--json] [-n <node.path>] [--analyzers <ids>]`
  *
  * Print every current issue from `scan_issues`. Equivalent to
  * `sm scan --json | jq '.issues'` but reads from the persisted snapshot,
@@ -13,19 +13,11 @@
  *                         qualified and short ids match, the verb compares
  *                         on suffix when the entry has no `<plugin>/` prefix.
  *
- * Probabilistic Rules (spec § A.7):
- *   `--include-prob`     opt-in flag. Default unchanged: deterministic only,
- *                         CI-safe. With the flag, the verb loads the plugin
- *                         runtime, finds Rules with `mode === 'probabilistic'`
- *                         (filtered by `--analyzers` if set), and emits a stderr
- *                         advisory naming the skipped analyzer ids. Full dispatch
- *                         requires the job subsystem (Step 10), until then
- *                         the flag is a stub: prob analyzers never produce issues
- *                         and never alter the exit code.
- *   `--async`            reserved companion to `--include-prob`. Once jobs
- *                         land it will return job ids without waiting for
- *                         completion; today it is a no-op (the advisory
- *                         simply mentions it).
+ * Deterministic-only by construction (CI-safe): probabilistic analyzers
+ * never contribute to `sm check`. Their surface is `sm jobs submit` on the
+ * way in and `sm findings` on the way out (`spec/cli-contract.md` §Browse,
+ * the `sm check` row); the transitional `--include-prob` / `--async`
+ * stubs were retired with the findings pipeline.
  *
  * Exit codes (per `spec/cli-contract.md` §Exit codes):
  *   0  ok, no error-severity issues (warns / infos do not fail the verb)
@@ -35,12 +27,6 @@
  * The `1` ≠ `0` boundary intentionally mirrors `sm scan`'s contract: an
  * agent / CI loop can use `sm check` as a fast pre-flight without paying
  * for a full walk.
- *
- * TODO: when the job subsystem ships (ROADMAP.md § Execution plan,
- * Step 10, "Queue infrastructure" / "LLM runner"), render an output
- * marker (`(prob)` / `🧠`) on issues whose `analyzerId` belongs to a
- * probabilistic analyzer. Today the stub never produces such issues, so
- * the marker has nothing to attach to and is intentionally absent.
  */
 
 import { Command, Option } from 'clipanion';
@@ -78,18 +64,15 @@ export class CheckCommand extends SmCommand {
 
       Run \`sm scan\` first to populate the DB.
 
-      \`--include-prob\` is an opt-in flag for probabilistic Analyzer
-      dispatch (spec § A.7). Default is deterministic-only: same
-      CI-safe behaviour as before. With the flag, registered prob
-      rules are detected and named in a stderr advisory; full
-      dispatch lands when the job subsystem ships at Step 10.
+      Deterministic-only by construction (CI-safe): probabilistic
+      analyzers never contribute here. Queue them with \`sm jobs submit\`
+      and read their judgments with \`sm findings\`.
     `,
     examples: [
       ['Print every current issue', '$0 check'],
       ['Machine-readable issue list', '$0 check --json'],
       ['Restrict to a single node', '$0 check -n .claude/agents/architect.md'],
       ['Restrict to specific rules', '$0 check --analyzers core/reference-broken,core/schema-violation'],
-      ['Opt in to probabilistic analyzers (stub until Step 10)', '$0 check --include-prob'],
       ['Use a non-default DB file', '$0 check --db /path/to/skill-map.db'],
     ],
   });
@@ -97,24 +80,16 @@ export class CheckCommand extends SmCommand {
   node = Option.String('-n,--node', {
     required: false,
     description:
-      'Restrict to issues whose nodeIds include the given path. Combines with --analyzers and --include-prob.',
+      'Restrict to issues whose nodeIds include the given path. Combines with --analyzers.',
   });
   analyzers = Option.String('--analyzers', {
     required: false,
     description:
-      'Comma-separated analyzer ids (qualified or short). Restrict the issue read; with --include-prob, also filters which prob analyzers surface in the advisory.',
-  });
-  includeProb = Option.Boolean('--include-prob', false, {
-    description:
-      'Detect probabilistic Analyzers and emit a stub advisory naming them (full dispatch lands at Step 10). Default off → deterministic-only, CI-safe.',
-  });
-  async = Option.Boolean('--async', false, {
-    description:
-      'Reserved companion to --include-prob: once jobs ship, returns job ids without waiting. No effect today.',
+      'Comma-separated analyzer ids (qualified or short). Restrict the issue read.',
   });
   noPlugins = Option.Boolean('--no-plugins', false, {
     description:
-      'Skip drop-in plugin discovery; only kernel built-ins participate in the prob detection. Same flag shape as `sm scan`.',
+      'Skip drop-in plugin discovery; only kernel built-ins participate in the --analyzers id validation. Same flag shape as `sm scan`.',
   });
 
   protected async run(): Promise<number> {
@@ -125,7 +100,7 @@ export class CheckCommand extends SmCommand {
     // Parse `--analyzers` once. Empty / whitespace tokens dropped.
     const analyzerFilter = parseAnalyzersFlag(this.analyzers);
 
-    const preflight = await this.#preflightAnalyzerCatalog(analyzerFilter);
+    const preflight = await this.#validateAnalyzerFlag(analyzerFilter);
     if (preflight.exit !== null) return preflight.exit;
 
     const stderrAnsi = this.ansiFor('stderr');
@@ -138,8 +113,7 @@ export class CheckCommand extends SmCommand {
       async (adapter) => {
         let issues = await adapter.issues.listAll();
 
-        // Filters apply to the persisted issue list. They do NOT affect the
-        // prob-analyzer advisory above (which already honoured `--analyzers`).
+        // Filters apply to the persisted issue list.
         if (this.node !== undefined) {
           const nodePath = this.node;
           issues = issues.filter((i) => i.nodeIds.includes(nodePath));
@@ -165,62 +139,29 @@ export class CheckCommand extends SmCommand {
   }
 
   /**
-   * Either an explicit `--analyzers` list or `--include-prob` forces a
-   * load of the live Analyzer catalog: the first needs it to validate
-   * the user-supplied ids against the registry, the second to enumerate
-   * registered probabilistic analyzers. Sharing a single load keeps
-   * `sm check` from paying for two passes when both flags are present.
+   * An explicit `--analyzers` list forces a load of the live Analyzer
+   * catalog to validate the user-supplied ids against the registry.
    *
    * Returns `{ exit: <code> }` to short-circuit `run()` when the
    * validation rejects an unknown id (the only path that aborts before
    * the DB read). Successful runs return `{ exit: null }`.
    */
-  async #preflightAnalyzerCatalog(
+  async #validateAnalyzerFlag(
     analyzerFilter: readonly string[] | undefined,
   ): Promise<{ exit: number | null }> {
-    const needsCatalog = analyzerFilter !== undefined || this.includeProb;
-    if (!needsCatalog) return { exit: null };
+    if (analyzerFilter === undefined) return { exit: null };
 
     const analyzers = await loadAnalyzerCatalog({
       noPlugins: this.noPlugins,
       printer: this.printer!,
     });
 
-    if (analyzerFilter !== undefined) {
-      const validation = validateAnalyzerFilter(analyzerFilter, analyzers);
-      if (validation !== null) {
-        this.printer!.error(validation);
-        return { exit: ExitCode.Error };
-      }
-    }
-
-    if (this.includeProb) {
-      this.#emitProbAdvisory(analyzers, analyzerFilter);
+    const validation = validateAnalyzerFilter(analyzerFilter, analyzers);
+    if (validation !== null) {
+      this.printer!.error(validation);
+      return { exit: ExitCode.Error };
     }
     return { exit: null };
-  }
-
-  /**
-   * Walk the loaded catalog for probabilistic analyzers honouring the
-   * `--analyzers` filter and, when any survive, emit the stub stderr
-   * advisory naming them. Extracted so `run()` does not carry the
-   * branching for the `--include-prob` / `--async` advisory shapes.
-   */
-  #emitProbAdvisory(
-    analyzers: readonly IAnalyzer[],
-    analyzerFilter: readonly string[] | undefined,
-  ): void {
-    const probAnalyzerIds = detectProbAnalyzerIds(analyzers, analyzerFilter);
-    if (probAnalyzerIds.length === 0) return;
-    const template = this.async
-      ? CHECK_TEXTS.probStubAdvisoryAsync
-      : CHECK_TEXTS.probStubAdvisory;
-    this.printer!.info(
-      tx(template, {
-        count: probAnalyzerIds.length,
-        analyzerIds: probAnalyzerIds.join(', '),
-      }),
-    );
   }
 }
 
@@ -251,10 +192,8 @@ interface ILoadAnalyzerCatalogOptions {
  * Plugin load warnings are forwarded to stderr so the user sees the
  * same diagnostics `sm scan` produces.
  *
- * The result feeds two consumers in `sm check`: `--analyzers`
- * validation (every user-supplied id must appear here) and
- * `--include-prob` enumeration (filter to `mode === 'probabilistic'`).
- * Sharing one load avoids paying twice when both flags are present.
+ * The result feeds `--analyzers` validation: every user-supplied id
+ * must appear here.
  */
 async function loadAnalyzerCatalog(opts: ILoadAnalyzerCatalogOptions): Promise<IAnalyzer[]> {
   const pluginRuntime = opts.noPlugins
@@ -262,10 +201,10 @@ async function loadAnalyzerCatalog(opts: ILoadAnalyzerCatalogOptions): Promise<I
     : await loadPluginRuntime();
   pluginRuntime.emitWarnings(opts.printer);
   // `resolveSettings` is intentionally omitted: this compose only
-  // enumerates the Analyzer catalog (ids for `--analyzers` validation /
-  // `--include-prob` filtering). No analyzer is invoked here, so its
-  // `ctx.settings` never matters, and `sm check` has no merged config
-  // in hand at this call site. Per the wiring contract, leave it unset.
+  // enumerates the Analyzer catalog (ids for `--analyzers` validation).
+  // No analyzer is invoked here, so its `ctx.settings` never matters,
+  // and `sm check` has no merged config in hand at this call site. Per
+  // the wiring contract, leave it unset.
   const composed = composeScanExtensions({
     noBuiltIns: false,
     pluginRuntime,
@@ -308,31 +247,6 @@ function validateAnalyzerFilter(
     unknown: unknown.join(', '),
     known: knownList,
   });
-}
-
-/**
- * Walk the loaded catalog and return the qualified ids of every
- * Analyzer registered with `mode === 'probabilistic'`, optionally
- * narrowed by the `--analyzers` filter. Stable ordering so the
- * advisory is deterministic across runs.
- *
- * Returns an empty list when no prob analyzers survive the filter,
- * the caller skips the advisory entirely in that case (advising about
- * nothing would be noise).
- */
-function detectProbAnalyzerIds(
-  analyzers: readonly IAnalyzer[],
-  analyzerFilter: readonly string[] | undefined,
-): string[] {
-  const probIds: string[] = [];
-  for (const analyzer of analyzers) {
-    if (analyzer.mode !== 'probabilistic') continue;
-    const qualified = qualifiedExtensionId(analyzer.pluginId, analyzer.id);
-    if (analyzerFilter && !matchesAnalyzerFilter(qualified, analyzerFilter)) continue;
-    probIds.push(qualified);
-  }
-  probIds.sort();
-  return probIds;
 }
 
 /**

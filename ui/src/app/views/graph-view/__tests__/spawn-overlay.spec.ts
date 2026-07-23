@@ -52,8 +52,8 @@ describe('resolveSpawnOverlay', () => {
     expect(overlay.edges).toEqual([
       {
         spawnId: 't1',
-        outputId: `${PARENT}-out`,
-        inputId: `${CHILD_A}-in`,
+        sourceId: PARENT,
+        targetId: CHILD_A,
         fromSession: false,
         pairKey: edgePairKey(PARENT, CHILD_A),
       },
@@ -86,7 +86,7 @@ describe('resolveSpawnOverlay', () => {
     expect(overlay.edges.length).toBe(0);
   });
 
-  it('session parents anchor on session:<owner>-out and float above the children centroid', () => {
+  it('session parents anchor on the session:<owner> connector and float above the children centroid', () => {
     const positions: Record<string, IPoint> = {
       [CHILD_A]: { x: 100, y: 400 },
       [CHILD_B]: { x: 500, y: 600 },
@@ -105,15 +105,15 @@ describe('resolveSpawnOverlay', () => {
     expect(overlay.edges).toEqual([
       {
         spawnId: 's1',
-        outputId: `session:${SESSION}-out`,
-        inputId: `${CHILD_A}-in`,
+        sourceId: `session:${SESSION}`,
+        targetId: CHILD_A,
         fromSession: true,
         pairKey: edgePairKey(SESSION, CHILD_A),
       },
       {
         spawnId: 's2',
-        outputId: `session:${SESSION}-out`,
-        inputId: `${CHILD_B}-in`,
+        sourceId: `session:${SESSION}`,
+        targetId: CHILD_B,
         fromSession: true,
         pairKey: edgePairKey(SESSION, CHILD_B),
       },
@@ -245,8 +245,8 @@ describe('resolveSpawnOverlay, spawn-over-static suppression', () => {
     expect(overlay.edges).toEqual([
       {
         spawnId: 't4',
-        outputId: `session:${SESSION}-out`,
-        inputId: `${CHILD_A}-in`,
+        sourceId: `session:${SESSION}`,
+        targetId: CHILD_A,
         fromSession: true,
         pairKey: edgePairKey(SESSION, CHILD_A),
       },

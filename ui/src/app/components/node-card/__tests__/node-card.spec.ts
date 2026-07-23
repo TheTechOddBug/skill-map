@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 
 import { NodeCard } from '../node-card';
 import { KindRegistryService } from '../../../../services/kind-registry';
+import { ContributionsRegistryService } from '../../../services/contributions-registry';
 import type {
   IFrontmatterAgent,
   INodeStats,
@@ -23,6 +24,39 @@ import type {
  * slot host layer; the card no longer carries hardcoded badge
  * markup to assert against.
  */
+
+/**
+ * The `core/node-set-tags` action-button contribution the card's tag
+ * chips key their visibility off (surface follows the plugin, mirror of
+ * the inspector tag row). Tag fixtures attach it; the gate test omits it.
+ */
+function setTagsContribution() {
+  return {
+    pluginId: 'core',
+    extensionId: 'node-set-tags',
+    nodePath: 'a.md',
+    contributionId: 'editTagsButton',
+    slot: 'inspector.action.button',
+    payload: { actionId: 'core/node-set-tags', surface: 'tags', label: 'Edit tags', enabled: true },
+  };
+}
+
+/**
+ * The `core/node-bump` action-button contribution the card's version
+ * label keys its visibility off (surface follows the plugin, mirror of
+ * the header version chip). Version fixtures attach it; the gate test
+ * omits it.
+ */
+function bumpContribution() {
+  return {
+    pluginId: 'core',
+    extensionId: 'node-bump',
+    nodePath: 'a.md',
+    contributionId: 'bumpButton',
+    slot: 'inspector.action.button',
+    payload: { actionId: 'core/node-bump', surface: 'version', label: 'Bump', enabled: true },
+  };
+}
 
 function makeNode(overlay?: ISidecarOverlay): INodeView {
   const view: INodeView = {
@@ -59,6 +93,7 @@ describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
         status: 'fresh',
         annotations: { version: 7 },
       },
+      contributions: [bumpContribution()],
     };
     const dom = bootstrap(node);
     const v = dom.querySelector('[data-testid="node-card-version"]');
@@ -75,6 +110,7 @@ describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
         description: 'd',
         metadata: { version: '1.2.3' },
       },
+      contributions: [bumpContribution()],
     };
     const dom = bootstrap(node);
     const v = dom.querySelector('[data-testid="node-card-version"]');
@@ -87,6 +123,25 @@ describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
       path: 'a.md',
       kind: 'markdown',
       frontmatter: { name: 'a', description: '', metadata: { version: '' } },
+      contributions: [bumpContribution()],
+    };
+    const dom = bootstrap(node);
+    expect(dom.querySelector('[data-testid="node-card-version"]')).toBeNull();
+  });
+
+  it('hides the version label without the core/node-bump contribution, even with a version set', () => {
+    // Surface follows the plugin (user call 2026-07-22, mirror of the
+    // header version chip and the tag chips): extension disabled -> no
+    // version on the card; the data stays in the .sm.
+    const node: INodeView = {
+      path: 'a.md',
+      kind: 'agent',
+      frontmatter: { name: 'a', description: '', metadata: { version: '' } },
+      sidecar: {
+        present: true,
+        status: 'fresh',
+        annotations: { version: 7 },
+      },
     };
     const dom = bootstrap(node);
     expect(dom.querySelector('[data-testid="node-card-version"]')).toBeNull();
@@ -102,6 +157,7 @@ describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
         status: 'fresh',
         annotations: { tags: ['x', 'y', 'z'] },
       },
+      contributions: [setTagsContribution()],
     };
     const dom = bootstrap(node);
     const tagsBlock = dom.querySelector('[data-testid="node-card-tags"]');
@@ -120,6 +176,7 @@ describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
         status: 'fresh',
         annotations: { tags: ['a', 'b', 'c', 'd', 'e'] },
       },
+      contributions: [setTagsContribution()],
     };
     const dom = bootstrap(node);
     expect(dom.querySelectorAll('.sm-gnode__tag-chip').length).toBe(3);
@@ -133,6 +190,68 @@ describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
     expect(dom.querySelector('[data-testid="node-card-tags"]')).toBeNull();
   });
 
+  it('hides the tag chips without the core/node-set-tags contribution, even with tags set', () => {
+    // Surface follows the plugin (user call 2026-07-21, mirror of the
+    // inspector tag row): extension disabled -> the action projects
+    // nothing -> no chips on the card; the tags stay in the .sm.
+    const node: INodeView = {
+      path: 'a.md',
+      kind: 'agent',
+      frontmatter: { name: 'a', description: '', metadata: { version: '' } },
+      sidecar: {
+        present: true,
+        status: 'fresh',
+        annotations: { tags: ['x', 'y'] },
+      },
+    };
+    const dom = bootstrap(node);
+    expect(dom.querySelector('[data-testid="node-card-tags"]')).toBeNull();
+  });
+
+  it('renders the aggregate severity chip synthesized by the BFF findings fold', () => {
+    // The exact wire shape the read-time findings fold emits for a node
+    // with only a probabilistic finding (playground.md's contradiction):
+    // a synthesized `core/issue-counter/errorCount` chip on
+    // `card.footer.right`, no deterministic issue behind it. Proves the
+    // card renders it end to end (registry -> slot host -> NodeCounter).
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    TestBed.inject(ContributionsRegistryService).setRegistry({
+      'core/issue-counter/errorCount': {
+        pluginId: 'core',
+        extensionId: 'issue-counter',
+        contributionId: 'errorCount',
+        slot: 'card.footer.right',
+        icon: 'pi-times-circle',
+        priority: 40,
+        emitWhenEmpty: false,
+      },
+    });
+    const node: INodeView = {
+      path: 'playground.md',
+      kind: 'markdown',
+      frontmatter: { name: 'playground', description: 'd', metadata: { version: '' } },
+      contributions: [
+        {
+          pluginId: 'core',
+          extensionId: 'issue-counter',
+          contributionId: 'errorCount',
+          nodePath: 'playground.md',
+          slot: 'card.footer.right',
+          payload: { value: 1, severity: 'danger', tooltip: '1 error: 0 checks + 1 AI finding' },
+        },
+      ],
+    };
+    const fixture = TestBed.createComponent(NodeCard);
+    fixture.componentRef.setInput('node', node);
+    fixture.detectChanges();
+    const dom = fixture.nativeElement as HTMLElement;
+    const counter = dom.querySelector('[data-testid="renderer-node-counter"]');
+    expect(counter).not.toBeNull();
+    expect(counter!.textContent).toContain('1');
+    expect(counter!.classList.contains('vc-counter--danger')).toBe(true);
+  });
+
   it('emits tagClick with the tag and stops propagation when a chip is clicked', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({});
@@ -141,6 +260,7 @@ describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
       kind: 'agent',
       frontmatter: { name: 'a', description: '', metadata: { version: '' } },
       sidecar: { present: true, status: 'fresh', annotations: { tags: ['infra', 'review'] } },
+      contributions: [setTagsContribution()],
     };
     const fixture = TestBed.createComponent(NodeCard);
     fixture.componentRef.setInput('node', node);

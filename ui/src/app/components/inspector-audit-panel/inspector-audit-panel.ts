@@ -31,6 +31,11 @@ interface IAuditBlock {
   templateUrl: './inspector-audit-panel.html',
   styleUrl: './inspector-audit-panel.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // Flags an audit block with no populated field so the host can drop the
+  // panel and the debug sub-panel below it can skip its separator hairline
+  // (there is nothing above it to divide from). Replaces the former
+  // `never bumped` empty-state line, which named a disabled feature.
+  host: { '[class.audit-panel--empty]': '!hasContent()' },
 })
 export class InspectorAuditPanel {
   /** Parsed sidecar root payload (or `null` when no sidecar). */

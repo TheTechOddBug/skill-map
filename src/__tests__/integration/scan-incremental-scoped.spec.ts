@@ -261,6 +261,41 @@ describe('chokidar-scoped incremental scan', () => {
     );
   });
 
+  it('a DELETED `.sm` keeps the node and drops only its overlay (removed sidecar = node change)', async () => {
+    const fixture = freshFixture('sidecar-del');
+    const nodePath = '.claude/agents/architect.md';
+    const sidecarPath = '.claude/agents/architect.sm';
+    writeFixtureFile(fixture, nodePath, ['---', 'name: architect', '---', 'Body.'].join('\n'));
+    const scan0 = await fullScan(fixture);
+    const n0 = scan0.nodes.find((n) => n.path === nodePath)!;
+    writeFixtureFile(
+      fixture,
+      sidecarPath,
+      [
+        'identity:',
+        `  path: ${nodePath}`,
+        `  bodyHash: ${n0.bodyHash}`,
+        `  frontmatterHash: ${n0.frontmatterHash}`,
+        'annotations:',
+        '  note: doomed',
+        '',
+      ].join('\n'),
+    );
+    const prior = await fullScan(fixture);
+    strictEqual(prior.nodes.find((n) => n.path === nodePath)?.sidecar?.present, true);
+
+    // Delete ONLY the sidecar; chokidar reports the `.sm` unlink. The
+    // node must SURVIVE with its overlay gone (user bug 2026-07-20: the
+    // sibling was routed into `removed` and the node vanished until a
+    // full rescan).
+    rmSync(join(fixture, sidecarPath));
+    const scoped = await scopedScan(fixture, prior, [], [sidecarPath]);
+
+    const arch = scoped.nodes.find((n) => n.path === nodePath);
+    ok(arch, 'the node survives its sidecar deletion');
+    strictEqual(arch.sidecar?.present ?? false, false, 'the overlay is gone');
+  });
+
   it('never reads an unchanged file: a prior node deleted on disk but NOT reported survives verbatim', async () => {
     const fixture = freshFixture('noread');
     await fullFixture(fixture);

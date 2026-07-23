@@ -9,7 +9,10 @@ import {
   signal,
 } from '@angular/core';
 import type { OnInit } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
+import { SelectButtonModule } from 'primeng/selectbutton';
+import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { TooltipModule } from 'primeng/tooltip';
 import { debounceTime, merge } from 'rxjs';
 
@@ -17,6 +20,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import type {
   IActivityNodeDetailApi,
+  IActivityRunApi,
   IActivitySpawnRecordApi,
   IIssueApi,
   TIssueSeverityApi,
@@ -25,7 +29,7 @@ import type {
 import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
 import { activityPairKeyTouches } from '../../../models/api';
 import { shortenOwner } from '../../../models/activity-owner';
-import { compactNumber } from '../../../models/node-derived';
+import { shortExtensionLabel } from '../../../models/extension-label';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { LivePreferencesService } from '../../../services/live-preferences';
@@ -79,10 +83,32 @@ import {
   type TInspectorSectionId,
 } from './inspector-section-collapse.controller';
 import {
+  setupActivityFilter,
+  type IActivityFilterHandle,
+  type TActivityProvenanceFilter,
+} from './inspector-activity-filter.controller';
+import {
+  mergeActivityTimeline,
+  type TActivityTimelineEntry,
+} from './inspector-activity-timeline';
+import {
   setupInspectorDerivations,
   type IInspectorDerivationsHandle,
 } from './inspector-derivations';
+import {
+  setupAiActions,
+  type IAiActionsHandle,
+  type TFindingsBucket,
+} from './inspector-ai-actions.controller';
+import { setupAutoFix, type IAutoFixHandle } from './inspector-auto-fix.controller';
+import { contributionSurface } from '../../../models/node-derived';
 import type { INodeView } from '../../../models/node';
+import type {
+  IFindingApi,
+  IIssueFixerEntryApi,
+  INodeSummaryRowApi,
+  IProbExtensionEntryApi,
+} from '../../../models/api';
 
 /**
  * Debounce for the Activity section's live re-fetch. Live `node.activity`
@@ -93,6 +119,23 @@ import type { INodeView } from '../../../models/node';
  * re-fetch always reflects the final state.
  */
 const ACTIVITY_LIVE_REFRESH_DEBOUNCE_MS = 400;
+
+/**
+ * The universal summarizer's qualified id. It owns the header's
+ * semantic-analysis affordance and is EXCLUDED from the AI-actions
+ * launcher row / ALL button (user shape 2026-07-21).
+ */
+const SUMMARIZER_EXTENSION_ID = 'core/ai-summarizer-action';
+
+/**
+ * The auto-tagger's qualified id. It owns the tag row's sparkles
+ * affordance and, like the summarizer, is EXCLUDED from the AI-actions
+ * launcher row / ALL button (user request 2026-07-21).
+ */
+const TAGGER_EXTENSION_ID = 'core/ai-tagger-action';
+
+/** Per-node cap on the conversation threads the Activity section renders. */
+const SPAWN_THREADS_LIMIT = 10;
 
 @Component({
   selector: 'sm-inspector-view',
@@ -110,6 +153,9 @@ const ACTIVITY_LIVE_REFRESH_DEBOUNCE_MS = 400;
     ViewContributionsHost,
     SidecarConsentDialog,
     ButtonModule,
+    SelectButtonModule,
+    ToggleSwitchModule,
+    FormsModule,
     TooltipModule,
   ],
   templateUrl: './inspector-view.html',
@@ -340,7 +386,15 @@ export class InspectorView implements OnInit {
    * former always-visible toolbar did.
    */
   protected readonly hasActions = computed<boolean>(() =>
-    (this.node()?.contributions ?? []).some((c) => c.slot === 'inspector.action.button'),
+    (this.node()?.contributions ?? []).some(
+      (c) =>
+        c.slot === 'inspector.action.button' &&
+        // Re-homed surfaces (spec/view-slots.md): a payload declaring a
+        // `surface` IS a dedicated affordance (version / stability /
+        // tags chips + row), never a generic button; alone they must
+        // not keep an empty Actions section up.
+        contributionSurface(c.payload) === null,
+    ),
   );
 
   /** Active node's description rendered as inline markdown (emphasis / code / links). */
@@ -388,6 +442,19 @@ export class InspectorView implements OnInit {
    * user asked for basic.
    */
   protected readonly issues = signal<IIssueApi[]>([]);
+
+  /**
+   * Findings card visibility: deterministic issues, probabilistic (AI)
+   * finding rows (mixed into this card, user call 2026-07-22), or
+   * held-back buckets (dismissed / fixed) whose honesty chips must stay
+   * reachable so an all-dismissed node can restore.
+   */
+  protected readonly findingsSectionAvailable = computed<boolean>(() => {
+    if (this.issues().length > 0) return true;
+    if (this.aiActions.findings().length > 0) return true;
+    const c = this.aiActions.counts();
+    return c !== null && c.dismissedExcluded + c.fixedExcluded > 0;
+  });
   /**
    * Last path the issues effect fetched for. Lets the effect tell a
    * navigation (path changed) apart from a same-path reload (the loader
@@ -428,6 +495,406 @@ export class InspectorView implements OnInit {
       });
   });
 
+  // AI actions card (Step 16 piece 1, the findings workbench): the
+  // probabilistic findings tray + finder / fixer / standalone launcher
+  // buttons. Owned by the extracted controller; the template binds
+  // through the protected adapters below. Distinct from the
+  // deterministic Findings card above (`issues()`).
+  private readonly aiActions: IAiActionsHandle = setupAiActions({
+    node: this.node,
+    dataSource: this.dataSource,
+    jobEvents$: this.wsEvents.jobEvents$,
+    scanCompleted$: this.wsEvents.scanCompleted$,
+    // The dismiss / restore flows park their consent retries behind the
+    // SAME dialog the action buttons use (one instance, one service).
+    requestSmConsent: (retry) => this.actionDispatch.requestSmConsent(retry),
+  });
+  protected readonly aiActionFindings = this.aiActions.findings;
+  protected readonly aiActionsAvailable = this.aiActions.available;
+  protected readonly aiActionsError = this.aiActions.error;
+  protected readonly probExtensions = this.aiActions.probExtensions;
+  protected readonly aiActionCounts = this.aiActions.counts;
+  protected readonly aiActionRevealedBucket = this.aiActions.revealedBucket;
+  protected readonly aiActionRevealedRows = this.aiActions.revealedRows;
+
+  /**
+   * The `issueFixers` entry matching a deterministic issue row, or
+   * `null` when no enabled probabilistic fixer covers its analyzer. The
+   * catalog only lists an issue fixer while the node has a matching open
+   * Issue, so the fix sparkles renders exactly on the rows it resolves
+   * (user decision 2026-07-22 replacing the standalone-launcher
+   * placement). Matching is by the entry's SHORT `analyzerIds` against
+   * the row's `analyzerId`, both in the persisted `scan_issues` form.
+   */
+  protected issueFixerForRow(issue: IIssueApi): IIssueFixerEntryApi | null {
+    const fixers = this.aiActions.probExtensions()?.issueFixers ?? [];
+    return fixers.find((f) => f.analyzerIds.includes(issue.analyzerId)) ?? null;
+  }
+
+  /**
+   * Busy state of an issue row's fix button. One submit fixes EVERY
+   * matching issue of the node in a single job, so all rows matching the
+   * same fixer share it.
+   */
+  protected issueFixBusy(fixer: IIssueFixerEntryApi): boolean {
+    return this.aiActions.entryState(fixer) !== 'idle' || this.aiActions.isSubmitting(fixer.id);
+  }
+
+  protected fixIssue(fixer: IIssueFixerEntryApi): void {
+    void this.aiActions.submit(fixer.id);
+  }
+
+  /** Direct dismiss (no prompt): one click hides the class, reversible. */
+  protected dismissAiActionFinding(finding: IFindingApi): void {
+    void this.aiActions.dismissFinding(finding);
+  }
+
+  protected resolveAiActionFinding(finding: IFindingApi): void {
+    void this.aiActions.resolveFinding(finding);
+  }
+
+  protected restoreAiActionFinding(finding: IFindingApi): void {
+    void this.aiActions.restoreFinding(finding);
+  }
+
+  /** Hard-delete a revealed dismissed / fixed row from the DB. */
+  protected deleteAiActionFinding(finding: IFindingApi): void {
+    void this.aiActions.deleteFinding(finding);
+  }
+
+  /**
+   * The finder entry backing a finding row, when it has fixer(s) to
+   * queue: extension-origin findings only (kernel safety rows have no
+   * fixer), matched by the row's qualified `extensionId` against the
+   * launcher catalog. `null` = the row renders no automatic-fix button.
+   */
+  private findingFinderEntry(finding: IFindingApi): IProbExtensionEntryApi | null {
+    if (finding.origin !== 'extension') return null;
+    const probs = this.aiActions.probExtensions();
+    const entry = probs?.finders.find((e) => e.id === finding.extensionId);
+    return entry !== undefined && entry.fixerIds.length > 0 ? entry : null;
+  }
+
+  /**
+   * Whether the row shows the AUTOMATIC fix button: a fixer exists AND
+   * the row is genuinely open. A `human-decision` row is EXCLUDED (user
+   * call 2026-07-20): the fixer already decided it belongs to the
+   * author, the submit gate refuses to re-inject it, so offering the
+   * button would only dead-end; the row carries the needs-decision mark
+   * instead and keeps mark-fixed / dismiss as its two valid exits.
+   */
+  protected aiActionFindingFixable(finding: IFindingApi): boolean {
+    return finding.resolution === null && this.findingFinderEntry(finding) !== null;
+  }
+
+  /**
+   * Queue the finding's fixer(s) for THIS row only (user call
+   * 2026-07-22: the bolt targets the single finding, `findingIds:
+   * [f.id]` frozen on the job, so each finding fixes individually and
+   * the other rows stay clickable; the Detect+fix launcher and the
+   * auto-fix chain keep the whole-node batch).
+   */
+  protected fixAiActionFinding(finding: IFindingApi): void {
+    const entry = this.findingFinderEntry(finding);
+    if (entry === null) return;
+    void this.aiActions.submitFixers(entry.id, entry.fixerIds, [finding.id]);
+  }
+
+  /**
+   * Fix button busy/disabled, PER ROW: this row's own submit
+   * round-trip, or an ACTIVE fixer job whose frozen finding target
+   * covers it (`fixerBusy` on the entry: a whole-node job covers every
+   * row, a subset job only its ids). A busy sibling row no longer
+   * disables this one.
+   */
+  protected aiActionFindingFixBusy(finding: IFindingApi): boolean {
+    const entry = this.findingFinderEntry(finding);
+    if (entry === null) return false;
+    if (this.aiActions.isFixerSubmitting(entry.id, finding.id)) return true;
+    if (this.aiActions.isSubmitting(entry.id)) return true;
+    const busy = entry.fixerBusy;
+    // No fixer job active: any non-idle entry state means the FINDER
+    // itself is re-judging, which will replace this row, so the whole
+    // tray locks (the historical behaviour).
+    if (busy === null) return this.aiActionEntryState(entry) !== 'idle';
+    return busy.all || busy.findingIds.includes(finding.id);
+  }
+
+  protected aiActionFindingBusy(findingId: number): boolean {
+    return this.aiActions.isFindingBusy(findingId);
+  }
+
+
+  protected toggleAiActionBucket(bucket: TFindingsBucket): void {
+    void this.aiActions.toggleBucket(bucket);
+  }
+
+  /** Chip label for one hidden bucket ("2 dismissed", "1 fixed", ...). */
+  protected aiActionHiddenChipLabel(chip: { bucket: TFindingsBucket; count: number }): string {
+    return this.texts.aiActions.hidden[chip.bucket](chip.count);
+  }
+
+  /**
+   * The hidden-bucket chips in render order: only non-zero buckets, each
+   * with its live count and whether it is the revealed one.
+   */
+  protected readonly aiActionHiddenBuckets = computed<
+    Array<{ bucket: TFindingsBucket; count: number; revealed: boolean }>
+  >(() => {
+    const counts = this.aiActionCounts();
+    if (counts === null) return [];
+    const revealed = this.aiActionRevealedBucket();
+    return (
+      [
+        { bucket: 'dismissed' as const, count: counts.dismissedExcluded },
+        { bucket: 'fixed' as const, count: counts.fixedExcluded },
+      ]
+        // Zero-count chips never render (user call 2026-07-20); when a
+        // revealed bucket empties, the controller collapses the reveal
+        // in the same refresh, so no orphan sublist survives the chip.
+        // No stale chip: stale rows ride the tray inline, marked.
+        .filter((b) => b.count > 0)
+        .map((b) => ({ ...b, revealed: b.bucket === revealed }))
+    );
+  });
+
+  /**
+   * Launcher groups in render order, empty groups filtered out so the
+   * template iterates once instead of double-gating. Two buckets:
+   * `finders` (probabilistic Analyzers with a fixer, rendered as
+   * two-state Detect ⇄ Fix buttons) and `standalone` (finders without a
+   * fixer + Actions with no `analyzerIds`, single-action buttons).
+   */
+  protected readonly aiActionLauncherGroups = computed<
+    { id: 'finders' | 'standalone'; entries: IProbExtensionEntryApi[] }[]
+  >(() => {
+    const probs = this.probExtensions();
+    if (probs === null) return [];
+    // The summarizer and the auto-tagger never ride the launcher row:
+    // they own the header's semantic-analysis affordance and the tag
+    // row's sparkles button respectively (user shape 2026-07-21), and
+    // the ALL button skips them for the same reason.
+    const standalone = probs.standalone.filter(
+      (e) => e.id !== SUMMARIZER_EXTENSION_ID && e.id !== TAGGER_EXTENSION_ID,
+    );
+    return (
+      [
+        { id: 'finders', entries: probs.finders },
+        { id: 'standalone', entries: standalone },
+      ] as const
+    )
+      .filter((g) => g.entries.length > 0)
+      .map((g) => ({ id: g.id, entries: [...g.entries] }));
+  });
+
+  /**
+   * Flattened launcher entries (finders first, then standalone), each
+   * tagged with whether it is a two-state finder, for the single-row
+   * render and the ALL button.
+   */
+  protected readonly aiActionLauncherEntries = computed<
+    { entry: IProbExtensionEntryApi; isFinder: boolean }[]
+  >(() =>
+    this.aiActionLauncherGroups().flatMap((g) =>
+      g.entries.map((entry) => ({ entry, isFinder: g.id === 'finders' })),
+    ),
+  );
+
+  /**
+   * Automatic toggle (Step 16), persisted at inspector level like the
+   * activity filter. When on, one click on a finder-with-fixer button
+   * submits the finder with `autoFix: true` (the kernel chains the
+   * fixers on record); when off, the button morphs Detect ⇄ Fix.
+   */
+  private readonly autoFixState: IAutoFixHandle = setupAutoFix();
+  protected autoFixEnabled(): boolean {
+    return this.autoFixState.enabled();
+  }
+  protected onAutoFixToggle(value: boolean): void {
+    this.autoFixState.set(value);
+  }
+
+  /**
+   * Whether the Automatic toggle renders: only when at least one
+   * finder-with-fixer button exists (the toggle governs their Detect ⇄
+   * Fix morph). A card with only standalone actions has nothing to
+   * automate, so the toggle would be inert.
+   */
+  protected readonly showAutoFixToggle = computed<boolean>(
+    () => (this.probExtensions()?.finders.length ?? 0) > 0,
+  );
+
+  /** Effective launcher state (optimistic `queued` flip included). */
+  protected aiActionEntryState(entry: IProbExtensionEntryApi): 'idle' | 'queued' | 'running' {
+    return this.aiActions.entryState(entry);
+  }
+
+  /**
+   * The action a finder button performs on click, given the Automatic
+   * toggle: on → `detectAndFix` (submit the finder with `autoFix`),
+   * off → `detect` (submit the finder). The old third `fix` mode is
+   * GONE (user call 2026-07-20): fixing moved into each finding row,
+   * the launcher never morphs.
+   */
+  protected finderActionMode(entry: IProbExtensionEntryApi): 'detect' | 'detectAndFix' {
+    return this.autoFixEnabled() ? 'detectAndFix' : 'detect';
+  }
+
+  /**
+   * Launcher label: always the extension KIND (the segment after the
+   * slash, minus the `node-` prefix, via `shortExtensionLabel`), for
+   * finders and standalone alike (user call 2026-07-18). The action is
+   * carried by the icon (`aiActionLauncherIcon`) and the tooltip, not
+   * the label.
+   */
+  protected aiActionLauncherLabel(entry: IProbExtensionEntryApi): string {
+    return shortExtensionLabel(entry.id);
+  }
+
+  /**
+   * Mode icon (the label is the kind, so the icon shows the action): a
+   * queued job pins the clock; otherwise a finder shows detect or
+   * detect+fix per the Automatic toggle and a standalone shows the run
+   * glyph. Auto-fix is the MAGIC glyph (user call 2026-07-20, shared
+   * with the per-finding fix button).
+   */
+  protected aiActionLauncherIcon(entry: IProbExtensionEntryApi, isFinder: boolean): string {
+    if (this.aiActionEntryState(entry) === 'queued') return 'pi pi-clock';
+    // Standalone actions wear the magic icon (user call 2026-07-22).
+    if (!isFinder) return 'pi pi-sparkles';
+    return this.finderActionMode(entry) === 'detectAndFix' ? 'pi pi-sparkles' : 'pi pi-search';
+  }
+
+  /**
+   * Tooltip: the manifest description, the current action (Detect /
+   * Detect + fix) for finders so the icon reads unambiguously, plus the
+   * live state when not idle, or the open-findings reason while the
+   * button sits disabled by them.
+   */
+  protected aiActionLauncherTooltip(entry: IProbExtensionEntryApi, isFinder: boolean): string {
+    const action = isFinder ? `${this.texts.aiActions.buttons[this.finderActionMode(entry)]} · ` : '';
+    const state = this.aiActionEntryState(entry);
+    const suffix =
+      state === 'queued'
+        ? ` (${this.texts.aiActions.stateQueued})`
+        : state === 'running'
+          ? ` (${this.texts.aiActions.stateRunning})`
+          : entry.hasOpenFindings
+            ? ` (${this.texts.aiActions.stateOpenFindings})`
+            : '';
+    return `${action}${entry.description}${suffix}`;
+  }
+
+  /**
+   * True while the launcher button must sit disabled: non-idle, a submit
+   * in flight, or OPEN FINDINGS from this finder (user call 2026-07-20:
+   * re-running a finder whose findings are still open makes no sense;
+   * handle them first, via fix / resolve / dismiss / delete, and the
+   * button re-enables). Standalone entries always carry
+   * `hasOpenFindings: false`, so the guard only bites finders.
+   */
+  protected aiActionLauncherDisabled(entry: IProbExtensionEntryApi): boolean {
+    return (
+      this.aiActionEntryState(entry) !== 'idle' ||
+      this.aiActions.isSubmitting(entry.id) ||
+      entry.hasOpenFindings
+    );
+  }
+
+  /** True while the launcher shows the busy spinner (running or submitting). */
+  protected aiActionLauncherBusy(entry: IProbExtensionEntryApi): boolean {
+    return this.aiActionEntryState(entry) === 'running' || this.aiActions.isSubmitting(entry.id);
+  }
+
+  /**
+   * Launcher click. Standalone entries submit their own extension. A
+   * finder submits itself, with `autoFix: true` when the Automatic
+   * toggle is on (the kernel chains its fixers on record). Fixing an
+   * already-open finding lives on the finding row, not here.
+   */
+  protected onLauncherClick(entry: IProbExtensionEntryApi, isFinder: boolean): void {
+    void this.launcherSubmit(entry, isFinder);
+  }
+
+  /** The submit a launcher click dispatches, exposed as a promise for ALL. */
+  private launcherSubmit(entry: IProbExtensionEntryApi, isFinder: boolean): Promise<void> {
+    const autoFix = isFinder && this.finderActionMode(entry) === 'detectAndFix';
+    return this.aiActions.submit(entry.id, autoFix);
+  }
+
+  /**
+   * ALL launcher button: queue every finder + standalone on THIS node in
+   * one click, each in its current mode (the same submit a per-button
+   * click does). Entries already busy are skipped (a re-submit would be a
+   * queue duplicate anyway).
+   *
+   * SEQUENTIAL, finders first (user call 2026-07-20): the entries list
+   * is already finders-then-standalone, and each submit is awaited so
+   * the queue's created_at order matches. Fire-and-forget submits raced
+   * and could land a file-EDITING standalone action between two finder
+   * jobs, staling the judgments recorded before the edit; with finders
+   * ahead, every finder judges the same body and the actions run last.
+   */
+  /**
+   * Type-scoped ALL (user call 2026-07-22: finders and standalone each
+   * get their own ALL button running ONLY their group), sequential like
+   * the former combined ALL so a file-editing action can never land
+   * between two finders of the same batch.
+   */
+  protected onLauncherAllGroup(groupId: 'finders' | 'standalone'): void {
+    void (async (): Promise<void> => {
+      const group = this.aiActionLauncherGroups().find((g) => g.id === groupId);
+      if (group === undefined) return;
+      for (const entry of group.entries) {
+        if (this.aiActionLauncherDisabled(entry)) {
+          continue;
+        }
+        await this.launcherSubmit(entry, groupId === 'finders');
+      }
+    })();
+  }
+
+  /**
+   * Whether the stop / restart companions render beside the launcher
+   * (user decision 2026-07-17): only with a server-confirmed job handle
+   * (`jobId`) AND a still-active effective state. A just-submitted
+   * optimistic entry (queued, no jobId yet) shows them once the refresh
+   * lands; a just-stopped entry (optimistic idle) hides them instantly
+   * instead of parking a stop button next to an enabled launcher.
+   */
+  protected aiActionCompanionsVisible(entry: IProbExtensionEntryApi): boolean {
+    return entry.jobId !== null && this.aiActionEntryState(entry) !== 'idle';
+  }
+
+  /** Both companions sit disabled while the extension's stop / restart is in flight. */
+  protected aiActionCompanionDisabled(entry: IProbExtensionEntryApi): boolean {
+    return this.aiActions.isCancelling(entry.id);
+  }
+
+  protected stopAiAction(entry: IProbExtensionEntryApi): void {
+    void this.aiActions.stop(entry);
+  }
+
+
+  protected dismissAiActionsError(): void {
+    this.aiActions.dismissError();
+  }
+
+  /**
+   * Error-strip text: `no-processing-agent` swaps the envelope message
+   * (which names the CLI verb) for the UI's own friendly wording; every
+   * other code surfaces the server message verbatim (user call
+   * 2026-07-22).
+   */
+  protected aiActionsErrorText(err: { code: string; message: string }): string {
+    return err.code === 'no-processing-agent' ? this.texts.aiActions.noAgentMessage : err.message;
+  }
+
+  /** Per-row provenance: `(confidence% · model)`, model omitted when undeclared. */
+  protected aiActionConfidenceModel(finding: IFindingApi): string {
+    return this.texts.aiActions.confidence(Math.round(finding.confidence * 100));
+  }
+
   /**
    * Whether the "Activity" section renders at all, matching how the
    * other inspector sections (`hasConnections`, `hasAnnotations`, ...)
@@ -435,8 +902,11 @@ export class InspectorView implements OnInit {
    * the "no recorded runs" placeholder. Visibility derives from the
    * same per-node mirror the node-card pill and the edge labels read
    * (`NodeActivityStatsService`, summary snapshot + WS overwrites): a
-   * stats entry for the node, or a spawn pair touching it as parent or
-   * child. With real-time activity OFF the mirror may be un-hydrated
+   * stats entry for the node, a spawn pair touching it as parent or
+   * child, or PERSISTENT AI-run history (the summary's `runNodes`; the
+   * boot-scoped counters reset on server restart, the DB history does
+   * not, so recorded runs must keep the section visible after a
+   * reboot). With real-time activity OFF the mirror may be un-hydrated
    * (the boot fetch is skipped), so emptiness is unknowable and the
    * section stays available like it always was.
    */
@@ -445,6 +915,7 @@ export class InspectorView implements OnInit {
     if (path === undefined) return false;
     if (!this.livePrefs.activityEnabled()) return true;
     if (this.activityStats.stats().has(path)) return true;
+    if (this.activityStats.runNodes().has(path)) return true;
     for (const key of this.activityStats.pairCounts().keys()) {
       if (activityPairKeyTouches(key, path)) return true;
     }
@@ -503,19 +974,27 @@ export class InspectorView implements OnInit {
   /**
    * Live same-path refresh on execution frames, so the recent-history
    * rows and counters update the moment the assistant runs, not only on
-   * the next watcher re-scan. Merges the two live streams the Activity
-   * section reflects: `node.activity` (a unit executing, an MCP tool
-   * invoked) and `agent.spawn` (a new spawn thread). Any frame can touch
-   * this node's detail, directly (it lit up) or as the correlated caller
-   * of an invocation elsewhere, so rather than duplicate the server's
+   * the next watcher re-scan. Merges the live streams the Activity section
+   * reflects: `node.activity` (a unit executing, an MCP tool invoked),
+   * `agent.spawn` (a new spawn thread), and `job.*` events. The job stream
+   * is what makes skill-map's OWN AI runs appear live: `sm record` writes
+   * the `state_executions` row (the AI-run history the timeline shows) then
+   * pushes `job.completed`, and that push carries NO `node.activity` frame,
+   * so without subscribing here an AI run only surfaced when something ELSE
+   * happened to refresh the section (a fixer's edit triggered a re-scan, a
+   * runtime frame fired), which is why finder / summarizer runs, which touch
+   * no file, sometimes never appeared until the next navigation. Any frame
+   * can touch this node's detail, directly (it lit up) or as the correlated
+   * caller of an invocation elsewhere, so rather than duplicate the server's
    * owner-to-caller correlation client-side, we re-fetch the authoritative
-   * detail (debounced) whenever activity flows while the section sits
-   * open. Gated by the same fetched-for guard as the scan refresh, so a
-   * closed or never-loaded section spends nothing.
+   * detail (debounced) whenever activity flows while the section sits open.
+   * Gated by the same fetched-for guard as the scan refresh, so a closed or
+   * never-loaded section spends nothing.
    */
   private readonly activityLiveRefresh = merge(
     this.wsEvents.nodeActivity$,
     this.wsEvents.agentSpawn$,
+    this.wsEvents.jobEvents$,
   )
     .pipe(debounceTime(ACTIVITY_LIVE_REFRESH_DEBOUNCE_MS), takeUntilDestroyed())
     .subscribe(() => {
@@ -535,30 +1014,233 @@ export class InspectorView implements OnInit {
     }
   }
 
-  /** True when the fetched detail has nothing to show (quiet node). */
-  protected readonly activityEmpty = computed<boolean>(() => {
-    const detail = this.activityDetail();
-    return detail !== null && detail.stats.count === 0 && detail.spawns.length === 0;
+  // --- semantic summary (header affordance, user shape 2026-07-21) --------
+
+  /**
+   * The node's stored semantic summaries. `null` = not loaded for the
+   * current node yet. Fetched eagerly per node (one cheap row read) and
+   * silently re-fetched on job frames / scan completions so the header
+   * flips to its "ready" state the moment the agent records the run.
+   */
+  protected readonly nodeSummaries = signal<INodeSummaryRowApi[] | null>(null);
+  /** Whether the header's summary block is expanded. */
+  protected readonly summaryExpanded = signal(false);
+  /** Set on summarize click: the NEXT non-empty refetch auto-expands. */
+  private summaryAwaiting = false;
+  private summaryPath: string | undefined = undefined;
+
+  private readonly summaryLoaderEffect = effect(() => {
+    const path = this.node()?.path;
+    if (path === this.summaryPath) return;
+    this.summaryPath = path;
+    this.nodeSummaries.set(null);
+    this.summaryExpanded.set(false);
+    this.summaryAwaiting = false;
+    if (path) void this.fetchSummary(path);
+  });
+
+  private readonly summaryLiveRefresh = merge(
+    this.wsEvents.jobEvents$,
+    this.wsEvents.scanCompleted$,
+  )
+    .pipe(debounceTime(ACTIVITY_LIVE_REFRESH_DEBOUNCE_MS), takeUntilDestroyed())
+    .subscribe(() => {
+      const path = this.summaryPath;
+      if (path) void this.fetchSummary(path);
+    });
+
+  private async fetchSummary(path: string): Promise<void> {
+    try {
+      const rows = await this.dataSource.getNodeSummary(path);
+      if (this.summaryPath !== path) return;
+      const firstLoad = this.nodeSummaries() === null;
+      this.nodeSummaries.set(rows ?? []);
+      // Auto-expand when there is something to show: on the node's FIRST
+      // load (user call 2026-07-21, a summarized node opens with its
+      // analysis visible) and when the run the user launched just landed.
+      // Silent WS refetches never re-expand a block the user collapsed.
+      if ((firstLoad || this.summaryAwaiting) && (rows ?? []).length > 0) {
+        this.summaryAwaiting = false;
+        this.summaryExpanded.set(true);
+      }
+    } catch {
+      // Progressive enhancement: keep whatever is shown, no banner.
+    }
+  }
+
+  /** The summarizer's launcher entry (queue state), when enabled. */
+  private readonly summarizerEntry = computed<IProbExtensionEntryApi | null>(() => {
+    const probs = this.probExtensions();
+    return probs?.standalone.find((e) => e.id === SUMMARIZER_EXTENSION_ID) ?? null;
   });
 
   /**
-   * Optional execution aggregates line for the stats row
-   * (spec/provider-activity.md §Execution stats): tool + token sums
-   * contextualized by the contributing run count, e.g.
-   * `14 tools · 8.3k tokens (2 summarized runs)`. `null` (row hidden)
-   * for nodes that never received a spawn summary (skills, markdowns,
-   * async-only agents), whose stats simply omit the fields.
+   * Header affordance state machine: `hidden` (no summarizer available
+   * AND nothing stored), `queued` / `running` (the job is in flight),
+   * `ready` (a summary exists, the button toggles the block), `idle`
+   * (summarizable, nothing stored yet).
    */
-  protected readonly activityAggregates = computed<string | null>(() => {
-    const stats = this.activityDetail()?.stats;
-    if (!stats || stats.summarizedRuns === undefined) return null;
-    const t = this.texts.activity;
-    const parts: string[] = [];
-    if (stats.toolUses !== undefined) parts.push(t.toolsCount(stats.toolUses));
-    if (stats.tokens !== undefined) parts.push(t.tokensCount(compactNumber(stats.tokens)));
-    if (parts.length === 0) return null;
-    return `${parts.join(' · ')} ${t.summarizedRuns(stats.summarizedRuns)}`;
+  protected readonly summaryHeaderState = computed<
+    'hidden' | 'idle' | 'queued' | 'running' | 'ready'
+  >(() => {
+    const rows = this.nodeSummaries();
+    const entry = this.summarizerEntry();
+    const entryState = entry === null ? null : this.aiActions.entryState(entry);
+    if (entryState === 'queued' || entryState === 'running') return entryState;
+    if (rows !== null && rows.length > 0) return 'ready';
+    if (entry === null) return 'hidden';
+    return rows === null ? 'hidden' : 'idle';
   });
+
+  /** Any stored summary went stale (body changed since the judgment). */
+  protected readonly summaryStale = computed<boolean>(() =>
+    (this.nodeSummaries() ?? []).some((row) => row.stale),
+  );
+
+  /** The header button: idle queues the run, ready toggles the block. */
+  protected onSummarizeClick(): void {
+    const state = this.summaryHeaderState();
+    if (state === 'ready') {
+      this.summaryExpanded.update((v) => !v);
+      return;
+    }
+    if (state !== 'idle') return;
+    this.summaryAwaiting = true;
+    void this.aiActions.submit(SUMMARIZER_EXTENSION_ID, false);
+  }
+
+  /** Delete one stored summary; the refetch collapses the empty block. */
+  protected onSummaryDelete(summarizerActionId: string): void {
+    const path = this.node()?.path;
+    if (!path) return;
+    void this.dataSource
+      .deleteNodeSummary(path, summarizerActionId)
+      .catch(() => {
+        // Progressive enhancement: a failed delete keeps the block.
+      })
+      .then(() => this.fetchSummary(path));
+  }
+
+  // --- auto-tag (tag-row affordance, user request 2026-07-21) -------------
+
+  /** The auto-tagger's launcher entry (queue state), when enabled. */
+  private readonly taggerEntry = computed<IProbExtensionEntryApi | null>(() => {
+    const probs = this.probExtensions();
+    return probs?.standalone.find((e) => e.id === TAGGER_EXTENSION_ID) ?? null;
+  });
+
+  /**
+   * Tag-row affordance state: `hidden` (tagger unavailable), `queued` /
+   * `running` (job in flight), `idle` (clickable). No `ready` state: the
+   * inferred tags land in the sidecar via the record-side write-through
+   * and surface as ordinary chips on the next scan broadcast.
+   */
+  protected readonly autoTagState = computed<'hidden' | 'idle' | 'queued' | 'running'>(() => {
+    const entry = this.taggerEntry();
+    if (entry === null) return 'hidden';
+    const entryState = this.aiActions.entryState(entry);
+    if (entryState === 'queued' || entryState === 'running') return entryState;
+    return 'idle';
+  });
+
+  /** Queue an auto-tag run for the inspected node. */
+  protected onAutoTagClick(): void {
+    if (this.autoTagState() !== 'idle') return;
+    void this.aiActions.submit(TAGGER_EXTENSION_ID, false);
+  }
+
+  /** Re-run from the expanded block (stale or not, a fresh judgment). */
+  protected onSummaryRefresh(): void {
+    const entry = this.summarizerEntry();
+    if (entry === null || this.aiActions.entryState(entry) !== 'idle') return;
+    this.summaryAwaiting = true;
+    void this.aiActions.submit(SUMMARIZER_EXTENSION_ID, false);
+  }
+
+  /** True when the fetched detail has nothing to show (quiet node). */
+  protected readonly activityEmpty = computed<boolean>(() => {
+    const detail = this.activityDetail();
+    return (
+      detail !== null &&
+      detail.stats.count === 0 &&
+      detail.spawns.length === 0 &&
+      (detail.runs ?? []).length === 0
+    );
+  });
+
+  /**
+   * The "capture on" chip shows only where capture is ON *and* this node
+   * actually has retained spawn conversations, not merely because the gate
+   * is enabled: a chip on a node with zero captured conversations is noise
+   * (the gate's global state already lives in Settings).
+   */
+  protected readonly showCaptureChip = computed<boolean>(() => {
+    const detail = this.activityDetail();
+    return detail !== null && detail.captureEnabled && detail.spawns.length > 0;
+  });
+
+  /**
+   * Provenance filter over the merged timeline (all / runtime / AI
+   * runs), persisted at INSPECTOR level like the section-collapse map,
+   * so it survives navigation between nodes and reloads.
+   */
+  private readonly activityFilterState: IActivityFilterHandle = setupActivityFilter();
+
+  protected activityFilter(): TActivityProvenanceFilter {
+    return this.activityFilterState.filter();
+  }
+
+  protected onActivityFilterChange(value: TActivityProvenanceFilter): void {
+    this.activityFilterState.set(value);
+  }
+
+  /** Filter control options; labels from the catalog, values are the filter ids. */
+  protected readonly activityFilterOptions: {
+    label: string;
+    value: TActivityProvenanceFilter;
+  }[] = [
+    { label: INSPECTOR_VIEW_TEXTS.activity.filter.all, value: 'all' },
+    { label: INSPECTOR_VIEW_TEXTS.activity.filter.runtime, value: 'runtime' },
+    { label: INSPECTOR_VIEW_TEXTS.activity.filter.ai, value: 'ai' },
+  ];
+
+  /**
+   * Merged timeline (user decision 2026-07-17): the runtime recent ring
+   * interleaved with the persistent AI-run history, newest first,
+   * timestampless entries sunk to the end. `runs` is normalized through
+   * `?? []` so a BFF that predates the field degrades to runtime-only.
+   */
+  protected readonly activityTimeline = computed<TActivityTimelineEntry[]>(() => {
+    const detail = this.activityDetail();
+    if (detail === null) return [];
+    return mergeActivityTimeline(detail.recent, detail.runs ?? []);
+  });
+
+  /** The merged timeline narrowed by the active provenance filter. */
+  protected readonly filteredActivityTimeline = computed<TActivityTimelineEntry[]>(() => {
+    const filter = this.activityFilterState.filter();
+    const entries = this.activityTimeline();
+    if (filter === 'all') return entries;
+    return entries.filter((e) => e.provenance === filter);
+  });
+
+  /**
+   * AI-run row text: `<extension> · <status?> · <duration>`, nullable
+   * segments omitted. The built-in `core/` plugin prefix is stripped (it
+   * is the overwhelming default and reads as noise; external plugins keep
+   * their qualifier), the recording model is not shown (user call
+   * 2026-07-20, matching the findings rows; `sm findings` in the terminal
+   * still has it), and the status is surfaced ONLY when it deviates from
+   * the happy-path `completed`: a failed / cancelled run shows its state,
+   * a completed one does not repeat the obvious.
+   */
+  protected runRowLabel(run: IActivityRunApi): string {
+    const parts = [run.extensionId.replace(/^core\//, '')];
+    if (run.status !== 'completed') parts.push(run.status);
+    if (run.durationMs !== null) parts.push(this.texts.activity.runDuration(run.durationMs));
+    return parts.join(' · ');
+  }
+
 
   /** Human time for activity rows (session-scoped, date is noise). */
   protected formatActivityTime(ms: number): string {
@@ -586,10 +1268,11 @@ export class InspectorView implements OnInit {
   /**
    * Spawn records grouped into per-pair conversation threads: one row
    * per parent-child pair, N Task calls fused into N turns of the same
-   * thread (most recent thread first).
+   * thread (most recent thread first), capped per node at
+   * `SPAWN_THREADS_LIMIT` conversations.
    */
   protected readonly spawnThreads = computed<ISpawnThread[]>(() =>
-    groupSpawnThreads(this.activityDetail()?.spawns ?? []),
+    groupSpawnThreads(this.activityDetail()?.spawns ?? []).slice(0, SPAWN_THREADS_LIMIT),
   );
 
   /** Thread-row labels: `<parent> -> <child>`, session parents named plainly. */

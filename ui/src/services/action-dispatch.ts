@@ -40,11 +40,10 @@ import {
   type IDataSourcePort,
 } from './data-source/data-source.port';
 
-/** A dispatch parked while the consent dialog is open. */
-interface IPendingDispatch {
-  actionId: string;
-  nodePath: string;
-  input?: unknown;
+/** Consent flags a parked retry receives when the user accepts. */
+export interface ISmConsentGrant {
+  confirm: true;
+  always?: true;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -65,8 +64,13 @@ export class ActionDispatchService {
   /** True when an action is dispatchable (idle). Convenience for callers. */
   readonly idle = computed(() => !this.inFlightSig());
 
-  /** The dispatch parked behind the consent dialog, if any. */
-  private pending: IPendingDispatch | null = null;
+  /**
+   * The retry parked behind the consent dialog, if any. A CALLBACK, not
+   * an action tuple: any `.sm`-writing flow (the action dispatch below,
+   * the findings dismiss / undismiss) parks its own retry through
+   * `requestSmConsent`, so ONE dialog instance serves every flow.
+   */
+  private pending: ((consent: ISmConsentGrant) => void) | null = null;
 
   /**
    * Dispatch a kernel Action against `nodePath`. Resolves on success;
@@ -82,10 +86,22 @@ export class ActionDispatchService {
   }
 
   /**
+   * Park a retry behind the shared consent dialog and open it. Callers
+   * (e.g. the findings dismiss / undismiss flow) invoke this when their
+   * OWN request hit the `.sm` consent gate (`isSmConsentRequired`); the
+   * callback fires with the granted flags when the user accepts, and is
+   * silently dropped on decline.
+   */
+  requestSmConsent(retry: (consent: ISmConsentGrant) => void): void {
+    this.pending = retry;
+    this.consentOpenSig.set(true);
+  }
+
+  /**
    * Resolve the consent dialog. Called by the host when the
-   * `<sm-sidecar-consent-dialog>` emits its `decision`. Accept retries
-   * the parked dispatch with the right consent flags; decline abandons
-   * it silently.
+   * `<sm-sidecar-consent-dialog>` emits its `decision`. Accept invokes
+   * the parked retry with the right consent flags; decline abandons it
+   * silently.
    */
   resolveConsent(decision: { accepted: boolean; always: boolean }): void {
     this.consentOpenSig.set(false);
@@ -93,8 +109,7 @@ export class ActionDispatchService {
     this.pending = null;
     if (!pending) return;
     if (!decision.accepted) return; // silent abandon
-    const consent = decision.always ? { confirm: true, always: true } : { confirm: true };
-    void this.run(pending.actionId, pending.nodePath, pending.input, consent);
+    pending(decision.always ? { confirm: true, always: true } : { confirm: true });
   }
 
   /** Dismiss the error banner. */
@@ -121,14 +136,8 @@ export class ActionDispatchService {
       // the retry (or abandon) runs from `resolveConsent`. Only the
       // FIRST attempt can hit this (the retry already carries consent),
       // so there is no risk of re-opening the dialog in a loop.
-      if (
-        consent.confirm !== true &&
-        err instanceof DataSourceError &&
-        err.code === 'confirm-required' &&
-        consentTargetsAllowEditSm(err.details)
-      ) {
-        this.pending = { actionId, nodePath, input };
-        this.consentOpenSig.set(true);
+      if (consent.confirm !== true && isSmConsentRequired(err)) {
+        this.requestSmConsent((grant) => void this.run(actionId, nodePath, input, grant));
         return;
       }
       this.errorSig.set(this.formatError(err));
@@ -156,12 +165,23 @@ export class ActionDispatchService {
 }
 
 /**
- * Narrows the `details` payload on a `confirm-required` error to the
- * `.sm` sidecar consent gate. The BFF embeds `{ key: 'allowEditSmFiles' }`
- * so the UI branches on which copy to show (there are two consent gates
- * today, `scan.referencePaths` and `allowEditSmFiles`). Anything else
- * falls through to the generic error banner.
+ * True when `err` is the `.sm` sidecar consent gate: a 412
+ * `confirm-required` `DataSourceError` whose `details` carry
+ * `{ key: 'allowEditSmFiles' }` (the BFF embeds the key so the UI
+ * branches on which copy to show; there are two consent gates today,
+ * `scan.referencePaths` and `allowEditSmFiles`). Shared by the action
+ * dispatch above and every other `.sm`-writing flow (findings dismiss /
+ * undismiss) that parks a retry via `requestSmConsent`.
  */
+export function isSmConsentRequired(err: unknown): boolean {
+  return (
+    err instanceof DataSourceError &&
+    err.code === 'confirm-required' &&
+    consentTargetsAllowEditSm(err.details)
+  );
+}
+
+/** Narrows the `details` payload to the `allowEditSmFiles` gate. */
 function consentTargetsAllowEditSm(details: unknown): boolean {
   if (typeof details !== 'object' || details === null) return false;
   const d = details as Record<string, unknown>;

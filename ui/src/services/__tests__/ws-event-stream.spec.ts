@@ -199,6 +199,40 @@ describe('WsEventStreamService, lifecycle', () => {
     harness.sockets[0]!.simulateMessage({ type: '', timestamp: 0, data: {} });
     expect(received).toHaveLength(0);
   });
+
+  it('jobEvents$ passes every job.* frame; jobSubmitted$ only validated job.submitted ones', () => {
+    harness = createHarness('live');
+    const jobFrames: IWsEvent[] = [];
+    const submitted: IWsEvent[] = [];
+    harness.service.jobEvents$.subscribe((e) => jobFrames.push(e));
+    harness.service.jobSubmitted$.subscribe((e) => submitted.push(e));
+    const ws = harness.sockets[0]!;
+    ws.simulateOpen();
+
+    ws.simulateMessage({
+      type: 'job.submitted',
+      timestamp: 1,
+      runId: 'r-queue-20260717-090000-a1b2',
+      jobId: 'job-1',
+      data: { nodePath: 'a.md', extensionId: 'core/todo-finder', supersededIds: [] },
+    });
+    ws.simulateMessage({ type: 'job.completed', timestamp: 2, jobId: 'job-1', data: {} });
+    // Non-job frames never leak into the job streams.
+    ws.simulateMessage({ type: 'scan.completed', timestamp: 3, data: {} });
+    // A job.submitted with a malformed payload (envelope jobId missing)
+    // rides jobEvents$ (prefix match) but fails the validated
+    // jobSubmitted$ guard.
+    ws.simulateMessage({ type: 'job.submitted', timestamp: 4, data: { nodePath: 'a.md' } });
+
+    expect(jobFrames.map((e) => e.type)).toEqual([
+      'job.submitted',
+      'job.completed',
+      'job.submitted',
+    ]);
+    expect(submitted).toHaveLength(1);
+    expect(submitted[0]!.jobId).toBe('job-1');
+    expect(submitted[0]!.data).toMatchObject({ extensionId: 'core/todo-finder' });
+  });
 });
 
 describe('WsEventStreamService, scanActive (scan-in-progress flag)', () => {

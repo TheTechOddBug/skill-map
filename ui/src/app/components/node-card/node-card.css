@@ -51,6 +51,18 @@
     0 0 0 2px var(--p-primary-color),
     0 4px 16px color-mix(in srgb, var(--p-primary-color) 25%, transparent);
 }
+/*
+ * While the node EXECUTES, the selection ring yields to the live
+ * treatment (user call 2026-07-17): the 2px primary ring hugs the same
+ * edge the rainbow conic border paints, so a selected card's "AI is
+ * working" signal was barely readable. Selection state is untouched
+ * (class stays, panel stays open); only the ring hides, and the
+ * existing 120ms box-shadow transition brings it back the moment the
+ * execution ends.
+ */
+:host(.sm-gnode--selected.sm-gnode--executing) {
+  box-shadow: var(--sm-shadow-card);
+}
 :host(.sm-gnode--highlighted) {
   border-color: var(--p-primary-color);
   box-shadow: var(--sm-shadow-card-hover);

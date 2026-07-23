@@ -523,7 +523,8 @@ no token (operator surface, like §Install management). Response `200`:
       "lastOwner": "main:6cfe5636-2e56-4271-91a6-87fc3d4355be",
       "distinctOwners": 2
     }
-  }
+  },
+  "runNodes": [".claude/agents/architect.md"]
 }
 ```
 
@@ -532,21 +533,40 @@ The response also carries the per-pair spawn counters under `"pairs"`, keyed
 accumulator uses), each `{ "count": <n>, "lastStartAt": <ms> }`, so edge
 labels hydrate together with the node counters.
 
-Stats-only by design: the summary carries NO live claim or spawn state. Live
-lighting and spawn edges rebuild from the WS stream as events arrive; clients
-treat both this snapshot and the WS `stats` / `pairCount` fields as overwrites
-from the single server-side source of truth.
+It ALSO carries `"runNodes"`: the distinct node paths holding persistent
+AI-run history (`state_executions` rows, any status). The boot-scoped
+counters reset on every server restart but the DB history does not, so
+without this list a client that derives Activity visibility from the
+counters would hide a node's recorded runs until fresh runtime activity
+happens to touch it. Read per request from the project DB; a missing DB
+degrades to `[]` (the runtime half still answers).
+
+Stats-only by design otherwise: the summary carries NO live claim or spawn
+state. Live lighting and spawn edges rebuild from the WS stream as events
+arrive; clients treat both this snapshot and the WS `stats` / `pairCount`
+fields as overwrites from the single server-side source of truth.
 
 ### `GET /api/activity/node/<pathB64>`
 
 Per-node detail for inspector surfaces. Response `200`: `{ "stats": { ... },
 "recent": [{ "at": <ms>, "owner": "...", "detail"?: "<tool>", "caller"?: "<unit path>", "target"?: "<accessed path>", "kind"?: "mcp" | "read" }], "spawns": [ ... ],
-"captureEnabled": <bool> }`, where `spawns` lists the RETAINED spawn records
+"captureEnabled": <bool>, "runs": [ ... ] }`, where `spawns` lists the RETAINED spawn records
 touching the node (as parent or child). Records exist only while the capture
 gate is on (§Conversation capture): with the gate off the list is always
 empty, and live spawn metadata remains available only on the `agent.spawn` WS
 stream. A scanned node with no recorded activity returns empty stats, not
 `404`; an unknown path returns `404`.
+
+`runs` is the OTHER provenance the inspector's Activity timeline interleaves
+(user decision 2026-07-17): skill-map's own AI-run history for the node, read
+from `state_executions` (persistent, unlike the ephemeral runtime stats
+above). Newest-first, capped at 15, each entry
+`{ "executionId", "extensionId", "status", "model": <string|null>,
+"durationMs": <int|null>, "finishedAt": <ms|null>, "failureReason": <string|null> }`.
+A missing DB degrades to `runs: []` without failing the runtime half. The UI
+renders the two provenances visually distinguished behind a three-way filter
+(all / runtime activity / AI runs) persisted at the INSPECTOR level, not
+per node.
 
 ## Conversation capture
 

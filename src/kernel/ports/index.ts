@@ -9,7 +9,6 @@ export type {
   TPluginLoadStatus,
   TPluginStorage,
 } from './plugin-loader.js';
-export type { IRunOptions, IRunResult, RunnerPort } from './runner.js';
 export type {
   ProgressEmitterPort,
   ProgressEvent,

@@ -52,7 +52,10 @@ import { HTTPException } from 'hono/http-exception';
 
 import { applyExportQuery } from '../../kernel/index.js';
 import type { IPersistedContribution } from '../../kernel/ports/storage.js';
+import type { IFindingSeverityCount } from '../../kernel/types/storage.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import { foldFindingsIntoSeverityChips } from '../aggregate-severity-fold.js';
+import { bffReadVersionCheck } from '../util/db-read-check.js';
 import { tx } from '../../kernel/util/tx.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { buildListEnvelope, REST_ENVELOPE_SCHEMA_VERSION } from '../envelope.js';
@@ -95,7 +98,7 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
       throw err;
     }
     const result = await tryWithSqlite(
-      { databasePath: deps.options.dbPath, autoBackup: false },
+      { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
       async (adapter) => {
         const b = await adapter.scans.findNode(nodePath);
         if (!b) {
@@ -104,6 +107,7 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
             isFavorite: false,
             contributions: [],
             tags: [] as string[],
+            findingCounts: { warn: 0, error: 0 } as IFindingSeverityCount,
           } as const;
         }
         const favSet = await adapter.favorites.listPaths();
@@ -112,11 +116,17 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
         // cap only governs the bulk list path).
         const contributions = await adapter.contributions.listForNode(b.node.path);
         const tagRows = await adapter.tags.listForNode(b.node.path);
+        // Read-time aggregate: fresh open findings summed into
+        // issue-counter's severity chips below (see aggregate-severity-fold).
+        const findingCounts =
+          (await adapter.findings.countUnresolvedByPath([b.node.path])).get(b.node.path) ??
+          ({ warn: 0, error: 0 } as IFindingSeverityCount);
         return {
           bundle: b,
           isFavorite: favSet.has(b.node.path),
           contributions,
           tags: tagRows.map((r) => r.tag),
+          findingCounts,
         } as const;
       },
     );
@@ -124,12 +134,22 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
     const isFavorite = result?.isFavorite ?? false;
     const contributions = result?.contributions ?? [];
     const tags = result?.tags ?? [];
+    const findingCounts = result?.findingCounts ?? { warn: 0, error: 0 };
     if (!bundle) {
       throw new HTTPException(404, {
         message: tx(SERVER_TEXTS.nodeNotFound, { path: sanitizeForTerminal(nodePath) }),
       });
     }
-    const decoratedNode = { ...bundle.node, isFavorite, contributions, tags };
+    // Fold the node's fresh open findings into issue-counter's aggregate
+    // warn / error chips (spec/view-slots.md §card.footer.right). NOT a
+    // chip filter: it sums a second real source, it never silences a chip.
+    const foldedContributions = foldFindingsIntoSeverityChips(
+      contributions,
+      findingCounts,
+      deps.contributionsRegistry,
+      nodePath,
+    );
+    const decoratedNode = { ...bundle.node, isFavorite, contributions: foldedContributions, tags };
     const includes = parseIncludes(c.req.query('include'));
     const item = includes.has('body')
       ? { ...decoratedNode, body: await readNodeBody(deps.runtimeContext.cwd, nodePath) }
@@ -166,7 +186,7 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
     });
 
     const opened = await tryWithSqlite(
-      { databasePath: deps.options.dbPath, autoBackup: false },
+      { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
       async (adapter) => {
         const [l, fs] = await Promise.all([
           adapter.scans.load(),
@@ -201,9 +221,9 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
     // today is negligible.
     const contributionsOmitted = limit > BFF_MAX_BULK_CONTRIBUTIONS;
     const pagePaths = pageNodes.map((n) => n.path);
-    const { contributionsByPath, tagsByPath } =
+    const { contributionsByPath, tagsByPath, findingCountsByPath } =
       (await tryWithSqlite(
-        { databasePath: deps.options.dbPath, autoBackup: false },
+        { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
         async (adapter) => {
           const contribByPath = contributionsOmitted
             ? new Map<string, IPersistedContribution[]>()
@@ -213,16 +233,37 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
           const tagByPath = groupTagsByPath(
             await adapter.tags.listForPaths(pagePaths),
           );
-          return { contributionsByPath: contribByPath, tagsByPath: tagByPath };
+          // Findings only matter when contributions are embedded (the fold
+          // below rides on them); above the bulk cap the whole
+          // contributions array is omitted, so skip the query entirely.
+          const findingByPath = contributionsOmitted
+            ? new Map<string, IFindingSeverityCount>()
+            : await adapter.findings.countUnresolvedByPath(pagePaths);
+          return {
+            contributionsByPath: contribByPath,
+            tagsByPath: tagByPath,
+            findingCountsByPath: findingByPath,
+          };
         },
       )) ?? {
         contributionsByPath: new Map<string, IPersistedContribution[]>(),
         tagsByPath: new Map<string, string[]>(),
+        findingCountsByPath: new Map<string, IFindingSeverityCount>(),
       };
     const items = pageNodes.map((n) => ({
       ...n,
       isFavorite: favSet.has(n.path),
-      contributions: contributionsByPath.get(n.path) ?? [],
+      // Fold fresh open findings into issue-counter's aggregate severity
+      // chips (spec/view-slots.md §card.footer.right). When contributions
+      // are omitted (above the bulk cap) there is nothing to fold into.
+      contributions: contributionsOmitted
+        ? []
+        : foldFindingsIntoSeverityChips(
+            contributionsByPath.get(n.path) ?? [],
+            findingCountsByPath.get(n.path) ?? { warn: 0, error: 0 },
+            deps.contributionsRegistry,
+            n.path,
+          ),
       tags: tagsByPath.get(n.path) ?? [],
     }));
 

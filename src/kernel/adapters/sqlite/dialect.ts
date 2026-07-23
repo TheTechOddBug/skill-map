@@ -124,29 +124,26 @@ class NodeSqliteConnection implements DatabaseConnection {
 
   async executeQuery<R>(query: CompiledQuery): Promise<QueryResult<R>> {
     const stmt: StatementSync = this.#db.prepare(query.sql);
-    const params = query.parameters as unknown[];
+    const params = query.parameters as never[];
 
-    const head = query.sql.trim().slice(0, 6).toUpperCase();
-    const isSelect = head.startsWith('SELECT') || head.startsWith('WITH');
-
-    if (isSelect) {
-      const rows = stmt.all(...(params as never[])) as R[];
-      return { rows };
+    if (isReadQuery(query.sql)) {
+      return { rows: stmt.all(...params) as R[] };
     }
 
-    const info = stmt.run(...(params as never[]));
-    const numAffectedRows = info.changes !== undefined ? BigInt(info.changes) : undefined;
-    const insertId =
-      info.lastInsertRowid === undefined
-        ? undefined
-        : typeof info.lastInsertRowid === 'bigint'
-          ? info.lastInsertRowid
-          : BigInt(info.lastInsertRowid);
-    return {
-      rows: [],
-      ...(numAffectedRows !== undefined ? { numAffectedRows } : {}),
-      ...(insertId !== undefined ? { insertId } : {}),
-    };
+    // A DML statement (`INSERT` / `UPDATE` / `DELETE`) carrying a
+    // `RETURNING` clause yields rows; node:sqlite only surfaces them
+    // through `.all()` (`.run()` executes the statement but discards the
+    // projected columns). Route it through `.all()` so the atomic job
+    // claim (`UPDATE state_jobs ... RETURNING id, nonce, content_hash`,
+    // spec/job-lifecycle.md §Atomic claim) reads its identity back.
+    // `numAffectedRows` equals the returned-row count for a RETURNING DML,
+    // so downstream `numUpdatedRows` / `numDeletedRows` stay correct.
+    if (hasReturning(query.sql)) {
+      const rows = stmt.all(...params) as R[];
+      return { rows, numAffectedRows: BigInt(rows.length) };
+    }
+
+    return toWriteResult(stmt.run(...params));
   }
 
   async *streamQuery<R>(query: CompiledQuery): AsyncIterableIterator<QueryResult<R>> {
@@ -156,6 +153,39 @@ class NodeSqliteConnection implements DatabaseConnection {
     const result = await this.executeQuery<R>(query);
     yield result;
   }
+}
+
+/** Metadata `StatementSync.run()` returns for a write statement. */
+interface IRunInfo {
+  changes?: number | bigint;
+  lastInsertRowid?: number | bigint;
+}
+
+/** A read (`SELECT` / `WITH`) statement, dispatched through `.all()`. */
+function isReadQuery(sql: string): boolean {
+  const head = sql.trim().slice(0, 6).toUpperCase();
+  return head.startsWith('SELECT') || head.startsWith('WITH');
+}
+
+/** A DML statement carrying a `RETURNING` clause (yields rows via `.all()`). */
+function hasReturning(sql: string): boolean {
+  return /\breturning\b/i.test(sql);
+}
+
+/** Map a `.run()` result to the Kysely `QueryResult` write shape. */
+function toWriteResult<R>(info: IRunInfo): QueryResult<R> {
+  const numAffectedRows = info.changes !== undefined ? BigInt(info.changes) : undefined;
+  const insertId =
+    info.lastInsertRowid === undefined
+      ? undefined
+      : typeof info.lastInsertRowid === 'bigint'
+        ? info.lastInsertRowid
+        : BigInt(info.lastInsertRowid);
+  return {
+    rows: [],
+    ...(numAffectedRows !== undefined ? { numAffectedRows } : {}),
+    ...(insertId !== undefined ? { insertId } : {}),
+  };
 }
 
 /**

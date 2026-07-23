@@ -96,7 +96,11 @@ function callBump(
   ctx: IActionContext,
 ): IActionResult<INodeBumpReport> {
   if (!nodeBumpAction.invoke) throw new Error('nodeBumpAction.invoke missing');
-  return nodeBumpAction.invoke<INodeBumpInput, INodeBumpReport>(input, ctx);
+  const result = nodeBumpAction.invoke<INodeBumpInput, INodeBumpReport>(input, ctx);
+  // The widened contract allows Promise returns (io:['network'] actions);
+  // node-bump is contractually synchronous, assert that stays true.
+  if (result instanceof Promise) throw new Error('node-bump invoke must stay synchronous');
+  return result;
 }
 
 describe('built-in bump action, refusal / no-op paths', () => {
@@ -124,6 +128,20 @@ describe('built-in bump action, refusal / no-op paths', () => {
     strictEqual(result.report.ok, true);
     strictEqual(result.report.noop, true);
     strictEqual(result.writes, undefined);
+  });
+
+  it('a fresh node with NO version is NOT a refusal: stamps the first version', () => {
+    // Spec §Bump model (2026-07-21): fresh only refuses while a version
+    // already exists; versionless-fresh accepts and stamps `version: 1`
+    // (the header's `v?` chip invites exactly that).
+    const node = makeNode({
+      sidecar: { present: true, status: 'fresh', annotations: {} },
+    });
+    const result = callBump({}, makeCtx(node, '/abs/example.md'));
+
+    strictEqual(result.report.ok, true);
+    strictEqual(result.report.version, 1);
+    strictEqual(result.writes?.length, 1);
   });
 });
 

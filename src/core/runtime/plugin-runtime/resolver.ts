@@ -45,14 +45,15 @@ export function defaultResolveEnabled(_id: string, installedDefault = true): boo
  * `settings.local.json`). The plugin row is a
  * presentational grouping only; the lookup key is always the qualified
  * extension id `<plugin.id>/<ext.id>`. The installed default comes from
- * the extension's `stability` (experimental ships disabled).
+ * the extension's `defaultEnabled` override when declared, else its
+ * `stability` (experimental ships disabled).
  */
 export function isBuiltInExtensionEnabled(
   plugin: IBuiltInPlugin,
   ext: TBuiltInExtension,
   resolveEnabled: EnabledResolver,
 ): boolean {
-  return isPluginEntryEnabled(plugin, ext.id, resolveEnabled, ext.stability);
+  return isPluginEntryEnabled(plugin, ext.id, resolveEnabled, ext.stability, ext.defaultEnabled);
 }
 
 /**
@@ -69,8 +70,12 @@ export function isPluginEntryEnabled(
   extId: string,
   resolveEnabled: EnabledResolver,
   stability?: TExtensionStability,
+  defaultEnabled?: boolean,
 ): boolean {
-  return resolveEnabled(qualifiedExtensionId(plugin.id, extId), installedDefaultEnabled(stability));
+  return resolveEnabled(
+    qualifiedExtensionId(plugin.id, extId),
+    installedDefaultEnabled(stability, defaultEnabled),
+  );
 }
 
 /**
@@ -81,12 +86,12 @@ export function isPluginEntryEnabled(
  * extension's `stability` (when carried) drives the installed default.
  */
 export function isPluginExtensionEnabled(
-  ext: { pluginId: string; id: string; stability?: TExtensionStability },
+  ext: { pluginId: string; id: string; stability?: TExtensionStability; defaultEnabled?: boolean },
   resolveEnabled: EnabledResolver,
 ): boolean {
   return resolveEnabled(
     qualifiedExtensionId(ext.pluginId, ext.id),
-    installedDefaultEnabled(ext.stability),
+    installedDefaultEnabled(ext.stability, ext.defaultEnabled),
   );
 }
 

@@ -4,12 +4,11 @@
  * and `sm orphans`.
  *
  * Three responsibilities:
- *   1. `insertExecution`, write a single `state_executions` row. Used by
- *      tests today; consumed by `sm record` / `sm job run` once those
- *      verbs ship.
- *   2. `listExecutions`, read with filters (node, action, status, time
+ *   1. `insertExecution`, write a single `state_executions` row (the
+ *      `sm record` path writes through `jobs.recordTerminal` instead).
+ *   2. `listExecutions`, read with filters (node, extension, status, time
  *      window). Backs `sm history`.
- *   3. `aggregateHistoryStats`, totals, per-action, per-period, top
+ *   3. `aggregateHistoryStats`, totals, per-extension, per-period, top
  *      nodes, error rates. Backs `sm history stats`.
  *   4. `migrateNodeFks`, repoint every `state_*` reference to a node
  *      from `fromPath` to `toPath`. Used by the rename heuristic
@@ -28,8 +27,8 @@ import type {
   ExecutionRecord,
   HistoryStats,
   HistoryStatsExecutionsPerPeriod,
-  HistoryStatsPerActionRate,
-  HistoryStatsTokensPerAction,
+  HistoryStatsPerExtensionRate,
+  HistoryStatsTokensPerExtension,
   HistoryStatsTopNode,
 } from '../../types.js';
 import type {
@@ -55,7 +54,7 @@ const FAILURE_REASONS: readonly ExecutionFailureReason[] = [
   'timeout',
   'abandoned',
   'job-file-missing',
-  'user-cancelled',
+  'user-failed',
 ];
 
 // --- Inserts ---------------------------------------------------------------
@@ -84,24 +83,29 @@ function executionToRow(exec: ExecutionRecord): Insertable<IStateExecutionsTable
 
 function projectExecutionOptionalAudit(
   exec: ExecutionRecord,
-): Pick<Insertable<IStateExecutionsTable>, 'contentHash' | 'failureReason' | 'exitCode' | 'runner' | 'durationMs' | 'reportPath' | 'jobId'> {
+): Pick<Insertable<IStateExecutionsTable>, 'contentHash' | 'failureReason' | 'exitCode' | 'runner' | 'durationMs' | 'reportJson' | 'jobId'> {
   return {
     contentHash: exec.contentHash ?? null,
     failureReason: exec.failureReason ?? null,
     exitCode: exec.exitCode ?? null,
     runner: exec.runner ?? null,
     durationMs: exec.durationMs ?? null,
-    reportPath: exec.reportPath ?? null,
+    // Domain `ExecutionRecord.reportPath` (per execution-record.schema.json)
+    // bridges to the `report_json` column under the DB-only job model.
+    reportJson: exec.reportPath ?? null,
     jobId: exec.jobId ?? null,
   };
 }
 
 function projectExecutionTokens(
   exec: ExecutionRecord,
-): Pick<Insertable<IStateExecutionsTable>, 'tokensIn' | 'tokensOut'> {
+): Pick<Insertable<IStateExecutionsTable>, 'tokensIn' | 'tokensOut' | 'model'> {
   return {
     tokensIn: exec.tokensIn ?? null,
     tokensOut: exec.tokensOut ?? null,
+    // Agent-self-reported metrics family: the model id rides with the
+    // token counts (unverifiable by design, NULL when undeclared).
+    model: exec.model ?? null,
   };
 }
 
@@ -121,6 +125,23 @@ export async function listExecutions(
 }
 
 /**
+ * Distinct node paths holding at least one `state_executions` row, any
+ * status (the activity summary's `runNodes`, `spec/provider-activity.md`
+ * §GET /api/activity/summary). JSON1 expansion of `node_ids_json` so a
+ * multi-node execution contributes every path once.
+ */
+export async function listNodesWithRuns(db: TDbOrTx): Promise<string[]> {
+  const rows = await db
+    .selectFrom([
+      'state_executions',
+      sql<{ value: string }>`json_each(state_executions.node_ids_json)`.as('je'),
+    ])
+    .select(sql<string>`DISTINCT je.value`.as('nodePath'))
+    .execute();
+  return rows.map((r) => r.nodePath);
+}
+
+/**
  * Apply every optional filter from `IListExecutionsFilter` to a
  * Kysely SELECT. Each guard is one branch; folding them into the
  * caller would trip the lint cap and obscure that the function is a
@@ -131,7 +152,7 @@ function applyExecutionFilters<Q extends SelectQueryBuilder<IDatabase, 'state_ex
   filter: IListExecutionsFilter,
 ): Q {
   let q = query;
-  if (filter.actionId !== undefined) q = q.where('extensionId', '=', filter.actionId) as Q;
+  if (filter.extensionId !== undefined) q = q.where('extensionId', '=', filter.extensionId) as Q;
   if (filter.statuses && filter.statuses.length > 0) q = q.where('status', 'in', filter.statuses) as Q;
   if (filter.sinceMs !== undefined) q = q.where('startedAt', '>=', filter.sinceMs) as Q;
   if (filter.untilMs !== undefined) q = q.where('startedAt', '<', filter.untilMs) as Q;
@@ -168,7 +189,8 @@ function rowToExecution(row: {
   durationMs: number | null;
   tokensIn: number | null;
   tokensOut: number | null;
-  reportPath: string | null;
+  model: string | null;
+  reportJson: string | null;
   jobId: string | null;
 }): ExecutionRecord {
   return {
@@ -181,13 +203,17 @@ function rowToExecution(row: {
     status: row.status,
     failureReason: row.failureReason as ExecutionFailureReason | null,
     exitCode: row.exitCode,
-    runner: row.runner as 'cli' | 'skill' | 'in-process' | null,
+    runner: row.runner as 'agent' | 'in-process' | null,
     startedAt: row.startedAt,
     finishedAt: row.finishedAt,
     durationMs: row.durationMs,
     tokensIn: row.tokensIn,
     tokensOut: row.tokensOut,
-    reportPath: row.reportPath,
+    model: row.model,
+    // The `report_json` column maps back onto the legacy domain field
+    // `ExecutionRecord.reportPath` (schema rename to `report` is a later
+    // Step 10 sub-step; the field name is preserved for now).
+    reportPath: row.reportJson,
     jobId: row.jobId,
   };
 }
@@ -226,12 +252,12 @@ export async function aggregateHistoryStats(
   let tokensOutTotal = 0;
   let durationMsTotal = 0;
 
-  // Per-action accumulators.
-  const perAction = new Map<
+  // Per-extension accumulators.
+  const perExtension = new Map<
     string,
     {
-      actionId: string;
-      actionVersion: string;
+      extensionId: string;
+      extensionVersion: string;
       executionsCount: number;
       tokensIn: number;
       tokensOut: number;
@@ -259,12 +285,12 @@ export async function aggregateHistoryStats(
     'timeout': 0,
     'abandoned': 0,
     'job-file-missing': 0,
-    'user-cancelled': 0,
+    'user-failed': 0,
   };
 
   const totals = { executionsCount, completedCount, failedCount, tokensInTotal, tokensOutTotal, durationMsTotal };
   for (const row of rows) {
-    accumulateExecutionRow(row, totals, perFailureReason, perAction, perPeriod, perNode, period);
+    accumulateExecutionRow(row, totals, perFailureReason, perExtension, perPeriod, perNode, period);
   }
   // Re-bind locals from the mutated totals object.
   executionsCount = totals.executionsCount;
@@ -274,11 +300,11 @@ export async function aggregateHistoryStats(
   tokensOutTotal = totals.tokensOutTotal;
   durationMsTotal = totals.durationMsTotal;
 
-  // tokensPerAction sorted desc by tokensIn + tokensOut.
-  const tokensPerAction: HistoryStatsTokensPerAction[] = Array.from(perAction.values())
+  // tokensPerExtension sorted desc by tokensIn + tokensOut.
+  const tokensPerExtension: HistoryStatsTokensPerExtension[] = Array.from(perExtension.values())
     .map((acc) => ({
-      actionId: acc.actionId,
-      actionVersion: acc.actionVersion,
+      extensionId: acc.extensionId,
+      extensionVersion: acc.extensionVersion,
       executionsCount: acc.executionsCount,
       tokensIn: acc.tokensIn,
       tokensOut: acc.tokensOut,
@@ -314,17 +340,18 @@ export async function aggregateHistoryStats(
     })
     .slice(0, topN);
 
-  // Per-action error rate. Sorted desc by rate, tie-break asc by actionId.
-  const perActionRates: HistoryStatsPerActionRate[] = Array.from(perAction.values())
+  // Per-extension error rate. Sorted desc by rate, tie-break asc by
+  // extensionId.
+  const perExtensionRates: HistoryStatsPerExtensionRate[] = Array.from(perExtension.values())
     .map((acc) => ({
-      actionId: acc.actionId,
+      extensionId: acc.extensionId,
       rate: acc.executionsCount === 0 ? 0 : acc.failedCount / acc.executionsCount,
       executionsCount: acc.executionsCount,
       failedCount: acc.failedCount,
     }))
     .sort((a, b) => {
       if (b.rate !== a.rate) return b.rate - a.rate;
-      return a.actionId.localeCompare(b.actionId);
+      return a.extensionId.localeCompare(b.extensionId);
     });
 
   return {
@@ -338,12 +365,12 @@ export async function aggregateHistoryStats(
       tokensOut: tokensOutTotal,
       durationMsTotal,
     },
-    tokensPerAction,
+    tokensPerExtension,
     executionsPerPeriod,
     topNodes,
     errorRates: {
       global: executionsCount === 0 ? 0 : failedCount / executionsCount,
-      perAction: perActionRates,
+      perExtension: perExtensionRates,
       perFailureReason,
     },
   };
@@ -386,9 +413,9 @@ interface IExecutionRowTotals {
   durationMsTotal: number;
 }
 
-interface IPerActionAcc {
-  actionId: string;
-  actionVersion: string;
+interface IPerExtensionAcc {
+  extensionId: string;
+  extensionVersion: string;
   executionsCount: number;
   tokensIn: number;
   tokensOut: number;
@@ -399,7 +426,7 @@ interface IPerActionAcc {
 /**
  * Fold one `state_executions` row into every accumulator the
  * `aggregateHistoryStats` query needs: totals, per-failure-reason
- * counts, per-action rollup, per-period bucket, per-node rollup. Pure
+ * counts, per-extension rollup, per-period bucket, per-node rollup. Pure
  * mutation of the supplied containers, caller iterates rows and emits
  * the final stats from the same containers afterward.
  *
@@ -411,7 +438,7 @@ function accumulateExecutionRow(
   row: Selectable<IStateExecutionsTable>,
   totals: IExecutionRowTotals,
   perFailureReason: Record<ExecutionFailureReason, number>,
-  perAction: Map<string, IPerActionAcc>,
+  perExtension: Map<string, IPerExtensionAcc>,
   perPeriod: Map<number, { tokensIn: number; tokensOut: number; executionsCount: number }>,
   perNode: Map<string, { executionsCount: number; lastExecutedAt: number }>,
   period: THistoryStatsPeriod,
@@ -419,7 +446,7 @@ function accumulateExecutionRow(
   const tIn = row.tokensIn ?? 0;
   const tOut = row.tokensOut ?? 0;
   accumulateTotals(row, tIn, tOut, totals, perFailureReason);
-  accumulatePerAction(row, tIn, tOut, perAction);
+  accumulatePerExtension(row, tIn, tOut, perExtension);
   accumulatePerPeriod(row, tIn, tOut, perPeriod, period);
   accumulatePerNode(row, perNode);
 }
@@ -443,31 +470,31 @@ function accumulateTotals(
   }
 }
 
-function accumulatePerAction(
+function accumulatePerExtension(
   row: Selectable<IStateExecutionsTable>,
   tIn: number,
   tOut: number,
-  perAction: Map<string, IPerActionAcc>,
+  perExtension: Map<string, IPerExtensionAcc>,
 ): void {
-  const actionKey = `${row.extensionId}@${row.extensionVersion}`;
-  let actionAcc = perAction.get(actionKey);
-  if (!actionAcc) {
-    actionAcc = {
-      actionId: row.extensionId,
-      actionVersion: row.extensionVersion,
+  const extensionKey = `${row.extensionId}@${row.extensionVersion}`;
+  let extensionAcc = perExtension.get(extensionKey);
+  if (!extensionAcc) {
+    extensionAcc = {
+      extensionId: row.extensionId,
+      extensionVersion: row.extensionVersion,
       executionsCount: 0,
       tokensIn: 0,
       tokensOut: 0,
       durations: [],
       failedCount: 0,
     };
-    perAction.set(actionKey, actionAcc);
+    perExtension.set(extensionKey, extensionAcc);
   }
-  actionAcc.executionsCount += 1;
-  actionAcc.tokensIn += tIn;
-  actionAcc.tokensOut += tOut;
-  if (row.durationMs !== null) actionAcc.durations.push(row.durationMs);
-  if (row.status === 'failed') actionAcc.failedCount += 1;
+  extensionAcc.executionsCount += 1;
+  extensionAcc.tokensIn += tIn;
+  extensionAcc.tokensOut += tOut;
+  if (row.durationMs !== null) extensionAcc.durations.push(row.durationMs);
+  if (row.status === 'failed') extensionAcc.failedCount += 1;
 }
 
 function accumulatePerPeriod(
@@ -539,6 +566,7 @@ export async function findStrandedStateOrphans(
   await collectStrandedJobs(trx, livePaths, stranded);
   await collectStrandedExecutions(trx, livePaths, stranded);
   await collectStrandedSummaries(trx, livePaths, stranded);
+  await collectStrandedFindings(trx, livePaths, stranded);
   await collectStrandedEnrichments(trx, livePaths, stranded);
   await collectStrandedPluginKvs(trx, livePaths, stranded);
   await collectStrandedFavorites(trx, livePaths, stranded);
@@ -585,6 +613,17 @@ async function collectStrandedSummaries(
   stranded: Set<string>,
 ): Promise<void> {
   const rows = await trx.selectFrom('state_summaries').select(['nodeId']).distinct().execute();
+  for (const r of rows) {
+    if (!livePaths.has(r.nodeId)) stranded.add(r.nodeId);
+  }
+}
+
+async function collectStrandedFindings(
+  trx: TDbOrTx,
+  livePaths: Set<string>,
+  stranded: Set<string>,
+): Promise<void> {
+  const rows = await trx.selectFrom('state_findings').select(['nodeId']).distinct().execute();
   for (const r of rows) {
     if (!livePaths.has(r.nodeId)) stranded.add(r.nodeId);
   }
@@ -662,6 +701,7 @@ export async function migrateNodeFks(
   await migrateJobs(trx, fromPath, toPath, report);
   await migrateExecutions(trx, fromPath, toPath, report);
   await migrateSummaries(trx, fromPath, toPath, report);
+  await migrateFindings(trx, fromPath, toPath, report);
   await migrateEnrichments(trx, fromPath, toPath, report);
   if (fromPath !== '') await migratePluginKvs(trx, fromPath, toPath, report);
   await migrateNodeFavorites(trx, fromPath, toPath, report);
@@ -673,6 +713,7 @@ function emptyMigrateReport(): IMigrateNodeFksReport {
     jobs: 0,
     executions: 0,
     summaries: 0,
+    findings: 0,
     enrichments: 0,
     pluginKvs: 0,
     nodeFavorites: 0,
@@ -772,6 +813,24 @@ async function migrateSummaries(
       .execute();
     report.summaries += 1;
   }
+}
+
+/**
+ * state_findings.node_id, integer surrogate PK, so a plain UPDATE cannot
+ * collide (same shape as `state_jobs`, no composite-key drop path).
+ */
+async function migrateFindings(
+  trx: TDbOrTx,
+  fromPath: string,
+  toPath: string,
+  report: IMigrateNodeFksReport,
+): Promise<void> {
+  const result = await trx
+    .updateTable('state_findings')
+    .set({ nodeId: toPath })
+    .where('nodeId', '=', fromPath)
+    .executeTakeFirst();
+  report.findings = Number(result.numUpdatedRows ?? 0);
 }
 
 /** state_enrichments, composite PK (node_id, provider_id). */

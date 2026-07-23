@@ -35,6 +35,7 @@
 import type { Hono } from 'hono';
 
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import { bffReadVersionCheck } from '../util/db-read-check.js';
 import { buildListEnvelope } from '../envelope.js';
 import { parseCsv, parsePagination } from '../util/parse-query.js';
 import { DEFAULT_LIMIT, MAX_LIMIT } from '../limits.js';
@@ -45,7 +46,7 @@ export function registerIssuesRoute(app: Hono, deps: IRouteDeps): void {
   app.get('/api/issues', async (c) => {
     const inputs = parseIssuesQuery(c.req.query());
     const result = await tryWithSqlite(
-      { databasePath: deps.options.dbPath, autoBackup: false },
+      { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
       (adapter) => adapter.issues.list(inputs.filter),
     );
     return c.json(

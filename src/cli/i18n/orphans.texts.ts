@@ -24,7 +24,7 @@ export const ORPHANS_TEXTS = {
   /**
    * Two-line success block:
    *   `✓  Reconciled <from> → <to>`
-   *   `   <rows> rows · jobs N · execs N · summaries N · enrichments N · kv N · favorites N`
+   *   `   <rows> rows · jobs N · execs N · summaries N · findings N · enrichments N · kv N · favorites N`
    * Glyph is wrapped in green at the call site; the breakdown line is
    * dim. The dry-run variant swaps the headline glyph and the verb.
    */
@@ -34,7 +34,7 @@ export const ORPHANS_TEXTS = {
   reconcileDryRunHead: '{{glyph}}  Would reconcile {{from}} → {{to}}{{dryTag}}\n',
   /** Breakdown line composed at the call site from non-zero counts only. */
   reconcileBreakdown:
-    '{{rows}} rows · jobs {{jobs}} · execs {{execs}} · summaries {{summaries}} · enrichments {{enrichments}} · kv {{kv}} · favorites {{favorites}}',
+    '{{rows}} rows · jobs {{jobs}} · execs {{execs}} · summaries {{summaries}} · findings {{findings}} · enrichments {{enrichments}} · kv {{kv}} · favorites {{favorites}}',
   reconcileCollisionsNote:
     '{{glyph}}  {{count}} composite-PK collision{{plural}}; destination rows preserved.\n',
   reconcileCollisionsNoteDryRun:

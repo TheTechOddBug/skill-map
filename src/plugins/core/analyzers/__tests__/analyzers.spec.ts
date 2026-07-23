@@ -9,7 +9,7 @@ import type { Confidence, Issue, Link, LinkKind, Node } from '../../../../kernel
 // Rules' evaluate() returns Issue[] | Promise<Issue[]>. Await resolves both
 // shapes uniformly and keeps each test's assertions typed as Issue[].
 async function run(rule: typeof nameCollisionAnalyzer, ctx: { nodes: Node[]; links: Link[] }): Promise<Issue[]> {
-  return await rule.evaluate({ ...ctx, settings: {}, emitContribution: noopEmitContribution });
+  return await rule.evaluate!({ ...ctx, settings: {}, emitContribution: noopEmitContribution });
 }
 
 /** Stub for tests that don't exercise the contribution emit channel. */
@@ -24,13 +24,13 @@ describe('name-collision rule', () => {
   // node-identifiers.spec.ts), so these tests only assert the projection.
   type Claims = ReadonlyMap<string, readonly { path: string; kind: string; source: string }[]>;
   function runNameCollision(nameCollisions: Claims | undefined): Issue[] {
-    const result = nameCollisionAnalyzer.evaluate({
+    const result = nameCollisionAnalyzer.evaluate!({
       nodes: [],
       links: [],
       settings: {},
       emitContribution: noopEmitContribution,
       ...(nameCollisions ? { nameCollisions } : {}),
-    } as unknown as Parameters<typeof nameCollisionAnalyzer.evaluate>[0]);
+    } as unknown as Parameters<NonNullable<typeof nameCollisionAnalyzer.evaluate>>[0]);
     return Array.isArray(result) ? result : [];
   }
 
@@ -138,13 +138,13 @@ describe('name-mismatch rule', () => {
     derivedSource: string;
   }[];
   function runNameMismatch(nameMismatches: Mismatches | undefined): Issue[] {
-    const result = nameMismatchAnalyzer.evaluate({
+    const result = nameMismatchAnalyzer.evaluate!({
       nodes: [],
       links: [],
       settings: {},
       emitContribution: noopEmitContribution,
       ...(nameMismatches ? { nameMismatches } : {}),
-    } as unknown as Parameters<typeof nameMismatchAnalyzer.evaluate>[0]);
+    } as unknown as Parameters<NonNullable<typeof nameMismatchAnalyzer.evaluate>>[0]);
     return Array.isArray(result) ? result : [];
   }
 

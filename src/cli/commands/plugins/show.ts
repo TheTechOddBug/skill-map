@@ -12,8 +12,12 @@
  * accept; validation is shared via `parseQualifiedExtensionId`.
  */
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+
 import { Command, Option } from 'clipanion';
 
+import { builtInPlugins } from '../../../plugins/built-ins.js';
 import type {
   IDiscoveredPlugin,
   ILoadedExtension,
@@ -105,26 +109,140 @@ export class PluginsShowCommand extends SmCommand {
     match: IDiscoveredPlugin | undefined;
   }): number {
     const { extId, pluginId, builtIn, match } = args;
-    const ansi = this.ansiFor('stdout');
-    if (builtIn) {
-      const ext = builtIn.extensions.find((e) => e.id === extId);
-      if (!ext) return ExitCode.NotFound; // parseQualifiedExtensionId already validated; defensive.
-      if (this.json) {
-        this.printer!.data(JSON.stringify({ pluginId, ...ext }, omitModule, 2) + '\n');
-        return ExitCode.Ok;
-      }
-      this.printer!.data(renderBuiltInExtensionDetail(pluginId, ext, ansi));
-      return ExitCode.Ok;
-    }
-    const userExt = match?.extensions?.find((e) => e.id === extId);
-    if (!userExt) return ExitCode.NotFound;
+    if (builtIn) return this.renderBuiltInDetail(pluginId, extId, builtIn);
+    return this.renderUserDetail(pluginId, extId, match);
+  }
+
+  /** Built-in half of the detail render (contract from the live manifest). */
+  private renderBuiltInDetail(
+    pluginId: string,
+    extId: string,
+    builtIn: IBuiltInPluginRow,
+  ): number {
+    const ext = builtIn.extensions.find((e) => e.id === extId);
+    if (!ext) return ExitCode.NotFound; // parseQualifiedExtensionId already validated; defensive.
+    const contract = builtInContract(pluginId, extId);
     if (this.json) {
-      this.printer!.data(JSON.stringify(userExt, omitModule, 2) + '\n');
+      // The contract fields ride RAW on the machine surface (the JSON
+      // consumer round-trips them; sanitization is a render concern).
+      this.printer!.data(
+        JSON.stringify({ pluginId, ...ext, ...(contract ?? {}) }, omitModule, 2) + '\n',
+      );
       return ExitCode.Ok;
     }
-    this.printer!.data(renderUserExtensionDetail(pluginId, userExt, ansi));
+    this.printer!.data(
+      renderBuiltInExtensionDetail(pluginId, ext, this.ansiFor('stdout')) +
+        renderContractSections(contract),
+    );
     return ExitCode.Ok;
   }
+
+  /** User-plugin half of the detail render (contract resolved from disk). */
+  private renderUserDetail(
+    pluginId: string,
+    extId: string,
+    match: IDiscoveredPlugin | undefined,
+  ): number {
+    const userExt = match?.extensions?.find((e) => e.id === extId);
+    if (!userExt) return ExitCode.NotFound;
+    const contract = userContract(userExt);
+    if (this.json) {
+      this.printer!.data(
+        JSON.stringify({ ...userExt, ...(contract ?? {}) }, omitModule, 2) + '\n',
+      );
+      return ExitCode.Ok;
+    }
+    this.printer!.data(
+      renderUserExtensionDetail(pluginId, userExt, this.ansiFor('stdout')) +
+        renderContractSections(contract),
+    );
+    return ExitCode.Ok;
+  }
+}
+
+// --- probabilistic contract sections (Prompt / Report schema) --------------
+
+/**
+ * The two contract files a PROBABILISTIC extension (Action or finder
+ * Analyzer) carries by convention, surfaced by `sm plugins show` so the
+ * operator can inspect what a queued job will embed BEFORE submitting
+ * (`spec/cli-contract.md`, the `sm plugins show` row; the post-render
+ * counterpart is `sm jobs preview`). `null` for deterministic extensions,
+ * whose output stays byte-identical to the pre-feature shape.
+ */
+interface IProbabilisticContract {
+  promptTemplate: string;
+  reportSchema: Record<string, unknown>;
+}
+
+/**
+ * Contract of a built-in extension: the codegen-inlined `promptTemplate`
+ * / `reportSchema` on the live manifest (`plugins/built-ins.ts`). The
+ * synthesised row projection (`IBuiltInPluginRow`) deliberately omits
+ * them (list surfaces stay lean), so the live instance is consulted here.
+ */
+function builtInContract(pluginId: string, extId: string): IProbabilisticContract | null {
+  const live = builtInPlugins
+    .find((p) => p.id === pluginId)
+    ?.extensions.find((e) => e.id === extId);
+  if (!live) return null;
+  const manifest = live as {
+    mode?: string;
+    promptTemplate?: string;
+    reportSchema?: Record<string, unknown>;
+  };
+  if (manifest.mode !== 'probabilistic') return null;
+  if (typeof manifest.promptTemplate !== 'string') return null;
+  if (manifest.reportSchema === undefined || typeof manifest.reportSchema !== 'object') return null;
+  return { promptTemplate: manifest.promptTemplate, reportSchema: manifest.reportSchema };
+}
+
+/**
+ * Contract of a user-plugin extension: resolved from disk next to the
+ * entry file (`prompt.md` / `report.schema.json`, the structure-as-truth
+ * convention the loader already validated at discovery). A read failure
+ * (deleted between load and render) degrades to the base detail rather
+ * than crashing the verb.
+ */
+function userContract(ext: ILoadedExtension): IProbabilisticContract | null {
+  const instance = ext.instance as Record<string, unknown> | undefined;
+  if (!instance || instance['mode'] !== 'probabilistic') return null;
+  const dir = dirname(ext.entryPath);
+  try {
+    const promptTemplate = readFileSync(join(dir, 'prompt.md'), 'utf8');
+    const reportSchema = JSON.parse(
+      readFileSync(join(dir, 'report.schema.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    return { promptTemplate, reportSchema };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Render the `Prompt` + `Report schema` sections (§3.3 sectioned block:
+ * heading at indent 2, content lines at indent 4). Both bodies are
+ * plugin-authored, so the whole text runs through `sanitizeForTerminal`
+ * before the line split (defence in depth; the `--json` path stays raw).
+ * Empty string for deterministic extensions: no sections, unchanged
+ * output.
+ */
+function renderContractSections(contract: IProbabilisticContract | null): string {
+  if (contract === null) return '';
+  const lines: string[] = [PLUGINS_TEXTS.detailSectionPrompt];
+  for (const line of splitSanitized(contract.promptTemplate)) {
+    lines.push(tx(PLUGINS_TEXTS.detailSectionLine, { line }));
+  }
+  lines.push(PLUGINS_TEXTS.detailSectionReportSchema);
+  for (const line of splitSanitized(JSON.stringify(contract.reportSchema, null, 2))) {
+    lines.push(tx(PLUGINS_TEXTS.detailSectionLine, { line }));
+  }
+  return lines.join('');
+}
+
+/** Sanitize once, then split into render lines (trailing newline dropped). */
+function splitSanitized(text: string): string[] {
+  return sanitizeForTerminal(text).replace(/\n$/, '').split('\n');
 }
 
 /**

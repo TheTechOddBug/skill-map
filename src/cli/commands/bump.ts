@@ -75,6 +75,8 @@ import {
   type IBumpPlan,
   type TBumpPlanItem,
 } from './bump-plan.js';
+import { isBuiltInEnabledFor } from '../../core/runtime/built-in-enabled.js';
+import { nodeBumpAction } from '../../plugins/core/actions/node-bump/index.js';
 
 /**
  * Per-node outcome accumulated by the batch flow. `--json` envelope
@@ -170,6 +172,20 @@ export class BumpCommand extends SmCommand {
     if (flagError !== null) return flagError;
 
     const ctx = defaultRuntimeContext();
+
+    // Enabled gate (spec §sm bump): the verb wraps `core/node-bump`,
+    // which ships `defaultEnabled: false`; a disabled extension must not
+    // work through ANY surface, the CLI verb included (2026-07-21
+    // sweep). Checked before any read so the refusal is instant.
+    if (!isBuiltInEnabledFor(ctx.cwd, nodeBumpAction)) {
+      this.printer!.error(
+        tx(BUMP_TEXTS.extensionDisabled, {
+          glyph: ansi.red('✕'),
+          hint: ansi.dim(BUMP_TEXTS.extensionDisabledHint),
+        }),
+      );
+      return ExitCode.Error;
+    }
 
     // Fail fast on the project policy: a committed `allowSidecarWriters:
     // false` forbids every `.sm` write. Checked once here (not per node)
@@ -325,7 +341,7 @@ export class BumpCommand extends SmCommand {
       return ExitCode.NotFound;
     }
 
-    const item = computeBumpPlan([node], { cwd, force: this.force }).items[0]!;
+    const item = (await computeBumpPlan([node], { cwd, force: this.force })).items[0]!;
     if (item.status !== 'bumped') {
       // `#renderTerminalSingle` covers the three non-bumped outcomes
       // (error / refused / skipped). The check above narrows `item`
@@ -449,7 +465,7 @@ export class BumpCommand extends SmCommand {
       this.printer!.info(tx(BUMP_TEXTS.pendingBanner, { count: stale.length }));
     }
 
-    const plan = computeBumpPlan(stale, { cwd, force: this.force });
+    const plan = await computeBumpPlan(stale, { cwd, force: this.force });
     const outcomes = await this.#executePending(plan, cwd, ansi);
     return this.#renderPendingOutcome(outcomes);
   }

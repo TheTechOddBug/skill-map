@@ -11,9 +11,9 @@ overrides:
   # Pin a transitive `fast-uri` (latest is 4.x) to the 3.x line.
   fast-uri: 3.1.2
   # `posthog-js` bundles an old `dompurify` (3.4.5) that trips several
-  # low/moderate advisories. Force it to the patched 3.4.11 the UI already
+  # low/moderate advisories. Force it to the patched 3.4.12 the UI already
   # depends on directly, so the shipped bundle carries one clean copy.
-  dompurify: 3.4.11
+  dompurify: 3.4.12
 
 # Allowlist of dependencies whose install scripts are permitted to run.
 # strict-dep-builds=true (in .npmrc) blocks every postinstall by default,

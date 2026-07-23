@@ -10,8 +10,8 @@
  *     tags, so the first tag can be added.
  *   - EDIT (pencil clicked): swaps the chips for the inline string-list
  *     editor (`<sm-input-type-control>`, add / remove chips) with Save /
- *     Cancel. Save dispatches the `core/node-set-tags` Action by qualified
- *     id via `ActionDispatchService` (the same dispatch + `.sm`
+ *     Cancel. Save dispatches the host-supplied `setTagsActionId` via
+ *     `ActionDispatchService` (the same dispatch + `.sm`
  *     write-consent handshake every inspector action uses); the store
  *     updates through the BFF's WS broadcast, so there is no manual patch
  *     here. Cancel discards the draft.
@@ -50,9 +50,6 @@ import {
 } from '../../renderers/input-type-control/input-type-control';
 import { NODE_TAGS_TEXTS } from '../../../i18n/node-tags.texts';
 
-/** Qualified id of the deterministic Action that writes the tags. */
-const SET_TAGS_ACTION_ID = 'core/node-set-tags';
-
 @Component({
   selector: 'sm-node-tags',
   imports: [ButtonModule, TooltipModule, InputTypeControl],
@@ -65,8 +62,30 @@ export class NodeTags {
   readonly tags = input.required<readonly string[]>();
   /** Tag currently driving the map's tag-selection; highlights its chip. */
   readonly activeTag = input<string | null>(null);
-  /** The node's relative path, the dispatch target for `core/node-set-tags`. */
+  /** The node's relative path, the dispatch target for the set-tags action. */
   readonly nodePath = input.required<string>();
+
+  /**
+   * Qualified id of the Action the Save button dispatches, sourced by
+   * the host from the contribution claiming the TAGS surface
+   * (`spec/view-slots.md` §Re-homed surfaces). The component never
+   * hardcodes an extension id: whichever plugin claims the surface owns
+   * the write.
+   */
+  readonly setTagsActionId = input.required<string>();
+
+  /**
+   * Auto-tag affordance state (user request 2026-07-21), owned by the
+   * inspector host like the header's summary machine: `hidden` (the
+   * `core/ai-tagger-action` extension is unavailable), `idle` (clickable,
+   * queues a run), `queued` / `running` (job in flight). There is no
+   * `ready` state: the inferred tags land in the sidecar through the
+   * record-side write-through and simply show up as chips.
+   */
+  readonly autoTagState = input<'hidden' | 'idle' | 'queued' | 'running'>('hidden');
+
+  /** Emitted when the user clicks the idle auto-tag (sparkles) button. */
+  readonly autoTagClick = output<void>();
 
   /**
    * Emitted when the user clicks a tag chip in VIEW mode. Carries the tag
@@ -131,6 +150,23 @@ export class NodeTags {
     this.tags().length === 0 ? this.texts.addTooltip : this.texts.editTooltip,
   );
 
+  /** Auto-tag button tooltip / aria, per host-owned state. */
+  protected readonly autoTagTooltip = computed<string>(() => {
+    switch (this.autoTagState()) {
+      case 'queued':
+        return this.texts.autoTag.tooltipQueued;
+      case 'running':
+        return this.texts.autoTag.tooltipRunning;
+      default:
+        return this.texts.autoTag.tooltipIdle;
+    }
+  });
+
+  protected onAutoTagClick(): void {
+    if (this.autoTagState() !== 'idle') return;
+    this.autoTagClick.emit();
+  }
+
   protected isActive(tag: string): boolean {
     return this.activeTag() === tag;
   }
@@ -169,7 +205,7 @@ export class NodeTags {
     this.errorSig.set(null);
     this.inFlightSig.set(true);
     try {
-      await this.dispatcher.dispatch(SET_TAGS_ACTION_ID, path, { tags: this.draftSig() });
+      await this.dispatcher.dispatch(this.setTagsActionId(), path, { tags: this.draftSig() });
       const err = this.dispatcher.error();
       if (err) {
         this.errorSig.set(err);

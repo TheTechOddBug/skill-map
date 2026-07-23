@@ -149,6 +149,8 @@ ctx.emitContribution('urlsCount', { value: 7 });
 
 **Where it renders**: card footer, right side of the stats cluster. Cap `maxItems: 5`, priority-ordered.
 
+**Aggregate severity chips (the combined signal counter).** The `warn` / `error` severity chips in this cluster are NOT per-analyzer: `core/issue-counter` owns the two aggregate chips (`warnCount` / `errorCount`, `node-counter` renderer) as the single per-card severity count, so several analyzers flagging the same node collapse into one chip per severity instead of a forest of duplicates. As of the findings pipeline these chips count BOTH provenances of a node's problems, summed per severity: deterministic issues (`scan_issues`) PLUS the node's UNRESOLVED, non-stale probabilistic findings (`state_findings`, everything except a `fixed` resolution, so open rows AND `human-decision` proposals awaiting the author both count, matching the inspector's default findings view; `error`/`warn` findings map to the matching chip, `info` is not surfaced, same as issues). Because findings are recorded post-scan (the queue is async), the summed value cannot be computed in `issue-counter`'s scan-time `evaluate`; it is aggregated at **read time by the BFF** when it decorates a node (same lifecycle as the `isFavorite` decoration, applied on every response that embeds `contributions`: `/api/nodes` single + list AND the `/api/scan` cold-boot hydration snapshot), emitted under `issue-counter`'s own registered contribution ids (`warnCount` / `errorCount`), so the card renders it through the standard contribution host with no change. The tooltip breaks the total down by provenance (e.g. "3 warnings: 2 checks + 1 AI finding"). Consequence, by design: the card chip is the node's TOTAL problem count, so it may exceed what `sm check` (deterministic issues only) or the inspector's separate deterministic-Findings / AI-actions sections report; drill into the inspector for the per-provenance split. `sm scan --json` carries only the deterministic component (the findings sum is a UI read-time decoration, not a scan output).
+
 ---
 
 ## `graph.node.alert`
@@ -211,7 +213,9 @@ ctx.emitContribution('stale', { icon: 'pi-clock', tooltip: 'Sidecar drift' });
 
 The manifest declares only `{ slot }`. The per-node payload carries the action id, label, and dynamic `enabled` flag; the kernel re-emits the row every scan so the button refreshes.
 
-**Payload shape**: `{ actionId, label (1-48), enabled, icon?, severity?, disabledReason? (≤128), input?, prompt?, confirm? }`. Required: `actionId` (qualified `<plugin>/<action>`, pattern-checked), `label`, and `enabled` (boolean). `disabledReason` is the tooltip shown when `enabled` is false. `input`, `prompt`, and `confirm` are **reserved for parametrized actions** (Steps 2+, see below) and carry no behaviour today.
+**Payload shape**: `{ actionId, label (1-48), enabled, icon?, severity?, disabledReason? (≤128), input?, prompt?, confirm?, surface? }`. Required: `actionId` (qualified `<plugin>/<action>`, pattern-checked), `label`, and `enabled` (boolean). `disabledReason` is the tooltip shown when `enabled` is false. `input`, `prompt`, and `confirm` are **reserved for parametrized actions** (Steps 2+, see below) and carry no behaviour today.
+
+**Re-homed surfaces** (`surface`, optional enum `version | stability | tags`): a payload declaring a `surface` is NOT rendered as a generic button; the contribution IS the named UI surface instead: `version` = the header version chip (and the card's `vN` label), `stability` = the header stability chip, `tags` = the inline tag row (and the card's tag chips). The UI selects re-homed contributions by this declaration and dispatches the payload's `actionId`; it never matches extension ids, so any plugin may claim a surface and disabling the claiming extension removes the surface (the projection stops). A declared surface excludes the contribution from the generic Actions section. At most one contribution per node should claim a given surface; when several do, the UI uses the first by contribution priority order. First adopters: `core/node-bump` (`version`), `core/node-set-stability` (`stability`), `core/node-set-tags` (`tags`).
 
 **Emit**:
 ```ts
@@ -224,7 +228,7 @@ ctx.emitContribution(nodePath, 'bump', {
 });
 ```
 
-**Dispatch**: a click sends `POST /api/actions/:id` with the qualified `actionId`; the kernel resolves the Action in its registry (unknown id → 404), runs it against the open node, and answers an `action.applied` envelope (`{ value: { actionId, nodePath, report }, elapsedMs }`). `.sm`-writing actions still pass through the write-consent gate (see [`architecture.md`](./architecture.md) §Annotation system → Write consent).
+**Dispatch**: a click sends `POST /api/actions/:id` with the qualified `actionId`; the kernel resolves the Action in its registry (unknown OR disabled id → 404: a disabled Action is not dispatchable, the surface follows the plugin, so the route re-checks the live enabled state on every dispatch rather than trusting that the button was projected), runs it against the open node, and answers an `action.applied` envelope (`{ value: { actionId, nodePath, report }, elapsedMs }`). `.sm`-writing actions still pass through the write-consent gate (see [`architecture.md`](./architecture.md) §Annotation system → Write consent).
 
 **Reserved fields** (no effect yet, declared so the contract is stable before the parametrized-action steps land):
 

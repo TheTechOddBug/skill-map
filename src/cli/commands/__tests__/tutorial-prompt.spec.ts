@@ -19,7 +19,8 @@
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
-import { classifyAnswer, labelWithAka, listScaffoldTargets } from '../tutorial.js';
+import { listScaffoldTargets } from '../../../core/agent-skill/targets.js';
+import { classifyAnswer, labelWithAka } from '../tutorial.js';
 import { TUTORIAL_TEXTS } from '../../i18n/tutorial.texts.js';
 
 describe('sm tutorial destination catalog', () => {

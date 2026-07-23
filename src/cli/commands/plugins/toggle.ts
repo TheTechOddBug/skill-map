@@ -36,7 +36,11 @@
 import { Command, Option } from 'clipanion';
 
 import { writeConfigValue } from '../../../core/config/helper.js';
+import { cancelQueuedJobsForKeys } from '../../../core/jobs/cancel-disabled.js';
+import { appendOperation } from '../../../core/operations-log.js';
 import { isPluginLocked } from '../../../kernel/config/locked-plugins.js';
+import { generateRunId } from '../../../kernel/jobs/index.js';
+import { pushJobEvent } from '../../util/job-event-push.js';
 import { qualifiedExtensionId } from '../../../kernel/registry.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
@@ -46,17 +50,29 @@ import { buildScanExtensionSet } from '../../telemetry/usage-collector.js';
 import type { IAnsi } from '../../util/ansi.js';
 import { confirm } from '../../util/confirm.js';
 import { resolveDbPath } from '../../util/db-path.js';
+import { assertNoDriftForWrite } from '../../../core/sqlite/db-version-runner.js';
 import { ExitCode } from '../../util/exit-codes.js';
 import { defaultRuntimeContext } from '../../util/runtime-context.js';
 import { SmCommand } from '../../util/sm-command.js';
 import { withSqlite } from '../../util/with-sqlite.js';
 import {
+  buildResolver,
   loadAll,
   pluginCatalogue,
   parseQualifiedExtensionId,
   renderQualifiedIdError,
   type IPluginCatalogueEntry,
 } from './shared.js';
+import {
+  buildPairEnabledProbe,
+  collectPairEdges,
+  expandPairToggle,
+  pairEdgeSourcesFromBuiltIns,
+  pairEdgeSourcesFromDiscovered,
+  toEnableConfigKey,
+} from '../../../core/plugins/pair-toggle.js';
+import { builtInPlugins } from '../../../plugins/built-ins.js';
+import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
 
 interface IResolvedTarget {
   /** Origin of the resolution, used by the macro-prompt path. */
@@ -85,6 +101,15 @@ abstract class TogglePluginsBase extends SmCommand {
   ids = Option.Rest({ name: 'ids' });
 
   protected async toggle(enabled: boolean): Promise<number> {
+    // Write verb: `disable` purges `scan_contributions` rows and the
+    // pair must behave atomically and symmetrically, so BOTH toggles
+    // refuse a drifted DB up front (spec/cli-contract.md §Schema-drift
+    // rebuild); a half-applied toggle (settings written, purge refused)
+    // would leave inconsistent state. No-ops when the DB does not exist
+    // yet (fresh project: both drift axes read `no-meta`).
+    const toggleCtx = defaultRuntimeContext();
+    assertNoDriftForWrite(resolveDbPath({ db: undefined, cwd: toggleCtx.cwd }));
+
     const verb = enabled ? 'enable' : 'disable';
     const stderrAnsi = this.ansiFor('stderr');
 
@@ -109,7 +134,12 @@ abstract class TogglePluginsBase extends SmCommand {
     if (typeof lockError === 'number') return lockError;
     targets = lockError;
 
-    const keys = expandToKeys(targets);
+    // Pair toggle (spec/plugin-author-guide.md §Paired extensions):
+    // expand the requested keys over the Modelo B edges AFTER the macro
+    // confirm (companions never re-prompt) and re-apply the lock filter
+    // to the additions (silently, bulk posture: a companion is never
+    // the user's single intended target).
+    const keys = await this.#expandPairs(expandToKeys(targets), enabled, plugins);
     await this.#persistKeys(keys, enabled);
     // Usage analytics (opt-in, default OFF; no-op unless active): record which
     // plugins were enabled / disabled. Built-in qualified ids pass through,
@@ -285,14 +315,59 @@ abstract class TogglePluginsBase extends SmCommand {
   }
 
   /**
+   * Pair toggle (spec/plugin-author-guide.md §Paired extensions): expand
+   * the requested keys over the Modelo B `analyzerIds` edges. Enable is
+   * symmetric and eager; disable is reference-counted (a companion
+   * survives while another still-enabled extension keeps its edge
+   * alive). Locked companions are dropped silently (bulk lock posture;
+   * a companion is never the user's single intended target). Kept
+   * companions are reported as informational lines, never a prompt (the
+   * macro confirm already ran).
+   */
+  async #expandPairs(
+    requestedKeys: string[],
+    enabled: boolean,
+    discovered: IDiscoveredPlugin[],
+  ): Promise<string[]> {
+    const sources = [
+      ...pairEdgeSourcesFromBuiltIns(builtInPlugins),
+      ...pairEdgeSourcesFromDiscovered(discovered),
+    ];
+    const { added } = expandPairToggle({
+      requestedKeys,
+      enabled,
+      edges: collectPairEdges(sources),
+      isCurrentlyEnabled: buildPairEnabledProbe(sources, await buildResolver()),
+    });
+    const kept = added.filter((a) => !isPluginLocked(a.key));
+    if (kept.length === 0) return requestedKeys;
+    this.printer!.info(
+      tx(PLUGINS_TEXTS.pairToggleHeader, {
+        count: String(kept.length),
+        verbPast: enabled ? 'enabled' : 'disabled',
+      }),
+    );
+    for (const a of kept) {
+      this.printer!.info(
+        tx(PLUGINS_TEXTS.pairToggleRow, {
+          id: sanitizeForTerminal(a.key),
+          via: sanitizeForTerminal(a.via),
+        }),
+      );
+    }
+    return [...requestedKeys, ...kept.map((a) => a.key)];
+  }
+
+  /**
    * Persist the per-extension `enabled` toggle for every qualified id in
    * the config layers (`plugins.<plugin>.extensions.<ext>.enabled`),
    * targeting `settings.json` by default or `settings.local.json` with
    * `--local`. On disable, also purge the plugin's `scan_contributions`
-   * rows immediately (matches the BFF route, see
-   * `server/routes/plugins.ts:applyChangeToAdapter`). Every key is
-   * `<plugin>/<ext>` shape so both the config dot-path and the
-   * contribution purge split into `(pluginId, extensionId)` cleanly.
+   * rows immediately AND cancel each key's `queued` jobs (the disable
+   * cascade, `spec/job-lifecycle.md` §Cancellation; matches the BFF
+   * route). Every key is `<plugin>/<ext>` shape so both the config
+   * dot-path and the contribution purge split into
+   * `(pluginId, extensionId)` cleanly.
    */
   async #persistKeys(keys: string[], enabled: boolean): Promise<void> {
     const ctx = defaultRuntimeContext();
@@ -301,12 +376,39 @@ abstract class TogglePluginsBase extends SmCommand {
       writeConfigValue(toEnableConfigKey(id), enabled, { target, cwd: ctx.cwd });
     }
     // On disable, purge persisted contributions so the UI stops
-    // rendering the plugin's chips before the next scan. Open the DB
-    // only for that (enable no longer writes to the DB).
+    // rendering the plugin's chips before the next scan, and cancel the
+    // keys' queued jobs. Open the DB only for that (enable no longer
+    // writes to the DB).
     if (enabled) return;
     const dbPath = resolveDbPath({ db: undefined, cwd: ctx.cwd });
-    await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-      for (const id of keys) await purgeContributionsFor(adapter, id);
+    const cancelledIds = await withSqlite(
+      { databasePath: dbPath, autoBackup: false },
+      async (adapter) => {
+        for (const id of keys) await purgeContributionsFor(adapter, id);
+        return cancelQueuedJobsForKeys(adapter, keys, Date.now());
+      },
+    );
+    if (cancelledIds.length === 0) return;
+    // Live-transition push per cancelled job (spec/job-events.md
+    // §job.cancelled): one queue-mode runId spans the cascade. After the
+    // transitions committed; cannot throw. One aggregated ops-log line
+    // (mirror of `sm jobs cancel --all`).
+    const runId = generateRunId('queue');
+    for (const id of cancelledIds) {
+      await pushJobEvent(ctx.cwd, {
+        type: 'job.cancelled',
+        timestamp: Date.now(),
+        runId,
+        jobId: id,
+        data: {},
+      });
+    }
+    appendOperation(ctx.cwd, {
+      op: 'jobs.cancel',
+      target: '*',
+      channel: 'cli',
+      outcome: 'cancelled',
+      detail: `extension-disabled cancelled=${cancelledIds.length}`,
     });
   }
 
@@ -363,18 +465,6 @@ async function purgeContributionsFor(
   await adapter.contributions.purgeByPlugin(id.slice(0, slash), id.slice(slash + 1));
 }
 
-/**
- * Map a toggle key to its config dot-path. Every key arriving here is the
- * qualified `<plugin>/<ext>` shape (bare ids were expanded to their
- * children upstream), so the path is always the per-extension
- * `plugins.<plugin>.extensions.<ext>.enabled`. A bare id (defensive
- * fall-through) maps to the plugin-level `plugins.<plugin>.enabled`.
- */
-function toEnableConfigKey(id: string): string {
-  const slash = id.indexOf('/');
-  if (slash < 0) return `plugins.${id}.enabled`;
-  return `plugins.${id.slice(0, slash)}.extensions.${id.slice(slash + 1)}.enabled`;
-}
 
 export class PluginsEnableCommand extends TogglePluginsBase {
   static override paths = [['plugins', 'enable']];
@@ -399,6 +489,11 @@ export class PluginsEnableCommand extends TogglePluginsBase {
       Batches are all-or-nothing: a single unknown id aborts before
       any write. Repeated ids are deduped. Locked extensions inside a
       batch are silently skipped.
+
+      Pair toggle: enabling a fixer action also enables the analyzer(s)
+      it references via precondition.analyzerIds, and enabling an
+      analyzer also enables the fixers referencing it. Companions are
+      reported as informational lines and follow the same --local target.
     `,
   });
 
@@ -429,6 +524,13 @@ export class PluginsDisableCommand extends TogglePluginsBase {
       Batches are all-or-nothing: a single unknown id aborts before
       any write. Repeated ids are deduped. Locked extensions inside a
       batch are silently skipped.
+
+      Pair toggle (reference-counted): disabling an analyzer also
+      disables each fixer referencing it via precondition.analyzerIds,
+      unless another still-enabled analyzer keeps that fixer alive; and
+      symmetrically when disabling a fixer. Companion disables run the
+      full disable side effects (contribution purge, queued-job
+      cancellation).
     `,
   });
 

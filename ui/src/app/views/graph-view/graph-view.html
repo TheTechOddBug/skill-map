@@ -55,7 +55,12 @@
            more nodes than the server render cap, so only the first slice
            is drawn on the map. Floats over the canvas, informational. -->
       <sm-branch-cap-banner />
-      <f-flow fDraggable [fCache]="perf.cache" (fLoaded)="onLoaded()">
+      <f-flow
+        fDraggable
+        [fCache]="perf.cache"
+        (fLoaded)="onLoaded()"
+        (fSelectionChange)="onFlowSelectionChange($event)"
+      >
         <!-- Native multi-select via Shift+drag rectangle. Foblex
              paints `.f-selected` on the host element of every node
              inside the rectangle; selections from `flow.select(...)`
@@ -83,10 +88,10 @@
               @let executing = isEdgeExecuting(edge);
               @let spawnId = spawnActiveIdFor(edge);
               <f-connection
-                [fOutputId]="edge.from + '-out'"
-                [fInputId]="edge.to + '-in'"
-                [fOutputSide]="outputSide()"
-                [fInputSide]="inputSide()"
+                [fSourceId]="edge.from"
+                [fTargetId]="edge.to"
+                [fSourceSide]="outputSide()"
+                [fTargetSide]="inputSide()"
                 [fType]="connectionType()"
                 [fBehavior]="connectionBehavior"
                 [fReassignDisabled]="true"
@@ -181,8 +186,8 @@
             @for (edge of spawnOverlay().edges; track edge.spawnId) {
               @let convo = convoCountForKey(edge.pairKey);
               <f-connection
-                [fOutputId]="edge.outputId"
-                [fInputId]="edge.inputId"
+                [fSourceId]="edge.sourceId"
+                [fTargetId]="edge.targetId"
                 [fType]="connectionType()"
                 [fBehavior]="connectionBehavior"
                 [fReassignDisabled]="true"
@@ -215,13 +220,13 @@
                edges. Visual-only (no click / conversation), so selection
                is disabled; the label is Foblex's own fConnectionContent,
                positioned along the path by the library (rule 3: no
-               hand-rolled transforms). Connector ids reuse the cards'
-               own -out / -in anchors. -->
+               hand-rolled transforms). Connector ids are the cards' own
+               unified fConnector ids (plain node paths). -->
           <ng-container ngProjectAs="[fConnections]">
             @for (edge of invocationEdges(); track edge.key) {
               <f-connection
-                [fOutputId]="edge.outputId"
-                [fInputId]="edge.inputId"
+                [fSourceId]="edge.sourceId"
+                [fTargetId]="edge.targetId"
                 [fType]="connectionType()"
                 [fBehavior]="connectionBehavior"
                 [fReassignDisabled]="true"
@@ -257,14 +262,11 @@
               <div
                 fNode
                 fDragHandle
-                fNodeInput
-                fNodeOutput
+                fConnector
+                fConnectorType="source-target"
                 [fNodeId]="node.id"
                 [fNodePosition]="node.position"
-                [fInputId]="node.id + '-in'"
-                [fInputConnectableSide]="inputSide()"
-                [fOutputId]="node.id + '-out'"
-                [fOutputConnectableSide]="outputSide()"
+                [fConnectorId]="node.id"
                 (fNodePositionChange)="onNodePositionChange(node.id, $event)"
                 class="sm-gnode-host"
                 data-canvas-click-shield
@@ -302,14 +304,11 @@
                 <div
                   fNode
                   fDragHandle
-                  fNodeInput
-                  fNodeOutput
+                  fConnector
+                  fConnectorType="source-target"
                   [fNodeId]="node.id"
                   [fNodePosition]="node.position"
-                  [fInputId]="node.id + '-in'"
-                  [fInputConnectableSide]="inputSide()"
-                  [fOutputId]="node.id + '-out'"
-                  [fOutputConnectableSide]="outputSide()"
+                  [fConnectorId]="node.id"
                   (fNodePositionChange)="onNodePositionChange(node.id, $event)"
                   class="sm-gnode-host"
                   data-canvas-click-shield
@@ -357,13 +356,13 @@
             @for (session of spawnOverlay().sessions; track session.id) {
               <div
                 fNode
-                fNodeOutput
+                fConnector
+                fConnectorType="source"
                 fDragHandle
                 [fNodeId]="session.id"
                 [fNodePosition]="session.position"
                 [fNodeSelectionDisabled]="true"
-                [fOutputId]="session.id + '-out'"
-                [fOutputConnectableSide]="outputSide()"
+                [fConnectorId]="session.id"
                 class="sm-session-host"
                 data-canvas-click-shield
                 [attr.data-testid]="'graph-session-node-' + session.owner"

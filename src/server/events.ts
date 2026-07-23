@@ -45,6 +45,8 @@
  *     spec v0.x).
  */
 
+import { generateRunId } from '../kernel/jobs/index.js';
+
 /**
  * The envelope shape every WebSocket text frame conforms to. Mirrors
  * `spec/job-events.md §Common envelope` exactly.
@@ -253,6 +255,74 @@ export function buildNodeActivityEvent(
     timestamp: Date.now(),
     jobId: null,
     data,
+  };
+}
+
+/**
+ * Payload of the `job.submitted` WS event, the CANONICAL catalog shape
+ * (`spec/job-events.md` §`job.submitted`; wired per
+ * `spec/cli-contract.md` §BFF endpoint `POST /api/nodes/:pathB64/jobs`,
+ * the WS-event row). Broadcast by the node-jobs route on a SUCCESSFUL
+ * submit only, so every connected client flips the matching launcher
+ * button to `queued`; the same envelope flavor arrives through the
+ * `POST /api/job-events` push leg when the submit happened on the CLI,
+ * so consumers see ONE `job.submitted` shape regardless of surface. The
+ * record-side `job.*` events drive the `running` -> done transitions.
+ * The `nonce` record credential has no field on this shape and never
+ * rides the WS (it travels only on `sm jobs claim --json`).
+ */
+export interface IJobSubmittedEventData {
+  /** Scope-relative path of the target node. */
+  nodePath: string;
+  /** The QUALIFIED extension id the submit resolved to. */
+  extensionId: string;
+  /**
+   * Stale queued sibling jobs this (fixer) submit cancelled in the same
+   * transaction (`spec/job-lifecycle.md` §Supersede); consumers treat
+   * the ids as cancelled without a separate `job.cancelled` per id.
+   * Empty on every non-superseding submit.
+   */
+  supersededIds: string[];
+}
+
+/**
+ * Build a `job.submitted` envelope (catalog shape,
+ * `spec/job-events.md` §`job.submitted`): unix-ms timestamp, a freshly
+ * minted `runId` in mode `queue` (a queue-lifecycle transition, not a
+ * processing run), the queued job's id on the common-envelope `jobId`
+ * slot, and `{ nodePath, extensionId, supersededIds }` as `data`.
+ */
+export function buildJobSubmittedEvent(
+  jobId: string,
+  data: IJobSubmittedEventData,
+): IWsEventEnvelope<IJobSubmittedEventData> {
+  return {
+    type: 'job.submitted',
+    timestamp: Date.now(),
+    runId: generateRunId('queue'),
+    jobId,
+    data,
+  };
+}
+
+/**
+ * Build a `job.cancelled` envelope (catalog shape, `spec/job-events.md`
+ * §`job.cancelled`): unix-ms timestamp, a freshly minted `runId` in
+ * mode `queue` (a queue-lifecycle transition), the cancelled job's id
+ * on the common-envelope `jobId` slot, and EMPTY `data` by catalog (the
+ * envelope's `jobId` identifies the job). Broadcast by the cancel route
+ * (`POST /api/jobs/:jobId/cancel`) on a successful transition only, the
+ * SAME envelope flavor `sm jobs cancel` delivers through the
+ * `POST /api/job-events` push leg, so consumers see ONE `job.cancelled`
+ * shape regardless of which surface cancelled.
+ */
+export function buildJobCancelledEvent(jobId: string): IWsEventEnvelope<Record<string, never>> {
+  return {
+    type: 'job.cancelled',
+    timestamp: Date.now(),
+    runId: generateRunId('queue'),
+    jobId,
+    data: {},
   };
 }
 

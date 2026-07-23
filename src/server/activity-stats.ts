@@ -34,7 +34,7 @@ export const PAIR_CAP = 2048;
 export const STICKY_DEDUPE_CAP = 1024;
 
 /** Per-node recent-executions ring size (most recent first). */
-const RECENT_RING_SIZE = 20;
+export const RECENT_RING_SIZE = 15;
 
 /** Cap on the owner -> last-unit correlation memory (bounded, oldest-first eviction). */
 const LAST_UNIT_OWNER_CAP = 256;

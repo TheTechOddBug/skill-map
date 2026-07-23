@@ -98,6 +98,12 @@ export const nodeSetStabilityAction: IBuiltInManifest<IAction> = {
   kind: 'action',
   description:
     'Sets the lifecycle stage of the current node (writes `stability` to the sidecar).',
+  // Deliberate opt-in (user decision 2026-07-21): the action is stable,
+  // but it WRITES the sidecar, so it ships disabled by default via the
+  // orthogonal `defaultEnabled` axis instead of mislabeling it
+  // experimental. Enabling it lights the header's stability chip up
+  // (the chip degrades to a read-only tag while this is off).
+  defaultEnabled: false,
   mode: 'deterministic',
   // Declares the sidecar-write capability: `invoke()` returns a
   // `{ kind: 'sidecar' }` write, so the `allowSidecarWriters` policy can
@@ -133,6 +139,10 @@ function emitSetStabilityButton(ctx: IActionProjectionContext, node: Node): void
     actionId: 'core/node-set-stability',
     label: NODE_SET_STABILITY_TEXTS.setLabel,
     icon: 'pi-flag',
+    // Re-homed affordance declaration (spec/view-slots.md §Re-homed
+    // surfaces): this contribution IS the stability chip; the UI
+    // selects it by this field, never by id.
+    surface: 'stability',
     enabled: true,
     prompt: {
       inputType: 'enum-pick',

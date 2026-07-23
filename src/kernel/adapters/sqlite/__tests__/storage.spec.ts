@@ -239,8 +239,9 @@ describe('SqliteStorageAdapter', () => {
     await adapter.init();
     try {
       const base = {
-        actionId: 'sec-scanner',
-        actionVersion: '1.0.0',
+        extensionId: 'sec-scanner',
+        extensionVersion: '1.0.0',
+        extensionKind: 'action' as const,
         nodeId: 'agents/a.md',
         contentHash: 'a'.repeat(64),
         nonce: 'n1',

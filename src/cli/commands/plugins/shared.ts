@@ -183,7 +183,7 @@ function extensionRowFromBuiltIn(
     id: ext.id,
     kind: ext.kind,
     version: ext.version,
-    enabled: resolveEnabled(qualifiedExtensionId(plugin.id, ext.id), installedDefaultEnabled(ext.stability)),
+    enabled: resolveEnabled(qualifiedExtensionId(plugin.id, ext.id), installedDefaultEnabled(ext.stability, ext.defaultEnabled)),
     description: ext.description ?? '',
   };
   if (ext.stability !== undefined) row.stability = ext.stability;

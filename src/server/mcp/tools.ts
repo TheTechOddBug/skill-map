@@ -42,6 +42,7 @@ import {
 import type { IExportQuery } from '../../kernel/index.js';
 import type { IIssueListFilter, IIssueListResult } from '../../kernel/types/storage.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import { bffReadVersionCheck } from '../util/db-read-check.js';
 import { DEFAULT_LIMIT, MAX_LIMIT } from '../limits.js';
 import { readNodeBody } from '../node-body.js';
 import type { IMcpReadContext } from './context.js';
@@ -109,7 +110,7 @@ export async function queryGraph(
   const query = buildExportQuery(args);
 
   const loaded = await tryWithSqlite(
-    { databasePath: ctx.dbPath, autoBackup: false },
+    { databasePath: ctx.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
     async (adapter) => {
       const [scan, maxRenderNodes] = await Promise.all([
         adapter.scans.load(),
@@ -188,7 +189,7 @@ export interface IGetNodeResult {
  */
 export async function getNode(ctx: IMcpReadContext, args: IGetNodeArgs): Promise<IGetNodeResult> {
   const bundle = await tryWithSqlite(
-    { databasePath: ctx.dbPath, autoBackup: false },
+    { databasePath: ctx.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
     (adapter) => adapter.scans.findNode(args.path),
   );
   if (!bundle) {
@@ -255,7 +256,7 @@ export async function listIssues(
     limit: Math.min(Math.max(1, args.limit ?? DEFAULT_LIMIT), MAX_LIMIT),
   };
   const result = await tryWithSqlite(
-    { databasePath: ctx.dbPath, autoBackup: false },
+    { databasePath: ctx.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
     (adapter) => adapter.issues.list(filter),
   );
   return result ?? { items: [], total: 0 };
@@ -307,7 +308,7 @@ export async function getBranch(
 ): Promise<IGetBranchResult> {
   const prefixes = args.path.filter((p) => p.length > 0);
   const loaded = await tryWithSqlite(
-    { databasePath: ctx.dbPath, autoBackup: false },
+    { databasePath: ctx.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
     async (adapter) => {
       const maxRenderNodes = await adapter.scans.effectiveMaxRenderNodes();
       const cap =

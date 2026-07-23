@@ -5,11 +5,11 @@
  * Actions operate on one or more nodes in one of two execution modes:
  *
  *   - `deterministic` (default), code runs in-process; the action computes
- *     the report synchronously and returns it. No job file, no runner.
+ *     the report synchronously and returns it. No job, no handover.
  *   - `probabilistic`, the kernel renders `<action-dir>/prompt.md` + preamble
- *     into a job file; a runner executes it via `RunnerPort` against an
- *     LLM; `sm record` closes the job and validates the report against
- *     `<action-dir>/report.schema.json`.
+ *     into a queued job; an external agent claims it (`sm jobs claim`),
+ *     runs it against an LLM, and `sm record` closes the job by
+ *     validating the report against `<action-dir>/report.schema.json`.
  *
  * **Structure-as-truth file conventions**: every Action carries
  * `<action-dir>/report.schema.json` (the JSON Schema for the report, MUST
@@ -19,12 +19,22 @@
  * The `reportSchemaRef` / `promptTemplateRef` manifest fields were retired
  * with the same refactor.
  *
+ * **Built-in inlined siblings**: an on-disk plugin has a source directory
+ * at runtime, so the kernel reads `prompt.md` / `report.schema.json` off
+ * disk. A BUILT-IN Action bundles into `src/plugins/built-ins.ts` as a plain
+ * manifest object with no source directory, so the built-ins codegen
+ * (`scripts/generate-built-ins.js`) reads those sibling files at build time
+ * and inlines their content onto the manifest as `promptTemplate` (the
+ * `prompt.md` text) and `reportSchema` (the parsed `report.schema.json`).
+ * These two fields are the built-in equivalent of the on-disk files; they
+ * are absent on on-disk plugins.
+ *
  * **`prob*` prefix convention**: manifest fields that only apply when
  * `mode=probabilistic` start with `prob`. Today only
  * `probExpectedDurationSeconds` follows this convention.
  *
  * **Deferred runtime invocation**: the dispatcher (`Action.invoke(input, ctx)`
- * for deterministic; the `RunnerPort` + `sm record` round-trip for
+ * for deterministic; the `sm jobs claim` + `sm record` handover for
  * probabilistic) lands fully with the job subsystem (Decision #114 in
  * `ROADMAP.md`). The kernel today still validates manifests and surfaces
  * the precondition gating to the UI; the runtime entry point stays
@@ -41,6 +51,20 @@ export type TActionWrite =
       path: string;
       changes: Record<string, unknown>;
     };
+
+/**
+ * The IO capabilities an Action manifest may declare via `IAction.io`
+ * (mirrors `spec/schemas/extensions/action.schema.json#/properties/io`).
+ * Today the union has a single member (`'network'`): `invoke()` is pure
+ * by contract, and an Action that MUST reach the network (the
+ * provenance verifier `github/enrichment`) declares it here, which
+ * (a) relaxes the purity rule for exactly that capability, (b) injects
+ * `ctx.fetch` into its invocation context, and (c) subjects execution
+ * to the committed project policy `allowNetworkActions` (default
+ * `false`). Declared-network Actions execute only via `sm refresh`,
+ * never inside `sm scan` and never as queued jobs.
+ */
+export type TActionIoKind = 'network';
 
 /**
  * The discriminant kinds an Action may emit through `IActionResult.writes`.
@@ -65,6 +89,17 @@ export interface IActionContext {
    * settings are declared on the manifest.
    */
   settings: Record<string, unknown>;
+  /**
+   * Injected network entry point, present ONLY when the Action's
+   * manifest declares `io: ['network']` (the single sanctioned
+   * carve-out from the extension-purity rule, see
+   * `spec/architecture.md` §Extension purity). Implementations MUST
+   * route every remote call through it and never touch a global
+   * `fetch`: the injection is what lets the dispatcher (`sm refresh`)
+   * enforce the `allowNetworkActions` policy and lets tests substitute
+   * a fake transport. Absent on every other Action's context.
+   */
+  fetch?: typeof globalThis.fetch;
 }
 
 /**
@@ -120,6 +155,18 @@ export interface IActionPrecondition {
    * do NOT block load.
    */
   analyzerIds?: string[];
+  /**
+   * Frontmatter-gap gate: the action applies ONLY to nodes whose
+   * frontmatter is missing at least one of the listed fields (no
+   * frontmatter block, absent field, or empty-string value; a
+   * non-string value counts as present). Evaluated by the same shared
+   * matcher as `kind` / `provider` (`nodeMatchesPrecondition`), so it
+   * gates the BFF launcher classification and the `--all` fan-out
+   * alike. E.g. `core/ai-frontmatter-action` declares
+   * `['name', 'description']` so its standalone launcher renders only
+   * while the file is missing one of them.
+   */
+  frontmatterMissing?: string[];
 }
 
 export interface IAction extends IExtensionBase {
@@ -131,10 +178,10 @@ export interface IAction extends IExtensionBase {
    */
   mode?: TExecutionMode;
   /**
-   * Best-effort estimate of wall-clock duration in seconds when
-   * `mode=probabilistic`. Drives TTL
-   * (`ttl = max(probExpectedDurationSeconds × graceMultiplier,
-   * minimumTtlSeconds)`). Required by the schema's conditional for
+   * Best-effort ADVISORY estimate of wall-clock duration in seconds when
+   * `mode=probabilistic`. Does NOT arm or compute expiry (Decision #139:
+   * TTL is opt-in operator policy); it feeds the `jobs-overdue` doctor
+   * check and display surfaces. Required by the schema's conditional for
    * probabilistic Actions; ignored otherwise. Renamed from
    * `expectedDurationSeconds` with the `prob*` prefix convention.
    */
@@ -157,16 +204,48 @@ export interface IAction extends IExtensionBase {
    */
   precondition?: IActionPrecondition;
   /**
+   * Inlined prompt template for a BUILT-IN probabilistic Action. Populated
+   * by the built-ins codegen (`scripts/generate-built-ins.js`) from the
+   * Action's sibling `prompt.md` at build time; it is the built-in
+   * equivalent of the on-disk `prompt.md` a user plugin resolves from its
+   * source directory. Absent on on-disk plugins (which read `prompt.md`
+   * from disk) and on deterministic Actions (which ship no prompt).
+   */
+  promptTemplate?: string;
+  /**
+   * Inlined report schema for a BUILT-IN probabilistic Action. Populated by
+   * the built-ins codegen from the Action's sibling `report.schema.json`
+   * (parsed to an object at build time); the built-in equivalent of the
+   * on-disk `report.schema.json` a user plugin resolves from its source
+   * directory. Absent on on-disk plugins.
+   */
+  reportSchema?: Record<string, unknown>;
+  /**
+   * Declared IO capability (mirrors `TActionIoKind`). Absent = fully
+   * pure `invoke()`. `['network']` = the Action's `invoke()` reaches
+   * the network through the injected `ctx.fetch` (never a global) and
+   * is refused at execution while the committed project policy
+   * `allowNetworkActions` (default `false`) is off. The manifest
+   * declaration is what dispatchers gate on WITHOUT invoking the
+   * action, the same posture as `writes`.
+   */
+  io?: TActionIoKind[];
+  /**
    * Deterministic invocation entry point. Optional on the runtime
    * contract until the job subsystem ships; Actions that ship for the
    * future probabilistic runner / record path leave it absent.
-   * Implementations MUST stay pure (no IO inside `invoke()`); the
-   * kernel materialises any returned `writes` after the call.
+   * Implementations MUST stay pure (no IO inside `invoke()`) unless the
+   * manifest declares the matching `io` capability (today only
+   * `'network'`, routed through the injected `ctx.fetch`); the kernel
+   * materialises any returned `writes` after the call. The return MAY
+   * be a Promise: a declared-network Action is inherently async, so
+   * every dispatcher `await`s the result (a plain value awaits to
+   * itself, sync Actions stay unchanged).
    */
   invoke?: <TInput, TReport>(
     input: TInput,
     ctx: IActionContext,
-  ) => IActionResult<TReport>;
+  ) => IActionResult<TReport> | Promise<IActionResult<TReport>>;
   /**
    * Optional scan-time self-projection. When present, the orchestrator
    * calls it during the contribution phase (right after the analyzer

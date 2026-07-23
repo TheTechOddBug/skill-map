@@ -20,6 +20,7 @@ import { makeEvent, makeHookDispatcher } from '../kernel/extensions/hook-dispatc
 import { configureLogger } from '../kernel/util/logger.js';
 import { tx } from '../kernel/util/tx.js';
 import { builtIns } from '../plugins/built-ins.js';
+import { builtInEnabledResolverFor } from '../core/runtime/built-in-enabled.js';
 import { ENTRY_TEXTS } from './i18n/entry.texts.js';
 import {
   Logger,
@@ -48,6 +49,9 @@ import {
 } from './telemetry/sentry-init.js';
 import { captureCliInvocation, flushUsageCli, initUsageCli } from './telemetry/posthog-init.js';
 import { extractFlagNames } from './telemetry/usage-collector.js';
+import { ActionsListCommand, ActionsShowCommand } from './commands/actions.js';
+import { AGENT_COMMANDS } from './commands/agent.js';
+import { DoctorCommand } from './commands/doctor.js';
 import { BUMP_COMMANDS } from './commands/bump.js';
 import { CheckCommand } from './commands/check.js';
 import { CONFIG_COMMANDS } from './commands/config.js';
@@ -55,6 +59,16 @@ import { CONFORMANCE_COMMANDS } from './commands/conformance.js';
 import { DB_COMMANDS } from './commands/db.js';
 import { ExampleCommand } from './commands/example.js';
 import { ExportCommand } from './commands/export.js';
+import {
+  FindingsClearCommand,
+  FindingsCommand,
+  FindingsDismissCommand,
+  FindingsPruneCommand,
+  FindingsReopenCommand,
+  FindingsResolveCommand,
+  FindingsSuppressionsCommand,
+  FindingsUndismissCommand,
+} from './commands/findings.js';
 import { GraphCommand } from './commands/graph.js';
 import { HelpCommand, RootHelpCommand, registeredVerbPaths, routeHelpArgs } from './commands/help.js';
 import { ACTIVITY_COMMANDS } from './commands/activity.js';
@@ -62,7 +76,9 @@ import { HOOKS_COMMANDS } from './commands/hooks.js';
 import { InitCommand } from './commands/init.js';
 import { HistoryCommand, HistoryStatsCommand } from './commands/history.js';
 import { JobPruneCommand } from './commands/jobs.js';
+import { JOB_QUEUE_COMMANDS } from './commands/job-queue.js';
 import { ListCommand } from './commands/list.js';
+import { RecordCommand } from './commands/record.js';
 import { ORPHANS_COMMANDS } from './commands/orphans.js';
 import { PLUGIN_COMMANDS } from './commands/plugins.js';
 import { REFRESH_COMMANDS } from './commands/refresh.js';
@@ -72,7 +88,6 @@ import { ScanCompareCommand } from './commands/scan-compare.js';
 import { ServeCommand } from './commands/serve.js';
 import { ShowCommand } from './commands/show.js';
 import { SIDECAR_COMMANDS } from './commands/sidecar.js';
-import { STUB_COMMANDS } from './commands/stubs.js';
 import { TutorialCommand } from './commands/tutorial.js';
 import { VersionCommand } from './commands/version.js';
 import { WatchCommand } from './commands/watch.js';
@@ -103,11 +118,25 @@ cli.register(VersionCommand);
 cli.register(ListCommand);
 cli.register(ShowCommand);
 cli.register(CheckCommand);
+cli.register(FindingsCommand);
+cli.register(FindingsPruneCommand);
+cli.register(FindingsClearCommand);
+cli.register(FindingsResolveCommand);
+cli.register(FindingsReopenCommand);
+cli.register(FindingsDismissCommand);
+cli.register(FindingsSuppressionsCommand);
+cli.register(FindingsUndismissCommand);
 cli.register(GraphCommand);
 cli.register(ExportCommand);
 cli.register(HistoryCommand);
 cli.register(HistoryStatsCommand);
 cli.register(JobPruneCommand);
+cli.register(RecordCommand);
+cli.register(ActionsListCommand);
+cli.register(ActionsShowCommand);
+cli.register(DoctorCommand);
+for (const cmd of JOB_QUEUE_COMMANDS) cli.register(cmd);
+for (const cmd of AGENT_COMMANDS) cli.register(cmd);
 for (const cmd of CONFIG_COMMANDS) cli.register(cmd);
 for (const cmd of CONFORMANCE_COMMANDS) cli.register(cmd);
 for (const cmd of DB_COMMANDS) cli.register(cmd);
@@ -118,7 +147,6 @@ for (const cmd of BUMP_COMMANDS) cli.register(cmd);
 for (const cmd of SIDECAR_COMMANDS) cli.register(cmd);
 for (const cmd of HOOKS_COMMANDS) cli.register(cmd);
 for (const cmd of ACTIVITY_COMMANDS) cli.register(cmd);
-for (const cmd of STUB_COMMANDS) cli.register(cmd);
 
 const { value: logLevelFlag, rest: args } = extractLogLevelFlag(process.argv.slice(2));
 const logLevel = resolveLogLevel({
@@ -162,15 +190,19 @@ if (telemetryVerb !== 'serve') {
 // entry (the kernel only dispatches the eight pipeline-driven
 // triggers from inside `runScan`). Built-in hooks are loaded
 // statically from the bundle so the boot path stays free of
-// `loadPluginRuntime` (FS walk + AJV compile per call). User-plugin
-// hooks that subscribe to `boot` / `shutdown` are loaded but do not
-// dispatch in this path today, see `spec/architecture.md` §Hook ·
-// curated trigger set for the limitation note. The dispatcher's
-// emitter is a throwaway InMemoryProgressEmitter, `extension.error`
-// events from a misbehaving hook surface in its buffer but the entry
-// never reads it back; the policy is "log, don't block."
+// `loadPluginRuntime` (FS walk + AJV compile per call), but they are
+// STILL filtered against the project's layered config (one cheap
+// settings read, no plugin discovery): a disabled hook must not fire
+// on any trigger (2026-07-21 sweep; spec §Hook · curated trigger set).
+// User-plugin hooks that subscribe to `boot` / `shutdown` are loaded
+// but do not dispatch in this path today, see the same spec section
+// for the limitation note. The dispatcher's emitter is a throwaway
+// InMemoryProgressEmitter, `extension.error` events from a misbehaving
+// hook surface in its buffer but the entry never reads it back; the
+// policy is "log, don't block."
+const bootHookEnabled = builtInEnabledResolverFor(process.cwd());
 const lifecycleDispatcher = makeHookDispatcher(
-  builtIns().hooks ?? [],
+  (builtIns().hooks ?? []).filter((hook) => bootHookEnabled(hook)),
   new InMemoryProgressEmitter(),
 );
 await lifecycleDispatcher.dispatch(

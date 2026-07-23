@@ -55,13 +55,15 @@ describe('config loader, defaults', () => {
     strictEqual(effective.tokenizer, 'cl100k_base');
     strictEqual(effective.scan.tokenize, true);
     strictEqual(effective.scan.maxFileSizeBytes, 1048576);
-    strictEqual(effective.jobs.minimumTtlSeconds, 60);
+    strictEqual(effective.jobs.ttlSeconds, undefined, 'no default TTL policy (opt-in, Decision #139)');
+    strictEqual(effective.jobs.claimWaitSeconds, 2, 'default poll cadence for a blocking claim --wait');
     strictEqual(effective.jobs.retention.completed, 2592000);
     strictEqual(effective.jobs.retention.failed, null);
 
     // Every key tracked back to defaults.
     strictEqual(sources.get('tokenizer'), 'defaults');
     strictEqual(sources.get('scan.tokenize'), 'defaults');
+    strictEqual(sources.get('jobs.claimWaitSeconds'), 'defaults');
     strictEqual(sources.get('jobs.retention.completed'), 'defaults');
     strictEqual(sources.get('jobs.retention.failed'), 'defaults');
   });
@@ -78,6 +80,16 @@ describe('config loader, layer precedence', () => {
     strictEqual(effective.tokenizer, 'o200k_base');
     strictEqual(sources.get('tokenizer'), 'project');
     strictEqual(sources.get('scan.tokenize'), 'defaults');
+  });
+
+  it('project jobs.claimWaitSeconds overrides the default poll cadence', () => {
+    const { cwd } = freshScope('claim-wait');
+    writeSettings(cwd, 'settings', { jobs: { claimWaitSeconds: 15 } });
+    const { effective, sources } = loadConfig({ cwd });
+    strictEqual(effective.jobs.claimWaitSeconds, 15, 'the operator default wins over the shipped 2');
+    strictEqual(sources.get('jobs.claimWaitSeconds'), 'project');
+    // Sibling defaults survive the partial jobs object (deep merge).
+    strictEqual(effective.jobs.retention.completed, 2592000);
   });
 
   it('project-local overrides project', () => {
@@ -129,6 +141,7 @@ describe('config loader, deep merge semantics', () => {
     const { effective } = loadConfig({ cwd });
     strictEqual(effective.jobs.retention.completed, 1000);
     strictEqual(effective.jobs.retention.failed, null);
+    strictEqual(effective.jobs.retention.cancelled, 2592000, 'cancelled default mirrors completed (30d)');
   });
 });
 

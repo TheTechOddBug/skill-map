@@ -28,11 +28,13 @@ import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import type { IAnsi } from '../util/ansi.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
+import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { confirm } from '../util/confirm.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { ORPHANS_TEXTS } from '../i18n/orphans.texts.js';
 import { SmCommand } from '../util/sm-command.js';
+import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { withSqlite } from '../util/with-sqlite.js';
 
 const ORPHAN_RULE_IDS = ['orphan', 'auto-rename-medium', 'auto-rename-ambiguous'] as const;
@@ -111,7 +113,11 @@ export class OrphansCommand extends SmCommand {
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
 
-    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
+    // Read verb (the listing; reconcile / undo-rename below stay on the
+    // write-side drift refusal): advise on drift, never refuse
+    // (spec/db-schema.md §Schema drift, read-side opens advise).
+    const versionCheck = buildReadVersionCheck(this.printer!, this.ansiFor('stderr'));
+    return withSqlite({ databasePath: dbPath, autoBackup: false, versionCheck }, async (adapter) => {
       const found = await findActiveOrphanIssues(adapter, (issue) => {
         if (analyzerFilter !== null) return issue.analyzerId === analyzerFilter;
         return true;
@@ -164,6 +170,10 @@ export class OrphansReconcileCommand extends SmCommand {
     const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
+    // Write verb: reconcile / undo-rename repoint `state_*` rows;
+    // refuse a drifted DB before any mutation
+    // (spec/cli-contract.md §Schema-drift rebuild).
+    assertNoDriftForWrite(dbPath);
 
     const stderrAnsi = this.ansiFor('stderr');
     const errGlyph = stderrAnsi.red('✕');
@@ -235,6 +245,7 @@ export class OrphansReconcileCommand extends SmCommand {
         jobs: summary.jobs,
         execs: summary.executions,
         summaries: summary.summaries,
+        findings: summary.findings,
         enrichments: summary.enrichments,
         kv: summary.pluginKvs,
         favorites: summary.nodeFavorites,
@@ -315,6 +326,10 @@ export class OrphansUndoRenameCommand extends SmCommand {
     const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
+    // Write verb: reconcile / undo-rename repoint `state_*` rows;
+    // refuse a drifted DB before any mutation
+    // (spec/cli-contract.md §Schema-drift rebuild).
+    assertNoDriftForWrite(dbPath);
 
     const stderrAnsi = this.ansiFor('stderr');
     const errGlyph = stderrAnsi.red('✕');
@@ -566,7 +581,9 @@ async function runWithOptionalRollback(
 }
 
 function summaryTotal(s: IMigrateNodeFksReport): number {
-  return s.jobs + s.executions + s.summaries + s.enrichments + s.pluginKvs + s.nodeFavorites;
+  return (
+    s.jobs + s.executions + s.summaries + s.findings + s.enrichments + s.pluginKvs + s.nodeFavorites
+  );
 }
 
 // --- renderers ------------------------------------------------------------

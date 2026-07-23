@@ -106,6 +106,8 @@ type TButtonSeverity = 'info' | 'warn' | 'success' | 'danger' | undefined;
         [disabled]="!enabled() || inFlight()"
         [loading]="inFlight()"
         [pTooltip]="tooltip()"
+        tooltipPosition="left"
+        appendTo="body"
         (onClick)="run()"
         [attr.data-testid]="'action-' + actionId()"
       />

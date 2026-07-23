@@ -2,6 +2,22 @@
 
 Verbatim copies of every example under [`libs/f-examples/`](https://github.com/Foblex/f-flow/tree/main/libs/f-examples) in the upstream repo, organized by category. Each file lists every example in its category with the full `example.html`, `example.ts`, and `example.scss` from the source of truth.
 
+> **v19 note**: these examples predate v19's unified connector model (the installed version is 19.1.2; the copies are v18-era). The legacy directives and inputs they use still work, deprecated but functional, so the examples remain valid ground truth for structure and interaction shape. When porting a shape into skill-map code, map the names:
+>
+> | Legacy (as seen in the examples) | v19 |
+> |---|---|
+> | `fNodeInput` + `fInputId` | `[fConnector]` `fConnectorType="target"` + `fConnectorId` |
+> | `fNodeOutput` + `fOutputId` | `[fConnector]` `fConnectorType="source"` + `fConnectorId` |
+> | `fNodeInput` + `fNodeOutput` on one element | `[fConnector]` `fConnectorType="source-target"` (one id) |
+> | `fNodeOutlet` + `fOutletId` | `[fConnector]` `fConnectorType="outlet"` + `fConnectorId` |
+> | `<f-connection [fOutputId] [fInputId]>` | `<f-connection [fSourceId] [fTargetId]>` |
+> | `fOutputSide` / `fInputSide` on connections | `fSourceSide` / `fTargetSide` |
+> | `fOutputConnectableSide` / `fInputConnectableSide` | `fConnectorConnectableSide` |
+> | `fCanBeConnectedInputs` | `fCanBeConnectedTo` |
+> | `fOutputMultiple` (default false) | `fConnectorMultiple` (default TRUE, watch this flip) |
+>
+> Connector ids also moved to ONE flow-wide registry, so the `-in` / `-out` id suffixes the examples use are only needed when a node keeps two separate connector elements; skill-map uses plain node ids with `source-target` (see `SKILL.md` rule 1).
+
 **Use these as the ground truth.** When our code disagrees with an example, the example wins — the Foblex team ships these to demonstrate the canonical shape. When something in our graph view misbehaves and the console is clean, grep the relevant category file before inventing a workaround.
 
 ## Category files
@@ -86,7 +102,7 @@ This is the **per-feature** alternative to the global `default.scss` import docu
 
 Available mixins (as seen across the examples): `theme-tokens`, `flow`, `node`, `group`, `connector`, `connection`, `connection-markers`, `drag-handle`, `resize-handle`, `rotate-handle`, `minimap`, `selection-area`, `background`, `grid-system`.
 
-### 4. Per-connector side overrides (`fOutputConnectableSide` / `fInputConnectableSide`)
+### 4. Per-connector side overrides (`fOutputConnectableSide` / `fInputConnectableSide`, legacy names; v19: `fConnectorConnectableSide`)
 
 The `fConnectableSide` on `<f-connection>` sets the side at the connection level. But the connector elements themselves can override it, forcing the edge to exit/enter a specific side of the connector:
 

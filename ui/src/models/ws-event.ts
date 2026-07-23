@@ -211,6 +211,40 @@ export function isSidecarBumpedEvent(value: unknown): value is IWsSidecarBumpedE
 }
 
 /**
+ * `job.submitted` event payload, the canonical queue-lifecycle envelope of
+ * `spec/job-events.md` §job.submitted: broadcast by
+ * `POST /api/nodes/:pathB64/jobs` AND relayed verbatim from the CLI push
+ * leg (`POST /api/job-events`), so every connected client flips the
+ * matching launcher button to `queued` regardless of which surface
+ * submitted. The job id rides the ENVELOPE (`jobId`), not `data`. The
+ * record credential (nonce) NEVER rides this event.
+ */
+export interface IWsJobSubmittedData {
+  nodePath: string;
+  /** Qualified extension id the submit resolved to. */
+  extensionId: string;
+  /** Stale queued sibling ids a fixer submit superseded (usually empty). */
+  supersededIds: string[];
+}
+
+export type IWsJobSubmittedEvent = IWsEvent<IWsJobSubmittedData> & {
+  type: 'job.submitted';
+  jobId: string;
+};
+
+export function isJobSubmittedEvent(value: unknown): value is IWsJobSubmittedEvent {
+  if (!isWsEvent(value)) return false;
+  if (value.type !== 'job.submitted') return false;
+  if (typeof value.jobId !== 'string' || value.jobId.length === 0) return false;
+  const data = value.data as Record<string, unknown> | undefined;
+  if (typeof data !== 'object' || data === null) return false;
+  if (typeof data['nodePath'] !== 'string' || data['nodePath'].length === 0) return false;
+  if (typeof data['extensionId'] !== 'string' || data['extensionId'].length === 0) return false;
+  if (!Array.isArray(data['supersededIds'])) return false;
+  return true;
+}
+
+/**
  * `node.activity` event payload, broadcast by `POST /api/activity` (live
  * node activity, `spec/provider-activity.md` §WS event). One envelope per
  * provider-runtime signal that RESOLVED to a scanned node; the payload is

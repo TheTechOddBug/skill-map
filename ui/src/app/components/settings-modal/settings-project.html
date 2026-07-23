@@ -17,13 +17,16 @@
   </p>
 
   <!-- Row order is the section's UX contract: Active lens, Live
-       updates, the hook installer, then the real-time toggle that
-       depends on both of the rows above it. The hook child receives
-       the lens child's resolved lens (template reference) because its
-       install status is keyed to the ACTIVE lens. -->
+       updates, the two install affordances (real-time hook, then its
+       sibling the agent drain skill), then the real-time toggle that
+       depends on the live-updates and hook rows above it. The hook and
+       skill children receive the lens child's resolved lens (template
+       reference) because their install status is keyed to the ACTIVE
+       lens. -->
   <sm-settings-project-lens #lensChild [visible]="visible()" />
   <sm-settings-project-live [visible]="visible()" />
   <sm-settings-project-hook [visible]="visible()" [lensId]="lensChild.activeLensId()" />
+  <sm-settings-project-skill [visible]="visible()" [lensId]="lensChild.activeLensId()" />
   <sm-settings-project-realtime [visible]="visible()" />
   <sm-settings-project-capture [visible]="visible()" />
   <sm-settings-project-preferences [visible]="visible()" />

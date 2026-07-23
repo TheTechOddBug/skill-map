@@ -279,6 +279,44 @@ export const SETTINGS_TEXTS = {
     },
 
     /**
+     * Agent process-skill install row (the second install affordance,
+     * sibling of the real-time hook above; `spec/cli-contract.md`
+     * §HTTP API, `/api/agent/*`). Three button states driven by the
+     * probe: Install (absent), Update (installed but the CLI ships a
+     * newer copy), up-to-date indicator (installed and current). Both
+     * mutations go through the server-enforced 412 consent gate,
+     * surfaced by the confirm dialog copy below (the skill file path
+     * is interpolated by the component).
+     */
+    agentSkill: {
+      label: 'Agent process skill',
+      description:
+        'Teach your agent to work through the job queue: installs the ' +
+        'sm-process-jobs skill in this project.',
+      installLabel: 'Install skill',
+      updateLabel: 'Update skill',
+      upToDateLabel: 'Skill up to date',
+      uninstallLabel: 'Uninstall skill',
+      installConfirmHeader: 'Install the agent process skill?',
+      installConfirmIntroPrefix: 'skill-map will write',
+      installConfirmIntroSuffix: 'in this project. Nothing else is touched.',
+      updateConfirmHeader: 'Update the agent process skill?',
+      updateConfirmIntroPrefix: 'skill-map will overwrite',
+      updateConfirmIntroSuffix: 'with the current version. Nothing else is touched.',
+      uninstallConfirmHeader: 'Uninstall the agent process skill?',
+      uninstallConfirmIntroPrefix: 'skill-map will remove',
+      uninstallConfirmIntroSuffix: 'from this project. Nothing else is touched.',
+      confirmAccept: 'Proceed',
+      confirmReject: 'Cancel',
+      /** Post-mutation announcements, keyed off the response envelope. */
+      installed: 'Agent process skill installed.',
+      updated: 'Agent process skill updated to the current version.',
+      alreadyUpToDate: 'The agent process skill is already up to date.',
+      uninstalled: 'Agent process skill uninstalled.',
+      nothingToUninstall: 'The agent process skill was not installed; nothing to remove.',
+    },
+
+    /**
      * Conversation-capture gate (`spec/provider-activity.md`
      * §Conversation capture). Opt-in, default OFF; the server enforces
      * a 412 consent gate, so the toggle settles consent in its own
@@ -337,6 +375,23 @@ export const SETTINGS_TEXTS = {
   /** Em dash here is the missing-value glyph, not narrative punctuation: kept verbatim. */
   aboutUnknown: '-',
   aboutErrorPrefix: 'Could not read health endpoint:',
+
+  /**
+   * Settings-hierarchy viewer (user shape 2026-07-21): a button at the
+   * end of the General section (same line as the storage hint) opening
+   * a nested dialog with the effective settings columnized, one row per
+   * leaf key plus the layer that won it.
+   */
+  settingsResolutionButton: 'Settings resolution',
+  settingsResolutionTooltip: 'Show every effective setting and which config layer set it.',
+  settingsResolution: {
+    header: 'Settings resolution',
+    keyColumn: 'Key',
+    valueColumn: 'Value',
+    layerColumn: 'Layer',
+    empty: 'No settings rows to show.',
+    errorPrefix: 'Could not read the settings resolution:',
+  },
   aboutLinksHeading: 'Links',
   aboutWebsiteLabel: 'Website',
   aboutGithubLabel: 'GitHub',

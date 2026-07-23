@@ -1,0 +1,6 @@
+{
+  "version": "1.0.0",
+  "description": "Test-only plugin shipping a probabilistic Action AND a probabilistic Analyzer under the SAME extension id (judge) to drive the submit-target ambiguity tests.",
+  "specCompat": ">=0.0.0",
+  "catalogCompat": "*"
+}

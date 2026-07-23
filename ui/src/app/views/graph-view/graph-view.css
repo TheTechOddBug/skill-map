@@ -307,12 +307,19 @@
    The ring outset (3px) puts the multi-select halo OUTSIDE the inner
    card frame so the two rings are visually distinguishable. */
 .sm-gnode-host.f-selected {
-  filter: drop-shadow(0 0 6px var(--p-primary-color-300));
+  filter: drop-shadow(0 0 6px var(--p-primary-300));
 }
 .sm-gnode-host.f-selected > .sm-gnode {
   box-shadow:
     0 0 0 3px var(--p-primary-color),
     var(--sm-shadow-card);
+}
+/* While the node executes, the multi-select halo yields to the live
+   treatment exactly like the single-focus ring (node-card.css,
+   `--selected.--executing`): the 3px outset ring competes with the
+   rotating halo behind the card. Selection state itself is untouched. */
+.sm-gnode-host.f-selected > .sm-gnode.sm-gnode--executing {
+  box-shadow: var(--sm-shadow-card);
 }
 
 /* Live-activity halo (spec/provider-activity.md): the rotating rainbow

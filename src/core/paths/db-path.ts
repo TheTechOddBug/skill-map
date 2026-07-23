@@ -105,9 +105,10 @@ export function defaultProjectDbPath(ctx: IRuntimeContext): string {
 }
 
 /**
- * Default project jobs directory (`<cwd>/.skill-map/jobs`). Used by the
- * `sm job prune` orphan-files pass and any other call site that needs
- * the project-scoped jobs spool.
+ * Default project jobs directory (`<cwd>/.skill-map/jobs`). Retained for
+ * call sites that still need the project-scoped jobs spool. Note: job
+ * CONTENT is DB-only (`state_job_contents`); `sm jobs prune` no longer
+ * walks this directory.
  */
 export function defaultProjectJobsDir(ctx: IRuntimeContext): string {
   return resolve(ctx.cwd, SKILL_MAP_DIR, JOBS_DIRNAME);
@@ -121,6 +122,19 @@ export function defaultProjectJobsDir(ctx: IRuntimeContext): string {
  */
 export function defaultProjectPluginsDir(ctx: IRuntimeContext): string {
   return resolve(ctx.cwd, SKILL_MAP_DIR, PLUGINS_DIRNAME);
+}
+
+/** The operations-log filename (`spec/cli-contract.md` §Operations log). */
+export const OPERATIONS_LOG_FILENAME = 'operations.log';
+
+/**
+ * Default project operations log (`<cwd>/.skill-map/operations.log`),
+ * the append-only JSONL every mutating verb writes one line to
+ * (`spec/cli-contract.md` §Operations log). Consumers go through
+ * `core/operations-log.ts`, never compose this themselves.
+ */
+export function defaultProjectOperationsLogPath(ctx: IRuntimeContext): string {
+  return resolve(ctx.cwd, SKILL_MAP_DIR, OPERATIONS_LOG_FILENAME);
 }
 
 /**

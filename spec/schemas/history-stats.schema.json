@@ -8,7 +8,7 @@
     "schemaVersion",
     "range",
     "totals",
-    "tokensPerAction",
+    "tokensPerExtension",
     "executionsPerPeriod",
     "topNodes",
     "errorRates",
@@ -57,20 +57,20 @@
         "durationMsTotal": { "type": "integer", "minimum": 0, "description": "Sum of every execution's `duration_ms`. NOT the command's wall-clock, see `elapsedMs`." }
       }
     },
-    "tokensPerAction": {
+    "tokensPerExtension": {
       "type": "array",
-      "description": "One row per distinct `(actionId, actionVersion)` pair in the window. Sorted by `tokensIn + tokensOut` descending.",
+      "description": "One row per distinct `(extensionId, extensionVersion)` pair in the window. Sorted by `tokensIn + tokensOut` descending.",
       "items": {
         "type": "object",
-        "required": ["actionId", "actionVersion", "executionsCount", "tokensIn", "tokensOut"],
+        "required": ["extensionId", "extensionVersion", "executionsCount", "tokensIn", "tokensOut"],
         "additionalProperties": false,
         "properties": {
-          "actionId":        { "type": "string" },
-          "actionVersion":   { "type": "string" },
+          "extensionId":        { "type": "string" },
+          "extensionVersion":   { "type": "string" },
           "executionsCount": { "type": "integer", "minimum": 0 },
           "tokensIn":        { "type": "integer", "minimum": 0 },
           "tokensOut":       { "type": "integer", "minimum": 0 },
-          "durationMsMean":   { "type": ["integer", "null"], "minimum": 0, "description": "Rounded mean duration over the action's executions. `null` when `executionsCount == 0`." },
+          "durationMsMean":   { "type": ["integer", "null"], "minimum": 0, "description": "Rounded mean duration over the extension's executions. `null` when `executionsCount == 0`." },
           "durationMsMedian": { "type": ["integer", "null"], "minimum": 0, "description": "Median duration. `null` when `executionsCount == 0`." }
         }
       }
@@ -117,7 +117,7 @@
     },
     "errorRates": {
       "type": "object",
-      "required": ["global", "perAction", "perFailureReason"],
+      "required": ["global", "perExtension", "perFailureReason"],
       "additionalProperties": false,
       "properties": {
         "global": {
@@ -126,14 +126,14 @@
           "maximum": 1,
           "description": "`failedCount / executionsCount` across the window. `0` when `executionsCount == 0`."
         },
-        "perAction": {
+        "perExtension": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["actionId", "rate", "executionsCount", "failedCount"],
+            "required": ["extensionId", "rate", "executionsCount", "failedCount"],
             "additionalProperties": false,
             "properties": {
-              "actionId":        { "type": "string" },
+              "extensionId":        { "type": "string" },
               "rate":            { "type": "number", "minimum": 0, "maximum": 1 },
               "executionsCount": { "type": "integer", "minimum": 0 },
               "failedCount":     { "type": "integer", "minimum": 0 }
@@ -149,7 +149,7 @@
             "timeout",
             "abandoned",
             "job-file-missing",
-            "user-cancelled"
+            "user-failed"
           ],
           "additionalProperties": false,
           "properties": {
@@ -158,7 +158,7 @@
             "timeout":          { "type": "integer", "minimum": 0 },
             "abandoned":        { "type": "integer", "minimum": 0 },
             "job-file-missing": { "type": "integer", "minimum": 0 },
-            "user-cancelled":   { "type": "integer", "minimum": 0 }
+            "user-failed":      { "type": "integer", "minimum": 0 }
           }
         }
       }

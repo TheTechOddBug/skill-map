@@ -46,14 +46,30 @@ import DEFAULTS_RAW from '../../config/defaults.json' with { type: 'json' };
 export interface IRetentionConfig {
   completed: number | null;
   failed: number | null;
+  cancelled: number | null;
 }
 
 export interface IJobsConfig {
-  ttlSeconds: number;
-  graceMultiplier: number;
-  minimumTtlSeconds: number;
-  perActionTtl: Record<string, number>;
-  perActionPriority: Record<string, number>;
+  /**
+   * Global opt-in TTL policy (seconds): when set, EVERY submitted job
+   * arms this expiry unless a higher-precedence source overrides it
+   * (`jobs.perExtensionTtl`, or the `--ttl` flag including the `--ttl 0`
+   * disarm). UNSET by default: jobs never expire (Decision #139). The
+   * retired `graceMultiplier` / `minimumTtlSeconds` keys died with the
+   * estimate-driven formula.
+   */
+  ttlSeconds?: number;
+  /**
+   * Default poll cadence (seconds) for a blocking `sm jobs claim --wait`:
+   * how often a resident worker re-reaps and re-claims while the queue is
+   * empty. Overridden by the `--interval` flag; absent both, the CLI
+   * default is 2 (also shipped in `defaults.json`). Typed optional so a
+   * hand-built config still falls back to that default.
+   */
+  claimWaitSeconds?: number;
+  /** Keys are qualified or bare ids of queued probabilistic extensions. */
+  perExtensionTtl: Record<string, number>;
+  perExtensionPriority: Record<string, number>;
   retention: IRetentionConfig;
 }
 
@@ -201,6 +217,19 @@ export interface IEffectiveConfig {
    * independently.
    */
   allowEditSmFiles: boolean;
+  /**
+   * **Project policy, team-shared** (committed in the `project` layer,
+   * NOT project-local). Default `false`. When `false`, every Action
+   * whose manifest declares `io: ['network']` (the built-in
+   * `github/enrichment`, plus any external action) is refused at
+   * execution time: `sm refresh` reports it skipped with a directed
+   * advisory naming this key, while the manifest still loads (visible
+   * in listings, never executed). Opt-in by design: a cloned repo must
+   * not be able to make skill-map fetch remote content without the
+   * operator's explicit consent. Mirrors the `allowSidecarWriters`
+   * posture (hard gate, travels with the repo).
+   */
+  allowNetworkActions: boolean;
   /**
    * **Project policy, team-shared** (committed in the `project` layer,
    * NOT project-local). Default `true`. When `false`, every extension

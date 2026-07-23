@@ -96,14 +96,8 @@ export function formatParseError(params: IFormatParseErrorParams): string {
   const subcommands = subcommandsUnder(firstToken, verbPaths);
   if (subcommands.length > 0) {
     const headline = tx(ENTRY_TEXTS.parseErrorIncompleteCommand, { name: firstToken });
-    const suggestion = tx(ENTRY_TEXTS.parseErrorSubcommandList, {
-      suggestions: formatSuggestionList(subcommands),
-    });
-    // The suggestion lists at most three subcommands; point at the
-    // namespace overview (`sm help plugins`) for the full set rather than
-    // the generic full-command-list footer.
     const footer = tx(ENTRY_TEXTS.parseErrorNamespaceHelpHint, { name: firstToken });
-    return renderError(headline, suggestion, footer);
+    return renderError(headline, formatSubcommandHint(subcommands), footer);
   }
 
   const candidates = closestVerbs(firstToken, verbPaths);
@@ -141,11 +135,32 @@ function formatVerbScopedError(verbPrefix: string, errorMessage: string): string
  * incomplete-command hint; alphabetical so the order is stable.
  */
 function subcommandsUnder(namespace: string, verbPaths: string[][]): string[] {
-  const matches = verbPaths
+  return verbPaths
     .filter((path) => path.length >= 2 && path[0] === namespace)
     .map((path) => path.join(' '))
     .sort();
-  return matches.slice(0, 3);
+}
+
+/**
+ * The "Available subcommands" line. Samples at most three, but never
+ * pretends the sample is the full set: past three, the line carries the
+ * remainder count (observed live: `sm jobs` listed 3 of its 9 with no
+ * hint more existed). A truncated sample joins with plain commas (the
+ * "and N more" tail closes the enumeration); the exhaustive form keeps
+ * the ", or" join.
+ */
+function formatSubcommandHint(subcommands: readonly string[]): string {
+  const sample = subcommands.slice(0, 3);
+  const remainder = subcommands.length - sample.length;
+  if (remainder > 0) {
+    return tx(ENTRY_TEXTS.parseErrorSubcommandListMore, {
+      suggestions: sample.map((s) => `'${s}'`).join(', '),
+      count: remainder,
+    });
+  }
+  return tx(ENTRY_TEXTS.parseErrorSubcommandList, {
+    suggestions: formatSuggestionList(sample),
+  });
 }
 
 /**

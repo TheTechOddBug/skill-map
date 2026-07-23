@@ -180,6 +180,18 @@ describe('resolvePluginEnabled, config-only precedence', () => {
     assert.equal(installedDefaultEnabled('stable'), true);
     assert.equal(installedDefaultEnabled(undefined), true);
   });
+
+  it('installedDefaultEnabled: a declared defaultEnabled override wins over stability', () => {
+    // The orthogonal opt-in axis (spec base.schema.json#/defaultEnabled,
+    // 2026-07-21): a STABLE extension can ship off (the sidecar writers),
+    // an experimental one could ship on, and `undefined` keeps deriving
+    // from stability.
+    assert.equal(installedDefaultEnabled('stable', false), false);
+    assert.equal(installedDefaultEnabled(undefined, false), false);
+    assert.equal(installedDefaultEnabled('experimental', true), true);
+    assert.equal(installedDefaultEnabled('experimental', undefined), false);
+    assert.equal(installedDefaultEnabled('stable', undefined), true);
+  });
 });
 
 // -----------------------------------------------------------------------------

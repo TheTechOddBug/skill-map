@@ -1,6 +1,6 @@
 /**
  * Kernel entry point. `createKernel()` returns a shell with an empty registry
- * and no bound ports. Driving adapters (CLI, Server, Skill) are expected to
+ * and no bound ports. Driving adapters (CLI, Server) are expected to
  * wire adapters before invoking use cases.
  */
 
@@ -114,10 +114,10 @@ export type {
   // history surface
   ExecutionRecord,
   HistoryStatsTotals,
-  HistoryStatsTokensPerAction,
+  HistoryStatsTokensPerExtension,
   HistoryStatsExecutionsPerPeriod,
   HistoryStatsTopNode,
-  HistoryStatsPerActionRate,
+  HistoryStatsPerExtensionRate,
   HistoryStatsErrorRates,
   HistoryStats,
 } from './types.js';
@@ -187,7 +187,6 @@ export type {
   TPluginLoadStatus,
   TPluginStorage,
 } from './ports/plugin-loader.js';
-export type { IRunOptions, IRunResult, RunnerPort } from './ports/runner.js';
 export type {
   ProgressEmitterPort,
   ProgressEvent,

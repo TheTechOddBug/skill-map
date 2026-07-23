@@ -2,9 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.ai/spec/v0/api/rest-envelope.schema.json",
   "title": "RestEnvelope",
-  "description": "Wrapper shape for REST responses under `/api/*` (Step 14.2). Five variants distinguished by the `kind` discriminator and which payload field is present (`items` for list kinds AND `'annotations.registered'`, `item` for single-resource kinds, `value` for `kind: 'config'` and `'sidecar.bumped'`). The `/api/scan` and `/api/health` responses are exempt, they carry the underlying `ScanResult` / `IHealthResponse` shape directly. The `/api/graph` response is also exempt, it returns the formatter's native textual output (text/plain or text/markdown). Step 14.5.d adds the required `kindRegistry` field on every payload-bearing list / single / config variant so the UI can render Provider-declared kinds (label, color, icon) without hardcoding visuals; the sibling `providerRegistry` field carries the registered Providers' own identity (label, color, chip visibility) so the UI renders the active-lens dropdown and the per-node provider chip from the real Provider set instead of a hardcoded list. Sentinel kinds (`health`, `scan`, `graph`) stay exempt because they don't carry an envelope payload. Step 9.6 closes the `'sidecar.bumped'` (R7) and `'annotations.registered'` (R7) gaps, both are payload-bearing but carry their own variant shapes (sidecar.bumped: `value` + `elapsedMs`, no `filters`/`counts`/`kindRegistry`; annotations.registered: `items` + `counts.total`, no `filters`/`kindRegistry`) because they project read-only kernel surfaces orthogonal to the kindRegistry. The change keeps `schemaVersion` at `'1'`, the BFF is greenfield (no released consumers depend on the prior shape), so a versioned migration buys nothing.",
+  "description": "Wrapper shape for REST responses under `/api/*` (Step 14.2). Five variants distinguished by the `kind` discriminator and which payload field is present (`items` for list kinds AND `'annotations.registered'`, `item` for single-resource kinds, `value` for `kind: 'config'` and `'sidecar.bumped'`). The `/api/scan` and `/api/health` responses are exempt, they carry the underlying `ScanResult` / `IHealthResponse` shape directly. The `/api/graph` response is also exempt, it returns the formatter's native textual output (text/plain or text/markdown). Step 14.5.d adds the required `kindRegistry` field on every payload-bearing list / single / config variant so the UI can render Provider-declared kinds (label, color, icon) without hardcoding visuals; the sibling `providerRegistry` field carries the registered Providers' own identity (label, color, chip visibility) so the UI renders the active-lens dropdown and the per-node provider chip from the real Provider set instead of a hardcoded list. Sentinel kinds (`health`, `scan`, `graph`) stay exempt because they don't carry an envelope payload. Step 9.6 closes the `'sidecar.bumped'` (R7) and `'annotations.registered'` (R7) gaps, both are payload-bearing but carry their own variant shapes (sidecar.bumped: `value` + `elapsedMs`, no `filters`/`counts`/`kindRegistry`; annotations.registered: `items` + `counts.total`, no `filters`/`kindRegistry`) because they project read-only kernel surfaces orthogonal to the kindRegistry. Step 16 piece 1 (the findings workbench, inspector half) adds three kinds: `findings` rides the list shape with a REQUIRED `counts.dismissedExcluded` / `counts.fixedExcluded` honesty pair (stale rows ride `items` inline with their derived `stale` flag) and a locked per-item finding-row shape, `node.prob-extensions` rides the single shape (`item` = the finders / fixers / standalone launcher catalog), and `job.submitted` rides the action-result shape (`value` + `elapsedMs`, no registries). The change keeps `schemaVersion` at `'1'`, the BFF is greenfield (no released consumers depend on the prior shape), so a versioned migration buys nothing.",
   "type": "object",
-  "required": ["schemaVersion", "kind"],
+  "required": [
+    "schemaVersion",
+    "kind"
+  ],
   "properties": {
     "schemaVersion": {
       "type": "string",
@@ -19,6 +22,7 @@
         "issues",
         "plugins",
         "config",
+        "config.resolution",
         "graph",
         "node",
         "health",
@@ -26,9 +30,13 @@
         "sidecar.bumped",
         "action.applied",
         "annotations.registered",
-        "contributions.registered"
+        "contributions.registered",
+        "findings",
+        "node.prob-extensions",
+        "job.submitted",
+        "jobs"
       ],
-      "description": "Discriminator. List kinds (`nodes`, `links`, `issues`, `plugins`) carry `items` + `filters` + `counts` + `kindRegistry`. The `node` kind carries `item` + `kindRegistry`. The `config` kind carries `value` + `kindRegistry`. The `sidecar.bumped` kind (Step 9.6.5, BFF half) carries `value` + `elapsedMs` (no `filters` / `counts` / `kindRegistry`, it's an action-result projection orthogonal to the kindRegistry surface). The `annotations.registered` kind (Step 9.6.6, BFF half) carries `items` + `counts.total` (no `filters` / `kindRegistry`, pure read-only catalog projection). The `health` / `scan` / `graph` values are reserved for documentation parity with the routes that DON'T use this envelope."
+      "description": "Discriminator. List kinds (`nodes`, `links`, `issues`, `plugins`) carry `items` + `filters` + `counts` + `kindRegistry`. The `node` kind carries `item` + `kindRegistry`. The `config` kind carries `value` + `kindRegistry`. The `sidecar.bumped` kind (Step 9.6.5, BFF half) carries `value` + `elapsedMs` (no `filters` / `counts` / `kindRegistry`, it's an action-result projection orthogonal to the kindRegistry surface). The `annotations.registered` kind (Step 9.6.6, BFF half) carries `items` + `counts.total` (no `filters` / `kindRegistry`, pure read-only catalog projection). Step 16 piece 1 kinds: `findings` (list shape, `GET /api/nodes/:pathB64/findings`, `counts` additionally requires `dismissedExcluded` / `fixedExcluded`), `node.prob-extensions` (single shape, `GET /api/nodes/:pathB64/prob-extensions`), `job.submitted` (action-result shape, `POST /api/nodes/:pathB64/jobs`). The `jobs` kind (`GET /api/jobs`, the cross-corpus job list) rides a registry-less list shape (`items` + `filters` + `counts`, no `kindRegistry` / `providerRegistry` / `contributionsRegistry`). The `health` / `scan` / `graph` values are reserved for documentation parity with the routes that DON'T use this envelope."
     },
     "items": {
       "type": "array",
@@ -40,12 +48,12 @@
     },
     "value": {
       "type": "object",
-      "description": "Present when `kind` is `'config'`, `'sidecar.bumped'`, or `'action.applied'`. For `'config'`, carries the merged effective config object. For `'sidecar.bumped'`, carries `{ nodePath, version, status }` (the bump report from `POST /api/sidecar/bump`). For `'action.applied'`, carries `{ actionId, nodePath, report }` (the generic Action-result payload from `POST /api/actions/:id`)."
+      "description": "Present when `kind` is `'config'`, `'sidecar.bumped'`, `'action.applied'`, or `'job.submitted'`. For `'config'`, carries the merged effective config object. For `'sidecar.bumped'`, carries `{ nodePath, version, status }` (the bump report from `POST /api/sidecar/bump`). For `'action.applied'`, carries `{ actionId, nodePath, report }` (the generic Action-result payload from `POST /api/actions/:id`). For `'job.submitted'`, carries `{ jobId, nodePath, extensionId, supersededIds }` (the submit result from `POST /api/nodes/:pathB64/jobs`)."
     },
     "elapsedMs": {
       "type": "integer",
       "minimum": 0,
-      "description": "Wall-clock milliseconds the BFF spent serving the request. Present on action-result envelopes (`kind: 'sidecar.bumped'`); absent elsewhere."
+      "description": "Wall-clock milliseconds the BFF spent serving the request. Present on action-result envelopes (`kind: 'sidecar.bumped'`, `'action.applied'`, `'job.submitted'`); absent elsewhere."
     },
     "filters": {
       "type": "object",
@@ -56,7 +64,10 @@
       "description": "Catalog of node kinds active in the current scope, keyed by kind name. Built once per server boot from every enabled Provider's `kinds` map and embedded into every payload-bearing envelope so the UI can render kind tags / palette swatches / graph nodes against Provider-declared visuals (label, color, icon) without ever hardcoding a closed kind enum. Sentinel envelopes (`health`, `scan`, `graph`) are exempt. Each entry MAY carry contributions from multiple Providers when several declare the same kind name (e.g. Claude `agent` and OpenAI `agent`); the `providers` map keeps every contribution and `primaryProviderId` points at the one whose visuals drive the kind's primary CSS var. The kernel separately surfaces `provider-ambiguous` issues for files matched by more than one Provider; the UI may still receive the merged registry during the conflict window.",
       "additionalProperties": {
         "type": "object",
-        "required": ["primaryProviderId", "providers"],
+        "required": [
+          "primaryProviderId",
+          "providers"
+        ],
         "additionalProperties": false,
         "properties": {
           "primaryProviderId": {
@@ -70,31 +81,63 @@
             "description": "Per-provider visuals for this kind name. Keyed by Provider id (e.g. `'claude'`, `'codex'`). Lets the UI render a node painted with its own Provider's color via `entry.providers[node.provider]` when the kind name is shared across Providers.",
             "additionalProperties": {
               "type": "object",
-              "required": ["label", "color"],
+              "required": [
+                "label",
+                "color"
+              ],
               "additionalProperties": false,
               "properties": {
-                "label": { "type": "string", "minLength": 1 },
-                "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
-                "colorDark": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
-                "emoji": { "type": "string", "minLength": 1, "maxLength": 8 },
+                "label": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "color": {
+                  "type": "string",
+                  "pattern": "^#[0-9a-fA-F]{6}$"
+                },
+                "colorDark": {
+                  "type": "string",
+                  "pattern": "^#[0-9a-fA-F]{6}$"
+                },
+                "emoji": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 8
+                },
                 "icon": {
                   "oneOf": [
                     {
                       "type": "object",
-                      "required": ["kind", "id"],
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
                       "additionalProperties": false,
                       "properties": {
-                        "kind": { "const": "pi" },
-                        "id": { "type": "string", "pattern": "^pi-[a-z0-9]+(-[a-z0-9]+)*$" }
+                        "kind": {
+                          "const": "pi"
+                        },
+                        "id": {
+                          "type": "string",
+                          "pattern": "^pi-[a-z0-9]+(-[a-z0-9]+)*$"
+                        }
                       }
                     },
                     {
                       "type": "object",
-                      "required": ["kind", "path"],
+                      "required": [
+                        "kind",
+                        "path"
+                      ],
                       "additionalProperties": false,
                       "properties": {
-                        "kind": { "const": "svg" },
-                        "path": { "type": "string", "minLength": 1 }
+                        "kind": {
+                          "const": "svg"
+                        },
+                        "path": {
+                          "type": "string",
+                          "minLength": 1
+                        }
                       }
                     }
                   ]
@@ -107,21 +150,52 @@
     },
     "contributionsRegistry": {
       "type": "object",
-      "description": "Catalog of registered view contributions active in the current scope, keyed by qualified contribution id `<pluginId>/<extensionId>/<contributionId>`. Built once per server boot from every enabled extension's `viewContributions` map and embedded into every payload-bearing envelope so the UI can fetch the catalog without a separate request. Sentinel envelopes (`health`, `scan`, `graph`), action-result envelopes (`sidecar.bumped`), and the catalog envelopes themselves (`annotations.registered`, `contributions.registered`) are exempt. Mirror of `kindRegistry`, parallel surface. Each entry references a slot by name from the closed catalog at `view-slots.schema.json#/$defs/SlotName`; the slot fixes both the renderer and the payload shape. Per-node payloads are delivered separately on `node` envelopes (single via `item.contributions`) or list envelopes (`items[].contributions`, only when `limit ≤ bff.maxBulkContributions`, default 200).",
+      "description": "Catalog of registered view contributions active in the current scope, keyed by qualified contribution id `<pluginId>/<extensionId>/<contributionId>`. Built once per server boot from every enabled extension's `viewContributions` map and embedded into every payload-bearing envelope so the UI can fetch the catalog without a separate request. Sentinel envelopes (`health`, `scan`, `graph`), action-result envelopes (`sidecar.bumped`), and the catalog envelopes themselves (`annotations.registered`, `contributions.registered`) are exempt. Mirror of `kindRegistry`, parallel surface. Each entry references a slot by name from the closed catalog at `view-slots.schema.json#/$defs/SlotName`; the slot fixes both the renderer and the payload shape. Per-node payloads are delivered separately on `node` envelopes (single via `item.contributions`) or list envelopes (`items[].contributions`, only when `limit \u2264 bff.maxBulkContributions`, default 200).",
       "additionalProperties": {
         "type": "object",
-        "required": ["pluginId", "extensionId", "contributionId", "slot"],
+        "required": [
+          "pluginId",
+          "extensionId",
+          "contributionId",
+          "slot"
+        ],
         "additionalProperties": false,
         "properties": {
-          "pluginId": { "type": "string", "minLength": 1 },
-          "extensionId": { "type": "string", "minLength": 1 },
-          "contributionId": { "type": "string", "minLength": 1 },
-          "slot": { "$ref": "../view-slots.schema.json#/$defs/SlotName" },
-          "label": { "type": "string", "maxLength": 64 },
-          "tooltip": { "type": "string", "maxLength": 256 },
-          "icon": { "type": "string", "maxLength": 64 },
-          "emptyText": { "type": "string", "maxLength": 128 },
-          "emitWhenEmpty": { "type": "boolean", "default": false },
+          "pluginId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "extensionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "contributionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "slot": {
+            "$ref": "../view-slots.schema.json#/$defs/SlotName"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "tooltip": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "icon": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "emptyText": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "emitWhenEmpty": {
+            "type": "boolean",
+            "default": false
+          },
           "priority": {
             "type": "number",
             "description": "Optional ordering hint (default 100 when omitted). Slots whose `order` is `'priority'` sort contributions ASC by this value with alphabetical tie-break by qualified id. Mirror of `IViewContribution.priority` in `view-slots.schema.json#/$defs/ViewContribution`; propagated so the UI can apply the manifest-declared order without a second round-trip."
@@ -142,31 +216,64 @@
       "description": "Catalog of Providers registered in the current scope, keyed by Provider id. Built once per server boot from every registered Provider's `ui` block and embedded into every payload-bearing envelope so the UI renders the active-lens dropdown, the topbar lens chip, and the per-node provider chip from the real Provider set instead of a hardcoded list. Sentinel envelopes (`health`, `scan`, `graph`), action-result envelopes (`sidecar.bumped`), and the catalog envelopes (`annotations.registered`, `contributions.registered`) are exempt. Mirror of `kindRegistry`, parallel surface. The active lens itself (current value + filesystem-detected candidates + the enabled `selectable` set) is NOT here; it is served by `GET /api/active-provider`, a per-project dynamic surface orthogonal to this static boot catalog.",
       "additionalProperties": {
         "type": "object",
-        "required": ["label", "color", "isLens"],
+        "required": [
+          "label",
+          "color",
+          "isLens"
+        ],
         "additionalProperties": false,
         "properties": {
-          "label": { "type": "string", "minLength": 1 },
-          "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
-          "colorDark": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
-          "emoji": { "type": "string", "minLength": 1, "maxLength": 8 },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "colorDark": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "emoji": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8
+          },
           "icon": {
             "oneOf": [
               {
                 "type": "object",
-                "required": ["kind", "id"],
+                "required": [
+                  "kind",
+                  "id"
+                ],
                 "additionalProperties": false,
                 "properties": {
-                  "kind": { "const": "pi" },
-                  "id": { "type": "string", "pattern": "^pi-[a-z0-9]+(-[a-z0-9]+)*$" }
+                  "kind": {
+                    "const": "pi"
+                  },
+                  "id": {
+                    "type": "string",
+                    "pattern": "^pi-[a-z0-9]+(-[a-z0-9]+)*$"
+                  }
                 }
               },
               {
                 "type": "object",
-                "required": ["kind", "path"],
+                "required": [
+                  "kind",
+                  "path"
+                ],
                 "additionalProperties": false,
                 "properties": {
-                  "kind": { "const": "svg" },
-                  "path": { "type": "string", "minLength": 1 }
+                  "kind": {
+                    "const": "svg"
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1
+                  }
                 }
               }
             ]
@@ -195,7 +302,9 @@
     },
     "counts": {
       "type": "object",
-      "required": ["total"],
+      "required": [
+        "total"
+      ],
       "properties": {
         "total": {
           "type": "integer",
@@ -205,11 +314,24 @@
         "returned": {
           "type": "integer",
           "minimum": 0,
-          "description": "Rows actually carried in `items` (≤ `limit`). Present on list-kind envelopes (`nodes`, `links`, `issues`, `plugins`); absent on `'annotations.registered'` (no pagination, no filters, the catalog ships in its entirety in every response)."
+          "description": "Rows actually carried in `items` (\u2264 `limit`). Present on list-kind envelopes (`nodes`, `links`, `issues`, `plugins`, `findings`); absent on `'annotations.registered'` (no pagination, no filters, the catalog ships in its entirety in every response)."
+        },
+        "dismissedExcluded": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Findings the default view held back because their (extension, type) class matches an ACTIVE sidecar suppression (`sm findings dismiss`, the read-time dismissal lens; top precedence over fixed and stale). REQUIRED on `kind: 'findings'` envelopes, absent elsewhere; 0 under an explicit `?dismissed=1` / `?fixed=1` / `?stale=1` bucket filter, mirroring `sm findings --json`."
+        },
+        "fixedExcluded": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Findings the default view held back because their `resolution` is `'fixed'` (already handled; a row that is BOTH fixed and stale counts here, state precedence; a suppressed row counts as dismissed instead). REQUIRED on `kind: 'findings'` envelopes, absent elsewhere. The default-view honesty device mirrored from `sm findings --json`: an empty `items` with a non-zero excluded count never claims a clean node. Always 0 when an explicit bucket filter is active (an explicit bucket view holds nothing back to report)."
         },
         "page": {
           "type": "object",
-          "required": ["offset", "limit"],
+          "required": [
+            "offset",
+            "limit"
+          ],
           "properties": {
             "offset": {
               "type": "integer",
@@ -227,130 +349,1047 @@
         }
       },
       "additionalProperties": false,
-      "description": "Tally + paging info. Present on every list / single envelope; absent on `health` / `scan` / `graph` responses (which don't use this envelope). The list variants additionally require `returned`; the `'annotations.registered'` variant only requires `total`."
+      "description": "Tally + paging info. Present on every list / single envelope; absent on `health` / `scan` / `graph` responses (which don't use this envelope). The list variants additionally require `returned`; the `'annotations.registered'` variant only requires `total`; the `'findings'` variant requires `total` + `returned` + the `dismissedExcluded` / `fixedExcluded` honesty pair."
     }
   },
   "oneOf": [
     {
       "description": "List envelope, `items` payload + `filters` + `counts` (with `returned`) + `kindRegistry` + `providerRegistry` + `contributionsRegistry`. Used by `/api/nodes`, `/api/links`, `/api/issues`, `/api/plugins`.",
-      "required": ["items", "counts", "filters", "kindRegistry", "providerRegistry", "contributionsRegistry"],
+      "required": [
+        "items",
+        "counts",
+        "filters",
+        "kindRegistry",
+        "providerRegistry",
+        "contributionsRegistry"
+      ],
       "properties": {
-        "kind": { "enum": ["nodes", "links", "issues", "plugins"] },
-        "counts": { "required": ["total", "returned"] }
+        "kind": {
+          "enum": [
+            "nodes",
+            "links",
+            "issues",
+            "plugins"
+          ]
+        },
+        "counts": {
+          "required": [
+            "total",
+            "returned"
+          ]
+        }
       },
       "not": {
         "anyOf": [
-          { "required": ["item"] },
-          { "required": ["value"] },
-          { "required": ["elapsedMs"] }
+          {
+            "required": [
+              "item"
+            ]
+          },
+          {
+            "required": [
+              "value"
+            ]
+          },
+          {
+            "required": [
+              "elapsedMs"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "description": "Findings list envelope, the per-node judgment tray served by `GET /api/nodes/:pathB64/findings` (Step 16 piece 1). Rides the list shape (`items` + `filters` + `counts` + the three registries) with two deltas locked here: `counts` additionally REQUIRES the default-view honesty pair `dismissedExcluded` / `fixedExcluded` (what the default view held back under the same filters, both 0 under an explicit `?dismissed=1` / `?fixed=1` / `?stale=1` bucket filter, mirroring `sm findings`; dismissed = the class matches an active sidecar suppression, the read-time lens, top precedence; stale rows ride `items` inline since 2026-07-20, flagged per row, never held back), and each item is one `state_findings` row projection (camelCase, the `sm findings --json` row shape plus the derived `stale` boolean; the internal `bodyHashAtGeneration` is NOT exposed).",
+      "required": [
+        "items",
+        "counts",
+        "filters",
+        "kindRegistry",
+        "providerRegistry",
+        "contributionsRegistry"
+      ],
+      "properties": {
+        "kind": {
+          "const": "findings"
+        },
+        "counts": {
+          "required": [
+            "total",
+            "returned",
+            "dismissedExcluded",
+            "fixedExcluded"
+          ]
+        },
+        "items": {
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "nodeId",
+              "extensionId",
+              "extensionVersion",
+              "origin",
+              "type",
+              "severity",
+              "message",
+              "detail",
+              "confidence",
+              "model",
+              "resolution",
+              "resolutionActor",
+              "resolutionNote",
+              "resolutionBy",
+              "resolutionAt",
+              "stale",
+              "generatedAt",
+              "jobId"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "`state_findings.id`, the handle for `sm findings resolve <id>` / `sm findings dismiss <id>`."
+              },
+              "nodeId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "extensionId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "extensionVersion": {
+                "type": "string",
+                "minLength": 1
+              },
+              "origin": {
+                "enum": [
+                  "extension",
+                  "kernel"
+                ],
+                "description": "`extension` = finder lane (the judgment a probabilistic finder Analyzer recorded); `kernel` = safety lane (kernel-synthesized reserved slugs)."
+              },
+              "type": {
+                "type": "string"
+              },
+              "severity": {
+                "enum": [
+                  "info",
+                  "warn",
+                  "error"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "detail": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "model": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The recording agent's self-reported model id; `null` when undeclared."
+              },
+              "resolution": {
+                "enum": [
+                  "fixed",
+                  "human-decision",
+                  null
+                ],
+                "description": "Lifecycle state; `null` = open (see `db-schema.md` \u00a7state_findings)."
+              },
+              "resolutionActor": {
+                "enum": [
+                  "human",
+                  "fixer",
+                  null
+                ],
+                "description": "Who decided a `fixed` row; `null` for `human-decision` / open rows."
+              },
+              "resolutionNote": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "resolutionBy": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The fixer's qualified extension id; `null` for a purely human resolution."
+              },
+              "resolutionAt": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "stale": {
+                "type": "boolean",
+                "description": "Derived: the node body changed since the judgment (or the node left the scan)."
+              },
+              "generatedAt": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "jobId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "item"
+            ]
+          },
+          {
+            "required": [
+              "value"
+            ]
+          },
+          {
+            "required": [
+              "elapsedMs"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "description": "Cross-corpus job-queue list envelope served by `GET /api/jobs` (the read side of the UI queue inspector; HTTP face of `sm jobs list`). A REGISTRY-LESS list shape: `items` (each a public `Job` projection: every `job.schema.json` field EXCEPT the `nonce` record credential, which `job-lifecycle.md` \u00a7Atomic claim \u00b7 Nonce exposure forbids on read surfaces) + `filters` (echo of the applied `status` / `extension` / `node`, `null` when absent) + `counts` (`total` = `returned` = `items.length`; the endpoint does not paginate). The kind / provider / contribution registries are intentionally absent, the queue projection is orthogonal to those catalogs (same rationale as the action-result and annotation / contribution-catalog variants), the SPA already holds them cached from a prior list call, and dropping them keeps the route on a narrow read-only deps bag. Rows are newest-first (`createdAt DESC, id DESC`).",
+      "required": [
+        "items",
+        "counts",
+        "filters"
+      ],
+      "properties": {
+        "kind": {
+          "const": "jobs"
+        },
+        "counts": {
+          "required": [
+            "total",
+            "returned"
+          ]
+        },
+        "items": {
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "extensionId",
+              "extensionVersion",
+              "extensionKind",
+              "nodeId",
+              "contentHash",
+              "status",
+              "ttlSeconds",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^d-\\d{8}-\\d{6}-[0-9a-f]{4}$",
+                "description": "Job id: `d-YYYYMMDD-HHMMSS-XXXX`. Human-readable, sortable."
+              },
+              "extensionId": {
+                "type": "string",
+                "description": "Qualified id of the submitted probabilistic extension (Action or Analyzer)."
+              },
+              "extensionVersion": {
+                "type": "string",
+                "description": "Semver of the extension implementation at submit time. Frozen for this job."
+              },
+              "extensionKind": {
+                "type": "string",
+                "enum": [
+                  "action",
+                  "analyzer"
+                ],
+                "description": "Extension kind resolved at submit time, frozen like the version."
+              },
+              "autoFix": {
+                "type": "boolean",
+                "description": "Per-job auto-fix opt-in, frozen at submit. `true` only on a finder job whose fixers `sm record` chains on completion. Default `false`.",
+                "default": false
+              },
+              "findingIds": {
+                "type": ["array", "null"],
+                "items": { "type": "integer" },
+                "description": "Finding-subset targeting frozen at submit on a FIXER job (`job-lifecycle.md` \u00a7Finding-subset targeting). `null` = whole-node targeting."
+              },
+              "nodeId": {
+                "type": "string",
+                "description": "Target `node.path`."
+              },
+              "contentHash": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$",
+                "description": "sha256 duplicate-detection key over the rendered-content tuple."
+              },
+              "priority": {
+                "type": "integer",
+                "description": "Higher = claimed first. Default 0.",
+                "default": 0
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "running",
+                  "completed",
+                  "failed",
+                  "cancelled"
+                ],
+                "description": "Lifecycle state. Three terminal states: `completed`, `failed`, `cancelled`."
+              },
+              "failureReason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "runner-error",
+                  "report-invalid",
+                  "timeout",
+                  "abandoned",
+                  "job-file-missing",
+                  "user-failed",
+                  null
+                ],
+                "description": "Populated ONLY when `status = failed`; `null` otherwise."
+              },
+              "runner": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "agent",
+                  "in-process",
+                  null
+                ]
+              },
+              "ttlSeconds": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "description": "Optional TTL resolved at submit from explicit operator sources only. NULL (the default) = the job never expires."
+              },
+              "createdAt": {
+                "type": "integer",
+                "description": "Unix ms. Submit time."
+              },
+              "claimedAt": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Unix ms. Null while queued."
+              },
+              "finishedAt": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Unix ms. Null while not terminal."
+              },
+              "expiresAt": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Derived = claimedAt + ttlSeconds \u00d7 1000 for TTL-armed jobs. Null while queued and for the life of a TTL-less job."
+              },
+              "submittedBy": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Free-form provenance: username, CI job id, or `skill:<skill-id>`."
+              }
+            }
+          }
+        }
+      },
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "item"
+            ]
+          },
+          {
+            "required": [
+              "value"
+            ]
+          },
+          {
+            "required": [
+              "elapsedMs"
+            ]
+          },
+          {
+            "required": [
+              "kindRegistry"
+            ]
+          },
+          {
+            "required": [
+              "providerRegistry"
+            ]
+          },
+          {
+            "required": [
+              "contributionsRegistry"
+            ]
+          }
         ]
       }
     },
     {
       "description": "Single-resource envelope, `item` payload + `kindRegistry` + `providerRegistry` + `contributionsRegistry`, no `counts` / `filters`. Used by `/api/nodes/:pathB64`.",
-      "required": ["item", "kindRegistry", "providerRegistry", "contributionsRegistry"],
+      "required": [
+        "item",
+        "kindRegistry",
+        "providerRegistry",
+        "contributionsRegistry"
+      ],
       "properties": {
-        "kind": { "const": "node" }
+        "kind": {
+          "const": "node"
+        }
       },
       "not": {
         "anyOf": [
-          { "required": ["items"] },
-          { "required": ["value"] },
-          { "required": ["elapsedMs"] }
+          {
+            "required": [
+              "items"
+            ]
+          },
+          {
+            "required": [
+              "value"
+            ]
+          },
+          {
+            "required": [
+              "elapsedMs"
+            ]
+          }
         ]
       }
     },
     {
-      "description": "Value envelope, `value` payload + `kindRegistry` + `providerRegistry` + `contributionsRegistry`, no `counts` / `filters`. Used by `/api/config`.",
-      "required": ["value", "kindRegistry", "providerRegistry", "contributionsRegistry"],
+      "description": "Probabilistic-launcher envelope served by `GET /api/nodes/:pathB64/prob-extensions` (Step 16). Rides the single shape (`item` + the three registries, no `counts` / `filters`); the `item` is the node's launcher catalog for the inspector's finder buttons (ROADMAP \u00a7Step 16): `finders` (probabilistic Analyzers whose precondition matches the node AND that have at least one matching fixer, i.e. `fixerIds` non-empty; the UI renders each as a Detect button, Detect+Fix when the automatic toggle is on, DISABLED while `hasOpenFindings` is true since 2026-07-20, the fix lives on each finding row), `standalone` (probabilistic Analyzers matching the node with NO fixer, PLUS probabilistic Actions without `analyzerIds`; single-action buttons, `fixerIds` empty), and `issueFixers` (probabilistic Actions whose `analyzerIds` resolve to a DETERMINISTIC analyzer, such as `core/ai-reference-action` over `core/reference-broken`, listed ONLY while the node carries at least one matching open Issue; the UI renders each as a fix button ON the matching deterministic issue rows, never as a launcher button, user decision 2026-07-22 replacing the former standalone placement). A fixer paired with a probabilistic finder is never listed on its own: it surfaces through its finder's `fixerIds` and the tray's per-finding fix button submits it; the former per-finder-fixer split and the `fixers` bucket stay retired. Entry shapes in `#/$defs/ProbExtensionEntry` (finders / standalone) and `#/$defs/IssueFixerEntry` (issueFixers).",
+      "required": [
+        "item",
+        "kindRegistry",
+        "providerRegistry",
+        "contributionsRegistry"
+      ],
       "properties": {
-        "kind": { "const": "config" }
+        "kind": {
+          "const": "node.prob-extensions"
+        },
+        "item": {
+          "required": [
+            "finders",
+            "standalone",
+            "issueFixers"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "finders": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ProbExtensionEntry"
+              }
+            },
+            "standalone": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ProbExtensionEntry"
+              }
+            },
+            "issueFixers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/IssueFixerEntry"
+              }
+            }
+          }
+        }
       },
       "not": {
         "anyOf": [
-          { "required": ["items"] },
-          { "required": ["item"] },
-          { "required": ["elapsedMs"] }
+          {
+            "required": [
+              "items"
+            ]
+          },
+          {
+            "required": [
+              "value"
+            ]
+          },
+          {
+            "required": [
+              "elapsedMs"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "description": "Value envelope, `value` payload + `kindRegistry` + `providerRegistry` + `contributionsRegistry`, no `counts` / `filters`. Used by `/api/config` and by `GET /api/config/resolution` (kind `config.resolution`), whose `value.rows[]` is the flattened effective config: one entry per leaf key as `{ key, value, layer, secret }`, `layer` naming the winning config layer (`defaults` / `project` / `project-local` / `override`, the loader's per-key provenance) and `secret: true` meaning the value was MASKED server-side (a plugin-extension setting declared `type: 'secret'` never reaches the wire in clear).",
+      "required": [
+        "value",
+        "kindRegistry",
+        "providerRegistry",
+        "contributionsRegistry"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "config",
+            "config.resolution"
+          ]
+        }
+      },
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "items"
+            ]
+          },
+          {
+            "required": [
+              "item"
+            ]
+          },
+          {
+            "required": [
+              "elapsedMs"
+            ]
+          }
         ]
       }
     },
     {
       "description": "Action-result envelope, `value` + `elapsedMs` siblings, no `filters` / `counts` / `kindRegistry` / `providerRegistry` / `contributionsRegistry`. Used by `POST /api/actions/:id` (`action.applied`, carries `{ actionId, nodePath, report }`) and the legacy `POST /api/sidecar/bump` (`sidecar.bumped`, Step 9.6.5, carries `{ nodePath, version, status }`), in both cases plus the wall-clock duration. The registries are intentionally absent, the action result is orthogonal to every catalog and the SPA already has them cached from a prior list call.",
-      "required": ["value", "elapsedMs"],
+      "required": [
+        "value",
+        "elapsedMs"
+      ],
       "properties": {
-        "kind": { "enum": ["sidecar.bumped", "action.applied"] }
-      },
-      "not": {
-        "anyOf": [
-          { "required": ["items"] },
-          { "required": ["item"] },
-          { "required": ["filters"] },
-          { "required": ["counts"] },
-          { "required": ["kindRegistry"] },
-          { "required": ["providerRegistry"] },
-          { "required": ["contributionsRegistry"] }
-        ]
-      }
-    },
-    {
-      "description": "Annotation-catalog envelope, `items` + `counts.total` only, no `filters` / `kindRegistry` / `providerRegistry` / `contributionsRegistry` / `returned`. Used by `GET /api/annotations/registered` (Step 9.6.6, BFF half). The catalog is small (typically 0–50 entries), ships in its entirety on every response, and does not paginate; `counts.total` doubles as `items.length`.",
-      "required": ["items", "counts"],
-      "properties": {
-        "kind": { "const": "annotations.registered" },
-        "counts": {
-          "not": { "required": ["returned"] }
+        "kind": {
+          "enum": [
+            "sidecar.bumped",
+            "action.applied"
+          ]
         }
       },
       "not": {
         "anyOf": [
-          { "required": ["item"] },
-          { "required": ["value"] },
-          { "required": ["filters"] },
-          { "required": ["kindRegistry"] },
-          { "required": ["providerRegistry"] },
-          { "required": ["contributionsRegistry"] },
-          { "required": ["elapsedMs"] }
+          {
+            "required": [
+              "items"
+            ]
+          },
+          {
+            "required": [
+              "item"
+            ]
+          },
+          {
+            "required": [
+              "filters"
+            ]
+          },
+          {
+            "required": [
+              "counts"
+            ]
+          },
+          {
+            "required": [
+              "kindRegistry"
+            ]
+          },
+          {
+            "required": [
+              "providerRegistry"
+            ]
+          },
+          {
+            "required": [
+              "contributionsRegistry"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "description": "Job-submitted action-result envelope from `POST /api/nodes/:pathB64/jobs` (Step 16 piece 1), shaped like the `sidecar.bumped` variant: `value` + `elapsedMs`, no `filters` / `counts` / registries. `value` locks to `{ jobId, nodePath, extensionId, supersededIds }`; a non-empty `supersededIds` reports the fixer-supersede cancellations applied in the same transaction. The `nonce` record credential NEVER travels here, the processing agent claims it via `sm jobs claim --json` (`job-lifecycle.md` \u00a7Atomic claim \u00b7 Nonce exposure).",
+      "required": [
+        "value",
+        "elapsedMs"
+      ],
+      "properties": {
+        "kind": {
+          "const": "job.submitted"
+        },
+        "value": {
+          "required": [
+            "jobId",
+            "nodePath",
+            "extensionId",
+            "supersededIds"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "jobId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "nodePath": {
+              "type": "string",
+              "minLength": 1
+            },
+            "extensionId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The qualified id the submit resolved to, which may differ from the (possibly bare) id the request body carried."
+            },
+            "supersededIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "Stale queued sibling ids a FIXER submit cancelled in the same transaction (`job-lifecycle.md` \u00a7Findings injection for fixers \u00b7 Supersede). Empty for non-fixer submits and for fixers with nothing to supersede."
+            }
+          }
+        }
+      },
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "items"
+            ]
+          },
+          {
+            "required": [
+              "item"
+            ]
+          },
+          {
+            "required": [
+              "filters"
+            ]
+          },
+          {
+            "required": [
+              "counts"
+            ]
+          },
+          {
+            "required": [
+              "kindRegistry"
+            ]
+          },
+          {
+            "required": [
+              "providerRegistry"
+            ]
+          },
+          {
+            "required": [
+              "contributionsRegistry"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "description": "Annotation-catalog envelope, `items` + `counts.total` only, no `filters` / `kindRegistry` / `providerRegistry` / `contributionsRegistry` / `returned`. Used by `GET /api/annotations/registered` (Step 9.6.6, BFF half). The catalog is small (typically 0\u201350 entries), ships in its entirety on every response, and does not paginate; `counts.total` doubles as `items.length`.",
+      "required": [
+        "items",
+        "counts"
+      ],
+      "properties": {
+        "kind": {
+          "const": "annotations.registered"
+        },
+        "counts": {
+          "not": {
+            "required": [
+              "returned"
+            ]
+          }
+        }
+      },
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "item"
+            ]
+          },
+          {
+            "required": [
+              "value"
+            ]
+          },
+          {
+            "required": [
+              "filters"
+            ]
+          },
+          {
+            "required": [
+              "kindRegistry"
+            ]
+          },
+          {
+            "required": [
+              "providerRegistry"
+            ]
+          },
+          {
+            "required": [
+              "contributionsRegistry"
+            ]
+          },
+          {
+            "required": [
+              "elapsedMs"
+            ]
+          }
         ]
       }
     },
     {
       "description": "View-contributions-catalog envelope, `items` + `counts.total` only, no `filters` / `kindRegistry` / `providerRegistry` / `contributionsRegistry` / `returned`. Used by `GET /api/contributions/registered`. Mirror of `annotations.registered`. The catalog ships in entirety; `counts.total` doubles as `items.length`. Each item is an `IRegisteredViewContribution` shape: `{ pluginId, extensionId, contributionId, slot, label?, tooltip?, icon?, emptyText?, emitWhenEmpty? }`.",
-      "required": ["items", "counts"],
+      "required": [
+        "items",
+        "counts"
+      ],
       "properties": {
-        "kind": { "const": "contributions.registered" },
+        "kind": {
+          "const": "contributions.registered"
+        },
         "counts": {
-          "not": { "required": ["returned"] }
+          "not": {
+            "required": [
+              "returned"
+            ]
+          }
         }
       },
       "not": {
         "anyOf": [
-          { "required": ["item"] },
-          { "required": ["value"] },
-          { "required": ["filters"] },
-          { "required": ["kindRegistry"] },
-          { "required": ["providerRegistry"] },
-          { "required": ["contributionsRegistry"] },
-          { "required": ["elapsedMs"] }
+          {
+            "required": [
+              "item"
+            ]
+          },
+          {
+            "required": [
+              "value"
+            ]
+          },
+          {
+            "required": [
+              "filters"
+            ]
+          },
+          {
+            "required": [
+              "kindRegistry"
+            ]
+          },
+          {
+            "required": [
+              "providerRegistry"
+            ]
+          },
+          {
+            "required": [
+              "contributionsRegistry"
+            ]
+          },
+          {
+            "required": [
+              "elapsedMs"
+            ]
+          }
         ]
       }
     },
     {
       "description": "Sentinel kinds, reserved for routes that do NOT carry an envelope payload at the wire level (`health`, `scan`, `graph`). They do not carry `kindRegistry`, `providerRegistry`, or `contributionsRegistry` either; clients that need any of them must call a payload-bearing endpoint at boot.",
       "properties": {
-        "kind": { "enum": ["health", "scan", "graph"] }
+        "kind": {
+          "enum": [
+            "health",
+            "scan",
+            "graph"
+          ]
+        }
       },
       "not": {
         "anyOf": [
-          { "required": ["items"] },
-          { "required": ["item"] },
-          { "required": ["value"] },
-          { "required": ["kindRegistry"] },
-          { "required": ["providerRegistry"] },
-          { "required": ["contributionsRegistry"] },
-          { "required": ["elapsedMs"] }
+          {
+            "required": [
+              "items"
+            ]
+          },
+          {
+            "required": [
+              "item"
+            ]
+          },
+          {
+            "required": [
+              "value"
+            ]
+          },
+          {
+            "required": [
+              "kindRegistry"
+            ]
+          },
+          {
+            "required": [
+              "providerRegistry"
+            ]
+          },
+          {
+            "required": [
+              "contributionsRegistry"
+            ]
+          },
+          {
+            "required": [
+              "elapsedMs"
+            ]
+          }
         ]
       }
     }
   ],
+  "$defs": {
+    "ProbExtensionEntry": {
+      "type": "object",
+      "required": [
+        "id",
+        "description",
+        "state",
+        "lastJudged",
+        "jobId",
+        "fixerIds",
+        "hasOpenFindings",
+        "fixerBusy"
+      ],
+      "additionalProperties": false,
+      "description": "One launcher entry of the `node.prob-extensions` catalog (the inspector's finder buttons). `state` is the live queue state from `state_jobs` for the BUTTON's active job (`queued` / `running` when one exists, else `idle`). Because the tray's per-finding fix button submits the finder's fixers, the state is computed over the union of `{id} \u222a fixerIds` on this node, so a queued/running FIXER lights the finder's button (running wins over queued); `jobId` is that active job's id. `lastJudged` is the latest recorded execution for the finder itself (`null` when never judged). `fixerIds` is the finder's matching fixers (empty for standalone entries and for finders with none); `hasOpenFindings` DISABLES the finder button (open findings are handled from their rows; the button re-enables once none is open). See the launcher-envelope variant for the `finders` / `standalone` classification.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Qualified extension id (`<plugin>/<extension>`), the value `POST /api/nodes/:pathB64/jobs` accepts as `extension`."
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The extension manifest's required `description`, rendered as the launcher tooltip / subtitle."
+        },
+        "state": {
+          "enum": [
+            "idle",
+            "queued",
+            "running"
+          ]
+        },
+        "lastJudged": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "at",
+                "model"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "at": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Epoch milliseconds of the latest recorded execution for this (node, extension) pair."
+                },
+                "model": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The recording agent's self-reported model id at that execution; `null` when undeclared."
+                }
+              }
+            }
+          ]
+        },
+        "fixerIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Qualified ids of the fixer Actions whose `precondition.analyzerIds` name this finder (the inverse Modelo B lookup). Non-empty ONLY on `finders`-bucket entries; empty for standalone entries (finders with no fixer, and Actions without `analyzerIds`). In manual mode the button's Fix state submits each of these; in automatic mode the finder is submitted with `autoFix: true` and the kernel chains them."
+        },
+        "hasOpenFindings": {
+          "type": "boolean",
+          "description": "True when the node currently carries at least one UNRESOLVED (not `fixed`), non-stale finding emitted by THIS finder's extension id. Drives the two-state button: `false` \u2192 Detect state (submit the finder), `true` \u2192 Fix state (submit the fixerIds). Always `false` for standalone entries."
+        },
+        "jobId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The ACTIVE queued/running job's id for this button (the finder OR any of its `fixerIds` on this node, see `state`), the handle the UI's stop affordance cancels via POST /api/jobs/:jobId/cancel. `null` when idle."
+        },
+        "fixerBusy": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "all",
+            "findingIds"
+          ],
+          "properties": {
+            "all": {
+              "type": "boolean",
+              "description": "True when a whole-node fixer job (no frozen findingIds) is active: every row's fix affordance is busy."
+            },
+            "findingIds": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "description": "Union of the ACTIVE subset fixer jobs' frozen finding ids (sorted). A row whose finding id appears here is busy."
+            }
+          },
+          "description": "Frozen finding targets of the ACTIVE fixer jobs for this finder (cli-contract.md, GET /api/nodes/:pathB64/prob-extensions): the tray derives each row's fix-button busy state from it so fixing one finding no longer spins every row. `null` when no fixer job is active."
+        }
+      }
+    },
+    "IssueFixerEntry": {
+      "type": "object",
+      "required": [
+        "id",
+        "description",
+        "state",
+        "lastJudged",
+        "jobId",
+        "analyzerIds"
+      ],
+      "additionalProperties": false,
+      "description": "One `issueFixers` entry of the `node.prob-extensions` catalog: a probabilistic Action whose `precondition.analyzerIds` resolve to a DETERMINISTIC analyzer (e.g. `core/ai-reference-action` over `core/reference-broken`), listed only while the node carries at least one matching open Issue. The UI renders it as a fix button ON each matching deterministic issue row (matched via `analyzerIds`), never as a launcher button (user decision 2026-07-22). `state` / `jobId` mirror `ProbExtensionEntry` but cover the ACTION's own jobs only (no fixerIds union); submitting fixes EVERY matching issue of the node in one job, so all matching rows share the busy state.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Qualified action id (`<plugin>/<extension>`), the value `POST /api/nodes/:pathB64/jobs` accepts as `extension`."
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The action manifest's required `description`, rendered as the fix button's tooltip."
+        },
+        "state": {
+          "enum": [
+            "idle",
+            "queued",
+            "running"
+          ]
+        },
+        "lastJudged": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "at",
+                "model"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "at": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Epoch milliseconds of the latest recorded execution for this (node, action) pair."
+                },
+                "model": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The recording agent's self-reported model id at that execution; `null` when undeclared."
+                }
+              }
+            }
+          ]
+        },
+        "jobId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The ACTIVE queued/running job's id for this action on this node, the handle the UI's stop affordance cancels via POST /api/jobs/:jobId/cancel. `null` when idle."
+        },
+        "analyzerIds": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "SHORT analyzer ids (as persisted on `scan_issues.analyzerId`, plugin prefix and `:sub-id` stripped from the action's declared `precondition.analyzerIds`), the row-match key: the UI shows this entry's fix button on every deterministic issue row whose `analyzerId` appears here."
+        }
+      }
+    }
+  },
   "additionalProperties": false
 }

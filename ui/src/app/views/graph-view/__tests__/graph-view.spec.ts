@@ -155,6 +155,32 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   }),
   listNodes: vi.fn(),
   getNode: vi.fn().mockResolvedValue(null),
+  getNodeFindings: vi.fn().mockResolvedValue({
+    schemaVersion: '1',
+    kind: 'findings',
+    items: [],
+    filters: {},
+    counts: { total: 0, returned: 0, dismissedExcluded: 0, fixedExcluded: 0 },
+    kindRegistry: {},
+  }),
+  getNodeProbExtensions: vi
+    .fn()
+    .mockResolvedValue({ finders: [], standalone: [] }),
+  submitNodeJob: vi.fn().mockResolvedValue({
+    schemaVersion: '1',
+    kind: 'job.submitted',
+    value: { jobId: 'job-1', nodePath: 'a.md', extensionId: 'x/y', supersededIds: [] },
+    elapsedMs: 0,
+  }),
+  cancelJob: vi.fn().mockResolvedValue(undefined),
+  dismissFinding: vi.fn().mockResolvedValue(undefined),
+  reopenFinding: vi.fn().mockResolvedValue(undefined),
+  resolveFinding: vi.fn().mockResolvedValue(undefined),
+  undismissFinding: vi.fn().mockResolvedValue(undefined),
+  deleteFinding: vi.fn().mockResolvedValue(undefined),
+  cancelAllJobs: vi.fn().mockResolvedValue(undefined),
+  pruneJobs: vi.fn().mockResolvedValue(undefined),
+  listJobs: vi.fn().mockResolvedValue([]),
   listLinks: vi.fn().mockResolvedValue({
     schemaVersion: '1',
     kind: 'links',
@@ -166,6 +192,9 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   listIssues: vi.fn(),
   loadGraph: vi.fn(),
   loadConfig: vi.fn(),
+  getConfigResolution: vi.fn().mockResolvedValue([]),
+  getNodeSummary: vi.fn().mockResolvedValue([]),
+  deleteNodeSummary: vi.fn().mockResolvedValue(undefined),
   listPlugins: vi.fn(),
   setPluginEnabled: vi.fn(),
   setPluginExtensionEnabled: vi.fn(),
@@ -251,12 +280,36 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     bridgePresent: false,
     events: 0,
   }, removed: false }),
-  getActivitySummary: vi.fn().mockResolvedValue({ since: 0, nodes: {}, pairs: {} }),
+  getAgentSkillInstallStatus: vi.fn().mockResolvedValue({
+    provider: 'markdown',
+    supported: false,
+    skillDir: null,
+    installed: false,
+    stale: false,
+  }),
+  installAgentSkill: vi.fn().mockResolvedValue({
+    provider: 'markdown',
+    supported: false,
+    skillDir: null,
+    installed: false,
+    stale: false,
+    outcome: 'installed' as const,
+  }),
+  uninstallAgentSkill: vi.fn().mockResolvedValue({
+    provider: 'markdown',
+    supported: false,
+    skillDir: null,
+    installed: false,
+    stale: false,
+    removed: false,
+  }),
+  getActivitySummary: vi.fn().mockResolvedValue({ since: 0, nodes: {}, pairs: {}, runNodes: [] }),
   getNodeActivity: vi.fn().mockResolvedValue({
     stats: { count: 0, lastStartAt: 0, distinctOwners: 0 },
     recent: [],
     spawns: [],
     captureEnabled: false,
+    runs: [],
   }),
   getSpawnRecord: vi.fn().mockResolvedValue(null),
   getActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
@@ -690,6 +743,7 @@ describe('GraphView, spawn-edge conversation thread', () => {
       recent: [],
       spawns: [],
       captureEnabled: false,
+      runs: [],
     });
   });
 
@@ -708,6 +762,7 @@ describe('GraphView, spawn-edge conversation thread', () => {
       recent: [],
       spawns: [s3, s1, s2],
       captureEnabled: true,
+      runs: [],
     });
 
     const { cmp } = await bootstrap([]);
@@ -802,6 +857,7 @@ describe('GraphView, spawn-active static edges', () => {
       recent: [],
       spawns: [],
       captureEnabled: false,
+      runs: [],
     });
   });
 
@@ -1113,13 +1169,14 @@ describe('GraphView, edge conversation-count labels + historical click', () => {
     // summary; each test seeds the mock BEFORE bootstrap.
     vi.mocked(STUB_DATA_SOURCE.getActivitySummary)
       .mockReset()
-      .mockResolvedValue({ since: 0, nodes: {}, pairs: {} });
+      .mockResolvedValue({ since: 0, nodes: {}, pairs: {}, runNodes: [] });
     vi.mocked(STUB_DATA_SOURCE.getSpawnRecord).mockReset().mockResolvedValue(null);
     vi.mocked(STUB_DATA_SOURCE.getNodeActivity).mockReset().mockResolvedValue({
       stats: { count: 0, lastStartAt: 0, distinctOwners: 0 },
       recent: [],
       spawns: [],
       captureEnabled: false,
+      runs: [],
     });
   });
 
@@ -1128,6 +1185,7 @@ describe('GraphView, edge conversation-count labels + historical click', () => {
       since: 0,
       nodes: {},
       pairs,
+      runNodes: [],
     });
   }
 
@@ -1163,6 +1221,7 @@ describe('GraphView, edge conversation-count labels + historical click', () => {
       recent: [],
       spawns: [oldTurn, t1, t2, foreign],
       captureEnabled: true,
+      runs: [],
     });
 
     const { cmp } = await bootstrap([]);
@@ -1188,6 +1247,7 @@ describe('GraphView, edge conversation-count labels + historical click', () => {
       recent: [],
       spawns: [],
       captureEnabled: false,
+      runs: [],
     });
 
     const { cmp } = await bootstrap([]);

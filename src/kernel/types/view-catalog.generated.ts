@@ -166,7 +166,7 @@ export interface BadgePayload {
   tooltip?: string;
 }
 /**
- * An action button rendered in the inspector. The manifest declares only `{ slot: 'inspector.action.button' }`; the per-node payload carries the action id, label, and the dynamic `enabled` flag. Click dispatches the Action via POST /api/actions/:id. `emitWhenEmpty` does not apply (a button is always meaningful).
+ * An action button rendered in the inspector. The manifest declares only `{ slot: 'inspector.action.button' }`; the per-node payload carries the action id, label, and the dynamic `enabled` flag. Click dispatches the Action via POST /api/actions/:id. `emitWhenEmpty` does not apply (a button is always meaningful). A payload carrying `surface` is not rendered as a button at all: it re-homes onto the named UI surface instead (see `surface`).
  */
 export interface ActionButtonPayload {
   /**
@@ -193,6 +193,10 @@ export interface ActionButtonPayload {
    * Reserved. Require an extra confirm step before dispatch (destructive actions).
    */
   confirm?: boolean;
+  /**
+   * Re-homed affordance declaration: instead of rendering as a generic button in the inspector Actions section, this contribution IS the named UI surface (the header version chip, the header stability chip, the inline tag row and its card twins). The UI selects re-homed contributions by THIS field and dispatches the payload's `actionId`; it never matches extension ids, so any plugin may claim a surface and a disabled extension removes it. A declared surface excludes the contribution from the generic Actions section. At most one contribution per node should claim a given surface; when several do, the UI uses the first by contribution priority order.
+   */
+  surface?: 'version' | 'stability' | 'tags';
 }
 /**
  * Reserved (Step 3+). Declares an input-type prompt the UI collects before dispatching (enum-pick for stability, single-string for tags).

@@ -168,6 +168,35 @@ describe('PluginLoader', () => {
     strictEqual(result[0]!.extensions?.[0]?.stability, 'beta');
   });
 
+  it('stamps the declared defaultEnabled override on the loaded extension', async () => {
+    // The orthogonal opt-in axis (spec base.schema.json#/defaultEnabled,
+    // 2026-07-21): the loader must surface it as a typed field so the
+    // enabled resolvers apply the declared installed default.
+    const root = makePluginsDir('default-enabled');
+    const extractorSource = `
+      export default {
+        version: '1.0.0',
+        description: 'Counts external URLs',
+        defaultEnabled: false,
+      };
+    `;
+    writePlugin(
+      root,
+      'optin-plugin',
+      {
+        version: '0.1.0',
+        description: 'test',
+        specCompat: '>=0.0.0',
+        catalogCompat: '*',
+      },
+      { 'extractor/url-counter.mjs': extractorSource },
+    );
+
+    const result = await loaderFor(root).discoverAndLoadAll();
+    strictEqual(result[0]!.status, 'enabled');
+    strictEqual(result[0]!.extensions?.[0]?.defaultEnabled, false);
+  });
+
   it('invalid-manifest: stability outside the closed enum', async () => {
     const root = makePluginsDir('stability-invalid');
     const extractorSource = `
@@ -658,6 +687,167 @@ describe('PluginLoader', () => {
       strictEqual(result.length, 1);
       strictEqual(result[0]?.status, 'invalid-manifest');
       match(result[0]!.reason!, /spec\/schemas\/extensions\/action\.schema\.json/);
+    });
+  });
+
+  // Findings pipeline, finder (probabilistic Analyzer) file conventions.
+  // `spec/schemas/extensions/analyzer.schema.json`: a probabilistic
+  // analyzer ships `prompt.md` + `report.schema.json` (extending the
+  // canonical findings envelope) by convention; missing either, an
+  // unparseable schema, or a schema that does not $ref the envelope is
+  // `invalid-manifest`. The AJV conditional additionally requires
+  // `probExpectedDurationSeconds` when `mode: 'probabilistic'`.
+  describe('finder Analyzer file conventions (structure-as-truth)', () => {
+    const FINDER_SOURCE = `
+      export default {
+        version: '1.0.0',
+        description: 'test finder',
+        mode: 'probabilistic',
+        probExpectedDurationSeconds: 45,
+      };
+    `;
+    const FINDINGS_REPORT_SCHEMA = JSON.stringify({
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      $id: 'urn:test:finder-report',
+      allOf: [{ $ref: 'https://skill-map.ai/spec/v0/findings/report.schema.json' }],
+    });
+
+    /** Drop a sibling file into `<plugin>/analyzers/<name>/`. */
+    function writeAnalyzerSibling(
+      pluginDir: string,
+      name: string,
+      file: string,
+      contents: string,
+    ): void {
+      writeFileSync(join(pluginDir, 'analyzers', name, file), contents);
+    }
+
+    const MANIFEST = {
+      version: '0.1.0',
+      description: 'test',
+      specCompat: '>=0.0.0',
+      catalogCompat: '*',
+    };
+
+    it('loads a valid probabilistic analyzer (prompt.md + findings-extending schema)', async () => {
+      const root = makePluginsDir('finder-valid');
+      const pluginDir = writePlugin(root, 'finder-plugin', MANIFEST, {
+        'analyzer/finder.mjs': FINDER_SOURCE,
+      });
+      writeAnalyzerSibling(pluginDir, 'finder', 'prompt.md', 'Judge this.\n\n{{userContent}}\n');
+      writeAnalyzerSibling(pluginDir, 'finder', 'report.schema.json', FINDINGS_REPORT_SCHEMA);
+
+      const result = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(result[0]?.status, 'enabled');
+      const ext = result[0]?.extensions?.[0];
+      strictEqual(ext?.kind, 'analyzer');
+      strictEqual(ext?.id, 'finder');
+      const instance = (ext as { instance?: Record<string, unknown> }).instance;
+      strictEqual(instance?.['mode'], 'probabilistic');
+      strictEqual(instance?.['probExpectedDurationSeconds'], 45);
+    });
+
+    it('invalid-manifest: probabilistic analyzer missing prompt.md', async () => {
+      const root = makePluginsDir('finder-no-prompt');
+      const pluginDir = writePlugin(root, 'finder-plugin', MANIFEST, {
+        'analyzer/finder.mjs': FINDER_SOURCE,
+      });
+      writeAnalyzerSibling(pluginDir, 'finder', 'report.schema.json', FINDINGS_REPORT_SCHEMA);
+
+      const result = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(result[0]?.status, 'invalid-manifest');
+      match(result[0]!.reason!, /prompt\.md/);
+    });
+
+    it('invalid-manifest: probabilistic analyzer missing report.schema.json', async () => {
+      const root = makePluginsDir('finder-no-schema');
+      const pluginDir = writePlugin(root, 'finder-plugin', MANIFEST, {
+        'analyzer/finder.mjs': FINDER_SOURCE,
+      });
+      writeAnalyzerSibling(pluginDir, 'finder', 'prompt.md', 'Judge this.\n\n{{userContent}}\n');
+
+      const result = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(result[0]?.status, 'invalid-manifest');
+      match(result[0]!.reason!, /report\.schema\.json/);
+    });
+
+    it('invalid-manifest: report schema does not extend the findings envelope', async () => {
+      const root = makePluginsDir('finder-wrong-schema');
+      const pluginDir = writePlugin(root, 'finder-plugin', MANIFEST, {
+        'analyzer/finder.mjs': FINDER_SOURCE,
+      });
+      writeAnalyzerSibling(pluginDir, 'finder', 'prompt.md', 'Judge this.\n\n{{userContent}}\n');
+      writeAnalyzerSibling(
+        pluginDir,
+        'finder',
+        'report.schema.json',
+        JSON.stringify({
+          $id: 'urn:test:not-findings',
+          allOf: [{ $ref: 'https://skill-map.ai/spec/v0/report-base.schema.json' }],
+        }),
+      );
+
+      const result = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(result[0]?.status, 'invalid-manifest');
+      match(result[0]!.reason!, /findings/);
+    });
+
+    it('invalid-manifest: probabilistic analyzer without probExpectedDurationSeconds (AJV conditional)', async () => {
+      const root = makePluginsDir('finder-no-duration');
+      const pluginDir = writePlugin(root, 'finder-plugin', MANIFEST, {
+        'analyzer/finder.mjs': `
+          export default {
+            version: '1.0.0',
+            description: 'test finder',
+            mode: 'probabilistic',
+          };
+        `,
+      });
+      writeAnalyzerSibling(pluginDir, 'finder', 'prompt.md', 'Judge this.\n\n{{userContent}}\n');
+      writeAnalyzerSibling(pluginDir, 'finder', 'report.schema.json', FINDINGS_REPORT_SCHEMA);
+
+      const result = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(result[0]?.status, 'invalid-manifest');
+      match(result[0]!.reason!, /spec\/schemas\/extensions\/analyzer\.schema\.json/);
+    });
+
+    it('a modeless (deterministic-default) analyzer validates without probExpectedDurationSeconds', async () => {
+      // The schema conditional carries `required: ['mode']` inside its
+      // if-block, so an absent `mode` (defaulting to deterministic)
+      // never trips the probabilistic-only requirement.
+      const root = makePluginsDir('finder-modeless-det');
+      writePlugin(root, 'modeless-plugin', MANIFEST, {
+        'analyzer/det-rule.mjs': `
+          export default {
+            version: '1.0.0',
+            description: 'deterministic rule with no mode field',
+            evaluate: () => [],
+          };
+        `,
+      });
+
+      const result = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(result[0]?.status, 'enabled');
+      strictEqual(result[0]?.extensions?.[0]?.kind, 'analyzer');
+    });
+
+    it('invalid-manifest: deterministic analyzer carrying a stray prompt.md', async () => {
+      const root = makePluginsDir('finder-det-prompt');
+      const pluginDir = writePlugin(root, 'det-plugin', MANIFEST, {
+        'analyzer/det-rule.mjs': `
+          export default {
+            version: '1.0.0',
+            description: 'deterministic rule',
+            mode: 'deterministic',
+            evaluate: () => [],
+          };
+        `,
+      });
+      writeAnalyzerSibling(pluginDir, 'det-rule', 'prompt.md', 'stray\n');
+
+      const result = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(result[0]?.status, 'invalid-manifest');
+      match(result[0]!.reason!, /prompt\.md/);
     });
   });
 

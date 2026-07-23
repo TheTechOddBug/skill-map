@@ -60,7 +60,7 @@ function ctxWith(over: Partial<IAnalyzerContext>): IAnalyzerContext {
 
 describe('core/link-self-loop rule', () => {
   it('emits no issues when links is empty', async () => {
-    const issues = await linkSelfLoopAnalyzer.evaluate(ctxWith({}));
+    const issues = await linkSelfLoopAnalyzer.evaluate!(ctxWith({}));
     assert.deepEqual(issues, []);
   });
 
@@ -80,7 +80,7 @@ describe('core/link-self-loop rule', () => {
       confidence: 1.0,
       sources: ['markdown-link'],
     });
-    const issues = await linkSelfLoopAnalyzer.evaluate(
+    const issues = await linkSelfLoopAnalyzer.evaluate!(
       ctxWith({ nodes: [cmd], links: [selfLoop] }),
     );
     assert.equal(issues.length, 1);
@@ -111,7 +111,7 @@ describe('core/link-self-loop rule', () => {
       trigger: { originalTrigger: '/real-command', normalizedTrigger: '/real command' },
       resolvedTarget: cmd.path,
     });
-    const issues = await linkSelfLoopAnalyzer.evaluate(
+    const issues = await linkSelfLoopAnalyzer.evaluate!(
       ctxWith({ nodes: [cmd], links: [triggerLoop] }),
     );
     assert.equal(issues.length, 1);
@@ -150,7 +150,7 @@ describe('core/link-self-loop rule', () => {
         },
       ],
     });
-    const issues = await linkSelfLoopAnalyzer.evaluate(
+    const issues = await linkSelfLoopAnalyzer.evaluate!(
       ctxWith({ nodes: [cmd], links: [usageLoop] }),
     );
     assert.deepEqual(issues, []);
@@ -180,7 +180,7 @@ describe('core/link-self-loop rule', () => {
         },
       ],
     });
-    const issues = await linkSelfLoopAnalyzer.evaluate(
+    const issues = await linkSelfLoopAnalyzer.evaluate!(
       ctxWith({ nodes: [cmd], links: [mixedLoop] }),
     );
     assert.equal(issues.length, 1);
@@ -190,7 +190,7 @@ describe('core/link-self-loop rule', () => {
     const src = mockNode({ path: 'a.md' });
     const dst = mockNode({ path: 'b.md' });
     const cross = mockLink({ source: src.path, target: dst.path });
-    const issues = await linkSelfLoopAnalyzer.evaluate(
+    const issues = await linkSelfLoopAnalyzer.evaluate!(
       ctxWith({ nodes: [src, dst], links: [cross] }),
     );
     assert.deepEqual(issues, []);
@@ -206,7 +206,7 @@ describe('core/link-self-loop rule', () => {
       target: '/something',
       resolvedTarget: dst.path,
     });
-    const issues = await linkSelfLoopAnalyzer.evaluate(
+    const issues = await linkSelfLoopAnalyzer.evaluate!(
       ctxWith({ nodes: [src, dst], links: [link] }),
     );
     assert.deepEqual(issues, []);

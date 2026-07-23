@@ -12,22 +12,20 @@
  *   2. Find the stale node from the fixture scope (the `.sm` carries a
  *      bodyHash sentinel that can never match the live sha256, so the
  *      kernel resolves `sidecar.status` to `stale-both`).
- *   3. Verify the stale state via three surfaces:
- *        a. The files rail row carries a `.files__stale-icon` (`pi-clock`)
- *           — the rail's per-row staleness signal (the graph node-card no
- *           longer ships a discrete `node-card-stale-badge`; staleness now
- *           surfaces on the rail row and in the inspector header).
- *        b. The inspector header shows `[data-testid="inspector-stale-badge"]`.
- *        c. The inspector bump button is **enabled** (gated by `canBump()`).
- *   4. Click the inspector bump button and accept the first-time
- *      `allowEditSmFiles` consent dialog (the BFF answers the first
- *      `POST /api/sidecar/bump` with 412 `confirm-required`; the UI opens
- *      the PrimeNG confirm dialog, "Yes, allow" retries the write).
- *   5. Wait for the WS `sidecar.bumped` event to land — the SPA's
- *      `SidecarService` patches the in-memory node store, the annotations
- *      panel `version` field re-renders with the incremented value
- *      (v3 → v4), the stale badge collapses (overlay flips to `'fresh'`
- *      per the route's §Behaviour matrix in `src/server/routes/sidecar.ts`).
+ *   3. Verify the stale state via two surfaces:
+ *        a. The files rail row carries a `.files__stale-icon` (`pi-clock`),
+ *           the rail's per-row staleness signal.
+ *        b. The header version chip (the Bump affordance since 2026-07-21;
+ *           `core/node-bump` is opted in by the fixture because it ships
+ *           `defaultEnabled: false`) renders the seeded version enabled.
+ *   4. Click the version chip and accept the first-time `allowEditSmFiles`
+ *      consent dialog (the BFF answers the first
+ *      `POST /api/actions/core/node-bump` with 412 `confirm-required`; the
+ *      UI opens the consent dialog, "Allow" retries the write).
+ *   5. Wait for the WS `action.applied` event to land: the SPA patches the
+ *      in-memory node store, the version chip re-renders with the
+ *      incremented value (v3 -> v4) and the rail stale icon clears (the
+ *      overlay flips to `'fresh'`).
  *
  * Coverage scope: just the bump happy path (per the R10 brief). Error
  * paths and the 409 refusal flow stay covered by the Karma unit tests
@@ -38,11 +36,20 @@ import { test, expect } from './_fixtures.js';
 
 const STALE_PATH = '.claude/agents/stale-agent.md';
 const SEEDED_VERSION = 3;
-const CONSENT_ACCEPT_LABEL = 'Yes, allow';
+const CONSENT_ACCEPT_LABEL = 'Allow';
 
 test.describe('live-BFF bump flow', () => {
   test('clicking bump on a stale node clears the badge and increments the version', async ({ page, liveBffUrl }) => {
-    // 1. Boot the SPA — live mode, real BFF.
+    // 1. Boot the SPA (live mode, real BFF). The files rail opens
+    //    collapsed map-first by default; seed the persisted OPEN state so
+    //    `files-view` mounts on load (same recipe as the demo smoke).
+    await page.addInitScript(() => {
+      try {
+        window.localStorage.setItem('sm.workspace.rail-collapsed', '0');
+      } catch {
+        /* localStorage unavailable before first paint; ignore. */
+      }
+    });
     await page.goto(liveBffUrl);
     await page.waitForLoadState('networkidle');
 
@@ -63,6 +70,9 @@ test.describe('live-BFF bump flow', () => {
     // 3a. Stale surface on the files rail: the row for a `stale-*` node
     //     renders the stale-clock icon. This replaces the retired
     //     `node-card-stale-badge` as the graph-side staleness signal.
+    //     Folders render COLLAPSED by default; expand the whole tree so
+    //     the nested leaf row mounts (same recipe as the demo smoke).
+    await page.getByTestId('files-expand-all').click();
     const staleRow = page.getByTestId(`files-leaf-${STALE_PATH}`);
     await expect(staleRow).toBeVisible();
     await expect(staleRow.locator('.files__stale-icon')).toBeVisible();
@@ -73,42 +83,35 @@ test.describe('live-BFF bump flow', () => {
     await page.waitForLoadState('networkidle');
     await expect(page.getByTestId('inspector-view')).toBeVisible();
 
-    // 3b. Stale state in the inspector header.
-    await expect(page.getByTestId('inspector-stale-badge')).toBeVisible();
+    // 3b/3c. The Bump affordance IS the header version chip (user call
+    //     2026-07-21, mirror of the stability chip): it renders because
+    //     the fixture opts `core/node-bump` in, shows the seeded version,
+    //     and is enabled because the node is stale (drift present).
+    const versionChip = page.getByTestId('inspector-version');
+    await expect(versionChip).toBeVisible();
+    await expect(versionChip).toHaveText(`v${SEEDED_VERSION}`);
+    await expect(versionChip).toBeEnabled();
 
-    // 3c. The inspector bump host is the `<p-button>` wrapper; the actual
-    //     <button> is a child. Same selector strategy as the unit tests
-    //     (see `inspector-view.spec.ts`). Stale state is also confirmed by
-    //     the bump button being enabled (fresh disables, stale enables).
-    const bumpButton = page.getByTestId('inspector-bump').locator('button').first();
-    await expect(bumpButton).toBeEnabled();
-
-    // Annotations panel renders the seeded version (with a `v` prefix)
-    // BEFORE the bump.
-    const versionField = page.getByTestId('annotations-version');
-    await expect(versionField).toHaveText(`v${SEEDED_VERSION}`);
-
-    // 5. Click bump, then accept the first-time `.sm`-write consent. The
-    //    first `POST /api/sidecar/bump` returns 412 `confirm-required`
-    //    (`allowEditSmFiles`), which opens the consent dialog; "Yes, allow"
-    //    grants the permission and the UI retries the write.
-    await bumpButton.click();
-    const consentAccept = page.getByRole('button', { name: CONSENT_ACCEPT_LABEL });
+    // 5. Click the chip, then accept the first-time `.sm`-write consent.
+    //    The first `POST /api/actions/core/node-bump` answers 412
+    //    `confirm-required` (`allowEditSmFiles`); the UI opens the consent
+    //    dialog and "Allow" retries the write (one-shot grant).
+    await versionChip.click();
+    const consentAccept = page.getByRole('button', { name: CONSENT_ACCEPT_LABEL, exact: true });
     await consentAccept.waitFor({ timeout: 5_000 });
     await consentAccept.click();
 
-    // Wait for the version field to reflect the increment (v3 → v4). The
-    // annotations panel only renders the `version` when the overlay is
-    // present and carries it — the kernel's bump action increments the
-    // existing value, so we wait for that exact transition. Polling is
-    // implicit in `toHaveText(...)`.
-    await expect(versionField).toHaveText(`v${SEEDED_VERSION + 1}`, { timeout: 10_000 });
+    // Wait for the chip to reflect the increment (v3 -> v4). The WS
+    //    `action.applied` broadcast patches the node store and the chip
+    //    re-derives the effective version. Polling is implicit in
+    //    `toHaveText(...)`.
+    await expect(versionChip).toHaveText(`v${SEEDED_VERSION + 1}`, { timeout: 10_000 });
 
-    // 6. Stale signals MUST be gone — the WS `sidecar.bumped` event flipped
-    //    the overlay to `status: 'fresh'`, which the UI's `isStaleSidecar()`
-    //    predicate treats as "not stale". The inspector stale badge
-    //    collapses and the rail row's stale-clock icon clears.
-    await expect(page.getByTestId('inspector-stale-badge')).toHaveCount(0);
+    // 6. Stale signals MUST be gone: the bump refreshed the identity
+    //    hashes, the overlay flips to `'fresh'`, and the rail row's
+    //    stale-clock icon clears (the header stale badge is a
+    //    contribution-driven icon-only renderer now, the rail icon is
+    //    the stable staleness probe).
     await expect(page.locator('.files__stale-icon')).toHaveCount(0);
   });
 });

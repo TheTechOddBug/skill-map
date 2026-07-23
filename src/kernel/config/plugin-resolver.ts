@@ -51,14 +51,22 @@ const SHIPS_DISABLED: ReadonlySet<TExtensionStability> = new Set([
 ]);
 
 /**
- * Installed default-enabled state for an extension given its declared
- * `stability`. `experimental` and `deprecated` ship OFF (the operator
- * opts in via the Settings toggle / `sm plugins enable`); every other
- * value (`beta`, `stable`, or undefined) ships ON. This is the ONLY
- * place the ships-disabled policy lives; the resolver stays
- * manifest-agnostic and consumes the boolean this returns.
+ * Installed default-enabled state for an extension. The manifest's
+ * `defaultEnabled` override wins when declared (orthogonal axis, spec
+ * `base.schema.json#/properties/defaultEnabled`: a `stable` extension
+ * can ship as a deliberate opt-in without mislabeling its maturity);
+ * otherwise `stability` decides: `experimental` and `deprecated` ship
+ * OFF (the operator opts in via the Settings toggle / `sm plugins
+ * enable`), every other value (`beta`, `stable`, or undefined) ships
+ * ON. This is the ONLY place the ships-disabled policy lives; the
+ * resolver stays manifest-agnostic and consumes the boolean this
+ * returns.
  */
-export function installedDefaultEnabled(stability?: TExtensionStability): boolean {
+export function installedDefaultEnabled(
+  stability?: TExtensionStability,
+  defaultEnabled?: boolean,
+): boolean {
+  if (defaultEnabled !== undefined) return defaultEnabled;
   return stability === undefined || !SHIPS_DISABLED.has(stability);
 }
 

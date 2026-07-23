@@ -27,12 +27,31 @@
  * policy.
  */
 
-import type { IHook, IHookContext, THookTrigger } from './hook.js';
+import type { IHook, IHookActionInfo, IHookContext, THookTrigger } from './hook.js';
 import type { Node } from '../types.js';
 import type { ProgressEmitterPort, ProgressEvent } from '../ports/progress-emitter.js';
 import { qualifiedExtensionId } from '../registry.js';
 import { formatErrorMessage } from '../util/format-error.js';
 import { log } from '../util/logger.js';
+
+/**
+ * Optional runtime capabilities the DRIVER supplies so a hook can react
+ * beyond pure observation. Only the record-path dispatch wires these today
+ * (for chain hooks subscribing `job.completed`); the scan / boot dispatchers omit
+ * them and the fields stay `undefined` on `IHookContext`.
+ *
+ *   - `queue`, enqueue a probabilistic Action as a deferred job. Attached
+ *     to `ctx.queue`. The driver owns the async lifecycle (it collects the
+ *     requests and drains them while its DB handle is still open), so the
+ *     hook-facing signature stays fire-and-forget `void`.
+ *   - `actions`, the loaded-Action projection (`IHookActionInfo[]`).
+ *     Attached to `ctx.actions` so a hook can resolve the inverse of
+ *     Modelo B without importing the registry.
+ */
+export interface IHookDispatchCapabilities {
+  queue?: (actionId: string, payload: unknown) => void;
+  actions?: readonly IHookActionInfo[];
+}
 
 export interface IHookDispatcher {
   /**
@@ -46,10 +65,13 @@ export interface IHookDispatcher {
 /**
  * Build a dispatcher over the given hooks. Empty `hooks` returns a
  * cheap no-op shape so the call sites can dispatch unconditionally.
+ * `capabilities` (optional) supplies the driver-provided `queue` / `actions`
+ * that `buildHookContext` threads onto each `IHookContext`.
  */
 export function makeHookDispatcher(
   hooks: IHook[],
   emitter: ProgressEmitterPort,
+  capabilities?: IHookDispatchCapabilities,
 ): IHookDispatcher {
   if (hooks.length === 0) {
     // Cheap no-op fast path: most scans don't carry any hooks today.
@@ -78,7 +100,7 @@ export function makeHookDispatcher(
       if (!subs || subs.length === 0) return;
       for (const hook of subs) {
         if (!matchesFilter(hook, event)) continue;
-        const ctx = buildHookContext(hook, trigger, event);
+        const ctx = buildHookContext(hook, trigger, event, capabilities);
         try {
           await hook.on(ctx);
         } catch (err) {
@@ -121,6 +143,7 @@ function buildHookContext(
   _hook: IHook,
   trigger: THookTrigger,
   event: ProgressEvent,
+  capabilities?: IHookDispatchCapabilities,
 ): IHookContext {
   const data = (event.data ?? {}) as Record<string, unknown>;
   const ctx: IHookContext = {
@@ -130,9 +153,15 @@ function buildHookContext(
     settings: _hook.resolvedSettings ?? {},
     event: {
       type: trigger,
-      timestamp: event.timestamp,
+      // Hook events carry ISO-8601 strings (`IHookEvent.timestamp`);
+      // job-event envelopes carry Unix ms. Convert at this seam so the
+      // hook contract stays stable regardless of the emitting family.
+      timestamp:
+        typeof event.timestamp === 'number'
+          ? new Date(event.timestamp).toISOString()
+          : event.timestamp,
       ...(event.runId !== undefined ? { runId: event.runId } : {}),
-      ...(event.jobId !== undefined ? { jobId: event.jobId } : {}),
+      ...(typeof event.jobId === 'string' ? { jobId: event.jobId } : {}),
       data: event.data,
     },
   };
@@ -143,5 +172,9 @@ function buildHookContext(
     ctx.node = data['node'] as Node;
   }
   if (data['jobResult'] !== undefined) ctx.jobResult = data['jobResult'];
+  // Driver-supplied capabilities (record-path dispatch only): the queue
+  // sink + the loaded-Action projection the auto-fix hook resolves against.
+  if (capabilities?.queue) ctx.queue = capabilities.queue;
+  if (capabilities?.actions) ctx.actions = capabilities.actions;
   return ctx;
 }

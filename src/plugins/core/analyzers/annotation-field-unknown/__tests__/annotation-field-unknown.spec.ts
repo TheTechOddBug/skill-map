@@ -40,7 +40,7 @@ function run(sidecarRoot: Record<string, unknown>): {
   const contributions: { nodePath: string; id: string; payload: unknown }[] = [];
   const node = fakeNode('agents/architect.md');
   const sidecarRoots = new Map<string, Record<string, unknown>>([[node.path, sidecarRoot]]);
-  const result = annotationFieldUnknownAnalyzer.evaluate({
+  const result = annotationFieldUnknownAnalyzer.evaluate!({
     nodes: [node],
     links: [],
     sidecarRoots,

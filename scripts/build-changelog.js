@@ -56,6 +56,7 @@ import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
+  applyBumpType,
   technicalBody,
   validateTechnicalBody,
 } from './build-user-changelog.js';
@@ -72,28 +73,6 @@ const SPEC_PACKAGE_NAME = '@skill-map/spec';
 
 /** Bump-type rank; `max` of all changesets wins. */
 const BUMP_RANK = { patch: 1, minor: 2, major: 3 };
-
-/** Pre-1.0 cap: any major while still in 0.x.y -> minor instead. */
-function applyBumpType(currentVersion, bumpType) {
-  const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(currentVersion);
-  if (!m) {
-    throw new Error(`build-changelog: cannot parse version "${currentVersion}"`);
-  }
-  let [major, minor, patch] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  let effective = bumpType;
-  if (effective === 'major' && major === 0) effective = 'minor';
-  if (effective === 'major') {
-    major += 1;
-    minor = 0;
-    patch = 0;
-  } else if (effective === 'minor') {
-    minor += 1;
-    patch = 0;
-  } else {
-    patch += 1;
-  }
-  return `${major}.${minor}.${patch}`;
-}
 
 function maxBumpType(types) {
   let best = null;

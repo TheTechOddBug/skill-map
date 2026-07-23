@@ -10,6 +10,7 @@
 
 import type {
   IActionAppliedEnvelopeApi,
+  IJobSubmittedEnvelopeApi,
   ISidecarBumpedEnvelopeApi,
 } from '../../../models/api';
 
@@ -97,4 +98,149 @@ export interface IActionsPort {
     nodePath: string,
     opts?: IActionDispatchOpts,
   ): Promise<IActionAppliedEnvelopeApi>;
+
+  /**
+   * `POST /api/nodes/:pathB64/jobs` (Step 16 piece 1), enqueue a
+   * probabilistic extension against one node from the inspector's
+   * launcher buttons. Goes through the SAME shared submit machinery as
+   * `sm jobs submit` on the BFF side, so every submit rule is inherited
+   * (duplicate refusal, fixer findings injection, supersede, drift
+   * verification). Returns the `job.submitted` envelope on 200; throws
+   * `DataSourceError` on any 4xx/5xx so the caller branches on `code`:
+   *
+   *   - `no-processing-agent` (409): the operator gate, no processing
+   *     skill installed. The UI renders the advisory plus an
+   *     `sm agent install` hint.
+   *   - `duplicate-job` (409): an active identical job already exists
+   *     (`details.existingId`); the UI treats it as already queued.
+   *   - `job-running` / `no-findings` / `node-drifted` (409),
+   *     `bad-query` (400), `not-found` (404): surfaced verbatim.
+   *
+   * The success path does NOT patch local state beyond the optimistic
+   * `queued` flip; the `job.submitted` WS broadcast confirms for every
+   * connected client. Demo mode rejects with `'demo-readonly'`.
+   *
+   * `autoFix` (default `false`) rides the POST body as `autoFix`: on a
+   * finder submit it freezes `state_jobs.auto_fix` so the record path
+   * chains the finder's fixers on completion (the inspector's automatic
+   * toggle sends it). Ignored by the kernel on a non-finder target.
+   *
+   * `findingIds` (fixer submits only) rides the body as `findingIds`,
+   * freezing a finding subset onto the job so each tray row fixes
+   * individually; disjoint-subset fixer jobs coexist, overlap
+   * supersedes (`spec/job-lifecycle.md` §Finding-subset targeting).
+   */
+  submitNodeJob(
+    nodePath: string,
+    extensionId: string,
+    autoFix?: boolean,
+    findingIds?: readonly number[],
+  ): Promise<IJobSubmittedEnvelopeApi>;
+
+  /**
+   * `POST /api/jobs/:jobId/cancel` (Step 16, launcher stop), cancel an
+   * active queued/running job by id, the HTTP face of `sm jobs cancel`.
+   * Resolves on `204 No Content`; throws `DataSourceError` on any
+   * 4xx/5xx so the caller branches on `code`:
+   *
+   *   - `job-terminal` (409): the job already reached a terminal state
+   *     (completed / failed / cancelled). NOT an error worth surfacing,
+   *     the job simply finished in the race; the launcher just
+   *     re-fetches the authoritative state.
+   *   - `not-found` (404): unknown job id (or missing DB).
+   *
+   * The success path does NOT patch local state beyond the caller's
+   * optimistic `idle` flip; the `job.cancelled` WS broadcast (and the
+   * debounced re-fetch it triggers) confirms for every connected
+   * client. Demo mode rejects with `'demo-readonly'`.
+   */
+  cancelJob(jobId: string): Promise<void>;
+
+  /**
+   * `POST /api/jobs/cancel-all`, cancel EVERY active (queued/running) job
+   * in one transaction, the HTTP face of `sm jobs cancel --all`. Resolves
+   * on `204` (a per-id `job.cancelled` broadcast fans out; the caller
+   * re-fetches). Demo mode rejects with `'demo-readonly'`.
+   */
+  cancelAllJobs(): Promise<void>;
+
+  /**
+   * `POST /api/nodes/:pathB64/findings/:id/dismiss`, the inspector's
+   * per-finding X (the read-time suppression lens: the class HIDES, rows
+   * kept, reversible). DEFAULT = the ROW-grain dismissal (resolution
+   * state, no consent; 2026-07-22). `opts.class: true` = the DURABLE
+   * class suppression, a sidecar write behind the `.sm` consent gate:
+   * without a standing grant the BFF answers `412` `confirm-required`
+   * (`details.key = 'allowEditSmFiles'`), surfaced as a `DataSourceError`
+   * the consent dialog answers by retrying with `confirm` / `always`.
+   * Kernel safety rows refuse with `'finding-not-dismissible'` (409);
+   * unknown id `'not-found'` (404). Resolves on `204`; the caller
+   * re-fetches (no WS frame fires). Demo rejects `'demo-readonly'`.
+   */
+  dismissFinding(
+    nodePath: string,
+    findingId: number,
+    opts?: { confirm?: boolean; always?: boolean; class?: boolean },
+  ): Promise<void>;
+
+  /**
+   * `POST /api/nodes/:pathB64/findings/:id/reopen`, the restore on a
+   * ROW-dismissed (or fixed) revealed row: clears the resolution back to
+   * open. No sidecar, no consent. `'finding-open'` (409) /
+   * `'not-found'` (404). Resolves on `204`. Demo rejects
+   * `'demo-readonly'`.
+   */
+  reopenFinding(nodePath: string, findingId: number): Promise<void>;
+
+  /**
+   * `POST /api/nodes/:pathB64/findings/:id/resolve`, mark a finding fixed
+   * by the OPERATOR (`resolution = 'fixed'`, `resolution_actor =
+   * 'human'`). No consent (a DB row state). `'finding-already-fixed'`
+   * (409) / `'not-found'` (404). Resolves on `204`; the caller
+   * re-fetches. Demo rejects `'demo-readonly'`.
+   */
+  resolveFinding(nodePath: string, findingId: number, note?: string): Promise<void>;
+
+  /**
+   * `POST /api/nodes/:pathB64/findings/undismiss`, the restore button on
+   * a revealed dismissed row. EXACT identity (the row's qualified
+   * `extension` + `type`); same consent handshake as `dismissFinding`.
+   * The class's stored rows show again immediately (read-time lens).
+   * No-match `'not-found'` (404, the BFF self-heals the mirror first).
+   * Resolves on `204`. Demo rejects `'demo-readonly'`.
+   */
+  undismissFinding(
+    nodePath: string,
+    entry: { extension: string; type?: string },
+    opts?: { confirm?: boolean; always?: boolean },
+  ): Promise<void>;
+
+  /**
+   * `DELETE /api/nodes/:pathB64/findings/:id`, the delete X on a REVEALED
+   * dismissed / fixed row: hard-deletes the row from `state_findings`
+   * (per-row twin of `sm findings clear`, all origins). Deleting the
+   * LAST row of a dismissed class also lifts its exact suppression
+   * entry from the `.sm` (else a re-found class comes back hidden),
+   * so THAT case shares dismiss's consent handshake (`412`
+   * `confirm-required` answered by retrying with `confirm` / `always`);
+   * a plain delete needs none. Unknown id `'not-found'` (404). Resolves
+   * on `204`; the caller re-fetches. Demo rejects `'demo-readonly'`.
+   */
+  deleteFinding(
+    nodePath: string,
+    findingId: number,
+    opts?: { confirm?: boolean; always?: boolean },
+  ): Promise<void>;
+
+  /**
+   * `POST /api/jobs/prune[?status=]`, delete terminal jobs now. With no
+   * `status` it clears every terminal state (completed + failed +
+   * cancelled), the queue inspector's "clear finished"; with a single
+   * terminal `status` it clears just that state (e.g. `'failed'` for "clear
+   * failed"). DELIBERATELY distinct from the retention-based CLI
+   * `sm jobs prune` (which keeps `failed`). Resolves on `204`; prune emits
+   * NO WS event, so the caller MUST re-fetch. Demo mode rejects with
+   * `'demo-readonly'`.
+   */
+  pruneJobs(status?: 'completed' | 'failed' | 'cancelled'): Promise<void>;
 }

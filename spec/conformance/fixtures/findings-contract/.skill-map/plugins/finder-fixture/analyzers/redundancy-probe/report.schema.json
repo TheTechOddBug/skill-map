@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.ai/spec/v0/conformance/redundancy-probe-report.schema.json",
+  "title": "RedundancyProbeReport",
+  "description": "Conformance fixture report shape extending the canonical findings envelope; the $ref below is both the load-time gate and the byte needle the findings-contract case asserts inside the rendered report contract.",
+  "allOf": [{ "$ref": "https://skill-map.ai/spec/v0/findings/report.schema.json" }]
+}

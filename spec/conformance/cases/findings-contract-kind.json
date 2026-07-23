@@ -1,0 +1,34 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "findings-contract-kind",
+  "description": "The analyzer half of the kind-agnostic queue freezes its kind on the job row. Submitting the fixture finder (`finder-fixture/redundancy-probe`) enqueues exactly one job whose `sm jobs list --json` row carries `extensionKind: \"analyzer\"` (the record path routes on this frozen value, never re-resolving the id) alongside the qualified extension id and the `queued` status.",
+  "fixture": "findings-contract",
+  "setup": {
+    "priorScans": [{ "fixture": "findings-contract" }],
+    "priorInvokes": [
+      {
+        "verb": "agent",
+        "sub": "install",
+        "flags": ["--for", "claude"]
+      },
+      {
+        "verb": "jobs",
+        "sub": "submit",
+        "args": ["finder-fixture/redundancy-probe"],
+        "flags": ["-n", "notes.md"]
+      }
+    ]
+  },
+  "invoke": {
+    "verb": "jobs",
+    "sub": "list",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.length", "equals": 1 },
+    { "type": "json-path", "path": "$[0].extensionId", "equals": "finder-fixture/redundancy-probe" },
+    { "type": "json-path", "path": "$[0].extensionKind", "equals": "analyzer" },
+    { "type": "json-path", "path": "$[0].status", "equals": "queued" }
+  ]
+}

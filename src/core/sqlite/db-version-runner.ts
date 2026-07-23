@@ -19,10 +19,14 @@
  */
 
 import {
+  classifyVersionSkew,
+  DbSchemaDriftError,
   DbVersionMismatchError,
   detectDbVersionSkew,
+  readScannedByVersion,
   type TDbVersionCheckOutcome,
 } from './db-version-check.js';
+import { VERSION } from '../../version.js';
 import { classifyFingerprint } from '../../kernel/adapters/sqlite/schema-fingerprint.js';
 import { DB_VERSION_TEXTS } from './i18n/db-version.texts.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -243,4 +247,136 @@ function renderWarnSchema(
  */
 export function resetDbVersionWarnCacheForTests(): void {
   WARN_SEEN.clear();
+}
+
+/**
+ * WRITE-side drift guard. Runs at `withSqlite` open when NO `versionCheck`
+ * bag was passed (the read-side path) AND the caller did not opt out via
+ * `skipDriftCheck` (scan / watch, which own drift by rebuilding). Reuses
+ * the SAME schema-fingerprint classification the read-side advisory layers
+ * on (`classifyFingerprint`, memoized `schemaFingerprint()` + the defensive
+ * `readStoredFingerprint`), so no new hashing and no new DB scan is added:
+ *
+ *   - `no-meta` (never scanned) → no-op, no signal (mirrors the version
+ *     check's `no-meta` posture).
+ *   - `ok` (stored fingerprint matches the bundled migrations) → no-op.
+ *   - `drift` (stored fingerprint differs, is NULL, or the column is
+ *     absent) → throw `DbSchemaDriftError`. A mutation against the older
+ *     on-disk schema would otherwise crash with `CHECK constraint failed`
+ *     / `no such column`; the guard refuses with an actionable advisory
+ *     instead.
+ *
+ * Fingerprint axis only: a pure version bump with no schema change keeps
+ * the fingerprint stable, so it never trips this (writing the same columns
+ * is safe). Any inline migration DDL edit changes the fingerprint and does
+ * trip it. Version-newer / different-major skew is a READ-side concern
+ * (`runDbVersionCheck`); write verbs only care whether the columns they
+ * are about to write still exist.
+ *
+ * Path-based, not handle-based: `classifyFingerprint(dbPath)` opens its own
+ * short-lived read-only handle, exactly like the read-side
+ * `layerFingerprintOutcome` does, so the guard never reaches for the live
+ * Kysely handle. Bare `✕` glyph (no colour / dim): the default write open
+ * carries no CLI style bag, matching how the version renderers fall back
+ * when `style` is absent.
+ */
+/**
+ * Verb-level WRITE gate (`spec/cli-contract.md` §Schema-drift rebuild,
+ * write bullet): non-drift-owning write verbs (`sm jobs submit` /
+ * `cancel` / `fail` / `prune`, `sm record`, `sm findings prune`) call
+ * this FIRST, before loading the plugin runtime and before any adapter
+ * open, so a drifted DB refuses with the clean advisory instead of a
+ * misleading downstream symptom (observed live: `sm jobs submit` on a
+ * drifted DB reported `extension not found` because the plugin trust
+ * read degraded, three layers from the cause).
+ *
+ * Both drift axes are checked, path-based (short-lived read-only
+ * handles, no live adapter):
+ *
+ *   - VERSION axis: `scan_meta.scanned_by_version` vs the running CLI.
+ *     A minor or major difference is drift; the read side merely warns
+ *     on an older same-major DB, a write refuses. Newer / different
+ *     major throws the same `DbVersionMismatchError` the read side
+ *     uses; an older minor throws `DbSchemaDriftError` with the
+ *     version-flavoured write advisory.
+ *   - FINGERPRINT axis: delegated to `runWriteSideDriftCheck` (the
+ *     `withSqlite` default guard stays as the backstop for opens that
+ *     bypass this gate).
+ *
+ * `no-meta` (never scanned / unreadable) stays silent on both axes.
+ * Throws propagate to the `SmCommand` boundary, which renders the
+ * `humanMessage` block and exits 2.
+ */
+export function assertNoDriftForWrite(dbPath: string, currentVersion: string = VERSION): void {
+  const dbVersion = readScannedByVersion(dbPath);
+  if (dbVersion !== null) {
+    const outcome = classifyVersionSkew(dbVersion, currentVersion);
+    if (outcome.kind === 'error-newer') {
+      throw renderErrorNewer(outcome, { currentVersion, dbPath });
+    }
+    if (outcome.kind === 'error-major') {
+      throw renderErrorMajor(outcome, { currentVersion, dbPath });
+    }
+    if (outcome.kind === 'warn-older') {
+      throw new DbSchemaDriftError({
+        message: tx(DB_VERSION_TEXTS.dbVersionDriftWritePlain, {
+          dbVersion: outcome.dbVersion,
+          currentVersion,
+        }),
+        humanMessage: tx(DB_VERSION_TEXTS.dbVersionDriftWrite, {
+          glyph: '✕',
+          dbVersion: outcome.dbVersion,
+          currentVersion,
+          hint: DB_VERSION_TEXTS.dbVersionDriftWriteHint,
+        }),
+      });
+    }
+  }
+  runWriteSideDriftCheck(dbPath, currentVersion);
+}
+
+/**
+ * READ-side failure conversion (`spec/cli-contract.md` §Schema-drift
+ * rebuild, read bullet). When a read verb's advisory DETECTED drift
+ * (warn-older / warn-schema) and the attempted read then failed, the
+ * failure is the drift materialising (a query touching a column the
+ * stored schema predates), so it surfaces as the clean drift advisory
+ * instead of the raw SQL error (observed live: `sm findings` printed
+ * the advisory then crashed with `no such column`). The sanitized
+ * cause rides only on the plain `message` (BFF envelope /
+ * diagnostics); the human block stays clean.
+ *
+ * Callers MUST scope this to the drift-detected case: on a healthy DB
+ * a query failure is a genuine bug and rethrows untouched (see
+ * `withSqlite`).
+ */
+export function wrapDriftedReadFailure(
+  cause: unknown,
+  opts: Pick<IRunDbVersionCheckOpts, 'currentVersion' | 'style'>,
+): DbSchemaDriftError {
+  const errorGlyph = opts.style?.errorGlyph ?? '✕';
+  const dim = opts.style?.dim ?? ((s: string) => s);
+  const causeText = cause instanceof Error ? cause.message : String(cause);
+  return new DbSchemaDriftError({
+    message: tx(DB_VERSION_TEXTS.dbSchemaDriftReadFailedPlain, {
+      currentVersion: opts.currentVersion,
+      cause: causeText,
+    }),
+    humanMessage: tx(DB_VERSION_TEXTS.dbSchemaDriftReadFailed, {
+      glyph: errorGlyph,
+      currentVersion: opts.currentVersion,
+      hint: dim(DB_VERSION_TEXTS.dbSchemaDriftReadFailedHint),
+    }),
+  });
+}
+
+export function runWriteSideDriftCheck(dbPath: string, currentVersion: string): void {
+  if (classifyFingerprint(dbPath).kind !== 'drift') return;
+  const humanMessage = tx(DB_VERSION_TEXTS.dbSchemaDriftWrite, {
+    glyph: '✕',
+    currentVersion,
+    hint: DB_VERSION_TEXTS.dbSchemaDriftWriteHint,
+  });
+  const message = tx(DB_VERSION_TEXTS.dbSchemaDriftWritePlain, { currentVersion });
+  throw new DbSchemaDriftError({ message, humanMessage });
 }

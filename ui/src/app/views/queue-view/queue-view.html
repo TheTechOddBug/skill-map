@@ -1,0 +1,246 @@
+<section class="queue queue--rail" data-testid="queue-view">
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  }
+
+  @if (showLoading()) {
+    <div class="queue__loading" data-testid="queue-loading">
+      <p-progressSpinner strokeWidth="4" [style]="{ width: '1.75rem', height: '1.75rem' }" />
+      <span class="queue__loading-label">{{ texts.loading }}</span>
+    </div>
+  } @else if (rows().length === 0) {
+    <div class="empty-state">
+      <i class="pi pi-inbox empty-state__icon" aria-hidden="true"></i>
+      <p class="empty-state__title" data-testid="queue-empty">{{ texts.empty }}</p>
+      <p class="empty-state__desc">{{ texts.emptyHint }}</p>
+    </div>
+  } @else {
+    <!-- Local filter bar (Queue-only, mirrors the Files search cluster):
+         a text search over node + extension, plus the status chips that
+         double as the queue pulse (live counts) and the status filter. -->
+    <div class="queue__filters" data-testid="queue-filters">
+      <p-iconfield iconPosition="left" class="queue__search">
+        <p-inputicon styleClass="pi pi-search" />
+        <input
+          pInputText
+          pSize="small"
+          type="text"
+          class="queue__search-input"
+          [placeholder]="texts.filter.searchPlaceholder"
+          [attr.aria-label]="texts.filter.searchAriaLabel"
+          [ngModel]="searchText()"
+          (ngModelChange)="onSearchChange($event)"
+          data-testid="queue-search"
+        />
+        @if (searchText().length > 0) {
+          <button
+            type="button"
+            class="queue__search-clear"
+            [pTooltip]="texts.filter.searchClear"
+            tooltipPosition="bottom"
+            [attr.aria-label]="texts.filter.searchClear"
+            (click)="clearSearch()"
+            data-testid="queue-search-clear"
+          >
+            <i class="pi pi-times" aria-hidden="true"></i>
+          </button>
+        }
+      </p-iconfield>
+      <div
+        class="queue__status-filter"
+        role="group"
+        [attr.aria-label]="texts.filter.statusLabel"
+      >
+        @for (chip of statusChips(); track chip.status) {
+          <button
+            type="button"
+            class="queue__chip"
+            [class.is-on]="chip.active"
+            [attr.data-status]="chip.status"
+            [attr.aria-pressed]="chip.active"
+            [pTooltip]="chip.label"
+            tooltipPosition="top"
+            [attr.aria-label]="texts.filter.chipAriaLabel(chip.label, chip.count, chip.active)"
+            (click)="toggleStatus(chip.status)"
+            [attr.data-testid]="'queue-chip-' + chip.status"
+          >
+            <i [class]="chip.icon" aria-hidden="true"></i>
+            <span class="queue__chip-count">{{ chip.count }}</span>
+          </button>
+        }
+      </div>
+
+      <!-- Bulk actions (blanket semantics): cancel every active job, clear the
+           failed ones, clear every terminal one. Each gated on its live count
+           and guarded by a confirm dialog. -->
+      @if (activeCount() > 0 || terminalCount() > 0) {
+        <div class="queue__bulk" role="group" [attr.aria-label]="texts.bulk.groupLabel">
+          @if (activeCount() > 0) {
+            <button
+              type="button"
+              class="queue__bulk-btn"
+              (click)="confirmCancelAll()"
+              data-testid="queue-cancel-all"
+            >
+              <i class="pi pi-times" aria-hidden="true"></i>
+              <span>{{ texts.bulk.cancelActive(activeCount()) }}</span>
+            </button>
+          }
+          @if (failedCount() > 0) {
+            <button
+              type="button"
+              class="queue__bulk-btn queue__bulk-btn--danger"
+              (click)="confirmClearFailed()"
+              data-testid="queue-clear-failed"
+            >
+              <i class="pi pi-times-circle" aria-hidden="true"></i>
+              <span>{{ texts.bulk.clearFailed(failedCount()) }}</span>
+            </button>
+          }
+          @if (terminalCount() > 0) {
+            <button
+              type="button"
+              class="queue__bulk-btn queue__bulk-btn--danger"
+              (click)="confirmClearFinished()"
+              data-testid="queue-clear-finished"
+            >
+              <i class="pi pi-trash" aria-hidden="true"></i>
+              <span>{{ texts.bulk.clearFinished(terminalCount()) }}</span>
+            </button>
+          }
+        </div>
+      }
+    </div>
+
+    @if (filteredRows().length === 0) {
+      <div class="empty-state empty-state--compact">
+        <i class="pi pi-filter empty-state__icon" aria-hidden="true"></i>
+        <p class="empty-state__title" data-testid="queue-no-match">
+          {{ texts.filter.noMatch }}
+        </p>
+      </div>
+    } @else {
+    <div class="queue__split">
+      <p-table
+        [value]="filteredRows()"
+        [paginator]="true"
+        [rows]="pageSize"
+        [showCurrentPageReport]="true"
+        [currentPageReportTemplate]="texts.pageReport"
+        [showPageLinks]="false"
+        [showFirstLastIcon]="false"
+        [scrollable]="true"
+        [scrollHeight]="'flex'"
+        dataKey="id"
+        styleClass="p-datatable-sm queue__table"
+        data-testid="queue-table"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th class="queue__col-status">{{ texts.columns.status }}</th>
+            <th class="queue__col-node">{{ texts.columns.node }}</th>
+            <th class="queue__col-ext">{{ texts.columns.extension }}</th>
+            <th class="queue__col-age">{{ texts.columns.age }}</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-row>
+          <tr
+            class="queue__row"
+            [attr.data-status]="row.status"
+            [class.is-selected]="row.nodeId === selectedNodeId()"
+            (click)="selectNode(row)"
+            [attr.data-testid]="'queue-row-' + row.id"
+          >
+            <!-- Status glyph + the row's single inline action (there is no
+                 separate actions column): Cancel on an active row, Retry on a
+                 failed one. The action wrapper stops row-click propagation so
+                 acting on a job does not also select its node. -->
+            <td class="queue__cell-status">
+              <span class="queue__status-cell">
+                <span
+                  class="queue__status"
+                  [attr.data-status]="row.status"
+                  [pTooltip]="row.statusLabel"
+                  tooltipPosition="top"
+                  [attr.aria-label]="row.statusLabel"
+                >
+                  <i [class]="row.statusIcon" aria-hidden="true"></i>
+                </span>
+                @if (row.cancellable || row.retryable) {
+                  <span class="queue__row-action" (click)="$event.stopPropagation()">
+                    @if (row.cancellable) {
+                      <p-button
+                        icon="pi pi-times"
+                        severity="danger"
+                        size="small"
+                        [rounded]="true"
+                        [text]="true"
+                        [disabled]="isCancelling(row.id)"
+                        [loading]="isCancelling(row.id)"
+                        [pTooltip]="row.cancelTooltip"
+                        tooltipPosition="right"
+                        appendTo="body"
+                        [ariaLabel]="texts.cancelAriaLabel(row.extensionLabel)"
+                        (onClick)="cancel(row)"
+                        [attr.data-testid]="'queue-cancel-' + row.id"
+                      />
+                    }
+                    @if (row.retryable) {
+                      <p-button
+                        icon="pi pi-refresh"
+                        severity="secondary"
+                        size="small"
+                        [rounded]="true"
+                        [text]="true"
+                        [disabled]="isRetrying(row.id)"
+                        [loading]="isRetrying(row.id)"
+                        [pTooltip]="texts.retryTooltip"
+                        tooltipPosition="right"
+                        appendTo="body"
+                        [ariaLabel]="texts.retryAriaLabel(row.extensionLabel)"
+                        (onClick)="retry(row)"
+                        [attr.data-testid]="'queue-retry-' + row.id"
+                      />
+                    }
+                  </span>
+                }
+              </span>
+            </td>
+            <td class="queue__cell-node">
+              <span
+                class="queue__node"
+                [pTooltip]="row.nodeId"
+                tooltipPosition="top"
+                >{{ row.nodeId }}</span
+              >
+            </td>
+            <td class="queue__cell-ext">
+              <span class="queue__ext">
+                <i
+                  [class]="'queue__kind ' + row.kindIcon"
+                  [attr.data-kind]="row.kind"
+                  [pTooltip]="row.kindLabel"
+                  tooltipPosition="top"
+                  [attr.aria-label]="row.kindLabel"
+                  [attr.data-testid]="'queue-kind-' + row.id"
+                ></i>
+                <span
+                  class="queue__ext-name"
+                  [pTooltip]="row.extensionId"
+                  tooltipPosition="top"
+                  >{{ row.extensionLabel }}</span
+                >
+              </span>
+            </td>
+            <td class="queue__cell-age" [attr.title]="row.ageTooltip">{{ row.age }}</td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </div>
+    }
+  }
+
+  <!-- Component-scoped confirm dialog for the bulk mutations (cancel-all /
+       prune). Rendered unconditionally so it can pop from any queue state. -->
+  <p-confirmdialog styleClass="queue__confirm" />
+</section>

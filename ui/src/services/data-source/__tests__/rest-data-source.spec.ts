@@ -274,6 +274,199 @@ describe('RestDataSource', () => {
     await expect(promise).resolves.toBeNull();
   });
 
+  it('getNodeFindings() GETs the findings sub-route and returns the envelope', async () => {
+    const path = '.claude/agents/foo.md';
+    const encoded = encodeNodePath(path);
+    const envelope = {
+      schemaVersion: '1',
+      kind: 'findings',
+      items: [{ id: 12, type: 'stale-todo', severity: 'warn' }],
+      filters: {},
+      counts: { total: 1, returned: 1, dismissedExcluded: 0, fixedExcluded: 2 },
+      kindRegistry: {},
+    };
+    const promise = ds.getNodeFindings(path);
+    const req = httpMock.expectOne(`/api/nodes/${encoded}/findings`);
+    expect(req.request.method).toBe('GET');
+    req.flush(envelope);
+    await expect(promise).resolves.toEqual(envelope);
+  });
+
+  it('getNodeFindings() returns null on 404 not-found', async () => {
+    const encoded = encodeNodePath('missing.md');
+    const promise = ds.getNodeFindings('missing.md');
+    const req = httpMock.expectOne(`/api/nodes/${encoded}/findings`);
+    req.flush(
+      { ok: false, error: { code: 'not-found', message: 'no such node' } },
+      { status: 404, statusText: 'Not Found' },
+    );
+    await expect(promise).resolves.toBeNull();
+  });
+
+  it('getNodeProbExtensions() GETs the prob-extensions sub-route and unwraps the item', async () => {
+    const path = 'agents/architect.md';
+    const encoded = encodeNodePath(path);
+    const item = {
+      finders: [
+        {
+          id: 'core/todo-finder',
+          description: 'd',
+          state: 'idle',
+          jobId: null,
+          lastJudged: null,
+          fixerIds: ['core/todo-fixer'],
+          hasOpenFindings: false,
+        },
+      ],
+      standalone: [],
+    };
+    const promise = ds.getNodeProbExtensions(path);
+    const req = httpMock.expectOne(`/api/nodes/${encoded}/prob-extensions`);
+    expect(req.request.method).toBe('GET');
+    req.flush({
+      schemaVersion: '1',
+      kind: 'node.prob-extensions',
+      item,
+      kindRegistry: {},
+    });
+    await expect(promise).resolves.toEqual(item);
+  });
+
+  it('getNodeProbExtensions() returns null on 404 not-found', async () => {
+    const encoded = encodeNodePath('missing.md');
+    const promise = ds.getNodeProbExtensions('missing.md');
+    const req = httpMock.expectOne(`/api/nodes/${encoded}/prob-extensions`);
+    req.flush(
+      { ok: false, error: { code: 'not-found', message: 'no such node' } },
+      { status: 404, statusText: 'Not Found' },
+    );
+    await expect(promise).resolves.toBeNull();
+  });
+
+  it('submitNodeJob() POSTs the extension body and returns the job.submitted envelope', async () => {
+    const path = 'agents/architect.md';
+    const encoded = encodeNodePath(path);
+    const envelope = {
+      schemaVersion: '1',
+      kind: 'job.submitted',
+      value: {
+        jobId: 'job-7',
+        nodePath: path,
+        extensionId: 'core/todo-finder',
+        supersededIds: [],
+      },
+      elapsedMs: 4,
+    };
+    const promise = ds.submitNodeJob(path, 'core/todo-finder');
+    const req = httpMock.expectOne(`/api/nodes/${encoded}/jobs`);
+    expect(req.request.method).toBe('POST');
+    // Default autoFix false rides the body alongside the extension id.
+    expect(req.request.body).toEqual({ extension: 'core/todo-finder', autoFix: false });
+    req.flush(envelope);
+    await expect(promise).resolves.toEqual(envelope);
+  });
+
+  it('submitNodeJob() forwards autoFix true on the POST body', async () => {
+    const path = 'agents/architect.md';
+    const encoded = encodeNodePath(path);
+    const envelope = {
+      schemaVersion: '1',
+      kind: 'job.submitted',
+      value: { jobId: 'job-8', nodePath: path, extensionId: 'core/todo-finder', supersededIds: [] },
+      elapsedMs: 4,
+    };
+    const promise = ds.submitNodeJob(path, 'core/todo-finder', true);
+    const req = httpMock.expectOne(`/api/nodes/${encoded}/jobs`);
+    expect(req.request.body).toEqual({ extension: 'core/todo-finder', autoFix: true });
+    req.flush(envelope);
+    await expect(promise).resolves.toEqual(envelope);
+  });
+
+  it('submitNodeJob() surfaces the 409 envelope code (duplicate-job) via DataSourceError', async () => {
+    const encoded = encodeNodePath('agents/architect.md');
+    const promise = ds.submitNodeJob('agents/architect.md', 'core/todo-finder');
+    const req = httpMock.expectOne(`/api/nodes/${encoded}/jobs`);
+    req.flush(
+      {
+        ok: false,
+        error: {
+          code: 'duplicate-job',
+          message: 'identical job active',
+          details: { existingId: 'job-3' },
+        },
+      },
+      { status: 409, statusText: 'Conflict' },
+    );
+    await expect(promise).rejects.toMatchObject({
+      name: 'DataSourceError',
+      code: 'duplicate-job',
+      details: { existingId: 'job-3' },
+    });
+  });
+
+  it('cancelJob() POSTs the cancel sub-route and resolves on 204 No Content', async () => {
+    const promise = ds.cancelJob('job-7');
+    const req = httpMock.expectOne('/api/jobs/job-7/cancel');
+    expect(req.request.method).toBe('POST');
+    req.flush(null, { status: 204, statusText: 'No Content' });
+    await expect(promise).resolves.toBeUndefined();
+  });
+
+  it('cancelJob() surfaces the 409 envelope code (job-terminal) via DataSourceError', async () => {
+    const promise = ds.cancelJob('job-7');
+    const req = httpMock.expectOne('/api/jobs/job-7/cancel');
+    req.flush(
+      { ok: false, error: { code: 'job-terminal', message: 'job already terminal' } },
+      { status: 409, statusText: 'Conflict' },
+    );
+    await expect(promise).rejects.toMatchObject({
+      name: 'DataSourceError',
+      code: 'job-terminal',
+    });
+  });
+
+  it('listJobs() GETs /api/jobs with no query string and returns the envelope items', async () => {
+    const items = [
+      { id: 'j1', extensionId: 'core/x', status: 'queued', nodeId: 'a.md', createdAt: 1 },
+      { id: 'j2', extensionId: 'core/y', status: 'running', nodeId: 'b.md', createdAt: 2 },
+    ];
+    const promise = ds.listJobs();
+    const req = httpMock.expectOne('/api/jobs');
+    expect(req.request.method).toBe('GET');
+    req.flush({
+      schemaVersion: '1',
+      kind: 'jobs',
+      items,
+      filters: { status: null, extension: null, node: null },
+      counts: { total: 2, returned: 2 },
+    });
+    await expect(promise).resolves.toEqual(items);
+  });
+
+  it('listJobs(query) encodes status / extension / node filters into the query string', async () => {
+    const promise = ds.listJobs({ status: 'queued', extension: 'core/x', node: 'docs/a.md' });
+    const req = httpMock.expectOne('/api/jobs?status=queued&extension=core%2Fx&node=docs%2Fa.md');
+    expect(req.request.method).toBe('GET');
+    req.flush({
+      schemaVersion: '1',
+      kind: 'jobs',
+      items: [],
+      filters: { status: 'queued', extension: 'core/x', node: 'docs/a.md' },
+      counts: { total: 0, returned: 0 },
+    });
+    await expect(promise).resolves.toEqual([]);
+  });
+
+  it('listJobs() surfaces a 5xx error envelope via DataSourceError', async () => {
+    const promise = ds.listJobs();
+    const req = httpMock.expectOne('/api/jobs');
+    req.flush(
+      { ok: false, error: { code: 'internal', message: 'boom' } },
+      { status: 500, statusText: 'Internal Server Error' },
+    );
+    await expect(promise).rejects.toMatchObject({ name: 'DataSourceError', code: 'internal' });
+  });
+
   it('listLinks() builds the kind/from/to query string', async () => {
     const promise = ds.listLinks({ kind: ['invokes'], from: 'a.md', to: 'b.md' });
     const req = httpMock.expectOne('/api/links?kind=invokes&from=a.md&to=b.md');

@@ -46,8 +46,9 @@ import type { ScanResult } from '../../kernel/index.js';
 import { buildFreshResolver } from '../../core/runtime/fresh-resolver.js';
 import { runScanForCommand } from '../../core/runtime/scan-runner.js';
 import type { IPrinter } from '../../core/runtime/printer.js';
+import { appendOperation } from '../../core/operations-log.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
-import { VERSION } from '../../version.js';
+import { bffReadVersionCheck } from '../util/db-read-check.js';
 import { log } from '../../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -60,6 +61,7 @@ import { noopWritable } from '../util/noop-writable.js';
 import { parseBooleanFlag } from '../util/parse-query.js';
 import { buildBroadcasterEmitter } from '../watcher.js';
 import type { IRouteDeps } from './deps.js';
+import { foldFindingsIntoSeverityChips } from '../aggregate-severity-fold.js';
 
 export interface IScanRouteDeps extends IRouteDeps {
   broadcaster: WsBroadcaster;
@@ -141,6 +143,13 @@ async function runPersistedScan(c: Context, deps: IScanRouteDeps): Promise<Respo
             : outcome.message,
         });
       }
+      appendOperation(deps.runtimeContext.cwd, {
+        op: 'scan',
+        target: '*',
+        channel: 'ui',
+        outcome: 'ok',
+        detail: `nodes=${outcome.result.stats.nodesCount} issues=${outcome.result.stats.issuesCount}`,
+      });
       return c.json(outcome.result);
     });
   } catch (err) {
@@ -173,7 +182,7 @@ async function loadPersistedScanMeta(deps: IRouteDeps): Promise<ScanResult> {
     {
       databasePath: deps.options.dbPath,
       autoBackup: false,
-      versionCheck: { currentVersion: VERSION, printer: bffVersionCheckPrinter },
+      versionCheck: bffReadVersionCheck(),
     },
     async (adapter) => adapter.scans.loadMeta(),
   );
@@ -193,7 +202,7 @@ async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
       // different-major DB throws `DbVersionMismatchError`, which the
       // global `app.onError` maps to a 500 so the SPA surfaces it
       // rather than crashing on a cryptic missing-column read.
-      versionCheck: { currentVersion: VERSION, printer: bffVersionCheckPrinter },
+      versionCheck: bffReadVersionCheck(),
     },
     async (adapter) => {
       const [loaded, favSet] = await Promise.all([
@@ -208,9 +217,14 @@ async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
       // on `/api/nodes` (single + bulk). Bulk load via
       // `listForPaths(...)` to keep the round-trip count at two.
       const paths = loaded.nodes.map((n) => n.path);
-      const [contribRows, tagRows] = await Promise.all([
+      const [contribRows, tagRows, findingCounts] = await Promise.all([
         adapter.contributions.listForPaths(paths),
         adapter.tags.listForPaths(paths),
+        // Read-time aggregate: fresh unresolved findings summed into
+        // issue-counter's severity chips below, same fold as /api/nodes
+        // (see aggregate-severity-fold), so a cold boot / F5 shows the
+        // combined count without waiting for the first per-node fetch.
+        adapter.findings.countUnresolvedByPath(paths),
       ]);
       const byPath = new Map<string, typeof contribRows>();
       for (const r of contribRows) {
@@ -219,7 +233,7 @@ async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
         else byPath.set(r.nodePath, [r]);
       }
       const tagsByPath = groupTagsByPath(tagRows);
-      return { loaded, favSet, contribByPath: byPath, tagsByPath };
+      return { loaded, favSet, contribByPath: byPath, tagsByPath, findingCounts };
     },
   );
   if (opened === null) {
@@ -239,7 +253,12 @@ async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
     nodes: opened.loaded.nodes.map((n) => ({
       ...n,
       isFavorite: opened.favSet.has(n.path),
-      contributions: opened.contribByPath.get(n.path) ?? [],
+      contributions: foldFindingsIntoSeverityChips(
+        opened.contribByPath.get(n.path) ?? [],
+        opened.findingCounts.get(n.path) ?? { warn: 0, error: 0 },
+        deps.contributionsRegistry,
+        n.path,
+      ),
       tags: opened.tagsByPath.get(n.path) ?? [],
     })),
   };
@@ -346,20 +365,8 @@ const bffScanRunnerPrinter: IPrinter = {
   error: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
 };
 
-/**
- * Printer for the read-side drift advisory on `GET /api/scan`. Only the
- * one-shot `warn-older` / `warn-schema` advisories route through here
- * (the version-skew runner calls `printer.warn`); the error
- * classifications throw `DbVersionMismatchError` instead of printing, so
- * `data` / `info` / `error` never fire on this path and discard
- * defensively. The advisory lands in the server log, the BFF has no TTY.
- */
-const bffVersionCheckPrinter: IPrinter = {
-  data: () => { /* unused on the version-check path */ },
-  info: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
-  warn: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
-  error: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
-};
+// The read-side drift-advisory printer moved to `../util/db-read-check.ts`
+// (`bffReadVersionCheck`), shared by every BFF read open.
 
 // `emptyScanResult()` (DB-absent shape) lives in `../empty-scan.js` so
 // the REST scan route and the MCP `skillmap://graph` resource share one

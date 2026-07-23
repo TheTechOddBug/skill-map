@@ -65,6 +65,7 @@ import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { resolveActiveProvider } from '../config/active-provider.js';
+import { appendOperation } from '../operations-log.js';
 import { buildSettingsResolver } from '../config/plugin-settings.js';
 import { walkReferencePaths } from '../runtime/reference-paths-walker.js';
 import {
@@ -686,7 +687,11 @@ export function createWatcherRuntime(
       // ephemeral open. Both feed the orchestrator's incremental path,
       // splitting them would re-run migration discovery for nothing.
       const priorState = await tryWithSqlite(
-        { databasePath: opts.dbPath, autoBackup: false },
+        // `skipDriftCheck`: the watcher OWNS drift. `rebuildWatcherDbOnDrift`
+        // ran once at boot (`start`), so every batch open here runs against
+        // an already-current schema; the default write-side refusal must
+        // not fire on the watcher's own reads / writes.
+        { databasePath: opts.dbPath, autoBackup: false, skipDriftCheck: true },
         async (reader) => {
           const loaded = await reader.scans.load();
           if (loaded.nodes.length === 0) return null;
@@ -774,7 +779,7 @@ export function createWatcherRuntime(
         freshlyRunTuples,
       } = ran;
 
-      await withSqlite({ databasePath: opts.dbPath }, (writer) =>
+      await withSqlite({ databasePath: opts.dbPath, skipDriftCheck: true }, (writer) =>
         writer.scans.persist(result, {
           renameOps,
           extractorRuns,
@@ -786,6 +791,14 @@ export function createWatcherRuntime(
           freshlyRunTuples,
         }),
       );
+
+      appendOperation(cwd, {
+        op: 'scan',
+        target: '*',
+        channel: 'watcher',
+        outcome: 'ok',
+        detail: `nodes=${result.stats.nodesCount} issues=${result.stats.issuesCount}`,
+      });
 
       return result;
     };

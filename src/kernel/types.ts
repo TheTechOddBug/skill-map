@@ -18,7 +18,7 @@
  *      Renaming any of these is a spec change.
  *
  *   2. **Hexagonal ports**, the abstract boundaries the kernel calls
- *      out to (`StoragePort`, `RunnerPort`, `ProgressEmitterPort`,
+ *      out to (`StoragePort`, `ProgressEmitterPort`,
  *      `FilesystemPort`, `PluginLoaderPort`). **`Port` suffix.** The
  *      suffix calls out the architectural role and avoids name clashes
  *      with the concrete adapter classes (`SqliteStorageAdapter`
@@ -164,9 +164,9 @@ export type Stability = 'experimental' | 'stable' | 'deprecated';
  *
  *   - `deterministic`, pure code, runs synchronously inside `sm scan` /
  *     `sm check`. Same input → same output, every run.
- *   - `probabilistic`, calls an LLM through `RunnerPort`, dispatches only
- *     as a queued job (`sm job submit <kind>:<id>`); never participates in
- *     scan-time pipelines.
+ *   - `probabilistic`, needs an LLM, dispatches only as a queued job
+ *     (`sm jobs submit`) an external agent processes via `sm jobs claim` +
+ *     `sm record`; never participates in scan-time pipelines.
  *
  * Extractor / Rule / Action declare it directly (default `deterministic` when
  * omitted in the manifest). Provider / Formatter are deterministic-only and
@@ -585,8 +585,8 @@ export type ExecutionFailureReason =
   | 'timeout'
   | 'abandoned'
   | 'job-file-missing'
-  | 'user-cancelled';
-export type ExecutionRunner = 'cli' | 'skill' | 'in-process';
+  | 'user-failed';
+export type ExecutionRunner = 'agent' | 'in-process';
 
 /**
  * One row of execution history (`state_executions`). Matches
@@ -609,8 +609,89 @@ export interface ExecutionRecord {
   durationMs?: number | null;
   tokensIn?: number | null;
   tokensOut?: number | null;
+  /**
+   * Executing model's name as SELF-REPORTED by the recording agent
+   * (`sm record --model <name>`). Unverifiable by design, like the
+   * token counts; null when undeclared (and for in-process
+   * deterministic executions). Denormalized onto `state_findings.model`
+   * / `state_summaries.model` at record time.
+   */
+  model?: string | null;
   reportPath?: string | null;
   jobId?: string | null;
+}
+
+export type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+export type JobFailureReason =
+  | 'runner-error'
+  | 'report-invalid'
+  | 'timeout'
+  | 'abandoned'
+  | 'job-file-missing'
+  | 'user-failed';
+export type JobRunner = 'agent' | 'in-process';
+/**
+ * Extension kind resolved at submit time and frozen onto the job row
+ * (like the version), per `job.schema.json#/properties/extensionKind`.
+ * `sm record` routes on it: an `analyzer` report is findings by
+ * definition (`state_findings` write-through), an `action` report
+ * follows the summaries / enrichments schema conventions. Narrower than
+ * the registry-wide `ExtensionKind` on purpose: only these two kinds
+ * are queue-eligible (probabilistic).
+ */
+export type JobExtensionKind = 'action' | 'analyzer';
+
+/**
+ * One row of the job queue (`state_jobs`). Matches
+ * `spec/schemas/job.schema.json`; the runtime instance of a probabilistic
+ * extension (Action or finder Analyzer, the queue is kind-agnostic)
+ * applied to one `Node`, moving through the `spec/job-lifecycle.md` state
+ * machine exactly once. The rendered content is NOT on this shape, it
+ * lives in `state_job_contents` keyed by `contentHash`.
+ */
+export interface Job {
+  /** `d-YYYYMMDD-HHMMSS-XXXX`, human-readable + sortable. */
+  id: string;
+  extensionId: string;
+  extensionVersion: string;
+  /** Kind frozen at submit; the record path routes on it. */
+  extensionKind: JobExtensionKind;
+  /**
+   * Per-job auto-fix opt-in, frozen at submit like `extensionKind`
+   * (`job.schema.json#/properties/autoFix`). When `true` on a finder job
+   * (`extensionKind = 'analyzer'`), `sm record` chains the finder's fixers
+   * on completion (`spec/job-lifecycle.md` §Auto-fix chain (per-job)).
+   * `false` for Action jobs and by default. Persisted as 0/1 in SQLite.
+   */
+  autoFix: boolean;
+  /**
+   * Finding-subset targeting for FIXER jobs
+   * (`job.schema.json#/properties/findingIds`, frozen at submit): the
+   * `state_findings` ids this job resolves. `null` = whole-node
+   * targeting. Persisted as JSON in `state_jobs.finding_ids_json`.
+   */
+  findingIds: readonly number[] | null;
+  /** Target `node.path`. */
+  nodeId: string;
+  contentHash: string;
+  nonce: string;
+  priority: number;
+  status: JobStatus;
+  failureReason?: JobFailureReason | null;
+  runner?: JobRunner | null;
+  /**
+   * Optional TTL (seconds), resolved at submit from explicit operator
+   * sources only (`--ttl` flag, `jobs.perExtensionTtl`,
+   * `jobs.ttlSeconds`). `null` = the job never expires (the default);
+   * the reaper skips it and `sm doctor`'s `jobs-overdue` check advises
+   * instead. Frozen.
+   */
+  ttlSeconds: number | null;
+  createdAt: number;
+  claimedAt?: number | null;
+  finishedAt?: number | null;
+  expiresAt?: number | null;
+  submittedBy?: string | null;
 }
 
 export interface HistoryStatsTotals {
@@ -622,9 +703,9 @@ export interface HistoryStatsTotals {
   durationMsTotal: number;
 }
 
-export interface HistoryStatsTokensPerAction {
-  actionId: string;
-  actionVersion: string;
+export interface HistoryStatsTokensPerExtension {
+  extensionId: string;
+  extensionVersion: string;
   executionsCount: number;
   tokensIn: number;
   tokensOut: number;
@@ -646,8 +727,8 @@ export interface HistoryStatsTopNode {
   lastExecutedAt: number;
 }
 
-export interface HistoryStatsPerActionRate {
-  actionId: string;
+export interface HistoryStatsPerExtensionRate {
+  extensionId: string;
   rate: number;
   executionsCount: number;
   failedCount: number;
@@ -655,7 +736,7 @@ export interface HistoryStatsPerActionRate {
 
 export interface HistoryStatsErrorRates {
   global: number;
-  perAction: HistoryStatsPerActionRate[];
+  perExtension: HistoryStatsPerExtensionRate[];
   perFailureReason: Record<ExecutionFailureReason, number>;
 }
 
@@ -668,7 +749,7 @@ export interface HistoryStats {
   schemaVersion: 1;
   range: { since: string | null; until: string };
   totals: HistoryStatsTotals;
-  tokensPerAction: HistoryStatsTokensPerAction[];
+  tokensPerExtension: HistoryStatsTokensPerExtension[];
   executionsPerPeriod: HistoryStatsExecutionsPerPeriod[];
   topNodes: HistoryStatsTopNode[];
   errorRates: HistoryStatsErrorRates;

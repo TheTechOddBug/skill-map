@@ -33,6 +33,7 @@ import { join } from 'node:path';
 import { after, before, beforeEach, describe, it } from 'node:test';
 
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
+import { replaceFindingsForNode } from '../../../kernel/adapters/sqlite/findings.js';
 import { persistScanResult } from '../../../kernel/adapters/sqlite/scan-persistence.js';
 import type { Issue, Link, Node, ScanResult } from '../../../kernel/types.js';
 import { encodeNodePath } from '../../path-codec.js';
@@ -149,6 +150,32 @@ async function plantContribution(nodePath: string, slot: string): Promise<void> 
   }
 }
 
+/** Seed one fresh (non-stale, open) finding of `severity` on `nodePath`. */
+async function plantFinding(nodePath: string, severity: 'error' | 'warn'): Promise<void> {
+  const adapter = new SqliteStorageAdapter({ databasePath: root.dbPath, autoBackup: false });
+  await adapter.init();
+  try {
+    await replaceFindingsForNode(adapter.db, nodePath, 'core/ai-contradiction-analyzer', [
+      {
+        origin: 'extension',
+        type: 'contradiction',
+        severity,
+        message: 'm',
+        detail: null,
+        confidence: 0.9,
+        extensionVersion: '1.0.0',
+        model: null,
+        // Matches makeNode's bodyHash so the finding is non-stale.
+        bodyHashAtGeneration: HASH,
+        generatedAt: Date.now(),
+        jobId: null,
+      },
+    ]);
+  } finally {
+    await adapter.close();
+  }
+}
+
 function defaultOptions(): IServerOptions {
   return {
     port: 0,
@@ -234,6 +261,27 @@ describe('GET /api/branch', () => {
       assert.equal(node!.contributions?.length, 1);
       assert.equal(node!.contributions?.[0]?.slot, 'card.footer.left');
       assert.equal(node!.contributions?.[0]?.contributionId, 'links-out');
+    });
+  });
+
+  it('folds fresh findings into the aggregate severity chip (the map card source)', async () => {
+    // Regression: /api/branch is the endpoint the workspace map card
+    // hydrates from, so the findings fold MUST reach it (not just
+    // /api/nodes and /api/scan). A node with only a probabilistic error
+    // finding gets a synthesized issue-counter errorCount chip.
+    await prime({ nodes: [makeNode('a/one.md')] });
+    await plantFinding('a/one.md', 'error');
+    await bootAndUse(async (handle) => {
+      const res = await fetch(url(handle, '/api/branch'));
+      const body = (await res.json()) as IBranchBody;
+      const node = body.nodes.find((n) => n.path === 'a/one.md');
+      assert.ok(node);
+      const chip = node!.contributions?.find(
+        (c) => c.contributionId === 'errorCount',
+      ) as { payload?: { value?: number; tooltip?: string } } | undefined;
+      assert.ok(chip, 'the map-card endpoint carries the summed findings chip');
+      assert.equal(chip!.payload?.value, 1);
+      assert.equal(chip!.payload?.tooltip, '1 error: 0 checks + 1 AI finding');
     });
   });
 

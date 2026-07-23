@@ -174,24 +174,27 @@
         "ttlSeconds": {
           "type": "integer",
           "minimum": 1,
-          "description": "Global fallback TTL (seconds) used when an action manifest omits `expectedDurationSeconds`, typically `mode: local` actions where the field is advisory. Default 3600. The submit-time resolution still applies `graceMultiplier` and `minimumTtlSeconds`."
+          "description": "Global opt-in TTL policy (seconds): when set, EVERY submitted job arms this expiry unless a higher-precedence source overrides it (`jobs.perExtensionTtl`, or the `--ttl` flag, including the `--ttl 0` disarm). UNSET by default: jobs never expire (Decision #139; interactive processing runs may hold a claim for hours). The retired `graceMultiplier` / `minimumTtlSeconds` keys died with the estimate-driven formula."
         },
-        "graceMultiplier": { "type": "number", "minimum": 1, "description": "Default grace multiplier applied to `expectedDurationSeconds`. Default 3." },
-        "minimumTtlSeconds": { "type": "integer", "minimum": 1, "description": "Floor for computed TTL. Default 60." },
-        "perActionTtl": {
+        "claimWaitSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Default poll cadence (seconds) for a blocking `sm jobs claim --wait`: how often a resident worker re-reaps and re-claims while the queue is empty (job-lifecycle.md §Atomic claim · Blocking claim). The `--interval` flag overrides it per invocation; absent both, the CLI default is 2. Bounds pickup latency only, the claim stays atomic."
+        },
+        "perExtensionTtl": {
           "type": "object",
-          "description": "Per-action TTL overrides (seconds). Keys are action ids.",
+          "description": "Per-extension TTL overrides (seconds). Keys are qualified ids of queued probabilistic extensions (Action or Analyzer). Renamed from `perActionTtl` when Analyzers joined the queue.",
           "additionalProperties": { "type": "integer", "minimum": 1 }
         },
-        "perActionPriority": {
+        "perExtensionPriority": {
           "type": "object",
-          "description": "Per-action priority overrides. Keys are action ids, values are integers (higher runs first, negatives allowed). Frozen on `state_jobs.priority` at submit time. Overrides `defaultPriority` from the action manifest; `--priority` on `sm job submit` overrides both.",
+          "description": "Per-extension priority overrides. Keys are qualified ids of queued probabilistic extensions (Action or Analyzer), values are integers (higher runs first, negatives allowed). Frozen on `state_jobs.priority` at submit time. Overrides `defaultPriority` from the extension manifest; `--priority` on `sm jobs submit` overrides both. Renamed from `perActionPriority` when Analyzers joined the queue.",
           "additionalProperties": { "type": "integer" }
         },
         "retention": {
           "type": "object",
           "additionalProperties": false,
-          "description": "Garbage-collection policy for `state_jobs` rows and their job files. `sm job prune` reads this; no implicit pruning during normal verbs.",
+          "description": "Garbage-collection policy for `state_jobs` rows and their job files. `sm jobs prune` reads this; no implicit pruning during normal verbs.",
           "properties": {
             "completed": {
               "type": ["integer", "null"],
@@ -202,6 +205,11 @@
               "type": ["integer", "null"],
               "minimum": 1,
               "description": "Seconds after `finishedAt` before a `failed` job is eligible for pruning. `null` = never auto-prune. Default `null`, failed jobs are kept for post-mortem."
+            },
+            "cancelled": {
+              "type": ["integer", "null"],
+              "minimum": 1,
+              "description": "Seconds after `finishedAt` before a `cancelled` job is eligible for pruning. `null` = never auto-prune. Default 2592000 (30 days), mirroring `completed`: a cancellation is a routine terminal state with no failure to post-mortem, so it is prunable on the same schedule."
             }
           }
         }
@@ -210,6 +218,11 @@
     "allowEditSmFiles": {
       "type": "boolean",
       "description": "**Project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`). Grants this project permission to create / modify `.sm` annotation sidecars next to source files. Default `false`. The first time a verb or BFF route attempts a `.sm` write while this is `false`, the kernel raises `EConsentRequiredError`. The CLI surfaces it as an interactive `confirm()` prompt (or `--yes` bypass); the BFF returns 412 `confirm-required` so the UI can open a `ConfirmationService` dialog. On accept the flag is persisted to `<cwd>/.skill-map/settings.local.json` (gitignored, per-checkout) and never asked again. On decline the operation aborts WITHOUT persisting the rejection, the next attempt re-asks. **Stripped with a warning when found in the committed `project` layer** (`<cwd>/.skill-map/settings.json`), each developer consents independently."
+    },
+    "allowNetworkActions": {
+      "type": "boolean",
+      "description": "**Project policy, team-shared** (committed in `<cwd>/.skill-map/settings.json`, NOT project-local). Default `false`. When `false`, every Action whose manifest declares `io: ['network']` (the built-in `github/enrichment`, plus any external action) is refused at execution time (`sm refresh` reports it skipped with a directed advisory) and its manifest still loads (visible in `sm actions list`, never executed). Opt-in by design: a cloned repo must not be able to make skill-map fetch remote content without the operator's explicit consent. Mirrors the `allowSidecarWriters` posture (hard gate, travels with the repo).",
+      "default": false
     },
     "allowSidecarWriters": {
       "type": "boolean",

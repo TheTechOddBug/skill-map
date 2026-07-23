@@ -193,4 +193,39 @@ describe('SettingsGeneral', () => {
     expect(proto.loadError()).toBe('boom');
   });
 
+  it('the config-resolution button opens the nested dialog with layered rows', async () => {
+    const getConfigResolution = vi.fn().mockResolvedValue([
+      { key: 'scan.respectGitignore', value: true, layer: 'project', secret: false },
+      { key: 'scan.strict', value: false, layer: 'defaults', secret: false },
+    ]);
+    const { fixture } = bootstrap({
+      getPreferences: vi.fn().mockResolvedValue(prefs(true, false)),
+      setPreferences: vi.fn(),
+      getConfigResolution,
+    });
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+    fixture.detectChanges();
+
+    // Lazy: no fetch before the button opens the dialog.
+    expect(getConfigResolution).not.toHaveBeenCalled();
+    const btn = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="settings-general-config-resolution"] button',
+    ) as HTMLButtonElement;
+    btn.click();
+    await flushAsync();
+    fixture.detectChanges();
+
+    expect(getConfigResolution).toHaveBeenCalledTimes(1);
+    // The nested dialog renders via appendTo body under the test rig.
+    const row = document.querySelector(
+      '[data-testid="settings-config-resolution-row-scan.respectGitignore"]',
+    );
+    expect(row).not.toBeNull();
+    expect(row!.textContent).toContain('scan.respectGitignore');
+    expect(row!.textContent).toContain('true');
+    expect(row!.querySelector('[data-layer="project"]')).not.toBeNull();
+  });
+
 });

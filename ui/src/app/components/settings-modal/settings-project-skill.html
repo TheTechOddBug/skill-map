@@ -1,0 +1,55 @@
+@if (skillError(); as err) {
+  <p-message severity="error" [closable]="false" data-testid="settings-project-agent-skill-error">
+    {{ texts.project.saveErrorPrefix }} {{ err }}
+  </p-message>
+}
+
+@if (skillAnnouncement(); as msg) {
+  <p-message severity="info" [closable]="false" data-testid="settings-project-agent-skill-announce">
+    {{ msg }}
+  </p-message>
+}
+
+@if (rowVisible()) {
+  <div class="settings-project__row" data-testid="settings-project-agent-skill-row">
+    <div class="settings-project__row-text">
+      <div class="settings-project__row-label">{{ texts.project.agentSkill.label }}</div>
+      <div class="settings-project__row-description">
+        {{ texts.project.agentSkill.description }}
+      </div>
+    </div>
+    <div class="settings-project__row-actions">
+      @if (skillUpToDate()) {
+        <span
+          class="settings-project__skill-uptodate"
+          data-testid="settings-project-agent-skill-uptodate"
+        >
+          <i class="pi pi-check" aria-hidden="true"></i>
+          {{ texts.project.agentSkill.upToDateLabel }}
+        </span>
+      } @else {
+        <p-button
+          [label]="skillActionLabel()"
+          [disabled]="skillActionDisabled()"
+          severity="primary"
+          size="small"
+          (onClick)="onSkillInstallClick()"
+          data-testid="settings-project-agent-skill-button"
+        />
+      }
+      @if (skillInstalled()) {
+        <p-button
+          [label]="texts.project.agentSkill.uninstallLabel"
+          [disabled]="skillActionDisabled()"
+          severity="secondary"
+          [outlined]="true"
+          size="small"
+          (onClick)="onSkillUninstallClick()"
+          data-testid="settings-project-agent-skill-uninstall"
+        />
+      }
+    </div>
+  </div>
+}
+
+<p-confirmdialog />

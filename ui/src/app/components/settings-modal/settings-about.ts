@@ -95,13 +95,16 @@ export class SettingsAbout {
       const payload = await this.dataSource.health();
       this.health.set(payload);
     } catch (err) {
-      const message =
-        err instanceof DataSourceError ? err.message
-        : err instanceof Error ? err.message
-        : String(err);
-      this.loadError.set(message);
+      this.loadError.set(errorMessage(err));
     }
   }
+
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof DataSourceError ? err.message
+    : err instanceof Error ? err.message
+    : String(err);
 }
 
 /**

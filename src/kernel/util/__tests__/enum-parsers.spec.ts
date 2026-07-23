@@ -81,12 +81,14 @@ describe('enum-parsers, type guards', () => {
     assert.equal(isExecutionMode(''), false);
   });
 
-  it('isExecutionRunner accepts cli / skill / in-process', () => {
-    for (const v of ['cli', 'skill', 'in-process']) {
+  it('isExecutionRunner accepts agent / in-process', () => {
+    for (const v of ['agent', 'in-process']) {
       assert.equal(isExecutionRunner(v), true, v);
     }
     assert.equal(isExecutionRunner('inprocess'), false);
-    assert.equal(isExecutionRunner('CLI'), false);
+    assert.equal(isExecutionRunner('cli'), false);
+    assert.equal(isExecutionRunner('skill'), false);
+    assert.equal(isExecutionRunner('AGENT'), false);
   });
 
   it('isExecutionStatus accepts completed / failed / cancelled', () => {
@@ -104,7 +106,7 @@ describe('enum-parsers, type guards', () => {
       'timeout',
       'abandoned',
       'job-file-missing',
-      'user-cancelled',
+      'user-failed',
     ]) {
       assert.equal(isExecutionFailureReason(v), true, v);
     }
@@ -165,10 +167,10 @@ describe('enum-parsers, narrowing parsers', () => {
   });
 
   it('parseExecutionRunner returns the value, throws on miss', () => {
-    assert.equal(parseExecutionRunner('cli', 'ctx'), 'cli');
+    assert.equal(parseExecutionRunner('agent', 'ctx'), 'agent');
     assert.throws(() => parseExecutionRunner('inprocess', 'state_executions/e-1'), (err: Error) => {
       assert.match(err.message, /Invalid ExecutionRunner value "inprocess"/);
-      assert.match(err.message, /cli \| skill \| in-process/);
+      assert.match(err.message, /agent \| in-process/);
       return true;
     });
   });
@@ -177,7 +179,7 @@ describe('enum-parsers, narrowing parsers', () => {
     assert.equal(parseExecutionFailureReason('timeout', 'ctx'), 'timeout');
     assert.throws(() => parseExecutionFailureReason('content-missing', 'state_executions/e-2'), (err: Error) => {
       assert.match(err.message, /Invalid ExecutionFailureReason value "content-missing"/);
-      assert.match(err.message, /runner-error \| report-invalid \| timeout \| abandoned \| job-file-missing \| user-cancelled/);
+      assert.match(err.message, /runner-error \| report-invalid \| timeout \| abandoned \| job-file-missing \| user-failed/);
       return true;
     });
   });

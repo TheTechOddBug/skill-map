@@ -564,7 +564,12 @@
   flex-direction: column;
 }
 
-.inspector__metadata > sm-inspector-debug-panel {
+/* Separator only when a populated audit block sits above the debug panel;
+   an empty audit panel (`.audit-panel--empty`) leaves nothing to divide
+   from, so the debug panel sits flush under the section hairline. */
+.inspector__metadata
+  > sm-inspector-audit-panel:not(.audit-panel--empty)
+  + sm-inspector-debug-panel {
   margin-top: 0.5rem;
   padding-top: 0.7rem;
   border-top: 1px solid var(--sm-border);
@@ -604,6 +609,15 @@
   background: var(--sm-severity-info-bg);
 }
 
+/* Findings card body: the deterministic issues list, the AI finding
+   rows below them (mixed card, user call 2026-07-22), and the
+   hidden-buckets honesty line, stacked with one shared gap. */
+.inspector__findings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
 .inspector__finding-head {
   display: flex;
   align-items: center;
@@ -639,6 +653,34 @@
   color: var(--p-text-muted-color);
 }
 
+/* Inline stale mark on a finding row (stale rows ride the tray,
+   never a hidden bucket): same badge geometry as the severity chip,
+   outlined warn tint so it reads as an annotation, not a state. */
+.inspector__finding-stale {
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--sm-radius-sm);
+  color: var(--sm-severity-warn);
+  border: 1px solid var(--sm-severity-warn);
+}
+
+/* Inline needs-decision mark (a `human-decision` row: the fixer left it
+   to the author, no fix button renders): same outlined-annotation
+   geometry as the stale mark, info tint to read as guidance. */
+.inspector__finding-decision {
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--sm-radius-sm);
+  color: var(--sm-severity-info);
+  border: 1px solid var(--sm-severity-info);
+}
+
 .inspector__finding-message {
   margin: 0;
   font-size: 0.88rem;
@@ -657,6 +699,248 @@
   background: var(--p-content-background);
   padding: 0.35rem 0.5rem;
   border-radius: var(--sm-radius-sm);
+}
+
+/* ---------------------------------------------------------------------
+ * AI actions card (Step 16, the findings workbench). The finding rows
+ * reuse the `.inspector__finding*` vocabulary above (same severity
+ * tints); only the AI-action-specific bits live here: the provenance
+ * `(confidence% · model)` note, the dimmed row id, the launcher
+ * groups, the honesty line, and the submit-error strip (mirrors the
+ * `vc-action__error` idiom from the action-button renderer).
+ * ------------------------------------------------------------------- */
+.inspector__ai-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.inspector__ai-action-provenance {
+  font-size: 0.72rem;
+  color: var(--p-text-muted-color);
+  white-space: nowrap;
+}
+
+/* Dimmed DB id, pushed to the row's far right. Test / CLI handle
+   (`sm findings resolve <id>`), useful but never the headline. */
+.inspector__ai-action-id {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: var(--p-text-muted-color);
+  opacity: 0.6;
+}
+
+/* Per-finding actions (mark fixed / dismiss / restore), tucked after the
+   id at the row's right edge. Compact: the small rounded-text buttons
+   shrink to icon size. */
+.inspector__finding-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.inspector__finding-actions .p-button {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+}
+
+/* Deterministic issue rows have no dimmed #id pushing the tail right
+   (issues carry no stable id), so the actions span pushes itself,
+   keeping the fix button on the row's right edge like the AI rows. */
+.inspector__finding-actions--push {
+  margin-left: auto;
+}
+
+/* Hidden-buckets honesty line: the CLI's "N dismissed, M fixed, K stale
+   hidden" as reveal chips. */
+.inspector__ai-hidden {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+}
+
+.inspector__ai-hidden-label {
+  font-size: 0.75rem;
+  color: var(--p-text-muted-color);
+}
+
+.inspector__ai-hidden-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-lg);
+  background: transparent;
+  color: var(--p-text-muted-color);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.inspector__ai-hidden-chip:hover {
+  color: var(--p-text-color);
+}
+
+.inspector__ai-hidden-chip.is-on {
+  background: var(--p-highlight-background);
+  color: var(--p-text-color);
+}
+
+/* Revealed bucket rows: slightly inset + dimmed border so they read as a
+   sub-list of the honesty line, not fresh findings. */
+.inspector__findings-list--revealed {
+  margin-top: 0.35rem;
+  opacity: 0.85;
+}
+
+
+
+.inspector__ai-actions-launchers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+/* Automatic toggle row: sits above the finder buttons, switch + label
+   on one baseline-aligned line. */
+.inspector__ai-actions-autofix {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Compact switch (user call 2026-07-22: the stock size reads too big
+   next to the small launcher rows): shrink via the component's own
+   design tokens, keeping the themed colors and focus ring intact. */
+.inspector__ai-actions-autofix .p-toggleswitch {
+  --p-toggleswitch-width: 2.1rem;
+  --p-toggleswitch-height: 1.2rem;
+  --p-toggleswitch-handle-size: 0.85rem;
+}
+
+.inspector__ai-actions-autofix-label {
+  font-size: 0.8rem;
+  color: var(--p-text-color);
+  cursor: pointer;
+}
+
+/* One launcher group block (user pick 2026-07-22): full-width, Finders
+   above Standalone, header line then the rows. */
+.inspector__ai-actions-group-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+/* Inside a group the rows flow into DYNAMIC columns: the available
+   width decides how many (auto-fill), each row keeping its list shape
+   (button stretched, stop at its right edge). */
+.inspector__ai-actions-group-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.1rem 0.8rem;
+  align-items: center;
+}
+
+/* Group header line: muted uppercase title with its "(run all)" link
+   right after it (user pick 2026-07-23, replacing the right-edge ALL
+   buttons). */
+.inspector__ai-actions-group-head {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  border-bottom: 1px solid var(--p-content-border-color);
+  padding-bottom: 0.1rem;
+}
+
+/* The run-all link matches the title's quiet scale: no button chrome,
+   just slightly-accented small text. */
+.inspector__ai-actions-group-head .inspector__ai-actions-run-all {
+  padding: 0 0.25rem;
+  font-size: 0.68rem;
+}
+
+.inspector__ai-actions-group-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--p-text-muted-color);
+}
+
+/* One launcher row: launch button stretched left (icon + name reading
+   as a list item), stop companion at the right edge when active. */
+.inspector__ai-actions-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.inspector__ai-actions-entry > p-button:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.inspector__ai-actions-entry > p-button:first-child .p-button {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+/* The stop companion matches the per-finding action buttons: compact
+   rounded-text icon (user call 2026-07-22: the stock small button read
+   huge next to the flat launcher rows). */
+.inspector__ai-actions-entry > p-button:not(:first-child) .p-button {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+}
+
+.inspector__ai-actions-entry .p-button-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 0 1 auto;
+}
+
+.inspector__ai-actions-error {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--sm-severity-error);
+  background: var(--sm-severity-error-bg);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--sm-radius-sm);
+}
+
+.inspector__ai-actions-error-text {
+  overflow-wrap: anywhere;
+}
+
+.inspector__ai-actions-error-dismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  margin-left: auto;
+  color: var(--sm-severity-error);
+  display: inline-flex;
+}
+
+.inspector__ai-actions-error-dismiss .pi {
+  font-size: 0.7rem;
+}
+
+.inspector__ai-actions-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--p-text-muted-color);
 }
 
 /* PrimeNG chip padding inside the inspector, used by tag chips in the
@@ -695,23 +979,6 @@
   background: color-mix(in srgb, var(--sm-edge-spawn) 12%, transparent);
 }
 
-.inspector__activity-stats {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.15rem 0.75rem;
-  margin: 0;
-}
-
-.inspector__activity-stats dt {
-  font-size: 0.78rem;
-  color: var(--p-text-muted-color);
-}
-
-.inspector__activity-stats dd {
-  margin: 0;
-  font-size: 0.82rem;
-  color: var(--p-text-color);
-}
 
 .inspector__activity-heading {
   margin: 0.35rem 0 0;
@@ -719,6 +986,52 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  color: var(--p-text-muted-color);
+}
+
+/* Merged-timeline head: the "Recent executions" heading and the
+   three-state provenance filter (all / runtime / AI runs) share one
+   row, the control pushed to the trailing edge. The filter is a
+   p-selectbutton (the project's segmented-control idiom, see
+   settings-general) at `size="small"` so it stays quiet next to the
+   dense rows. */
+.inspector__activity-timeline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  /* Carries the heading's own 0.35rem top offset (reset below) so the
+     merged block keeps the spacing the bare heading used to have. */
+  margin-top: 0.35rem;
+}
+
+.inspector__activity-timeline-head .inspector__activity-heading {
+  margin: 0;
+}
+
+/* AI-run provenance glyph: the sparkles icon takes the exec accent so
+   the row reads as "skill-map ran something here" at a glance, against
+   the muted wrench / document glyphs of the runtime rows. */
+.inspector__activity-run-icon {
+  color: var(--sm-exec-c1);
+}
+
+/* AI-run row text (`<extension> · <status> · <duration> · <model>`):
+   ellipsised so a long model id never squishes the time + icon. */
+.inspector__activity-run-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  color: var(--p-text-color);
+}
+
+/* Muted line when the active provenance filter matches no entry. */
+.inspector__activity-filter-empty {
+  margin: 0;
+  font-size: 0.78rem;
+  font-style: italic;
   color: var(--p-text-muted-color);
 }
 

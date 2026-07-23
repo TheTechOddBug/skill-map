@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
   "allowEditSmFiles": false,
+  "allowNetworkActions": false,
   "allowSidecarWriters": true,
   "tutorialReminderDismissed": false,
   "tokenizer": "cl100k_base",
@@ -26,14 +27,13 @@
   },
   "plugins": {},
   "jobs": {
-    "ttlSeconds": 3600,
-    "graceMultiplier": 3,
-    "minimumTtlSeconds": 60,
-    "perActionTtl": {},
-    "perActionPriority": {},
+    "claimWaitSeconds": 2,
+    "perExtensionTtl": {},
+    "perExtensionPriority": {},
     "retention": {
       "completed": 2592000,
-      "failed": null
+      "failed": null,
+      "cancelled": 2592000
     }
   }
 }

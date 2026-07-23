@@ -3,10 +3,10 @@
  * Provider and extractor has completed; emits issues and MAY project
  * findings into the UI via view contributions. Deterministic analyzers
  * are pure (same graph in → same issues out) and run synchronously
- * inside `sm scan` / `sm check`. Probabilistic analyzers invoke an LLM
- * through the kernel's `RunnerPort` and dispatch only as queued jobs,
- * they never participate in scan-time pipelines. Mode is declared in
- * the manifest (default `deterministic`).
+ * inside `sm scan` / `sm check`. Probabilistic analyzers dispatch only
+ * as queued jobs an external agent processes (`sm jobs claim` +
+ * `sm record`), they never participate in scan-time pipelines. Mode is
+ * declared in the manifest (default `deterministic`).
  */
 
 import type { IExtensionBase } from './base.js';
@@ -100,10 +100,11 @@ export interface IAnalyzerContext {
    * Step 11.x, runtime catalog of plugin-contributed view contributions,
    * as exposed by `kernel.getRegisteredViewContributions()`. Threaded
    * through so analyzers can reason about emissions without reaching
-   * back into the kernel (built-in `core/contribution-orphan` joins it
-   * with the live node set to flag dangling emissions). Slot catalog
-   * drift detection is NOT a scan concern, it lives at load time and
-   * surfaces via `sm plugins doctor`. Empty array when no extension
+   * back into the kernel; a generic context surface for cross-cutting
+   * checks (no built-in consumes it today; the former
+   * `core/contribution-orphan` stub was deleted 2026-07-22). Slot
+   * catalog drift detection is NOT a scan concern, it lives at load
+   * time and surfaces via `sm plugins doctor`. Empty array when no extension
    * declares view contributions; absent for legacy callers (older
    * runScan sites that never wired the catalog through).
    */
@@ -257,9 +258,21 @@ export interface IAnalyzer extends IExtensionBase {
   kind: 'analyzer';
   /**
    * Execution mode. Optional in the manifest with a default of
-   * `deterministic`. `probabilistic` analyzers run only as queued jobs.
+   * `deterministic`. `probabilistic` analyzers (finders) run only as
+   * queued jobs and ship files-by-convention (`prompt.md` +
+   * `report.schema.json` extending the canonical findings envelope)
+   * instead of `evaluate()`, mirroring the probabilistic Action shape.
    */
   mode?: TExecutionMode;
+  /**
+   * Best-effort ADVISORY estimate of wall-clock duration in seconds when
+   * `mode=probabilistic`, same contract as
+   * `IAction.probExpectedDurationSeconds`: it does NOT arm or compute
+   * expiry (Decision #139), it feeds the `jobs-overdue` doctor check and
+   * display surfaces. Required by the schema's conditional for
+   * probabilistic analyzers; ignored otherwise.
+   */
+  probExpectedDurationSeconds?: number;
   /**
    * Optional declarative precondition. Same shape used by Extractor and
    * Action. The analyzer is invoked only when the graph contains at
@@ -302,5 +315,33 @@ export interface IAnalyzer extends IExtensionBase {
    * sort (`score` < `detect` < `aggregate`) at run-time.
    */
   phase?: 'score' | 'detect' | 'aggregate';
-  evaluate(ctx: IAnalyzerContext): Issue[] | Promise<Issue[]>;
+  /**
+   * Inlined prompt template for a BUILT-IN probabilistic analyzer.
+   * Populated by the built-ins codegen (`scripts/generate-built-ins.js`)
+   * from the analyzer's sibling `prompt.md` at build time; the built-in
+   * equivalent of the on-disk `prompt.md` a user plugin resolves from
+   * its source directory (mirror of `IAction.promptTemplate`). Absent on
+   * on-disk plugins and on deterministic analyzers.
+   */
+  promptTemplate?: string;
+  /**
+   * Inlined report schema for a BUILT-IN probabilistic analyzer.
+   * Populated by the built-ins codegen from the analyzer's sibling
+   * `report.schema.json` (parsed to an object at build time; MUST extend
+   * the canonical findings envelope). Mirror of `IAction.reportSchema`.
+   * Absent on on-disk plugins and on deterministic analyzers.
+   */
+  reportSchema?: Record<string, unknown>;
+  /**
+   * Deterministic evaluation entry point. Conditional per mode, the
+   * mirror of `IAction.invoke`: a `deterministic` analyzer implements it
+   * (the orchestrator invokes it during `sm scan` / `sm check`); a
+   * `probabilistic` analyzer has NO `evaluate()`, its judgment is the
+   * queued prompt an external agent processes and records into
+   * `state_findings`. The orchestrator excludes probabilistic analyzers
+   * from every scan-time phase, so a declared `evaluate` on one is
+   * never invoked (tolerated silently at load, same posture as a
+   * probabilistic Action declaring `invoke`).
+   */
+  evaluate?(ctx: IAnalyzerContext): Issue[] | Promise<Issue[]>;
 }

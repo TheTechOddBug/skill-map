@@ -147,6 +147,14 @@ export const PLUGINS_TEXTS = {
   toggleAppliedSingle: '{{verbPast}}: {{id}}\n',
   toggleAppliedManyHeader: '{{verbPast}}: {{count}} extension(s)\n',
   toggleAppliedManyRow: '  - {{id}}\n',
+  /**
+   * Pair-toggle informational header + rows: companions flipped by the
+   * finder/fixer pairing rule (spec/plugin-author-guide.md §Paired
+   * extensions (pair toggle)). Informational only, never a prompt; the
+   * companions also appear in the applied receipt below.
+   */
+  pairToggleHeader: 'pair toggle: {{count}} paired extension(s) also {{verbPast}}:\n',
+  pairToggleRow: '  - {{id}} (paired with {{via}})\n',
 
   // --- trust / untrust -------------------------------------------------
   /**
@@ -283,6 +291,15 @@ export const PLUGINS_TEXTS = {
   detailFieldDescription: 'Description',
   detailFieldPreconditions: 'Preconditions',
   detailFieldEntry: 'Entry',
+  /**
+   * Probabilistic-extension contract sections (`sm plugins show`,
+   * spec/cli-contract.md): the verbatim prompt template and the
+   * pretty-printed report schema, rendered after the field block.
+   * Content lines are plugin-authored; sanitized at render.
+   */
+  detailSectionPrompt: '\n  Prompt\n',
+  detailSectionReportSchema: '\n  Report schema\n',
+  detailSectionLine: '    {{line}}\n',
 
   // --- create verb -----------------------------------------------------
   /**

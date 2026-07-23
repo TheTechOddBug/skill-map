@@ -16,7 +16,10 @@
  * Convention: the named export inside each `<kind>s/<name>/index.ts`
  * follows `camelCase(<name>) + <Kind>` (e.g. `tools-count` extractor
  * exports `toolsCountExtractor`). The codegen derives the import binding
- * from this rule.
+ * from this rule. AI (probabilistic) extensions follow the
+ * `ai-<subject>-<kind>` folder pattern, which already ends in the kind, so
+ * the export is just `camelCase(<name>)` with no doubled suffix
+ * (`ai-redundancy-analyzer` exports `aiRedundancyAnalyzer`).
  *
  * Run:
  *   node scripts/generate-built-ins.js
@@ -37,10 +40,12 @@ const OUTPUT = join(PLUGINS_ROOT, 'built-ins.ts');
 
 /**
  * Canonical plugin order. Vendor providers FIRST so the kindRegistry
- * composer encounters them before the markdown fallback in `core`. The
- * matching directories under `src/plugins/<id>/` must all exist.
+ * composer encounters them before the markdown fallback in `core`
+ * (`github` ships no provider, so its slot before `core` is
+ * presentational only). The matching directories under
+ * `src/plugins/<id>/` must all exist.
  */
-const PLUGIN_ORDER = ['claude', 'antigravity', 'codex', 'opencode', 'agent-skills', 'core'];
+const PLUGIN_ORDER = ['claude', 'antigravity', 'codex', 'opencode', 'agent-skills', 'github', 'core'];
 
 /**
  * Within a plugin, kinds register in this order so the resulting list
@@ -74,7 +79,15 @@ function capitalize(s) {
 }
 
 function exportNameFor(name, kind) {
-  return `${camelCase(name)}${capitalize(kind)}`;
+  const base = camelCase(name);
+  const suffix = capitalize(kind);
+  // The AI-extension naming pattern encodes the kind in the folder name
+  // itself (`ai-<subject>-analyzer` / `ai-<subject>-action`), so
+  // `camelCase(name)` already ends with the capitalized kind. Appending it
+  // again would double the suffix (`aiRedundancyAnalyzerAnalyzer`); skip it
+  // when the base already carries the kind. Folders that do NOT encode the
+  // kind (e.g. `node-stability`, `tools-count`) still get it appended.
+  return base.endsWith(suffix) ? base : `${base}${suffix}`;
 }
 
 /**
@@ -85,6 +98,157 @@ function exportNameFor(name, kind) {
  */
 function singleQuoted(str) {
   return `'${String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+
+/**
+ * Emit a TypeScript template-literal (backtick) for a multi-line string,
+ * escaping the three sequences that would otherwise break out of the
+ * literal: backslash, backtick, and `${` interpolation. Used to inline a
+ * probabilistic Action's `prompt.md` verbatim (newlines preserved) while
+ * staying lint-clean under `@stylistic/quotes` (`allowTemplateLiterals`).
+ */
+function templateLiteral(str) {
+  const body = String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/`/g, '\\`')
+    .replace(/\$\{/g, '\\${');
+  return `\`${body}\``;
+}
+
+/**
+ * Emit a `JSON.parse('...')` expression that rebuilds `value` at import
+ * time. The JSON is wrapped in a single-quoted string (via `singleQuoted`)
+ * so the generated line stays under the repo's single-quote lint rule even
+ * though JSON itself is double-quote heavy. Used to inline a probabilistic
+ * Action's parsed `report.schema.json`.
+ */
+function jsonParseLiteral(value) {
+  return `JSON.parse(${singleQuoted(JSON.stringify(value))})`;
+}
+
+/** True when an extension manifest source declares `mode: 'probabilistic'`. */
+function isProbabilisticSource(indexTsSource) {
+  return /\bmode\s*:\s*['"]probabilistic['"]/.test(indexTsSource);
+}
+
+/** `$id` prefix of the canonical findings envelope (mirror of `kernel/jobs/findings-schema.ts`). */
+const FINDINGS_SCHEMA_ID_PREFIX = 'https://skill-map.ai/spec/v0/findings/';
+
+/**
+ * Structural scan for a `$ref` under the canonical findings namespace,
+ * mirror of `reportSchemaExtendsFindings` in
+ * `src/kernel/jobs/findings-schema.ts` (this script is plain JS and
+ * runs before the TS build, so it cannot import the kernel helper).
+ */
+function schemaExtendsFindings(value) {
+  if (Array.isArray(value)) return value.some((item) => schemaExtendsFindings(item));
+  if (typeof value !== 'object' || value === null) return false;
+  const ref = value.$ref;
+  if (typeof ref === 'string' && ref.startsWith(FINDINGS_SCHEMA_ID_PREFIX)) {
+    const rest = ref.slice(FINDINGS_SCHEMA_ID_PREFIX.length);
+    const file = rest.includes('#') ? rest.slice(0, rest.indexOf('#')) : rest;
+    if (file.endsWith('.schema.json') && !file.slice(0, -'.schema.json'.length).includes('/')) {
+      return true;
+    }
+  }
+  return Object.values(value).some((item) => schemaExtendsFindings(item));
+}
+
+/**
+ * Read a built-in Action's structure-as-truth sibling files. EVERY
+ * Action carries `report.schema.json` by convention (it is the report
+ * contract AND the summarizer / enricher detection signal), so the
+ * codegen inlines it onto every emitted action manifest, deterministic
+ * and probabilistic alike (built-ins have no source directory at
+ * runtime to read it from). `prompt.md` is probabilistic-only: required
+ * there, and FORBIDDEN on a deterministic Action (the spec calls that
+ * combination a `load-error`, config inconsistent, see
+ * `spec/schemas/extensions/action.schema.json`). Fails loudly on every
+ * violation.
+ */
+function readActionAssets(entryDir, name, isProbabilistic) {
+  const promptPath = join(entryDir, 'prompt.md');
+  const reportPath = join(entryDir, 'report.schema.json');
+  if (isProbabilistic && !existsSync(promptPath)) {
+    throw new Error(
+      `Probabilistic built-in action '${name}' is missing prompt.md at ${promptPath}. ` +
+        'Every probabilistic Action carries a prompt template by convention.',
+    );
+  }
+  if (!isProbabilistic && existsSync(promptPath)) {
+    throw new Error(
+      `Deterministic built-in action '${name}' carries a prompt.md at ${promptPath}. ` +
+        'A deterministic Action with a prompt template is config-inconsistent (spec: load-error).',
+    );
+  }
+  if (!existsSync(reportPath)) {
+    throw new Error(
+      `Built-in action '${name}' is missing report.schema.json at ${reportPath}. ` +
+        'Every Action carries a report schema by convention.',
+    );
+  }
+  let reportSchema;
+  try {
+    reportSchema = JSON.parse(readFileSync(reportPath, 'utf8'));
+  } catch (err) {
+    throw new Error(
+      `Built-in action '${name}' has invalid report.schema.json at ${reportPath}: ${err.message}`,
+    );
+  }
+  const assets = { reportSchema };
+  if (isProbabilistic) assets.promptTemplate = readFileSync(promptPath, 'utf8');
+  return assets;
+}
+
+/**
+ * Read a built-in Analyzer's structure-as-truth sibling files, the
+ * finder mirror of `readActionAssets`. Only PROBABILISTIC analyzers
+ * carry the convention: `prompt.md` + `report.schema.json`, the latter
+ * extending the canonical findings envelope
+ * (`spec/schemas/findings/report.schema.json`) via `$ref`. Deterministic
+ * analyzers ship neither (a stray `prompt.md` is config-inconsistent and
+ * fails loudly, mirroring the loader's `invalid-manifest`). Returns
+ * `null` for the deterministic case (nothing to inline).
+ */
+function readAnalyzerAssets(entryDir, name, isProbabilistic) {
+  const promptPath = join(entryDir, 'prompt.md');
+  const reportPath = join(entryDir, 'report.schema.json');
+  if (!isProbabilistic) {
+    if (existsSync(promptPath)) {
+      throw new Error(
+        `Deterministic built-in analyzer '${name}' carries a prompt.md at ${promptPath}. ` +
+          'A deterministic Analyzer with a prompt template is config-inconsistent (spec: invalid-manifest).',
+      );
+    }
+    return null;
+  }
+  if (!existsSync(promptPath)) {
+    throw new Error(
+      `Probabilistic built-in analyzer '${name}' is missing prompt.md at ${promptPath}. ` +
+        'Every probabilistic Analyzer carries a prompt template by convention.',
+    );
+  }
+  if (!existsSync(reportPath)) {
+    throw new Error(
+      `Probabilistic built-in analyzer '${name}' is missing report.schema.json at ${reportPath}. ` +
+        'Every probabilistic Analyzer carries a findings report schema by convention.',
+    );
+  }
+  let reportSchema;
+  try {
+    reportSchema = JSON.parse(readFileSync(reportPath, 'utf8'));
+  } catch (err) {
+    throw new Error(
+      `Built-in analyzer '${name}' has invalid report.schema.json at ${reportPath}: ${err.message}`,
+    );
+  }
+  if (!schemaExtendsFindings(reportSchema)) {
+    throw new Error(
+      `Built-in analyzer '${name}' has a report.schema.json at ${reportPath} that does not ` +
+        `$ref the canonical findings envelope (${FINDINGS_SCHEMA_ID_PREFIX}report.schema.json).`,
+    );
+  }
+  return { promptTemplate: readFileSync(promptPath, 'utf8'), reportSchema };
 }
 
 function discoverPlugin(pluginId) {
@@ -111,12 +275,36 @@ function discoverPlugin(pluginId) {
       if (!isDir) continue;
       const indexTs = join(entryDir, 'index.ts');
       if (!existsSync(indexTs)) continue;
-      extensions.push({
+      const extension = {
         kind,
         name: entry,
         exportName: exportNameFor(entry, kind),
         importFrom: `./${pluginId}/${KIND_TO_DIR[kind]}/${entry}/index.js`,
-      });
+      };
+      // Structure-as-truth: a built-in Action has no source directory
+      // at runtime, so inline its sibling report.schema.json (every
+      // Action) plus prompt.md (probabilistic only) onto the emitted
+      // manifest (the built-in equivalent of the on-disk files a user
+      // plugin resolves at load).
+      if (kind === 'action') {
+        const isProbabilistic = isProbabilisticSource(readFileSync(indexTs, 'utf8'));
+        const { promptTemplate, reportSchema } = readActionAssets(entryDir, entry, isProbabilistic);
+        if (promptTemplate !== undefined) extension.promptTemplate = promptTemplate;
+        extension.reportSchema = reportSchema;
+      }
+      // Finder mirror: a built-in PROBABILISTIC analyzer inlines its
+      // prompt.md + report.schema.json (validated to extend the
+      // canonical findings envelope). Deterministic analyzers inline
+      // nothing.
+      if (kind === 'analyzer') {
+        const isProbabilistic = isProbabilisticSource(readFileSync(indexTs, 'utf8'));
+        const assets = readAnalyzerAssets(entryDir, entry, isProbabilistic);
+        if (assets !== null) {
+          extension.promptTemplate = assets.promptTemplate;
+          extension.reportSchema = assets.reportSchema;
+        }
+      }
+      extensions.push(extension);
     }
   }
   return { manifest, extensions };
@@ -161,8 +349,19 @@ function render(plugins) {
   // baked-in literal, so a version bump never rewrites this generated file.
   for (const { pluginId, extensions } of plugins) {
     for (const ext of extensions) {
+      // Probabilistic built-in Actions carry their prompt.md /
+      // report.schema.json inlined (read at codegen time); everything else
+      // gets the plain pluginId + version stamp.
+      const extras = [];
+      if (ext.promptTemplate !== undefined) {
+        extras.push(`promptTemplate: ${templateLiteral(ext.promptTemplate)}`);
+      }
+      if (ext.reportSchema !== undefined) {
+        extras.push(`reportSchema: ${jsonParseLiteral(ext.reportSchema)}`);
+      }
+      const extraStr = extras.length > 0 ? `, ${extras.join(', ')}` : '';
       lines.push(
-        `const ${ext.exportName} = { ..._${ext.exportName}, pluginId: '${pluginId}', version: VERSION };`,
+        `const ${ext.exportName} = { ..._${ext.exportName}, pluginId: '${pluginId}', version: VERSION${extraStr} };`,
       );
     }
   }

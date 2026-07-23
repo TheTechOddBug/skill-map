@@ -17,7 +17,10 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
 import { builtIns, listBuiltIns } from '../built-ins.js';
+import { enrichmentKindOfReportSchema } from '../../kernel/enrichments/enrichment-schema.js';
+import { isTagsReportSchema, summaryKindOfReportSchema } from '../../kernel/jobs/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
+import { composeScanExtensions, emptyPluginRuntime } from '../../core/runtime/plugin-runtime.js';
 
 describe('built-in extensions, execution modes', () => {
   it('extractor manifest does NOT declare mode (deterministic-only kind)', () => {
@@ -32,14 +35,91 @@ describe('built-in extensions, execution modes', () => {
     }
   });
 
-  it('every built-in rule declares mode: deterministic', () => {
+  it('every built-in rule declares an explicit mode; finders carry the contract pair', () => {
+    // Analyzers are DUAL-MODE since the findings pipeline: deterministic
+    // rules implement `evaluate()` and run at scan time; probabilistic
+    // finders ship the codegen-inlined `promptTemplate` + `reportSchema`
+    // pair instead and never enter a scan phase.
     const set = builtIns();
     assert.ok(set.analyzers.length > 0, 'expected at least one built-in rule');
     for (const r of set.analyzers) {
-      assert.equal(
-        r.mode,
-        'deterministic',
-        `rule ${r.id} should declare mode: 'deterministic'`,
+      assert.ok(
+        r.mode === 'deterministic' || r.mode === 'probabilistic',
+        `rule ${r.id} should declare an explicit mode; got ${JSON.stringify(r.mode)}`,
+      );
+      if (r.mode === 'probabilistic') {
+        assert.equal(typeof r.promptTemplate, 'string', `finder ${r.id} inlines prompt.md`);
+        assert.ok(r.reportSchema, `finder ${r.id} inlines report.schema.json`);
+        assert.equal(r.evaluate, undefined, `finder ${r.id} must not implement evaluate()`);
+      } else {
+        assert.equal(typeof r.evaluate, 'function', `rule ${r.id} implements evaluate()`);
+      }
+    }
+  });
+
+  // Naming pattern (user decision 2026-07-18): every probabilistic (AI)
+  // built-in follows `ai-<subject>-<kind>`, so a finder Analyzer ends in
+  // `-analyzer` and a fixer / summarizer Action ends in `-action`. The
+  // convention lets the UI derive a bare label (`ai-redundancy-analyzer`
+  // reads as `redundancy`) and marks the AI family at a glance. Enforced
+  // here so a future probabilistic built-in cannot ship off-pattern.
+  it('every probabilistic built-in follows the ai-<subject>-<kind> naming pattern', () => {
+    const set = builtIns();
+    const probs = [
+      ...set.analyzers.filter((a) => a.mode === 'probabilistic').map((a) => ({ id: a.id, kind: 'analyzer' })),
+      ...set.actions.filter((a) => a.mode === 'probabilistic').map((a) => ({ id: a.id, kind: 'action' })),
+    ];
+    assert.ok(probs.length > 0, 'expected at least one probabilistic built-in');
+    for (const { id, kind } of probs) {
+      assert.match(
+        id,
+        new RegExp(`^ai-[a-z0-9]+(-[a-z0-9]+)*-${kind}$`),
+        `probabilistic ${kind} '${id}' must follow the ai-<subject>-${kind} naming pattern`,
+      );
+    }
+  });
+
+  // Fixer / finder pairing (user decision 2026-07-18): a fixer is named
+  // after the finder it serves, so `ai-<subject>-action` pairs with
+  // `ai-<subject>-analyzer` (`ai-redundancy-action` fixes
+  // `ai-redundancy-analyzer`). The two then read as one family and collapse
+  // to the same bare label on the inspector's two-state button. A
+  // probabilistic Action WITHOUT `precondition.analyzerIds` (the summarizer)
+  // is not a fixer and is exempt.
+  it('every fixer shares its finder subject (ai-<subject>-action pairs ai-<subject>-analyzer)', () => {
+    const set = builtIns();
+    const subject = (id: string): string =>
+      id.replace(/^ai-/, '').replace(/-(analyzer|action)$/, '');
+    // A fixer whose `analyzerIds` reference a DETERMINISTIC analyzer is EXEMPT
+    // from the pairing convention: that convention pairs a probabilistic AI
+    // finder with its fixer (`ai-<subject>-analyzer` <-> `ai-<subject>-action`)
+    // so both collapse to one bare label, but a deterministic-analyzer fixer
+    // (e.g. `ai-reference-action` fixing `core/reference-broken`) is named
+    // after what it FIXES, not after its analyzer, so its subject never
+    // matches the analyzer's short id. Look each analyzerId's mode up in the
+    // built-in analyzer set and skip the assertion when it is deterministic.
+    const analyzerModeById = new Map<string, string>();
+    for (const analyzer of set.analyzers) {
+      analyzerModeById.set(analyzer.id, analyzer.mode ?? 'deterministic');
+      analyzerModeById.set(qualifiedExtensionId(analyzer.pluginId, analyzer.id), analyzer.mode ?? 'deterministic');
+    }
+    const referencesDeterministicAnalyzer = (ids: readonly string[]): boolean =>
+      ids.some((id) => analyzerModeById.get(id) === 'deterministic');
+    const fixers = set.actions.filter(
+      (a) =>
+        a.mode === 'probabilistic' &&
+        (a.precondition?.analyzerIds?.length ?? 0) > 0 &&
+        !referencesDeterministicAnalyzer(a.precondition?.analyzerIds ?? []),
+    );
+    assert.ok(fixers.length > 0, 'expected at least one finder-paired fixer');
+    for (const fx of fixers) {
+      const fixerSubject = subject(fx.id);
+      const finderSubjects = (fx.precondition?.analyzerIds ?? []).map((qid) =>
+        subject(qid.split('/').pop() ?? qid),
+      );
+      assert.ok(
+        finderSubjects.includes(fixerSubject),
+        `fixer '${fx.id}' (subject '${fixerSubject}') must share a finder's subject; analyzerIds are ${JSON.stringify(fx.precondition?.analyzerIds)}`,
       );
     }
   });
@@ -68,7 +148,7 @@ describe('built-in extensions, execution modes', () => {
 });
 
 describe('built-in extensions, qualified ids (spec § A.6)', () => {
-  it('every built-in declares a recognised pluginId (`core`, `claude`, `antigravity`, `codex`, `opencode`, `agent-skills`)', () => {
+  it('every built-in declares a recognised pluginId (`core`, `claude`, `antigravity`, `codex`, `opencode`, `agent-skills`, `github`)', () => {
     const set = builtIns();
     const all = [
       ...set.providers,
@@ -77,7 +157,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
       ...set.formatters,
       ...set.actions,
     ];
-    const valid = new Set(['core', 'claude', 'antigravity', 'codex', 'opencode', 'agent-skills']);
+    const valid = new Set(['core', 'claude', 'antigravity', 'codex', 'opencode', 'agent-skills', 'github']);
     for (const ext of all) {
       assert.ok(
         valid.has(ext.pluginId),
@@ -120,6 +200,12 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     assert.equal(qualifiedByKindAndShort.get('action:node-bump'), 'core/node-bump');
     assert.equal(qualifiedByKindAndShort.get('action:node-set-stability'), 'core/node-set-stability');
     assert.equal(qualifiedByKindAndShort.get('action:node-set-tags'), 'core/node-set-tags');
+    assert.equal(qualifiedByKindAndShort.get('action:ai-summarizer-action'), 'core/ai-summarizer-action');
+    assert.equal(qualifiedByKindAndShort.get('action:ai-redundancy-action'), 'core/ai-redundancy-action');
+    assert.equal(qualifiedByKindAndShort.get('action:ai-contradiction-action'), 'core/ai-contradiction-action');
+    assert.equal(qualifiedByKindAndShort.get('action:ai-incoherence-action'), 'core/ai-incoherence-action');
+    assert.equal(qualifiedByKindAndShort.get('action:ai-reference-action'), 'core/ai-reference-action');
+    assert.equal(qualifiedByKindAndShort.get('action:enrichment'), 'github/enrichment');
   });
 
   // Tests for `analyzer.recommendedActions` were retired with the
@@ -131,7 +217,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
 
   it('listBuiltIns() rows carry pluginId verbatim', () => {
     const rows = listBuiltIns();
-    const valid = new Set(['core', 'claude', 'antigravity', 'codex', 'opencode', 'agent-skills']);
+    const valid = new Set(['core', 'claude', 'antigravity', 'codex', 'opencode', 'agent-skills', 'github']);
     for (const row of rows) {
       assert.ok(
         valid.has(row.pluginId),
@@ -159,7 +245,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/backtick-path` (extractor that turns relative `.md` paths inside code spans / fences into `points` edges, the inverse-mask exception to the code-strip policy) brought it to 39.
     // Actions self-project their inspector button via scan-time `project()`: the two pure projector analyzers `core/supersede` + `core/tags` were deleted (their buttons moved onto `core/node-supersede` / `core/node-set-tags`), dropping the total back to 37.
     // `core/score-resolution` (a former `score`-phase analyzer that assigned the resolved-link 1.0 confidence) was briefly added (38) then deleted: the kernel now seeds the 1.0 confidence baseline on every link directly, and only the `core/name-reserved` / `core/reference-broken` detectors apply penalty deltas on top, dropping the total back to 37.
-    // `core/job-file-orphan` (the rule that flagged orphan MD files under .skill-map/jobs/) was removed, to be reintroduced later under a probabilistic evaluation model; the `findOrphanJobFiles` helper + `sm job prune --orphan-files` verb stay, dropping the total to 36.
+    // `core/job-file-orphan` (the rule that flagged orphan MD files under .skill-map/jobs/) was removed, to be reintroduced later under a probabilistic evaluation model, dropping the total to 36. (Step 10 Phase A later retired the on-disk job-files model entirely: the `findOrphanJobFiles` helper + `sm jobs prune --orphan-files` flag were removed, job content is now DB-only in `state_job_contents`.)
     // The supersede feature was removed wholesale: the `core/annotations` extractor (its only producer), the `core/node-supersede` action, and the `core/node-superseded` analyzer were all deleted, dropping the total to 33.
     // The codex `$skill` / `@`-file grammar split added two extractors (`codex/dollar-skill`, `codex/at-file`), bringing it to 35.
     // The `@`/`/` grammar consolidation then moved the shared `slash-command` (claude -> core) and `at-file` (codex -> core) into the vendor-neutral `core` plugin; a move, not an add/remove, so the total stays 35.
@@ -168,7 +254,24 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/backtick-slash` (its `/command` sibling, same code-region domain and resolution gate, lens-gated claude / antigravity / opencode like the prose slash) brings it to 38.
     // `codex/backtick-dollar` (the `$skill` sibling completing the per-provider code-region trigger family, codex-only like the prose dollar) brings it to 39.
     // `core/name-mismatch` (analyzer that flags a declared `frontmatter.name` diverging from the node's path-derived handle, severity from the per-kind `identifierMismatch` knob) brings it to 40.
-    assert.equal(rows.length, 40);
+    // `core/ai-summarizer-action` (the first probabilistic built-in Action; the universal node summarizer, carrying its `prompt.md` + `report.schema.json` inlined by the built-ins codegen) brings it to 41.
+    // `github/enrichment` (the first declared-network deterministic Action; Model A provenance verification against a node's `source` / `sourceVersion` annotations, executed via `sm refresh` behind the `allowNetworkActions` policy) brings it to 42.
+    // `core/ai-redundancy-analyzer` (the first probabilistic built-in Analyzer, the internal-redundancy finder; experimental, ships disabled, prompt user-approved 2026-07-14) brings it to 43.
+    // `core/ai-contradiction-analyzer` + `core/ai-incoherence-analyzer` (the rest of the wave-1 finder roster, same experimental/disabled mold; finders judge independently, no cross-sibling deferrals) bring it to 45.
+    // `core/ai-redundancy-action` (the FIRST fixer: a probabilistic Action declaring `precondition.analyzerIds: ['core/ai-redundancy-analyzer']`; experimental, ships disabled; resolves redundancy findings via a template-mandated file edit) brings it to 46.
+    // `core/ai-contradiction-action` (fixer for `core/ai-contradiction-analyzer`, `precondition.analyzerIds: ['core/ai-contradiction-analyzer']`; resolves conflicting / jointly-risky directive pairs) + `core/ai-incoherence-action` (fixer for `core/ai-incoherence-analyzer`; fixes dangling references, drifting terminology, missing context), both experimental and ships disabled, bring it to 48.
+    // `core/auto-fix` (the former second built-in hook) was REMOVED on 2026-07-21: redundant with the per-job `auto_fix` flag; the record-side hook dispatch stays for drop-in hooks, keeping the count at 48.
+    // `core/ai-reference-action` (the first DETERMINISTIC-analyzer fixer: a probabilistic Action declaring `precondition.analyzerIds: ['core/reference-broken']`, so its submit-time trigger is that rule's `scan_issues` rows injected as `## Issues to resolve`, not `state_findings`; experimental, ships disabled, exempt from the finder/fixer pairing convention) brings it to 49.
+    // `core/ai-tagger-action` (the taxonomy sibling of the summarizer: stable probabilistic Action whose report `$ref`s the canonical tags schema; the record path merges its `tags[]` into the sidecar through the consent-gated write-through) brings it to 50.
+    // `core/contribution-orphan` (the Phase 7 soft-warning stub that emitted [] waiting for a `contributionsRows` context field that never landed) was DELETED on 2026-07-22 (analyzer review pass closure), dropping the total to 49; `IAnalyzerContext.viewContributions` stays as a generic context surface.
+    // `core/ai-name-action` (the second deterministic-analyzer fixer, `precondition.analyzerIds: ['core/name-mismatch']`, mirror of ai-reference-action: stable, enabled; settles a dual identity by aligning `frontmatter.name` to the file-derived handle, renames only by author choice) brings it back to 50.
+    // The five OPTIMIZATION finder/fixer pairs (2026-07-22, user decision: the monolithic `skill-optimizer` capability decomposed into topics): `ai-verbosity-*`, `ai-vagueness-*`, `ai-structure-*`, `ai-trigger-*`, `ai-scope-*`, each an experimental ships-disabled probabilistic pair on the wave-1 mold, bring it to 60.
+    // `core/ai-frontmatter-action` (standalone probabilistic Action that generates or completes a node's missing frontmatter: a path-aligned `name` + a use-when `description`, never overwriting existing fields; graduated stable/enabled 2026-07-22 after its live playground pass) brings it to 61.
+    // The two security finders (`core/ai-security-analyzer` for hygiene the
+    // author fixes, `core/ai-suspicion-analyzer` for adversarial content that
+    // gets quarantined, deliberately fixer-less; both graduated
+    // stable/enabled 2026-07-23 after their live playground passes) bring it to 63.
+    assert.equal(rows.length, 63);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a
@@ -194,6 +297,162 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
   // `defaultRefreshAction` was retired with the structure-as-truth
   // refactor along with the UI's Refresh button. The replacement UX is
   // TBD; this test was removed accordingly.
+
+  it('the built-in `core/ai-summarizer-action` is probabilistic and carries its inlined siblings', () => {
+    const set = builtIns();
+    const action = set.actions.find((a) => a.id === 'ai-summarizer-action');
+    if (!action) throw new Error('expected the ai-summarizer-action action to be bundled');
+    assert.equal(action.pluginId, 'core');
+    assert.equal(action.mode, 'probabilistic');
+    assert.equal(action.probExpectedDurationSeconds, 120);
+    // Codegen inlined prompt.md verbatim (the on-disk equivalent), including
+    // the single sanctioned `{{userContent}}` placeholder the render engine
+    // wraps in `<user-content>`.
+    assert.equal(typeof action.promptTemplate, 'string');
+    assert.ok(
+      (action.promptTemplate ?? '').includes('{{userContent}}'),
+      'inlined promptTemplate must carry the {{userContent}} placeholder',
+    );
+    // Codegen inlined report.schema.json parsed to an object. It is a thin
+    // extender of the canonical summaries/markdown schema; that $ref is
+    // ALSO the summarizer signal the record path detects
+    // (`summaryKindOfReportSchema`, spec/job-lifecycle.md §Record).
+    assert.ok(
+      action.reportSchema !== null && typeof action.reportSchema === 'object',
+      'inlined reportSchema must be a parsed object',
+    );
+    const schema = action.reportSchema as {
+      allOf?: Array<{ $ref?: string }>;
+    };
+    assert.ok(
+      (schema.allOf ?? []).some(
+        (s) => s.$ref === 'https://skill-map.ai/spec/v0/summaries/markdown.schema.json',
+      ),
+      'reportSchema must extend summaries/markdown by its absolute $id',
+    );
+    assert.equal(
+      summaryKindOfReportSchema(action.reportSchema as Record<string, unknown>),
+      'markdown',
+      'the summaries $ref must register the action as a markdown summarizer',
+    );
+  });
+
+  it('the built-in `core/ai-tagger-action` is a stable probabilistic tagger with its inlined siblings', () => {
+    const set = builtIns();
+    const action = set.actions.find((a) => a.id === 'ai-tagger-action');
+    if (!action) throw new Error('expected the ai-tagger-action action to be bundled');
+    assert.equal(action.pluginId, 'core');
+    assert.equal(action.mode, 'probabilistic');
+    assert.equal(action.stability, 'stable');
+    assert.equal(action.probExpectedDurationSeconds, 60);
+    assert.equal(typeof action.promptTemplate, 'string');
+    assert.ok(
+      (action.promptTemplate ?? '').includes('{{userContent}}'),
+      'inlined promptTemplate must carry the {{userContent}} placeholder',
+    );
+    // The report schema's $ref to the canonical tags shape IS the tagger
+    // signal the record path gates the sidecar write-through on
+    // (`isTagsReportSchema`, spec/job-lifecycle.md §Tags write-through).
+    assert.ok(
+      action.reportSchema !== null && typeof action.reportSchema === 'object',
+      'inlined reportSchema must be a parsed object',
+    );
+    const tagSchema = action.reportSchema as { allOf?: Array<{ $ref?: string }> };
+    assert.ok(
+      (tagSchema.allOf ?? []).some(
+        (s) => s.$ref === 'https://skill-map.ai/spec/v0/tags/markdown.schema.json',
+      ),
+      'reportSchema must extend tags/markdown by its absolute $id',
+    );
+    assert.equal(
+      isTagsReportSchema(action.reportSchema as Record<string, unknown>),
+      true,
+      'the tags $ref must register the action as a tagger',
+    );
+  });
+
+  it('deterministic built-in actions carry no inlined prompt template', () => {
+    const set = builtIns();
+    for (const action of set.actions) {
+      if ((action.mode ?? 'deterministic') === 'probabilistic') continue;
+      assert.equal(
+        action.promptTemplate,
+        undefined,
+        `deterministic action ${action.id} must not carry an inlined promptTemplate`,
+      );
+    }
+  });
+
+  it('every built-in action carries its inlined report schema (structure-as-truth sibling)', () => {
+    const set = builtIns();
+    assert.ok(set.actions.length > 0, 'expected at least one built-in action');
+    for (const action of set.actions) {
+      assert.ok(
+        action.reportSchema !== null && typeof action.reportSchema === 'object',
+        `action ${action.id} must carry its codegen-inlined reportSchema`,
+      );
+    }
+  });
+
+  it('the built-in `github/enrichment` is a declared-network deterministic enricher that ships disabled', () => {
+    const set = builtIns();
+    const action = set.actions.find((a) => a.id === 'enrichment');
+    if (!action) throw new Error('expected the github/enrichment action to be bundled');
+    assert.equal(action.pluginId, 'github');
+    assert.equal(action.mode, 'deterministic');
+    // The single sanctioned purity carve-out: manifest-declared network IO,
+    // gated at execution by the `allowNetworkActions` project policy.
+    assert.deepEqual(action.io, ['network']);
+    // Experimental flips the installed default to DISABLED (same
+    // ships-disabled mechanism as core/node-bump), so the composed scan
+    // catalog excludes it until the operator opts in.
+    assert.equal(action.stability, 'experimental');
+    assert.equal(typeof action.invoke, 'function');
+    assert.equal(action.promptTemplate, undefined, 'deterministic: no prompt');
+    // The inlined report schema extends the canonical enrichments/github
+    // shape by its absolute $id; that $ref is ALSO the enricher signal
+    // `sm refresh` detects (the mirror of the summarizer convention).
+    const schema = action.reportSchema as { allOf?: Array<{ $ref?: string }> };
+    assert.ok(
+      (schema.allOf ?? []).some(
+        (s) => s.$ref === 'https://skill-map.ai/spec/v0/enrichments/github.schema.json',
+      ),
+      'reportSchema must extend enrichments/github by its absolute $id',
+    );
+    assert.equal(
+      enrichmentKindOfReportSchema(action.reportSchema as Record<string, unknown>),
+      'github',
+      'the enrichments $ref must register the action as a github enricher',
+    );
+    // The optional token secret rides on the extension-settings machinery.
+    assert.equal(action.settings?.['token']?.type, 'secret');
+  });
+
+  it('the composed scan catalog excludes github/enrichment until enabled (ships disabled)', () => {
+    const defaultComposed = composeScanExtensions({
+      noBuiltIns: false,
+      pluginRuntime: emptyPluginRuntime(),
+    });
+    assert.ok(defaultComposed, 'built-ins alone compose a non-empty pipeline');
+    assert.ok(
+      !defaultComposed.actions.some((a) => a.pluginId === 'github' && a.id === 'enrichment'),
+      'experimental github/enrichment must not compose under installed defaults',
+    );
+
+    const enabledComposed = composeScanExtensions({
+      noBuiltIns: false,
+      pluginRuntime: emptyPluginRuntime(),
+      // Operator opt-in: the qualified-id toggle wins over the
+      // experimental installed default.
+      resolveEnabled: (id, installedDefault = true) =>
+        id === 'github/enrichment' ? true : installedDefault,
+    });
+    assert.ok(enabledComposed);
+    assert.ok(
+      enabledComposed.actions.some((a) => a.pluginId === 'github' && a.id === 'enrichment'),
+      'an explicit enable folds github/enrichment into the composed catalog',
+    );
+  });
 
   it('claude provider declares schema + schemaJson per kind (Phase 3 catalog)', () => {
     const set = builtIns();

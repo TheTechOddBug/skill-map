@@ -231,8 +231,8 @@ function pluginToIndexRow(
   // child disabled → ✕), mirroring the BFF projection.
   const isLoaded = p.status === 'enabled';
   const extensions = p.extensions ?? [];
-  const extEnabled = (e: { id: string; stability?: TExtensionStability }): boolean =>
-    resolveEnabled(qualifiedExtensionId(p.id, e.id), installedDefaultEnabled(e.stability));
+  const extEnabled = (e: { id: string; stability?: TExtensionStability; defaultEnabled?: boolean }): boolean =>
+    resolveEnabled(qualifiedExtensionId(p.id, e.id), installedDefaultEnabled(e.stability, e.defaultEnabled));
   const enabled = isLoaded
     ? extensions.length === 0 || extensions.some((e) => extEnabled(e))
     : false;

@@ -42,7 +42,7 @@ function run(nodes: Node[], links: Link[]): { issues: Issue[]; captured: ICaptur
   const captured: ICapturedContribution[] = [];
   // `evaluate` is synchronous in this analyzer; cast away the
   // `| Promise<Issue[]>` half of the kernel's return-type union.
-  const issues = linkCounterAnalyzer.evaluate({
+  const issues = linkCounterAnalyzer.evaluate!({
     nodes,
     links,
     settings: {},

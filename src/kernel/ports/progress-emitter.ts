@@ -9,9 +9,16 @@
 
 export interface ProgressEvent {
   type: string;
-  timestamp: string;
+  /**
+   * Job-event envelopes (`spec/job-events.md`) carry Unix milliseconds
+   * (number, normative in the ndjson stream). The experimental scan /
+   * extension families still emit ISO strings; they unify on numbers
+   * when promoted to stable.
+   */
+  timestamp: number | string;
   runId?: string;
-  jobId?: string;
+  /** Null on run-level events (`run.*`), per the envelope contract. */
+  jobId?: string | null;
   data?: unknown;
 }
 

@@ -54,6 +54,13 @@ export interface IExtension {
    * flips an extension's installed default to disabled. Absent == stable.
    */
   stability?: TExtensionStability;
+  /**
+   * Optional installed-default override (`IExtensionBase.defaultEnabled`,
+   * spec `base.schema.json`): wins over the stability-derived default
+   * when declared. Carried so registry consumers (help catalogs) apply
+   * the same installed default as the runtime resolvers.
+   */
+  defaultEnabled?: boolean;
   entry?: string;
 }
 

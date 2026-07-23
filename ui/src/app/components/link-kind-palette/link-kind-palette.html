@@ -7,7 +7,7 @@
         [pTooltip]="entry.tooltip"
         tooltipStyleClass="link-kind-palette__tooltip"
         [ariaLabel]="entry.label"
-        [styleClass]="'link-kind-palette__btn link-kind-palette__btn--' + entry.kind"
+        [class]="'link-kind-palette__btn link-kind-palette__btn--' + entry.kind"
         [pt]="$any({ content: { class: 'link-kind-palette__content' } })"
         [attr.data-testid]="'link-kind-palette-' + entry.kind"
       >

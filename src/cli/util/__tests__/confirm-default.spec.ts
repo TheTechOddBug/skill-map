@@ -2,7 +2,7 @@
  * Unit tests for `cli/util/confirm`. Covers the default-no (legacy)
  * behaviour used by destructive verbs (`db restore`, `sidecar prune`,
  * etc) and the default-yes path used by the consent-style prompts
- * (`.sm` write consent on `sm bump` / `sm sidecar annotate|refresh`).
+ * (`.sm` write consent on `sm bump` / `sm sidecars annotate|refresh`).
  */
 
 import { strict as assert } from 'node:assert';

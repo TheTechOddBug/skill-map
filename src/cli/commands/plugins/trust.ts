@@ -30,6 +30,7 @@ import { tx } from '../../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
 import type { IAnsi } from '../../util/ansi.js';
 import { resolveDbPath } from '../../util/db-path.js';
+import { assertNoDriftForWrite } from '../../../core/sqlite/db-version-runner.js';
 import { ExitCode } from '../../util/exit-codes.js';
 import { defaultRuntimeContext } from '../../util/runtime-context.js';
 import { SmCommand } from '../../util/sm-command.js';
@@ -41,6 +42,14 @@ abstract class TrustPluginsBase extends SmCommand {
   ids = Option.Rest({ name: 'ids' });
 
   protected async applyTrust(trusted: boolean): Promise<number> {
+    // Write verb: the trust grant is a `config_plugins` DB row, and a
+    // grant written into a drifted DB is lost on the next rebuild.
+    // Refuse before discovery / any write (spec/cli-contract.md
+    // §Schema-drift rebuild). No-ops when the DB does not exist yet
+    // (fresh project: both drift axes read `no-meta`).
+    const ctx = defaultRuntimeContext();
+    assertNoDriftForWrite(resolveDbPath({ db: undefined, cwd: ctx.cwd }));
+
     const verb = trusted ? 'trust' : 'untrust';
     const stderrAnsi = this.ansiFor('stderr');
 

@@ -24,6 +24,9 @@ import type {
   ExecutionRecord,
   HistoryStats,
   Issue,
+  Job,
+  JobRunner,
+  JobStatus,
   Node,
   ScanResult,
 } from '../types.js';
@@ -33,17 +36,28 @@ import type {
   IPersistedEnrichment,
 } from '../orchestrator.js';
 import type { IPriorExtractorRun } from '../adapters/sqlite/scan-load.js';
+import type { ISuppressionEntry } from '../jobs/findings-report.js';
 import type { IUpdateCheckCache } from '../update-check/index.js';
 import type { IDiscoveredPlugin } from './plugin-loader.js';
 import type {
   IApplyOptions,
   IApplyResult,
   IBranchProjection,
+  IFindingRecord,
+  IFindingResolutionIntent,
+  IFindingSeverityCount,
+  IFindingsListFilter,
+  IFindingsWriteIntent,
   IHistoryStatsRange,
   IIssueIncidenceCount,
   IIssueListFilter,
   IIssueListResult,
   IIssueRow,
+  IJobClaim,
+  IJobContentInput,
+  IJobListFilter,
+  IJobsIntegrityCounts,
+  IJobSubmitRow,
   IListExecutionsFilter,
   ILiteNode,
   IMigrateNodeFksReport,
@@ -60,7 +74,17 @@ import type {
   IPluginMigrationPlan,
   IPluginTrustRow,
   IPruneResult,
+  IQuickCheckResult,
+  IStateEnrichmentRecord,
+  IStateEnrichmentUpsert,
+  ISummaryRecord,
+  ISummaryWriteIntent,
+  TFindingResolveOutcome,
+  TFindingRowDismissOutcome,
+  TFindingReopenOutcome,
+  TFixerSubmitOutcome,
   THistoryStatsPeriod,
+  TJobTransitionOutcome,
 } from '../types/storage.js';
 
 /**
@@ -84,12 +108,22 @@ export interface ITransactionalStorage {
   enrichments: {
     /**
      * Upsert a batch of fresh enrichment records produced by an
-     * extractor pass. Composite PK is `(nodePath, extractorId)`;
-     * conflict → replace. Every row lands with `stale = 0` (the
-     * caller just refreshed it; ROADMAP §B.10, staleness is
-     * computed downstream when the body hash changes again).
+     * extractor pass (Model B, `node_enrichments`). Composite PK is
+     * `(nodePath, extractorId)`; conflict → replace. Every row lands
+     * with `stale = 0` (the caller just refreshed it; ROADMAP §B.10,
+     * staleness is computed downstream when the body hash changes
+     * again).
      */
     upsertMany(records: IEnrichmentRecord[]): Promise<void>;
+    /**
+     * Upsert one `state_enrichments` row (Model A, the enrichment
+     * write-through `sm refresh` lands for an enricher Action).
+     * Composite PK is `(nodeId, providerId)`; conflict → replace.
+     * Transactional variant so the state row and its `state_executions`
+     * sibling land atomically (mirror of the summaries fold inside
+     * `jobs.recordTerminal`).
+     */
+    upsertState(row: IStateEnrichmentUpsert): Promise<void>;
   };
   history: {
     /**
@@ -100,6 +134,12 @@ export interface ITransactionalStorage {
      * rename heuristic are the canonical consumers.
      */
     migrateNodeFks(from: string, to: string): Promise<IMigrateNodeFksReport>;
+    /**
+     * Append a single `state_executions` row inside the transaction.
+     * `sm refresh` pairs it with `enrichments.upsertState` so an
+     * in-process enricher execution and its state row commit together.
+     */
+    insertExecution(record: ExecutionRecord): Promise<void>;
   };
   // jobs / trust namespaces land in Phases C-D.
 }
@@ -163,6 +203,11 @@ export interface StoragePort {
      */
     listLiteNodes(): Promise<ILiteNode[]>;
     /**
+     * Distinct `scan_nodes.provider` values in the persisted scan.
+     * Backs `sm doctor`'s providers-matched-nothing check.
+     */
+    distinctNodeProviders(): Promise<string[]>;
+    /**
      * Per-node issue incidence counts by severity, keyed by node path.
      * Expands every `scan_issues.node_ids_json` array with SQLite
      * `json_each` and groups by `(value, severity)` so the count is
@@ -195,6 +240,16 @@ export interface StoragePort {
      * hydrates into memory.
      */
     loadBranch(prefixes: string[], limit: number): Promise<IBranchProjection>;
+    /**
+     * Refresh ONE node's denormalized `scan_nodes.annotations_json`
+     * mirror from its just-written `.sm` annotations, the write-through
+     * half of `sm findings dismiss` / `undismiss` (`spec/db-schema.md`
+     * §state_findings, read-time suppression lens). The sidecar stays the
+     * source of truth; `sm scan` remains the wholesale refresher (a
+     * hand-edited `.sm` reconciles at the next scan). `null` clears the
+     * column; a path not in the scan is a no-op.
+     */
+    refreshAnnotations(path: string, annotations: Record<string, unknown> | null): Promise<void>;
   };
 
   // --- contributions namespace -----------------------------------------
@@ -299,12 +354,33 @@ export interface StoragePort {
     findActive(predicate: (issue: Issue) => boolean): Promise<IIssueRow[]>;
   };
 
-  // The `enrichments` namespace is intentionally transactional-only
-  // at Phase A. The mutation surface (`upsertMany`) is exposed inside
-  // `transaction(fn)` only, `sm refresh`'s upsert path is the
-  // canonical caller and it always wraps in a tx. A non-transactional
-  // read shape lands when a non-refresh consumer surfaces; the
-  // contract starts minimal on purpose.
+  // --- enrichments namespace ---------------------------------------------
+  /**
+   * Read access to `state_enrichments` (Model A, the per-node
+   * enrichment write-through an enricher Action lands via `sm refresh`,
+   * `spec/db-schema.md` §state_enrichments). The mutation surfaces stay
+   * transactional-only on `ITransactionalStorage`: the Model B batch
+   * (`upsertMany`, `node_enrichments`) rides inside the refresh
+   * extractor persist, and the Model A upsert (`upsertState`) commits
+   * atomically with its `state_executions` sibling. This top-level
+   * namespace is read-only by design.
+   */
+  enrichments: {
+    /**
+     * Every `state_enrichments` row for a node, ordered by
+     * `providerId` ASC. `providerId` carries the enriching Action's
+     * qualified id (e.g. `github/enrichment`).
+     */
+    listStateForNode(nodeId: string): Promise<IStateEnrichmentRecord[]>;
+    /**
+     * The stale candidate set for `sm refresh --stale` (v1 staleness:
+     * `data_json.localBodyHash` differs from the node's current
+     * `scan_nodes.body_hash`, or a non-null `stale_after` has passed;
+     * rows whose node vanished from the scan are excluded). Computed
+     * SQL-side, see `adapters/sqlite/enrichments.ts`.
+     */
+    listStaleStateCandidates(nowMs: number): Promise<IStateEnrichmentRecord[]>;
+  };
 
   // --- trust namespace --------------------------------------------------
   /**
@@ -336,33 +412,327 @@ export interface StoragePort {
   // --- jobs namespace ----------------------------------------------------
   jobs: {
     /**
-     * Delete `state_jobs` rows in terminal `status` whose `finishedAt`
-     * is older than `cutoffMs` (Unix ms). Returns the deleted count
-     * plus every non-null `filePath` from the deleted rows so the
-     * caller can unlink the on-disk MD files. Caller computes
-     * `cutoffMs` from the configured retention.
+     * Submit a job: `INSERT OR IGNORE` the rendered content into
+     * `state_job_contents` then insert the `state_jobs` lifecycle row
+     * (`status = 'queued'`), both in ONE transaction (content row first).
+     * Returns the inserted job id. The `state_jobs` insert may throw a
+     * UNIQUE-constraint error from `ix_state_jobs_extension_node_hash` when
+     * a matching queued/running job already exists (the hard duplicate
+     * backstop); the CLI maps that to exit 3.
+     */
+    submit(row: IJobSubmitRow, content: IJobContentInput): Promise<string>;
+    /**
+     * Atomic FIXER supersede submit (`spec/job-lifecycle.md` §Findings
+     * injection for fixers · Supersede). In ONE transaction it finds any
+     * ACTIVE job for the `(extensionId, nodeId)` pair and resolves the
+     * collision: a running job refuses (`running-conflict`, never superseded);
+     * an identical queued request refuses (`duplicate`); otherwise it CANCELS
+     * every stale queued sibling (a different `contentHash`) and enqueues the
+     * new job (`created`, `supersededIds` naming the cancelled rows). Only the
+     * fixer submit path uses this; every other submit goes through
+     * `submit(...)` + the plain `findActiveDuplicate` pre-check.
+     */
+    submitFixer(row: IJobSubmitRow, content: IJobContentInput): Promise<TFixerSubmitOutcome>;
+    /**
+     * Duplicate pre-check: id of any `queued`/`running` job matching
+     * `(extensionId, extensionVersion, nodeId, contentHash)`, else `null`.
+     * The soft gate `sm jobs submit` runs before insert (skipped by
+     * `--force`).
+     */
+    findActiveDuplicate(
+      extensionId: string,
+      extensionVersion: string,
+      nodeId: string,
+      contentHash: string,
+    ): Promise<string | null>;
+    /** Filtered job list for `sm jobs list`, newest-first. */
+    list(filter: IJobListFilter): Promise<Job[]>;
+    /** Full job by id for `sm jobs show`, or `null` when absent. */
+    get(id: string): Promise<Job | null>;
+    /**
+     * Rendered content blob for a job's `contentHash` (from
+     * `state_job_contents`), or `null` when the content row is absent (the
+     * DB-corruption-only `job-file-missing` state). Powers `sm jobs preview`.
+     */
+    getContent(contentHash: string): Promise<string | null>;
+    /**
+     * Atomic claim (`spec/job-lifecycle.md` §Atomic claim): a single
+     * `UPDATE ... RETURNING` that transitions the highest-priority, oldest
+     * queued job to `running`, stamping `claimedAt` / `runner` /
+     * `expiresAt = claimedAt + ttlSeconds × 1000`. Returns the claimed
+     * `{ id, nonce, contentHash }`, or `null` when the queue is empty (or
+     * nothing matches `filter`, an `extensionId` restriction). The statement's
+     * second `AND status='queued'` is the mandatory race guard, two racers
+     * selecting the same id yield exactly one winning UPDATE. `sm jobs claim`
+     * exposes this to external agents (`runner='agent'`).
+     */
+    claim(runner: JobRunner, nowMs: number, filter?: string): Promise<IJobClaim | null>;
+    /**
+     * Cancel a single job (`spec/job-lifecycle.md` §Cancellation): a
+     * `queued` / `running` job moves to the terminal `cancelled` state
+     * (`finishedAt = nowMs`, no `failureReason`; `cancelled` is a distinct
+     * state, NOT a `failed` sub-reason). Returns `cancelled`,
+     * `already-terminal` (job in a terminal state, the verb exits 2), or
+     * `not-found` (exit 5). Does NOT interrupt any subprocess.
+     */
+    cancel(id: string, nowMs: number): Promise<TJobTransitionOutcome>;
+    /**
+     * Cancel every `queued` / `running` job in one statement; returns the
+     * ids transitioned to the terminal `cancelled` state (mirroring
+     * `reapExpired`: the caller derives the count from the length and
+     * feeds the per-job `job.cancelled` live push,
+     * `spec/job-events.md` §Transport). Powers `sm jobs cancel --all`.
+     */
+    cancelAllActive(nowMs: number): Promise<string[]>;
+    /**
+     * Fail a single job (`spec/job-lifecycle.md` §Fail), the symmetric
+     * counterpart to `cancel`: a `queued` / `running` job moves to `failed`
+     * with `failureReason = user-failed` (`finishedAt = nowMs`). Returns
+     * `failed`, `already-terminal` (exit 2), or `not-found` (exit 5). Does
+     * NOT interrupt any subprocess.
+     */
+    fail(id: string, nowMs: number): Promise<TJobTransitionOutcome>;
+    /**
+     * Fail every `queued` / `running` job in one statement; returns the
+     * ids transitioned to `failed` / `user-failed` (mirroring
+     * `reapExpired`, see `cancelAllActive`). Powers `sm jobs fail --all`.
+     */
+    failAllActive(nowMs: number): Promise<string[]>;
+    /**
+     * Counts per lifecycle status (`queued` / `running` / `completed` /
+     * `failed` / `cancelled`), every key present. Backs `sm jobs status`
+     * with no id.
+     */
+    countByStatus(): Promise<Record<JobStatus, number>>;
+    /**
+     * Read-only integrity counts for `sm doctor`: jobs whose content
+     * row is missing (corruption) and content rows referenced by zero
+     * jobs (retention leftovers `sm jobs prune` collects).
+     */
+    integrityCounts(): Promise<IJobsIntegrityCounts>;
+    /**
+     * Auto-reap (`spec/job-lifecycle.md` §Reap procedure): transition every
+     * `running` job whose `expiresAt < nowMs` to `failed` / `abandoned`
+     * with `finishedAt = nowMs`; returns the reaped job ids (a live event
+     * transport MAY surface them, `spec/job-events.md` §Ordering; the CLI
+     * claim verb ignores them silently). Invoked at the start of every
+     * `sm jobs claim`, before the claim statement; no standalone verb.
+     */
+    reapExpired(nowMs: number): Promise<string[]>;
+    /**
+     * Retention GC, in one transaction: delete `state_jobs` rows in
+     * terminal `status` whose `finishedAt` is older than `cutoffMs`
+     * (Unix ms), then collect orphaned `state_job_contents` rows (every
+     * content blob referenced by zero surviving `state_jobs` rows).
+     * Returns the deleted job count plus the collected content-row count.
+     * Caller computes `cutoffMs` from the configured retention. Job
+     * content is DB-only (`state_job_contents`); there is no on-disk
+     * `.skill-map/jobs/*.md` artifact to unlink.
      */
     pruneTerminal(
-      status: 'completed' | 'failed',
+      status: 'completed' | 'failed' | 'cancelled',
       cutoffMs: number,
     ): Promise<IPruneResult>;
     /**
-     * Same SELECT side as `pruneTerminal` but without the DELETE.
-     * Powers `sm job prune --dry-run` previews so the dry-run output
-     * names exactly the rows the live mode would delete.
+     * Read-only preview of `pruneTerminal` (no DELETE). Powers `sm jobs
+     * prune --dry-run` so the output reports how many rows the live mode
+     * would delete. `prunedContents` is `0` in the preview (see the
+     * adapter note).
      */
     listTerminalCandidates(
-      status: 'completed' | 'failed',
+      status: 'completed' | 'failed' | 'cancelled',
       cutoffMs: number,
     ): Promise<IPruneResult>;
     /**
-     * Read every `state_jobs.filePath` currently set, normalized through
-     * `path.resolve()`. The CLI's `sm job prune --orphan-files` flow
-     * pairs this set with `kernel/jobs/orphan-files.ts:findOrphanJobFiles`
-     * (which walks the directory) to compute the MD files on disk that
-     * no row references, keeps the storage layer FS-free.
+     * Record callback (`spec/job-lifecycle.md` §Record): append the terminal
+     * `state_executions` row AND transition the `running` job to its
+     * terminal state (`completed` / `failed`), atomically in one
+     * transaction. The `ExecutionRecord` carries the target `jobId`, the
+     * final `status`, the `failureReason` (`report-invalid` /
+     * `runner-error` / null), and `finishedAt`; the report payload rides
+     * inline on `reportPath` (mapped to the `report_json` column). Backs
+     * `sm record`.
+     *
+     * When `summary` is supplied (the recorded Action's report schema is
+     * a per-node summary schema, only ever on the `completed` path), the validated
+     * report is ALSO upserted into `state_summaries` inside the same
+     * transaction, keyed by `(node_id, summarizer_action_id)`. The upsert
+     * reads the node's live `kind` + `body_hash` from `scan_nodes` and is
+     * skipped when the node no longer exists (deleted / renamed since
+     * submit); the execution row + job transition still land
+     * (`spec/job-lifecycle.md` §Record).
+     *
+     * When `findings` is supplied (the recorded job's extension is
+     * probabilistic and its `completed` report produced finder / safety
+     * rows, possibly zero), the pair's `state_findings` rows are REPLACED
+     * inside the same transaction (both origins deleted, fresh rows
+     * inserted stamped with the node's live `body_hash`); an empty intent
+     * is a clean verdict that erases the prior judgment. Same skip rule
+     * as summaries when the node has disappeared
+     * (`spec/db-schema.md` §state_findings).
+     *
+     * When `resolutions` is supplied (the recorded job's extension is a
+     * FIXER: an Action declaring `precondition.analyzerIds`), the lifecycle
+     * `state` each entry of its report's `resolved[]` declares is stamped
+     * onto the finding its `id` names, in the same transaction. A `fixed`
+     * state hides the row from the default view but never deletes it; only
+     * the finder re-judging closes a finding. Entries naming an unknown id,
+     * a finding on another node, or a finder outside the fixer's
+     * `analyzerIds` are skipped SILENTLY (benign race / defensive scope).
      */
-    listReferencedFilePaths(): Promise<Set<string>>;
+    recordTerminal(
+      execution: ExecutionRecord,
+      summary?: ISummaryWriteIntent,
+      findings?: IFindingsWriteIntent,
+      resolutions?: IFindingResolutionIntent,
+    ): Promise<void>;
+  };
+
+  // --- findings namespace -------------------------------------------------
+  /**
+   * Read access to `state_findings`, the probabilistic findings a finder
+   * Analyzer (plus the kernel safety lane) lands via `sm record`. Writes
+   * happen inside the `jobs.recordTerminal(execution, summary, findings)`
+   * transaction (folded into the record callback, never a standalone
+   * write); this namespace is read-only.
+   */
+  findings: {
+    /**
+     * Filtered read with the derived `stale` flag
+     * (`body_hash_at_generation` vs the node's live `scan_nodes.body_hash`;
+     * rows for nodes gone from the scan count as stale). Stale rows are
+     * excluded unless `filter.includeStale` is set. Backs `sm findings`
+     * and `sm show`'s Findings section.
+     */
+    list(filter?: IFindingsListFilter): Promise<IFindingRecord[]>;
+    /**
+     * Batch count of each node's FRESH OPEN findings by severity
+     * (`resolution IS NULL`, non-stale; `warn` / `error` only, `info`
+     * dropped, mirroring issues), keyed by node path. Both origins
+     * (finder-lane + kernel safety-lane) count. One SQL GROUP BY over
+     * `paths`; empty `paths` returns an empty map without a query; nodes
+     * with no open warn/error finding are absent (the caller defaults to
+     * `{ warn: 0, error: 0 }`). Backs the BFF read-time fold that sums a
+     * node's findings into `core/issue-counter`'s aggregate severity chips
+     * (`spec/view-slots.md` §card.footer.right); the sum is a read-time UI
+     * decoration, `sm scan --json` carries only the deterministic
+     * component.
+     */
+    countUnresolvedByPath(paths: readonly string[]): Promise<Map<string, IFindingSeverityCount>>;
+    /**
+     * Count the STALE rows (body-hash drift, or the node gone from
+     * `scan_nodes`); the `sm findings prune` dry-run / confirmation
+     * count.
+     */
+    countStale(): Promise<number>;
+    /**
+     * Delete every STALE row (`sm findings prune`); fresh rows are never
+     * touched. Returns the deleted row count.
+     */
+    pruneStale(): Promise<number>;
+    /**
+     * `sm findings resolve <id>`: mark an OPEN or `human-decision` finding
+     * `fixed` by the OPERATOR themselves (`resolution = 'fixed'`,
+     * `resolution_actor = 'human'`, `resolution_by = NULL`, the optional
+     * `note`, `resolution_at = nowMs`). Refuses a row already `fixed`
+     * (`already-fixed`, exit 2); an unknown id is `not-found` (exit 5). It
+     * records a human decision, NOT a verification (only re-running the
+     * finder verifies). Returns the updated row for the `--json` echo.
+     */
+    resolveByHuman(
+      id: number,
+      note: string | null,
+      nowMs: number,
+    ): Promise<TFindingResolveOutcome>;
+    /**
+     * `sm findings dismiss <id>` (ROW grain, 2026-07-22): mark the row
+     * `dismissed` by the operator (`resolution = 'dismissed'`, actor
+     * `human`; no sidecar, no consent). Hides under the dismissed
+     * bucket, dies with the row when the finder re-judges. Refuses an
+     * already-dismissed row; the durable class suppression is the
+     * separate `--class` / silence-type path.
+     */
+    dismissByHuman(
+      id: number,
+      note: string | null,
+      nowMs: number,
+    ): Promise<TFindingRowDismissOutcome>;
+    /**
+     * `sm findings reopen <id>`: clear ANY resolution (`dismissed` /
+     * `fixed` / `human-decision`) back to open. Refuses an already-open
+     * row. Class suppressions are untouched (`sm findings undismiss`).
+     */
+    reopen(id: number, nowMs: number): Promise<TFindingReopenOutcome>;
+    /**
+     * Read one finding by id with the derived `stale` flag. `null` when no
+     * row carries the id. Backs `sm findings dismiss <id>`, which loads the
+     * target (to read its `extension_id` / `type` / `node_id` / `origin`)
+     * before writing the durable sidecar suppression.
+     */
+    get(id: number): Promise<IFindingRecord | null>;
+    /**
+     * Active suppression entries per node path, read from the
+     * write-through `scan_nodes.annotations_json` mirror
+     * (`spec/db-schema.md` §state_findings, read-time suppression lens):
+     * the `.sm` sidecar is the source of truth, dismiss / undismiss
+     * refresh the column for the touched node, `sm scan` refreshes it
+     * wholesale. Backs the findings view's `dismissed` bucket, the card
+     * counters, and `sm findings suppressions`; ZERO file reads. `paths`
+     * narrows; absent reads every node. Nodes without suppressions are
+     * absent from the map.
+     */
+    suppressionsByPath(paths?: readonly string[]): Promise<Map<string, ISuppressionEntry[]>>;
+    /**
+     * Count the rows `clear(nodeId?)` would delete (fresh included, all
+     * origins); the `sm findings clear` dry-run / confirmation count.
+     * `nodeId` narrows to one node, absent counts the whole table.
+     */
+    countClearable(nodeId?: string): Promise<number>;
+    /**
+     * `sm findings clear` (`spec/cli-contract.md` §sm findings clear):
+     * wholesale delete of `state_findings` rows, FRESH included, all
+     * origins (finder judgments AND kernel safety rows; a delete cannot
+     * silence future warnings, unlike a suppression, so the safety lane is
+     * deletable here while `sm findings dismiss` refuses it). `nodeId`
+     * narrows to one node, absent clears the whole table. A reset, not a
+     * suppression: a finder re-run re-judges. Returns the deleted count.
+     */
+    clear(nodeId?: string): Promise<number>;
+    /**
+     * Hard-delete ONE row by id, the per-row twin of `clear` behind
+     * `DELETE /api/nodes/:pathB64/findings/:id` (the inspector's delete X
+     * on a revealed dismissed / fixed row). Same all-origins rationale as
+     * `clear`; leaves `annotations.suppressions` untouched. Returns
+     * whether a row was deleted (false = unknown id).
+     */
+    removeById(id: number): Promise<boolean>;
+  };
+
+  // --- summaries namespace ----------------------------------------------
+  /**
+   * Read access to `state_summaries`, the per-node semantic summaries a
+   * summarizer Action (one whose report schema extends a
+   * `summaries/<kind>` schema) lands via `sm record`. Writes happen inside the
+   * `jobs.recordTerminal(execution, summary)` transaction (folded into the
+   * record callback, never a standalone write); this namespace is
+   * read-only.
+   */
+  summaries: {
+    /**
+     * Every stored summary for a node, ordered by `summarizerActionId`
+     * ASC. Backs `sm show <node>`'s Summary section: the caller flags each
+     * `(stale)` by comparing `bodyHashAtGeneration` against the node's
+     * current `scan_nodes.body_hash`.
+     */
+    forNode(nodeId: string): Promise<ISummaryRecord[]>;
+    /**
+     * Hard-delete the node's stored summaries: with `summarizerActionId`
+     * only that action's row, without it every summary the node has
+     * (`DELETE /api/nodes/:pathB64/summary`, the inspector's delete X).
+     * A regenerable machine judgment, so no ceremony; returns the
+     * deleted count (0 = nothing matched).
+     */
+    remove(nodeId: string, summarizerActionId?: string): Promise<number>;
   };
 
   // --- preferences namespace -------------------------------------------
@@ -421,6 +791,22 @@ export interface StoragePort {
     /** List `state_executions` rows (paginated by filter). */
     list(filter: IListExecutionsFilter): Promise<ExecutionRecord[]>;
     /**
+     * Distinct node paths holding at least one `state_executions` row
+     * (any status). Feeds the activity summary's `runNodes` list
+     * (`spec/provider-activity.md` §GET /api/activity/summary): the
+     * boot-scoped counters reset on restart, the DB history does not,
+     * so Activity visibility needs this persistent signal.
+     */
+    nodesWithRuns(): Promise<string[]>;
+    /**
+     * Append a single `state_executions` row (the table is append-only
+     * through v1.0). The primitive history write the port previously
+     * lacked; `sm record` transitions atomically through
+     * `jobs.recordTerminal`, while a standalone in-process action with
+     * no job row uses this directly.
+     */
+    insertExecution(record: ExecutionRecord): Promise<void>;
+    /**
      * Aggregate counters / period buckets / top-nodes / error rates
      * over `state_executions`. Body matches the spec
      * `history-stats.schema.json` shape minus `range`/`elapsedMs`
@@ -467,6 +853,12 @@ export interface StoragePort {
      * on engine quirks (non-numeric / null pragma).
      */
     currentSchemaVersion(): number | null;
+    /**
+     * Run `PRAGMA quick_check` against the DB file (`sm doctor`'s
+     * integrity probe). `ok: true` when SQLite reports the single `ok`
+     * row; otherwise the first corruption line lands in `detail`.
+     */
+    quickCheck(): IQuickCheckResult;
   };
 
   // --- pluginMigrations namespace (sm db verb, per-plugin) --------------
@@ -505,9 +897,19 @@ export type {
   IApplyOptions,
   IApplyResult,
   IBranchProjection,
+  IFindingRecord,
+  IFindingResolutionIntent,
+  IFindingSeverityCount,
+  IFindingsListFilter,
+  IFindingsWriteIntent,
   IHistoryStatsRange,
   IIssueIncidenceCount,
   IIssueRow,
+  IJobClaim,
+  IJobContentInput,
+  IJobListFilter,
+  IJobsIntegrityCounts,
+  IJobSubmitRow,
   IListExecutionsFilter,
   ILiteNode,
   IMigrateNodeFksReport,
@@ -526,5 +928,13 @@ export type {
   IPluginMigrationRecord,
   IPluginTrustRow,
   IPruneResult,
+  IQuickCheckResult,
+  IStateEnrichmentRecord,
+  IStateEnrichmentUpsert,
+  ISummaryRecord,
+  ISummaryWriteIntent,
+  TFindingResolveOutcome,
+  TFixerSubmitOutcome,
   THistoryStatsPeriod,
+  TJobTransitionOutcome,
 } from '../types/storage.js';

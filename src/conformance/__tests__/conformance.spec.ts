@@ -62,7 +62,13 @@ const ANTIGRAVITY_FIXTURES_DIR = resolve(ANTIGRAVITY_CONFORMANCE_DIR, 'fixtures'
  * conformance in one go (same as what `sm conformance run --scope all`
  * delivers to external consumers).
  */
-const SPEC_CASES = ['kernel-empty-boot', 'score-phase-confidence'] as const;
+const SPEC_CASES = [
+  'kernel-empty-boot',
+  'score-phase-confidence',
+  'preamble-bitwise-match',
+  'extension-mode-routing',
+  'extension-mode-routing-deterministic',
+] as const;
 const PROVIDER_CLAUDE_CASES = ['rename-high', 'orphan-detection'] as const;
 const PROVIDER_OPENAI_CASES = ['basic-scan', 'body-links'] as const;
 const PROVIDER_ANTIGRAVITY_CASES = ['basic-scan', 'workflow-links', 'reserved-names', 'at-file-references'] as const;

@@ -7,7 +7,7 @@
  * Purely presentational: a dashed capsule with a terminal glyph and a
  * page-lifetime "Session N" label; the opaque owner key surfaces only
  * in the tooltip. The Foblex `[fNode]` wrapper (id, position,
- * drag/selection disabling, the `-out` connector) is owned by the
+ * drag/selection disabling, the source fConnector) is owned by the
  * graph view template, mirroring how `<sm-node-card>` mounts, so
  * Foblex's content queries see the connectors as direct children of
  * `[fNode]`.

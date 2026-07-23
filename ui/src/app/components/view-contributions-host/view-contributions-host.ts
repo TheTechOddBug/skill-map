@@ -28,6 +28,7 @@ import { TooltipModule } from 'primeng/tooltip';
 
 import { DebugSlotsService } from '../../services/debug-slots';
 import type { IContributionApi } from '../../../models/api';
+import { contributionSurface } from '../../../models/node-derived';
 
 /**
  * Minimal node shape this host needs. Decoupled from `INodeApi` /
@@ -153,7 +154,12 @@ export class ViewContributionsHost {
     const slot = this.slot();
     const matching = contributions
       .filter((c) => c.slot === slot)
-      .filter((c) => isKnownSlot(c.slot));
+      .filter((c) => isKnownSlot(c.slot))
+      // Re-homed surfaces (spec/view-slots.md): an action-button payload
+      // declaring a `surface` IS a dedicated affordance (version /
+      // stability chips, tag row) and is never rendered as a generic
+      // button. Contract-level skip, not per-host configuration.
+      .filter((c) => contributionSurface(c.payload) === null);
     return this.sortBySlotOrder(matching, slot).map((c) => ({
       qualifiedId: `${c.pluginId}/${c.extensionId}/${c.contributionId}`,
       slot: c.slot as TSlotId,

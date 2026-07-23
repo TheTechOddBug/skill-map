@@ -65,6 +65,7 @@ import type { ContentfulStatusCode, StatusCode } from 'hono/utils/http-status';
 import { formatErrorMessage } from '../kernel/util/format-error.js';
 import { ConfigService } from '../core/config/service.js';
 import { EConsentRequiredError, ESidecarWritersForbiddenError } from '../core/config/sidecar-consent.js';
+import { DbSchemaDriftError } from '../core/sqlite/db-version-check.js';
 import type { IPluginRuntime } from '../core/runtime/plugin-runtime.js';
 import type { IRuntimeContext } from '../core/runtime/runtime-context.js';
 import { ExportQueryError } from '../kernel/index.js';
@@ -92,6 +93,11 @@ import { registerGraphRoute } from './routes/graph.js';
 import { registerHealthRoute } from './routes/health.js';
 import { registerIssuesRoute } from './routes/issues.js';
 import { registerLinksRoute } from './routes/links.js';
+import { registerNodeFindingActionsRoutes } from './routes/node-finding-actions.js';
+import { registerNodeFindingsRoute } from './routes/node-findings.js';
+import { registerNodeSummaryRoute } from './routes/node-summary.js';
+import { registerNodeJobsRoute } from './routes/node-jobs.js';
+import { registerNodeProbExtensionsRoute } from './routes/node-prob-extensions.js';
 import { registerNodesRoutes } from './routes/nodes.js';
 import { registerPluginsRoute } from './routes/plugins.js';
 import { registerPreferencesRoute } from './routes/preferences.js';
@@ -106,6 +112,11 @@ import { registerActivityCaptureRoutes } from './routes/activity-capture.js';
 import { registerActivityDetailRoutes } from './routes/activity-detail.js';
 import { registerActivityInstallRoutes } from './routes/activity-install.js';
 import { registerActivitySummaryRoute } from './routes/activity-summary.js';
+import { registerAgentInstallRoutes } from './routes/agent-install.js';
+import { registerJobBulkRoutes } from './routes/job-bulk.js';
+import { registerJobCancelRoute } from './routes/job-cancel.js';
+import { registerJobEventsRoute } from './routes/job-events.js';
+import { registerJobsRoute } from './routes/jobs.js';
 import { registerScanRoute } from './routes/scan.js';
 import { registerUpdateStatusRoute } from './routes/update-status.js';
 import { createSpaFallback, createStaticHandler } from './static.js';
@@ -128,6 +139,7 @@ export type TErrorCode =
   | 'not-found'
   | 'bad-query'
   | 'db-missing'
+  | 'db-drift'
   | 'sidecar-fresh'
   | 'scan-busy'
   | 'action-refused'
@@ -138,6 +150,25 @@ export type TErrorCode =
   | 'origin-not-allowed'
   | 'token-mismatch'
   | 'payload-too-large'
+  // Job-submit 409s (`POST /api/nodes/:pathB64/jobs`, Step 16 piece 1;
+  // `spec/cli-contract.md` §BFF endpoint POST /api/nodes/:pathB64/jobs).
+  // Carried by `JobSubmitConflictError`.
+  | 'no-processing-agent'
+  | 'duplicate-job'
+  | 'job-running'
+  | 'node-drifted'
+  | 'no-findings'
+  // Cancel 409 (`POST /api/jobs/:jobId/cancel`, Step 16 launcher stop;
+  // `spec/cli-contract.md` route row): the job is already terminal.
+  // Carried by `ConflictError`.
+  | 'job-terminal'
+  // Finding-action 409s (`POST /api/nodes/:pathB64/findings/:id/...`,
+  // the inspector's per-finding dismiss / resolve; `spec/cli-contract.md`
+  // route rows). Carried by `ConflictError`.
+  | 'finding-not-dismissible'
+  | 'finding-already-fixed'
+  | 'finding-terminal'
+  | 'finding-open'
   | 'internal';
 
 export interface IErrorEnvelope {
@@ -226,11 +257,14 @@ export class LoopbackGateError extends OpaqueForbiddenError {
 }
 
 /**
- * Ingest-token gate failure on `POST /api/activity` (live node activity,
- * see `spec/provider-activity.md` §Ingest). Thrown BEFORE any body
- * processing when the `x-skill-map-token` header is missing or does not
- * match the per-session token minted at boot (published via
- * `.skill-map/serve.json`).
+ * Ingest-token gate failure on the push-leg routes, `POST /api/activity`
+ * (live node activity, `spec/provider-activity.md` §Ingest) and
+ * `POST /api/job-events` (job transitions, `spec/job-events.md`
+ * §Transport). Thrown BEFORE any body processing when the
+ * `x-skill-map-token` header is missing or does not match the
+ * per-session token minted at boot (published via
+ * `.skill-map/serve.json`). Shared throw site:
+ * `util/ingest-token.ts`.
  */
 export class ActivityTokenError extends OpaqueForbiddenError {
   declare readonly code: 'token-mismatch';
@@ -242,11 +276,11 @@ export class ActivityTokenError extends OpaqueForbiddenError {
 }
 
 /**
- * The two `409 Conflict` conditions, carried as a dedicated subclass so
- * `formatError` can stamp the right `code` via `instanceof` instead of
- * regex-matching the human message prefix (both 409s share the status,
- * so a status-only mapping cannot tell them apart). Mirrors
- * `LoopbackGateError`'s one-class-two-codes shape:
+ * The closed-code, no-details `409 Conflict` conditions, carried as a
+ * dedicated subclass so `formatError` can stamp the right `code` via
+ * `instanceof` instead of regex-matching the human message prefix (the
+ * 409s share the status, so a status-only mapping cannot tell them
+ * apart). Mirrors `LoopbackGateError`'s one-class-N-codes shape:
  *
  *   - `scan-busy`     (`POST /api/scan`): another scan is in flight.
  *   - `sidecar-fresh` (legacy bump path): node is fresh and `force` was
@@ -254,15 +288,25 @@ export class ActivityTokenError extends OpaqueForbiddenError {
  *     `POST /api/actions/:id` route emits its refusals via the
  *     open-ended `ActionRefusedError` instead (the bump refusal now
  *     surfaces as `code: 'fresh'`, the report's own reason).
+ *   - `job-terminal`  (`POST /api/jobs/:jobId/cancel`): the job already
+ *     reached a terminal state, nothing left to cancel (the HTTP face
+ *     of the CLI's "already terminal" exit-2 refusal).
  *
  * The catalog messages keep their `scan-busy:` prefix for log-grep
  * affinity with the CLI, but the prefix is no longer load-bearing for
  * dispatch (the typed `code` is).
  */
 export class ConflictError extends HTTPException {
-  readonly code: 'scan-busy' | 'sidecar-fresh';
+  readonly code:
+    | 'scan-busy'
+    | 'sidecar-fresh'
+    | 'job-terminal'
+    | 'finding-not-dismissible'
+    | 'finding-already-fixed'
+    | 'finding-terminal'
+    | 'finding-open';
 
-  constructor(init: { code: 'scan-busy' | 'sidecar-fresh'; message: string }) {
+  constructor(init: { code: ConflictError['code']; message: string }) {
     super(409, { message: init.message });
     this.name = 'ConflictError';
     this.code = init.code;
@@ -304,6 +348,45 @@ export class ActionRefusedError extends HTTPException {
       nodePath: init.nodePath,
       report: init.report,
     };
+  }
+}
+
+/**
+ * Job-submit conflict (`POST /api/nodes/:pathB64/jobs`, Step 16 piece 1),
+ * the third 409 family next to `ConflictError` / `ActionRefusedError`.
+ * A dedicated subclass because the submit surface needs BOTH a closed
+ * host `code` union (unlike the open-ended `ActionRefusedError`) AND a
+ * per-code `details` payload (`{ existingId }` on `duplicate-job` /
+ * `job-running`, which the two-code `ConflictError` cannot carry). The
+ * codes mirror the CLI submit refusals 1:1
+ * (`spec/cli-contract.md` §BFF endpoint POST /api/nodes/:pathB64/jobs):
+ *
+ *   - `no-processing-agent`, the operator gate (no installed skill).
+ *   - `duplicate-job`, active identical job (`details.existingId`).
+ *   - `job-running`, a RUNNING sibling holds its claim, never superseded
+ *     (`details.existingId`).
+ *   - `node-drifted`, the on-disk body no longer matches the scanned
+ *     hash (advisory names `sm scan`).
+ *   - `no-findings`, fixer over a node with zero matching findings
+ *     (defensive: the UI hides that launcher).
+ */
+export class JobSubmitConflictError extends HTTPException {
+  readonly code: Extract<
+    TErrorCode,
+    'no-processing-agent' | 'duplicate-job' | 'job-running' | 'node-drifted' | 'no-findings'
+  >;
+
+  readonly details: unknown | null;
+
+  constructor(init: {
+    code: JobSubmitConflictError['code'];
+    message: string;
+    details?: unknown;
+  }) {
+    super(409, { message: init.message });
+    this.name = 'JobSubmitConflictError';
+    this.code = init.code;
+    this.details = init.details ?? null;
   }
 }
 
@@ -530,13 +613,46 @@ export function createApp(deps: IAppDeps): Hono {
   };
   registerScanRoute(app, { ...routeDeps, broadcaster: deps.broadcaster });
   registerNodesRoutes(app, routeDeps);
+  // Step 16 piece 1, the findings workbench (inspector half):
+  //   `GET  /api/nodes/:pathB64/findings`        -> per-node judgment tray
+  //   `GET  /api/nodes/:pathB64/prob-extensions` -> launcher catalog
+  //   `POST /api/nodes/:pathB64/jobs`            -> submit via the shared
+  //     core engine (broadcasts `job.submitted` on success).
+  //   `POST /api/jobs/:jobId/cancel`             -> launcher stop
+  //     (broadcasts `job.cancelled` on success).
+  registerNodeFindingsRoute(app, routeDeps);
+  registerNodeSummaryRoute(app, routeDeps);
+  // Per-finding mutations (inspector tray): dismiss / resolve / undismiss,
+  // the HTTP faces of the `sm findings` verbs (read-time suppression lens).
+  registerNodeFindingActionsRoutes(app, routeDeps);
+  registerNodeProbExtensionsRoute(app, routeDeps);
+  registerNodeJobsRoute(app, { ...routeDeps, broadcaster: deps.broadcaster });
+  registerJobCancelRoute(app, {
+    options: routeDeps.options,
+    broadcaster: deps.broadcaster,
+    runtimeContext: routeDeps.runtimeContext,
+  });
+  // Queue-inspector bulk affordances: cancel-all (broadcasts one
+  // `job.cancelled` per affected id) and prune (silent GC of all terminal
+  // jobs). Same narrow bag as the single-job cancel route.
+  registerJobBulkRoutes(app, {
+    options: routeDeps.options,
+    broadcaster: deps.broadcaster,
+    runtimeContext: routeDeps.runtimeContext,
+  });
+  // Cross-corpus job list (`GET /api/jobs`), the read side of the UI queue
+  // inspector. Narrow read-only bag (dbPath only), like the cancel route;
+  // strips the nonce off every row (`spec/job-lifecycle.md` §Nonce exposure).
+  registerJobsRoute(app, { options: routeDeps.options });
   registerLinksRoute(app, routeDeps);
   registerIssuesRoute(app, routeDeps);
   registerFoldersRoute(app, routeDeps);
   registerBranchRoute(app, routeDeps);
   registerGraphRoute(app, routeDeps);
   registerConfigRoute(app, routeDeps);
-  registerPluginsRoute(app, routeDeps);
+  // Carries the broadcaster for the disable cascade's per-job
+  // `job.cancelled` fan-out (spec/job-lifecycle.md §Cancellation).
+  registerPluginsRoute(app, { ...routeDeps, broadcaster: deps.broadcaster });
   // Step 17, `POST /api/actions/:qualifiedId` (generic Action
   // dispatch). Generalises the retired `POST /api/sidecar/bump`:
   // resolves any qualified action id off the kernel registry, invokes
@@ -560,16 +676,32 @@ export function createApp(deps: IAppDeps): Hono {
     stats: deps.activityStats,
     conversations: deps.activityConversations,
   });
+  // Job-event push ingest, `POST /api/job-events` (the CLI-to-server
+  // push leg of `spec/job-events.md` §Transport). Same serve.json
+  // session token as the activity ingest (403 `token-mismatch` BEFORE
+  // any body processing); validates the canonical `job.*` envelope and
+  // rebroadcasts it VERBATIM over `/ws`. DB-free by construction, the
+  // narrow deps bag carries only the broadcaster + token.
+  registerJobEventsRoute(app, {
+    broadcaster: deps.broadcaster,
+    ingestToken: deps.activityToken,
+  });
   // Live-activity install management, `GET/POST /api/activity/install`
   // + `POST /api/activity/uninstall` (see `spec/provider-activity.md`
   // §Install management over HTTP). The SPA's Settings → Project
   // install/uninstall button; mutations are consent-gated (412
   // `confirm-required` without `confirm: true`, nothing written).
   registerActivityInstallRoutes(app, routeDeps);
+  // Agent-process-skill install management, `GET/POST /api/agent/install`
+  // + `POST /api/agent/uninstall` (see `spec/cli-contract.md` §Agent
+  // process skill). The SPA's Settings → Project Install / Update / Up to
+  // date button; mutations are consent-gated (412 `confirm-required`
+  // without `confirm: true`, nothing written).
+  registerAgentInstallRoutes(app, routeDeps);
   // Execution-stats snapshot, `GET /api/activity/summary` (client
   // hydration on connect / reconnect / re-enable). Stats-only; no
   // token, loopback-gated like every /api/* route.
-  registerActivitySummaryRoute(app, { stats: deps.activityStats });
+  registerActivitySummaryRoute(app, { stats: deps.activityStats, options: deps.options });
   // Per-node + per-spawn activity detail, `GET /api/activity/node/:pathB64`
   // and `GET /api/activity/spawns/:spawnId` (inspector Activity section
   // + spawn-edge click). Conversation content only while the capture
@@ -712,17 +844,8 @@ function codeForStatus(status: number): TErrorCode {
  * server.
  */
 export function formatError(err: unknown, c: Context): Response {
-  if (err instanceof DbMissingError) {
-    const envelope: IErrorEnvelope = {
-      ok: false,
-      error: {
-        code: 'db-missing',
-        message: err.message,
-        details: null,
-      },
-    };
-    return c.json(envelope, 500);
-  }
+  const dbError = formatDbError(err, c);
+  if (dbError) return dbError;
 
   if (err instanceof BulkValidationError) {
     const envelope: IErrorEnvelope = {
@@ -788,6 +911,39 @@ export function formatError(err: unknown, c: Context): Response {
 }
 
 /**
+ * Format the two DB-open failures into the canonical envelope, both 500s.
+ * Returns `null` when `err` is neither so `formatError` can fall through.
+ * Extracted alongside `formatConflict` / `formatSidecarConsentError` so the
+ * dispatcher's cyclomatic complexity stays inside the lint budget.
+ *
+ *   - `DbMissingError`     -> `db-missing`. A mutation (`POST /api/scan`,
+ *     the plugin-toggle family) cannot persist without a project DB file.
+ *   - `DbSchemaDriftError` -> `db-drift`. A mutating request opened a DB
+ *     whose on-disk schema drifted from the bundled migrations; the
+ *     write-side `withSqlite` guard refuses rather than crash on a missing
+ *     column. The plain `err.message` advisory (rebuild via
+ *     `sm db reset --hard` + `sm scan`) is surfaced so the SPA can guide
+ *     the operator instead of showing the redacted `internal` fall-through.
+ */
+function formatDbError(err: unknown, c: Context): Response | null {
+  if (err instanceof DbMissingError) {
+    const envelope: IErrorEnvelope = {
+      ok: false,
+      error: { code: 'db-missing', message: err.message, details: null },
+    };
+    return c.json(envelope, 500);
+  }
+  if (err instanceof DbSchemaDriftError) {
+    const envelope: IErrorEnvelope = {
+      ok: false,
+      error: { code: 'db-drift', message: err.message, details: null },
+    };
+    return c.json(envelope, 500);
+  }
+  return null;
+}
+
+/**
  * Format the two `.sm`-write gate errors into the canonical envelope.
  * Returns `null` when `err` is neither, so `formatError` can fall
  * through. Extracted alongside `formatConflict` so the dispatcher's
@@ -821,26 +977,36 @@ function formatSidecarConsentError(err: unknown, c: Context): Response | null {
 }
 
 /**
- * Format the two `409 Conflict` subclasses into the canonical error
- * envelope. Returns `null` when `err` is neither, so the caller can
+ * Format the `409 Conflict` subclasses into the canonical error
+ * envelope. Returns `null` when `err` is none of them, so the caller can
  * fall through to the next mapping branch. Extracted from `formatError`
  * so the dispatcher's cyclomatic complexity stays inside the lint
  * budget (the two `instanceof` checks + the details ternary would
  * otherwise push it over).
  *
- *   - `ConflictError`      (`scan-busy` / `sidecar-fresh`): closed
- *     `code`, no `details`.
+ *   - `ConflictError`      (`scan-busy` / `sidecar-fresh` /
+ *     `job-terminal`): closed `code`, no `details`.
  *   - `ActionRefusedError` (`POST /api/actions/:id`): open-ended `code`
  *     (the report's `reason`, sanitised at the throw site, widened past
  *     the closed `TErrorCode` union, the UI's `TErrorCodeApi` accepts
  *     an open `string`), `details` carries `{ actionId, nodePath,
  *     report }` so the SPA renders action-specific copy.
+ *   - `JobSubmitConflictError` (`POST /api/nodes/:pathB64/jobs`): closed
+ *     five-code union, `details` carries `{ existingId }` on the
+ *     duplicate / running codes and stays `null` elsewhere.
  */
 function formatConflict(err: unknown, c: Context): Response | null {
   if (err instanceof ActionRefusedError) {
     const envelope: IErrorEnvelope = {
       ok: false,
       error: { code: err.code as TErrorCode, message: err.message, details: err.details },
+    };
+    return c.json(envelope, 409);
+  }
+  if (err instanceof JobSubmitConflictError) {
+    const envelope: IErrorEnvelope = {
+      ok: false,
+      error: { code: err.code, message: err.message, details: err.details },
     };
     return c.json(envelope, 409);
   }

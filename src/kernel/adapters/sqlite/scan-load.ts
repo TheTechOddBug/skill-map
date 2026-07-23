@@ -274,6 +274,23 @@ const DEFAULT_MAX_RENDER_NODES = 256;
  * `ScanResult`. SELECTs only the two columns the folders tree needs, so
  * a 50K corpus stays cheap.
  */
+/**
+ * Distinct `scan_nodes.provider` values in the persisted scan. Backs
+ * `sm doctor`'s "detected Providers that matched nothing" check: a
+ * Provider whose on-disk markers exist but whose id never appears here
+ * classified zero nodes.
+ */
+export async function loadDistinctNodeProviders(
+  db: Kysely<IDatabase>,
+): Promise<string[]> {
+  const rows = await db
+    .selectFrom('scan_nodes')
+    .select('provider')
+    .distinct()
+    .execute();
+  return rows.map((r) => r.provider);
+}
+
 export async function loadLiteNodes(
   db: Kysely<IDatabase>,
 ): Promise<ILiteNode[]> {

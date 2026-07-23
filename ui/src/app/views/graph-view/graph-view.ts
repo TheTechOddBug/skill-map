@@ -29,9 +29,11 @@ import {
   FFlowModule,
   FVirtualFor,
   FZoomDirective,
+  provideFFlow,
   provideFLayout,
+  withA11y,
 } from '@foblex/flow';
-import type { FCanvasChangeEvent } from '@foblex/flow';
+import type { FCanvasChangeEvent, FSelectionChangeEvent } from '@foblex/flow';
 import { DagreLayoutEngine } from '@foblex/flow-dagre-layout';
 
 import { GRAPH_VIEW_TEXTS } from '../../../i18n/graph-view.texts';
@@ -185,6 +187,21 @@ const EDGE_SELECTION_DEFAULT: IEdgeSelectionView = {
     // below. Auto mode would have Foblex re-measure + relayout on
     // every render which conflicts with our cached `nodePositions`.
     provideFLayout(DagreLayoutEngine, { mode: EFLayoutMode.MANUAL }),
+    // Opt-in keyboard layer (Foblex v19): arrows move the selection
+    // spatially, Home/End jump to first/last node, Ctrl/Cmd+arrow walks
+    // the topology, Space+arrows moves the selected node (feature parity
+    // with mouse drag; flows through the same fNodePositionChange
+    // buffer). The graph is read-only, so the connection-creation and
+    // delete actions are unbound. Selection ownership: Foblex is the
+    // single owner, see `applySelection` / `onFlowSelectionChange`.
+    provideFFlow(
+      withA11y({
+        keys: {
+          connect: [],
+          deleteSelected: [],
+        },
+      }),
+    ),
   ],
   templateUrl: './graph-view.html',
   styleUrl: './graph-view.css',
@@ -525,7 +542,7 @@ export class GraphView implements OnInit {
     const id = this.selectedNodeId();
     if (id === null) return;
     const exists = this.graph().nodes.some((n) => n.id === id);
-    if (!exists) this.selectedNodeId.set(null);
+    if (!exists) this.applySelection(null);
   });
 
   // URL ↔ selection deep-link wiring lives in `bindSelectionToUrl`,
@@ -583,7 +600,7 @@ export class GraphView implements OnInit {
     );
     bindSelectionToUrl({
       selectedPath: this.selectedPath,
-      setSelectedNodeId: (id) => this.selectedNodeId.set(id),
+      setSelectedNodeId: (id) => this.applySelection(id),
       readSelectedNodeId: () => this.selectedNodeId(),
       graphNodes: selectionNodes,
       // A deep link from the files view ("open in map") should glide
@@ -1118,7 +1135,7 @@ export class GraphView implements OnInit {
     // neighborhood) restores the prior visibility; leave selection alone so it
     // reads as an undo. A fresh isolate selects the origin so the re-fit effect
     // frames the neighborhood.
-    if (outcome === 'isolated') this.selectedNodeId.set(path);
+    if (outcome === 'isolated') this.applySelection(path);
   }
 
   onNodePositionChange(id: string, position: IPoint): void {
@@ -1280,10 +1297,51 @@ export class GraphView implements OnInit {
 
   selectNode(node: IGraphNode, event: MouseEvent): void {
     if (!this.nodeDrag.isClickWithoutDrag(event)) return;
-    this.selectedNodeId.set(node.id);
+    this.applySelection(node.id);
     // Opening the node inspector is a tracked feature usage (no node id,
     // path, or title is ever sent, only the `inspector` surface enum).
     this.usageTracker.trackFeature('inspector');
+  }
+
+  /**
+   * Selection single-owner contract (Foblex v19 keyboard layer): Foblex's
+   * internal selection is the source of truth. Every PROGRAMMATIC write
+   * (click handler, isolate, deep links, escape/background deselect, the
+   * filter guard) goes through here so the canvas paint (`.f-selected`),
+   * the keyboard layer's active item, and the app state (`selectedNodeId`
+   * driving inspector panel + adjacency highlight + dim) can never
+   * diverge. User gestures (arrow keys, Shift+area, Ctrl/Cmd+A) flow the
+   * other way: Foblex mutates its own selection and reports through
+   * `onFlowSelectionChange`. Writes are idempotent, so the two paths
+   * converging on the same id is harmless.
+   */
+  private applySelection(id: string | null): void {
+    this.selectedNodeId.set(id);
+    this.flow()?.select(id === null ? [] : [id], [], false);
+  }
+
+  /**
+   * Foblex → app bridge of the single-owner contract. Exactly one
+   * selected node drives the inspector/highlight state; empty and
+   * multi-node selections (Shift+area rectangle, Ctrl/Cmd+A) both map to
+   * "no inspected node", matching the pre-keyboard behavior where only
+   * a single click selected.
+   */
+  protected onFlowSelectionChange(event: FSelectionChangeEvent): void {
+    const ids = event.nodeIds;
+    if (ids.length === 1) {
+      this.selectedNodeId.set(ids[0] ?? null);
+      return;
+    }
+    // Connection-only selection: the Ctrl+arrow topology walk stops on
+    // the connection before hopping to its far node (upstream design,
+    // not configurable), and a mouse click can select an edge. Neither
+    // should blink the inspector shut, so the last inspected node is
+    // preserved (same as the pre-keyboard behavior, where edge clicks
+    // never touched the app selection). Empty and multi-node
+    // selections still clear it.
+    if (ids.length === 0 && event.connectionIds.length > 0) return;
+    this.selectedNodeId.set(null);
   }
 
   // Tag-selection state machine (active tag + pre-tag curation snapshot),
@@ -1310,7 +1368,7 @@ export class GraphView implements OnInit {
 
   /** Close the embedded inspector panel and remove the URL `?path` param. */
   closePanel(): void {
-    this.selectedNodeId.set(null);
+    this.applySelection(null);
   }
 
   /**
@@ -1345,7 +1403,7 @@ export class GraphView implements OnInit {
   openNode(node: IGraphNode): void {
     // Embedded inspector mode: dblclick selects (single click already does
     // the same, kept the handler so the gesture has a clear intent).
-    this.selectedNodeId.set(node.id);
+    this.applySelection(node.id);
   }
 
   /**
@@ -1364,7 +1422,7 @@ export class GraphView implements OnInit {
   onCanvasClick(event: MouseEvent): void {
     const target = event.target as HTMLElement | null;
     if (target?.closest('[data-canvas-click-shield]')) return;
-    this.selectedNodeId.set(null);
+    this.applySelection(null);
   }
 
   isSelected(id: string): boolean {

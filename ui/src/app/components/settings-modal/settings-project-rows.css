@@ -168,9 +168,32 @@
   letter-spacing: 0.03em;
   padding: 0.05rem 0.35rem;
   border-radius: var(--sm-radius-md);
-  color: var(--p-warn-color);
-  border: 1px solid var(--p-warn-color);
+  color: var(--sm-severity-warn);
+  border: 1px solid var(--sm-severity-warn);
   cursor: help;
+}
+
+/* Right-hand action group of a row that carries more than one control
+   (today the agent drain-skill row: action button / up-to-date
+   indicator + Uninstall). Keeps the controls at intrinsic size so the
+   long-form description on the left cannot squeeze them. */
+.settings-project__row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+}
+
+/* Non-actionable "installed and current" indicator of the drain-skill
+   row: check glyph + label, success-toned so it reads as a settled
+   state rather than a pending action. */
+.settings-project__skill-uptodate {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--sm-severity-success);
 }
 
 /* Per-row "restart sm serve" hint: shown under a boot-time toggle whose
@@ -184,5 +207,5 @@
   margin-top: 0.15rem;
   font-size: 0.75rem;
   font-style: italic;
-  color: var(--p-warn-color);
+  color: var(--sm-severity-warn);
 }

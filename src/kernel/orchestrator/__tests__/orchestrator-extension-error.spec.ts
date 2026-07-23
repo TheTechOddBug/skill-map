@@ -148,9 +148,11 @@ describe('orchestrator, extension.error events', () => {
         [
           {
             analyzerId: 'bad-severity-rule',
-            // @ts-expect-error, exercising the runtime guard with a
-            // value that the static type forbids.
-            severity: 'fatal',
+            // Exercising the runtime guard with a value the static type
+            // forbids; the double cast is deliberate (a @ts-expect-error
+            // no longer anchors here since `evaluate` became optional on
+            // the contract, union targets report at the property site).
+            severity: 'fatal' as unknown as Issue['severity'],
             nodeIds: ['.claude/agents/architect.md'],
             message: 'should not appear',
           } satisfies Issue,

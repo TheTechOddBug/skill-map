@@ -34,24 +34,84 @@
           {{ texts.header.invalidFrontmatter }}
         </span>
       }
-      @if (headerVersion(); as v) {
-        <span class="inspector__name-version" data-testid="inspector-version">{{ v }}</span>
+      <!-- The version chip IS the Bump affordance (user call 2026-07-21):
+           renders ONLY while the `core/node-bump` contribution is present
+           (plugin enabled), showing the effective version or the short
+           `bump` placeholder for a versionless file; clicking dispatches
+           the bump (direct, honoring the payload's enabled gate). Plugin
+           off -> no version surface, mirror of the stability chip. -->
+      @if (bumpPayload() !== null) {
+        <button
+          type="button"
+          class="inspector__name-version inspector__version-btn"
+          [disabled]="!bumpPayload()!.enabled || bumpBusy()"
+          [pTooltip]="bumpTooltip()"
+          tooltipPosition="left"
+          (click)="onBumpClick()"
+          data-testid="inspector-version"
+        >{{ headerVersion() ?? texts.header.bump.placeholder }}</button>
       }
-      @if (headerStability(); as s) {
-        <span
-          class="inspector__stability"
-          [attr.data-stability]="s"
-          data-testid="inspector-stability-tag"
-        >
-          <span class="inspector__stability-dot" aria-hidden="true">●</span>
-          {{ s }}
-        </span>
+      <!-- The stability chip IS the Set stability affordance (user call
+           2026-07-21): it renders ONLY while the `core/node-set-stability`
+           contribution is present (plugin enabled), always then (default
+           `stable` when unset), opening the same enum-pick dialog its
+           button used. Plugin off -> no stability in the header at all,
+           even when the annotation is set (second user call same day:
+           the surface follows the plugin, the data stays in the .sm). -->
+      @if (stabilityPayload() !== null) {
+      <button
+        type="button"
+        class="inspector__stability"
+        [class.inspector__stability--actionable]="stabilityPayload() !== null"
+        [attr.data-stability]="stabilityDisplay()"
+        [disabled]="stabilityPayload() === null || stabilityBusy()"
+        [pTooltip]="stabilityPayload() !== null ? texts.header.stabilityTooltip : ''"
+        tooltipPosition="left"
+        (click)="onStabilityChipClick()"
+        data-testid="inspector-stability-tag"
+      >
+        {{ stabilityDisplay() }}
+      </button>
       }
     </div>
     <code class="inspector__path-code" data-testid="inspector-path">{{ n.path }}</code>
   </div>
 
   <div class="inspector__actions-cluster">
+    <!-- Semantic-analysis affordance (user shape 2026-07-21): the
+         magic launcher (sparkles). Idle queues the summarizer
+         through the job queue; queued/running shows the usual loading;
+         ready (a summary exists) toggles the analysis block below. -->
+    @if (summaryState() !== 'hidden') {
+      <button
+        type="button"
+        class="inspector__summary-btn"
+        [class.inspector__summary-btn--ready]="summaryState() === 'ready'"
+        [class.inspector__summary-btn--open]="summaryExpanded()"
+        [disabled]="summaryState() === 'queued' || summaryState() === 'running'"
+        [pTooltip]="summaryTooltip()"
+        tooltipPosition="left"
+        [attr.aria-label]="summaryTooltip()"
+        (click)="summarizeClick.emit()"
+        data-testid="inspector-summarize"
+        [attr.data-state]="summaryState()"
+      >
+        @switch (summaryState()) {
+          @case ('queued') {
+            <i class="pi pi-clock" aria-hidden="true"></i>
+          }
+          @case ('running') {
+            <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+          }
+          @case ('ready') {
+            <i class="pi pi-sparkles" aria-hidden="true"></i>
+          }
+          @default {
+            <i class="pi pi-sparkles" aria-hidden="true"></i>
+          }
+        }
+      </button>
+    }
     <button
       type="button"
       class="inspector__favorite"
@@ -84,13 +144,109 @@
     forwarded up via `tagClick` -> host -> graph `onTagSelect`, with the
     active one highlighted) plus the inline editor (pencil -> add / remove,
     dispatching `core/node-set-tags`). The header stays read-only and only
-    re-emits `tagClick`; the row always mounts so a tagless node can still
-    gain its first tag.
+    re-emits `tagClick`. The row follows the contribution claiming the
+    TAGS surface (spec/view-slots.md par. Re-homed surfaces, mirror of the
+    stability / version chips), which also supplies the action id the
+    editor dispatches: while claimed the row always mounts, so a tagless
+    node can still gain its first tag; claiming extension off -> no row.
   -->
-  <sm-node-tags
-    [tags]="headerTags()"
-    [activeTag]="activeTag()"
-    [nodePath]="n.path"
-    (tagClick)="tagClick.emit($event)"
-  />
+  @if (tagsSurface(); as tagsAction) {
+    <sm-node-tags
+      [tags]="headerTags()"
+      [activeTag]="activeTag()"
+      [nodePath]="n.path"
+      [setTagsActionId]="tagsAction.actionId"
+      [autoTagState]="autoTagState()"
+      (tagClick)="tagClick.emit($event)"
+      (autoTagClick)="autoTagClick.emit()"
+    />
+  }
+
+  <!-- The semantic analysis, expanded under the identity strip: one
+       magic-iconed block per stored summary (one summarizer today). -->
+  @if (summaryExpanded() && summaryRows().length > 0) {
+    <div class="inspector__summary" data-testid="inspector-summary">
+      @for (row of summaryRows(); track row.summarizerActionId) {
+        <div class="inspector__summary-block">
+          <!-- Only the TITLE row is split (user call 2026-07-21): subject
+               on the left, the stacked controls column on the right; the
+               lists below span the full width. -->
+          <div class="inspector__summary-head">
+            <i class="pi pi-sparkles inspector__summary-icon" aria-hidden="true"></i>
+            <span class="inspector__summary-subject" data-testid="inspector-summary-subject">{{
+              reportSubject(row)
+            }}</span>
+            <aside class="inspector__summary-side">
+              <button
+                type="button"
+                class="inspector__summary-refresh inspector__summary-delete"
+                [pTooltip]="texts.header.summary.deleteTooltip"
+                tooltipPosition="left"
+                [attr.aria-label]="texts.header.summary.deleteTooltip"
+                (click)="summaryDelete.emit(row.summarizerActionId)"
+                data-testid="inspector-summary-delete"
+              >
+                <i class="pi pi-times" aria-hidden="true"></i>
+              </button>
+              <button
+                type="button"
+                class="inspector__summary-refresh"
+                [pTooltip]="texts.header.summary.refreshTooltip"
+                tooltipPosition="left"
+                [attr.aria-label]="texts.header.summary.refreshTooltip"
+                (click)="summaryRefresh.emit()"
+                data-testid="inspector-summary-refresh"
+              >
+                <i class="pi pi-refresh" aria-hidden="true"></i>
+              </button>
+              @if (reportConfidence(row); as pct) {
+                <span
+                  class="inspector__summary-confidence"
+                  [pTooltip]="texts.header.summary.confidenceTooltip"
+                  tooltipPosition="left"
+                  >{{ pct }}%</span
+                >
+              }
+              @if (row.stale) {
+                <span
+                  class="inspector__summary-stale"
+                  [pTooltip]="texts.header.summary.staleTooltip"
+                  data-testid="inspector-summary-stale"
+                  >{{ texts.header.summary.staleTag }}</span
+                >
+              }
+            </aside>
+          </div>
+          @if (reportList(row, 'keyFacts').length > 0) {
+            <ul class="inspector__summary-list">
+              @for (fact of reportList(row, 'keyFacts'); track fact) {
+                <li>{{ fact }}</li>
+              }
+            </ul>
+          }
+          @if (reportList(row, 'qualityNotes').length > 0) {
+            <div class="inspector__summary-quality-label">{{ texts.header.summary.qualityLabel }}</div>
+            <ul class="inspector__summary-list inspector__summary-list--quality">
+              @for (note of reportList(row, 'qualityNotes'); track note) {
+                <li>{{ note }}</li>
+              }
+            </ul>
+          }
+        </div>
+      }
+    </div>
+  }
+
+  @defer (when stabilityPromptOpened(); prefetch on idle) {
+    @if (stabilityPayload(); as payload) {
+      <sm-action-prompt-dialog
+        [open]="stabilityPromptOpen()"
+        [descriptor]="stabilityDescriptor()"
+        [headerText]="payload.prompt.label"
+        [busy]="stabilityBusy()"
+        (confirmed)="onStabilityConfirmed($event)"
+        (closed)="cancelStabilityPrompt()"
+      />
+    }
+  }
 </header>

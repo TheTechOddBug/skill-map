@@ -139,6 +139,12 @@ export interface ILoadedExtension {
    * does not declare it.
    */
   stability?: TExtensionStability;
+  /**
+   * Optional installed-default override (spec `base.schema.json
+   * #/properties/defaultEnabled`): a declared value wins over the
+   * stability-derived default when resolving the enabled axis.
+   */
+  defaultEnabled?: boolean;
   entryPath: string;
   /** Raw module namespace as returned by the dynamic `import()`. */
   module: unknown;

@@ -93,11 +93,31 @@ const SCHEMA_FILES: Record<TSchemaName, string> = {
   'frontmatter-base': 'schemas/frontmatter/base.schema.json',
 };
 
-/** Schemas that other schemas reference via $ref but aren't validated directly. */
+/**
+ * Schemas that other schemas reference via $ref but aren't validated
+ * directly. `summaries/markdown.schema.json` (the single canonical
+ * node-summary shape; universal, not per-kind) is resolvable by `$id`,
+ * so an Action's `report.schema.json` can `$ref` it (that reference is
+ * the summarizer signal, see `kernel/jobs/summary-schema.ts`) and still
+ * compile through `validateActionReport`. `enrichments/github.schema.json`
+ * plays the same role for the mirror convention: an Action's report
+ * schema `$ref`ing it is the enricher signal
+ * (`kernel/enrichments/enrichment-schema.ts`) and `sm refresh` validates
+ * the report through `validateActionReport` against it.
+ * `tags/markdown.schema.json` mirrors summaries for the TAGGER signal
+ * (`kernel/jobs/tags-schema.ts`, the sidecar tags write-through).
+ * `findings/report.schema.json` (the canonical findings envelope) is the
+ * probabilistic-Analyzer counterpart: a finder's `report.schema.json`
+ * MUST `$ref` it (`kernel/jobs/findings-schema.ts`) and `sm record`
+ * validates the report through `validateActionReport` against it.
+ */
 const SUPPORTING_SCHEMAS: string[] = [
   'schemas/extensions/base.schema.json',
   'schemas/frontmatter/base.schema.json',
-  'schemas/summaries/security-scanner.schema.json',
+  'schemas/summaries/markdown.schema.json',
+  'schemas/tags/markdown.schema.json',
+  'schemas/enrichments/github.schema.json',
+  'schemas/findings/report.schema.json',
   'schemas/view-slots.schema.json',
   'schemas/input-types.schema.json',
 ];
@@ -122,6 +142,23 @@ export interface ISchemaValidators {
   validateContributionPayload(
     slot: string,
     payload: unknown,
+  ): { ok: true } | { ok: false; errors: string };
+  /**
+   * Validate a runner's JSON report against an action's OWN report schema
+   * (the parsed `report.schema.json`, or the `reportSchema` object the
+   * built-ins codegen inlined on a built-in Action manifest). The schema
+   * `$ref`s `report-base.schema.json` by its absolute `$id`; this loader's
+   * AJV instance already registers `report-base`, so the cross-file ref
+   * resolves. Consumed by `sm record` to gate a `--status completed`
+   * callback before the job is closed. Validators are reused by the
+   * schema's `$id` (via AJV's own registry) so repeated `sm record` calls
+   * in one process don't trip AJV's "schema already exists" guard; a
+   * malformed report schema surfaces as `{ ok: false }` rather than a
+   * crash.
+   */
+  validateActionReport(
+    reportSchema: Record<string, unknown>,
+    data: unknown,
   ): { ok: true } | { ok: false; errors: string };
 }
 
@@ -217,6 +254,24 @@ function buildSchemaValidators(): ISchemaValidators {
     return compiled;
   }
 
+  /**
+   * Compile an action's report schema against the shared AJV (which has
+   * `report-base` registered). Reuse a previously-compiled schema by its
+   * `$id` so a second `sm record` in the same process (tests, the BFF)
+   * does not re-register the same `$id` and throw. A schema with no
+   * `$id` compiles fresh each call, harmless since AJV never registers
+   * an anonymous schema.
+   */
+  function getActionReportValidator(reportSchema: Record<string, unknown>): ValidateFunction {
+    const rawId = reportSchema['$id'];
+    const id = typeof rawId === 'string' ? rawId : undefined;
+    if (id !== undefined) {
+      const existing = ajv.getSchema(id);
+      if (existing) return existing;
+    }
+    return ajv.compile(reportSchema);
+  }
+
   return {
     getValidator(name) {
       const v = validators.get(name);
@@ -244,6 +299,20 @@ function buildSchemaValidators(): ISchemaValidators {
         return { ok: false as const, errors: 'unknown-slot' };
       }
       if (validator(payload)) return { ok: true as const };
+      const errors = formatAjvErrors(validator.errors);
+      return { ok: false as const, errors };
+    },
+    validateActionReport(reportSchema: Record<string, unknown>, data: unknown) {
+      let validator: ValidateFunction;
+      try {
+        validator = getActionReportValidator(reportSchema);
+      } catch (err) {
+        // A malformed report schema (bad `$ref`, invalid JSON Schema) fails
+        // to compile; surface it as a report-validation failure the caller
+        // reports, never an uncaught crash inside the callback path.
+        return { ok: false as const, errors: err instanceof Error ? err.message : String(err) };
+      }
+      if (validator(data)) return { ok: true as const };
       const errors = formatAjvErrors(validator.errors);
       return { ok: false as const, errors };
     },

@@ -47,7 +47,7 @@
     "prepare": "[ -d .git ] && git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
-    "@changesets/cli": "2.31.0"
+    "@changesets/cli": "2.31.1"
   },
   "engines": {
     "node": ">=24.0"

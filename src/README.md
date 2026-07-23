@@ -80,7 +80,7 @@ Exit codes follow [`spec/cli-contract.md`](../spec/cli-contract.md):
 
 ## Sidecar `.sm` files
 
-`sm bump` and `sm sidecar annotate` write a sibling `<basename>.sm` YAML next to each `.md` (same directory). Their purpose is to keep skill-map's bookkeeping, version, stability, supersession, tags, audit trail, **out of the `.md` body and frontmatter**. The `.md` stays vendor-pure (Claude Code, Codex, Cursor, …); the `.sm` is the only file skill-map writes. **`sm scan`, `sm watch`, and the live UI never create `.sm` files**, they only read existing ones; sidecars appear only when you opt in via `bump` or `annotate`. **Commit `.sm` files to git like any other source file**, don't `.gitignore` them; they carry the metadata that drives `sm check`, drift detection, and supersession graphs. Full spec: [`spec/architecture.md` §Annotation system](../spec/architecture.md#annotation-system).
+`sm bump` and `sm sidecars annotate` write a sibling `<basename>.sm` YAML next to each `.md` (same directory). Their purpose is to keep skill-map's bookkeeping, version, stability, supersession, tags, audit trail, **out of the `.md` body and frontmatter**. The `.md` stays vendor-pure (Claude Code, Codex, Cursor, …); the `.sm` is the only file skill-map writes. **`sm scan`, `sm watch`, and the live UI never create `.sm` files**, they only read existing ones; sidecars appear only when you opt in via `bump` or `annotate`. **Commit `.sm` files to git like any other source file**, don't `.gitignore` them; they carry the metadata that drives `sm check`, drift detection, and supersession graphs. Full spec: [`spec/architecture.md` §Annotation system](../spec/architecture.md#annotation-system).
 
 ## Spec
 

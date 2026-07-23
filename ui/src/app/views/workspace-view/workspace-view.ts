@@ -15,12 +15,16 @@ import { MAP_ISOLATE_INTENT, type IMapIsolateIntent } from '../../slots/map-isol
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import { FilesView } from '../files-view/files-view';
 import { GraphView } from '../graph-view/graph-view';
+import { QueueView } from '../queue-view/queue-view';
 import { WorkspaceNodeOpenIntent } from './workspace-open-intent';
 import {
+  readStoredActiveSection,
   readStoredRailCollapsed,
   readStoredRailWidth,
+  writeStoredActiveSection,
   writeStoredRailCollapsed,
   writeStoredRailWidth,
+  type TWorkspaceSection,
 } from './workspace-view.storage';
 
 const RAIL_WIDTH_DEFAULT = 440;
@@ -35,9 +39,12 @@ const RAIL_VIEWPORT_RESERVE = 480;
  * them. Clicking a file row writes `?path`; the graph view centers on that
  * node and opens the inspector, all without leaving the route.
  *
- * The rail's only chrome is a compact search (driving the shared
- * `FilterStoreService`, so it filters both the table and the map) plus the
- * collapse handle, both in the top bar. Width is drag-resizable like the
+ * The rail is an activity-bar + tabbed panel: collapsed, it is a 44px
+ * icon strip (Files / Queue) that opens onto the clicked section; open, a
+ * tab header switches its body between the files navigator and the job
+ * queue, with a compact search cluster (driving the shared
+ * `FilterStoreService`, so it filters both the table and the map) and a
+ * collapse chevron alongside the tabs. Width is drag-resizable like the
  * inspector; faceted filters live on the map's floating palettes.
  *
  * This is the only primary view (route `/`); the former standalone
@@ -47,6 +54,7 @@ const RAIL_VIEWPORT_RESERVE = 480;
   selector: 'sm-workspace-view',
   imports: [
     FilesView,
+    QueueView,
     GraphView,
     FormsModule,
     IconFieldModule,
@@ -102,6 +110,16 @@ export class WorkspaceView implements IMapIsolateIntent {
    * auto-default.
    */
   protected readonly railCollapsed = signal(this.storedRailPref ?? true);
+
+  /**
+   * Which panel the open rail shows (files navigator or job queue), and
+   * which icon-bar button / tab reads as active when collapsed. Restored
+   * from storage, else the files default. The body swaps its child on
+   * this, so only the active section's component is mounted at a time.
+   */
+  protected readonly activeSection = signal<TWorkspaceSection>(
+    readStoredActiveSection() ?? 'files',
+  );
 
   /** Guards so the corpus-size auto-default applies at most once and never
    *  fights a manual toggle. */
@@ -186,10 +204,40 @@ export class WorkspaceView implements IMapIsolateIntent {
     });
   }
 
-  protected toggleRail(): void {
+  /**
+   * Activity gesture: select `section` and (if the rail is collapsed)
+   * open it, firing the width animation. Bound by BOTH the collapsed
+   * icon-bar buttons and the open tab strip: clicking an already-open
+   * tab just switches the panel (the collapse branch is skipped), while
+   * a collapsed icon opens the rail onto that section.
+   */
+  protected openSection(section: TWorkspaceSection): void {
     this.userToggledRail = true;
-    this.railCollapsed.update((v) => !v);
-    writeStoredRailCollapsed(this.railCollapsed());
+    this.setActiveSection(section);
+    if (this.railCollapsed()) {
+      this.railCollapsed.set(false);
+      writeStoredRailCollapsed(false);
+      this.animateRail();
+    }
+  }
+
+  /** Chevron gesture (open state only): collapse the rail to the icon bar. */
+  protected collapse(): void {
+    this.userToggledRail = true;
+    this.railCollapsed.set(true);
+    writeStoredRailCollapsed(true);
+    this.animateRail();
+  }
+
+  /** Persist + set the active section (no-op when unchanged). */
+  private setActiveSection(section: TWorkspaceSection): void {
+    if (this.activeSection() === section) return;
+    this.activeSection.set(section);
+    writeStoredActiveSection(section);
+  }
+
+  /** Open the 220ms width-transition window (see `railAnimating`). */
+  private animateRail(): void {
     this.railAnimating.set(true);
     if (this.railAnimTimer !== null) clearTimeout(this.railAnimTimer);
     this.railAnimTimer = setTimeout(() => this.railAnimating.set(false), 220);

@@ -22,6 +22,7 @@ import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 
 import type { ScanResult } from '../../kernel/index.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import { bffReadVersionCheck } from '../util/db-read-check.js';
 import type { ActivityStatsService } from '../activity-stats.js';
 import { emptyScanResult } from '../empty-scan.js';
 import {
@@ -36,7 +37,7 @@ import { getNode } from './tools.js';
 /** Full persisted `ScanResult`; DB absent → the shared empty shape. */
 export async function readGraphResource(ctx: IMcpReadContext): Promise<ScanResult> {
   const scan = await tryWithSqlite(
-    { databasePath: ctx.dbPath, autoBackup: false },
+    { databasePath: ctx.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
     (adapter) => adapter.scans.load(),
   );
   return scan ?? emptyScanResult();
@@ -50,7 +51,7 @@ export interface IIssuesResourceValue {
 /** Full issue list (`{ items, total }`); DB absent → empty. */
 export async function readIssuesResource(ctx: IMcpReadContext): Promise<IIssuesResourceValue> {
   const items = await tryWithSqlite(
-    { databasePath: ctx.dbPath, autoBackup: false },
+    { databasePath: ctx.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
     (adapter) => adapter.issues.listAll(),
   );
   const list = items ?? [];

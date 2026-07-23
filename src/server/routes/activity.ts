@@ -41,9 +41,7 @@
  */
 
 import type { Hono } from 'hono';
-import { timingSafeEqual } from 'node:crypto';
 
-import { ActivityTokenError } from '../app.js';
 import type { WsBroadcaster } from '../broadcaster.js';
 import type { ActivityConversationStore } from '../activity-conversations.js';
 import type { ActivityStatsService } from '../activity-stats.js';
@@ -59,13 +57,11 @@ import {
   type IResolvedSpawn,
 } from '../activity-resolver.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
+import { assertIngestToken, INGEST_TOKEN_HEADER } from '../util/ingest-token.js';
 import { makeBodyValidator } from '../util/parse-body.js';
 import type { IRouteDeps } from './deps.js';
 import { log } from '../../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
-
-/** Header the bridge sends the serve.json token in. */
-export const ACTIVITY_TOKEN_HEADER = 'x-skill-map-token';
 
 interface IActivityBody {
   /** Registered provider id the bridge was installed for (e.g. `claude`). */
@@ -112,7 +108,7 @@ export interface IActivityRouteDeps extends IRouteDeps {
 
 export function registerActivityRoute(app: Hono, deps: IActivityRouteDeps): void {
   app.post('/api/activity', async (c) => {
-    assertTokenLogged(c.req.raw.headers.get(ACTIVITY_TOKEN_HEADER), deps.activityToken);
+    assertTokenLogged(c.req.raw.headers.get(INGEST_TOKEN_HEADER), deps.activityToken);
     const body = await parseBody(c.req.raw);
 
     const resolution = await resolveActivityEvent({
@@ -206,13 +202,14 @@ function logActivityIngest(
 }
 
 /**
- * Assert the ingest token, logging a WARN on mismatch (an otherwise
+ * Assert the ingest token (shared constant-time gate,
+ * `util/ingest-token.ts`), logging a WARN on mismatch (an otherwise
  * silent 403 that blinds an operator to a mis-wired bridge) before
  * rethrowing. No token or body content is logged.
  */
 function assertTokenLogged(presented: string | null, expected: string): void {
   try {
-    assertToken(presented, expected);
+    assertIngestToken(presented, expected);
   } catch (err) {
     log.warn('activity: ingest rejected (token mismatch)');
     throw err;
@@ -239,18 +236,4 @@ function extractHookLabel(rawEvent: unknown): string | null {
     }
   }
   return null;
-}
-
-/**
- * Constant-time token comparison. Lengths are compared first (an
- * unavoidable length oracle, the token length is public in the schema
- * anyway); equal-length buffers go through `timingSafeEqual`.
- */
-function assertToken(presented: string | null, expected: string): void {
-  if (presented !== null && presented.length === expected.length) {
-    const a = Buffer.from(presented, 'utf8');
-    const b = Buffer.from(expected, 'utf8');
-    if (a.length === b.length && timingSafeEqual(a, b)) return;
-  }
-  throw new ActivityTokenError();
 }

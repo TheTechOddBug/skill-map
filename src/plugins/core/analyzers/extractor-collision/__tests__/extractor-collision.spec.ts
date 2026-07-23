@@ -28,7 +28,7 @@ function makeSignal(opts: Partial<Signal> & { source: string; candidates: Signal
 }
 
 function runAnalyzer(signals: readonly Signal[]): Issue[] {
-  const result = extractorCollisionAnalyzer.evaluate({
+  const result = extractorCollisionAnalyzer.evaluate!({
     nodes: [],
     links: [],
     settings: {},

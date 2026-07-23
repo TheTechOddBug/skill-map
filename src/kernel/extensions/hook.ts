@@ -146,6 +146,31 @@ export interface IHookContext {
    * placeholder `undefined` for legacy callers.
    */
   queue?: (actionId: string, payload: unknown) => void;
+  /**
+   * Projection of the loaded Action catalog, supplied by the driver that
+   * wires `ctx.queue` (the record path, on `job.*` dispatch). Lets a hook
+   * resolve the INVERSE of Modelo B (the fixer Actions a finder's findings
+   * feed, `spec/architecture.md` §Analyzer ↔ Action relationship) without
+   * importing the registry: a chain hook (e.g. a drop-in subscribing
+   * `job.completed`) filters this list by `analyzerIds` and `ctx.queue`s
+   * each match. Absent for drivers
+   * that do not queue (they never dispatch a hook that needs it).
+   */
+  actions?: readonly IHookActionInfo[];
+}
+
+/**
+ * Minimal per-Action projection the dispatcher hands a hook via
+ * `IHookContext.actions`: the qualified id plus the Action's declared
+ * `precondition.analyzerIds` (Modelo B, the finders whose findings it
+ * resolves; empty for a non-fixer Action). Deliberately narrower than
+ * `IAction` so a hook never reaches the full runtime object.
+ */
+export interface IHookActionInfo {
+  /** Qualified extension id (`<plugin>/<id>`). */
+  id: string;
+  /** The Action's `precondition.analyzerIds`; empty for a non-fixer. */
+  analyzerIds: readonly string[];
 }
 
 /**

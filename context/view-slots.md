@@ -98,6 +98,8 @@ The two channels are decoupled by design: an analyzer chooses what to emit on ea
 | **Count without a dedicated chip** | yes | no | `error` or `warn` | (none) | Aggregated stat + entry in the expanded issues list |
 | **No surface** | no | no | (none) | (none) | nothing |
 
+**Aggregate severity chips count findings too (read-time BFF sum).** The `warn` / `error` chips `core/issue-counter` owns on `card.footer.right` are the per-card severity total. Since the findings pipeline they sum BOTH provenances: deterministic issues (`scan_issues`) PLUS the node's unresolved, non-stale findings (`state_findings`, everything except `fixed`, so open + `human-decision` both count, matching the inspector). `issue-counter` still emits the deterministic component at scan time (so `sm scan --json` is unchanged); the findings are added at **read time by the BFF** node decoration (like `isFavorite`, on `/api/nodes` AND the `/api/scan` cold-boot hydration), under `issue-counter`'s own `warnCount` / `errorCount` ids, with a provenance-breakdown tooltip. Findings are post-scan (async queue), so the sum can only be computed at read time, this is NOT the banned host-filter anti-pattern (it sums a second real source, it does not silence chips). The card chip is thus the node's TOTAL problem count and may exceed `sm check`; drill into the inspector for the per-provenance split. Normative: [`spec/view-slots.md` §`card.footer.right`](../spec/view-slots.md).
+
 ### Color rule (chip color implies counting)
 
 A chip MAY paint `warn` (yellow) or `danger` (red) **only when** the same analyzer also emits a matching Issue:

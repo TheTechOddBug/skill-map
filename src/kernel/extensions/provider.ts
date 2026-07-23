@@ -2,8 +2,8 @@
  * Provider runtime contract. Walks filesystem roots and emits raw node
  * records; classification maps path conventions to a node kind.
  *
- * Distinct from the **hexagonal-architecture** 'adapter' (`RunnerPort.adapter`,
- * `StoragePort.adapter`, etc.). A `Provider` is an extension kind authored
+ * Distinct from the **hexagonal-architecture** 'adapter'
+ * (`StoragePort.adapter`, etc.). A `Provider` is an extension kind authored
  * by plugins to declare a platform's universe (the catalog of kinds it
  * emits, the per-kind frontmatter schema, the filesystem directory it
  * owns); a hexagonal adapter is an internal implementation of a port.

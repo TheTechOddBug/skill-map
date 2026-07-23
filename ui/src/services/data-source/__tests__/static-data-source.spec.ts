@@ -400,6 +400,54 @@ describe('StaticDataSource', () => {
     await expect(ds.getNode('does-not-exist.md')).resolves.toBeNull();
   });
 
+  it('getNodeFindings() returns the honest empty tray for a known node', async () => {
+    const env = await ds.getNodeFindings('b.md');
+    expect(env).not.toBeNull();
+    expect(env!.kind).toBe('findings');
+    expect(env!.items).toEqual([]);
+    expect(env!.counts).toEqual({
+      total: 0,
+      returned: 0,
+      dismissedExcluded: 0,
+      fixedExcluded: 0,
+    });
+  });
+
+  it('getNodeFindings() returns null for an unknown path (mirrors the live 404)', async () => {
+    await expect(ds.getNodeFindings('does-not-exist.md')).resolves.toBeNull();
+  });
+
+  it('getNodeProbExtensions() returns the empty launcher catalog for a known node', async () => {
+    await expect(ds.getNodeProbExtensions('b.md')).resolves.toEqual({
+      finders: [],
+      standalone: [],
+      issueFixers: [],
+    });
+  });
+
+  it('getNodeProbExtensions() returns null for an unknown path', async () => {
+    await expect(ds.getNodeProbExtensions('does-not-exist.md')).resolves.toBeNull();
+  });
+
+  it('submitNodeJob() rejects with demo-readonly (static bundle has no queue)', async () => {
+    await expect(ds.submitNodeJob('b.md', 'core/todo-finder')).rejects.toMatchObject({
+      name: 'DataSourceError',
+      code: 'demo-readonly',
+    });
+  });
+
+  it('cancelJob() rejects with demo-readonly (static bundle has no queue)', async () => {
+    await expect(ds.cancelJob('job-7')).rejects.toMatchObject({
+      name: 'DataSourceError',
+      code: 'demo-readonly',
+    });
+  });
+
+  it('listJobs() returns an empty queue (static bundle records no jobs)', async () => {
+    await expect(ds.listJobs()).resolves.toEqual([]);
+    await expect(ds.listJobs({ status: 'queued' })).resolves.toEqual([]);
+  });
+
   it('listLinks() with no filters returns the pre-derived envelope', async () => {
     await expect(ds.listLinks()).resolves.toEqual(META_FIXTURE.links);
   });

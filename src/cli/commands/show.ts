@@ -2,10 +2,14 @@
  * `sm show <node.path> [--json]`
  *
  * Detail view for a single node: weight (tokens triple-split),
- * frontmatter, links in/out, current issues. `--json` emits a detail
- * object with `node`, `linksOut`, `linksIn`, `issues`. Step 10
- * (findings) and Step 11 (summary) will add fields when their backing
- * tables ship, additive, so today's consumers stay green.
+ * frontmatter, links in/out, current issues, stored probabilistic
+ * findings (finder judgments + kernel safety rows, stale ones marked
+ * `(stale)`), and any stored per-node summary (a summarizer Action's
+ * report, landed by `sm record`; marked `(stale)` when the body changed
+ * since generation). `--json` emits a detail object with `node`,
+ * `linksOut`, `linksIn`, `issues`, `findings` (the camelCase
+ * `state_findings` rows, each carrying a `stale` boolean), and
+ * `summaries` (each carrying a `stale` boolean).
  *
  * Exit codes (per `spec/cli-contract.md` §Exit codes):
  *   0  ok
@@ -16,7 +20,12 @@
 import { Command, Option } from 'clipanion';
 
 import type { Issue, Link, Node, Severity } from '../../kernel/types.js';
-import type { INodeBundle } from '../../kernel/types/storage.js';
+import type {
+  IFindingRecord,
+  INodeBundle,
+  TFindingResolution,
+  TResolutionActor,
+} from '../../kernel/types/storage.js';
 import type { IAnsi } from '../util/ansi.js';
 import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
@@ -38,7 +47,38 @@ import { SHOW_TEXTS } from '../i18n/show.texts.js';
  * shape, but both branches now project from the same source of
  * truth).
  */
-type TShowDocument = Pick<INodeBundle, 'node' | 'linksOut' | 'linksIn' | 'issues'>;
+type TShowDocument = Pick<INodeBundle, 'node' | 'linksOut' | 'linksIn' | 'issues'> & {
+  /**
+   * Stored per-node probabilistic findings (`state_findings` rows,
+   * camelCase, INCLUDING stale ones, each carrying its `stale` flag).
+   */
+  findings: IFindingRecord[];
+  /** Stored per-node summaries, each carrying a computed `stale` flag. */
+  summaries: IShowSummary[];
+};
+
+/**
+ * A stored summary decorated for `sm show`: the storage `ISummaryRecord`
+ * fields plus a `stale` boolean (`bodyHashAtGeneration` differs from the
+ * node's current `body_hash`). The `--json` document emits these verbatim.
+ */
+interface IShowSummary {
+  summarizerActionId: string;
+  summarizerVersion: string;
+  bodyHashAtGeneration: string;
+  generatedAt: number;
+  /** Recording agent's self-reported model; null when undeclared. */
+  model: string | null;
+  report: Record<string, unknown>;
+  stale: boolean;
+}
+
+/**
+ * Report fields treated as a summary's one-line "headline", in priority
+ * order. `ai-summarizer-action` uses `whatItCovers`; action summarizers use
+ * `whatItDoes`; other summarizers may carry a plain `summary` / `headline`.
+ */
+const SUMMARY_HEADLINE_KEYS = ['whatItCovers', 'whatItDoes', 'summary', 'headline'] as const;
 
 export class ShowCommand extends SmCommand {
   static override paths = [['show']];
@@ -47,9 +87,11 @@ export class ShowCommand extends SmCommand {
     description: 'Node detail: weight, frontmatter, links, issues.',
     details: `
       Loads a single node from the persisted snapshot, plus every link
-      (in and out) and every current issue touching it. Step 10
-      (findings) and Step 11 (summary) will add fields when their
-      backing tables ship.
+      (in and out), every current issue touching it, its stored
+      probabilistic findings (finder judgments + kernel safety rows,
+      stale ones marked), and any stored summary (a summarizer action's
+      report, marked (stale) when the body changed since it was
+      generated).
 
       Run \`sm scan\` first to populate the DB.
     `,
@@ -80,11 +122,36 @@ export class ShowCommand extends SmCommand {
           return ExitCode.NotFound;
         }
 
+        // Stored per-node summaries (a summarizer Action's report,
+        // landed by `sm record`). Stale when the body changed since
+        // generation, `body_hash_at_generation` vs the node's live hash.
+        const summaryRecords = await adapter.summaries.forNode(this.nodePath);
+        const summaries: IShowSummary[] = summaryRecords.map((s) => ({
+          summarizerActionId: s.summarizerActionId,
+          summarizerVersion: s.summarizerVersion,
+          bodyHashAtGeneration: s.bodyHashAtGeneration,
+          generatedAt: s.generatedAt,
+          model: s.model,
+          report: s.report,
+          stale: s.bodyHashAtGeneration !== bundle.node.bodyHash,
+        }));
+
+        // Stored probabilistic findings (finder judgments + kernel
+        // safety rows landed by `sm record`). Stale ones INCLUDED here,
+        // marked, `sm show` is the in-context detail view; the filtered
+        // read surface is `sm findings`.
+        const findings = await adapter.findings.list({
+          nodeId: this.nodePath,
+          includeStale: true,
+        });
+
         const doc: TShowDocument = {
           node: bundle.node,
           linksOut: bundle.linksOut,
           linksIn: bundle.linksIn,
           issues: bundle.issues,
+          findings,
+          summaries,
         };
 
         if (this.json) {
@@ -131,7 +198,7 @@ export class ShowCommand extends SmCommand {
  * even when empty).
  */
 function renderHuman(doc: TShowDocument, ansi: IAnsi): string {
-  const { node, linksOut, linksIn, issues } = doc;
+  const { node, linksOut, linksIn, issues, findings, summaries } = doc;
   const out: string[] = [];
 
   out.push(renderHeader(node, ansi));
@@ -140,7 +207,155 @@ function renderHuman(doc: TShowDocument, ansi: IAnsi): string {
   if (linksOut.length > 0) out.push(renderLinksSection('out', linksOut, ansi));
   if (linksIn.length > 0) out.push(renderLinksSection('in', linksIn, ansi));
   if (issues.length > 0) out.push(renderIssuesSection(issues, node.path, ansi));
+  if (findings.length > 0) out.push(renderFindingsSection(findings, ansi));
+  if (summaries.length > 0) out.push(renderSummarySection(summaries, ansi));
   return out.join('');
+}
+
+/**
+ * Findings section, right after Issues: one row per stored
+ * `state_findings` row, the severity glyph (same visual language as the
+ * issues section), the dim finder extension id, the type slug, the
+ * finder's message, and a yellow `(stale)` marker when the node body
+ * changed since the judgment was recorded. A resolved finding carries its
+ * state on a line beneath (mirror of `sm findings`: green `✓` dim `fixed`
+ * reads as handled-not-verified and names the deciding actor, yellow
+ * `human-decision` surfaces the author's TODO). Unlike `sm findings`, this
+ * section lists ALL rows (fixed included), since it is a single node's full
+ * detail. Dropped entirely when the node carries no finding. Every
+ * DB-sourced string is sanitised at the row boundary (finder messages are
+ * plugin-authored; the resolution note is fixer-authored).
+ */
+function renderFindingsSection(findings: IFindingRecord[], ansi: IAnsi): string {
+  const rows = findings.map((f) => ({
+    severity: f.severity,
+    extensionId: sanitizeForTerminal(f.extensionId),
+    type: sanitizeForTerminal(f.type),
+    message: sanitizeForTerminal(f.message).replace(/\n+/g, ' '),
+    model: f.model === null ? null : sanitizeForTerminal(f.model),
+    resolution: f.resolution,
+    resolutionActor: f.resolutionActor,
+    resolutionNote: sanitizeForTerminal(f.resolutionNote ?? '').replace(/\n+/g, ' '),
+    resolutionBy: sanitizeForTerminal(f.resolutionBy ?? '').replace(/\n+/g, ' '),
+    stale: f.stale,
+  }));
+  const extensionWidth = Math.max(...rows.map((r) => r.extensionId.length));
+  const typeWidth = Math.max(...rows.map((r) => r.type.length));
+  const lines: string[] = [tx(SHOW_TEXTS.findingsSection, { count: rows.length })];
+  for (const row of rows) {
+    lines.push(
+      tx(SHOW_TEXTS.findingRow, {
+        glyph: severityGlyph(row.severity, ansi),
+        extensionId: ansi.dim(row.extensionId.padEnd(extensionWidth)),
+        type: row.type.padEnd(typeWidth),
+        message: row.message,
+        modelSuffix:
+          row.model === null
+            ? ''
+            : ansi.dim(tx(SHOW_TEXTS.findingModelSuffix, { model: row.model })),
+        staleSuffix: row.stale ? ansi.yellow(SHOW_TEXTS.findingStale) : '',
+      }),
+    );
+    const resolutionLine = renderResolutionLine(row, ansi);
+    if (resolutionLine !== null) lines.push(resolutionLine);
+  }
+  return lines.join('');
+}
+
+/** The sanitised resolution fields a `renderResolutionLine` call needs. */
+interface IResolutionRow {
+  resolution: TFindingResolution | null;
+  resolutionActor: TResolutionActor | null;
+  resolutionNote: string;
+  resolutionBy: string;
+}
+
+/**
+ * The resolution line under a finding row, actor-aware, or `null` when the
+ * finding is unresolved (`spec/db-schema.md` §state_findings). Mirrors
+ * `sm findings` (`cli/commands/findings.ts`): green `✓` dim for a `fixed`
+ * state (naming the deciding actor: `by you` / `by <fixer> (your decision)`
+ * / `by <fixer>`), yellow `⚠` undimmed for a `human-decision` (the author's
+ * TODO, the fixer's proposal). `fixed` stays honest, only the finder
+ * re-judging closes a finding.
+ */
+function renderResolutionLine(row: IResolutionRow, ansi: IAnsi): string | null {
+  if (row.resolution === null) return null;
+  if (row.resolution === 'fixed') {
+    return tx(SHOW_TEXTS.findingResolutionLine, {
+      glyph: ansi.green('✓'),
+      text: ansi.dim(fixedResolutionText(row)),
+    });
+  }
+  return tx(SHOW_TEXTS.findingResolutionLine, {
+    glyph: ansi.yellow('⚠'),
+    text: tx(SHOW_TEXTS.findingResolutionHumanDecision, {
+      fixer: row.resolutionBy,
+      noteSuffix: resolutionNoteSuffix(row.resolutionNote),
+    }),
+  });
+}
+
+/** The actor-aware `fixed`-line text (mirror of `sm findings`). */
+function fixedResolutionText(row: IResolutionRow): string {
+  const noteSuffix = resolutionNoteSuffix(row.resolutionNote);
+  if (row.resolutionActor === 'human') {
+    return row.resolutionBy.length === 0
+      ? tx(SHOW_TEXTS.findingResolutionFixedByHuman, { noteSuffix })
+      : tx(SHOW_TEXTS.findingResolutionFixedByHumanWithFixer, {
+          fixer: row.resolutionBy,
+          noteSuffix,
+        });
+  }
+  return tx(SHOW_TEXTS.findingResolutionFixedByFixer, { fixer: row.resolutionBy, noteSuffix });
+}
+
+/** The `: <note>` tail on a resolution line, or `''` when the note is empty. */
+function resolutionNoteSuffix(note: string): string {
+  return note.length === 0 ? '' : tx(SHOW_TEXTS.findingResolutionNoteSuffix, { note });
+}
+
+/**
+ * Summary section: one row per stored per-node summary, the dim
+ * summarizer action id + the report headline, with a yellow `(stale)`
+ * marker when the node body changed since the summary was generated.
+ * Mirrors the column-aligned rhythm of the links / issues sections.
+ * Dropped entirely when the node carries no summary.
+ */
+function renderSummarySection(summaries: IShowSummary[], ansi: IAnsi): string {
+  const lines: string[] = [tx(SHOW_TEXTS.summarySection, { count: summaries.length })];
+  const idWidth = Math.max(
+    ...summaries.map((s) => sanitizeForTerminal(s.summarizerActionId).length),
+  );
+  for (const s of summaries) {
+    lines.push(
+      tx(SHOW_TEXTS.summaryRow, {
+        actionId: ansi.dim(sanitizeForTerminal(s.summarizerActionId).padEnd(idWidth)),
+        headline: sanitizeForTerminal(pickSummaryHeadline(s.report)),
+        modelSuffix:
+          s.model === null
+            ? ''
+            : ansi.dim(
+                tx(SHOW_TEXTS.summaryModelSuffix, { model: sanitizeForTerminal(s.model) }),
+              ),
+        staleSuffix: s.stale ? ansi.yellow(SHOW_TEXTS.summaryStale) : '',
+      }),
+    );
+  }
+  return lines.join('');
+}
+
+/**
+ * Pick a summary's one-line headline from its report: the first
+ * recognised headline field (see `SUMMARY_HEADLINE_KEYS`) that holds a
+ * non-empty string, else a neutral placeholder.
+ */
+function pickSummaryHeadline(report: Record<string, unknown>): string {
+  for (const key of SUMMARY_HEADLINE_KEYS) {
+    const value = report[key];
+    if (typeof value === 'string' && value.length > 0) return value;
+  }
+  return SHOW_TEXTS.summaryNoHeadline;
 }
 
 function renderHeader(node: Node, ansi: IAnsi): string {

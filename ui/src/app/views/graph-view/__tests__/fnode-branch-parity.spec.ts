@@ -90,14 +90,20 @@ describe('graph-view [fNodes] twin branches stay in lockstep', () => {
     expect(a).toBe(b);
   });
 
-  it('both branches bind the direction-aware connector sides', () => {
-    // Belt-and-braces for the drift that motivated this guard: the
-    // sides must be BOUND to the computed pair, never hardcoded.
+  it('both branches declare the unified fConnector bindings', () => {
+    // Belt-and-braces for the drift that motivated this guard (a
+    // connector binding edited in one branch and forgotten in the
+    // other). Since v19's unified model the card carries a single
+    // source-target connector whose id IS the node id; the
+    // direction-aware sides moved to the `<f-connection>` bindings
+    // (`fSourceSide`/`fTargetSide`), which live outside the twin
+    // branches and cannot drift between them.
     const src = Object.values(templates)[0]!;
     const { virtualized, plain } = extractBranches(src);
     for (const branch of [virtualized, plain]) {
-      expect(branch).toContain('[fInputConnectableSide]="inputSide()"');
-      expect(branch).toContain('[fOutputConnectableSide]="outputSide()"');
+      expect(branch).toContain('fConnector');
+      expect(branch).toContain('fConnectorType="source-target"');
+      expect(branch).toContain('[fConnectorId]="node.id"');
     }
   });
 });

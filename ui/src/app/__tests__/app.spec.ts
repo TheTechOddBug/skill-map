@@ -99,6 +99,33 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       kindRegistry: {},
     }),
   getNode: () => Promise.resolve(null),
+  getNodeFindings: () =>
+    Promise.resolve({
+      schemaVersion: '1',
+      kind: 'findings',
+      items: [],
+      filters: {},
+      counts: { total: 0, returned: 0, dismissedExcluded: 0, fixedExcluded: 0 },
+      kindRegistry: {},
+    }),
+  getNodeProbExtensions: () =>
+    Promise.resolve({ finders: [], standalone: [], issueFixers: [] }),
+  submitNodeJob: () =>
+    Promise.resolve({
+      schemaVersion: '1',
+      kind: 'job.submitted',
+      value: { jobId: 'job-1', nodePath: 'a.md', extensionId: 'x/y', supersededIds: [] },
+      elapsedMs: 0,
+    }),
+  cancelJob: () => Promise.resolve(),
+  dismissFinding: () => Promise.resolve(),
+  reopenFinding: () => Promise.resolve(),
+  resolveFinding: () => Promise.resolve(),
+  undismissFinding: () => Promise.resolve(),
+  deleteFinding: () => Promise.resolve(),
+  cancelAllJobs: () => Promise.resolve(),
+  pruneJobs: () => Promise.resolve(),
+  listJobs: () => Promise.resolve([]),
   listLinks: () =>
     Promise.resolve({
       schemaVersion: '1',
@@ -119,6 +146,9 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     }),
   loadGraph: () => Promise.resolve(''),
   loadConfig: () => Promise.resolve({}),
+  getConfigResolution: () => Promise.resolve([]),
+  getNodeSummary: () => Promise.resolve([]),
+  deleteNodeSummary: () => Promise.resolve(),
   listPlugins: () =>
     Promise.resolve({
       schemaVersion: '1',
@@ -204,13 +234,37 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     bridgePresent: false,
     events: 0,
   }, removed: false }),
-  getActivitySummary: () => Promise.resolve({ since: 0, nodes: {}, pairs: {} }),
+  getAgentSkillInstallStatus: () => Promise.resolve({
+    provider: 'markdown',
+    supported: false,
+    skillDir: null,
+    installed: false,
+    stale: false,
+  }),
+  installAgentSkill: () => Promise.resolve({
+    provider: 'markdown',
+    supported: false,
+    skillDir: null,
+    installed: false,
+    stale: false,
+    outcome: 'installed' as const,
+  }),
+  uninstallAgentSkill: () => Promise.resolve({
+    provider: 'markdown',
+    supported: false,
+    skillDir: null,
+    installed: false,
+    stale: false,
+    removed: false,
+  }),
+  getActivitySummary: () => Promise.resolve({ since: 0, nodes: {}, pairs: {}, runNodes: [] }),
   getNodeActivity: () =>
     Promise.resolve({
       stats: { count: 0, lastStartAt: 0, distinctOwners: 0 },
       recent: [],
       spawns: [],
       captureEnabled: false,
+      runs: [],
     }),
   getSpawnRecord: () => Promise.resolve(null),
   getActivityCapture: () => Promise.resolve({ enabled: false }),

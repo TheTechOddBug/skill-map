@@ -7,6 +7,7 @@
  *   - `IPluginsPort`  plugin catalog + toggles + trust (`plugins.port.ts`)
  *   - `ISettingsPort` preferences / ignore / lens / update (`settings.port.ts`)
  *   - `IActivityPort` live-activity + capture (`activity.port.ts`)
+ *   - `IAgentPort`    agent-process-skill install management (`agent.port.ts`)
  *   - `IActionsPort`  sidecar-writing actions (`actions.port.ts`)
  *
  * plus `events()`, the cross-domain live channel, declared here on the
@@ -35,7 +36,9 @@ import type { Observable } from 'rxjs';
 import type { IWsEvent } from '../../models/ws-event';
 import type { IActionsPort } from './ports/actions.port';
 import type { IActivityPort } from './ports/activity.port';
+import type { IAgentPort } from './ports/agent.port';
 import type { ICorpusPort } from './ports/corpus.port';
+import type { IJobsPort } from './ports/jobs.port';
 import type { IPluginsPort } from './ports/plugins.port';
 import type { ISettingsPort } from './ports/settings.port';
 
@@ -47,8 +50,10 @@ export type {
   TGraphFormat,
 } from './ports/corpus.port';
 export type { IPluginsPort, TPluginItem, IPluginChange } from './ports/plugins.port';
+export type { IJobsPort, IJobsQuery } from './ports/jobs.port';
 export type { ISettingsPort } from './ports/settings.port';
 export type { IActivityPort } from './ports/activity.port';
+export type { IAgentPort } from './ports/agent.port';
 export type {
   IActionsPort,
   ISidecarBumpOpts,
@@ -60,7 +65,9 @@ export interface IDataSourcePort
     IPluginsPort,
     ISettingsPort,
     IActivityPort,
-    IActionsPort {
+    IAgentPort,
+    IActionsPort,
+    IJobsPort {
   /**
    * WebSocket-backed event stream. In live mode, returns the
    * `WsEventStreamService` multicast observable that connects to `/ws`

@@ -20,15 +20,22 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  inject,
   input,
   output,
+  signal,
 } from '@angular/core';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
+import { ActionDispatchService } from '../../../services/action-dispatch';
+import { ActionPromptDialog } from '../../renderers/node-action-button/action-prompt-dialog';
+import type { IInputTypeDescriptor, TInputTypeValue } from '../../renderers/input-type-control/input-type-control';
+import type { INodeSummaryRowApi } from '../../../models/api';
 import type { INodeView, TStability } from '../../../models/node';
 import {
+  actionSurfaceContribution,
   effectiveStability,
   effectiveUserTags,
   effectiveVersion,
@@ -55,7 +62,7 @@ const CLAUDE_VENDOR_COLORS: ReadonlySet<string> = new Set([
 
 @Component({
   selector: 'sm-inspector-header',
-  imports: [TooltipModule, KindIcon, NodeTags, ViewContributionsHost],
+  imports: [ActionPromptDialog, TooltipModule, KindIcon, NodeTags, ViewContributionsHost],
   templateUrl: './inspector-header.html',
   styleUrl: './inspector-header.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -92,9 +99,191 @@ export class InspectorHeader {
    */
   readonly tagClick = output<string>();
 
+  /**
+   * Semantic-analysis affordance (user shape 2026-07-21): the header
+   * hosts the summarizer's magic button and, once a
+   * summary exists, the expandable analysis block under the tags row.
+   * The header stays presentational: the host owns the state machine
+   * (`hidden` / `idle` / `queued` / `running` / `ready`), the rows, and
+   * the expansion; the header only renders and re-emits clicks.
+   */
+  readonly summaryState = input<'hidden' | 'idle' | 'queued' | 'running' | 'ready'>('hidden');
+  readonly summaryRows = input<INodeSummaryRowApi[]>([]);
+  readonly summaryExpanded = input<boolean>(false);
+  readonly summaryStale = input<boolean>(false);
+  /** Idle -> queue the run; ready -> toggle the block. */
+  readonly summarizeClick = output<void>();
+  /** Re-run from the expanded block (fresh judgment). */
+  readonly summaryRefresh = output<void>();
+  /** Delete the stored summary (carries the block's summarizer id). */
+  readonly summaryDelete = output<string>();
+
+  /**
+   * Auto-tag affordance (user request 2026-07-21), pure passthrough to
+   * `<sm-node-tags>`: the host owns the `core/ai-tagger-action` queue
+   * state and the submit; the header only threads the wires.
+   */
+  readonly autoTagState = input<'hidden' | 'idle' | 'queued' | 'running'>('hidden');
+  readonly autoTagClick = output<void>();
+
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
   /** Reused so the card and the inspector header speak the same language. */
   protected readonly cardTexts = NODE_CARD_TEXTS;
+
+  /** Tooltip for the summary affordance, per state. */
+  protected summaryTooltip(): string {
+    const t = this.texts.header.summary;
+    switch (this.summaryState()) {
+      case 'queued':
+        return t.tooltipQueued;
+      case 'running':
+        return t.tooltipRunning;
+      case 'ready':
+        return this.summaryStale() ? t.tooltipReadyStale : t.tooltipReady;
+      default:
+        return t.tooltipIdle;
+    }
+  }
+
+  /** String list read from a summary report field (defensive). */
+  protected reportList(row: INodeSummaryRowApi, field: string): string[] {
+    const value = row.report[field];
+    return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+  }
+
+  /** The report's required subject line. */
+  protected reportSubject(row: INodeSummaryRowApi): string {
+    const value = row.report['whatItCovers'];
+    return typeof value === 'string' ? value : '';
+  }
+
+  /** Confidence percent, or null when the report omitted it. */
+  protected reportConfidence(row: INodeSummaryRowApi): number | null {
+    const value = row.report['confidence'];
+    return typeof value === 'number' ? Math.round(value * 100) : null;
+  }
+
+  // --- stability chip = the Set stability affordance (user call 2026-07-21)
+
+  private readonly dispatcher = inject(ActionDispatchService);
+
+  /**
+   * The action-button contribution claiming the STABILITY surface
+   * (`spec/view-slots.md` §Re-homed surfaces), selected by its payload
+   * declaration, never by extension id: its button left the Actions
+   * section and the header's stability chip (ALWAYS rendered while
+   * claimed, defaulting to `stable` when unset) became the affordance.
+   * Clicking the chip opens the enum-pick prompt dialog seeded from the
+   * payload and dispatches the payload's `actionId`.
+   */
+  protected readonly stabilityPayload = computed<{
+    actionId: string;
+    prompt: { inputType: string; paramKey: string; label: string; options?: { value: string; label: string }[]; defaultValue?: string | string[] };
+    enabled: boolean;
+  } | null>(() => {
+    const payload = actionSurfaceContribution(this.node(), 'stability')?.payload;
+    if (typeof payload !== 'object' || payload === null) return null;
+    const typed = payload as { actionId?: string; prompt?: { inputType?: string; paramKey?: string; label?: string; options?: { value: string; label: string }[]; defaultValue?: string | string[] }; enabled?: boolean };
+    if (!typed.actionId || !typed.prompt?.inputType || !typed.prompt.paramKey) return null;
+    return {
+      actionId: typed.actionId,
+      prompt: typed.prompt as { inputType: string; paramKey: string; label: string },
+      enabled: typed.enabled !== false,
+    };
+  });
+
+  /** The chip's display value: the effective stability, `stable` by default. */
+  protected readonly stabilityDisplay = computed<TStability | 'stable'>(
+    () => this.headerStability() ?? 'stable',
+  );
+
+  protected readonly stabilityPromptOpen = signal(false);
+  /** Sticky @defer latch, mirror of the action-button renderer. */
+  protected readonly stabilityPromptOpened = signal(false);
+  protected readonly stabilityBusy = signal(false);
+
+  protected readonly stabilityDescriptor = computed<IInputTypeDescriptor>(() => {
+    const p = this.stabilityPayload()?.prompt;
+    return {
+      inputType: p?.inputType ?? '',
+      label: p?.label ?? '',
+      options: p?.options,
+      defaultValue: p?.defaultValue,
+    };
+  });
+
+  protected onStabilityChipClick(): void {
+    if (this.stabilityPayload() === null || this.stabilityBusy()) return;
+    this.stabilityPromptOpened.set(true);
+    this.stabilityPromptOpen.set(true);
+  }
+
+  protected async onStabilityConfirmed(value: TInputTypeValue): Promise<void> {
+    const payload = this.stabilityPayload();
+    if (payload === null) return;
+    this.stabilityPromptOpen.set(false);
+    this.stabilityBusy.set(true);
+    try {
+      await this.dispatcher.dispatch(payload.actionId, this.node().path, {
+        [payload.prompt.paramKey]: value,
+      });
+    } finally {
+      this.stabilityBusy.set(false);
+    }
+  }
+
+  protected cancelStabilityPrompt(): void {
+    this.stabilityPromptOpen.set(false);
+  }
+
+  // --- version chip = the Bump affordance (user call 2026-07-21) ----------
+
+  /**
+   * The action-button contribution claiming the VERSION surface
+   * (`spec/view-slots.md` §Re-homed surfaces), selected by its payload
+   * declaration, never by extension id: the header's version chip IS
+   * the bump affordance. While claimed the chip always renders (the
+   * effective version, or the short placeholder for a versionless
+   * file) and clicking it dispatches the payload's `actionId` directly
+   * (no prompt; `enabled` / `disabledReason` honored). Claiming
+   * extension off -> no version surface in the header at all.
+   */
+  protected readonly bumpPayload = computed<{
+    actionId: string;
+    enabled: boolean;
+    disabledReason?: string;
+  } | null>(() => {
+    const payload = actionSurfaceContribution(this.node(), 'version')?.payload;
+    if (typeof payload !== 'object' || payload === null) return null;
+    const typed = payload as { actionId?: string; enabled?: boolean; disabledReason?: string };
+    if (!typed.actionId) return null;
+    return {
+      actionId: typed.actionId,
+      enabled: typed.enabled !== false,
+      ...(typed.disabledReason !== undefined ? { disabledReason: typed.disabledReason } : {}),
+    };
+  });
+
+  protected readonly bumpBusy = signal(false);
+
+  protected bumpTooltip(): string {
+    const payload = this.bumpPayload();
+    if (payload !== null && !payload.enabled) return payload.disabledReason ?? '';
+    // Versionless file: the chip invites stamping the first version.
+    if (this.headerVersion() === null) return this.texts.header.bump.placeholderTooltip;
+    return this.texts.header.bump.tooltip;
+  }
+
+  protected async onBumpClick(): Promise<void> {
+    const payload = this.bumpPayload();
+    if (payload === null || !payload.enabled || this.bumpBusy()) return;
+    this.bumpBusy.set(true);
+    try {
+      await this.dispatcher.dispatch(payload.actionId, this.node().path, undefined);
+    } finally {
+      this.bumpBusy.set(false);
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Header computeds, all derived from `node()`. Effective values follow
@@ -137,6 +326,22 @@ export class InspectorHeader {
   protected readonly headerTags = computed<readonly string[]>(() =>
     effectiveUserTags(this.node()),
   );
+
+  /**
+   * The action-button contribution claiming the TAGS surface
+   * (`spec/view-slots.md` §Re-homed surfaces): its presence gates the
+   * inline tag row (and the card chips), and its `actionId` is what the
+   * row dispatches on save. Selected by the payload declaration, never
+   * by extension id; claiming extension off -> no tag row in the
+   * inspector, even when the node carries tags (the data stays in the
+   * `.sm`).
+   */
+  protected readonly tagsSurface = computed<{ actionId: string } | null>(() => {
+    const payload = actionSurfaceContribution(this.node(), 'tags')?.payload;
+    if (typeof payload !== 'object' || payload === null) return null;
+    const typed = payload as { actionId?: string };
+    return typed.actionId ? { actionId: typed.actionId } : null;
+  });
 
   protected onFavoriteClick(event: MouseEvent): void {
     event.stopPropagation();

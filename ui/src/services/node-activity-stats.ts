@@ -58,6 +58,17 @@ export class NodeActivityStatsService {
    */
   readonly pairCounts = this._pairCounts.asReadonly();
 
+  private readonly _runNodes = signal<ReadonlySet<string>>(new Set());
+  /**
+   * Node paths with PERSISTENT AI-run history (the summary's
+   * `runNodes`, spec §GET /api/activity/summary): the counters above
+   * are boot-scoped and reset on server restart, this set is DB-backed
+   * and does not, so Activity visibility survives a reboot. Snapshot
+   * overwrite only (no WS delta: a run lands together with `job.*`
+   * frames, and the detail fetch reads the DB directly anyway).
+   */
+  readonly runNodes = this._runNodes.asReadonly();
+
   /** Rule-9 coalescing buffer: frames land here, the signal mutates once per frame. */
   private pending: Array<{ nodePath: string; stats: INodeActivityStatsApi }> = [];
   /** Pair-counter sibling of `pending`, flushed by the same frame tick. */
@@ -112,6 +123,7 @@ export class NodeActivityStatsService {
       const summary = await this.dataSource.getActivitySummary();
       this.adoptSnapshot(summary.nodes);
       this.adoptPairSnapshot(summary.pairs);
+      this.adoptRunNodes(summary.runNodes ?? []);
     } catch {
       // Swallow (see docstring).
     }
@@ -155,6 +167,13 @@ export class NodeActivityStatsService {
     }
     if (next.size !== current.size) changed = true;
     if (changed) this._pairCounts.set(next);
+  }
+
+  /** Snapshot overwrite of the persistent-runs set (value-diff gated). */
+  private adoptRunNodes(paths: readonly string[]): void {
+    const current = this._runNodes();
+    if (paths.length === current.size && paths.every((p) => current.has(p))) return;
+    this._runNodes.set(new Set(paths));
   }
 
   private enqueue(data: IWsNodeActivityData): void {

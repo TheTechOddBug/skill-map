@@ -83,6 +83,28 @@ export interface IPersistScanInputs {
 }
 
 /**
+ * Refresh ONE node's denormalized `scan_nodes.annotations_json` mirror
+ * from its just-written `.sm` annotations (`spec/db-schema.md`
+ * §state_findings, read-time suppression lens). The write-through half of
+ * `sm findings dismiss` / `undismiss`: the sidecar stays the source of
+ * truth, this keeps the column fresh so read surfaces (the findings view,
+ * the card counters) never need per-node file reads; `sm scan` remains the
+ * wholesale refresher (a hand-edited `.sm` reconciles at the next scan).
+ * `null` clears the column. A path not in the scan is a no-op.
+ */
+export async function updateNodeAnnotations(
+  db: Kysely<IDatabase>,
+  path: string,
+  annotations: Record<string, unknown> | null,
+): Promise<void> {
+  await db
+    .updateTable('scan_nodes')
+    .set({ annotationsJson: annotations === null ? null : JSON.stringify(annotations) })
+    .where('path', '=', path)
+    .execute();
+}
+
+/**
  * Persist a scan into the `scan_*` / `state_*` zones inside one
  * transaction. The algorithm is a single linear flow (rename heuristic →
  * orphan stranding → replace-all scan zone → contribution sweeps →

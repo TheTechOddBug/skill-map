@@ -1,0 +1,6 @@
+{
+  "version": "1.0.0",
+  "description": "Test-only plugin shipping one probabilistic fixer Action (apply-fix) that resolves prob-finder/quality-check findings; drives the core/auto-fix hook end-to-end tests.",
+  "specCompat": ">=0.0.0",
+  "catalogCompat": "*"
+}

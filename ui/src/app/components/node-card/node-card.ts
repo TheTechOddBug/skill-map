@@ -15,6 +15,7 @@ import {
   type TSummary,
 } from '../../../models/node';
 import {
+  actionSurfaceContribution,
   compactNumber,
   effectiveStability,
   effectiveUserTags,
@@ -310,8 +311,18 @@ export class NodeCard {
    * Card version label, see `effectiveVersion` for source contract
    * (sidecar `annotations.version` wins, legacy `metadata.version` is
    * the un-migrated fallback).
+   *
+   * The label follows the contribution claiming the VERSION surface
+   * (`spec/view-slots.md` §Re-homed surfaces), same rule as the header
+   * version chip and the tag chips (user call 2026-07-22): claiming
+   * extension off -> no version on the card either, the data stays in
+   * the `.sm`. Selected by declaration, never by extension id.
    */
-  protected readonly version = computed(() => effectiveVersion(this.node()));
+  protected readonly version = computed(() =>
+    actionSurfaceContribution(this.node(), 'version') !== null
+      ? effectiveVersion(this.node())
+      : null,
+  );
 
   /**
    * Effective stability, see `effectiveStability` for source contract.
@@ -324,8 +335,18 @@ export class NodeCard {
    * the fallback for un-migrated `.md` files (see `effectiveUserTags`).
    * The former author source (`frontmatter.tags`) was retired, so the
    * card renders one chip style with no source discriminator.
+   *
+   * The chip row follows the contribution claiming the TAGS surface
+   * (`spec/view-slots.md` §Re-homed surfaces), same rule as the
+   * inspector's tag row (user call 2026-07-21): claiming extension off
+   * -> no tag chips on the card either, the data stays in the `.sm`.
+   * Selected by declaration, never by extension id.
    */
-  protected readonly tagChips = computed<readonly string[]>(() => effectiveUserTags(this.node()));
+  protected readonly tagChips = computed<readonly string[]>(() =>
+    actionSurfaceContribution(this.node(), 'tags') !== null
+      ? effectiveUserTags(this.node())
+      : [],
+  );
 
   /** Top-3 chips rendered on the card. */
   protected readonly visibleTagChips = computed(() => this.tagChips().slice(0, 3));

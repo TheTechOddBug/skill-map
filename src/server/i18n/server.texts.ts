@@ -116,6 +116,30 @@ export const SERVER_TEXTS = {
   pathB64Malformed:
     'Malformed pathB64, not a valid base64url-encoded node.path.',
 
+  // ---- aggregate severity chip provenance tooltip (routes/nodes.ts) --------
+  //
+  // The card's warn / error chips (owned by `core/issue-counter` on
+  // `card.footer.right`) are the per-card severity total. The BFF folds a
+  // node's fresh open probabilistic findings into them at read time
+  // (`spec/view-slots.md` §card.footer.right); when findings > 0 for a
+  // severity the chip tooltip is rewritten to break the total down by
+  // provenance: deterministic issues ("checks") + findings ("AI
+  // findings"). `tx` does not pluralize (see `kernel/util/tx.ts`), so the
+  // fold picks the singular / plural leaf per count and interpolates the
+  // finished phrases into the parent template. No em dashes.
+  //
+  // Canonical shape (spec/view-slots.md example): "3 warnings: 2 checks +
+  // 1 AI finding".
+  aggregateChipTooltip: '{{total}} {{severity}}: {{checks}} + {{ai}}',
+  aggregateChipSeverityWarnSingular: 'warning',
+  aggregateChipSeverityWarnPlural: 'warnings',
+  aggregateChipSeverityErrorSingular: 'error',
+  aggregateChipSeverityErrorPlural: 'errors',
+  aggregateChipChecksSingular: '{{count}} check',
+  aggregateChipChecksPlural: '{{count}} checks',
+  aggregateChipAiSingular: '{{count}} AI finding',
+  aggregateChipAiPlural: '{{count}} AI findings',
+
   // ---- WS broadcaster + watcher (Step 14.4.a) ------------------------------
 
   // Logged once on watcher boot after chokidar's initial walk completes.
@@ -234,6 +258,18 @@ export const SERVER_TEXTS = {
   activityEventRequired:
     '`event` is required and must be an object.',
 
+  // Job-event push ingest (POST /api/job-events, the CLI-to-server push
+  // leg of spec/job-events.md §Transport). Token gate reuses
+  // `activityTokenMismatch` (same serve.json session token, same opaque
+  // 403); the 400s below cover the body validation.
+  jobEventsBodyNotJson:
+    'Request body must be valid JSON.',
+  jobEventsBodyNotObject:
+    'Request body must be a JSON object.',
+  jobEventsBodyInvalid:
+    'Request body must be a canonical job event envelope: `type` (one of the job.* catalog types), ' +
+    '`timestamp` (unix-ms integer), `runId` (string), `jobId` (string), `data` (object).',
+
   // Install management over HTTP (GET/POST /api/activity/install +
   // POST /api/activity/uninstall, see spec/provider-activity.md
   // §Install management over HTTP). The 412 names the exact file the
@@ -252,6 +288,27 @@ export const SERVER_TEXTS = {
     'Activity hook uninstall failed: {{message}}',
   activityInstallConfirmNotBoolean:
     '`confirm` must be a boolean when present.',
+
+  // Agent process skill install management (GET/POST /api/agent/install +
+  // POST /api/agent/uninstall, see spec/cli-contract.md §Agent process
+  // skill). The 412 names the exact path the mutation would touch so
+  // the SPA's consent dialog can show it.
+  agentBodyNotJson:
+    'Request body must be valid JSON.',
+  agentBodyNotObject:
+    'Request body must be a JSON object.',
+  agentProviderRequired:
+    '`provider` is required and must be a non-empty string.',
+  agentConfirmNotBoolean:
+    '`confirm` must be a boolean when present.',
+  agentInstallUnknownProvider:
+    'Unknown provider "{{provider}}".',
+  agentInstallNoSkillDir:
+    'Provider "{{provider}}" declares no skill directory (scaffold.skillDir).',
+  agentInstallConfirmRequired:
+    'Installing writes {{path}}. Retry with `confirm: true` to proceed.',
+  agentUninstallConfirmRequired:
+    'Uninstalling removes {{path}}. Retry with `confirm: true` to proceed.',
 
   // Execution stats + conversation capture (GET /api/activity/summary,
   // GET /api/activity/node/<pathB64>, GET /api/activity/spawns/<spawnId>,
@@ -274,10 +331,11 @@ export const SERVER_TEXTS = {
     'Could not persist activity.captureConversations: {{message}}',
 
   // 404 envelope when `:qualifiedId` does not resolve to a registered
-  // action with an `invoke()`. Covers both "no such action" and "action
-  // exists but ships no deterministic entry point" (a probabilistic
-  // action that cannot be dispatched over this synchronous route). The
-  // id is sanitised before interpolation.
+  // action with an `invoke()`. Covers "no such action", "action exists
+  // but ships no deterministic entry point" (a probabilistic action that
+  // cannot be dispatched over this synchronous route), and "action
+  // declares io:['network']" (executes exclusively via `sm refresh`).
+  // The id is sanitised before interpolation.
   actionUnknown:
     'No invokable action with id "{{actionId}}".',
 
@@ -580,4 +638,80 @@ export const SERVER_TEXTS = {
   // operator knows the drift notice will re-appear on the next read.
   activeProviderMarkersPersistFailed:
     'Could not persist activeProviderMarkers: {{message}}',
+
+  // ---- node jobs / findings / prob-extensions routes (Step 16 piece 1) ----
+  //
+  // `GET /api/nodes/:pathB64/findings`, `GET /api/nodes/:pathB64/
+  // prob-extensions`, `POST /api/nodes/:pathB64/jobs`. The submit-error
+  // wording deliberately MIRRORS the CLI catalog
+  // (`cli/i18n/jobs-queue.texts.ts`), same vocabulary across both
+  // operator surfaces; when a sentence changes there, change it here too.
+
+  // Body validation on POST /api/nodes/:pathB64/jobs.
+  jobsBodyNotJson: 'Request body must be valid JSON.',
+  jobsBodyNotObject: 'Request body must be a JSON object.',
+  jobsBodyExtensionRequired:
+    'Request body must include `extension` (a non-empty string), the probabilistic extension id to enqueue.',
+
+  // Processing-agent gate, 409 `no-processing-agent`. Sentence paired
+  // with `JOBS_QUEUE_TEXTS.submitErrNoProcessingAgent` (the CLI catalog
+  // is the source of truth for the advisory wording; the UI renders it
+  // with the `sm agent install` CTA).
+  jobsNoProcessingAgent:
+    'no processing agent is set up. skill-map never runs jobs itself. ' +
+    'Run `sm agent install` to install the skill to process the jobs',
+
+  // Submit target resolution failures (mirror the CLI exit-5 / exit-2
+  // refusals: unknown extension -> 404, the rest -> 400 bad-query).
+  jobsExtensionNotFound: 'extension {{extension}} not found',
+  jobsExtensionNotProbabilistic:
+    'extension {{extension}} is {{mode}}; only probabilistic extensions are queued (deterministic actions run in-process)',
+  jobsExtensionAmbiguous:
+    'extension {{extension}} matches both a probabilistic action and a probabilistic analyzer; ' +
+    'disambiguate with action:{{actionId}} or analyzer:{{analyzerId}}',
+  jobsPromptUnresolved:
+    'cannot resolve the prompt template for {{extension}} ({{detail}})',
+  jobsReportSchemaUnresolved:
+    'cannot resolve the report schema for {{extension}} ({{detail}})',
+  jobsFindingIdsUnsupported:
+    'findingIds targets specific findings, which {{extension}} does not resolve (only a fixer of a probabilistic finder does)',
+  jobsConfigInvalid: 'invalid jobs config: {{detail}}',
+
+  // Node-side refusals.
+  jobsNodeVirtual: 'node {{node}} is virtual (no backing file to render)',
+  jobsNodeDrifted:
+    'node {{node}} changed on disk since the last scan; run sm scan and resubmit',
+  jobsNodeUnreadable:
+    'node {{node}} cannot be read from disk ({{detail}}); run sm scan to refresh the graph',
+  jobsNoFindings:
+    'no findings to resolve for {{finders}} on {{node}}; run the finder first',
+
+  // Queue conflicts, 409 `duplicate-job` / `job-running`
+  // (`details.existingId` names the covering job in both).
+  jobsDuplicate: 'active job {{id}} already covers {{node}}',
+  jobsRunningSibling:
+    'running job {{id}} already covers {{node}} and is never superseded',
+
+  // Cancel refusals (`POST /api/jobs/:jobId/cancel`); wording mirrors
+  // the CLI's `sm jobs cancel` messages (`jobs-queue.texts.ts`).
+  jobCancelNotFound: 'job {{id}} not found',
+  jobCancelAlreadyTerminal: 'job {{id}} is already terminal; nothing to cancel',
+
+  // Query validation on `GET /api/jobs` (the cross-corpus job list). An
+  // unknown `status` filter value is the only 400 the route can raise.
+  jobsListBadStatus:
+    'unknown status {{value}}; expected one of {{allowed}}',
+
+  // Per-finding mutation routes (`POST /api/nodes/:pathB64/findings/...`);
+  // wording mirrors the CLI's `sm findings dismiss / resolve / undismiss`.
+  findingBodyNotJson: 'request body must be JSON',
+  findingBodyNotObject: 'request body must be a JSON object',
+  findingExtensionRequired: 'body.extension is required (the qualified extension id)',
+  findingNotFound: 'finding {{id}} not found on this node',
+  findingNotDismissible:
+    'finding {{id}} ({{type}}) is a kernel safety finding and cannot be dismissed',
+  findingAlreadyFixed: 'finding {{id}} is already fixed',
+  findingAlreadyDismissed: 'finding {{id}} is already dismissed',
+  findingAlreadyOpen: 'finding {{id}} is already open (no resolution to clear)',
+  suppressionNotFound: 'no suppression for {{extension}} on {{node}}',
 } as const;

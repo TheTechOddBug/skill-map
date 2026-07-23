@@ -6,8 +6,8 @@
  *
  * Extractors are deterministic-only. They run synchronously inside the
  * scan loop; LLM-driven enrichment of a node is an Action concern, not
- * an Extractor concern. The Extractor context therefore exposes no
- * `RunnerPort`, see spec `architecture.md` §Execution modes.
+ * an Extractor concern. The Extractor context therefore exposes no LLM
+ * access, see spec `architecture.md` §Execution modes.
  *
  * **Structure-as-truth**: the extension's `id` and `kind` come from the
  * filesystem (`<plugin>/extractors/<id>/index.ts`); the manifest does NOT

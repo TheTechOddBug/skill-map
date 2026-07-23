@@ -139,4 +139,24 @@ export const PLUGIN_LOADER_TEXTS = {
 
   fatalAnnotationRootCollision:
     "Annotation root-key collision: '{{key}}' is claimed with ownership: 'exclusive' by multiple plugins ({{plugins}}). The kernel cannot boot with this configuration. Rename or merge the contributions and rerun.",
+
+  // --- analyzer file conventions (structure-as-truth, probabilistic) ------
+  invalidManifestAnalyzerMissingPrompt:
+    'Probabilistic Analyzer at `{{relEntry}}` is missing `prompt.md` in its folder ' +
+    '(structure-as-truth: probabilistic analyzers carry a prompt template by convention).',
+
+  invalidManifestAnalyzerMissingReportSchema:
+    'Probabilistic Analyzer at `{{relEntry}}` is missing `report.schema.json` in its folder ' +
+    '(structure-as-truth: probabilistic analyzers carry a findings report schema by convention).',
+
+  invalidManifestAnalyzerReportSchemaUnparseable:
+    'Probabilistic Analyzer at `{{relEntry}}` has an unparseable `report.schema.json`: {{errDescription}}',
+
+  invalidManifestAnalyzerReportSchemaNotFindings:
+    'Probabilistic Analyzer at `{{relEntry}}` has a `report.schema.json` that does not extend the canonical ' +
+    `findings envelope. Add a $ref to it (typically inside allOf). See ${SPEC_GITHUB_BASE}/spec/schemas/findings/report.schema.json.`,
+
+  invalidManifestAnalyzerUnexpectedPrompt:
+    'Deterministic Analyzer at `{{relEntry}}` carries an unexpected `prompt.md` ' +
+    "(delete the file or switch `mode` to `'probabilistic'`).",
 } as const;

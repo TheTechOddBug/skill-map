@@ -19,8 +19,8 @@
  *
  * **Naming note.** `IProvider` is the extension-surface kind that plugin
  * authors implement. The `adapter` term is reserved for the hexagonal
- * architecture's driven adapters (`RunnerPort.adapter`, `StoragePort.adapter`
- * see `kernel/adapters/`); the two concepts are deliberately namespaced
+ * architecture's driven adapters (`StoragePort.adapter`, see
+ * `kernel/adapters/`); the two concepts are deliberately namespaced
  * apart even though they used to share the word historically.
  */
 
@@ -39,6 +39,7 @@ export type {
   IProviderKindUi,
   IProviderReadConfig,
   IProviderUi,
+  IProviderWalkOptions,
   IRawNode,
   TActivityInstall,
   TActivityPhase,
@@ -60,10 +61,12 @@ export type {
   IActionContext,
   IActionProjectionContext,
   IActionResult,
+  TActionIoKind,
   TActionWrite,
+  TActionWriteKind,
 } from './action.js';
 export type { IFormatter, IFormatterContext } from './formatter.js';
-export type { IHook, IHookContext, THookTrigger, THookFilter } from './hook.js';
+export type { IHook, IHookActionInfo, IHookContext, THookTrigger, THookFilter } from './hook.js';
 export { HOOK_TRIGGERS } from './hook.js';
 export type { IExtensionBase, IAnnotationContribution, IBuiltInManifest, TExtensionStability } from './base.js';
 export {

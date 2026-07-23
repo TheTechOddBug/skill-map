@@ -72,6 +72,7 @@ import {
   KNOWN_KINDS_LIST,
   discoverProviderKinds,
   validateActionFileConventions,
+  validateAnalyzerFileConventions,
   validateAnnotationContributions,
   validateHookTriggers,
 } from './validation.js';
@@ -608,6 +609,23 @@ export class PluginLoader implements PluginLoaderPort {
       if (actionFailure) return { ok: false, failure: actionFailure };
     }
 
+    // Structure-as-truth (finder half of the dual-mode Analyzer): a
+    // probabilistic Analyzer resolves `prompt.md` + `report.schema.json`
+    // by convention, and the report schema MUST extend the canonical
+    // findings envelope. Validate at load so a misconfigured finder
+    // surfaces as `invalid-manifest` instead of at the first submit.
+    if (kind === 'analyzer') {
+      const analyzerFailure = validateAnalyzerFileConventions(
+        pluginPath,
+        pluginId,
+        manifest,
+        relEntry,
+        abs,
+        manifestView,
+      );
+      if (analyzerFailure) return { ok: false, failure: analyzerFailure };
+    }
+
     // Structure-as-truth (Provider): the kinds catalog now lives on disk
     // under `<plugin>/kinds/<kindName>/{schema.json, kind.json}`. The
     // loader discovers it and pre-populates the runtime descriptor so
@@ -646,10 +664,12 @@ export class PluginLoader implements PluginLoaderPort {
       instance['kinds'] = discoveredKinds;
     }
 
-    // `stability` passed the kind schema's AJV check above (enum or
-    // absent), so the cast is safe. Stamped as a typed field so list /
-    // show / BFF consumers never shape-check `instance` for it.
+    // `stability` / `defaultEnabled` passed the kind schema's AJV check
+    // above (enum / boolean or absent), so the casts are safe. Stamped as
+    // typed fields so list / show / BFF consumers never shape-check
+    // `instance` for them.
     const stability = exported['stability'] as TExtensionStability | undefined;
+    const defaultEnabled = exported['defaultEnabled'] as boolean | undefined;
 
     return { ok: true, extension: {
       kind,
@@ -657,6 +677,7 @@ export class PluginLoader implements PluginLoaderPort {
       pluginId,
       version: exported['version'] as string,
       ...(stability !== undefined ? { stability } : {}),
+      ...(defaultEnabled !== undefined ? { defaultEnabled } : {}),
       entryPath: abs,
       module: mod,
       instance,

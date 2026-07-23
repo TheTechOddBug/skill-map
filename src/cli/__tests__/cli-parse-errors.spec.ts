@@ -124,6 +124,21 @@ describe('CLI parse-error handler', () => {
     assert.match(r.stderr, /Run 'sm help db' to see all subcommands\./);
   });
 
+  it('a namespace with more than three subcommands reports the remainder count', () => {
+    // `jobs` registers nine subcommands; the sample shows three and the
+    // line must not read as exhaustive (observed live: "Available
+    // subcommands: 'jobs cancel', 'jobs claim', or 'jobs fail'." implied
+    // that was all of them).
+    const r = sm(['jobs']);
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /incomplete command 'jobs'/);
+    assert.match(
+      r.stderr,
+      /Available subcommands: 'jobs cancel', 'jobs claim', 'jobs fail', and \d+ more\./,
+    );
+    assert.match(r.stderr, /Run 'sm help jobs' to see all subcommands\./);
+  });
+
   it('still serves --version (Clipanion built-in)', () => {
     const r = sm(['--version']);
     assert.equal(r.status, 0);

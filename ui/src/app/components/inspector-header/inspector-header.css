@@ -125,13 +125,27 @@
   font-weight: 500;
   text-transform: lowercase;
   white-space: nowrap;
+  /* Chip-as-button (the Set stability affordance): neutral chrome so
+     the visual stays the familiar chip. */
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-family: inherit;
 }
 
-.inspector__stability-dot {
-  margin-right: 0.25rem;
-  font-size: 0.55rem;
-  vertical-align: middle;
+.inspector__stability--actionable {
+  cursor: pointer;
 }
+
+.inspector__stability--actionable:hover {
+  text-decoration: underline;
+}
+
+.inspector__stability:disabled {
+  cursor: default;
+}
+
 
 .inspector__stability[data-stability='stable'] {
   color: var(--sm-severity-success);
@@ -215,3 +229,161 @@
 
 /* The tag row moved to `<sm-node-tags>` (filter chips + inline editor);
  * its chip styles now live in node-tags.css. */
+
+/* Semantic-analysis affordance: the ?-with-magic launcher in the
+   actions cluster, sized like the favorite button beside it. */
+.inspector__summary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  border: none;
+  background: transparent;
+  padding: 0.2rem;
+  cursor: pointer;
+  color: var(--p-text-muted-color);
+  border-radius: var(--sm-radius-sm);
+  font-size: 0.85rem;
+}
+
+.inspector__summary-btn:hover:not(:disabled) {
+  color: var(--p-text-color);
+}
+
+.inspector__summary-btn:disabled {
+  cursor: default;
+}
+
+.inspector__summary-btn--ready {
+  color: var(--p-primary-color);
+}
+
+.inspector__summary-btn--open {
+  background: var(--p-highlight-background);
+}
+
+/* The expanded analysis block, full-width under the identity strip.
+   A size container so the controls layout below responds to the
+   INSPECTOR's width, not the viewport's. */
+.inspector__summary {
+  grid-column: 1 / -1;
+  margin-top: 0.5rem;
+  container-type: inline-size;
+}
+
+.inspector__summary-block {
+  border-top: 1px solid var(--sm-border);
+  padding-top: 0.5rem;
+  font-size: 0.85rem;
+}
+
+/* Stacked controls column on the TITLE row only: X, re-analyze,
+   confidence, stale (user-fixed order). */
+.inspector__summary-side {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* Responsive (user call 2026-07-21): with more than 400px of block
+   width the controls lie flat as a ROW; the column is the narrow-rail
+   layout. */
+@container (min-width: 400px) {
+  .inspector__summary-side {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.4rem;
+  }
+}
+
+.inspector__summary-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.inspector__summary-icon {
+  color: var(--p-primary-color);
+}
+
+.inspector__summary-subject {
+  flex: 1 1 auto;
+  font-weight: 600;
+}
+
+.inspector__summary-stale {
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--sm-radius-sm);
+  color: var(--sm-severity-warn);
+  border: 1px solid var(--sm-severity-warn);
+}
+
+.inspector__summary-confidence {
+  color: var(--p-text-muted-color);
+  font-size: 0.78rem;
+}
+
+.inspector__summary-refresh {
+  border: none;
+  background: transparent;
+  padding: 0.15rem;
+  cursor: pointer;
+  color: var(--p-text-muted-color);
+  border-radius: var(--sm-radius-sm);
+}
+
+.inspector__summary-refresh:hover {
+  color: var(--p-text-color);
+}
+
+.inspector__summary-list {
+  margin: 0.4rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.inspector__summary-list li {
+  margin-bottom: 0.15rem;
+}
+
+.inspector__summary-quality-label {
+  margin-top: 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--p-text-muted-color);
+}
+
+.inspector__summary-list--quality {
+  margin-top: 0.2rem;
+}
+
+/* Version-chip-as-button (the Bump affordance): outlined TAG look with
+   the mono (code) font, user call 2026-07-21. The base
+   `.inspector__name-version` already carries the mono font + size; the
+   button variant swaps the filled background for the outlined-tag
+   geometry the stale / decision marks use. */
+.inspector__version-btn {
+  border: 1px solid var(--sm-border);
+  background: transparent;
+  color: var(--p-text-muted-color);
+  cursor: pointer;
+}
+
+.inspector__version-btn:hover:not(:disabled) {
+  color: var(--p-text-color);
+  border-color: var(--p-text-muted-color);
+}
+
+.inspector__version-btn:disabled {
+  cursor: default;
+}
+
+.inspector__summary-delete:hover {
+  color: var(--sm-severity-error);
+}

@@ -1,0 +1,413 @@
+/* Typographic scale mirrors the files view so the two rail panels read as
+   one surface. */
+:host {
+  --queue-fs-xs: 0.75rem;
+  --queue-fs-mono: 0.8rem;
+  --queue-fs-sm: 0.875rem;
+
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.queue {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.queue__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.5rem 1rem;
+  color: var(--p-text-muted-color);
+}
+
+.queue__loading-label {
+  font-size: var(--queue-fs-xs);
+}
+
+/* Embedded in the rail: fill the host height, the split + table own the
+   vertical scroll (same shape as the files view). */
+.queue--rail {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Local filter bar: a text search stacked over the status chips. Exclusive
+   to the queue (the Files cluster is the sibling on the other tab). */
+.queue__filters {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.35rem 0.4rem;
+  border-bottom: 1px solid var(--sm-border);
+}
+
+.queue__search {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  /* Anchor for the absolutely-positioned in-input clear button. */
+  position: relative;
+}
+
+.queue__search input {
+  width: 100%;
+}
+
+/* Reserve room on the right so the query never slides under the clear "x". */
+.queue__search-input {
+  padding-right: 1.9rem;
+}
+
+.queue__search-clear {
+  position: absolute;
+  top: 50%;
+  right: 0.35rem;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--sm-radius-sm);
+  background: transparent;
+  color: var(--p-text-muted-color);
+  cursor: pointer;
+  font-size: 0.7rem;
+}
+
+.queue__search-clear:hover {
+  background: var(--p-content-hover-background);
+  color: var(--p-text-color);
+}
+
+/* Status chips: the queue pulse (live count per state) that also filters.
+   A row of compact toggles that wrap in a narrow rail. */
+.queue__status-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.queue__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-lg);
+  background: transparent;
+  color: var(--p-text-muted-color);
+  font: inherit;
+  font-size: var(--queue-fs-xs);
+  line-height: 1.2;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+
+.queue__chip i {
+  font-size: 0.7rem;
+}
+
+.queue__chip:hover {
+  color: var(--p-text-color);
+}
+
+/* On (enabled): a subtle highlight plus the per-state tint on the glyph.
+   Off: muted and dimmed so the excluded states recede. */
+.queue__chip.is-on {
+  background: var(--p-highlight-background);
+  color: var(--p-text-color);
+}
+
+.queue__chip:not(.is-on) {
+  opacity: 0.5;
+}
+
+.queue__chip.is-on[data-status='completed'] i {
+  color: var(--p-primary-color);
+}
+
+.queue__chip.is-on[data-status='failed'] i {
+  color: var(--sm-severity-error);
+}
+
+/* Bulk action toolbar: compact text + icon buttons under the chips (cancel
+   / fail all active, prune all terminal). */
+.queue__bulk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.queue__bulk-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-lg);
+  background: transparent;
+  color: var(--p-text-muted-color);
+  font: inherit;
+  font-size: var(--queue-fs-xs);
+  cursor: pointer;
+}
+
+.queue__bulk-btn i {
+  font-size: 0.7rem;
+}
+
+.queue__bulk-btn:hover {
+  color: var(--p-text-color);
+  border-color: var(--p-primary-color);
+}
+
+/* Prune is destructive: tint the hover to the error hue. */
+.queue__bulk-btn--danger:hover {
+  color: var(--sm-severity-error);
+  border-color: var(--sm-severity-error);
+}
+
+/* Compact "no match" state: jobs exist but the filter hides them all. */
+.empty-state--compact {
+  padding: 1.25rem 1rem;
+}
+
+.queue__split {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.queue__split > p-table {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.queue__table {
+  width: 100%;
+}
+
+:host ::ng-deep .queue__table {
+  /* UNIFORM row height, with or without the inline cancel / retry icon:
+     the theme's cell padding is overridden via its own TOKENS (both size
+     variants; a token wins regardless of which theme rule consumes it,
+     unlike the plain padding override PrimeNG out-specified), sized so
+     the capped 1.6rem action button plus padding lands exactly on the
+     2rem the cells reserve below. A text-only row stretches to the same
+     2rem, so rows never move when an action appears. */
+  --p-datatable-body-cell-padding: 0.2rem 0.5rem;
+  --p-datatable-body-cell-sm-padding: 0.2rem 0.5rem;
+}
+
+:host ::ng-deep .queue__table .p-datatable-tbody td {
+  font-size: var(--queue-fs-sm);
+  vertical-align: middle;
+  height: 2rem;
+}
+
+/* Rail mode: pin the datatable surface tokens to `--sm-bg-content` so the
+   queue panel matches the workspace rail / inspector (same rationale as
+   the files view's rail override). */
+:host ::ng-deep .queue--rail .queue__table {
+  --p-datatable-header-cell-background: var(--sm-bg-content);
+  --p-datatable-row-background: var(--sm-bg-content);
+  /* Flat table: no per-row hover highlight, the rows read uniformly and
+     state lives only in the status glyph. */
+  --p-datatable-row-hover-background: var(--sm-bg-content);
+}
+
+/* Fixed-footer paginator: the datatable is a flex column filling its host,
+   the scroll container takes the slack (rows scroll vertically inside it),
+   and the paginator pins at the panel's bottom edge, it never scrolls with
+   the rows nor moves with the horizontal scroll. */
+:host ::ng-deep .queue__table {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+:host ::ng-deep .queue__table .p-datatable-table-container {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+:host ::ng-deep .queue__table .p-datatable-paginator-bottom {
+  flex: 0 0 auto;
+}
+
+/* Compact paginator for the narrow rail: a muted page report on the left,
+   the prev / next controls on the right, a hairline over it. */
+:host ::ng-deep .queue__table .p-paginator {
+  justify-content: space-between;
+  padding: 0.25rem 0.4rem;
+  border-top: 1px solid var(--sm-border);
+  background: var(--sm-bg-content);
+}
+
+:host ::ng-deep .queue__table .p-paginator-current {
+  font-size: var(--queue-fs-xs);
+  color: var(--p-text-muted-color);
+}
+
+.queue__col-status {
+  width: 4.5rem;
+}
+
+/* Status cell: the state glyph plus the row's single inline action (Cancel on
+   an active row, Retry on a failed one), replacing the old actions column. */
+.queue__status-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.queue__row-action {
+  display: inline-flex;
+}
+
+/* The inline action must not grow the row: PrimeNG's small icon button
+   pads taller than the compact text line, so cap it to fit inside the
+   row's natural height (same cap as the inspector's finding actions). */
+:host ::ng-deep .queue__row-action .p-button {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+}
+
+/* Node + extension carry px min/max widths (mirrors the files view's tree
+   column) so the table overflows and scrolls HORIZONTALLY in a narrow rail
+   instead of collapsing everything to an ellipsis. Node is the primary
+   identifier, so it gets the dominant band; both still ellipsis-truncate
+   within their max (full value in the tooltip). */
+.queue__col-node,
+.queue__cell-node {
+  min-width: 220px;
+  max-width: 460px;
+}
+
+.queue__col-ext,
+.queue__cell-ext {
+  min-width: 150px;
+  max-width: 280px;
+}
+
+.queue__col-age {
+  width: 4rem;
+  text-align: right;
+}
+
+/* Status glyph, tinted per lifecycle state. Queued / running stay neutral
+   (the clock / spinner already read as "in progress"); the terminal
+   states carry the severity hue. */
+.queue__status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--queue-fs-sm);
+  line-height: 1;
+}
+
+.queue__status[data-status='queued'],
+.queue__status[data-status='running'] {
+  color: var(--p-text-muted-color);
+}
+
+.queue__status[data-status='completed'] {
+  color: var(--p-primary-color);
+}
+
+.queue__status[data-status='failed'] {
+  color: var(--sm-severity-error);
+}
+
+.queue__status[data-status='cancelled'] {
+  color: var(--p-text-muted-color);
+  opacity: 0.7;
+}
+
+/* Extension cell: a fixed kind glyph (analyzer / action) followed by the
+   bare short label. The label ellipsis-truncates within the column's max
+   (full qualified id in the tooltip); the kind glyph never truncates, so
+   analyzer vs action reads at any width. */
+.queue__ext {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.queue__kind {
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  color: var(--p-text-color);
+}
+
+.queue__ext-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--p-text-color);
+}
+
+/* Node path: monospace, the primary identifier. Ellipsis-truncates within
+   the column's max; the full path lives in the tooltip and the wider bands
+   scroll into view horizontally. */
+.queue__node {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--sm-font-mono);
+  font-size: var(--queue-fs-mono);
+  color: var(--p-text-color);
+}
+
+/* Age: right-aligned, tabular so the column edge stays aligned. */
+.queue__cell-age {
+  text-align: right;
+  white-space: nowrap;
+  font-family: var(--sm-font-mono);
+  font-size: var(--queue-fs-mono);
+  color: var(--p-text-color);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Rows are clickable: a click selects the row's node (writes `?path`), which
+   the graph + inspector pick up. */
+.queue__row {
+  cursor: pointer;
+}
+
+/* Selected-node highlight: mirrors the files view's selected leaf (tinted
+   cells + a 3px accent bar on the left edge). Every row sharing the selected
+   node id lights up, since one node can carry many jobs. */
+.queue__row.is-selected td,
+.queue__row.is-selected:hover td {
+  background: var(--p-highlight-background);
+}
+
+.queue__row.is-selected td:first-child {
+  box-shadow: inset 3px 0 0 0 var(--p-primary-color);
+}
+
+/* A cancelled job reads as struck out across the row's text (the status /
+   kind icons stay clean). Cancelled is the one terminal state with no
+   follow-up action, so the strikethrough marks it as "discarded". */
+.queue__row[data-status='cancelled'] .queue__node,
+.queue__row[data-status='cancelled'] .queue__ext-name,
+.queue__row[data-status='cancelled'] .queue__cell-age {
+  text-decoration: line-through;
+}

@@ -4,7 +4,9 @@
  * Exercises the full pipeline end-to-end: a temp fixture with a `.md`
  * Provider node + co-located `.sm` sidecar, run `runScan`, inspect the
  * resulting `Node.sidecar` overlay, the denormalised columns, and the
- * built-in `annotation-stale` / `annotation-orphan` rules' issues.
+ * built-in rules: `annotation-orphan`'s warning issue, and (since
+ * 2026-07-20) that `annotation-stale` emits NO issue, drift is
+ * icon-only via the derived `sidecar.status`.
  *
  * Hashes for the sidecar's `for.{bodyHash, frontmatterHash}` are
  * captured from a baseline scan so the test never duplicates the
@@ -142,7 +144,7 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     strictEqual(stale.length, 0, 'fresh sidecar emits no stale issue');
   });
 
-  it('stale-body: body changed after sidecar was bumped → stale-body status + info issue', async () => {
+  it('stale-body: body changed after sidecar was bumped → stale-body status, NO issue (icon-only)', async () => {
     const fixture = freshFixture('stale-body');
     writeFile(fixture, NODE_PATH, BASE_MD);
     const baseline = await fullScan(fixture);
@@ -172,13 +174,13 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     const result = await fullScan(fixture);
     const node = findNode(result, NODE_PATH);
     strictEqual(node.sidecar?.status, 'stale-body');
+    // Drift is icon-only since 2026-07-20: the derived status drives the
+    // card chip / badge contributions, no issue lands in the findings list.
     const stale = result.issues.filter((i) => i.analyzerId === 'annotation-stale');
-    strictEqual(stale.length, 1);
-    strictEqual(stale[0]!.severity, 'info');
-    ok(stale[0]!.message.includes('body changed'));
+    strictEqual(stale.length, 0, 'annotation-stale emits no issue');
   });
 
-  it('stale-frontmatter: only frontmatter changed → stale-frontmatter status', async () => {
+  it('stale-frontmatter: only frontmatter changed → stale-frontmatter status, NO issue', async () => {
     const fixture = freshFixture('stale-fm');
     writeFile(fixture, NODE_PATH, BASE_MD);
     const baseline = await fullScan(fixture);
@@ -208,8 +210,7 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     const node = findNode(result, NODE_PATH);
     strictEqual(node.sidecar?.status, 'stale-frontmatter');
     const stale = result.issues.filter((i) => i.analyzerId === 'annotation-stale');
-    strictEqual(stale.length, 1);
-    ok(stale[0]!.message.includes('frontmatter changed'));
+    strictEqual(stale.length, 0, 'annotation-stale emits no issue');
   });
 
   it('orphan .sm with no matching .md → annotation-orphan issue', async () => {

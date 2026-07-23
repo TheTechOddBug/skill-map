@@ -65,8 +65,7 @@ const EXECUTION_MODE_VALUES: readonly TExecutionMode[] = Object.freeze([
 ]);
 
 const EXECUTION_RUNNER_VALUES: readonly ExecutionRunner[] = Object.freeze([
-  'cli',
-  'skill',
+  'agent',
   'in-process',
 ]);
 
@@ -82,7 +81,7 @@ const EXECUTION_FAILURE_REASON_VALUES: readonly ExecutionFailureReason[] = Objec
   'timeout',
   'abandoned',
   'job-file-missing',
-  'user-cancelled',
+  'user-failed',
 ]);
 
 export function isStability(s: unknown): s is Stability {

@@ -39,14 +39,20 @@ import { EMPTY, type Observable } from 'rxjs';
 import { DATA_SOURCE_TEXTS } from '../../i18n/data-source.texts';
 import type {
   IBranchResponseApi,
+  IConfigResolutionRowApi,
   IContributionsRegistryApi,
+  IFindingsEnvelopeApi,
   IFolderNodeLite,
   IHealthResponseApi,
   IIssueApi,
+  IJobApi,
+  IJobSubmittedEnvelopeApi,
   ILinkApi,
   IListEnvelopeApi,
   INodeApi,
   INodeDetailApi,
+  INodeSummaryRowApi,
+  IProbExtensionsApi,
   IPreferencesApi,
   IPreferencesPatchApi,
   IProjectConfigApi,
@@ -57,6 +63,9 @@ import type {
   IActivitySpawnDetailApi,
   IActivitySummaryApi,
   IActivityUninstallEnvelopeApi,
+  IAgentSkillInstallEnvelopeApi,
+  IAgentSkillInstallStatusApi,
+  IAgentSkillUninstallEnvelopeApi,
   IActiveProviderPutEnvelopeApi,
   IProjectIgnoreApi,
   IProjectIgnorePatchApi,
@@ -78,6 +87,7 @@ import {
   type IDataSourcePort,
   type IActionDispatchOpts,
   type IIssuesQuery,
+  type IJobsQuery,
   type ILinksQuery,
   type INodesQuery,
   type IPluginChange,
@@ -135,6 +145,18 @@ const DEMO_ACTIVITY_DESCRIPTORS: Record<string, { configPath: string; events: nu
   codex: { configPath: '.codex/hooks.json', events: 3 },
   antigravity: { configPath: '.agents/hooks.json', events: 2 },
   opencode: { configPath: '.opencode/plugin/skill-map-activity.js', events: 0 },
+};
+
+/**
+ * Baked `scaffold.skillDir` per lens, mirroring the shipped Providers'
+ * declarations, for the demo agent-process-skill probe (same posture as
+ * `DEMO_ACTIVITY_DESCRIPTORS`: report capability honestly, install
+ * nothing).
+ */
+const DEMO_AGENT_SKILL_DIRS: Record<string, string> = {
+  claude: '.claude/skills',
+  codex: '.agents/skills',
+  'agent-skills': '.agents/skills',
 };
 
 export class StaticDataSource implements IDataSourcePort {
@@ -372,6 +394,39 @@ export class StaticDataSource implements IDataSourcePort {
     };
   }
 
+  /**
+   * Demo mode: the static bundle records no probabilistic AI actions
+   * (there is no queue and no processing agent), so every node's tray
+   * is honestly empty. Unknown paths still resolve `null` to mirror the
+   * live 404-as-null contract.
+   */
+  async getNodeFindings(
+    path: string,
+    _bucket?: 'dismissed' | 'fixed',
+  ): Promise<IFindingsEnvelopeApi | null> {
+    const scan = await this.loadData();
+    if (!scan.nodes.some((n) => n.path === path)) return null;
+    return {
+      schemaVersion: '1',
+      kind: 'findings',
+      items: [],
+      filters: {},
+      counts: { total: 0, returned: 0, dismissedExcluded: 0, fixedExcluded: 0 },
+      kindRegistry: {},
+    };
+  }
+
+  /**
+   * Demo mode: no plugin runtime and no queue, so the launcher catalog
+   * is the empty shape (the inspector hides the AI actions card). Unknown
+   * paths resolve `null`, mirroring the live 404-as-null contract.
+   */
+  async getNodeProbExtensions(path: string): Promise<IProbExtensionsApi | null> {
+    const scan = await this.loadData();
+    if (!scan.nodes.some((n) => n.path === path)) return null;
+    return { finders: [], standalone: [], issueFixers: [] };
+  }
+
   async listLinks(q: ILinksQuery = {}): Promise<IListEnvelopeApi<ILinkApi>> {
     const meta = await this.loadMeta();
     if (isEmptyLinksQuery(q)) {
@@ -455,6 +510,23 @@ export class StaticDataSource implements IDataSourcePort {
     this.providerRegistry.ingest(meta.config.providerRegistry);
     this.primeContributionsRegistry(meta);
     return meta.config.value;
+  }
+
+  /** Demo bundle: no layered project config, honestly empty. */
+  async getConfigResolution(): Promise<IConfigResolutionRowApi[]> {
+    return [];
+  }
+
+  /** Demo bundle: records no AI summaries, honestly empty. */
+  async getNodeSummary(): Promise<INodeSummaryRowApi[] | null> {
+    return [];
+  }
+
+  async deleteNodeSummary(): Promise<void> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Deleting summaries is not available in demo mode (static bundle is immutable).',
+    );
   }
 
   async listPlugins(): Promise<IListEnvelopeApi<TPluginItem>> {
@@ -650,6 +722,42 @@ export class StaticDataSource implements IDataSourcePort {
     );
   }
 
+  async getAgentSkillInstallStatus(provider: string): Promise<IAgentSkillInstallStatusApi> {
+    // Baked snapshot: no filesystem to probe, so report each lens's
+    // CAPABILITY honestly (the shipped Providers' `scaffold.skillDir`)
+    // with nothing installed. The Settings button renders in its
+    // Install state but the mutations below reject, matching every
+    // other demo write.
+    const skillDir = DEMO_AGENT_SKILL_DIRS[provider];
+    return {
+      provider,
+      supported: skillDir !== undefined,
+      skillDir: skillDir ?? null,
+      installed: false,
+      stale: false,
+    };
+  }
+
+  async installAgentSkill(
+    _provider: string,
+    _opts?: { confirm?: boolean },
+  ): Promise<IAgentSkillInstallEnvelopeApi> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Agent skill install is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async uninstallAgentSkill(
+    _provider: string,
+    _opts?: { confirm?: boolean },
+  ): Promise<IAgentSkillUninstallEnvelopeApi> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Agent skill uninstall is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
   /**
    * Execution stats / spawn / capture surfaces: the demo bundle has no
    * live BFF (and therefore no accumulator, no spawn ring, no capture
@@ -657,15 +765,18 @@ export class StaticDataSource implements IDataSourcePort {
    * and the one write rejects like every other demo mutation.
    */
   async getActivitySummary(): Promise<IActivitySummaryApi> {
-    return { since: Date.now(), nodes: {}, pairs: {} };
+    return { since: Date.now(), nodes: {}, pairs: {}, runNodes: [] };
   }
 
   async getNodeActivity(_path: string): Promise<IActivityNodeDetailApi | null> {
+    // `runs` stays empty too: the demo bundle ships no state DB, which
+    // is exactly the missing-DB degradation the contract prescribes.
     return {
       stats: { count: 0, lastStartAt: 0, distinctOwners: 0 },
       recent: [],
       spawns: [],
       captureEnabled: false,
+      runs: [],
     };
   }
 
@@ -716,6 +827,83 @@ export class StaticDataSource implements IDataSourcePort {
       'demo-readonly',
       'Actions are not available in demo mode (static bundle is immutable).',
     );
+  }
+
+  async submitNodeJob(
+    _nodePath: string,
+    _extensionId: string,
+    _autoFix = false,
+    _findingIds?: readonly number[],
+  ): Promise<IJobSubmittedEnvelopeApi> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Job submission is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async cancelJob(_jobId: string): Promise<void> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Job cancellation is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async cancelAllJobs(): Promise<void> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Bulk job cancellation is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async dismissFinding(): Promise<void> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Dismissing findings is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async resolveFinding(): Promise<void> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Resolving findings is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async reopenFinding(): Promise<void> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Finding actions are not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async undismissFinding(): Promise<void> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Restoring findings is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async deleteFinding(): Promise<void> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Deleting findings is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async pruneJobs(): Promise<void> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Pruning jobs is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  /**
+   * Demo mode: the static bundle records no queue (there is no BFF and no
+   * processing agent), so the job list is honestly empty. Mirrors the
+   * empty-tray posture of `getNodeFindings` / `getNodeProbExtensions`.
+   */
+  async listJobs(_query: IJobsQuery = {}): Promise<IJobApi[]> {
+    return [];
   }
 
   /**

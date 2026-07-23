@@ -87,12 +87,12 @@ function ctxWith(over: Partial<IAnalyzerContext>, ops?: IRecordedOp[]): IAnalyze
 
 describe('core/name-reserved rule', () => {
   it('emits no issues when reservedNodePaths is absent', async () => {
-    const issues = await nameReservedAnalyzer.evaluate(ctxWith({}));
+    const issues = await nameReservedAnalyzer.evaluate!(ctxWith({}));
     assert.deepEqual(issues, []);
   });
 
   it('emits no issues when reservedNodePaths is empty', async () => {
-    const issues = await nameReservedAnalyzer.evaluate(
+    const issues = await nameReservedAnalyzer.evaluate!(
       ctxWith({ reservedNodePaths: new Set() }),
     );
     assert.deepEqual(issues, []);
@@ -117,7 +117,7 @@ describe('core/name-reserved rule', () => {
       provider: 'claude',
       frontmatter: { name: 'release' },
     });
-    const issues = await nameReservedAnalyzer.evaluate(
+    const issues = await nameReservedAnalyzer.evaluate!(
       ctxWith({
         nodes: [helpCmd, generalAgent, okNode],
         reservedNodePaths: new Set([helpCmd.path, generalAgent.path]),
@@ -137,7 +137,7 @@ describe('core/name-reserved rule', () => {
   });
 
   it('silently skips reserved paths that do not match any node (defensive)', async () => {
-    const issues = await nameReservedAnalyzer.evaluate(
+    const issues = await nameReservedAnalyzer.evaluate!(
       ctxWith({
         nodes: [],
         reservedNodePaths: new Set(['.claude/commands/ghost.md']),
@@ -182,7 +182,7 @@ describe('core/name-reserved rule', () => {
       resolvedTarget: generalAgent.path,
     };
     const ops: IRecordedOp[] = [];
-    const issues = await nameReservedAnalyzer.evaluate(
+    const issues = await nameReservedAnalyzer.evaluate!(
       ctxWith(
         {
           nodes: [hub, generalAgent],
@@ -244,7 +244,7 @@ describe('core/name-reserved rule', () => {
       resolvedTarget: generalAgent.path,
     };
     const ops: IRecordedOp[] = [];
-    const issues = await nameReservedAnalyzer.evaluate(
+    const issues = await nameReservedAnalyzer.evaluate!(
       ctxWith(
         {
           nodes: [hub, generalAgent],
@@ -292,7 +292,7 @@ describe('core/name-reserved rule', () => {
       },
     };
     const ops: IRecordedOp[] = [];
-    const issues = await nameReservedAnalyzer.evaluate(
+    const issues = await nameReservedAnalyzer.evaluate!(
       ctxWith(
         {
           nodes: [hub, general],
@@ -339,7 +339,7 @@ describe('core/name-reserved rule', () => {
       resolvedTarget: generalAgent.path,
     };
     // No `ops` argument → ctx carries no `adjustConfidence`.
-    const issues = await nameReservedAnalyzer.evaluate(
+    const issues = await nameReservedAnalyzer.evaluate!(
       ctxWith({
         nodes: [hub, generalAgent],
         links: [downgradedLink],

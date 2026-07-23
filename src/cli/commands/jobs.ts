@@ -1,7 +1,8 @@
 /**
- * `sm job prune`, retention GC for `state_jobs` rows + orphan job-file
- * cleanup. Lands in Step 7.3; the stub it replaces lived in
- * `commands/stubs.ts`.
+ * `sm jobs prune`, retention GC for `state_jobs` rows plus orphaned
+ * `state_job_contents` collection. DB-only model: job content lives in
+ * `state_job_contents` keyed by `content_hash`, there is no
+ * `.skill-map/jobs/*.md` on-disk artifact to unlink.
  *
  * Default behaviour (no flags):
  *   - Read `jobs.retention.completed` and `jobs.retention.failed` from
@@ -10,31 +11,26 @@
  *   - For each terminal status with a non-null retention:
  *       cutoffMs = Date.now() - retentionSeconds * 1000
  *     Delete `state_jobs` rows in that status with `finished_at <
- *     cutoffMs`. Unlink the matching MD files in `.skill-map/jobs/`.
+ *     cutoffMs`, then collect every orphaned `state_job_contents` row
+ *     (content referenced by zero surviving jobs) in the SAME
+ *     transaction (per `spec/job-lifecycle.md` §Retention and GC).
  *   - `state_executions` is NOT touched (append-only through v1.0 per
  *     `spec/db-schema.md`).
  *
- * `--orphan-files`: ALSO scan `.skill-map/jobs/` for MD files whose
- * absolute path is not referenced by any `state_jobs.file_path`, and
- * delete them. Useful when the DB was wiped manually but the file
- * tree is still around (or vice versa, recovered DB but the runner
- * crashed mid-render and the file never made it into the row). When
- * combined with retention, both passes run; orphan detection happens
- * AFTER retention so files released by pruned rows don't show up as
- * orphans.
- *
- * `--dry-run`: print what would happen and touch nothing, neither DB
- * nor FS. Output shape is identical to the live mode.
+ * `--dry-run`: print what would happen and touch nothing. The retention
+ * counts are exact; the orphaned-content count is reported as `0` in
+ * dry-run (the sweep is only computable after the jobs are actually
+ * gone, and the live mode reports the real figure).
  *
  * `--json`: emit a single document on stdout shaped as
  *
  *   {
  *     dryRun: boolean,
  *     retention: {
- *       completed: { policySeconds: 2592000 | null, deleted: 4, files: 4 },
- *       failed:    { policySeconds: null,           deleted: 0, files: 0 }
+ *       completed: { policySeconds: 2592000 | null, deleted: 4 },
+ *       failed:    { policySeconds: null,           deleted: 0 }
  *     },
- *     orphanFiles: { scanned: true, deleted: 2 } | { scanned: false }
+ *     prunedContents: 2
  *   }
  *
  * Exit codes (per `spec/cli-contract.md` §Exit codes):
@@ -43,21 +39,14 @@
  *   5  DB missing, run `sm init` first.
  */
 
-import { unlink } from 'node:fs/promises';
-import { relative } from 'node:path';
-
 import { Command, Option } from 'clipanion';
 
 import type { IPruneResult, StoragePort } from '../../kernel/ports/storage.js';
-import { findOrphanJobFiles } from '../../kernel/jobs/orphan-files.js';
 import { loadConfig } from '../../kernel/config/loader.js';
-import { assertContained } from '../../core/paths/path-guard.js';
-import {
-  defaultProjectJobsDir,
-  requireDbOrExit,
-  resolveDbPath,
-} from '../util/db-path.js';
+import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
+import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { appendOperation } from '../../core/operations-log.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { JOBS_TEXTS } from '../i18n/jobs.texts.js';
@@ -68,7 +57,6 @@ import { withSqlite } from '../util/with-sqlite.js';
 interface IRetentionStatusOutput {
   policySeconds: number | null;
   deleted: number;
-  files: number;
 }
 
 interface IPruneOutput {
@@ -76,30 +64,32 @@ interface IPruneOutput {
   retention: {
     completed: IRetentionStatusOutput;
     failed: IRetentionStatusOutput;
+    cancelled: IRetentionStatusOutput;
   };
-  orphanFiles:
-    | { scanned: true; deleted: number }
-    | { scanned: false };
+  /**
+   * Orphaned `state_job_contents` rows collected across the retention
+   * passes (content blobs left unreferenced once terminal jobs were
+   * pruned). `0` in dry-run.
+   */
+  prunedContents: number;
 }
 
 export class JobPruneCommand extends SmCommand {
-  static override paths = [['job', 'prune']];
+  static override paths = [['jobs', 'prune']];
   static override usage = Command.Usage({
     category: 'Jobs',
-    description: 'Retention GC for completed / failed jobs (per config policy). --orphan-files removes MD files with no DB row.',
+    description: 'Retention GC for completed / failed / cancelled jobs (per config policy), plus orphaned job-content collection.',
     details: `
-      Reads jobs.retention.completed and jobs.retention.failed from the
-      layered config. For each non-null policy, deletes terminal jobs
-      whose finishedAt is older than the cutoff and unlinks their MD
-      files in .skill-map/jobs/.
-
-      With --orphan-files: ALSO scans .skill-map/jobs/ for MD files not
-      referenced by any state_jobs row and deletes them. Both passes
-      run; orphans are scanned AFTER retention so freshly-pruned
-      files don't double-count.
+      Reads jobs.retention.completed, jobs.retention.failed, and
+      jobs.retention.cancelled from the layered config. For each non-null
+      policy, deletes terminal jobs whose finishedAt is older than the
+      cutoff, then collects orphaned
+      state_job_contents rows (content referenced by no surviving job)
+      in the same transaction. Job content is DB-only, there is no
+      .skill-map/jobs/ directory to clean.
 
       With --dry-run: counts and reports what would happen without
-      touching the DB or the FS.
+      touching the DB.
 
       Exits 0 on success, 5 if the DB is missing (run \`sm init\`
       first), 2 on any other operational failure (malformed config,
@@ -107,25 +97,23 @@ export class JobPruneCommand extends SmCommand {
     `,
     examples: [
       ['Apply retention policy', '$0 job prune'],
-      ['Apply retention + clean orphan files', '$0 job prune --orphan-files'],
       ['Preview without touching the DB', '$0 job prune --dry-run --json'],
     ],
   });
 
-  orphanFiles = Option.Boolean('--orphan-files', false, {
-    description: 'Also remove MD files in .skill-map/jobs/ that have no matching state_jobs row.',
-  });
   dryRun = Option.Boolean('-n,--dry-run', false, {
-    description: 'Report what would be pruned without touching the DB or filesystem.',
+    description: 'Report what would be pruned without touching the DB.',
   });
 
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
-    const jobsDir = defaultProjectJobsDir(ctx);
 
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
+    // Write verb: refuse a drifted DB before any table mutation
+    // (spec/cli-contract.md §Schema-drift rebuild).
+    assertNoDriftForWrite(dbPath);
 
     const stderrAnsi = this.ansiFor('stderr');
     const errGlyph = stderrAnsi.red('✕');
@@ -141,58 +129,44 @@ export class JobPruneCommand extends SmCommand {
 
     const completedPolicy = cfg.jobs.retention.completed;
     const failedPolicy = cfg.jobs.retention.failed;
+    const cancelledPolicy = cfg.jobs.retention.cancelled;
     const now = Date.now();
 
     const out: IPruneOutput = {
       dryRun: this.dryRun,
       retention: {
-        completed: { policySeconds: completedPolicy, deleted: 0, files: 0 },
-        failed: { policySeconds: failedPolicy, deleted: 0, files: 0 },
+        completed: { policySeconds: completedPolicy, deleted: 0 },
+        failed: { policySeconds: failedPolicy, deleted: 0 },
+        cancelled: { policySeconds: cancelledPolicy, deleted: 0 },
       },
-      orphanFiles: this.orphanFiles ? { scanned: true, deleted: 0 } : { scanned: false },
+      prunedContents: 0,
     };
 
     try {
       await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-        // --- retention pass ------------------------------------------------
-        // Two independent passes (one per terminal status). For dry-run we
-        // mirror the same query but stop before DELETE / unlink.
+        // One independent retention pass per terminal status
+        // (completed / failed / cancelled). Each live pass prunes its rows
+        // AND sweeps content orphaned by that deletion in the same
+        // transaction; a later pass catches any content an earlier one
+        // could not yet see. For dry-run we mirror the same query but stop
+        // before DELETE.
         if (completedPolicy !== null) {
           const cutoff = now - completedPolicy * 1000;
           const result = await this.pruneOrPreview('completed', cutoff, adapter, this.dryRun);
           out.retention.completed.deleted = result.deletedCount;
-          out.retention.completed.files = await this.unlinkFiles(
-            result.filePaths,
-            jobsDir,
-            this.dryRun,
-          );
+          out.prunedContents += result.prunedContents;
         }
         if (failedPolicy !== null) {
           const cutoff = now - failedPolicy * 1000;
           const result = await this.pruneOrPreview('failed', cutoff, adapter, this.dryRun);
           out.retention.failed.deleted = result.deletedCount;
-          out.retention.failed.files = await this.unlinkFiles(
-            result.filePaths,
-            jobsDir,
-            this.dryRun,
-          );
+          out.prunedContents += result.prunedContents;
         }
-
-        // --- orphan-files pass ---------------------------------------------
-        // Runs AFTER retention so freshly-pruned files are seen by the
-        // FS scan only if their `state_jobs` row was already gone
-        // (which it isn't, after we just deleted it, they would qualify).
-        // We don't double-count: retention unlinked them, the FS scan
-        // won't find them anymore.
-        if (this.orphanFiles && out.orphanFiles.scanned) {
-          const referenced = await adapter.jobs.listReferencedFilePaths();
-          const orphans = findOrphanJobFiles(jobsDir, referenced);
-          const removed = await this.unlinkFiles(
-            orphans.orphanFilePaths,
-            jobsDir,
-            this.dryRun,
-          );
-          out.orphanFiles = { scanned: true, deleted: removed };
+        if (cancelledPolicy !== null) {
+          const cutoff = now - cancelledPolicy * 1000;
+          const result = await this.pruneOrPreview('cancelled', cutoff, adapter, this.dryRun);
+          out.retention.cancelled.deleted = result.deletedCount;
+          out.prunedContents += result.prunedContents;
         }
       });
     } catch (err) {
@@ -201,6 +175,19 @@ export class JobPruneCommand extends SmCommand {
       return ExitCode.Error;
     }
 
+    if (!this.dryRun) {
+      const deleted =
+        out.retention.completed.deleted +
+        out.retention.failed.deleted +
+        out.retention.cancelled.deleted;
+      appendOperation(ctx.cwd, {
+        op: 'jobs.prune',
+        target: '*',
+        channel: 'cli',
+        outcome: 'ok',
+        detail: `deleted=${deleted}`,
+      });
+    }
     if (this.json) {
       this.printer!.data(JSON.stringify(out) + '\n');
       return ExitCode.Ok;
@@ -210,7 +197,7 @@ export class JobPruneCommand extends SmCommand {
   }
 
   private async pruneOrPreview(
-    status: 'completed' | 'failed',
+    status: 'completed' | 'failed' | 'cancelled',
     cutoffMs: number,
     adapter: StoragePort,
     dryRun: boolean,
@@ -220,49 +207,19 @@ export class JobPruneCommand extends SmCommand {
       : adapter.jobs.pruneTerminal(status, cutoffMs);
   }
 
-  private async unlinkFiles(
-    paths: string[],
-    jobsDir: string,
-    dryRun: boolean,
-  ): Promise<number> {
-    if (dryRun) return paths.length;
-    let removed = 0;
-    for (const p of paths) {
-      // Defence-in-depth (audit M2): refuse to unlink a path that does
-      // not stay inside `jobsDir`. A tampered `state_jobs.filePath` (or
-      // a future row-writer that forgets the discipline) could otherwise
-      // delete arbitrary files. Skip-and-continue on violation; the
-      // miscount is a tolerable inconsistency, an out-of-tree delete is
-      // not. `relative()` returns a `..`-leading path on escape, which
-      // `assertContained` rejects.
-      try {
-        assertContained(jobsDir, relative(jobsDir, p));
-      } catch {
-        continue;
-      }
-      try {
-        await unlink(p);
-        removed += 1;
-      } catch {
-        // Already missing or permission denied, count it as "not removed"
-        // but keep going. The DB row is already gone (or about to be);
-        // a stale file path is a tolerable inconsistency.
-      }
-    }
-    return removed;
-  }
-
   private printPretty(out: IPruneOutput): void {
     const tag = out.dryRun ? JOBS_TEXTS.pruneTagDryRun : JOBS_TEXTS.pruneTagApply;
     const c = out.retention.completed;
     const f = out.retention.failed;
+    const x = out.retention.cancelled;
     const rowsVerb = out.dryRun ? JOBS_TEXTS.pruneRowsVerbDryRun : JOBS_TEXTS.pruneRowsVerbApply;
-    const filesVerb = out.dryRun ? JOBS_TEXTS.pruneFilesVerbDryRun : JOBS_TEXTS.pruneFilesVerbApply;
-    // Pretty-printed retention row is human commentary, not the
-    // verb's primary payload (`--json` carries the same fields on
-    // stdout). Routes through `printer.info` so a `-q` invocation
-    // silences it and so the channel matches the rest of the M1
-    // wiring.
+    const contentsVerb = out.dryRun
+      ? JOBS_TEXTS.pruneContentsVerbDryRun
+      : JOBS_TEXTS.pruneContentsVerbApply;
+    // Pretty-printed retention rows are human commentary, not the verb's
+    // primary payload (`--json` carries the same fields on stdout). Routes
+    // through `printer.info` so a `-q` invocation silences it and so the
+    // channel matches the rest of the M1 wiring.
     const printer = this.printer!;
     printer.info(
       `${tag}\n` +
@@ -271,26 +228,24 @@ export class JobPruneCommand extends SmCommand {
           policy: formatPolicy(c.policySeconds),
           rows: c.deleted,
           rowsVerb,
-          files: c.files,
-          filesVerb,
         }) +
         tx(JOBS_TEXTS.pruneRetentionRow, {
           label: JOBS_TEXTS.pruneLabelFailed,
           policy: formatPolicy(f.policySeconds),
           rows: f.deleted,
           rowsVerb,
-          files: f.files,
-          filesVerb,
+        }) +
+        tx(JOBS_TEXTS.pruneRetentionRow, {
+          label: JOBS_TEXTS.pruneLabelCancelled,
+          policy: formatPolicy(x.policySeconds),
+          rows: x.deleted,
+          rowsVerb,
+        }) +
+        tx(JOBS_TEXTS.pruneContentsRow, {
+          count: out.prunedContents,
+          verb: contentsVerb,
         }),
     );
-    if (out.orphanFiles.scanned) {
-      printer.info(
-        tx(JOBS_TEXTS.pruneOrphanFilesRow, {
-          count: out.orphanFiles.deleted,
-          verb: out.dryRun ? JOBS_TEXTS.pruneOrphanFilesVerbDryRun : JOBS_TEXTS.pruneOrphanFilesVerbApply,
-        }),
-      );
-    }
   }
 }
 
@@ -300,4 +255,3 @@ function formatPolicy(seconds: number | null): string {
   if (seconds % 3600 === 0) return `${seconds / 3600}h`;
   return `${seconds}s`;
 }
-

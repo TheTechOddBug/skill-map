@@ -4,7 +4,7 @@ Language-neutral test suite the specification demands. A conforming implementati
 
 The suite splits across two ownership boundaries:
 
-- **Spec-owned cases**, kernel-agnostic. They live in this directory and ship with `@skill-map/spec`. Today: `kernel-empty-boot` (boot invariant) and the `preamble-bitwise-match` deferred case. The universal preamble fixture (`preamble-v1.txt`) lives here too.
+- **Spec-owned cases**, kernel-agnostic. They live in this directory and ship with `@skill-map/spec` (see the inventory below; `kernel-empty-boot` guards the boot invariant, `preamble-bitwise-match` the preamble bytes). The universal preamble fixture (`preamble-v2.txt`) lives here too.
 - **Provider-owned cases**, exercise a Provider's own `kinds` catalog. They live next to the Provider's manifest, under `<plugin-dir>/conformance/`. The reference impl ships one such suite at [`src/extensions/providers/claude/conformance/`](../../src/extensions/providers/claude/conformance/) covering Claude's five kinds (`skill` / `agent` / `command` / `hook` / `note`) via cases `basic-scan`, `rename-high`, `orphan-detection`.
 
 The shape below is normative; the case count in either bucket expands before spec-v1.0.0 (see [`../versioning.md`](../versioning.md)). See [`coverage.md`](./coverage.md) for the spec-owned matrix and the Provider's own coverage file (e.g. `src/extensions/providers/claude/conformance/coverage.md`) for the Provider-owned matrix.
@@ -27,7 +27,7 @@ External consumers (alt-impl authors, Provider authors validating their own work
 spec/conformance/
 ├── README.md                 ← this file
 ├── fixtures/
-│   └── preamble-v1.txt       ← verbatim preamble text for bitwise-match checks
+│   └── preamble-v2.txt       ← verbatim preamble text for bitwise-match checks
 └── cases/
     └── kernel-empty-boot.json ← declarative case (see "Case format" below)
 ```
@@ -65,7 +65,11 @@ A case is a JSON document with this shape:
   "setup": {
     "disableAllProviders": false,
     "disableAllExtractors": false,
-    "disableAllAnalyzers": false
+    "disableAllAnalyzers": false,
+    "priorScans": [{ "fixture": "some-folder", "flags": [] }],
+    "priorInvokes": [
+      { "verb": "job", "sub": "submit", "args": ["ai-summarizer-action"], "flags": ["-n", "notes.md"] }
+    ]
   },
 
   "invoke": {
@@ -78,7 +82,7 @@ A case is a JSON document with this shape:
   "assertions": [
     { "type": "exit-code", "value": 0 },
     { "type": "json-path", "path": "$.schemaVersion", "equals": 1 },
-    { "type": "stdout-contains-verbatim", "fixture": "preamble-v1.txt" }
+    { "type": "stdout-contains-verbatim", "fixture": "preamble-v2.txt" }
   ]
 }
 ```
@@ -90,7 +94,7 @@ A case is a JSON document with this shape:
 | `id` | yes | Stable identifier. Used in reports. MUST match the filename: `cases/<id>.json`. |
 | `description` | yes | Human-readable, short. |
 | `fixture` | sometimes | Folder name under `fixtures/`. Omit for cases that do not need a corpus (e.g. empty-boot). |
-| `setup` | no | Pre-invocation flags. All boolean toggles default to `false`. |
+| `setup` | no | Pre-invocation flags and staging steps. All boolean toggles default to `false`. `priorScans` are ordered fixture-swap + `sm scan` steps (prior snapshots for heuristic verbs); `priorInvokes` are ordered arbitrary invocations run after the top-level `fixture` copy and before the main `invoke`, each of which MUST exit 0 (state a scan cannot establish, e.g. a submitted job). |
 | `invoke.verb` | yes | First-level CLI verb. |
 | `invoke.sub` | no | Subcommand for verbs that have them (e.g. `job submit`). |
 | `invoke.args` | no | Positional arguments. |
@@ -104,7 +108,8 @@ A case is a JSON document with this shape:
 | `exit-code` | `value: integer` | Exit code of the invocation MUST equal `value`. |
 | `json-path` | `path: string`, one of `equals` / `greaterThan` / `lessThan` / `matches` | JSONPath (RFC 9535 subset) evaluated against stdout (parsed as JSON); the extracted value MUST satisfy the comparator. `matches` uses ECMAScript regex. |
 | `file-exists` | `path: string` | Path (glob permitted) MUST exist after invocation, relative to the scope root. |
-| `file-contains-verbatim` | `path: string`, `fixture: string` | File at `path` (glob permitted; resolves to exactly one) MUST contain the bytes of `fixtures/<fixture>` verbatim. Used for preamble checks. |
+| `file-contains-verbatim` | `path: string`, `fixture: string` | File at `path` (glob permitted; resolves to exactly one) MUST contain the bytes of `fixtures/<fixture>` verbatim. |
+| `stdout-contains-verbatim` | `fixture: string` | stdout of the invocation MUST contain the bytes of `fixtures/<fixture>` verbatim. Used for preamble bitwise checks. |
 | `file-matches-schema` | `path: string`, `schema: string` | File at `path` (glob permitted; resolves to exactly one) MUST be valid JSON and MUST validate against `schemas/<schema>`. |
 | `stderr-matches` | `pattern: string` | stderr MUST match the regex (ECMAScript). |
 
@@ -121,16 +126,13 @@ Assertion types beyond this list MAY be proposed via spec-vX.Y.Z minor bumps. Im
 | `kernel-empty-boot` | With every Provider/Extractor/Analyzer disabled, scanning an empty scope returns a valid empty graph. |
 | `no-global-scope` | The `-g/--global` flag does not exist. Implementations MUST reject it on every verb (exit `2`, "unknown option"). Guards `cli-contract.md` §Scope is always project-local. |
 | `orphan-markdown-fallback` | Multi-Provider corpus where one node lands via the universal `core/markdown` fallback and another via vendor-specific claude classification. Locks the orchestrator's path-dedup contract. |
+| `preamble-bitwise-match` | Rendered job content contains `preamble-v2.txt` byte-for-byte: a `ai-summarizer-action` job submitted over a scanned markdown node (via `setup.priorInvokes`), read back with `sm jobs preview --last`. Guards `prompt-preamble.md` §Stability. |
+| `extension-mode-routing` | Dispatch routing follows the Action manifest `mode`: a probabilistic Action submitted via `sm jobs submit` lands as a queued `state_jobs` row (asserted through `sm jobs list --json`), never executing in-process. |
+| `extension-mode-routing-deterministic` | The deterministic half: `sm jobs submit` refuses a deterministic Action with exit 2 and the in-process advisory. |
 | `plugin-missing-ui-rejected` | Drop-in Provider whose `kinds[*]` entry omits the required `ui` block fails AJV validation with `invalid-manifest`; the rest of the pipeline keeps running. |
 | `score-phase-confidence` | Drop-in analyzer declaring `phase: 'score'` composes a confidence adjustment (`delta -0.4`, then a no-op `floor 0.5`) on top of the kernel's 1.0 baseline (a clean resolved link keeps that baseline, no built-in op); the folded `scan_links.confidence` lands at exactly `0.6`. |
-| `sidecar-end-to-end` | Co-located `.sm` sidecar shape, stale / orphan detection, populated `Node.sidecar` overlay, both `annotation-stale` and `annotation-orphan` issues emitted. |
+| `sidecar-end-to-end` | Co-located `.sm` sidecar shape, stale / orphan detection, populated `Node.sidecar` overlay, the `annotation-orphan` issue emitted (drift is icon-only, no `annotation-stale` issue). |
 | `view-action-button` | An analyzer declaring the unified `inspector.header.badge` + the new `inspector.action.button` slots loads clean, while a sibling declaring the retired `inspector.header.badge.counter` slot fails as `invalid-manifest`; `sm scan` survives. |
-
-Cases explicitly referenced elsewhere in the spec (landing before v1.0):
-
-| Id | Source | Verifies |
-|---|---|---|
-| `preamble-bitwise-match` | `prompt-preamble.md` | Rendered job content (printed by `sm job preview`) contains `preamble-v1.txt` byte-for-byte. Deferred to Step 10 (requires `sm job preview`). |
 
 ### Provider-owned (per `<plugin-dir>/conformance/`)
 
@@ -171,7 +173,7 @@ The reference runner ships under `src/conformance/index.ts`; the verb lives at `
 - [`coverage.md`](./coverage.md), schema-to-case coverage matrix and release gates.
 - [`../versioning.md`](../versioning.md), what constitutes a major/minor/patch change to the suite.
 - [`../architecture.md`](../architecture.md), kernel empty-boot invariant exercised by `kernel-empty-boot`.
-- [`../prompt-preamble.md`](../prompt-preamble.md), verbatim text checked by `preamble-bitwise-match` (deferred).
+- [`../prompt-preamble.md`](../prompt-preamble.md), verbatim text checked by `preamble-bitwise-match`.
 
 ---
 

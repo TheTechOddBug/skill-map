@@ -31,15 +31,20 @@
  * `--run`; only the TypeScript field name changes. This avoids
  * shadowing the inherited abstract `run()` method, which would silently
  * break the command at runtime (the field's getter wins over the
- * prototype method). Today this convention applies to `JobSubmitCommand`
- * (`stubs.ts`); future job verbs follow the same rule.
+ * prototype method). No verb exposes `--run` today; any future one
+ * follows this rule.
  */
 
 import { Command, Option } from 'clipanion';
 
 import { configureLogger } from '../../kernel/util/logger.js';
 import type { TLogLevel } from '../../kernel/ports/logger.js';
+import {
+  DbSchemaDriftError,
+  DbVersionMismatchError,
+} from '../../core/sqlite/db-version-check.js';
 import { ansiFor, type IAnsi } from './ansi.js';
+import { ExitCode } from './exit-codes.js';
 import { Logger } from './logger.js';
 import { emitDoneStderr, startElapsed, type IElapsed } from './elapsed.js';
 import { createPrinter, type IPrinter } from './printer.js';
@@ -115,6 +120,25 @@ export abstract class SmCommand extends Command {
     });
     try {
       return await this.run();
+    } catch (err) {
+      // Global DB-open advisory boundary. A `withSqlite` open can throw
+      // two typed errors carrying a pre-rendered `humanMessage`: the
+      // read-side `DbVersionMismatchError` (newer / different-major DB) and
+      // the write-side `DbSchemaDriftError` (drifted on-disk schema). Both
+      // are operator advisories, not bugs, so render the block to stderr
+      // and exit `Error` (2) instead of letting the error escape to
+      // Clipanion, whose default handler dumps the class name + a stack
+      // trace to stdout. This is the CLI's global command boundary: every
+      // `sm` verb extends `SmCommand`, so both errors render identically
+      // here regardless of which verb opened the DB.
+      if (err instanceof DbSchemaDriftError || err instanceof DbVersionMismatchError) {
+        const block = err.humanMessage.endsWith('\n')
+          ? err.humanMessage
+          : `${err.humanMessage}\n`;
+        this.context.stderr.write(block);
+        return ExitCode.Error;
+      }
+      throw err;
     } finally {
       // `run()` may opt out by setting `this.emitElapsed = false`
       // (e.g. the `--watch` alias on `sm scan` delegates into the

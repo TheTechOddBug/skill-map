@@ -7,20 +7,10 @@
  */
 
 export const ANNOTATION_STALE_TEXTS = {
-  // Diagnosis bodies (`<what>; <why>`). The shared `formatFinding` helper
-  // emits no subject (the affected node IS the finding's own node); the
-  // remediation hint moves to `Issue.fix.summary` below.
-  /** body changed since last bump */
-  bodyDrift: 'Sidecar stale; body changed since last bump',
-  /** frontmatter changed since last bump */
-  frontmatterDrift: 'Sidecar stale; frontmatter changed since last bump',
-  /** both body and frontmatter changed */
-  bothDrift: 'Sidecar stale; body and frontmatter changed since last bump',
-  /** Remediation hint surfaced via `Issue.fix.summary`. */
-  fixSummary: 'Run `sm bump <path>` to refresh the sidecar.',
-  // Tooltips for the `card.footer.right` clock chip emitted alongside
-  // the issue. Lists only the drifted face(s), in-sync faces are
-  // omitted so the operator immediately sees what's modified without
+  // Tooltips for the `card.footer.right` clock chip / inspector header
+  // badge (the analyzer's ONLY surfaces since the info issue was retired,
+  // user call 2026-07-20). Lists only the drifted face(s), in-sync faces
+  // are omitted so the operator immediately sees what's modified without
   // scanning prose. No `{{path}}` placeholder, the chip already sits
   // on the affected node. The hint `sm bump <path>` keeps `<path>` as
   // a literal placeholder the operator substitutes.

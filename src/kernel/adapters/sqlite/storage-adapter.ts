@@ -8,10 +8,13 @@
  * **Storage-port-promotion (Phase A).** The adapter exposes the
  * non-transactional namespaces (`scans`, `issues`, `history`, `jobs`,
  * `trust`, `migrations`, `pluginMigrations`) as direct
- * properties. `enrichments` is transactional-only by design, it lives
- * exclusively on the `ITransactionalStorage` subset returned by
- * `port.transaction(...)`, never as a top-level namespace, so writers
- * are forced to share a transaction with `scans.persist`. Adapters
+ * properties. The `enrichments` MUTATION surfaces are
+ * transactional-only by design, they live exclusively on the
+ * `ITransactionalStorage` subset returned by `port.transaction(...)`
+ * (`upsertMany` shares the refresh persist transaction; `upsertState`
+ * commits atomically with its `state_executions` sibling), so writers
+ * are forced to share a transaction. The top-level `enrichments`
+ * namespace is the read-only `state_enrichments` projection. Adapters
  * fail to compile when their share is incomplete on their end.
  *
  * **camelCase ↔ snake_case bridging.** This adapter installs Kysely's
@@ -53,6 +56,7 @@ import type {
   INodeCounts,
   INodeFilter,
   IPersistOptions,
+  IPruneResult,
 } from '../../types/storage.js';
 import type { Issue, Node, ScanResult } from '../../types.js';
 import { STORAGE_TEXTS } from '../../i18n/storage.texts.js';
@@ -60,7 +64,9 @@ import { tx } from '../../util/tx.js';
 import { NodeSqliteDialect } from './dialect.js';
 import {
   aggregateHistoryStats,
+  insertExecution,
   listExecutions,
+  listNodesWithRuns,
   migrateNodeFks,
 } from './history.js';
 import type {
@@ -68,11 +74,29 @@ import type {
   IListExecutionsFilter,
   THistoryStatsPeriod,
 } from './history.js';
-import { pruneTerminalJobs, selectReferencedJobFilePaths } from './jobs.js';
+import {
+  cancelAllActive,
+  cancelJob,
+  claimNext,
+  countJobsByStatus,
+  failAllActive,
+  failJob,
+  findActiveDuplicate,
+  getJob,
+  getJobContent,
+  jobsIntegrityCounts,
+  listJobs,
+  pruneTerminalJobs,
+  reapExpired,
+  recordJobTerminal,
+  submitFixerJob,
+  submitJob,
+} from './jobs.js';
 import {
   applyMigrations,
   discoverMigrations,
   planMigrations,
+  runQuickCheck,
   writeBackup,
 } from './migrations.js';
 import {
@@ -93,6 +117,7 @@ import {
   loadEffectiveMaxRenderNodes,
   loadExtractorRuns,
   loadIssueCountsByPath,
+  loadDistinctNodeProviders,
   loadLiteNodes,
   loadNodeEnrichments,
   loadScanMeta,
@@ -101,7 +126,27 @@ import {
   rowToLink,
   rowToNode,
 } from './scan-load.js';
-import { persistScanResult } from './scan-persistence.js';
+import { persistScanResult, updateNodeAnnotations } from './scan-persistence.js';
+import {
+  listStaleStateEnrichments,
+  listStateEnrichmentsForNode,
+  upsertStateEnrichment,
+} from './enrichments.js';
+import { deleteSummaries, listSummariesForNode } from './summaries.js';
+import {
+  countAllFindings,
+  countUnresolvedFindingsByPath,
+  countStaleFindings,
+  deleteAllFindings,
+  deleteFindingById,
+  deleteStaleFindings,
+  getFindingById,
+  listFindings,
+  resolveFindingByHuman,
+  dismissFindingByHuman,
+  reopenFinding,
+  suppressionsByPath,
+} from './findings.js';
 import {
   listAllContributionErrors,
   loadContributionsForNode,
@@ -207,8 +252,11 @@ export class SqliteStorageAdapter implements StoragePort {
   contributions!: StoragePort['contributions'];
   tags!: StoragePort['tags'];
   issues!: StoragePort['issues'];
+  enrichments!: StoragePort['enrichments'];
   history!: StoragePort['history'];
   jobs!: StoragePort['jobs'];
+  summaries!: StoragePort['summaries'];
+  findings!: StoragePort['findings'];
   favorites!: StoragePort['favorites'];
   preferences!: StoragePort['preferences'];
   trust!: StoragePort['trust'];
@@ -302,9 +350,12 @@ export class SqliteStorageAdapter implements StoragePort {
       findNodes: (filter) => findNodes(this.db, filter),
       findNode: (path) => findNode(this.db, path),
       listLiteNodes: () => loadLiteNodes(this.db),
+      distinctNodeProviders: () => loadDistinctNodeProviders(this.db),
       issueCountsByPath: () => loadIssueCountsByPath(this.db),
       effectiveMaxRenderNodes: () => loadEffectiveMaxRenderNodes(this.db),
       loadBranch: (prefixes, limit) => loadBranch(this.db, prefixes, limit),
+      refreshAnnotations: (path, annotations) =>
+        updateNodeAnnotations(this.db, path, annotations),
     };
 
     this.contributions = {
@@ -329,8 +380,15 @@ export class SqliteStorageAdapter implements StoragePort {
       findActive: (predicate) => findActiveIssues(this.db, predicate),
     };
 
+    this.enrichments = {
+      listStateForNode: (nodeId) => listStateEnrichmentsForNode(this.db, nodeId),
+      listStaleStateCandidates: (nowMs) => listStaleStateEnrichments(this.db, nowMs),
+    };
+
     this.history = {
       list: (filter: IListExecutionsFilter) => listExecutions(this.db, filter),
+      nodesWithRuns: () => listNodesWithRuns(this.db),
+      insertExecution: (record) => insertExecution(this.db, record),
       aggregateStats: (
         range: IHistoryStatsRange,
         period: THistoryStatsPeriod,
@@ -339,11 +397,47 @@ export class SqliteStorageAdapter implements StoragePort {
     };
 
     this.jobs = {
+      submit: (row, content) => submitJob(this.db, row, content),
+      submitFixer: (row, content) => submitFixerJob(this.db, row, content),
+      findActiveDuplicate: (extensionId, extensionVersion, nodeId, contentHash) =>
+        findActiveDuplicate(this.db, extensionId, extensionVersion, nodeId, contentHash),
+      list: (filter) => listJobs(this.db, filter),
+      get: (id) => getJob(this.db, id),
+      getContent: (contentHash) => getJobContent(this.db, contentHash),
+      claim: (runner, nowMs, filter) => claimNext(this.db, runner, nowMs, filter),
+      cancel: (id, nowMs) => cancelJob(this.db, id, nowMs),
+      cancelAllActive: (nowMs) => cancelAllActive(this.db, nowMs),
+      fail: (id, nowMs) => failJob(this.db, id, nowMs),
+      failAllActive: (nowMs) => failAllActive(this.db, nowMs),
+      countByStatus: () => countJobsByStatus(this.db),
+      integrityCounts: () => jobsIntegrityCounts(this.db),
+      reapExpired: (nowMs) => reapExpired(this.db, nowMs),
       pruneTerminal: (status, cutoffMs) =>
         pruneTerminalJobs(this.db, status, cutoffMs),
       listTerminalCandidates: (status, cutoffMs) =>
         listTerminalCandidates(this.db, status, cutoffMs),
-      listReferencedFilePaths: () => selectReferencedJobFilePaths(this.db),
+      recordTerminal: (execution, summary, findings, resolutions) =>
+        recordJobTerminal(this.db, execution, summary, findings, resolutions),
+    };
+
+    this.summaries = {
+      forNode: (nodeId) => listSummariesForNode(this.db, nodeId),
+      remove: (nodeId, summarizerActionId) => deleteSummaries(this.db, nodeId, summarizerActionId),
+    };
+
+    this.findings = {
+      list: (filter) => listFindings(this.db, filter),
+      countUnresolvedByPath: (paths) => countUnresolvedFindingsByPath(this.db, paths),
+      countStale: () => countStaleFindings(this.db),
+      pruneStale: () => deleteStaleFindings(this.db),
+      resolveByHuman: (id, note, nowMs) => resolveFindingByHuman(this.db, id, note, nowMs),
+      dismissByHuman: (id, note, nowMs) => dismissFindingByHuman(this.db, id, note, nowMs),
+      reopen: (id, nowMs) => reopenFinding(this.db, id, nowMs),
+      get: (id) => getFindingById(this.db, id),
+      suppressionsByPath: (paths) => suppressionsByPath(this.db, paths),
+      countClearable: (nodeId) => countAllFindings(this.db, nodeId),
+      clear: (nodeId) => deleteAllFindings(this.db, nodeId),
+      removeById: (id) => deleteFindingById(this.db, id),
     };
 
     this.favorites = {
@@ -384,6 +478,7 @@ export class SqliteStorageAdapter implements StoragePort {
           const v = row?.user_version;
           return typeof v === 'number' && Number.isFinite(v) ? v : null;
         }),
+      quickCheck: () => withRawDb(path, (raw) => runQuickCheck(raw)),
     };
 
     this.pluginMigrations = {
@@ -787,10 +882,12 @@ function buildTxSubset(trx: Transaction<IDatabase>): ITransactionalStorage {
       upsertMany: async (records: IEnrichmentRecord[]) => {
         await upsertEnrichments(trx, records);
       },
+      upsertState: (row) => upsertStateEnrichment(trx, row),
     },
     history: {
       migrateNodeFks: (from: string, to: string) =>
         migrateNodeFks(trx, from, to),
+      insertExecution: (record) => insertExecution(trx, record),
     },
   };
 }
@@ -834,28 +931,29 @@ async function upsertEnrichments(
 }
 
 /**
- * Read-only `state_jobs` filter mirroring the SELECT side of
- * `pruneTerminalJobs`, `sm job prune --dry-run` consumes this so the
- * preview names exactly the rows the live mode would delete.
+ * Read-only `state_jobs` count mirroring the DELETE side of
+ * `pruneTerminalJobs`, `sm jobs prune --dry-run` consumes this so the
+ * preview reports exactly how many rows the live mode would delete.
+ *
+ * `prunedContents` is reported as `0` in the preview: the orphaned
+ * `state_job_contents` sweep only becomes computable AFTER the terminal
+ * jobs are actually gone, and predicting it across the two independent
+ * per-status passes is not worth the SQL complexity for a dry-run.
+ * The live path (`pruneTerminalJobs`) returns the real collected count.
  */
 async function listTerminalCandidates(
   db: Kysely<IDatabase>,
-  status: 'completed' | 'failed',
+  status: 'completed' | 'failed' | 'cancelled',
   cutoffMs: number,
-): Promise<{ deletedCount: number; filePaths: string[] }> {
+): Promise<IPruneResult> {
   const rows = await db
     .selectFrom('state_jobs')
-    .select(['id', 'filePath'])
+    .select('id')
     .where('status', '=', status)
     .where('finishedAt', 'is not', null)
     .where('finishedAt', '<', cutoffMs)
     .execute();
-  return {
-    deletedCount: rows.length,
-    filePaths: rows
-      .map((r) => r.filePath)
-      .filter((p): p is string => p !== null),
-  };
+  return { deletedCount: rows.length, prunedContents: 0 };
 }
 
 async function setFavorite(db: Kysely<IDatabase>, path: string): Promise<void> {

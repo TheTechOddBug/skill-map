@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isAgentSpawnEvent, isNodeActivityEvent } from '../ws-event';
+import { isAgentSpawnEvent, isJobSubmittedEvent, isNodeActivityEvent } from '../ws-event';
 
 /**
  * Guard coverage for the live-activity v1.1 wire additions
@@ -229,5 +229,52 @@ describe('isNodeActivityEvent, v1.1 fields (keepAlive + stats)', () => {
         data: { nodePath: CHILD, phase: 'start', stats: 7 },
       }),
     ).toBe(false);
+  });
+});
+
+describe('isJobSubmittedEvent (Step 16 piece 1, canonical catalog envelope)', () => {
+  const DATA = {
+    nodePath: '.claude/agents/demo-worker.md',
+    extensionId: 'core/todo-finder',
+    supersededIds: [] as string[],
+  };
+  const ENVELOPE = {
+    type: 'job.submitted',
+    timestamp: 1_700_000_000_000,
+    runId: 'r-queue-20260717-090000-a1b2',
+    jobId: 'job-7',
+    data: DATA,
+  };
+
+  it('accepts the canonical job.submitted envelope (jobId on the envelope)', () => {
+    expect(isJobSubmittedEvent(ENVELOPE)).toBe(true);
+  });
+
+  it('rejects other job lifecycle types (record-side events have their own shapes)', () => {
+    expect(isJobSubmittedEvent({ ...ENVELOPE, type: 'job.completed' })).toBe(false);
+  });
+
+  it('rejects a missing or blank envelope jobId', () => {
+    const { jobId: _jobId, ...noJobId } = ENVELOPE;
+    expect(isJobSubmittedEvent(noJobId)).toBe(false);
+    expect(isJobSubmittedEvent({ ...ENVELOPE, jobId: '' })).toBe(false);
+  });
+
+  it('rejects a payload missing or blanking a required data field', () => {
+    for (const key of ['nodePath', 'extensionId'] as const) {
+      const missing: Record<string, unknown> = { ...DATA };
+      delete missing[key];
+      expect(isJobSubmittedEvent({ ...ENVELOPE, data: missing })).toBe(false);
+      expect(isJobSubmittedEvent({ ...ENVELOPE, data: { ...DATA, [key]: '' } })).toBe(false);
+    }
+    expect(
+      isJobSubmittedEvent({ ...ENVELOPE, data: { ...DATA, supersededIds: 'nope' } }),
+    ).toBe(false);
+  });
+
+  it('rejects a malformed envelope (no data / bad timestamp)', () => {
+    const { data: _data, ...noData } = ENVELOPE;
+    expect(isJobSubmittedEvent(noData)).toBe(false);
+    expect(isJobSubmittedEvent({ ...ENVELOPE, timestamp: null })).toBe(false);
   });
 });

@@ -110,8 +110,6 @@ describe('spec § Elapsed time, every read-side verb emits `done in <…>` on st
     const c = build(CheckCommand, (cmd) => {
       cmd.node = undefined;
       cmd.analyzers = undefined;
-      cmd.includeProb = false;
-      cmd.async = false;
       cmd.noPlugins = false;
     });
     await c.cmd.execute();
@@ -148,7 +146,7 @@ describe('spec § Elapsed time, every read-side verb emits `done in <…>` on st
   it('sm history', async () => {
     const c = build(HistoryCommand, (cmd) => {
       cmd.node = undefined;
-      cmd.action = undefined;
+      cmd.extension = undefined;
       cmd.status = undefined;
       cmd.since = undefined;
       cmd.until = undefined;

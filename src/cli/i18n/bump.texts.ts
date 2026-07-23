@@ -45,6 +45,17 @@ export const BUMP_TEXTS = {
   stagedRequiresPendingHint:
     'Pass `--pending --staged` to bump every stale sidecar and `git add` each successful write.',
 
+  /**
+   * The verb wraps `core/node-bump`, which ships `defaultEnabled: false`;
+   * a disabled extension must not work through any surface (2026-07-21
+   * sweep), so the verb refuses up front with the enable path.
+   */
+  extensionDisabled:
+    '{{glyph}}  The core/node-bump extension is disabled in this project.\n' +
+    '   {{hint}}\n',
+  extensionDisabledHint:
+    'Enable it in the UI (Settings > Plugins) or set `plugins.core.extensions.node-bump.enabled: true` in .skill-map/settings.json, then retry.',
+
   // --- single-node mode -----------------------------------------------------
   nodeNotFound:
     '{{glyph}}  Node not found in the persisted scan: {{nodePath}}\n' +
@@ -125,6 +136,6 @@ export const BUMP_TEXTS = {
   // --- .sm consent gate ---------------------------------------------------
   // The shared strings live in `consent.texts.ts` (CONSENT_TEXTS); they
   // are used by every verb that writes a sidecar (`sm bump`,
-  // `sm sidecar refresh`, `sm sidecar annotate`) with a `{{verb}}`
+  // `sm sidecars refresh`, `sm sidecars annotate`) with a `{{verb}}`
   // placeholder for the directed prefix.
 } as const;

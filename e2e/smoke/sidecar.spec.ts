@@ -23,13 +23,14 @@ import { expect, test } from '@playwright/test';
  *   - Stale surface: the files rail row for a `stale-*` node MUST render
  *     the stale-clock icon (`files__stale-icon`), the rail's replacement
  *     for the removed filter chip as the "UI surfaces staleness" signal.
- *   - Bump button surface: the button MUST be present in the inspector
- *     toolbar when a node is selected (the inspector opens via the shared
- *     `?path=` query param). Per Decision #3, the button is disabled when
- *     the sidecar status is `'fresh'` and enabled in "first-time creation"
- *     state. The assertion here is presence, not the enabled/disabled
- *     flavour (covered by unit tests, and the bump action itself is a
- *     no-op in read-only demo mode).
+ *   - Sidecar action surface: the surfaces re-homed from action-button
+ *     contributions each follow their plugin (2026-07-21 enabled-gate
+ *     sweep). With the demo fixture's default toggles, the tag row
+ *     (`core/node-set-tags`, enabled by default) renders for a selected
+ *     node while the stability and version chips (`core/node-set-stability`
+ *     / `core/node-bump`, `defaultEnabled: false`, no opt-in in the
+ *     fixture) stay absent. Presence only; the dispatch flows are
+ *     covered by unit tests (the demo bundle is read-only anyway).
  *   - Annotations card: nodes with no sidecar overlay MUST NOT show the
  *     annotations card (it gates on `n.sidecar?.present`). In the current
  *     demo bundle `docs/STYLE.md` is the canonical "no sidecar overlay"
@@ -80,27 +81,31 @@ test.describe('sidecar UI surface (Step 9.6.5)', () => {
     await expect(row.locator('.files__stale-icon')).toBeVisible();
   });
 
-  test('inspector renders the sidecar action button when a node is selected', async ({ page }) => {
+  test('inspector renders the contribution-gated sidecar action surface when a node is selected', async ({ page }) => {
     await gotoWorkspace(page);
 
-    // Inspector action buttons are plugin contributions to the
+    // Inspector action surfaces are plugin contributions to the
     // `inspector.action.button` slot, self-projected by an Action's
-    // scan-time `project(ctx)`. The bump button (`core/node-bump`) ships
-    // `stability: 'experimental'`, so it is disabled by default and the
-    // read-only demo bundle does not render it; the stable sidecar-action
-    // affordance is `core/node-set-stability` ("Set stability"), which
-    // self-projects a button on every node. Deep-link to the demo node via
-    // the shared `?path=` query param (there is no `/map` route anymore).
+    // scan-time `project(ctx)`, and each surface follows its plugin
+    // (2026-07-21 enabled-gate sweep). In the default demo bundle:
+    //   - `core/node-set-tags` is enabled by default and projects on
+    //     every real node, so its re-homed surface, the inline tag row,
+    //     MUST render (this is the end-to-end proof that an action's
+    //     projection reaches the UI gate).
+    //   - `core/node-set-stability` and `core/node-bump` ship
+    //     `defaultEnabled: false` and the demo fixture carries no opt-in,
+    //     so their re-homed header surfaces (stability chip, version
+    //     chip) MUST be absent, a disabled extension leaves no surface.
+    // Deep-link to the demo node via the shared `?path=` query param
+    // (there is no `/map` route anymore).
     await page.goto(`./?path=${encodeURIComponent(STALE_PATH)}`);
     await page.waitForLoadState('networkidle');
 
     await expect(page.getByTestId('inspector-view')).toBeVisible();
 
-    // The action renders as a `<p-button>` in the inspector action-button
-    // slot. Assert by accessible name so the test does not couple to the
-    // renderer's internal testid. Presence only; the enabled/disabled +
-    // dispatch flow is covered in the unit tests.
-    await expect(page.getByRole('button', { name: 'Set stability' })).toBeVisible();
+    await expect(page.getByTestId('node-tags')).toBeVisible();
+    await expect(page.getByTestId('inspector-stability-tag')).toHaveCount(0);
+    await expect(page.getByTestId('inspector-version')).toHaveCount(0);
   });
 
   test('inspector annotations card is hidden for nodes without a sidecar overlay', async ({ page }) => {

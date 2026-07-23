@@ -50,12 +50,21 @@ import { HTTPException } from 'hono/http-exception';
 import { builtInPlugins, type IBuiltInPlugin } from '../../plugins/built-ins.js';
 import { sortPluginsForPresentation } from '../../plugins/presentation-order.js';
 import { writeConfigValue } from '../../core/config/helper.js';
+import {
+  buildPairEnabledProbe,
+  collectPairEdges,
+  expandPairToggle,
+  pairEdgeSourcesFromBuiltIns,
+  pairEdgeSourcesFromDiscovered,
+  toEnableConfigKey,
+} from '../../core/plugins/pair-toggle.js';
 import { defaultProjectPluginsDir } from '../../core/paths/db-path.js';
 import {
   buildFreshResolver as buildFreshResolverFromConfig,
   composeResolver as composeResolverFromConfig,
 } from '../../core/runtime/fresh-resolver.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import { bffReadVersionCheck } from '../util/db-read-check.js';
 import type { IContributionErrorRecord } from '../../kernel/adapters/sqlite/contributions.js';
 import { isPluginLocked } from '../../kernel/config/locked-plugins.js';
 import {
@@ -68,6 +77,10 @@ import type { IDiscoveredPlugin } from '../../kernel/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { tx } from '../../kernel/util/tx.js';
 import { BulkValidationError, DbMissingError } from '../app.js';
+import type { WsBroadcaster } from '../broadcaster.js';
+import { buildJobCancelledEvent } from '../events.js';
+import { appendOperation } from '../../core/operations-log.js';
+import { cancelQueuedJobsForKeys } from '../../core/jobs/cancel-disabled.js';
 import { buildListEnvelope } from '../envelope.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
 import { makeBodyValidator } from '../util/parse-body.js';
@@ -322,7 +335,16 @@ type TPluginHandle =
   | { kind: 'built-in'; plugin: IBuiltInPlugin }
   | { kind: 'discovered'; plugin: IDiscoveredPlugin };
 
-export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
+/**
+ * Plugins-route deps: the shared read bag plus the `/ws` broadcaster,
+ * consumed by the disable cascade's per-job `job.cancelled` fan-out
+ * (`spec/job-lifecycle.md` §Cancellation).
+ */
+export interface IPluginsRouteDeps extends IRouteDeps {
+  broadcaster: WsBroadcaster;
+}
+
+export function registerPluginsRoute(app: Hono, deps: IPluginsRouteDeps): void {
   app.get('/api/plugins', async (c) => {
     // Build the resolver fresh on every GET so a `PATCH` from the same
     // session (or from `sm plugins enable/disable` running side-by-side)
@@ -389,7 +411,10 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
     // (`#applyLockGate` in toggle.ts), so a multi-child cascade does
     // not abort when one extension happens to be locked.
     const writable = childIds.filter((q) => !isPluginLocked(q));
-    return await persistManyAndProject(c, deps, writable, body.enabled);
+    // Pair toggle: a companion may live OUTSIDE this plugin (a user
+    // plugin's fixer pairing a core analyzer), so expand after the
+    // child fan-out.
+    return await persistManyAndProject(c, deps, expandPairKeys(deps, writable, body.enabled), body.enabled);
   });
 
   // PATCH /api/plugins/:pluginId/extensions/:extensionId, the canonical
@@ -417,7 +442,9 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
       });
     }
     const body = await parsePatchBody(c.req.raw);
-    return await persistManyAndProject(c, deps, [qualified], body.enabled);
+    // Pair toggle: companions flip in the same write and surface in the
+    // returned envelope (the SPA replaces its state from it).
+    return await persistManyAndProject(c, deps, expandPairKeys(deps, [qualified], body.enabled), body.enabled);
   });
 
   // PATCH /api/plugins/:id/trust, plugin-level LOCAL import-trust toggle
@@ -513,7 +540,7 @@ function listItems(
 async function loadTrustState(deps: IRouteDeps): Promise<ITrustState> {
   const trustMap =
     (await tryWithSqlite(
-      { databasePath: deps.options.dbPath, autoBackup: false },
+      { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
       (adapter) => adapter.trust.loadTrustMap(),
     )) ?? new Map<string, boolean>();
   return { trustMap };
@@ -545,7 +572,7 @@ function buildBuiltInItems(
         id: ext.id,
         kind: ext.kind,
         version: ext.version,
-        enabled: resolveEnabled(qualified, installedDefaultEnabled(ext.stability)),
+        enabled: resolveEnabled(qualified, installedDefaultEnabled(ext.stability, ext.defaultEnabled)),
         ...(ext.description ? { description: ext.description } : {}),
         ...(ext.stability ? { stability: ext.stability } : {}),
         ...(extLocked ? { locked: true } : {}),
@@ -675,7 +702,7 @@ function projectExtensionRows(
       id: ext.id,
       kind: ext.kind,
       version: ext.version,
-      enabled: resolveEnabled(qualified, installedDefaultEnabled(ext.stability)),
+      enabled: resolveEnabled(qualified, installedDefaultEnabled(ext.stability, ext.defaultEnabled)),
       ...(description ? { description } : {}),
       ...(ext.stability ? { stability: ext.stability } : {}),
       ...(extLocked ? { locked: true } : {}),
@@ -765,7 +792,7 @@ async function loadRuntimeContributionErrors(
 ): Promise<Map<string, IPluginRuntimeContributionError[]>> {
   try {
     const rows = await tryWithSqlite(
-      { databasePath: deps.options.dbPath, autoBackup: false },
+      { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
       (adapter) => adapter.contributions.listAllErrors(),
     );
     if (rows === null) return new Map();
@@ -836,7 +863,7 @@ function attachRuntimeContributionErrors(
  */
 async function persistManyAndProject(
   c: Context,
-  deps: IRouteDeps,
+  deps: IPluginsRouteDeps,
   keys: readonly string[],
   enabled: boolean,
 ): Promise<Response> {
@@ -845,9 +872,10 @@ async function persistManyAndProject(
     writeConfigValue(toEnableConfigKey(key), enabled, { target: 'project', cwd });
   }
   // On disable, purge persisted contributions so the UI stops rendering
-  // the plugin's chips before the next scan. Best-effort: a missing DB
-  // (no scan yet) simply has nothing to purge.
-  if (!enabled && keys.length > 0) await purgeContributionsForKeys(deps, keys);
+  // the plugin's chips before the next scan, and run the disable cascade
+  // over the keys' queued jobs. Best-effort: a missing DB (no scan yet)
+  // simply has nothing to purge or cancel.
+  if (!enabled && keys.length > 0) await applyDisableCascade(deps, keys);
   // Enable writes mutated settings.json; drop the cached layered view so
   // the projection (and any later read) sees the fresh values.
   if (keys.length > 0) deps.configService.reload();
@@ -881,41 +909,91 @@ async function persistTrustAndProject(
 }
 
 /**
- * Map a toggle key to its config dot-path. Qualified `<plugin>/<ext>`
- * ids map to `plugins.<plugin>.extensions.<ext>.enabled`; a bare plugin
- * id (defensive) maps to the plugin-level `plugins.<plugin>.enabled`.
+ * Pair toggle (spec/plugin-author-guide.md §Paired extensions): expand a
+ * toggle key set over the Modelo B `analyzerIds` edges, mirroring the
+ * CLI's `#expandPairs`. Locked companions are dropped silently (bulk
+ * lock posture) and an id the batch names explicitly is never overridden
+ * by a companion flip (`batchExplicit`, bulk route only). The optional
+ * `batchEnabledOverlay` treats keys the same batch is ENABLING as
+ * already enabled inside the disable refcount, so a mixed batch resolves
+ * exactly as stated. The probe reads the cached layered view PRE-write
+ * (`composeResolver` posture; the routes call this before any
+ * `writeConfigValue`).
  */
-function toEnableConfigKey(id: string): string {
-  const slash = id.indexOf('/');
-  if (slash < 0) return `plugins.${id}.enabled`;
-  return `plugins.${id.slice(0, slash)}.extensions.${id.slice(slash + 1)}.enabled`;
+function expandPairKeys(
+  deps: IRouteDeps,
+  keys: readonly string[],
+  enabled: boolean,
+  batchExplicit?: ReadonlySet<string>,
+  batchEnabledOverlay?: ReadonlySet<string>,
+): string[] {
+  if (keys.length === 0) return [...keys];
+  const sources = [
+    ...pairEdgeSourcesFromBuiltIns(builtInPlugins),
+    ...pairEdgeSourcesFromDiscovered(deps.pluginRuntime.discovered),
+  ];
+  const probe = buildPairEnabledProbe(
+    sources,
+    composeResolverFromConfig(deps.configService.effective()),
+  );
+  const isCurrentlyEnabled =
+    batchEnabledOverlay === undefined
+      ? probe
+      : (key: string): boolean => (batchEnabledOverlay.has(key) ? true : probe(key));
+  const { added } = expandPairToggle({
+    requestedKeys: keys,
+    enabled,
+    edges: collectPairEdges(sources),
+    isCurrentlyEnabled,
+  });
+  const kept = added.filter(
+    (a) =>
+      !isPluginLocked(a.key) &&
+      !isPluginLocked(a.key.slice(0, a.key.indexOf('/'))) &&
+      batchExplicit?.has(a.key) !== true,
+  );
+  return [...keys, ...kept.map((a) => a.key)];
 }
 
 /**
- * Open the DB once and purge persisted `scan_contributions` rows for
- * every disabled key. Mirrors the CLI's `sm plugins disable` purge path
- * (`src/cli/commands/plugins/toggle.ts`). Each key is a bare plugin id
- * or qualified `<plugin>/<ext>`; the split mirrors how
- * `scan_contributions` rows are grouped. Best-effort: a missing DB
- * returns null (nothing to purge).
+ * Full disable side-effect cascade for a set of freshly-disabled keys
+ * (`spec/job-lifecycle.md` §Cancellation): one DB open covering the
+ * `scan_contributions` purge (each key is a bare plugin id or a
+ * qualified `<plugin>/<ext>`, mirroring how the rows are grouped; same
+ * split as the CLI's `sm plugins disable` path) AND the queued-job
+ * cancellation, then one
+ * `job.cancelled` WS broadcast per affected id plus one aggregated
+ * operations-log line (mirror of the CLI toggle). Best-effort: a
+ * missing DB has nothing to purge or cancel.
  */
-async function purgeContributionsForKeys(
-  deps: IRouteDeps,
+async function applyDisableCascade(
+  deps: IPluginsRouteDeps,
   keys: readonly string[],
 ): Promise<void> {
-  await tryWithSqlite(
-    { databasePath: deps.options.dbPath, autoBackup: false },
-    async (adapter) => {
-      for (const key of keys) {
-        const slash = key.indexOf('/');
-        if (slash < 0) {
-          await adapter.contributions.purgeByPlugin(key);
-        } else {
-          await adapter.contributions.purgeByPlugin(key.slice(0, slash), key.slice(slash + 1));
+  const cancelledIds =
+    (await tryWithSqlite(
+      { databasePath: deps.options.dbPath, autoBackup: false },
+      async (adapter) => {
+        for (const key of keys) {
+          const slash = key.indexOf('/');
+          if (slash < 0) {
+            await adapter.contributions.purgeByPlugin(key);
+          } else {
+            await adapter.contributions.purgeByPlugin(key.slice(0, slash), key.slice(slash + 1));
+          }
         }
-      }
-    },
-  );
+        return cancelQueuedJobsForKeys(adapter, keys, Date.now());
+      },
+    )) ?? [];
+  if (cancelledIds.length === 0) return;
+  for (const id of cancelledIds) deps.broadcaster.broadcast(buildJobCancelledEvent(id));
+  appendOperation(deps.runtimeContext.cwd, {
+    op: 'jobs.cancel',
+    target: '*',
+    channel: 'ui',
+    outcome: 'cancelled',
+    detail: `extension-disabled cancelled=${cancelledIds.length}`,
+  });
 }
 
 /**
@@ -1127,7 +1205,7 @@ function handleExtensionSettings(
  */
 async function persistBulkAndProject(
   c: Context,
-  deps: IRouteDeps,
+  deps: IPluginsRouteDeps,
   changes: readonly IBulkChange[],
 ): Promise<Response> {
   // 1. Enable toggles land in the config layers (settings.json). Bare
@@ -1139,10 +1217,11 @@ async function persistBulkAndProject(
   //    `writeConfigValue` (file writes, AJV-revalidated per write).
   const settingsTouched = persistBulkSettings(deps, changes);
 
-  // 3. Purge contributions for every disabled key so the UI stops
-  //    rendering its chips before the next scan (best-effort; a missing
-  //    DB simply has nothing to purge).
-  if (disabledKeys.length > 0) await purgeContributionsForKeys(deps, disabledKeys);
+  // 3. Purge contributions AND cancel queued jobs for every disabled
+  //    key (the disable cascade) so the UI stops rendering its chips and
+  //    the queue drops its pending work before the next scan
+  //    (best-effort; a missing DB simply has nothing to purge or cancel).
+  if (disabledKeys.length > 0) await applyDisableCascade(deps, disabledKeys);
 
   // 4. The on-disk config mutated; drop the cached layered view so the
   //    projection below (and any later read) sees the fresh values.
@@ -1155,26 +1234,46 @@ async function persistBulkAndProject(
  * Apply every bulk change's enable toggle to the config layers and
  * collect the disabled keys (for the contributions purge). Bare plugin
  * ids cascade across every child extension; qualified `<plugin>/<ext>`
- * ids apply verbatim. Extracted from `persistBulkAndProject` so the
- * orchestrator stays within the complexity budget.
+ * ids apply verbatim, last-write-wins per key across the batch. Both
+ * groups then run the pair toggle with EXPLICIT-WINS semantics: a
+ * companion flip never overrides an id the batch names, and keys the
+ * batch is enabling count as enabled inside the disable refcount, so a
+ * mixed batch (`[{finder: disable}, {fixer: enable}]`) applies exactly
+ * as stated. Extracted from `persistBulkAndProject` so the orchestrator
+ * stays within the complexity budget.
  */
 function applyBulkEnableWrites(
   deps: IRouteDeps,
   changes: readonly IBulkChange[],
 ): { disabledKeys: string[]; toggleTouched: boolean } {
   const cwd = deps.runtimeContext.cwd;
-  const disabledKeys: string[] = [];
-  let toggleTouched = false;
+  // Last-write-wins per key (Map preserves first-seen order per key).
+  const desired = new Map<string, boolean>();
   for (const change of changes) {
     if (change.enabled === undefined) continue;
-    const writeKeys = expandBulkChangeKeys(change, deps);
-    for (const key of writeKeys) {
-      writeConfigValue(toEnableConfigKey(key), change.enabled, { target: 'project', cwd });
-      if (!change.enabled) disabledKeys.push(key);
-    }
-    if (writeKeys.length > 0) toggleTouched = true;
+    for (const key of expandBulkChangeKeys(change, deps)) desired.set(key, change.enabled);
   }
-  return { disabledKeys, toggleTouched };
+  const explicit = new Set(desired.keys());
+  const enableRequested = [...desired].filter(([, on]) => on).map(([key]) => key);
+  const disableRequested = [...desired].filter(([, on]) => !on).map(([key]) => key);
+  const enableKeys = expandPairKeys(deps, enableRequested, true, explicit);
+  const disableKeys = expandPairKeys(
+    deps,
+    disableRequested,
+    false,
+    explicit,
+    new Set(enableRequested),
+  );
+  for (const key of enableKeys) {
+    writeConfigValue(toEnableConfigKey(key), true, { target: 'project', cwd });
+  }
+  for (const key of disableKeys) {
+    writeConfigValue(toEnableConfigKey(key), false, { target: 'project', cwd });
+  }
+  return {
+    disabledKeys: disableKeys,
+    toggleTouched: enableKeys.length > 0 || disableKeys.length > 0,
+  };
 }
 
 /**

@@ -12,8 +12,10 @@
  */
 
 import type {
+  IConfigResolutionRowApi,
   IBranchResponseApi,
   IContributionApi,
+  IFindingsEnvelopeApi,
   IFolderNodeLite,
   IHealthResponseApi,
   IIssueApi,
@@ -21,6 +23,8 @@ import type {
   IListEnvelopeApi,
   INodeApi,
   INodeDetailApi,
+  INodeSummaryRowApi,
+  IProbExtensionsApi,
   IProjectConfigApi,
   IScanResultApi,
 } from '../../../models/api';
@@ -156,6 +160,31 @@ export interface ICorpusPort {
   loadConfig(): Promise<IProjectConfigApi>;
 
   /**
+   * `GET /api/config/resolution`: the effective config flattened to
+   * leaf rows with per-key layer provenance (the Settings > About
+   * hierarchy viewer). Secret-typed plugin settings arrive MASKED. The
+   * static (demo) source returns an empty list (no layered project).
+   */
+  getConfigResolution(): Promise<IConfigResolutionRowApi[]>;
+
+  /**
+   * `GET /api/nodes/:pathB64/summary`: the node's stored semantic
+   * summaries (recorded by a summarizer Action through the job queue),
+   * each with its server-derived `stale` flag. Returns `null` on 404
+   * (unknown node / missing DB), mirroring `getNode`; a summarized-never
+   * node returns an empty array. Demo returns `[]`.
+   */
+  getNodeSummary(path: string): Promise<INodeSummaryRowApi[] | null>;
+
+  /**
+   * `DELETE /api/nodes/:pathB64/summary?summarizer=<id>`: hard-delete
+   * the node's stored summary for that action (the block's delete X).
+   * A regenerable machine judgment, no consent. Resolves on `204`; the
+   * caller re-fetches. Demo rejects `'demo-readonly'`.
+   */
+  deleteNodeSummary(path: string, summarizerActionId: string): Promise<void>;
+
+  /**
    * Phase 4 / View contribution system, lazy lookup for a single
    * contribution emitted on a single node. Used by the slot host
    * when the bulk endpoint omitted contributions because
@@ -169,6 +198,39 @@ export interface ICorpusPort {
     contributionId: string,
     path: string,
   ): Promise<IContributionApi | null>;
+
+  /**
+   * Per-node AI-actions tray (`GET /api/nodes/:pathB64/findings`, Step 16
+   * piece 1). Returns the `findings` envelope: the needs-attention rows
+   * in `items` (the `sm findings -n <path>` default view; stale rows
+   * ride inline with their per-row `stale` flag) with the excluded-count
+   * honesty pair on `counts` (`dismissedExcluded` / `fixedExcluded`) so
+   * the UI can render the same "N dismissed, M fixed hidden" line as the
+   * CLI. `bucket` narrows to ONE hidden bucket instead (the
+   * `?dismissed=1` / `?fixed=1` filters), backing the tray's reveal
+   * toggles. Returns `null` when the BFF responds 404 (unknown node /
+   * missing DB), mirroring `getNode`. The static (demo) data source
+   * returns an empty tray (the bundle records no AI actions).
+   */
+  getNodeFindings(
+    path: string,
+    bucket?: 'dismissed' | 'fixed',
+  ): Promise<IFindingsEnvelopeApi | null>;
+
+  /**
+   * Per-node probabilistic launcher catalog
+   * (`GET /api/nodes/:pathB64/prob-extensions`, Step 16), classified
+   * manifest-mechanically: `finders` are probabilistic Analyzers
+   * matching the node that HAVE a fixer (each entry carries `fixerIds`
+   * plus `hasOpenFindings`, driving the two-state Detect ⇄ Fix button);
+   * `standalone` are finders WITHOUT a fixer plus probabilistic Actions
+   * with no `analyzerIds` (single-action buttons). Each entry carries the
+   * live queue `state` (`idle` / `queued` / `running`) for this (node,
+   * extension) pair. Returns the unwrapped `item`; `null` on a 404
+   * (unknown node / missing DB). The static (demo) data source returns
+   * the empty catalog.
+   */
+  getNodeProbExtensions(path: string): Promise<IProbExtensionsApi | null>;
 
   /**
    * Mark `path` as favorited. PUT against `/api/favorites/:pathB64`.

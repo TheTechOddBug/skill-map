@@ -31,6 +31,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { Kernel, IRegisteredViewContribution } from '../../kernel/index.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import { bffReadVersionCheck } from '../util/db-read-check.js';
 import { tx } from '../../kernel/util/tx.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
 import { parseRequiredString } from '../util/parse-query.js';
@@ -158,7 +159,7 @@ export function registerContributionsRoutes(
 
     const rows =
       (await tryWithSqlite(
-        { databasePath: deps.options.dbPath, autoBackup: false },
+        { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
         (adapter) =>
           adapter.contributions.lookup(pluginId, contributionId, nodePath, extensionId),
       )) ?? [];

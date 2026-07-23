@@ -101,6 +101,15 @@ export interface IExtensionBase {
    */
   stability?: TExtensionStability;
   /**
+   * Optional installed-default override for the ENABLED axis, orthogonal
+   * to `stability` (spec `base.schema.json#/properties/defaultEnabled`,
+   * 2026-07-21): when declared it wins over the stability-derived
+   * default, so a `stable` extension can ship as a deliberate opt-in
+   * (`defaultEnabled: false`) without mislabeling its maturity. Explicit
+   * operator overrides win over it as usual.
+   */
+  defaultEnabled?: boolean;
+  /**
    * Optional inspector-only ordering hint (default 100). Inside the
    * owning plugin's inspector section, orders this extension's
    * `inspector.body.panel.*` bricks relative to its sibling extensions.

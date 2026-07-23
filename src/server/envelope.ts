@@ -43,6 +43,9 @@ export type TEnvelopeKind =
   | 'issues'
   | 'plugins'
   | 'config'
+  // `/api/config/resolution`, the settings-hierarchy viewer's flattened
+  // effective config with per-key layer provenance (value shape).
+  | 'config.resolution'
   | 'graph'
   | 'node'
   | 'health'
@@ -51,7 +54,27 @@ export type TEnvelopeKind =
   // scanned node, `{ path, kind, errorCount, warnCount }`). `/api/branch`
   // is exempt from the envelope (direct shape, like `/api/scan`), so its
   // `kind: 'branch'` discriminator is NOT a `TEnvelopeKind`.
-  | 'folders';
+  | 'folders'
+  // Step 16 piece 1 (the findings workbench, inspector half):
+  //   - `findings`, list shape from `GET /api/nodes/:pathB64/findings`
+  //     (`counts` additionally carries the `dismissedExcluded` /
+  //     `fixedExcluded` honesty pair).
+  //   - `node.prob-extensions`, single shape from
+  //     `GET /api/nodes/:pathB64/prob-extensions` (the launcher catalog).
+  //   - `job.submitted`, action-result shape from
+  //     `POST /api/nodes/:pathB64/jobs` (`value` + `elapsedMs`, no
+  //     registries; built locally by `routes/node-jobs.ts` like
+  //     `action.applied`).
+  | 'findings'
+  | 'node.prob-extensions'
+  | 'job.submitted'
+  // Cross-corpus job-queue list from `GET /api/jobs` (read side of the UI
+  // queue inspector). A registry-less list shape: the queue projection is
+  // orthogonal to the kind / provider / contribution catalogs (like the
+  // action-result and catalog envelopes), so it embeds none of them and the
+  // route serving it keeps a narrow deps bag (dbPath only). Built by
+  // `buildJobsEnvelope` below.
+  | 'jobs';
 
 export interface IPageInfo {
   offset: number;
@@ -65,6 +88,19 @@ export interface IEnvelopeCounts {
   returned: number;
   /** Pagination window. Present only when the endpoint paginates. */
   page?: IPageInfo;
+  /**
+   * Findings the default view held back as DISMISSED (their class matches
+   * an active sidecar suppression, top precedence). REQUIRED on
+   * `kind: 'findings'` envelopes, absent elsewhere; always 0 under an
+   * explicit bucket filter (`rest-envelope.schema.json`).
+   */
+  dismissedExcluded?: number;
+  /**
+   * Findings the default view held back as `fixed` (a fixed+stale row
+   * counts here; a suppressed one counts as dismissed). Same presence
+   * rules.
+   */
+  fixedExcluded?: number;
 }
 
 /**
@@ -213,6 +249,24 @@ export interface IListEnvelope<TItem> {
   contributionsRegistry: TContributionsRegistry;
 }
 
+/**
+ * Registry-less list envelope for `GET /api/jobs` (`kind: 'jobs'`). Unlike
+ * `IListEnvelope`, it carries no kind / provider / contribution registries:
+ * a job-queue projection is orthogonal to those catalogs (same rationale as
+ * the action-result and annotation / contribution catalog variants in
+ * `rest-envelope.schema.json`), and dropping them lets the route stay on a
+ * narrow deps bag. The endpoint does not paginate, so `counts.total` equals
+ * `counts.returned` equals `items.length`.
+ */
+export interface IJobsEnvelope<TItem> {
+  schemaVersion: typeof REST_ENVELOPE_SCHEMA_VERSION;
+  kind: 'jobs';
+  items: TItem[];
+  /** Echo of the applied filters (`status` / `extension` / `node`). */
+  filters: Record<string, unknown>;
+  counts: { total: number; returned: number };
+}
+
 export interface ISingleEnvelope<TItem> {
   schemaVersion: typeof REST_ENVELOPE_SCHEMA_VERSION;
   kind: TEnvelopeKind;
@@ -243,6 +297,13 @@ export interface IBuildListEnvelopeOpts<TItem> {
   total: number;
   /** Pagination window. Omit when the endpoint does not paginate. */
   page?: IPageInfo;
+  /**
+   * The `kind: 'findings'` honesty pair (`counts.dismissedExcluded` /
+   * `counts.fixedExcluded`, REQUIRED on that kind per
+   * `rest-envelope.schema.json`; stale rows ride the item list inline
+   * flagged since 2026-07-20). Omit on every other kind.
+   */
+  excluded?: { dismissedExcluded: number; fixedExcluded: number };
   /** Active kindRegistry, every payload-bearing envelope embeds it. */
   kindRegistry: TKindRegistry;
   /** Active providerRegistry, every payload-bearing envelope embeds it. */
@@ -262,6 +323,10 @@ export function buildListEnvelope<TItem>(opts: IBuildListEnvelopeOpts<TItem>): I
     returned: opts.items.length,
   };
   if (opts.page) counts.page = opts.page;
+  if (opts.excluded) {
+    counts.dismissedExcluded = opts.excluded.dismissedExcluded;
+    counts.fixedExcluded = opts.excluded.fixedExcluded;
+  }
   return {
     schemaVersion: REST_ENVELOPE_SCHEMA_VERSION,
     kind: opts.kind,
@@ -271,6 +336,24 @@ export function buildListEnvelope<TItem>(opts: IBuildListEnvelopeOpts<TItem>): I
     kindRegistry: opts.kindRegistry,
     providerRegistry: opts.providerRegistry,
     contributionsRegistry: opts.contributionsRegistry,
+  };
+}
+
+/**
+ * Build the registry-less `kind: 'jobs'` list envelope for `GET /api/jobs`.
+ * `counts.total` / `counts.returned` are both derived from `items.length`
+ * (the endpoint does not paginate) so a caller cannot drift them apart.
+ */
+export function buildJobsEnvelope<TItem>(
+  items: TItem[],
+  filters: Record<string, unknown>,
+): IJobsEnvelope<TItem> {
+  return {
+    schemaVersion: REST_ENVELOPE_SCHEMA_VERSION,
+    kind: 'jobs',
+    items,
+    filters,
+    counts: { total: items.length, returned: items.length },
   };
 }
 

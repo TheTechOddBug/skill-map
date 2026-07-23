@@ -9,12 +9,12 @@
  * (`collectNameMismatches`, computed once from the kind registry), the
  * same precompute-and-project pattern as `core/name-collision` reading
  * `ctx.nameCollisions`. Severity travels IN the verdict, resolved from
- * the per-kind `identifierMismatch` knob at precompute time: `warn`
- * where the kind's standard REQUIRES agreement (the open-standard skill
- * kind mandates name == parent dirname), `info` where the runtime
- * documents the override as legal (Anthropic skills / agents /
- * commands, OpenAI Codex agents) yet the dual identity is still worth
- * surfacing. Both sides compare NORMALISED, so case / separator
+ * the per-kind `identifierMismatch` knob at precompute time. Every
+ * built-in kind that declares the knob declares `warn` (user decision
+ * 2026-07-22: a node answering to two names is ambiguity worth a
+ * warning even where the runtime documents the override as legal); the
+ * `info` tier stays available for external Providers that consider the
+ * override idiomatic. Both sides compare NORMALISED, so case / separator
  * variants that collapse to one resolution entry never mismatch.
  * Normative contract: `spec/architecture.md` §Provider · kind
  * identifiers · Identifier agreement.
@@ -58,6 +58,7 @@ export const nameMismatchAnalyzer: IBuiltInManifest<IAnalyzer> = {
         derivedName: m.derivedName,
         derivedSource: m.derivedSource,
       },
+      fix: { summary: tx(NAME_MISMATCH_TEXTS.fixSummary) },
     }));
   },
 };

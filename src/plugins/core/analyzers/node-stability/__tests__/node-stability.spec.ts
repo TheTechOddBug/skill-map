@@ -49,7 +49,7 @@ function ctx(nodes: Node[]): { ctx: IAnalyzerContext; contributions: TContributi
 
 async function run(nodes: Node[]): Promise<{ issues: Issue[]; contributions: TContribution[] }> {
   const { ctx: c, contributions } = ctx(nodes);
-  const issues = await nodeStabilityAnalyzer.evaluate(c);
+  const issues = await nodeStabilityAnalyzer.evaluate!(c);
   return { issues, contributions };
 }
 

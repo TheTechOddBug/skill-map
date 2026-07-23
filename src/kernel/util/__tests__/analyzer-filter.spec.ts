@@ -59,10 +59,12 @@ describe('matchesAnalyzerFilter', () => {
     assert.equal(matchesAnalyzerFilter('foo', ['core/bar']), false);
   });
 
-  it('matches a QUALIFIED arg against a short filter entry (prob-advisory path)', () => {
-    // `detectProbAnalyzerIds` passes the qualified id and lets a short
-    // filter token match its suffix. Symmetric to the persisted-issue path.
-    assert.equal(matchesAnalyzerFilter('core/foo', ['foo']), true);
+  it('does not match a QUALIFIED arg against a short filter entry (stub-era path, removed)', () => {
+    // The symmetric branch (`detectProbAnalyzerIds` passed a qualified id
+    // and let a short filter token match its suffix) was retired with the
+    // `--include-prob` stub; persisted analyzer ids are short by schema,
+    // so no live caller passes a qualified first argument anymore.
+    assert.equal(matchesAnalyzerFilter('core/foo', ['foo']), false);
   });
 
   it('matches a QUALIFIED arg against an identical qualified filter entry', () => {

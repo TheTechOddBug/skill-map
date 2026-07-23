@@ -129,6 +129,10 @@ const STUB_DATA_SOURCE: Partial<IDataSourcePort> = {
   getProjectIgnore: vi.fn().mockResolvedValue({ patterns: [] }),
   getRegisteredAnnotations: vi.fn().mockResolvedValue([]),
   lookupContribution: vi.fn().mockResolvedValue(null),
+  // The queue panel reads this when its section is active; an empty list
+  // renders the queue's empty state.
+  listJobs: vi.fn().mockResolvedValue([]),
+  cancelJob: vi.fn().mockResolvedValue(undefined),
   events: vi.fn().mockReturnValue(EMPTY),
 };
 
@@ -143,6 +147,11 @@ async function bootstrap(nodes: INodeView[], links: ILinkApi[], corpusSize = nod
   fixture: ComponentFixture<WorkspaceView>;
   mapVisibility: MapVisibilityService;
 }> {
+  // Every suite here exercises the Files tab (the tree leaf buttons, the
+  // shared search cluster). Pin the rail to Files so a leaked `queue`
+  // preference from another spec never mounts the queue panel instead
+  // (which would also want `WsEventStreamService`, not provided here).
+  localStorage.setItem('sm.workspace.rail-section', 'files');
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [
@@ -151,6 +160,11 @@ async function bootstrap(nodes: INodeView[], links: ILinkApi[], corpusSize = nod
       { provide: DATA_SOURCE, useValue: STUB_DATA_SOURCE },
       { provide: MarkdownRenderer, useClass: FakeMarkdownRenderer },
       { provide: SKILL_MAP_MODE, useValue: 'demo' },
+      // The queue panel (mounted when the Queue section is active) injects
+      // `WsEventStreamService` for its debounced live refresh. The real
+      // service is used here (as before this suite grew the queue tab): in
+      // demo mode it opens no socket and its streams derive from `EMPTY`,
+      // and other consumers (NodeActivityService) need its full stream set.
     ],
   });
   TestBed.overrideComponent(GraphView, {
@@ -343,5 +357,110 @@ describe('WorkspaceView search clear button', () => {
     expect(store.searchText()).toBe('');
     expect(clearEl(fixture)).toBeNull();
     localStorage.removeItem('sm.workspace.rail-collapsed');
+  });
+});
+
+describe('WorkspaceView activity sections', () => {
+  function railEl(fixture: ComponentFixture<WorkspaceView>): HTMLElement {
+    return (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="workspace-rail"]',
+    ) as HTMLElement;
+  }
+  const q = (fixture: ComponentFixture<WorkspaceView>, testid: string): HTMLElement | null =>
+    (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(
+      `[data-testid="${testid}"]`,
+    );
+
+  it('collapses to an icon bar (Files active, no chevron) and opens onto the clicked section', async () => {
+    // Small corpus + nothing persisted collapses the rail (map front-and-
+    // center); `bootstrap` pins the section to Files.
+    localStorage.removeItem('sm.workspace.rail-collapsed');
+    const { fixture } = await bootstrap([makeNode('a.md', 'a')], []);
+
+    // Collapsed: the activity icon bar renders (Files + Queue) and the chevron
+    // toggle does NOT (it only shows when open). No icon reads as "selected"
+    // while collapsed, the lit state belongs to the open tab strip.
+    expect(railEl(fixture).classList.contains('is-collapsed')).toBe(true);
+    expect(q(fixture, 'workspace-rail-toggle')).toBeNull();
+    const filesBtn = q(fixture, 'workspace-section-files');
+    const queueBtn = q(fixture, 'workspace-section-queue');
+    expect(filesBtn).not.toBeNull();
+    expect(queueBtn).not.toBeNull();
+    expect(filesBtn!.classList.contains('is-active')).toBe(false);
+    expect(queueBtn!.classList.contains('is-active')).toBe(false);
+
+    // Clicking the Queue icon opens the rail onto the queue panel.
+    queueBtn!.click();
+    try {
+      fixture.detectChanges();
+    } catch {
+      /* ignore Foblex-internal render glitches in jsdom */
+    }
+    await Promise.resolve();
+
+    expect(railEl(fixture).classList.contains('is-collapsed')).toBe(false);
+    // Open: the chevron now exists, the Queue tab is active, and the queue
+    // panel replaced the files navigator in the body.
+    expect(q(fixture, 'workspace-rail-toggle')).not.toBeNull();
+    expect(q(fixture, 'workspace-section-queue')!.classList.contains('is-active')).toBe(true);
+    expect(q(fixture, 'queue-view')).not.toBeNull();
+    expect(q(fixture, 'files-view')).toBeNull();
+
+    localStorage.removeItem('sm.workspace.rail-section');
+  });
+
+  it('shows the search cluster only on the Files tab, not on Queue', async () => {
+    localStorage.setItem('sm.workspace.rail-collapsed', '0');
+    const { fixture } = await bootstrap([makeNode('a.md', 'a')], []);
+
+    // Files is the default section: the search + the filter toggles render.
+    expect(q(fixture, 'workspace-search')).not.toBeNull();
+    expect(q(fixture, 'workspace-reset-filters')).not.toBeNull();
+
+    // Switch to Queue: the whole search cluster is gone (it filters the file
+    // tree / map, which the queue panel does not use).
+    q(fixture, 'workspace-section-queue')!.click();
+    try {
+      fixture.detectChanges();
+    } catch {
+      /* ignore Foblex-internal render glitches in jsdom */
+    }
+    await Promise.resolve();
+    expect(q(fixture, 'workspace-search')).toBeNull();
+    expect(q(fixture, 'workspace-reset-filters')).toBeNull();
+
+    // Back to Files: the cluster returns.
+    q(fixture, 'workspace-section-files')!.click();
+    try {
+      fixture.detectChanges();
+    } catch {
+      /* ignore Foblex-internal render glitches in jsdom */
+    }
+    await Promise.resolve();
+    expect(q(fixture, 'workspace-search')).not.toBeNull();
+
+    localStorage.removeItem('sm.workspace.rail-collapsed');
+    localStorage.removeItem('sm.workspace.rail-section');
+  });
+
+  it('the open chevron collapses the rail without swapping panels', async () => {
+    localStorage.setItem('sm.workspace.rail-collapsed', '0');
+    const { fixture } = await bootstrap([makeNode('a.md', 'a')], []);
+    expect(railEl(fixture).classList.contains('is-collapsed')).toBe(false);
+
+    q(fixture, 'workspace-rail-toggle')!.click();
+    try {
+      fixture.detectChanges();
+    } catch {
+      /* ignore Foblex-internal render glitches in jsdom */
+    }
+    await Promise.resolve();
+
+    expect(railEl(fixture).classList.contains('is-collapsed')).toBe(true);
+    // Collapsed again: the icon bar is back, the chevron is gone.
+    expect(q(fixture, 'workspace-rail-toggle')).toBeNull();
+    expect(q(fixture, 'workspace-section-files')).not.toBeNull();
+    localStorage.removeItem('sm.workspace.rail-collapsed');
+    localStorage.removeItem('sm.workspace.rail-section');
   });
 });

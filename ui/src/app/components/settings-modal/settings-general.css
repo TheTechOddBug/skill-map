@@ -94,3 +94,78 @@
   background: var(--p-content-background);
   border: 1px solid var(--p-content-border-color);
 }
+
+/* Footer line: storage hint left, the settings-resolution launcher
+   right, one row. */
+.settings-general__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.settings-general__footer .settings-general__storage-hint {
+  margin: 0;
+}
+
+/* Settings-hierarchy viewer (nested dialog): compact mono table, the
+   layer column as an outlined chip so the winning layer pops. */
+
+.settings-config-resolution__scroll {
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.settings-config-resolution__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--sm-font-mono);
+  font-size: 0.78rem;
+}
+
+.settings-config-resolution__table th {
+  position: sticky;
+  top: 0;
+  text-align: left;
+  padding: 0.3rem 0.5rem;
+  background: var(--p-content-background);
+  border-bottom: 1px solid var(--sm-border);
+}
+
+.settings-config-resolution__table td {
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--sm-border);
+  vertical-align: top;
+}
+
+.settings-config-resolution__key {
+  white-space: nowrap;
+}
+
+.settings-config-resolution__value {
+  word-break: break-word;
+  color: var(--p-text-muted-color);
+}
+
+.settings-config-resolution__layer {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--sm-radius-sm);
+  border: 1px solid var(--sm-border);
+  color: var(--p-text-muted-color);
+}
+
+/* Non-default layers pop: the row was explicitly configured. */
+.settings-config-resolution__layer:not([data-layer='defaults']) {
+  color: var(--p-primary-color);
+  border-color: var(--p-primary-color);
+}
+
+.settings-config-resolution__error,
+.settings-config-resolution__empty {
+  margin: 0;
+  color: var(--p-text-muted-color);
+}

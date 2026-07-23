@@ -372,6 +372,34 @@ export interface IBranchResponseApi {
  * UI boundary today, the SPA reads only the fields it needs and treats
  * unknowns as inert.
  */
+/**
+ * One row of `GET /api/nodes/:pathB64/summary` (direct shape, no
+ * envelope): a stored semantic summary recorded by a summarizer Action,
+ * with `stale` derived server-side against the node's live body hash.
+ * `report` follows `summaries/markdown.schema.json` (`whatItCovers`,
+ * `topics`, `keyFacts`, `relatedNodes`, `qualityNotes`, `confidence`).
+ */
+export interface INodeSummaryRowApi {
+  summarizerActionId: string;
+  generatedAt: number;
+  stale: boolean;
+  report: Record<string, unknown>;
+}
+
+/**
+ * One row of `GET /api/config/resolution` (the Settings > About
+ * settings-hierarchy viewer): a flattened effective-config LEAF key,
+ * its resolved value, and the config layer that last wrote it.
+ * `secret: true` means the BFF masked the value server-side (a
+ * plugin-extension setting declared `type: 'secret'`).
+ */
+export interface IConfigResolutionRowApi {
+  key: string;
+  value: unknown;
+  layer: 'defaults' | 'project' | 'project-local' | 'override';
+  secret: boolean;
+}
+
 export interface IProjectConfigApi {
   schemaVersion?: number;
   tokenizer?: string;
@@ -1173,6 +1201,40 @@ export interface IActivityUninstallEnvelopeApi extends IActivityInstallStatusApi
 }
 
 /**
+ * `GET /api/agent/install?provider=<id>` envelope (and the base of
+ * both mutation responses); see `spec/cli-contract.md` §HTTP API
+ * (`/api/agent/*`). Probes the sm-process-jobs process skill of the ACTIVE
+ * lens: `supported` is `false` (with `skillDir: null`) when the
+ * Provider declares no `scaffold.skillDir` (no skill territory);
+ * `stale` means the skill is installed but the CLI ships a newer
+ * canonical copy, which drives the button's Update state.
+ */
+export interface IAgentSkillInstallStatusApi {
+  provider: string;
+  supported: boolean;
+  skillDir: string | null;
+  installed: boolean;
+  stale: boolean;
+}
+
+/**
+ * `POST /api/agent/install` response: the refreshed status plus the
+ * three-state outcome the feedback wording branches on (`'up-to-date'`
+ * = the bytes already matched, nothing was written).
+ */
+export interface IAgentSkillInstallEnvelopeApi extends IAgentSkillInstallStatusApi {
+  outcome: 'installed' | 'updated' | 'up-to-date';
+}
+
+/**
+ * `POST /api/agent/uninstall` response: the refreshed status plus
+ * whether anything was actually removed (`false` = idempotent no-op).
+ */
+export interface IAgentSkillUninstallEnvelopeApi extends IAgentSkillInstallStatusApi {
+  removed: boolean;
+}
+
+/**
  * Per-node execution stats accumulated by the BFF while `sm serve`
  * runs (`spec/provider-activity.md` §Execution stats). Ephemeral,
  * process-lifetime, reset on every server boot. The server is the
@@ -1257,6 +1319,12 @@ export interface IActivitySummaryApi {
   nodes: Record<string, INodeActivityStatsApi>;
   /** Per-pair spawn counters, keyed via `activityPairKeyOf`. */
   pairs: Record<string, IActivityPairStatsApi>;
+  /**
+   * Distinct node paths with persistent AI-run history
+   * (`state_executions`): the counters above reset on server restart,
+   * this list does not, so Activity visibility survives a reboot.
+   */
+  runNodes: string[];
 }
 
 /** One entry of a node's recent-executions ring (most recent first). */
@@ -1322,6 +1390,26 @@ export interface IActivitySpawnRecordApi {
 }
 
 /**
+ * One entry of a node's AI-run history (`spec/provider-activity.md`
+ * §GET /api/activity/node/<pathB64>, `runs`): skill-map's own runs for
+ * the node read from `state_executions`, persistent unlike the
+ * ephemeral runtime stats. Newest-first, capped at 20 server-side; a
+ * missing DB degrades to `runs: []`.
+ */
+export interface IActivityRunApi {
+  executionId: string;
+  /** Qualified extension id (e.g. `core/ai-redundancy-analyzer`). */
+  extensionId: string;
+  /** Lifecycle label from the executions table; opaque here. */
+  status: string;
+  model: string | null;
+  durationMs: number | null;
+  /** Unix ms; `null` while the run has not finished. */
+  finishedAt: number | null;
+  failureReason: string | null;
+}
+
+/**
  * `GET /api/activity/node/<pathB64>` response: per-node detail for the
  * inspector's Activity section. A scanned node with no recorded
  * activity returns empty stats, not 404.
@@ -1332,6 +1420,11 @@ export interface IActivityNodeDetailApi {
   /** Spawn records touching the node (as parent or child). */
   spawns: IActivitySpawnRecordApi[];
   captureEnabled: boolean;
+  /**
+   * The OTHER provenance the Activity timeline interleaves (user
+   * decision 2026-07-17): persistent AI-run history for the node.
+   */
+  runs: IActivityRunApi[];
 }
 
 /**
@@ -1412,6 +1505,259 @@ export interface IActionAppliedEnvelopeApi {
     report?: unknown;
   };
   elapsedMs: number;
+}
+
+/**
+ * One `state_findings` row as projected by `GET /api/nodes/:pathB64/findings`
+ * (Step 16 piece 1). Mirrors the finding-row item locked in
+ * `spec/schemas/api/rest-envelope.schema.json` (the `sm findings --json`
+ * row shape plus the derived `stale` boolean; the internal
+ * `bodyHashAtGeneration` is never exposed).
+ */
+export interface IFindingApi {
+  /** `state_findings.id`, the handle for `sm findings resolve/dismiss`. */
+  id: number;
+  nodeId: string;
+  extensionId: string;
+  extensionVersion: string;
+  /** `extension` = finder lane; `kernel` = safety lane (reserved slugs). */
+  origin: 'extension' | 'kernel';
+  type: string;
+  severity: TIssueSeverityApi;
+  message: string;
+  detail: string | null;
+  /** AI-action confidence in `[0, 1]`. */
+  confidence: number;
+  /** Recording agent's self-reported model id; `null` when undeclared. */
+  model: string | null;
+  /** Lifecycle state; `null` = open (`db-schema.md` §state_findings). */
+  resolution: 'fixed' | 'human-decision' | 'dismissed' | null;
+  resolutionActor: 'human' | 'fixer' | null;
+  resolutionNote: string | null;
+  resolutionBy: string | null;
+  resolutionAt: number | null;
+  /** Derived: the node body changed since the AI action (or left the scan). */
+  stale: boolean;
+  generatedAt: number;
+  jobId: string | null;
+}
+
+/**
+ * `counts` block of the `findings` envelope: the list pair plus the
+ * REQUIRED default-view honesty pair (`dismissedExcluded` /
+ * `fixedExcluded`, what the default view held back; dismissed = the
+ * class matches an active sidecar suppression, top precedence; both 0
+ * under an explicit bucket filter, mirroring `sm findings --json`).
+ * Stale rows are never held back: they ride `items` inline with their
+ * per-row `stale` flag (user call 2026-07-20).
+ */
+export interface IFindingsCountsApi extends IEnvelopeCountsApi {
+  dismissedExcluded: number;
+  fixedExcluded: number;
+}
+
+/**
+ * `GET /api/nodes/:pathB64/findings` response (kind `findings`), the
+ * per-node AI-actions tray. List shape with the honesty counts delta.
+ */
+export interface IFindingsEnvelopeApi {
+  schemaVersion: typeof REST_ENVELOPE_SCHEMA_VERSION;
+  kind: 'findings';
+  items: IFindingApi[];
+  filters: Record<string, unknown>;
+  counts: IFindingsCountsApi;
+  kindRegistry: IKindRegistryApi;
+  providerRegistry?: IProviderRegistryApi;
+  contributionsRegistry?: IContributionsRegistryApi;
+}
+
+/** Live queue state for a (node, extension) pair, from `state_jobs`. */
+export type TProbExtensionStateApi = 'idle' | 'queued' | 'running';
+
+/**
+ * One launcher entry of the `node.prob-extensions` catalog (the
+ * inspector's two-state finder buttons). Mirrors
+ * `rest-envelope.schema.json#/$defs/ProbExtensionEntry`. `fixerIds` is
+ * the finder's matching fixers (non-empty ONLY on `finders`-bucket
+ * entries; empty for `standalone`) and `hasOpenFindings` drives the
+ * Detect ⇄ Fix morph.
+ */
+export interface IProbExtensionEntryApi {
+  /** Qualified extension id (`<plugin>/<extension>`), the submit target. */
+  id: string;
+  /** Manifest `description`, rendered as the launcher tooltip. */
+  description: string;
+  state: TProbExtensionStateApi;
+  /**
+   * The ACTIVE queued/running job's id, `null` when idle. The
+   * server-confirmed handle the stop/restart affordance cancels via
+   * `POST /api/jobs/:jobId/cancel`.
+   */
+  jobId: string | null;
+  /** Latest recorded execution for the pair; `null` when never judged. */
+  lastJudged: { at: number; model: string | null } | null;
+  /**
+   * Qualified ids of the fixer Actions whose `precondition.analyzerIds`
+   * name this finder (the inverse Modelo B lookup). Non-empty ONLY on
+   * `finders`-bucket entries; empty for `standalone`. In manual mode the
+   * button's Fix state submits each of these; in automatic mode the
+   * finder is submitted with `autoFix: true` and the kernel chains them.
+   */
+  fixerIds: string[];
+  /**
+   * True when the node currently carries at least one UNRESOLVED,
+   * non-stale finding emitted by THIS finder's extension id. Drives the
+   * two-state button: `false` → Detect state (submit the finder), `true`
+   * → Fix state (submit the `fixerIds`). Always `false` for `standalone`.
+   */
+  hasOpenFindings: boolean;
+  /**
+   * Frozen finding targets of the ACTIVE fixer jobs for this finder:
+   * `all: true` when a whole-node fixer job is active, `findingIds` the
+   * union of the active subset jobs' ids. The tray derives each row's
+   * fix-button busy state from it so fixing one finding no longer spins
+   * every row. `null` when no fixer job is active.
+   */
+  fixerBusy: { all: boolean; findingIds: number[] } | null;
+}
+
+/**
+ * One `issueFixers` entry: a probabilistic Action fixing a
+ * DETERMINISTIC analyzer's issues (e.g. `core/ai-reference-action` over
+ * `core/reference-broken`), listed only while the node carries at least
+ * one matching open Issue. Rendered as a fix button ON each matching
+ * deterministic issue row (matched via the SHORT `analyzerIds`), never
+ * as a launcher button (user decision 2026-07-22). One submit fixes
+ * every matching issue of the node, so all matching rows share the
+ * entry's busy state.
+ */
+export interface IIssueFixerEntryApi {
+  /** Qualified action id, the submit target. */
+  id: string;
+  /** Manifest `description`, rendered as the fix button's tooltip. */
+  description: string;
+  state: TProbExtensionStateApi;
+  /** The ACTIVE queued/running job's id, `null` when idle. */
+  jobId: string | null;
+  /** Latest recorded execution for the pair; `null` when never judged. */
+  lastJudged: { at: number; model: string | null } | null;
+  /**
+   * SHORT analyzer ids (as persisted on `scan_issues.analyzerId`): the
+   * row-match key against each issue's `analyzerId`.
+   */
+  analyzerIds: string[];
+}
+
+/**
+ * The `item` of the `node.prob-extensions` envelope: the node's
+ * probabilistic launcher catalog, classified manifest-mechanically
+ * (ROADMAP §Step 16). `finders` are probabilistic Analyzers matching the
+ * node that HAVE at least one fixer (rendered as two-state Detect ⇄ Fix
+ * buttons); `standalone` are finders WITHOUT a fixer plus probabilistic
+ * Actions with no `analyzerIds` (single-action buttons); `issueFixers`
+ * are deterministic-analyzer fixers rendered on the matching issue rows.
+ * The former `fixers` bucket is retired: a fixer paired with a
+ * probabilistic finder is the second state of its finder's button,
+ * never a standalone launcher.
+ */
+export interface IProbExtensionsApi {
+  finders: IProbExtensionEntryApi[];
+  standalone: IProbExtensionEntryApi[];
+  issueFixers: IIssueFixerEntryApi[];
+}
+
+/**
+ * `GET /api/nodes/:pathB64/prob-extensions` response
+ * (kind `node.prob-extensions`), single shape.
+ */
+export interface INodeProbExtensionsEnvelopeApi {
+  schemaVersion: typeof REST_ENVELOPE_SCHEMA_VERSION;
+  kind: 'node.prob-extensions';
+  item: IProbExtensionsApi;
+  kindRegistry: IKindRegistryApi;
+  providerRegistry?: IProviderRegistryApi;
+  contributionsRegistry?: IContributionsRegistryApi;
+}
+
+/**
+ * Successful 200 envelope returned by `POST /api/nodes/:pathB64/jobs`
+ * (kind `job.submitted`, action-result shape like `sidecar.bumped`).
+ * NO nonce ever travels here: the record credential belongs to the
+ * processing agent (`sm jobs claim --json`).
+ */
+export interface IJobSubmittedEnvelopeApi {
+  schemaVersion: typeof REST_ENVELOPE_SCHEMA_VERSION;
+  kind: 'job.submitted';
+  value: {
+    jobId: string;
+    nodePath: string;
+    /** The qualified id the submit resolved to (may differ from the bare request id). */
+    extensionId: string;
+    /** Stale queued sibling ids a FIXER submit cancelled in the same transaction. */
+    supersededIds: string[];
+  };
+  elapsedMs: number;
+}
+
+/**
+ * Queue job lifecycle state, mirror of the kernel's `JobStatus`
+ * (`src/kernel/types.ts`). The queue inspector tints / glyphs each state:
+ * `queued` / `running` are non-terminal (cancellable); `completed` /
+ * `failed` / `cancelled` are terminal.
+ */
+export type TJobStatusApi = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+/**
+ * One `state_jobs` row as projected by `GET /api/jobs` (`kind: 'jobs'`).
+ * Mirror of the BFF's `PublicJob` (`src/kernel/jobs/public-job.ts`): every
+ * `Job` field EXCEPT the record credential `nonce`, which never crosses a
+ * read surface. Timestamps are Unix ms.
+ */
+export interface IJobApi {
+  /** `d-YYYYMMDD-HHMMSS-XXXX`, human-readable + sortable. */
+  id: string;
+  extensionId: string;
+  extensionVersion: string;
+  /** `action` | `analyzer`, frozen at submit. */
+  extensionKind: string;
+  /** Per-job auto-fix opt-in (a finder job chains its fixers on completion). */
+  autoFix: boolean;
+  /** Target `node.path`. */
+  nodeId: string;
+  contentHash: string;
+  priority: number;
+  status: TJobStatusApi;
+  /** Populated on a failed job; `null` otherwise. */
+  failureReason: string | null;
+  /** `agent` | `in-process`; `null` until claimed. */
+  runner: string | null;
+  /** Optional TTL in seconds; `null` = never expires (the default). */
+  ttlSeconds: number | null;
+  createdAt: number;
+  /** `null` until a processing agent claims the job. */
+  claimedAt: number | null;
+  /** `null` until the job reaches a terminal state. */
+  finishedAt: number | null;
+  /** Reaper deadline; `null` when the job never expires. */
+  expiresAt: number | null;
+  /** Free-form submitter tag; `null` when unset. */
+  submittedBy: string | null;
+}
+
+/**
+ * Registry-less `GET /api/jobs` list envelope (`kind: 'jobs'`). Mirror of
+ * the BFF's `IJobsEnvelope` (`src/server/envelope.ts`): unlike the other
+ * list envelopes it carries NO kind / provider / contributions registries
+ * (a queue projection is orthogonal to those catalogs). The endpoint does
+ * not paginate, so `counts.total` equals `counts.returned`.
+ */
+export interface IJobsEnvelopeApi<TItem> {
+  schemaVersion: typeof REST_ENVELOPE_SCHEMA_VERSION;
+  kind: 'jobs';
+  items: TItem[];
+  /** Echo of the applied filters (`status` / `extension` / `node`). */
+  filters: Record<string, unknown>;
+  counts: { total: number; returned: number };
 }
 
 /**

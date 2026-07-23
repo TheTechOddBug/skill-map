@@ -81,7 +81,7 @@
   width: 100%;
   padding: 0.5rem 0.75rem;
   border: none;
-  border-radius: var(--p-border-radius);
+  border-radius: var(--sm-radius-md);
   background: transparent;
   color: var(--p-text-color);
   font: inherit;
@@ -162,7 +162,7 @@
   font-style: italic;
   font-size: 0.75rem;
   line-height: 1.4;
-  color: var(--p-warn-color);
+  color: var(--sm-severity-warn);
 }
 
 /* Apply-failure line, error-toned, under the status cluster. The buffers

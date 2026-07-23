@@ -104,22 +104,29 @@ export interface IBumpPlanOptions {
  * caller's decision (the Action returns `refused` / `noop` for those
  * cases at its own level).
  */
-export function computeBumpPlan(
+export async function computeBumpPlan(
   nodes: readonly Node[],
   options: IBumpPlanOptions,
-): IBumpPlan {
+): Promise<IBumpPlan> {
   // Resolve the bump author once per batch (the Git identity is the same
   // for every node under the same project root); fall back to the `'cli'`
   // channel literal when the project is not a Git repo / has no author.
   const invoker = resolveGitAuthorName(options.cwd) ?? 'cli';
   const items: TBumpPlanItem[] = [];
   for (const node of nodes) {
-    items.push(planOne(node, options, invoker));
+    items.push(await planOne(node, options, invoker));
   }
   return { items };
 }
 
-function planOne(node: Node, options: IBumpPlanOptions, invoker: string): TBumpPlanItem {
+// Async because `IAction.invoke` MAY return a Promise since the
+// io:['network'] contract widening; node-bump itself stays synchronous,
+// the await is the uniform dispatcher treatment.
+async function planOne(
+  node: Node,
+  options: IBumpPlanOptions,
+  invoker: string,
+): Promise<TBumpPlanItem> {
   let absPath: string;
   try {
     assertContained(options.cwd, node.path);
@@ -134,7 +141,7 @@ function planOne(node: Node, options: IBumpPlanOptions, invoker: string): TBumpP
 
   let result: { report: INodeBumpReport; writes?: TActionWrite[] };
   try {
-    result = invokeBumpFor(node, absPath, options.force, invoker);
+    result = await invokeBumpFor(node, absPath, options.force, invoker);
   } catch (err) {
     return {
       nodePath: node.path,
@@ -166,18 +173,20 @@ function planOne(node: Node, options: IBumpPlanOptions, invoker: string): TBumpP
  * needs the same shape; the CLI verb consumes it through
  * `computeBumpPlan` above.
  */
-export function invokeBumpFor(
+export async function invokeBumpFor(
   node: Node,
   absPath: string,
   force: boolean,
   invoker: string,
-): { report: INodeBumpReport; writes?: TActionWrite[] } {
+): Promise<{ report: INodeBumpReport; writes?: TActionWrite[] }> {
   if (!nodeBumpAction.invoke) {
     throw new Error('built-in bump action is missing its invoke()');
   }
   const input: INodeBumpInput = {};
   if (force) input.force = true;
-  return nodeBumpAction.invoke<INodeBumpInput, INodeBumpReport>(input, {
+  // `await` is the uniform dispatcher treatment for the widened invoke
+  // contract (sync actions await to themselves).
+  return await nodeBumpAction.invoke<INodeBumpInput, INodeBumpReport>(input, {
     node,
     nodeAbsolutePath: absPath,
     invoker,

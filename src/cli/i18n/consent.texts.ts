@@ -1,9 +1,9 @@
 /**
  * Strings shared by the `.sm` sidecar consent gate, used by every verb
- * that performs sidecar writes (`sm bump`, `sm sidecar refresh`,
- * `sm sidecar annotate`). The `{{verb}}` placeholder is filled by the
+ * that performs sidecar writes (`sm bump`, `sm sidecars refresh`,
+ * `sm sidecars annotate`). The `{{verb}}` placeholder is filled by the
  * caller with the user-visible verb prefix (e.g. `'sm bump'` or
- * `'sm sidecar'`) so the directed error messages name the surface the
+ * `'sm sidecars'`) so the directed error messages name the surface the
  * operator actually invoked.
  *
  * Same convention as the per-verb catalogs: flat string templates with

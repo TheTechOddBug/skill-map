@@ -131,7 +131,7 @@ function makeExec(id: string, nodePath: string, startedAt = 1_000_000): Executio
     status: 'completed',
     failureReason: null,
     exitCode: 0,
-    runner: 'cli',
+    runner: 'agent',
     startedAt,
     finishedAt: startedAt + 1000,
     durationMs: 1000,

@@ -4,10 +4,24 @@
  * text files. Spike-stage surface; keep it small.
  */
 export const WORKSPACE_VIEW_TEXTS = {
+  /**
+   * The rail's activity sections (files navigator + job queue). The
+   * collapsed icon bar and the open tab strip share these labels; the
+   * chevron collapse control keeps its own `rail.collapse` copy.
+   */
+  sections: {
+    /** Accessible name for the tab strip / icon bar container. */
+    ariaLabel: 'Workspace panel sections',
+    files: 'Files',
+    queue: 'Queue',
+    /** Icon-bar button tooltips (collapsed rail). */
+    filesTooltip: 'Files navigator',
+    queueTooltip: 'Job queue',
+  },
   rail: {
     label: 'Files',
-    collapse: 'Collapse files panel',
-    expand: 'Expand files panel',
+    collapse: 'Collapse panel',
+    expand: 'Expand panel',
     resize: 'Resize files panel',
     searchPlaceholder: 'Search…',
     searchAriaLabel: 'Search nodes by name or tag',

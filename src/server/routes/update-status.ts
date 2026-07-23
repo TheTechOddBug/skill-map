@@ -40,6 +40,7 @@
 import type { Hono } from 'hono';
 
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import { bffReadVersionCheck } from '../util/db-read-check.js';
 import { isOutdated } from '../../kernel/update-check/index.js';
 import { VERSION } from '../../version.js';
 import type { IRouteDeps } from './deps.js';
@@ -60,7 +61,7 @@ export interface IUpdateStatusResponse {
 export function registerUpdateStatusRoute(app: Hono, deps: IRouteDeps): void {
   app.get('/api/update-status', async (c) => {
     const cache = await tryWithSqlite(
-      { databasePath: deps.options.dbPath, autoBackup: false },
+      { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
       async (adapter) => adapter.preferences.loadUpdateCheckCache(),
     );
     const payload: IUpdateStatusResponse =

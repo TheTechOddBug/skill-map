@@ -1,11 +1,29 @@
 /**
  * `sm refresh <node.path>` and `sm refresh --stale`, kernel-side CLI
- * verbs for the universal enrichment layer (spec § A.8).
+ * verbs for the enrichment layer (spec § A.8 + `spec/db-schema.md`
+ * §state_enrichments).
  *
- * Both verbs re-run Extractors against either a single node or the set of
- * nodes carrying at least one stale enrichment row, persisting the fresh
- * outputs back into `node_enrichments`. Extractors are deterministic-only,
- * so they always run for real and persist.
+ * Both verbs run TWO passes against the target node(s):
+ *
+ *   1. **Extractors (Model B)**: re-run every applicable Extractor and
+ *      upsert the outputs into `node_enrichments`. Deterministic-only,
+ *      they always run for real and persist.
+ *   2. **Enrichment Actions (Model A)**: execute every ENABLED Action
+ *      whose report schema extends a canonical `enrichments/<kind>`
+ *      schema (the enricher signal,
+ *      `kernel/enrichments/enrichment-schema.ts`), in-process
+ *      (`runner = 'in-process'`, execution row recorded), validating
+ *      the returned report against the Action's own report schema and
+ *      upserting it into `state_enrichments` keyed
+ *      `(node_id, <qualified action id>)`. An Action declaring
+ *      `io: ['network']` receives the injected `ctx.fetch` and is
+ *      gated by the committed `allowNetworkActions` project policy
+ *      (default off → skipped with a §3.1b advisory naming the key,
+ *      exit stays 0). A node without the `source` + `sourceVersion`
+ *      annotations an enricher consumes is a SILENT no-op skip, not a
+ *      failure (`spec/cli-contract.md` §Refresh). This is the ONLY
+ *      execution surface for network Actions, never `sm scan`, never a
+ *      queued job.
  *
  * The verbs read the node's body off disk (the persisted scan is the
  * source of truth for `node.path` and the extractor manifest set, but the
@@ -16,16 +34,16 @@
  * not found, plugin load error bubbling up) → exit 2 / 5 per
  * spec/cli-contract.md §Exit codes.
  *
- * `--stale` is a no-op in this revision: with Extractors deterministic-only
- * no enrichment row is ever stale-flagged, so the verb always prints a
- * "nothing to do" advisory and exits 0. The flag is preserved for the
- * future Action-issued probabilistic enrichment revision (queued LLM
- * jobs that must preserve paid output across body changes), see
- * spec `architecture.md` §Extractor · enrichment layer.
+ * `--stale` covers the `state_enrichments` candidates: rows whose
+ * recorded `data_json.localBodyHash` drifted from the node's current
+ * `scan_nodes.body_hash` (v1's only staleness signal, `stale_after`
+ * stays null) plus any future policy-expired rows. Extractor (Model B)
+ * writes never set `stale = 1`, so with no enrichment Actions enabled
+ * the set stays empty and the verb prints the "nothing to do" advisory.
  */
 
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
@@ -38,13 +56,25 @@ import {
   type Node,
   type ScanResult,
 } from '../../kernel/index.js';
+import type { IAction } from '../../kernel/extensions/index.js';
+import type { ExecutionRecord } from '../../kernel/types.js';
+import type {
+  IStateEnrichmentRecord,
+  IStateEnrichmentUpsert,
+} from '../../kernel/types/storage.js';
 import { InMemoryProgressEmitter } from '../../kernel/adapters/in-memory-progress.js';
+import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { loadConfig } from '../../kernel/config/loader.js';
+import { enrichmentKindOfReportSchema } from '../../kernel/enrichments/enrichment-schema.js';
+import { generateExecutionId } from '../../kernel/jobs/index.js';
+import { qualifiedExtensionId } from '../../kernel/registry.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { buildSettingsResolver } from '../../core/config/plugin-settings.js';
 import { tx } from '../../kernel/util/tx.js';
 import { REFRESH_TEXTS } from '../i18n/refresh.texts.js';
 import type { IAnsi } from '../util/ansi.js';
 import { resolveDbPath } from '../util/db-path.js';
+import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { assertContained } from '../../core/paths/path-guard.js';
@@ -57,6 +87,46 @@ import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
 import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
+import { buildActionDirMap } from '../../core/jobs/action-runtime.js';
+
+/**
+ * Network transport injected into declared-network enrichment Actions
+ * as `ctx.fetch`. Module-level seam (same convention as the other
+ * `_set*ForTests` seams across `cli/commands/`) so the CLI integration
+ * tests can substitute a fake transport without monkey-patching the
+ * global; production always resolves to `globalThis.fetch`.
+ */
+let refreshFetch: typeof globalThis.fetch = globalThis.fetch;
+
+/** Test-only escape hatch; `null` restores the real global fetch. */
+export function _setRefreshFetchForTests(impl: typeof globalThis.fetch | null): void {
+  refreshFetch = impl ?? globalThis.fetch;
+}
+
+/**
+ * One enabled enricher: the composed Action plus its resolved report
+ * schema (a built-in's codegen-inlined `reportSchema`, or a plugin's
+ * on-disk `report.schema.json`). The schema is both the enricher
+ * signal (it `$ref`s a canonical `enrichments/<kind>` schema) and the
+ * validation contract the returned report is checked against.
+ */
+interface IEnricherEntry {
+  action: IAction;
+  qualifiedId: string;
+  schema: Record<string, unknown>;
+}
+
+/**
+ * One pending Model A persistence unit collected by the enricher pass:
+ * the execution row always lands; `upsert` is present only on the
+ * validated-report path (a `report-invalid` failure records the
+ * execution without a state row, mirroring the record path).
+ */
+interface IStateEnrichmentWrite {
+  nodePath: string;
+  execution: ExecutionRecord;
+  upsert?: IStateEnrichmentUpsert;
+}
 
 /**
  * `--json` envelope per `spec/schemas/refresh-report.schema.json`.
@@ -89,17 +159,22 @@ export class RefreshCommand extends SmCommand {
       'Refresh enrichment rows: granular (single node) or batch (every stale row).',
     details: `
       Re-runs Extractors against the node(s) and upserts their outputs into
-      the universal enrichment layer (\`node_enrichments\`). Extractors are
-      deterministic-only: they always run for real and persist.
+      the universal enrichment layer (\`node_enrichments\`), THEN executes
+      every enabled enrichment Action (e.g. the provenance verifier
+      \`github/enrichment\`) in-process, upserting its validated report
+      into \`state_enrichments\`. Actions that declare network IO are
+      gated by the committed \`allowNetworkActions\` project policy
+      (default off: skipped with an advisory). Nodes without the
+      \`source\` / \`sourceVersion\` annotations an enricher needs are
+      skipped silently.
 
       Layer separation: enrichments live separately from the author's
-      frontmatter, which is immutable from any Extractor.
+      frontmatter, which is immutable from any Extractor or Action.
 
-      Pass \`--stale\` to refresh every node carrying a stale row. Pass a
-      positional \`<node.path>\` to refresh just that node. The two are
-      mutually exclusive. \`--stale\` is a no-op in this revision (no row
-      is stale-flagged); it is preserved for the future Action-issued
-      probabilistic enrichment revision.
+      Pass \`--stale\` to refresh every node carrying a stale row (a
+      \`state_enrichments\` verification whose recorded body hash drifted
+      from the node's current body). Pass a positional \`<node.path>\` to
+      refresh just that node. The two are mutually exclusive.
     `,
     examples: [
       ['Refresh a single node', '$0 refresh .claude/agents/architect.md'],
@@ -110,7 +185,7 @@ export class RefreshCommand extends SmCommand {
   nodePath = Option.String({ name: 'node', required: false });
   stale = Option.Boolean('--stale', false, {
     description:
-      'Refresh every node carrying a stale enrichment row (no-op in this revision; reserved for future Action-prob enrichments).',
+      'Refresh every node carrying a stale enrichment row (state_enrichments body-hash drift).',
   });
   noPlugins = Option.Boolean('--no-plugins', false, {
     description: 'Skip drop-in plugin discovery; use only the built-in extractor set.',
@@ -146,6 +221,10 @@ export class RefreshCommand extends SmCommand {
 
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
+    // Write verb: refresh inserts `state_enrichments` +
+    // `state_executions` rows; refuse a drifted DB BEFORE the plugin
+    // runtime loads (spec/cli-contract.md §Schema-drift rebuild).
+    assertNoDriftForWrite(dbPath);
 
     // --- plugin runtime -----------------------------------------------------
     const pluginRuntime = this.noPlugins
@@ -158,19 +237,29 @@ export class RefreshCommand extends SmCommand {
     // be a no-op, and the listBuiltIns import below keeps the registry
     // shape parity with `sm scan`).
     listBuiltIns(); // touch the built-in registry to surface load errors early.
-    // Refresh re-invokes extractors per node, so resolved settings must
-    // reach `ctx.settings.<id>` exactly as they would during `sm scan`.
-    // Load the merged config and thread its settings resolver into the
-    // composer (a tolerant load: a malformed layer degrades to defaults
-    // rather than aborting the refresh).
+    // Refresh re-invokes extractors + enrichment actions per node, so
+    // resolved settings must reach `ctx.settings.<id>` exactly as they
+    // would during `sm scan`. Load the merged config and thread its
+    // settings resolver into the composer (a tolerant load: a malformed
+    // layer degrades to defaults rather than aborting the refresh).
     const refreshCfg = loadConfig({ cwd: ctx.cwd }).effective;
+    const resolveSettings = buildSettingsResolver(refreshCfg);
     const composed = composeScanExtensions({
       noBuiltIns: false,
       pluginRuntime,
-      resolveSettings: buildSettingsResolver(refreshCfg),
+      resolveSettings,
       killSwitches: readConformanceKillSwitches(),
     });
     const allExtractors: IExtractor[] = composed?.extractors ?? [];
+    // Model A: enrichers are the ENABLED actions whose report schema
+    // extends a canonical `enrichments/<kind>` schema. The
+    // `allowNetworkActions` policy gate applies later, right before the
+    // enricher pass, so its advisory never precedes a db-missing /
+    // not-found failure.
+    const enrichers = await resolveEnricherActions(
+      composed?.actions ?? [],
+      buildActionDirMap(pluginRuntime.discovered),
+    );
 
     // --- load DB-resident state --------------------------------------------
     const ansi = this.ansiFor('stdout');
@@ -179,7 +268,8 @@ export class RefreshCommand extends SmCommand {
       async (adapter) => {
         const result = await adapter.scans.load();
         const enrichments = await adapter.scans.loadNodeEnrichments();
-        return { result, enrichments };
+        const staleState = await adapter.enrichments.listStaleStateCandidates(Date.now());
+        return { result, enrichments, staleState };
       },
     );
     if (!persisted) {
@@ -223,12 +313,38 @@ export class RefreshCommand extends SmCommand {
 
     const freshEnrichments: IEnrichmentRecord[] = freshEnrichmentsByNode.flatMap((n) => n.enrichments);
 
-    // --- persist fresh enrichments -----------------------------------------
-    if (freshEnrichments.length > 0) {
+    // --- run enrichment actions per node (Model A) ---------------------------
+    // Policy gate first (skip advisory naming `allowNetworkActions`,
+    // exit stays 0), then the pass. Never throws: an action throw /
+    // invalid report degrades to a warn advisory (the pass collects
+    // what DID succeed), remote failures are valid `verified: false`
+    // reports by the action contract.
+    const gatedEnrichers = this.#applyNetworkPolicyGate(
+      enrichers,
+      refreshCfg.allowNetworkActions === true,
+    );
+    const stateWrites = await this.#runEnrichersAcrossNodes(
+      targetNodes,
+      gatedEnrichers,
+      resolveSettings,
+      ctx.cwd,
+    );
+
+    // --- persist fresh enrichments + state rows ------------------------------
+    // One transaction: Model B upserts, Model A state rows, and their
+    // execution siblings commit together (the state row + execution pair
+    // mirrors the summaries fold inside the record transaction).
+    if (freshEnrichments.length > 0 || stateWrites.length > 0) {
       try {
         await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
           await adapter.transaction(async (txStore) => {
-            await txStore.enrichments.upsertMany(freshEnrichments);
+            if (freshEnrichments.length > 0) {
+              await txStore.enrichments.upsertMany(freshEnrichments);
+            }
+            for (const write of stateWrites) {
+              if (write.upsert) await txStore.enrichments.upsertState(write.upsert);
+              await txStore.history.insertExecution(write.execution);
+            }
           });
         });
       } catch (err) {
@@ -245,12 +361,27 @@ export class RefreshCommand extends SmCommand {
     }
 
     // --- final result line --------------------------------------------------
+    // State rows fold into `refreshed` + the per-node counts (the
+    // refresh-report envelope keeps its shape, `spec/cli-contract.md`
+    // §Refresh); only VALIDATED reports count (a report-invalid
+    // execution persists nothing user-visible here).
+    const stateUpsertsByNode = new Map<string, number>();
+    for (const write of stateWrites) {
+      if (!write.upsert) continue;
+      stateUpsertsByNode.set(write.nodePath, (stateUpsertsByNode.get(write.nodePath) ?? 0) + 1);
+    }
+    const totalRefreshed =
+      freshEnrichments.length + [...stateUpsertsByNode.values()].reduce((a, b) => a + b, 0);
+
     if (this.json) {
       const envelope: IRefreshJsonEnvelope = {
         ok: true,
         kind: 'refresh.report',
-        refreshed: freshEnrichments.length,
-        nodes: freshEnrichmentsByNode.map((n) => ({ path: n.path, enrichments: n.enrichments.length })),
+        refreshed: totalRefreshed,
+        nodes: freshEnrichmentsByNode.map((n) => ({
+          path: n.path,
+          enrichments: n.enrichments.length + (stateUpsertsByNode.get(n.path) ?? 0),
+        })),
         elapsedMs: this.elapsed!.ms(),
       };
       this.printer!.data(JSON.stringify(envelope) + '\n');
@@ -258,7 +389,7 @@ export class RefreshCommand extends SmCommand {
     }
 
     const glyph = ansi.green('✓');
-    const count = freshEnrichments.length;
+    const count = totalRefreshed;
     const noun = count === 1
       ? REFRESH_TEXTS.refreshNounSingular
       : REFRESH_TEXTS.refreshNounPlural;
@@ -307,15 +438,23 @@ export class RefreshCommand extends SmCommand {
    */
   // eslint-disable-next-line complexity
   #resolveTargetNodes(
-    persisted: { result: ScanResult; enrichments: IPersistedEnrichment[] },
+    persisted: {
+      result: ScanResult;
+      enrichments: IPersistedEnrichment[];
+      staleState: IStateEnrichmentRecord[];
+    },
     ansi: IAnsi,
   ): { ok: true; nodes: Node[] } | { ok: false; exitCode: number } {
     const nodesByPath = new Map<string, Node>();
     for (const node of persisted.result.nodes) nodesByPath.set(node.path, node);
 
     if (this.stale) {
+      // The stale set unions both models: Model B rows flagged stale
+      // (never happens in this revision, Extractors are deterministic)
+      // and Model A `state_enrichments` candidates (body-hash drift /
+      // policy expiry, computed SQL-side by the adapter).
       const staleEnrichments = persisted.enrichments.filter((e) => e.stale);
-      if (staleEnrichments.length === 0) {
+      if (staleEnrichments.length === 0 && persisted.staleState.length === 0) {
         if (this.json) {
           const envelope: IRefreshJsonEnvelope = {
             ok: true,
@@ -335,6 +474,7 @@ export class RefreshCommand extends SmCommand {
         return { ok: false, exitCode: ExitCode.Ok };
       }
       const stalePaths = new Set(staleEnrichments.map((e) => e.nodePath));
+      for (const row of persisted.staleState) stalePaths.add(row.nodeId);
       const nodes: Node[] = [];
       for (const path of stalePaths) {
         const node = nodesByPath.get(path);
@@ -431,6 +571,180 @@ export class RefreshCommand extends SmCommand {
 
     return perNode;
   }
+
+  /**
+   * The `allowNetworkActions` policy gate (`spec/cli-contract.md`
+   * §Refresh): an enabled enricher declaring `io: ['network']` is
+   * refused at execution while the committed project policy is off,
+   * with a §3.1b advisory naming the key. One advisory per skipped
+   * action (not per node); the exit code stays 0, the manifest keeps
+   * loading and listing everywhere else.
+   */
+  #applyNetworkPolicyGate(
+    enrichers: IEnricherEntry[],
+    allowNetworkActions: boolean,
+  ): IEnricherEntry[] {
+    const survivors: IEnricherEntry[] = [];
+    const ansi = this.ansiFor('stderr');
+    for (const enricher of enrichers) {
+      const needsNetwork = enricher.action.io?.includes('network') === true;
+      if (needsNetwork && !allowNetworkActions) {
+        this.printer!.info(
+          tx(REFRESH_TEXTS.networkActionsPolicySkip, {
+            glyph: ansi.yellow('•'),
+            actionId: sanitizeForTerminal(enricher.qualifiedId),
+            hint: ansi.dim(REFRESH_TEXTS.networkActionsPolicySkipHint),
+          }),
+        );
+        continue;
+      }
+      survivors.push(enricher);
+    }
+    return survivors;
+  }
+
+  /**
+   * Model A pass: for each `(node, enricher)` pair that survives the
+   * gates, invoke the Action in-process, validate its report against
+   * the Action's own report schema, and collect the pending
+   * `state_enrichments` upsert + `state_executions` row for the caller
+   * to persist in one transaction.
+   *
+   * Gates, in order:
+   *   1. declarative `precondition` (kind / provider), same matching
+   *      the extractor pass applies;
+   *   2. provenance annotations: a node without both `source` AND
+   *      `sourceVersion` is a SILENT no-op skip per the contract
+   *      (not a failure, nothing recorded);
+   *   3. `invoke` present (an enricher shipped for a future runner is
+   *      skipped silently).
+   *
+   * Failure posture: an `invoke()` throw is an action defect (remote
+   * failures must come back as `verified: false` reports), warn +
+   * nothing recorded; a schema-invalid report records a FAILED
+   * execution (`report-invalid`, mirroring the record path) with no
+   * state row.
+   */
+  async #runEnrichersAcrossNodes(
+    targetNodes: Node[],
+    enrichers: IEnricherEntry[],
+    resolveSettings: (ext: { pluginId: string; id: string }) => Record<string, unknown>,
+    cwd: string,
+  ): Promise<IStateEnrichmentWrite[]> {
+    if (enrichers.length === 0) return [];
+    const validators = loadSchemaValidators();
+    const writes: IStateEnrichmentWrite[] = [];
+    for (const node of targetNodes) {
+      if (!nodeHasProvenanceAnnotations(node)) continue;
+      for (const enricher of enrichers) {
+        if (!actionPreconditionMatches(enricher.action, node)) continue;
+        const write = await this.#invokeEnricher(enricher, node, resolveSettings, validators, cwd);
+        if (write !== null) writes.push(write);
+      }
+    }
+    return writes;
+  }
+
+  /**
+   * Invoke one enricher against one node and translate the outcome into
+   * a pending persistence unit (`null` = nothing to record). `ctx.fetch`
+   * is injected ONLY for declared-network actions (the purity carve-out,
+   * `spec/architecture.md`); everything else sees the standard pure
+   * context.
+   */
+  async #invokeEnricher(
+    enricher: IEnricherEntry,
+    node: Node,
+    resolveSettings: (ext: { pluginId: string; id: string }) => Record<string, unknown>,
+    validators: ReturnType<typeof loadSchemaValidators>,
+    cwd: string,
+  ): Promise<IStateEnrichmentWrite | null> {
+    const { action, qualifiedId, schema } = enricher;
+    if (typeof action.invoke !== 'function') return null;
+    try {
+      // Same defence-in-depth as the extractor pass (audit M8): a
+      // tampered `node.path` row must not compose an out-of-tree
+      // absolute path into the action context.
+      assertContained(cwd, node.path);
+    } catch {
+      return null;
+    }
+
+    const startedAt = Date.now();
+    const ctx: Parameters<NonNullable<IAction['invoke']>>[1] = {
+      node,
+      nodeAbsolutePath: resolve(cwd, node.path),
+      invoker: 'cli',
+      now: () => new Date(),
+      settings: resolveSettings(action),
+    };
+    if (action.io?.includes('network') === true) ctx.fetch = refreshFetch;
+
+    let report: unknown;
+    try {
+      const result = await action.invoke({}, ctx);
+      report = result.report;
+    } catch (err) {
+      this.#warnEnricher(REFRESH_TEXTS.enricherInvokeFailed, {
+        actionId: sanitizeForTerminal(qualifiedId),
+        nodePath: sanitizeForTerminal(node.path),
+        message: sanitizeForTerminal(formatErrorMessage(err)),
+      });
+      return null;
+    }
+    const finishedAt = Date.now();
+
+    const validation = validators.validateActionReport(schema, report);
+    if (!validation.ok) {
+      this.#warnEnricher(REFRESH_TEXTS.enricherReportInvalid, {
+        actionId: sanitizeForTerminal(qualifiedId),
+        nodePath: sanitizeForTerminal(node.path),
+        errors: sanitizeForTerminal(validation.errors),
+      });
+      return {
+        nodePath: node.path,
+        execution: buildEnricherExecution(enricher, node, {
+          status: 'failed',
+          failureReason: 'report-invalid',
+          startedAt,
+          finishedAt,
+          reportJson: null,
+        }),
+      };
+    }
+
+    const reportJson = JSON.stringify(report);
+    const verifiedRaw = (report as Record<string, unknown>)['verified'];
+    return {
+      nodePath: node.path,
+      execution: buildEnricherExecution(enricher, node, {
+        status: 'completed',
+        failureReason: null,
+        startedAt,
+        finishedAt,
+        reportJson,
+      }),
+      upsert: {
+        nodeId: node.path,
+        providerId: qualifiedId,
+        dataJson: reportJson,
+        // `verified` lifted from the report when it carries a boolean
+        // verdict (`spec/db-schema.md` §state_enrichments); null keeps
+        // the column tri-state for report shapes without one.
+        verified: typeof verifiedRaw === 'boolean' ? verifiedRaw : null,
+        fetchedAt: finishedAt,
+        // v1: no declared refresh policy, body-hash drift is the only
+        // staleness signal.
+        staleAfter: null,
+      },
+    };
+  }
+
+  /** Warn-channel advisory for a degraded enricher outcome. */
+  #warnEnricher(template: string, vars: Record<string, string>): void {
+    const ansi = this.ansiFor('stderr');
+    this.printer!.warn(tx(template, { glyph: ansi.yellow('•'), ...vars }));
+  }
 }
 
 /**
@@ -468,6 +782,138 @@ export async function runExtractorForEnrichment(
   return result.enrichments;
 }
 
+
+/**
+ * Resolve the enabled enrichers out of the composed action catalog: an
+ * action is an enricher when its report schema (a plugin's on-disk
+ * `report.schema.json`, or a built-in's codegen-inlined `reportSchema`)
+ * `$ref`s a canonical `enrichments/<kind>` schema
+ * (`kernel/enrichments/enrichment-schema.ts`), the mirror of the
+ * summarizer detection. An unreadable / unparseable on-disk schema
+ * simply keeps the action out of the enricher set (the plugin doctor
+ * surface owns schema diagnostics; refresh must not crash on it).
+ */
+async function resolveEnricherActions(
+  actions: readonly IAction[],
+  dirByAction: Map<string, string>,
+): Promise<IEnricherEntry[]> {
+  const out: IEnricherEntry[] = [];
+  for (const action of actions) {
+    const qualifiedId = qualifiedExtensionId(action.pluginId, action.id);
+    const schema = await resolveActionReportSchema(action, dirByAction.get(qualifiedId));
+    if (schema === null) continue;
+    if (enrichmentKindOfReportSchema(schema) === null) continue;
+    out.push({ action, qualifiedId, schema });
+  }
+  return out;
+}
+
+/**
+ * An action's report schema: the on-disk `report.schema.json` for a
+ * plugin action (its directory is in the dir map), the codegen-inlined
+ * `reportSchema` for a built-in. `null` when neither resolves.
+ */
+async function resolveActionReportSchema(
+  action: IAction,
+  dir: string | undefined,
+): Promise<Record<string, unknown> | null> {
+  if (dir !== undefined) {
+    try {
+      return JSON.parse(
+        await readFile(join(dir, 'report.schema.json'), 'utf8'),
+      ) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }
+  if (action.reportSchema && typeof action.reportSchema === 'object') {
+    return action.reportSchema;
+  }
+  return null;
+}
+
+/**
+ * The provenance-annotation gate: enrichers consume the `source` +
+ * `sourceVersion` sidecar annotations
+ * (`spec/schemas/annotations.schema.json`), so a node carrying neither
+ * (or blank values) is a silent no-op skip per the contract, NOT a
+ * failure. v1 gates on this fixed pair because the canonical
+ * enrichments namespace has a single shape (`github`); a future second
+ * shape moves the needed-annotations declaration onto the manifest.
+ */
+function nodeHasProvenanceAnnotations(node: Node): boolean {
+  const annotations = (node.sidecar?.annotations ?? {}) as Record<string, unknown>;
+  const source = annotations['source'];
+  const version = annotations['sourceVersion'];
+  return (
+    typeof source === 'string' &&
+    source.length > 0 &&
+    typeof version === 'string' &&
+    version.length > 0
+  );
+}
+
+/**
+ * Declarative `precondition` match for the enricher pass. Kind entries
+ * are qualified (`<provider-plugin>/<kindName>`); like the extractor
+ * filter above, the comparison is against the kind tail. Provider
+ * entries match `node.provider` verbatim. No precondition → universal.
+ */
+function actionPreconditionMatches(action: IAction, node: Node): boolean {
+  const pre = action.precondition;
+  if (!pre) return true;
+  if (pre.kind && pre.kind.length > 0) {
+    const kindMatches = pre.kind.some((qualified) => {
+      const slashIdx = qualified.indexOf('/');
+      const kindOnly = slashIdx === -1 ? qualified : qualified.slice(slashIdx + 1);
+      return kindOnly === node.kind;
+    });
+    if (!kindMatches) return false;
+  }
+  if (pre.provider && pre.provider.length > 0 && !pre.provider.includes(node.provider)) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Compose the `state_executions` row for one in-process enricher
+ * invocation. Mirrors the record path's row shape (`record-outcome.ts`)
+ * with the Model A specifics: `runner: 'in-process'`, no job, no
+ * content hash, wall-clock duration measured around the invocation.
+ */
+function buildEnricherExecution(
+  enricher: IEnricherEntry,
+  node: Node,
+  opts: {
+    status: 'completed' | 'failed';
+    failureReason: 'report-invalid' | null;
+    startedAt: number;
+    finishedAt: number;
+    reportJson: string | null;
+  },
+): ExecutionRecord {
+  return {
+    id: generateExecutionId(),
+    kind: 'action',
+    extensionId: enricher.qualifiedId,
+    extensionVersion: enricher.action.version,
+    nodeIds: [node.path],
+    contentHash: null,
+    status: opts.status,
+    failureReason: opts.failureReason,
+    exitCode: null,
+    runner: 'in-process',
+    startedAt: opts.startedAt,
+    finishedAt: opts.finishedAt,
+    durationMs: opts.finishedAt - opts.startedAt,
+    tokensIn: null,
+    tokensOut: null,
+    // Domain field name; storage bridges it to the report_json column.
+    reportPath: opts.reportJson,
+    jobId: null,
+  };
+}
 
 /**
  * Strip a leading YAML frontmatter fence from `text`. Mirrors the

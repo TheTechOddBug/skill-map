@@ -65,15 +65,21 @@ export type TConfidence = number;
 // severity stored in `scan_issues.severity`").
 export type TIssueSeverity = Severity;
 
-export type TJobStatus = 'queued' | 'running' | 'completed' | 'failed';
+export type TJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 export type TJobFailureReason =
   | 'runner-error'
   | 'report-invalid'
   | 'timeout'
   | 'abandoned'
   | 'job-file-missing'
-  | 'user-cancelled';
-export type TJobRunner = 'cli' | 'skill' | 'in-process';
+  | 'user-failed';
+export type TJobRunner = 'agent' | 'in-process';
+/**
+ * Extension kind frozen on `state_jobs.extension_kind` at submit time
+ * (CHECK in (`action`, `analyzer`)); `sm record` routes on it. Mirrors
+ * the domain `JobExtensionKind`.
+ */
+export type TJobExtensionKind = 'action' | 'analyzer';
 
 export type TExecutionKind = 'action';
 export type TExecutionStatus = 'completed' | 'failed' | 'cancelled';
@@ -457,8 +463,23 @@ export interface IScanNodeTagsTable {
 
 export interface IStateJobsTable {
   id: string;
-  actionId: string;
-  actionVersion: string;
+  extensionId: string;
+  extensionVersion: string;
+  extensionKind: TJobExtensionKind;
+  /**
+   * Per-job auto-fix opt-in frozen at submit (`auto_fix`, DEFAULT 0). SQLite
+   * INTEGER (0 / 1) bridging to `Job.autoFix`; `sm record` chains the
+   * finder's fixers on completion when set (`spec/job-lifecycle.md`
+   * §Auto-fix chain (per-job)).
+   */
+  autoFix: Generated<number>;
+  /**
+   * Finding-subset targeting for FIXER jobs (`finding_ids_json`, NULL =
+   * whole node): JSON int array of `state_findings` ids frozen at
+   * submit, bridged to `Job.findingIds`
+   * (`spec/job-lifecycle.md` §Findings injection for fixers).
+   */
+  findingIdsJson: string | null;
   nodeId: string;
   contentHash: string;
   nonce: string;
@@ -466,13 +487,34 @@ export interface IStateJobsTable {
   status: TJobStatus;
   failureReason: TJobFailureReason | null;
   runner: TJobRunner | null;
-  ttlSeconds: number;
-  filePath: string | null;
+  ttlSeconds: number | null;
   createdAt: number;
   claimedAt: number | null;
   finishedAt: number | null;
   expiresAt: number | null;
   submittedBy: string | null;
+}
+
+/**
+ * Content-addressed store for the rendered MD content of every queued /
+ * completed job (`state_job_contents`). Keyed by `contentHash` (the same
+ * hash `state_jobs.contentHash` carries); the blob is stored once and
+ * refcounted by reference from `state_jobs`. There is no on-disk
+ * `.skill-map/jobs/*.md` artifact, the DB row is the canonical content.
+ *
+ *   - `content`, the fully-rendered job content (preamble + action
+ *     template + interpolated user content). NOT NULL.
+ *   - `createdAt`, wall-clock ms at first insert. `INSERT OR IGNORE`
+ *     keeps the earliest write; later submits of the same hash are no-ops.
+ *
+ * GC contract (see `spec/db-schema.md` §state_job_contents): `sm jobs
+ * prune` deletes every row whose `contentHash` is referenced by zero
+ * `state_jobs` rows, in the same transaction that prunes terminal jobs.
+ */
+export interface IStateJobContentsTable {
+  contentHash: string;
+  content: string;
+  createdAt: number;
 }
 
 export interface IStateExecutionsTable {
@@ -491,7 +533,17 @@ export interface IStateExecutionsTable {
   durationMs: number | null;
   tokensIn: number | null;
   tokensOut: number | null;
-  reportPath: string | null;
+  /** Agent-self-reported model name (`sm record --model`); NULL when undeclared. */
+  model: string | null;
+  /**
+   * The report payload the runner returned, stored inline as JSON text
+   * (validated against the action's `reportSchemaRef` at ingest time).
+   * NULL when the execution produced no report. Maps to the
+   * `report_json` column; there is no on-disk report file. The domain
+   * `ExecutionRecord.reportPath` field (per `execution-record.schema.json`)
+   * bridges to this column in `history.ts`.
+   */
+  reportJson: string | null;
   jobId: string | null;
 }
 
@@ -502,7 +554,80 @@ export interface IStateSummariesTable {
   summarizerVersion: string;
   bodyHashAtGeneration: string;
   generatedAt: number;
+  /** Denormalized agent-self-reported model name; NULL when undeclared. */
+  model: string | null;
   summaryJson: string;
+}
+
+/**
+ * Origin lane of a `state_findings` row. `extension` rows come from a
+ * probabilistic finder Analyzer's validated `findings[]` array; `kernel`
+ * rows are synthesized by the record path from any probabilistic report's
+ * `safety` block under the reserved type slugs (`injection-detected` /
+ * `content-suspicious` / `content-malformed`).
+ */
+export type TFindingOrigin = 'extension' | 'kernel';
+
+/**
+ * The lifecycle STATE a finding moved into (`spec/db-schema.md`
+ * §state_findings, "Finding lifecycle state"). `fixed` = resolved (hidden
+ * from the default `sm findings` view, NOT deleted, re-checkable);
+ * `human-decision` = a fixer proposed but the choice is the author's, so it
+ * stays visible as the author's TODO (renamed from the earlier `declined`,
+ * which read as a dead-end when it is the most action-demanding state).
+ * Neither is "verified": only the finder re-judging the current body deletes
+ * or reopens a `fixed` row. `null` = open.
+ */
+export type TFindingResolution = 'fixed' | 'human-decision' | 'dismissed';
+
+/**
+ * WHO decided a `fixed` finding (`state_findings.resolution_actor`). One
+ * rule: ANY user interaction makes it `human` (an approval, a choice among
+ * a fixer's options, an operator edit, or a `sm findings resolve`), only a
+ * fully autonomous fix with zero user interaction is `fixer`. NULL on a
+ * `human-decision` (undecided) or open row.
+ */
+export type TResolutionActor = 'human' | 'fixer';
+
+/**
+ * Probabilistic findings (`state_findings`, `spec/db-schema.md`
+ * §state_findings). Written by the record path inside the
+ * `recordJobTerminal` transaction with replace semantics per
+ * `(node_id, extension_id)` (both origins deleted, fresh rows inserted).
+ * `severity` reuses the domain union (`info` / `warn` / `error`).
+ * Staleness (`body_hash_at_generation` vs the live `scan_nodes.body_hash`)
+ * is computed at read time via JOIN, never persisted.
+ *
+ * The `resolution*` columns are stamped separately, by one of two writers
+ * (`spec/db-schema.md` §state_findings): the record transaction closing a
+ * FIXER's job (scoped to the job's node and the fixer's declared
+ * `analyzerIds`), or `sm findings resolve` (a purely human resolution).
+ */
+export interface IStateFindingsTable {
+  id: Generated<number>;
+  nodeId: string;
+  extensionId: string;
+  extensionVersion: string;
+  origin: TFindingOrigin;
+  type: string;
+  severity: TIssueSeverity;
+  message: string;
+  detail: string | null;
+  confidence: number;
+  /** Denormalized agent-self-reported model name; NULL when undeclared. */
+  model: string | null;
+  /** Lifecycle state; NULL (open) until a fixer or the operator resolves it. */
+  resolution: TFindingResolution | null;
+  /** WHO decided a `fixed` row (`human` / `fixer`); NULL for `human-decision` / open. */
+  resolutionActor: TResolutionActor | null;
+  /** The one-line reason, verbatim; the author's TODO (its proposal) when `human-decision`. */
+  resolutionNote: string | null;
+  /** The fixer's qualified extension id; NULL for a purely human resolution. */
+  resolutionBy: string | null;
+  resolutionAt: number | null;
+  bodyHashAtGeneration: string;
+  generatedAt: number;
+  jobId: string | null;
 }
 
 export interface IStateEnrichmentsTable {
@@ -579,8 +704,10 @@ export interface IDatabase {
   node_enrichments: INodeEnrichmentsTable;
 
   state_jobs: IStateJobsTable;
+  state_job_contents: IStateJobContentsTable;
   state_executions: IStateExecutionsTable;
   state_summaries: IStateSummariesTable;
+  state_findings: IStateFindingsTable;
   state_enrichments: IStateEnrichmentsTable;
   state_plugin_kvs: IStatePluginKvsTable;
   state_node_favorites: IStateNodeFavoritesTable;
