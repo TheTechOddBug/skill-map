@@ -38,7 +38,7 @@ import { SmCommand } from '../util/sm-command.js';
 import { truncateHead } from '../util/text.js';
 import type { IActionRuntime } from '../../core/jobs/action-runtime.js';
 import { loadActionRuntime, resolveAction } from './action-runtime.js';
-import { resolveActionRecord } from './record-outcome.js';
+import { resolveActionRecord } from '../../core/jobs/record-outcome.js';
 
 /**
  * One catalog row, the shared shape of `list --json` (array) and

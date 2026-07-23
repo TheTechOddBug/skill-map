@@ -376,6 +376,7 @@ function applyMcpServerWrite(body: IPatchBody, cwd: string): boolean {
   return true;
 }
 
+
 /**
  * Apply the `scan.*` sub-keys of the patch (today only
  * `scan.referencePaths`). Runs the existence gate then the privacy gate

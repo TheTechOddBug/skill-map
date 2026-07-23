@@ -21,8 +21,6 @@
  * job-queue.ts would otherwise import each other in a cycle.
  */
 
-import type { IAction } from '../../kernel/extensions/index.js';
-import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { buildActionRuntime, type IActionRuntime } from '../../core/jobs/action-runtime.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import { loadPluginRuntime } from '../util/plugin-runtime.js';
@@ -46,13 +44,7 @@ export async function loadActionRuntime(printer: IPrinter): Promise<IActionRunti
   );
 }
 
-/** Resolve an action by qualified id (`<plugin>/<id>`) or bare id. */
-export function resolveAction(actions: readonly IAction[], id: string): IAction | null {
-  for (const action of actions) {
-    if (qualifiedExtensionId(action.pluginId, action.id) === id) return action;
-  }
-  for (const action of actions) {
-    if (action.id === id) return action;
-  }
-  return null;
-}
+// `resolveAction` (qualified-or-bare-id Action lookup) moved down to
+// `core/jobs/action-runtime.ts` so the record engine can share it without a
+// `core/ -> cli/` import; re-exported here for the CLI verbs that consume it.
+export { resolveAction } from '../../core/jobs/action-runtime.js';

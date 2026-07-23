@@ -174,12 +174,10 @@ export const SETTINGS_TEXTS = {
      * flipping it here shows a restart hint until `sm serve` is restarted.
      */
     mcpServerLabel: 'MCP server',
-    mcpServerExperimentalTooltip:
-      'Experimental: the endpoint and its shape may change.',
     mcpServerDescription:
-      'Let an MCP-capable assistant query this map over sm serve at /mcp. ' +
-      'Read-only: it answers questions about the graph, it never runs skills ' +
-      'or agents.',
+      'Let an MCP-capable assistant work with this project over sm serve at ' +
+      '/mcp: query the map, and drive the job queue and findings (submit, ' +
+      'claim, and record jobs; resolve or dismiss findings).',
     mcpServerRestartHint: 'Restart sm to apply.',
     referencePathsLabel: 'Folders for link validation',
     referencePathsDescription:

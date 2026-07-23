@@ -61,11 +61,11 @@
         "server": {
           "type": "object",
           "additionalProperties": false,
-          "description": "skill-map's own read-only MCP server, exposed over Streamable HTTP at `/mcp` on the running `sm serve`. Experimental, off by default.",
+          "description": "skill-map's own MCP server, exposed over Streamable HTTP at `/mcp` on the running `sm serve`. Off by default. When on it exposes the read map tools/resources plus the queue + findings-lifecycle tools over one endpoint.",
           "properties": {
             "enabled": {
               "type": "boolean",
-              "description": "Whether `sm serve` mounts the read-only MCP server at `/mcp`. Default `false` (opt-in). Resolved through the normal config layering; the `--mcp` / `--no-mcp` flags on `sm serve` override it. Because the endpoint mounts at serve boot, flipping this while a server runs takes effect only on the next `sm serve` restart. The server is strictly read-only: it exposes query tools and graph resources, it never executes skills or agents. **Project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`), stripped with a warning from the committed `project` layer: exposing a local server is a per-operator decision that must not travel via the shared repo, so the Settings > Project toggle and `PATCH /api/project-preferences` write it to `settings.local.json`. Stability: experimental.",
+              "description": "Whether `sm serve` mounts the MCP server at `/mcp`. Default `false` (opt-in). When on, the server exposes both the read-only map tools/resources AND the queue + findings-lifecycle tools (submit/claim/record/cancel/fail jobs, resolve/dismiss/reopen/undismiss findings), so an MCP host can query the map and drive the queue over one endpoint. Resolved through the normal config layering; the `--mcp` / `--no-mcp` flags on `sm serve` override it. Because the endpoint mounts at serve boot, flipping this while a server runs takes effect only on the next `sm serve` restart. The surface is loopback-only and unauthenticated, so enabling it grants queue + findings control to any local process (same trust boundary as the REST mutating routes). **Project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`), stripped with a warning from the committed `project` layer: exposing a local server is a per-operator decision that must not travel via the shared repo, so the Settings > Project toggle and `PATCH /api/project-preferences` write it to `settings.local.json`.",
               "$comment": "Project-local only; a per-operator server-enable, never committed."
             }
           }

@@ -28,6 +28,7 @@ import type { HttpBindings } from '@hono/node-server';
 import { RESPONSE_ALREADY_SENT } from '@hono/node-server/utils/response';
 import type { Context, Hono } from 'hono';
 
+import type { IPluginRuntime } from '../../core/runtime/plugin-runtime.js';
 import type { ActivityStatsService } from '../activity-stats.js';
 import type { WsBroadcaster } from '../broadcaster.js';
 import { createMcpServer } from './mcp-server.js';
@@ -44,8 +45,10 @@ export interface IMcpIntegrationDeps {
   implVersion: string;
   /** Boot-scoped execution-stats accumulator (for `skillmap://activity`). */
   activityStats: ActivityStatsService;
-  /** The one `/ws` broadcaster the realtime sink attaches to. */
+  /** The one `/ws` broadcaster the realtime sink + queue tools use. */
   broadcaster: WsBroadcaster;
+  /** Boot-cached plugin runtime, threaded to the queue tools' submit / record. */
+  pluginRuntime: IPluginRuntime;
 }
 
 export interface IMcpIntegration {
@@ -70,6 +73,8 @@ export function createMcpIntegration(deps: IMcpIntegrationDeps): IMcpIntegration
       cwd: deps.cwd,
       implVersion: deps.implVersion,
       activityStats: deps.activityStats,
+      pluginRuntime: deps.pluginRuntime,
+      broadcaster: deps.broadcaster,
     }),
   );
   const sink = createMcpBroadcasterSink(manager);

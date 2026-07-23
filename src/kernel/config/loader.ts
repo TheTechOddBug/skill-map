@@ -295,14 +295,14 @@ export interface IMcpConfig {
   server?: IMcpServerConfig;
 }
 
-/** skill-map's own read-only MCP server toggle (`mcp.server`). */
+/** skill-map's own MCP server toggles (`mcp.server`). */
 export interface IMcpServerConfig {
   /**
-   * Whether `sm serve` mounts the read-only MCP server at `/mcp`.
-   * Default `false` (opt-in, experimental). Overridden by the
-   * `--mcp` / `--no-mcp` flags. **Project-local only** (per
-   * `PROJECT_LOCAL_ONLY_KEYS`), stripped from the committed `project`
-   * layer. See `spec/mcp-server.md` §Enablement.
+   * Whether `sm serve` mounts the MCP server at `/mcp` (read-only map
+   * tools + resources). Default `false` (opt-in, experimental).
+   * Overridden by the `--mcp` / `--no-mcp` flags. **Project-local
+   * only** (per `PROJECT_LOCAL_ONLY_KEYS`), stripped from the committed
+   * `project` layer. See `spec/mcp-server.md` §Enablement.
    */
   enabled?: boolean;
 }

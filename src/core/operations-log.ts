@@ -33,7 +33,7 @@ import { defaultProjectOperationsLogPath } from './paths/db-path.js';
 export const OPERATIONS_LOG_MAX_BYTES = 1024 * 1024;
 
 /** Which surface drove the operation. */
-export type TOperationChannel = 'cli' | 'ui' | 'watcher' | 'hook';
+export type TOperationChannel = 'cli' | 'ui' | 'watcher' | 'hook' | 'mcp';
 
 /** One log line (`spec/cli-contract.md` §Operations log for field semantics). */
 export interface IOperationEntry {

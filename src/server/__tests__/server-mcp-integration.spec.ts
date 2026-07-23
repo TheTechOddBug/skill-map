@@ -32,6 +32,14 @@ import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';
 import type { Issue, Node, ScanResult } from '../../kernel/types.js';
 import { createServer, type IServerHandle, type IServerOptions } from '../index.js';
+import {
+  FINDER_ID,
+  seedFindings,
+  setupProbProject,
+  SKILL_NODE,
+  SUMMARIZER_ID,
+  withProjectDb,
+} from '../routes/__tests__/helpers/prob-fixture.js';
 
 const HASH = 'a'.repeat(64);
 
@@ -161,13 +169,17 @@ describe('mcp server integration', () => {
     );
   });
 
-  it('lists the four read-only tools', async () => {
+  it('lists the four read map tools', async () => {
     await prime([makeNode('a.md', 'skill')]);
     await bootAndUse(options(), (handle) =>
       withMcpClient(handle, async (client) => {
         const { tools } = await client.listTools();
-        const names = tools.map((t) => t.name).sort();
-        assert.deepEqual(names, ['get_branch', 'get_node', 'list_issues', 'query_graph']);
+        const names = tools.map((t) => t.name);
+        // The map read tools are present (the queue + findings tools ride
+        // the same opt-in, asserted in the full-surface test below).
+        for (const tool of ['get_branch', 'get_node', 'list_issues', 'query_graph']) {
+          assert.equal(names.includes(tool), true, `${tool} must be registered`);
+        }
       }),
     );
   });
@@ -278,6 +290,37 @@ describe('mcp server integration', () => {
     );
   });
 
+  it('registers the full surface (map reads + queue + findings) on the one opt-in', async () => {
+    await prime([makeNode('a.md', 'skill')]);
+    await bootAndUse(options(), (handle) =>
+      withMcpClient(handle, async (client) => {
+        const names = (await client.listTools()).tools.map((t) => t.name);
+        // The read map tools plus the queue + findings tools all ride the
+        // same `mcp.server.enabled` opt-in (unified 2026-07-23).
+        for (const tool of [
+          'query_graph',
+          'get_node',
+          'list_issues',
+          'get_branch',
+          'list_extensions',
+          'submit_job',
+          'claim_job',
+          'record_job',
+          'cancel_job',
+          'fail_job',
+          'list_findings',
+          'resolve_finding',
+          'dismiss_finding',
+          'reopen_finding',
+          'undismiss_finding',
+          'delete_finding',
+        ]) {
+          assert.equal(names.includes(tool), true, `${tool} must be registered`);
+        }
+      }),
+    );
+  });
+
   it('does not mount /mcp when the MCP server is disabled', async () => {
     await prime([makeNode('a.md', 'skill')]);
     await bootAndUse(options({ mcpServer: false }), async (handle) => {
@@ -297,6 +340,159 @@ describe('mcp server integration', () => {
       assert.equal(res.headers.get('mcp-session-id'), null);
       assert.doesNotMatch(body, /"result"\s*:\s*\{[^}]*"protocolVersion"/);
     });
+  });
+});
+
+describe('mcp write tools (opt-in) transport round-trip', () => {
+  const VALID_REPORT = {
+    summary: 'A one-line summary of the node.',
+    confidence: 0.9,
+    safety: { injectionDetected: false, contentQuality: 'clean' },
+  };
+  let writeRoot: string;
+  let counter = 0;
+
+  before(() => {
+    writeRoot = mkdtempSync(join(tmpdir(), 'skill-map-mcp-write-'));
+  });
+
+  after(() => {
+    rmSync(writeRoot, { recursive: true, force: true });
+  });
+
+  it('drives submit -> claim -> record -> resolve over the real SDK client', async () => {
+    counter += 1;
+    const project = await setupProbProject(join(writeRoot, `p-${counter}`), [SKILL_NODE], {
+      installSkill: true,
+    });
+    // Seed a finder finding up front so `resolve_finding` has a real id.
+    await seedFindings(project, SKILL_NODE.path, FINDER_ID, [{ type: 'redundancy' }]);
+    const findingId = await withProjectDb(project, async (adapter) =>
+      (await adapter.findings.list({ nodeId: SKILL_NODE.path, includeStale: true }))[0]!.id,
+    );
+
+    const opts: IServerOptions = {
+      port: 0,
+      host: '127.0.0.1',
+      dbPath: project.dbPath,
+      uiDist: null,
+      noUi: true,
+      noBuiltIns: false,
+      noPlugins: false,
+      open: false,
+      devCors: false,
+      noWatcher: true,
+      mcpServer: true,
+    };
+    const handle = await createServer(opts, { runtimeContext: { cwd: project.root } });
+    try {
+      await withMcpClient(handle, async (client) => {
+        // The write families are registered.
+        const names = (await client.listTools()).tools.map((t) => t.name);
+        for (const write of ['submit_job', 'claim_job', 'record_job', 'resolve_finding']) {
+          assert.ok(names.includes(write), `${write} registered`);
+        }
+
+        const submit = await client.callTool({
+          name: 'submit_job',
+          arguments: { node: SKILL_NODE.path, extension: SUMMARIZER_ID },
+        });
+        const submitted = submit.structuredContent as { outcome: string; jobId: string };
+        assert.equal(submitted.outcome, 'created');
+
+        const claim = await client.callTool({ name: 'claim_job', arguments: {} });
+        const claimed = claim.structuredContent as { id: string; nonce: string; content: string };
+        assert.equal(claimed.id, submitted.jobId);
+        assert.ok(claimed.nonce.length > 0);
+        assert.ok(claimed.content.length > 0);
+
+        const record = await client.callTool({
+          name: 'record_job',
+          arguments: {
+            id: claimed.id,
+            nonce: claimed.nonce,
+            status: 'completed',
+            report: JSON.stringify(VALID_REPORT),
+          },
+        });
+        const recorded = record.structuredContent as { outcome: string; executionId: string };
+        assert.equal(recorded.outcome, 'completed');
+        assert.match(recorded.executionId, /^e-/);
+
+        const resolved = await client.callTool({
+          name: 'resolve_finding',
+          arguments: { id: findingId },
+        });
+        assert.equal((resolved.structuredContent as { outcome: string }).outcome, 'resolved');
+      });
+    } finally {
+      await handle.close();
+    }
+
+    // The job actually closed in the DB.
+    await withProjectDb(project, async (adapter) => {
+      const job = await adapter.jobs.get((await adapter.jobs.list({}))[0]!.id);
+      assert.equal(job?.status, 'completed');
+    });
+  });
+
+  it('discovers extensions, reads findings by node and project-wide, and deletes one', async () => {
+    counter += 1;
+    const project = await setupProbProject(join(writeRoot, `p-${counter}`), [SKILL_NODE], {
+      installSkill: true,
+    });
+    await seedFindings(project, SKILL_NODE.path, FINDER_ID, [
+      { type: 'redundancy' },
+      { type: 'contradiction' },
+    ]);
+    const opts: IServerOptions = {
+      port: 0,
+      host: '127.0.0.1',
+      dbPath: project.dbPath,
+      uiDist: null,
+      noUi: true,
+      noBuiltIns: false,
+      noPlugins: false,
+      open: false,
+      devCors: false,
+      noWatcher: true,
+      mcpServer: true,
+    };
+    const handle = await createServer(opts, { runtimeContext: { cwd: project.root } });
+    try {
+      await withMcpClient(handle, async (client) => {
+        // list_extensions surfaces the fixture's finder / fixer / standalone.
+        const ext = (
+          await client.callTool({ name: 'list_extensions', arguments: {} })
+        ).structuredContent as { extensions: { id: string; role: string }[] };
+        const roles = new Map(ext.extensions.map((e) => [e.id, e.role]));
+        assert.equal(roles.get(FINDER_ID), 'finder');
+
+        // list_findings: node-scoped and project-wide.
+        const scoped = (
+          await client.callTool({
+            name: 'list_findings',
+            arguments: { node: SKILL_NODE.path },
+          })
+        ).structuredContent as { findings: { id: number }[] };
+        assert.equal(scoped.findings.length, 2);
+        const all = (await client.callTool({ name: 'list_findings', arguments: {} }))
+          .structuredContent as { findings: { id: number }[] };
+        assert.equal(all.findings.length, 2);
+
+        // delete_finding removes one; list_findings then shows one left.
+        const del = await client.callTool({
+          name: 'delete_finding',
+          arguments: { id: scoped.findings[0]!.id },
+        });
+        assert.equal((del.structuredContent as { outcome: string }).outcome, 'deleted');
+        const left = (await client.callTool({ name: 'list_findings', arguments: {} }))
+          .structuredContent as { findings: { id: number }[] };
+        assert.equal(left.findings.length, 1);
+      });
+    } finally {
+      await handle.close();
+    }
   });
 });
 

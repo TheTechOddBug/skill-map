@@ -63,10 +63,9 @@ import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
-import { RECORD_TEXTS } from '../i18n/record.texts.js';
-import type { IActionRuntime } from '../../core/jobs/action-runtime.js';
-import { referencedAnalyzerMode } from '../../core/jobs/analyzer-mode.js';
-import { resolveAction } from './action-runtime.js';
+import { RECORD_OUTCOME_TEXTS } from './i18n/record-outcome.texts.js';
+import { resolveAction, type IActionRuntime } from './action-runtime.js';
+import { referencedAnalyzerMode } from './analyzer-mode.js';
 
 /**
  * Agent-side metrics stamped onto the execution row. Every field is
@@ -339,7 +338,7 @@ export async function recordCompletedOutcome(opts: {
     const reserved = findReservedFindingTypes(report);
     if (reserved.length > 0) {
       return failReportInvalid(
-        tx(RECORD_TEXTS.reservedFindingTypes, { slugs: reserved.join(', ') }),
+        tx(RECORD_OUTCOME_TEXTS.reservedFindingTypes, { slugs: reserved.join(', ') }),
       );
     }
   }

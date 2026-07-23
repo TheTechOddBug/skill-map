@@ -22,10 +22,14 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SubscribeRequestSchema, UnsubscribeRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
+import type { IPluginRuntime } from '../../core/runtime/plugin-runtime.js';
 import type { ActivityStatsService } from '../activity-stats.js';
-import type { IMcpReadContext } from './context.js';
+import type { WsBroadcaster } from '../broadcaster.js';
+import type { IMcpReadContext, IMcpWriteContext } from './context.js';
 import { registerMcpResources } from './resources.js';
 import { registerMcpTools } from './tools.js';
+import { registerMcpQueueTools } from './queue-tools.js';
+import { registerMcpFindingsTools } from './findings-tools.js';
 
 /** Composition-root inputs for the MCP server (per session). */
 export interface IMcpServerDeps extends IMcpReadContext {
@@ -33,6 +37,10 @@ export interface IMcpServerDeps extends IMcpReadContext {
   implVersion: string;
   /** Boot-scoped execution-stats accumulator (for `skillmap://activity`). */
   activityStats: ActivityStatsService;
+  /** Boot-cached plugin runtime (submit / record build a fresh runtime from it). */
+  pluginRuntime: IPluginRuntime;
+  /** The one `/ws` broadcaster the queue tools broadcast job-lifecycle events on. */
+  broadcaster: WsBroadcaster;
 }
 
 /** One session's server plus its live per-connection subscription set. */
@@ -60,6 +68,19 @@ export function createMcpServer(deps: IMcpServerDeps): IMcpServerParts {
   const ctx: IMcpReadContext = { dbPath: deps.dbPath, cwd: deps.cwd };
   registerMcpTools(server, ctx);
   registerMcpResources(server, ctx, deps.activityStats);
+
+  // The queue + findings-lifecycle tools ride the SAME endpoint as the
+  // read-only map tools: one opt-in (`mcp.server.enabled`) turns the whole
+  // surface on (user decision 2026-07-23, unify the two toggles). See
+  // spec/mcp-server.md §Queue / §Findings lifecycle tools.
+  const writeCtx: IMcpWriteContext = {
+    dbPath: deps.dbPath,
+    cwd: deps.cwd,
+    pluginRuntime: deps.pluginRuntime,
+    broadcaster: deps.broadcaster,
+  };
+  registerMcpQueueTools(server, writeCtx);
+  registerMcpFindingsTools(server, writeCtx);
 
   const subscriptions = new Set<string>();
   // The high-level `McpServer` registers list/read handlers but NOT

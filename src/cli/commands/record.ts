@@ -20,47 +20,31 @@
  *      state"), which catches a late callback after a reap / cancel.
  *   4. `--status completed`: read the report (`--report <path>` or `-` for
  *      stdin), parse JSON, and validate it against the action's report
- *      schema (the built-in's inlined `reportSchema`, or the plugin's
- *      on-disk `report.schema.json`). On validation failure -> transition
- *      to `failed` / `report-invalid` (never left `running`) and exit 2.
- *      On success -> `completed`, report stored inline in
- *      `state_executions.report_json`, exit 0.
- *   5. `--status failed`: transition to `failed` / `runner-error` (the
- *      callback-reported failure reason; `user-failed` belongs to the
- *      operator verb `sm jobs fail`). Exit 0.
+ *      schema. On validation failure -> transition to `failed` /
+ *      `report-invalid` (never left `running`) and exit 2. On success ->
+ *      `completed`, report stored inline, exit 0.
+ *   5. `--status failed`: transition to `failed` / `runner-error`. Exit 0.
  *
- * The record core (parse + validate + execution row + job transition +
- * summary write-through for summary-schema Actions) lives in the SHARED
- * `record-outcome.ts` module (also consumed by the claim-side corruption
- * path in `job-queue.ts`); this file owns the CLI-flag surface, the
- * nonce/state gates, the exit-code mapping, and the `--json` synthetic
- * run envelope, the canonical job-event emission (`spec/job-events.md`):
+ * The record ORCHESTRATION (the nonce / state gate, the completed / failed
+ * transition, the auto-fix chain, and the tags write-through) lives in the
+ * SHARED `core/jobs/record-engine.ts` module (also consumed by the MCP
+ * `record_job` tool); this file owns the CLI-flag surface, the `--report`
+ * reading, the exit-code mapping, the `pushJobEvent`-backed live push, and
+ * the `--json` synthetic run envelope (`spec/job-events.md`):
  * `run.started(mode=external)` -> `job.claimed` replay ->
  * `job.callback.received` -> `job.completed` | `job.failed` ->
  * `run.summary`, one ndjson line each, no other JSON output.
- *
- * It also owns the record side of the live push (`spec/job-events.md`
- * §Transport): after the transition commits, the terminal event
- * (`job.completed` / `job.failed`, report-invalid included) and any
- * auto-fix fixer `job.submitted` are pushed best-effort to the project's
- * running server via `cli/util/job-event-push.ts`, sharing one ext-mode
- * runId with the synthetic envelope. The push never alters output or
- * exit codes.
  *
  * Exit codes (`spec/cli-contract.md` §Record): 0 success, 4 nonce
  * mismatch, 5 missing job / DB, 2 otherwise (bad flags, not-running,
  * unreadable report, report-invalid).
  *
- * Schema constraints called out: `state_executions` (and
- * `execution-record.schema.json`, `additionalProperties: false`) carry no
- * free-text `error` column. `--error` is stored verbatim in
- * `report_json` on the failed path (the only nullable text slot, empty of a
- * report for a failed execution) per `spec/cli-contract.md` §Record.
- * `--model` (the agent's self-declared model id, unverifiable like the
- * token counts) persists on `state_executions.model` and is denormalized
- * onto the `state_findings.model` / `state_summaries.model` rows the
- * same record writes; it also travels on the synthetic envelope
- * (`job.callback.received.data.model`).
+ * Schema constraints called out: `state_executions` carries no free-text
+ * `error` column. `--error` is stored verbatim in `report_json` on the
+ * failed path per `spec/cli-contract.md` §Record. `--model` persists on
+ * `state_executions.model` and is denormalized onto the findings /
+ * summary rows the same record writes; it also travels on the synthetic
+ * envelope (`job.callback.received.data.model`).
  */
 
 import { readFileSync } from 'node:fs';
@@ -69,15 +53,9 @@ import { resolve } from 'node:path';
 import { Command, Option } from 'clipanion';
 
 import type { ExecutionRecord, Job } from '../../kernel/types.js';
-import type { IAction, IHookActionInfo } from '../../kernel/extensions/index.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
-import type { ProgressEmitterPort } from '../../kernel/ports/progress-emitter.js';
 import { createNdjsonProgressEmitter } from '../../core/runtime/progress-emitter.js';
-import { makeHookDispatcher } from '../../kernel/extensions/hook-dispatcher.js';
-import { generateRunId, JobNotRunningError } from '../../kernel/jobs/index.js';
-import { loadConfig } from '../../kernel/config/loader.js';
-import type { IJobsConfig } from '../../kernel/config/loader.js';
-import { qualifiedExtensionId } from '../../kernel/registry.js';
+import { generateRunId } from '../../kernel/jobs/index.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
@@ -85,29 +63,19 @@ import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { pushJobEvent } from '../util/job-event-push.js';
 import { RECORD_TEXTS as T } from '../i18n/record.texts.js';
-import { resolve as resolvePath } from 'node:path';
 
-import { appendOperation } from '../../core/operations-log.js';
-import {
-  EConsentRequiredError,
-  ensureSidecarWritesAllowed,
-} from '../../core/config/sidecar-consent.js';
-import { isTagsReportSchema } from '../../kernel/jobs/index.js';
-import { readSidecarFor, sidecarPathFor } from '../../kernel/sidecar/index.js';
-import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
 import { withSqlite } from '../util/with-sqlite.js';
 import type { IActionRuntime } from '../../core/jobs/action-runtime.js';
-import { submitFixerJob } from '../../core/jobs/submit-engine.js';
-import { resolveMatchingFixerIds } from '../../core/jobs/auto-fix-chain.js';
-import { loadActionRuntime } from './action-runtime.js';
 import {
-  recordCompletedOutcome,
-  recordFailedOutcome,
-  resolveExtensionRecord,
-  type IRecordMetrics,
-} from './record-outcome.js';
+  buildCompletedEventData,
+  buildFailedEventData,
+  recordJob,
+  type TRecordOutcome,
+} from '../../core/jobs/record-engine.js';
+import { loadActionRuntime } from './action-runtime.js';
+import type { IRecordMetrics } from '../../core/jobs/record-outcome.js';
 
 /** Numeric metric flags, already parsed / validated (absent -> undefined). */
 interface IMetrics {
@@ -222,7 +190,13 @@ export class RecordCommand extends SmCommand {
     );
   }
 
-  /** Load + authenticate the job, then route to the success / failure path. */
+  /**
+   * Read the report (completed path only), run the shared record engine,
+   * and map its structured outcome to this command's exit codes + output.
+   * The job row is fetched once (running state) so the `--json` synthetic
+   * envelope + the schema-unresolved / not-found messages have its frozen
+   * fields, exactly as before the engine extraction.
+   */
   private async dispatch(
     adapter: StoragePort,
     status: 'completed' | 'failed',
@@ -231,272 +205,84 @@ export class RecordCommand extends SmCommand {
   ): Promise<TExitCode> {
     const job = await adapter.jobs.get(this.id);
     if (!job) return this.fail(tx(T.errJobNotFound, { id: this.id }), ExitCode.NotFound);
-    // Nonce is the sole credential: a mismatch never mutates.
-    if (job.nonce !== this.nonce) {
-      return this.fail(tx(T.errNonceMismatch, { id: this.id }), ExitCode.NonceMismatch);
+
+    let reportText: string | undefined;
+    if (status === 'completed') {
+      const read = this.readReport(cwd);
+      if (typeof read === 'number') return read; // IO error -> exit 2, no mutation
+      reportText = read;
     }
-    // A late callback after a reap / cancel finds a terminal job; reject
-    // without mutating (spec §Record step 3 / §Atomicity edge cases).
-    if (job.status !== 'running') {
-      return this.fail(tx(T.errNotRunning, { id: this.id, status: job.status }), ExitCode.Error);
-    }
-    const now = Date.now();
+
     // One ext-mode runId identifies this record invocation everywhere it
-    // surfaces: the live push to the server (spec/job-events.md
-    // §Transport), the fixer submits the auto-fix hook queues inside this
-    // run (spec §job.submitted: mode `ext` when the submit fires inside an
-    // agent's record run), and the `--json` synthetic envelope.
+    // surfaces: the live push (spec/job-events.md §Transport), the fixer
+    // submits the auto-fix hook queues inside this run, and the `--json`
+    // synthetic envelope.
     const runId = generateRunId('ext');
-    try {
-      return status === 'completed'
-        ? await this.recordCompleted(adapter, job, metrics, now, cwd, runId)
-        : await this.recordFailed(adapter, job, metrics, now, cwd, runId);
-    } catch (err) {
-      return this.failLostRecordRace(adapter, err);
-    }
-  }
-
-  /**
-   * Lost record race: the job left `running` between the pre-check in
-   * `dispatch` and the record transaction (reaped / cancelled / recorded
-   * elsewhere). The storage guard rolled everything back (no execution
-   * row); map it to the same "job not in running state" exit 2 as the
-   * pre-check. Anything else rethrows untouched.
-   */
-  private async failLostRecordRace(adapter: StoragePort, err: unknown): Promise<TExitCode> {
-    if (!(err instanceof JobNotRunningError)) throw err;
-    const fresh = await adapter.jobs.get(this.id);
-    return this.fail(
-      tx(T.errNotRunning, { id: this.id, status: fresh?.status ?? 'unknown' }),
-      ExitCode.Error,
-    );
-  }
-
-  // --- completed ----------------------------------------------------------
-
-  private async recordCompleted(
-    adapter: StoragePort,
-    job: Job,
-    metrics: IMetrics,
-    now: number,
-    cwd: string,
-    runId: string,
-  ): Promise<TExitCode> {
-    const reportText = this.readReport(cwd);
-    if (typeof reportText === 'number') return reportText; // IO error -> exit 2, no mutation
-
-    // Load the composed runtime at most once, lazily: the `resolve` callback
-    // triggers it only after the report parses (preserving the
-    // report-invalid-before-resolution ordering), and the post-record hook
-    // dispatch reuses the same instance instead of re-discovering plugins.
+    // Load the composed runtime at most once, lazily: the engine triggers
+    // it only after the report parses (preserving the
+    // report-invalid-before-resolution ordering), and the auto-fix + tags
+    // legs reuse the same instance.
     let runtimeMemo: IActionRuntime | undefined;
     const getRuntime = async (): Promise<IActionRuntime> =>
       (runtimeMemo ??= await loadActionRuntime(this.printer!));
 
-    const outcome = await recordCompletedOutcome({
+    const outcome = await recordJob({
       adapter,
-      job,
-      reportText,
-      // Kind-strict: the job row carries the extension kind FROZEN at
-      // submit (spec/db-schema.md §state_jobs), so resolution routes on
-      // it instead of re-resolving the id across the registries.
-      resolve: async () =>
-        resolveExtensionRecord(await getRuntime(), job.extensionId, job.extensionKind),
+      getRuntime,
+      id: this.id,
+      nonce: this.nonce,
+      status,
+      ...(reportText !== undefined ? { reportText } : {}),
+      errorText: this.error ?? null,
       metrics: this.toRecordMetrics(metrics),
-      now,
+      now: Date.now(),
+      runId,
+      cwd,
+      channel: 'cli',
+      // The CLI live-transition leg (spec/job-events.md §Transport): push
+      // every engine event to the project's running server, best-effort.
+      onEvent: (event) => pushJobEvent(cwd, event),
+      onTagsApplied: (tags, node) =>
+        this.printer!.info(
+          tx(T.tagsApplied, { glyph: this.okGlyph(), tags: tags.join(', '), node }),
+        ),
+      onTagsConsentMissing: (node) =>
+        this.printer!.info(
+          tx(T.tagsConsentMissing, { glyph: this.ansiFor('stderr').yellow('⚠'), node }),
+        ),
     });
 
-    if (outcome.kind === 'schema-unresolved') {
-      // Unresolvable extension / schema -> exit 2, no mutation.
-      return this.fail(
-        tx(T.errReportSchemaUnresolved, { extension: job.extensionId, detail: outcome.detail }),
-        ExitCode.Error,
-      );
-    }
-    if (outcome.kind === 'report-invalid') {
-      // The failed / report-invalid transition already landed (spec §Record
-      // step 4): push its live hint (spec/job-events.md §Transport) before
-      // surfacing the reason and exit 2 (the "otherwise" bucket). The
-      // synthetic envelope is emitted on the exit-0 paths only.
-      await pushJobEvent(cwd, {
-        type: 'job.failed',
-        timestamp: Date.now(),
-        runId,
-        jobId: job.id,
-        data: this.failedEventData(outcome.execution, outcome.detail),
-      });
-      this.printer!.error(
-        tx(T.errPrefix, {
-          glyph: this.errGlyph(),
-          message: tx(T.reportInvalid, { errors: outcome.detail }),
-        }),
-      );
-      return ExitCode.Error;
-    }
-    // The record committed: push the job.completed live hint
-    // (spec/job-events.md §Transport) before the hook chain so a
-    // connected server sees the completion ahead of any chained fixer's
-    // job.submitted. Best-effort; cannot throw.
-    await pushJobEvent(cwd, {
-      type: 'job.completed',
-      timestamp: Date.now(),
-      runId,
-      jobId: job.id,
-      data: this.completedEventData(outcome.execution, job),
-    });
-    appendOperation(cwd, {
-      op: 'jobs.record',
-      target: job.nodeId,
-      extension: job.extensionId,
-      channel: 'cli',
-      outcome: 'completed',
-      id: job.id,
-    });
-    // Now chain the finder -> fixer auto-fix, from its two independent
-    // entry points (any enabled `job.completed` hook AND this job's
-    // frozen `auto_fix` flag). Best-effort and AFTER the transaction, so
-    // it never alters the record's success (spec §Hook: hooks react, never
-    // block; spec/job-lifecycle.md §Auto-fix chain (per-job)).
-    await this.chainAutoFix(adapter, job, cwd, getRuntime, runId);
-    // Tags write-through (spec/job-lifecycle.md §Tags write-through): a
-    // TAGGER's completed report merges its tags into the node's sidecar
-    // through the gated channel, AFTER the transaction (best-effort,
-    // never alters the exit code).
-    await this.applyTagsWriteThrough(adapter, job, outcome.execution, cwd, getRuntime);
-    return this.reportSuccess(outcome.execution, job, runId);
+    return this.mapOutcome(outcome, job, runId);
   }
 
-  /**
-   * Merge a completed TAGGER report's `tags[]` into the node's sidecar
-   * `annotations.tags` (union, case-insensitive dedup, existing kept
-   * first) via the gated `.sm` channel, then refresh the write-through
-   * annotations mirror. Detection is the report-schema namespace
-   * (`isTagsReportSchema`, mirror of the summaries signal). Honours the
-   * STANDING consent only: a missing grant surfaces a human advisory
-   * and applies nothing (the report still carries the tags). Every
-   * other failure is swallowed, the write-through is best-effort by
-   * contract.
-   */
-  private async applyTagsWriteThrough(
-    adapter: StoragePort,
-    job: Job,
-    execution: ExecutionRecord,
-    cwd: string,
-    getRuntime: () => Promise<IActionRuntime>,
-  ): Promise<void> {
-    try {
-      const tags = taggerReportTags(await getRuntime(), job, execution);
-      if (tags.length === 0) return;
-      const merged = await writeMergedTags(adapter, job.nodeId, tags, cwd);
-      if (merged === null) return;
-      this.printer!.info(
-        tx(T.tagsApplied, {
-          glyph: this.ansiFor('stderr').green('✓'),
-          tags: merged.join(', '),
-          node: job.nodeId,
-        }),
-      );
-    } catch (err) {
-      if (err instanceof EConsentRequiredError) {
-        this.printer!.info(
-          tx(T.tagsConsentMissing, {
-            glyph: this.ansiFor('stderr').yellow('⚠'),
-            node: job.nodeId,
+  /** Map the engine outcome to output + exit code. */
+  private mapOutcome(outcome: TRecordOutcome, job: Job, runId: string): TExitCode {
+    switch (outcome.kind) {
+      case 'not-found':
+        return this.fail(tx(T.errJobNotFound, { id: this.id }), ExitCode.NotFound);
+      case 'nonce-mismatch':
+        return this.fail(tx(T.errNonceMismatch, { id: this.id }), ExitCode.NonceMismatch);
+      case 'not-running':
+        return this.fail(
+          tx(T.errNotRunning, { id: this.id, status: outcome.status }),
+          ExitCode.Error,
+        );
+      case 'schema-unresolved':
+        return this.fail(
+          tx(T.errReportSchemaUnresolved, { extension: job.extensionId, detail: outcome.detail }),
+          ExitCode.Error,
+        );
+      case 'report-invalid':
+        this.printer!.error(
+          tx(T.errPrefix, {
+            glyph: this.errGlyph(),
+            message: tx(T.reportInvalid, { errors: outcome.detail }),
           }),
         );
-      }
-      // Best-effort: the record's success never depends on the apply.
+        return ExitCode.Error;
+      case 'completed':
+        return this.reportSuccess(outcome.execution, job, runId);
     }
-  }
-
-  /**
-   * Chain the finder -> fixer auto-fix after a completed finder record,
-   * from its TWO independent entry points, both while the record's DB handle
-   * is still open:
-   *
-   *   1. the per-job `auto_fix` flag frozen at submit
-   *      (`spec/job-lifecycle.md` §Auto-fix chain (per-job)): fires when the
-   *      recorded job is a flagged finder, INDEPENDENTLY of the hook gate
-   *      (so it runs with no hook installed);
-   *   2. any enabled `job.completed` hook: fires for every finder
-   *      completion when enabled, resolving the same inverse of Modelo B via
-   *      `ctx.queue`.
-   *
-   * Both resolve the SAME shared resolver and feed the SAME `drainFixerSubmits`
-   * sink; requests are keyed by `(fixerId, nodeId)` so the two paths never
-   * double-submit. Entirely best-effort, wrapped so ANY failure (plugin load,
-   * config read, a fixer submit) leaves the recorded job completed and never
-   * changes the exit code, hooks react, they do not steer the pipeline.
-   */
-  private async chainAutoFix(
-    adapter: StoragePort,
-    job: Job,
-    cwd: string,
-    getRuntime: () => Promise<IActionRuntime>,
-    runId: string,
-  ): Promise<void> {
-    try {
-      const runtime = await getRuntime();
-      const actions = projectHookActions(runtime.actions);
-      const requests = new Map<string, { actionId: string; nodeId: string }>();
-      const add = (actionId: string, nodeId: string): void => {
-        if (nodeId.length > 0) requests.set(`${actionId}\n${nodeId}`, { actionId, nodeId });
-      };
-      // Per-job branch: a flagged finder chains its fixers even when the
-      // global hook is disabled.
-      if (job.autoFix && job.extensionKind === 'analyzer') {
-        for (const fixerId of resolveMatchingFixerIds(job.extensionId, actions)) {
-          add(fixerId, job.nodeId);
-        }
-      }
-      // Hook branch: only touches the DB when something subscribes.
-      await this.collectHookQueued(adapter, job, runtime, actions, add);
-      if (requests.size === 0) return;
-      const jobsConfig = loadConfig({ cwd }).effective.jobs;
-      await drainFixerSubmits(adapter, runtime, jobsConfig, cwd, runId, [...requests.values()]);
-    } catch {
-      // Hooks never block the pipeline (spec §Hook). A failure here leaves
-      // the recorded job completed; the auto-fix chain just did not run.
-    }
-  }
-
-  /**
-   * Dispatch `job.completed` to the composed (enabled) hooks and feed every
-   * fixer they `ctx.queue` into `add`. A no-op (and no DB read) when nothing
-   * subscribes to `job.completed` (the default: no chain hook ships
-   * disabled, `core/update-check` is a boot hook). The node rides the
-   * INTERNAL dispatch event (`buildHookContext` lifts it to `ctx.node`); it
-   * is NOT part of the spec ndjson `job.completed` shape.
-   */
-  private async collectHookQueued(
-    adapter: StoragePort,
-    job: Job,
-    runtime: IActionRuntime,
-    actions: IHookActionInfo[],
-    add: (actionId: string, nodeId: string) => void,
-  ): Promise<void> {
-    if (!runtime.hooks.some((hook) => hook.triggers.includes('job.completed'))) return;
-    const bundle = await adapter.scans.findNode(job.nodeId);
-    const dispatcher = makeHookDispatcher(runtime.hooks, silentEmitter(), {
-      // The hook's ctx.queue records the request synchronously; the actual
-      // submit is drained by the caller while `adapter` is still open (a hook
-      // is fire-and-forget void, so the driver owns the async lifecycle).
-      queue: (actionId, payload) => {
-        const nodeId = (payload as { nodeId?: unknown } | undefined)?.nodeId;
-        if (typeof nodeId === 'string') add(actionId, nodeId);
-      },
-      actions,
-    });
-    await dispatcher.dispatch('job.completed', {
-      type: 'job.completed',
-      timestamp: Date.now(),
-      jobId: job.id,
-      data: {
-        extensionId: job.extensionId,
-        extensionKind: job.extensionKind,
-        ...(bundle ? { node: bundle.node } : {}),
-      },
-    });
   }
 
   /**
@@ -515,48 +301,6 @@ export class RecordCommand extends SmCommand {
         ExitCode.Error,
       );
     }
-  }
-
-  // --- failed -------------------------------------------------------------
-
-  private async recordFailed(
-    adapter: StoragePort,
-    job: Job,
-    metrics: IMetrics,
-    now: number,
-    cwd: string,
-    runId: string,
-  ): Promise<TExitCode> {
-    // A callback-reported failure is `runner-error` (the agent hit an
-    // error and reported it). `user-failed` is the operator verb
-    // `sm jobs fail`, not this path. `--error` is stored verbatim in
-    // report_json (spec/cli-contract.md §Record).
-    const execution = await recordFailedOutcome({
-      adapter,
-      job,
-      failureReason: 'runner-error',
-      errorText: this.error ?? null,
-      metrics: this.toRecordMetrics(metrics),
-      now,
-    });
-    // Live-transition push (spec/job-events.md §Transport), after the
-    // failed / runner-error transition committed. Cannot throw.
-    await pushJobEvent(cwd, {
-      type: 'job.failed',
-      timestamp: Date.now(),
-      runId,
-      jobId: job.id,
-      data: this.failedEventData(execution),
-    });
-    appendOperation(cwd, {
-      op: 'jobs.record',
-      target: job.nodeId,
-      extension: job.extensionId,
-      channel: 'cli',
-      outcome: 'failed',
-      id: job.id,
-    });
-    return this.reportSuccess(execution, job, runId);
   }
 
   // --- output --------------------------------------------------------------
@@ -598,12 +342,11 @@ export class RecordCommand extends SmCommand {
    * `--json`: stream the synthetic run envelope as ndjson on stdout, the
    * canonical job-event emission (`spec/job-events.md`). One envelope
    * wraps exactly one job: `run.started` -> `job.claimed` (replayed from
-   * the job row, the claim verb's own stdout is the handover contract) ->
-   * `job.callback.received` -> `job.completed` | `job.failed` ->
-   * `run.summary`. Run-level events carry `jobId: null`; the new
-   * execution id rides on `job.callback.received.data.executionId`.
-   * `runId` is the invocation's shared ext-mode id, the same one the
-   * live push leg stamped, so both surfaces name one run.
+   * the job row) -> `job.callback.received` -> `job.completed` |
+   * `job.failed` -> `run.summary`. Run-level events carry `jobId: null`;
+   * the new execution id rides on `job.callback.received.data.executionId`.
+   * `runId` is the invocation's shared ext-mode id, the same one the live
+   * push leg stamped.
    */
   private emitSyntheticEnvelope(execution: ExecutionRecord, job: Job, runId: string): void {
     const emitter = createNdjsonProgressEmitter(this.context.stdout as NodeJS.WritableStream);
@@ -628,44 +371,11 @@ export class RecordCommand extends SmCommand {
       executionId: execution.id,
     });
     if (completed) {
-      stamp('job.completed', job.id, this.completedEventData(execution, job));
+      stamp('job.completed', job.id, buildCompletedEventData(execution, job, this.model ?? null));
     } else {
-      stamp('job.failed', job.id, this.failedEventData(execution));
+      stamp('job.failed', job.id, buildFailedEventData(execution, this.error ?? null));
     }
     stamp('run.summary', null, summaryEventData(execution, completed));
-  }
-
-  /**
-   * `job.completed` event data (`spec/job-events.md`). Carries the job's
-   * frozen `extensionId` / `extensionKind` so a hook can filter to a kind
-   * (`kind: 'analyzer'`) or a specific extension, this is what the opt-in
-   * a chain hook keys on to chain finder -> fixer (Decision #144; the
-   * `core/auto-fix` built-in was removed 2026-07-21, drop-ins remain).
-   */
-  private completedEventData(execution: ExecutionRecord, job: Job): Record<string, unknown> {
-    return {
-      extensionId: job.extensionId,
-      extensionKind: job.extensionKind,
-      durationMs: execution.durationMs ?? null,
-      tokensIn: execution.tokensIn ?? null,
-      tokensOut: execution.tokensOut ?? null,
-      model: this.model ?? null,
-      executionId: execution.id,
-    };
-  }
-
-  /**
-   * `job.failed` event data (`spec/job-events.md`). `message` defaults to
-   * the agent-reported `--error`; the report-invalid push overrides it
-   * with the schema-validation detail.
-   */
-  private failedEventData(execution: ExecutionRecord, message?: string): Record<string, unknown> {
-    return {
-      reason: execution.failureReason ?? null,
-      message: message ?? this.error ?? null,
-      exitCode: execution.exitCode ?? null,
-      durationMs: execution.durationMs ?? null,
-    };
   }
 
   // --- small glyph / error helpers ---------------------------------------
@@ -701,158 +411,4 @@ function summaryEventData(execution: ExecutionRecord, completed: boolean): Recor
     totalTokensIn: execution.tokensIn ?? 0,
     totalTokensOut: execution.tokensOut ?? 0,
   };
-}
-
-/**
- * Shared fixer-submit sink for BOTH auto-fix entry points (the per-job
- * `auto_fix` branch and any enabled `job.completed` hook): for each
- * `(fixerId, nodeId)` request submit the fixer through the SAME
- * `submitFixerJob` path the CLI uses (full render, findings injection,
- * supersede, drift verification) and, on a real created job, push its
- * `job.submitted` live hint under this record run's ext-mode runId
- * (`spec/job-events.md` §job.submitted). The push lives HERE, in the verb,
- * never in the shared engine, so the BFF submit route does not double-push.
- * A no-findings / drift / duplicate refusal is swallowed by contract
- * (nothing to fix is not an error); a hard throw is caught too. Cannot fail
- * the record.
- */
-async function drainFixerSubmits(
-  adapter: StoragePort,
-  runtime: IActionRuntime,
-  jobsConfig: IJobsConfig,
-  cwd: string,
-  runId: string,
-  requests: readonly { actionId: string; nodeId: string }[],
-): Promise<void> {
-  for (const request of requests) {
-    try {
-      const result = await submitFixerJob(adapter, runtime, jobsConfig, {
-        extensionId: request.actionId,
-        nodeId: request.nodeId,
-        cwd,
-      });
-      if (result.kind === 'created') {
-        await pushJobEvent(cwd, {
-          type: 'job.submitted',
-          timestamp: Date.now(),
-          runId,
-          jobId: result.id,
-          data: {
-            nodePath: request.nodeId,
-            extensionId: request.actionId,
-            supersededIds: result.supersededIds,
-          },
-        });
-      }
-    } catch {
-      // best-effort: a fixer submit failure never fails the record.
-    }
-  }
-}
-
-/**
- * Project the composed Actions to the minimal `IHookActionInfo[]` a hook
- * resolves the inverse of Modelo B against (qualified id + declared
- * `precondition.analyzerIds`). Handed to the dispatcher as `ctx.actions`.
- */
-function projectHookActions(actions: readonly IAction[]): IHookActionInfo[] {
-  return actions.map((action) => ({
-    id: qualifiedExtensionId(action.pluginId, action.id),
-    analyzerIds: action.precondition?.analyzerIds ?? [],
-  }));
-}
-
-/**
- * A no-op `ProgressEmitterPort` for the record-path hook dispatch: the
- * dispatcher only uses the emitter to surface a hook's own error, and the
- * record path must NOT write anything to stdout (it carries the ndjson
- * envelope under `--json`), so those hook errors are dropped.
- */
-function silentEmitter(): ProgressEmitterPort {
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  return { emit: () => {} } as unknown as ProgressEmitterPort;
-}
-
-/**
- * The tags a completed TAGGER report wants applied, or `[]` when the
- * recorded extension is not a tagger (kind, schema namespace) or the
- * report carries no usable tags.
- */
-function taggerReportTags(
-  runtime: IActionRuntime,
-  job: Job,
-  execution: ExecutionRecord,
-): string[] {
-  const resolution = resolveExtensionRecord(runtime, job.extensionId, job.extensionKind);
-  if (!resolution.ok || resolution.record.extensionKind !== 'action') return [];
-  if (!isTagsReportSchema(resolution.record.schema)) return [];
-  return reportTags(execution.reportPath ?? null);
-}
-
-/**
- * Merge `tags` into the node's sidecar `annotations.tags` through the
- * gated `.sm` channel (standing consent only), refresh the annotations
- * mirror, and return the merged list. `null` = nothing written (a
- * brand-new sidecar with no live scan node to source the identity from).
- * Consent failures propagate as `EConsentRequiredError`.
- */
-async function writeMergedTags(
-  adapter: StoragePort,
-  nodeId: string,
-  tags: readonly string[],
-  cwd: string,
-): Promise<string[] | null> {
-  const mdAbs = resolvePath(cwd, nodeId);
-  const read = readSidecarFor(mdAbs);
-  const merged = mergeTagLists(existingTags(read.parsed?.annotations), tags);
-  const changes: Record<string, unknown> = { annotations: { tags: merged } };
-  if (read.parsed === null) {
-    // Brand-new sidecar: source the required identity block from the
-    // live scan node (same rule as the dismiss write).
-    const bundle = await adapter.scans.findNode(nodeId);
-    if (!bundle) return null;
-    changes['identity'] = {
-      path: bundle.node.path,
-      bodyHash: bundle.node.bodyHash,
-      frontmatterHash: bundle.node.frontmatterHash,
-    };
-  }
-  const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
-  await store.applyPatch(sidecarPathFor(mdAbs), changes, { confirm: false, always: false, cwd });
-  await adapter.scans.refreshAnnotations(nodeId, readSidecarFor(mdAbs).parsed?.annotations ?? null);
-  return merged;
-}
-
-/** Parse the recorded report JSON and extract a clean `tags[]`. */
-function reportTags(reportJson: string | null): string[] {
-  if (reportJson === null) return [];
-  try {
-    const parsed = JSON.parse(reportJson) as { tags?: unknown };
-    if (!Array.isArray(parsed.tags)) return [];
-    return parsed.tags.filter((t): t is string => typeof t === 'string' && t.trim().length > 0);
-  } catch {
-    return [];
-  }
-}
-
-/** The sidecar's current `annotations.tags`, defensively read. */
-function existingTags(annotations: Record<string, unknown> | null | undefined): string[] {
-  const raw = annotations?.['tags'];
-  return Array.isArray(raw) ? raw.filter((t): t is string => typeof t === 'string') : [];
-}
-
-/**
- * Union merge (spec §Tags write-through): existing entries first in
- * their order, new tags appended, case-insensitive dedup.
- */
-function mergeTagLists(existing: readonly string[], incoming: readonly string[]): string[] {
-  const seen = new Set(existing.map((t) => t.toLowerCase()));
-  const merged = [...existing];
-  for (const tag of incoming) {
-    const key = tag.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    merged.push(tag);
-  }
-  return merged;
 }

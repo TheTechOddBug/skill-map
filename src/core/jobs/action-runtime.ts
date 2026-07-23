@@ -137,3 +137,19 @@ export function buildExtensionDirMap(
 export function buildActionDirMap(discovered: IDiscoveredPlugin[]): Map<string, string> {
   return buildExtensionDirMap(discovered, 'action');
 }
+
+/**
+ * Resolve an Action by qualified id (`<plugin>/<id>`) or bare id, qualified
+ * match preferred. Pure lookup shared by the record path
+ * (`record-outcome.ts`) and the CLI verbs; lives here in core so the record
+ * engine does not reach up into `cli/`.
+ */
+export function resolveAction(actions: readonly IAction[], id: string): IAction | null {
+  for (const action of actions) {
+    if (qualifiedExtensionId(action.pluginId, action.id) === id) return action;
+  }
+  for (const action of actions) {
+    if (action.id === id) return action;
+  }
+  return null;
+}

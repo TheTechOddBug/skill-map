@@ -1,6 +1,6 @@
-# MCP server (skill-map as a read-only Model Context Protocol server)
+# MCP server (skill-map as a Model Context Protocol server)
 
-*(Stability: experimental. Opt-in, off by default. See [§Stability](#stability).)*
+*(Stability: experimental. Opt-in, off by default. One toggle exposes the whole surface: the read-only map tools/resources plus the queue + findings-lifecycle tools. See [§Stability](#stability).)*
 
 skill-map is primarily a cartographer: it observes a project and draws the
 skill / agent / command graph. This contract adds a **secondary, opt-in
@@ -14,21 +14,40 @@ of, the **consumer / observer** side (the `core/mcp-*` extractors that map the
 MCP servers a project *uses*, see [`architecture.md` §Extractor](./architecture.md)).
 The two are separately toggleable.
 
-## Read-only mandate
+## Map read-only; queue operable (opt-in)
 
-The MCP server is **strictly read-only**. It exposes tools that *query* the
-map and resources that *expose* the map. It MUST NOT:
+The **map** surface is strictly read-only: the graph tools (`query_graph`,
+`get_node`, `list_issues`, `get_branch`) and every resource are pure reads over
+the persisted `ScanResult`. skill-map still has no runtime: it never executes a
+skill, spawns an agent, or invokes a command (that is the host's job), and it
+never mutates the graph itself, the scanned node/link/issue tables, config, or a
+node body.
 
-- execute a skill, spawn an agent, or invoke any command (that is the host's
-  job, not skill-map's; skill-map has no runtime and stays filesystem-as-truth);
-- mutate the graph, the DB, config, sidecars, or any file;
-- expose an MCP tool whose effect is anything other than reading already-scanned
-  state.
+The **same server** also lets an MCP host DRIVE THE JOB QUEUE and manage
+findings (decision 2026-07-23). This is not "the map became writable": it is the
+same job-queue + findings-lifecycle contract the CLI verbs and BFF routes
+already expose, offered to an MCP client so it can be the processing agent
+without a shell. It rides the SAME endpoint and the SAME single opt-in
+(`mcp.server.enabled`, see [§Enablement](#enablement)); there is no separate
+toggle. When the server is off, nothing is registered and it behaves exactly as
+before; when it is on, the whole surface (map reads + queue + findings) is
+available. The surface is loopback-only and unauthenticated, so enabling it
+grants queue + findings control to any local process (the same trust boundary
+the REST mutating routes already sit behind, Decision #119).
 
-Every tool below is a pure read over the persisted `ScanResult`. There is no
-mutating tool, and there is no MCP `prompts` capability at this stability (a
-future revision MAY expose skill / command bodies as MCP prompts; that is
-still "serve what we already know", never "execute").
+The operable surface honours the storage rule ([`architecture.md` §Storage
+rule](./architecture.md)): `record_job` persists machine output (executions,
+findings, summaries) to the DB; the findings state flips (`resolve`, row
+`dismiss`, `reopen`) are DB-only; the two curation writes (`dismiss --class`,
+`undismiss`) go to the node's `.sm` sidecar through the SAME consent gate every
+other channel uses (see [§Findings lifecycle tools](#findings-lifecycle-tools)).
+There is still no MCP `prompts` capability (a future revision MAY expose skill /
+command bodies as MCP prompts; that is still "serve what we already know").
+
+**Write posture.** Every mutating tool opens the DB with the WRITE posture
+(refuse on schema drift), the same as the REST mutating routes, NOT the
+read-side advisory the map tools use; a drifted / stale DB refuses the write
+rather than silently mutating it.
 
 ## Transport
 
@@ -105,6 +124,50 @@ structured content. Filters reuse the `sm export` grammar (`kind=` / `has=` /
 same kernel reads the REST routes use (`applyExportQuery`, `StoragePort.scans.*`
 / `issues.list`, on-demand body read); they add no new query capability.
 
+## Queue tools
+
+Registered whenever the server is on (`mcp.server.enabled`). These wrap the SAME shared
+job engines the CLI verbs (`sm jobs *`, `sm record`) and BFF routes use; they
+add no new queue semantics. `Job` is the shape in
+[`job.schema.json`](./schemas/job.schema.json), always projected WITHOUT the
+`nonce` (the public-job shape) except where noted. Every mutating tool appends
+one line to the operations log with `channel: 'mcp'`.
+
+| Tool | Input | Returns |
+|---|---|---|
+| `list_extensions` | `{}` | `{ extensions: Array<{ id, kind: 'analyzer' \| 'action', role: 'finder' \| 'fixer' \| 'standalone', description, analyzerIds? }> }`, every ENABLED probabilistic extension `submit_job` accepts (finders, fixers, standalone), composed from the live enabled runtime. Call this to DISCOVER the valid extension ids. Read. |
+| `list_jobs` | `{ status?: string, extension?: string, node?: string }` | `{ items: PublicJob[] }`, the live queue (same filter as `GET /api/jobs` / `sm jobs list`). Read; nonce stripped. |
+| `get_job` | `{ id: string }` | `{ item: PublicJob }`; unknown id → `-32602`. Read; nonce stripped. |
+| `submit_job` | `{ node: string, extension: string, autoFix?: boolean, findingIds?: integer[], force?: boolean, ttl?: integer, priority?: integer }` | `{ outcome: 'created', jobId, nodePath, supersededIds }` or a structured refusal (`duplicate` / `job-running` / `drift` / `unreadable` / `no-findings` / a prepare error). **The `no-processing-agent` gate applies** exactly as on the CLI / BFF: if the processing skill is not installed (`sm agent install`), the submit refuses. |
+| `claim_job` | `{ runner?: string, filter?: string }` | `{ id, nonce, content } \| null` (null when the queue is empty). The ONE tool that returns the `nonce`: the client needs it to `record_job`. Content is the rendered prompt. Reap-expired runs first. A corrupt (missing-content) job is failed and skipped. |
+| `record_job` | `{ id: string, nonce: string, status: 'completed' \| 'failed', report?: string, failureReason?: string, tokensIn?: integer, tokensOut?: integer, durationMs?: integer, model?: string }` | `{ outcome: 'completed', executionId }` or a structured refusal (`nonce-mismatch` / `not-running` / `not-found` / `report-invalid` / `schema-unresolved`). On `completed` it validates `report` against the extension's report schema, writes the execution + findings/summary write-throughs, and fires the auto-fix chain, identical to `sm record`. |
+| `cancel_job` | `{ id: string }` | `{ outcome: 'cancelled' \| 'already-terminal' \| 'not-found' }`. A queued/running job → terminal `cancelled` (never interrupts a running agent). |
+| `fail_job` | `{ id: string }` | `{ outcome: 'failed' \| 'already-terminal' \| 'not-found' }` (`user-failed` reason). |
+
+## Findings lifecycle tools
+
+Registered whenever the server is on (`mcp.server.enabled`). Mirror `sm findings
+resolve / dismiss / reopen / undismiss` and the `POST
+/api/nodes/:pathB64/findings/*` routes. `resolve`, row `dismiss`, `reopen`, and (mostly) `delete`
+are DB-only state flips (no consent). `dismiss --class` and `undismiss` write
+the node's `.sm` sidecar (`annotations.suppressions`) through the shared consent
+gate; because MCP has no interactive prompt, the two sidecar tools take
+`confirm` / `always` params (the analog of the BFF body flags): they succeed
+under a standing `allowEditSmFiles` grant or with `confirm: true`, and refuse
+otherwise with an MCP error carrying `details.key = 'allowEditSmFiles'`. The
+team policy `allowSidecarWriters: false` is a HARD block (an MCP error), not
+bypassable by `confirm`. Every tool appends one operations-log line with
+`channel: 'mcp'`.
+
+| Tool | Input | Returns |
+|---|---|---|
+| `list_findings` | `{ node?: string, extension?: string, includeStale?: boolean }` | `{ findings: FindingRecord[] }` from `state_findings`: pass `node` for one node, OMIT it for the WHOLE project; `extension` / `includeStale` narrow further. This is the READ counterpart the queue tools lacked, how the agent reads what a finder recorded after `record_job`. Read. |
+| `resolve_finding` | `{ id: integer, note?: string }` | `{ outcome: 'resolved' \| 'already-fixed' \| 'not-found' }`. DB-only: `resolution='fixed'`, actor `human`. |
+| `dismiss_finding` | `{ id: integer, class?: boolean, confirm?: boolean, always?: boolean, note?: string }` | Row grain (default): `{ outcome: 'dismissed' \| 'already-dismissed' \| 'not-found' }`, DB-only. `class: true`: writes the class suppression to the sidecar (consent), `{ outcome: 'suppressed' }`, or a consent refusal. |
+| `reopen_finding` | `{ id: integer }` | `{ outcome: 'reopened' \| 'already-open' \| 'not-found' }`. DB-only: clears `resolution`. Does NOT lift a class suppression (use `undismiss_finding`). |
+| `undismiss_finding` | `{ node: string, extension: string, type?: string, confirm?: boolean, always?: boolean }` | Removes the matching suppression from the sidecar (consent), `{ outcome: 'unsuppressed' }`, or a consent refusal. Re-running the finder re-judges the class. |
+| `delete_finding` | `{ id: integer, confirm?: boolean, always?: boolean }` | Hard-delete one finding row: `{ outcome: 'deleted' \| 'not-found' }`. Pure DB EXCEPT it lifts a now-orphan class suppression from the sidecar (consent) when deleting the last dismissed row of a class; the lift runs first, so a missing consent aborts before any delete. |
+
 ## Resources
 
 Resources expose the graph as readable documents. mimeType is
@@ -148,27 +211,37 @@ mounted; the broadcaster is unaffected (the Web UI keeps working).
 
 The MCP server is **off by default** and gated by a single config key:
 
-- `mcp.server.enabled` (boolean, default `false`) in
-  [`schemas/project-config.schema.json`](./schemas/project-config.schema.json),
-  resolved through the normal config layering.
-- `sm serve` accepts `--mcp` / `--no-mcp` as the per-invocation override
-  (precedence: flag > `mcp.server.enabled` > default off), see
-  [`cli-contract.md` §Server, Flag surface](./cli-contract.md#server).
+- `mcp.server.enabled` (boolean, default `false`) mounts the endpoint and
+  registers the WHOLE surface: the read-only map tools/resources plus the
+  queue + findings-lifecycle tools. There is no separate write toggle (unified
+  2026-07-23). `sm serve` accepts `--mcp` / `--no-mcp` as the per-invocation
+  override (precedence: flag > `mcp.server.enabled` > default off). The key lives
+  in [`schemas/project-config.schema.json`](./schemas/project-config.schema.json),
+  resolved through the normal config layering, and is project-local-only (never
+  committed).
 
-Because the endpoint mounts at **serve boot**, flipping the config key while a
-server runs has no effect until `sm serve` restarts. The reference UI surfaces
-this with the same section-level restart notice it uses for plugin changes.
+Because the endpoint + tool set are fixed at **serve boot**, flipping the key
+while a server runs has no effect until `sm serve` restarts. The reference UI
+surfaces this with the same section-level restart notice it uses for plugin
+changes.
 
 ## Stability
 
 Everything in this document is **experimental** as of v0.x. Off by default,
-opt-in, read-only, and additive: enabling it changes no existing behaviour, and
-the REST / WS / CLI surfaces are unaffected whether it is on or off.
+opt-in, and additive: enabling the toggle changes no existing behaviour, and
+the REST / WS / CLI surfaces are unaffected whether it is on or off. The single
+opt-in exposes the whole surface (map reads + queue + findings).
 
 Locked at a future minor once the tool / resource vocabulary settles. Breaking
 changes to the tool names, tool input shapes, resource URIs, or the transport
 ship as a **minor** bump pre-1.0 (per [`versioning.md`](./versioning.md) §Pre-1.0)
-and MUST be recorded in [`CHANGELOG.md`](./CHANGELOG.md). Adding a new read-only
-tool or resource is a patch. The stdio transport, an optional bearer credential,
+and MUST be recorded in [`CHANGELOG.md`](./CHANGELOG.md). Adding a new tool or
+resource is a patch. The stdio transport, an optional bearer credential,
 and an MCP `prompts` capability (skill / command bodies as prompt templates)
 are candidate additive extensions, none of which is promised here.
+
+Security note: the surface is loopback-only, Origin-gated, NO per-connection
+auth. Enabling the server therefore grants map reads AND queue + findings
+control to any process that can reach `127.0.0.1`; that is the same trust
+boundary the REST mutating routes already sit behind (Decision #119), documented
+here so an operator opts in knowingly.

@@ -1058,9 +1058,9 @@ export interface IProjectPreferencesApi {
     realtimeActivity: boolean;
   };
   /**
-   * Project-local opt-in for the read-only MCP server (`mcp.server.enabled`).
-   * When `true`, `sm serve` mounts the experimental read-only MCP endpoint at
-   * `/mcp`. Default `false`. The mount happens at serve boot, so a change
+   * Project-local opt-in for the MCP server (`mcp.server.enabled`).
+   * When `true`, `sm serve` mounts the MCP endpoint at `/mcp` (map reads plus
+   * the queue + findings tools). Default `false`. The mount happens at serve boot, so a change
    * only takes effect on the next `sm serve` restart. Optional only to
    * tolerate an older BFF envelope that predates it; the current BFF always
    * emits a concrete boolean.

@@ -187,7 +187,13 @@ export async function createServer(
   // the realtime sink on `broadcaster`, and `close()` disposes both the
   // sink and every live session. When off, no `/mcp` route is mounted
   // (the manager is null) and the broadcaster is unaffected.
-  const mcpIntegration = buildMcpIntegration(options, runtimeContext, broadcaster, activityStats);
+  const mcpIntegration = buildMcpIntegration(
+    options,
+    runtimeContext,
+    broadcaster,
+    activityStats,
+    pluginRuntime,
+  );
 
   const app = createApp({
     options,
@@ -301,6 +307,7 @@ function buildMcpIntegration(
   runtimeContext: IRuntimeContext,
   broadcaster: WsBroadcaster,
   activityStats: ActivityStatsService,
+  pluginRuntime: IPluginRuntime,
 ): IMcpIntegration | null {
   if (!options.mcpServer) return null;
   return createMcpIntegration({
@@ -309,6 +316,12 @@ function buildMcpIntegration(
     implVersion: VERSION,
     activityStats,
     broadcaster,
+    // The queue + findings-lifecycle tools ride the SAME endpoint as the
+    // read map tools: one opt-in (`mcp.server.enabled`) turns the whole
+    // surface on (user decision 2026-07-23). The boot-cached plugin
+    // runtime is threaded so submit / record can build a fresh action
+    // runtime.
+    pluginRuntime,
   });
 }
 

@@ -17,14 +17,8 @@ export const RECORD_TEXTS = {
   errReportSchemaUnresolved:
     'cannot resolve the report schema for extension {{extension}} ({{detail}})',
   reportInvalid: 'report failed schema validation: {{errors}}',
-  /**
-   * Detail rendered through `reportInvalid` when a finder report's
-   * `findings[]` uses a kernel-reserved type slug (spec
-   * `findings/report.schema.json`: extensions MUST NOT emit them).
-   */
-  reservedFindingTypes:
-    'findings[] uses the reserved type slug(s) {{slugs}} ' +
-    '(injection-detected / content-suspicious / content-malformed are kernel-derived and MUST NOT be emitted by extensions)',
+  // The reserved-finding-type detail moved to the shared record core
+  // (`core/jobs/i18n/record-outcome.texts.ts`) with `record-outcome.ts`.
 
   // --- success lines (human mode) ----------------------------------------
   completedLine: '{{glyph}}  recorded {{execId}}: job {{id}} completed\n',

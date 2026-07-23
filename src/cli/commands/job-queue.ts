@@ -57,7 +57,7 @@ import { resolve } from 'node:path';
 import { Command, Option } from 'clipanion';
 
 import type { Job } from '../../kernel/types.js';
-import type { IJobClaim, IJobListFilter } from '../../kernel/types/storage.js';
+import type { IJobListFilter } from '../../kernel/types/storage.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import type { IJobsConfig } from '../../kernel/config/loader.js';
@@ -87,6 +87,7 @@ import {
 import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
+import { claimJob } from '../../core/jobs/claim-engine.js';
 import { processingSkillPresence } from '../../core/agent-skill/targets.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { JOBS_QUEUE_TEXTS as T } from '../i18n/jobs-queue.texts.js';
@@ -97,7 +98,6 @@ import { readActiveSuppressions } from '../util/sidecar-suppressions.js';
 import { SmCommand } from '../util/sm-command.js';
 import { withSqlite } from '../util/with-sqlite.js';
 import { loadActionRuntime } from './action-runtime.js';
-import { recordFailedOutcome } from './record-outcome.js';
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -1021,13 +1021,19 @@ export class JobClaimCommand extends SmCommand {
       // §Atomic claim · Blocking claim): expired running jobs flip to
       // failed / abandoned before each claim attempt. Without --wait the
       // loop runs exactly once and an empty queue returns exit 1, the
-      // historical one-shot behaviour.
+      // historical one-shot behaviour. The reap + atomic claim + content
+      // fetch + corruption handling live in the shared `claimJob` engine
+      // (`core/jobs/claim-engine.ts`); the runner is stamped `agent`
+      // (`job.schema.json` runner enum).
       for (;;) {
-        await adapter.jobs.reapExpired(Date.now());
-        // The claim verb is the external-agent handover; the runner is
-        // stamped `agent` (`job.schema.json` runner enum).
-        const claim = await adapter.jobs.claim('agent', Date.now(), this.filter);
-        if (claim) return this.handOutClaim(adapter, claim, ctx.cwd);
+        const outcome = await claimJob(adapter, {
+          runner: 'agent',
+          nowMs: Date.now(),
+          filter: this.filter,
+          contentMissingDetail: T.claimContentMissingDetail,
+        });
+        if (outcome.kind === 'claimed') return this.handOutClaim(outcome, ctx.cwd);
+        if (outcome.kind === 'corrupt') return this.reportContentMissing(outcome.jobId, ctx.cwd);
 
         if (!waitPlan) return ExitCode.Issues; // exit 1: one-shot empty queue
 
@@ -1117,42 +1123,36 @@ export class JobClaimCommand extends SmCommand {
   }
 
   /**
-   * Fetch the claimed content, push the best-effort claimed event, print
-   * the handover envelope, exit 0. Shared by the one-shot and --wait paths.
+   * Push the best-effort claimed event, print the handover envelope, exit
+   * 0. Shared by the one-shot and --wait paths. The `claimJob` engine
+   * already fetched the content + re-read the claimed row (a missing
+   * content row never reaches here, it returns `corrupt`).
    */
   private async handOutClaim(
-    adapter: StoragePort,
-    claim: IJobClaim,
+    claim: { id: string; nonce: string; content: string; job: Job },
     cwd: string,
   ): Promise<TExitCode> {
-    // Fetch the content in BOTH modes: a missing row is the
-    // DB-corruption-only job-file-missing state and MUST NOT hand the
-    // claim out (spec §Atomic claim · Missing content row at claim).
-    const content = await adapter.jobs.getContent(claim.contentHash);
-    if (content === null) return this.failClaimContentMissing(adapter, claim.id, cwd);
     // Live-transition push (spec/job-events.md §Transport / §job.claimed):
-    // the event data is read back from the freshly claimed row, and the
-    // push fires only when the claim is actually handed out. Runs after the
-    // claim committed; cannot throw, never touches the handover contract on
-    // stdout. The reap stays event-silent by spec.
-    const claimed = await adapter.jobs.get(claim.id);
-    if (claimed) {
-      await pushJobEvent(cwd, {
-        type: 'job.claimed',
-        timestamp: Date.now(),
-        runId: generateRunId('ext'),
-        jobId: claimed.id,
-        data: {
-          extensionId: claimed.extensionId,
-          extensionVersion: claimed.extensionVersion,
-          nodeId: claimed.nodeId,
-          ttlSeconds: claimed.ttlSeconds,
-          priority: claimed.priority,
-        },
-      });
-    }
+    // the event data is read from the freshly claimed row the engine
+    // returned. Runs after the claim committed; cannot throw, never touches
+    // the handover contract on stdout. The reap stays event-silent by spec.
+    await pushJobEvent(cwd, {
+      type: 'job.claimed',
+      timestamp: Date.now(),
+      runId: generateRunId('ext'),
+      jobId: claim.job.id,
+      data: {
+        extensionId: claim.job.extensionId,
+        extensionVersion: claim.job.extensionVersion,
+        nodeId: claim.job.nodeId,
+        ttlSeconds: claim.job.ttlSeconds,
+        priority: claim.job.priority,
+      },
+    });
     if (this.json) {
-      this.printer!.data(JSON.stringify({ id: claim.id, nonce: claim.nonce, content }) + '\n');
+      this.printer!.data(
+        JSON.stringify({ id: claim.id, nonce: claim.nonce, content: claim.content }) + '\n',
+      );
       return ExitCode.Ok;
     }
     this.printer!.data(claim.id + '\n');
@@ -1165,38 +1165,24 @@ export class JobClaimCommand extends SmCommand {
   }
 
   /**
-   * Missing `state_job_contents` row under a just-claimed job: mark the
-   * job failed / job-file-missing through the shared record primitive
-   * (an execution row documents the corruption), report on stderr, exit
-   * 2. The verb does NOT loop to the next queued job (corruption wants
-   * operator attention; the next invocation claims the next job anyway).
+   * Missing `state_job_contents` row under a just-claimed job: the
+   * `claimJob` engine already marked it failed / job-file-missing (an
+   * execution row documents the corruption). Push the live hint + report
+   * on stderr, exit 2. The verb does NOT loop to the next queued job
+   * (corruption wants operator attention; the next invocation claims the
+   * next job anyway).
    */
-  private async failClaimContentMissing(
-    adapter: StoragePort,
-    jobId: string,
-    cwd: string,
-  ): Promise<TExitCode> {
-    const job = await adapter.jobs.get(jobId);
-    if (job) {
-      await recordFailedOutcome({
-        adapter,
-        job,
-        failureReason: 'job-file-missing',
-        errorText: T.claimContentMissingDetail,
-        metrics: {},
-        now: Date.now(),
-      });
-      // Live-transition push (spec/job-events.md §job.failed): the
-      // corruption path is a real failed transition this verb performed,
-      // so it rides the same best-effort leg as the happy claim.
-      await pushJobEvent(cwd, {
-        type: 'job.failed',
-        timestamp: Date.now(),
-        runId: generateRunId('ext'),
-        jobId: job.id,
-        data: { reason: 'job-file-missing', message: T.claimContentMissingDetail },
-      });
-    }
+  private async reportContentMissing(jobId: string, cwd: string): Promise<TExitCode> {
+    // Live-transition push (spec/job-events.md §job.failed): the corruption
+    // path is a real failed transition, so it rides the same best-effort
+    // leg as the happy claim.
+    await pushJobEvent(cwd, {
+      type: 'job.failed',
+      timestamp: Date.now(),
+      runId: generateRunId('ext'),
+      jobId,
+      data: { reason: 'job-file-missing', message: T.claimContentMissingDetail },
+    });
     this.printer!.error(
       tx(T.claimErrContentMissing, { glyph: this.ansiFor('stderr').red('✕'), id: jobId }),
     );

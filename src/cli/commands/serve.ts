@@ -138,7 +138,7 @@ export class ServeCommand extends SmCommand {
   // registers both.
   mcp = Option.Boolean('--mcp', {
     description:
-      'Mount the read-only MCP server at /mcp (Model Context Protocol, experimental). Overrides mcp.server.enabled; --no-mcp forces it off. Off by default.',
+      'Mount the MCP server at /mcp (Model Context Protocol): query the map plus drive the job queue and findings. Overrides mcp.server.enabled; --no-mcp forces it off. Off by default.',
   });
   yes = Option.Boolean('--yes', false, {
     description: 'Skip the interactive prompt and rebuild the local cache when the on-disk DB has drifted (version skew or an inline schema change). Non-TTY invocations rebuild without asking regardless of this flag.',
