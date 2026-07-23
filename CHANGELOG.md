@@ -6,6 +6,23 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.90.0</b> · 2026-07-23</summary>
+
+### CLI Minor
+- A host-reserved `locked` manifest flag replaces the hardcoded kernel lock-list so the kernel names no plugin identity; five dedicated `inspector.surface.*` slots (version, stability, tags, summary, auto-tag) replace the retired payload-level `surface` re-homing field; the plugin listing wire gains a presentation `order`; and `GET /api/folders` severity badges now sum fresh unresolved findings alongside deterministic issues.
+- The opt-in `/mcp` server (`mcp.server.enabled` / `sm serve --mcp`) is no longer read-only: the same toggle also exposes queue tools (submit/claim/record/cancel/fail jobs, plus list/get and extension discovery) and findings-lifecycle tools (list, resolve, dismiss, reopen, undismiss, delete), thin wrappers over the shared claim/record engines the CLI verbs already use, so an MCP host can drive the job queue and manage findings over one endpoint. Loopback-only and unauthenticated as before.
+- The `sm-process-jobs` agent process skill becomes a 3-file progressive-disclosure set (`SKILL.md` always loaded, `mcp.md`/`cli.md` read on demand), installed and status-checked atomically by the agent-skill engine. It now defaults to resident/watch (`once` drains a single pass), probes for MCP tools first (silent in hybrid mode, one-time ordered 3-step setup tip when absent), and renames the queue-processing sense `drain` to `process`. README and spec MCP docs updated for the queue-aware server.
+- A new Quick Start panel (rocket icon in the topbar) reports what each capability needs across Live update, Real Time and AI Actions, one live status and action per row. `GET /api/health` gains an `mcp` boolean (the live `/mcp` state, separate from the `mcpServerEnabled` preference). A hidden `locked` system extension `core/ai-ping-action` (absent from every catalog; `list_extensions` skips locked ids) backs the agent-liveness check: a claimed ping proves an agent is draining the queue.
+
+### Spec Minor (0.82.0)
+- A host-reserved `locked` manifest flag replaces the hardcoded kernel lock-list so the kernel names no plugin identity; five dedicated `inspector.surface.*` slots (version, stability, tags, summary, auto-tag) replace the retired payload-level `surface` re-homing field; the plugin listing wire gains a presentation `order`; and `GET /api/folders` severity badges now sum fresh unresolved findings alongside deterministic issues.
+- The opt-in `/mcp` server (`mcp.server.enabled` / `sm serve --mcp`) is no longer read-only: the same toggle also exposes queue tools (submit/claim/record/cancel/fail jobs, plus list/get and extension discovery) and findings-lifecycle tools (list, resolve, dismiss, reopen, undismiss, delete), thin wrappers over the shared claim/record engines the CLI verbs already use, so an MCP host can drive the job queue and manage findings over one endpoint. Loopback-only and unauthenticated as before.
+- The `sm-process-jobs` agent process skill becomes a 3-file progressive-disclosure set (`SKILL.md` always loaded, `mcp.md`/`cli.md` read on demand), installed and status-checked atomically by the agent-skill engine. It now defaults to resident/watch (`once` drains a single pass), probes for MCP tools first (silent in hybrid mode, one-time ordered 3-step setup tip when absent), and renames the queue-processing sense `drain` to `process`. README and spec MCP docs updated for the queue-aware server.
+- A new Quick Start panel (rocket icon in the topbar) reports what each capability needs across Live update, Real Time and AI Actions, one live status and action per row. `GET /api/health` gains an `mcp` boolean (the live `/mcp` state, separate from the `mcpServerEnabled` preference). A hidden `locked` system extension `core/ai-ping-action` (absent from every catalog; `list_extensions` skips locked ids) backs the agent-liveness check: a claimed ping proves an agent is draining the queue.
+
+</details>
+
+<details>
 <summary><b>0.89.0-rc.5</b> · 2026-07-22</summary>
 
 ### CLI Minor
