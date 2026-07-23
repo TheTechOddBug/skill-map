@@ -1,5 +1,33 @@
 # skill-map
 
+## 0.90.0
+
+### Minor Changes
+
+- A host-reserved `locked` manifest flag replaces the hardcoded kernel lock-list so the kernel names no plugin identity; five dedicated `inspector.surface.*` slots (version, stability, tags, summary, auto-tag) replace the retired payload-level `surface` re-homing field; the plugin listing wire gains a presentation `order`; and `GET /api/folders` severity badges now sum fresh unresolved findings alongside deterministic issues.
+
+  ## User-facing
+
+  **The files tree now badges AI findings.** A file or folder with unresolved AI findings shows an error/warn badge in the tree, matching its card chips, not just deterministic checks. The `?debug=1` overlay also rings the version, stability, tags, summarize and auto-tag surfaces.
+
+- The opt-in `/mcp` server (`mcp.server.enabled` / `sm serve --mcp`) is no longer read-only: the same toggle also exposes queue tools (submit/claim/record/cancel/fail jobs, plus list/get and extension discovery) and findings-lifecycle tools (list, resolve, dismiss, reopen, undismiss, delete), thin wrappers over the shared claim/record engines the CLI verbs already use, so an MCP host can drive the job queue and manage findings over one endpoint. Loopback-only and unauthenticated as before.
+
+  ## User-facing
+
+  **Your MCP assistant can now run the queue, not just read the map.** One toggle (Settings > Project, or `sm serve --mcp`) lets a connected AI assistant drive the job queue and manage findings over `/mcp`, from submitting and recording jobs to resolving or dismissing findings.
+
+- The `sm-process-jobs` agent process skill becomes a 3-file progressive-disclosure set (`SKILL.md` always loaded, `mcp.md`/`cli.md` read on demand), installed and status-checked atomically by the agent-skill engine. It now defaults to resident/watch (`once` drains a single pass), probes for MCP tools first (silent in hybrid mode, one-time ordered 3-step setup tip when absent), and renames the queue-processing sense `drain` to `process`. README and spec MCP docs updated for the queue-aware server.
+
+  ## User-facing
+
+  **The process skill now runs resident and tries MCP first.** `sm agent install` writes a 3-file skill that stays resident to process the job queue, uses the MCP tools when present, and when the MCP server is off tips you how to turn it on.
+
+- A new Quick Start panel (rocket icon in the topbar) reports what each capability needs across Live update, Real Time and AI Actions, one live status and action per row. `GET /api/health` gains an `mcp` boolean (the live `/mcp` state, separate from the `mcpServerEnabled` preference). A hidden `locked` system extension `core/ai-ping-action` (absent from every catalog; `list_extensions` skips locked ids) backs the agent-liveness check: a claimed ping proves an agent is draining the queue.
+
+  ## User-facing
+
+  **New: a Quick Start panel (rocket icon, top right).** One place to see what each feature needs, live updates, real-time activity, capture, and the AI/MCP pieces, with the status of each and a button to turn it on. It can even check whether an agent is answering the job queue.
+
 ## 0.89.0
 
 ### Minor Changes
