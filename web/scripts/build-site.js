@@ -335,6 +335,66 @@ ${entries}
 `;
 }
 
+const CLI_NPM_PKG_URL = 'https://www.npmjs.com/package/@skill-map/cli';
+
+/**
+ * /llms.txt: a curated markdown index for AI ingestion, per the
+ * llmstxt.org convention. Regenerated from PROSE_DOCS + fixed project
+ * links on every build, so it can never drift from the spec.
+ */
+function renderLlmsTxt({ specVersion, tagline }) {
+  const prose = PROSE_DOCS.map((d) => `- [${d.title}](${PROSE_BASE}/${d.file}): ${d.summary}`).join('\n');
+  return `# skill-map
+
+> ${tagline}
+
+Spec-first standard plus reference CLI that maps and audits the agent files (skills, agents, commands, MCP configs) across runtimes. The spec (v${specVersion}) is published independently of the reference implementation, so a second implementation can be built against these contracts alone.
+
+## Specification (normative prose contracts)
+
+${prose}
+
+## Schemas
+
+- [JSON Schema catalog (${MAJOR})](${DOMAIN}/spec/${MAJOR}/): every frontmatter, per-kind, summary and extension schema, each addressable by its canonical $id.
+
+## Project
+
+- [ROADMAP](${REPO_URL}/blob/main/ROADMAP.md): design narrative, decisions, execution plan.
+- [Repository](${REPO_URL})
+- [npm: @skill-map/spec](${NPM_PKG_URL})
+- [npm: @skill-map/cli](${CLI_NPM_PKG_URL})
+
+## Full text
+
+- [llms-full.txt](${DOMAIN}/llms-full.txt): every prose contract above, concatenated for direct ingestion.
+`;
+}
+
+/**
+ * /llms-full.txt: the full text of every normative prose contract,
+ * concatenated for direct AI ingestion. Read from spec/ at build time.
+ */
+async function renderLlmsFull({ specVersion }) {
+  const parts = [];
+  for (const d of PROSE_DOCS) {
+    const abs = resolve(REPO_ROOT, 'spec', d.file);
+    let body;
+    try {
+      body = (await readFile(abs, 'utf8')).trim();
+    } catch {
+      body = `(missing: spec/${d.file})`;
+    }
+    const bar = '='.repeat(72);
+    parts.push(`${bar}\n# ${d.title} (spec/${d.file})\n${bar}\n\n${body}\n`);
+  }
+  return `# skill-map, full specification text (spec v${specVersion})
+
+> Generated from spec/ at build time. Concatenation of the normative prose contracts listed in /llms.txt. Curated index: ${DOMAIN}/llms.txt
+
+${parts.join('\n')}`;
+}
+
 async function main() {
   if (!existsSync(WEB_SRC)) {
     throw new Error(`missing ${WEB_SRC}/: the editable landing source must exist before build`);
@@ -424,11 +484,20 @@ async function main() {
   await writeFile(join(SITE_DST, 'robots.txt'), renderRobotsTxt());
   await writeFile(join(SITE_DST, 'sitemap.xml'), renderSitemapXml({ langs, defaultLang }));
 
+  // 6. AI-ingestion surface: llms.txt (curated index) + llms-full.txt
+  //    (concatenated prose contracts). Regenerated from PROSE_DOCS + spec/
+  //    on every build so they can never drift from the source of truth
+  //    (ROADMAP Step 15b). Convention: https://llmstxt.org.
+  const tagline = i18n['meta.description']?.en ?? 'Map and audit your agent files across runtimes.';
+  await writeFile(join(SITE_DST, 'llms.txt'), renderLlmsTxt({ specVersion: versions.spec, tagline }));
+  await writeFile(join(SITE_DST, 'llms-full.txt'), await renderLlmsFull({ specVersion: versions.spec }));
+
   console.log(`✓ Validated ${validated.length} schemas.`);
   console.log(`✓ Site built at ${SITE_DST}/ (spec v${versions.spec}, web v${versions.web}).`);
   console.log(`  Landing: ${LANDING_PATH}  (from ${WEB_SRC}/)`);
   console.log(`  Schemas: ${SCHEMA_DST}/`);
   console.log(`  SEO:     ${join(SITE_DST, 'robots.txt')}, ${join(SITE_DST, 'sitemap.xml')}`);
+  console.log(`  LLMs:    ${join(SITE_DST, 'llms.txt')}, ${join(SITE_DST, 'llms-full.txt')}`);
 }
 
 main().catch((err) => {
