@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.91.1",
+      "date": "2026-07-24",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The desktop UI now works far better with a keyboard and screen reader: async updates are announced, a skip link jumps past the topbar, graph nodes are reachable by keyboard, and dialogs expose proper heading and tab semantics.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.91.0",
       "date": "2026-07-24",
       "kind": "user-facing",
