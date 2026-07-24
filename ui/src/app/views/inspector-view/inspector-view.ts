@@ -35,6 +35,7 @@ import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { LivePreferencesService } from '../../../services/live-preferences';
 import { NodeActivityStatsService } from '../../../services/node-activity-stats';
+import { A11yAnnouncerService } from '../../services/a11y-announcer';
 import { WsEventStreamService } from '../../../services/ws-event-stream';
 import {
   DATA_SOURCE,
@@ -161,6 +162,7 @@ export class InspectorView implements OnInit {
   private readonly providerRegistry = inject(ProviderRegistryService);
   private readonly projectInfo = inject(ProjectInfoService);
   private readonly activityStats = inject(NodeActivityStatsService);
+  private readonly announcer = inject(A11yAnnouncerService);
   private readonly livePrefs = inject(LivePreferencesService);
 
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
@@ -495,6 +497,8 @@ export class InspectorView implements OnInit {
     // The dismiss / restore flows park their consent retries behind the
     // SAME dialog the action buttons use (one instance, one service).
     requestSmConsent: (retry) => this.actionDispatch.requestSmConsent(retry),
+    // Narrate submit / fix / resolve / dismiss / restore outcomes to AT.
+    announce: (message) => this.announcer.announce(message),
   });
   protected readonly aiActionFindings = this.aiActions.findings;
   protected readonly aiActionsAvailable = this.aiActions.available;

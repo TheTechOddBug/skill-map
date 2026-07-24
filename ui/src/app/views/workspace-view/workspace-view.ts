@@ -31,6 +31,8 @@ const RAIL_WIDTH_DEFAULT = 440;
 const RAIL_WIDTH_MIN = 280;
 /** Minimum map area to keep visible at any viewport width. */
 const RAIL_VIEWPORT_RESERVE = 480;
+/** Pixels the rail grows / shrinks per arrow keypress (WCAG 2.1.1). */
+const RAIL_RESIZE_STEP = 24;
 
 /**
  * Fused single-screen workspace: a resizable files rail on the left, the
@@ -176,6 +178,14 @@ export class WorkspaceView implements IMapIsolateIntent {
   });
   protected readonly clampedRailWidth = this.resize.clampedWidth;
   protected readonly onRailResizeStart = this.resize.onResizeStart;
+  // Keyboard resize surface for the rail separator (WCAG 2.1.1). The
+  // template binds these to `aria-valuenow`/min/max + the arrow handlers.
+  protected readonly railWidth = this.resize.clampedWidth;
+  protected readonly railResizeMin = this.resize.minWidth;
+  protected readonly railResizeMax = this.resize.maxWidth;
+  protected onRailResizeKey(direction: 'wider' | 'narrower'): void {
+    this.resize.stepBy(direction === 'wider' ? RAIL_RESIZE_STEP : -RAIL_RESIZE_STEP);
+  }
 
   constructor() {
     // The toggle animation timer outlives its 220ms window only when the

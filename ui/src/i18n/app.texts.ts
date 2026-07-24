@@ -89,6 +89,8 @@ export const APP_TEXTS = {
   },
   a11y: {
     viewSwitcher: 'View switcher',
+    /** Skip-to-content link, first focusable child of the shell (WCAG 2.4.1). */
+    skipToMain: 'Skip to main content',
   },
   /**
    * Topbar Real Time toggle (the wave-pulse button, first in the

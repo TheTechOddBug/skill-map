@@ -169,7 +169,19 @@
   cursor: pointer;
 }
 
-/* Expanded collapsible body, separated from the header row by a hairline. */
+/* The heading wrapper is a passthrough: the toggle button keeps owning
+   the full-width flex row, the wrapper only carries `role="heading"`. */
+:host ::ng-deep .sm-block__heading {
+  display: block;
+  margin: 0;
+}
+
+/* Expanded collapsible body, separated from the header row by a hairline.
+   Two shapes host the toggle: `<sm-collapsible-section>` wraps its button
+   in `.sm-block__heading` (so the body follows the wrapper), while
+   `<sm-vendor-frontmatter>` keeps the button as a direct child (body
+   follows the button). Match both so either shape gets the divider. */
+:host ::ng-deep .sm-block--collapsible > .sm-block__heading + *,
 :host ::ng-deep .sm-block--collapsible > .sm-block__row--toggle + * {
   margin-top: 0.5rem;
   padding-top: 0.7rem;

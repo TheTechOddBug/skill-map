@@ -39,11 +39,13 @@ import { Injectable, inject, signal } from '@angular/core';
 import { SCAN_TRIGGER_TEXTS } from '../../i18n/scan-trigger.texts';
 import { CollectionLoaderService } from '../../services/collection-loader';
 import { DATA_SOURCE, DataSourceError } from '../../services/data-source/data-source.port';
+import { A11yAnnouncerService } from './a11y-announcer';
 
 @Injectable({ providedIn: 'root' })
 export class ScanTriggerService {
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly loader = inject(CollectionLoaderService);
+  private readonly announcer = inject(A11yAnnouncerService);
 
   private readonly scanningState = signal(false);
   private readonly scanErrorState = signal<string | null>(null);
@@ -74,6 +76,7 @@ export class ScanTriggerService {
     if (this.scanning()) return;
     this.scanningState.set(true);
     this.scanErrorState.set(null);
+    this.announcer.announce(SCAN_TRIGGER_TEXTS.announce.started);
     try {
       await this.dataSource.runScan();
       // The route's broadcaster also emits `scan.completed` over WS,
@@ -81,11 +84,13 @@ export class ScanTriggerService {
       // explicit `load()` here covers the demo path (no WS) and races
       // where the WS event arrives before this Promise resolves.
       await this.loader.load();
+      this.announcer.announce(SCAN_TRIGGER_TEXTS.announce.completed);
     } catch (err) {
       const message = err instanceof DataSourceError ? err.message
         : err instanceof Error ? err.message
         : String(err);
       this.scanErrorState.set(message);
+      this.announcer.announce(SCAN_TRIGGER_TEXTS.announce.failed(message), 'assertive');
       console.warn(SCAN_TRIGGER_TEXTS.scanFailed(message));
     } finally {
       this.scanningState.set(false);

@@ -19,6 +19,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -44,6 +45,7 @@ import {
   DataSourceError,
 } from '../../../services/data-source/data-source.port';
 import { WsEventStreamService } from '../../../services/ws-event-stream';
+import { A11yAnnouncerService } from '../../services/a11y-announcer';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import { QUEUE_VIEW_TEXTS } from './queue-view.texts';
 
@@ -141,6 +143,7 @@ export class QueueView {
   private readonly route = inject(ActivatedRoute);
   private readonly nodeOpenIntent = inject(NODE_OPEN_INTENT);
   private readonly confirmation = inject(ConfirmationService);
+  private readonly announcer = inject(A11yAnnouncerService);
   protected readonly texts = QUEUE_VIEW_TEXTS;
 
   /** Fixed page size for the bottom paginator (the queue pages by 100). */
@@ -263,6 +266,23 @@ export class QueueView {
     () => this.loading() && this.jobs().length === 0,
   );
 
+  /**
+   * Announce the live active-job count when it changes (WCAG 4.1.3), so
+   * a screen-reader user hears the queue drain / grow without watching
+   * the chips. First read primes `previousActiveCount` without speaking.
+   */
+  private previousActiveCount: number | null = null;
+  private readonly activeCountAnnounceEffect = effect(() => {
+    const count = this.activeCount();
+    if (this.previousActiveCount === null) {
+      this.previousActiveCount = count;
+      return;
+    }
+    if (count === this.previousActiveCount) return;
+    this.previousActiveCount = count;
+    this.announcer.announce(this.texts.announce.activeCount(count));
+  });
+
   constructor() {
     void this.fetch();
     // Live refresh: any job lifecycle frame (or a completed re-scan) makes
@@ -352,6 +372,7 @@ export class QueueView {
     this.optimisticCancelled.update((s) => withAdded(s, row.id));
     try {
       await this.dataSource.cancelJob(row.id);
+      this.announcer.announce(this.texts.announce.cancelled);
     } catch (err) {
       if (err instanceof DataSourceError && err.code === 'job-terminal') {
         // Finished in the race: keep the flip, the re-fetch reconciles.
@@ -380,6 +401,7 @@ export class QueueView {
     try {
       await this.dataSource.submitNodeJob(row.nodeId, row.extensionId, row.autoFix);
       this.error.set(null);
+      this.announcer.announce(this.texts.announce.retried);
     } catch (err) {
       if (err instanceof DataSourceError && err.code === 'duplicate-job') {
         // Already re-queued: nothing to do.
@@ -437,6 +459,7 @@ export class QueueView {
     try {
       await op();
       this.error.set(null);
+      this.announcer.announce(this.texts.announce.bulkDone);
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : String(err));
     } finally {

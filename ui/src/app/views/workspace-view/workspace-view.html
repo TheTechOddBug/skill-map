@@ -52,8 +52,11 @@
           type="button"
           class="workspace__tab"
           role="tab"
+          id="workspace-tab-files"
           [class.is-active]="activeSection() === 'files'"
           [attr.aria-selected]="activeSection() === 'files'"
+          [attr.tabindex]="activeSection() === 'files' ? 0 : -1"
+          aria-controls="workspace-rail-body"
           (click)="openSection('files')"
           data-testid="workspace-section-files"
         >
@@ -64,8 +67,11 @@
           type="button"
           class="workspace__tab"
           role="tab"
+          id="workspace-tab-queue"
           [class.is-active]="activeSection() === 'queue'"
           [attr.aria-selected]="activeSection() === 'queue'"
+          [attr.tabindex]="activeSection() === 'queue' ? 0 : -1"
+          aria-controls="workspace-rail-body"
           (click)="openSection('queue')"
           data-testid="workspace-section-queue"
         >
@@ -173,7 +179,12 @@
 
       <!-- Body: swaps its child on the active section. Only the active
            section's component is mounted, so each tab boots fresh. -->
-      <div class="workspace__rail-body">
+      <div
+        class="workspace__rail-body"
+        id="workspace-rail-body"
+        role="tabpanel"
+        [attr.aria-labelledby]="activeSection() === 'files' ? 'workspace-tab-files' : 'workspace-tab-queue'"
+      >
         @if (activeSection() === 'files') {
           <sm-files-view />
         } @else {
@@ -183,9 +194,15 @@
       <div
         class="workspace__rail-resize"
         role="separator"
+        tabindex="0"
         aria-orientation="vertical"
         [attr.aria-label]="texts.rail.resize"
+        [attr.aria-valuenow]="railWidth()"
+        [attr.aria-valuemin]="railResizeMin"
+        [attr.aria-valuemax]="railResizeMax()"
         (mousedown)="onRailResizeStart($event)"
+        (keydown.arrowleft)="onRailResizeKey('narrower')"
+        (keydown.arrowright)="onRailResizeKey('wider')"
         data-testid="workspace-rail-resize"
       ></div>
     }

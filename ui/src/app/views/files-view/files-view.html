@@ -1,6 +1,10 @@
 <section class="files files--rail" data-testid="files-view">
   @if (error()) {
-    <p-message severity="error" [text]="error()!" />
+    <!-- PrimeNG p-message has no implicit role=alert; the wrapper makes the
+         error announce assertively when it appears (WCAG 4.1.3). -->
+    <div role="alert" aria-live="assertive">
+      <p-message severity="error" [text]="error()!" />
+    </div>
   }
 
   @if (showLoading()) {
@@ -210,6 +214,7 @@
             <tr
               animate.enter="files__row--enter"
               class="files__row files__row--folder"
+              role="button"
               [attr.aria-expanded]="row.expanded"
               [attr.aria-level]="row.depth + 1"
               [attr.aria-label]="texts.folderAriaLabel(row.name, row.expanded)"
@@ -297,6 +302,7 @@
             <tr
               animate.enter="files__row--enter"
               class="files__row files__row--leaf"
+              role="button"
               [class.is-selected]="row.path === highlightedPath()"
               tabindex="0"
               [attr.aria-label]="texts.leafAriaLabel(row.name)"

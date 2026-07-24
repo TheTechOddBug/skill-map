@@ -19,12 +19,12 @@
     <div class="pcp__namespaces">
       @for (ns of namespaces(); track ns.pluginId) {
         <section class="pcp__ns" [attr.data-testid]="'plugin-contributions-ns-' + ns.pluginId">
-          <h5 class="pcp__ns-header">
+          <h4 class="pcp__ns-header">
             <span class="pcp__ns-name">{{ ns.pluginId }}</span>
             @if (!ns.registered) {
               <span class="pcp__ns-badge" data-testid="plugin-contributions-unregistered-badge">{{ texts.unregisteredBadge }}</span>
             }
-          </h5>
+          </h4>
           <dl class="pcp__kv">
             @for (row of ns.rows; track row.key) {
               <dt [pTooltip]="row.description ?? ''">{{ row.key }}</dt>

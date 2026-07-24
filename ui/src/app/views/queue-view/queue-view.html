@@ -1,6 +1,10 @@
 <section class="queue queue--rail" data-testid="queue-view">
   @if (error()) {
-    <p-message severity="error" [text]="error()!" />
+    <!-- PrimeNG p-message has no implicit role=alert; the wrapper makes the
+         error announce assertively when it appears (WCAG 4.1.3). -->
+    <div role="alert" aria-live="assertive">
+      <p-message severity="error" [text]="error()!" />
+    </div>
   }
 
   @if (showLoading()) {

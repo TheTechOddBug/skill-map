@@ -66,6 +66,8 @@ import { PerfHud } from '../../components/perf-hud/perf-hud';
 import { ViewContributionsHost } from '../../components/view-contributions-host/view-contributions-host';
 import { DebugPerfService } from '../../services/debug-perf';
 import { UsageTrackerService } from '../../services/usage-tracker';
+import { A11yAnnouncerService } from '../../services/a11y-announcer';
+import { pathBasenameForLink } from '../../../services/path-basename';
 import { InspectorView } from '../inspector-view/inspector-view';
 import { MiddleMousePanDirective, type IMiddleMousePanTarget } from './middle-mouse-pan';
 import {
@@ -130,6 +132,8 @@ const PANEL_WIDTH_DEFAULT = 500;
 const PANEL_WIDTH_MIN = 400;
 /** Minimum graph area to keep visible at any viewport width. */
 const PANEL_VIEWPORT_RESERVE = 80;
+/** Pixels the inspector panel grows / shrinks per arrow keypress (WCAG 2.1.1). */
+const PANEL_RESIZE_STEP = 24;
 
 /** Tween duration (ms) for the auto-fit on WS-scan topology change. A
  *  hair longer than the tag-selection tween (320 ms) so the "scan
@@ -228,8 +232,13 @@ export class GraphView implements OnInit {
   private readonly agentSpawns = inject(AgentSpawnService);
   private readonly livePrefs = inject(LivePreferencesService);
   private readonly dataSource = inject(DATA_SOURCE);
+  private readonly announcer = inject(A11yAnnouncerService);
 
   private readonly flow = viewChild(FFlowComponent);
+  // Inspector panel container, focused (and announced) when a node
+  // becomes selected so keyboard / screen-reader users land on the
+  // freshly opened details instead of staying on the canvas (WCAG 2.4.3).
+  private readonly inspectorPanel = viewChild<ElementRef<HTMLElement>>('inspectorPanel');
   // Protected: `panTarget` (below) reads this for the middle-mouse pan's
   // final `emitCanvasChangeEvent()` flush.
   protected readonly canvas = viewChild(FCanvasComponent);
@@ -512,6 +521,32 @@ export class GraphView implements OnInit {
   // wiring crosses the parent-child boundary.
 
   readonly selectedNodeId = signal<string | null>(null);
+
+  /**
+   * Focus + announce management for the inspector panel (WCAG 2.4.3 +
+   * 4.1.3). Tracks the previously selected id so the effect fires ONLY
+   * on a real null -> id (or id -> other id) transition, never on the
+   * unrelated re-renders that also read `selectedNodeId` (highlight,
+   * dim, layout). On a genuine selection it moves keyboard focus into
+   * the inspector container and announces the node name.
+   */
+  private previousSelectedId: string | null = null;
+  private readonly selectionFocusEffect = effect(() => {
+    const id = this.selectedNodeId();
+    const prev = untracked(() => this.previousSelectedId);
+    if (id === prev) return;
+    this.previousSelectedId = id;
+    if (id === null) return;
+    const node = untracked(() => this.graph().nodes.find((n) => n.id === id));
+    if (!node) return;
+    this.announcer.announce(GRAPH_VIEW_TEXTS.a11y.nodeSelected(this.nodeDisplayName(node)));
+    // The panel is always in the DOM (visibility toggles via `is-open`),
+    // so the viewChild resolves; move focus after the current render.
+    afterNextRender(
+      () => this.inspectorPanel()?.nativeElement.focus(),
+      { injector: this.injector },
+    );
+  });
 
   protected readonly selectedPath = computed<string | undefined>(() => {
     const id = this.selectedNodeId();
@@ -1405,6 +1440,48 @@ export class GraphView implements OnInit {
     // the same, kept the handler so the gesture has a clear intent).
     this.applySelection(node.id);
   }
+
+  /**
+   * Keyboard activation of a node host (WCAG 2.1.1 / 4.1.2). Mirrors the
+   * `(click)` select without the drag guard (`selectNode` rejects a
+   * click that was really a drag, which cannot happen from the keyboard).
+   * Enter/Space select; the selection effect then moves focus into the
+   * inspector. Spatial arrow-key navigation across the canvas is deferred
+   * to the Foblex 19 keyboard layer (repo is on 18.6.1); this handler
+   * only provides the tab-reachable activation the AA level requires.
+   */
+  selectNodeByKeyboard(node: IGraphNode, event: Event): void {
+    event.preventDefault();
+    this.applySelection(node.id);
+    this.usageTracker.trackFeature('inspector');
+  }
+
+  /** Display name for a node host (frontmatter name, else a friendly basename). */
+  nodeDisplayName(node: IGraphNode): string {
+    return node.view.frontmatter.name ?? pathBasenameForLink(node.view.path);
+  }
+
+  /** Accessible name for a node host: name + kind + selection state. */
+  nodeHostLabel(node: IGraphNode): string {
+    return GRAPH_VIEW_TEXTS.a11y.nodeHost(
+      this.nodeDisplayName(node),
+      node.view.kind,
+      this.isSelected(node.id),
+    );
+  }
+
+  /**
+   * Keyboard resize of the inspector panel (WCAG 2.1.1). The panel hugs
+   * the right edge, so ArrowLeft widens it and ArrowRight narrows it.
+   * `PANEL_RESIZE_STEP` per keypress. Values reflected to the separator's
+   * `aria-valuenow`/min/max.
+   */
+  protected onPanelResizeKey(direction: 'wider' | 'narrower'): void {
+    this.panelResize.stepBy(direction === 'wider' ? PANEL_RESIZE_STEP : -PANEL_RESIZE_STEP);
+  }
+
+  protected readonly panelResizeMin = this.panelResize.minWidth;
+  protected readonly panelResizeMax = this.panelResize.maxWidth;
 
   /**
    * Click anywhere on the canvas that is NOT an interactive overlay

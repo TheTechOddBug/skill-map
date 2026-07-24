@@ -9,6 +9,22 @@ export const GRAPH_VIEW_TEXTS = {
   a11y: {
     toolbar: 'Map controls',
     panel: 'Selected node details',
+    /**
+     * Accessible name for a graph node host (WCAG 4.1.2). The host is a
+     * `role="button"` that selects the node; the label names the node,
+     * its kind, and whether it is currently selected so a screen-reader
+     * user knows what activating it does and its current state.
+     */
+    nodeHost: (name: string, kind: string, selected: boolean): string =>
+      `${name}, ${kind}${selected ? ', selected' : ''}. Activate to inspect.`,
+    /** Announced when a node is selected and focus moves to the inspector (WCAG 2.4.3). */
+    nodeSelected: (name: string): string => `Selected ${name}. Inspector panel opened.`,
+    /**
+     * Accessible name for the inspector panel resize separator (WCAG 2.1.1).
+     * `aria-valuenow`/min/max carry the numeric width; the label names
+     * the control and hints the arrow-key operation.
+     */
+    resizeSeparator: 'Resize the inspector panel. Use the left and right arrow keys.',
   },
   toolbar: {
     zoomIn: 'Zoom in',

@@ -270,9 +270,16 @@
                 (fNodePositionChange)="onNodePositionChange(node.id, $event)"
                 class="sm-gnode-host"
                 data-canvas-click-shield
+                tabindex="0"
+                role="button"
+                [attr.aria-label]="nodeHostLabel(node)"
+                [attr.aria-pressed]="isSelected(node.id)"
                 (pointerdown)="onNodePointerDown($event)"
                 (click)="selectNode(node, $event)"
                 (dblclick)="openNode(node)"
+                (keydown.enter)="selectNodeByKeyboard(node, $event)"
+                (keydown.space)="selectNodeByKeyboard(node, $event)"
+                (keydown.shift.enter)="selectNodeByKeyboard(node, $event); openNode(node)"
                 [attr.data-testid]="'graph-node-' + node.id"
               >
                 @if (isExecuting(node.id)) {
@@ -312,9 +319,16 @@
                   (fNodePositionChange)="onNodePositionChange(node.id, $event)"
                   class="sm-gnode-host"
                   data-canvas-click-shield
+                  tabindex="0"
+                  role="button"
+                  [attr.aria-label]="nodeHostLabel(node)"
+                  [attr.aria-pressed]="isSelected(node.id)"
                   (pointerdown)="onNodePointerDown($event)"
                   (click)="selectNode(node, $event)"
                   (dblclick)="openNode(node)"
+                  (keydown.enter)="selectNodeByKeyboard(node, $event)"
+                  (keydown.space)="selectNodeByKeyboard(node, $event)"
+                  (keydown.shift.enter)="selectNodeByKeyboard(node, $event); openNode(node)"
                   [attr.data-testid]="'graph-node-' + node.id"
                 >
                   @if (isExecuting(node.id)) {
@@ -384,8 +398,10 @@
       </div>
 
       <aside
+        #inspectorPanel
         class="graph__panel"
         data-canvas-click-shield
+        tabindex="-1"
         [class.is-open]="selectedNodeId() !== null"
         [style.width.px]="clampedPanelWidth()"
         role="complementary"
@@ -395,9 +411,15 @@
         <div
           class="graph__panel-resize"
           role="separator"
+          tabindex="0"
           aria-orientation="vertical"
-          [attr.aria-label]="texts.panel.resizeLabel"
+          [attr.aria-label]="texts.a11y.resizeSeparator"
+          [attr.aria-valuenow]="clampedPanelWidth()"
+          [attr.aria-valuemin]="panelResizeMin"
+          [attr.aria-valuemax]="panelResizeMax()"
           (mousedown)="onPanelResizeStart($event)"
+          (keydown.arrowleft)="onPanelResizeKey('wider')"
+          (keydown.arrowright)="onPanelResizeKey('narrower')"
           data-testid="graph-panel-resize"
         ></div>
         <div class="graph__panel-scroll">

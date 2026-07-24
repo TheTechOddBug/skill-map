@@ -425,6 +425,34 @@ describe('GraphView, selection and URL sync', () => {
     expect(cmp.selectedNodeId()).toBe(node.path);
   });
 
+  it('builds an accessible node-host label naming the node, kind and selection state (WCAG 4.1.2)', async () => {
+    const node = makeNode('agents/architect.md', 'architect');
+    const { fixture, cmp } = await bootstrap([node]);
+    await flushEffects(fixture);
+
+    const graphNode = cmp.graph().nodes[0];
+    expect(graphNode).toBeDefined();
+    const unselected = cmp.nodeHostLabel(graphNode);
+    expect(unselected).toContain('architect');
+    expect(unselected).not.toContain('selected');
+
+    cmp.selectedNodeId.set(node.path);
+    await flushEffects(fixture);
+    expect(cmp.nodeHostLabel(graphNode)).toContain('selected');
+  });
+
+  it('selects a node from the keyboard (WCAG 2.1.1)', async () => {
+    const node = makeNode('agents/architect.md', 'architect');
+    const { fixture, cmp } = await bootstrap([node]);
+    await flushEffects(fixture);
+
+    const graphNode = cmp.graph().nodes[0];
+    cmp.selectNodeByKeyboard(graphNode, new KeyboardEvent('keydown', { key: 'Enter' }));
+    await flushEffects(fixture);
+
+    expect(cmp.selectedNodeId()).toBe(node.path);
+  });
+
   it('writes the selected path into the URL `?path=` query param', async () => {
     const node = makeNode('agents/architect.md', 'architect');
     const { fixture, cmp, router } = await bootstrap([node]);

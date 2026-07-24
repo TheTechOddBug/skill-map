@@ -1,13 +1,17 @@
 @if (ignoreLoadError(); as err) {
-  <p-message severity="error" [closable]="false" data-testid="settings-project-ignore-load-error">
-    {{ texts.project.loadErrorPrefix }} {{ err }}
-  </p-message>
+  <div id="settings-project-ignore-load-error-msg" role="alert" aria-live="assertive">
+    <p-message severity="error" [closable]="false" data-testid="settings-project-ignore-load-error">
+      {{ texts.project.loadErrorPrefix }} {{ err }}
+    </p-message>
+  </div>
 }
 
 @if (ignoreSaveError(); as err) {
-  <p-message severity="error" [closable]="false" data-testid="settings-project-ignore-save-error">
-    {{ texts.project.saveErrorPrefix }} {{ err }}
-  </p-message>
+  <div id="settings-project-ignore-save-error-msg" role="alert" aria-live="assertive">
+    <p-message severity="error" [closable]="false" data-testid="settings-project-ignore-save-error">
+      {{ texts.project.saveErrorPrefix }} {{ err }}
+    </p-message>
+  </div>
 }
 
 <div class="settings-project__list-row" data-testid="settings-project-ignore-patterns-row">
@@ -55,6 +59,11 @@
       (keydown.enter)="onIgnorePatternAdd()"
       [placeholder]="texts.project.ignorePatternsPlaceholder"
       [attr.aria-label]="texts.project.ignorePatternsInputAriaLabel"
+      [attr.aria-describedby]="ignoreSaveError()
+        ? 'settings-project-ignore-save-error-msg'
+        : ignoreLoadError()
+          ? 'settings-project-ignore-load-error-msg'
+          : null"
       [disabled]="isPending('ignore.patterns')"
       data-testid="settings-project-ignore-patterns-input"
     />

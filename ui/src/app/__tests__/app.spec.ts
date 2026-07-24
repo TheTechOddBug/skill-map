@@ -430,6 +430,19 @@ describe('App', () => {
     expect(compiled.querySelector('h1')?.textContent).toContain('skill-map');
   });
 
+  it('exposes a skip-to-content link targeting the main region (WCAG 2.4.1)', async () => {
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const skip = root.querySelector('[data-testid="skip-to-main"]') as HTMLAnchorElement | null;
+    expect(skip).not.toBeNull();
+    expect(skip?.getAttribute('href')).toBe('#shell-main');
+    const main = root.querySelector('main.shell__main');
+    expect(main?.getAttribute('id')).toBe('shell-main');
+    expect(main?.getAttribute('tabindex')).toBe('-1');
+  });
+
   it('shows a persistent callout pointing at Quick Start while the tutorial reminder names it (step 0, the stub default)', async () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();

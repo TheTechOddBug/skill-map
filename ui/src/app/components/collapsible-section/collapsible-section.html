@@ -1,21 +1,32 @@
-<button
-  type="button"
-  class="sm-block__row sm-block__row--toggle"
-  (click)="toggle.emit()"
-  [attr.aria-expanded]="expanded()"
-  [attr.aria-label]="toggleAriaLabel() ?? null"
-  [pTooltip]="toggleTooltip() ?? ''"
-  [attr.data-testid]="toggleTestid() ?? null"
->
-  <span class="sm-block__title">
-    {{ title() }}
-    <ng-content select="[smSectionTitleExtra]"></ng-content>
-  </span>
-  <i
-    class="pi sm-block__chevron"
-    [class.pi-chevron-right]="!expanded()"
-    [class.pi-chevron-down]="expanded()"
-    aria-hidden="true"
-  ></i>
-</button>
+<!--
+  WAI-ARIA Accordion pattern: the section title is exposed as a level-3
+  heading wrapping the interactive toggle button. A `role="heading"` set
+  directly on a span *inside* the button would be flattened (a button
+  collapses its subtree to compute its name), so the heading sits around
+  the button instead. This keeps the button as the sole interactive
+  control while giving AT a real heading in the level ladder (h1 shell >
+  h2 inspector-header > h3 section title).
+-->
+<div role="heading" aria-level="3" class="sm-block__heading">
+  <button
+    type="button"
+    class="sm-block__row sm-block__row--toggle"
+    (click)="toggle.emit()"
+    [attr.aria-expanded]="expanded()"
+    [attr.aria-label]="toggleAriaLabel() ?? null"
+    [pTooltip]="toggleTooltip() ?? ''"
+    [attr.data-testid]="toggleTestid() ?? null"
+  >
+    <span class="sm-block__title">
+      {{ title() }}
+      <ng-content select="[smSectionTitleExtra]"></ng-content>
+    </span>
+    <i
+      class="pi sm-block__chevron"
+      [class.pi-chevron-right]="!expanded()"
+      [class.pi-chevron-down]="expanded()"
+      aria-hidden="true"
+    ></i>
+  </button>
+</div>
 <ng-content></ng-content>

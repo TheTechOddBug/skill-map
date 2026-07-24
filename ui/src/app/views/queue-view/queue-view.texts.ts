@@ -78,4 +78,16 @@ export const QUEUE_VIEW_TEXTS = {
     /** Shown when jobs exist but none match the active filter. */
     noMatch: 'No jobs match the current filter.',
   },
+  /**
+   * Screen-reader announcements for queue mutations (WCAG 4.1.3). The
+   * queue updates its rows silently, so these narrate the outcome of a
+   * cancel / retry / bulk clear and the live active-job count.
+   */
+  announce: {
+    cancelled: 'Job cancelled.',
+    retried: 'Job re-queued.',
+    bulkDone: 'Queue updated.',
+    activeCount: (count: number): string =>
+      count === 1 ? '1 active job.' : `${count} active jobs.`,
+  },
 } as const;

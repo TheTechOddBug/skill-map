@@ -27,14 +27,23 @@
       [attr.aria-label]="texts.modalTitle"
       data-testid="quick-start-modal-sidebar"
     >
-      <ul class="quick-start-modal__sidebar-list" role="list">
+      <ul
+        class="quick-start-modal__sidebar-list"
+        role="tablist"
+        aria-orientation="vertical"
+        [attr.aria-label]="texts.modalTitle"
+      >
         @for (group of groups; track group.id) {
-          <li>
+          <li role="presentation">
             <button
               type="button"
+              role="tab"
               class="quick-start-modal__sidebar-item"
               [class.is-active]="activeGroup() === group.id"
-              [attr.aria-current]="activeGroup() === group.id ? 'page' : null"
+              [id]="'quick-start-tab-' + group.id"
+              [attr.aria-selected]="activeGroup() === group.id"
+              [attr.aria-controls]="'quick-start-panel-' + group.id"
+              [attr.tabindex]="activeGroup() === group.id ? 0 : -1"
               (click)="selectGroup(group.id)"
               [attr.data-testid]="'quick-start-nav-' + group.id"
             >
@@ -54,14 +63,22 @@
         >{{ activeGroupDescription() }}</p>
 
         @if (error(); as err) {
-          <p-message severity="error" [closable]="false" data-testid="quick-start-modal-error">
-            {{ texts.errorPrefix }} {{ err }}
-          </p-message>
+          <div role="alert" aria-live="assertive">
+            <p-message severity="error" [closable]="false" data-testid="quick-start-modal-error">
+              {{ texts.errorPrefix }} {{ err }}
+            </p-message>
+          </div>
         }
 
         @switch (activeGroup()) {
           @case ('live') {
-            <section class="quick-start-modal__group" data-testid="quick-start-group-live">
+            <section
+              class="quick-start-modal__group"
+              role="tabpanel"
+              id="quick-start-panel-live"
+              aria-labelledby="quick-start-tab-live"
+              data-testid="quick-start-group-live"
+            >
               <sm-quick-start-row
                 testid="quick-start-row-live-updates"
                 [label]="texts.rows.liveUpdates.label"
@@ -100,7 +117,13 @@
           }
 
           @case ('realtime') {
-            <section class="quick-start-modal__group" data-testid="quick-start-group-realtime">
+            <section
+              class="quick-start-modal__group"
+              role="tabpanel"
+              id="quick-start-panel-realtime"
+              aria-labelledby="quick-start-tab-realtime"
+              data-testid="quick-start-group-realtime"
+            >
               <sm-quick-start-row
                 testid="quick-start-row-hook"
                 [label]="texts.rows.hook.label"
@@ -160,7 +183,13 @@
           }
 
           @case ('ai') {
-            <section class="quick-start-modal__group" data-testid="quick-start-group-ai">
+            <section
+              class="quick-start-modal__group"
+              role="tabpanel"
+              id="quick-start-panel-ai"
+              aria-labelledby="quick-start-tab-ai"
+              data-testid="quick-start-group-ai"
+            >
               <sm-quick-start-row
                 testid="quick-start-row-agent-skill"
                 [label]="texts.rows.agentSkill.label"

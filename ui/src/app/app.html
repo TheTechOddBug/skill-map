@@ -15,6 +15,7 @@
 </div>
 
 <div class="shell" data-testid="shell">
+  <a href="#shell-main" class="sr-only-focusable" data-testid="skip-to-main">{{ texts.a11y.skipToMain }}</a>
   <sm-demo-banner />
   <sm-oversized-banner (openSettings)="openSettings()" />
   <sm-skipped-files-banner (openSettings)="openSettings()" />
@@ -211,7 +212,7 @@
     </div>
   </header>
 
-  <main class="shell__main">
+  <main class="shell__main" id="shell-main" tabindex="-1">
     <router-outlet />
   </main>
 

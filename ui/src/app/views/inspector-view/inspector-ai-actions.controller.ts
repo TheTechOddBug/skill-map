@@ -54,6 +54,7 @@ import {
   DataSourceError,
   type IDataSourcePort,
 } from '../../../services/data-source/data-source.port';
+import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
 
 /**
  * The two hidden buckets the tray can reveal (the CLI's bucket flags).
@@ -100,6 +101,12 @@ export interface IAiActionsSetupDeps {
    * dialog instance.
    */
   requestSmConsent(retry: (grant: ISmConsentGrant) => void): void;
+  /**
+   * Screen-reader announcement sink (WCAG 4.1.3). The host wires this to
+   * `A11yAnnouncerService.announce` so submit / fix / resolve / dismiss /
+   * restore outcomes are narrated. Optional so tests can omit it.
+   */
+  announce?: (message: string) => void;
 }
 
 export interface IAiActionsHandle {
@@ -523,6 +530,7 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
       // Optimistic flip; the job.submitted WS broadcast (and the
       // debounced re-fetch it triggers) confirms server-side.
       flipToQueued(extensionId);
+      deps.announce?.(INSPECTOR_VIEW_TEXTS.announce.jobSubmitted);
     } catch (err) {
       if (err instanceof DataSourceError && err.code === 'duplicate-job') {
         // An identical active job already exists: the button's real
@@ -568,6 +576,7 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
       // Optimistic busy overlay until the refetch reflects the queued
       // fixer job, so the row's bolt never flickers enabled in between.
       flipFixerBusy(finderId, findingIds);
+      deps.announce?.(INSPECTOR_VIEW_TEXTS.announce.fixQueued);
     } catch (err) {
       recordSubmitError(err);
     } finally {
@@ -660,6 +669,7 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     setFindingBusy(finding.id, true);
     try {
       await deps.dataSource.dismissFinding(path, finding.id, {});
+      deps.announce?.(INSPECTOR_VIEW_TEXTS.announce.findingDismissed);
     } catch (err) {
       recordSubmitError(err);
     } finally {
@@ -686,6 +696,7 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     try {
       if (finding.resolution === 'dismissed') {
         await deps.dataSource.reopenFinding(path, finding.id);
+        deps.announce?.(INSPECTOR_VIEW_TEXTS.announce.findingRestored);
         return;
       }
       await deps.dataSource.undismissFinding(
@@ -693,6 +704,7 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
         { extension: finding.extensionId, type: finding.type },
         consent,
       );
+      deps.announce?.(INSPECTOR_VIEW_TEXTS.announce.findingRestored);
     } catch (err) {
       if (!('confirm' in consent) && isSmConsentRequired(err)) {
         deps.requestSmConsent((grant) => void restoreFinding(finding, grant));
@@ -713,6 +725,7 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     setFindingBusy(finding.id, true);
     try {
       await deps.dataSource.resolveFinding(path, finding.id);
+      deps.announce?.(INSPECTOR_VIEW_TEXTS.announce.findingResolved);
     } catch (err) {
       recordSubmitError(err);
     } finally {

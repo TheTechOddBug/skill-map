@@ -56,6 +56,18 @@ export interface IEdgeResizeHandle {
   readonly clampedWidth: Signal<number>;
   /** Bound to the drag handle's `(mousedown)`. */
   readonly onResizeStart: (event: MouseEvent) => void;
+  /**
+   * Keyboard resize step (WCAG 2.1.1): grows the panel by `delta`
+   * (positive widens, negative narrows), clamped to the same
+   * [min, max] window the mouse drag honours, then commits. Bound to
+   * the separator's arrow-key handlers. The caller decides the sign so
+   * "arrow towards the panel widens" reads naturally per edge.
+   */
+  readonly stepBy: (delta: number) => void;
+  /** Lower bound for `aria-valuemin`. */
+  readonly minWidth: number;
+  /** Current upper bound (viewport-dependent) for `aria-valuemax`. */
+  readonly maxWidth: Signal<number>;
 }
 
 export function setupEdgeResize(config: IEdgeResizeConfig): IEdgeResizeHandle {
@@ -72,6 +84,8 @@ export function setupEdgeResize(config: IEdgeResizeConfig): IEdgeResizeHandle {
 
   const maxWidth = (): number =>
     Math.max(config.minWidth, viewportWidth() - config.viewportReserve);
+
+  const maxWidthSignal = computed<number>(() => maxWidth());
 
   const clampedWidth = computed<number>(() => {
     const max = maxWidth();
@@ -132,5 +146,11 @@ export function setupEdgeResize(config: IEdgeResizeConfig): IEdgeResizeHandle {
     document.addEventListener('mouseup', onEnd);
   };
 
-  return { clampedWidth, onResizeStart };
+  const stepBy = (delta: number): void => {
+    const next = Math.min(maxWidth(), Math.max(config.minWidth, clampedWidth() + delta));
+    width.set(next);
+    config.onCommit(next);
+  };
+
+  return { clampedWidth, onResizeStart, stepBy, minWidth: config.minWidth, maxWidth: maxWidthSignal };
 }

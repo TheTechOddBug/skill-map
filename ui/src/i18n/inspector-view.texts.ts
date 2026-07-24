@@ -290,4 +290,16 @@ export const INSPECTOR_VIEW_TEXTS = {
       createdBy: 'by',
     },
   },
+  /**
+   * Screen-reader announcements for the AI-actions / findings lifecycle
+   * (WCAG 4.1.3). The buttons mutate finding state silently, so these
+   * narrate the outcome of a submit / fix / resolve / dismiss / restore.
+   */
+  announce: {
+    jobSubmitted: 'Action queued.',
+    fixQueued: 'Fix queued.',
+    findingResolved: 'Finding marked as fixed.',
+    findingDismissed: 'Finding dismissed.',
+    findingRestored: 'Finding restored.',
+  },
 } as const;

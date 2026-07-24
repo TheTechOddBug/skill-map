@@ -103,7 +103,10 @@
           }
           @if (buffer.applyError(); as applyError) {
             <span
+              id="settings-modal-apply-error-msg"
               class="settings-modal__footer-error"
+              role="alert"
+              aria-live="assertive"
               data-testid="settings-modal-apply-error"
             >
               {{ texts.applyErrorPrefix }} {{ applyError }}
@@ -124,6 +127,7 @@
           size="small"
           [label]="texts.applyAndClose"
           [ariaLabel]="texts.applyA11y"
+          [attr.aria-describedby]="buffer.applyError() ? 'settings-modal-apply-error-msg' : null"
           [disabled]="buffer.applying()"
           [loading]="buffer.applying()"
           (onClick)="applyAndClose()"
