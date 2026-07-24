@@ -123,10 +123,20 @@
   padding: 1.25rem 1.5rem;
 }
 
-/* Meta line under the header: signals the whole panel is a shortcut to
-   controls that also live in Settings. Dimmer than the per-tab lead. */
-.quick-start-modal__subtitle {
-  margin: 0 0 1rem 0;
+/* Custom dialog header: title plus a dimmed note on the same row saying the
+   panel is a shortcut to controls that also live in Settings. The title
+   matches the theme's default dialog title via its own tokens. */
+.quick-start-modal__header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.quick-start-modal__header-title {
+  font-size: var(--p-dialog-title-font-size);
+  font-weight: var(--p-dialog-title-font-weight);
+}
+.quick-start-modal__header-note {
   font-size: 0.8rem;
   color: var(--sm-text-muted);
   opacity: 0.85;

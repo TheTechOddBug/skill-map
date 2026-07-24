@@ -9,13 +9,17 @@
   [dismissableMask]="true"
   styleClass="quick-start-modal__dialog"
   contentStyleClass="quick-start-modal__content"
-  [header]="texts.modalTitle"
   data-testid="quick-start-modal"
 >
-  <p
-    class="quick-start-modal__subtitle"
-    data-testid="quick-start-modal-subtitle"
-  >{{ texts.modalSubtitle }}</p>
+  <ng-template #header>
+    <div class="quick-start-modal__header">
+      <span class="quick-start-modal__header-title">{{ texts.modalTitle }}</span>
+      <span
+        class="quick-start-modal__header-note"
+        data-testid="quick-start-modal-subtitle"
+      >{{ texts.modalSubtitle }}</span>
+    </div>
+  </ng-template>
 
   <div class="quick-start-modal__layout">
     <nav
