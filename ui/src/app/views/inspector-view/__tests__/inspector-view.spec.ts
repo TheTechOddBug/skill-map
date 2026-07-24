@@ -22,6 +22,7 @@ import { CollectionLoaderService } from '../../../../services/collection-loader'
 import { LivePreferencesService } from '../../../../services/live-preferences';
 import { NodeActivityStatsService } from '../../../../services/node-activity-stats';
 import { ProviderRegistryService } from '../../../../services/provider-registry';
+import { ProjectInfoService } from '../../../services/project-info';
 import type { INodeView, ISidecarOverlay } from '../../../../models/node';
 import { activityPairKeyOf } from '../../../../models/api';
 import type {
@@ -65,6 +66,7 @@ type IStubDataSource = IDataSourcePort & {
   deleteNodeSummary: ReturnType<typeof vi.fn>;
   getNodeProbExtensions: ReturnType<typeof vi.fn>;
   mcpStatus: ReturnType<typeof vi.fn>;
+  getAgentSkillInstallStatus: ReturnType<typeof vi.fn>;
   submitNodeJob: ReturnType<typeof vi.fn>;
   cancelJob: ReturnType<typeof vi.fn>;
   dismissFinding: ReturnType<typeof vi.fn>;
@@ -191,6 +193,13 @@ function makeStubDataSource(): IStubDataSource {
       issueFixers: [],
     }),
     mcpStatus: vi.fn().mockResolvedValue({ enabled: true, connected: true, clients: 1 }),
+    getAgentSkillInstallStatus: vi.fn().mockResolvedValue({
+      provider: 'claude',
+      supported: true,
+      skillDir: '.claude/skills/sm-process-jobs',
+      installed: true,
+      stale: false,
+    }),
     submitNodeJob: vi.fn().mockResolvedValue({
       schemaVersion: '1',
       kind: 'job.submitted',
@@ -265,6 +274,12 @@ interface IBootstrapOpts {
   activityRunNodes?: ReadonlySet<string>;
   /** Real-time activity preference (default ON, like the app). */
   activityEnabled?: boolean;
+  /**
+   * Active lens provider driving the "no processing agent set up"
+   * warning's skill-status probe. Defaults to `'claude'` (a resolved
+   * lens) so the probe runs; set `null` to model an unresolved lens.
+   */
+  activeProvider?: string | null;
 }
 
 /** Stats entry seed for the Activity visibility gate. */
@@ -339,6 +354,17 @@ function bootstrap(opts: IBootstrapOpts = {}): {
         useValue: {
           activityEnabled: signal(opts.activityEnabled ?? true),
         } as unknown as LivePreferencesService,
+      },
+      // The AI actions card reads the active lens for its "no processing
+      // agent set up" warning; the real service subscribes to WS streams,
+      // so tests provide a plain signal seeded from `opts.activeProvider`.
+      {
+        provide: ProjectInfoService,
+        useValue: {
+          activeProvider: signal<string | null>(
+            opts.activeProvider === undefined ? 'claude' : opts.activeProvider,
+          ),
+        } as unknown as ProjectInfoService,
       },
     ],
   });
@@ -2274,8 +2300,74 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     ).toBeNull();
   });
 
-  it('shows the MCP-disconnected warning when mcpStatus reports connected:false', async () => {
+  it('shows the no-processing-agent warning when the lens skill is supported but not installed', async () => {
     const dataSource = makeStubDataSource();
+    dataSource.getAgentSkillInstallStatus.mockResolvedValue({
+      provider: 'claude',
+      supported: true,
+      skillDir: '.claude/skills/sm-process-jobs',
+      installed: false,
+      stale: false,
+    });
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    dataSource.getNodeProbExtensions.mockResolvedValue(
+      makeProbExtensions({ standalone: [makeProbEntry({ id: 'core/summarizer' })] }),
+    );
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    await flush(fixture);
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(
+      dom.querySelector('[data-testid="inspector-ai-actions-no-agent-warning"]'),
+    ).not.toBeNull();
+  });
+
+  it('hides the no-processing-agent warning when the skill is installed', async () => {
+    const { fixture } = await bootAiActions({
+      probs: makeProbExtensions({ standalone: [makeProbEntry({ id: 'core/summarizer' })] }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    // The card renders (a launcher exists), but with the skill installed
+    // (the stub default) the warning must not.
+    expect(dom.querySelector('[data-testid="inspector-card-ai-actions"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-no-agent-warning"]')).toBeNull();
+  });
+
+  it('hides the no-processing-agent warning when the lens has no skill to install (supported:false)', async () => {
+    const dataSource = makeStubDataSource();
+    dataSource.getAgentSkillInstallStatus.mockResolvedValue({
+      provider: 'claude',
+      supported: false,
+      skillDir: null,
+      installed: false,
+      stale: false,
+    });
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    dataSource.getNodeProbExtensions.mockResolvedValue(
+      makeProbExtensions({ standalone: [makeProbEntry({ id: 'core/summarizer' })] }),
+    );
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    await flush(fixture);
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-no-agent-warning"]')).toBeNull();
+  });
+
+  it('shows only the no-agent warning when the skill is missing, regardless of MCP connectivity', async () => {
+    const dataSource = makeStubDataSource();
+    dataSource.getAgentSkillInstallStatus.mockResolvedValue({
+      provider: 'claude',
+      supported: true,
+      skillDir: '.claude/skills/sm-process-jobs',
+      installed: false,
+      stale: false,
+    });
     dataSource.mcpStatus.mockResolvedValue({ enabled: true, connected: false, clients: 0 });
     const node = makeNode();
     const loader = makeStubLoader([node]);
@@ -2289,18 +2381,35 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     await flush(fixture);
     const dom: HTMLElement = fixture.nativeElement;
     expect(
-      dom.querySelector('[data-testid="inspector-ai-actions-mcp-warning"]'),
+      dom.querySelector('[data-testid="inspector-ai-actions-no-agent-warning"]'),
     ).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-mcp-warning"]')).toBeNull();
   });
 
-  it('hides the MCP-disconnected warning when an agent is connected', async () => {
+  it('shows the mcp warning when the skill is installed but no agent is connected', async () => {
+    const dataSource = makeStubDataSource();
+    dataSource.mcpStatus.mockResolvedValue({ enabled: true, connected: false, clients: 0 });
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    dataSource.getNodeProbExtensions.mockResolvedValue(
+      makeProbExtensions({ standalone: [makeProbEntry({ id: 'core/summarizer' })] }),
+    );
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    await flush(fixture);
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-mcp-warning"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-no-agent-warning"]')).toBeNull();
+  });
+
+  it('shows neither warning when the skill is installed and an agent is connected', async () => {
     const { fixture } = await bootAiActions({
       probs: makeProbExtensions({ standalone: [makeProbEntry({ id: 'core/summarizer' })] }),
     });
     const dom: HTMLElement = fixture.nativeElement;
-    // The card renders (a launcher exists), but with connected:true the
-    // warning must not.
-    expect(dom.querySelector('[data-testid="inspector-card-ai-actions"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-no-agent-warning"]')).toBeNull();
     expect(dom.querySelector('[data-testid="inspector-ai-actions-mcp-warning"]')).toBeNull();
   });
 

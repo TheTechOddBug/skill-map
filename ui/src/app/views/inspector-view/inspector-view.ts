@@ -49,6 +49,7 @@ import { ActionDispatchService } from '../../../services/action-dispatch';
 import { cssKindNameOrFallback } from '../../../services/css-guard';
 import { activityNodeLabel, pathBasenameForLink } from '../../../services/path-basename';
 import { ProviderRegistryService } from '../../../services/provider-registry';
+import { ProjectInfoService } from '../../services/project-info';
 import {
   AnnotationsPanel,
   overlayHasAnnotationsContent,
@@ -158,6 +159,7 @@ export class InspectorView implements OnInit {
   private readonly wsEvents = inject(WsEventStreamService);
   private readonly actionDispatch = inject(ActionDispatchService);
   private readonly providerRegistry = inject(ProviderRegistryService);
+  private readonly projectInfo = inject(ProjectInfoService);
   private readonly activityStats = inject(NodeActivityStatsService);
   private readonly livePrefs = inject(LivePreferencesService);
 
@@ -487,12 +489,16 @@ export class InspectorView implements OnInit {
     dataSource: this.dataSource,
     jobEvents$: this.wsEvents.jobEvents$,
     scanCompleted$: this.wsEvents.scanCompleted$,
+    // The active lens drives the "no processing agent set up" warning
+    // (the processing skill is installed per provider).
+    activeProvider: this.projectInfo.activeProvider,
     // The dismiss / restore flows park their consent retries behind the
     // SAME dialog the action buttons use (one instance, one service).
     requestSmConsent: (retry) => this.actionDispatch.requestSmConsent(retry),
   });
   protected readonly aiActionFindings = this.aiActions.findings;
   protected readonly aiActionsAvailable = this.aiActions.available;
+  protected readonly aiActionsSkillMissing = this.aiActions.skillMissing;
   protected readonly aiActionsMcpConnected = this.aiActions.mcpConnected;
   protected readonly aiActionsError = this.aiActions.error;
   protected readonly probExtensions = this.aiActions.probExtensions;

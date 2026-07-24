@@ -395,11 +395,19 @@
       >
         @if (expanded('aiActions')) {
           <div class="inspector__ai-actions">
-            @if (aiActionsMcpConnected() === false) {
+            @if (aiActionsSkillMissing() === true) {
               <p-message
                 severity="warn"
                 [closable]="false"
-                styleClass="inspector__ai-actions-mcp-warning"
+                styleClass="inspector__ai-actions-agent-warning"
+                data-testid="inspector-ai-actions-no-agent-warning"
+                >{{ texts.aiActions.noProcessingAgentWarning }}</p-message
+              >
+            } @else if (aiActionsSkillMissing() === false && aiActionsMcpConnected() === false) {
+              <p-message
+                severity="warn"
+                [closable]="false"
+                styleClass="inspector__ai-actions-agent-warning"
                 data-testid="inspector-ai-actions-mcp-warning"
                 >{{ texts.aiActions.mcpDisconnectedWarning }}</p-message
               >

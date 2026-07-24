@@ -120,13 +120,21 @@ export const INSPECTOR_VIEW_TEXTS = {
      * invocation the agent runs.
      */
     /**
-     * Non-blocking heads-up when no client is connected to skill-map's MCP
-     * server: launched actions still queue, they just wait for an agent to
-     * connect (or drain the queue from the CLI). Points at Quick Start for
-     * setup. Shown only on a confirmed disconnect, never while unknown.
+     * Non-blocking heads-up when the active lens supports a processing
+     * skill that is not installed, so no agent is set up to drain launched
+     * jobs. Points at Quick Start or Settings > Project for setup. Shown
+     * only on a confirmed missing skill, never while unknown.
+     */
+    noProcessingAgentWarning:
+      'No agent is set up to process jobs. Install the processing skill (Quick Start, or Settings > Project) so launched actions actually run.',
+    /**
+     * Secondary heads-up: the processing skill IS installed, but no agent
+     * is connected to the MCP server yet. Clears once the agent runs the
+     * skill and opens an MCP session. Shown only when `skillMissing` is a
+     * confirmed `false` and `mcpConnected` a confirmed `false`.
      */
     mcpDisconnectedWarning:
-      'No agent connected to the MCP. Launched actions will queue until one connects. Set it up from Quick Start.',
+      'Skill installed, but no agent is connected to the MCP yet. Start your agent (run the skill) and it will connect.',
     noAgentMessage: 'no agent is set up to process jobs.',
     agentInstallHint:
       'Install the processing skill from Settings, Project section ("Agent process skill"), then run it from your agent\'s terminal: "/sm-process-jobs".',

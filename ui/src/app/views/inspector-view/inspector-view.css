@@ -721,8 +721,8 @@
   white-space: nowrap;
 }
 
-/* Compact, low-key disconnect notice: smaller than default p-message text. */
-.inspector__ai-actions-mcp-warning .p-message-text {
+/* Compact, low-key setup notice: smaller than default p-message text. */
+.inspector__ai-actions-agent-warning .p-message-text {
   font-size: 0.72rem;
   line-height: 1.35;
 }
