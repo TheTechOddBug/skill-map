@@ -79,14 +79,14 @@ describe('kernelSafetyRows (safety lane)', () => {
     strictEqual(row.confidence, 0.8);
   });
 
-  it('contentQuality=suspicious -> content-suspicious info', () => {
+  it('contentQuality=suspicious -> content-suspicious warn', () => {
     const rows = kernelSafetyRows({
       confidence: 0.5,
       safety: { injectionDetected: false, contentQuality: 'suspicious' },
     });
     strictEqual(rows.length, 1);
     strictEqual(rows[0]!.type, 'content-suspicious');
-    strictEqual(rows[0]!.severity, 'info');
+    strictEqual(rows[0]!.severity, 'warn');
     strictEqual(rows[0]!.detail, null);
   });
 

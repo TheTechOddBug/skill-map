@@ -249,7 +249,7 @@ function validActor(value: unknown): TResolutionActor | null {
 /**
  * Safety-lane rows (`origin = 'kernel'`) for any probabilistic report:
  * `injection-detected` (warn) when `safety.injectionDetected = true`,
- * `content-suspicious` (info) / `content-malformed` (warn) when
+ * `content-suspicious` (warn) / `content-malformed` (warn) when
  * `safety.contentQuality` is not `clean`. Empty array on a clean block.
  */
 export function kernelSafetyRows(report: Record<string, unknown>): IFindingRowInput[] {
@@ -271,7 +271,7 @@ export function kernelSafetyRows(report: Record<string, unknown>): IFindingRowIn
     rows.push({
       origin: 'kernel',
       type: 'content-suspicious',
-      severity: 'info',
+      severity: 'warn',
       message: FINDINGS_TEXTS.contentSuspicious,
       detail: null,
       confidence,
