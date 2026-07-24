@@ -6,6 +6,15 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.90.1</b> · 2026-07-24</summary>
+
+### CLI Patch
+- Lift pinned dependencies to their latest patch releases: hono 4.12.31 and kysely 0.29.4 (CLI), plus @foblex/flow (+ flow-dagre-layout) 19.1.4 (bundled UI). Patch-only, no behaviour change.
+- Add a security policy (`SECURITY.md`): vulnerabilities are reported privately through GitHub's private vulnerability reporting (no public issue, no email exposed), with documented scope (`@skill-map/cli` + `@skill-map/spec` in scope; third-party plugins are the operator's trust decision), latest-only support pre-1.0, and Sigstore provenance verification.
+
+</details>
+
+<details>
 <summary><b>0.90.0</b> · 2026-07-23</summary>
 
 ### CLI Minor
