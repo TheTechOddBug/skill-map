@@ -123,6 +123,15 @@
   padding: 1.25rem 1.5rem;
 }
 
+/* Meta line under the header: signals the whole panel is a shortcut to
+   controls that also live in Settings. Dimmer than the per-tab lead. */
+.quick-start-modal__subtitle {
+  margin: 0 0 1rem 0;
+  font-size: 0.8rem;
+  color: var(--sm-text-muted);
+  opacity: 0.85;
+}
+
 /* Per-tab lead line: the active group's own description. */
 .quick-start-modal__group-desc {
   margin: 0 0 1.25rem 0;

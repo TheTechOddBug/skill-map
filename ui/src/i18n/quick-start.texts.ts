@@ -54,6 +54,8 @@ export const QUICK_START_TEXTS = {
 
   /** Modal chrome. */
   modalTitle: 'Quick Start',
+  /** Dimmed subtitle: signals these are shortcuts to Settings controls. */
+  modalSubtitle: 'A shortcut to what also lives in Settings.',
   errorPrefix: 'Something went wrong:',
 
   /** Shared status words (drive the per-row indicator text). */
