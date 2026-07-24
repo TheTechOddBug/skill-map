@@ -6,6 +6,24 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.92.0</b> · 2026-07-24</summary>
+
+### CLI Minor
+- Codex live-map + queue parity, additive (Claude unchanged). A subagent whose own end signal Codex drops (nested spawn) now releases at turn end: the main-context `Stop` maps to a node-less session-scoped `node.activity` frame (`sessionScope` + `session`) that clears every owner of the session, instead of glowing until the 5-minute decay. And MCP `claim_job` gains an opt-in `wait` (seconds) for a server-side blocking long-poll, so a runtime that cannot park a shell command drains without polling.
+
+### CLI Patch
+- Kernel safety-lane findings of type `content-suspicious` (the passive self-report a probabilistic run emits when it judges a node's content suspicious) are now recorded at severity `warn` instead of `info`, matching their siblings `injection-detected` and `content-malformed`. They surface as warnings across `sm findings` and the UI instead of info-level notes.
+- The process-jobs skill's MCP setup step is now runtime-agnostic (per-runtime registration for claude / codex / opencode / antigravity, plus a Codex note to claim over MCP with `wait`). Quick Start's MCP register command uses the LIVE server URL, so `sm serve --port N` shows `N` instead of a hardcoded 4242, and the "agent waiting for jobs" hint shows the active lens's invocation (`/sm-process-jobs` vs `$sm-process-jobs`). Installing the real-time hook now recommends restarting the agent and `sm`.
+
+### Spec Minor (0.84.0)
+- Codex live-map + queue parity, additive (Claude unchanged). A subagent whose own end signal Codex drops (nested spawn) now releases at turn end: the main-context `Stop` maps to a node-less session-scoped `node.activity` frame (`sessionScope` + `session`) that clears every owner of the session, instead of glowing until the 5-minute decay. And MCP `claim_job` gains an opt-in `wait` (seconds) for a server-side blocking long-poll, so a runtime that cannot park a shell command drains without polling.
+
+### Spec Patch (0.84.0)
+- Kernel safety-lane findings of type `content-suspicious` (the passive self-report a probabilistic run emits when it judges a node's content suspicious) are now recorded at severity `warn` instead of `info`, matching their siblings `injection-detected` and `content-malformed`. They surface as warnings across `sm findings` and the UI instead of info-level notes.
+
+</details>
+
+<details>
 <summary><b>0.91.1</b> · 2026-07-24</summary>
 
 ### CLI Patch
