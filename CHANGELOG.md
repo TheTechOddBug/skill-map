@@ -6,6 +6,14 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.90.2</b> · 2026-07-24</summary>
+
+### CLI Patch
+- Fix a project with `ui.liveUpdates` persisted OFF still flash-opening the live channel at startup. The preference load and the cold-start probes were two separate app-initializers, so the first `/ws` subscriber was constructed before the awaited preference GET resolved and the socket opened on the ON default, which the late OFF never closed. Both steps are now folded into one awaited initializer (`settleLivePrefsThenColdStart`) that settles the preference before the loader is built.
+
+</details>
+
+<details>
 <summary><b>0.90.1</b> · 2026-07-24</summary>
 
 ### CLI Patch
