@@ -244,14 +244,14 @@ export interface IEffectiveConfig {
   allowSidecarWriters: boolean;
   /**
    * **Project-local only** (per `PROJECT_LOCAL_ONLY_KEYS`). UI preference:
-   * when `true`, the web UI hides the topbar reminder that nudges
-   * first-time users to run `sm tutorial`. Default `false`. Set by the
-   * reminder's dismiss button, persisted to
-   * `<cwd>/.skill-map/settings.local.json` (gitignored, per-checkout);
-   * reset with `sm config reset tutorialReminderDismissed`. Stripped from
-   * the committed `project` layer (the dismissal is per-developer).
+   * which topbar reminder message is shown to a first-time user, advanced
+   * one step at a time by its dismiss button. `0` (default/absent): the
+   * Quick Start nudge. `1`: the `sm tutorial` nudge. `2`: fully dismissed.
+   * Persisted to `<cwd>/.skill-map/settings.local.json` (gitignored,
+   * per-checkout); reset with `sm config reset tutorialReminderStep`.
+   * Stripped from the committed `project` layer (per-developer sequence).
    */
-  tutorialReminderDismissed: boolean;
+  tutorialReminderStep: number;
   tokenizer: string;
   server: IServerBindConfig;
   /**
@@ -356,7 +356,7 @@ export interface IUiPreferencesConfig {
  */
 export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
   'allowEditSmFiles',
-  'tutorialReminderDismissed',
+  'tutorialReminderStep',
   'scan.referencePaths',
   'scan.followExternalSymlinks',
   'activity.captureConversations',

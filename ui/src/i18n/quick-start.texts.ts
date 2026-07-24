@@ -43,6 +43,13 @@ export const QUICK_START_TEXTS = {
   /** Topbar trigger (rocket button). */
   triggerTooltip: 'Quick Start',
   triggerAriaLabel: 'Open Quick Start',
+  /**
+   * Persistent callout pointing at the trigger while the tutorial
+   * reminder's step-0 message (the one that names Quick Start) is
+   * showing (`TutorialReminderBanner`'s `quickStartMentioned` output).
+   * Always visible, no hover needed, unlike the trigger's own tooltip.
+   */
+  calloutLabel: 'Try Quick Start',
 
   /** Modal chrome. */
   modalTitle: 'Quick Start',

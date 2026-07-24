@@ -499,6 +499,53 @@
   filter: grayscale(1);
 }
 
+/* Quick Start button wrapper: a plain inline-flex host, same shape as
+   `.shell__live-activity-wrap` above. Kept even though it no longer
+   carries any state class itself (see `.shell__quick-start-callout`
+   below), the wrapper is the app-owned element the tests hang
+   `data-testid="action-quick-start"` off. */
+.shell__quick-start-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Persistent (no-hover) callout pointing at the Quick Start button:
+   shown while the tutorial reminder's step-0 message (the one that
+   names Quick Start) is showing, so the nudge and the button it points
+   at read as one thing. Sits INLINE in the `.shell__actions` flex row
+   (not an absolutely-positioned bubble above the button) so it can
+   never clip against the viewport edge, the topbar sits at the very
+   top of the page with no headroom above it. The `::after` triangle
+   supplies the "pointing at" arrow instead. */
+.shell__quick-start-callout {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 1.5rem;
+  padding: 0 0.6rem;
+  margin-right: 0.5rem;
+  border-radius: var(--sm-radius-pill);
+  background: var(--p-primary-color);
+  color: var(--p-primary-contrast-color);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.shell__quick-start-callout::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -0.35rem;
+  width: 0;
+  height: 0;
+  border-top: 0.35rem solid transparent;
+  border-bottom: 0.35rem solid transparent;
+  border-left: 0.35rem solid var(--p-primary-color);
+  transform: translateY(-50%);
+}
+
 /* Refresh button (replaces the old "<count> nodes" pill). Click
    triggers `POST /api/scan` so the user can force a re-scan from the
    chrome. The tooltip carries the same "X nodes · Y links" counts as

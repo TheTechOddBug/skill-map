@@ -29,7 +29,7 @@ import {
 interface IProjectPrefsEnvelopeWire {
   allowSidecarWriters: boolean;
   scan: { referencePaths: string[]; followExternalSymlinks: boolean; respectGitignore: boolean };
-  tutorialReminderDismissed: boolean;
+  tutorialReminderStep: number;
   ui: { liveUpdates: boolean; realtimeActivity: boolean };
   mcpServerEnabled: boolean;
 }
@@ -97,7 +97,7 @@ describe('GET /api/project-preferences', () => {
       assert.deepEqual(env, {
         allowSidecarWriters: true,
         scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore: false },
-        tutorialReminderDismissed: false,
+        tutorialReminderStep: 0,
         ui: { liveUpdates: true, realtimeActivity: true },
         mcpServerEnabled: false,
       });
@@ -377,47 +377,61 @@ describe('PATCH /api/project-preferences (mcpServerEnabled)', () => {
   });
 });
 
-describe('PATCH /api/project-preferences (tutorialReminderDismissed)', () => {
-  it('400 bad-query when tutorialReminderDismissed is not a boolean', async () => {
+describe('PATCH /api/project-preferences (tutorialReminderStep)', () => {
+  it('400 bad-query when tutorialReminderStep is not an integer 0-2', async () => {
     await boot(async (handle) => {
       const res = await fetch(url(handle, '/api/project-preferences'), {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ tutorialReminderDismissed: 'nope' }),
+        body: JSON.stringify({ tutorialReminderStep: 'nope' }),
       });
       assert.equal(res.status, 400);
       const env = (await res.json()) as IErrorEnvelopeWire;
       assert.equal(env.error.code, 'bad-query');
-      assert.match(env.error.message, /tutorialReminderDismissed/);
+      assert.match(env.error.message, /tutorialReminderStep/);
     });
   });
 
-  it('persists the dismissal to settings.local.json (project-local), no confirm needed', async () => {
+  it('400 bad-query when tutorialReminderStep is out of range', async () => {
     await boot(async (handle) => {
       const res = await fetch(url(handle, '/api/project-preferences'), {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ tutorialReminderDismissed: true }),
+        body: JSON.stringify({ tutorialReminderStep: 3 }),
+      });
+      assert.equal(res.status, 400);
+      const env = (await res.json()) as IErrorEnvelopeWire;
+      assert.equal(env.error.code, 'bad-query');
+      assert.match(env.error.message, /tutorialReminderStep/);
+    });
+  });
+
+  it('persists the step advance to settings.local.json (project-local), no confirm needed', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ tutorialReminderStep: 1 }),
       });
       assert.equal(res.status, 200);
       const env = (await res.json()) as IProjectPrefsEnvelopeWire;
-      assert.equal(env.tutorialReminderDismissed, true);
+      assert.equal(env.tutorialReminderStep, 1);
 
       // Project-local only: lands in the gitignored settings.local.json,
       // never the committed settings.json.
       const local = JSON.parse(
         readFileSync(join(cwd, '.skill-map/settings.local.json'), 'utf8'),
       );
-      assert.equal(local.tutorialReminderDismissed, true);
+      assert.equal(local.tutorialReminderStep, 1);
     });
   });
 
-  it('GET reflects the persisted dismissal', async () => {
+  it('GET reflects the persisted step', async () => {
     await boot(async (handle) => {
       const res = await fetch(url(handle, '/api/project-preferences'));
       assert.equal(res.status, 200);
       const env = (await res.json()) as IProjectPrefsEnvelopeWire;
-      assert.equal(env.tutorialReminderDismissed, true);
+      assert.equal(env.tutorialReminderStep, 1);
     });
   });
 });

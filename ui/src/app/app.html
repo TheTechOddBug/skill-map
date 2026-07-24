@@ -108,7 +108,7 @@
     </div>
 
     <div class="shell__center" data-testid="shell-center">
-      <sm-tutorial-reminder-banner />
+      <sm-tutorial-reminder-banner (quickStartMentioned)="onQuickStartMentioned($event)" />
       <sm-provider-marker-drift-banner (switchLens)="onSwitchLens()" />
     </div>
 
@@ -146,19 +146,30 @@
           data-testid="shell-live-activity-toggle"
         />
       </span>
-      <!-- Quick Start (readiness) panel, to the right of Real Time. -->
-      <p-button
-        icon="fa-solid fa-rocket"
-        [ariaLabel]="quickStartTexts.triggerAriaLabel"
-        [pTooltip]="quickStartTexts.triggerTooltip"
-        tooltipPosition="bottom"
-        severity="secondary"
-        [text]="true"
-        [rounded]="true"
-        size="small"
-        (onClick)="openQuickStart()"
-        data-testid="action-quick-start"
-      />
+      <!-- Quick Start (readiness) panel, to the right of Real Time. The
+           callout is a persistent (no-hover) nudge pointing at it while
+           the tutorial reminder's step-0 message (the one that names
+           Quick Start) is showing; it sits inline in the flex row (not
+           an absolutely-positioned bubble) so it can never clip against
+           the viewport edge above the topbar. -->
+      @if (quickStartHighlighted()) {
+        <span class="shell__quick-start-callout" data-testid="quick-start-callout">
+          {{ quickStartTexts.calloutLabel }}
+        </span>
+      }
+      <span class="shell__quick-start-wrap" data-testid="action-quick-start">
+        <p-button
+          icon="fa-solid fa-rocket"
+          [ariaLabel]="quickStartTexts.triggerAriaLabel"
+          [pTooltip]="quickStartTexts.triggerTooltip"
+          tooltipPosition="bottom"
+          severity="secondary"
+          [text]="true"
+          [rounded]="true"
+          size="small"
+          (onClick)="openQuickStart()"
+        />
+      </span>
       <button
         type="button"
         class="shell__refresh"

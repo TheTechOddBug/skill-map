@@ -3,7 +3,7 @@
   "allowEditSmFiles": false,
   "allowNetworkActions": false,
   "allowSidecarWriters": true,
-  "tutorialReminderDismissed": false,
+  "tutorialReminderStep": 0,
   "tokenizer": "cl100k_base",
   "server": {
     "port": 4242,

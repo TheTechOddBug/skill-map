@@ -277,27 +277,27 @@ describe('config loader, project-local-only locality', () => {
     ok(!warnings.some((w) => /project-local only/.test(w)));
   });
 
-  it('strips tutorialReminderDismissed from the project layer + warns', () => {
+  it('strips tutorialReminderStep from the project layer + warns', () => {
     const { cwd } = freshScope('plonly-tutorial-reminder');
-    writeSettings(cwd, 'settings', { tutorialReminderDismissed: true });
+    writeSettings(cwd, 'settings', { tutorialReminderStep: 1 });
     const { effective, sources, warnings } = loadConfig({ cwd });
-    // Stripped → defaults (false) wins: a developer's UI dismissal must
+    // Stripped → defaults (0) wins: a developer's UI dismissal sequence must
     // never leak to teammates through the committed layer.
-    strictEqual(effective.tutorialReminderDismissed, false);
-    strictEqual(sources.get('tutorialReminderDismissed'), 'defaults');
+    strictEqual(effective.tutorialReminderStep, 0);
+    strictEqual(sources.get('tutorialReminderStep'), 'defaults');
     ok(
       warnings.some(
-        (w) => /tutorialReminderDismissed/.test(w) && /project-local only/.test(w),
+        (w) => /tutorialReminderStep/.test(w) && /project-local only/.test(w),
       ),
     );
   });
 
-  it('preserves tutorialReminderDismissed in the project-local layer', () => {
+  it('preserves tutorialReminderStep in the project-local layer', () => {
     const { cwd } = freshScope('plonly-tutorial-reminder-local');
-    writeSettings(cwd, 'settings.local', { tutorialReminderDismissed: true });
+    writeSettings(cwd, 'settings.local', { tutorialReminderStep: 1 });
     const { effective, sources } = loadConfig({ cwd });
-    strictEqual(effective.tutorialReminderDismissed, true);
-    strictEqual(sources.get('tutorialReminderDismissed'), 'project-local');
+    strictEqual(effective.tutorialReminderStep, 1);
+    strictEqual(sources.get('tutorialReminderStep'), 'project-local');
   });
 
   it('strips mcp.server.enabled from the project layer + warns', () => {

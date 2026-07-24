@@ -634,7 +634,7 @@ export class StaticDataSource implements IDataSourcePort {
     return {
       allowSidecarWriters: true,
       scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore: false },
-      tutorialReminderDismissed: false,
+      tutorialReminderStep: 0,
       ui: { liveUpdates: true, realtimeActivity: true },
       mcpServerEnabled: false,
     };

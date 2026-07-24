@@ -460,10 +460,10 @@ export const SERVER_TEXTS = {
   projectPrefsBodyNotJson: 'Request body must be valid JSON.',
   projectPrefsBodyNotObject: 'Request body must be a JSON object.',
   projectPrefsBodyEmpty:
-    'Request body must contain `allowSidecarWriters`, a `scan` block with `referencePaths`, `tutorialReminderDismissed`, and/or a `ui` block.',
+    'Request body must contain `allowSidecarWriters`, a `scan` block with `referencePaths`, `tutorialReminderStep`, and/or a `ui` block.',
   projectPrefsConfirmNotBoolean: '`confirm` must be a boolean.',
   projectPrefsSidecarWritersNotBoolean: '`allowSidecarWriters` must be a boolean.',
-  projectPrefsReminderNotBoolean: '`tutorialReminderDismissed` must be a boolean.',
+  projectPrefsReminderStepInvalid: '`tutorialReminderStep` must be an integer between 0 and 2.',
   projectPrefsUiNotObject:
     '`ui` must be an object (e.g. `{"ui": {"liveUpdates": false}}`).',
   projectPrefsLiveUpdatesNotBoolean: '`ui.liveUpdates` must be a boolean.',

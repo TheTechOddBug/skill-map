@@ -1060,12 +1060,14 @@ export interface IProjectPreferencesApi {
     respectGitignore: boolean;
   };
   /**
-   * Project-local UI preference: when `true`, the web UI hides the topbar
-   * reminder nudging first-time users to run `sm tutorial`. Default `false`.
-   * Optional only to tolerate an older BFF envelope that predates it; the
-   * current BFF always emits a concrete boolean.
+   * Project-local UI preference: which topbar reminder message is shown
+   * to a first-time user, advanced one step at a time by its dismiss
+   * button. `0` (default): the Quick Start nudge. `1`: the `sm tutorial`
+   * nudge. `2`: fully dismissed. Optional only to tolerate an older BFF
+   * envelope that predates it; the current BFF always emits a concrete
+   * integer.
    */
-  tutorialReminderDismissed?: boolean;
+  tutorialReminderStep?: number;
   /**
    * Project-local web-UI preferences (Settings > General), persisted per
    * checkout in `settings.local.json`. `liveUpdates`: keep the map in sync
@@ -1114,8 +1116,8 @@ export interface IProjectPreferencesPatchApi {
     /** Flip the committed `.gitignore` opt-in (team-shared). No confirm gate. */
     respectGitignore?: boolean;
   };
-  /** Dismiss (or restore) the topbar tutorial reminder (project-local). */
-  tutorialReminderDismissed?: boolean;
+  /** Advance (or restore) the topbar tutorial reminder step (project-local). */
+  tutorialReminderStep?: number;
   /** Flip the project-local web-UI live-channel preferences. No confirm gate. */
   ui?: {
     liveUpdates?: boolean;

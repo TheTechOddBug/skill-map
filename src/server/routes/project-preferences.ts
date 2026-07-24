@@ -69,10 +69,12 @@ export interface IProjectPreferencesEnvelope {
     respectGitignore: boolean;
   };
   /**
-   * Project-local UI preference: when `true`, the web UI hides the topbar
-   * reminder nudging first-time users to run `sm tutorial`. Default `false`.
+   * Project-local UI preference: which topbar reminder message is shown
+   * to a first-time user, advanced one step at a time by its dismiss
+   * button. `0` (default): the Quick Start nudge. `1`: the `sm tutorial`
+   * nudge. `2`: fully dismissed, the reminder never shows again.
    */
-  tutorialReminderDismissed: boolean;
+  tutorialReminderStep: number;
   /**
    * Project-local web-UI preferences (Settings > Project), persisted per
    * checkout in `settings.local.json`. `liveUpdates`: keep the map in
@@ -102,7 +104,7 @@ interface IPatchBody {
     followExternalSymlinks?: boolean;
     respectGitignore?: boolean;
   };
-  tutorialReminderDismissed?: boolean;
+  tutorialReminderStep?: number;
   ui?: {
     liveUpdates?: boolean;
     realtimeActivity?: boolean;
@@ -131,11 +133,11 @@ function buildEnvelope(deps: IRouteDeps): IProjectPreferencesEnvelope {
         default: true,
       }) ?? true,
     scan: buildScanEnvelope(cwd),
-    tutorialReminderDismissed:
-      readConfigValue<boolean>('tutorialReminderDismissed', {
+    tutorialReminderStep:
+      readConfigValue<number>('tutorialReminderStep', {
         cwd,
-        default: false,
-      }) ?? false,
+        default: 0,
+      }) ?? 0,
     ui: {
       liveUpdates:
         readConfigValue<boolean>('ui.liveUpdates', {
@@ -203,8 +205,8 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
   // so a change restarts the watcher below.
   const followChanged = applyFollowSymlinksWrite(body, cwd);
 
-  // Project-local UI preference: the tutorial-reminder dismissal. A plain
-  // boolean written to the gitignored project-local layer, no privacy or
+  // Project-local UI preference: the tutorial-reminder step. A plain
+  // integer written to the gitignored project-local layer, no privacy or
   // confirm gate (it neither expands disk access nor trusts code).
   const reminderChanged = applyTutorialReminderWrite(body, cwd);
 
@@ -289,25 +291,25 @@ function applyFollowSymlinksWrite(body: IPatchBody, cwd: string): boolean {
 }
 
 /**
- * Apply the `tutorialReminderDismissed` key of the patch: a project-local
- * UI preference (the web UI's topbar tutorial reminder). No privacy /
- * confirm gate, it neither expands disk access nor trusts code. Persisted
- * to the gitignored `project-local` layer (the key is project-local only).
- * Returns `true` when the value actually changed, so the caller reloads the
- * config cache.
+ * Apply the `tutorialReminderStep` key of the patch: a project-local
+ * UI preference (the web UI's topbar tutorial reminder sequence). No
+ * privacy / confirm gate, it neither expands disk access nor trusts
+ * code. Persisted to the gitignored `project-local` layer (the key is
+ * project-local only). Returns `true` when the value actually changed,
+ * so the caller reloads the config cache.
  */
 function applyTutorialReminderWrite(body: IPatchBody, cwd: string): boolean {
-  const next = body.tutorialReminderDismissed;
+  const next = body.tutorialReminderStep;
   if (next === undefined) return false;
   const before =
-    readConfigValue<boolean>('tutorialReminderDismissed', { cwd, default: false }) ?? false;
+    readConfigValue<number>('tutorialReminderStep', { cwd, default: 0 }) ?? 0;
   if (before === next) return false;
   try {
-    writeConfigValue('tutorialReminderDismissed', next, { target: 'project-local', cwd });
+    writeConfigValue('tutorialReminderStep', next, { target: 'project-local', cwd });
   } catch (err) {
     throw new HTTPException(400, {
       message: tx(SERVER_TEXTS.projectPrefsPersistFailed, {
-        key: 'tutorialReminderDismissed',
+        key: 'tutorialReminderStep',
         message: formatErrorMessage(err),
       }),
     });
@@ -683,14 +685,14 @@ const PATCH_BODY_SCHEMA = {
   anyOf: [
     { required: ['allowSidecarWriters'] },
     { required: ['scan'] },
-    { required: ['tutorialReminderDismissed'] },
+    { required: ['tutorialReminderStep'] },
     { required: ['ui'] },
     { required: ['mcpServerEnabled'] },
   ],
   properties: {
     confirm: { type: 'boolean' },
     allowSidecarWriters: { type: 'boolean' },
-    tutorialReminderDismissed: { type: 'boolean' },
+    tutorialReminderStep: { type: 'integer', minimum: 0, maximum: 2 },
     mcpServerEnabled: { type: 'boolean' },
     ui: {
       type: 'object',
@@ -727,7 +729,9 @@ const parsePatchBody = makeBodyValidator<IPatchBody>(PATCH_BODY_SCHEMA, {
     '/scan:type:object': SERVER_TEXTS.projectPrefsScanNotObject,
     '/confirm:type:boolean': SERVER_TEXTS.projectPrefsConfirmNotBoolean,
     '/allowSidecarWriters:type:boolean': SERVER_TEXTS.projectPrefsSidecarWritersNotBoolean,
-    '/tutorialReminderDismissed:type:boolean': SERVER_TEXTS.projectPrefsReminderNotBoolean,
+    '/tutorialReminderStep:type:integer': SERVER_TEXTS.projectPrefsReminderStepInvalid,
+    '/tutorialReminderStep:minimum': SERVER_TEXTS.projectPrefsReminderStepInvalid,
+    '/tutorialReminderStep:maximum': SERVER_TEXTS.projectPrefsReminderStepInvalid,
     '/scan/referencePaths:type:array': tx(SERVER_TEXTS.projectPrefsListNotArray, { key: 'scan.referencePaths' }),
     '/scan/referencePaths/*:type:string': tx(SERVER_TEXTS.projectPrefsListEntryNotString, { key: 'scan.referencePaths' }),
     '/scan/referencePaths/*:pattern': SERVER_TEXTS.projectPrefsEntryHasComma,

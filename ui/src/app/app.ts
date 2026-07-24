@@ -98,6 +98,18 @@ export class App {
   }
 
   /**
+   * Marks the topbar Quick Start button while the tutorial reminder's
+   * step-0 message (the one that names Quick Start) is showing, so the
+   * nudge and the button it points at read as one thing. Driven by the
+   * banner's `quickStartMentioned` output.
+   */
+  protected readonly quickStartHighlighted = signal(false);
+
+  protected onQuickStartMentioned(mentioned: boolean): void {
+    this.quickStartHighlighted.set(mentioned);
+  }
+
+  /**
    * "Switch lens" from the provider-marker drift banner: open Settings on
    * the Project section, where the existing active-lens dropdown lives.
    * Reuses the same lens-switch flow (the dropdown), no lens logic here.

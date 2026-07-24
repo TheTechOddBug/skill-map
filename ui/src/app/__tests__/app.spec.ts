@@ -429,6 +429,28 @@ describe('App', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('h1')?.textContent).toContain('skill-map');
   });
+
+  it('shows a persistent callout pointing at Quick Start while the tutorial reminder names it (step 0, the stub default)', async () => {
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    // The stub data source's getProjectPreferences() omits
+    // `tutorialReminderStep`, so the embedded banner defaults to step 0
+    // (the Quick Start nudge) and emits `quickStartMentioned(true)` on
+    // its own, proving the wiring end-to-end rather than just the
+    // handler in isolation.
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-testid="quick-start-callout"]')).not.toBeNull();
+
+    const app = fixture.componentInstance as unknown as {
+      quickStartHighlighted: () => boolean;
+      onQuickStartMentioned: (mentioned: boolean) => void;
+    };
+    app.onQuickStartMentioned(false);
+    expect(app.quickStartHighlighted()).toBe(false);
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="quick-start-callout"]')).toBeNull();
+  });
 });
 
 describe('App, update chip', () => {
@@ -632,11 +654,19 @@ describe('App, Real Time toggle', () => {
     const root = fixture.nativeElement as HTMLElement;
     const actions = root.querySelector('.shell__actions')!;
     // The Real Time toggle wrapper (which hosts the button) leads the
-    // cluster; the Quick Start rocket sits to its right, second.
+    // cluster; the Quick Start rocket sits to its right. Compared by DOM
+    // order (not a fixed child index): the stub's default step-0 reminder
+    // renders a callout sibling right before the Quick Start wrap, which
+    // would shift a fixed index.
     expect(actions.firstElementChild?.getAttribute('data-testid')).toBe(
       'shell-live-activity-tooltip-wrap',
     );
-    expect(actions.children[1]?.getAttribute('data-testid')).toBe('action-quick-start');
+    const liveActivityWrap = root.querySelector('[data-testid="shell-live-activity-tooltip-wrap"]')!;
+    const quickStartWrap = root.querySelector('[data-testid="action-quick-start"]')!;
+    expect(
+      liveActivityWrap.compareDocumentPosition(quickStartWrap) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
 
     const btn = toggleButton(root);
     expect(btn.disabled).toBe(false);
