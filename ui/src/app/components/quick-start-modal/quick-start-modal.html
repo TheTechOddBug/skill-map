@@ -162,6 +162,25 @@
           @case ('ai') {
             <section class="quick-start-modal__group" data-testid="quick-start-group-ai">
               <sm-quick-start-row
+                testid="quick-start-row-agent-skill"
+                [label]="texts.rows.agentSkill.label"
+                [description]="texts.rows.agentSkill.description"
+                [status]="skillRowStatus()"
+                [statusText]="skillStatusText()"
+              >
+                @if (skillShowAction()) {
+                  <p-button
+                    [label]="skillActionLabel()"
+                    severity="primary"
+                    [disabled]="skillActionDisabled()"
+                    size="small"
+                    (onClick)="onSkillInstall()"
+                    data-testid="quick-start-row-agent-skill-action"
+                  />
+                }
+              </sm-quick-start-row>
+
+              <sm-quick-start-row
                 testid="quick-start-row-mcp-live"
                 [label]="texts.rows.mcpLive.label"
                 [description]="texts.rows.mcpLive.description"
@@ -198,25 +217,6 @@
                   (onClick)="onCopyMcpCommand()"
                   data-testid="quick-start-row-mcp-installed-action"
                 />
-              </sm-quick-start-row>
-
-              <sm-quick-start-row
-                testid="quick-start-row-agent-skill"
-                [label]="texts.rows.agentSkill.label"
-                [description]="texts.rows.agentSkill.description"
-                [status]="skillRowStatus()"
-                [statusText]="skillStatusText()"
-              >
-                @if (skillShowAction()) {
-                  <p-button
-                    [label]="skillActionLabel()"
-                    severity="primary"
-                    [disabled]="skillActionDisabled()"
-                    size="small"
-                    (onClick)="onSkillInstall()"
-                    data-testid="quick-start-row-agent-skill-action"
-                  />
-                }
               </sm-quick-start-row>
 
               <sm-quick-start-row
