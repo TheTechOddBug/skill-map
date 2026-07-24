@@ -1,6 +1,6 @@
 # Skill-map, NotebookLM source
 
-> Source document for a NotebookLM episode: a pain-first narrative about skill-map, its headline feature (watching your agents run in real time, in the same tool), the deliberately ignorant kernel underneath, the real engineering that keeps it honest, and the intelligence layer coming next. English, conversational, ready to become a podcast.
+> Source document for a NotebookLM episode: a pain-first narrative about skill-map. The mess of AI-agent Markdown, the headline feature (watching your agents run in real time, in the same tool), the deliberately ignorant kernel underneath, and the part that now carries the project: an agent that reads your files for meaning, raises the problems a parser never could, and fixes them on disk under your control. English, conversational, ready to become a podcast.
 
 ---
 
@@ -39,21 +39,41 @@ Here is the part that makes it last. The skill-map kernel is deliberately ignora
 
 Because the contract behind those six kinds is a public spec, JSON Schemas plus a conformance suite, kept separate from this implementation since day zero, nothing here is welded to one vendor. Six kinds, a folder, and the kernel learns a brand-new platform without changing a line of its core. Someone could write an alternative UI, or a whole implementation in another language, against the spec alone.
 
+## Now: an agent that reads for meaning
+
+Everything so far is the deterministic floor: fast, free, offline, exact. It sees structure. What it cannot see is meaning, and meaning is where the real mess hides. A parser can tell you two skills share a trigger string; it cannot tell you two skills do the same job in different words. That gap is where skill-map spent its second act, and it is now the center of the tool, not a promise for later.
+
+The shape is a job queue. You point at a node and queue a semantic job; your own AI agent, the one you already use, drains that queue, either through a small install-once skill in the terminal or over an MCP connection, and does the reading a language model is actually good at. Crucially the agent is yours: skill-map hands it the file and the question, the tokens are spent under your account, and nothing runs behind your back. Determinism stays the floor; the intelligence arrives as jobs you choose to queue.
+
+And what it looks for is specific, not a vague "review this file". There is a whole family of semantic analyzers, each hunting one failure a regex never catches:
+
+- **Redundancy**: the same instruction, fact, or section stated more than once, so you can cut it down to one.
+- **Trigger misfire**: a description that promises things the file does not do, hides things it does, or will fire on the wrong prompt, the single most expensive bug in an agent stack.
+- **Vagueness**: instructions too soft to follow, "handle it properly", a format never specified, a threshold with no number.
+- **Contradiction**: two instructions in the same file that cannot both be obeyed.
+- **Scope**: a section quietly doing a different job than the file it lives in claims to do.
+- **Structure, verbosity, incoherence**: the key rule buried at the bottom, the filler that adds length but not meaning, the term used three ways on one page.
+- And a security pair: one that flags problems written in good faith, a credential pasted in plain text, a curl-piped-to-shell install, and one, adversarial, that flags content that looks designed to manipulate the agent reading it, a hidden instruction, an injection attempt in a file that should just be documentation.
+
+It does more than flag. A summarizer will read a skill and hand back a structured brief of what it actually does, so a node stops being an opaque filename. An auto-tagger classifies. And the findings are not a dead report you print and ignore: each one has a life, you can dismiss it, mark it a deliberate human decision, or let a fixer apply the correction as a real Action on disk, rename the colliding trigger, tighten the vague line, cut the redundant section, and the change is versioned in a sidecar so it never contaminates the file the agent reads. Everything a human decided sticks; everything the machine generated is regenerable and cheap.
+
+The MCP side is what makes this feel native. Turn it on and the map is not just something you look at, it is something your agent operates: it can read the graph, drive the queue, and resolve findings straight from the assistant you are already talking to, no shell, no context-switch. Your agent becomes the thing that keeps your other agents in order.
+
 ## Not a weekend project
 
-It would be easy to assume something this broad was vibe-coded in a hurry. It was not. This is one senior maintainer, roughly two and a half months of focused work, and north of four thousand tests riding along the whole way. That test count is the tell: nobody writes four thousand tests to impress you, you write them because you decided early that the thing has to scale, and every extension has to ship with tests or it does not boot.
+It would be easy to assume something this broad was vibe-coded in a hurry. It was not. This is one senior maintainer, roughly three months of focused work, and over five thousand tests riding along the whole way. That test count is the tell: nobody writes five thousand tests to impress you, you write them because you decided early that the thing has to scale, and every extension has to ship with tests or it does not boot.
 
-The engineering choices all point the same direction. A hexagonal kernel, ports and adapters, so the pure domain logic never touches the filesystem or an LLM directly, everything crosses a port. Persistence in SQLite through a typed query builder. The web layer is a small Hono backend feeding an Angular front end, with the graph itself built on a real flow library rather than hand-rolled canvas code. The spec lives in its own package, versioned independently. Even the bookkeeping is disciplined: skill-map's own metadata, version, stability, supersession, audit trail, lives in a sidecar file next to each Markdown, so it never contaminates the vendor's frontmatter or bloats what the agent reads on every invocation.
+The engineering choices all point the same direction. A hexagonal kernel, ports and adapters, so the pure domain logic never touches the filesystem or an LLM directly, everything crosses a port. Persistence in SQLite through a typed query builder. The web layer is a small Hono backend feeding an Angular front end, with the graph itself built on a real flow library rather than hand-rolled canvas code. The spec lives in its own package, versioned independently. Even the bookkeeping is disciplined: skill-map's own metadata, version, stability, supersession, audit trail, findings decisions, lives in a sidecar file next to each Markdown, so it never contaminates the vendor's frontmatter or bloats what the agent reads on every invocation.
 
 None of that is decoration. It is the difference between a demo that looks great on one repo and a tool that survives being pointed at a messy monorepo with hundreds of files and stays fast, deterministic, and CI-safe. The boring parts are exactly where the leverage is.
 
-## The next chapter is intelligence
+## Where it is going
 
-Worth being honest about where it sits: skill-map is in beta today. The whole deterministic floor is solid, the scanner, the graph, the live map, the real-time activity, the plugin model, and it works offline with no model in the loop. That is on purpose. The determinism is the foundation you build the interesting layer on top of, not a limitation you are stuck with.
+Worth being honest about where it sits: skill-map is closing in on its 1.0. The deterministic floor is solid, the scanner, the graph, the live map, the real-time activity, the plugin model, and the semantic layer on top of it is real and in your hands today, per-node: ask one file what it does, fix one finding, tighten one trigger.
 
-Because the next chapter is the one that changes the ceiling: an opt-in layer that brings a language model in to do what regular parsing cannot. Not just analysis, correction. Ask a skill what it actually does and get a structured brief back. Find the two skills that are semantic duplicates even though they share no words. Group the triggers that overlap in meaning rather than in spelling. Ask "if I touch this one, what else moves?" and trace the blast radius before you commit. Then let it propose the fix, cut the tokens, merge the redundant pair, rename the colliding trigger, and apply it as a real Action that touches disk. The kernel stays deterministic and cheap; the intelligence arrives as jobs you choose to queue, never something running behind your back, never something you cannot audit. That combination, a deterministic map you trust plus an LLM that can both see and repair, is where this stops being a viewer and starts being the thing that actually keeps your agents in order.
+The frontier is scale. Per-node semantic analysis is here; the next reach is across the whole graph at once. Find the two skills that are semantic duplicates even though they share no words. Group the triggers that overlap in meaning rather than in spelling. Ask "if I touch this one, what else moves?" and trace the blast radius before you commit. Then let it propose the fix across the set, merge the redundant pair, cut the tokens, and apply it as Actions you approve. The kernel stays deterministic and cheap; the intelligence keeps arriving as jobs you choose to queue, never something running behind your back, never something you cannot audit.
 
-A mess you could not see, turned into a shape you can; a kernel that learns new platforms instead of hardcoding them; real engineering underneath rather than a quick hack; and a next chapter where the map starts to reason about your agents, fix them, and keep pace with you.
+A mess you could not see, turned into a shape you can; a live map of your agents actually running; a kernel that learns new platforms instead of hardcoding them; and an agent that reads your files for meaning, tells you what is wrong, and fixes it under your control. That is where this stops being a viewer and starts being the thing that keeps your agents in order.
 
 ---
 

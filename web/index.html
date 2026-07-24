@@ -145,8 +145,8 @@
           </h1>
 
           <p class="hero__sub">
-            <span data-i18n="hero.sub.1">Reclaim tokens (and money!), save time, and make your Markdowns deterministic. Detects collisions, orphans, semantic duplicates, and bloated skills.</span><br>
-            <span data-i18n="hero.sub.2">All on the same graph: deterministic and semantic (LLM) analysis for your agent harness.</span>
+            <span data-i18n="hero.sub.1">Reclaim tokens (and money!), save time, and make your Markdowns deterministic. Detects incoherence, verbosity, redundancy, bloated skills, and much more.</span><br>
+            <span data-i18n="hero.sub.2">The harness you designed, finally visible and testable: deterministic and probabilistic analysis and fixes, on one map.</span>
           </p>
 
           <div class="hero__ctas">
@@ -256,6 +256,33 @@
 
     <hr class="section-divider" aria-hidden="true">
 
+    <!-- ============== SCREENSHOTS ============== -->
+    <!-- Single hero screenshot, centered. Replace the <img> in the figure
+         when delivering a new shot; the placeholder fallback stays in CSS. -->
+    <section class="section shots" id="shots">
+      <header class="section-header section-header--center">
+        <div>
+          <h2 class="section-title">
+            <span data-i18n="shots.title.1">Your whole agent harness,</span><br>
+            <span class="section-title-soft" data-i18n="shots.title.2">on a single screen!</span>
+          </h2>
+        </div>
+      </header>
+
+      <div class="shots__grid">
+        <figure class="shots__main">
+          <video class="shots__video" muted loop playsinline preload="metadata"
+                 poster="/img/demo-realtime-poster.jpg"
+                 aria-label="skill-map lighting up live as you edit .md files"
+                 data-i18n-aria-label="shots.video.label" data-hero-video>
+            <source src="/img/demo-realtime.mp4" type="video/mp4">
+          </video>
+        </figure>
+      </div>
+    </section>
+
+    <hr class="section-divider" aria-hidden="true">
+
     <!-- ============== QUICKSTART ============== -->
     <section class="section quickstart" id="quickstart">
       <header class="section-header section-header--center">
@@ -306,139 +333,6 @@
           </svg>
         </button>
       </div>
-    </section>
-
-    <hr class="section-divider" aria-hidden="true">
-
-    <!-- ============== SCREENSHOTS ============== -->
-    <!-- Single hero screenshot, centered. Replace the <img> in the figure
-         when delivering a new shot; the placeholder fallback stays in CSS. -->
-    <section class="section shots" id="shots">
-      <header class="section-header section-header--center">
-        <div>
-          <h2 class="section-title">
-            <span data-i18n="shots.title.1">Your whole agent harness,</span><br>
-            <span class="section-title-soft" data-i18n="shots.title.2">on a single screen!</span>
-          </h2>
-        </div>
-      </header>
-
-      <div class="shots__grid">
-        <figure class="shots__main">
-          <video class="shots__video" muted loop playsinline preload="metadata"
-                 poster="/img/demo-realtime-poster.jpg"
-                 aria-label="skill-map lighting up live as you edit .md files"
-                 data-i18n-aria-label="shots.video.label" data-hero-video>
-            <source src="/img/demo-realtime.mp4" type="video/mp4">
-          </video>
-        </figure>
-      </div>
-    </section>
-
-    <hr class="section-divider" aria-hidden="true">
-
-    <!-- ============== FEATURES ============== -->
-    <!-- Two visual blocks share this section.
-         Top (`.features-grid`): two cards with full-card treatment.
-         The hero (`feature--hero`) spans 2 columns and carries the dual-mode
-         story (the meta-architecture); the supporter on its right is the
-         token-weight insight.
-         Bottom (`.features-list`): four compact list items in a 2×2 grid,
-         no card chrome, no padded background. Less "marketing tile", more
-         "and here's the rest of the surface". -->
-    <section class="section" id="features">
-      <header class="section-header section-header--center">
-        <div>
-          <div class="section-badge" data-i18n="feat.eyebrow">Features</div>
-          <h2 class="section-title" data-i18n="feat.title">Deterministic. Semantic. Same graph.</h2>
-        </div>
-      </header>
-
-      <div class="features-grid">
-        <article class="feature feature--hero feature--violet">
-          <div class="feature__icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-              <circle cx="9" cy="12" r="6"/>
-              <circle cx="15" cy="12" r="6"/>
-            </svg>
-          </div>
-          <div class="feature__head">
-            <h3 class="feature__title" data-i18n="feat.modes.t">Deterministic &amp; probabilistic, side by side</h3>
-            <span class="feature__tag">modes</span>
-          </div>
-          <p class="feature__body" data-i18n="feat.modes.b">Static analysis runs in milliseconds; LLM analysis runs in jobs. One graph, analyzed from two angles.</p>
-        </article>
-
-        <article class="feature feature--violet">
-          <div class="feature__icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M12 3v18"/>
-              <path d="M5 7h14"/>
-              <path d="M5 7l-3 7c0 1.7 1.3 3 3 3s3-1.3 3-3L5 7z"/>
-              <path d="M19 7l-3 7c0 1.7 1.3 3 3 3s3-1.3 3-3l-3-7z"/>
-            </svg>
-          </div>
-          <div class="feature__head">
-            <h3 class="feature__title" data-i18n="feat.tok.t">Token weight per node</h3>
-            <span class="feature__tag">weight</span>
-          </div>
-          <p class="feature__body" data-i18n="feat.tok.b">Per-node byte and token counts. Find the bloated skill that's eating your context window.</p>
-        </article>
-      </div>
-
-      <ul class="features-list">
-        <li class="features-list__item features-list__item--green">
-          <div class="features-list__icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-              <circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18" r="2.2"/>
-              <path stroke-linecap="round" d="M6.6 7.6 11 16M17.4 7.6 13 16M7 6h10"/>
-            </svg>
-          </div>
-          <div>
-            <h3 class="features-list__title" data-i18n="feat.xref.t">Cross-references</h3>
-            <p class="features-list__body" data-i18n="feat.xref.b">Every link between files: /slash invocations, @-mentions, imports, URLs. The directory becomes a graph.</p>
-          </div>
-        </li>
-
-        <li class="features-list__item features-list__item--amber">
-          <div class="features-list__icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M9 17H7A5 5 0 0 1 7 7h2"/>
-              <path d="M15 7h2a5 5 0 0 1 4 8"/>
-              <line x1="8" y1="12" x2="11" y2="12"/>
-              <line x1="3" y1="3" x2="21" y2="21"/>
-            </svg>
-          </div>
-          <div>
-            <h3 class="features-list__title" data-i18n="feat.broken.t">Broken refs</h3>
-            <p class="features-list__body" data-i18n="feat.broken.b">References pointing to triggers that don't exist. You catch them at scan time, before the agent drops the ball.</p>
-          </div>
-        </li>
-
-        <li class="features-list__item features-list__item--amber">
-          <div class="features-list__icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
-              <path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17h.01"/>
-            </svg>
-          </div>
-          <div>
-            <h3 class="features-list__title" data-i18n="feat.coll.t">Trigger collisions</h3>
-            <p class="features-list__body" data-i18n="feat.coll.b">Two skills claiming the same invocation? You catch it before the agent picks the wrong one.</p>
-          </div>
-        </li>
-
-        <li class="features-list__item features-list__item--amber">
-          <div class="features-list__icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
-              <path d="M12 2 4 5v7c0 5 3.5 9 8 10 4.5-1 8-5 8-10V5l-8-3z"/>
-            </svg>
-          </div>
-          <div>
-            <h3 class="features-list__title" data-i18n="feat.deps.t">External deps</h3>
-            <p class="features-list__body" data-i18n="feat.deps.b">Lists every external URL that appears in your workspace. Audit your supply chain.</p>
-          </div>
-        </li>
-      </ul>
     </section>
 
     <hr class="section-divider" aria-hidden="true">
@@ -537,7 +431,7 @@
                 <line x1="30" y1="8" x2="18" y2="28" stroke="#fff" stroke-width="1.5"/>
               </g>
               <text x="360" y="434" text-anchor="middle" class="peco__kernel-label" data-i18n="pe.kernel.label">KERNEL</text>
-              <text x="360" y="450" text-anchor="middle" class="peco__kernel-sub"   data-i18n="pe.kernel.sub">graph engine</text>
+              <text x="360" y="450" text-anchor="middle" class="peco__kernel-sub"   data-i18n="pe.kernel.sub">map engine</text>
             </g>
 
             <!-- Six satellites. -->
@@ -672,8 +566,8 @@ export default {
               <span data-i18n="pe.tag">plugin kind</span>
             </div>
             <h3 class="peco__brief-title" data-i18n="pe.analyzer.title">Analyzer</h3>
-            <p class="peco__brief-one"   data-i18n="pe.analyzer.one">Finds problems in the graph</p>
-            <p class="peco__brief-body"  data-i18n="pe.analyzer.brief">Looks at the whole graph and spots problems: trigger collisions, orphans, dead dependencies, broken references. Write an analyzer, run it on any project, or publish it for others to use.</p>
+            <p class="peco__brief-one"   data-i18n="pe.analyzer.one">Finds problems in the map</p>
+            <p class="peco__brief-body"  data-i18n="pe.analyzer.brief">Looks at the whole map and spots problems: trigger collisions, orphans, dead dependencies, broken references. Write an analyzer, run it on any project, or publish it for others to use.</p>
             <pre class="peco__brief-code"><code>// example/analyzers/trigger-collisions/index.ts
 export default {
   version: '0.1.0',
@@ -719,8 +613,8 @@ export default {
               <span data-i18n="pe.tag">plugin kind</span>
             </div>
             <h3 class="peco__brief-title" data-i18n="pe.formatter.title">Formatter</h3>
-            <p class="peco__brief-one"   data-i18n="pe.formatter.one">Exports the graph to other formats</p>
-            <p class="peco__brief-body"  data-i18n="pe.formatter.brief">The graph lives in memory; a Formatter ships it out. ASCII for terminal, Mermaid for your README, DOT for Graphviz, JSON for your pipeline. Built-ins cover the common cases; write your own for the rest.</p>
+            <p class="peco__brief-one"   data-i18n="pe.formatter.one">Exports the map to other formats</p>
+            <p class="peco__brief-body"  data-i18n="pe.formatter.brief">The map lives in memory; a Formatter ships it out. ASCII for terminal, Mermaid for your README, DOT for Graphviz, JSON for your pipeline. Built-ins cover the common cases; write your own for the rest.</p>
             <pre class="peco__brief-code"><code>// core/formatters/mermaid/index.ts
 export default {
   version: '0.1.0',
@@ -779,37 +673,108 @@ export default {
 
     <hr class="section-divider" aria-hidden="true">
 
-    <!-- ============== HOW IT WORKS ============== -->
-    <section class="section" id="how">
+    <!-- ============== FEATURES ============== -->
+    <!-- Two visual blocks share this section.
+         Top (`.features-grid`): two cards with full-card treatment.
+         The hero (`feature--hero`) spans 2 columns and carries the dual-mode
+         story (the meta-architecture); the supporter on its right is the
+         token-weight insight.
+         Bottom (`.features-list`): four compact list items in a 2×2 grid,
+         no card chrome, no padded background. Less "marketing tile", more
+         "and here's the rest of the surface". -->
+    <section class="section" id="features">
       <header class="section-header section-header--center">
         <div>
-          <div class="section-badge" data-i18n="how.eyebrow">How it works</div>
-          <h2 class="section-title" data-i18n="how.title">One command. No config file.</h2>
+          <div class="section-badge" data-i18n="feat.eyebrow">Features</div>
+          <h2 class="section-title" data-i18n="feat.title">Deterministic. Semantic. Same map.</h2>
         </div>
       </header>
 
-      <ol class="howit-grid">
-        <li class="howit-step">
-          <div class="howit-step__num"><span>01</span></div>
-          <h3 class="howit-step__title" data-i18n="how.s1.t">Anyone can run it.</h3>
-          <p class="howit-step__body" data-i18n="how.s1.b">No config, no setup, nothing to read first. Run `sm` from any folder: it sets up the project, scans your skills, opens the explorer in your browser, and keeps watching for changes.</p>
-          <div class="howit-step__code"><span class="prompt">$</span> sm</div>
+      <div class="features-grid">
+        <article class="feature feature--hero feature--violet">
+          <div class="feature__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <circle cx="9" cy="12" r="6"/>
+              <circle cx="15" cy="12" r="6"/>
+            </svg>
+          </div>
+          <div class="feature__head">
+            <h3 class="feature__title" data-i18n="feat.modes.t">Deterministic &amp; probabilistic, side by side</h3>
+            <span class="feature__tag">modes</span>
+          </div>
+          <p class="feature__body" data-i18n="feat.modes.b">Static analysis runs in milliseconds, offline. Then queue a semantic job and your own AI agent reads a node for meaning: redundancy, a trigger that will misfire, vague or contradictory instructions, even content trying to manipulate the agent. One map, two angles.</p>
+        </article>
+
+        <article class="feature feature--violet">
+          <div class="feature__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3v18"/>
+              <path d="M5 7h14"/>
+              <path d="M5 7l-3 7c0 1.7 1.3 3 3 3s3-1.3 3-3L5 7z"/>
+              <path d="M19 7l-3 7c0 1.7 1.3 3 3 3s3-1.3 3-3l-3-7z"/>
+            </svg>
+          </div>
+          <div class="feature__head">
+            <h3 class="feature__title" data-i18n="feat.tok.t">Token weight per node</h3>
+            <span class="feature__tag">weight</span>
+          </div>
+          <p class="feature__body" data-i18n="feat.tok.b">Per-node byte and token counts. Find the bloated skill that's eating your context window.</p>
+        </article>
+      </div>
+
+      <ul class="features-list">
+        <li class="features-list__item features-list__item--green">
+          <div class="features-list__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18" r="2.2"/>
+              <path stroke-linecap="round" d="M6.6 7.6 11 16M17.4 7.6 13 16M7 6h10"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="features-list__title" data-i18n="feat.xref.t">Cross-references</h3>
+            <p class="features-list__body" data-i18n="feat.xref.b">Every link between files: /slash invocations, @-mentions, imports, URLs. The directory becomes a map.</p>
+          </div>
         </li>
 
-        <li class="howit-step">
-          <div class="howit-step__num"><span>02</span></div>
-          <h3 class="howit-step__title" data-i18n="how.s2.t">It spots the problems.</h3>
-          <p class="howit-step__body" data-i18n="how.s2.b">Bloated skills eating your tokens, trigger collisions, orphans, broken references, semantic duplicates. Static analysis runs locally in milliseconds; semantic checks (LLM) run when you want them.</p>
-          <div class="howit-step__code"><span>7 issues</span><span>3 collisions · 2 orphans</span><span>2 broken refs</span></div>
+        <li class="features-list__item features-list__item--amber">
+          <div class="features-list__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 17H7A5 5 0 0 1 7 7h2"/>
+              <path d="M15 7h2a5 5 0 0 1 4 8"/>
+              <line x1="8" y1="12" x2="11" y2="12"/>
+              <line x1="3" y1="3" x2="21" y2="21"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="features-list__title" data-i18n="feat.broken.t">Broken refs</h3>
+            <p class="features-list__body" data-i18n="feat.broken.b">References pointing to triggers that don't exist. You catch them at scan time, before the agent drops the ball.</p>
+          </div>
         </li>
 
-        <li class="howit-step">
-          <div class="howit-step__num"><span>03</span></div>
-          <h3 class="howit-step__title" data-i18n="how.s3.t">Fix with actions.</h3>
-          <p class="howit-step__body" data-i18n="how.s3.b">Actions are the plugin kind that touches disk. Deterministic ones run as code (rename a trigger, edit frontmatter); probabilistic ones run a prompt on the LLM (regenerate a summary, rewrite copy).</p>
-          <div class="howit-step__code"><span>rename-trigger (deterministic)</span><span>regenerate-summary (LLM)</span></div>
+        <li class="features-list__item features-list__item--amber">
+          <div class="features-list__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+              <path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17h.01"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="features-list__title" data-i18n="feat.coll.t">Vague, incoherent, redundant</h3>
+            <p class="features-list__body" data-i18n="feat.coll.b">Instructions too soft to follow, terms used three ways, the same thing said twice. The semantic analyzers catch what a regex cannot see.</p>
+          </div>
         </li>
-      </ol>
+
+        <li class="features-list__item features-list__item--amber">
+          <div class="features-list__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 2 4 5v7c0 5 3.5 9 8 10 4.5-1 8-5 8-10V5l-8-3z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="features-list__title" data-i18n="feat.deps.t">External deps</h3>
+            <p class="features-list__body" data-i18n="feat.deps.b">Lists every external URL that appears in your workspace. Audit your supply chain.</p>
+          </div>
+        </li>
+      </ul>
     </section>
 
     <hr class="section-divider" aria-hidden="true">
@@ -820,7 +785,7 @@ export default {
         <div>
           <div class="section-badge" data-i18n="cases.eyebrow">Use cases</div>
           <h2 class="section-title" data-i18n="cases.title">Built for people who live in Markdown.</h2>
-          <p class="section-sub" data-i18n="cases.sub">No promises, no magic. Just a graph over the files you already have.</p>
+          <p class="section-sub" data-i18n="cases.sub">No promises, no magic. Just a map over the files you already have.</p>
         </div>
       </header>
 
@@ -828,25 +793,25 @@ export default {
         <article class="case case--green">
           <div class="case__tag" data-i18n="cases.c1.tag">For authors</div>
           <h3 class="case__title" data-i18n="cases.c1.t">Optimize before you publish.</h3>
-          <p class="case__body" data-i18n="cases.c1.b">Skill, agent, or markdown: all your Markdown lives connected to the rest. skill-map shows duplicates, redundancies, and optimization opportunities before you publish.</p>
+          <p class="case__body" data-i18n="cases.c1.b">Before you publish a skill, see it in context: what it duplicates elsewhere, where it repeats itself, how many tokens it costs. Tighten it while it is still yours to change.</p>
         </article>
 
         <article class="case case--violet">
           <div class="case__tag" data-i18n="cases.c2.tag">For AI architects & platform teams</div>
-          <h3 class="case__title" data-i18n="cases.c2.t">Knows what's running in your arsenal.</h3>
-          <p class="case__body" data-i18n="cases.c2.b">Multiple projects, multiple agents, divergent copies of the same skill across your harness. One scan puts the whole hive in the same graph.</p>
+          <h3 class="case__title" data-i18n="cases.c2.t">See the harness you designed, not the one that drifted.</h3>
+          <p class="case__body" data-i18n="cases.c2.b">Point it at your project, or the roots you hand it, and the design you intended lines up with what is actually on disk: divergent copies of a skill, an agent nothing references, a rule that quietly rotted.</p>
         </article>
 
         <article class="case case--amber">
           <div class="case__tag" data-i18n="cases.c3.tag">For agent debuggers</div>
-          <h3 class="case__title" data-i18n="cases.c3.t">Trace a misfire to its source.</h3>
-          <p class="case__body" data-i18n="cases.c3.b">The agent picked the wrong invocation. What triggered it? skill-map follows the full path: from the trigger phrase to the skill that won the match. All in real time.</p>
+          <h3 class="case__title" data-i18n="cases.c3.t">Watch what your agent actually ran.</h3>
+          <p class="case__body" data-i18n="cases.c3.b">Leave the map open and each node lights up the moment your runtime invokes it: the skill it loaded, the agent it delegated to, the file it read. Open a delegation edge and read the exact prompt and reply. No log tailing.</p>
         </article>
 
         <article class="case case--blue">
           <div class="case__tag" data-i18n="cases.c4.tag">For tool builders</div>
-          <h3 class="case__title" data-i18n="cases.c4.t">Build on top of the graph.</h3>
-          <p class="case__body" data-i18n="cases.c4.b">Every operation has a CLI verb, a JSON output, and a plugin hook. Wire skill-map into your CI, your dashboard, your LLM workflow, without forking the kernel.</p>
+          <h3 class="case__title" data-i18n="cases.c4.t">Build on top of the map.</h3>
+          <p class="case__body" data-i18n="cases.c4.b">Every operation has a CLI verb, a JSON output, and a plugin hook, and your agent can drive the whole thing over MCP. Wire skill-map into your CI, your dashboard, or your LLM workflow, without forking the kernel.</p>
         </article>
       </div>
     </section>
@@ -925,9 +890,9 @@ export default {
       <div class="cta-bar__inner">
         <h2 class="cta-bar__title">
           <span data-i18n="cta.title.1">Stop reading dirs.</span><br>
-          <span data-i18n="cta.title.2">Start reading graphs.</span>
+          <span data-i18n="cta.title.2">Start reading maps.</span>
         </h2>
-        <p class="cta-bar__sub" data-i18n="cta.sub">See your entire agent harness at a glance. No config, no server, no LLM required.</p>
+        <p class="cta-bar__sub" data-i18n="cta.sub">See your entire agent harness at a glance. Time to design it right!</p>
 
         <div class="cta-bar__ctas">
           <button type="button" class="btn btn--accent btn--xl js-copy" data-copy="npm i -g @skill-map/cli" data-i18n-aria-label="copy.aria">
@@ -957,7 +922,7 @@ export default {
         <div>
           <h2 class="roadmap__title">
             <span data-i18n="rm.title">Roadmap.</span><br>
-            <span class="roadmap__title-soft" data-i18n="rm.sub">120+ decisions documented before the first commit. Six phases until 1.0. No shortcuts.</span>
+            <span class="roadmap__title-soft" data-i18n="rm.sub">290+ decisions documented, six phases, one 1.0. No shortcuts.</span>
           </h2>
         </div>
       </div>
@@ -990,7 +955,6 @@ export default {
           <ul>
             <li><a href="#features"  data-i18n="nav.features">Features</a></li>
             <li><a href="#ecosystem" data-i18n="pe.eyebrow">Ecosystem</a></li>
-            <li><a href="#how"       data-i18n="nav.how">How it works</a></li>
             <li><a href="#cases"     data-i18n="nav.cases">Use cases</a></li>
             <li><a href="#roadmap"   data-i18n="rm.eyebrow">Roadmap</a></li>
           </ul>
@@ -1035,7 +999,7 @@ export default {
            when audio.duration isn't yet known (e.g., MP3 without Xing
            header, which forces the browser to scan the whole file to compute it).
            Update this when swapping audio assets. -->
-      <audio class="audio-player__el" preload="metadata" data-i18n-src="audio.src" src="/audio/skill-map-en.mp3" data-i18n-data-fallback-duration="audio.fallbackDuration" data-fallback-duration="250"></audio>
+      <audio class="audio-player__el" preload="metadata" data-i18n-src="audio.src" src="/audio/skill-map-en.mp3" data-i18n-data-fallback-duration="audio.fallbackDuration" data-fallback-duration="288"></audio>
 
       <div class="audio-player__head">
         <div class="audio-player__title-group">
