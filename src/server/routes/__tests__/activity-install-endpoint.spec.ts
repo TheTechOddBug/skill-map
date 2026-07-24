@@ -181,7 +181,7 @@ describe('GET /api/activity/install, status probe', () => {
       assert.equal(envelope.supported, true);
       assert.equal(envelope.installed, false);
       assert.equal(envelope.configPath, '.codex/hooks.json');
-      assert.equal(envelope.events, 5);
+      assert.equal(envelope.events, 6);
     });
   });
 
