@@ -12,31 +12,36 @@
 
 /**
  * Per-lens shell command that registers skill-map's MCP server in that
- * client. Kept as a plain `Record<string, string>` (not folded into the
- * `as const` catalog below) so the closed provider list stays trivially
- * editable and an arbitrary lens id can index it without a literal-key
- * cast. Only lenses with a project-local MCP config live here; every
- * other lens falls back to `MCP_REGISTER_COMMAND_DEFAULT`.
+ * client, as a function of the LIVE server URL (the MCP endpoint rides the
+ * same single `sm serve` listener the UI is served from, so the caller
+ * passes the page origin + `/mcp`, never a hardcoded port: a server started
+ * with `--port N` must show `N`, not the 4242 default). Kept as a plain
+ * `Record` (not folded into the `as const` catalog below) so the closed
+ * provider list stays trivially editable and an arbitrary lens id can index
+ * it without a literal-key cast. Only lenses with a project-local MCP config
+ * live here; every other lens falls back to `MCP_REGISTER_COMMAND_DEFAULT`.
  */
-export const MCP_REGISTER_COMMANDS: Record<string, string> = {
-  // Canonical form used by the sm-process-jobs skill template (default
-  // port 4242; edit the port if `sm serve` runs elsewhere).
-  claude: 'claude mcp add --transport http --scope local skill-map http://127.0.0.1:4242/mcp',
-  // TODO verify: codex MCP registration over streamable-http. Codex reads
-  // TOML `mcp_servers`; this is the presumed CLI form until confirmed.
-  codex: 'codex mcp add skill-map --url http://127.0.0.1:4242/mcp',
+export const MCP_REGISTER_COMMANDS: Record<string, (mcpUrl: string) => string> = {
+  claude: (mcpUrl) => `claude mcp add --transport http --scope local skill-map ${mcpUrl}`,
+  // Codex supports streamable-HTTP MCP via `codex mcp add <name> --url <url>`
+  // (usage: `codex mcp add [OPTIONS] <NAME> (--url <URL> | -- <COMMAND>...)`,
+  // verified against codex-rs cli/src/mcp_cmd.rs). Writes ~/.codex/config.toml.
+  codex: (mcpUrl) => `codex mcp add skill-map --url ${mcpUrl}`,
 };
 
 /** Generic guidance shown for lenses without a project-local MCP config. */
-export const MCP_REGISTER_COMMAND_DEFAULT =
-  'Run `sm serve --mcp`, then register http://127.0.0.1:4242/mcp in your agent MCP config.';
+export const MCP_REGISTER_COMMAND_DEFAULT = (mcpUrl: string): string =>
+  `Run \`sm serve --mcp\`, then register ${mcpUrl} in your agent MCP config.`;
 
-/** The register command for a lens, or the generic guidance fallback. */
-export function mcpRegisterCommand(providerId: string | null | undefined): string {
+/** The register command for a lens (given the live MCP URL), or the generic fallback. */
+export function mcpRegisterCommand(
+  providerId: string | null | undefined,
+  mcpUrl: string,
+): string {
   if (providerId && providerId in MCP_REGISTER_COMMANDS) {
-    return MCP_REGISTER_COMMANDS[providerId];
+    return MCP_REGISTER_COMMANDS[providerId](mcpUrl);
   }
-  return MCP_REGISTER_COMMAND_DEFAULT;
+  return MCP_REGISTER_COMMAND_DEFAULT(mcpUrl);
 }
 
 export const QUICK_START_TEXTS = {
@@ -130,7 +135,7 @@ export const QUICK_START_TEXTS = {
     hook: {
       label: 'Real-time hook installed',
       description:
-        'Install the hooks to connect your agent with the map and see it in real time.',
+        'Install the hooks to connect your agent with the map and see it in real time. After installing, restart your agent (it loads hooks at session start) and restart sm so the wiring takes effect.',
       unsupportedHint: 'This lens has no real-time hook yet.',
       installConfirmHeader: 'Install the real-time hook?',
       installConfirmIntroPrefix: 'skill-map will write',
@@ -191,7 +196,15 @@ export const QUICK_START_TEXTS = {
     },
     agentJobs: {
       label: 'Agent waiting for jobs',
-      description: 'Check whether the agent is ready and processing the queue.',
+      /**
+       * The row's whole point: nothing drains the queue until the operator
+       * RUNS the processing skill in their agent. `invocation` is the
+       * skill handle joined against the active lens's `invocationSigil`
+       * (`/sm-process-jobs` on claude / antigravity / opencode,
+       * `$sm-process-jobs` on codex).
+       */
+      description: (invocation: string): string =>
+        `Run ${invocation} in your agent so it processes every job skill-map queues up.`,
       needsSkillHint: 'Install the agent skill above, then check.',
     },
   },

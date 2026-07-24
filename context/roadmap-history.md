@@ -258,7 +258,7 @@ Decisions from working sessions 2026-04-19 / 20 / 21 plus pre-session carry-over
 
 ## Discarded (explicitly rejected)
 
-- **Cursor support**, excluded by user.
+- **Cursor support**, excluded by user. (Re-evaluated 2026-07-24: the original rejection carried no recorded rationale, so at the user's request a full feasibility + code-cost memo was produced. Findings: 7 of 17 on-disk surfaces map cleanly onto the existing Provider model (rules, skills via `agent-skills` composition, subagents, commands, MCP config, all needing zero new extractors since Cursor's `/` and `@` grammars already match shared kernel grammars), 2 already work today as plain `core/markdown` fallback nodes (`AGENTS.md`, `CLAUDE.md`), 4 are recommended punts (ignore files, CLI permissions, `environment.json`, the still-new plugin-bundle format), and 4 are structurally out of reach because Cursor stores them outside the project tree in its own app storage (Memories, Custom Modes, Team Rules, chat history, all in `~/.config/Cursor/User/.../state.vscdb` or an org dashboard). Estimated cost: ~900–1,200 LOC for static parity, ~1,300–1,800 LOC including live hooks, calibrated against the six shipped providers. No build decision made, this re-evaluation is a feasibility read only, pending an explicit go/no-go.)
 - **Remote scope** (scanning GitHub repos as a source), local only.
 - **Diff / history** of graph across commits.
 - **Sync with live systems**, detecting what is enabled vs on disk.

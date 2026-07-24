@@ -51,6 +51,16 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .skill-map/activity/bridge.js codex"
+          }
+        ]
+      }
     ]
   }
 }

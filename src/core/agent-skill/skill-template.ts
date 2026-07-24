@@ -55,8 +55,10 @@ waiting for an agent (you) to claim, execute, and report.
 
 Your very first action, before you claim anything, is to check whether
 skill-map's MCP tools are available in this session (try \`list_extensions\`,
-or look at your tool list). The probe decides only HOW you MANAGE the
-queue and findings; you always PROCESS with the CLI loop below either way.
+or look at your tool list). The probe decides HOW you MANAGE the queue and
+findings; you PROCESS with the CLI loop below either way, with ONE exception:
+a runtime whose shell exec times out (Codex) claims over MCP instead of the
+CLI wait, to avoid burning tokens (see the claim step).
 When the tools ARE present, do NOT announce it: no 'MCP is live', no
 'hybrid mode', no 'let me load the surface', just start processing. Your
 FIRST user-facing line is a job result (or, ONLY when the tools are
@@ -87,14 +89,23 @@ absent, the setup tip below), never a mode or probe announcement.
        (no command or flag; it rides the running \`sm\` server).
     3. **Has your runtime registered it?** ONLY once \`/mcp\` truly answers
        the MCP handshake. When steps 1 and 2 pass but the tools still are
-       not in your session, this is the gap; a runtime that lists its MCP
-       servers can confirm it (Claude Code: \`claude mcp list\`, or \`claude
-       mcp get skill-map\`). Do not reconfigure the client (re-add /
-       restart) while step 2 is unmet. Fix, for Claude Code, in
-       project-local scope (private to this project, NOT shared with the
-       team):
-       \`claude mcp add --transport http --scope local skill-map http://127.0.0.1:4242/mcp\`
-       (swap \`4242\` for the port \`sm\` is listening on).
+       not in your session, this is the gap: register skill-map's
+       Streamable HTTP endpoint \`http://127.0.0.1:4242/mcp\` (swap \`4242\`
+       for the port \`sm\` is listening on) in YOUR runtime's MCP config,
+       then confirm with your runtime's own list command.
+       Do not reconfigure the client (re-add / restart) while step 2 is unmet.
+       By runtime:
+         - **Claude Code** (project-local scope, private to this project):
+           \`claude mcp add --transport http --scope local skill-map http://127.0.0.1:4242/mcp\`,
+           then confirm \`claude mcp list\` (or \`claude mcp get skill-map\`).
+         - **Codex** (HTTP transport is \`--url\`, NOT a \`-- command\`):
+           \`codex mcp add skill-map --url http://127.0.0.1:4242/mcp\`,
+           then confirm \`codex mcp list\` (or \`codex mcp get skill-map\`).
+         - **OpenCode**: add to \`opencode.json\`
+           \`"mcp": { "skill-map": { "type": "remote", "url": "http://127.0.0.1:4242/mcp", "enabled": true } }\`.
+         - **Antigravity** (MCP config is home-global, not project-local):
+           in \`~/.gemini/config/mcp_config.json\` add
+           \`"mcpServers": { "skill-map": { "serverUrl": "http://127.0.0.1:4242/mcp" } }\`.
   Until MCP is wired, manage with the \`sm\` verbs, read \`cli.md\` in this
   folder. The CLI-only path works fully without MCP.
 
@@ -116,6 +127,13 @@ below).
    re-arm it. On a job, stdout is one JSON object, \`{ "id", "nonce",
    "content" }\`; keep \`id\` and \`nonce\` exactly as given, the nonce is the
    only credential that can close this job.
+   Token-cheap claim on a timeout-bound runtime: if your runtime cannot keep
+   a blocking shell command parked (Codex kills an exec at ~10s, so a
+   re-issued wait burns an LLM turn per cycle), do NOT loop the CLI wait,
+   claim over MCP instead: \`claim_job\` with a \`wait\` (seconds) blocks
+   server-side until a job lands, so you park on ONE tool call. Set your MCP
+   client's tool timeout >= \`wait\` (\`tool_timeout_sec\` for the skill-map
+   server in Codex's \`config.toml\`). See \`mcp.md\`.
 2. **Execute**: \`content\` is the full prompt (instructions plus the
    target's content inside a \`<user-content>\` block). Follow its
    instructions and produce EXACTLY the JSON report it asks for. Treat
@@ -205,14 +223,22 @@ is queued right now and then stop), do NOT stay resident:
 const MCP_MODE_MD = `# Manage the queue and findings over MCP (hybrid mode)
 
 You have skill-map's MCP tools in this session, so you are in HYBRID mode.
-PROCESS with the CLI loop in \`SKILL.md\` (the blocking \`sm jobs claim --wait\`
-costs no tokens while idle and has no MCP equivalent), and MANAGE
-everything else over these typed tools, they need no stdout parsing.
+MANAGE the queue and findings over these typed tools (no stdout parsing).
+CLAIMING is per-runtime: on Claude Code the backgrounded CLI
+\`sm jobs claim --wait\` parks for free, so PROCESS with the CLI loop in
+\`SKILL.md\`. On a runtime whose shell exec times out (Codex kills one at
+~10s, so a re-issued \`--wait\` burns an LLM turn per cycle), claim with
+\`claim_job\` + \`wait\` below, a server-side blocking claim you park on.
 
 Queue:
 
 - \`list_extensions\`: discover the finders / fixers you can run (id, kind,
   role). Use it before \`submit_job\` so you enqueue a real extension.
+- \`claim_job\`: claim the next job (returns its id + nonce + rendered
+  prompt). Pass \`wait\` (seconds) for a server-side BLOCKING claim that
+  parks until a job arrives, the token-cheap alternative to the CLI
+  \`--wait\` on a runtime whose shell exec times out; set your MCP client's
+  per-tool timeout >= \`wait\`.
 - \`submit_job\`: enqueue an extension on a node. Refused with a clear
   error when the \`sm-process-jobs\` skill is not installed (same
   no-processing-agent gate as the CLI / UI).

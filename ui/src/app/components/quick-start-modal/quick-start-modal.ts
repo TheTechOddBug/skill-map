@@ -41,6 +41,7 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import { Subscription } from 'rxjs';
 import { ConfirmationService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
@@ -70,6 +71,7 @@ import { NodeActivityService } from '../../../services/node-activity';
 import { WsEventStreamService } from '../../../services/ws-event-stream';
 import { ActivityReadinessService } from '../../services/activity-readiness';
 import { ProjectInfoService } from '../../services/project-info';
+import { ProviderRegistryService } from '../../../services/provider-registry';
 import { formatErr } from '../settings-modal/settings-project.utils';
 import { QuickStartRow } from './quick-start-row';
 
@@ -105,6 +107,8 @@ export class QuickStartModal {
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly confirmation = inject(ConfirmationService);
   private readonly projectInfo = inject(ProjectInfoService);
+  private readonly providerRegistry = inject(ProviderRegistryService);
+  private readonly document = inject(DOCUMENT);
   private readonly activityReadiness = inject(ActivityReadinessService);
   private readonly nodeActivity = inject(NodeActivityService);
   private readonly wsEvents = inject(WsEventStreamService);
@@ -540,7 +544,11 @@ export class QuickStartModal {
   }
 
   protected async onCopyMcpCommand(): Promise<void> {
-    const command = mcpRegisterCommand(this.activeProvider());
+    // The MCP endpoint rides the SAME single `sm serve` listener the UI is
+    // served from, so the live origin (with whatever `--port` it was started
+    // on) is the authoritative base, never a hardcoded 4242.
+    const mcpUrl = `${this.document.location.origin}/mcp`;
+    const command = mcpRegisterCommand(this.activeProvider(), mcpUrl);
     try {
       await navigator.clipboard.writeText(command);
       this.mcpCopied.set(true);
@@ -691,6 +699,17 @@ export class QuickStartModal {
   protected readonly agentJobsMeta = computed<string | null>(() =>
     this.skillInstalled() ? null : this.texts.rows.agentJobs.needsSkillHint,
   );
+  /**
+   * The skill invocation for the active lens: the `sm-process-jobs` handle
+   * joined against the Provider's `invocationSigil` (`/sm-process-jobs` on
+   * claude / antigravity / opencode, `$sm-process-jobs` on codex; `/` when
+   * the lens declares none or the registry has not loaded).
+   */
+  protected readonly agentJobsDescription = computed<string>(() => {
+    const active = this.activeProvider();
+    const sigil = (active ? this.providerRegistry.lookup(active)?.invocationSigil : undefined) ?? '/';
+    return this.texts.rows.agentJobs.description(`${sigil}sm-process-jobs`);
+  });
 
   protected onAgentJobsCheck(): void {
     void this.runPingCheck();
