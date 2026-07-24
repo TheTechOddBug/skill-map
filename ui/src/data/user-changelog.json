@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.90.2",
+      "date": "2026-07-24",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**Live Updates now stays off when you turn it off.** A project with Live Updates disabled no longer auto-refreshes the map on file saves; it updates on your next manual scan, matching the toggle.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.90.1",
       "date": "2026-07-24",
       "kind": "internal",
