@@ -2,8 +2,11 @@
  * `GET /api/jobs?status=&extension=&node=`, the cross-corpus job list
  * (`spec/cli-contract.md` §Serve route table). The read side of the coming
  * UI queue inspector: unlike `GET /api/nodes/:pathB64/prob-extensions`
- * (per-node launcher state), this lists EVERY job across the corpus, the
- * HTTP face of `sm jobs list`.
+ * (per-node launcher state), this lists every job across the corpus EXCEPT
+ * jobs from host-locked system extensions (the `ai-ping-action` liveness
+ * probe), which stay hidden like they do on every other discovery surface.
+ * Otherwise the HTTP face of `sm jobs list` (which, being a power-user
+ * surface, still shows them).
  *
  * Thin HTTP wrapper over the existing kernel primitive
  * `adapter.jobs.list(filter)` (newest-first, `createdAt DESC, id DESC`); no
@@ -43,6 +46,7 @@ import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import type { JobStatus } from '../../kernel/types.js';
 import type { IJobListFilter } from '../../kernel/types/storage.js';
 import { toPublicJob } from '../../kernel/jobs/index.js';
+import { isLockedBuiltIn } from '../../plugins/locked-built-ins.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { buildJobsEnvelope } from '../envelope.js';
@@ -76,8 +80,15 @@ export function registerJobsRoute(app: Hono, deps: IJobsRouteDeps): void {
       { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
       (adapter) => adapter.jobs.list(filter),
     );
-    // Strip the nonce off every row before it leaves the process.
-    const items = (jobs ?? []).map(toPublicJob);
+    // Hide jobs from host-locked SYSTEM extensions (e.g. the
+    // `core/ai-ping-action` liveness probe): they are internal infra, kept
+    // off this discovery surface exactly as `locked` strips them from the
+    // Settings plugin list and MCP `list_extensions`. Stored `extensionId`
+    // is the qualified id, which is what `isLockedBuiltIn` matches. Then
+    // strip the nonce off every remaining row before it leaves the process.
+    const items = (jobs ?? [])
+      .filter((job) => !isLockedBuiltIn(job.extensionId))
+      .map(toPublicJob);
     return c.json(buildJobsEnvelope(items, echo));
   });
 }

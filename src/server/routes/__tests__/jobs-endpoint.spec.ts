@@ -177,6 +177,40 @@ describe('GET /api/jobs', () => {
     });
   });
 
+  // Host-locked SYSTEM extensions (the `core/ai-ping-action` liveness probe)
+  // are internal infra: their jobs must NOT surface in the UI queue list,
+  // the same way `locked` strips them from the plugin list + MCP tools.
+  it('200: hides jobs from host-locked system extensions (ai-ping-action)', async () => {
+    const PING_ID = 'core/ai-ping-action';
+    const PING_JOB = 'd-20260101-000099-0099';
+    await withProjectDb(project, async (adapter) => {
+      const hash = contentHash(99);
+      await adapter.jobs.submit(
+        {
+          id: PING_JOB,
+          extensionId: PING_ID,
+          extensionVersion: '1.0.0',
+          extensionKind: 'action',
+          nodeId: SKILL_NODE.path,
+          contentHash: hash,
+          nonce: 'n'.repeat(32),
+          priority: 0,
+          status: 'queued',
+          ttlSeconds: null,
+          createdAt: BASE_MS + 9000,
+        },
+        { contentHash: hash, content: 'ping', createdAt: BASE_MS + 9000 },
+      );
+    });
+    await bootAndUse(project, async (handle) => {
+      const { status, env } = await getJobs(handle);
+      assert.equal(status, 200);
+      const returned = ids(env);
+      assert.ok(!returned.includes(PING_JOB), 'the locked ping job must be hidden');
+      assert.equal(returned.length, SEEDS.length, 'only the real jobs remain');
+    });
+  });
+
   it('200: status filter narrows to one bucket', async () => {
     await bootAndUse(project, async (handle) => {
       const { env } = await getJobs(handle, '?status=queued');
