@@ -2,6 +2,26 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.92.0",
+      "date": "2026-07-24",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Content flagged as suspicious now surfaces as a warning instead of an info note, so it stands out in scans and the findings list.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The Quick Start MCP command now uses the port your server is actually on, and the agent-processing hint shows the right invocation for your runtime.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.91.1",
       "date": "2026-07-24",
       "kind": "user-facing",
