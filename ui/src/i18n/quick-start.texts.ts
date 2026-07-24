@@ -166,7 +166,7 @@ export const QUICK_START_TEXTS = {
       restartHint: 'Restart sm serve --mcp to apply.',
     },
     mcpInstalled: {
-      label: 'MCP installed',
+      label: 'MCP installed on your agent',
       description:
         'Install the MCP server in your agent so it can run queued jobs on your harness.',
       copiedHint: 'Command copied to the clipboard.',
