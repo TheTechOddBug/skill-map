@@ -51,14 +51,23 @@ absent, the setup tip below), never a mode or probe announcement.
        (no command or flag; it rides the running `smx` server).
     3. **Has your runtime registered it?** ONLY once `/mcp` truly answers
        the MCP handshake. When steps 1 and 2 pass but the tools still are
-       not in your session, this is the gap; a runtime that lists its MCP
-       servers can confirm it (Claude Code: `claude mcp list`, or `claude
-       mcp get skill-map`). Do not reconfigure the client (re-add /
-       restart) while step 2 is unmet. Fix, for Claude Code, in
-       project-local scope (private to this project, NOT shared with the
-       team):
-       `claude mcp add --transport http --scope local skill-map http://127.0.0.1:4242/mcp`
-       (swap `4242` for the port `smx` is listening on).
+       not in your session, this is the gap: register skill-map's
+       Streamable HTTP endpoint `http://127.0.0.1:4242/mcp` (swap `4242`
+       for the port `smx` is listening on) in YOUR runtime's MCP config,
+       then confirm with your runtime's own list command.
+       Do not reconfigure the client (re-add / restart) while step 2 is unmet.
+       By runtime:
+         - **Claude Code** (project-local scope, private to this project):
+           `claude mcp add --transport http --scope local skill-map http://127.0.0.1:4242/mcp`,
+           then confirm `claude mcp list` (or `claude mcp get skill-map`).
+         - **Codex** (HTTP transport is `--url`, NOT a `-- command`):
+           `codex mcp add skill-map --url http://127.0.0.1:4242/mcp`,
+           then confirm `codex mcp list` (or `codex mcp get skill-map`).
+         - **OpenCode**: add to `opencode.json`
+           `"mcp": { "skill-map": { "type": "remote", "url": "http://127.0.0.1:4242/mcp", "enabled": true } }`.
+         - **Antigravity** (MCP config is home-global, not project-local):
+           in `~/.gemini/config/mcp_config.json` add
+           `"mcpServers": { "skill-map": { "serverUrl": "http://127.0.0.1:4242/mcp" } }`.
   Until MCP is wired, manage with the `smx` verbs, read `cli.md` in this
   folder. The CLI-only path works fully without MCP.
 
