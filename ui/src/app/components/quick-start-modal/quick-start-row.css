@@ -62,6 +62,25 @@
   flex: 0 0 auto;
 }
 
+/* Stacked variant: the status sits on top and the projected controls
+ * stack full-width below it, so rows that project more than one button
+ * (MCP installed: Copy + Check) do not crowd the inline layout. */
+.quick-start__row-actions--stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.4rem;
+}
+
+.quick-start__row-actions--stacked .quick-start__status {
+  justify-content: flex-end;
+}
+
+/* The projected buttons carry the host's encapsulation, so reach them
+ * through ::ng-deep to make each fill the stacked column width. */
+.quick-start__row-actions--stacked ::ng-deep .p-button {
+  width: 100%;
+}
+
 /* Readiness indicator: icon + short status text, toned per state. */
 .quick-start__status {
   display: inline-flex;

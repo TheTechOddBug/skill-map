@@ -8,7 +8,10 @@
       </div>
     }
   </div>
-  <div class="quick-start__row-actions">
+  <div
+    class="quick-start__row-actions"
+    [class.quick-start__row-actions--stacked]="stackActions()"
+  >
     <span
       class="quick-start__status"
       [class.quick-start__status--ready]="status() === 'ready'"

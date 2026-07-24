@@ -721,6 +721,12 @@
   white-space: nowrap;
 }
 
+/* Compact, low-key disconnect notice: smaller than default p-message text. */
+.inspector__ai-actions-mcp-warning .p-message-text {
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
 /* Dimmed DB id, pushed to the row's far right. Test / CLI handle
    (`sm findings resolve <id>`), useful but never the headline. */
 .inspector__ai-action-id {

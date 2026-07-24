@@ -36,6 +36,12 @@ export class QuickStartRow {
   readonly meta = input<string | null>(null);
   /** Stable id root: the row gets it, the status span gets `<testid>-status`. */
   readonly testid = input.required<string>();
+  /**
+   * Stack the projected actions vertically instead of inline. Opt-in for
+   * rows that project more than one control (e.g. MCP installed: Copy +
+   * Check), which crowd the inline layout on narrower dialogs.
+   */
+  readonly stackActions = input<boolean>(false);
 
   /** Indicator glyph, one per readiness state (PrimeNG icon font). */
   protected readonly statusIcon = computed<string>(() => {

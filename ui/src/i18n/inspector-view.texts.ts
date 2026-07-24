@@ -126,7 +126,7 @@ export const INSPECTOR_VIEW_TEXTS = {
      * setup. Shown only on a confirmed disconnect, never while unknown.
      */
     mcpDisconnectedWarning:
-      "No agent is connected to the MCP server right now. Actions you launch will queue, but won't run until an agent connects (or one drains the queue from the CLI). Open Quick Start to set it up.",
+      'No agent connected to the MCP. Launched actions will queue until one connects. Set it up from Quick Start.',
     noAgentMessage: 'no agent is set up to process jobs.',
     agentInstallHint:
       'Install the processing skill from Settings, Project section ("Agent process skill"), then run it from your agent\'s terminal: "/sm-process-jobs".',

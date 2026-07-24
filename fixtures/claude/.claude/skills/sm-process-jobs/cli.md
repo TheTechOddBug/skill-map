@@ -1,7 +1,7 @@
 # Manage the queue and findings over the CLI (fallback, no MCP)
 
 The MCP tools are not available in this session. PROCESS with the loop in
-`SKILL.md` and MANAGE everything else with the `sm` verbs below. This
+`SKILL.md` and MANAGE everything else with the `smx` verbs below. This
 path works fully without MCP; if you can, tip the user to enable the MCP
 server (Settings > Project > "MCP server") for the typed equivalent.
 

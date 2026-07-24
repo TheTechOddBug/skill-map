@@ -723,11 +723,30 @@ export class QuickStartModal {
       this.pingJobId = envelope.value.jobId;
       this.watchPing(envelope.value.jobId);
     } catch (err) {
-      this.removePending(key);
       if (err instanceof DataSourceError && err.code === 'no-processing-agent') {
         // The skill vanished between the row-h probe and this submit.
+        this.removePending(key);
         this.pingState.set('no-agent');
+      } else if (
+        err instanceof DataSourceError &&
+        (err.code === 'duplicate-job' || err.code === 'job-running')
+      ) {
+        // A prior job already covers this node, commonly a ping a past
+        // check left unclaimed because no agent was draining. Adopt it as
+        // the probe instead of surfacing an error: if an agent is
+        // attending it claims within the window; otherwise the timeout
+        // cancels it and reports no-agent, which also clears the wedged
+        // job so the next check starts clean.
+        const existingId = (err.details as { existingId?: unknown } | undefined)?.existingId;
+        if (typeof existingId === 'string') {
+          this.pingJobId = existingId;
+          this.watchPing(existingId);
+        } else {
+          this.removePending(key);
+          this.pingState.set('no-agent');
+        }
       } else {
+        this.removePending(key);
         this.pingState.set('error');
         this.error.set(formatErr(err));
       }
