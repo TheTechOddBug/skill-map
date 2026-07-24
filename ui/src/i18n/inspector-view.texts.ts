@@ -121,7 +121,7 @@ export const INSPECTOR_VIEW_TEXTS = {
      */
     noAgentMessage: 'no agent is set up to process jobs.',
     agentInstallHint:
-      'Install the processing skill from Settings, Project section ("Install skill"), then run it from your agent\'s terminal: "/sm-process-jobs watch".',
+      'Install the processing skill from Settings, Project section ("Agent process skill"), then run it from your agent\'s terminal: "/sm-process-jobs".',
     /** Launcher button state tooltips (appended after the description). */
     stateQueued: 'queued',
     stateRunning: 'running',

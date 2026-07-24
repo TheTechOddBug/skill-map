@@ -2860,7 +2860,7 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     const hint = dom.querySelector('[data-testid="inspector-ai-actions-agent-hint"]');
     expect(hint).not.toBeNull();
     expect(hint!.textContent).toContain('Settings');
-    expect(hint!.textContent).toContain('/sm-process-jobs watch');
+    expect(hint!.textContent).toContain('/sm-process-jobs');
     // The refusal never flips the button: it stays idle and clickable.
     expect(host.getAttribute('data-state')).toBe('idle');
   });
