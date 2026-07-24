@@ -6,6 +6,29 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.91.0</b> · 2026-07-24</summary>
+
+### CLI Minor
+- The web UI's topbar tutorial reminder now shows two messages in sequence instead of one: a Quick Start nudge first, then the `sm tutorial` nudge, one dismiss advancing to the next. The project-local config key backing it changed shape from the boolean `tutorialReminderDismissed` to the integer `tutorialReminderStep` (0-2); `GET`/`PATCH /api/project-preferences` reflect the new key.
+
+### CLI Patch
+- `GET /api/jobs` (the UI queue list) now hides jobs from host-locked system extensions like the `ai-ping-action` liveness probe, so the Quick Start "agent attending jobs" pings no longer clutter the Queue tab, matching how `locked` already strips them from the plugin list and MCP `list_extensions`. `sm jobs list` (a power-user surface) still shows them.
+- The node inspector's AI Actions section now shows a non-blocking warning when no client is connected to skill-map's MCP server (probed via `GET /api/mcp/status`, an O(1) read), so you know that actions you launch may queue without running until an agent connects. The copy is honest that a CLI agent draining the queue also counts, and points to Quick Start for setup.
+- The node inspector's AI Actions warning now layers two mutually-exclusive gates instead of keying off live MCP connection alone. The primary gate fires when the active lens supports a processing skill that is not installed; the secondary gate fires only once the skill is installed but no client is connected to the MCP yet, and clears as soon as the agent opens a session. At most one message shows, and neither shows while its signal is unknown.
+- The topbar Quick Start button now shows a small highlight dot while the tutorial reminder's first message (the one that mentions Quick Start) is showing, so the nudge and the button it points at read as one thing.
+- Quick Start's "MCP installed on your agent" row now verifies the LIVE connection instead of only a project-committed registration. A new `GET /api/mcp/status` reports whether a client is actually connected to `/mcp` (`McpSessionManager` session count), which is scope-agnostic and reads no `$HOME`, so it works whether the agent registered at local, project, or user scope. The row gains a Check button, and the instructions walk copy, run, approve the connection in your agent, then Check.
+- Quick Start: relabel the "MCP installed" row to "MCP installed on your agent" to make clear it checks the agent-side (runtime) registration, not skill-map's own server.
+- Quick Start's agent liveness check no longer surfaces a raw duplicate-job error when a prior ping is still queued: it adopts the existing job as the probe and, if no agent claims it in time, cancels it so the next check starts clean. The "MCP installed on your agent" row stacks its Copy and Check buttons in a column so they stop crowding, and the inspector's MCP-disconnected notice is shorter and set in smaller type.
+- Quick Start dialog now shows a dimmed note beside the title (same header row) signalling that its rows are shortcuts to controls that also live in Settings.
+- Quick Start "AI Actions" group now leads with the agent-skill install row, so the setup order installs the process skill before the MCP steps.
+- `sm-process-jobs` skill: harden the resident watch loop. It now explicitly warns against passing `--timeout` on the resident `sm jobs claim --wait` (a timeout would make it exit and end the loop) and states that a wait returning without a job is not a stop signal, re-arm it. Fixes agents that added `--timeout` and stopped on an empty queue.
+
+### Spec Minor (0.83.0)
+- The web UI's topbar tutorial reminder now shows two messages in sequence instead of one: a Quick Start nudge first, then the `sm tutorial` nudge, one dismiss advancing to the next. The project-local config key backing it changed shape from the boolean `tutorialReminderDismissed` to the integer `tutorialReminderStep` (0-2); `GET`/`PATCH /api/project-preferences` reflect the new key.
+
+</details>
+
+<details>
 <summary><b>0.90.2</b> · 2026-07-24</summary>
 
 ### CLI Patch
