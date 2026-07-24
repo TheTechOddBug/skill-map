@@ -64,6 +64,7 @@ type IStubDataSource = IDataSourcePort & {
   getNodeSummary: ReturnType<typeof vi.fn>;
   deleteNodeSummary: ReturnType<typeof vi.fn>;
   getNodeProbExtensions: ReturnType<typeof vi.fn>;
+  mcpStatus: ReturnType<typeof vi.fn>;
   submitNodeJob: ReturnType<typeof vi.fn>;
   cancelJob: ReturnType<typeof vi.fn>;
   dismissFinding: ReturnType<typeof vi.fn>;
@@ -189,6 +190,7 @@ function makeStubDataSource(): IStubDataSource {
       standalone: [],
       issueFixers: [],
     }),
+    mcpStatus: vi.fn().mockResolvedValue({ enabled: true, connected: true, clients: 1 }),
     submitNodeJob: vi.fn().mockResolvedValue({
       schemaVersion: '1',
       kind: 'job.submitted',
@@ -2270,6 +2272,36 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     expect(
       fixture.nativeElement.querySelector('[data-testid="inspector-card-ai-actions"]'),
     ).toBeNull();
+  });
+
+  it('shows the MCP-disconnected warning when mcpStatus reports connected:false', async () => {
+    const dataSource = makeStubDataSource();
+    dataSource.mcpStatus.mockResolvedValue({ enabled: true, connected: false, clients: 0 });
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    dataSource.getNodeProbExtensions.mockResolvedValue(
+      makeProbExtensions({ standalone: [makeProbEntry({ id: 'core/summarizer' })] }),
+    );
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    await flush(fixture);
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(
+      dom.querySelector('[data-testid="inspector-ai-actions-mcp-warning"]'),
+    ).not.toBeNull();
+  });
+
+  it('hides the MCP-disconnected warning when an agent is connected', async () => {
+    const { fixture } = await bootAiActions({
+      probs: makeProbExtensions({ standalone: [makeProbEntry({ id: 'core/summarizer' })] }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    // The card renders (a launcher exists), but with connected:true the
+    // warning must not.
+    expect(dom.querySelector('[data-testid="inspector-card-ai-actions"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-mcp-warning"]')).toBeNull();
   });
 
   it('renders TWO launcher rows: finders (with their ALL) on top, standalone (with theirs) below', async () => {

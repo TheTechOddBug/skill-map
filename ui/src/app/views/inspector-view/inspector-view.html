@@ -395,6 +395,15 @@
       >
         @if (expanded('aiActions')) {
           <div class="inspector__ai-actions">
+            @if (aiActionsMcpConnected() === false) {
+              <p-message
+                severity="warn"
+                [closable]="false"
+                styleClass="inspector__ai-actions-mcp-warning"
+                data-testid="inspector-ai-actions-mcp-warning"
+                >{{ texts.aiActions.mcpDisconnectedWarning }}</p-message
+              >
+            }
             @if (aiActionLauncherGroups().length > 0) {
               <div class="inspector__ai-actions-launchers" data-testid="inspector-ai-actions-launchers">
                 <!-- Automatic toggle (Step 16): one control for every

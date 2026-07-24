@@ -105,6 +105,13 @@ export interface IAiActionsHandle {
   probExtensions: Signal<IProbExtensionsApi | null>;
   /** Whether the AI actions card renders at all. */
   available: Signal<boolean>;
+  /**
+   * MCP client connectivity for the heads-up warning: `null` until the
+   * cheap `mcpStatus` probe resolves for the node, then `true` / `false`
+   * for whether an agent is currently connected to skill-map's MCP
+   * server. A probe error leaves it `null` (no warning, never crash).
+   */
+  mcpConnected: Signal<boolean | null>;
   /** Last submit failure, or `null`. */
   error: Signal<IAiActionsError | null>;
   /**
@@ -210,6 +217,13 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
   /** The hidden bucket currently revealed under the tray (one at a time). */
   const revealedBucket = signal<TFindingsBucket | null>(null);
   const revealedRows = signal<IFindingApi[]>([]);
+  /**
+   * Whether an agent is connected to skill-map's MCP server, probed once
+   * per node via the free `mcpStatus` read. `null` until the first probe
+   * resolves (and on any probe error), so the heads-up warning only shows
+   * on a confirmed `false`, never while unknown.
+   */
+  const mcpConnected = signal<boolean | null>(null);
 
   /**
    * Last path the fetch effect ran for. Distinguishes a navigation
@@ -365,6 +379,7 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
       findingBusy.set(new Set());
       revealedBucket.set(null);
       revealedRows.set([]);
+      mcpConnected.set(null);
       fetchedPath = path;
     }
     if (!path) return;
@@ -373,7 +388,25 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
       cancelled = true;
     });
     void fetchBoth(path, () => cancelled);
+    void probeMcpConnected(() => cancelled);
   });
+
+  /**
+   * Probe MCP client connectivity for the heads-up warning. Cheap (O(1),
+   * no DB / scan) so it rides the per-node effect; guarded by the effect's
+   * cleanup flag so a stale resolve from a node we navigated away from
+   * never overwrites the current warning. Errors leave the signal `null`
+   * (no warning, never crash).
+   */
+  async function probeMcpConnected(isCancelled: () => boolean): Promise<void> {
+    try {
+      const status = await deps.dataSource.mcpStatus();
+      if (isCancelled()) return;
+      mcpConnected.set(status.connected);
+    } catch {
+      // Leave `null`: the warning stays hidden when connectivity is unknown.
+    }
+  }
 
   // Live refresh: any job lifecycle frame or a completed re-scan makes
   // the tray stale (new findings recorded, queue state moved, fixer
@@ -664,6 +697,7 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     counts: counts.asReadonly(),
     probExtensions: probExtensions.asReadonly(),
     available,
+    mcpConnected: mcpConnected.asReadonly(),
     error: error.asReadonly(),
     entryState: (entry) => {
       if (entry.state === 'idle') {

@@ -13,6 +13,7 @@ import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
+import { MessageModule } from 'primeng/message';
 import { TooltipModule } from 'primeng/tooltip';
 import { debounceTime, merge } from 'rxjs';
 
@@ -141,6 +142,7 @@ const SPAWN_THREADS_LIMIT = 10;
     ButtonModule,
     SelectButtonModule,
     ToggleSwitchModule,
+    MessageModule,
     FormsModule,
     TooltipModule,
   ],
@@ -491,6 +493,7 @@ export class InspectorView implements OnInit {
   });
   protected readonly aiActionFindings = this.aiActions.findings;
   protected readonly aiActionsAvailable = this.aiActions.available;
+  protected readonly aiActionsMcpConnected = this.aiActions.mcpConnected;
   protected readonly aiActionsError = this.aiActions.error;
   protected readonly probExtensions = this.aiActions.probExtensions;
   protected readonly aiActionCounts = this.aiActions.counts;
