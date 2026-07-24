@@ -121,12 +121,12 @@ export const SETTINGS_TEXTS = {
       ws: {
         label: 'Live updates',
         description:
-          'Keep the map in sync with sm: scan refreshes, live events, node activity.',
+          'Keep the map in sync with your file system. Change a file and you see it update instantly.',
       },
       activity: {
         label: 'Real-time node activity',
         description:
-          'Light up nodes on the map the moment your AI assistant invokes them.',
+          'Connect the map with your agent and watch the nodes light up as they run.',
         hint: 'Requires live updates.',
         hookHint:
           "Requires the active lens's real-time hook. Install it in this section.",
@@ -159,7 +159,7 @@ export const SETTINGS_TEXTS = {
      */
     followExternalSymlinksLabel: 'Follow external symlinks',
     followExternalSymlinksDescription:
-      'Follow symbolic links whose target is outside the project.',
+      'Follow symbolic links even outside the project. Note this carries a risk.',
     followExternalSymlinksConfirmHeader: 'Follow links that leave this project?',
     followExternalSymlinksConfirmIntro:
       '⚠️ Security risk: external links can expose files outside the ' +
@@ -175,9 +175,7 @@ export const SETTINGS_TEXTS = {
      */
     mcpServerLabel: 'MCP server',
     mcpServerDescription:
-      'Let an MCP-capable assistant work with this project over sm serve at ' +
-      '/mcp: query the map, and drive the job queue and findings (submit, ' +
-      'claim, and record jobs; resolve or dismiss findings).',
+      'Expose skill-map so another agent can read the map, and you can manage the job queue too.',
     mcpServerRestartHint: 'Restart sm to apply.',
     referencePathsLabel: 'Folders for link validation',
     referencePathsDescription:
@@ -257,7 +255,7 @@ export const SETTINGS_TEXTS = {
     activityHook: {
       label: 'Real-time hook',
       description:
-        'Wire the active provider runtime so the map lights up each node the moment it runs.',
+        'Install the hooks to connect your agent with the map and see it in real time.',
       installPrefix: 'Install',
       uninstallPrefix: 'Uninstall',
       labelSuffix: 'hook',
@@ -288,9 +286,7 @@ export const SETTINGS_TEXTS = {
      */
     agentSkill: {
       label: 'Agent process skill',
-      description:
-        'Teach your agent to work through the job queue: installs the ' +
-        'sm-process-jobs skill in this project.',
+      description: 'Install the skill that will process the queue.',
       installLabel: 'Install skill',
       updateLabel: 'Update skill',
       upToDateLabel: 'Skill up to date',
@@ -325,8 +321,7 @@ export const SETTINGS_TEXTS = {
     activityCapture: {
       label: 'Capture agent conversations',
       description:
-        'Capture what your agents say to each other (possibly sensitive) ' +
-        'and hold it in memory only, viewable from the map.',
+        'Inspect what your agents say to each other (click a connector to see it).',
       enableConfirmHeader: 'Capture agent conversations?',
       enableConfirmIntro:
         'This keeps possibly sensitive prompts and responses in memory ' +

@@ -1,6 +1,7 @@
 import {
   ApplicationConfig,
   ErrorHandler,
+  Injector,
   inject,
   provideAppInitializer,
   provideBrowserGlobalErrorListeners,
@@ -40,6 +41,31 @@ function kickoffColdStart(...services: readonly IColdStartLoadable[]): void {
   for (const s of services) {
     void Promise.resolve(s.load());
   }
+}
+
+/**
+ * Boot sequence for the live channel + cold-start probes, deliberately ONE
+ * awaited initializer. Sibling app-initializers do NOT await each other
+ * (Angular invokes every factory synchronously in registration order and
+ * only `Promise.all`s the returned promises), so the live-updates
+ * preference MUST settle HERE, before the first service that subscribes to
+ * the `/ws` stream is constructed. `CollectionLoaderService` opens the
+ * socket on that first subscription (in its constructor) unless
+ * `ui.liveUpdates` is already known to be false. When this lived in two
+ * separate initializers, the cold-start factory ran synchronously while the
+ * awaited `load()` GET was still in flight, so the socket flash-opened on
+ * the ON default and a persisted OFF never closed it: the toggle read OFF
+ * while the map kept live-updating on watcher scans. Awaiting `load()`
+ * before constructing the loader is the fix. Exported so the ordering
+ * contract is unit-testable without booting the whole shell.
+ */
+export async function settleLivePrefsThenColdStart(injector: Injector): Promise<void> {
+  await injector.get(LivePreferencesService).load();
+  kickoffColdStart(
+    injector.get(CollectionLoaderService),
+    injector.get(UpdateCheckService),
+    injector.get(ProjectInfoService),
+  );
 }
 
 export const appConfig: ApplicationConfig = {
@@ -164,24 +190,17 @@ export const appConfig: ApplicationConfig = {
         // telemetry stays OFF; the app must still boot.
       }
     }),
-    // Live-channel preferences (`ui.liveUpdates` / `ui.realtimeActivity`,
-    // project-local `settings.local.json`). AWAITED, unlike the cold-start
-    // probes below: the socket owner decides at first subscription whether
-    // to open the live channel, so a persisted OFF must be settled before
-    // any component renders (otherwise the socket flash-opens on the
-    // default). One local GET; a failure keeps the ON defaults.
-    provideAppInitializer(() => inject(LivePreferencesService).load()),
-    // Cold-start data probes, fire in parallel as the SPA boots. The
-    // `inject()` calls happen synchronously inside the injection
-    // context the factory establishes; `kickoffColdStart` does the
-    // fire-and-forget loop with consistent error semantics.
-    provideAppInitializer(() => {
-      kickoffColdStart(
-        inject(CollectionLoaderService),
-        inject(UpdateCheckService),
-        inject(ProjectInfoService),
-      );
-    }),
+    // Live-channel preference (`ui.liveUpdates`, project-local
+    // `settings.local.json`) THEN the cold-start data probes, in one awaited
+    // initializer. The order is load-critical: the socket owner decides at
+    // first `/ws` subscription whether to open the live channel, and the
+    // loader (the first subscriber) is constructed inside the cold-start
+    // kickoff, so a persisted OFF must be resolved BEFORE it. Splitting this
+    // into two sibling initializers let the socket flash-open on the ON
+    // default while the preference GET was still in flight. See
+    // `settleLivePrefsThenColdStart` for the full rationale. A failed GET
+    // keeps the ON defaults.
+    provideAppInitializer(() => settleLivePrefsThenColdStart(inject(Injector))),
     // Boot-time service wiring: each listed service exposes a "self-wire
     // on construct" contract (router subscriptions, signal effects, root
     // class toggles); see the BOOT CONTRACT note on each service. The
