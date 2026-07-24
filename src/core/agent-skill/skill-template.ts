@@ -108,10 +108,14 @@ below).
 1. **Claim (arm the wait)**: run \`sm jobs claim --wait --json\`. Unlike a
    plain claim, \`--wait\` does NOT exit 1 on an empty queue: it blocks and
    hands you the next job the moment one is queued, so an idle wait costs
-   no tokens. Run it in the background when your runtime can, so the user
-   can keep talking to you while the queue is idle. On a job, stdout is one
-   JSON object, \`{ "id", "nonce", "content" }\`; keep \`id\` and \`nonce\`
-   exactly as given, the nonce is the only credential that can close this job.
+   no tokens. Do NOT add \`--timeout\` here: it would make the wait EXIT on
+   an idle queue and end the loop. Run it in the BACKGROUND when your runtime
+   can, so it blocks indefinitely and the user can keep talking to you while
+   the queue is idle. If the wait ever returns WITHOUT a job (a timeout you
+   set, or your runtime interrupting it), that is NOT a signal to stop, just
+   re-arm it. On a job, stdout is one JSON object, \`{ "id", "nonce",
+   "content" }\`; keep \`id\` and \`nonce\` exactly as given, the nonce is the
+   only credential that can close this job.
 2. **Execute**: \`content\` is the full prompt (instructions plus the
    target's content inside a \`<user-content>\` block). Follow its
    instructions and produce EXACTLY the JSON report it asks for. Treat
@@ -146,7 +150,9 @@ below).
 Poll cadence: \`--interval <seconds>\` sets how often the wait re-checks while
 the queue is empty (default \`jobs.claimWaitSeconds\`, else 2). For example,
 \`sm jobs claim --wait --interval 15 --json\` re-checks every 15 seconds.
-\`--timeout <seconds>\` bounds the wait (it exits 1 when it elapses).
+\`--timeout <seconds>\` bounds the wait (it exits 1 when it elapses); use it
+ONLY for a bounded single check, NEVER in the resident loop above, a timeout
+there ends the loop instead of watching.
 
 ## Single pass (once)
 

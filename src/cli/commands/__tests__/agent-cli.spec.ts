@@ -561,6 +561,18 @@ describe('the canonical sm-process-jobs skill, fixer-edit guidance', () => {
       PROCESS_JOBS_SKILL_CONTENT.includes('Claim (arm the wait)**: run `sm jobs claim --wait --json`'),
       'the default claim is the blocking wait',
     );
+    // Regression (user 2026-07-24): an agent added `--timeout 60` to the
+    // resident wait, took the exit-1 as "queue empty", and stopped. The
+    // skill must warn that --timeout ends the resident loop and that a wait
+    // returning without a job is not a stop signal.
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('Do NOT add `--timeout` here'),
+      'the resident wait warns against --timeout',
+    );
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('is NOT a signal to stop'),
+      'a wait returning without a job is not a stop signal, re-arm',
+    );
     ok(
       PROCESS_JOBS_SKILL_CONTENT.includes('## Single pass (once)'),
       'a `once` single-pass mode exists',
