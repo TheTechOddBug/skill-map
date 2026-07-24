@@ -234,6 +234,28 @@ describe('resolveSignalsAgainstNodes', () => {
     assert.deepEqual(resolved.activity, [{ phase: 'end', owner: 'conv-1', ownerScope: true }]);
   });
 
+  it('node-less SESSION RELEASES forward without resolution', () => {
+    const resolved = resolveSignalsAgainstNodes(
+      // Codex main-context Stop: release every owner grouped under the session.
+      [{ phase: 'end', sessionScope: true, session: 'S1' }],
+      provider,
+      NODES,
+    );
+    assert.deepEqual(resolved.activity, [{ phase: 'end', session: 'S1', sessionScope: true }]);
+    assert.deepEqual(resolved.spawns, []);
+  });
+
+  it('carries the session onto a resolved node-carrying start frame', () => {
+    const resolved = resolveSignalsAgainstNodes(
+      [{ kind: 'skill', name: 'deploy', phase: 'start', owner: 'main:S1', session: 'S1' }],
+      provider,
+      NODES,
+    );
+    assert.deepEqual(resolved.activity, [
+      { nodePath: '.claude/skills/deploy/SKILL.md', phase: 'start', owner: 'main:S1', session: 'S1' },
+    ]);
+  });
+
   it('PATH signals drop when no scanned node carries that path', () => {
     const resolved = resolveSignalsAgainstNodes(
       [

@@ -91,28 +91,59 @@ export const codexActivity: IProviderActivityAdapter = {
       { event: 'PostToolUse', matcher: '^spawn_agent$' },
       { event: 'SubagentStart' },
       { event: 'SubagentStop' },
+      // Main-context turn end. Codex drops a subagent's own `SubagentStop`
+      // when that subagent spawns a nested worker (live-verified
+      // 2026-07-24), so the main `Stop` is the only signal that unwinds a
+      // leaked subagent: it releases every owner of the session.
+      { event: 'Stop' },
     ],
   },
 
   mapEvent(raw: unknown): IActivitySignal[] | null {
     if (raw === null || typeof raw !== 'object') return null;
     const event = raw as Record<string, unknown>;
-    switch (event['hook_event_name']) {
-      case 'UserPromptSubmit':
-        return mapPromptSkills(event);
-      case 'PreToolUse':
-        return mapPreToolUse(event);
-      case 'PostToolUse':
-        return mapSpawnRelation(event, 'handoff');
-      case 'SubagentStart':
-        return mapSubagentBoundary(event, 'start');
-      case 'SubagentStop':
-        return mapSubagentBoundary(event, 'end');
-      default:
-        return null;
+    const signals = mapCodexEvent(event);
+    if (signals === null) return null;
+    // Stamp the session on every signal so the UI can group owners under
+    // it and a `sessionScope` end can release the whole session together.
+    const session = nonEmptyString(event['session_id']);
+    if (session) {
+      for (const signal of signals) if (signal.session === undefined) signal.session = session;
     }
+    return signals;
   },
 };
+
+function mapCodexEvent(event: Record<string, unknown>): IActivitySignal[] | null {
+  switch (event['hook_event_name']) {
+    case 'UserPromptSubmit':
+      return mapPromptSkills(event);
+    case 'PreToolUse':
+      return mapPreToolUse(event);
+    case 'PostToolUse':
+      return mapSpawnRelation(event, 'handoff');
+    case 'SubagentStart':
+      return mapSubagentBoundary(event, 'start');
+    case 'SubagentStop':
+      return mapSubagentBoundary(event, 'end');
+    case 'Stop':
+      return mapSessionEnd(event);
+    default:
+      return null;
+  }
+}
+
+/**
+ * Main-context `Stop` -> a session-scoped release. Carries the session id
+ * (no owner, no node); the UI releases every owner grouped under it, so a
+ * subagent whose own `SubagentStop` Codex dropped goes dark at turn end
+ * instead of waiting out the 5-minute sticky safety net.
+ */
+function mapSessionEnd(event: Record<string, unknown>): IActivitySignal[] | null {
+  const session = nonEmptyString(event['session_id']);
+  if (!session) return null;
+  return [{ phase: 'end', sessionScope: true, session }];
+}
 
 /**
  * `$<skill>` tokens in the submitted prompt, one start signal per

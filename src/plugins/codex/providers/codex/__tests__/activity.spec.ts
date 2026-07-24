@@ -32,6 +32,7 @@ describe('codexActivity.mapEvent', () => {
       { event: 'PostToolUse', matcher: '^spawn_agent$' },
       { event: 'SubagentStart' },
       { event: 'SubagentStop' },
+      { event: 'Stop' },
     ]);
   });
 
@@ -49,6 +50,7 @@ describe('codexActivity.mapEvent', () => {
         phase: 'start',
         owner: 'main:0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90',
         detail: 'ask_question',
+        session: '0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90',
       },
     ]);
   });
@@ -65,6 +67,7 @@ describe('codexActivity.mapEvent', () => {
         name: 'demo-skill-one',
         phase: 'start',
         owner: 'main:0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90',
+        session: '0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90',
       },
     ]);
   });
@@ -88,9 +91,10 @@ describe('codexActivity.mapEvent', () => {
       prompt: 'use $deploy and $check-links, budget $100, keep $PATH, then $deploy again',
     });
     const owner = 'main:0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90';
+    const session = '0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90';
     assert.deepEqual(signals, [
-      { kind: 'skill', name: 'deploy', phase: 'start', owner },
-      { kind: 'skill', name: 'check-links', phase: 'start', owner },
+      { kind: 'skill', name: 'deploy', phase: 'start', owner, session },
+      { kind: 'skill', name: 'check-links', phase: 'start', owner, session },
     ]);
   });
 
@@ -111,7 +115,14 @@ describe('codexActivity.mapEvent', () => {
       agent_type: 'demo-worker',
     });
     assert.deepEqual(signals, [
-      { kind: 'agent', name: 'demo-worker', phase: 'start', owner: 'agt_7f3c1b', sticky: true },
+      {
+        kind: 'agent',
+        name: 'demo-worker',
+        phase: 'start',
+        owner: 'agt_7f3c1b',
+        sticky: true,
+        session: '0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90',
+      },
     ]);
   });
 
@@ -133,6 +144,7 @@ describe('codexActivity.mapEvent', () => {
         owner: 'agt_7f3c1b',
         ownerScope: true,
         report: 'done',
+        session: '0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90',
       },
     ]);
   });
@@ -148,7 +160,7 @@ describe('codexActivity.mapEvent', () => {
   });
 
   it('disclaims non-spawn tool events and everything else', () => {
-    for (const name of ['PreToolUse', 'PostToolUse', 'SessionStart', 'Stop', 'PreCompact']) {
+    for (const name of ['PreToolUse', 'PostToolUse', 'SessionStart', 'PreCompact']) {
       const signals = codexActivity.mapEvent({
         ...COMMON,
         hook_event_name: name,
@@ -177,6 +189,7 @@ describe('codexActivity.mapEvent', () => {
       {
         phase: 'start',
         owner: 'main:0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90',
+        session: '0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90',
         spawn: {
           spawnId: 'call_SpawnDemo000000000001',
           phase: 'start',
@@ -206,6 +219,7 @@ describe('codexActivity.mapEvent', () => {
         phase: 'start',
         owner: '019f324c-58fe-7400-8d49-8e47959e34ef',
         keepAlive: true,
+        session: '0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90',
         spawn: {
           spawnId: 'call_SpawnDemo000000000002',
           phase: 'start',
@@ -259,7 +273,27 @@ describe('codexActivity.mapEvent', () => {
         owner: '019f324e-2837-7823-b869-c24df08889b6',
         ownerScope: true,
         report: 'reporte final del worker',
+        session: '0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90',
       },
     ]);
+  });
+
+  it('maps a main-context Stop to a session-scoped release', () => {
+    const signals = codexActivity.mapEvent({
+      ...COMMON,
+      hook_event_name: 'Stop',
+    });
+    assert.deepEqual(signals, [
+      { phase: 'end', sessionScope: true, session: '0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90' },
+    ]);
+  });
+
+  it('disclaims a Stop that carries no session_id', () => {
+    const { session_id: _sessionId, ...noSession } = COMMON;
+    const signals = codexActivity.mapEvent({
+      ...noSession,
+      hook_event_name: 'Stop',
+    });
+    assert.equal(signals, null);
   });
 });

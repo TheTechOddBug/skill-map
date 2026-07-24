@@ -220,6 +220,14 @@ export function resolveSignalsAgainstNodes(
       out.activity.push({ phase: 'end', owner: signal.owner!, ownerScope: true });
       continue;
     }
+    if (isSessionRelease(signal)) {
+      // Node-less session release (a runtime's turn ended, e.g. Codex's
+      // main-context Stop): nothing to resolve, forward as-is so the UI
+      // releases every owner grouped under the session (the safety net
+      // for a subagent whose own ownerScope end the runtime dropped).
+      out.activity.push({ phase: 'end', session: signal.session!, sessionScope: true });
+      continue;
+    }
     const node = findNodeForSignal(nodes, provider, signal);
     if (!node) continue;
     out.activity.push(buildResolvedData(signal, node.path));
@@ -264,6 +272,18 @@ function isOwnerRelease(signal: IActivitySignal): boolean {
   );
 }
 
+/** The session-release signal form: a sessionScope end with no node target. */
+function isSessionRelease(signal: IActivitySignal): boolean {
+  return (
+    signal.phase === 'end' &&
+    signal.sessionScope === true &&
+    signal.session !== undefined &&
+    signal.path === undefined &&
+    signal.kind === undefined &&
+    signal.name === undefined
+  );
+}
+
 /**
  * Project one resolved signal onto the wire shape. The phase-gated
  * flags are normalised here so consumers never see contradictory
@@ -273,6 +293,9 @@ function isOwnerRelease(signal: IActivitySignal): boolean {
 function buildResolvedData(signal: IActivitySignal, nodePath: string): INodeActivityEventData {
   const resolved: INodeActivityEventData = { nodePath, phase: signal.phase };
   if (signal.owner !== undefined) resolved.owner = signal.owner;
+  // Carry the session so the UI can group this owner under it (a later
+  // sessionScope end releases every owner of the session together).
+  if (signal.session !== undefined) resolved.session = signal.session;
   applyPhaseFlags(resolved, signal);
   if (signal.detail !== undefined) resolved.detail = signal.detail;
   // A PATH signal is a resource access (the runtime touched a file or an mcp

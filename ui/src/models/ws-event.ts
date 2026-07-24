@@ -299,6 +299,22 @@ export interface IWsNodeActivityData {
    * the executing node. Absent when the frame has no tool identity.
    */
   detail?: string;
+  /**
+   * The session id the frame's `owner` belongs to. A frame that carries
+   * BOTH `owner` and `session` establishes that owner's session
+   * membership, so a later session-scoped end can release every owner
+   * grouped under the same session.
+   */
+  session?: string;
+  /**
+   * Only on `phase: 'end'`: SESSION-scoped release. A NODE-LESS frame
+   * (`nodePath` absent, `owner` absent) carrying `sessionScope: true` +
+   * `session` means "the whole session ended: release EVERY owner
+   * grouped under `session`". It is the sibling of the `ownerScope` end
+   * (which releases one owner), healing a live glow when a subagent's
+   * own end signal was dropped but its session end still arrives.
+   */
+  sessionScope?: boolean;
 }
 
 export type IWsNodeActivityEvent = IWsEvent<IWsNodeActivityData> & { type: 'node.activity' };

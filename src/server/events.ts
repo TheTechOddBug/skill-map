@@ -110,11 +110,26 @@ export interface INodeActivityEventData {
   /** Opaque executing-context key (`'main'`, an agent id, ...). Absent when unreported. */
   owner?: string;
   /**
+   * Opaque session id this frame's owner belongs to. Consumers build an
+   * `owner -> session` map from frames that carry both, so a
+   * `sessionScope` end can release the whole session. Absent when
+   * unreported.
+   */
+  session?: string;
+  /**
    * Only on `phase: 'end'`: the owner's WHOLE execution context ended
    * (a subagent terminated). Consumers release every claim held by that
    * `owner` (its skills, its markdown reads), not just this node's.
    */
   ownerScope?: boolean;
+  /**
+   * Only on `phase: 'end'`: a WHOLE SESSION ended (a runtime's turn
+   * closed). Node-less like `ownerScope`, but keyed by `session`:
+   * consumers release EVERY owner grouped under it. The safety net for
+   * runtimes that drop a subagent's own `ownerScope` end (Codex's
+   * nested-spawn case). `session` is REQUIRED with it.
+   */
+  sessionScope?: boolean;
   /**
    * Only on `phase: 'start'`: lifecycle claim (an agent's own span, a
    * parent held lit by a running child). Gets a much longer decay

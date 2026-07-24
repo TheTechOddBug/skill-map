@@ -173,6 +173,16 @@ export class NodeActivityService {
    */
   private readonly lastUnitByOwner = new Map<string, string>();
 
+  /**
+   * Owner -> session membership, recorded whenever a frame carries BOTH
+   * `owner` and `session`. A node-less SESSION-scoped end
+   * (`sessionScope: true` + `session`) releases every owner recorded
+   * under that session, healing a live glow when a subagent's own
+   * owner-scope end was dropped but its session end still arrived.
+   * Cleaned per owner on release, wholesale on disable.
+   */
+  private readonly sessionByOwner = new Map<string, string>();
+
   /** Rule-9 coalescing buffer: events land here, the signal mutates once per frame. */
   private pending: IWsNodeActivityData[] = [];
   private flushScheduled = false;
@@ -215,6 +225,7 @@ export class NodeActivityService {
     this.claims.clear();
     this.invocations.clear();
     this.lastUnitByOwner.clear();
+    this.sessionByOwner.clear();
     this.publish(Date.now());
   }
 
@@ -246,6 +257,29 @@ export class NodeActivityService {
     // out mid-run even when a particular node stays quiet.
     if (data.owner !== undefined) {
       this.refreshOwnerClaims(owner, now);
+    }
+
+    // Session membership: a frame carrying both owner and session records
+    // that owner under its session, so a later session-scoped end can
+    // release the whole group.
+    if (data.owner !== undefined && data.session !== undefined) {
+      this.sessionByOwner.set(data.owner, data.session);
+    }
+
+    // Session-scoped end (the whole session ended): a node-less frame
+    // with `sessionScope: true` + `session` releases EVERY owner grouped
+    // under that session, healing a live glow whose owner-scope end was
+    // dropped. Checked BEFORE the owner-scope branch; it carries no
+    // nodePath and no owner of its own.
+    if (data.phase === 'end' && data.sessionScope === true && data.session !== undefined) {
+      const session = data.session;
+      const owners = [...this.sessionByOwner.entries()]
+        .filter(([, s]) => s === session)
+        .map(([o]) => o);
+      for (const sessionOwner of owners) {
+        this.releaseOwnerEverywhere(sessionOwner);
+      }
+      return;
     }
 
     // Owner-scoped end (a subagent terminated, a conversation went
@@ -344,6 +378,7 @@ export class NodeActivityService {
       if (entry.owner === owner) this.invocations.delete(target);
     }
     this.lastUnitByOwner.delete(owner);
+    this.sessionByOwner.delete(owner);
   }
 
   /**

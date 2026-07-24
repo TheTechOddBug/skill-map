@@ -517,6 +517,25 @@ export interface IActivitySignal {
    */
   owner?: string;
   /**
+   * Opaque session identifier the executing context belongs to. Groups
+   * every owner (the main context AND the subagents it spawned) under one
+   * session so a `sessionScope` end can release them together. Rides the
+   * frame; consumers build an `owner -> session` map from the signals
+   * that carry both. Absent when the runtime reports no session id.
+   */
+  session?: string;
+  /**
+   * Only meaningful on `phase: 'end'`: `true` when the signal marks the
+   * end of a WHOLE SESSION (a runtime's turn ended), releasing EVERY
+   * owner grouped under `session`. The safety net for runtimes that drop
+   * a subagent's own `ownerScope` end (Codex, live-verified 2026-07-24:
+   * a subagent that itself spawns a nested worker never gets its
+   * `SubagentStop`, so only the main-context `Stop` unwinds it). Node-less
+   * like the owner-release form; `session` is REQUIRED for it to mean
+   * anything.
+   */
+  sessionScope?: boolean;
+  /**
    * Only meaningful on `phase: 'end'`: `true` when the signal marks the
    * end of the OWNER'S WHOLE EXECUTION CONTEXT (a subagent terminating),
    * not just of the named node. Consumers release every claim held by

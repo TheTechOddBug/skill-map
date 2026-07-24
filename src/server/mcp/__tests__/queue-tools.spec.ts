@@ -23,6 +23,7 @@ import type { IMcpWriteContext } from '../context.js';
 import {
   cancelJob,
   claimJobTool,
+  claimWithOptionalWait,
   failJob,
   getJob,
   listExtensions,
@@ -186,6 +187,39 @@ describe('mcp claim_job', () => {
     assert.equal(typeof claim.nonce, 'string');
     assert.ok(claim.content.length > 0, 'rendered prompt returned');
     if (submitted.outcome === 'created') assert.equal(claim.id, submitted.jobId);
+  });
+
+  it('wait set + a job already present returns it immediately (no sleeping)', async () => {
+    const project = await makeProject(true);
+    const ctx = await realCtx(project);
+    const submitted = await submitJob(ctx, { node: SKILL_NODE.path, extension: SUMMARIZER_ID });
+    assert.equal(submitted.outcome, 'created');
+    const started = Date.now();
+    const claim = await claimJobTool(ctx, { wait: 5 });
+    assert.ok(claim, 'a present job is claimed on the first attempt');
+    // The immediate hit must not park for a poll interval (2000ms).
+    assert.ok(Date.now() - started < 1000, 'returned without sleeping');
+  });
+
+  it('wait set + empty queue the whole time returns empty after the window (polls > once)', async () => {
+    const project = await makeProject(true);
+    const started = Date.now();
+    // Tiny injected interval keeps the test fast while still polling many times.
+    const outcome = await claimWithOptionalWait(bareCtx(project), 'agent', undefined, 1, 10);
+    assert.equal(outcome.kind, 'empty');
+    assert.ok(Date.now() - started >= 1000, 'held for roughly the full window');
+  });
+
+  it('wait set + a job appearing after the first attempt is claimed by the blocking loop', async () => {
+    const project = await makeProject(true);
+    const ctx = await realCtx(project);
+    // No job present at call time; insert one shortly after the poll starts.
+    setTimeout(() => {
+      void seedQueued(project, 'd-20260101-000000-9601');
+    }, 30);
+    const outcome = await claimWithOptionalWait(ctx, 'agent', undefined, 5, 10);
+    assert.equal(outcome.kind, 'claimed');
+    if (outcome.kind === 'claimed') assert.equal(outcome.id, 'd-20260101-000000-9601');
   });
 
   it('fails and skips a claimed job with a missing content row (McpError)', async () => {

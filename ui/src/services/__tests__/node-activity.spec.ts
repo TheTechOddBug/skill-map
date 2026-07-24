@@ -244,6 +244,68 @@ describe('NodeActivityService', () => {
     expect(service.activePaths().has(AGENT)).toBe(true);
   });
 
+  it('a session-scoped end heals a dropped subagent end (releases every owner under the session)', async () => {
+    const { service, events$ } = bootstrap(10_000);
+
+    // A subagent owner "childA" carries its session id and lights n1.
+    const start = makeEvent('n1', 'start', 'childA');
+    start.data.session = 'S1';
+    events$.next(start);
+    await flushed();
+    expect(service.activePaths().has('n1')).toBe(true);
+
+    // No SubagentStop / ownerScope for childA ever arrives; only the
+    // node-less session end lands. It must still release n1.
+    events$.next({
+      type: 'node.activity',
+      timestamp: 1_700_000_000_000,
+      data: { phase: 'end', sessionScope: true, session: 'S1' },
+    });
+    await flushed();
+    expect(service.activePaths().has('n1')).toBe(false);
+  });
+
+  it('a session-scoped end releases only its own session, leaving other sessions lit', async () => {
+    const { service, events$ } = bootstrap(10_000);
+
+    const startA = makeEvent('n1', 'start', 'ownerA');
+    startA.data.session = 'S1';
+    events$.next(startA);
+    const startB = makeEvent('n2', 'start', 'ownerB');
+    startB.data.session = 'S2';
+    events$.next(startB);
+    await flushed();
+    expect(service.activePaths().size).toBe(2);
+
+    events$.next({
+      type: 'node.activity',
+      timestamp: 1_700_000_000_000,
+      data: { phase: 'end', sessionScope: true, session: 'S1' },
+    });
+    await flushed();
+
+    expect(service.activePaths().has('n1')).toBe(false);
+    expect(service.activePaths().has('n2')).toBe(true);
+  });
+
+  it('a session-scoped end for an unknown session is a no-op', async () => {
+    const { service, events$ } = bootstrap(10_000);
+
+    const start = makeEvent('n1', 'start', 'ownerA');
+    start.data.session = 'S1';
+    events$.next(start);
+    await flushed();
+    expect(service.activePaths().has('n1')).toBe(true);
+
+    events$.next({
+      type: 'node.activity',
+      timestamp: 1_700_000_000_000,
+      data: { phase: 'end', sessionScope: true, session: 'S-unknown' },
+    });
+    await flushed();
+    expect(service.activePaths().has('n1')).toBe(true);
+  });
+
   it('owner heartbeat refreshes every claim that owner holds', async () => {
     // ttl 250ms: the skill claim alone would die at ~t=250. Heartbeats
     // (other activity from the same owner) land at ~t=130 and ~t=260,

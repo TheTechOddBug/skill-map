@@ -39,7 +39,7 @@ import { ErrorCode, McpError, type CallToolResult } from '@modelcontextprotocol/
 
 import { processingSkillPresence } from '../../core/agent-skill/targets.js';
 import { buildActionRuntime, type IActionRuntime } from '../../core/jobs/action-runtime.js';
-import { claimJob } from '../../core/jobs/claim-engine.js';
+import { claimJob, type TClaimOutcome } from '../../core/jobs/claim-engine.js';
 import { generateRunId } from '../../core/jobs/record-engine.js';
 import { recordJob } from '../../core/jobs/record-engine.js';
 import {
@@ -422,14 +422,36 @@ function prepareErrorToMcp(error: TPrepareError, extension: string): McpError {
 // claim_job
 // ---------------------------------------------------------------------------
 
+/**
+ * Hard cap on the server-side blocking window (1 hour). A client may ask
+ * for a longer `wait`, but the tool never parks a response beyond this.
+ */
+const MAX_CLAIM_WAIT_SECONDS = 3600;
+
+/**
+ * Re-attempt cadence while long-polling: sleep this long OUTSIDE any open
+ * DB handle, then open a fresh `withWriteDb` for the next claim attempt.
+ * Mirrors the CLI's `DEFAULT_CLAIM_WAIT_SECONDS = 2` poll cadence.
+ */
+const CLAIM_WAIT_POLL_INTERVAL_MS = 2000;
+
 export const claimJobInputShape = {
   runner: z.string().optional().describe('Runner label stamped on the claim (default "agent").'),
   filter: z.string().optional().describe('Restrict the claim to one extension id.'),
+  wait: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      'Long-poll up to N seconds (server-side blocking claim): the tool holds the response until a job is claimable or the window elapses, so an MCP client can PARK on one call instead of polling. Omit for a single immediate attempt. Set the MCP client tool timeout >= this value.',
+    ),
 };
 
 export interface IClaimJobArgs {
   runner?: string | undefined;
   filter?: string | undefined;
+  wait?: number | undefined;
 }
 
 export interface IClaimJobResult {
@@ -453,9 +475,7 @@ export async function claimJobTool(
   // The engine outcome is mapped OUTSIDE `withWriteDb`: an empty queue must
   // return `null` to the caller, but returning `null` from the DB callback
   // is indistinguishable from a missing-DB short-circuit.
-  const outcome = await withWriteDb(ctx, (adapter) =>
-    claimJob(adapter, { runner, nowMs: Date.now(), filter: args.filter }),
-  );
+  const outcome = await claimWithOptionalWait(ctx, runner, args.filter, args.wait);
   if (outcome.kind === 'empty') return null;
   if (outcome.kind === 'corrupt') {
     throw new McpError(
@@ -477,6 +497,42 @@ export async function claimJobTool(
     },
   });
   return { id: outcome.id, nonce: outcome.nonce, content: outcome.content };
+}
+
+/** Resolve after `ms` (the long-poll pause between claim attempts). */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * One immediate claim attempt, optionally followed by a server-side
+ * blocking long-poll when the first attempt is `empty` and `waitSeconds`
+ * is set. Each attempt opens a FRESH `withWriteDb`, and the `sleep()`
+ * between attempts happens OUTSIDE any open DB handle, so the long-poll
+ * never holds a sqlite write lock across the wait. `waitSeconds` is capped
+ * at `MAX_CLAIM_WAIT_SECONDS`; `pollIntervalMs` is injectable for tests
+ * (never exposed on the tool input shape).
+ */
+export async function claimWithOptionalWait(
+  ctx: IMcpWriteContext,
+  runner: JobRunner,
+  filter: string | undefined,
+  waitSeconds: number | undefined,
+  pollIntervalMs: number = CLAIM_WAIT_POLL_INTERVAL_MS,
+): Promise<TClaimOutcome> {
+  const attempt = (): Promise<TClaimOutcome> =>
+    withWriteDb(ctx, (adapter) => claimJob(adapter, { runner, nowMs: Date.now(), filter }));
+
+  const first = await attempt();
+  if (first.kind !== 'empty' || !waitSeconds) return first;
+
+  const deadline = Date.now() + Math.min(waitSeconds, MAX_CLAIM_WAIT_SECONDS) * 1000;
+  while (Date.now() < deadline) {
+    await sleep(pollIntervalMs);
+    const next = await attempt();
+    if (next.kind !== 'empty') return next;
+  }
+  return { kind: 'empty' };
 }
 
 // ---------------------------------------------------------------------------
