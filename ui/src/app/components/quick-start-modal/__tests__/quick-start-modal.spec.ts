@@ -47,6 +47,9 @@ interface ISetupProbe {
   captureRowStatus(): TQuickStartStatus;
   captureStatusText(): string;
   liveUpdatesStatus(): TQuickStartStatus;
+  mcpInstalledStatus(): TQuickStartStatus;
+  mcpInstalledStatusText(): string;
+  onCheckMcpConnection(): Promise<void>;
   onFollowSymlinksToggle(): void;
   onLiveUpdatesToggle(): void;
 }
@@ -152,6 +155,48 @@ describe('QuickStartModal, row status indicators', () => {
     // The WsEventStreamService default is enabled, so the row is ready
     // before any probe (it binds the live signal, not a fetch).
     expect(setup.probe.liveUpdatesStatus()).toBe('ready');
+  });
+});
+
+describe('QuickStartModal, MCP connection check', () => {
+  it('marks the row ready + "Connected" when a client is connected', async () => {
+    const mcpStatus = vi
+      .fn()
+      .mockResolvedValue({ enabled: true, connected: true, clients: 1 });
+    const setup = bootstrap({
+      getProjectPreferences: vi.fn().mockResolvedValue(prefs()),
+      getActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
+      mcpStatus,
+    } as Partial<IDataSourcePort>);
+
+    // Not checked yet before the user clicks Check.
+    expect(setup.probe.mcpInstalledStatus()).toBe('unknown');
+    expect(setup.probe.mcpInstalledStatusText()).toBe(QUICK_START_TEXTS.status.notChecked);
+
+    await setup.probe.onCheckMcpConnection();
+    await flushAsync();
+
+    expect(mcpStatus).toHaveBeenCalled();
+    expect(setup.probe.mcpInstalledStatus()).toBe('ready');
+    expect(setup.probe.mcpInstalledStatusText()).toBe(QUICK_START_TEXTS.status.connected);
+  });
+
+  it('marks the row not-ready + "Not connected yet" when nothing is connected', async () => {
+    const mcpStatus = vi
+      .fn()
+      .mockResolvedValue({ enabled: true, connected: false, clients: 0 });
+    const setup = bootstrap({
+      getProjectPreferences: vi.fn().mockResolvedValue(prefs()),
+      getActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
+      mcpStatus,
+    } as Partial<IDataSourcePort>);
+
+    await setup.probe.onCheckMcpConnection();
+    await flushAsync();
+
+    expect(mcpStatus).toHaveBeenCalled();
+    expect(setup.probe.mcpInstalledStatus()).toBe('not-ready');
+    expect(setup.probe.mcpInstalledStatusText()).toBe(QUICK_START_TEXTS.status.notConnected);
   });
 });
 

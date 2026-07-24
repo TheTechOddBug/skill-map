@@ -217,6 +217,14 @@
                   (onClick)="onCopyMcpCommand()"
                   data-testid="quick-start-row-mcp-installed-action"
                 />
+                <p-button
+                  [label]="texts.action.check"
+                  severity="primary"
+                  size="small"
+                  [loading]="mcpChecking()"
+                  (onClick)="onCheckMcpConnection()"
+                  data-testid="quick-start-row-mcp-installed-check"
+                />
               </sm-quick-start-row>
 
               <sm-quick-start-row

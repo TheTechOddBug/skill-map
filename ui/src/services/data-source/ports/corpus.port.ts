@@ -18,6 +18,7 @@ import type {
   IFindingsEnvelopeApi,
   IFolderNodeLite,
   IHealthResponseApi,
+  IMcpStatusApi,
   IIssueApi,
   ILinkApi,
   IListEnvelopeApi,
@@ -75,6 +76,13 @@ export type TGraphFormat = 'ascii' | 'json' | 'md';
 export interface ICorpusPort {
   /** Liveness + version probe. Returns the BFF's health payload. */
   health(): Promise<IHealthResponseApi>;
+
+  /**
+   * Live MCP-connection probe (`GET /api/mcp/status`). Reports whether
+   * `/mcp` is exposed and whether at least one client is currently
+   * connected (scope-agnostic live session count).
+   */
+  mcpStatus(): Promise<IMcpStatusApi>;
 
   /** Full `ScanResult` (1:1 with `scan-result.schema.json`). */
   loadScan(): Promise<IScanResultApi>;

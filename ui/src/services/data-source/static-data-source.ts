@@ -44,6 +44,7 @@ import type {
   IFindingsEnvelopeApi,
   IFolderNodeLite,
   IHealthResponseApi,
+  IMcpStatusApi,
   IIssueApi,
   IJobApi,
   IJobSubmittedEnvelopeApi,
@@ -187,6 +188,11 @@ export class StaticDataSource implements IDataSourcePort {
   async health(): Promise<IHealthResponseApi> {
     const meta = await this.loadMeta();
     return meta.health;
+  }
+
+  /** The offline demo has no live MCP server, so report nothing connected. */
+  async mcpStatus(): Promise<IMcpStatusApi> {
+    return { enabled: false, connected: false, clients: 0 };
   }
 
   /**

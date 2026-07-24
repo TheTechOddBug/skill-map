@@ -91,6 +91,7 @@ import { registerFavoritesRoutes } from './routes/favorites.js';
 import { registerFoldersRoute } from './routes/folders.js';
 import { registerGraphRoute } from './routes/graph.js';
 import { registerHealthRoute } from './routes/health.js';
+import { registerMcpStatusRoute } from './routes/mcp-status.js';
 import { registerIssuesRoute } from './routes/issues.js';
 import { registerLinksRoute } from './routes/links.js';
 import { registerNodeFindingActionsRoutes } from './routes/node-finding-actions.js';
@@ -596,6 +597,11 @@ export function createApp(deps: IAppDeps): Hono {
     runtimeContext: deps.runtimeContext,
     specVersion: deps.specVersion,
   });
+
+  // 1b. /api/mcp/status, live MCP connection probe (Quick Start "MCP
+  //     installed on your agent" check). `mcpManager` is null when the MCP
+  //     server is off, so the route reports enabled=false / connected=false.
+  registerMcpStatusRoute(app, { options: deps.options, mcpManager: deps.mcpManager });
 
   // 2-9. /api/*, Step 14.2 read-side endpoints. Order matters for
   //      the `/api/nodes/:pathB64` vs `/api/nodes` pair (see

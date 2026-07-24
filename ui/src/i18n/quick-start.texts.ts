@@ -31,14 +31,6 @@ export const MCP_REGISTER_COMMANDS: Record<string, string> = {
 export const MCP_REGISTER_COMMAND_DEFAULT =
   'Run `sm serve --mcp`, then register http://127.0.0.1:4242/mcp in your agent MCP config.';
 
-/**
- * Lenses whose MCP config is project-local, so a scan can materialise an
- * `mcp://skill-map` node the panel can verify against. Every other lens
- * (home-scoped configs like antigravity) shows copy guidance only and
- * never claims verification.
- */
-export const MCP_VERIFIABLE_LENSES: readonly string[] = ['claude', 'codex'];
-
 /** The register command for a lens, or the generic guidance fallback. */
 export function mcpRegisterCommand(providerId: string | null | undefined): string {
   if (providerId && providerId in MCP_REGISTER_COMMANDS) {
@@ -77,6 +69,9 @@ export const QUICK_START_TEXTS = {
     noAgent: 'No agent answering',
     needsSkill: 'Install the agent skill first',
     noNodeToProbe: 'Scan a file first',
+    connected: 'Connected',
+    notConnected: 'Not connected yet',
+    notChecked: 'Not checked yet',
   },
 
   /** Shared action-button labels. */
@@ -168,7 +163,8 @@ export const QUICK_START_TEXTS = {
     mcpInstalled: {
       label: 'MCP installed on your agent',
       description:
-        'Install the MCP server in your agent so it can run queued jobs on your harness.',
+        'Copy the command and run it in your agent, approve the MCP connection when your ' +
+        'agent prompts you, then click Check to confirm the live connection.',
       copiedHint: 'Command copied to the clipboard.',
     },
     agentSkill: {

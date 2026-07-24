@@ -142,6 +142,7 @@ function makeStubLoader(initialNodes: INodeView[] = []): IStubLoader {
 
 const STUB_DATA_SOURCE: IDataSourcePort = {
   health: vi.fn(),
+  mcpStatus: vi.fn(),
   loadScan: vi.fn(),
   loadScanMeta: vi.fn(),
   loadFolders: vi.fn().mockResolvedValue([]),

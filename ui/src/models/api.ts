@@ -947,6 +947,19 @@ export interface IHealthResponseApi {
 }
 
 /**
+ * `/api/mcp/status` response (mirrors the BFF's live MCP-session probe).
+ * `enabled` is whether skill-map exposes `/mcp` (the `mcp.server.enabled`
+ * preference); `connected` is TRUE when at least one client is currently
+ * connected to `/mcp` (scope-agnostic, any live MCP session); `clients`
+ * is the live session count.
+ */
+export interface IMcpStatusApi {
+  enabled: boolean;
+  connected: boolean;
+  clients: number;
+}
+
+/**
  * `/api/update-status` response (mirrors
  * `src/server/routes/update-status.ts:IUpdateStatusResponse`). The
  * endpoint always returns 200; `isOutdated: true` is the only signal

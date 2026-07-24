@@ -50,7 +50,6 @@ import { MessageModule } from 'primeng/message';
 import { TooltipModule } from 'primeng/tooltip';
 
 import {
-  MCP_VERIFIABLE_LENSES,
   QUICK_START_TEXTS,
   type TQuickStartStatus,
   mcpRegisterCommand,
@@ -74,10 +73,6 @@ import { ProjectInfoService } from '../../services/project-info';
 import { formatErr } from '../settings-modal/settings-project.utils';
 import { QuickStartRow } from './quick-start-row';
 
-/** Node path the skill-map MCP server materialises as when registered. */
-const SKILL_MAP_MCP_PATH = 'mcp://skill-map';
-/** Frontmatter name of that node, the fallback verification key. */
-const SKILL_MAP_MCP_NAME = 'skill-map';
 /** Milliseconds the "Copied" affordance stays up after a clipboard write. */
 const COPIED_FEEDBACK_MS = 2000;
 /** Qualified id of the hidden system liveness-probe extension. */
@@ -173,8 +168,12 @@ export class QuickStartModal {
   /** Probed hook envelope, read by the template for the button severity. */
   protected readonly hookStatus = signal<IActivityInstallStatusApi | null>(null);
   private readonly skillStatus = signal<IAgentSkillInstallStatusApi | null>(null);
-  /** Whether an `mcp://skill-map` node is present in the scanned graph. */
-  private readonly mcpNodeInstalled = signal<boolean | null>(null);
+  /**
+   * Live MCP-connection verdict for the "MCP installed on your agent" row.
+   * `null` = not checked yet; `true` = a client is connected to `/mcp`;
+   * `false` = probed but nothing connected (or the probe failed).
+   */
+  private readonly mcpConnected = signal<boolean | null>(null);
 
   /** Sticky "restart sm serve --mcp" hint once the MCP pref is flipped on. */
   private readonly mcpRestartPending = signal(false);
@@ -187,11 +186,6 @@ export class QuickStartModal {
   private readonly hookInstalledSignal = this.activityReadiness.hookInstalled;
   protected readonly mcpLive = this.projectInfo.mcp;
   private readonly activeProvider = this.projectInfo.activeProvider;
-
-  /** Active lens has a project-local MCP config the panel can verify against. */
-  private readonly verifiableLens = computed<boolean>(() =>
-    MCP_VERIFIABLE_LENSES.includes(this.activeProvider() ?? ''),
-  );
 
   constructor() {
     // Lens-independent probes: re-run whenever the modal opens.
@@ -207,7 +201,6 @@ export class QuickStartModal {
       if (!this.visible() || provider === null) return;
       void this.refreshHook(provider);
       void this.refreshSkill(provider);
-      void this.refreshMcpNode(provider);
     });
     // Drop any in-flight liveness watch when the panel is torn down.
     this.destroyRef.onDestroy(() => this.teardownPing());
@@ -506,22 +499,25 @@ export class QuickStartModal {
   }
 
   // ===================================================================
-  // Row (g), MCP installed in project. Verified against the scanned graph
-  // for lenses with a project-local MCP config; copy-guidance only for
-  // the rest.
+  // Row (g), MCP installed on your agent. Primary verification is a LIVE
+  // connection probe (`GET /api/mcp/status`): the user runs the register
+  // command, approves the runtime trust prompt in their agent, then hits
+  // Check. Copy-command guidance stays alongside the Check action.
   // ===================================================================
 
+  protected readonly mcpChecking = signal(false);
+
   protected readonly mcpInstalledStatus = computed<TQuickStartStatus>(() => {
-    if (!this.verifiableLens()) return 'unknown';
-    const v = this.mcpNodeInstalled();
+    if (this.mcpChecking()) return 'unknown';
+    const v = this.mcpConnected();
     if (v === null) return 'unknown';
     return v ? 'ready' : 'not-ready';
   });
   protected readonly mcpInstalledStatusText = computed<string>(() => {
-    if (!this.verifiableLens()) return this.texts.status.registerManually;
-    const v = this.mcpNodeInstalled();
-    if (v === null) return this.texts.status.checking;
-    return v ? this.texts.status.registered : this.texts.status.notRegistered;
+    if (this.mcpChecking()) return this.texts.status.checking;
+    const v = this.mcpConnected();
+    if (v === null) return this.texts.status.notChecked;
+    return v ? this.texts.status.connected : this.texts.status.notConnected;
   });
   protected readonly mcpCopyLabel = computed<string>(() =>
     this.mcpCopied() ? this.texts.action.copied : this.texts.action.copyCommand,
@@ -529,6 +525,19 @@ export class QuickStartModal {
   protected readonly mcpInstalledMeta = computed<string | null>(() =>
     this.mcpCopied() ? this.texts.rows.mcpInstalled.copiedHint : null,
   );
+
+  /** Run the live MCP-connection probe and land its verdict on the row. */
+  protected async onCheckMcpConnection(): Promise<void> {
+    this.mcpChecking.set(true);
+    try {
+      const res = await this.dataSource.mcpStatus();
+      this.mcpConnected.set(res.connected);
+    } catch {
+      this.mcpConnected.set(false);
+    } finally {
+      this.mcpChecking.set(false);
+    }
+  }
 
   protected async onCopyMcpCommand(): Promise<void> {
     const command = mcpRegisterCommand(this.activeProvider());
@@ -885,29 +894,6 @@ export class QuickStartModal {
     } catch (err) {
       this.error.set(formatErr(err));
       this.skillStatus.set(null);
-    }
-  }
-
-  /**
-   * Verify the `mcp://skill-map` node in the scanned graph. Only lenses
-   * with a project-local MCP config surface such a node, so unverifiable
-   * lenses resolve to `null` (unknown) and the row shows copy guidance
-   * without claiming a verdict.
-   */
-  private async refreshMcpNode(provider: string): Promise<void> {
-    if (!MCP_VERIFIABLE_LENSES.includes(provider)) {
-      this.mcpNodeInstalled.set(null);
-      return;
-    }
-    try {
-      const envelope = await this.dataSource.listNodes({ kind: ['mcp'] });
-      const found = envelope.items.some(
-        (n) => n.path === SKILL_MAP_MCP_PATH || n.frontmatter?.name === SKILL_MAP_MCP_NAME,
-      );
-      this.mcpNodeInstalled.set(found);
-    } catch (err) {
-      this.error.set(formatErr(err));
-      this.mcpNodeInstalled.set(null);
     }
   }
 }

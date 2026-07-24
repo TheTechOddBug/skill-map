@@ -30,6 +30,7 @@ import type {
   IFindingsEnvelopeApi,
   IFolderNodeLite,
   IHealthResponseApi,
+  IMcpStatusApi,
   IIssueApi,
   IJobApi,
   IJobsEnvelopeApi,
@@ -122,6 +123,10 @@ export class RestDataSource implements IDataSourcePort {
 
   async health(): Promise<IHealthResponseApi> {
     return this.getJson<IHealthResponseApi>(`${BASE}/health`);
+  }
+
+  async mcpStatus(): Promise<IMcpStatusApi> {
+    return this.getJson<IMcpStatusApi>(`${BASE}/mcp/status`);
   }
 
   /**
