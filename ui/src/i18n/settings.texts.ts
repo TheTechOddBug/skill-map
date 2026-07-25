@@ -322,6 +322,13 @@ export const SETTINGS_TEXTS = {
       label: 'Capture agent conversations',
       description:
         'Inspect what your agents say to each other (click a connector to see it).',
+      /**
+       * Gated on the active lens's real-time hook ALONE (installed by the
+       * `<sm-settings-project-hook>` row above): without it no activity
+       * event reaches skill-map, so the gate would capture nothing.
+       * Unknown (`null`) fails open, like the sibling real-time row.
+       */
+      hookHint: 'Install the real-time hook above first.',
       enableConfirmHeader: 'Capture agent conversations?',
       enableConfirmIntro:
         'This keeps possibly sensitive prompts and responses in memory ' +

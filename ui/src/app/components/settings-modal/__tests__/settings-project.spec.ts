@@ -12,6 +12,7 @@ import { SettingsProjectPreferences } from '../settings-project-preferences';
 import { SettingsProjectRealtime } from '../settings-project-realtime';
 import { SettingsProjectSkill } from '../settings-project-skill';
 import { ActivityReadinessService } from '../../../services/activity-readiness';
+import { SETTINGS_TEXTS } from '../../../../i18n/settings.texts';
 import {
   DATA_SOURCE,
   DataSourceError,
@@ -1008,21 +1009,42 @@ describe('SettingsProjectCapture, conversation-capture toggle', () => {
     captureEnabled(): boolean;
     captureEnabledView(): boolean;
     captureError(): string | null;
+    captureBlocked(): boolean;
+    captureToggleDisabled(): boolean;
     captureStatus: WritableSignal<{ enabled: boolean } | null>;
     onCaptureToggle(next: boolean): void;
     isPending(key: string): boolean;
   }
 
-  function bootstrapCapture(stub: Partial<IDataSourcePort>): {
+  /**
+   * `hookInstalled` feeds the shared readiness service the row gates on;
+   * the default `null` (unknown) is the fail-open case, so the pre-existing
+   * consent / write specs below are untouched by the gate.
+   */
+  function bootstrapCapture(
+    stub: Partial<IDataSourcePort>,
+    opts?: { hookInstalled?: boolean | null },
+  ): {
     proto: ICaptureProto;
     fixture: ReturnType<typeof TestBed.createComponent<SettingsProjectCapture>>;
     confirmation: ConfirmationService;
+    readinessRefresh: ReturnType<typeof vi.fn>;
   } {
     TestBed.resetTestingModule();
+    const readinessRefresh = vi.fn().mockResolvedValue(undefined);
+    // NOT `??`: an explicit `null` (hook state unknown) must survive.
+    const hookInstalled = opts?.hookInstalled === undefined ? null : opts.hookInstalled;
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
         { provide: DATA_SOURCE, useValue: stub },
+        {
+          provide: ActivityReadinessService,
+          useValue: {
+            hookInstalled: signal(hookInstalled).asReadonly(),
+            refresh: readinessRefresh,
+          } as unknown as ActivityReadinessService,
+        },
       ],
     });
     const fixture = TestBed.createComponent(SettingsProjectCapture);
@@ -1033,6 +1055,7 @@ describe('SettingsProjectCapture, conversation-capture toggle', () => {
       proto: fixture.componentInstance as unknown as ICaptureProto,
       fixture,
       confirmation,
+      readinessRefresh,
     };
   }
 
@@ -1147,6 +1170,68 @@ describe('SettingsProjectCapture, conversation-capture toggle', () => {
     await flushAsync();
     expect(proto.isPending('activity.capture')).toBe(false);
     expect(proto.captureEnabled()).toBe(true);
+  });
+
+  /**
+   * Hook gate: with no real-time hook installed, no activity event ever
+   * reaches skill-map, so capturing conversations would record nothing.
+   * The lock is directional (ENABLE only) and fails open on an unknown
+   * hook state, mirroring the sibling real-time row.
+   */
+  describe('gated on the real-time hook', () => {
+    const HINT = '[data-testid="settings-project-activity-capture-hook-hint"]';
+
+    function renderCapture(
+      enabled: boolean,
+      hookInstalled: boolean | null,
+    ): { proto: ICaptureProto; el: HTMLElement } {
+      const { proto, fixture } = bootstrapCapture(
+        { getActivityCapture: vi.fn().mockResolvedValue({ enabled }) },
+        { hookInstalled },
+      );
+      proto.captureStatus.set({ enabled });
+      fixture.detectChanges();
+      return { proto, el: fixture.nativeElement as HTMLElement };
+    }
+
+    it('locks the toggle and explains why while the hook is missing', () => {
+      const { proto, el } = renderCapture(false, false);
+      expect(proto.captureBlocked()).toBe(true);
+      expect(proto.captureToggleDisabled()).toBe(true);
+      expect(el.querySelector(HINT)?.textContent?.trim()).toBe(
+        SETTINGS_TEXTS.project.activityCapture.hookHint,
+      );
+    });
+
+    it('still allows turning an already-capturing gate OFF without the hook', () => {
+      const { proto } = renderCapture(true, false);
+      // Only ENABLING is gated: a capture left on must always be stoppable.
+      expect(proto.captureToggleDisabled()).toBe(false);
+    });
+
+    it('leaves the toggle free once the hook is installed', () => {
+      const { proto, el } = renderCapture(false, true);
+      expect(proto.captureBlocked()).toBe(false);
+      expect(proto.captureToggleDisabled()).toBe(false);
+      expect(el.querySelector(HINT)).toBeNull();
+    });
+
+    it('fails OPEN while the hook state is unknown (no hint, toggle usable)', () => {
+      const { proto, el } = renderCapture(false, null);
+      expect(proto.captureBlocked()).toBe(false);
+      expect(proto.captureToggleDisabled()).toBe(false);
+      expect(el.querySelector(HINT)).toBeNull();
+    });
+
+    it('re-probes the shared hook-install state on section open', () => {
+      const { fixture, readinessRefresh } = bootstrapCapture({
+        getActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
+      });
+      expect(readinessRefresh).not.toHaveBeenCalled();
+      fixture.componentRef.setInput('visible', true);
+      fixture.detectChanges();
+      expect(readinessRefresh).toHaveBeenCalled();
+    });
   });
 });
 

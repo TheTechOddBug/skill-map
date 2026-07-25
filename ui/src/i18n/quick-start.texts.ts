@@ -204,6 +204,10 @@ export const QUICK_START_TEXTS = {
       label: 'Capture conversations',
       description:
         'Inspect what your agents say to each other (click a connector to see it).',
+      // Gated on the HOOK alone (not on Live updates): without the hook no
+      // activity event ever reaches skill-map, so the gate would capture
+      // nothing at all.
+      blockedHint: 'Install the real-time hook above first.',
       enableConfirmHeader: 'Capture conversation content?',
       enableConfirmIntro:
         'Prompts and responses between agents will be recorded in this ' +

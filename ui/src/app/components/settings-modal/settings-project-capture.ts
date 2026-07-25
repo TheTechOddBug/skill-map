@@ -13,7 +13,15 @@
  * unchanged envelope would not, computeds do not notify on equal
  * values).
  *
- * Lifecycle mirrors the sibling children: fetch on `(visible) === true`.
+ * Subordinate to ONE gate: the active lens's activity hook (installed by
+ * the `<sm-settings-project-hook>` row above). Without it no activity
+ * event reaches skill-map, so capturing conversations records nothing;
+ * known-missing therefore disables ENABLING the gate (turning it OFF
+ * stays available, so a capture left on can always be stopped), and
+ * `null` = unknown FAILS OPEN, matching the sibling real-time row.
+ *
+ * Lifecycle mirrors the sibling children: fetch on `(visible) === true`
+ * (which also re-probes the shared hook-install state).
  */
 
 import {
@@ -35,6 +43,7 @@ import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import type { IActivityCaptureStatusApi } from '../../../models/api';
 import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
+import { ActivityReadinessService } from '../../services/activity-readiness';
 import { formatErr } from './settings-project.utils';
 
 @Component({
@@ -48,6 +57,7 @@ import { formatErr } from './settings-project.utils';
 export class SettingsProjectCapture {
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly confirmation = inject(ConfirmationService);
+  private readonly activityReadiness = inject(ActivityReadinessService);
 
   readonly visible = input.required<boolean>();
 
@@ -75,9 +85,36 @@ export class SettingsProjectCapture {
    */
   protected readonly captureEnabledView = linkedSignal(() => this.captureEnabled());
 
+  /**
+   * Whether the ACTIVE lens's live-activity hook is installed. Owned by
+   * the shared `ActivityReadinessService` (same signal as the sibling
+   * real-time row), re-probed on every section open so a hook installed
+   * from the row above (or the CLI) reflects here without a reload.
+   */
+  protected readonly activityHookInstalled = this.activityReadiness.hookInstalled;
+
+  /** Known-missing hook: capturing would record nothing. `null` fails open. */
+  protected readonly captureBlocked = computed<boolean>(
+    () => this.activityHookInstalled() === false,
+  );
+
+  /**
+   * The switch locks while the gate state is unknown or a write is in
+   * flight, and while the hook is missing it locks only in the ENABLE
+   * direction, an already-capturing project can always be turned off.
+   */
+  protected readonly captureToggleDisabled = computed<boolean>(
+    () =>
+      this.captureStatus() === null ||
+      this.isPending('activity.capture') ||
+      (!this.captureEnabled() && this.captureBlocked()),
+  );
+
   constructor() {
     effect(() => {
-      if (this.visible()) void this.refreshCapture();
+      if (!this.visible()) return;
+      void this.refreshCapture();
+      void this.activityReadiness.refresh();
     });
   }
 

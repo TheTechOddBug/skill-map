@@ -428,9 +428,15 @@ export class QuickStartModal {
   protected readonly captureEnabled = computed<boolean>(
     () => this.captureStatus()?.enabled ?? false,
   );
+  /**
+   * Capture ON while the hook is missing is NOT ready: the preference is
+   * stored but no activity event ever reaches the server, so there is
+   * nothing to capture. Folds the gate into the indicator, the same way the
+   * realtime row does (`activityEnabled() && !realtimeBlocked()`).
+   */
   protected readonly captureRowStatus = computed<TQuickStartStatus>(() => {
     if (this.captureStatus() === null) return 'unknown';
-    return this.captureEnabled() ? 'ready' : 'not-ready';
+    return this.captureEnabled() && !this.captureBlocked() ? 'ready' : 'not-ready';
   });
   protected readonly captureStatusText = computed<string>(() => {
     if (this.captureStatus() === null) return this.texts.status.checking;
@@ -439,8 +445,25 @@ export class QuickStartModal {
   protected readonly captureActionLabel = computed<string>(() =>
     this.captureEnabled() ? this.texts.action.disable : this.texts.action.enable,
   );
+  /**
+   * Capture is subordinate to the real-time hook (row c) ONLY: without it
+   * no activity event reaches skill-map, so the gate would record nothing.
+   * Deliberately NOT gated on Live updates (row a), which only governs
+   * whether this browser sees the frames, not whether they are captured.
+   * `null` (unknown / probe failed) FAILS OPEN.
+   */
+  private readonly captureBlocked = computed<boolean>(
+    () => this.hookInstalledSignal() === false,
+  );
+  /** Cannot ENABLE while the hook is missing; disabling is always allowed. */
   protected readonly captureActionDisabled = computed<boolean>(
-    () => this.captureStatus() === null || this.isPending('capture'),
+    () =>
+      this.captureStatus() === null ||
+      this.isPending('capture') ||
+      (!this.captureEnabled() && this.captureBlocked()),
+  );
+  protected readonly captureMeta = computed<string | null>(() =>
+    this.captureBlocked() ? this.texts.rows.capture.blockedHint : null,
   );
 
   protected onCaptureToggle(): void {

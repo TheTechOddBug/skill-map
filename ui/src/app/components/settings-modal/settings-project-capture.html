@@ -10,11 +10,21 @@
     <div class="settings-project__row-description">
       {{ texts.project.activityCapture.description }}
     </div>
+    @if (captureBlocked()) {
+      <div class="settings-project__row-meta">
+        <span
+          class="settings-project__meta-line"
+          data-testid="settings-project-activity-capture-hook-hint"
+        >
+          {{ texts.project.activityCapture.hookHint }}
+        </span>
+      </div>
+    }
   </div>
   <p-toggleswitch
     [ngModel]="captureEnabledView()"
     (ngModelChange)="onCaptureToggle($event)"
-    [disabled]="captureStatus() === null || isPending('activity.capture')"
+    [disabled]="captureToggleDisabled()"
     data-testid="settings-project-activity-capture-toggle"
   />
 </div>

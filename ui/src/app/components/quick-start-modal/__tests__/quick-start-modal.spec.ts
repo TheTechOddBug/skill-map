@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { provideZonelessChangeDetection } from '@angular/core';
+import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
 import { QuickStartModal } from '../quick-start-modal';
@@ -9,6 +9,7 @@ import {
   type TQuickStartStatus,
 } from '../../../../i18n/quick-start.texts';
 import { WsEventStreamService } from '../../../../services/ws-event-stream';
+import { ActivityReadinessService } from '../../../services/activity-readiness';
 import { ProjectInfoService } from '../../../services/project-info';
 import { SKILL_MAP_MODE } from '../../../../services/data-source/runtime-mode';
 import {
@@ -64,6 +65,9 @@ interface ISetupProbe {
   followStatusText(): string;
   captureRowStatus(): TQuickStartStatus;
   captureStatusText(): string;
+  captureActionDisabled(): boolean;
+  captureActionLabel(): string;
+  captureMeta(): string | null;
   liveUpdatesStatus(): TQuickStartStatus;
   mcpInstalledStatus(): TQuickStartStatus;
   mcpInstalledStatusText(): string;
@@ -83,8 +87,19 @@ interface ISetup {
   ws: WsEventStreamService;
 }
 
-function bootstrap(stub: Partial<IDataSourcePort>): ISetup {
+/**
+ * `hookInstalled` drives the hook-gated rows (real-time activity, capture)
+ * through the shared readiness service; the stub keeps it deterministic.
+ * Default `null` = unknown, which is what the real probe resolves to
+ * against these stubs and is the fail-open case.
+ */
+function bootstrap(
+  stub: Partial<IDataSourcePort>,
+  opts?: { hookInstalled?: boolean | null },
+): ISetup {
   TestBed.resetTestingModule();
+  // NOT `??`: an explicit `null` (hook state unknown) must survive.
+  const hookInstalled = opts?.hookInstalled === undefined ? null : opts.hookInstalled;
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(),
@@ -92,6 +107,13 @@ function bootstrap(stub: Partial<IDataSourcePort>): ISetup {
       // The row services (WsEventStream / NodeActivity / ActivityReadiness)
       // inject the live channel; demo mode keeps them socket-free.
       { provide: SKILL_MAP_MODE, useValue: 'demo' },
+      {
+        provide: ActivityReadinessService,
+        useValue: {
+          hookInstalled: signal(hookInstalled).asReadonly(),
+          refresh: vi.fn().mockResolvedValue(undefined),
+        } as unknown as ActivityReadinessService,
+      },
     ],
   });
   const ws = TestBed.inject(WsEventStreamService);
@@ -199,6 +221,90 @@ describe('QuickStartModal, row status indicators', () => {
     // The WsEventStreamService default is enabled, so the row is ready
     // before any probe (it binds the live signal, not a fetch).
     expect(setup.probe.liveUpdatesStatus()).toBe('ready');
+  });
+});
+
+/**
+ * Capture is subordinate to the real-time hook: without it no activity
+ * event reaches skill-map, so turning the gate on would record nothing.
+ * The lock is directional (ENABLE only) and fails open on an unknown
+ * hook state, mirroring the sibling real-time row.
+ */
+describe('QuickStartModal, capture gated on the real-time hook', () => {
+  function captureSetup(
+    enabled: boolean,
+    hookInstalled: boolean | null,
+  ): ISetup {
+    return bootstrap(
+      {
+        getProjectPreferences: vi.fn().mockResolvedValue(prefs()),
+        getActivityCapture: vi.fn().mockResolvedValue({ enabled }),
+      } as Partial<IDataSourcePort>,
+      { hookInstalled },
+    );
+  }
+
+  it('locks the action and explains why while the hook is missing', async () => {
+    const setup = captureSetup(false, false);
+
+    open(setup);
+    await flushAsync();
+
+    expect(setup.probe.captureActionDisabled()).toBe(true);
+    expect(setup.probe.captureMeta()).toBe(QUICK_START_TEXTS.rows.capture.blockedHint);
+  });
+
+  it('reads NOT ready while capturing without the hook (nothing can arrive)', async () => {
+    const setup = captureSetup(true, false);
+
+    open(setup);
+    await flushAsync();
+
+    // The preference is stored, but no activity event ever reaches the
+    // server, so the indicator must not claim readiness. Same fold the
+    // realtime row applies.
+    expect(setup.probe.captureRowStatus()).toBe('not-ready');
+  });
+
+  it('reads ready when capturing WITH the hook installed', async () => {
+    const setup = captureSetup(true, true);
+
+    open(setup);
+    await flushAsync();
+
+    expect(setup.probe.captureRowStatus()).toBe('ready');
+  });
+
+  it('still allows turning an already-capturing gate OFF without the hook', async () => {
+    const setup = captureSetup(true, false);
+
+    open(setup);
+    await flushAsync();
+
+    // Only ENABLING is gated: a capture left on must always be stoppable.
+    expect(setup.probe.captureActionDisabled()).toBe(false);
+    expect(setup.probe.captureActionLabel()).toBe(QUICK_START_TEXTS.action.disable);
+  });
+
+  it('leaves the action free once the hook is installed', async () => {
+    const setup = captureSetup(false, true);
+
+    open(setup);
+    await flushAsync();
+
+    expect(setup.probe.captureActionDisabled()).toBe(false);
+    expect(setup.probe.captureMeta()).toBeNull();
+  });
+
+  it('fails OPEN while the hook state is unknown', async () => {
+    const setup = captureSetup(false, null);
+
+    open(setup);
+    await flushAsync();
+
+    // A probe hiccup never locks the gate.
+    expect(setup.probe.captureActionDisabled()).toBe(false);
+    expect(setup.probe.captureMeta()).toBeNull();
   });
 });
 
