@@ -3,7 +3,10 @@
     <div class="quick-start__row-label">{{ label() }}</div>
     <div class="quick-start__row-description">{{ description() }}</div>
     @if (meta(); as hint) {
-      <div class="quick-start__row-meta">
+      <div
+        class="quick-start__row-meta"
+        [class.quick-start__row-meta--warn]="metaTone() === 'warn'"
+      >
         <span class="quick-start__meta-line" [attr.data-testid]="testid() + '-meta'">{{ hint }}</span>
       </div>
     }

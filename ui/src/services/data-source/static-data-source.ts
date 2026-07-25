@@ -190,9 +190,18 @@ export class StaticDataSource implements IDataSourcePort {
     return meta.health;
   }
 
-  /** The offline demo has no live MCP server, so report nothing connected. */
+  /**
+   * The offline demo has no live MCP server, so report nothing connected.
+   * `url` still names the default `sm serve` endpoint so the Quick Start
+   * copy affordance shows a realistic snippet in the demo bundle.
+   */
   async mcpStatus(): Promise<IMcpStatusApi> {
-    return { enabled: false, connected: false, clients: 0 };
+    return {
+      enabled: false,
+      connected: false,
+      clients: 0,
+      url: 'http://127.0.0.1:4242/mcp',
+    };
   }
 
   /**

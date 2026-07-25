@@ -52,8 +52,9 @@ import { TooltipModule } from 'primeng/tooltip';
 
 import {
   QUICK_START_TEXTS,
+  type IMcpRegisterSnippet,
   type TQuickStartStatus,
-  mcpRegisterCommand,
+  mcpRegisterSnippet,
 } from '../../../i18n/quick-start.texts';
 import type {
   IActivityCaptureStatusApi,
@@ -178,8 +179,15 @@ export class QuickStartModal {
    * `false` = probed but nothing connected (or the probe failed).
    */
   private readonly mcpConnected = signal<boolean | null>(null);
+  /**
+   * Authoritative MCP endpoint, as reported by `GET /api/mcp/status` (`url`),
+   * which the server builds from its OWN bind. `null` until the probe
+   * resolves (or when it fails), which is the only case the page-origin
+   * fallback covers, see `resolvedMcpUrl`.
+   */
+  private readonly mcpUrl = signal<string | null>(null);
 
-  /** Sticky "restart sm serve --mcp" hint once the MCP pref is flipped on. */
+  /** Sticky "restart sm to apply" hint once the MCP pref is flipped on. */
   private readonly mcpRestartPending = signal(false);
   /** Transient "Copied" feedback for the MCP register-command button. */
   protected readonly mcpCopied = signal(false);
@@ -197,6 +205,7 @@ export class QuickStartModal {
       if (!this.visible()) return;
       void this.refreshPreferences();
       void this.refreshCapture();
+      void this.refreshMcpUrl();
       void this.activityReadiness.refresh();
     });
     // Lens-keyed probes: re-run on open AND on every active-lens change.
@@ -504,12 +513,28 @@ export class QuickStartModal {
 
   // ===================================================================
   // Row (g), MCP installed on your agent. Primary verification is a LIVE
-  // connection probe (`GET /api/mcp/status`): the user runs the register
-  // command, approves the runtime trust prompt in their agent, then hits
-  // Check. Copy-command guidance stays alongside the Check action.
+  // connection probe (`GET /api/mcp/status`): the user applies the register
+  // snippet (a command on claude / codex, a config edit on antigravity /
+  // opencode), approves the runtime trust prompt in their agent, then hits
+  // Check. The Copy affordance stays alongside the Check action.
   // ===================================================================
 
   protected readonly mcpChecking = signal(false);
+
+  /**
+   * The endpoint the snippet points at. The server's own `url` wins; the
+   * page origin is a LAST resort (probe not resolved yet, or failed) and is
+   * only correct when the SPA is served by `sm serve` itself, which is false
+   * under the dev setup where a proxy on another port serves the SPA.
+   */
+  private readonly resolvedMcpUrl = computed<string>(
+    () => this.mcpUrl() ?? `${this.document.location.origin}/mcp`,
+  );
+
+  /** What Copy hands over for the active lens, joined with the live endpoint. */
+  protected readonly mcpSnippet = computed<IMcpRegisterSnippet>(() =>
+    mcpRegisterSnippet(this.activeProvider(), this.resolvedMcpUrl()),
+  );
 
   protected readonly mcpInstalledStatus = computed<TQuickStartStatus>(() => {
     if (this.mcpChecking()) return 'unknown';
@@ -523,11 +548,30 @@ export class QuickStartModal {
     if (v === null) return this.texts.status.notChecked;
     return v ? this.texts.status.connected : this.texts.status.notConnected;
   });
-  protected readonly mcpCopyLabel = computed<string>(() =>
-    this.mcpCopied() ? this.texts.action.copied : this.texts.action.copyCommand,
-  );
-  protected readonly mcpInstalledMeta = computed<string | null>(() =>
-    this.mcpCopied() ? this.texts.rows.mcpInstalled.copiedHint : null,
+  protected readonly mcpCopyLabel = computed<string>(() => {
+    if (this.mcpCopied()) return this.texts.action.copied;
+    return this.mcpSnippet().kind === 'config'
+      ? this.texts.action.copyConfig
+      : this.texts.action.copyCommand;
+  });
+  protected readonly mcpInstalledMeta = computed<string | null>(() => {
+    if (this.mcpCopied()) return this.texts.rows.mcpInstalled.copiedHint;
+    // A config snippet is useless without knowing which file it goes into,
+    // so the target rides the hint line whenever nothing else claims it.
+    const snippet = this.mcpSnippet();
+    if (snippet.kind === 'config' && snippet.target !== undefined) {
+      return this.texts.rows.mcpInstalled.pasteHint(snippet.target);
+    }
+    return null;
+  });
+  /**
+   * The paste hint names work the operator still has to do by hand
+   * (open that file, paste the snippet), so it wears the warning hue
+   * like the restart-pending line above it. The copy confirmation is a
+   * plain acknowledgement and stays muted.
+   */
+  protected readonly mcpInstalledMetaTone = computed<'muted' | 'warn'>(() =>
+    !this.mcpCopied() && this.mcpInstalledMeta() !== null ? 'warn' : 'muted',
   );
 
   /** Run the live MCP-connection probe and land its verdict on the row. */
@@ -536,6 +580,9 @@ export class QuickStartModal {
     try {
       const res = await this.dataSource.mcpStatus();
       this.mcpConnected.set(res.connected);
+      // Same payload carries the authoritative endpoint, so a Check also
+      // refreshes what Copy would hand over.
+      this.mcpUrl.set(res.url);
     } catch {
       this.mcpConnected.set(false);
     } finally {
@@ -543,14 +590,9 @@ export class QuickStartModal {
     }
   }
 
-  protected async onCopyMcpCommand(): Promise<void> {
-    // The MCP endpoint rides the SAME single `sm serve` listener the UI is
-    // served from, so the live origin (with whatever `--port` it was started
-    // on) is the authoritative base, never a hardcoded 4242.
-    const mcpUrl = `${this.document.location.origin}/mcp`;
-    const command = mcpRegisterCommand(this.activeProvider(), mcpUrl);
+  protected async onCopyMcpSnippet(): Promise<void> {
     try {
-      await navigator.clipboard.writeText(command);
+      await navigator.clipboard.writeText(this.mcpSnippet().payload);
       this.mcpCopied.set(true);
       setTimeout(() => this.mcpCopied.set(false), COPIED_FEEDBACK_MS);
     } catch {
@@ -914,6 +956,21 @@ export class QuickStartModal {
     } catch (err) {
       this.error.set(formatErr(err));
       this.captureStatus.set(null);
+    }
+  }
+
+  /**
+   * Cheap O(1) read of the MCP endpoint on open, so the Copy affordance is
+   * already accurate before the operator touches Check. Deliberately does
+   * NOT land `connected`: the row's verdict stays "Not checked yet" until
+   * the user asks for it. Failure is silent (no error banner): the fallback
+   * URL keeps Copy useful, and Check is the user-visible MCP probe.
+   */
+  private async refreshMcpUrl(): Promise<void> {
+    try {
+      this.mcpUrl.set((await this.dataSource.mcpStatus()).url);
+    } catch {
+      this.mcpUrl.set(null);
     }
   }
 

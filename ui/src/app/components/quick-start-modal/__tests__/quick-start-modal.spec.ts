@@ -3,8 +3,13 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
 import { QuickStartModal } from '../quick-start-modal';
-import { QUICK_START_TEXTS, type TQuickStartStatus } from '../../../../i18n/quick-start.texts';
+import {
+  QUICK_START_TEXTS,
+  type IMcpRegisterSnippet,
+  type TQuickStartStatus,
+} from '../../../../i18n/quick-start.texts';
 import { WsEventStreamService } from '../../../../services/ws-event-stream';
+import { ProjectInfoService } from '../../../services/project-info';
 import { SKILL_MAP_MODE } from '../../../../services/data-source/runtime-mode';
 import {
   DATA_SOURCE,
@@ -12,6 +17,7 @@ import {
 } from '../../../../services/data-source/data-source.port';
 import type {
   IActivityCaptureStatusApi,
+  IMcpStatusApi,
   IProjectPreferencesApi,
 } from '../../../../models/api';
 
@@ -41,6 +47,18 @@ function prefs(overrides: Partial<IProjectPreferencesApi> = {}): IProjectPrefere
   };
 }
 
+/**
+ * Endpoint the fake server reports through `/api/mcp/status`. Deliberately
+ * NOT the jsdom page origin (`http://localhost:3000`) and not the 4242
+ * default, so a payload built from the origin is impossible to confuse with
+ * one built from the server's own bind.
+ */
+const MCP_URL = 'http://127.0.0.1:4999/mcp';
+
+function mcpStatus(overrides: Partial<IMcpStatusApi> = {}): IMcpStatusApi {
+  return { enabled: true, connected: false, clients: 0, url: MCP_URL, ...overrides };
+}
+
 interface ISetupProbe {
   followStatus(): TQuickStartStatus;
   followStatusText(): string;
@@ -49,6 +67,10 @@ interface ISetupProbe {
   liveUpdatesStatus(): TQuickStartStatus;
   mcpInstalledStatus(): TQuickStartStatus;
   mcpInstalledStatusText(): string;
+  mcpSnippet(): IMcpRegisterSnippet;
+  mcpCopyLabel(): string;
+  mcpInstalledMeta(): string | null;
+  mcpInstalledMetaTone(): 'muted' | 'warn';
   onCheckMcpConnection(): Promise<void>;
   onFollowSymlinksToggle(): void;
   onLiveUpdatesToggle(): void;
@@ -87,6 +109,28 @@ function bootstrap(stub: Partial<IDataSourcePort>): ISetup {
 function open(setup: ISetup): void {
   setup.fixture.componentRef.setInput('visible', true);
   setup.fixture.detectChanges();
+}
+
+/**
+ * Land an active lens on the shared `ProjectInfoService` (the modal reads
+ * `activeProvider` from it), by resolving its probe against the stub.
+ */
+async function useLens(providerId: string): Promise<void> {
+  await TestBed.inject(ProjectInfoService).reloadActiveProvider();
+  expect(TestBed.inject(ProjectInfoService).activeProvider()).toBe(providerId);
+}
+
+/** Stub half of `useLens`: the `/api/active-provider` payload for a lens. */
+function activeProviderStub(providerId: string): Partial<IDataSourcePort> {
+  return {
+    getActiveProvider: vi.fn().mockResolvedValue({
+      activeProvider: providerId,
+      detected: [providerId],
+      source: 'config',
+      selectable: [providerId],
+      markerDrift: null,
+    }),
+  } as Partial<IDataSourcePort>;
 }
 
 async function flushAsync(): Promise<void> {
@@ -160,13 +204,11 @@ describe('QuickStartModal, row status indicators', () => {
 
 describe('QuickStartModal, MCP connection check', () => {
   it('marks the row ready + "Connected" when a client is connected', async () => {
-    const mcpStatus = vi
-      .fn()
-      .mockResolvedValue({ enabled: true, connected: true, clients: 1 });
+    const probeMcp = vi.fn().mockResolvedValue(mcpStatus({ connected: true, clients: 1 }));
     const setup = bootstrap({
       getProjectPreferences: vi.fn().mockResolvedValue(prefs()),
       getActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
-      mcpStatus,
+      mcpStatus: probeMcp,
     } as Partial<IDataSourcePort>);
 
     // Not checked yet before the user clicks Check.
@@ -176,27 +218,153 @@ describe('QuickStartModal, MCP connection check', () => {
     await setup.probe.onCheckMcpConnection();
     await flushAsync();
 
-    expect(mcpStatus).toHaveBeenCalled();
+    expect(probeMcp).toHaveBeenCalled();
     expect(setup.probe.mcpInstalledStatus()).toBe('ready');
     expect(setup.probe.mcpInstalledStatusText()).toBe(QUICK_START_TEXTS.status.connected);
   });
 
   it('marks the row not-ready + "Not connected yet" when nothing is connected', async () => {
-    const mcpStatus = vi
-      .fn()
-      .mockResolvedValue({ enabled: true, connected: false, clients: 0 });
+    const probeMcp = vi.fn().mockResolvedValue(mcpStatus());
     const setup = bootstrap({
       getProjectPreferences: vi.fn().mockResolvedValue(prefs()),
       getActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
-      mcpStatus,
+      mcpStatus: probeMcp,
     } as Partial<IDataSourcePort>);
 
     await setup.probe.onCheckMcpConnection();
     await flushAsync();
 
-    expect(mcpStatus).toHaveBeenCalled();
+    expect(probeMcp).toHaveBeenCalled();
     expect(setup.probe.mcpInstalledStatus()).toBe('not-ready');
     expect(setup.probe.mcpInstalledStatusText()).toBe(QUICK_START_TEXTS.status.notConnected);
+  });
+
+  it('probes the endpoint when the modal opens, without landing a verdict', async () => {
+    const probeMcp = vi.fn().mockResolvedValue(mcpStatus());
+    const setup = bootstrap({
+      getProjectPreferences: vi.fn().mockResolvedValue(prefs()),
+      getActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
+      mcpStatus: probeMcp,
+      ...activeProviderStub('claude'),
+    } as Partial<IDataSourcePort>);
+
+    open(setup);
+    await useLens('claude');
+    await flushAsync();
+
+    expect(probeMcp).toHaveBeenCalled();
+    expect(setup.probe.mcpSnippet().payload).toContain(MCP_URL);
+    // The open probe reads the URL only: the connection verdict stays the
+    // user's to ask for through Check.
+    expect(setup.probe.mcpInstalledStatus()).toBe('unknown');
+    expect(setup.probe.mcpInstalledStatusText()).toBe(QUICK_START_TEXTS.status.notChecked);
+  });
+});
+
+describe('QuickStartModal, MCP register snippet', () => {
+  function bootstrapLens(providerId: string): ISetup {
+    return bootstrap({
+      getProjectPreferences: vi.fn().mockResolvedValue(prefs()),
+      getActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
+      mcpStatus: vi.fn().mockResolvedValue(mcpStatus()),
+      ...activeProviderStub(providerId),
+    } as Partial<IDataSourcePort>);
+  }
+
+  it('builds the claude command from the server URL, never the page origin', async () => {
+    const setup = bootstrapLens('claude');
+
+    open(setup);
+    await useLens('claude');
+    await flushAsync();
+
+    const snippet = setup.probe.mcpSnippet();
+    expect(snippet.kind).toBe('command');
+    expect(snippet.payload).toBe(
+      `claude mcp add --transport http --scope local skill-map ${MCP_URL}`,
+    );
+    expect(snippet.payload).not.toContain(document.location.origin);
+    expect(setup.probe.mcpCopyLabel()).toBe(QUICK_START_TEXTS.action.copyCommand);
+  });
+
+  it('builds the codex command with --url from the server URL', async () => {
+    const setup = bootstrapLens('codex');
+
+    open(setup);
+    await useLens('codex');
+    await flushAsync();
+
+    const snippet = setup.probe.mcpSnippet();
+    expect(snippet.kind).toBe('command');
+    expect(snippet.payload).toBe(`codex mcp add skill-map --url ${MCP_URL}`);
+    expect(snippet.payload).not.toContain(document.location.origin);
+  });
+
+  it('gives antigravity a serverUrl config snippet aimed at the home-global file', async () => {
+    const setup = bootstrapLens('antigravity');
+
+    open(setup);
+    await useLens('antigravity');
+    await flushAsync();
+
+    const snippet = setup.probe.mcpSnippet();
+    expect(snippet.kind).toBe('config');
+    expect(snippet.target).toBe('~/.gemini/config/mcp_config.json');
+    expect(snippet.payload).toContain('"serverUrl"');
+    expect(snippet.payload).toContain(MCP_URL);
+    // Pretty-printed, so the operator can paste it as-is.
+    expect(snippet.payload).toContain('\n');
+    expect(JSON.parse(snippet.payload)).toEqual({
+      mcpServers: { 'skill-map': { serverUrl: MCP_URL } },
+    });
+    // A config lens flips the Copy affordance and surfaces the target file.
+    expect(setup.probe.mcpCopyLabel()).toBe(QUICK_START_TEXTS.action.copyConfig);
+    expect(setup.probe.mcpInstalledMeta()).toBe(
+      QUICK_START_TEXTS.rows.mcpInstalled.pasteHint('~/.gemini/config/mcp_config.json'),
+    );
+    // Pending manual work, so it wears the warning hue (user call
+    // 2026-07-25), unlike the muted copy acknowledgement.
+    expect(setup.probe.mcpInstalledMetaTone()).toBe('warn');
+  });
+
+  it('gives opencode a remote-type config snippet for opencode.json', async () => {
+    const setup = bootstrapLens('opencode');
+
+    open(setup);
+    await useLens('opencode');
+    await flushAsync();
+
+    const snippet = setup.probe.mcpSnippet();
+    expect(snippet.kind).toBe('config');
+    expect(snippet.target).toBe('opencode.json');
+    expect(snippet.payload).toContain('"type": "remote"');
+    expect(JSON.parse(snippet.payload)).toEqual({
+      mcp: { 'skill-map': { type: 'remote', url: MCP_URL, enabled: true } },
+    });
+    expect(setup.probe.mcpCopyLabel()).toBe(QUICK_START_TEXTS.action.copyConfig);
+  });
+
+  it('falls back to the bare endpoint (no --mcp flag talk) on an unknown lens', async () => {
+    const setup = bootstrapLens('markdown');
+
+    open(setup);
+    await useLens('markdown');
+    await flushAsync();
+
+    const snippet = setup.probe.mcpSnippet();
+    expect(snippet.kind).toBe('config');
+    expect(snippet.target).toBeUndefined();
+    expect(snippet.payload).toBe(MCP_URL);
+    // No target to name, so the hint line stays empty.
+    expect(setup.probe.mcpInstalledMeta()).toBeNull();
+  });
+
+  it('falls back to the page origin while the endpoint probe has not resolved', () => {
+    const setup = bootstrapLens('claude');
+
+    // Nothing opened yet, so no probe has landed: the snippet still has to
+    // hand over something dialable.
+    expect(setup.probe.mcpSnippet().payload).toContain(`${document.location.origin}/mcp`);
   });
 });
 

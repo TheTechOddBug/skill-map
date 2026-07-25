@@ -216,6 +216,7 @@
                 [status]="mcpLiveStatus()"
                 [statusText]="mcpLiveStatusText()"
                 [meta]="mcpLiveMeta()"
+                metaTone="warn"
               >
                 @if (mcpLiveShowAction()) {
                   <p-button
@@ -236,6 +237,7 @@
                 [status]="mcpInstalledStatus()"
                 [statusText]="mcpInstalledStatusText()"
                 [meta]="mcpInstalledMeta()"
+                [metaTone]="mcpInstalledMetaTone()"
                 [stackActions]="true"
               >
                 <p-button
@@ -244,7 +246,7 @@
                   severity="secondary"
                   [outlined]="true"
                   size="small"
-                  (onClick)="onCopyMcpCommand()"
+                  (onClick)="onCopyMcpSnippet()"
                   data-testid="quick-start-row-mcp-installed-action"
                 />
                 <p-button

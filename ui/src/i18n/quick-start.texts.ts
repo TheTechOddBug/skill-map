@@ -11,37 +11,84 @@
  */
 
 /**
- * Per-lens shell command that registers skill-map's MCP server in that
- * client, as a function of the LIVE server URL (the MCP endpoint rides the
- * same single `sm serve` listener the UI is served from, so the caller
- * passes the page origin + `/mcp`, never a hardcoded port: a server started
- * with `--port N` must show `N`, not the 4242 default). Kept as a plain
- * `Record` (not folded into the `as const` catalog below) so the closed
- * provider list stays trivially editable and an arbitrary lens id can index
- * it without a literal-key cast. Only lenses with a project-local MCP config
- * live here; every other lens falls back to `MCP_REGISTER_COMMAND_DEFAULT`.
+ * What the "MCP installed on your agent" Copy affordance puts on the
+ * clipboard for the active lens. Two flavours, because only some runtimes
+ * ship an `mcp` CLI verb: the rest are configured by editing a JSON file.
  */
-export const MCP_REGISTER_COMMANDS: Record<string, (mcpUrl: string) => string> = {
-  claude: (mcpUrl) => `claude mcp add --transport http --scope local skill-map ${mcpUrl}`,
+export interface IMcpRegisterSnippet {
+  /** Text the Copy button puts on the clipboard. */
+  payload: string;
+  /** `command` = a shell command to run; `config` = a snippet to paste into a config file. */
+  kind: 'command' | 'config';
+  /** For `config`, the file the snippet goes into (shown as the row hint). */
+  target?: string;
+}
+
+/**
+ * Per-lens register snippet, as a function of the LIVE MCP endpoint. The URL
+ * comes from `GET /api/mcp/status` (`url`), built by the server from its own
+ * bind: the page origin is NOT a substitute, because under the dev setup the
+ * SPA is served by a proxy whose port is not the one `/mcp` listens on.
+ * Kept as a plain `Record` (not folded into the `as const` catalog below) so
+ * the closed provider list stays trivially editable and an arbitrary lens id
+ * can index it without a literal-key cast. Every other lens falls back to
+ * `MCP_REGISTER_SNIPPET_DEFAULT`.
+ */
+export const MCP_REGISTER_SNIPPETS: Record<
+  string,
+  (mcpUrl: string) => IMcpRegisterSnippet
+> = {
+  claude: (mcpUrl) => ({
+    kind: 'command',
+    payload: `claude mcp add --transport http --scope local skill-map ${mcpUrl}`,
+  }),
   // Codex supports streamable-HTTP MCP via `codex mcp add <name> --url <url>`
   // (usage: `codex mcp add [OPTIONS] <NAME> (--url <URL> | -- <COMMAND>...)`,
   // verified against codex-rs cli/src/mcp_cmd.rs). Writes ~/.codex/config.toml.
-  codex: (mcpUrl) => `codex mcp add skill-map --url ${mcpUrl}`,
+  codex: (mcpUrl) => ({
+    kind: 'command',
+    payload: `codex mcp add skill-map --url ${mcpUrl}`,
+  }),
+  // No command flavour on purpose: the Antigravity CLI (`agy`) exposes no
+  // `mcp` subcommand, and its MCP config is home-global
+  // (`~/.gemini/config/mcp_config.json`, key `serverUrl`), with no
+  // project-local counterpart. Editing that file is the only way in.
+  antigravity: (mcpUrl) => ({
+    kind: 'config',
+    target: '~/.gemini/config/mcp_config.json',
+    payload: JSON.stringify({ mcpServers: { 'skill-map': { serverUrl: mcpUrl } } }, null, 2),
+  }),
+  // Config-file based too: opencode has no `mcp` CLI verb, remote servers
+  // are declared in the project's `opencode.json`.
+  opencode: (mcpUrl) => ({
+    kind: 'config',
+    target: 'opencode.json',
+    payload: JSON.stringify(
+      { mcp: { 'skill-map': { type: 'remote', url: mcpUrl, enabled: true } } },
+      null,
+      2,
+    ),
+  }),
 };
 
-/** Generic guidance shown for lenses without a project-local MCP config. */
-export const MCP_REGISTER_COMMAND_DEFAULT = (mcpUrl: string): string =>
-  `Run \`sm serve --mcp\`, then register ${mcpUrl} in your agent MCP config.`;
+/**
+ * Fallback for lenses with no known MCP config shape: the bare endpoint, so
+ * Copy still hands the operator the one thing every MCP client asks for.
+ */
+export const MCP_REGISTER_SNIPPET_DEFAULT = (mcpUrl: string): IMcpRegisterSnippet => ({
+  kind: 'config',
+  payload: mcpUrl,
+});
 
-/** The register command for a lens (given the live MCP URL), or the generic fallback. */
-export function mcpRegisterCommand(
+/** The register snippet for a lens (given the live MCP URL), or the bare-URL fallback. */
+export function mcpRegisterSnippet(
   providerId: string | null | undefined,
   mcpUrl: string,
-): string {
-  if (providerId && providerId in MCP_REGISTER_COMMANDS) {
-    return MCP_REGISTER_COMMANDS[providerId](mcpUrl);
+): IMcpRegisterSnippet {
+  if (providerId && providerId in MCP_REGISTER_SNIPPETS) {
+    return MCP_REGISTER_SNIPPETS[providerId](mcpUrl);
   }
-  return MCP_REGISTER_COMMAND_DEFAULT(mcpUrl);
+  return MCP_REGISTER_SNIPPET_DEFAULT(mcpUrl);
 }
 
 export const QUICK_START_TEXTS = {
@@ -94,6 +141,7 @@ export const QUICK_START_TEXTS = {
     update: 'Update',
     uninstall: 'Uninstall',
     copyCommand: 'Copy command',
+    copyConfig: 'Copy config',
     copied: 'Copied',
     check: 'Check',
     recheck: 'Recheck',
@@ -170,14 +218,22 @@ export const QUICK_START_TEXTS = {
       label: 'MCP server live',
       description:
         'Expose skill-map so another agent can read the map, and you can manage the job queue too.',
-      restartHint: 'Restart sm serve --mcp to apply.',
+      // The toggle writes `mcp.server.enabled`, and the server resolves
+      // `flag ?? config ?? off`, so a plain restart picks it up: naming the
+      // `--mcp` flag here implied it was required, which it is not.
+      restartHint: 'Saved. Restart sm to apply.',
     },
     mcpInstalled: {
       label: 'MCP installed on your agent',
+      // Deliberately flavour-neutral: some runtimes register MCP with a
+      // command, others only by editing a config file, so the row copy has
+      // to fit both (the hint below names the file when there is one).
       description:
-        'Copy the command and run it in your agent, approve the MCP connection when your ' +
+        'Copy what your agent needs and apply it there, approve the MCP connection when your ' +
         'agent prompts you, then click Check to confirm the live connection.',
-      copiedHint: 'Command copied to the clipboard.',
+      copiedHint: 'Copied to the clipboard.',
+      /** Where a `config` snippet goes, shown while nothing else occupies the hint line. */
+      pasteHint: (target: string): string => `Paste it into ${target}`,
     },
     agentSkill: {
       label: 'Agent skill installed',

@@ -34,6 +34,13 @@ export class QuickStartRow {
   readonly statusText = input.required<string>();
   /** Optional contextual hint line under the description (blocked / restart guidance). */
   readonly meta = input<string | null>(null);
+  /**
+   * Tone of the `meta` line. `muted` (default) for informational hints;
+   * `warn` for a PENDING-ACTION state the operator must not miss (the MCP
+   * toggle is saved but inert until the server restarts), which paints it in
+   * the warning hue instead of the muted grey.
+   */
+  readonly metaTone = input<'muted' | 'warn'>('muted');
   /** Stable id root: the row gets it, the status span gets `<testid>-status`. */
   readonly testid = input.required<string>();
   /**

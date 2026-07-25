@@ -24,8 +24,8 @@ import { registerMcpStatusRoute } from '../mcp-status.js';
 function stubManager(sessionCount: number): McpSessionManager {
   return { sessionCount } as unknown as McpSessionManager;
 }
-function stubOptions(mcpServer: boolean): IServerOptions {
-  return { mcpServer } as unknown as IServerOptions;
+function stubOptions(mcpServer: boolean, port = 4242, host = '127.0.0.1'): IServerOptions {
+  return { mcpServer, host, port } as unknown as IServerOptions;
 }
 
 async function getStatus(
@@ -40,6 +40,27 @@ async function getStatus(
 }
 
 describe('GET /api/mcp/status', () => {
+  /**
+   * `url` is built from the server's OWN bind, not the request's Host
+   * header: under a split dev setup the SPA's origin is the proxy's port,
+   * so a UI composing the URL itself would hand out a dead address.
+   */
+  it('reports the endpoint a client registers, from the server bind', async () => {
+    const app = new Hono();
+    registerMcpStatusRoute(app, { options: stubOptions(true, 4999), mcpManager: null });
+    const res = await app.request('/api/mcp/status');
+    const body = (await res.json()) as Record<string, unknown>;
+    assert.equal(body['url'], 'http://127.0.0.1:4999/mcp');
+  });
+
+  it('reports a wildcard bind as loopback (what a local agent can dial)', async () => {
+    const app = new Hono();
+    registerMcpStatusRoute(app, { options: stubOptions(true, 4242, '0.0.0.0'), mcpManager: null });
+    const res = await app.request('/api/mcp/status');
+    const body = (await res.json()) as Record<string, unknown>;
+    assert.equal(body['url'], 'http://127.0.0.1:4242/mcp');
+  });
+
   it('enabled + connected when a live session exists', async () => {
     const body = await getStatus(stubManager(1), true);
     assert.equal(body['enabled'], true);

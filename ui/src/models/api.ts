@@ -957,6 +957,15 @@ export interface IMcpStatusApi {
   enabled: boolean;
   connected: boolean;
   clients: number;
+  /**
+   * The endpoint a client registers (e.g. `http://127.0.0.1:4242/mcp`),
+   * built by the server from its OWN bind. Authoritative: the page origin
+   * is NOT a substitute, because under the dev setup the SPA is served by a
+   * separate dev server that proxies `/api`, so its origin names the proxy's
+   * port instead of the one `/mcp` listens on. A wildcard bind is reported
+   * as loopback, which is what a local agent can actually dial.
+   */
+  url: string;
 }
 
 /**
@@ -1548,7 +1557,18 @@ export interface IFindingApi {
   nodeId: string;
   extensionId: string;
   extensionVersion: string;
-  /** `extension` = finder lane; `kernel` = safety lane (reserved slugs). */
+  /**
+   * Who AUTHORED the judgment this row carries, which is not always who
+   * `extensionId` names:
+   * - `extension`: the finder lane, the named extension's own verdict.
+   * - `kernel`: the safety lane, synthesized by the kernel from the
+   *   `safety` block any probabilistic report carries (reserved slugs
+   *   `injection-detected` / `content-suspicious` / `content-malformed`).
+   *   Here `extensionId` names the RUN that surfaced it (whatever
+   *   extension happened to be reading the node), NOT the author of the
+   *   judgment, so the UI must mark these rows or the operator reads
+   *   them as that extension's own finding.
+   */
   origin: 'extension' | 'kernel';
   type: string;
   severity: TIssueSeverityApi;

@@ -29,6 +29,20 @@ export interface IMcpStatusRouteDeps {
   mcpManager: McpSessionManager | null;
 }
 
+/**
+ * The endpoint a client registers, built from the server's OWN bind. The
+ * page origin is NOT a substitute: under the dev setup the SPA is served by
+ * a separate dev server that proxies `/api`, so its origin names the proxy's
+ * port, not the one `/mcp` listens on. A wildcard bind is reported as
+ * loopback because that is what a local agent can actually dial.
+ */
+function mcpEndpointUrl(options: IServerOptions): string {
+  const host = options.host === '0.0.0.0' || options.host === '::' ? '127.0.0.1' : options.host;
+  // IPv6 literals need brackets in a URL authority.
+  const authority = host.includes(':') ? `[${host}]` : host;
+  return `http://${authority}:${options.port}/mcp`;
+}
+
 export function registerMcpStatusRoute(app: Hono, deps: IMcpStatusRouteDeps): void {
   app.get('/api/mcp/status', (c) => {
     const clients = deps.mcpManager?.sessionCount ?? 0;
@@ -38,6 +52,7 @@ export function registerMcpStatusRoute(app: Hono, deps: IMcpStatusRouteDeps): vo
       enabled: deps.options.mcpServer,
       connected: clients > 0,
       clients,
+      url: mcpEndpointUrl(deps.options),
     });
   });
 }
