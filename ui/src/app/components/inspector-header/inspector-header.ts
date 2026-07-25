@@ -31,6 +31,7 @@ import { DebugSurface } from '../../slots/debug-surface.directive';
 import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import { ActionDispatchService } from '../../../services/action-dispatch';
+import { COPIED_FEEDBACK_MS, copyToClipboard } from '../../../services/clipboard';
 import { ActionPromptDialog } from '../../renderers/node-action-button/action-prompt-dialog';
 import type { IInputTypeDescriptor, TInputTypeValue } from '../../renderers/input-type-control/input-type-control';
 import type { INodeSummaryRowApi } from '../../../models/api';
@@ -345,6 +346,26 @@ export class InspectorHeader {
     const typed = payload as { actionId?: string };
     return typed.actionId ? { actionId: typed.actionId } : null;
   });
+
+  // --- path chip = click-to-copy --------------------------------------------
+
+  /**
+   * `true` for ~2s after the path was written to the clipboard. Drives the
+   * icon + tooltip swap in the chip, the same inline confirmation the debug
+   * panel's hash cells use (no global toast in this app).
+   */
+  protected readonly pathCopied = signal(false);
+
+  /**
+   * Copies the full project-relative path. A blocked clipboard (insecure
+   * context / denied permission) leaves the chip untouched, see
+   * `copyToClipboard`.
+   */
+  protected async copyPath(): Promise<void> {
+    if (!(await copyToClipboard(this.node().path))) return;
+    this.pathCopied.set(true);
+    setTimeout(() => this.pathCopied.set(false), COPIED_FEEDBACK_MS);
+  }
 
   protected onFavoriteClick(event: MouseEvent): void {
     event.stopPropagation();

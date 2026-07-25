@@ -159,6 +159,36 @@
   color: var(--sm-severity-warn);
 }
 
+/* The path chip is click-to-copy: the button is a transparent shell that
+   owns the layout (self-alignment, width cap, top gap) so the `<code>`
+   keeps its plain chip styling, and only adds the pointer affordance plus
+   a keyboard focus target. Mirror of `.dbg__copy` in the debug panel. */
+.inspector__path-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  align-self: flex-start;
+  max-width: 100%;
+  margin-top: 0.15rem;
+}
+
+.inspector__path-btn:hover code {
+  color: var(--p-text-color);
+}
+
+.inspector__path-btn:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 1px;
+  border-radius: var(--sm-radius-sm);
+}
+
 .inspector__path-code {
   font-family: var(--sm-font-mono);
   font-size: 0.7rem;
@@ -167,9 +197,27 @@
   padding: 0.1rem 0.4rem;
   border-radius: var(--sm-radius-sm);
   word-break: break-all;
-  align-self: flex-start;
-  max-width: 100%;
-  margin-top: 0.15rem;
+  min-width: 0;
+}
+
+/* The copy glyph stays discreet until the chip is hovered / focused, then
+   the confirmed state pins it visible in success tint for ~2s. */
+.inspector__path-icon {
+  flex: 0 0 auto;
+  font-size: 0.65rem;
+  color: var(--p-text-muted-color);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.inspector__path-btn:hover .inspector__path-icon,
+.inspector__path-btn:focus-visible .inspector__path-icon {
+  opacity: 1;
+}
+
+.inspector__path-btn--copied .inspector__path-icon {
+  opacity: 1;
+  color: var(--sm-severity-success);
 }
 
 /* Actions cluster, favorite + stale + version + view-contribution

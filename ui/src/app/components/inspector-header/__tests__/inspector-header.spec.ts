@@ -293,3 +293,71 @@ describe('InspectorHeader version chip (the Bump affordance)', () => {
     expect(chip.disabled).toBe(true);
   });
 });
+
+/**
+ * The path chip is click-to-copy, mirror of the debug panel's hash cells:
+ * clicking writes the FULL project-relative path and pins the confirmed
+ * icon state; a blocked clipboard leaves the chip untouched.
+ */
+describe('InspectorHeader path chip (click-to-copy)', () => {
+  /** Swap in a fake `navigator.clipboard`; returns a restore thunk. */
+  function stubClipboard(writeText: ReturnType<typeof vi.fn>): () => void {
+    const original = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    return () => {
+      if (original) {
+        Object.defineProperty(navigator, 'clipboard', original);
+      } else {
+        Reflect.deleteProperty(navigator as unknown as Record<string, unknown>, 'clipboard');
+      }
+    };
+  }
+
+  function pathButton(fixture: ComponentFixture<InspectorHeader>): HTMLButtonElement {
+    return (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="inspector-path-copy"]',
+    ) as HTMLButtonElement;
+  }
+
+  it('writes the full path to the clipboard and confirms with the check icon', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const restore = stubClipboard(writeText);
+    try {
+      const fixture = await bootstrap(makeNode());
+      const button = pathButton(fixture);
+      expect(button).not.toBeNull();
+      expect(button.querySelector('[data-testid="inspector-path"]')?.textContent).toBe(
+        'agents/architect.md',
+      );
+
+      button.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(writeText).toHaveBeenCalledWith('agents/architect.md');
+      expect(button.querySelector('.pi-check')).not.toBeNull();
+      expect(button.querySelector('.pi-copy')).toBeNull();
+    } finally {
+      restore();
+    }
+  });
+
+  it('stays in its idle state when the clipboard write is blocked', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+    const restore = stubClipboard(writeText);
+    try {
+      const fixture = await bootstrap(makeNode());
+      const button = pathButton(fixture);
+
+      button.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(writeText).toHaveBeenCalledOnce();
+      expect(button.querySelector('.pi-check')).toBeNull();
+      expect(button.querySelector('.pi-copy')).not.toBeNull();
+    } finally {
+      restore();
+    }
+  });
+});

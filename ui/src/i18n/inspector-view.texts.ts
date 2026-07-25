@@ -37,6 +37,16 @@ export const INSPECTOR_VIEW_TEXTS = {
       confidenceTooltip: 'Confidence',
       qualityLabel: 'Quality notes',
     },
+    /**
+     * The path chip is click-to-copy (mirror of the debug panel's hash
+     * cells): clicking it writes the full project-relative path to the
+     * clipboard and swaps the trailing icon into its confirmed state.
+     */
+    path: {
+      copyTooltip: 'Copy path to clipboard',
+      copiedTooltip: 'Copied!',
+      a11yLabel: 'Copy the file path to the clipboard',
+    },
     /** The stability chip doubles as the Set stability affordance. */
     stabilityTooltip: 'Set stability',
     /**

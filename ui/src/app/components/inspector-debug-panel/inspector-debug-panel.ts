@@ -26,6 +26,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 
 import { INSPECTOR_DEBUG_PANEL_TEXTS } from '../../../i18n/inspector-debug-panel.texts';
+import { COPIED_FEEDBACK_MS, copyToClipboard } from '../../../services/clipboard';
 import type { ISidecarOverlay, INodeView } from '../../../models/node';
 
 interface IIdentityBlock {
@@ -125,20 +126,15 @@ export class InspectorDebugPanel {
   /**
    * Copy the full hash to the clipboard and flag the row for ~2s so the
    * inline "Copied" note shows. The full 64-char digest is written, not
-   * the truncated display form. Errors are swallowed: the Clipboard API
-   * needs a secure context (https / localhost), so a failure here is
-   * non-actionable for the user (mirrors the update-chip copy in app.ts).
+   * the truncated display form. A blocked clipboard leaves the row
+   * untouched, see `copyToClipboard`.
    */
   protected async copyHash(key: string, value: string): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(value);
-      this.copiedKey.set(key);
-      setTimeout(() => {
-        if (this.copiedKey() === key) this.copiedKey.set(null);
-      }, 2000);
-    } catch {
-      // Clipboard write blocked (insecure context / denied permission). No-op.
-    }
+    if (!(await copyToClipboard(value))) return;
+    this.copiedKey.set(key);
+    setTimeout(() => {
+      if (this.copiedKey() === key) this.copiedKey.set(null);
+    }, COPIED_FEEDBACK_MS);
   }
 
   /**

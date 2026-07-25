@@ -78,7 +78,28 @@
       </button>
       }
     </div>
-    <code class="inspector__path-code" data-testid="inspector-path">{{ n.path }}</code>
+    <!-- The path chip is click-to-copy (mirror of the debug panel's hash
+         cells): the button is a transparent shell so the `<code>` keeps
+         its chip styling, and the trailing icon swaps to a check for ~2s
+         after a successful clipboard write. -->
+    <button
+      type="button"
+      class="inspector__path-btn"
+      [class.inspector__path-btn--copied]="pathCopied()"
+      [pTooltip]="pathCopied() ? texts.header.path.copiedTooltip : texts.header.path.copyTooltip"
+      tooltipPosition="bottom"
+      [attr.aria-label]="texts.header.path.a11yLabel"
+      (click)="copyPath()"
+      data-testid="inspector-path-copy"
+    >
+      <code class="inspector__path-code" data-testid="inspector-path">{{ n.path }}</code>
+      <i
+        class="pi inspector__path-icon"
+        [class.pi-copy]="!pathCopied()"
+        [class.pi-check]="pathCopied()"
+        aria-hidden="true"
+      ></i>
+    </button>
   </div>
 
   <div class="inspector__actions-cluster">
