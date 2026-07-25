@@ -33,6 +33,15 @@ export interface IScaffoldTarget {
   /** Marker dir to create alongside the skill so the chosen lens resolves. */
   marker?: string;
   aka: readonly string[];
+  /**
+   * Owner of a SHARED `skillDir` (`IProviderScaffold.sharedWith`), set on the
+   * lenses that read a territory they do not own (`antigravity` / `opencode`
+   * over the open `.agents/skills`). Present = this row is a per-lens
+   * resolution target, NOT a destination choice: `listScaffoldDestinations`
+   * filters it out so one territory stays one row in the `sm tutorial`
+   * prompt, while `sm agent` / the BFF keep resolving it.
+   */
+  sharedWith?: string;
 }
 
 /**
@@ -58,6 +67,7 @@ export function toScaffoldTarget(
     skillDir: scaffold.skillDir,
     ...(scaffold.marker !== undefined ? { marker: scaffold.marker } : {}),
     aka: scaffold.aka ?? [],
+    ...(scaffold.sharedWith !== undefined ? { sharedWith: scaffold.sharedWith } : {}),
   };
 }
 
@@ -81,6 +91,18 @@ export function listScaffoldTargets(includeExperimental = false): IScaffoldTarge
     if (target !== null) out.push(target);
   }
   return out;
+}
+
+/**
+ * The subset a verb that offers a DESTINATION CHOICE should list: rows that
+ * OWN their `skillDir`. A lens sharing another's territory (`sharedWith`,
+ * e.g. `antigravity` / `opencode` over the open `.agents/skills`) is a valid
+ * per-lens resolution target but NOT a separate destination, so one territory
+ * keeps producing one prompt row. `sm tutorial` uses this; `sm agent` and the
+ * BFF's per-lens probe keep using the full `listScaffoldTargets` catalog.
+ */
+export function listScaffoldDestinations(includeExperimental = false): IScaffoldTarget[] {
+  return listScaffoldTargets(includeExperimental).filter((t) => t.sharedWith === undefined);
 }
 
 /**

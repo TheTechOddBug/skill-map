@@ -4,15 +4,24 @@
   "title": "ExtensionProvider",
   "description": "Manifest shape for a `Provider` extension. A Provider declares its own universe: the platform it recognises (Claude Code, Codex, Antigravity, Obsidian vault, generic MD), the catalog of node `kind`s it emits, and the per-kind frontmatter schema each kind follows. **Structure-as-truth**: exactly one Provider lives in each plugin that carries one, declared as `<plugin>/provider.ts`. The kinds catalog lives as folders under `<plugin>/kinds/<kindName>/` and the loader discovers each entry by walking that directory; the manifest itself NO LONGER carries a `kinds` map. Each kind folder MUST contain `schema.json` (the kind's frontmatter JSON Schema, extending `frontmatter/base.schema.json` via `allOf` + `$ref`) and `kind.json` (UI metadata under `{ ui: {...} }`). The kernel resolves these at boot time and registers each schema with AJV for scan-time validation. Exactly zero or one Provider MUST match any given file; multiple matches → `provider-ambiguous` issue, file unclassified. **`roots` is enforcement-grade**: a Provider declaring `roots` only receives files matching at least one glob; a Provider without `roots` acts as a fallback for files unmatched by any other Provider's roots. Providers are deterministic-only, they sit at the filesystem boundary and run during boot; probabilistic classification would make boot slow, costly, and non-reproducible. The `mode` field MUST NOT appear in Provider manifests. If you need LLM-assisted classification, write a probabilistic Action that runs as a queued job and writes back through the enrichment layer; Extractors are deterministic-only and Providers stay on the deterministic boot path. Distinct from the **hexagonal-architecture** 'adapter' (`StoragePort.adapter`, `FilesystemPort.adapter`, etc.), which is an internal driven-adapter implementing a port, Providers live in the extension surface, hexagonal adapters live in `src/kernel/adapters/`.",
   "allOf": [
-    { "$ref": "base.schema.json" }
+    {
+      "$ref": "base.schema.json"
+    }
   ],
   "type": "object",
-  "required": ["version", "description", "presentation"],
+  "required": [
+    "version",
+    "description",
+    "presentation"
+  ],
   "unevaluatedProperties": false,
   "properties": {
     "presentation": {
       "type": "object",
-      "required": ["label", "color"],
+      "required": [
+        "label",
+        "color"
+      ],
       "additionalProperties": false,
       "description": "Presentation metadata the UI uses to render this Provider's identity: the lens-switcher dropdown label, the topbar active-lens chip, and the per-node provider chip on cards. Required so the UI never hardcodes a closed provider list, it reads every registered Provider's identity from the `providerRegistry` field embedded in REST envelopes (`api/rest-envelope.schema.json`). Named `presentation` (NOT `ui`) because the shared extension `ui` key is the view-contributions map declared only by extractor / analyzer kinds. Mirrors the per-kind `provider-kind.schema.json#/ui` shape (label + base color, optional dark variant + emoji + icon) plus `hideChip` for fallback Providers that should not badge every node.",
       "properties": {
@@ -42,10 +51,15 @@
           "oneOf": [
             {
               "type": "object",
-              "required": ["kind", "id"],
+              "required": [
+                "kind",
+                "id"
+              ],
               "additionalProperties": false,
               "properties": {
-                "kind": { "const": "pi" },
+                "kind": {
+                  "const": "pi"
+                },
                 "id": {
                   "type": "string",
                   "pattern": "^pi-[a-z0-9]+(-[a-z0-9]+)*$",
@@ -55,10 +69,15 @@
             },
             {
               "type": "object",
-              "required": ["kind", "path"],
+              "required": [
+                "kind",
+                "path"
+              ],
               "additionalProperties": false,
               "properties": {
-                "kind": { "const": "svg" },
+                "kind": {
+                  "const": "svg"
+                },
                 "path": {
                   "type": "string",
                   "minLength": 1,
@@ -82,7 +101,9 @@
     },
     "detect": {
       "type": "object",
-      "required": ["markers"],
+      "required": [
+        "markers"
+      ],
       "additionalProperties": false,
       "description": "Auto-detection markers for the active-provider lens. The lens resolver checks each marker path (relative to the scope root) and, when present, suggests this Provider as a candidate lens. Replaces the former hardcoded detection table: the set of detectable Providers now derives from the registered Providers themselves. Optional, a Provider with no `detect` block is never auto-suggested (it can still be selected manually). When several Providers match, the resolver returns the full candidate list in Provider iteration order and the first match is the default suggestion. **Fallback precedence**: a Provider whose `detect.fallback` is `true` (the open-standard `agent-skills` lens, whose `.agents/` marker is also the shared skill home that vendor lenses populate) is dropped from the candidate list whenever any non-fallback (vendor) Provider also matched, so a project carrying `.codex/` alongside `.agents/` resolves to `codex` outright instead of prompting `codex` vs `agent-skills`. The fallback only stands when no vendor marker is present; several vendor markers still produce a genuine ambiguous list.",
       "properties": {
@@ -90,7 +111,10 @@
           "type": "array",
           "minItems": 1,
           "description": "Paths relative to the scope root whose existence signals this Provider's presence (e.g. `['.claude']`, `['.codex', 'AGENTS.md']`). A directory or a file both count; existence is the only test.",
-          "items": { "type": "string", "minLength": 1 }
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         },
         "fallback": {
           "type": "boolean",
@@ -101,11 +125,15 @@
     "roots": {
       "type": "array",
       "description": "Path globs (relative to scope root) that this Provider claims. **Enforcement-grade since structure-as-truth refactor**: a Provider declaring `roots` only receives files that match at least one entry of the array; a Provider without `roots` acts as a fallback and receives files unmatched by every other Provider's roots. Two Providers whose `roots` both match the same file produce a `provider-ambiguous` issue and the file stays unclassified. `sm plugins doctor` warns when no file matched a specific Provider's roots in the latest scan.",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
     "scaffold": {
       "type": "object",
-      "required": ["skillDir"],
+      "required": [
+        "skillDir"
+      ],
       "additionalProperties": false,
       "description": "Authoring targets for verbs that MATERIALISE files into this Provider's on-disk territory (today only `sm tutorial`, which drops a skill folder where the Provider's runtime will discover it). Distinct from `detect` (which READS markers to suggest a lens) and from `classify` (which READS paths during a scan): `scaffold` is the WRITE side, the directory a generator drops new content into so the target runtime picks it up. Optional: a Provider with no `scaffold` block is never offered as a destination by a materialising verb (e.g. `antigravity`, whose skills and basic-track book are already covered by the open-standard `agent-skills` row, and `core/markdown`, which owns no authoring convention). The skill-folder convention is uniform across hosts (`<skillDir>/<name>/SKILL.md`), so a single `skillDir` is enough today; a future verb that scaffolds agents or commands adds a sibling field (`agentDir`, `commandDir`) without breaking this one.",
       "properties": {
@@ -125,13 +153,23 @@
           "type": "array",
           "minItems": 1,
           "description": "Display-only hints naming the agents that consume this Provider's scaffold territory AND share its tutorial track, shown in parentheses next to the Provider label in the `sm tutorial` destination prompt (e.g. the open-standard `.agents/skills` `agent-skills` Provider lists Google's Antigravity, which shares both the territory and the basic track; OpenAI's Codex also reads that territory but is a rich-track lens, so it is NOT listed here, advertising it under the basic row would hand it the wrong book). Purely presentational: these strings are NOT matched by `--for` (only registered Provider ids are) and have no runtime effect. Optional; absent means the prompt shows the bare Provider label.",
-          "items": { "type": "string", "minLength": 1 }
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "sharedWith": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Qualified id of the Provider that OWNS this `skillDir` when the territory is SHARED. Declared consumer-side: `antigravity` and `opencode` both read the open `.agents/skills` territory that `agent-skills` owns, so they name the owner here instead of duplicating ownership. It splits the two questions `scaffold` answers: a verb that offers a DESTINATION CHOICE (`sm tutorial`) lists owners only, so one territory stays one row, while a per-lens probe asking \"does THIS lens support / have the skill?\" (`sm agent install` / `status`, `GET /api/agent/install`, the Quick Start row) resolves a sharing lens normally, because a skill materialised in the shared territory IS discovered by that runtime. Omitted when the Provider owns its `skillDir`."
         }
       }
     },
     "mcpConfig": {
       "type": "object",
-      "required": ["sources"],
+      "required": [
+        "sources"
+      ],
       "additionalProperties": false,
       "description": "MCP config-discovery capability (see architecture.md §Provider · MCP config discovery). Declares the config file(s) this Provider's runtime reads for MCP server declarations and their dialect. The kernel reads + parses each source once per scan (shared parser, the single owner of every MCP grammar) and materialises one virtual `mcp://<server>` node per declared server, canonical over the consumer-side `core/mcp-tools` emission. Optional: absent means the Provider surfaces MCP only from the consumer side (`tools:` references).",
       "properties": {
@@ -141,7 +179,10 @@
           "description": "Config files to read for declared MCP servers.",
           "items": {
             "type": "object",
-            "required": ["path", "dialect"],
+            "required": [
+              "path",
+              "dialect"
+            ],
             "additionalProperties": false,
             "properties": {
               "path": {
@@ -152,7 +193,10 @@
               },
               "dialect": {
                 "type": "string",
-                "enum": ["json-mcp-servers", "toml-mcp-servers"],
+                "enum": [
+                  "json-mcp-servers",
+                  "toml-mcp-servers"
+                ],
                 "description": "Config grammar: `json-mcp-servers` (a JSON file with an `mcpServers` map, e.g. Claude `.mcp.json`, Cursor `.cursor/mcp.json`) or `toml-mcp-servers` (a TOML file with `[mcp_servers.*]` tables, e.g. Codex `.codex/config.toml`). Both are read into the same normalised descriptor."
               }
             }
@@ -162,19 +206,27 @@
     },
     "activity": {
       "type": "object",
-      "required": ["install"],
+      "required": [
+        "install"
+      ],
       "additionalProperties": false,
       "description": "Optional live-activity capability (see `spec/provider-activity.md`). Declared by Providers whose runtime exposes a hook system that can report skill / agent / command invocations in real time, so the map can light the matching node while the operator works. Like `scaffold`, this is a provider-owned capability sub-object, NOT a new extension kind: the Provider that owns the on-disk layout and invocation grammar also owns how its runtime reports invocations. The manifest half is this declarative `install` descriptor; the event-mapping half is the runtime `mapEvent()` method (TypeScript-only, MUST NOT appear in the manifest, mirroring `classify()` / `walk()`), which turns one raw provider hook payload into zero or more `{ kind, name, phase, owner? }` signals that the BFF resolves against the scanned node set via the Provider's kind identifiers. Providers without a hookable runtime (the open-standard `agent-skills` as a pure format, the `core/markdown` base) omit the whole block and are never offered by `sm activity install`.",
       "properties": {
         "install": {
           "type": "object",
-          "required": ["kind", "configPath"],
+          "required": [
+            "kind",
+            "configPath"
+          ],
           "additionalProperties": false,
           "description": "Declarative install descriptor consumed by `sm activity install <provider>`: where the provider's PROJECT-LOCAL hook config lives and which install shape applies. Installation merges non-destructively (pre-existing operator hooks are preserved), is consent-prompted, targets only paths inside the scope root (never `$HOME`), and is exactly reversed by `sm activity uninstall`.",
           "properties": {
             "kind": {
               "type": "string",
-              "enum": ["json-hooks", "plugin-file"],
+              "enum": [
+                "json-hooks",
+                "plugin-file"
+              ],
               "description": "Install shape. `json-hooks`: merge hook entries that spawn the activity bridge command into a JSON settings/hooks file (Claude `.claude/settings.json`, Codex `.codex/hooks.json`, Antigravity `.agents/hooks.json`). `plugin-file`: write an in-process plugin file that POSTs to the ingest route directly, no spawn (opencode `.opencode/plugins/`). Closed set; adding a member is a minor spec bump."
             },
             "configPath": {
@@ -189,7 +241,9 @@
               "description": "For `json-hooks` only (a `plugin-file` descriptor MUST omit it, enforced below): the provider lifecycle events to wire the bridge into, each with an optional matcher in the provider runtime's OWN matcher grammar. Only the events the runtime `mapEvent` actually consumes belong here (every wired event spawns one bridge process at runtime). The in-process analog for `plugin-file` providers is the runtime `pluginHooksSource` half (TypeScript-only, never manifest data): hook registrations are code, not declarative events.",
               "items": {
                 "type": "object",
-                "required": ["event"],
+                "required": [
+                  "event"
+                ],
                 "additionalProperties": false,
                 "properties": {
                   "event": {
@@ -204,7 +258,10 @@
                   },
                   "entryShape": {
                     "type": "string",
-                    "enum": ["wrapped", "flat"],
+                    "enum": [
+                      "wrapped",
+                      "flat"
+                    ],
                     "description": "Entry shape the runtime expects for this event's array. `wrapped` (default): the `{ matcher?, hooks: [...] }` group tool events use. `flat`: a bare `{ type, command }` entry, the shape Antigravity's lifecycle events (PreInvocation / PostInvocation / Stop) take. Matchers do not apply to flat entries."
                   }
                 }
@@ -218,18 +275,31 @@
             },
             "commandCwd": {
               "type": "string",
-              "enum": ["scope-root", "config-dir"],
+              "enum": [
+                "scope-root",
+                "config-dir"
+              ],
               "description": "Working directory the provider runtime spawns hook commands with, which decides how the bridge command's script path is written. `scope-root` (default): the runtime spawns at the project root, the plain scope-relative bridge path resolves. `config-dir` (Antigravity, live-verified): the runtime spawns at the hook config's own directory, so install prefixes the relative hops from `dirname(configPath)` back to the root. The bridge itself derives its scope root from its installed location, never the spawn cwd."
             }
           },
           "allOf": [
             {
               "if": {
-                "properties": { "kind": { "const": "plugin-file" } },
-                "required": ["kind"]
+                "properties": {
+                  "kind": {
+                    "const": "plugin-file"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
               },
               "then": {
-                "properties": { "events": false, "group": false, "commandCwd": false },
+                "properties": {
+                  "events": false,
+                  "group": false,
+                  "commandCwd": false
+                },
                 "description": "`events` / `group` / `commandCwd` parameterize the spawned-bridge wiring and are meaningless for an in-process plugin: a `plugin-file` descriptor carries only `kind` + `configPath`."
               }
             }
@@ -251,7 +321,12 @@
           "description": "When present, the resolver ranks candidates whose `kind` appears earlier in this array ABOVE candidates whose `kind` appears later. Candidates whose `kind` is absent from the array drop to the end (after every listed kind). Example: a Provider that wants `invokes` edges to win against `mentions` and `references` of the same range declares `['invokes', 'references', 'mentions']`. Ties inside the same `kindPriority` bucket fall through to the confidence -> range length -> declaration order tiebreaks.",
           "items": {
             "type": "string",
-            "enum": ["invokes", "references", "mentions", "points"]
+            "enum": [
+              "invokes",
+              "references",
+              "mentions",
+              "points"
+            ]
           }
         }
       }
@@ -260,10 +335,18 @@
       "type": "object",
       "additionalProperties": {
         "type": "array",
-        "items": { "type": "string", "minLength": 1 }
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
       },
       "propertyNames": {
-        "enum": ["invokes", "references", "mentions", "points"]
+        "enum": [
+          "invokes",
+          "references",
+          "mentions",
+          "points"
+        ]
       },
       "description": "Strict resolution matrix consumed by the post-walk confidence-lift transform: maps a `link.kind` (emitted by an Extractor in this Provider's plugin, e.g. `invokes`, `mentions`) to the set of target `node.kind` values that count as a valid resolution. A link whose normalised trigger matches a node's identifier (see the kinds' `identifiers`) is lifted to confidence `1.0` only when that node's kind appears in `resolution[link.kind]`; otherwise it keeps its extractor-emitted confidence (the name exists but does not resolve AS THIS link.kind). Keys are restricted to the closed link-kind set; values are kind names this Provider declares under `kinds/`. Absent means no name-based confidence bump applies (path matches are unaffected). Distinct from `resolverRules` (Signal IR candidate ranking); `resolution` runs against the merged Link graph."
     },
@@ -271,19 +354,26 @@
       "type": "object",
       "additionalProperties": {
         "type": "array",
-        "items": { "type": "string", "minLength": 1 }
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
       },
       "description": "Per-kind catalog of names the provider runtime reserves for its own built-in commands / verbs, so a user node named after one is flagged. Maps a kind name (a key of the Provider's `kinds/` catalog) to the reserved names for that kind. Two consumers share it: the `core/name-reserved` analyzer emits a `warn` when a node's normalised identifiers intersect the reserved list for its provider + kind (the runtime silently shadows the user file), and the post-walk confidence-lift transform floors any link resolving to a reserved node. Lookup normalises both sides via the trigger normalization pipeline, so `Init-Project` in the manifest matches a user `init project`. Scope each entry to the kind the runtime actually consumes (a name reserved for commands may legitimately appear as a skill). Absent means no reserved names."
     },
     "read": {
       "description": "Declarative file-discovery config consumed by the kernel walker. Either a SINGLE rule (the common case) or an ARRAY of rules (a Provider that reads several file families, each with its own parser). For each rule the kernel walks every root, includes files whose extension matches the rule's `extensions`, parses each with the rule's `parser`, and yields raw nodes the orchestrator consumes; an array runs one walk pass per rule. When absent, the kernel applies the default `{ extensions: ['.md'], parser: 'frontmatter-yaml' }` so the most common Provider shape needs no configuration. When a Provider also declares the runtime `walk()` method (TypeScript-only, never appears in this manifest), `walk()` wins and `read` is ignored: the runtime field is the escape hatch for Providers with non-standard discovery requirements. The multi-rule array is the declarative path for a mixed-format Provider, so an escape-hatch `walk()` is not needed: the OpenAI Codex provider reads `.toml` sub-agents (parser `toml`, `bodyField: 'developer_instructions'`) AND `.md` open-standard skills (parser `frontmatter-yaml`) as two rules. Rules SHOULD declare disjoint `extensions`; if two rules (or a rule and another Provider) match the same path, the orchestrator's first-wins claim dedups it. Built-in parsers ship with the kernel (`frontmatter-yaml`, `plain`, `toml`); the set is closed by design and user plugins cannot register their own.",
       "oneOf": [
-        { "$ref": "#/$defs/providerReadRule" },
+        {
+          "$ref": "#/$defs/providerReadRule"
+        },
         {
           "type": "array",
           "minItems": 1,
           "description": "Multiple read rules, one walk pass each (see `#/$defs/providerReadRule`).",
-          "items": { "$ref": "#/$defs/providerReadRule" }
+          "items": {
+            "$ref": "#/$defs/providerReadRule"
+          }
         }
       ]
     }
@@ -291,7 +381,10 @@
   "$defs": {
     "providerReadRule": {
       "type": "object",
-      "required": ["extensions", "parser"],
+      "required": [
+        "extensions",
+        "parser"
+      ],
       "additionalProperties": false,
       "description": "One declarative read rule: an extension set, the parser to apply to those files, and an optional `bodyField`. A Provider's `read` is either one of these or an array of them.",
       "properties": {

@@ -129,6 +129,16 @@ export const opencodeProvider: IBuiltInManifest<IProvider> = {
   // has real-world mileage.
   stability: 'beta',
 
+  // OpenCode READS the open `.agents/skills` territory (its `skill` kind is
+  // `COMMONS_KINDS`, composed from `agent-skills` above), so a processing
+  // skill materialised there IS discovered by this runtime. `agent-skills`
+  // OWNS the territory as the canonical destination, named here via
+  // `sharedWith`: destination-choice verbs (`sm tutorial`) keep listing the
+  // owner alone, while per-lens probes (`sm agent install / status`, the
+  // Quick Start row) now resolve under the opencode lens instead of refusing
+  // "declares no skill directory".
+  scaffold: { skillDir: '.agents/skills', sharedWith: 'agent-skills' },
+
   // Single read rule: all three families are `.md` + YAML frontmatter, so one
   // `COMMONS_READ` pass suffices (no multi-rule `read` like codex, which mixes
   // `.toml`). `classify()` below routes each path to its kind.

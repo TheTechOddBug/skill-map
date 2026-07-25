@@ -72,7 +72,7 @@ import { Command, Option } from 'clipanion';
 import { tx } from '../../kernel/util/tx.js';
 import { TUTORIAL_TEXTS } from '../i18n/tutorial.texts.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
-import { listScaffoldTargets, type IScaffoldTarget } from '../../core/agent-skill/targets.js';
+import { listScaffoldDestinations, type IScaffoldTarget } from '../../core/agent-skill/targets.js';
 import { type IAnsi } from '../util/ansi.js';
 import { displayCwd, isDirEmpty, listCwdEntries } from '../util/empty-cwd.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -197,7 +197,7 @@ export class TutorialCommand extends SmCommand {
     // the open-standard `agent-skills` → `.agents/skills`); experimental
     // ones join only under `--experimental`. Pre-bootstrap, so this reads
     // the built-in catalog directly and never touches `.skill-map/`.
-    const targets = listScaffoldTargets(this.experimental);
+    const targets = listScaffoldDestinations(this.experimental);
     const target = await this.resolveScaffoldTarget(targets, stderrAnsi, errGlyph);
     if (target === null) return ExitCode.Error;
     // resolveScaffoldTarget only ever returns a selectable row, which

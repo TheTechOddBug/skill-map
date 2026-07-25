@@ -175,6 +175,16 @@ export const antigravityProvider: IBuiltInManifest<IProvider> = {
   // Promote to `stable` (drop the field) once it has real-world mileage.
   stability: 'beta',
 
+  // Antigravity READS the open `.agents/skills` territory (its `skill` kind
+  // is `COMMONS_KINDS`, composed from `agent-skills` above), so a processing
+  // skill materialised there IS discovered by this runtime. `agent-skills`
+  // OWNS the territory as the canonical destination, named here via
+  // `sharedWith`: destination-choice verbs (`sm tutorial`) keep listing the
+  // owner alone, while per-lens probes (`sm agent install / status`, the
+  // Quick Start row) now resolve under the antigravity lens instead of
+  // refusing "declares no skill directory".
+  scaffold: { skillDir: '.agents/skills', sharedWith: 'agent-skills' },
+
   // `.md` + YAML frontmatter covers BOTH families (skills and workflows);
   // a single read rule suffices because the parser/extension are identical,
   // `classify()` below routes each path to its kind. (Codex needs a

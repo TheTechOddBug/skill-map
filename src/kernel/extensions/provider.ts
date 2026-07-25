@@ -356,6 +356,22 @@ export interface IProviderScaffold {
    * are) and has no runtime effect.
    */
   aka?: readonly string[];
+  /**
+   * Qualified id of the Provider that OWNS this `skillDir` when the
+   * territory is shared. Declared CONSUMER-side (like the `COMMONS_KINDS`
+   * composition it mirrors): `antigravity` and `opencode` both READ the
+   * open `.agents/skills` territory that `agent-skills` owns, so they name
+   * it here instead of duplicating ownership.
+   *
+   * It splits the two questions `scaffold` answers. Verbs that offer a
+   * DESTINATION CHOICE (`sm tutorial`) list owners only, so one territory
+   * stays one row; per-lens probes that ask "does THIS lens support / have
+   * the skill?" (`sm agent install / status`, `GET /api/agent/install`, the
+   * Quick Start row) resolve a sharing lens normally, because a skill
+   * materialised there IS discovered by its runtime. Omitted when the
+   * Provider owns its `skillDir`.
+   */
+  sharedWith?: string;
 }
 
 /**

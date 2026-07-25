@@ -260,7 +260,7 @@
       "schemas/extensions/formatter.schema.json": "880dc379ad545a62404403533a01eda5171edba0390561fc46ec6e986e0b9bd3",
       "schemas/extensions/hook.schema.json": "ea438f1b1c7e8b3f0fea841779cb0396eb3f68b4f1176a2ed20deaeb856aff72",
       "schemas/extensions/provider-kind.schema.json": "b32a69a1098cad0ff44b26ac321300db265e2e9d405144935c547b12bd73fb4b",
-      "schemas/extensions/provider.schema.json": "3f27776d6020914edfa5c3b05020001c4a5da75aa09208393ab519301e28cd6d",
+      "schemas/extensions/provider.schema.json": "12bb84301dd4738005950fad17bbd0f17334cc7ddc76792109fb3714da14efff",
       "schemas/findings/report.schema.json": "b89f732ea55b65986e828c2d4e857060d0c71254de2e20c18a641769309e9660",
       "schemas/frontmatter/base.schema.json": "47f05ffa2a51f465f1b8df70cc7a1e7afe2c40f8d37826cd8a569977e9036b8d",
       "schemas/history-stats.schema.json": "5253da8c4815f6b910ec4535d9e8d68ae4d51d0a1975104b8d796c28c10e2028",
