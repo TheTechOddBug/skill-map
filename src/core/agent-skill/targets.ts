@@ -14,7 +14,7 @@
  */
 
 import { installedDefaultEnabled } from '../../kernel/config/plugin-resolver.js';
-import type { IProvider } from '../../kernel/extensions/index.js';
+import type { IProvider, IProviderScaffold } from '../../kernel/extensions/index.js';
 import { builtIns } from '../../plugins/built-ins.js';
 
 import { agentSkillStatus } from './engine.js';
@@ -65,10 +65,21 @@ export function toScaffoldTarget(
     id: provider.id,
     label: provider.presentation.label,
     skillDir: scaffold.skillDir,
-    ...(scaffold.marker !== undefined ? { marker: scaffold.marker } : {}),
     aka: scaffold.aka ?? [],
-    ...(scaffold.sharedWith !== undefined ? { sharedWith: scaffold.sharedWith } : {}),
+    ...optionalScaffoldFields(scaffold),
   };
+}
+
+/**
+ * The optional passthroughs, copied only when declared so the projection
+ * stays `exactOptionalPropertyTypes`-safe (and `toScaffoldTarget` stays
+ * under the complexity budget).
+ */
+function optionalScaffoldFields(scaffold: IProviderScaffold): Partial<IScaffoldTarget> {
+  const out: Partial<IScaffoldTarget> = {};
+  if (scaffold.marker !== undefined) out.marker = scaffold.marker;
+  if (scaffold.sharedWith !== undefined) out.sharedWith = scaffold.sharedWith;
+  return out;
 }
 
 /**

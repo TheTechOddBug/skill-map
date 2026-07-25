@@ -38,6 +38,7 @@ export type {
   IProviderKind,
   IProviderKindUi,
   IProviderReadConfig,
+  IProviderScaffold,
   IProviderUi,
   IProviderWalkOptions,
   IRawNode,
