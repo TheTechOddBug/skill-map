@@ -137,20 +137,85 @@ export async function writeFindingsForNode(
     .where('path', '=', nodeId)
     .executeTakeFirst();
   if (!node) return false;
+  const stamp = (row: IFindingRowInput): IFindingInsertRow => ({
+    ...row,
+    extensionVersion: intent.extensionVersion,
+    model: intent.model,
+    bodyHashAtGeneration: node.bodyHash,
+    generatedAt: intent.generatedAt,
+    jobId: intent.jobId,
+  });
+  // The two lanes have DIFFERENT replace scopes (see each function): the
+  // finder lane belongs to the reporting extension, the safety lane to the
+  // node.
   await replaceFindingsForNode(
     db,
     nodeId,
     intent.extensionId,
-    intent.rows.map((row) => ({
-      ...row,
-      extensionVersion: intent.extensionVersion,
-      model: intent.model,
-      bodyHashAtGeneration: node.bodyHash,
-      generatedAt: intent.generatedAt,
-      jobId: intent.jobId,
-    })),
+    intent.rows.filter((row) => row.origin !== 'kernel').map(stamp),
+  );
+  await replaceKernelSafetyRowsForNode(
+    db,
+    nodeId,
+    intent.extensionId,
+    intent.rows.filter((row) => row.origin === 'kernel').map(stamp),
   );
   return true;
+}
+
+/**
+ * Record-path write for the KERNEL SAFETY LANE, scoped to the NODE rather
+ * than to the reporting extension (`spec/db-schema.md` §state_findings).
+ *
+ * A safety row states a fact about the node's CONTENT ("this body carries a
+ * prompt injection"), not about the run that noticed it, and every
+ * probabilistic report carries a COMPLETE safety verdict on the body it
+ * read (`injectionDetected` plus `contentQuality`). Scoping the replace to
+ * the reporting extension therefore kept one copy of the same fact per
+ * extension that ever ran: six finders over one trapped file recorded the
+ * same injection six times (live-verified 2026-07-25). Replacing the whole
+ * lane per node collapses that to one row per fact, and keeps the
+ * documented "a clean report erases a prior trouble flag" rule, now
+ * uniformly: the newest reader of THIS body is the current verdict.
+ *
+ * `extensionId` still names the run that surfaced the row (the UI marks
+ * such rows `kernel` so they never read as that extension's own judgment).
+ * The ACTIVE adversarial finder (`core/ai-suspicion-analyzer`) is
+ * untouched: its judgments are `origin: 'extension'` under its own slug,
+ * with the finder lane's per-extension supersede.
+ */
+export async function replaceKernelSafetyRowsForNode(
+  db: TDbOrTx,
+  nodeId: string,
+  extensionId: string,
+  rows: readonly IFindingInsertRow[],
+): Promise<void> {
+  await db
+    .deleteFrom('state_findings')
+    .where('nodeId', '=', nodeId)
+    .where('origin', '=', 'kernel')
+    .execute();
+  if (rows.length === 0) return;
+  await db
+    .insertInto('state_findings')
+    .values(
+      rows.map((row) => ({
+        nodeId,
+        extensionId,
+        extensionVersion: row.extensionVersion,
+        origin: row.origin,
+        type: row.type,
+        severity: row.severity,
+        message: row.message,
+        detail: row.detail,
+        confidence: row.confidence,
+        model: row.model,
+        bodyHashAtGeneration: row.bodyHashAtGeneration,
+        generatedAt: row.generatedAt,
+        jobId: row.jobId,
+      })),
+    )
+    .execute();
 }
 
 /**

@@ -109,9 +109,12 @@ function insertRow(overrides: Partial<IFindingInsertRow> = {}): IFindingInsertRo
   };
 }
 
-function intent(rows: IFindingsWriteIntent['rows']): IFindingsWriteIntent {
+function intent(
+  rows: IFindingsWriteIntent['rows'],
+  extensionId: string = FINDER_ID,
+): IFindingsWriteIntent {
   return {
-    extensionId: FINDER_ID,
+    extensionId,
     extensionVersion: '1.0.0',
     generatedAt: 2000,
     jobId: JOB_ID,
@@ -581,6 +584,115 @@ describe('findings.suppressionsByPath (mirror-backed lens source)', () => {
       // Path narrowing: an empty list short-circuits, a miss yields none.
       strictEqual((await adapter.findings.suppressionsByPath([])).size, 0);
       strictEqual((await adapter.findings.suppressionsByPath(['c.md'])).size, 0);
+    } finally {
+      await adapter.close();
+    }
+  });
+});
+
+/**
+ * The KERNEL SAFETY LANE is scoped to the NODE, not to the reporting
+ * extension (`spec/db-schema.md` §state_findings). A safety row states a
+ * fact about the node's CONTENT, and every probabilistic report carries a
+ * complete safety verdict on the body it read, so the newest report owns
+ * the lane. Per-extension scope used to keep one copy of the same fact per
+ * extension that ever ran (six finders over one trapped file recorded the
+ * same injection six times, live-verified 2026-07-25).
+ */
+describe('writeFindingsForNode (kernel safety lane, node-scoped)', () => {
+  const kernelRow = (type: string): IFindingsWriteIntent['rows'][number] => ({
+    origin: 'kernel',
+    type,
+    severity: 'warn',
+    message: `the model flagged ${type}`,
+    detail: null,
+    confidence: 1,
+  });
+
+  it('a second extension reporting the same fact REPLACES it, never duplicates', async () => {
+    const adapter = await openAdapter(freshDbPath('kernel-dedupe'));
+    try {
+      await insertNode(adapter, { path: NODE_PATH, bodyHash: BODY_HASH });
+      await writeFindingsForNode(
+        adapter.db,
+        NODE_PATH,
+        intent([kernelRow('injection-detected')], 'core/ai-contradiction-analyzer'),
+      );
+      await writeFindingsForNode(
+        adapter.db,
+        NODE_PATH,
+        intent([kernelRow('injection-detected')], 'core/ai-verbosity-analyzer'),
+      );
+
+      const rows = (await listFindings(adapter.db, { nodeId: NODE_PATH })).filter(
+        (r) => r.origin === 'kernel',
+      );
+      strictEqual(rows.length, 1, 'one row per fact, not one per reporting extension');
+      strictEqual(rows[0]!.type, 'injection-detected');
+      strictEqual(
+        rows[0]!.extensionId,
+        'core/ai-verbosity-analyzer',
+        'extension_id names the run that surfaced it LAST',
+      );
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('a clean report from ANY extension clears the lane', async () => {
+    const adapter = await openAdapter(freshDbPath('kernel-clean'));
+    try {
+      await insertNode(adapter, { path: NODE_PATH, bodyHash: BODY_HASH });
+      await writeFindingsForNode(
+        adapter.db,
+        NODE_PATH,
+        intent([kernelRow('injection-detected')], 'core/ai-security-analyzer'),
+      );
+      // A different extension reads the same body and reports clean.
+      await writeFindingsForNode(adapter.db, NODE_PATH, intent([], 'core/ai-vagueness-analyzer'));
+
+      const rows = (await listFindings(adapter.db, { nodeId: NODE_PATH })).filter(
+        (r) => r.origin === 'kernel',
+      );
+      strictEqual(rows.length, 0, 'the newest reader of this body is the current verdict');
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('leaves the FINDER lane alone (it still supersedes per extension)', async () => {
+    const adapter = await openAdapter(freshDbPath('kernel-lane-split'));
+    try {
+      await insertNode(adapter, { path: NODE_PATH, bodyHash: BODY_HASH });
+      await writeFindingsForNode(
+        adapter.db,
+        NODE_PATH,
+        intent(
+          [
+            {
+              origin: 'extension',
+              type: 'contradiction',
+              severity: 'warn',
+              message: 'A contradicts B',
+              detail: null,
+              confidence: 0.7,
+            },
+          ],
+          'core/ai-contradiction-analyzer',
+        ),
+      );
+      // Another extension runs and only trips the safety lane.
+      await writeFindingsForNode(
+        adapter.db,
+        NODE_PATH,
+        intent([kernelRow('content-suspicious')], 'core/ai-verbosity-analyzer'),
+      );
+
+      const rows = await listFindings(adapter.db, { nodeId: NODE_PATH });
+      const finder = rows.filter((r) => r.origin === 'extension');
+      strictEqual(finder.length, 1, "another extension's run never touches the finder lane");
+      strictEqual(finder[0]!.type, 'contradiction');
+      strictEqual(rows.filter((r) => r.origin === 'kernel').length, 1);
     } finally {
       await adapter.close();
     }

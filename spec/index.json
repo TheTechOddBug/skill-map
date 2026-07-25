@@ -237,7 +237,7 @@
       "conformance/fixtures/view-contribution-payloads/notes/example.md": "312b1919cd7fd0f233648b053acfb2975662ede3c65dd391cc508204b67ad6fb",
       "conformance/fixtures/view-slots-all/.skill-map/plugins/all-slots/analyzers/everything/index.js": "ea0022fec7f0fd5a26ba12db1310335f434f2f820682206a3a9542d98db0d346",
       "conformance/fixtures/view-slots-all/.skill-map/plugins/all-slots/plugin.json": "c48e8a0574947ade0b4eb189d6bc27a48e24f92f616aacdc177f2d22d472a599",
-      "db-schema.md": "f5948a08eaec0e306f2104466a08490c4ae648d4c84675a8312e824859dbf398",
+      "db-schema.md": "8b06f6e270483a554781b8603163450ac8a73a0de540ba977b8d78ecc6abf4e5",
       "interfaces/security-scanner.md": "ae0574e5b6e95aa95a5edc920773c4a866a0ef51836d3490edfd6579fc6c3cc4",
       "job-events.md": "0b7f51061acbd64e3066dae03e59248854f3c8789de6fc0c16da93d0ccf8ec4b",
       "job-lifecycle.md": "ba33ee4c3cd1229b93c2ee1e328c787336e12b32086b70f293a602d425645e74",
