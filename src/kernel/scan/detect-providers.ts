@@ -40,7 +40,7 @@ import type { TExtensionStability } from '../extensions/index.js';
  */
 export interface IProviderDetectInput {
   id: string;
-  detect?: { markers?: readonly string[]; fallback?: boolean };
+  detect?: { markers?: readonly string[]; fallback?: boolean; subsumes?: readonly string[] };
   /**
    * Lifecycle label. Providers that ship disabled by default
    * (`experimental` / `deprecated`, per `installedDefaultEnabled`) are not
@@ -61,8 +61,16 @@ export interface IProviderDetectInput {
  * shared skill home vendor lenses populate) is kept ONLY when no vendor
  * (non-fallback) Provider matched. So a `.codex/` + `.agents/` project
  * returns `['codex']`, not the ambiguous `['codex', 'agent-skills']` pair,
- * delivering what the scaffold `marker` field promises. Several vendor
- * markers still return a multi-id (ambiguous) list.
+ * delivering what the scaffold `marker` field promises.
+ *
+ * **Compat subsumption**: a Provider may declare `detect.subsumes`, the ids
+ * it absorbs when both matched, because it READS that runtime's territory
+ * itself. `opencode` (`subsumes: ['claude']`) is the reference case: it
+ * reads `.claude/skills/` + `CLAUDE.md` by design, while Claude Code never
+ * reads `.opencode/`, so `.claude/` + `.opencode/` returns `['opencode']`
+ * rather than a prompt over a tie that does not exist. One-way only, a
+ * mutual pair keeps both. Vendor markers with no subsumption relation
+ * still return a multi-id (ambiguous) list.
  */
 export function detectProvidersFromFilesystem(
   cwd: string,
@@ -82,7 +90,30 @@ export function detectProvidersFromFilesystem(
   // sole candidate (a pure open-standard project resolves to it).
   const hasVendor = matched.some((p) => p.detect?.fallback !== true);
   const kept = hasVendor ? matched.filter((p) => p.detect?.fallback !== true) : matched;
-  return kept.map((p) => p.id);
+  return dropSubsumed(kept).map((p) => p.id);
+}
+
+/**
+ * Remove every candidate another SURVIVING candidate subsumes. Evaluated
+ * against the incoming set (not progressively), so the outcome does not
+ * depend on iteration order, and skipped for a mutual pair (A subsumes B
+ * while B subsumes A) because dropping either would be an arbitrary
+ * tie-break: the ambiguity is real and the operator resolves it.
+ */
+function dropSubsumed(
+  candidates: readonly IProviderDetectInput[],
+): readonly IProviderDetectInput[] {
+  const subsumers = candidates.filter((p) => (p.detect?.subsumes?.length ?? 0) > 0);
+  if (subsumers.length === 0) return candidates;
+  const absorbs = (a: IProviderDetectInput, b: IProviderDetectInput): boolean =>
+    a.detect?.subsumes?.includes(b.id) === true;
+  return candidates.filter(
+    (candidate) =>
+      !subsumers.some(
+        (other) =>
+          other.id !== candidate.id && absorbs(other, candidate) && !absorbs(candidate, other),
+      ),
+  );
 }
 
 /**

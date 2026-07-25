@@ -44,6 +44,7 @@ import type { Hono } from 'hono';
 
 import type { WsBroadcaster } from '../broadcaster.js';
 import type { ActivityConversationStore } from '../activity-conversations.js';
+import type { ActivityOwnerIndex } from '../activity-owner-index.js';
 import type { ActivityStatsService } from '../activity-stats.js';
 import {
   buildAgentSpawnEvent,
@@ -100,6 +101,11 @@ export interface IActivityRouteDeps extends IRouteDeps {
   /** Boot-scoped execution-stats accumulator (composition-root owned). */
   stats: ActivityStatsService;
   /**
+   * Boot-scoped `owner -> agent node` index (composition-root owned):
+   * anchors a spawn that names no parent on the agent that owner runs.
+   */
+  owners: ActivityOwnerIndex;
+  /**
    * Consent-gated conversation store. Explicit extra dep by custody
    * contract (never on `IRouteDeps`, see `activity-conversations.ts`).
    */
@@ -116,6 +122,7 @@ export function registerActivityRoute(app: Hono, deps: IActivityRouteDeps): void
       dbPath: deps.options.dbPath,
       providerId: body.provider,
       raw: body.event,
+      owners: deps.owners,
     });
     logActivityIngest(body.provider, body.event, resolution);
     const { activity, spawns, reports } = resolution;

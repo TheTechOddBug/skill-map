@@ -543,14 +543,16 @@ Do NOT:
 
 When resolving a contradiction needs a choice only the author can make (both
 directives are legitimate, or the precedence is theirs to set), ASK rather
-than guess or silently defer. If you can interact with the user, use your
-interactive choose-one interface (an \`AskUserQuestion\`-style options prompt)
-to present the concrete options, each one a specific edit you would apply
-("keep the first, delete the second", "keep the second, delete the first", or
-"separate them by condition"), the one the document leans toward first; apply
-the option they pick and record that finding as \`fixed\` with \`by\` set to
-\`human\`. Only when you cannot interact with the user (a non-interactive run)
-fall back to \`human-decision\` with the same concrete options in \`note\`.
+than guess or silently defer. Ask in whatever channel you normally talk to
+the user in: a numbered question in your reply is enough, and an interactive
+options widget is a nicety, not a requirement. Present the concrete options,
+each one a specific edit you would apply ("keep the first, delete the
+second", "keep the second, delete the first", or "separate them by
+condition"), the one the document leans toward first; wait for the answer,
+apply the option they pick, and record that finding as \`fixed\` with \`by\` set
+to \`human\`. Fall back to \`human-decision\` (same concrete options in \`note\`)
+only when there is nobody to ask, an unattended run with no user reading your
+output. Lacking a dedicated options widget is NOT that case.
 
 After editing, return a JSON report: for each finding, its \`id\` copied
 verbatim, a \`state\` of \`fixed\` (you edited the file to resolve it) or

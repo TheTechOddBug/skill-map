@@ -131,6 +131,17 @@ export interface INodeActivityEventData {
    */
   sessionScope?: boolean;
   /**
+   * Only on an `ownerScope` end: this end is TERMINAL, so consumers
+   * release the spawns that owner PARENTS as well, not just the ones
+   * where it is the child. Stamped by the resolver for runtimes whose
+   * adapter declares `activity.spawnCustody: 'blocking'` (the parent
+   * cannot report idle while a child runs, so an idle owner is done).
+   * Absent for `napping` runtimes (Claude's shape), where the same
+   * frame can mean the parent merely paused awaiting its own spawn and
+   * the pause-is-not-end rule applies.
+   */
+  terminal?: boolean;
+  /**
    * Only on `phase: 'start'`: lifecycle claim (an agent's own span, a
    * parent held lit by a running child). Gets a much longer decay
    * window; meant to end via an `ownerScope` end.

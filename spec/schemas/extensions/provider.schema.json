@@ -105,7 +105,7 @@
         "markers"
       ],
       "additionalProperties": false,
-      "description": "Auto-detection markers for the active-provider lens. The lens resolver checks each marker path (relative to the scope root) and, when present, suggests this Provider as a candidate lens. Replaces the former hardcoded detection table: the set of detectable Providers now derives from the registered Providers themselves. Optional, a Provider with no `detect` block is never auto-suggested (it can still be selected manually). When several Providers match, the resolver returns the full candidate list in Provider iteration order and the first match is the default suggestion. **Fallback precedence**: a Provider whose `detect.fallback` is `true` (the open-standard `agent-skills` lens, whose `.agents/` marker is also the shared skill home that vendor lenses populate) is dropped from the candidate list whenever any non-fallback (vendor) Provider also matched, so a project carrying `.codex/` alongside `.agents/` resolves to `codex` outright instead of prompting `codex` vs `agent-skills`. The fallback only stands when no vendor marker is present; several vendor markers still produce a genuine ambiguous list.",
+      "description": "Auto-detection markers for the active-provider lens. The lens resolver checks each marker path (relative to the scope root) and, when present, suggests this Provider as a candidate lens. Replaces the former hardcoded detection table: the set of detectable Providers now derives from the registered Providers themselves. Optional, a Provider with no `detect` block is never auto-suggested (it can still be selected manually). When several Providers match, the resolver returns the full candidate list in Provider iteration order and the first match is the default suggestion. **Fallback precedence**: a Provider whose `detect.fallback` is `true` (the open-standard `agent-skills` lens, whose `.agents/` marker is also the shared skill home that vendor lenses populate) is dropped from the candidate list whenever any non-fallback (vendor) Provider also matched, so a project carrying `.codex/` alongside `.agents/` resolves to `codex` outright instead of prompting `codex` vs `agent-skills`. The fallback only stands when no vendor marker is present; several vendor markers still produce a genuine ambiguous list. **Compat subsumption**: `detect.subsumes` names Provider ids whose candidacy THIS Provider absorbs when both matched, a one-way \"I read that runtime's territory too\" relation, so a project carrying `.claude/` alongside `.opencode/` resolves to `opencode` outright instead of prompting.",
       "properties": {
         "markers": {
           "type": "array",
@@ -119,6 +119,15 @@
         "fallback": {
           "type": "boolean",
           "description": "When `true`, this Provider is the open-standard FALLBACK lens: its markers produce a detection candidate ONLY when no non-fallback (vendor) Provider matched under the same scope. Reserved for `agent-skills`, whose `.agents/` marker is the shared open-standard skill home that vendor lenses (`codex`, `antigravity`) also populate; without this flag a `.codex/` + `.agents/` project would falsely read as an ambiguous `codex` vs `agent-skills` pair. Vendor Providers omit it (default `false`) so two vendor markers still surface a real ambiguous prompt. Mirrors `IProviderDetect.fallback`."
+        },
+        "subsumes": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Provider ids whose detection candidate this Provider ABSORBS when both matched under the same scope root. Declares a one-way compat relation: this Provider READS the named Provider's on-disk territory, so that territory's marker is expected inside a project of THIS lens and is not evidence the other runtime is in use. OpenCode is the reference case: it reads `.claude/skills/` (and `CLAUDE.md`) by design while Claude Code never reads `.opencode/`, so `.claude/` + `.opencode/` is not a genuine tie and `opencode` declares `subsumes: ['claude']`. Applied AFTER the `fallback` rule and only among matched vendors; a subsumed id is dropped from the candidate list, which can turn a would-be ambiguous prompt into an unambiguous auto-detect. Strictly one-way: when two matched Providers subsume each other, both are kept and the ambiguity stands. Unknown or unmatched ids are ignored. Mirrors `IProviderDetect.subsumes`.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       }
     },
@@ -304,6 +313,15 @@
               }
             }
           ]
+        },
+        "spawnCustody": {
+          "type": "string",
+          "enum": [
+            "blocking",
+            "napping"
+          ],
+          "default": "napping",
+          "description": "How this runtime holds custody while a spawned child runs, which decides what an OWNER-SCOPED END means for the spawns that owner PARENTS. `napping` (the default, Claude's shape): the parent may go idle while its child works, so its owner-scoped end is ambiguous, a pause or a real termination, and consumers treat it as a pause (a liveness refresh) while that owner still parents a live spawn; the terminal end arrives once the whole descendant chain unwound. `blocking` (OpenCode's shape): the parent BLOCKS inside the spawn call and cannot report idle while a child runs, so an owner-scoped end from it is unambiguously TERMINAL and releases the spawns it parents too. Consumed by the BFF, which stamps `terminal: true` on the `node.activity` owner-release frame of a `blocking` runtime; without it a spawn whose completion never arrives (a refused or crashed call) stays drawn until the client's decay sweep. Declarative on purpose: it is a fact about the runtime's execution model, not a per-event decision."
         }
       }
     },

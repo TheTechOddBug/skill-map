@@ -72,6 +72,7 @@ import { sanitizeForTerminal } from '../kernel/util/safe-text.js';
 import { tx } from '../kernel/util/tx.js';
 import { readConfigValue } from '../core/config/helper.js';
 import { ActivityConversationStore } from './activity-conversations.js';
+import { ActivityOwnerIndex } from './activity-owner-index.js';
 import { ActivityStatsService } from './activity-stats.js';
 import { AgentPresenceTracker } from './agent-presence.js';
 import { createApp } from './app.js';
@@ -198,6 +199,10 @@ export async function createServer(
   // (default off); `POST /api/activity/capture` keeps store and config
   // in sync afterwards.
   const activityStats = new ActivityStatsService();
+  // `owner -> agent node` index (see `activity-owner-index.ts`): lets the
+  // resolver anchor a spawn that names no parent on the agent that owner
+  // is running, instead of a synthetic session capsule.
+  const activityOwners = new ActivityOwnerIndex();
   const activityConversations = new ActivityConversationStore({
     enabled:
       readConfigValue<boolean>('activity.captureConversations', {
@@ -234,6 +239,7 @@ export async function createServer(
     specVersion,
     activityToken,
     activityStats,
+    activityOwners,
     activityConversations,
     agentPresence,
     broadcaster,

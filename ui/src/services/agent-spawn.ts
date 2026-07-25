@@ -21,7 +21,11 @@
  *   when an agent merely pauses awaiting its own spawn, so a child
  *   owner's stop only releases when that owner PARENTS no live spawn;
  *   otherwise it counts as a heartbeat and the terminal stop (which
- *   arrives after every descendant unwound) does the release.
+ *   arrives after every descendant unwound) does the release. An end
+ *   flagged `terminal` skips that rule entirely (the runtime declared
+ *   `spawnCustody: 'blocking'`, so its parents cannot nap) and releases
+ *   both sides at once, which is what clears a spawn whose completion
+ *   never arrives: a refused or crashed call fires its start and no end.
  * - Heartbeat: any activity signal from an owner refreshes the decay
  *   window of every spawn that owner participates in.
  *
@@ -216,6 +220,19 @@ export class AgentSpawnService {
 
   private applyActivity(data: IWsNodeActivityData, now: number): void {
     const owner = data.owner!;
+    if (data.phase === 'end' && data.ownerScope === true && data.terminal === true) {
+      // Terminal end (a `blocking` runtime: the parent cannot report
+      // idle while a child runs, so idle means finished). Release BOTH
+      // sides this owner participates in, which is the only thing that
+      // clears a spawn whose completion never arrives, the shape a
+      // refused or crashed spawn call leaves behind. Without it the
+      // relation lives out the TTL and reads as stuck.
+      for (const [spawnId, entry] of this.entries) {
+        const v = entry.view;
+        if (v.childOwner === owner || v.parentOwner === owner) this.entries.delete(spawnId);
+      }
+      return;
+    }
     if (data.phase === 'end' && data.ownerScope === true) {
       // Pause is not end: an agent awaiting its own spawn fires the
       // SAME owner-scoped stop as a terminal one. While the stopping

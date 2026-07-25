@@ -100,7 +100,13 @@ export const opencodeProvider: IBuiltInManifest<IProvider> = {
   },
 
   // Auto-detect marker: a `.opencode/` directory marks an OpenCode project.
-  detect: { markers: ['.opencode'] },
+  // `subsumes: ['claude']` because the Claude-compat above is one-way:
+  // OpenCode reads `.claude/skills/` + `CLAUDE.md`, Claude Code never reads
+  // `.opencode/`. So `.claude/` inside an OpenCode project is EXPECTED, not
+  // evidence Claude Code is in use, and the pair is not a real tie: it
+  // resolves to `opencode` instead of prompting. Genuinely orthogonal pairs
+  // (`.claude/` + `.codex/`) still prompt.
+  detect: { markers: ['.opencode'], subsumes: ['claude'] },
 
   // Live node activity (spec/provider-activity.md): plugin-file install
   // (in-process plugin at `.opencode/plugin/skill-map-activity.js`, no

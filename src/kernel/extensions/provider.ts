@@ -320,6 +320,19 @@ export interface IProviderDetect {
    * Mirrors `provider.schema.json#/properties/detect/properties/fallback`.
    */
   fallback?: boolean;
+  /**
+   * Provider ids whose detection candidate this Provider ABSORBS when both
+   * matched under the same scope root: a one-way "I read that runtime's
+   * territory too" relation. `opencode` declares `['claude']` because
+   * OpenCode's Claude-compat reads `.claude/skills/` + `CLAUDE.md`, so a
+   * `.claude/` directory is expected inside an OpenCode project and is not
+   * evidence Claude Code is in use, while Claude Code never reads
+   * `.opencode/`. Applied after the `fallback` rule, so it only ever
+   * collapses a would-be ambiguous prompt into an unambiguous auto-detect;
+   * a mutual pair keeps the ambiguity rather than tie-breaking arbitrarily.
+   * Mirrors `provider.schema.json#/properties/detect/properties/subsumes`.
+   */
+  subsumes?: string[];
 }
 
 /**
@@ -705,6 +718,24 @@ export interface IActivityInstallEvent {
 export interface IProviderActivityAdapter {
   /** Declarative install descriptor, the manifest (JSON) half. */
   install: TActivityInstall;
+  /**
+   * How the runtime holds custody while a spawned child runs, which
+   * decides what an OWNER-SCOPED END means for the spawns that owner
+   * PARENTS (see `spec/provider-activity.md` §Spawn custody).
+   *
+   * - `napping` (default, Claude's shape): the parent may idle while
+   *   its child works, so its owner-scoped end is ambiguous and counts
+   *   as a pause while it still parents a live spawn.
+   * - `blocking` (OpenCode's shape): the parent blocks inside the spawn
+   *   call and cannot report idle mid-spawn, so an owner-scoped end
+   *   from it is TERMINAL and releases the spawns it parents too.
+   *
+   * The resolver projects it onto the wire as `terminal: true` on the
+   * owner-release frame. Without it, a spawn whose completion never
+   * arrives (a refused or crashed call, e.g. OpenCode refusing a nested
+   * `task`) stays drawn until the client's decay sweep.
+   */
+  spawnCustody?: 'blocking' | 'napping';
   /**
    * Runtime half (TypeScript-only, never in the manifest JSON, mirroring
    * `classify()` / `walk()`): turn ONE raw provider hook payload into

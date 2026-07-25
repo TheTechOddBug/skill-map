@@ -45,6 +45,7 @@ import type {
 import { deriveNodeIdentifiers } from '../kernel/orchestrator/node-identifiers.js';
 import { normalizeTrigger } from '../kernel/trigger-normalize.js';
 import type { Node } from '../kernel/types.js';
+import type { ActivityOwnerIndex } from './activity-owner-index.js';
 import type { INodeActivityEventData } from './events.js';
 
 /**
@@ -136,6 +137,12 @@ export async function resolveActivityEvent(opts: {
   dbPath: string;
   providerId: string;
   raw: unknown;
+  /**
+   * Boot-scoped `owner -> agent node` index. Optional so unit tests and
+   * any future caller can resolve without one; absent, a spawn that
+   * names no parent stays relation-only (the session-capsule fallback).
+   */
+  owners?: ActivityOwnerIndex;
 }): Promise<IActivityResolution> {
   const provider = opts.providers.find((p) => p.id === opts.providerId && p.activity !== undefined);
   if (!provider) return withOutcome(emptyResolution(), 'no-provider', 0);
@@ -146,7 +153,7 @@ export async function resolveActivityEvent(opts: {
   const nodes = await loadPersistedNodes(opts.dbPath);
   if (nodes.length === 0) return withOutcome(emptyResolution(), 'no-nodes', signals.length);
 
-  const resolved = resolveSignalsAgainstNodes(signals, provider, nodes);
+  const resolved = resolveSignalsAgainstNodes(signals, provider, nodes, opts.owners);
   const produced = resolved.activity.length + resolved.spawns.length + resolved.reports.length;
   return withOutcome(resolved, produced > 0 ? 'resolved' : 'unresolved', signals.length);
 }
@@ -196,46 +203,125 @@ async function loadPersistedNodes(dbPath: string): Promise<readonly Node[]> {
  * are dropped either way, and a spawn block riding an UNRESOLVED node
  * signal drops with it: emitting it without `parentNodePath` would
  * fabricate the session-parent discriminator on a phantom parent.
+ *
+ * Stateful only through the optional `owners` index, which turns the
+ * OTHER anchoring case around: a spawn that names no parent (OpenCode's
+ * `task`, which reports only the spawning session) is stamped with the
+ * agent node that owner is known to be running, so the edge hangs off
+ * the real agent instead of a synthetic session capsule. The capsule
+ * survives as the fallback for an owner running no scanned node.
  */
 export function resolveSignalsAgainstNodes(
   signals: readonly IActivitySignal[],
   provider: IProvider,
   nodes: readonly Node[],
+  owners?: ActivityOwnerIndex,
 ): IResolvedActivity {
   const out = emptyResolution();
   for (const signal of signals) {
     const report = reportOf(signal);
     if (report) out.reports.push(report);
-    if (isRelationOnly(signal)) {
-      // Relation-only spawn (a session-context spawn): no parent node
-      // to claim, so no activity payload; the record's parentNodePath
-      // stays absent (the structural session-parent discriminator).
-      out.spawns.push(buildResolvedSpawn(signal.spawn!, provider, nodes, undefined));
-      continue;
-    }
-    if (isOwnerRelease(signal)) {
-      // Node-less owner release (a whole execution context ended, e.g.
-      // Antigravity's Stop): nothing to resolve, forward as-is so the
-      // UI releases everything that owner holds.
-      out.activity.push({ phase: 'end', owner: signal.owner!, ownerScope: true });
-      continue;
-    }
-    if (isSessionRelease(signal)) {
-      // Node-less session release (a runtime's turn ended, e.g. Codex's
-      // main-context Stop): nothing to resolve, forward as-is so the UI
-      // releases every owner grouped under the session (the safety net
-      // for a subagent whose own ownerScope end the runtime dropped).
-      out.activity.push({ phase: 'end', session: signal.session!, sessionScope: true });
-      continue;
-    }
-    const node = findNodeForSignal(nodes, provider, signal);
-    if (!node) continue;
-    out.activity.push(buildResolvedData(signal, node.path));
-    if (signal.spawn !== undefined) {
-      out.spawns.push(buildResolvedSpawn(signal.spawn, provider, nodes, node.path));
-    }
+    if (resolveNodelessSignal(signal, provider, nodes, owners, out)) continue;
+    resolveNodeSignal(signal, provider, nodes, owners, out);
   }
   return out;
+}
+
+/**
+ * The three NODE-LESS signal forms, each self-identifying by shape. Returns
+ * `true` when the signal was one of them (and handled), `false` to let the
+ * caller resolve it against the node set.
+ */
+function resolveNodelessSignal(
+  signal: IActivitySignal,
+  provider: IProvider,
+  nodes: readonly Node[],
+  owners: ActivityOwnerIndex | undefined,
+  out: IResolvedActivity,
+): boolean {
+  if (isRelationOnly(signal)) {
+    // Spawn with no parent node signal of its own: anchor it on the
+    // agent node its owner is running, when we know one. Absent that,
+    // `parentNodePath` stays undefined, the structural session-parent
+    // discriminator the client renders as a capsule.
+    const relation = signal.spawn!;
+    out.spawns.push(
+      buildResolvedSpawn(relation, provider, nodes, owners?.nodeFor(relation.parentOwner), owners),
+    );
+    return true;
+  }
+  if (isOwnerRelease(signal)) {
+    out.activity.push(buildOwnerRelease(signal, provider, owners));
+    return true;
+  }
+  if (isSessionRelease(signal)) {
+    // Node-less session release (a runtime's turn ended, e.g. Codex's
+    // main-context Stop): nothing to resolve, forward as-is so the UI
+    // releases every owner grouped under the session (the safety net
+    // for a subagent whose own ownerScope end the runtime dropped).
+    out.activity.push({ phase: 'end', session: signal.session!, sessionScope: true });
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Node-less owner release (a whole execution context ended, e.g.
+ * Antigravity's Stop): nothing to resolve, forwarded as-is so the UI
+ * releases everything that owner holds. On a `blocking` runtime the
+ * parent cannot be idle while a child runs, so the end is TERMINAL and
+ * also releases the spawns it PARENTS, the only thing that clears a
+ * relation whose completion never arrives.
+ */
+function buildOwnerRelease(
+  signal: IActivitySignal,
+  provider: IProvider,
+  owners: ActivityOwnerIndex | undefined,
+): INodeActivityEventData {
+  const end: INodeActivityEventData = { phase: 'end', owner: signal.owner!, ownerScope: true };
+  if (provider.activity?.spawnCustody === 'blocking') {
+    end.terminal = true;
+    // Drop the anchor only on a TERMINAL end. On a napping runtime the
+    // same frame may be a pause, and forgetting there would lose the
+    // parent's identity exactly while it awaits its own child; those
+    // owners age out through the index cap instead.
+    owners?.forget(signal.owner!);
+  }
+  return end;
+}
+
+/** A signal that targets a node: resolve it, then its spawn block and anchor. */
+function resolveNodeSignal(
+  signal: IActivitySignal,
+  provider: IProvider,
+  nodes: readonly Node[],
+  owners: ActivityOwnerIndex | undefined,
+  out: IResolvedActivity,
+): void {
+  const node = findNodeForSignal(nodes, provider, signal);
+  if (!node) return;
+  out.activity.push(buildResolvedData(signal, node.path));
+  if (isAgentClaim(signal, node)) owners?.note(signal.owner!, node.path);
+  if (signal.spawn !== undefined) {
+    out.spawns.push(buildResolvedSpawn(signal.spawn, provider, nodes, node.path, owners));
+  }
+}
+
+/**
+ * Whether this resolution proves "owner X is running agent node P": a
+ * NAME signal (a unit's own execution, never a resource access) for an
+ * `agent`-kind node carrying an owner. `agent` is the cross-provider
+ * vocabulary the spawn contract already speaks (`childKind: 'agent'`),
+ * and narrowing to it matters: a skill loaded later under the same
+ * owner must not steal the anchor from the agent that loaded it.
+ */
+function isAgentClaim(signal: IActivitySignal, node: Node): boolean {
+  return (
+    signal.phase === 'start' &&
+    signal.owner !== undefined &&
+    signal.path === undefined &&
+    node.kind === 'agent'
+  );
 }
 
 /**
@@ -330,6 +416,7 @@ function buildResolvedSpawn(
   provider: IProvider,
   nodes: readonly Node[],
   parentNodePath: string | undefined,
+  owners?: ActivityOwnerIndex,
 ): IResolvedSpawn {
   const out: IResolvedSpawn = {
     spawnId: relation.spawnId,
@@ -340,6 +427,12 @@ function buildResolvedSpawn(
   copyRelationExtras(relation, out);
   const childNodePath = resolveChildPath(relation, provider, nodes);
   if (childNodePath !== undefined) out.childNodePath = childNodePath;
+  // A completed spawn names the child's own owner and the node it ran:
+  // the second source of truth for the index, and the only one on a
+  // runtime whose children report no claim of their own.
+  if (out.childOwner !== undefined && childNodePath !== undefined) {
+    owners?.note(out.childOwner, childNodePath);
+  }
   return out;
 }
 

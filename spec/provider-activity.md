@@ -389,6 +389,17 @@ Broadcast over `/ws` in the common envelope of
   which it does by releasing the session. The sticky decay stays the ultimate
   backstop; the session release just heals the leak at turn end instead of
   minutes later.
+- `terminal` (optional, only on the `ownerScope` end form): `true` when that end
+  is UNAMBIGUOUSLY FINAL for the spawns the owner PARENTS, not only for those
+  where it is the child. Stamped by the resolver from the Provider's declared
+  `activity.spawnCustody` (§Spawn custody): a `blocking` runtime holds the
+  parent inside the spawn call, so a parent that reports idle cannot have a
+  child still running. Consumers then release both sides of every relation that
+  owner participates in, INSTEAD of applying the pause-is-not-end rule. Absent
+  on `napping` runtimes, where the same frame may mean the parent is merely
+  awaiting its own spawn. It is what clears a relation whose completion never
+  arrives: a REFUSED or crashed spawn call fires its start and no end, and
+  without a terminal release it stays drawn until the decay sweep.
 - `sticky` (optional, only on `phase: "start"`): `true` for LIFECYCLE claims
   (an agent's own span, a parent held lit by a running child). Consumers give
   sticky claims a much longer decay window than momentary usage claims: they
@@ -459,8 +470,10 @@ by `spawnId`.
   after the child already stopped).
 - `parentOwner`: owner key of the spawning context. `parentNodePath`
   (optional): the scanned parent agent's node path; ABSENT when the spawner is
-  a session (the main context). That absence is the structural discriminator
-  for session parents; consumers never parse owner strings.
+  a session running no scanned node. That absence is the structural
+  discriminator for session parents; consumers never parse owner strings. When
+  the signal itself names no parent, the server may still fill it, see
+  §Spawn parent anchoring.
 - `childKind` / `childName`: the child unit as the runtime named it.
   `childNodePath` is present when the name resolved against the scanned node
   set. An unresolved child is still emitted (name only) so session surfaces
@@ -476,6 +489,50 @@ Edge lifetime is UI-owned, mirroring custody: draw at `"start"`, consolidate
 at `"handoff"`, release on the explicit `"end"` frame OR on the
 `node.activity` owner-scoped end whose `owner` equals `childOwner`, with the
 sticky decay window as the crash safety net.
+
+### Spawn custody
+
+A Provider declares how its runtime holds custody while a child runs, through
+the manifest field `activity.spawnCustody`
+([`provider.schema.json`](./schemas/extensions/provider.schema.json#/properties/activity)):
+
+- `napping` (the default, omit it): the parent MAY report idle while its child
+  works, so an owner-scoped end from a parent is AMBIGUOUS. Consumers apply
+  the pause-is-not-end rule: while that owner still parents a live relation the
+  end counts as a liveness refresh, and the release waits for the terminal end
+  that arrives once the whole descendant chain unwound. Claude's shape.
+- `blocking`: the parent BLOCKS inside the spawn call and cannot report idle
+  mid-spawn, so an owner-scoped end from it is final. The resolver stamps
+  `terminal: true` on that owner-release frame (§WS event: `node.activity`) and
+  consumers release both sides of every relation the owner participates in.
+  OpenCode's shape.
+
+The distinction is not cosmetic: on a `blocking` runtime it is the ONLY signal
+that clears a relation whose completion never arrives. A spawn call the runtime
+REFUSES (OpenCode caps delegation at one hop and rejects a `task` issued from
+inside a subagent) fires its start hook and never its completion hook, so the
+relation would otherwise stay drawn until the client's decay sweep, minutes
+after everything went quiet.
+
+### Spawn parent anchoring
+
+Some runtimes report a spawn without naming its parent unit: OpenCode's `task`
+event carries only the spawning session id. The relation then arrives in the
+relation-only form and consumers anchor it on a synthetic session capsule, one
+per spawning session, which reads as a floating edge while the parent agent
+glows elsewhere on the map.
+
+The server closes that gap with a boot-scoped `owner -> agent node` index, fed
+by the two places the association is already reported: a NAME signal resolving
+to an `agent`-kind node (the owner is running that agent) and a completed
+relation's `childOwner` + resolved child node (that owner ran that agent). When
+a spawn arrives with no parent of its own, the resolver stamps `parentNodePath`
+from the index, so the edge hangs off the real agent node. The index holds one
+path per owner, never content, is dropped when the owner's context ends, and is
+bounded; the session capsule remains the fallback for an owner running no
+scanned node (a runtime built-in with no file on disk, a bare main context).
+Anchoring is a server-side ENRICHMENT of the same wire field: consumers see a
+normal `parentNodePath` and need no new rule.
 
 ## Execution stats
 
@@ -664,7 +721,7 @@ Live-verified against real runs (2026-06-30). These inform each provider's
 | `claude` | `PreToolUse` tool=`Skill` (`tool_input.skill`), slash form via `UserPromptExpansion.command_name` | `SubagentStart` (start) / `SubagentStop` (owner-scoped end, `ownerScope: true`) keyed by `agent_id`; `agent_id`/`agent_type` on inner tool events; deep nesting attributable. The spawning `Agent` `PreToolUse`/`PostToolUse` pair emits the parent-custody claims (`keepAlive: true`, excluded from execution counting) plus the `spawn` relation block (`prompt` on start, sync `response` on completion; main-context spawns use the relation-only signal form). It deliberately NEVER claims the CHILD node: that claim would outlive the child's own `SubagentStop` (TTL instead of native end) | `UserPromptExpansion.command_name` (shares the `/` namespace with skills; disambiguate by which node exists) | markdown usage: `PreToolUse` tool=`Read` (`tool_input.file_path`, relativized against the event's `cwd`) emits a PATH signal; non-`.md` reads and paths outside the scope root are early-disclaimed. MCP usage: `PreToolUse` tool=`mcp__<server>__<tool>` (the bridge matcher is widened to `^(Skill|Agent|Read|mcp__.+)$`) emits a PATH signal to the `mcp://<server>` node, the SAME node the static `core/mcp-tools` edge targets (and `mcpConfig` config-side discovery materialises), so a live tool call lights it deterministically, the runtime reports the exact tool name, no inference. Auto-loaded context (`CLAUDE.md` at session start) fires no tool event and stays invisible. Main-context owner is sessionized (`main:<session_id>`, bare `main` when the payload carries no `session_id`). Terminal `SubagentStop` carries `last_assistant_message` (the child's final report, the async response source) plus `agent_transcript_path`; sync completions carry the report as `tool_response.content` text blocks. Ignore `SubagentStop` orphans with empty `agent_type` |
 | `codex` | weak: `$name` tokens inside `UserPromptSubmit.prompt` (the adapter scans with the SAME shared `$`-token grammar the `dollar-skill` extractor uses, so activity and link extraction agree; sigil stripped, resolver drops unknowns) | `SubagentStart` (sticky start) / `SubagentStop` (owner-scoped end) keyed by `agent_id`; a NAMED `agent_type` resolves to its `.codex/agents/<name>.toml` node, the default generic `worker` resolves to nothing and drops. Spawn relations ride the `spawn_agent` Pre/PostToolUse pair (matcher-scoped alongside the MCP tool calls below): `tool_input.agent_type` + `message` (the prompt) on start, the child's `agent_id` parsed from the JSON-string `tool_response` on handoff (live-verified 2026-07-05); the response half is the stop's `last_assistant_message` (generic report path), the wait / close tool responses repeat it and stay disclaimed; no execution totals exist anywhere in the payloads. NO parent custody needed: a Codex parent never pauses (it blocks inside the wait tool), so terminal stops unwind bottom-up natively; an agent-context spawn rides a keep-alive heartbeat on the parent only so the resolver stamps `parentNodePath`. The bottom-up assumption has ONE hole (live-verified 2026-07-24): when a NAMED subagent itself spawns a nested `default` worker, Codex fires the inner worker's `SubagentStop` but DROPS the named subagent's own, so its owner never releases and the node glows until the 5-minute sticky decay. The main-context `Stop` closes the hole: it is wired (matcher-less) and maps to a node-less SESSION-RELEASE (`{ phase: "end", sessionScope: true, session }`, §WS event: `node.activity`) that releases every owner of `session_id` at turn end. Every codex signal is stamped with its `session_id` so the UI can group owners under it | none (`/` is Codex's own built-in namespace) | hook config `.codex/hooks.json` uses the same `{ hooks: { <Event>: [...] } }` convention as claude, so the `json-hooks` engine applies verbatim; payload near-identical to claude's, including the sessionized main owner (`main:<session_id>`). MCP usage IS mapped: a `PreToolUse` for an `mcp__<server>__<tool>` call (the matcher is widened to `^(spawn_agent|mcp__.+)$`) emits a PATH signal to the `mcp://<server>` node via the shared `mapMcpInvocation`, the SAME node `core/mcp-tools` and `mcpConfig` config-side discovery draw. Codex force-prefixes the hook tool name with `mcp__` (`codex-rs/core/src/tools/handlers/mcp.rs`, `ensure_mcp_prefix`), so the claude grammar (`parseMcpToolName`) parses it verbatim, deterministic, no inference; there is no end signal (the UI decay owns the span, like a skill), so only `PreToolUse` is widened. Markdown usage is NOT mapped: Codex has an internal `read_file` tool but hooks do not fire for it (PreToolUse fires for Bash / apply_patch / MCP, not `read_file`; expansion is an open upstream request), so read signals wait for that surface |
 | `antigravity` | invocation itself invisible (`/skill` injects the SKILL.md with no tool event, live-verified 2026-07-04), but a skill's `references/*.md` reads DO fire and light those resources | no on-disk agent files exist (subagents are runtime-only Prompt specs), so there is nothing to light; `conversationId` (present in EVERY payload) is the owner grouping key, and the conversation `Stop` (`terminationReason` present) maps to a node-less OWNER RELEASE only when the conversation is FULLY idle: live-verified 2026-07-05, an orchestrating conversation fires Stop with `fullyIdle: false` every time it naps while its subagents run (waking on their `send_message`), and those nap stops disclaim (a missing `fullyIdle` keeps releasing, older runtimes). Spawn relations are UNMAPPABLE on this runtime: `invoke_subagent` takes a `Subagents` array of runtime-only `{ Prompt, Role, TypeName, Workspace }` specs (types declared via `define_subagent`, no on-disk file), its completion returns NO child `conversationId`, and tool calls carry no ids, so there is nothing to correlate a spawn frame with; `send_message` carries full message text both directions keyed by `conversationId` (a future session-centric surface, unusable today without node anchors) | none; workflows (`.agent/workflows/*.md`) light when the agent FOLLOWS them (it `view_file`s the workflow file) | THREE mapped signals: `PreToolUse` tool `view_file` (`toolCall.args.AbsolutePath`, relativized against `workspacePaths[*]`) emitting PATH signals (markdown reads, skill resources, followed workflows all light through it); `PreToolUse` tool `call_mcp_tool` (the generic wrapper EVERY MCP invocation funnels through, live-verified 2026-07-11) emitting a PATH signal on the `mcp://<server>` node whose server is read from `toolCall.args.ServerName` (tool name in `.ToolName`, carried as `detail`), NOT parsed from the tool name as Claude / Codex do with `mcp__<server>__<tool>`; that is the SAME node `core/mcp-tools` draws from a skill's `tools:` frontmatter, and the ONLY way an Antigravity `mcp://` node lights (its MCP config is home-global, so there is no project-local config to materialise the node config-side); and `Stop` emitting the owner release. The `PreToolUse` matcher is `^(view_file|call_mcp_tool)$`. Payloads carry NO `hook_event_name`; events are distinguished STRUCTURALLY (`toolCall` = tool event, `invocationNum` = invocation pulse, `terminationReason` = Stop). Hook config `.agents/hooks.json` uses the NAMED-GROUP shape (`install.group`) with the FLAT entry shape on lifecycle events (`events[].entryShape`); the runtime spawns hook commands at the config's directory (`install.commandCwd: "config-dir"`); hooks stay neutral via exit 0 + empty stdout, which the bridge invariants already guarantee |
-| `agent-skills` via opencode | `tool.execute.before` tool `skill` (`args.name`), fires even for prose invocations (live-verified 2026-07-04, v1.17.11) | `chat.message` carries the NAMED `agent` + its own `sessionID` per subagent; `sessionID` is the owner key and `session.idle` maps to the node-less OWNER RELEASE (native end, fires only when a session truly finishes: the parent BLOCKS inside the `task` tool, no naps, live-verified 2026-07-05). Spawn relations ride the `task` tool pair: the before carries `input.callID` (the spawnId) + `args.subagent_type` / `args.prompt`, the after carries `output.metadata.sessionId` (the child's own owner) and the child's full final report inside `output.output`'s `<task_result>` wrapper (the response source). The task event never names the PARENT agent (only its sessionID), so every spawn emits the relation-only form and anchors on a session capsule, one per spawning session. Per-message token usage exists on the bus (`message.updated`) but stays unaggregated (a high-frequency family) | dedicated `command.execute.before` hook (`{ command, sessionID }`, prose-invoked too) | in-process plugin (`plugin-file`, `.opencode/plugin/skill-map-activity.js`; BOTH `plugin/` and `plugins/` dirs load, install targets the singular). Markdown reads map from tool `read` (`args.filePath`, relativized against the plugin context's `directory`). MCP tool calls map from `tool.execute.before` whose `input.tool` is a `<server>_<tool>` name (OpenCode's MCP naming, no explicit marker like Claude/Codex's `mcp__<server>__<tool>` or Antigravity's `call_mcp_tool` wrapper, live-verified 2026-07-11: a Notion call arrives as `notion_notion-create-pages`) to a PATH signal on `mcp://<server>` (the prefix before the first `_`, tool suffix as `detail`); since there is no explicit marker it fires for any underscore-bearing tool and leans on the resolver's node match to drop the misses (a built-in `read_mcp_resource` resolves to a non-existent `mcp://read` and is dropped). It lights the SAME node `core/mcp-tools` and the `mcpConfig` `opencode.json` discovery draw. The plugin registers ONLY the consumed hooks (with `tool.execute.after` wiring-filtered to `task`) and forwards `{ hook, directory, input, output? }` wrappers |
+| `agent-skills` via opencode | `tool.execute.before` tool `skill` (`args.name`), fires even for prose invocations (live-verified 2026-07-04, v1.17.11) | `chat.message` carries the NAMED `agent` + its own `sessionID` per subagent; `sessionID` is the owner key and `session.idle` maps to the node-less OWNER RELEASE (native end, fires only when a session truly finishes: the parent BLOCKS inside the `task` tool, no naps, live-verified 2026-07-05). Spawn relations ride the `task` tool pair: the before carries `input.callID` (the spawnId) + `args.subagent_type` / `args.prompt`, the after carries `output.metadata.sessionId` (the child's own owner) and the child's full final report inside `output.output`'s `<task_result>` wrapper (the response source). The task event never names the PARENT agent (only its sessionID), so every spawn emits the relation-only form and anchors on a session capsule, one per spawning session. **Delegation is one hop deep** (live-verified 2026-07-25): a `task` call issued from INSIDE a subagent session is refused by the runtime with a nesting limit, and a refused call fires the before but never the after, so that spawn gets a start frame and no end and lives out the client's TTL sweep. Every spawn whose parent is the main session completes normally. Consequence for the adapter: on this runtime an owner-scoped end is TERMINAL for the spawns that owner parents (the parent blocks inside `task`, so it cannot be idle while a child runs), unlike Claude, where the same frame can mean a nap. Per-message token usage exists on the bus (`message.updated`) but stays unaggregated (a high-frequency family) | dedicated `command.execute.before` hook (`{ command, sessionID }`, prose-invoked too) | in-process plugin (`plugin-file`, `.opencode/plugin/skill-map-activity.js`; BOTH `plugin/` and `plugins/` dirs load, install targets the singular). Markdown reads map from tool `read` (`args.filePath`, relativized against the plugin context's `directory`). MCP tool calls map from `tool.execute.before` whose `input.tool` is a `<server>_<tool>` name (OpenCode's MCP naming, no explicit marker like Claude/Codex's `mcp__<server>__<tool>` or Antigravity's `call_mcp_tool` wrapper, live-verified 2026-07-11: a Notion call arrives as `notion_notion-create-pages`) to a PATH signal on `mcp://<server>` (the prefix before the first `_`, tool suffix as `detail`); since there is no explicit marker it fires for any underscore-bearing tool and leans on the resolver's node match to drop the misses (a built-in `read_mcp_resource` resolves to a non-existent `mcp://read` and is dropped). It lights the SAME node `core/mcp-tools` and the `mcpConfig` `opencode.json` discovery draw. The plugin registers ONLY the consumed hooks (with `tool.execute.after` wiring-filtered to `task`) and forwards `{ hook, directory, input, output? }` wrappers |
 
 ## Stability
 

@@ -24,6 +24,14 @@ describe('opencodeActivity.mapEvent', () => {
     assert.equal('events' in opencodeActivity.install, false);
   });
 
+  it('declares BLOCKING spawn custody (the parent cannot nap inside `task`)', () => {
+    // Drives the resolver's `terminal: true` stamp on the owner release,
+    // which is what clears a relation whose completion never arrives:
+    // OpenCode caps delegation at one hop and refuses a nested `task`,
+    // firing the before hook and never the after.
+    assert.equal(opencodeActivity.spawnCustody, 'blocking');
+  });
+
   it('pluginHooksSource registers exactly the consumed hooks, with the wiring filters', () => {
     const source = opencodeActivity.pluginHooksSource!;
     for (const hook of [

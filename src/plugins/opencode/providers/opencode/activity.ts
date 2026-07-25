@@ -113,6 +113,16 @@ export const opencodeActivity: IProviderActivityAdapter = {
     configPath: '.opencode/plugin/skill-map-activity.js',
   },
 
+  // The parent BLOCKS inside the `task` tool (live-verified: the child's
+  // `session.idle` lands right before the parent's completion), so a
+  // session that reports idle cannot have a child still running: its
+  // owner-scoped end is TERMINAL, not a nap. This is what releases a
+  // spawn whose completion never arrives, the shape a REFUSED task call
+  // produces (OpenCode caps delegation at one hop and rejects a `task`
+  // issued from inside a subagent: the before fires, the after never
+  // does, live-verified 2026-07-25).
+  spawnCustody: 'blocking',
+
   pluginHooksSource: PLUGIN_HOOKS_SOURCE,
 
   mapEvent(raw: unknown): IActivitySignal[] | null {

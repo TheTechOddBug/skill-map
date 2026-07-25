@@ -109,7 +109,7 @@ What lights up depends on what each runtime's hook system exposes:
 | `claude` (Claude Code) | Slash commands, skills (typed or model-invoked), agents including nested delegation chains, markdown file reads, and live MCP tool calls (an `mcp__<server>__<tool>` call lights the `mcp://<server>` node; the whole agent → skill → MCP chain lights, skill included) | Auto-loaded context (`CLAUDE.md` at session start) fires no hook, so it stays invisible |
 | `codex` (Codex CLI) | `$skill` invocations from your prompt, named agents from `.codex/agents/` (nested chains too if you raise `agents.max_depth`), spawn arrows between agents with per-edge conversation counters and opt-in conversation viewing, and live MCP tool calls (an `mcp__<server>__<tool>` call lights the `mcp://<server>` node, even from inside an agent or skill) | Markdown reads stay dark (Codex hooks do not fire for its `read_file` tool yet, [openai/codex#18491](https://github.com/openai/codex/issues/18491)); a skill that an agent follows also stays dark because Codex surfaces a skill only through a `$name` prompt token, so in an agent → skill → MCP chain the agent (spawn) and the `mcp://` node light up but the skill in the middle does not; spawns of the generic `worker` type match no node; execution totals (duration/tools/tokens) stay empty, the runtime does not report them |
 | `antigravity` (Antigravity CLI) | Everything that gets READ: markdown files, a skill's `SKILL.md` and its resources whenever the agent views them, workflows followed in prose; the whole chain goes dark when the conversation goes FULLY idle (mid-run naps while subagents work no longer darken it) | `/skill` invocations stay dark (the runtime injects the content with no hook event, ask for the skill in prose instead); subagents have no on-disk definition and spawns return no child id, so there is no node to light and no spawn arrow to draw |
-| `opencode` (OpenCode) | The richest surface: skills, commands and agents all arrive NAMED (they fire even when invoked in prose), markdown reads light by path, spawn arrows with per-edge conversation counters and opt-in conversation viewing (the child's full report arrives natively), and each session's whole chain goes dark the moment it idles (native `session.idle`) | Built-in agents without an on-disk file (`build`, `plan`) have no node to light; execution totals stay empty (per-message tokens exist on its bus but are not aggregated) |
+| `opencode` (OpenCode) | The richest surface: skills, commands and agents all arrive NAMED (they fire even when invoked in prose), markdown reads light by path, spawn arrows with per-edge conversation counters and opt-in conversation viewing (the child's full report arrives natively), and each session's whole chain goes dark the moment it idles (native `session.idle`) | Built-in agents without an on-disk file (`build`, `plan`) have no node to light; execution totals stay empty (per-message tokens exist on its bus but are not aggregated); delegation is **one hop deep**, the runtime refuses a `task` call made from inside a subagent (nesting limit), and since a refused call reports no completion its arrow lingers until the safety-net sweep clears it, so an agent → agent → agent chain is not something OpenCode can run (Claude Code and Codex do nest) |
 | `markdown` | No runtime to hook; nothing lights | |
 
 Full contract (bridge invariants, privacy posture, per-provider signal notes): [`spec/provider-activity.md`](./spec/provider-activity.md).
@@ -121,21 +121,14 @@ Full contract (bridge invariants, privacy posture, per-provider signal notes): [
 - **Read the map** (always read-only): query the graph as tools and read it as resources, it answers questions about the map and never touches it.
 - **Operate the queue and findings**: submit / claim / record / cancel jobs and read / resolve / dismiss / delete findings over the same contract as the `sm` verbs, so an MCP host can BE the processing agent with no shell. Sidecar-writing tools honour the same `.sm` consent gate as everywhere else.
 
-Turn it on with `sm serve --mcp` (or the Settings → Project toggle), then register it with your host. For Claude Code, project-local scope keeps it private to you (not shared with the team):
+Turn it on with `sm serve --mcp` (or the Settings → Project toggle), then register it with your host. **Register it in your OWN config, not in a file the repository shares.** skill-map is a per-developer tool pointed at a server only you are running; putting it in a committed config (`.mcp.json` for Claude Code, the project `opencode.json` for OpenCode) hands your teammates an MCP server they never asked for and that is not even listening on their machine. Every runtime has a personal scope, and that is the one to use:
 
 ```
-claude mcp add --transport http --scope local skill-map http://127.0.0.1:4242/mcp
+claude mcp add --transport http --scope local skill-map http://127.0.0.1:4242/mcp   # ~/.claude.json
+codex mcp add skill-map --url http://127.0.0.1:4242/mcp                             # ~/.codex/config.toml
 ```
 
-Or commit a shared `.mcp.json` at the project root when the whole team should get it:
-
-```json
-{
-  "mcpServers": {
-    "skillmap": { "type": "http", "url": "http://127.0.0.1:4242/mcp" }
-  }
-}
-```
+Antigravity and OpenCode ship no `mcp` CLI verb, so they get a file to save: `~/.gemini/config/mcp_config.json` (an `mcpServers` entry with `serverUrl`) and `~/.config/opencode/opencode.json` (an `mcp` entry with `type: "remote"`). Quick Start's "MCP installed on your agent" row copies the right one for your active lens, already carrying the live port.
 
 The port is the one `sm serve` prints on start (default `4242`, also in `.skill-map/serve.json`). Full contract: [`spec/mcp-server.md`](./spec/mcp-server.md).
 

@@ -84,12 +84,24 @@ async function primeFixture(): Promise<void> {
     schemaVersion: 1,
     scannedAt: Date.now(),
     roots: [root.fixtureRoot],
-    providers: ['claude'],
+    providers: ['claude', 'opencode'],
     nodes: [
       makeSkillNode('.claude/skills/deploy/SKILL.md'),
       { ...makeSkillNode('notes/todo.md'), kind: 'markdown', provider: 'markdown' },
       { ...makeSkillNode('.claude/agents/demo-orchestrator.md'), kind: 'agent' },
       { ...makeSkillNode('.claude/agents/demo-worker.md'), kind: 'agent' },
+      // OpenCode territory, for the spawn-anchoring + terminal-release
+      // block below (its `task` event never names the parent agent).
+      {
+        ...makeSkillNode('.opencode/agent/researcher.md'),
+        kind: 'agent',
+        provider: 'opencode',
+      },
+      {
+        ...makeSkillNode('.opencode/agent/link-auditor.md'),
+        kind: 'agent',
+        provider: 'opencode',
+      },
     ],
     links: [],
     issues: [],
@@ -445,6 +457,106 @@ describe('POST /api/activity, ingest', () => {
         childNodePath: '.claude/agents/demo-worker.md',
         pairCount: 1,
       });
+    });
+  });
+});
+
+describe('POST /api/activity, opencode spawn custody + parent anchoring', () => {
+  const SESSION = 'ses_065784db5ffehGlcY9Ott8iJzq';
+
+  /** The wrapper shape the in-process plugin forwards. */
+  function wrapped(hook: string, payload: Record<string, unknown>): unknown {
+    return { provider: 'opencode', event: { hook, directory: root.fixtureRoot, ...payload } };
+  }
+
+  it('anchors a parent-less spawn on the agent node its session is running', async () => {
+    await bootAndUse(async (handle) => {
+      // The session says which agent it is (`chat.message`), which is the
+      // only place OpenCode ever names it: the `task` event below carries
+      // the session id alone.
+      const claim = await postActivity(
+        handle,
+        wrapped('chat.message', { input: { agent: 'researcher', sessionID: SESSION } }),
+        handle.activityToken,
+      );
+      assert.equal(((await claim.json()) as { resolved: number }).resolved, 1);
+
+      const frames = await withWsFrames(handle, 1, async () => {
+        const res = await postActivity(
+          handle,
+          wrapped('tool.execute.before', {
+            input: { tool: 'task', callID: 'toolu_nested_1', sessionID: SESSION },
+            output: { args: { subagent_type: 'link-auditor', prompt: 'check the links' } },
+          }),
+          handle.activityToken,
+        );
+        assert.deepEqual(await res.json(), { ok: true, resolved: 0, spawns: 1 });
+      });
+
+      assert.equal(frames[0]!['type'], 'agent.spawn');
+      // The whole point: `parentNodePath` is present even though the
+      // event named no parent, so the edge hangs off the real agent
+      // instead of a synthetic session capsule. Proves the composition
+      // root threads the owner index into the ingest route.
+      assert.deepEqual(frames[0]!['data'], {
+        spawnId: 'toolu_nested_1',
+        phase: 'start',
+        parentOwner: SESSION,
+        parentNodePath: '.opencode/agent/researcher.md',
+        childKind: 'agent',
+        childName: 'link-auditor',
+        childNodePath: '.opencode/agent/link-auditor.md',
+        pairCount: 1,
+      });
+    });
+  });
+
+  it('stamps `terminal` on the session-idle release (blocking custody)', async () => {
+    await bootAndUse(async (handle) => {
+      const frames = await withWsFrames(handle, 1, async () => {
+        const res = await postActivity(
+          handle,
+          wrapped('event', {
+            event: { type: 'session.idle', properties: { sessionID: SESSION } },
+          }),
+          handle.activityToken,
+        );
+        assert.equal(((await res.json()) as { resolved: number }).resolved, 1);
+      });
+
+      assert.equal(frames[0]!['type'], 'node.activity');
+      // `terminal: true` is what releases the spawns this owner PARENTS,
+      // the only thing that clears a relation whose completion never
+      // arrives (OpenCode refusing a nested `task`).
+      assert.deepEqual(frames[0]!['data'], {
+        phase: 'end',
+        owner: SESSION,
+        ownerScope: true,
+        terminal: true,
+      });
+    });
+  });
+
+  it('leaves a claude release untouched (napping custody keeps pause-is-not-end)', async () => {
+    await bootAndUse(async (handle) => {
+      const frames = await withWsFrames(handle, 1, async () => {
+        await postActivity(
+          handle,
+          {
+            provider: 'claude',
+            event: {
+              session_id: '6cfe5636-2e56-4271-91a6-87fc3d4355be',
+              hook_event_name: 'SubagentStop',
+              agent_id: 'agent_01',
+              agent_type: 'demo-worker',
+            },
+          },
+          handle.activityToken,
+        );
+      });
+
+      assert.equal(frames[0]!['type'], 'node.activity');
+      assert.equal((frames[0]!['data'] as Record<string, unknown>)['terminal'], undefined);
     });
   });
 });

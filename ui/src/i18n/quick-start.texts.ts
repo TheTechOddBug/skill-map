@@ -20,8 +20,21 @@ export interface IMcpRegisterSnippet {
   payload: string;
   /** `command` = a shell command to run; `config` = a snippet to paste into a config file. */
   kind: 'command' | 'config';
-  /** For `config`, the file the snippet goes into (shown as the row hint). */
+  /** For `config`, where the snippet goes (block + file), shown as the row hint. */
   target?: string;
+}
+
+/**
+ * A COMPLETE config document declaring the skill-map server, ready to save
+ * as a brand-new file. Deliberately not a bare entry: every `config` target
+ * is the operator's PERSONAL config (see the per-lens targets below), and
+ * the common case is that it does not exist yet, so a fragment would leave
+ * a first-time user assembling JSON by hand. The row's paste hint covers
+ * the other case in one line (a file that already exists takes only the
+ * `skill-map` entry, so the servers already declared there survive).
+ */
+function mcpConfigDocument(document: Record<string, unknown>): string {
+  return JSON.stringify(document, null, 2);
 }
 
 /**
@@ -56,18 +69,22 @@ export const MCP_REGISTER_SNIPPETS: Record<
   antigravity: (mcpUrl) => ({
     kind: 'config',
     target: '~/.gemini/config/mcp_config.json',
-    payload: JSON.stringify({ mcpServers: { 'skill-map': { serverUrl: mcpUrl } } }, null, 2),
+    payload: mcpConfigDocument({ mcpServers: { 'skill-map': { serverUrl: mcpUrl } } }),
   }),
-  // Config-file based too: opencode has no `mcp` CLI verb, remote servers
-  // are declared in the project's `opencode.json`.
+  // Config-file based too (opencode has no `mcp` CLI verb), and aimed at the
+  // operator's GLOBAL config on purpose. OpenCode also reads a project
+  // `opencode.json`, but its docs call that one "safe to commit to Git": it
+  // is the team's file, and skill-map is a per-developer tool, so putting
+  // its server there would push the whole team into an MCP they never asked
+  // for. The global config keeps the registration where the other three
+  // lenses already keep theirs, out of the repository.
   opencode: (mcpUrl) => ({
     kind: 'config',
-    target: 'opencode.json',
-    payload: JSON.stringify(
-      { mcp: { 'skill-map': { type: 'remote', url: mcpUrl, enabled: true } } },
-      null,
-      2,
-    ),
+    target: '~/.config/opencode/opencode.json',
+    payload: mcpConfigDocument({
+      $schema: 'https://opencode.ai/config.json',
+      mcp: { 'skill-map': { type: 'remote', url: mcpUrl, enabled: true } },
+    }),
   }),
 };
 
@@ -234,10 +251,18 @@ export const QUICK_START_TEXTS = {
       // to fit both (the hint below names the file when there is one).
       description:
         'Copy what your agent needs and apply it there, approve the MCP connection when your ' +
-        'agent prompts you, then click Check to confirm the live connection.',
+        'agent prompts you, then click Check to confirm the live connection. It belongs in ' +
+        'your own config, never in a file the repository shares.',
       copiedHint: 'Copied to the clipboard.',
-      /** Where a `config` snippet goes, shown while nothing else occupies the hint line. */
-      pasteHint: (target: string): string => `Paste it into ${target}`,
+      /**
+       * Where a `config` snippet goes, shown while nothing else occupies
+       * the hint line. The payload is a whole document (the target usually
+       * does not exist yet), so the second sentence covers the operator who
+       * already has that file: only the entry goes in, their other servers
+       * stay.
+       */
+      pasteHint: (target: string): string =>
+        `Paste it into ${target}. If that file exists, add only the "skill-map" entry.`,
     },
     agentSkill: {
       label: 'Agent skill installed',

@@ -28,6 +28,10 @@ describe('opencode provider, manifest shape', () => {
     strictEqual(opencodeProvider.gatedByActiveLens, true);
     strictEqual(opencodeProvider.stability, 'beta');
     deepStrictEqual(opencodeProvider.detect?.markers, ['.opencode']);
+    // Claude-compat is ONE-WAY (opencode reads `.claude/skills/`, Claude
+    // Code never reads `.opencode/`), so `.claude/` + `.opencode/` is not
+    // a tie: this absorbs the claude candidate instead of prompting.
+    deepStrictEqual(opencodeProvider.detect?.subsumes, ['claude']);
     // No strong model vendor: bare product label, not a `<Vendor>'s` possessive.
     strictEqual(opencodeProvider.presentation.label, 'OpenCode');
     strictEqual(opencodeProvider.presentation.invocationSigil, '/');

@@ -406,7 +406,7 @@ describe('QuickStartModal, MCP register snippet', () => {
     expect(snippet.payload).not.toContain(document.location.origin);
   });
 
-  it('gives antigravity a serverUrl config snippet aimed at the home-global file', async () => {
+  it('gives antigravity a full serverUrl document aimed at the home-global file', async () => {
     const setup = bootstrapLens('antigravity');
 
     open(setup);
@@ -415,11 +415,16 @@ describe('QuickStartModal, MCP register snippet', () => {
 
     const snippet = setup.probe.mcpSnippet();
     expect(snippet.kind).toBe('config');
+    // The operator's PERSONAL config, so the registration never lands in a
+    // file the repository shares.
     expect(snippet.target).toBe('~/.gemini/config/mcp_config.json');
     expect(snippet.payload).toContain('"serverUrl"');
     expect(snippet.payload).toContain(MCP_URL);
     // Pretty-printed, so the operator can paste it as-is.
     expect(snippet.payload).toContain('\n');
+    // A COMPLETE document: that file usually does not exist yet, so the
+    // payload has to be saveable as-is (the paste hint covers the merge
+    // case for an operator who already has one).
     expect(JSON.parse(snippet.payload)).toEqual({
       mcpServers: { 'skill-map': { serverUrl: MCP_URL } },
     });
@@ -433,7 +438,7 @@ describe('QuickStartModal, MCP register snippet', () => {
     expect(setup.probe.mcpInstalledMetaTone()).toBe('warn');
   });
 
-  it('gives opencode a remote-type config snippet for opencode.json', async () => {
+  it('gives opencode a full remote-type document for its personal global config', async () => {
     const setup = bootstrapLens('opencode');
 
     open(setup);
@@ -442,9 +447,13 @@ describe('QuickStartModal, MCP register snippet', () => {
 
     const snippet = setup.probe.mcpSnippet();
     expect(snippet.kind).toBe('config');
-    expect(snippet.target).toBe('opencode.json');
+    // The GLOBAL config, not the project `opencode.json`: OpenCode's docs
+    // call that one safe to commit, so it is the team's file and a
+    // per-developer tool has no business writing itself into it.
+    expect(snippet.target).toBe('~/.config/opencode/opencode.json');
     expect(snippet.payload).toContain('"type": "remote"');
     expect(JSON.parse(snippet.payload)).toEqual({
+      $schema: 'https://opencode.ai/config.json',
       mcp: { 'skill-map': { type: 'remote', url: MCP_URL, enabled: true } },
     });
     expect(setup.probe.mcpCopyLabel()).toBe(QUICK_START_TEXTS.action.copyConfig);

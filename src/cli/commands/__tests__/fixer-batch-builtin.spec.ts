@@ -804,6 +804,26 @@ describe('the fixer roster, shared cross-fixer instructions', () => {
     });
   }
 
+  it('core/ai-contradiction-action asks the author WITHOUT assuming a vendor widget', () => {
+    const action = builtIns().actions.find((a) => a.id === 'ai-contradiction-action');
+    ok(action?.promptTemplate, 'contradiction fixer registered with a prompt');
+    const flat = action.promptTemplate.replace(/\s+/g, ' ');
+    // The ask must be reachable on any runtime: naming an
+    // `AskUserQuestion`-style options prompt as THE way to ask made
+    // widget-less runtimes read "no widget" as "cannot interact" and
+    // record `human-decision` without ever asking the operator sitting
+    // right there (live-verified on opencode, 2026-07-25).
+    strictEqual(flat.includes('AskUserQuestion'), false, 'no vendor widget named');
+    ok(
+      flat.includes('Ask in whatever channel you normally talk to the user in'),
+      'carries the capability-neutral ask instruction',
+    );
+    // The unattended fallback survives, explicitly NOT triggered by the
+    // absence of a widget.
+    ok(flat.includes('an unattended run with no user reading your output'));
+    ok(action.promptTemplate.includes('Lacking a dedicated options widget is NOT that case.'));
+  });
+
   it('the report clause is IDENTICAL across all three fixers', () => {
     // Extract each prompt's report clause (from "After editing" to the
     // "safety and confidence fields." close) and assert byte-equality.

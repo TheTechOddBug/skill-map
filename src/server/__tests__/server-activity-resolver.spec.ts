@@ -13,6 +13,7 @@ import { describe, it } from 'node:test';
 
 import type { IProvider } from '../../kernel/extensions/index.js';
 import type { Node } from '../../kernel/types.js';
+import { ActivityOwnerIndex, OWNER_INDEX_CAP } from '../activity-owner-index.js';
 import { resolveActivityEvent, resolveSignalsAgainstNodes } from '../activity-resolver.js';
 
 const HASH = 'a'.repeat(64);
@@ -234,6 +235,24 @@ describe('resolveSignalsAgainstNodes', () => {
     assert.deepEqual(resolved.activity, [{ phase: 'end', owner: 'conv-1', ownerScope: true }]);
   });
 
+  it('stamps `terminal` on the owner release of a `blocking` runtime only', () => {
+    const napping = makeProvider();
+    const blocking = makeProvider();
+    (blocking.activity as { spawnCustody?: string }) = {
+      install: { kind: 'plugin-file', configPath: '.opencode/plugin/x.js' },
+      spawnCustody: 'blocking',
+      mapEvent: () => null,
+    } as never;
+
+    const release = [{ phase: 'end' as const, owner: 'ses_1', ownerScope: true }];
+    assert.deepEqual(resolveSignalsAgainstNodes(release, napping, NODES).activity, [
+      { phase: 'end', owner: 'ses_1', ownerScope: true },
+    ]);
+    assert.deepEqual(resolveSignalsAgainstNodes(release, blocking, NODES).activity, [
+      { phase: 'end', owner: 'ses_1', ownerScope: true, terminal: true },
+    ]);
+  });
+
   it('node-less SESSION RELEASES forward without resolution', () => {
     const resolved = resolveSignalsAgainstNodes(
       // Codex main-context Stop: release every owner grouped under the session.
@@ -390,6 +409,127 @@ describe('resolveSignalsAgainstNodes', () => {
         prompt: 'go',
       },
     ]);
+  });
+
+  it('anchors a relation-only spawn on the agent node its owner is running', () => {
+    const owners = new ActivityOwnerIndex();
+    // The owner claimed its agent node first (OpenCode's `chat.message`
+    // shape: a NAME signal for an agent kind carrying the session id).
+    resolveSignalsAgainstNodes(
+      [{ kind: 'agent', name: 'code-reviewer', phase: 'start', owner: 'ses_1', sticky: true }],
+      provider,
+      NODES,
+      owners,
+    );
+    const resolved = resolveSignalsAgainstNodes(
+      [
+        {
+          phase: 'start',
+          owner: 'ses_1',
+          spawn: { spawnId: 't5', phase: 'start', parentOwner: 'ses_1', childKind: 'agent', childName: 'worker' },
+        },
+      ],
+      provider,
+      NODES,
+      owners,
+    );
+    assert.deepEqual(resolved.activity, []);
+    assert.equal(resolved.spawns[0]!.parentNodePath, '.claude/agents/reviewer.md');
+  });
+
+  it('leaves the capsule fallback when the owner runs no known agent node', () => {
+    const owners = new ActivityOwnerIndex();
+    // A skill claim must NOT steal the anchor: only agent-kind claims
+    // establish "this owner IS this node".
+    resolveSignalsAgainstNodes(
+      [{ kind: 'skill', name: 'deploy', phase: 'start', owner: 'ses_2' }],
+      provider,
+      NODES,
+      owners,
+    );
+    const resolved = resolveSignalsAgainstNodes(
+      [
+        {
+          phase: 'start',
+          owner: 'ses_2',
+          spawn: { spawnId: 't6', phase: 'start', parentOwner: 'ses_2' },
+        },
+      ],
+      provider,
+      NODES,
+      owners,
+    );
+    assert.equal(resolved.spawns[0]!.parentNodePath, undefined);
+  });
+
+  it('learns the child owner from a completed spawn, and forgets on release', () => {
+    const owners = new ActivityOwnerIndex();
+    resolveSignalsAgainstNodes(
+      [
+        {
+          phase: 'start',
+          owner: 'ses_main',
+          spawn: {
+            spawnId: 't7',
+            phase: 'end',
+            parentOwner: 'ses_main',
+            childKind: 'agent',
+            childName: 'worker',
+            childOwner: 'ses_child',
+          },
+        },
+      ],
+      provider,
+      NODES,
+      owners,
+    );
+    assert.equal(owners.nodeFor('ses_child'), '.claude/agents/worker.md');
+    // A nested spawn from that child now anchors on the child's node.
+    const nested = resolveSignalsAgainstNodes(
+      [
+        {
+          phase: 'start',
+          owner: 'ses_child',
+          spawn: { spawnId: 't8', phase: 'start', parentOwner: 'ses_child' },
+        },
+      ],
+      provider,
+      NODES,
+      owners,
+    );
+    assert.equal(nested.spawns[0]!.parentNodePath, '.claude/agents/worker.md');
+    // A napping runtime's owner end may be a pause, so the anchor
+    // survives it; only a TERMINAL end (a blocking runtime) drops it.
+    resolveSignalsAgainstNodes(
+      [{ phase: 'end', owner: 'ses_child', ownerScope: true }],
+      provider,
+      NODES,
+      owners,
+    );
+    assert.equal(owners.nodeFor('ses_child'), '.claude/agents/worker.md');
+    const blocking = makeProvider();
+    (blocking.activity as unknown) = {
+      install: { kind: 'plugin-file', configPath: '.opencode/plugin/x.js' },
+      spawnCustody: 'blocking',
+      mapEvent: () => null,
+    };
+    resolveSignalsAgainstNodes(
+      [{ phase: 'end', owner: 'ses_child', ownerScope: true }],
+      blocking,
+      NODES,
+      owners,
+    );
+    assert.equal(owners.nodeFor('ses_child'), undefined);
+  });
+
+  it('bounds the owner index and evicts the least recently confirmed owner', () => {
+    const owners = new ActivityOwnerIndex();
+    for (let i = 0; i < OWNER_INDEX_CAP + 5; i++) {
+      owners.note(`owner-${i}`, `.claude/agents/worker.md`);
+    }
+    assert.equal(owners.size, OWNER_INDEX_CAP);
+    assert.equal(owners.nodeFor('owner-0'), undefined);
+    assert.equal(owners.nodeFor(`owner-${OWNER_INDEX_CAP + 4}`), '.claude/agents/worker.md');
   });
 
   it('a spawn block on an UNRESOLVED node signal drops with its signal', () => {

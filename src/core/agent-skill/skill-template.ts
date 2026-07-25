@@ -101,8 +101,9 @@ absent, the setup tip below), never a mode or probe announcement.
          - **Codex** (HTTP transport is \`--url\`, NOT a \`-- command\`):
            \`codex mcp add skill-map --url http://127.0.0.1:4242/mcp\`,
            then confirm \`codex mcp list\` (or \`codex mcp get skill-map\`).
-         - **OpenCode**: add to \`opencode.json\`
-           \`"mcp": { "skill-map": { "type": "remote", "url": "http://127.0.0.1:4242/mcp", "enabled": true } }\`.
+         - **OpenCode** (use the GLOBAL config, the project \`opencode.json\`
+           is the team's committed file): in \`~/.config/opencode/opencode.json\`
+           add \`"mcp": { "skill-map": { "type": "remote", "url": "http://127.0.0.1:4242/mcp", "enabled": true } }\`.
          - **Antigravity** (MCP config is home-global, not project-local):
            in \`~/.gemini/config/mcp_config.json\` add
            \`"mcpServers": { "skill-map": { "serverUrl": "http://127.0.0.1:4242/mcp" } }\`.

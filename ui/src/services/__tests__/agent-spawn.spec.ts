@@ -34,6 +34,18 @@ function ownerEnd(owner: string): IWsNodeActivityEvent {
   };
 }
 
+/**
+ * The `blocking`-runtime release (OpenCode's `session.idle`): the same
+ * owner-scoped end plus `terminal: true`, which skips the pause rule.
+ */
+function terminalOwnerEnd(owner: string): IWsNodeActivityEvent {
+  return {
+    type: 'node.activity',
+    timestamp: 1_700_000_000_000,
+    data: { phase: 'end', owner, ownerScope: true, terminal: true },
+  };
+}
+
 function heartbeat(owner: string, nodePath = CHILD): IWsNodeActivityEvent {
   return {
     type: 'node.activity',
@@ -215,6 +227,45 @@ describe('AgentSpawnService', () => {
     await flushed();
     expect(service.spawnEdges().length).toBe(0);
     expect(service.sessionNodes().length).toBe(0);
+  });
+
+  it('a TERMINAL end releases the spawns the owner parents, not just those it childs', async () => {
+    const { service, spawns$, activity$ } = bootstrap();
+    // The shape a REFUSED spawn leaves behind: a start frame whose
+    // completion never arrives (OpenCode rejecting a nested `task`).
+    spawns$.next(
+      spawnEvent({ spawnId: 't5e', phase: 'start', parentOwner: 'ses-child', childNodePath: CHILD }),
+    );
+    await flushed();
+    expect(service.spawnEdges().length).toBe(1);
+    expect(service.sessionNodes().length).toBe(1);
+
+    // On a `napping` runtime this same frame would only refresh it
+    // (pause is not end); `terminal` says the owner is genuinely done.
+    activity$.next(ownerEnd('ses-child'));
+    await flushed();
+    expect(service.spawnEdges().length).toBe(1);
+
+    activity$.next(terminalOwnerEnd('ses-child'));
+    await flushed();
+    expect(service.spawnEdges().length).toBe(0);
+    expect(service.sessionNodes().length).toBe(0);
+  });
+
+  it('a TERMINAL end still releases the child side (the ordinary sync case)', async () => {
+    const { service, spawns$, activity$ } = bootstrap();
+    spawns$.next(
+      spawnEvent({ spawnId: 't5f', phase: 'start', parentOwner: SESSION_OWNER, childNodePath: CHILD }),
+    );
+    spawns$.next(
+      spawnEvent({ spawnId: 't5f', phase: 'handoff', parentOwner: SESSION_OWNER, childOwner: 'worker-9' }),
+    );
+    await flushed();
+    expect(service.spawnEdges().length).toBe(1);
+
+    activity$.next(terminalOwnerEnd('worker-9'));
+    await flushed();
+    expect(service.spawnEdges().length).toBe(0);
   });
 
   it('a pause stop refreshes the paused owner edges instead of expiring them', async () => {

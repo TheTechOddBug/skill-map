@@ -10,11 +10,14 @@
 # own file (passed as a single argument to wsl zsh) sidesteps that
 # entirely.
 #
-# Usage: start-pane.sh <pnpm-script-name> [fixture-dir]
+# Usage: start-pane.sh <pnpm-script-name> [fixture-dir] [extra-args...]
 #   The optional second arg names the fixture scope; when present it is
 #   exported as SM_FIXTURE so `bff:scan` / `bff:dev` resolve
 #   `fixtures/${SM_FIXTURE:-claude}`. The UI pane omits it (Angular
 #   HMR is fixture-agnostic, it proxies the API to the BFF).
+#   Anything after the fixture is appended to the pnpm script, so a
+#   `fix:*` shortcut can hand the serve its own flags (e.g.
+#   `--log-level info` to make the activity ingest log visible).
 #
 # `trap '' INT` swallows Ctrl+C at this wrapper level so the dev
 # script below receives the signal cleanly and exits on its own; the
@@ -22,5 +25,5 @@
 
 trap '' INT
 [ -n "$2" ] && export SM_FIXTURE="$2"
-pnpm "$1"
+pnpm "$1" "${@:3}"
 exec $SHELL

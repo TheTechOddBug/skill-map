@@ -332,6 +332,65 @@ describe('bootstrapActiveProvider: fallback precedence (vendor + .agents)', () =
   });
 });
 
+describe('bootstrapActiveProvider: compat subsumption (.claude + .opencode)', () => {
+  // OpenCode READS `.claude/skills/`, so a `.claude/` directory inside an
+  // OpenCode project is expected rather than a second runtime: the pair
+  // is not a genuine tie and must resolve without a prompt. Orthogonal
+  // pairs still prompt (second case).
+  const PROVIDERS_WITH_SUBSUMER: IProviderDetectInput[] = [
+    ...TEST_PROVIDERS,
+    { id: 'opencode', detect: { markers: ['.opencode'], subsumes: ['claude'] } },
+  ];
+
+  it('resolves opencode with no prompt and snapshots the surviving marker set', async () => {
+    mkdirSync(join(tmpRoot, '.claude', 'skills'), { recursive: true });
+    mkdirSync(join(tmpRoot, '.opencode'), { recursive: true });
+
+    const cap = capturePrinter();
+    const out = await bootstrapActiveProvider({
+      cwd: tmpRoot,
+      effectiveRoots: [tmpRoot],
+      providers: PROVIDERS_WITH_SUBSUMER,
+      // yes:true EXITS non-zero on a genuine ambiguity, so sailing
+      // through proves detection collapsed to a single candidate.
+      yes: true,
+      stdin: inlineStdin(''),
+      stderr: noopStderr(),
+      printer: cap.printer,
+    });
+
+    assert.deepEqual(out, { kind: 'ok', activeProvider: 'opencode', source: 'autodetect' });
+    const persisted = JSON.parse(
+      readFileSync(join(tmpRoot, '.skill-map', 'settings.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    assert.equal(persisted['activeProvider'], 'opencode');
+    // The snapshot records the POST-subsumption candidate set, the same
+    // list the drift check recomputes, so a `.claude/` that never
+    // competed cannot later read as drift.
+    assert.deepEqual(persisted['activeProviderMarkers'], ['opencode']);
+  });
+
+  it('still prompts for an orthogonal pair (.claude + .codex)', async () => {
+    mkdirSync(join(tmpRoot, '.claude'), { recursive: true });
+    mkdirSync(join(tmpRoot, '.codex'), { recursive: true });
+
+    const cap = capturePrinter();
+    const out = await bootstrapActiveProvider({
+      cwd: tmpRoot,
+      effectiveRoots: [tmpRoot],
+      providers: PROVIDERS_WITH_SUBSUMER,
+      yes: true,
+      stdin: inlineStdin(''),
+      stderr: noopStderr(),
+      printer: cap.printer,
+    });
+
+    assert.equal(out.kind, 'ambiguous');
+    if (out.kind !== 'ambiguous') return;
+    assert.deepEqual(out.detected, ['claude', 'codex']);
+  });
+});
+
 describe('warnIfLensPluginDisabled (bd-23c regression)', () => {
   it('warns when activeProvider points at a disabled plugin', () => {
     const cap = capturePrinter();

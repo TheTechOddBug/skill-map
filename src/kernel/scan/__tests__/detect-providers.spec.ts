@@ -1,10 +1,14 @@
 /**
  * Unit coverage for `detectProvidersFromFilesystem`, the pure filesystem
- * lens auto-detection. Focus: the **fallback precedence** rule, a Provider
- * flagged `detect.fallback` (the open-standard `agent-skills` lens) is a
- * candidate ONLY when no vendor (non-fallback) Provider matched, so the
- * shared `.agents/` skill home never turns a single-vendor project into an
- * ambiguous prompt.
+ * lens auto-detection. Two rules under test:
+ *
+ *   - **fallback precedence**: a Provider flagged `detect.fallback` (the
+ *     open-standard `agent-skills` lens) is a candidate ONLY when no vendor
+ *     (non-fallback) Provider matched, so the shared `.agents/` skill home
+ *     never turns a single-vendor project into an ambiguous prompt.
+ *   - **compat subsumption**: a Provider's `detect.subsumes` absorbs the
+ *     candidates it names, so `.claude/` + `.opencode/` resolves to
+ *     `opencode` instead of prompting over a tie that does not exist.
  */
 
 import { describe, it, beforeEach, afterEach } from 'node:test';
@@ -25,6 +29,7 @@ const CATALOG: IProviderDetectInput[] = [
   { id: 'claude', detect: { markers: ['.claude'] } },
   { id: 'codex', detect: { markers: ['.codex'] } },
   { id: 'antigravity', detect: { markers: ['.agent/workflows'] } },
+  { id: 'opencode', detect: { markers: ['.opencode'], subsumes: ['claude'] } },
   { id: 'agent-skills', detect: { markers: ['.agents'], fallback: true } },
 ];
 
@@ -81,5 +86,55 @@ describe('detectProvidersFromFilesystem: fallback precedence', () => {
       'codex',
       'antigravity',
     ]);
+  });
+});
+
+describe('detectProvidersFromFilesystem: compat subsumption', () => {
+  beforeEach(() => {
+    tmpRoot = mkdtempSync(join(tmpdir(), 'sm-detect-'));
+  });
+  afterEach(() => {
+    rmSync(tmpRoot, { recursive: true, force: true });
+  });
+
+  it('absorbs the subsumed vendor (.claude + .opencode resolves to opencode)', () => {
+    // OpenCode READS `.claude/skills/`, so `.claude/` inside an OpenCode
+    // project is expected, not a second runtime. No prompt.
+    seed('.claude', '.opencode');
+    deepStrictEqual(detectProvidersFromFilesystem(tmpRoot, CATALOG), ['opencode']);
+  });
+
+  it('absorbs across the fallback rule too (.claude + .opencode + .agents)', () => {
+    seed('.claude', '.opencode', '.agents');
+    deepStrictEqual(detectProvidersFromFilesystem(tmpRoot, CATALOG), ['opencode']);
+  });
+
+  it('leaves the subsumed vendor alone when the subsumer did not match', () => {
+    seed('.claude');
+    deepStrictEqual(detectProvidersFromFilesystem(tmpRoot, CATALOG), ['claude']);
+  });
+
+  it('keeps a vendor it does not subsume ambiguous (.codex + .opencode)', () => {
+    seed('.codex', '.opencode');
+    deepStrictEqual(detectProvidersFromFilesystem(tmpRoot, CATALOG), ['codex', 'opencode']);
+  });
+
+  it('subsumes only its own target, the third vendor stays (.claude + .codex + .opencode)', () => {
+    seed('.claude', '.codex', '.opencode');
+    deepStrictEqual(detectProvidersFromFilesystem(tmpRoot, CATALOG), ['codex', 'opencode']);
+  });
+
+  it('keeps a mutual pair ambiguous rather than tie-breaking arbitrarily', () => {
+    const mutual: IProviderDetectInput[] = [
+      { id: 'alpha', detect: { markers: ['.alpha'], subsumes: ['beta'] } },
+      { id: 'beta', detect: { markers: ['.beta'], subsumes: ['alpha'] } },
+    ];
+    seed('.alpha', '.beta');
+    deepStrictEqual(detectProvidersFromFilesystem(tmpRoot, mutual), ['alpha', 'beta']);
+  });
+
+  it('ignores a subsumes entry naming a provider that is not a candidate', () => {
+    seed('.opencode');
+    deepStrictEqual(detectProvidersFromFilesystem(tmpRoot, CATALOG), ['opencode']);
   });
 });

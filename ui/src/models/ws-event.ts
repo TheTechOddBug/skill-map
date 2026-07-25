@@ -373,6 +373,16 @@ export interface IWsNodeActivityData {
    * own end signal was dropped but its session end still arrives.
    */
   sessionScope?: boolean;
+  /**
+   * Only on an `ownerScope` end: the end is TERMINAL, so the spawns
+   * that owner PARENTS release with it, not just the ones where it is
+   * the child. Stamped by the server for runtimes whose spawn custody
+   * is `blocking` (the parent blocks inside the spawn call, so it
+   * cannot report idle while a child runs). Absent for `napping`
+   * runtimes, where the pause-is-not-end rule applies because the same
+   * frame may mean the parent is merely awaiting its own spawn.
+   */
+  terminal?: boolean;
 }
 
 export type IWsNodeActivityEvent = IWsEvent<IWsNodeActivityData> & { type: 'node.activity' };

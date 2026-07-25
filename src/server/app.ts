@@ -105,6 +105,7 @@ import { registerPreferencesRoute } from './routes/preferences.js';
 import { registerProjectIgnoreRoute } from './routes/project-ignore.js';
 import { registerProjectPreferencesRoute } from './routes/project-preferences.js';
 import type { ActivityConversationStore } from './activity-conversations.js';
+import type { ActivityOwnerIndex } from './activity-owner-index.js';
 import type { ActivityStatsService } from './activity-stats.js';
 import type { AgentPresenceTracker } from './agent-presence.js';
 import { registerActiveProviderRoute } from './routes/active-provider.js';
@@ -422,6 +423,13 @@ export interface IAppDeps {
    */
   activityStats: ActivityStatsService;
   /**
+   * Boot-scoped `owner -> agent node` index (see
+   * `activity-owner-index.ts`). Instantiated by the composition root;
+   * threaded ONLY to the ingest route as an explicit extra dep, never
+   * placed on `IRouteDeps`. Holds paths, never content.
+   */
+  activityOwners: ActivityOwnerIndex;
+  /**
    * Consent-gated conversation store (see `activity-conversations.ts`
    * for the custody contract). Instantiated ONLY by the composition
    * root; threaded ONLY to the activity routes (ingest, detail,
@@ -696,6 +704,7 @@ export function createApp(deps: IAppDeps): Hono {
     broadcaster: deps.broadcaster,
     activityToken: deps.activityToken,
     stats: deps.activityStats,
+    owners: deps.activityOwners,
     conversations: deps.activityConversations,
   });
   // Job-event push ingest, `POST /api/job-events` (the CLI-to-server
