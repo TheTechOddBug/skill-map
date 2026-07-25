@@ -5,3 +5,8 @@ ai-engineering
 # `skills` also matched every fixture's `.agents/skills/` directory, which
 # silently dropped committed skill corpora (e.g. antigravity, codex).
 /skills/
+# Performance fixture: 1000+ generated markdown nodes. Rebuilt on demand by
+# `pnpm perf:gen` (scripts/gen-perf-fixture.js is the source of truth), never
+# committed, the tree would drown every diff and grep in the repo.
+/perf/
+/perf-*/
