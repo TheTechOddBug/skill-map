@@ -32,8 +32,10 @@ export type TSeverityFilter = 'error' | 'warn';
 /**
  * Closed catalog of link kinds, mirrors `spec/schemas/link.schema.json`
  * `properties.kind.enum`. Link kinds are spec-fixed (unlike node kinds,
- * which are open per Provider), so the universe is a constant here and
- * the toggle logic in `toggleLinkKind` does not consult any registry.
+ * which are open per Provider), so the catalog is a constant here rather
+ * than a registry lookup. It is the validation surface for the URL layer
+ * and the palette self-check, NOT the toggle universe: `toggleLinkKind`
+ * takes the kinds its caller actually paints (see its doc comment).
  */
 export const ALL_LINK_KINDS: readonly TLinkKindApi[] = [
   'invokes',
@@ -79,6 +81,17 @@ export class FilterStoreService {
    */
   private readonly _selectedLinkKinds = signal<TLinkKindApi[]>([]);
   /**
+   * Sticky "operator turned every link toggle off" flag, the edge-side
+   * twin of `_kindToggleExplicitEmpty`. Without it, deactivating the
+   * LAST visible link kind collapses `_selectedLinkKinds` back to `[]`,
+   * which the whitelist reads as "no filter, every kind visible", so the
+   * click that should hide the last edge kind re-shows all of them (the
+   * toggles visibly flip back ON). Cleared by re-activating any kind, by
+   * `setLinkKinds` (URL / programmatic path, dropdown semantics), and by
+   * `reset()`.
+   */
+  private readonly _linkKindToggleExplicitEmpty = signal<boolean>(false);
+  /**
    * Severity palette toggles (graph view). Independent boolean per
    * tier so the operator can pick `error` only, `warn` only, both, or
    * none. Combination semantics is AND: with both active, only nodes
@@ -119,6 +132,13 @@ export class FilterStoreService {
    * this state. See `toggleKind` for the lifecycle of the sticky flag.
    */
   readonly kindToggleExplicitEmpty = this._kindToggleExplicitEmpty.asReadonly();
+  /**
+   * Read-only mirror of the sticky "every link-kind toggle is off" flag.
+   * The graph view consumes it to render the canvas with zero edges
+   * (an empty whitelist is indistinguishable from "no filter" in
+   * `selectedLinkKinds` alone).
+   */
+  readonly linkKindToggleExplicitEmpty = this._linkKindToggleExplicitEmpty.asReadonly();
 
   readonly isActive = computed(
     () =>
@@ -127,6 +147,7 @@ export class FilterStoreService {
       this._kindToggleExplicitEmpty() ||
       this._favoritesOnly() ||
       this._selectedLinkKinds().length > 0 ||
+      this._linkKindToggleExplicitEmpty() ||
       this._severityErrorActive() ||
       this._severityWarnActive(),
   );
@@ -212,32 +233,58 @@ export class FilterStoreService {
   }
 
   setLinkKinds(kinds: TLinkKindApi[]): void {
+    // Programmatic / URL path: same convention as `setKinds`, an empty
+    // array means "no filter", never the sticky explicit-empty state
+    // (that one belongs to the toggle palette only).
+    this._linkKindToggleExplicitEmpty.set(false);
     this._selectedLinkKinds.set([...kinds]);
   }
 
   /**
-   * Toggle a single link kind. Same normalisation as `toggleKind`: the
-   * empty-array state means "all kinds visible", so when every kind is
-   * checked the signal collapses back to `[]` to keep `isActive` clean.
+   * Toggle a single link kind. Mirrors `toggleKind` exactly:
+   *   - empty `selectedLinkKinds` = "no link filter" = every kind visible;
+   *   - non-empty = whitelist of edge kinds kept on the canvas;
+   *   - turning every kind on normalises back to the empty array;
+   *   - turning the LAST kind off enters the sticky explicit-empty state
+   *     so the canvas keeps zero edges instead of re-showing all of them.
+   *
+   * `universe` MUST be the kinds the caller actually paints toggles for
+   * (kinds present in the loaded scan), NOT the spec-fixed
+   * `ALL_LINK_KINDS`. Starting from the full catalog left kinds with zero
+   * links in the whitelist, so toggling the visible ones off never
+   * reached size 0 and the filter flip-flopped between "one kind" and
+   * "all kinds" instead of hiding what the operator clicked.
    */
-  toggleLinkKind(kind: TLinkKindApi): void {
+  toggleLinkKind(kind: TLinkKindApi, universe: readonly TLinkKindApi[]): void {
     const sel = this._selectedLinkKinds();
-    const startSet =
-      sel.length === 0 ? new Set<TLinkKindApi>(ALL_LINK_KINDS) : new Set(sel);
+    const explicitEmpty = this._linkKindToggleExplicitEmpty();
+    const startSet = explicitEmpty
+      ? new Set<TLinkKindApi>()
+      : sel.length === 0
+        ? new Set<TLinkKindApi>(universe)
+        : new Set(sel);
     if (startSet.has(kind)) {
       startSet.delete(kind);
     } else {
       startSet.add(kind);
     }
-    if (startSet.size === ALL_LINK_KINDS.length) {
+    if (startSet.size === 0) {
+      // Last visible kind turned off → stay empty, edges stay hidden.
       this._selectedLinkKinds.set([]);
+      this._linkKindToggleExplicitEmpty.set(true);
+    } else if (universe.every((k) => startSet.has(k))) {
+      // Every visible kind selected → normalise back to "no filter".
+      this._selectedLinkKinds.set([]);
+      this._linkKindToggleExplicitEmpty.set(false);
     } else {
       this._selectedLinkKinds.set([...startSet]);
+      this._linkKindToggleExplicitEmpty.set(false);
     }
   }
 
   /** True when the link kind currently passes the edge filter. */
   isLinkKindActive(kind: TLinkKindApi): boolean {
+    if (this._linkKindToggleExplicitEmpty()) return false;
     const sel = this._selectedLinkKinds();
     if (sel.length === 0) return true;
     return sel.includes(kind);
@@ -272,6 +319,7 @@ export class FilterStoreService {
     this._kindToggleExplicitEmpty.set(false);
     this._favoritesOnly.set(false);
     this._selectedLinkKinds.set([]);
+    this._linkKindToggleExplicitEmpty.set(false);
     this._severityErrorActive.set(false);
     this._severityWarnActive.set(false);
   }

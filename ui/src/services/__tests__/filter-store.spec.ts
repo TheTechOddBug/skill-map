@@ -11,6 +11,7 @@ import { TestBed } from '@angular/core/testing';
 
 import { FilterStoreService } from '../filter-store';
 import type { INodeView } from '../../models/node';
+import type { TLinkKindApi } from '../../models/api';
 
 const SEARCH_AFFECTS_MAP_KEY = 'sm.workspace.search-affects-map';
 
@@ -75,5 +76,91 @@ describe('FilterStoreService search → map decoupling', () => {
     store.reset();
     expect(store.searchText()).toBe('');
     expect(store.searchAffectsMap()).toBe(true);
+  });
+});
+
+/**
+ * Edge-kind palette semantics. Each toggle must be an independent
+ * show / hide of ONE link kind: the whole point of the sticky
+ * explicit-empty flag and of passing the caller's visible universe
+ * (instead of the spec-fixed `ALL_LINK_KINDS`) is that turning kinds
+ * off never flips the untouched ones back on.
+ */
+describe('FilterStoreService link-kind toggles', () => {
+  let store: FilterStoreService;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({});
+    store = TestBed.inject(FilterStoreService);
+    store.reset();
+  });
+
+  it('hides only the clicked kind when the project carries a subset of the catalog', () => {
+    // Universe = kinds actually present in the scan. `points` / `mentions`
+    // have no links here, so they must never enter the whitelist.
+    const universe: TLinkKindApi[] = ['invokes', 'references'];
+    store.toggleLinkKind('invokes', universe);
+    expect(store.selectedLinkKinds()).toEqual(['references']);
+    expect(store.isLinkKindActive('invokes')).toBe(false);
+    expect(store.isLinkKindActive('references')).toBe(true);
+  });
+
+  it('keeps every kind hidden after the last toggle goes off', () => {
+    const universe: TLinkKindApi[] = ['invokes', 'references'];
+    store.toggleLinkKind('invokes', universe);
+    store.toggleLinkKind('references', universe);
+    expect(store.selectedLinkKinds()).toEqual([]);
+    expect(store.linkKindToggleExplicitEmpty()).toBe(true);
+    expect(store.isLinkKindActive('invokes')).toBe(false);
+    expect(store.isLinkKindActive('references')).toBe(false);
+    expect(store.isActive()).toBe(true);
+  });
+
+  it('re-activates one kind at a time out of the all-off state', () => {
+    const universe: TLinkKindApi[] = ['invokes', 'references'];
+    store.toggleLinkKind('invokes', universe);
+    store.toggleLinkKind('references', universe);
+    store.toggleLinkKind('references', universe);
+    expect(store.linkKindToggleExplicitEmpty()).toBe(false);
+    expect(store.selectedLinkKinds()).toEqual(['references']);
+    expect(store.isLinkKindActive('invokes')).toBe(false);
+    expect(store.isLinkKindActive('references')).toBe(true);
+  });
+
+  it('normalises back to "no filter" once every visible kind is on again', () => {
+    const universe: TLinkKindApi[] = ['invokes', 'references'];
+    store.toggleLinkKind('invokes', universe);
+    store.toggleLinkKind('invokes', universe);
+    expect(store.selectedLinkKinds()).toEqual([]);
+    expect(store.linkKindToggleExplicitEmpty()).toBe(false);
+    expect(store.isActive()).toBe(false);
+  });
+
+  it('toggles a single kind off when it is the only one in the project', () => {
+    // Regression: with the spec catalog as universe this click produced
+    // a 3-kind whitelist, the palette sanitiser emptied it, and the lone
+    // kind came straight back on (a no-op click from the operator's side).
+    const universe: TLinkKindApi[] = ['references'];
+    store.toggleLinkKind('references', universe);
+    expect(store.isLinkKindActive('references')).toBe(false);
+    expect(store.linkKindToggleExplicitEmpty()).toBe(true);
+  });
+
+  it('setLinkKinds clears the sticky all-off state (URL / programmatic path)', () => {
+    const universe: TLinkKindApi[] = ['invokes', 'references'];
+    store.toggleLinkKind('invokes', universe);
+    store.toggleLinkKind('references', universe);
+    store.setLinkKinds(['invokes']);
+    expect(store.linkKindToggleExplicitEmpty()).toBe(false);
+    expect(store.isLinkKindActive('invokes')).toBe(true);
+  });
+
+  it('reset() clears the sticky all-off state', () => {
+    const universe: TLinkKindApi[] = ['invokes'];
+    store.toggleLinkKind('invokes', universe);
+    store.reset();
+    expect(store.linkKindToggleExplicitEmpty()).toBe(false);
+    expect(store.isLinkKindActive('invokes')).toBe(true);
+    expect(store.isActive()).toBe(false);
   });
 });

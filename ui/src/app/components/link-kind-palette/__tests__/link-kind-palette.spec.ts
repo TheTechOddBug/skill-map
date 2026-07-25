@@ -29,6 +29,8 @@ function makeFixture(opts: {
   /** Provider id → its `invocationSigil`; absent ids resolve to no entry. */
   sigilByProvider?: Record<string, string | undefined>;
   linkKinds?: TLinkKindApi[];
+  /** Sink the `toggleLinkKind(kind, universe)` calls land in, when asserted. */
+  toggleCalls?: { kind: TLinkKindApi; universe: readonly TLinkKindApi[] }[];
 }): ReturnType<typeof TestBed.createComponent<LinkKindPalette>> {
   const links = (opts.linkKinds ?? (['invokes'] as TLinkKindApi[])).map((kind) => ({ kind }));
   const loader = {
@@ -38,7 +40,9 @@ function makeFixture(opts: {
     selectedLinkKinds: signal<TLinkKindApi[]>([]).asReadonly(),
     isLinkKindActive: (): boolean => false,
     setLinkKinds: (): void => undefined,
-    toggleLinkKind: (): void => undefined,
+    toggleLinkKind: (kind: TLinkKindApi, universe: readonly TLinkKindApi[]): void => {
+      opts.toggleCalls?.push({ kind, universe });
+    },
   };
   const sigilMap = opts.sigilByProvider ?? {};
   const providerRegistry = {
@@ -119,5 +123,28 @@ describe('LinkKindPalette invocation glyph', () => {
 
     const noLens = makeFixture({ activeProvider: null });
     expect(invokesEntry(noLens).text).toBe('/');
+  });
+});
+
+describe('LinkKindPalette toggle universe', () => {
+  it('hands the store the kinds it actually paints, not the spec catalog', () => {
+    // Regression: passing `ALL_LINK_KINDS` let kinds with zero links stay
+    // in the whitelist, so turning the visible toggles off flipped the
+    // filter back to "every kind visible" instead of hiding the clicked one.
+    const toggleCalls: { kind: TLinkKindApi; universe: readonly TLinkKindApi[] }[] = [];
+    const fixture = makeFixture({
+      activeProvider: 'claude',
+      sigilByProvider: { claude: '/' },
+      linkKinds: ['invokes', 'references'],
+      toggleCalls,
+    });
+
+    // Drives the same handler the template's `(ngModelChange)` calls,
+    // without coupling the test to PrimeNG's internal button markup.
+    fixture.componentInstance.toggle('invokes');
+
+    expect(toggleCalls).toHaveLength(1);
+    expect(toggleCalls[0].kind).toBe('invokes');
+    expect([...toggleCalls[0].universe].sort()).toEqual(['invokes', 'references']);
   });
 });

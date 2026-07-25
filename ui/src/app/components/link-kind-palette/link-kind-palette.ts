@@ -191,6 +191,13 @@ export class LinkKindPalette {
   }
 
   toggle(kind: TLinkKindApi): void {
-    this.filters.toggleLinkKind(kind);
+    // The universe handed to the store is the SAME set the palette paints
+    // toggles for (kinds with links in the loaded scan, plus any kind the
+    // operator still has whitelisted). Passing the spec-fixed catalog
+    // instead left absent kinds inside the whitelist, so the toggles never
+    // reached the "all off" state and the filter bounced back to "every
+    // kind visible" on the click that should have hidden the last one.
+    const universe = this.entries().map((e) => e.kind);
+    this.filters.toggleLinkKind(kind, universe);
   }
 }

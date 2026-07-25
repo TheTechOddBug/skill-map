@@ -49,7 +49,7 @@ import { AgentSpawnService } from '../../../services/agent-spawn';
 import { NodeActivityService } from '../../../services/node-activity';
 import { NodeActivityStatsService } from '../../../services/node-activity-stats';
 import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
-import type { INodeActivityStatsApi } from '../../../models/api';
+import type { INodeActivityStatsApi, TLinkKindApi } from '../../../models/api';
 import { directNeighborhood } from './node-neighborhood';
 import { resolveConnectionSides } from './connection-sides';
 import { BranchCapBanner } from './branch-cap-banner/branch-cap-banner';
@@ -422,7 +422,15 @@ export class GraphView implements OnInit {
   readonly graph = computed<IGraphData>(() => {
     const visibleIds = this.mapVisiblePaths();
     const linkKinds = this.filters.selectedLinkKinds();
-    const visibleEdgeKinds = linkKinds.length > 0 ? new Set(linkKinds) : null;
+    // An empty whitelist is ambiguous on its own: it is both the default
+    // "no link filter" and the state left behind after the operator turns
+    // the last link toggle off. The sticky flag disambiguates, an empty
+    // Set hides every edge, `null` bypasses the filter.
+    const visibleEdgeKinds = this.filters.linkKindToggleExplicitEmpty()
+      ? new Set<TLinkKindApi>()
+      : linkKinds.length > 0
+        ? new Set(linkKinds)
+        : null;
     return projectVisible(
       this.fullLayout(),
       visibleIds,
