@@ -383,8 +383,8 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
       'inlined promptTemplate must carry the {{userContent}} placeholder',
     );
     // The report schema's $ref to the canonical tags shape IS the tagger
-    // signal the record path gates the sidecar write-through on
-    // (`isTagsReportSchema`, spec/job-lifecycle.md §Tags write-through).
+    // signal the record path surfaces the proposal on
+    // (`isTagsReportSchema`, spec/job-lifecycle.md §Tags proposal).
     assert.ok(
       action.reportSchema !== null && typeof action.reportSchema === 'object',
       'inlined reportSchema must be a parsed object',

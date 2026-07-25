@@ -38,6 +38,7 @@ import { EMPTY, type Observable } from 'rxjs';
 
 import { DATA_SOURCE_TEXTS } from '../../i18n/data-source.texts';
 import type {
+  IAgentPresenceApi,
   IBranchResponseApi,
   IConfigResolutionRowApi,
   IContributionsRegistryApi,
@@ -201,6 +202,20 @@ export class StaticDataSource implements IDataSourcePort {
       connected: false,
       clients: 0,
       url: 'http://127.0.0.1:4242/mcp',
+    };
+  }
+
+  /**
+   * The offline demo has no queue and no server to observe a claim on,
+   * so no agent has ever attended: `attending: false` with no claim
+   * timestamp. Honest for a baked snapshot, nothing here can drain jobs.
+   */
+  async agentPresence(): Promise<IAgentPresenceApi> {
+    return {
+      schemaVersion: '1',
+      kind: 'agent-presence',
+      attending: false,
+      lastClaimAt: null,
     };
   }
 

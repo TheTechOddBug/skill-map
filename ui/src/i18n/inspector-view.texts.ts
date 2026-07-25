@@ -161,12 +161,13 @@ export const INSPECTOR_VIEW_TEXTS = {
       'No agent is set up to process jobs. Install the processing skill (Quick Start, or Settings > Project) so launched actions actually run.',
     /**
      * Secondary heads-up: the processing skill IS installed, but no agent
-     * is connected to the MCP server yet. Clears once the agent runs the
-     * skill and opens an MCP session. Shown only when `skillMissing` is a
-     * confirmed `false` and `mcpConnected` a confirmed `false`.
+     * has claimed a job since the server started, so nothing is proven to
+     * drain the queue. Clears for good on the first claim (either path,
+     * MCP or CLI). Shown only when `skillMissing` is a confirmed `false`
+     * and `agentAttending` a confirmed `false`.
      */
-    mcpDisconnectedWarning:
-      'Skill installed, but no agent is connected to the MCP yet. Start your agent (run the skill) and it will connect.',
+    noAgentAttendingWarning:
+      'No agent has picked up work yet: start the processing skill from your agent so queued actions run.',
     noAgentMessage: 'no agent is set up to process jobs.',
     agentInstallHint:
       'Install the processing skill from Settings, Project section ("Agent process skill"), then run it from your agent\'s terminal: "/sm-process-jobs".',

@@ -147,6 +147,8 @@ Emitted when a job transitions to `completed`.
 
 `executionId` references the `state_executions` row holding the report payload (in `report_json`). The full report is intentionally NOT inlined; events stay small, consumers query the row.
 
+One OPTIONAL field rides a TAGGER's completion (`spec/job-lifecycle.md` §Tags proposal): `tagsProposed`, the `string[]` the model inferred. It is a PROPOSAL, not an applied change: the record path writes nothing, and a consumer MUST NOT apply it on the operator's behalf. Tags are human curation (`architecture.md` §Storage rule), so the operator reviews the proposal in the ordinary tags editor and saves it under their own hand, through the usual `.sm` confirm-required handshake. Absent on every non-tagger job. A TAGGER always reports it, EMPTY when its report carried no usable tags: "I looked and found nothing" must be distinguishable from "no tagger ran", or a consumer would keep showing a stale proposal from an earlier run; a consumer that ignores it loses nothing, but surfacing it is what keeps a tagger run from appearing to do nothing at all.
+
 > **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). `extensionId` / `extensionKind` let a hook filter to a kind (`kind: 'analyzer'`) or a specific extension; this is what a chain hook keys on to chain finder -> fixer (the `core/auto-fix` built-in shipped this pattern until 2026-07-21, when it was removed as redundant with the per-job `auto_fix` flag; the dispatch stays available to drop-in hooks). Common uses: notification, billing, auto-fix.
 
 ### `job.failed`

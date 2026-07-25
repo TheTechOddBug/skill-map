@@ -26,7 +26,7 @@
  *   5. `--status failed`: transition to `failed` / `runner-error`. Exit 0.
  *
  * The record ORCHESTRATION (the nonce / state gate, the completed / failed
- * transition, the auto-fix chain, and the tags write-through) lives in the
+ * transition, the auto-fix chain, and the tagger tags proposal) lives in the
  * SHARED `core/jobs/record-engine.ts` module (also consumed by the MCP
  * `record_job` tool); this file owns the CLI-flag surface, the `--report`
  * reading, the exit-code mapping, the `pushJobEvent`-backed live push, and
@@ -242,14 +242,10 @@ export class RecordCommand extends SmCommand {
       // The CLI live-transition leg (spec/job-events.md §Transport): push
       // every engine event to the project's running server, best-effort.
       onEvent: (event) => pushJobEvent(cwd, event),
-      onTagsApplied: (tags, node) =>
-        this.printer!.info(
-          tx(T.tagsApplied, { glyph: this.okGlyph(), tags: tags.join(', '), node }),
-        ),
-      onTagsConsentMissing: (node) =>
-        this.printer!.info(
-          tx(T.tagsConsentMissing, { glyph: this.ansiFor('stderr').yellow('⚠'), node }),
-        ),
+      // Human-mode only (`info` is silenced under `--json`): the tagger
+      // WRITES nothing, so the one line the recorder owes the operator is
+      // what the model proposed and where to act on it.
+      onTagsProposed: (tags, node) => this.printer!.info(this.tagsProposedLine(tags, node)),
     });
 
     return this.mapOutcome(outcome, job, runId);
@@ -313,6 +309,21 @@ export class RecordCommand extends SmCommand {
       durationMs: metrics.durationMs,
       model: this.model ?? null,
     };
+  }
+
+  /**
+   * The tagger advisory (`spec/job-lifecycle.md` §Tags proposal): the record
+   * path writes no curation, so this line names the proposed tags and points
+   * at the tags editor where the human saves them under their own hand.
+   */
+  private tagsProposedLine(tags: readonly string[], node: string): string {
+    return tx(T.tagsProposed, {
+      glyph: this.ansiFor('stderr').cyan('ℹ'),
+      count: tags.length,
+      noun: tags.length === 1 ? T.tagsNounSingular : T.tagsNounPlural,
+      node,
+      tags: tags.join(', '),
+    });
   }
 
   /** Emit the success outcome (exit 0): synthetic envelope or a human line. */

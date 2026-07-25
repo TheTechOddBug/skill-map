@@ -97,14 +97,6 @@ export interface IAiActionsSetupDeps {
    */
   skillMissing: Signal<boolean | null>;
   /**
-   * The app-level MCP connectivity half of the same gate
-   * (`ProcessingAgentReadinessService.mcpConnected`), threaded by the
-   * host. Drives the secondary "skill installed, no agent attached"
-   * warning here; the service owns the probe and its refresh cadence,
-   * so the card never runs one per node.
-   */
-  mcpConnected: Signal<boolean | null>;
-  /**
    * Park a `.sm`-consent retry behind the shared consent dialog
    * (`ActionDispatchService.requestSmConsent`): the dismiss / restore
    * flows hit the same gate the action buttons do, and reuse the same
@@ -138,14 +130,17 @@ export interface IAiActionsHandle {
    */
   skillMissing: Signal<boolean | null>;
   /**
-   * Re-exposed app-level MCP connectivity (`ProcessingAgentReadiness`):
-   * whether an agent is currently attached to skill-map's MCP server.
-   * Gated behind `skillMissing === false` in the view (once the skill is
-   * installed and the agent runs, it opens an MCP session and this flips
-   * `true`, clearing the warning). `null` while unknown / on a probe
-   * error, so the warning only shows on a confirmed `false`.
+   * Processing-agent presence (`GET /api/agent/presence`): whether an
+   * agent has been OBSERVED claiming work since this server started.
+   * Counts BOTH claim paths (the MCP `claim_job` tool and the CLI `sm
+   * jobs claim`, which pushes its `job.claimed` to the server) and is
+   * sticky once true, so a healthy setup never reads as absent, which
+   * the live MCP session count it replaced got wrong for an agent parked
+   * on `sm jobs claim --wait`. Gated behind `skillMissing === false` in
+   * the view. `null` while unknown / on a probe error, so the warning
+   * only shows on a confirmed `false`.
    */
-  mcpConnected: Signal<boolean | null>;
+  agentAttending: Signal<boolean | null>;
   /** Last submit failure, or `null`. */
   error: Signal<IAiActionsError | null>;
   /**
@@ -251,6 +246,13 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
   /** The hidden bucket currently revealed under the tray (one at a time). */
   const revealedBucket = signal<TFindingsBucket | null>(null);
   const revealedRows = signal<IFindingApi[]>([]);
+  /**
+   * Has a processing agent been observed claiming work? `null` until the
+   * first probe answers (and on a probe failure), so the heads-up
+   * warning only shows on a confirmed `false`. Server-scoped and sticky,
+   * not per node, so a navigation never resets it, it just re-probes.
+   */
+  const agentAttending = signal<boolean | null>(null);
 
   /**
    * Last path the fetch effect ran for. Distinguishes a navigation
@@ -289,6 +291,19 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     }
     // Keep an open revealed bucket in step with the default view.
     void refreshRevealed(path);
+  }
+
+  /**
+   * Re-read `GET /api/agent/presence`. Cheap in-memory read server-side;
+   * a failure parks the signal at `null` (unknown fails open, no warning)
+   * rather than claiming nobody is attending.
+   */
+  async function probeAgentPresence(): Promise<void> {
+    try {
+      agentAttending.set((await deps.dataSource.agentPresence()).attending);
+    } catch {
+      agentAttending.set(null);
+    }
   }
 
   /** The hidden-count field backing one bucket's chip. */
@@ -414,6 +429,10 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
       cancelled = true;
     });
     void fetchBoth(path, () => cancelled);
+    // Agent presence rides the same trigger: the card only warns while a
+    // node is inspected, and the answer is server-scoped (no path to
+    // guard, a stale resolve carries the same truth as a fresh one).
+    void probeAgentPresence();
   });
 
   // Live refresh: any job lifecycle frame or a completed re-scan makes
@@ -422,11 +441,13 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
   merge(deps.jobEvents$, deps.scanCompleted$)
     .pipe(debounceTime(AI_ACTIONS_LIVE_REFRESH_DEBOUNCE_MS), takeUntilDestroyed())
     .subscribe(() => {
-      // Neither the skill status nor MCP connectivity is re-probed here:
-      // both live in the shared `ProcessingAgentReadinessService`, which
-      // owns their refresh points (boot, scan.completed, lens change,
-      // Settings close, and the unattached-MCP poll) for every consumer
-      // at once.
+      // Agent presence IS re-probed here: a `job.claimed` frame is
+      // exactly what flips it, so the warning clears the moment an agent
+      // picks work up. The skill status is not, it lives in the shared
+      // `ProcessingAgentReadinessService`, which owns its refresh points
+      // (boot, scan.completed, lens change, Settings close) for every
+      // consumer at once.
+      void probeAgentPresence();
       const path = fetchedPath;
       if (!path) return;
       void fetchBoth(path);
@@ -717,7 +738,7 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     probExtensions: probExtensions.asReadonly(),
     available,
     skillMissing: deps.skillMissing,
-    mcpConnected: deps.mcpConnected,
+    agentAttending: agentAttending.asReadonly(),
     error: error.asReadonly(),
     entryState: (entry) => {
       if (entry.state === 'idle') {

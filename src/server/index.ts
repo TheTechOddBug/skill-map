@@ -25,10 +25,17 @@
  *      (chokidar-fed scan loop) and `start()` it. The watcher
  *      broadcasts `scan.*` events through the same broadcaster the
  *      `/ws` route is registered against.
+ *   7. Instantiate the `AgentPresenceTracker` and register its `observe`
+ *      as the broadcaster's envelope observer; the tracker is the only
+ *      consumer of that hook, and the broadcaster stays a dumb
+ *      transport. When the caller opts in (`extra.bootPing`, which the
+ *      `sm serve` verb sets), also fire the best-effort boot liveness
+ *      ping (`boot-ping.ts`).
  *
  * `close()` shutdown order is intentional:
- *   1. `heartbeat.stop()`, stop the keep-alive ping loop so no ping
- *      races the shutdown close frames.
+ *   1. `heartbeat.stop()` + `bootPing.stop()`, stop the keep-alive ping
+ *      loop (so no ping races the shutdown close frames) and drop the
+ *      boot ping's pending cleanup timer.
  *   2. `watcherService.stop()`, drains the in-flight scan batch
  *      cleanly so chokidar is not torn down mid-`runScan`.
  *   3. `broadcaster.shutdown()`, closes every connected WS client
@@ -66,7 +73,9 @@ import { tx } from '../kernel/util/tx.js';
 import { readConfigValue } from '../core/config/helper.js';
 import { ActivityConversationStore } from './activity-conversations.js';
 import { ActivityStatsService } from './activity-stats.js';
+import { AgentPresenceTracker } from './agent-presence.js';
 import { createApp } from './app.js';
+import { startBootPing, type IBootPingHandle } from './boot-ping.js';
 import { WsBroadcaster } from './broadcaster.js';
 import { startWsHeartbeat } from './heartbeat.js';
 import { resolveSpecVersion } from './health.js';
@@ -142,6 +151,21 @@ export interface ICreateServerOpts {
     stream: NodeJS.WritableStream & { isTTY?: boolean };
     colorEnabled: boolean;
   };
+  /**
+   * Opt IN to the boot liveness ping (`boot-ping.ts`): ONE hidden
+   * `core/ai-ping-action` job submitted at startup so
+   * `GET /api/agent/presence` can learn its answer without waiting for
+   * organic queue traffic.
+   *
+   * Default OFF and requested explicitly by the `sm serve` verb, which
+   * is the only surface that has the panel the answer feeds. Booting the
+   * BFF is otherwise side-effect-free on the queue: dozens of suites
+   * boot a real server against a seeded project and assert on its jobs,
+   * and a system row appearing asynchronously in those DBs is noise
+   * (worse, a claim-ordering flake) that no test should have to opt out
+   * of one by one.
+   */
+  bootPing?: boolean;
 }
 
 export async function createServer(
@@ -150,7 +174,17 @@ export async function createServer(
 ): Promise<IServerHandle> {
   const specVersion = await resolveSpecVersion();
   const runtimeContext = extra.runtimeContext ?? defaultRuntimeContext();
-  const broadcaster = new WsBroadcaster();
+  // Agent presence (see `agent-presence.ts`): boot-scoped, in-memory,
+  // fed by the ONE choke point every event crosses. Wiring it here (not
+  // inside the broadcaster) keeps the broadcaster a dumb transport while
+  // still counting BOTH claim paths: the CLI's `POST /api/job-events`
+  // rebroadcast and the in-process MCP `claim_job` broadcast.
+  const agentPresence = new AgentPresenceTracker();
+  const broadcaster = new WsBroadcaster({
+    onEnvelope: (envelope) => {
+      agentPresence.observe(envelope);
+    },
+  });
   // Per-session ingest token for `POST /api/activity`. 32 random bytes
   // as hex (64 chars); rotates on every boot. Published off-process by
   // the `sm serve` verb via `.skill-map/serve.json`.
@@ -201,6 +235,7 @@ export async function createServer(
     activityToken,
     activityStats,
     activityConversations,
+    agentPresence,
     broadcaster,
     runtimeContext,
     kindRegistry,
@@ -263,12 +298,24 @@ export async function createServer(
     }
   }
 
+  // Boot liveness ping (see `boot-ping.ts`): ONE hidden system job so the
+  // presence answer can be learned without waiting for organic traffic.
+  // Fire-and-forget by construction, it cannot delay or fail this boot,
+  // and its outcome is deliberately NOT tracked: a claim of it flows
+  // through the same passive observation as any other claim. Opt-in
+  // (`sm serve` asks for it), see `ICreateServerOpts.bootPing`.
+  const bootPing = maybeStartBootPing(options, runtimeContext, pluginRuntime, extra);
+
   let closed = false;
   const close = async (): Promise<void> => {
     if (closed) return;
     closed = true;
     // Order matters, see file header §close().
     heartbeat.stop();
+    // Drop the ping's pending cleanup timer; an unclaimed ping left in
+    // the queue is inert (hidden from the UI queue) and the next boot
+    // adopts it.
+    bootPing?.stop();
     if (watcherService) {
       try {
         await watcherService.stop();
@@ -321,6 +368,27 @@ function buildMcpIntegration(
     // surface on (user decision 2026-07-23). The boot-cached plugin
     // runtime is threaded so submit / record can build a fresh action
     // runtime.
+    pluginRuntime,
+  });
+}
+
+/**
+ * Fire the boot liveness ping when the caller opted in (`sm serve`
+ * does; every test harness leaves it off), else `null`. Extracted
+ * alongside `buildMcpIntegration` so the gate + the dependency
+ * threading live in one place and the composition root's cyclomatic
+ * budget stays flat.
+ */
+function maybeStartBootPing(
+  options: IServerOptions,
+  runtimeContext: IRuntimeContext,
+  pluginRuntime: IPluginRuntime,
+  extra: ICreateServerOpts,
+): IBootPingHandle | null {
+  if (extra.bootPing !== true) return null;
+  return startBootPing({
+    dbPath: options.dbPath,
+    cwd: runtimeContext.cwd,
     pluginRuntime,
   });
 }

@@ -245,6 +245,64 @@ export function isJobSubmittedEvent(value: unknown): value is IWsJobSubmittedEve
 }
 
 /**
+ * `job.completed` event payload, per `spec/job-events.md` §job.completed:
+ * the run's accounting (`extensionId` / `extensionKind`, duration, token
+ * counts, model) plus the `executionId` that points at the
+ * `state_executions` row holding the report. The report itself is
+ * deliberately NOT inlined, events stay small and consumers query the
+ * row. The job id rides the ENVELOPE (`jobId`), not `data`.
+ *
+ * Every field is optional: the SPA reads a couple of them
+ * opportunistically, and the spec's forward-compat rule forbids dropping
+ * a frame over a field a given emitter did not fill.
+ */
+export interface IWsJobCompletedData {
+  /** Qualified extension id the job ran. */
+  extensionId?: string;
+  /** Kind of that extension (`analyzer`, `action`, ...). */
+  extensionKind?: string;
+  durationMs?: number;
+  tokensIn?: number;
+  tokensOut?: number;
+  model?: string;
+  /** `state_executions` row holding the report payload (`report_json`). */
+  executionId?: string;
+  /**
+   * TAGGER-only: the tags the model inferred on this run
+   * (`spec/job-lifecycle.md` §Tags proposal, `spec/job-events.md`
+   * §job.completed). A PROPOSAL, and only ever that. The record path
+   * writes NOTHING, so there is no "applied" partner field and no
+   * refusal to report: nothing is ever applied by the machine.
+   *
+   * Tags are human curation (`spec/architecture.md` §Storage rule), so a
+   * consumer MUST NOT apply this on the operator's behalf. The only
+   * legitimate use is to pre-fill the ORDINARY tags editor, where the
+   * operator prunes it and saves under their own hand, through the usual
+   * `.sm` confirm-required handshake. Absent on every non-tagger job and
+   * on a tagger whose report carried no usable tags.
+   */
+  tagsProposed?: string[];
+}
+
+export type IWsJobCompletedEvent = IWsEvent<IWsJobCompletedData> & {
+  type: 'job.completed';
+};
+
+/**
+ * Loose guard for `job.completed`. Mirrors `isJobSubmittedEvent`'s
+ * envelope check but validates NO payload field, because every key on
+ * `IWsJobCompletedData` is optional: a frame is narrowable as soon as
+ * `data` is an object, and consumers read the fields they care about
+ * defensively (`=== true`, `Array.isArray`).
+ */
+export function isJobCompletedEvent(value: unknown): value is IWsJobCompletedEvent {
+  if (!isWsEvent(value)) return false;
+  if (value.type !== 'job.completed') return false;
+  const data = value.data;
+  return typeof data === 'object' && data !== null;
+}
+
+/**
  * `node.activity` event payload, broadcast by `POST /api/activity` (live
  * node activity, `spec/provider-activity.md` §WS event). One envelope per
  * provider-runtime signal that RESOLVED to a scanned node; the payload is

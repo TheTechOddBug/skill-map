@@ -3,7 +3,10 @@
   node carrying the tag on the map), and a pencil that opens the inline
   editor; the title + pencil are always shown so a node with no tags reads
   as an empty tag row rather than a lone pencil.
-  EDIT: the string-list control (add / remove) with Save / Cancel.
+  EDIT: the string-list control (add / remove) with Save / Cancel. It is
+  reached by the pencil, or automatically when an auto-tag run hands back
+  a proposal (the editor opens pre-filled and unsaved, see the component's
+  `autoOpenOnProposal`); there is no separate proposal surface.
 -->
 @if (!editing()) {
   <div class="node-tags" data-testid="node-tags">

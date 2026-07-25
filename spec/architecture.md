@@ -778,7 +778,7 @@ Where a persisted surface lives follows ONE question (decision 2026-07-21): **di
 - **Machine output** (generated without human judgment, regenerable by re-running the producer): the project DB. Findings, summaries, executions, jobs, enrichments. Deleting it loses nothing a re-run cannot recreate.
 - **Human curation** (an operator's decision or authorship): the node's `.sm` companion, committed and portable. Tags, stability, version bumps, audit stamps, dismiss suppressions.
 
-New persisted surfaces MUST pick their home by this rule; mixing the two inside one feature requires an explicit new decision. One documented carve-out: an extension the OPERATOR launches may write curation data on the human's behalf through the gated `.sm` channel (the tagger's tags write-through, [`job-lifecycle.md` §Tags write-through](./job-lifecycle.md); same delegated-curation rationale that lets fixers edit bodies), after which the data is ordinary human-owned curation.
+New persisted surfaces MUST pick their home by this rule; mixing the two inside one feature requires an explicit new decision. The rule admits no carve-out for CURATION: a machine may PROPOSE curation data but never author it. The tagger is the worked example ([`job-lifecycle.md` §Tags proposal](./job-lifecycle.md)): it surfaces inferred tags on its completion event and writes nothing, and the operator saves them through the ordinary consent-gated editor. (Fixers editing MARKDOWN BODIES are not curation and stay unaffected: a body is the vendor's and the author's content, not skill-map's curation store.)
 
 ### Bump model
 

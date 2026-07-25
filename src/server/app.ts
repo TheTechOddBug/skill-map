@@ -106,6 +106,7 @@ import { registerProjectIgnoreRoute } from './routes/project-ignore.js';
 import { registerProjectPreferencesRoute } from './routes/project-preferences.js';
 import type { ActivityConversationStore } from './activity-conversations.js';
 import type { ActivityStatsService } from './activity-stats.js';
+import type { AgentPresenceTracker } from './agent-presence.js';
 import { registerActiveProviderRoute } from './routes/active-provider.js';
 import { registerActionsRoutes } from './routes/actions.js';
 import { registerActivityRoute } from './routes/activity.js';
@@ -114,6 +115,7 @@ import { registerActivityDetailRoutes } from './routes/activity-detail.js';
 import { registerActivityInstallRoutes } from './routes/activity-install.js';
 import { registerActivitySummaryRoute } from './routes/activity-summary.js';
 import { registerAgentInstallRoutes } from './routes/agent-install.js';
+import { registerAgentPresenceRoute } from './routes/agent-presence.js';
 import { registerJobBulkRoutes } from './routes/job-bulk.js';
 import { registerJobCancelRoute } from './routes/job-cancel.js';
 import { registerJobEventsRoute } from './routes/job-events.js';
@@ -428,6 +430,14 @@ export interface IAppDeps {
    */
   activityConversations: ActivityConversationStore;
   /**
+   * Boot-scoped agent-presence tracker (see `agent-presence.ts`).
+   * Instantiated by the composition root, which ALSO registers its
+   * `observe` as the broadcaster's envelope observer; `createApp` only
+   * threads it to the read route (`GET /api/agent/presence`) as an
+   * explicit extra dep, never onto `IRouteDeps`.
+   */
+  agentPresence: AgentPresenceTracker;
+  /**
    * The `/ws` broadcaster. Step 14.4.a wires `attachBroadcasterRoute`
    * inside `createApp` against this instance; the composition root
    * (`createServer`) owns its lifecycle (instantiate → register → close
@@ -602,6 +612,12 @@ export function createApp(deps: IAppDeps): Hono {
   //     installed on your agent" check). `mcpManager` is null when the MCP
   //     server is off, so the route reports enabled=false / connected=false.
   registerMcpStatusRoute(app, { options: deps.options, mcpManager: deps.mcpManager });
+
+  // 1c. /api/agent/presence, "has a processing agent been observed
+  //     attending this project's queue?". Pure read over the boot-scoped
+  //     tracker the broadcaster feeds; counts a CLI-parked agent (which
+  //     holds no MCP session) exactly like an MCP one.
+  registerAgentPresenceRoute(app, { presence: deps.agentPresence });
 
   // 2-9. /api/*, Step 14.2 read-side endpoints. Order matters for
   //      the `/api/nodes/:pathB64` vs `/api/nodes` pair (see

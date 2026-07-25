@@ -12,6 +12,7 @@
  */
 
 import type {
+  IAgentPresenceApi,
   IConfigResolutionRowApi,
   IBranchResponseApi,
   IContributionApi,
@@ -83,6 +84,16 @@ export interface ICorpusPort {
    * connected (scope-agnostic live session count).
    */
   mcpStatus(): Promise<IMcpStatusApi>;
+
+  /**
+   * Processing-agent presence probe (`GET /api/agent/presence`): whether
+   * a processing agent has been OBSERVED claiming work since this server
+   * started. Counts both claim paths (the MCP `claim_job` tool and the
+   * CLI `sm jobs claim`), and is sticky once true, so it answers "will
+   * anything drain the queue?" honestly where the live MCP session count
+   * cannot (a CLI-parked agent holds no MCP session).
+   */
+  agentPresence(): Promise<IAgentPresenceApi>;
 
   /** Full `ScanResult` (1:1 with `scan-result.schema.json`). */
   loadScan(): Promise<IScanResultApi>;

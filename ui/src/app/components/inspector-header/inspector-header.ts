@@ -129,7 +129,19 @@ export class InspectorHeader {
    * state and the submit; the header only threads the wires.
    */
   readonly autoTagState = input<'hidden' | 'idle' | 'queued' | 'running'>('hidden');
+  /**
+   * The tags that run inferred, threaded down so the tag row can open its
+   * ordinary editor pre-filled with them. A proposal, never a write: the
+   * tagger applies nothing and the header only forwards it.
+   */
+  readonly autoTagProposedTags = input<readonly string[]>([]);
   readonly autoTagClick = output<void>();
+  /**
+   * The tag row saved. Re-emitted upward so the host, which owns the
+   * proposal state, can retire it once the operator has settled the tags
+   * by hand.
+   */
+  readonly tagsSaved = output<void>();
 
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
   /** Reused so the card and the inspector header speak the same language. */

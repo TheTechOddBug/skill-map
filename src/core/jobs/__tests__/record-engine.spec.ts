@@ -59,14 +59,17 @@ function nextId(): string {
 }
 
 /** Seed a queued job for the summarizer against the skill node. */
-async function seedQueued(id: string): Promise<{ id: string; nonce: string }> {
+async function seedQueued(
+  id: string,
+  extensionId: string = SUMMARIZER_ID,
+): Promise<{ id: string; nonce: string }> {
   // Unique content hash per job: the project is reused across tests and the
   // active-jobs unique index is (extension_id, node_id, content_hash).
   const contentHash = sha256(id);
   await withProjectDb(project, async (adapter) => {
     const row: IJobSubmitRow = {
       id,
-      extensionId: SUMMARIZER_ID,
+      extensionId,
       extensionVersion: '1.0.0',
       extensionKind: 'action',
       nodeId: SKILL_NODE.path,
@@ -83,10 +86,15 @@ async function seedQueued(id: string): Promise<{ id: string; nonce: string }> {
 }
 
 /** Seed and claim so the job is running. */
-async function seedRunning(id: string): Promise<{ id: string; nonce: string }> {
-  await seedQueued(id);
+async function seedRunning(
+  id: string,
+  extensionId?: string,
+): Promise<{ id: string; nonce: string }> {
+  await seedQueued(id, extensionId);
   return withProjectDb(project, async (adapter) => {
-    const claim = await adapter.jobs.claim('agent', Date.now());
+    // Filter to the seeded extension: the project is shared across tests, so
+    // an unfiltered claim can hand back some other test's queued job.
+    const claim = await adapter.jobs.claim('agent', Date.now(), extensionId);
     assert.ok(claim);
     return { id: claim.id, nonce: claim.nonce };
   });
@@ -192,5 +200,63 @@ describe('recordJob engine', () => {
     const events: IJobLifecycleEvent[] = [];
     const outcome = await record({ id: 'd-20990101-000000-ffff', nonce: 'x', status: 'failed', errorText: 'x', events });
     assert.deepEqual(outcome, { kind: 'not-found' });
+  });
+});
+
+/**
+ * The tagger's tags ride `job.completed` as a PROPOSAL
+ * (spec/job-lifecycle.md §Tags proposal): the record path writes no
+ * curation at all, so the frame is the only way the operator (CLI or UI)
+ * learns what the model inferred and can save it themselves.
+ */
+describe('recordJob engine, tagger proposal on the completion event', () => {
+  const TAGGER_ID = 'core/ai-tagger-action';
+  const TAGS_REPORT = JSON.stringify({
+    tags: ['deploy-pipeline'],
+    confidence: 0.9,
+    safety: { injectionDetected: false, contentQuality: 'clean' },
+  });
+
+  it('carries the report tags as tagsProposed (consent plays no part)', async () => {
+    const { id, nonce } = await seedRunning(nextId(), TAGGER_ID);
+    const events: IJobLifecycleEvent[] = [];
+
+    const outcome = await record({ id, nonce, status: 'completed', reportText: TAGS_REPORT, events });
+
+    // The record ALWAYS succeeds: the proposal read is best-effort.
+    assert.equal(outcome.kind, 'completed');
+    const completed = events.find((e) => e.type === 'job.completed');
+    assert.ok(completed, 'job.completed emitted');
+    assert.deepEqual(completed!.data['tagsProposed'], ['deploy-pipeline']);
+  });
+
+  it('reports an EMPTY proposal when the tagger found nothing (retires a stale one)', async () => {
+    const { id, nonce } = await seedRunning(nextId(), TAGGER_ID);
+    const events: IJobLifecycleEvent[] = [];
+    const emptyReport = JSON.stringify({
+      tags: [],
+      confidence: 0.5,
+      safety: { injectionDetected: false, contentQuality: 'clean' },
+    });
+
+    await record({ id, nonce, status: 'completed', reportText: emptyReport, events });
+
+    const completed = events.find((e) => e.type === 'job.completed');
+    // "I looked and found nothing" must be distinguishable from "no tagger
+    // ran", or a consumer keeps a stale proposal from an earlier run on
+    // screen. An empty report may itself be schema-invalid (tags has a
+    // minItems), in which case no completion event exists at all.
+    if (completed) assert.deepEqual(completed.data['tagsProposed'], []);
+  });
+
+  it('leaves the field off a non-tagger completion', async () => {
+    const { id, nonce } = await seedRunning(nextId());
+    const events: IJobLifecycleEvent[] = [];
+
+    await record({ id, nonce, status: 'completed', reportText: JSON.stringify(VALID_REPORT), events });
+
+    const completed = events.find((e) => e.type === 'job.completed');
+    assert.ok(completed);
+    assert.equal(completed!.data['tagsProposed'], undefined);
   });
 });

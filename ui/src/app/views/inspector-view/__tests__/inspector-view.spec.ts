@@ -39,7 +39,24 @@ import type {
   IProbExtensionEntryApi,
   IProbExtensionsApi,
 } from '../../../../models/api';
+import type { IWsEvent, IWsJobCompletedData } from '../../../../models/ws-event';
 import type { ISpawnThread } from '../../../components/conversation-dialog/spawn-thread';
+
+/**
+ * A `job.completed` envelope. Bare, it is the frame the live-refresh
+ * subscribers only count; with `tagsProposed` it is a TAGGER's proposal
+ * (`spec/job-events.md` §job.completed), which is what opens the tag
+ * row's editor pre-filled.
+ */
+function makeJobCompleted(data: IWsJobCompletedData = {}): IWsEvent<IWsJobCompletedData> {
+  return {
+    type: 'job.completed',
+    timestamp: 1_745_159_465_100,
+    runId: 'r1',
+    jobId: 'j1',
+    data: { extensionId: 'core/ai-tagger-action', extensionKind: 'action', ...data },
+  };
+}
 
 /**
  * Inspector view spec, Step 14.5.a body card lifecycle, annotations,
@@ -66,6 +83,7 @@ type IStubDataSource = IDataSourcePort & {
   deleteNodeSummary: ReturnType<typeof vi.fn>;
   getNodeProbExtensions: ReturnType<typeof vi.fn>;
   mcpStatus: ReturnType<typeof vi.fn>;
+  agentPresence: ReturnType<typeof vi.fn>;
   getAgentSkillInstallStatus: ReturnType<typeof vi.fn>;
   submitNodeJob: ReturnType<typeof vi.fn>;
   cancelJob: ReturnType<typeof vi.fn>;
@@ -193,6 +211,14 @@ function makeStubDataSource(): IStubDataSource {
       issueFixers: [],
     }),
     mcpStatus: vi.fn().mockResolvedValue({ enabled: true, connected: true, clients: 1 }),
+    // Default: an agent has already claimed work on this server, so the
+    // presence warning stays hidden unless a test says otherwise.
+    agentPresence: vi.fn().mockResolvedValue({
+      schemaVersion: '1',
+      kind: 'agent-presence',
+      attending: true,
+      lastClaimAt: 1_700_000_000_000,
+    }),
     getAgentSkillInstallStatus: vi.fn().mockResolvedValue({
       provider: 'claude',
       supported: true,
@@ -265,7 +291,7 @@ interface IBootstrapOpts {
   /** Drives the Activity section's live `agent.spawn` re-fetch. */
   agentSpawn$?: Subject<void>;
   /** Drives the AI actions card's live `job.*` re-fetch. */
-  jobEvents$?: Subject<void>;
+  jobEvents$?: Subject<IWsEvent>;
   /** Seeds the per-node stats mirror that gates the Activity section. */
   activityStats?: ReadonlyMap<string, INodeActivityStatsApi>;
   /** Seeds the per-pair spawn counters (Activity gate, spawn side). */
@@ -295,14 +321,14 @@ function bootstrap(opts: IBootstrapOpts = {}): {
   scanCompleted$: Subject<void>;
   nodeActivity$: Subject<void>;
   agentSpawn$: Subject<void>;
-  jobEvents$: Subject<void>;
+  jobEvents$: Subject<IWsEvent>;
 } {
   const loader = opts.loader ?? makeStubLoader();
   const dataSource = opts.dataSource ?? makeStubDataSource();
   const scanCompleted$ = opts.scanCompleted$ ?? new Subject<void>();
   const nodeActivity$ = opts.nodeActivity$ ?? new Subject<void>();
   const agentSpawn$ = opts.agentSpawn$ ?? new Subject<void>();
-  const jobEvents$ = opts.jobEvents$ ?? new Subject<void>();
+  const jobEvents$ = opts.jobEvents$ ?? new Subject<IWsEvent>();
 
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
@@ -1963,7 +1989,7 @@ describe('InspectorView, activity live refresh (node.activity re-fetch)', () => 
     // unrelated refresh. Here the section re-fetches after the debounce.
     vi.useFakeTimers();
     try {
-      jobEvents$.next();
+      jobEvents$.next(makeJobCompleted());
       vi.advanceTimersByTime(400);
     } finally {
       vi.useRealTimers();
@@ -2269,9 +2295,19 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
      */
     agentSkill?: 'installed' | 'missing' | 'unknown';
     /**
-     * The MCP half of the same gate: `connected` (the stub default,
-     * open) or `disconnected` (an agent-less `/mcp`, which closes the
-     * gate on its own even with the skill installed).
+     * Processing-agent presence as `GET /api/agent/presence` answers it:
+     * `attending` (the stub default, a claim was observed), `absent` (no
+     * claim since the server booted, which raises the second heads-up)
+     * or `unknown` (the probe fails, which must stay silent).
+     */
+    presence?: 'attending' | 'absent' | 'unknown';
+    /**
+     * The MCP half of the shared SUBMIT gate
+     * (`ProcessingAgentReadinessService.mcpConnected`): `connected` (the
+     * stub default, open) or `disconnected` (an agent-less `/mcp`, which
+     * closes the gate on its own even with the skill installed). It no
+     * longer drives any heads-up warning, only the disabled state of the
+     * submitting controls.
      */
     mcp?: 'connected' | 'disconnected';
 }
@@ -2280,7 +2316,7 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     fixture: ComponentFixture<InspectorView>;
     dataSource: IStubDataSource;
     node: INodeView;
-    jobEvents$: Subject<void>;
+    jobEvents$: Subject<IWsEvent>;
   }> {
     const node = makeNode(opts.contributions ? { contributions: opts.contributions } : {});
     const loader = makeStubLoader([node]);
@@ -2309,6 +2345,16 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
       });
     } else if (opts.agentSkill === 'unknown') {
       dataSource.getAgentSkillInstallStatus.mockRejectedValue(new Error('down'));
+    }
+    if (opts.presence === 'absent') {
+      dataSource.agentPresence.mockResolvedValue({
+        schemaVersion: '1',
+        kind: 'agent-presence',
+        attending: false,
+        lastClaimAt: null,
+      });
+    } else if (opts.presence === 'unknown') {
+      dataSource.agentPresence.mockRejectedValue(new Error('down'));
     }
     if (opts.mcp === 'disconnected') {
       dataSource.mcpStatus.mockResolvedValue({ enabled: true, connected: false, clients: 0 });
@@ -2386,58 +2432,59 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     expect(dom.querySelector('[data-testid="inspector-ai-actions-no-agent-warning"]')).toBeNull();
   });
 
-  it('shows only the no-agent warning when the skill is missing, regardless of MCP connectivity', async () => {
-    const dataSource = makeStubDataSource();
-    dataSource.getAgentSkillInstallStatus.mockResolvedValue({
-      provider: 'claude',
-      supported: true,
-      skillDir: '.claude/skills/sm-process-jobs',
-      installed: false,
-      stale: false,
+  it('shows only the no-agent warning when the skill is missing, regardless of agent presence', async () => {
+    const { fixture } = await bootAiActions({
+      agentSkill: 'missing',
+      presence: 'absent',
+      probs: makeProbExtensions({ standalone: [makeProbEntry({ id: 'core/summarizer' })] }),
     });
-    dataSource.mcpStatus.mockResolvedValue({ enabled: true, connected: false, clients: 0 });
-    const node = makeNode();
-    const loader = makeStubLoader([node]);
-    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
-    dataSource.getNodeProbExtensions.mockResolvedValue(
-      makeProbExtensions({ standalone: [makeProbEntry({ id: 'core/summarizer' })] }),
-    );
-    const { fixture } = bootstrap({ loader, dataSource });
-    fixture.componentRef.setInput('path', node.path);
-    await flush(fixture);
-    await flush(fixture);
     const dom: HTMLElement = fixture.nativeElement;
     expect(
       dom.querySelector('[data-testid="inspector-ai-actions-no-agent-warning"]'),
     ).not.toBeNull();
-    expect(dom.querySelector('[data-testid="inspector-ai-actions-mcp-warning"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-attending-warning"]')).toBeNull();
   });
 
-  it('shows the mcp warning when the skill is installed but no agent is connected', async () => {
-    const dataSource = makeStubDataSource();
-    dataSource.mcpStatus.mockResolvedValue({ enabled: true, connected: false, clients: 0 });
-    const node = makeNode();
-    const loader = makeStubLoader([node]);
-    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
-    dataSource.getNodeProbExtensions.mockResolvedValue(
-      makeProbExtensions({ standalone: [makeProbEntry({ id: 'core/summarizer' })] }),
-    );
-    const { fixture } = bootstrap({ loader, dataSource });
-    fixture.componentRef.setInput('path', node.path);
-    await flush(fixture);
-    await flush(fixture);
+  it('shows the attending warning when the skill is installed but no agent has claimed work', async () => {
+    const { fixture } = await bootAiActions({
+      presence: 'absent',
+      probs: makeProbExtensions({ standalone: [makeProbEntry({ id: 'core/summarizer' })] }),
+    });
     const dom: HTMLElement = fixture.nativeElement;
-    expect(dom.querySelector('[data-testid="inspector-ai-actions-mcp-warning"]')).not.toBeNull();
+    expect(
+      dom.querySelector('[data-testid="inspector-ai-actions-attending-warning"]'),
+    ).not.toBeNull();
     expect(dom.querySelector('[data-testid="inspector-ai-actions-no-agent-warning"]')).toBeNull();
   });
 
-  it('shows neither warning when the skill is installed and an agent is connected', async () => {
+  it('shows neither warning when the skill is installed and an agent has claimed work', async () => {
     const { fixture } = await bootAiActions({
       probs: makeProbExtensions({ standalone: [makeProbEntry({ id: 'core/summarizer' })] }),
     });
     const dom: HTMLElement = fixture.nativeElement;
     expect(dom.querySelector('[data-testid="inspector-ai-actions-no-agent-warning"]')).toBeNull();
-    expect(dom.querySelector('[data-testid="inspector-ai-actions-mcp-warning"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-attending-warning"]')).toBeNull();
+  });
+
+  it('shows neither warning while the presence probe is unknown (it failed)', async () => {
+    const { fixture } = await bootAiActions({
+      presence: 'unknown',
+      probs: makeProbExtensions({ standalone: [makeProbEntry({ id: 'core/summarizer' })] }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-no-agent-warning"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-attending-warning"]')).toBeNull();
+  });
+
+  it('shows neither warning while the skill probe is unknown, even with no agent attending', async () => {
+    const { fixture } = await bootAiActions({
+      agentSkill: 'unknown',
+      presence: 'absent',
+      probs: makeProbExtensions({ standalone: [makeProbEntry({ id: 'core/summarizer' })] }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-no-agent-warning"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-actions-attending-warning"]')).toBeNull();
   });
 
   it('renders TWO launcher rows: finders (with their ALL) on top, standalone (with theirs) below', async () => {
@@ -2741,6 +2788,155 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     });
     const dom: HTMLElement = fixture.nativeElement;
     expect(dom.querySelector('[data-testid="node-tags-auto"]')).toBeNull();
+  });
+
+  // -------------------------------------------------------------------
+  // Auto-tag proposal (user report 2026-07-25, reframed 2026-07-25 with
+  // the tagger's redesign, simplified the same day). The tagger WRITES
+  // NOTHING: it proposes tags on `job.completed` (`tagsProposed`) and the
+  // operator saves the ones they want. Launched from the inspector and
+  // recorded over MCP, the CLI output reaches nobody, so without this the
+  // operator saw a completed job that changed nothing ("no está poniendo
+  // tags, sin embargo veo que se ejecuta").
+  //
+  // The proposal has NO surface of its own: it manifests as the ORDINARY
+  // tags editor opening pre-filled and unsaved, where saving raises the
+  // usual `.sm` handshake. No path applies a tag on the operator's behalf.
+  // -------------------------------------------------------------------
+
+  it('opens the tag editor pre-filled when a completion carries tagsProposed', async () => {
+    const { fixture, dataSource, jobEvents$ } = await bootAiActions();
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(dom.querySelector('[data-testid="node-tags-editor"]')).toBeNull();
+
+    jobEvents$.next(makeJobCompleted({ tagsProposed: ['deploy-pipeline'] }));
+    await flush(fixture);
+
+    expect(dom.querySelector('[data-testid="node-tags-editor"]')).not.toBeNull();
+    // Opening is not applying: the write still waits for Save.
+    expect(dataSource.dispatchAction).not.toHaveBeenCalled();
+  });
+
+  it('stays silent on a plain job.completed (no tagger proposal field)', async () => {
+    const { fixture, jobEvents$ } = await bootAiActions();
+    const dom: HTMLElement = fixture.nativeElement;
+
+    jobEvents$.next(makeJobCompleted());
+    await flush(fixture);
+
+    expect(dom.querySelector('[data-testid="node-tags-editor"]')).toBeNull();
+  });
+
+  // The record path omits the field entirely when the report carried no
+  // usable tags, so an EXPLICIT empty array is the forward-compat case:
+  // an emitter that says "this tagger proposed nothing" opens nothing.
+  // An absent field still means "not a tagger" and is covered above.
+  it('an explicit empty tagsProposed opens nothing and never reopens a closed editor', async () => {
+    const { fixture, jobEvents$ } = await bootAiActions();
+    const dom: HTMLElement = fixture.nativeElement;
+
+    jobEvents$.next(makeJobCompleted({ tagsProposed: [] }));
+    await flush(fixture);
+    expect(dom.querySelector('[data-testid="node-tags-editor"]')).toBeNull();
+
+    jobEvents$.next(makeJobCompleted({ tagsProposed: ['ci'] }));
+    await flush(fixture);
+    (dom.querySelector('[data-testid="node-tags-cancel"] button') as HTMLButtonElement).click();
+    await flush(fixture);
+    expect(dom.querySelector('[data-testid="node-tags-editor"]')).toBeNull();
+
+    jobEvents$.next(makeJobCompleted({ tagsProposed: [] }));
+    await flush(fixture);
+
+    expect(dom.querySelector('[data-testid="node-tags-editor"]')).toBeNull();
+  });
+
+  it('saving the pre-filled editor dispatches the tags and leaves edit mode', async () => {
+    const { fixture, dataSource, node, jobEvents$ } = await bootAiActions();
+    const dom: HTMLElement = fixture.nativeElement;
+    jobEvents$.next(makeJobCompleted({ tagsProposed: ['ci', 'infra'] }));
+    await flush(fixture);
+    expect(dom.querySelector('[data-testid="node-tags-editor"]')).not.toBeNull();
+
+    // Save: the ordinary deterministic dispatch (its 412 would open the
+    // shared consent dialog; the stub answers 200 here).
+    (
+      dom.querySelector('[data-testid="node-tags-save"] button') as HTMLButtonElement
+    ).click();
+    // Twice: the dispatch resolves through the service's own await chain,
+    // so the row only reports `tagsSaved` a couple of microtasks later.
+    await flush(fixture);
+    await flush(fixture);
+
+    expect(dataSource.dispatchAction).toHaveBeenCalledWith('core/node-set-tags', node.path, {
+      input: { tags: ['ci', 'infra'] },
+    });
+    expect(dom.querySelector('[data-testid="node-tags-editor"]')).toBeNull();
+  });
+
+  // Submitting a new run makes the previous proposal stale, so the click
+  // retires it. That is also what re-arms the row's once-per-proposal
+  // guard: without it, a second run inferring the very same tags the
+  // operator just dismissed would read as an already-consumed proposal
+  // and open nothing.
+  it('queueing another run retires the pending proposal', async () => {
+    const { fixture, jobEvents$ } = await bootAiActions({
+      contributions: [
+        makeSurfaceClaim('inspector.surface.tags', 'core/node-set-tags'),
+        makeSurfaceClaim('inspector.surface.auto-tag', 'core/ai-tagger-action'),
+      ],
+      probs: makeProbExtensions({
+        standalone: [makeProbEntry({ id: 'core/ai-tagger-action', description: 'Tags.' })],
+      }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    const host = fixture.componentInstance as unknown as {
+      autoTagProposedTags(): readonly string[];
+    };
+
+    jobEvents$.next(makeJobCompleted({ tagsProposed: ['ci'] }));
+    await flush(fixture);
+    (dom.querySelector('[data-testid="node-tags-cancel"] button') as HTMLButtonElement).click();
+    await flush(fixture);
+    expect(host.autoTagProposedTags()).toEqual(['ci']);
+
+    (dom.querySelector('[data-testid="node-tags-auto"]') as HTMLButtonElement).click();
+    await flush(fixture);
+    expect(host.autoTagProposedTags()).toEqual([]);
+
+    // Same tags as before, and the editor opens again.
+    jobEvents$.next(makeJobCompleted({ tagsProposed: ['ci'] }));
+    await flush(fixture);
+
+    expect(dom.querySelector('[data-testid="node-tags-editor"]')).not.toBeNull();
+  });
+
+  // The proposal is scoped to the node that was open when the frame
+  // landed, so inspecting another one drops it: the editor closes with
+  // the node change and the retired proposal cannot reopen it over the
+  // newly selected file.
+  it('clears the proposal when the operator inspects another node', async () => {
+    const first = makeNode();
+    const second = makeNode({ path: 'agents/reviewer.md' });
+    const loader = makeStubLoader([first, second]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture, cmp, jobEvents$ } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', first.path);
+    await flush(fixture);
+    const dom: HTMLElement = fixture.nativeElement;
+    const host = cmp as unknown as { autoTagProposedTags(): readonly string[] };
+
+    jobEvents$.next(makeJobCompleted({ tagsProposed: ['ci'] }));
+    await flush(fixture);
+    expect(host.autoTagProposedTags()).toEqual(['ci']);
+    expect(dom.querySelector('[data-testid="node-tags-editor"]')).not.toBeNull();
+
+    fixture.componentRef.setInput('path', second.path);
+    await flush(fixture);
+
+    expect(host.autoTagProposedTags()).toEqual([]);
+    expect(dom.querySelector('[data-testid="node-tags-editor"]')).toBeNull();
   });
 
   it('with a stored summary the header button is ready and toggles the analysis block', async () => {
@@ -3092,7 +3288,7 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     fixture: ComponentFixture<InspectorView>;
     dataSource: IStubDataSource;
     node: INodeView;
-    jobEvents$: Subject<void>;
+    jobEvents$: Subject<IWsEvent>;
   }> {
     return bootAiActions({
       agentSkill,
@@ -3215,7 +3411,7 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
 
     vi.useFakeTimers();
     try {
-      jobEvents$.next();
+      jobEvents$.next(makeJobCompleted());
       vi.advanceTimersByTime(400);
     } finally {
       vi.useRealTimers();

@@ -969,6 +969,32 @@ export interface IMcpStatusApi {
 }
 
 /**
+ * `/api/agent/presence` response, the honest "is a processing agent
+ * attending this project's queue?" probe (`spec/cli-contract.md` §Serve
+ * route table).
+ *
+ * `attending` is TRUE once a processing agent has been OBSERVED claiming
+ * work since this server started. It counts BOTH claim paths, the MCP
+ * `claim_job` tool and the CLI `sm jobs claim` (which pushes its
+ * `job.claimed` to the server), so an agent parked on the CLI counts even
+ * though it holds no MCP session.
+ *
+ * STICKY by design: `false` until the first observed claim, then `true`
+ * for the rest of that server's lifetime. Silence never flips it back, a
+ * parked agent only claims when work arrives, so a TTL would manufacture
+ * false negatives. This is why it replaced the live MCP session count as
+ * the inspector's "nothing will drain the queue" signal.
+ */
+export interface IAgentPresenceApi {
+  schemaVersion: string;
+  kind: 'agent-presence';
+  /** A claim has been observed since this server booted (sticky). */
+  attending: boolean;
+  /** Epoch ms of the most recent observed claim; `null` before the first. */
+  lastClaimAt: number | null;
+}
+
+/**
  * `/api/update-status` response (mirrors
  * `src/server/routes/update-status.ts:IUpdateStatusResponse`). The
  * endpoint always returns 200; `isOutdated: true` is the only signal

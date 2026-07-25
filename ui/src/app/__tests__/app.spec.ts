@@ -51,6 +51,13 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       clients: 0,
       url: 'http://127.0.0.1:4242/mcp',
     }),
+  agentPresence: () =>
+    Promise.resolve({
+      schemaVersion: '1',
+      kind: 'agent-presence' as const,
+      attending: false,
+      lastClaimAt: null,
+    }),
   loadScan: () =>
     Promise.resolve({
       schemaVersion: 1,

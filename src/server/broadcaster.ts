@@ -16,6 +16,13 @@
  *      and threads it into `IAppDeps`. `handle.close()` calls
  *      `broadcaster.shutdown()` which drains all connected sockets with
  *      close code 1001 + reason `'server shutdown'`.
+ *   4. The same composition root may register a passive `onEnvelope`
+ *      observer (see `IWsBroadcasterOpts`): every event this process
+ *      fans out crosses `broadcast()`, so it is the single place a
+ *      server-wide observation is wired once. Today that observer is
+ *      `AgentPresenceTracker.observe` (`agent-presence.ts`), which
+ *      counts `job.claimed` frames whether they arrived from the CLI
+ *      push leg or from the in-process MCP tools.
  *
  * The class is a TS-only public surface, name has no `I*` prefix per
  * context/kernel.md §Type naming convention (category 4 grandfathering).
@@ -83,9 +90,34 @@ export interface IBroadcasterClient {
 /** `WebSocket.OPEN` numeric value per the standard / `ws` exports. */
 const READY_STATE_OPEN = 1;
 
+/**
+ * Optional passive observer of every broadcast envelope, registered at
+ * construction by the composition root.
+ *
+ * The broadcaster is the single choke point every job event crosses (the
+ * CLI push leg's verbatim rebroadcast, the MCP tools' in-process
+ * broadcasts, the watcher's scan events), which makes it the one place a
+ * server-wide observation can be wired ONCE. It stays a DUMB transport
+ * regardless: it neither interprets the envelope nor owns any derived
+ * state, it just hands each frame to the observer the root supplied
+ * (today `AgentPresenceTracker.observe`). Throwing observers are
+ * swallowed, an observer must never be able to break the fan-out.
+ */
+export type TBroadcastObserver = (envelope: unknown) => void;
+
+export interface IWsBroadcasterOpts {
+  /** Passive per-envelope hook; see `TBroadcastObserver`. */
+  onEnvelope?: TBroadcastObserver;
+}
+
 export class WsBroadcaster {
   readonly #clients = new Set<IBroadcasterClient>();
+  readonly #onEnvelope: TBroadcastObserver | undefined;
   #shutDown = false;
+
+  constructor(opts: IWsBroadcasterOpts = {}) {
+    this.#onEnvelope = opts.onEnvelope;
+  }
 
   /** Number of currently-registered clients. Read-only, for tests / `/api/health`. */
   get clientCount(): number {
@@ -150,6 +182,12 @@ export class WsBroadcaster {
    */
   broadcast(envelope: unknown): void {
     if (this.#shutDown) return;
+    // Passive observation runs BEFORE serialization and independently of
+    // the client set: an event still happened when zero clients are
+    // connected (a CLI-parked agent claiming a job with no browser open
+    // is exactly that case), and an unserializable envelope is a
+    // transport failure, not a reason to un-observe it.
+    this.#observe(envelope);
     let payload: string;
     try {
       payload = JSON.stringify(envelope);
@@ -196,6 +234,19 @@ export class WsBroadcaster {
       } catch {
         // ignore, already closing / closed
       }
+    }
+  }
+
+  /**
+   * Hand one envelope to the registered observer, swallowing anything it
+   * throws: a passive hook must never be able to abort a fan-out.
+   */
+  #observe(envelope: unknown): void {
+    if (this.#onEnvelope === undefined) return;
+    try {
+      this.#onEnvelope(envelope);
+    } catch {
+      // ignore, the observer is advisory by contract
     }
   }
 

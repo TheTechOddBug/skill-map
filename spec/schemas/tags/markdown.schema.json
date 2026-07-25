@@ -2,14 +2,20 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.ai/spec/v0/tags/markdown.schema.json",
   "title": "NodeTagsReport",
-  "description": "Canonical tagger-report shape (2026-07-21, the taxonomy leg of the summarizer-split direction). An Action whose report schema `$ref`s a schema under the `tags/` namespace is a TAGGER: `sm record` detects that reference (mirror of the `summaries/` detection signal) and, after the record transaction commits, merges `tags[]` into the node's sidecar `annotations.tags` through the gated `.sm` write channel (union with the existing tags, case-insensitive dedup, existing order preserved; the write-through `scan_nodes.annotations_json` mirror refreshes). The write honours the standing `allowEditSmFiles` consent: without it the tags are NOT applied (a human-mode advisory says so) while the report still records. Storage-rule note (`architecture.md` §Storage rule): applied tags land in the CURATION store because the operator's launch is delegated curation, the same rationale that lets fixers edit bodies; afterwards the tags are ordinary human-owned annotations (editable via the tags row / `core/node-set-tags`). Like every probabilistic report it extends `report-base.schema.json` (confidence + safety).",
+  "description": "Canonical tagger-report shape (2026-07-21, the taxonomy leg of the summarizer-split direction; reframed 2026-07-25). An Action whose report schema `$ref`s a schema under the `tags/` namespace is a TAGGER: `sm record` detects that reference (mirror of the `summaries/` detection signal) and surfaces the report's `tags[]` as a PROPOSAL on the completion event (`job-events.md`, `tagsProposed`), writing nothing. Tags are human curation (`architecture.md` §Storage rule), so the operator reviews the proposal in the ordinary tags editor and saves it through the usual consent-gated `.sm` write. See `job-lifecycle.md` §Tags proposal.",
   "type": "object",
-  "allOf": [{ "$ref": "../report-base.schema.json" }],
-  "required": ["tags"],
+  "allOf": [
+    {
+      "$ref": "../report-base.schema.json"
+    }
+  ],
+  "required": [
+    "tags"
+  ],
   "properties": {
     "tags": {
       "type": "array",
-      "minItems": 1,
+      "minItems": 0,
       "maxItems": 8,
       "items": {
         "type": "string",
@@ -17,7 +23,7 @@
         "maxLength": 30,
         "description": "Short lowercase kebab-case topical tag, written in the language of the file's content."
       },
-      "description": "The topical tags the model infers from the node's content (2-6 recommended; 8 hard cap)."
+      "description": "The topical tags the model proposes for the node (up to 8). With the node's CURRENT tags injected into the prompt (`job-lifecycle.md` §Current-tags injection for taggers), this list is what the model finds MISSING, so an EMPTY array is a legitimate answer: the existing vocabulary already covers the file. Lowercase kebab-case, in the language of the file's content."
     }
   }
 }

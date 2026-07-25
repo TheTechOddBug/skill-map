@@ -15,7 +15,7 @@ import { SelectButtonModule } from 'primeng/selectbutton';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { MessageModule } from 'primeng/message';
 import { TooltipModule } from 'primeng/tooltip';
-import { debounceTime, merge } from 'rxjs';
+import { debounceTime, filter, merge } from 'rxjs';
 
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -31,6 +31,7 @@ import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
 import { activityPairKeyTouches } from '../../../models/api';
 import { shortenOwner } from '../../../models/activity-owner';
 import { shortExtensionLabel } from '../../../models/extension-label';
+import { isJobCompletedEvent } from '../../../models/ws-event';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { LivePreferencesService } from '../../../services/live-preferences';
@@ -491,11 +492,11 @@ export class InspectorView implements OnInit {
     dataSource: this.dataSource,
     jobEvents$: this.wsEvents.jobEvents$,
     scanCompleted$: this.wsEvents.scanCompleted$,
-    // The shared readiness service drives both heads-up warnings and,
-    // through `submitGateClosed`, the disabled state of every submitting
-    // control (see `submitGateClosed`).
+    // The shared readiness service drives the first heads-up warning
+    // and, through `submitGateClosed`, the disabled state of every
+    // submitting control (see `submitGateClosed`). The second warning
+    // rides the controller's own agent-presence probe.
     skillMissing: this.processingAgent.skillMissing,
-    mcpConnected: this.processingAgent.mcpConnected,
     // The dismiss / restore flows park their consent retries behind the
     // SAME dialog the action buttons use (one instance, one service).
     requestSmConsent: (retry) => this.actionDispatch.requestSmConsent(retry),
@@ -505,7 +506,7 @@ export class InspectorView implements OnInit {
   protected readonly aiActionFindings = this.aiActions.findings;
   protected readonly aiActionsAvailable = this.aiActions.available;
   protected readonly aiActionsSkillMissing = this.aiActions.skillMissing;
-  protected readonly aiActionsMcpConnected = this.aiActions.mcpConnected;
+  protected readonly aiActionsAgentAttending = this.aiActions.agentAttending;
   protected readonly aiActionsError = this.aiActions.error;
   protected readonly probExtensions = this.aiActions.probExtensions;
   protected readonly aiActionCounts = this.aiActions.counts;
@@ -1236,8 +1237,9 @@ export class InspectorView implements OnInit {
   /**
    * Tag-row affordance state: `hidden` (tagger unavailable), `queued` /
    * `running` (job in flight), `idle` (clickable). No `ready` state: the
-   * inferred tags land in the sidecar via the record-side write-through
-   * and surface as ordinary chips on the next scan broadcast.
+   * run writes nothing, its output is the proposal that opens the tag
+   * editor (`autoTagProposedTags`), and the chips change only once the
+   * operator saves.
    */
   protected readonly autoTagState = computed<'hidden' | 'idle' | 'queued' | 'running'>(() => {
     const entry = this.taggerEntry();
@@ -1247,11 +1249,87 @@ export class InspectorView implements OnInit {
     return 'idle';
   });
 
-  /** Queue an auto-tag run for the inspected node. */
+  /**
+   * Queue an auto-tag run for the inspected node. The previous run's
+   * proposal is stale the moment a new one is submitted, so it retires
+   * here; that also re-arms the tag row's once-per-proposal guard, which
+   * is what lets the new run reopen the editor even if it lands on the
+   * very same tags the operator dismissed a moment ago.
+   */
   protected onAutoTagClick(): void {
     if (this.autoTagState() !== 'idle') return;
-      const id = this.surfaceActionId('inspector.surface.auto-tag');
-    if (id !== null) void this.aiActions.submit(id, false);
+    const id = this.surfaceActionId('inspector.surface.auto-tag');
+    if (id === null) return;
+    this.clearAutoTagProposal();
+    void this.aiActions.submit(id, false);
+  }
+
+  /**
+   * The tags the last auto-tag run inferred (`spec/job-lifecycle.md`
+   * §Tags proposal, the completion's `tagsProposed`). The tagger writes
+   * NOTHING, so this is the run's entire output: a proposal the operator
+   * reviews through the ordinary, consent-gated tags editor.
+   *
+   * It has no surface of its own. Handed to `<sm-node-tags>` it OPENS
+   * that editor, pre-filled with the node's tags plus the suggestion and
+   * left unsaved; saving raises the usual `.sm` handshake and the human
+   * stays the author (tags are human curation per `spec/architecture.md`
+   * §Storage rule). A non-empty proposal is also the ONLY feedback the
+   * operator gets when the run was launched from the inspector and
+   * recorded over MCP: without it the sparkles button goes queued ->
+   * running -> idle with no new chips and no explanation.
+   */
+  protected readonly autoTagProposedTags = signal<readonly string[]>([]);
+
+  private autoTagPath: string | undefined = undefined;
+
+  /**
+   * Drop the proposal when the operator inspects another node: it is
+   * scoped to the node that was open when the frame landed, and a stale
+   * one would offer one file's tags for another. Path-keyed and guarded
+   * like `summaryLoaderEffect`, so a re-fetch that swaps the node OBJECT
+   * (a scan refresh) does not clear a still-relevant proposal.
+   */
+  private readonly autoTagResetOnNodeChange = effect(() => {
+    const path = this.node()?.path;
+    if (path === this.autoTagPath) return;
+    this.autoTagPath = path;
+    this.clearAutoTagProposal();
+  });
+
+  /**
+   * Collect the tagger's proposal. `job.completed` carries a `jobId` but
+   * no node path, so, exactly like the activity / summary refreshes
+   * above, we do not correlate ids client-side: the proposal is scoped to
+   * the node the inspector currently has open, which is the one whose
+   * sparkles button the operator just clicked. It clears on node change
+   * (`autoTagResetOnNodeChange`), on a manual save from the tag row
+   * (`onTagsSaved`), and on a later tagger run that proposed nothing.
+   * The field is absent on every non-tagger job, so unrelated completions
+   * neither raise nor lower it.
+   */
+  private readonly tagsProposalWatcher = this.wsEvents.jobEvents$
+    .pipe(filter(isJobCompletedEvent), takeUntilDestroyed())
+    .subscribe((event) => {
+      // The frame guard validates no payload field, so the shape is
+      // checked here; an absent field means "not a tagger", not "no tags".
+      const proposed = event.data.tagsProposed;
+      if (!Array.isArray(proposed)) return;
+      this.autoTagProposedTags.set(proposed.filter((tag) => typeof tag === 'string'));
+    });
+
+  /**
+   * The operator saved the tag row themselves. The proposal is settled by
+   * hand now (through the same dispatch and `.sm` consent handshake), so
+   * the offer retires instead of hanging over a row that just wrote.
+   */
+  protected onTagsSaved(): void {
+    this.clearAutoTagProposal();
+  }
+
+  /** Retire the pending auto-tag proposal. */
+  private clearAutoTagProposal(): void {
+    this.autoTagProposedTags.set([]);
   }
 
   /** Re-run from the expanded block (stale or not, a fresh judgment). */

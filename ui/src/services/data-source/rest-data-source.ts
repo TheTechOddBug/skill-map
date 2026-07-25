@@ -24,6 +24,7 @@ import { type Observable, firstValueFrom } from 'rxjs';
 
 import { DATA_SOURCE_TEXTS } from '../../i18n/data-source.texts';
 import type {
+  IAgentPresenceApi,
   IBranchResponseApi,
   IConfigResolutionRowApi,
   IErrorEnvelopeApi,
@@ -127,6 +128,10 @@ export class RestDataSource implements IDataSourcePort {
 
   async mcpStatus(): Promise<IMcpStatusApi> {
     return this.getJson<IMcpStatusApi>(`${BASE}/mcp/status`);
+  }
+
+  async agentPresence(): Promise<IAgentPresenceApi> {
+    return this.getJson<IAgentPresenceApi>(`${BASE}/agent/presence`);
   }
 
   /**

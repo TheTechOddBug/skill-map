@@ -65,19 +65,23 @@ function sha256Hex(data: string): string {
  * `promptTemplateHash` = sha256 of the kernel-authored prelude: the
  * canonical preamble, the raw extension template (`prompt.md`), the
  * findings-to-resolve section (fixer jobs ONLY, `findings-injection.ts`),
- * and the report-contract section, concatenated in that fixed order
+ * the current-tags section (tagger jobs ONLY,
+ * `current-tags-injection.ts`), and the report-contract section,
+ * concatenated in that fixed order, the SAME order they render in
  * (`spec/prompt-preamble.md`: "the preamble + extension template + the
  * findings-to-resolve section for fixer jobs + report-contract blocks").
  * Direct concatenation, no separator: the fixed order keeps it
  * deterministic. Folding the whole prelude in is the point (see file
- * docstring): a preamble bump, a report-schema edit, OR a changed finding
- * set changes this hash and therefore the downstream `contentHash`.
+ * docstring): a preamble bump, a report-schema edit, a changed finding
+ * set, OR a changed tag set changes this hash and therefore the downstream
+ * `contentHash`.
  *
- * NON-FIXER invariant: `findingsSection` is absent (undefined) for every
- * non-fixer job, so it folds in as the empty string and the concatenation
- * reduces to `preamble + template + reportContract`, byte-for-byte the
- * pre-fixer formula. A non-fixer's `promptTemplateHash` (and hence its
- * `contentHash`) is therefore UNCHANGED by the fixer feature.
+ * NON-FIXER / NON-TAGGER invariant: both optional sections are absent
+ * (undefined) for every other job, so they fold in as the empty string and
+ * the concatenation reduces to `preamble + template + reportContract`,
+ * byte-for-byte the pre-injection formula. Those jobs'
+ * `promptTemplateHash` (and hence their `contentHash`) is therefore
+ * UNCHANGED by either injection feature.
  */
 export function computePromptTemplateHash(input: {
   preamble: string;
@@ -88,11 +92,23 @@ export function computePromptTemplateHash(input: {
    * non-fixer hashes stay byte-identical to the pre-fixer formula.
    */
   findingsSection?: string;
+  /**
+   * Rendered current-tags section (`current-tags-injection.ts`). Present
+   * ONLY for a TAGGER job over a node that carries tags; absent (folds in
+   * as `''`) otherwise. Folding it in is what re-keys a tagger's content
+   * when the node's tags changed, instead of reusing a stale render
+   * (`spec/job-lifecycle.md` §Current-tags injection for taggers).
+   */
+  currentTagsSection?: string;
   /** Rendered report-contract section (`report-contract.ts`). */
   reportContract: string;
 }): string {
   return sha256Hex(
-    input.preamble + input.template + (input.findingsSection ?? '') + input.reportContract,
+    input.preamble +
+      input.template +
+      (input.findingsSection ?? '') +
+      (input.currentTagsSection ?? '') +
+      input.reportContract,
   );
 }
 

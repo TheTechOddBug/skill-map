@@ -573,8 +573,8 @@ export type TRecordJobResult =
 
 /**
  * Close a running job over the shared `recordJob` engine (nonce + running
- * gate, completed / failed transition, auto-fix chain + tags write-through,
- * ops-log with `channel: 'mcp'`). The engine's job-lifecycle events
+ * gate, completed / failed transition, auto-fix chain + tagger tags
+ * proposal, ops-log with `channel: 'mcp'`). The engine's job-lifecycle events
  * broadcast directly (in-process, like a BFF route). `report` is required
  * for the completed path.
  */

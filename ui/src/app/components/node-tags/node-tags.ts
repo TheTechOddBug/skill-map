@@ -8,13 +8,17 @@
  *     host forwards to the graph's tag-selection) plus a pencil
  *     affordance. The pencil is ALWAYS present, even when the node has no
  *     tags, so the first tag can be added.
- *   - EDIT (pencil clicked): swaps the chips for the inline string-list
- *     editor (`<sm-input-type-control>`, add / remove chips) with Save /
- *     Cancel. Save dispatches the host-supplied `setTagsActionId` via
- *     `ActionDispatchService` (the same dispatch + `.sm`
- *     write-consent handshake every inspector action uses); the store
- *     updates through the BFF's WS broadcast, so there is no manual patch
- *     here. Cancel discards the draft.
+ *   - EDIT (pencil clicked, or an auto-tag proposal landing): swaps the
+ *     chips for the inline string-list editor (`<sm-input-type-control>`,
+ *     add / remove chips) with Save / Cancel. Save dispatches the
+ *     host-supplied `setTagsActionId` via `ActionDispatchService` (the
+ *     same dispatch + `.sm` write-consent handshake every inspector
+ *     action uses); the store updates through the BFF's WS broadcast, so
+ *     there is no manual patch here. Cancel discards the draft.
+ *
+ * An auto-tag run's proposal has no surface of its own: it MANIFESTS as
+ * this editor opening, pre-filled and unsaved (see `autoOpenOnProposal`).
+ * There is no advisory line and no extra button to dismiss.
  *
  * This component is the reason the action no longer self-projects an
  * `inspector.action.button`: tag editing lives where the tags are shown,
@@ -36,6 +40,7 @@ import {
   input,
   output,
   signal,
+  untracked,
 } from '@angular/core';
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
@@ -51,6 +56,15 @@ import {
   type TInputTypeValue,
 } from '../../renderers/input-type-control/input-type-control';
 import { NODE_TAGS_TEXTS } from '../../../i18n/node-tags.texts';
+
+/**
+ * Same tags, same order. The once-per-proposal guard's comparator: two
+ * `job.completed` frames carrying the identical suggestion are ONE
+ * proposal, however many arrays the transport built along the way.
+ */
+function sameTags(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((tag, i) => tag === b[i]);
+}
 
 @Component({
   selector: 'sm-node-tags',
@@ -87,8 +101,31 @@ export class NodeTags {
    */
   readonly autoTagState = input<'hidden' | 'idle' | 'queued' | 'running'>('hidden');
 
+  /**
+   * The tags the last auto-tag run inferred (`job.completed`'s
+   * `tagsProposed`), owned by the inspector host like `autoTagState` (it
+   * is the terminal state of the same job the host submitted). A
+   * PROPOSAL and nothing else: the tagger writes NO tags, so this is not
+   * a pending change, not a refused one, just the model's suggestion.
+   *
+   * It is a TRIGGER, not something rendered: a non-empty value opens the
+   * ORDINARY editor pre-filled and unsaved (`autoOpenOnProposal`), so the
+   * operator prunes it and saves through the same `.sm` handshake every
+   * other tag edit goes through. Tags are human curation, so the human
+   * stays their author.
+   */
+  readonly autoTagProposedTags = input<readonly string[]>([]);
+
   /** Emitted when the user clicks the idle auto-tag (sparkles) button. */
   readonly autoTagClick = output<void>();
+
+  /**
+   * A save went through. The host owns the proposal (it owns the job
+   * that produced it), so it is told the operator settled the tags by
+   * hand and can retire the offer, instead of leaving a spent suggestion
+   * hanging over a row that just wrote.
+   */
+  readonly tagsSaved = output<void>();
 
   /**
    * Emitted when the user clicks a tag chip in VIEW mode. Carries the tag
@@ -151,12 +188,66 @@ export class NodeTags {
     this.errorSig.set(null);
   });
 
+  /**
+   * The last `autoTagProposedTags` value `autoOpenOnProposal` acted on,
+   * the once-per-proposal guard. Keyed on CONTENT, not on the array
+   * reference: the host builds a fresh array per `job.completed` frame,
+   * so a frame the socket replays after a reconnect would otherwise read
+   * as a second proposal and reopen an editor the operator just closed.
+   * Retiring the proposal (the host sets `[]` on save, on node change,
+   * and when it submits a new run) resets the key, which is what lets a
+   * LATER run reopen the editor even when it infers the same tags.
+   */
+  private consumedProposal: readonly string[] | null = null;
+
   /** Descriptor handed to the inline `<sm-input-type-control>` editor. */
   protected readonly descriptor = computed<IInputTypeDescriptor>(() => ({
     inputType: 'string-list',
     label: this.texts.editorLabel,
     suggestions: this.allTags(),
   }));
+
+  /**
+   * A tagger run's proposal, made visible the only way that does not add
+   * a surface: the editor OPENS on it, pre-filled with the current tags
+   * plus the suggestion, deliberately UNSAVED. This is a review, not an
+   * apply, the operator removes what they disagree with and hits Save,
+   * which runs the ordinary dispatch and its `.sm` consent handshake. No
+   * path here writes tags.
+   *
+   * Three behaviours worth naming:
+   *
+   *   - ONCE PER PROPOSAL. The proposal input is the effect's ONLY
+   *     tracked dependency (everything else is read `untracked`), so a
+   *     re-render, a scan refresh that re-binds the tags, or any
+   *     unrelated change detection cannot reopen an editor the operator
+   *     already closed or saved. `consumedProposal` covers the case the
+   *     dependency graph cannot: the same proposal arriving a second time
+   *     in a new array, which is what a replayed `job.completed` frame
+   *     looks like after a socket reconnect.
+   *   - NEVER CLOBBERS WORK IN PROGRESS. With the editor already open the
+   *     proposal merges into the live draft; a closed editor seeds from
+   *     the node's current tags. Either way duplicates are skipped and
+   *     existing entries keep their position.
+   *   - AN EMPTY PROPOSAL IS SILENT. "The tagger looked and found
+   *     nothing" opens nothing and clears no draft; it only marks itself
+   *     consumed. Same for the empty default and for the host retiring a
+   *     spent proposal, and that retirement is exactly what re-arms the
+   *     guard for the next run.
+   */
+  private readonly autoOpenOnProposal = effect(() => {
+    const proposed = this.autoTagProposedTags();
+    if (this.consumedProposal !== null && sameTags(this.consumedProposal, proposed)) return;
+    this.consumedProposal = proposed;
+    if (proposed.length === 0) return;
+    untracked(() => {
+      const seed = this.editingSig() ? [...this.draftSig()] : [...this.tags()];
+      for (const tag of proposed) {
+        if (!seed.includes(tag)) seed.push(tag);
+      }
+      this.openEditor(seed);
+    });
+  });
 
   /** Pencil tooltip / aria: "Add tags" when empty, else "Edit tags". */
   protected readonly editTooltip = computed<string>(() =>
@@ -201,8 +292,16 @@ export class NodeTags {
 
   /** Enter edit mode, seeding the draft with the current tags. */
   protected startEdit(): void {
+    this.openEditor([...this.tags()]);
+  }
+
+  /**
+   * Shared entry into edit mode, the ONE way in: the pencil and the
+   * auto-tag proposal both land here, they only differ in the seed.
+   */
+  private openEditor(seed: string[]): void {
     this.errorSig.set(null);
-    this.draftSig.set([...this.tags()]);
+    this.draftSig.set(seed);
     this.editingSig.set(true);
   }
 
@@ -219,9 +318,10 @@ export class NodeTags {
 
   /**
    * Dispatch the new tags. On success (and on a silently-declined consent
-   * gate) we leave edit mode; the store refreshes via the WS broadcast. On
-   * a real failure we surface the error and stay in edit mode so the draft
-   * is not lost.
+   * gate) we leave edit mode and tell the host the tags were settled by
+   * hand (`tagsSaved`, which retires any pending auto-tag proposal); the
+   * store refreshes via the WS broadcast. On a real failure we surface
+   * the error and stay in edit mode so the draft is not lost.
    */
   protected async save(): Promise<void> {
     const path = this.nodePath();
@@ -236,6 +336,7 @@ export class NodeTags {
         return;
       }
       this.editingSig.set(false);
+      this.tagsSaved.emit();
     } finally {
       this.inFlightSig.set(false);
     }

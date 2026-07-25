@@ -3,8 +3,9 @@
  * (`spec/job-lifecycle.md` §Submit): target resolution + the
  * probabilistic gate, prompt / report-contract resolution, TTL /
  * priority resolution from config, the duplicate pre-check, the on-disk
- * read + drift verification, fixer findings injection, the fixer
- * supersede rule, and the transactional row + content insert.
+ * read + drift verification, fixer findings injection, tagger current-tags
+ * injection, the fixer supersede rule, and the transactional row + content
+ * insert.
  *
  * Moved down from `cli/commands/job-queue.ts` so every operator surface
  * inherits the same machinery instead of re-implementing it:
@@ -35,6 +36,7 @@ import type { JobExtensionKind, Node } from '../../kernel/types.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
 import type { IJobsConfig } from '../../kernel/config/loader.js';
 import {
+  buildCurrentTagsSection,
   buildFindingsSection,
   buildIssuesSection,
   computeContentHash,
@@ -43,12 +45,14 @@ import {
   generateNonce,
   InvalidPriorityError,
   InvalidTtlError,
+  isTagsReportSchema,
   loadCanonicalPreamble,
   buildReportContract,
   renderJobContent,
   resolvePriority,
   resolveSubmitTarget,
   resolveTtl,
+  selectCurrentTags,
   selectFixerFindings,
   selectFixerIssues,
 } from '../../kernel/jobs/index.js';
@@ -286,6 +290,16 @@ export interface ISubmitContext {
    * block and folds into `promptTemplateHash`.
    */
   reportContract: string;
+  /**
+   * True when the target is a TAGGER: an Action whose report schema `$ref`s
+   * a canonical `tags/*.schema.json` (`isTagsReportSchema`, the SAME
+   * detector the record path uses to turn a completed report into a tags
+   * proposal). Resolved once at prepare time from the report schema the
+   * contract resolution already parsed, so the fan-out costs nothing extra.
+   * When true, each node's CURRENT tags are injected into its render
+   * (`spec/job-lifecycle.md` §Current-tags injection for taggers).
+   */
+  isTagger: boolean;
   promptTemplateHash: string;
   /**
    * The fixer's declared `precondition.analyzerIds` when the submit target
@@ -327,22 +341,87 @@ export interface ISubmitContext {
 
 /**
  * Per-node render inputs, resolved AFTER the fixer selection: the (optional)
- * findings-to-resolve section and the `promptTemplateHash` that keys the
- * content. `'no-findings'` is a refusal (a fixer over a node no finder of
- * its lane ever judged, fresh or stale).
+ * findings-to-resolve and current-tags sections plus the
+ * `promptTemplateHash` that keys the content. `'no-findings'` is a refusal
+ * (a fixer over a node no finder of its lane ever judged, fresh or stale).
  */
 type TJobRenderInputs =
   | 'no-findings'
-  | { findingsSection: string | undefined; promptTemplateHash: string };
+  | {
+      findingsSection: string | undefined;
+      currentTagsSection: string | undefined;
+      promptTemplateHash: string;
+    };
 
 /**
- * Resolve the per-node render inputs. Non-fixer submits (`analyzerIds`
- * undefined) reuse the precomputed base `promptTemplateHash` and inject no
- * section, byte-identical to before the fixer feature.
+ * The fixer trigger section for this node, or `'no-findings'` when the
+ * selection is empty (the exit-2 refusal). `undefined` for a non-fixer
+ * submit (`analyzerIds` undefined), which injects nothing.
+ */
+type TFixerSection = string | undefined | 'no-findings';
+
+/**
+ * Resolve the per-node render inputs. A submit that injects NEITHER section
+ * (the common case: not a fixer, not a tagger, or a tagger over an untagged
+ * node) reuses the precomputed base `promptTemplateHash`, byte-identical to
+ * before either injection feature existed.
  *
- * A FIXER (`spec/job-lifecycle.md` §Findings injection for fixers) branches on
- * the mode of the analyzer it serves (Modelo B, resolved once at prepare
- * time):
+ * Both injections are orthogonal and compose in RENDER order
+ * (findings, then current tags, then the report contract), and both fold
+ * into a per-node `promptTemplateHash`, so a changed trigger set or a
+ * changed tag set is a distinct job rather than a stale reuse.
+ */
+async function resolveJobRenderInputs(
+  adapter: StoragePort,
+  node: Node,
+  prepared: ISubmitContext,
+): Promise<TJobRenderInputs> {
+  const findingsSection = await resolveFixerSection(adapter, node, prepared);
+  if (findingsSection === 'no-findings') return 'no-findings';
+  const currentTagsSection = resolveCurrentTagsSection(node, prepared);
+  if (findingsSection === undefined && currentTagsSection === undefined) {
+    return {
+      findingsSection: undefined,
+      currentTagsSection: undefined,
+      promptTemplateHash: prepared.promptTemplateHash,
+    };
+  }
+  return {
+    findingsSection,
+    currentTagsSection,
+    promptTemplateHash: computePromptTemplateHash({
+      preamble: prepared.preamble,
+      template: prepared.promptTemplate,
+      ...(findingsSection !== undefined ? { findingsSection } : {}),
+      ...(currentTagsSection !== undefined ? { currentTagsSection } : {}),
+      reportContract: prepared.reportContract,
+    }),
+  };
+}
+
+/**
+ * The `## Current tags` section for a TAGGER submit
+ * (`spec/job-lifecycle.md` §Current-tags injection for taggers). WHY: without
+ * it the model infers tags blind to what the node already carries and
+ * proposes near-duplicates of them (`deploy` next to an existing
+ * `deploy-pipeline`) that a human then reconciles by hand.
+ *
+ * The tags come off the node the submit path ALREADY resolved: the scan
+ * mirror rehydrates `sidecar.annotations` on every `Node`, and
+ * `annotations.tags` is the product's only tag source, so this costs no
+ * extra read. `undefined` (no section at all) for a non-tagger target and
+ * for a tagger over a node carrying no tags, per the spec's omission rule.
+ */
+function resolveCurrentTagsSection(node: Node, prepared: ISubmitContext): string | undefined {
+  if (!prepared.isTagger) return undefined;
+  const tags = selectCurrentTags(node);
+  return tags.length > 0 ? buildCurrentTagsSection(tags) : undefined;
+}
+
+/**
+ * Resolve the FIXER trigger section (`spec/job-lifecycle.md` §Findings
+ * injection for fixers), branching on the mode of the analyzer it serves
+ * (Modelo B, resolved once at prepare time):
  *   - DETERMINISTIC analyzer: select THIS node's `scan_issues` rows for its
  *     analyzers and render a `## Issues to resolve` section (no staleness /
  *     resolution axis, Issues are re-derived each scan);
@@ -351,21 +430,17 @@ type TJobRenderInputs =
  *     `includeStale: true`, the adapter hides them by default) so they ride
  *     flagged for the agent to verify, and render `## Findings to resolve`.
  *
- * Both fold the rendered section into a per-node `promptTemplateHash` via the
- * SAME `findingsSection` seam, so a changed trigger set is a distinct job; and
- * both refuse an EMPTY selection with the content-agnostic `'no-findings'`
+ * Both refuse an EMPTY selection with the content-agnostic `'no-findings'`
  * exit-2 gate (a fixer over a node nothing flagged is a user error).
  */
-async function resolveJobRenderInputs(
+async function resolveFixerSection(
   adapter: StoragePort,
   node: Node,
   prepared: ISubmitContext,
-): Promise<TJobRenderInputs> {
-  if (prepared.analyzerIds === undefined) {
-    return { findingsSection: undefined, promptTemplateHash: prepared.promptTemplateHash };
-  }
+): Promise<TFixerSection> {
+  if (prepared.analyzerIds === undefined) return undefined;
   if (prepared.analyzerMode === 'deterministic') {
-    return resolveIssueRenderInputs(adapter, node, prepared);
+    return resolveIssuesSection(adapter, node, prepared);
   }
   const nodeFindings = await adapter.findings.list({ nodeId: node.path, includeStale: true });
   const all = selectFixerFindings(nodeFindings, prepared.analyzerIds);
@@ -377,46 +452,28 @@ async function resolveJobRenderInputs(
       ? all
       : all.filter((f) => prepared.findingIds!.includes(f.id));
   if (selected.length === 0) return 'no-findings';
-  const findingsSection = buildFindingsSection(selected);
-  return {
-    findingsSection,
-    promptTemplateHash: computePromptTemplateHash({
-      preamble: prepared.preamble,
-      template: prepared.promptTemplate,
-      findingsSection,
-      reportContract: prepared.reportContract,
-    }),
-  };
+  return buildFindingsSection(selected);
 }
 
 /**
- * The deterministic-analyzer fixer branch of `resolveJobRenderInputs`: read
- * the node's Issue bundle (`scan_issues`, via the node bundle), select the
- * rows whose short `analyzerId` matches the fixer's `analyzerIds`, and render
- * the `## Issues to resolve` section. Folds into the SAME `findingsSection`
- * seam + `promptTemplateHash` as the findings branch, so the render, hash, and
- * supersede all stay content-agnostic. An empty selection refuses with the
- * shared `'no-findings'` gate.
+ * The deterministic-analyzer branch of `resolveFixerSection`: read the node's
+ * Issue bundle (`scan_issues`, via the node bundle), select the rows whose
+ * short `analyzerId` matches the fixer's `analyzerIds`, and render the
+ * `## Issues to resolve` section. Rides the SAME `findingsSection` seam as the
+ * findings branch, so the render, hash, and supersede all stay
+ * content-agnostic. An empty selection refuses with the shared
+ * `'no-findings'` gate.
  */
-async function resolveIssueRenderInputs(
+async function resolveIssuesSection(
   adapter: StoragePort,
   node: Node,
   prepared: ISubmitContext,
-): Promise<TJobRenderInputs> {
+): Promise<TFixerSection> {
   const analyzerIds = prepared.analyzerIds ?? [];
   const bundle = await adapter.scans.findNode(node.path);
   const selected = selectFixerIssues(bundle?.issues ?? [], analyzerIds);
   if (selected.length === 0) return 'no-findings';
-  const findingsSection = buildIssuesSection(selected);
-  return {
-    findingsSection,
-    promptTemplateHash: computePromptTemplateHash({
-      preamble: prepared.preamble,
-      template: prepared.promptTemplate,
-      findingsSection,
-      reportContract: prepared.reportContract,
-    }),
-  };
+  return buildIssuesSection(selected);
 }
 
 /**
@@ -522,6 +579,32 @@ async function insertFixerJobRow(
 }
 
 /**
+ * Render the stored content blob from the verified body + the resolved
+ * per-node sections. Each kernel-authored section is passed only when it
+ * exists (`exactOptionalPropertyTypes`), and `renderJobContent` owns their
+ * order at the `{{userContent}}` seam: findings, current tags, report
+ * contract, then the `<user-content>` block.
+ */
+function renderContent(
+  node: Node,
+  body: string,
+  prepared: ISubmitContext,
+  inputs: Exclude<TJobRenderInputs, 'no-findings'>,
+): string {
+  return renderJobContent({
+    node,
+    nodeBody: body,
+    promptTemplate: prepared.promptTemplate,
+    preamble: prepared.preamble,
+    ...(inputs.findingsSection !== undefined ? { findingsSection: inputs.findingsSection } : {}),
+    ...(inputs.currentTagsSection !== undefined
+      ? { currentTagsSection: inputs.currentTagsSection }
+      : {}),
+    reportContract: prepared.reportContract,
+  });
+}
+
+/**
  * Submit exactly one job for `node`. Fixer findings selection + refusal
  * first (`spec/job-lifecycle.md` §Findings injection for fixers), then the
  * duplicate pre-check (skipped by `--force`), then the on-disk read + drift
@@ -559,14 +642,7 @@ export async function submitOneJob(
   if (read.kind === 'unreadable') {
     return { kind: 'unreadable', nodeId: node.path, detail: read.detail };
   }
-  const content = renderJobContent({
-    node,
-    nodeBody: read.body,
-    promptTemplate: prepared.promptTemplate,
-    preamble: prepared.preamble,
-    ...(inputs.findingsSection !== undefined ? { findingsSection: inputs.findingsSection } : {}),
-    reportContract: prepared.reportContract,
-  });
+  const content = renderContent(node, read.body, prepared, inputs);
   // A FIXER submit (`analyzerIds` set) supersedes stale queued siblings in one
   // transaction; a non-fixer submit inserts with the plain duplicate backstop.
   return prepared.analyzerIds !== undefined
@@ -670,6 +746,11 @@ export function prepareSubmitContext(opts: {
     promptTemplate: promptTemplate.text,
     preamble,
     reportContract: reportContract.text,
+    // TAGGER detection reuses the report schema the contract resolution
+    // already parsed, the SAME `isTagsReportSchema` signal the record path
+    // reads (there is no manifest flag). Actions only: a finder Analyzer
+    // never proposes tags.
+    isTagger: extensionKind === 'action' && isTagsReportSchema(reportContract.schema),
     analyzerIds,
     // Modelo B: resolve the referenced analyzer's mode ONCE, so the per-node
     // render branches (Issues vs findings) without re-resolving per fan-out.
@@ -768,6 +849,16 @@ function resolveQueueTarget(
 type TResolvedText = { ok: true; text: string } | { ok: false; detail: string };
 
 /**
+ * `resolveReportContractText`'s success shape: the rendered contract text
+ * PLUS the parsed report schema it was built from, so the caller derives the
+ * TAGGER signal (`isTagsReportSchema`) from bytes already in hand instead of
+ * re-reading / re-parsing `report.schema.json`.
+ */
+type TResolvedReportContract =
+  | { ok: true; text: string; schema: Record<string, unknown> }
+  | { ok: false; detail: string };
+
+/**
  * The extension's prompt template: from the on-disk `prompt.md` (plugin) or
  * the codegen-inlined `promptTemplate` (built-in). `spec/job-lifecycle.md`
  * §Submit step 9.
@@ -792,12 +883,14 @@ function resolvePromptTemplateText(
  * step 9): the extension's report schema bytes VERBATIM (on-disk
  * `report.schema.json` for a plugin, the codegen-inlined `reportSchema`
  * serialized deterministically for a built-in) plus the canonical envelope
- * blocks resolved inside `buildReportContract`.
+ * blocks resolved inside `buildReportContract`. Returns the parsed schema
+ * alongside the text: `prepareSubmitContext` derives the TAGGER signal from
+ * it (§Current-tags injection for taggers) without a second read.
  */
 function resolveReportContractText(
   extension: TQueueableExtension,
   dir: string | undefined,
-): TResolvedText {
+): TResolvedReportContract {
   let schemaText: string;
   let schema: Record<string, unknown>;
   if (dir !== undefined) {
@@ -813,7 +906,7 @@ function resolveReportContractText(
   } else {
     return { ok: false, detail: 'no source directory' };
   }
-  return { ok: true, text: buildReportContract({ schemaText, schema }) };
+  return { ok: true, text: buildReportContract({ schemaText, schema }), schema };
 }
 
 /**

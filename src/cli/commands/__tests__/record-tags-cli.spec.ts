@@ -1,29 +1,32 @@
 /**
- * End-to-end tests for the sidecar tags write-through
- * (`spec/job-lifecycle.md` §Tags write-through) wired through the real
- * CLI verbs: `sm jobs submit` -> `sm jobs claim` -> `sm record --status
- * completed` with a schema-valid `core/ai-tagger-action` report merges
- * the report's `tags[]` into the node's `.sm` sidecar through the gated
- * channel, honouring the STANDING consent only. Runs against a real
- * project DB (never `:memory:`, see feedback_sqlite_in_memory_workaround).
+ * End-to-end tests for the tagger PROPOSAL (`spec/job-lifecycle.md` §Tags
+ * proposal) wired through the real CLI verbs: `sm jobs submit` -> `sm jobs
+ * claim` -> `sm record --status completed` with a schema-valid
+ * `core/ai-tagger-action` report surfaces the report's `tags[]` for review
+ * and writes NOTHING. Tags are human curation (`spec/architecture.md`
+ * §Storage rule), so the operator saves them from the tags editor; a
+ * record-time write could only ever honour a STANDING `allowEditSmFiles`
+ * grant (no prompt is possible inside a record callback), which made the
+ * tagger burn a model call and silently produce nothing in every project
+ * without that grant. Runs against a real project DB (never `:memory:`,
+ * see feedback_sqlite_in_memory_workaround).
  *
  * The tagger signal is the Action's report schema, never a manifest flag
  * (`isTagsReportSchema`, mirror of the summaries detection): a report
- * schema that `$ref`s a canonical `tags/*.schema.json` gets the
- * write-through; any other report stays history-only.
+ * schema that `$ref`s a canonical `tags/*.schema.json` is a tagger; any
+ * other report is not, and neither shape reaches the sidecar.
  *
  * Coverage:
- *   - standing consent granted -> a brand-new sidecar lands with the
- *     identity block sourced from the live scan node + the tags, and the
- *     scan_nodes annotations mirror refreshes in the same pass.
- *   - existing sidecar -> union merge: existing entries keep their order
- *     and case, incoming appended, case-insensitive dedup.
- *   - NO standing consent -> nothing written, a human advisory surfaces,
- *     the record still exits 0 and the report keeps the tags.
+ *   - standing consent granted -> STILL no sidecar, the record exits 0,
+ *     the annotations mirror stays untouched, and the human advisory names
+ *     the proposed tags.
+ *   - an existing sidecar keeps its own tags byte for byte.
+ *   - NO standing consent -> identical outcome (consent plays no part any
+ *     more) and the report keeps the tags.
  *   - a non-tagger report (summarizer) never touches the sidecar.
  */
 
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { strictEqual, ok, match, deepStrictEqual } from 'node:assert';
@@ -241,21 +244,16 @@ after(() => {
   rmSync(tmpRoot, { recursive: true, force: true });
 });
 
-describe('tags write-through via sm record (standing consent granted)', () => {
-  it('creates a brand-new sidecar with the identity block + tags and refreshes the mirror', async () => {
+describe('tagger proposal via sm record (standing consent granted)', () => {
+  it('writes no sidecar, leaves the mirror alone, and advises the proposed tags', async () => {
     const proj = await setupProject();
     const cap = await runFullLoop(proj);
 
-    // The sidecar landed with the identity sourced from the live scan node.
-    const smAbs = join(proj.root, SIDECAR_REL);
-    ok(existsSync(smAbs), 'sidecar file written');
-    const read = readSidecarFor(join(proj.root, NOTE.path));
-    ok(read.parsed !== null, 'sidecar parses');
-    strictEqual(read.parsed!.identityPath, NOTE.path);
-    strictEqual(read.parsed!.identityBodyHash, sha256(`Body of ${NOTE.path}\n`));
-    deepStrictEqual(sidecarTags(proj), TAGS_REPORT.tags);
+    // A STANDING `.sm` grant is present and still nothing is authored: the
+    // record path proposes, the human saves.
+    ok(!existsSync(join(proj.root, SIDECAR_REL)), 'no sidecar written');
 
-    // The annotations mirror refreshed in the same pass.
+    // No sidecar means no annotations to mirror either.
     const adapter = await openDb(proj.dbPath);
     try {
       const row = await adapter.db
@@ -263,18 +261,19 @@ describe('tags write-through via sm record (standing consent granted)', () => {
         .select('annotationsJson')
         .where('path', '=', NOTE.path)
         .executeTakeFirst();
-      ok(row?.annotationsJson, 'mirror refreshed');
-      const annotations = JSON.parse(row!.annotationsJson!) as { tags?: string[] };
-      deepStrictEqual(annotations.tags, TAGS_REPORT.tags);
+      strictEqual(row?.annotationsJson ?? null, null, 'mirror untouched');
     } finally {
       await adapter.close();
     }
 
-    // The human advisory names the node and the applied tags.
-    match(cap.stderr(), /tags on notes\/guide\.md/);
+    // The human advisory names the node, the proposed tags, and where to
+    // act on them.
+    match(cap.stderr(), /2 tags proposed for notes\/guide\.md/);
+    match(cap.stderr(), /deploy-pipeline, release-notes/);
+    match(cap.stderr(), /tags editor/);
   });
 
-  it('merges into an existing sidecar: existing first, case-insensitive dedup', async () => {
+  it('leaves an existing sidecar exactly as the human left it', async () => {
     const proj = await setupProject();
     writeFileSync(
       join(proj.root, SIDECAR_REL),
@@ -292,10 +291,8 @@ describe('tags write-through via sm record (standing consent granted)', () => {
     );
     await runFullLoop(proj);
 
-    // `Release-Notes` keeps its original casing and position (the
-    // incoming `release-notes` dedupes against it); the truly new
-    // `deploy-pipeline` appends after the existing entries.
-    deepStrictEqual(sidecarTags(proj), ['Release-Notes', 'guides', 'deploy-pipeline']);
+    // No merge, no dedup, no append: the curation store is the human's.
+    deepStrictEqual(sidecarTags(proj), ['Release-Notes', 'guides']);
   });
 
   it('a non-tagger report (summarizer) never touches the sidecar', async () => {
@@ -305,17 +302,18 @@ describe('tags write-through via sm record (standing consent granted)', () => {
   });
 });
 
-describe('tags write-through without standing consent', () => {
-  it('applies nothing, surfaces the advisory, and the record still succeeds', async () => {
+describe('tagger proposal without standing consent', () => {
+  it('behaves identically: nothing written, record exits 0, report keeps the tags', async () => {
     const proj = await setupProject({ consent: false });
     const cap = await runFullLoop(proj);
 
-    ok(!existsSync(join(proj.root, SIDECAR_REL)), 'no sidecar written without consent');
-    match(cap.stderr(), /tags not applied to notes\/guide\.md/);
-    match(cap.stderr(), /allowEditSmFiles/);
+    ok(!existsSync(join(proj.root, SIDECAR_REL)), 'no sidecar written');
+    // Consent plays no part any more, so the advisory is the same proposal
+    // line, never a "could not write" excuse.
+    match(cap.stderr(), /2 tags proposed for notes\/guide\.md/);
 
-    // The completed execution still landed with the report inline, so
-    // the judgment is not lost.
+    // The completed execution landed with the report inline, so the
+    // judgment survives for the operator to act on.
     const adapter = await openDb(proj.dbPath);
     try {
       const executions = await adapter.db.selectFrom('state_executions').selectAll().execute();

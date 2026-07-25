@@ -184,10 +184,12 @@
       [nodePath]="n.path"
       [setTagsActionId]="tagsAction.actionId"
       [autoTagState]="autoTagState()"
+      [autoTagProposedTags]="autoTagProposedTags()"
       smDebugSurface="inspector.surface.tags"
       [smDebugSurfaceClaim]="tagsClaimId()"
       (tagClick)="tagClick.emit($event)"
       (autoTagClick)="autoTagClick.emit()"
+      (tagsSaved)="tagsSaved.emit()"
     />
   }
 

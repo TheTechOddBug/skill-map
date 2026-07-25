@@ -350,6 +350,200 @@ describe('NodeTags edit mode', () => {
   });
 });
 
+/**
+ * The auto-tag proposal. A tagger run WRITES NOTHING (spec
+ * `job-lifecycle.md` §Tags proposal): it hands back the tags it inferred
+ * and the operator saves the ones they want. The proposal therefore has
+ * NO surface of its own (no advisory line, no extra button, nothing to
+ * dismiss): it manifests as the ordinary editor opening, pre-filled and
+ * unsaved. The host owns the state (it owns the job, see
+ * inspector-view.spec for the `job.completed` wiring); here we pin what
+ * the trigger does to this row.
+ *
+ * Nothing here writes around the consent gate: the auto-open only seeds a
+ * draft; the write still goes through Save, its dispatch, and the `.sm`
+ * handshake.
+ */
+describe('NodeTags auto-tag proposal', () => {
+  /** Land a proposal on the row and let the effect settle. */
+  async function propose(
+    fixture: ComponentFixture<NodeTags>,
+    proposed: string[],
+  ): Promise<void> {
+    fixture.componentRef.setInput('autoTagProposedTags', proposed);
+    await fixture.whenStable();
+    fixture.detectChanges();
+  }
+
+  it('opens nothing by default (no run has proposed anything)', async () => {
+    const fixture = await bootstrap(['infra']);
+    expect(internals(fixture).editing()).toBe(false);
+  });
+
+  it('opens the editor seeded with the deduped union, dispatching NOTHING', async () => {
+    const fixture = await bootstrap(['infra', 'review']);
+
+    await propose(fixture, ['review', 'deploy-pipeline', 'ci']);
+
+    const api = internals(fixture);
+    expect(api.editing()).toBe(true);
+    expect(el(fixture, 'node-tags-editor')).not.toBeNull();
+    // Current tags first, in place, then the new suggestions; an already
+    // carried tag is never repeated.
+    expect(api.draft()).toEqual(['infra', 'review', 'deploy-pipeline', 'ci']);
+    // The whole point: the human is still the author, so the proposal is
+    // a draft, not a write.
+    expect(stub.dispatch).not.toHaveBeenCalled();
+  });
+
+  it('merges into an already-open draft instead of resetting the operator work', async () => {
+    const fixture = await bootstrap(['infra']);
+    const api = internals(fixture);
+    api.startEdit();
+    // Two edits the node does not carry yet: `wip` typed in, `infra`
+    // removed. Neither is in the proposal, so only a genuine merge (not
+    // a reseed from `tags()`) can keep them.
+    api.onDraftChange(['wip']);
+    fixture.detectChanges();
+
+    await propose(fixture, ['ci', 'wip']);
+
+    expect(api.editing()).toBe(true);
+    expect(api.draft()).toEqual(['wip', 'ci']);
+    expect(stub.dispatch).not.toHaveBeenCalled();
+  });
+
+  it('an empty proposal opens nothing and disturbs no in-progress draft', async () => {
+    const fixture = await bootstrap(['infra']);
+
+    await propose(fixture, []);
+    expect(internals(fixture).editing()).toBe(false);
+    expect(el(fixture, 'node-tags-editor')).toBeNull();
+
+    const api = internals(fixture);
+    api.startEdit();
+    api.onDraftChange(['infra', 'wip']);
+    await propose(fixture, []);
+
+    expect(api.editing()).toBe(true);
+    expect(api.draft()).toEqual(['infra', 'wip']);
+  });
+
+  it('saving the union dispatches it, leaves edit mode, and reports upward', async () => {
+    const fixture = await bootstrap(['infra']);
+    let saved = 0;
+    fixture.componentInstance.tagsSaved.subscribe(() => (saved += 1));
+
+    await propose(fixture, ['ci']);
+    await internals(fixture).save();
+    fixture.detectChanges();
+
+    expect(stub.dispatch).toHaveBeenCalledWith('core/node-set-tags', 'agents/architect.md', {
+      tags: ['infra', 'ci'],
+    });
+    expect(internals(fixture).editing()).toBe(false);
+    // `tagsSaved` is what retires the host's proposal (see
+    // inspector-view.spec for the end-to-end clearing).
+    expect(saved).toBe(1);
+  });
+
+  /**
+   * The once-per-proposal guard: it keys on the proposal ARRAY the host
+   * handed down, so re-rendering the row (a scan refresh re-binding the
+   * tags, any unrelated change detection) can never reopen an editor the
+   * operator deliberately closed.
+   */
+  it('does not reopen after the operator closed it', async () => {
+    const fixture = await bootstrap(['infra']);
+    await propose(fixture, ['ci']);
+    internals(fixture).cancelEdit();
+    fixture.detectChanges();
+    expect(internals(fixture).editing()).toBe(false);
+
+    fixture.componentRef.setInput('tags', ['infra', 'docs']);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    expect(internals(fixture).editing()).toBe(false);
+    expect(el(fixture, 'node-tags-editor')).toBeNull();
+  });
+
+  it('does not reopen after a save either', async () => {
+    const fixture = await bootstrap(['infra']);
+    await propose(fixture, ['ci']);
+    await internals(fixture).save();
+    fixture.detectChanges();
+    expect(internals(fixture).editing()).toBe(false);
+
+    fixture.componentRef.setInput('tags', ['infra', 'ci']);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(internals(fixture).editing()).toBe(false);
+  });
+
+  /**
+   * The guard keys on CONTENT, so the same suggestion arriving twice in
+   * two arrays (what a `job.completed` frame replayed after a socket
+   * reconnect looks like) stays ONE proposal.
+   */
+  it('a replayed frame does not reopen the editor', async () => {
+    const fixture = await bootstrap(['infra']);
+    await propose(fixture, ['ci']);
+    internals(fixture).cancelEdit();
+    fixture.detectChanges();
+
+    await propose(fixture, ['ci']); // same tags, brand new array
+
+    expect(internals(fixture).editing()).toBe(false);
+  });
+
+  /**
+   * Per PROPOSAL, not once forever: retiring the offer (the host does it
+   * on save, on node change, and when it submits a new run) re-arms the
+   * guard, so the next run reopens the editor even with identical tags.
+   */
+  it('a later run reopens the editor once the previous offer is retired', async () => {
+    const fixture = await bootstrap(['infra']);
+    await propose(fixture, ['ci']);
+    internals(fixture).cancelEdit();
+    fixture.detectChanges();
+
+    await propose(fixture, []); // the host retires the spent proposal
+    await propose(fixture, ['ci']);
+
+    expect(internals(fixture).editing()).toBe(true);
+    expect(internals(fixture).draft()).toEqual(['infra', 'ci']);
+  });
+
+  it('a FAILED save keeps the draft in edit mode and reports nothing upward', async () => {
+    stub.error.mockReturnValue('Could not write the sidecar.');
+    const fixture = await bootstrap(['infra']);
+    let saved = 0;
+    fixture.componentInstance.tagsSaved.subscribe(() => (saved += 1));
+
+    await propose(fixture, ['ci']);
+    await internals(fixture).save();
+
+    expect(saved).toBe(0);
+    expect(internals(fixture).editing()).toBe(true);
+    expect(internals(fixture).draft()).toEqual(['infra', 'ci']);
+  });
+
+  it('a node change closes the auto-opened editor', async () => {
+    const fixture = await bootstrap(['infra']);
+    await propose(fixture, ['ci']);
+    expect(internals(fixture).editing()).toBe(true);
+
+    fixture.componentRef.setInput('nodePath', 'agents/other.md');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(internals(fixture).editing()).toBe(false);
+  });
+});
+
 describe('NodeTags suggestion vocabulary', () => {
   it('derives allTags from every loaded node, deduped and sorted', async () => {
     loaderNodes.set([

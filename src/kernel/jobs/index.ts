@@ -62,6 +62,10 @@ export {
   type IFixerIssueProjection,
 } from './findings-injection.js';
 export {
+  buildCurrentTagsSection,
+  selectCurrentTags,
+} from './current-tags-injection.js';
+export {
   bucketFilterActive,
   countDismissedHidden,
   countFixedHidden,

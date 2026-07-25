@@ -388,6 +388,13 @@ export class ServeCommand extends SmCommand {
     try {
       handle = await createServer(validation.options, {
         scanProgress: { stream: stderr, colorEnabled },
+        // Opt in to the boot liveness ping: the daemon is the surface
+        // whose panel asks "is an agent attending the queue?"
+        // (`GET /api/agent/presence`), so it is the surface that pays for
+        // one hidden probe job to learn the answer without waiting for
+        // organic traffic. Best-effort + silent, it can neither delay nor
+        // fail this boot.
+        bootPing: true,
       });
     } catch (err) {
       const message = formatErrorMessage(err);

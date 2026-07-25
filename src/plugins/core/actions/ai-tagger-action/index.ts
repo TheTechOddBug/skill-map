@@ -3,24 +3,24 @@
  * of the summarizer-split direction, user-requested "auto-tag").
  *
  * Analyzes a node's markdown content and infers a small set of topical
- * tags. The agent processes it through the normal queue (`sm jobs claim`
- * + `sm record`) and returns ONLY a report; the agent never touches the
- * `.sm` file (it cannot compute the identity hashes). The APPLY happens
- * on the record path: `sm record` detects the tagger by its report
- * schema's `tags/` namespace reference (`spec/job-lifecycle.md` §Tags
- * write-through, mirror of the `summaries/` detection) and merges the
- * report's `tags[]` into the sidecar's `annotations.tags` through the
- * gated `.sm` channel (standing consent only; without it the tags stay
- * in the report and a human advisory says so).
+ * tags. It PROPOSES, it never writes: the agent processes it through the
+ * normal queue (`sm jobs claim` + `sm record`) and returns ONLY a report,
+ * and the record path (which detects the tagger by its report schema's
+ * `tags/` namespace reference, `spec/job-lifecycle.md` §Tags proposal,
+ * mirror of the `summaries/` detection) surfaces the report's `tags[]` on
+ * the `job.completed` event for the operator to review and save from the
+ * ordinary tags editor. Nothing touches the `.sm` file on this path.
  *
  * Like the summarizer, the two sibling files (`prompt.md` +
  * `report.schema.json`) are inlined onto the emitted manifest by the
  * built-ins codegen (`scripts/generate-built-ins.js`).
  *
- * Storage-rule note (`spec/architecture.md` §Storage rule): the applied
- * tags land in the CURATION store as the documented delegated-curation
- * carve-out, the operator launched the tagger, and afterwards the tags
- * are ordinary human-owned annotations (editable via the tags row).
+ * Storage-rule note (`spec/architecture.md` §Storage rule): tags are
+ * human curation, and the rule admits no carve-out, a machine may PROPOSE
+ * curation but never author it. The human saving the proposal is what
+ * turns it into curation, through the usual consent-gated `.sm`
+ * handshake, and afterwards the tags are ordinary human-owned
+ * annotations (editable via the tags row).
  *
  * **Owns the `inspector.surface.auto-tag` slot** (2026-07-23, the
  * kernel-agnosticism sweep): the tag row's sparkles affordance is
@@ -51,7 +51,7 @@ export const aiTaggerAction: IBuiltInManifest<IAction> = {
   pluginId: PLUGIN_ID,
   kind: 'action',
   description:
-    "Reads a file and tags it with a few short topics in the file's own language, merging them into any tags it already has (probabilistic; an agent processes it via `sm jobs claim` + `sm record`).",
+    "Reads a file and proposes a few short topics in the file's own language, skipping what its current tags already cover; you review the suggestion in the tag editor and keep what you want (probabilistic; an agent processes it via `sm jobs claim` + `sm record`).",
   stability: 'stable',
   mode: 'probabilistic',
   // Best-effort wall-clock estimate; drives the job TTL. Tagging is a

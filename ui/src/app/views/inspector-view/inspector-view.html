@@ -40,12 +40,14 @@
       [summaryExpanded]="summaryExpanded()"
       [summaryStale]="summaryStale()"
       [autoTagState]="autoTagState()"
+      [autoTagProposedTags]="autoTagProposedTags()"
       (favoriteToggle)="onHeaderFavoriteToggle($event)"
       (tagClick)="tagSelect.emit($event)"
       (summarizeClick)="onSummarizeClick()"
       (summaryRefresh)="onSummaryRefresh()"
       (summaryDelete)="onSummaryDelete($event)"
       (autoTagClick)="onAutoTagClick()"
+      (tagsSaved)="onTagsSaved()"
     />
 
     <!-- Scroll area: the fixed header above stays put while everything from
@@ -426,13 +428,13 @@
                 data-testid="inspector-ai-actions-no-agent-warning"
                 >{{ texts.aiActions.noProcessingAgentWarning }}</p-message
               >
-            } @else if (aiActionsSkillMissing() === false && aiActionsMcpConnected() === false) {
+            } @else if (aiActionsSkillMissing() === false && aiActionsAgentAttending() === false) {
               <p-message
                 severity="warn"
                 [closable]="false"
                 styleClass="inspector__ai-actions-agent-warning"
-                data-testid="inspector-ai-actions-mcp-warning"
-                >{{ texts.aiActions.mcpDisconnectedWarning }}</p-message
+                data-testid="inspector-ai-actions-attending-warning"
+                >{{ texts.aiActions.noAgentAttendingWarning }}</p-message
               >
             }
             @if (aiActionLauncherGroups().length > 0) {

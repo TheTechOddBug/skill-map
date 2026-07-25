@@ -1,8 +1,8 @@
 /**
  * The shared record engine, the SINGLE orchestration of
  * `spec/job-lifecycle.md` §Record (the nonce + running gate, the
- * completed / failed transition, the auto-fix chain, and the tags
- * write-through) shared by the two surfaces that CLOSE a running job:
+ * completed / failed transition, the auto-fix chain, and the tagger tags
+ * proposal) shared by the two surfaces that CLOSE a running job:
  *
  *   - `sm record` (`cli/commands/record.ts`), the nonce-authenticated CLI
  *     callback; it keeps its `--report` reading, printer / exit-code
@@ -17,15 +17,16 @@
  * to their own error shape); runs `recordCompletedOutcome` /
  * `recordFailedOutcome` (`core/jobs/record-outcome.ts`); appends ONE
  * operations-log line with the caller's channel; then, AFTER the
- * transaction, fires the finder -> fixer auto-fix chain and the tagger
- * tags write-through best-effort (a failure there never changes the
- * recorded outcome, hooks react, they do not steer the pipeline). The
- * surface-specific side effects (the live job-event push and the tags
- * advisory line) travel out through the optional `onEvent` / `onTags*`
- * callbacks so the engine stays printer-free and transport-agnostic.
+ * transaction, fires the finder -> fixer auto-fix chain and reads the
+ * tagger's tags proposal, both best-effort (a failure there never changes
+ * the recorded outcome, hooks react, they do not steer the pipeline). The
+ * engine NEVER writes curation: the tagger's tags ride the completion
+ * event as a proposal for the human to save (`spec/job-lifecycle.md`
+ * §Tags proposal). The surface-specific side effects (the live job-event
+ * push and the proposal advisory line) travel out through the optional
+ * `onEvent` / `onTagsProposed` callbacks so the engine stays printer-free
+ * and transport-agnostic.
  */
-
-import { resolve as resolvePath } from 'node:path';
 
 import type {
   ExecutionFailureReason,
@@ -40,12 +41,6 @@ import { makeHookDispatcher } from '../../kernel/extensions/hook-dispatcher.js';
 import { generateRunId, isTagsReportSchema, JobNotRunningError } from '../../kernel/jobs/index.js';
 import { loadConfig, type IJobsConfig } from '../../kernel/config/loader.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
-import { readSidecarFor, sidecarPathFor } from '../../kernel/sidecar/index.js';
-import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
-import {
-  EConsentRequiredError,
-  ensureSidecarWritesAllowed,
-} from '../config/sidecar-consent.js';
 import { appendOperation, type TOperationChannel } from '../operations-log.js';
 import {
   recordCompletedOutcome,
@@ -94,7 +89,7 @@ export interface IRecordJobOpts {
   /**
    * Lazily-resolved composed runtime. Invoked at most once, AFTER the
    * report parses (preserving the report-invalid-before-resolution
-   * ordering) and reused by the auto-fix + tags legs. Memoise it in the
+   * ordering) and reused by the auto-fix + tagger legs. Memoise it in the
    * caller so the plugin runtime is discovered once per record.
    */
   getRuntime: () => Promise<IActionRuntime>;
@@ -115,10 +110,11 @@ export interface IRecordJobOpts {
   channel: TOperationChannel;
   /** Surface-specific live push: CLI wraps `pushJobEvent`, MCP broadcasts. */
   onEvent?: (event: IJobLifecycleEvent) => void | Promise<void>;
-  /** A tagger record merged tags into the sidecar (human advisory hook). */
-  onTagsApplied?: (tags: string[], nodeId: string) => void;
-  /** A tagger record could not write tags for lack of standing consent. */
-  onTagsConsentMissing?: (nodeId: string) => void;
+  /**
+   * A tagger record PROPOSED tags (human advisory hook). Nothing was
+   * written: the operator saves them from the tags editor.
+   */
+  onTagsProposed?: (tags: string[], nodeId: string) => void;
 }
 
 /**
@@ -226,13 +222,22 @@ async function recordCompletedPath(opts: IRecordJobOpts, job: Job): Promise<TRec
     return { kind: 'report-invalid', execution: outcome.execution, detail: outcome.detail };
   }
 
+  // The tagger proposal is read BEFORE the completion event so it can ride
+  // the frame: the tags are the operator's answer to "the tagger ran, now
+  // what?", and the callback below only reaches a CLI recorder, never the
+  // UI that launched it. A no-op (one cheap resolve) for every non-tagger
+  // job.
+  const proposal = await taggerProposal(opts, job, outcome.execution);
   // The record committed: push job.completed BEFORE the hook chain so a
   // connected server sees the completion ahead of any chained fixer's
   // job.submitted (spec/job-events.md §Transport).
   await emit(opts, {
     type: 'job.completed',
     jobId: job.id,
-    data: buildCompletedEventData(outcome.execution, job, opts.metrics.model ?? null),
+    data: {
+      ...buildCompletedEventData(outcome.execution, job, opts.metrics.model ?? null),
+      ...proposal,
+    },
   });
   appendOperation(opts.cwd, {
     op: 'jobs.record',
@@ -243,7 +248,6 @@ async function recordCompletedPath(opts: IRecordJobOpts, job: Job): Promise<TRec
     id: job.id,
   });
   await chainAutoFix(opts, job);
-  await applyTagsWriteThrough(opts, job, outcome.execution);
   return { kind: 'completed', execution: outcome.execution };
 }
 
@@ -405,77 +409,61 @@ function silentEmitter(): ProgressEmitterPort {
 }
 
 // ---------------------------------------------------------------------------
-// Tags write-through (moved verbatim from `cli/commands/record.ts`)
+// Tagger proposal (`spec/job-lifecycle.md` §Tags proposal)
 // ---------------------------------------------------------------------------
 
 /**
- * Merge a completed TAGGER report's `tags[]` into the node's sidecar
- * `annotations.tags` via the gated `.sm` channel, then refresh the mirror.
- * Honours the STANDING consent only: a missing grant surfaces a
- * `onTagsConsentMissing` advisory and applies nothing (the report still
- * carries the tags). Every other failure is swallowed (best-effort).
+ * Read a completed TAGGER report's `tags[]` and hand them back as a
+ * PROPOSAL for the `job.completed` frame. Writes NOTHING: tags are human
+ * curation (`spec/architecture.md` §Storage rule, which admits no carve-out
+ * for a machine authoring curation), so the operator reviews the proposal
+ * in the ordinary tags editor and saves it under their own hand, through
+ * the usual consent-gated `.sm` handshake.
+ *
+ * Why the record path stopped writing (2026-07-25): an interactive prompt
+ * is impossible inside a record callback, so a record-time write could only
+ * honour a STANDING `allowEditSmFiles` grant, and a project without that
+ * grant burned a model call and silently produced nothing. A proposal
+ * cannot silently vanish, and the human stays the author of their curation.
+ *
+ * Best-effort like every other post-transaction leg: any failure returns
+ * `{}` and never changes the recorded outcome. Returns the fragment it
+ * contributes to the completion event data, absent for a non-tagger job and
+ * for a tagger whose report carried no usable tags.
  */
-async function applyTagsWriteThrough(
+async function taggerProposal(
   opts: IRecordJobOpts,
   job: Job,
   execution: ExecutionRecord,
-): Promise<void> {
+): Promise<Record<string, unknown>> {
   try {
-    const tags = taggerReportTags(await opts.getRuntime(), job, execution);
-    if (tags.length === 0) return;
-    const merged = await writeMergedTags(opts.adapter, job.nodeId, tags, opts.cwd);
-    if (merged === null) return;
-    opts.onTagsApplied?.(merged, job.nodeId);
-  } catch (err) {
-    if (err instanceof EConsentRequiredError) {
-      opts.onTagsConsentMissing?.(job.nodeId);
-    }
-    // Best-effort: the record's success never depends on the apply.
+    // `null` = not a tagger at all, so the field stays absent. A TAGGER
+    // always reports, even with an empty list: "I looked and found nothing"
+    // must be distinguishable from "no tagger ran", or a stale proposal
+    // from an earlier run would linger on the operator's screen.
+    const proposed = taggerReportTags(await opts.getRuntime(), job, execution);
+    if (proposed === null) return {};
+    if (proposed.length > 0) opts.onTagsProposed?.(proposed, job.nodeId);
+    return { tagsProposed: proposed };
+  } catch {
+    return {};
   }
 }
 
 /**
- * The tags a completed TAGGER report wants applied, or `[]` when the
- * recorded extension is not a tagger (kind, schema namespace) or the report
- * carries no usable tags.
+ * The tags a completed TAGGER report proposes, or `[]` when the recorded
+ * extension is not a tagger (kind, schema namespace) or the report carries
+ * no usable tags.
  */
-function taggerReportTags(runtime: IActionRuntime, job: Job, execution: ExecutionRecord): string[] {
+function taggerReportTags(
+  runtime: IActionRuntime,
+  job: Job,
+  execution: ExecutionRecord,
+): string[] | null {
   const resolution = resolveExtensionRecord(runtime, job.extensionId, job.extensionKind);
-  if (!resolution.ok || resolution.record.extensionKind !== 'action') return [];
-  if (!isTagsReportSchema(resolution.record.schema)) return [];
+  if (!resolution.ok || resolution.record.extensionKind !== 'action') return null;
+  if (!isTagsReportSchema(resolution.record.schema)) return null;
   return reportTags(execution.reportPath ?? null);
-}
-
-/**
- * Merge `tags` into the node's sidecar `annotations.tags` through the gated
- * `.sm` channel (standing consent only), refresh the mirror, and return the
- * merged list. `null` = nothing written (a brand-new sidecar with no live
- * scan node to source the identity from). Consent failures propagate as
- * `EConsentRequiredError`.
- */
-async function writeMergedTags(
-  adapter: StoragePort,
-  nodeId: string,
-  tags: readonly string[],
-  cwd: string,
-): Promise<string[] | null> {
-  const mdAbs = resolvePath(cwd, nodeId);
-  const read = readSidecarFor(mdAbs);
-  const merged = mergeTagLists(existingTags(read.parsed?.annotations), tags);
-  const changes: Record<string, unknown> = { annotations: { tags: merged } };
-  if (read.parsed === null) {
-    const bundle = await adapter.scans.findNode(nodeId);
-    if (!bundle) return null;
-    changes['identity'] = {
-      path: bundle.node.path,
-      bodyHash: bundle.node.bodyHash,
-      frontmatterHash: bundle.node.frontmatterHash,
-    };
-  }
-  const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);
-  await store.applyPatch(sidecarPathFor(mdAbs), changes, { confirm: false, always: false, cwd });
-  await adapter.scans.refreshAnnotations(nodeId, readSidecarFor(mdAbs).parsed?.annotations ?? null);
-  return merged;
 }
 
 /** Parse the recorded report JSON and extract a clean `tags[]`. */
@@ -488,28 +476,6 @@ function reportTags(reportJson: string | null): string[] {
   } catch {
     return [];
   }
-}
-
-/** The sidecar's current `annotations.tags`, defensively read. */
-function existingTags(annotations: Record<string, unknown> | null | undefined): string[] {
-  const raw = annotations?.['tags'];
-  return Array.isArray(raw) ? raw.filter((t): t is string => typeof t === 'string') : [];
-}
-
-/**
- * Union merge (spec §Tags write-through): existing entries first in their
- * order, new tags appended, case-insensitive dedup.
- */
-function mergeTagLists(existing: readonly string[], incoming: readonly string[]): string[] {
-  const seen = new Set(existing.map((t) => t.toLowerCase()));
-  const merged = [...existing];
-  for (const tag of incoming) {
-    const key = tag.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    merged.push(tag);
-  }
-  return merged;
 }
 
 // Re-export so a caller that needs a fresh ext-mode run id (the CLI shares

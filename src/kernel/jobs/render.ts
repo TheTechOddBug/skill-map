@@ -151,11 +151,24 @@ export interface IRenderJobContentInput {
    * ONLY for fixer jobs (probabilistic Actions declaring
    * `precondition.analyzerIds`). When present it is inserted at the
    * placeholder seam BEFORE the report contract, so the render order is
-   * template-prose, findings, report-contract, `<user-content>` block. It
-   * is kernel-authored prelude, never user content, so it stays outside the
-   * delimiter. Absent on non-fixer / legacy callers.
+   * template-prose, findings, current-tags, report-contract,
+   * `<user-content>` block. It is kernel-authored prelude, never user
+   * content, so it stays outside the delimiter. Absent on non-fixer /
+   * legacy callers.
    */
   findingsSection?: string;
+  /**
+   * Rendered current-tags section (`buildCurrentTagsSection`). Present ONLY
+   * for TAGGER jobs (Actions whose report schema `$ref`s a canonical
+   * `tags/*.schema.json`) over a node that actually carries tags. When
+   * present it is inserted at the placeholder seam AFTER the findings
+   * section and BEFORE the report contract, so the model sees the
+   * vocabulary the node already uses and proposes only what is genuinely
+   * missing (`spec/job-lifecycle.md` §Current-tags injection for taggers).
+   * Kernel-authored prelude, never user content, so it stays outside the
+   * delimiter. Absent for non-taggers and for tagged-nothing nodes.
+   */
+  currentTagsSection?: string;
   /**
    * Rendered report-contract section (`buildReportContract`). When
    * present it is inserted at the placeholder seam, immediately before
@@ -179,11 +192,13 @@ export function renderJobContent(input: IRenderJobContentInput): string {
   const block = wrapUserContent(input.node.path, input.nodeBody);
   // The kernel-authored prelude expands WITH the placeholder so it lands
   // right before the `<user-content>` block (and outside it), per
-  // `spec/job-lifecycle.md` §Submit step 9 + §Findings injection for
-  // fixers. Order: findings-to-resolve (fixer only), then report contract,
+  // `spec/job-lifecycle.md` §Submit step 9 + §Findings injection for fixers
+  // + §Current-tags injection for taggers. Order: findings-to-resolve
+  // (fixer only), then current tags (tagger only), then report contract,
   // then the user-content block.
   const parts: string[] = [];
   if (input.findingsSection !== undefined) parts.push(input.findingsSection);
+  if (input.currentTagsSection !== undefined) parts.push(input.currentTagsSection);
   if (input.reportContract !== undefined) parts.push(input.reportContract);
   parts.push(block);
   const expansion = parts.join('\n\n');
