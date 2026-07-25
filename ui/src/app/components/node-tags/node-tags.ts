@@ -41,6 +41,7 @@ import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { effectiveUserTags } from '../../../models/node-derived';
+import { ProcessingAgentReadinessService } from '../../services/processing-agent-readiness';
 import { DebugSurface } from '../../slots/debug-surface.directive';
 import { ActionDispatchService } from '../../../services/action-dispatch';
 import { CollectionLoaderService } from '../../../services/collection-loader';
@@ -100,6 +101,16 @@ export class NodeTags {
 
   private readonly dispatcher = inject(ActionDispatchService);
   private readonly loader = inject(CollectionLoaderService);
+  private readonly processingAgent = inject(ProcessingAgentReadinessService);
+
+  /**
+   * The shared submit gate: nothing can drain the queue right now (the
+   * lens's processing skill is missing, or no agent is attached to the
+   * MCP server), so the auto-tag button (whose every click enqueues a
+   * job) sits disabled instead of dead-ending. Only CONFIRMED readings
+   * close it (`null` = unknown fails OPEN).
+   */
+  protected readonly submitGateClosed = this.processingAgent.submitGateClosed;
 
   /**
    * The project's live tag vocabulary: every tag currently present on any
@@ -152,8 +163,13 @@ export class NodeTags {
     this.tags().length === 0 ? this.texts.addTooltip : this.texts.editTooltip,
   );
 
-  /** Auto-tag button tooltip / aria, per host-owned state. */
+  /** Auto-tag button tooltip / aria, per host-owned state (gate wins). */
   protected readonly autoTagTooltip = computed<string>(() => {
+    // Name WHICH half is missing: installing the skill and starting the
+    // agent are different actions for the operator.
+    const reason = this.processingAgent.submitGateReason();
+    if (reason === 'mcp-disconnected') return this.texts.autoTag.tooltipNoMcp;
+    if (reason !== null) return this.texts.autoTag.tooltipNoAgent;
     switch (this.autoTagState()) {
       case 'queued':
         return this.texts.autoTag.tooltipQueued;
@@ -164,8 +180,14 @@ export class NodeTags {
     }
   });
 
+  /** Busy (host-owned state) or gated (no agent to drain the queue). */
+  protected readonly autoTagDisabled = computed<boolean>(() => {
+    const state = this.autoTagState();
+    return state === 'queued' || state === 'running' || this.submitGateClosed();
+  });
+
   protected onAutoTagClick(): void {
-    if (this.autoTagState() !== 'idle') return;
+    if (this.autoTagState() !== 'idle' || this.submitGateClosed()) return;
     this.autoTagClick.emit();
   }
 

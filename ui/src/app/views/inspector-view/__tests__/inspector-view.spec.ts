@@ -2261,6 +2261,19 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     issues?: IIssueApi[];
     /** Extra node contributions (e.g. `inspector.surface.*` claims). */
     contributions?: IContributionApi[];
+    /**
+     * The shared processing-agent gate as the BFF answers it:
+     * `installed` (open, the stub default), `missing` (closed, nothing
+     * can be submitted), `unknown` (the probe fails, which must FAIL
+     * OPEN).
+     */
+    agentSkill?: 'installed' | 'missing' | 'unknown';
+    /**
+     * The MCP half of the same gate: `connected` (the stub default,
+     * open) or `disconnected` (an agent-less `/mcp`, which closes the
+     * gate on its own even with the skill installed).
+     */
+    mcp?: 'connected' | 'disconnected';
 }
 
   async function bootAiActions(opts: IAiActionsBoot = {}): Promise<{
@@ -2286,6 +2299,20 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
       });
     }
     if (opts.summaries) dataSource.getNodeSummary.mockResolvedValue(opts.summaries);
+    if (opts.agentSkill === 'missing') {
+      dataSource.getAgentSkillInstallStatus.mockResolvedValue({
+        provider: 'claude',
+        supported: true,
+        skillDir: '.claude/skills/sm-process-jobs',
+        installed: false,
+        stale: false,
+      });
+    } else if (opts.agentSkill === 'unknown') {
+      dataSource.getAgentSkillInstallStatus.mockRejectedValue(new Error('down'));
+    }
+    if (opts.mcp === 'disconnected') {
+      dataSource.mcpStatus.mockResolvedValue({ enabled: true, connected: false, clients: 0 });
+    }
     const { fixture, jobEvents$ } = bootstrap({ loader, dataSource });
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
@@ -2909,6 +2936,24 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     expect(dom.querySelector('[data-testid="inspector-ai-hidden-stale"]')).toBeNull();
   });
 
+  it('a kernel-origin row carries the kernel mark; an extension-origin row does not', async () => {
+    // The safety lane synthesizes these from the report's `safety` block
+    // and stamps them with the RUN that surfaced them, so row 22 says
+    // `core/todo-finder` while the judgment is the kernel's. Without the
+    // mark the operator reads it as the finder's own verdict.
+    const { fixture } = await bootAiActions({
+      findings: makeFindingsEnvelope([
+        makeFinding(),
+        makeFinding({ id: 22, origin: 'kernel', type: 'injection-detected', severity: 'error' }),
+      ]),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    const mark = dom.querySelector('[data-testid="inspector-finding-kernel-22"]');
+    expect(mark).not.toBeNull();
+    expect(mark!.textContent).toContain('kernel');
+    expect(dom.querySelector('[data-testid="inspector-finding-kernel-12"]')).toBeNull();
+  });
+
   it('renders no honesty line (the run history lives in Activity, user call 2026-07-17)', async () => {
     const { fixture } = await bootAiActions({
       findings: makeFindingsEnvelope([], { total: 3, fixedExcluded: 2, dismissedExcluded: 1 }),
@@ -3032,6 +3077,111 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     ).click();
     await flush(fixture);
     expect(dom.querySelector('[data-testid="inspector-ai-actions-error"]')).toBeNull();
+  });
+
+  /**
+   * Processing-agent gate (the submit gate): with no agent set up to
+   * drain the queue for the active lens, EVERY control that would
+   * enqueue a job sits disabled (visible, tooltips untouched) while the
+   * non-submitting ones keep working. `null` (probe failed) FAILS OPEN.
+   */
+  function gateFixture(
+    agentSkill: IAiActionsBoot['agentSkill'],
+    mcp?: IAiActionsBoot['mcp'],
+  ): Promise<{
+    fixture: ComponentFixture<InspectorView>;
+    dataSource: IStubDataSource;
+    node: INodeView;
+    jobEvents$: Subject<void>;
+  }> {
+    return bootAiActions({
+      agentSkill,
+      mcp,
+      issues: [makeIssue()],
+      findings: makeFindingsEnvelope([makeFinding()]),
+      probs: makeProbExtensions({
+        finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'] })],
+        standalone: [makeProbEntry({ id: 'core/summarizer' })],
+        issueFixers: [makeIssueFixer()],
+      }),
+    });
+  }
+
+  function gateButton(
+    fixture: ComponentFixture<InspectorView>,
+    testid: string,
+  ): HTMLButtonElement {
+    return (fixture.nativeElement as HTMLElement).querySelector(
+      `[data-testid="${testid}"] button`,
+    ) as HTMLButtonElement;
+  }
+
+  /** Every submitting control of the section, by test id. */
+  const SUBMITTING_CONTROLS = [
+    'inspector-ai-action-launch-core/todo-finder',
+    'inspector-ai-action-launch-core/summarizer',
+    'inspector-ai-action-launch-all-finders',
+    'inspector-ai-action-launch-all-standalone',
+    'inspector-finding-fix-12',
+    'inspector-issue-fix-reference-broken',
+  ];
+
+  it('gate CLOSED: every submitting control is disabled, the rest stay live', async () => {
+    const { fixture } = await gateFixture('missing');
+    for (const testid of SUBMITTING_CONTROLS) {
+      expect(gateButton(fixture, testid).disabled, testid).toBe(true);
+    }
+    // Non-submitting row actions are local decisions, never gated.
+    expect(gateButton(fixture, 'inspector-finding-resolve-12').disabled).toBe(false);
+    expect(gateButton(fixture, 'inspector-finding-dismiss-12').disabled).toBe(false);
+  });
+
+  it('gate OPEN (skill installed): every submitting control is enabled', async () => {
+    const { fixture } = await gateFixture('installed');
+    for (const testid of SUBMITTING_CONTROLS) {
+      expect(gateButton(fixture, testid).disabled, testid).toBe(false);
+    }
+  });
+
+  /**
+   * The MCP half (user call 2026-07-25): the skill IS installed, but no
+   * agent is attached, so a submit would sit in the queue with nobody to
+   * drain it. Same closure as a missing skill.
+   */
+  it('gate CLOSED by a disconnected MCP: every submitting control is disabled', async () => {
+    const { fixture } = await gateFixture('installed', 'disconnected');
+    for (const testid of SUBMITTING_CONTROLS) {
+      expect(gateButton(fixture, testid).disabled, testid).toBe(true);
+    }
+    expect(gateButton(fixture, 'inspector-finding-resolve-12').disabled).toBe(false);
+  });
+
+  /**
+   * The Auto-fixer switch only decides what the NEXT finder click
+   * submits, so with nothing able to drain the queue it has no reachable
+   * effect and rides the same gate (user call 2026-07-25).
+   */
+  it('gate CLOSED: the Auto-fixer switch is disabled too, and enabled again when open', async () => {
+    const autoFixInput = (fixture: ComponentFixture<InspectorView>): HTMLInputElement =>
+      (fixture.nativeElement as HTMLElement).querySelector(
+        '[data-testid="inspector-auto-fix-toggle"] input',
+      ) as HTMLInputElement;
+
+    const missing = await gateFixture('missing');
+    expect(autoFixInput(missing.fixture).disabled).toBe(true);
+
+    const noMcp = await gateFixture('installed', 'disconnected');
+    expect(autoFixInput(noMcp.fixture).disabled).toBe(true);
+
+    const open = await gateFixture('installed');
+    expect(autoFixInput(open.fixture).disabled).toBe(false);
+  });
+
+  it('unknown gate (probe failed) FAILS OPEN: nothing is disabled', async () => {
+    const { fixture } = await gateFixture('unknown');
+    for (const testid of SUBMITTING_CONTROLS) {
+      expect(gateButton(fixture, testid).disabled, testid).toBe(false);
+    }
   });
 
   it('renders queued / running server states as disabled buttons', async () => {

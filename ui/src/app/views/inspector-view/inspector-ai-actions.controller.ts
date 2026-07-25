@@ -89,11 +89,21 @@ export interface IAiActionsSetupDeps {
   /** Watcher re-scan signal, findings staleness derives from the scan. */
   scanCompleted$: Observable<IWsScanCompletedEvent>;
   /**
-   * The active lens' provider id (or `null` when no lens is resolved).
-   * Drives the "no processing agent set up" warning: the processing
-   * skill is installed per provider, so its status is provider-scoped.
+   * The app-level processing-agent gate
+   * (`ProcessingAgentReadinessService.skillMissing`), threaded by the
+   * host. Drives the "no processing agent set up" warning here and the
+   * disabled state of every submitting affordance elsewhere; the probe
+   * itself is shared, never re-run per card.
    */
-  activeProvider: Signal<string | null>;
+  skillMissing: Signal<boolean | null>;
+  /**
+   * The app-level MCP connectivity half of the same gate
+   * (`ProcessingAgentReadinessService.mcpConnected`), threaded by the
+   * host. Drives the secondary "skill installed, no agent attached"
+   * warning here; the service owns the probe and its refresh cadence,
+   * so the card never runs one per node.
+   */
+  mcpConnected: Signal<boolean | null>;
   /**
    * Park a `.sm`-consent retry behind the shared consent dialog
    * (`ActionDispatchService.requestSmConsent`): the dismiss / restore
@@ -119,22 +129,21 @@ export interface IAiActionsHandle {
   /** Whether the AI actions card renders at all. */
   available: Signal<boolean>;
   /**
-   * Whether the active lens SUPPORTS a processing skill that is NOT
+   * Re-exposed app-level gate (`ProcessingAgentReadinessService`):
+   * whether the active lens SUPPORTS a processing skill that is NOT
    * installed, i.e. no agent is set up to drain launched jobs. `null`
-   * until the provider-scoped status probe resolves (and on any probe
-   * error), so the heads-up warning only shows on a confirmed `true`,
-   * never while unknown. `false` when the skill is installed or the lens
-   * has no skill to install (`supported: false`).
+   * while unknown, so the heads-up warning only shows on a confirmed
+   * `true`. `false` when the skill is installed or the lens has no
+   * skill to install (`supported: false`).
    */
   skillMissing: Signal<boolean | null>;
   /**
-   * MCP client connectivity for the secondary heads-up warning: `null`
-   * until the cheap `mcpStatus` probe resolves, then `true` / `false`
-   * for whether an agent is currently connected to skill-map's MCP
-   * server. Gated behind `skillMissing === false` in the view (once the
-   * skill is installed and the agent runs, it opens an MCP session and
-   * this flips `true`, clearing the warning). A probe error leaves it
-   * `null` (no warning, never crash).
+   * Re-exposed app-level MCP connectivity (`ProcessingAgentReadiness`):
+   * whether an agent is currently attached to skill-map's MCP server.
+   * Gated behind `skillMissing === false` in the view (once the skill is
+   * installed and the agent runs, it opens an MCP session and this flips
+   * `true`, clearing the warning). `null` while unknown / on a probe
+   * error, so the warning only shows on a confirmed `false`.
    */
   mcpConnected: Signal<boolean | null>;
   /** Last submit failure, or `null`. */
@@ -242,21 +251,6 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
   /** The hidden bucket currently revealed under the tray (one at a time). */
   const revealedBucket = signal<TFindingsBucket | null>(null);
   const revealedRows = signal<IFindingApi[]>([]);
-  /**
-   * Whether the active lens supports a processing skill that is NOT
-   * installed (no agent set up to drain jobs), probed per active
-   * provider. `null` until the first probe resolves (and on any probe
-   * error), so the heads-up warning only shows on a confirmed `true`,
-   * never while unknown.
-   */
-  const skillMissing = signal<boolean | null>(null);
-  /**
-   * Whether an agent is connected to skill-map's MCP server, probed via
-   * the free `mcpStatus` read. `null` until the first probe resolves (and
-   * on any probe error), so the secondary warning only shows on a
-   * confirmed `false`, never while unknown. Reset per node navigation.
-   */
-  const mcpConnected = signal<boolean | null>(null);
 
   /**
    * Last path the fetch effect ran for. Distinguishes a navigation
@@ -412,7 +406,6 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
       findingBusy.set(new Set());
       revealedBucket.set(null);
       revealedRows.set([]);
-      mcpConnected.set(null);
       fetchedPath = path;
     }
     if (!path) return;
@@ -421,62 +414,6 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
       cancelled = true;
     });
     void fetchBoth(path, () => cancelled);
-    void probeMcpConnected(() => cancelled);
-  });
-
-  /**
-   * Probe whether the active lens' processing skill is installed, for the
-   * "no processing agent set up" warning. Provider-scoped (the skill is
-   * installed per lens), guarded by the effect's cleanup flag so a stale
-   * resolve never overwrites the current warning. Warns only when the lens
-   * SUPPORTS a skill but it is NOT installed; an unsupported lens has
-   * nothing to install (no warning). Errors leave the signal `null` (no
-   * warning, never crash).
-   */
-  async function probeSkillInstalled(
-    provider: string,
-    isCancelled: () => boolean,
-  ): Promise<void> {
-    try {
-      const status = await deps.dataSource.getAgentSkillInstallStatus(provider);
-      if (isCancelled()) return;
-      skillMissing.set(status.supported && !status.installed);
-    } catch {
-      // Leave `null`: the warning stays hidden when the status is unknown.
-    }
-  }
-
-  /**
-   * Probe MCP client connectivity for the secondary heads-up warning.
-   * Cheap (O(1), no DB / scan) so it rides the per-node effect; guarded
-   * by the effect's cleanup flag so a stale resolve from a node we
-   * navigated away from never overwrites the current warning. Errors
-   * leave the signal `null` (no warning, never crash).
-   */
-  async function probeMcpConnected(isCancelled: () => boolean): Promise<void> {
-    try {
-      const status = await deps.dataSource.mcpStatus();
-      if (isCancelled()) return;
-      mcpConnected.set(status.connected);
-    } catch {
-      // Leave `null`: the warning stays hidden when connectivity is unknown.
-    }
-  }
-
-  // Provider-scoped probe for the "no processing agent set up" warning.
-  // The skill install status is per lens, not per node, so it rides its
-  // own effect keyed on the active provider rather than the node effect.
-  effect((onCleanup) => {
-    const provider = deps.activeProvider();
-    if (provider === null) {
-      skillMissing.set(null);
-      return;
-    }
-    let cancelled = false;
-    onCleanup(() => {
-      cancelled = true;
-    });
-    void probeSkillInstalled(provider, () => cancelled);
   });
 
   // Live refresh: any job lifecycle frame or a completed re-scan makes
@@ -485,15 +422,11 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
   merge(deps.jobEvents$, deps.scanCompleted$)
     .pipe(debounceTime(AI_ACTIONS_LIVE_REFRESH_DEBOUNCE_MS), takeUntilDestroyed())
     .subscribe(() => {
-      // Re-probe the skill status too: installing it eventually produces
-      // job activity as the agent drains the queue, so the warning clears
-      // without a navigation.
-      const provider = deps.activeProvider();
-      if (provider !== null) void probeSkillInstalled(provider, () => false);
-      // Re-probe MCP connectivity too: a job event (e.g. the agent
-      // starting to drain the queue) means an agent connected, which
-      // clears the secondary warning without a navigation.
-      void probeMcpConnected(() => false);
+      // Neither the skill status nor MCP connectivity is re-probed here:
+      // both live in the shared `ProcessingAgentReadinessService`, which
+      // owns their refresh points (boot, scan.completed, lens change,
+      // Settings close, and the unattached-MCP poll) for every consumer
+      // at once.
       const path = fetchedPath;
       if (!path) return;
       void fetchBoth(path);
@@ -783,8 +716,8 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     counts: counts.asReadonly(),
     probExtensions: probExtensions.asReadonly(),
     available,
-    skillMissing: skillMissing.asReadonly(),
-    mcpConnected: mcpConnected.asReadonly(),
+    skillMissing: deps.skillMissing,
+    mcpConnected: deps.mcpConnected,
     error: error.asReadonly(),
     entryState: (entry) => {
       if (entry.state === 'idle') {

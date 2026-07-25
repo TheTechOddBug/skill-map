@@ -50,7 +50,7 @@ import { ActionDispatchService } from '../../../services/action-dispatch';
 import { cssKindNameOrFallback } from '../../../services/css-guard';
 import { activityNodeLabel, pathBasenameForLink } from '../../../services/path-basename';
 import { ProviderRegistryService } from '../../../services/provider-registry';
-import { ProjectInfoService } from '../../services/project-info';
+import { ProcessingAgentReadinessService } from '../../services/processing-agent-readiness';
 import {
   AnnotationsPanel,
   overlayHasAnnotationsContent,
@@ -160,7 +160,7 @@ export class InspectorView implements OnInit {
   private readonly wsEvents = inject(WsEventStreamService);
   private readonly actionDispatch = inject(ActionDispatchService);
   private readonly providerRegistry = inject(ProviderRegistryService);
-  private readonly projectInfo = inject(ProjectInfoService);
+  private readonly processingAgent = inject(ProcessingAgentReadinessService);
   private readonly activityStats = inject(NodeActivityStatsService);
   private readonly announcer = inject(A11yAnnouncerService);
   private readonly livePrefs = inject(LivePreferencesService);
@@ -491,9 +491,11 @@ export class InspectorView implements OnInit {
     dataSource: this.dataSource,
     jobEvents$: this.wsEvents.jobEvents$,
     scanCompleted$: this.wsEvents.scanCompleted$,
-    // The active lens drives the "no processing agent set up" warning
-    // (the processing skill is installed per provider).
-    activeProvider: this.projectInfo.activeProvider,
+    // The shared readiness service drives both heads-up warnings and,
+    // through `submitGateClosed`, the disabled state of every submitting
+    // control (see `submitGateClosed`).
+    skillMissing: this.processingAgent.skillMissing,
+    mcpConnected: this.processingAgent.mcpConnected,
     // The dismiss / restore flows park their consent retries behind the
     // SAME dialog the action buttons use (one instance, one service).
     requestSmConsent: (retry) => this.actionDispatch.requestSmConsent(retry),
@@ -509,6 +511,22 @@ export class InspectorView implements OnInit {
   protected readonly aiActionCounts = this.aiActions.counts;
   protected readonly aiActionRevealedBucket = this.aiActions.revealedBucket;
   protected readonly aiActionRevealedRows = this.aiActions.revealedRows;
+
+  /**
+   * The shared submit gate: nothing can drain the queue right now (the
+   * lens's processing skill is not installed, or no agent is attached to
+   * the MCP server), so anything that would enqueue a job sits DISABLED
+   * (never hidden) instead of accepting a click that dead-ends in the
+   * `no-processing-agent` error strip. Only CONFIRMED readings close it:
+   * `null` (unknown / probe failed) fails OPEN.
+   *
+   * Folded into the existing disabled predicates rather than bound
+   * separately at each call site, so a new launcher / fix button
+   * inherits the gate for free. Non-submitting controls (the Auto-fixer
+   * toggle, dismiss / resolve / restore / delete, the bucket chips) are
+   * deliberately NOT gated: they are local state, they work offline.
+   */
+  protected readonly submitGateClosed = this.processingAgent.submitGateClosed;
 
   /**
    * The `issueFixers` entry matching a deterministic issue row, or
@@ -531,6 +549,16 @@ export class InspectorView implements OnInit {
    */
   protected issueFixBusy(fixer: IIssueFixerEntryApi): boolean {
     return this.aiActions.entryState(fixer) !== 'idle' || this.aiActions.isSubmitting(fixer.id);
+  }
+
+  /**
+   * Disabled state of an issue row's fix button: busy, or the submit
+   * gate is closed. Split from `issueFixBusy` because that one also
+   * drives `[loading]`, and a gated button must read as disabled, not
+   * as spinning.
+   */
+  protected issueFixDisabled(fixer: IIssueFixerEntryApi): boolean {
+    return this.issueFixBusy(fixer) || this.submitGateClosed();
   }
 
   protected fixIssue(fixer: IIssueFixerEntryApi): void {
@@ -611,6 +639,21 @@ export class InspectorView implements OnInit {
     // tray locks (the historical behaviour).
     if (busy === null) return this.aiActionEntryState(entry) !== 'idle';
     return busy.all || busy.findingIds.includes(finding.id);
+  }
+
+  /**
+   * Disabled state of a finding row's fix (bolt) button: its own busy
+   * state, a per-row action in flight, or the submit gate closed. Kept
+   * apart from `aiActionFindingFixBusy` (which drives `[loading]`, and
+   * also disables the row's NON-submitting resolve / dismiss buttons,
+   * which the gate must never touch).
+   */
+  protected aiActionFindingFixDisabled(finding: IFindingApi): boolean {
+    return (
+      this.aiActionFindingFixBusy(finding) ||
+      this.aiActionFindingBusy(finding.id) ||
+      this.submitGateClosed()
+    );
   }
 
   protected aiActionFindingBusy(findingId: number): boolean {
@@ -704,7 +747,28 @@ export class InspectorView implements OnInit {
     return this.autoFixState.enabled();
   }
   protected onAutoFixToggle(value: boolean): void {
+    // Gated like every submitting affordance (user call 2026-07-25):
+    // the toggle only decides what the NEXT finder click submits, and
+    // with nothing able to drain the queue there is no next click, so
+    // flipping it would be setting up work that cannot run.
+    if (this.submitGateClosed()) return;
     this.autoFixState.set(value);
+  }
+
+  /**
+   * Tooltip of the Automatic toggle: the gate reason wins over the
+   * mechanics blurb, so a disabled switch says WHY instead of
+   * explaining a behaviour the operator cannot reach.
+   */
+  protected autoFixTooltip(): string {
+    switch (this.processingAgent.submitGateReason()) {
+      case 'skill-missing':
+        return this.texts.aiActions.autoFix.tooltipNoAgent;
+      case 'mcp-disconnected':
+        return this.texts.aiActions.autoFix.tooltipNoMcp;
+      default:
+        return this.texts.aiActions.autoFix.tooltip;
+    }
   }
 
   /**
@@ -784,14 +848,26 @@ export class InspectorView implements OnInit {
    * re-running a finder whose findings are still open makes no sense;
    * handle them first, via fix / resolve / dismiss / delete, and the
    * button re-enables). Standalone entries always carry
-   * `hasOpenFindings: false`, so the guard only bites finders.
+   * `hasOpenFindings: false`, so the guard only bites finders. The
+   * submit gate rides here too (`submitGateClosed`), which also
+   * makes the group ALL loop below skip every entry for free.
    */
   protected aiActionLauncherDisabled(entry: IProbExtensionEntryApi): boolean {
     return (
       this.aiActionEntryState(entry) !== 'idle' ||
       this.aiActions.isSubmitting(entry.id) ||
-      entry.hasOpenFindings
+      entry.hasOpenFindings ||
+      this.submitGateClosed()
     );
+  }
+
+  /**
+   * The group's "(run all)" link. It has no per-entry busy state of its
+   * own (the loop skips entries that are individually disabled), so the
+   * gate is its only disabled condition.
+   */
+  protected aiActionLauncherAllDisabled(): boolean {
+    return this.submitGateClosed();
   }
 
   /** True while the launcher shows the busy spinner (running or submitting). */

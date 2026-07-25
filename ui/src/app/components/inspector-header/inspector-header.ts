@@ -30,6 +30,7 @@ import { DebugSurface } from '../../slots/debug-surface.directive';
 
 import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
+import { ProcessingAgentReadinessService } from '../../services/processing-agent-readiness';
 import { ActionDispatchService } from '../../../services/action-dispatch';
 import { COPIED_FEEDBACK_MS, copyToClipboard } from '../../../services/clipboard';
 import { ActionPromptDialog } from '../../renderers/node-action-button/action-prompt-dialog';
@@ -134,9 +135,48 @@ export class InspectorHeader {
   /** Reused so the card and the inspector header speak the same language. */
   protected readonly cardTexts = NODE_CARD_TEXTS;
 
-  /** Tooltip for the summary affordance, per state. */
+  private readonly processingAgent = inject(ProcessingAgentReadinessService);
+
+  /**
+   * The shared submit gate: nothing can drain the queue right now, the
+   * lens's processing skill is missing OR no agent is attached to the
+   * MCP server. Only CONFIRMED readings close it (`null` = unknown
+   * fails OPEN, a probe hiccup must never lock the UI).
+   */
+  private readonly submitGateClosed = this.processingAgent.submitGateClosed;
+
+  /**
+   * Whether the gate closes the summarize button. Scoped to the states
+   * whose click SUBMITS a job: `ready` only toggles the analysis block
+   * open / closed, a purely local read of an already-stored judgment,
+   * so a missing agent must not lock it away. The block's own "Analyze
+   * again" button (which does submit) carries the gate instead.
+   */
+  protected readonly summaryGated = computed<boolean>(
+    () => this.submitGateClosed() && this.summaryState() !== 'ready',
+  );
+
+  /** Gate-aware disabled state of the summarize button. */
+  protected summaryDisabled(): boolean {
+    const state = this.summaryState();
+    return state === 'queued' || state === 'running' || this.summaryGated();
+  }
+
+  /** Gate-aware disabled state of the block's "Analyze again" button. */
+  protected summaryRefreshDisabled(): boolean {
+    return this.submitGateClosed();
+  }
+
+  /** Tooltip for the summary affordance, per state (gate wins). */
   protected summaryTooltip(): string {
     const t = this.texts.header.summary;
+    if (this.summaryGated()) {
+      // Name WHICH half is missing: "install the skill" and "start your
+      // agent" are different actions for the operator.
+      return this.processingAgent.submitGateReason() === 'mcp-disconnected'
+        ? t.tooltipNoMcp
+        : t.tooltipNoAgent;
+    }
     switch (this.summaryState()) {
       case 'queued':
         return t.tooltipQueued;

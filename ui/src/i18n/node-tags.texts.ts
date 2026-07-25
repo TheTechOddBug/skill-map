@@ -23,6 +23,20 @@ export const NODE_TAGS_TEXTS = {
     tooltipIdle: 'Auto-tag this file',
     tooltipQueued: 'Auto-tag queued',
     tooltipRunning: 'Inferring tags…',
+    /**
+     * Gate tooltip: no agent is set up to drain the queue for the
+     * active lens, so the button sits disabled (visible, never hidden).
+     * Same wording as the header's summarize gate; deliberately terse,
+     * it states the requirement and leaves the how-to to the AI Actions
+     * warning.
+     */
+    tooltipNoAgent: 'Needs a jobs agent',
+    /**
+     * The other half of the same gate: the skill IS installed but no
+     * agent is attached to the MCP server, so a submit would sit in the
+     * queue with nobody to drain it. Mirrors the header's wording.
+     */
+    tooltipNoMcp: 'Needs an agent connected to the MCP',
   },
   /** Inline title for the view-mode tag row (renders as `TAGS:`). */
   viewLabel: 'Tags',

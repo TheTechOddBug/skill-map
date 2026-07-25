@@ -9,6 +9,11 @@ import {
 import { NodeTags } from '../node-tags';
 import { ActionDispatchService } from '../../../../services/action-dispatch';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
+import {
+  ProcessingAgentReadinessService,
+  type TSubmitGateReason,
+} from '../../../services/processing-agent-readiness';
+import { NODE_TAGS_TEXTS } from '../../../../i18n/node-tags.texts';
 import type { INodeView } from '../../../../models/node';
 
 /**
@@ -68,7 +73,25 @@ async function bootstrap(
   tags: string[],
   nodePath = 'agents/architect.md',
   activeTag: string | null = null,
+  /**
+   * The shared processing-agent gate. `false` (skill installed) is the
+   * default so the pre-existing specs keep their enabled auto-tag
+   * button; `true` closes it, `null` is the unknown that fails OPEN.
+   */
+  skillMissing: boolean | null = false,
+  /**
+   * The MCP half of the same gate. `true` (an agent is attached) is the
+   * default so the pre-existing specs keep their enabled button; `false`
+   * closes the gate on its own even with the skill installed.
+   */
+  mcpConnected: boolean | null = true,
 ): Promise<ComponentFixture<NodeTags>> {
+  const gateReason: TSubmitGateReason | null =
+    skillMissing === true
+      ? 'skill-missing'
+      : mcpConnected === false
+        ? 'mcp-disconnected'
+        : null;
   TestBed.resetTestingModule();
   await TestBed.configureTestingModule({
     imports: [NodeTags],
@@ -76,6 +99,17 @@ async function bootstrap(
       provideZonelessChangeDetection(),
       { provide: ActionDispatchService, useValue: stub },
       { provide: CollectionLoaderService, useValue: { nodes: loaderNodes } },
+      // The auto-tag button reads the shared submit gate; the real
+      // service probes the BFF, so it is stubbed down to that signal.
+      {
+        provide: ProcessingAgentReadinessService,
+        useValue: {
+          skillMissing: signal<boolean | null>(skillMissing),
+          mcpConnected: signal<boolean | null>(mcpConnected),
+          submitGateReason: signal<TSubmitGateReason | null>(gateReason),
+          submitGateClosed: signal<boolean>(gateReason !== null),
+        } as unknown as ProcessingAgentReadinessService,
+      },
     ],
     deferBlockBehavior: DeferBlockBehavior.Playthrough,
   }).compileComponents();
@@ -163,6 +197,67 @@ describe('NodeTags auto-tag affordance', () => {
     expect(btn.getAttribute('data-state')).toBe('idle');
     btn.click();
     expect(clicks).toBe(1);
+  });
+
+  /**
+   * Processing-agent gate: with no agent set up to drain the queue for
+   * the active lens, the auto-tag button (whose every click enqueues a
+   * job) sits disabled, visible, and explains itself in one line.
+   */
+  it('gate CLOSED: the button stays visible but disabled, with the short tooltip', async () => {
+    const fixture = await bootstrap(['infra'], 'agents/architect.md', null, true);
+    fixture.componentRef.setInput('autoTagState', 'idle');
+    fixture.detectChanges();
+    let clicks = 0;
+    fixture.componentInstance.autoTagClick.subscribe(() => (clicks += 1));
+
+    const btn = el(fixture, 'node-tags-auto') as HTMLButtonElement;
+    expect(btn).not.toBeNull(); // disabled, NOT hidden
+    expect(btn.querySelector('.pi-sparkles')).not.toBeNull();
+    expect(btn.disabled).toBe(true);
+    expect(btn.getAttribute('aria-label')).toBe(NODE_TAGS_TEXTS.autoTag.tooltipNoAgent);
+    btn.click();
+    expect(clicks).toBe(0);
+  });
+
+  /**
+   * The other half of the gate (user call 2026-07-25): the skill IS
+   * installed, but no agent is attached to the MCP server, so a submit
+   * would sit in the queue with nobody to drain it.
+   */
+  it('gate CLOSED by a disconnected MCP: disabled, with its own tooltip', async () => {
+    const fixture = await bootstrap(['infra'], 'agents/architect.md', null, false, false);
+    fixture.componentRef.setInput('autoTagState', 'idle');
+    fixture.detectChanges();
+    let clicks = 0;
+    fixture.componentInstance.autoTagClick.subscribe(() => (clicks += 1));
+
+    const btn = el(fixture, 'node-tags-auto') as HTMLButtonElement;
+    expect(btn).not.toBeNull();
+    expect(btn.disabled).toBe(true);
+    expect(btn.getAttribute('aria-label')).toBe(NODE_TAGS_TEXTS.autoTag.tooltipNoMcp);
+    btn.click();
+    expect(clicks).toBe(0);
+  });
+
+  it('unknown MCP state (null) FAILS OPEN', async () => {
+    const fixture = await bootstrap(['infra'], 'agents/architect.md', null, false, null);
+    fixture.componentRef.setInput('autoTagState', 'idle');
+    fixture.detectChanges();
+
+    const btn = el(fixture, 'node-tags-auto') as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
+    expect(btn.getAttribute('aria-label')).toBe(NODE_TAGS_TEXTS.autoTag.tooltipIdle);
+  });
+
+  it('unknown gate (null) FAILS OPEN: enabled with the normal idle tooltip', async () => {
+    const fixture = await bootstrap(['infra'], 'agents/architect.md', null, null);
+    fixture.componentRef.setInput('autoTagState', 'idle');
+    fixture.detectChanges();
+
+    const btn = el(fixture, 'node-tags-auto') as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
+    expect(btn.getAttribute('aria-label')).toBe(NODE_TAGS_TEXTS.autoTag.tooltipIdle);
   });
 
   it('queued / running disable the button and never emit', async () => {

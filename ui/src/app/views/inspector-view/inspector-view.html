@@ -141,7 +141,7 @@
                         size="small"
                         [rounded]="true"
                         [text]="true"
-                        [disabled]="issueFixBusy(fixer)"
+                        [disabled]="issueFixDisabled(fixer)"
                         [loading]="issueFixBusy(fixer)"
                         [pTooltip]="fixer.description"
                         tooltipPosition="left"
@@ -186,6 +186,20 @@
                         >{{ f.severity }}</span
                       >
                       <code class="inspector__finding-analyzer">{{ f.type }}</code>
+                      <!-- Inline origin mark: the kernel's safety lane
+                           authored this row, the extension it names is
+                           only the run that surfaced it. Without the
+                           mark the operator reads it as that
+                           extension's own judgment. -->
+                      @if (f.origin === 'kernel') {
+                        <span
+                          class="inspector__finding-kernel"
+                          [pTooltip]="texts.aiActions.finding.kernelTagTooltip"
+                          tooltipPosition="top"
+                          [attr.data-testid]="'inspector-finding-kernel-' + f.id"
+                          >{{ texts.aiActions.finding.kernelTag }}</span
+                        >
+                      }
                       <!-- Inline stale mark: stale rows ride the tray
                            (never a hidden bucket, user call 2026-07-20). -->
                       @if (f.stale) {
@@ -226,7 +240,7 @@
                             size="small"
                             [rounded]="true"
                             [text]="true"
-                            [disabled]="aiActionFindingFixBusy(f) || aiActionFindingBusy(f.id)"
+                            [disabled]="aiActionFindingFixDisabled(f)"
                             [loading]="aiActionFindingFixBusy(f)"
                             [pTooltip]="texts.aiActions.finding.fixTooltip"
                             tooltipPosition="left"
@@ -315,6 +329,15 @@
                           >{{ f.severity }}</span
                         >
                         <code class="inspector__finding-analyzer">{{ f.type }}</code>
+                        @if (f.origin === 'kernel') {
+                          <span
+                            class="inspector__finding-kernel"
+                            [pTooltip]="texts.aiActions.finding.kernelTagTooltip"
+                            tooltipPosition="top"
+                            [attr.data-testid]="'inspector-revealed-finding-kernel-' + f.id"
+                            >{{ texts.aiActions.finding.kernelTag }}</span
+                          >
+                        }
                         @if (f.stale) {
                           <span
                             class="inspector__finding-stale"
@@ -424,8 +447,9 @@
                     <p-toggleswitch
                       [ngModel]="autoFixEnabled()"
                       (ngModelChange)="onAutoFixToggle($event)"
+                      [disabled]="submitGateClosed()"
                       inputId="inspector-auto-fix"
-                      [pTooltip]="texts.aiActions.autoFix.tooltip"
+                      [pTooltip]="autoFixTooltip()"
                       tooltipPosition="left"
                       appendTo="body"
                       data-testid="inspector-auto-fix-toggle"
@@ -460,6 +484,7 @@
                       [label]="texts.aiActions.runAll"
                       size="small"
                       [text]="true"
+                      [disabled]="aiActionLauncherAllDisabled()"
                       styleClass="inspector__ai-actions-run-all"
                       [pTooltip]="group.id === 'finders' ? texts.aiActions.allFindersTooltip : texts.aiActions.allStandaloneTooltip"
                       tooltipPosition="right"

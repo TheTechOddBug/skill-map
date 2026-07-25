@@ -113,7 +113,7 @@
         class="inspector__summary-btn"
         [class.inspector__summary-btn--ready]="summaryState() === 'ready'"
         [class.inspector__summary-btn--open]="summaryExpanded()"
-        [disabled]="summaryState() === 'queued' || summaryState() === 'running'"
+        [disabled]="summaryDisabled()"
         [pTooltip]="summaryTooltip()"
         tooltipPosition="left"
         [attr.aria-label]="summaryTooltip()"
@@ -220,6 +220,7 @@
               <button
                 type="button"
                 class="inspector__summary-refresh"
+                [disabled]="summaryRefreshDisabled()"
                 [pTooltip]="texts.header.summary.refreshTooltip"
                 tooltipPosition="left"
                 [attr.aria-label]="texts.header.summary.refreshTooltip"

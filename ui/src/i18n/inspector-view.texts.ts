@@ -26,6 +26,20 @@ export const INSPECTOR_VIEW_TEXTS = {
      */
     summary: {
       tooltipIdle: 'Analyze and summarize this file',
+      /**
+       * Gate tooltip: no agent is set up to drain the queue for the
+       * active lens, so the button sits disabled (visible, never
+       * hidden). Deliberately terse, it states the requirement and
+       * leaves the how-to to the AI Actions warning.
+       */
+      tooltipNoAgent: 'Needs a jobs agent',
+      /**
+       * The other half of the same gate: the skill IS installed but no
+       * agent is attached to the MCP server, so a submit would sit in
+       * the queue with nobody to drain it. Same terse register as
+       * `tooltipNoAgent`; the AI Actions warning carries the how-to.
+       */
+      tooltipNoMcp: 'Needs an agent connected to the MCP',
       tooltipQueued: 'Analysis queued',
       tooltipRunning: 'Analyzing…',
       tooltipReady: 'Show / hide the semantic analysis',
@@ -102,6 +116,14 @@ export const INSPECTOR_VIEW_TEXTS = {
       label: 'Auto-fixer',
       tooltip:
         'When on, one click runs the finder and auto-fixes its findings. When off, it just detects; fix each finding from its row.',
+      /**
+       * Gate tooltips, same pair (and same terse register) as the
+       * header's summarize button: the switch only configures what the
+       * next submit carries, so it sits disabled while nothing can
+       * drain the queue.
+       */
+      tooltipNoAgent: 'Needs a jobs agent',
+      tooltipNoMcp: 'Needs an agent connected to the MCP',
     },
     /**
      * Finder button action names (tooltip prefix): Detect runs the
@@ -188,6 +210,15 @@ export const INSPECTOR_VIEW_TEXTS = {
        */
       staleTag: 'stale',
       staleTagTooltip: 'The node body changed since this judgment; re-run the finder to re-check.',
+      /**
+       * Inline per-row mark on a `kernel`-origin finding: the safety
+       * lane synthesized it from the report's `safety` block, so the
+       * extension named on the row is only the run that surfaced it,
+       * never the author of the judgment.
+       */
+      kernelTag: 'kernel',
+      kernelTagTooltip:
+        "The kernel's safety lane flagged this while the named extension was running, so it is not that extension's own judgment.",
       /**
        * Inline per-row mark on a `human-decision` finding: the fixer
        * deliberately left it to the author, so the row shows no fix

@@ -16,6 +16,7 @@ import { NodeActivityService } from '../services/node-activity';
 import { WsEventStreamService } from '../services/ws-event-stream';
 import { analyzeLinks } from './views/graph-view/graph-layout';
 import { ActivityReadinessService } from './services/activity-readiness';
+import { ProcessingAgentReadinessService } from './services/processing-agent-readiness';
 import { ProjectInfoService } from './services/project-info';
 import { ScanTriggerService } from './services/scan-trigger';
 import { UpdateCheckService } from './services/update-check';
@@ -50,6 +51,7 @@ export class App {
   private readonly usageTracker = inject(UsageTrackerService);
   private readonly nodeActivity = inject(NodeActivityService);
   private readonly activityReadiness = inject(ActivityReadinessService);
+  private readonly processingAgentReadiness = inject(ProcessingAgentReadinessService);
   // `FilterUrlSyncService` and `DebugSlotsService` are eagerly
   // instantiated via `provideAppInitializer` in `app.config.ts`. They
   // self-wire on construction; the App component does not need to
@@ -136,6 +138,10 @@ export class App {
       // installs / lens switches happen, so the topbar Real Time toggle
       // must reflect them the moment the modal closes.
       void this.activityReadiness.refresh();
+      // Same for the processing-agent gate: the "Agent process skill"
+      // install lives in that very section, so every submit affordance
+      // must unlock as soon as the modal closes, not on the next scan.
+      void this.processingAgentReadiness.refresh();
     }
   }
 

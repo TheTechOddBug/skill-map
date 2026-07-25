@@ -39,7 +39,7 @@
       <button
         type="button"
         class="node-tags__auto"
-        [disabled]="autoTagState() === 'queued' || autoTagState() === 'running'"
+        [disabled]="autoTagDisabled()"
         [pTooltip]="autoTagTooltip()"
         tooltipPosition="left"
         [attr.aria-label]="autoTagTooltip()"

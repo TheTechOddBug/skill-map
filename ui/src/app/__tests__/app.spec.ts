@@ -44,7 +44,13 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       dbPath: '/tmp/test/.skill-map/scan.db',
       mcp: false,
     }),
-  mcpStatus: () => Promise.resolve({ enabled: false, connected: false, clients: 0 }),
+  mcpStatus: () =>
+    Promise.resolve({
+      enabled: false,
+      connected: false,
+      clients: 0,
+      url: 'http://127.0.0.1:4242/mcp',
+    }),
   loadScan: () =>
     Promise.resolve({
       schemaVersion: 1,

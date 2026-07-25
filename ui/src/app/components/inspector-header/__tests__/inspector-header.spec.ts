@@ -7,6 +7,11 @@ import { InspectorHeader } from '../inspector-header';
 import { NodeTags } from '../../node-tags/node-tags';
 import { ActionDispatchService } from '../../../../services/action-dispatch';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
+import {
+  ProcessingAgentReadinessService,
+  type TSubmitGateReason,
+} from '../../../services/processing-agent-readiness';
+import { INSPECTOR_VIEW_TEXTS } from '../../../../i18n/inspector-view.texts';
 import type { INodeView } from '../../../../models/node';
 
 /**
@@ -65,7 +70,25 @@ function nodeWithTags(tags: string[]): INodeView {
 async function bootstrap(
   node: INodeView,
   dispatcher: ReturnType<typeof makeStub> = makeStub(),
+  /**
+   * The shared processing-agent gate. `false` (skill installed) is the
+   * default so the pre-existing specs keep their enabled affordances;
+   * `true` closes it, `null` is the unknown that must fail OPEN.
+   */
+  skillMissing: boolean | null = false,
+  /**
+   * The MCP half of the same gate. `true` (an agent is attached) keeps
+   * the pre-existing specs enabled; `false` closes the gate on its own
+   * even with the skill installed.
+   */
+  mcpConnected: boolean | null = true,
 ): Promise<ComponentFixture<InspectorHeader>> {
+  const gateReason: TSubmitGateReason | null =
+    skillMissing === true
+      ? 'skill-missing'
+      : mcpConnected === false
+        ? 'mcp-disconnected'
+        : null;
   TestBed.resetTestingModule();
   // The header hosts deferred dialog chunks (`@defer`), which need the
   // async compile step + playthrough behavior under the test rig (same
@@ -76,6 +99,18 @@ async function bootstrap(
       provideZonelessChangeDetection(),
       { provide: ActionDispatchService, useValue: dispatcher },
       { provide: CollectionLoaderService, useValue: { nodes: signal<INodeView[]>([]) } },
+      // Both the header and its `<sm-node-tags>` child read the shared
+      // submit gate; the real service probes the BFF, so it is stubbed
+      // down to the one signal they consume.
+      {
+        provide: ProcessingAgentReadinessService,
+        useValue: {
+          skillMissing: signal<boolean | null>(skillMissing),
+          mcpConnected: signal<boolean | null>(mcpConnected),
+          submitGateReason: signal<TSubmitGateReason | null>(gateReason),
+          submitGateClosed: signal<boolean>(gateReason !== null),
+        } as unknown as ProcessingAgentReadinessService,
+      },
     ],
     deferBlockBehavior: DeferBlockBehavior.Playthrough,
   }).compileComponents();
@@ -359,5 +394,108 @@ describe('InspectorHeader path chip (click-to-copy)', () => {
     } finally {
       restore();
     }
+  });
+});
+
+/**
+ * Processing-agent gate: with no agent set up to drain the queue for
+ * the active lens, every affordance that would SUBMIT a job sits
+ * disabled (visible, never hidden) with a terse tooltip stating the
+ * requirement. `null` (unknown) fails OPEN.
+ */
+describe('InspectorHeader summarize button, processing-agent gate', () => {
+  function summarizeBtn(fixture: ComponentFixture<InspectorHeader>): HTMLButtonElement {
+    return (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="inspector-summarize"]',
+    ) as HTMLButtonElement;
+  }
+
+  it('gate CLOSED: the button stays visible but disabled, with the short tooltip', async () => {
+    const fixture = await bootstrap(makeNode(), makeStub(), true);
+    fixture.componentRef.setInput('summaryState', 'idle');
+    fixture.detectChanges();
+
+    const btn = summarizeBtn(fixture);
+    expect(btn).not.toBeNull(); // disabled, NOT hidden
+    expect(btn.querySelector('.pi-sparkles')).not.toBeNull();
+    expect(btn.disabled).toBe(true);
+    expect(btn.getAttribute('aria-label')).toBe(
+      INSPECTOR_VIEW_TEXTS.header.summary.tooltipNoAgent,
+    );
+  });
+
+  it('gate OPEN (skill installed): enabled, with its normal idle tooltip', async () => {
+    const fixture = await bootstrap(makeNode(), makeStub(), false);
+    fixture.componentRef.setInput('summaryState', 'idle');
+    fixture.detectChanges();
+
+    const btn = summarizeBtn(fixture);
+    expect(btn.disabled).toBe(false);
+    expect(btn.getAttribute('aria-label')).toBe(INSPECTOR_VIEW_TEXTS.header.summary.tooltipIdle);
+  });
+
+  /**
+   * The other half of the gate (user call 2026-07-25): the skill IS
+   * installed, but no agent is attached to the MCP server, so a submit
+   * would sit in the queue with nobody to drain it. The tooltip names
+   * that reason, not the install one.
+   */
+  it('gate CLOSED by a disconnected MCP: disabled, with its own tooltip', async () => {
+    const fixture = await bootstrap(makeNode(), makeStub(), false, false);
+    fixture.componentRef.setInput('summaryState', 'idle');
+    fixture.detectChanges();
+
+    const btn = summarizeBtn(fixture);
+    expect(btn).not.toBeNull();
+    expect(btn.disabled).toBe(true);
+    expect(btn.getAttribute('aria-label')).toBe(INSPECTOR_VIEW_TEXTS.header.summary.tooltipNoMcp);
+  });
+
+  it('unknown MCP state (null) FAILS OPEN', async () => {
+    const fixture = await bootstrap(makeNode(), makeStub(), false, null);
+    fixture.componentRef.setInput('summaryState', 'idle');
+    fixture.detectChanges();
+
+    const btn = summarizeBtn(fixture);
+    expect(btn.disabled).toBe(false);
+    expect(btn.getAttribute('aria-label')).toBe(INSPECTOR_VIEW_TEXTS.header.summary.tooltipIdle);
+  });
+
+  it('unknown gate (null) FAILS OPEN: enabled with the normal tooltip', async () => {
+    const fixture = await bootstrap(makeNode(), makeStub(), null);
+    fixture.componentRef.setInput('summaryState', 'idle');
+    fixture.detectChanges();
+
+    const btn = summarizeBtn(fixture);
+    expect(btn.disabled).toBe(false);
+    expect(btn.getAttribute('aria-label')).toBe(INSPECTOR_VIEW_TEXTS.header.summary.tooltipIdle);
+  });
+
+  it('a closed gate never locks a STORED analysis: ready still toggles the block', async () => {
+    // `ready` submits nothing (it opens / closes the block), so gating
+    // it would hide an already-computed judgment behind an agent the
+    // user does not need to read it. The block's own "Analyze again"
+    // button carries the gate instead.
+    const fixture = await bootstrap(makeNode(), makeStub(), true);
+    fixture.componentRef.setInput('summaryState', 'ready');
+    fixture.componentRef.setInput('summaryExpanded', true);
+    fixture.componentRef.setInput('summaryRows', [
+      {
+        summarizerActionId: 'core/summarizer',
+        generatedAt: 1,
+        stale: false,
+        report: { whatItCovers: 'A subject line.' },
+      },
+    ]);
+    fixture.detectChanges();
+
+    expect(summarizeBtn(fixture).disabled).toBe(false);
+    expect(summarizeBtn(fixture).getAttribute('aria-label')).toBe(
+      INSPECTOR_VIEW_TEXTS.header.summary.tooltipReady,
+    );
+    const refresh = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="inspector-summary-refresh"]',
+    ) as HTMLButtonElement;
+    expect(refresh.disabled).toBe(true);
   });
 });
