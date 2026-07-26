@@ -2827,6 +2827,34 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     expect(dom.querySelector('[data-testid="node-tags-editor"]')).toBeNull();
   });
 
+  // Path-keyed proposal (2026-07-26): the completion's `nodeId` scopes
+  // the offer, so a run that finishes while the operator inspects a
+  // DIFFERENT node neither opens the editor there nor mis-attributes
+  // the tags; the offer waits for its node.
+  it('a proposal for another node opens nothing on the inspected one', async () => {
+    const { fixture, jobEvents$ } = await bootAiActions();
+    const dom: HTMLElement = fixture.nativeElement;
+    const host = fixture.componentInstance as unknown as {
+      autoTagProposedTags(): readonly string[];
+    };
+
+    jobEvents$.next(makeJobCompleted({ tagsProposed: ['ci'], nodeId: 'other/file.md' }));
+    await flush(fixture);
+
+    expect(dom.querySelector('[data-testid="node-tags-editor"]')).toBeNull();
+    expect(host.autoTagProposedTags()).toEqual([]);
+  });
+
+  it('a proposal explicitly carrying the inspected node id opens the editor', async () => {
+    const { fixture, node, jobEvents$ } = await bootAiActions();
+    const dom: HTMLElement = fixture.nativeElement;
+
+    jobEvents$.next(makeJobCompleted({ tagsProposed: ['ci'], nodeId: node.path }));
+    await flush(fixture);
+
+    expect(dom.querySelector('[data-testid="node-tags-editor"]')).not.toBeNull();
+  });
+
   // The record path omits the field entirely when the report carried no
   // usable tags, so an EXPLICIT empty array is the forward-compat case:
   // an emitter that says "this tagger proposed nothing" opens nothing.

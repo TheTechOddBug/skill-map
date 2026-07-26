@@ -228,6 +228,9 @@ describe('recordJob engine, tagger proposal on the completion event', () => {
     const completed = events.find((e) => e.type === 'job.completed');
     assert.ok(completed, 'job.completed emitted');
     assert.deepEqual(completed!.data['tagsProposed'], ['deploy-pipeline']);
+    // The frame names its node (spec/job-events.md): consumers key the
+    // proposal on it instead of on whatever node their UI shows.
+    assert.equal(completed!.data['nodeId'], SKILL_NODE.path);
   });
 
   it('reports an EMPTY proposal when the tagger found nothing (retires a stale one)', async () => {

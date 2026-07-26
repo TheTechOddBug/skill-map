@@ -131,6 +131,11 @@ export function buildCompletedEventData(
   return {
     extensionId: job.extensionId,
     extensionKind: job.extensionKind,
+    // The frozen target path (same value `job.claimed` carries), so a
+    // consumer can correlate a completion to its node without holding
+    // submit-time context (spec/job-events.md; the UI keys the tagger
+    // proposal on it).
+    nodeId: job.nodeId,
     durationMs: execution.durationMs ?? null,
     tokensIn: execution.tokensIn ?? null,
     tokensOut: execution.tokensOut ?? null,

@@ -1340,48 +1340,52 @@ export class InspectorView implements OnInit {
   }
 
   /**
-   * The tags the last auto-tag run inferred (`spec/job-lifecycle.md`
-   * §Tags proposal, the completion's `tagsProposed`). The tagger writes
-   * NOTHING, so this is the run's entire output: a proposal the operator
-   * reviews through the ordinary, consent-gated tags editor.
+   * The last auto-tag run's proposal, keyed by the node it judged
+   * (`spec/job-lifecycle.md` §Tags proposal; the completion's
+   * `tagsProposed` + `nodeId`). The tagger writes NOTHING, so this is
+   * the run's entire output: a proposal the operator reviews through
+   * the ordinary, consent-gated tags editor.
    *
-   * It has no surface of its own. Handed to `<sm-node-tags>` it OPENS
-   * that editor, pre-filled with the node's tags plus the suggestion and
-   * left unsaved; saving raises the usual `.sm` handshake and the human
-   * stays the author (tags are human curation per `spec/architecture.md`
-   * §Storage rule). A non-empty proposal is also the ONLY feedback the
-   * operator gets when the run was launched from the inspector and
-   * recorded over MCP: without it the sparkles button goes queued ->
-   * running -> idle with no new chips and no explanation.
+   * Path-keyed (2026-07-26): a tagger run takes as long as the agent
+   * takes, and the operator navigates meanwhile. Keying the offer on
+   * the completion's `nodeId` means it neither vanishes on a node
+   * change nor opens the editor over the WRONG node's tags; coming
+   * back to the judged node (re)offers it until it is settled. Single
+   * slot: one auto-tag runs at a time from this surface, and a newer
+   * proposal supersedes an older unconsumed one.
    */
-  protected readonly autoTagProposedTags = signal<readonly string[]>([]);
-
-  private autoTagPath: string | undefined = undefined;
+  private readonly autoTagProposal = signal<{
+    path: string;
+    tags: readonly string[];
+  } | null>(null);
 
   /**
-   * Drop the proposal when the operator inspects another node: it is
-   * scoped to the node that was open when the frame landed, and a stale
-   * one would offer one file's tags for another. Path-keyed and guarded
-   * like `summaryLoaderEffect`, so a re-fetch that swaps the node OBJECT
-   * (a scan refresh) does not clear a still-relevant proposal.
+   * The proposal FOR THE INSPECTED NODE, empty otherwise. Handed to
+   * `<sm-node-tags>` it OPENS the editor, pre-filled with the node's
+   * tags plus the suggestion and left unsaved; saving raises the usual
+   * `.sm` handshake and the human stays the author (tags are human
+   * curation per `spec/architecture.md` §Storage rule). A non-empty
+   * proposal is also the ONLY feedback the operator gets when the run
+   * was launched from the inspector and recorded over MCP: without it
+   * the sparkles button goes queued -> running -> idle with no new
+   * chips and no explanation.
    */
-  private readonly autoTagResetOnNodeChange = effect(() => {
+  protected readonly autoTagProposedTags = computed<readonly string[]>(() => {
+    const proposal = this.autoTagProposal();
     const path = this.node()?.path;
-    if (path === this.autoTagPath) return;
-    this.autoTagPath = path;
-    this.clearAutoTagProposal();
+    return proposal !== null && path !== undefined && proposal.path === path
+      ? proposal.tags
+      : [];
   });
 
   /**
-   * Collect the tagger's proposal. `job.completed` carries a `jobId` but
-   * no node path, so, exactly like the activity / summary refreshes
-   * above, we do not correlate ids client-side: the proposal is scoped to
-   * the node the inspector currently has open, which is the one whose
-   * sparkles button the operator just clicked. It clears on node change
-   * (`autoTagResetOnNodeChange`), on a manual save from the tag row
-   * (`onTagsSaved`), and on a later tagger run that proposed nothing.
-   * The field is absent on every non-tagger job, so unrelated completions
-   * neither raise nor lower it.
+   * Collect the tagger's proposal, keyed on the completion's `nodeId`
+   * (older servers omit the field; the inspected node is the fallback,
+   * the historical behaviour). An EMPTY proposal retires a pending
+   * offer for the same node ("I looked and found nothing" must not
+   * leave an older suggestion standing); it never disturbs another
+   * node's pending offer. The field is absent on every non-tagger job,
+   * so unrelated completions neither raise nor lower it.
    */
   private readonly tagsProposalWatcher = this.wsEvents.jobEvents$
     .pipe(filter(isJobCompletedEvent), takeUntilDestroyed())
@@ -1390,7 +1394,15 @@ export class InspectorView implements OnInit {
       // checked here; an absent field means "not a tagger", not "no tags".
       const proposed = event.data.tagsProposed;
       if (!Array.isArray(proposed)) return;
-      this.autoTagProposedTags.set(proposed.filter((tag) => typeof tag === 'string'));
+      const nodeId = typeof event.data.nodeId === 'string' ? event.data.nodeId : undefined;
+      const path = nodeId ?? this.node()?.path;
+      if (path === undefined) return;
+      const tags = proposed.filter((tag): tag is string => typeof tag === 'string');
+      if (tags.length === 0) {
+        if (this.autoTagProposal()?.path === path) this.clearAutoTagProposal();
+        return;
+      }
+      this.autoTagProposal.set({ path, tags });
     });
 
   /**
@@ -1404,7 +1416,7 @@ export class InspectorView implements OnInit {
 
   /** Retire the pending auto-tag proposal. */
   private clearAutoTagProposal(): void {
-    this.autoTagProposedTags.set([]);
+    this.autoTagProposal.set(null);
   }
 
   /** Re-run from the expanded block (stale or not, a fresh judgment). */

@@ -261,6 +261,10 @@ export interface IWsJobCompletedData {
   extensionId?: string;
   /** Kind of that extension (`analyzer`, `action`, ...). */
   extensionKind?: string;
+  /** The job's frozen target node path (absent on pre-2026-07-26
+   *  servers); consumers key node-scoped reactions on it, e.g. the
+   *  tagger proposal. */
+  nodeId?: string;
   durationMs?: number;
   tokensIn?: number;
   tokensOut?: number;
