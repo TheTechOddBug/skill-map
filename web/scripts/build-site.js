@@ -46,6 +46,11 @@ const PROSE_DOCS = [
   { file: 'prompt-preamble.md', title: 'Prompt preamble', summary: 'Verbatim injection-mitigation text prepended to every job.' },
   { file: 'db-schema.md', title: 'DB schema', summary: 'Zoned table catalog, naming conventions, migrations.' },
   { file: 'plugin-kv-api.md', title: 'Plugin KV API', summary: 'ctx.store contract for mode A + mode B dedicated rules.' },
+  { file: 'mcp-server.md', title: 'MCP server', summary: 'Queue + findings tools exposed over the Model Context Protocol.' },
+  { file: 'provider-activity.md', title: 'Provider activity', summary: 'Real-time activity capability: hooks bridge, ingest, WS frames.' },
+  { file: 'telemetry.md', title: 'Telemetry', summary: 'Opt-in usage/error telemetry: toggles, consent, anonymity.' },
+  { file: 'view-slots.md', title: 'View slots', summary: 'Closed slot + renderer catalog for plugin UI contributions.' },
+  { file: 'input-types.md', title: 'Input types', summary: 'Closed catalog of extension input types.' },
   { file: 'interfaces/security-scanner.md', title: 'Security scanner interface', summary: 'Convention for third-party security scanners.' },
 ];
 

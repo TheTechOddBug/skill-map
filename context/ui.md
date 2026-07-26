@@ -157,7 +157,9 @@ Several unrelated escape-hatches also live under `::ng-deep`, none targets a Pri
 
 ## Themes
 
-The UI ships **light** (default), **dark** (system pref or explicit), and four specialty themes registered in `EXTRA_THEMES`: **matrix**, **neon** (Neon B), **neon-green** (Neon G), and **neon-red** (Neon R). They live as **sibling files** under `ui/src/themes/` with the same shape, so another theme is one file plus one registry entry plus one `angular.json` line.
+The UI ships **light** (default), **dark** (system pref or explicit), and four specialty themes registered in `EXTRA_THEMES`: **matrix**, **neon** (Neon B), **neon-green** (Neon G), and **neon-red** (Neon R). They live as **sibling files** under `ui/src/themes/` with the same shape, so another theme is one file plus one registry entry plus one `angular.json` line, plus its two brand assets (next paragraph).
+
+**Brand assets per theme**: every extra theme ships a retinted **mark** (`ui/public/skill-map-mark-<id>.svg`, strokes in the theme's secondary tone, bottom node in the electric accent) and a matching **favicon** (`ui/public/favicon-<id>.svg`, declared via the registry's `favicon` field and swapped by a `ThemeService` effect; the default `favicon.svg` is self-adaptive via `prefers-color-scheme`). Mark selection is centralized in the `ThemeService.markSrc` computed (active extra -> its mark; otherwise light/dark by resolved mode), consumed by both the topbar and the Settings About tab, never duplicated per component. A new extra theme MUST bring both assets and keep the stroke-ramp recipe so the glyph reads as the same brand mark across themes.
 
 ### File layout
 

@@ -223,6 +223,18 @@ describe('ThemeService', () => {
       expect(faviconLink.getAttribute('href')).toBe('favicon.svg');
     });
 
+    it('every extra theme declares and swaps to its own favicon', () => {
+      const svc = TestBed.inject(ThemeService);
+      for (const id of ['neon', 'neon-green', 'neon-red', 'matrix'] as const) {
+        svc.setExtraTheme(id);
+        TestBed.tick();
+        expect(faviconLink.getAttribute('href')).toBe(`favicon-${id}.svg`);
+      }
+      svc.setExtraTheme(null);
+      TestBed.tick();
+      expect(faviconLink.getAttribute('href')).toBe('favicon.svg');
+    });
+
     it('toggle clears matrix AND advances the mode one step', () => {
       const svc = TestBed.inject(ThemeService);
       svc.set('light');
