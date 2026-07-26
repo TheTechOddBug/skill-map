@@ -1,5 +1,207 @@
 # skill-map
 
+## 0.93.0
+
+### Minor Changes
+
+- New agent doorbell (`jobs.wakeOnSubmit`, off by default, project-local): instead of an agent parked on a blocking claim, the server wakes a registered runtime when a submit survives a short settle window unclaimed, starting a fresh session that drains the queue in `once` mode and stops. OpenCode's activity plugin registers its local API as the wake endpoint (`POST /api/agent/doorbell`, refreshed per activity event); the wake is loopback-only, cooldown-bounded, and never fires for the boot ping.
+
+  ## User-facing
+
+  Turn on "Wake an agent when jobs are queued" (Settings, Project) and OpenCode starts a session by itself when work arrives, processes the queue, and stops. Nothing sits parked, idle costs zero.
+
+- New `GET /api/agent/presence` reports whether a processing agent has been observed claiming work since the server started, and the inspector's second warning uses it instead of the live MCP session count. That count was the wrong proxy: an agent parked on the CLI `sm jobs claim --wait` talks straight to SQLite and holds no MCP session, so a healthy setup warned forever. Both claim paths count now, and a startup ping learns the answer without waiting for traffic.
+
+  ## User-facing
+
+  The inspector no longer claims no agent is available when one is running through the CLI: it now reports whether an agent has actually picked up work.
+
+- A Provider can now declare that it READS a skill territory another Provider owns, via `scaffold.sharedWith`. Antigravity and OpenCode both read the open `.agents/skills` territory that `agent-skills` owns, so `sm agent install` / `status` and the Quick Start row refused under those lenses even though a skill materialised there is discovered by their runtimes. Per-lens probes now resolve them; destination-choice verbs keep listing owners only, so one territory offers one row.
+
+  ## User-facing
+
+  You can now install and check the processing skill from the Antigravity and OpenCode lenses, instead of having to switch to the Agent Skills lens first.
+
+- The auto-tagger now PROPOSES tags instead of writing them. A record-time write could only honour a standing `.sm` grant (a record callback cannot prompt), so a project without it burned a model call and silently produced nothing. The tags now ride the completion event and open the ordinary tags editor pre-filled, where the operator saves them under the usual consent handshake. The prompt also receives the node's CURRENT tags, so it proposes what is missing rather than near-duplicates.
+
+  ## User-facing
+
+  Auto-tag now suggests tags in the tag editor for you to keep or drop, instead of silently doing nothing when sidecar edits are not allowed, and it stops proposing near-duplicates of tags you already have.
+
+- New sm-tutorial part "The AI layer: your agent works the map" (order 4, both tracks): seven UI-only chapters covering the deterministic vs probabilistic split, wiring the processing agent (Quick Start, MCP, a parked second session), a first AI action with staleness, finders, fixers with human decisions, the tagger's propose-then-save flow, and the security lane over a new `flawed-portfolio` seed with planted flaws. The CLI and Extend parts shift to orders 5 and 6.
+
+  ## User-facing
+
+  The tutorial has a new section on the AI layer: connect your agent to the job queue and watch it summarize, find planted problems, fix them (asking you when the call is yours), propose tags, and refuse a hidden injection, all from the UI.
+
+### Patch Changes
+
+- WCAG AA sweep across all six UI themes, backed by a new automated axe-core + Playwright e2e suite (axe scan + a 1.4.11 border-contrast probe per theme). Per-theme input border and accent-text tokens now meet 4.5:1 / 3:1, the topbar version and lens chips and the demo banner link were recolored (the lens chip derives a readable shade from any provider hue), table row ARIA misuse was removed, the rail tablist now contains only tabs, and the refresh button gained a visible focus ring.
+
+  ## User-facing
+
+  The interface now meets WCAG AA accessibility contrast in all six themes: input borders and highlighted text are easier to see, and keyboard focus on the refresh button shows a clear ring.
+
+- The inspector's AI busy states are now honest about the queue phase everywhere: the summary block's "Analyze again" button disables with a clock while queued and a spinner while running (mirroring the header affordance), and the per-finding Auto-fix and per-issue fix buttons pin the clock while the fixer job is queued instead of jumping straight to the spinner, the same clock-then-spin convention the launchers already followed.
+
+  ## User-facing
+
+  Fix buttons now show a clock while the job waits in the queue and a spinner only once your agent is actually running it, so you can tell "waiting" from "working" at a glance.
+
+- `claim_job`'s blocking `wait` now emits a `notifications/progress` heartbeat every ~15s while parked, when the request carried a `progressToken`. OpenCode calls every MCP tool with `resetTimeoutOnProgress: true` and a 60s default timeout, so its park died at the first minute; with the heartbeat it parks indefinitely. The skill's claim guidance is per-runtime now: Codex and OpenCode park on the MCP claim, Claude Code keeps the free CLI wait.
+
+  ## User-facing
+
+  An OpenCode agent watching the queue can now wait for jobs on a single parked call, spending no tokens while idle, instead of the wait dying after a minute.
+
+- The contradiction fixer's prompt no longer describes asking the author as an `AskUserQuestion`-style options widget with `human-decision` as the fallback for "cannot interact". Runtimes without such a widget read that as permission to defer, so a decision the operator was sitting there to make got recorded as pending instead of asked. The instruction is now capability-neutral: ask in whatever channel you normally reply in, and reserve `human-decision` for genuinely unattended runs.
+
+  ## User-facing
+
+  When a contradiction needs your call, the fixer asks you in chat and applies your answer, instead of quietly parking it for later on agents without a dedicated question widget.
+
+- Provider manifests gain `detect.subsumes`, the candidate ids a Provider absorbs during lens auto-detection because it reads that runtime's territory itself. `opencode` declares `['claude']`: it reads `.claude/skills/` and `CLAUDE.md` by design while Claude Code never reads `.opencode/`, so that pair was never a real tie, yet detection prompted over it. One-way (a mutual pair keeps the ambiguity) and applied after the `fallback` rule, so it only ever collapses a would-be prompt.
+
+  ## User-facing
+
+  A project with both `.claude/` and `.opencode/` now picks OpenCode on its own instead of asking, since OpenCode reads Claude's skills too. Two unrelated runtimes still ask.
+
+- The files rail's table is virtualised: only the rows in the viewport render. On a 1000-node project an expanded tree drops from 19,663 rail DOM elements and 1,019 rows to 945 and 48, and a folder toggle from 95ms to ~53ms. Since Tab can no longer reach unmounted rows, the rail gains arrow-key navigation, `aria-rowcount` / `aria-rowindex`, and a focus rescue for recycled rows. Rows are a uniform 36px and no longer animate in.
+
+  ## User-facing
+
+  The Files panel now draws only the rows on screen, so expanding or collapsing folders in a large project is immediate instead of stalling. You can also move through the list with the arrow keys: Enter opens a file, Space toggles it on the map.
+
+- Fixed findings whose resolution involved the operator now wear an at-a-glance `(human)` marker beside the row, the same inline treatment `(stale)` gets: cyan in the CLI listing, the theme's primary color as a chip in the inspector's fixed bucket. The data was already there (`resolution_actor`); only the glance was missing.
+
+  ## User-facing
+
+  Findings you decided yourself (approved a fix, picked an option, resolved by hand) now show a "human" tag next to them, so your calls stand out from the fixer's autonomous ones.
+
+- Findings the kernel's safety lane authored now carry a `kernel` mark in the inspector. Those rows are stamped with the extension whose run surfaced them, so an injection flagged while the contradiction finder happened to be reading the file read as that finder's own judgment. The mark (with a tooltip saying as much) separates the safety net from the analyzer you actually ran.
+
+  ## User-facing
+
+  Safety findings now show a `kernel` mark, so you can tell the system's safety net from the judgment of the check you ran.
+
+- The kernel safety lane is now replaced per NODE instead of per reporting extension. A safety row states a fact about the node's content, and every probabilistic report carries a complete safety verdict on the body it read, so scoping the replace to the extension kept one copy of the same fact per extension that ever ran: six finders over one trapped file recorded the same injection six times. The finder lane keeps its per-extension supersede.
+
+  ## User-facing
+
+  A file with a prompt-injection trap no longer collects one duplicate warning per AI check you run: the safety flag is recorded once per file.
+
+- "Follow the Activity" (the map-toolbar camera that auto-frames executing nodes) now defaults to ON: watching the agent run is the point of Real Time, so the camera follows out of the box. A stored opt-out is respected as before; the preference stays per browser.
+
+  ## User-facing
+
+  The map camera now follows your agent's activity by default; switch it off from the map toolbar if you prefer a still camera, and your choice sticks.
+
+- "Capture conversations" can no longer be turned on while the real-time hook is not installed, in both Quick Start and Settings. Without the hook no activity event ever reaches skill-map, so the toggle looked available and achieved nothing. Enabling is gated (disabling always works, and an unknown hook state fails open), the row explains what is missing, and the Quick Start indicator stops reporting a hookless capture as ready.
+
+  ## User-facing
+
+  The "Capture conversations" switch now stays locked, and tells you why, until the real-time hook is installed.
+
+- Graph node cards build their expandable panel on demand instead of on every render. The panel is `display: none` while a card is collapsed, so every node used to construct markup the browser refused to paint: the path row, the LLM cluster, the description with its markdown render, and the agent meta rows. On a 256-node map the card drops from 55 to 46 DOM elements and the graph from 21,572 to 19,492, and the saving grows with how much summary content the nodes carry.
+
+- The inspector's AI Actions card gains a "Check Agent" chip (beside the Auto-fixer toggle) running the full-circuit probe on demand: it submits the hidden ping job and watches for a claim, the same check as Quick Start's agent row, extracted into one shared service both use. It holds the verdict five seconds, green on a claim, red on silence (the queued ping is cancelled), then re-arms. Advisory only: the verdict never disables the AI affordances.
+
+  ## User-facing
+
+  When the agent connection looks lost, a "Check Agent" button next to the Auto-fixer pings the queue in place: green five seconds when an agent picks it up, red when nobody does, no more detours to Quick Start.
+
+- The inspector's two no-agent notices (nobody has picked up work yet; the processing skill is missing) now name the exact invocation for the active lens, `sm-process-jobs` joined with the lens's invocation sigil, instead of a generic instruction and a hardcoded `/sm-process-jobs` that was wrong on Codex. The attending notice also points at Quick Start's Check to confirm the agent picked the queue up.
+
+  ## User-facing
+
+  When no agent is processing jobs, the inspector now tells you exactly what to type in your agent (`/sm-process-jobs`, or `$sm-process-jobs` on Codex) and where to confirm it (Quick Start's Check), instead of a generic "start the processing skill".
+
+- `GET /api/mcp/status` now reports `url`, the endpoint a client should register, built by the server from its own bind. Quick Start's MCP row uses it instead of the page origin, which named the dev proxy's port under a split dev setup. The row also stops assuming every runtime has an `mcp` CLI verb: Antigravity and OpenCode have none, so they copy a whole config document plus the file it goes in, always a personal one (OpenCode's global config, never the project file a team commits).
+
+  ## User-facing
+
+  The MCP setup command now carries the port your server is really on, and Antigravity and OpenCode get a ready config file to save. It always points at your own config, never at a file your repository shares with the team.
+
+- The UI's submit gate now closes on either half of the processing-agent pair: the lens's skill not installed, OR no agent attached to `/mcp`. `ProcessingAgentReadinessService` owns both probes and exposes `submitGateClosed` / `submitGateReason`, so every submitting affordance (the Auto-fixer switch included) shares one signal and picks its own tooltip; while `/mcp` is live with zero clients it re-probes on a light poll, reopening the gate as soon as the agent connects.
+
+  ## User-facing
+
+  **AI buttons wait for your agent.** Summarize, auto-tag and the AI Actions buttons now stay disabled while no agent is connected to the MCP, instead of queueing work nobody picks up. They re-enable on their own once you start your agent.
+
+- The inspector header's path chip is now click-to-copy: clicking it writes the full project-relative path to the clipboard and confirms with a check icon for a couple of seconds, mirroring the debug panel's hash cells. The clipboard write moved into a shared `ui/src/services/clipboard.ts` helper the debug panel now reuses instead of its own inline copy.
+
+  ## User-facing
+
+  Click the file path in the inspector header to copy it to the clipboard, the same way the hashes in Metadata already worked. A check mark confirms the copy.
+
+- The OpenCode activity plugin also forwards `chat.params`, reduced at the wiring level to `{ agent, sessionID }` (the user message it carries never leaves the process). It fires before each model call, so the owner index learns which agent a session runs BEFORE the turn's first `task` spawn; `chat.message` only fires with the completed assistant message, after the delegation already ran, so a turn's first delegation arrow still anchored on a session capsule.
+
+  ## User-facing
+
+  On OpenCode, the delegation arrow now starts at the agent that delegated from its very first delegation, instead of a "Session" bubble for the first one. Requires reinstalling the hook and restarting OpenCode.
+
+- Agent presence now flips on an MCP `claim_job` ATTEMPT, not only on a won claim (a parked agent is attending by definition), and gains explicit negative evidence: a liveness ping cancelled while still unclaimed flips `attending` back to false until a later claim or attempt, so a manual Check moves the connected state both ways. The inspector re-probes presence the moment the MCP client connects, so warnings and buttons update together. `lastClaimAt` stays claim-only.
+
+  ## User-facing
+
+  The "no agent has picked up work yet" notice clears as soon as your agent parks on the queue, and a Check nobody answers flips the state back to disconnected, so what you see always matches reality.
+
+- Edge-kind toggles in the graph view are now an independent show / hide per link kind. `FilterStoreService.toggleLinkKind` takes the kinds the palette actually paints as its universe (it started from the spec-fixed catalog, so kinds absent from the scan stayed in the whitelist) and gained the sticky all-off state the node-kind toggle already had, so turning the last kind off keeps the canvas edgeless instead of collapsing the whitelist back to "no filter".
+
+  ## User-facing
+
+  **Link type toggles now just show and hide.** Each link type button in the map toolbar turns those arrows on or off on its own. Turning the last one off leaves the map with no links, instead of switching every type back on.
+
+- The Settings modal now re-opens on the last section the user visited (persisted per project in the browser, `sm.settings.section`) instead of always landing on Plugins. A remembered per-plugin section whose plugin no longer offers settings falls back to the Plugins panel, and explicit deep-links (like the drift banner opening Project) still win and become the new remembered section.
+
+  ## User-facing
+
+  Settings now opens where you left it: the modal remembers the last section you visited instead of always starting on Plugins.
+
+- The `sm-process-jobs` skill gains a hard rule: talk to skill-map only through the typed MCP tools or the `sm` CLI verbs, never by hand-crafting HTTP against `/mcp` (`curl` + JSON-RPC bodies, manual session ids). Live-observed on OpenCode: a session without the native tools improvised its own raw MCP session over curl instead of falling back to the CLI path the skill already provides.
+
+  ## User-facing
+
+  An agent whose session lacks the skill-map MCP tools now falls back to the CLI verbs as intended, instead of spamming your terminal with hand-built curl calls against the MCP endpoint.
+
+- Provider activity adapters declare `spawnCustody`, and a `blocking` runtime's owner-scoped end now carries `terminal: true`, releasing the spawns that owner parents instead of counting as a pause. The pause-is-not-end rule is Claude-shaped: OpenCode blocks the parent inside the `task` call, so an idle parent is finished. Without this a spawn whose completion never arrives, the shape a refused call leaves, stayed drawn for the full five-minute decay window.
+
+  ## User-facing
+
+  A delegation arrow that ends badly (the runtime refused the call, the agent crashed) now clears as soon as the session finishes, instead of hanging on the map for five minutes.
+
+- A spawn that names no parent is now anchored on the agent node its owner is known to be running, through a boot-scoped `owner -> agent node` index fed by agent claims and completed relations. OpenCode's `task` event reports only the spawning session, so every delegation hung off a synthetic session capsule while the real parent glowed elsewhere. The capsule stays the fallback for an owner running no scanned node.
+
+  ## User-facing
+
+  Delegation arrows now start at the agent that actually delegated, instead of a generic "Session" bubble, on runtimes that do not name the parent.
+
+- The `job.completed` event now carries the job's frozen `nodeId` (spec `job-events.md`), and the UI keys the tagger's tag proposal on it: the pre-filled editor offer no longer evaporates when you navigate while the agent works, cannot open over the wrong node's tags, and re-offers itself when you return to the judged node until it is saved or superseded.
+
+  ## User-facing
+
+  Auto-tag suggestions now wait for you: if you browse other files while your agent infers tags, the pre-filled tag editor opens when you come back to the file it judged instead of getting lost.
+
+- Every extra theme now declares its own favicon: new `favicon-neon/neon-green/neon-red.svg` assets follow the matrix stroke-ramp recipe and are wired through the theme registry's `favicon` field, so the browser tab glyph matches the active theme instead of falling back to the default violet mark.
+
+  ## User-facing
+
+  The browser tab icon now follows the theme too: the neon cyan, green, and red themes each swap in a matching favicon while active, like matrix already did.
+
+- Every extra theme now ships its own retinted brand mark: new `skill-map-mark-neon/neon-green/neon-red.svg` assets follow the matrix recipe (strokes in the theme's secondary tone, bottom node in the electric accent), and mark selection was centralized in `ThemeService.markSrc` so the topbar and the Settings About tab always agree (About previously ignored extra themes entirely).
+
+  ## User-facing
+
+  The skill-map logo now matches the active theme: the neon cyan, green, and red themes each get a logo tinted in their own colors, both in the top bar and in Settings.
+
+- Quick Start's "Paste it into `<file>`" hint on the MCP row now paints in the warning hue instead of the muted grey, matching the restart-pending line above it: both name work the operator still has to do by hand. The copy acknowledgement that shares the same line stays muted.
+
+- Every affordance that would queue an AI job is now disabled while no processing agent is set up for the active lens: the inspector's summarize and auto-tag buttons (which gain a short tooltip saying what is missing) plus the AI Actions launchers, run-all links and per-finding fix buttons, whose own tooltips are untouched. A shared readiness probe backs all of them and fails open, so a transport hiccup never locks the UI.
+
+  ## User-facing
+
+  Buttons that need an AI agent are now clearly disabled until you set one up, instead of looking clickable and failing.
+
 ## 0.92.0
 
 ### Minor Changes
