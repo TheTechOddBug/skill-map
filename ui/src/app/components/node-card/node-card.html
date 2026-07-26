@@ -8,15 +8,16 @@
       <sm-kind-icon [kind]="n.kind" [provider]="n.provider" [size]="18" />
     </div>
 
-    <div class="sm-gnode__content">
-      <div class="sm-gnode__name-row">
-        <span class="sm-gnode__name" [pTooltip]="n.path">{{ displayName() }}</span>
-        <!-- Phase 4 / View contribution system, card.title.right slot.
-             Renders `node-icon` contributions immediately after the
-             title, before the actions cluster (confidence pill,
-             version, chevron). -->
-        <sm-view-contributions-host slot="card.title.right" [node]="node()" />
-      </div>
+    <!-- The name row IS the grid's middle column; it used to sit inside a
+         `.sm-gnode__content` wrapper that held a single child and only
+         contributed sizing, which is now folded into the row itself. -->
+    <div class="sm-gnode__name-row">
+      <span class="sm-gnode__name" [pTooltip]="n.path">{{ displayName() }}</span>
+      <!-- Phase 4 / View contribution system, card.title.right slot.
+           Renders `node-icon` contributions immediately after the
+           title, before the actions cluster (confidence pill,
+           version, chevron). -->
+      <sm-view-contributions-host slot="card.title.right" [node]="node()" />
     </div>
 
     <div class="sm-gnode__actions">

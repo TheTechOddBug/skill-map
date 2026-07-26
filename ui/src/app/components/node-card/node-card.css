@@ -184,20 +184,18 @@
   align-self: center;
 }
 
-.sm-gnode__content {
+/* Middle column of `.sm-gnode__main`. The sizing trio (`min-width: 0`
+   for the ellipsis to work inside a grid track, plus `width` /
+   `justify-self`) used to live on a `.sm-gnode__content` wrapper that
+   held this row as its only child; the wrapper's `flex-direction` and
+   `gap` were inert with one child, so it was folded in here. */
+.sm-gnode__name-row {
   min-width: 0;
   width: 100%;
   justify-self: stretch;
   display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.sm-gnode__name-row {
-  display: flex;
   align-items: baseline;
   gap: 0.35rem;
-  min-width: 0;
 }
 
 /* `card.title.right` slot, sits at the right edge of the title cell,
