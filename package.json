@@ -2,7 +2,7 @@
   "name": "skill-map-monorepo",
   "version": "0.0.0",
   "private": true,
-  "description": "skill-map monorepo — houses the public spec and the reference implementation.",
+  "description": "skill-map monorepo: houses the public spec and the reference implementation.",
   "license": "MIT",
   "type": "module",
   "repository": {

@@ -132,6 +132,25 @@ Antigravity and OpenCode ship no `mcp` CLI verb, so they get a file to save: `~/
 
 The port is the one `sm serve` prints on start (default `4242`, also in `.skill-map/serve.json`). Full contract: [`spec/mcp-server.md`](./spec/mcp-server.md).
 
+## Processing agents: which runtime, which waiting mode
+
+The job queue (summaries, finders, fixers, the tagger) is drained by YOUR agent running the `sm-process-jobs` skill (`sm agent install`, or Quick Start). All four supported runtimes speak the same claim → execute → record protocol; what differs is how cheaply each one can WAIT for work:
+
+| Runtime | Resident mode (watching the queue) | Idle cost |
+|---|---|---|
+| Claude Code | `sm jobs claim --wait` as a backgrounded command | zero |
+| Codex | parks on the MCP `claim_job` tool with `wait` (server-side blocking claim) | zero while parked (see the caveat) |
+| OpenCode | parks on MCP `claim_job`; the server's progress heartbeat keeps the call alive indefinitely. Or skip residency entirely: the wake-on-submit doorbell (Settings → Project, "Wake an agent when jobs are queued") starts a fresh session per burst that drains and stops | zero |
+| Antigravity | runs the skill's CLI loop pass by pass | one pass per invocation |
+
+**Codex efficiency caveat.** Never let a Codex agent loop the CLI `--wait`: Codex kills a shell command after roughly ten seconds, so every re-issued wait burns an LLM turn, hundreds of turns per idle hour. The skill instructs it to park on the MCP `claim_job { wait }` instead, one tool call that blocks server-side at zero cost.
+
+**Codex setup gotchas**, all three live in `~/.codex/config.toml` and all three bit us during live testing:
+
+1. **Trust the project first.** Hooks and spawned commands only flow in a trusted project: `[projects."/abs/path/to/project"]` with `trust_level = "trusted"` (or accept the trust prompt on first run).
+2. **Raise the MCP tool timeout.** Codex bounds every MCP call with a fixed per-tool budget, which cuts a parked `claim_job` short: set `tool_timeout_sec` under `[mcp_servers.skill-map]` to at least the `wait` you ask for.
+3. **Approval and sandbox get in the way of unattended runs.** Fixer jobs edit files and every job calls the `sm` CLI; a restrictive `approval_policy` / `sandbox_mode` pauses each step for confirmation. Pick the loosest combination you are comfortable with (for example `approval_policy = "on-request"` with `sandbox_mode = "workspace-write"`) and keep the strict settings for sessions where you are watching.
+
 ## Sidecar `.sm` files (don't be alarmed when they appear)
 
 The first time you run `sm bump` or `sm sidecars annotate`, skill-map writes a sibling YAML file next to each `.md`: `demo-agent.md` → `demo-agent.sm` in the same directory. They are intentional, they are part of the design, and **they belong in your repo**.
