@@ -77,6 +77,22 @@ export class ThemeService {
     return m;
   });
 
+  /**
+   * Brand mark asset for the active theme. Every extra theme ships its
+   * own retinted mark (`ui/public/skill-map-mark-<id>.svg`, accent-matched
+   * to the theme palette); without an extra, the mark flips with the
+   * resolved base so the strokes stay readable on both backgrounds
+   * (white strokes on dark, near-black on light). Single source for the
+   * topbar and the Settings About tab.
+   */
+  readonly markSrc = computed<string>(() => {
+    const extra = this.extraTheme();
+    if (extra !== null) return `skill-map-mark-${extra}.svg`;
+    return this.resolved() === 'dark'
+      ? 'skill-map-mark-light.svg'
+      : 'skill-map-mark-dark.svg';
+  });
+
   constructor() {
     this.subscribeToSystemPref();
 

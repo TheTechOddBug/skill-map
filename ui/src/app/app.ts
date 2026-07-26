@@ -329,12 +329,7 @@ export class App {
   });
   protected readonly isDevMode = isDevMode();
   protected readonly themeMode = this.theme.mode;
-  protected readonly markSrc = computed(() => {
-    if (this.theme.extraTheme() === 'matrix') return 'skill-map-mark-matrix.svg';
-    return this.theme.resolved() === 'dark'
-      ? 'skill-map-mark-light.svg'
-      : 'skill-map-mark-dark.svg';
-  });
+  protected readonly markSrc = this.theme.markSrc;
   protected readonly themeIcon = computed(() => {
     switch (this.themeMode()) {
       case 'auto':

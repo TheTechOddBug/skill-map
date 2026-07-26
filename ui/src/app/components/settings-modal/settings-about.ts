@@ -43,14 +43,10 @@ export class SettingsAbout {
   protected readonly texts = SETTINGS_TEXTS;
   protected readonly health = signal<IHealthResponseApi | null>(null);
   protected readonly loadError = signal<string | null>(null);
-  /** Mark logo source, flips with the active theme so the SVG fill
-   *  stays readable on both backgrounds. Mirror of the topbar's
-   *  `App.markSrc` computed; the assets live in `ui/public/`. */
-  protected readonly markSrc = computed(() =>
-    this.theme.resolved() === 'dark'
-      ? 'skill-map-mark-light.svg'
-      : 'skill-map-mark-dark.svg',
-  );
+  /** Mark logo source, owned by `ThemeService.markSrc` so the topbar
+   *  and this tab always agree (extra themes carry their own retinted
+   *  mark; the assets live in `ui/public/`). */
+  protected readonly markSrc = this.theme.markSrc;
 
   protected readonly cliVersion = computed(() => {
     return this.updateCheck.current()

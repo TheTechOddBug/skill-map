@@ -142,6 +142,27 @@ describe('ThemeService', () => {
     expect(svc.resolved()).toBe('light'); // user override wins
   });
 
+  describe('brand mark (markSrc)', () => {
+    it('serves the dark-stroke mark on light and the light-stroke mark on dark', () => {
+      const svc = TestBed.inject(ThemeService);
+      svc.set('light');
+      expect(svc.markSrc()).toBe('skill-map-mark-dark.svg');
+      svc.set('dark');
+      expect(svc.markSrc()).toBe('skill-map-mark-light.svg');
+    });
+
+    it('serves the retinted mark of every extra theme, and falls back on clear', () => {
+      const svc = TestBed.inject(ThemeService);
+      for (const id of ['matrix', 'neon', 'neon-green', 'neon-red'] as const) {
+        svc.setExtraTheme(id);
+        expect(svc.markSrc()).toBe(`skill-map-mark-${id}.svg`);
+      }
+      svc.setExtraTheme(null);
+      svc.set('light');
+      expect(svc.markSrc()).toBe('skill-map-mark-dark.svg');
+    });
+  });
+
   describe('extra theme (matrix)', () => {
     it('starts at null with empty storage', () => {
       const svc = TestBed.inject(ThemeService);
