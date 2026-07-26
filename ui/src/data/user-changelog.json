@@ -2,6 +2,217 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.93.0",
+      "date": "2026-07-26",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The interface now meets WCAG AA accessibility contrast in all six themes: input borders and highlighted text are easier to see, and keyboard focus on the refresh button shows a clear ring.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Turn on \"Wake an agent when jobs are queued\" (Settings, Project) and OpenCode starts a session by itself when work arrives, processes the queue, and stops. Nothing sits parked, idle costs zero.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The inspector no longer claims no agent is available when one is running through the CLI: it now reports whether an agent has actually picked up work.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Fix buttons now show a clock while the job waits in the queue and a spinner only once your agent is actually running it, so you can tell \"waiting\" from \"working\" at a glance.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "An OpenCode agent watching the queue can now wait for jobs on a single parked call, spending no tokens while idle, instead of the wait dying after a minute.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "When a contradiction needs your call, the fixer asks you in chat and applies your answer, instead of quietly parking it for later on agents without a dedicated question widget.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "A project with both `.claude/` and `.opencode/` now picks OpenCode on its own instead of asking, since OpenCode reads Claude's skills too. Two unrelated runtimes still ask.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The Files panel now draws only the rows on screen, so expanding or collapsing folders in a large project is immediate instead of stalling. You can also move through the list with the arrow keys: Enter opens a file, Space toggles it on the map.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Findings you decided yourself (approved a fix, picked an option, resolved by hand) now show a \"human\" tag next to them, so your calls stand out from the fixer's autonomous ones.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Safety findings now show a `kernel` mark, so you can tell the system's safety net from the judgment of the check you ran.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "A file with a prompt-injection trap no longer collects one duplicate warning per AI check you run: the safety flag is recorded once per file.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The map camera now follows your agent's activity by default; switch it off from the map toolbar if you prefer a still camera, and your choice sticks.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The \"Capture conversations\" switch now stays locked, and tells you why, until the real-time hook is installed.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "When the agent connection looks lost, a \"Check Agent\" button next to the Auto-fixer pings the queue in place: green five seconds when an agent picks it up, red when nobody does, no more detours to Quick Start.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "When no agent is processing jobs, the inspector now tells you exactly what to type in your agent (`/sm-process-jobs`, or `$sm-process-jobs` on Codex) and where to confirm it (Quick Start's Check), instead of a generic \"start the processing skill\".",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The MCP setup command now carries the port your server is really on, and Antigravity and OpenCode get a ready config file to save. It always points at your own config, never at a file your repository shares with the team.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**AI buttons wait for your agent.** Summarize, auto-tag and the AI Actions buttons now stay disabled while no agent is connected to the MCP, instead of queueing work nobody picks up. They re-enable on their own once you start your agent.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Click the file path in the inspector header to copy it to the clipboard, the same way the hashes in Metadata already worked. A check mark confirms the copy.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "On OpenCode, the delegation arrow now starts at the agent that delegated from its very first delegation, instead of a \"Session\" bubble for the first one. Requires reinstalling the hook and restarting OpenCode.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The \"no agent has picked up work yet\" notice clears as soon as your agent parks on the queue, and a Check nobody answers flips the state back to disconnected, so what you see always matches reality.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "You can now install and check the processing skill from the Antigravity and OpenCode lenses, instead of having to switch to the Agent Skills lens first.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Link type toggles now just show and hide.** Each link type button in the map toolbar turns those arrows on or off on its own. Turning the last one off leaves the map with no links, instead of switching every type back on.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Settings now opens where you left it: the modal remembers the last section you visited instead of always starting on Plugins.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "An agent whose session lacks the skill-map MCP tools now falls back to the CLI verbs as intended, instead of spamming your terminal with hand-built curl calls against the MCP endpoint.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "A delegation arrow that ends badly (the runtime refused the call, the agent crashed) now clears as soon as the session finishes, instead of hanging on the map for five minutes.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Delegation arrows now start at the agent that actually delegated, instead of a generic \"Session\" bubble, on runtimes that do not name the parent.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Auto-tag suggestions now wait for you: if you browse other files while your agent infers tags, the pre-filled tag editor opens when you come back to the file it judged instead of getting lost.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Auto-tag now suggests tags in the tag editor for you to keep or drop, instead of silently doing nothing when sidecar edits are not allowed, and it stops proposing near-duplicates of tags you already have.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The browser tab icon now follows the theme too: the neon cyan, green, and red themes each swap in a matching favicon while active, like matrix already did.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The skill-map logo now matches the active theme: the neon cyan, green, and red themes each get a logo tinted in their own colors, both in the top bar and in Settings.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The tutorial has a new section on the AI layer: connect your agent to the job queue and watch it summarize, find planted problems, fix them (asking you when the call is yours), propose tags, and refuse a hidden injection, all from the UI.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Buttons that need an AI agent are now clearly disabled until you set one up, instead of looking clickable and failing.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.92.0",
       "date": "2026-07-24",
       "kind": "user-facing",
