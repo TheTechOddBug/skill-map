@@ -106,7 +106,7 @@ export const FINDINGS_CLI_TEXTS = {
    * ` (stale)` marker on any stale row (they ride the default view
    * inline since 2026-07-20).
    */
-  findingRow: '{{idCol}}  {{glyph}}  {{extensionId}}  {{type}}  {{message}}  {{confidence}}{{staleTag}}\n',
+  findingRow: '{{idCol}}  {{glyph}}  {{extensionId}}  {{type}}  {{message}}  {{confidence}}{{staleTag}}{{humanTag}}\n',
   /** Confidence column value, composed dim at the call site. */
   confidenceValue: '({{percent}}%)',
   /**
@@ -118,6 +118,14 @@ export const FINDINGS_CLI_TEXTS = {
   confidenceWithModelValue: '({{percent}}% · {{model}})',
   /** Marker appended (yellow) to any stale row in the listing. */
   staleTag: '  (stale)',
+  /**
+   * ` (human)` marker on a fixed row whose resolution involved the
+   * operator (`resolution_actor = 'human'`: an approval, a chosen
+   * option, or a manual `sm findings resolve`), so human calls read at
+   * a glance next to autonomous fixer ones (user ask 2026-07-26, the
+   * same at-a-glance treatment `(stale)` gets).
+   */
+  humanTag: '  (human)',
   /**
    * Optional detail line under a finding row (the finder's longer
    * evidence), rendered dim. `{{indent}}` aligns it under the message

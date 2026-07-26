@@ -965,7 +965,10 @@ describe('GraphView, follow-the-activity camera', () => {
 
   beforeEach(() => {
     TestBed.resetTestingModule();
-    localStorage.removeItem(FOLLOW_KEY);
+    // Seed the preference OFF: the default flipped to ON (user call
+    // 2026-07-26), and this suite exercises the explicit toggle-on
+    // wiring, so it starts from a stored opt-out.
+    localStorage.setItem(FOLLOW_KEY, 'false');
     localStorage.removeItem('sm.map.visible-paths');
     localStorage.removeItem('sm.graph.viewport');
   });

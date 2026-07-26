@@ -237,6 +237,15 @@ export const INSPECTOR_VIEW_TEXTS = {
       staleTag: 'stale',
       staleTagTooltip: 'The node body changed since this judgment; re-run the finder to re-check.',
       /**
+       * Inline per-row mark on a FIXED finding whose resolution involved
+       * the operator (an approval, a chosen option, or a manual
+       * resolve), so human calls read at a glance next to autonomous
+       * fixer ones; same treatment as the stale mark, in the theme's
+       * primary color.
+       */
+      humanTag: 'human',
+      humanTagTooltip: 'Fixed with your decision: you approved or chose this resolution.',
+      /**
        * Inline per-row mark on a `kernel`-origin finding: the safety
        * lane synthesized it from the report's `safety` block, so the
        * extension named on the row is only the run that surfaced it,

@@ -348,6 +348,18 @@
                             >{{ texts.aiActions.finding.staleTag }}</span
                           >
                         }
+                        <!-- Human-decided fix: the operator approved or
+                             chose it (user ask 2026-07-26, the stale
+                             treatment in the theme's primary color). -->
+                        @if (bucket === 'fixed' && f.resolutionActor === 'human') {
+                          <span
+                            class="inspector__finding-human"
+                            [pTooltip]="texts.aiActions.finding.humanTagTooltip"
+                            tooltipPosition="top"
+                            [attr.data-testid]="'inspector-revealed-finding-human-' + f.id"
+                            >{{ texts.aiActions.finding.humanTag }}</span
+                          >
+                        }
                         <span class="inspector__ai-action-provenance">{{
                           aiActionConfidenceModel(f)
                         }}</span>

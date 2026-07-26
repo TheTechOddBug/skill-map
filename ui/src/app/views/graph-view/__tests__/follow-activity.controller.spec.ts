@@ -42,7 +42,10 @@ describe('follow-activity.controller', () => {
         },
       ],
     });
-    localStorage.removeItem(FOLLOW_KEY);
+    // Seed the preference OFF: the default flipped to ON (user call
+    // 2026-07-26), and these flows exercise the explicit toggle-on
+    // transitions, so they start from a stored opt-out.
+    localStorage.setItem(FOLLOW_KEY, 'false');
   });
   afterEach(() => {
     localStorage.removeItem(FOLLOW_KEY);

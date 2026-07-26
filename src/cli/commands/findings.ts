@@ -1797,6 +1797,10 @@ function renderNodeSection(
         message: row.message,
         confidence: ansi.dim(renderConfidence(row)),
         staleTag: row.stale ? ansi.yellow(T.staleTag) : '',
+        humanTag:
+          row.resolution === 'fixed' && row.resolutionActor === 'human'
+            ? ansi.cyan(T.humanTag)
+            : '',
       }),
     );
     if (row.detail !== null && row.detail.length > 0) {

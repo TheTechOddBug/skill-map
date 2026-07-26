@@ -111,14 +111,17 @@ describe('LivePreferencesService', () => {
     warn.mockRestore();
   });
 
-  it('defaults follow-the-activity to OFF when nothing is stored', () => {
+  it('defaults follow-the-activity to ON when nothing is stored (user call 2026-07-26)', () => {
     const service = bootstrap();
-    expect(service.followActivityEnabled()).toBe(false);
+    expect(service.followActivityEnabled()).toBe(true);
   });
 
-  it('reads a stored follow-the-activity ON at construction and persists setter writes', () => {
-    localStorage.setItem(FOLLOW_KEY, 'true');
+  it('reads a stored follow-the-activity OFF at construction and persists setter writes', () => {
+    localStorage.setItem(FOLLOW_KEY, 'false');
     const service = bootstrap();
+    expect(service.followActivityEnabled()).toBe(false);
+    service.setFollowActivityEnabled(true);
+    expect(localStorage.getItem(FOLLOW_KEY)).toBe('true');
     expect(service.followActivityEnabled()).toBe(true);
 
     service.setFollowActivityEnabled(false);

@@ -649,10 +649,20 @@ describe('sm findings fixer resolution', () => {
       fixer: 'core/ai-redundancy-action',
       note: 'Approved the edit.',
     });
+    const attendedOut = (await runHuman(attended.root, { fixed: true })).out;
     match(
-      (await runHuman(attended.root, { fixed: true })).out,
+      attendedOut,
       /✓ {2}fixed by core\/ai-redundancy-action \(your decision\): Approved the edit\./,
       'a human decision with a fixer reads `(your decision)`',
+    );
+    // The at-a-glance row marker (user ask 2026-07-26): human-decided
+    // fixed rows ride inline tagged `(human)`, like `(stale)`; a fully
+    // autonomous fix carries no such tag.
+    match(attendedOut, /\(human\)/, 'a human-decided fixed row is tagged inline');
+    doesNotMatch(
+      (await runHuman(autonomous.root, { fixed: true })).out,
+      /\(human\)/,
+      'an autonomous fix carries no (human) tag',
     );
   });
 

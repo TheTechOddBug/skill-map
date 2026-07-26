@@ -12,8 +12,9 @@
  *     feature) untouched; only the activity lighting goes inert.
  *   - `followActivityEnabled`, whether the graph camera auto-frames the
  *     executing nodes ("Follow the Activity", the map-toolbar toggle).
- *     Default OFF: a camera that moves on its own at boot is intrusive;
- *     the operator opts in and the choice then persists.
+ *     Default ON (user call 2026-07-26: watching the agent run IS the
+ *     point of Real Time, so the camera follows out of the box); the
+ *     operator can switch it off and the choice persists per browser.
  *
  * Persistence is split by nature. `wsEnabled` / `activityEnabled` are
  * project-scoped preferences: they live in the checkout's gitignored
@@ -65,13 +66,13 @@ export class LivePreferencesService {
 
   private readonly _wsEnabled = signal(true);
   private readonly _activityEnabled = signal(true);
-  private readonly _followActivity = signal(readStoredBool(FOLLOW_ACTIVITY_KEY, false));
+  private readonly _followActivity = signal(readStoredBool(FOLLOW_ACTIVITY_KEY, true));
 
   /** Live `/ws` channel wanted at all. Default ON. */
   readonly wsEnabled = this._wsEnabled.asReadonly();
   /** Real-time node activity lighting wanted. Default ON. */
   readonly activityEnabled = this._activityEnabled.asReadonly();
-  /** Camera auto-frames the executing nodes. Default OFF. */
+  /** Camera auto-frames the executing nodes. Default ON (user call 2026-07-26). */
   readonly followActivityEnabled = this._followActivity.asReadonly();
 
   /**
