@@ -105,137 +105,148 @@
     </div>
   }
 
-  <div class="sm-gnode__panel">
-    <div class="sm-gnode__path" [pTooltip]="n.path" data-testid="node-card-path">
-      <i class="fa-regular fa-folder-open sm-gnode__path-icon" aria-hidden="true"></i>
-      <span class="sm-gnode__path-value">{{ n.path }}</span>
-    </div>
-
-    @if (hasLlmCluster()) {
-      <div class="sm-gnode__llm">
-        @if (summaryMarkdown(); as sn) {
-          @if (sn.topics?.length) {
-            <div class="sm-gnode__llm-line">
-              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.topics.tooltip">{{ texts.llm.topics.label }}</span>
-              <div class="sm-gnode__chips">
-                @for (t of sn.topics; track t) {
-                  <span class="sm-gnode__chip sm-gnode__chip--llm">{{ t }}</span>
-                }
-              </div>
-            </div>
-          }
-          @if (sn.keyFacts?.length) {
-            <div class="sm-gnode__llm-line">
-              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.facts.tooltip">{{ texts.llm.facts.label }}</span>
-              <div class="sm-gnode__chips">
-                @for (f of sn.keyFacts; track f) {
-                  <span class="sm-gnode__chip sm-gnode__chip--llm">{{ f }}</span>
-                }
-              </div>
-            </div>
-          }
-        }
-        @if (summaryAgent(); as sa) {
-          @if (sa.whenToUse) {
-            <div class="sm-gnode__llm-line">
-              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.when.tooltip">{{ texts.llm.when.label }}</span>
-              <span>{{ sa.whenToUse }}</span>
-            </div>
-          }
-          @if (sa.interactionStyle) {
-            <div class="sm-gnode__llm-line">
-              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.style.tooltip">{{ texts.llm.style.label }}</span>
-              <span>{{ sa.interactionStyle }}</span>
-            </div>
-          }
-          @if (sa.capabilities?.length) {
-            <div class="sm-gnode__llm-line">
-              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.does.tooltip">{{ texts.llm.does.label }}</span>
-              <div class="sm-gnode__chips">
-                @for (c of sa.capabilities; track c) {
-                  <span class="sm-gnode__chip sm-gnode__chip--llm">{{ c }}</span>
-                }
-              </div>
-            </div>
-          }
-        }
-        @if (summarySkill(); as ss) {
-          @if (ss.recipe?.length) {
-            <div class="sm-gnode__llm-line">
-              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.steps.tooltip">{{ texts.llm.steps.label }}</span>
-              <span>
-                @for (r of ss.recipe; track r.step; let last = $last) {{{ r.step }}. {{ r.description }}{{ last ? '' : ' · ' }}}
-              </span>
-            </div>
-          }
-          @if (ss.preconditions?.length) {
-            <div class="sm-gnode__llm-line">
-              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.pre.tooltip">{{ texts.llm.pre.label }}</span>
-              <div class="sm-gnode__chips">
-                @for (p of ss.preconditions; track p) {
-                  <span class="sm-gnode__chip sm-gnode__chip--llm">{{ p }}</span>
-                }
-              </div>
-            </div>
-          }
-          @if (ss.outputs?.length) {
-            <div class="sm-gnode__llm-line">
-              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.out.tooltip">{{ texts.llm.out.label }}</span>
-              <div class="sm-gnode__chips">
-                @for (o of ss.outputs; track o) {
-                  <span class="sm-gnode__chip sm-gnode__chip--llm">{{ o }}</span>
-                }
-              </div>
-            </div>
-          }
-          @if (ss.sideEffects?.length) {
-            <div class="sm-gnode__llm-line">
-              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.fx.tooltip">{{ texts.llm.fx.label }}</span>
-              <div class="sm-gnode__chips">
-                @for (fx of ss.sideEffects; track fx) {
-                  <span class="sm-gnode__chip sm-gnode__chip--llm">{{ fx }}</span>
-                }
-              </div>
-            </div>
-          }
-        }
-        @if (summaryCommand(); as sc) {
-          @if (sc.invocationExample) {
-            <div class="sm-gnode__llm-line">
-              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.eg.tooltip">{{ texts.llm.eg.label }}</span>
-              <code class="sm-gnode__llm-code">{{ sc.invocationExample }}</code>
-            </div>
-          }
-          @if (sc.sideEffects?.length) {
-            <div class="sm-gnode__llm-line">
-              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.fx.tooltip">{{ texts.llm.fx.label }}</span>
-              <div class="sm-gnode__chips">
-                @for (fx of sc.sideEffects; track fx) {
-                  <span class="sm-gnode__chip sm-gnode__chip--llm">{{ fx }}</span>
-                }
-              </div>
-            </div>
-          }
-        }
+  <!-- Built ONLY while expanded. The panel is `display: none` on a
+       collapsed card, so before this gate every node on the map paid to
+       construct markup the browser then refused to paint: the path row,
+       the whole LLM cluster, the description (including its markdown
+       render) and the agent meta rows. At the 256-node map cap that was
+       ~22 elements per node, ~40% of the card. Expanding now builds the
+       panel on demand, which one node pays on click instead of every
+       node paying on every render. Nothing painted today stops being
+       painted; do not "simplify" this back to an always-rendered block. -->
+  @if (expanded()) {
+    <div class="sm-gnode__panel">
+      <div class="sm-gnode__path" [pTooltip]="n.path" data-testid="node-card-path">
+        <i class="fa-regular fa-folder-open sm-gnode__path-icon" aria-hidden="true"></i>
+        <span class="sm-gnode__path-value">{{ n.path }}</span>
       </div>
-    }
 
-    @if (description()) {
-      <div class="sm-gnode__desc" [innerHTML]="descriptionHtml()"></div>
-    }
-
-    <!-- Kind-specific meta block. Only renders rows that actually have a value. -->
-    @if (fmAgent(); as fa) {
-      @if (fa.model) {
-        <div class="sm-gnode__meta">
-          <div class="sm-gnode__meta-row">
-            <span class="sm-gnode__meta-label">{{ texts.meta.model }}</span>
-            <span class="sm-gnode__meta-value sm-gnode__meta-value--mono">{{ fa.model }}</span>
-          </div>
+      @if (hasLlmCluster()) {
+        <div class="sm-gnode__llm">
+          @if (summaryMarkdown(); as sn) {
+            @if (sn.topics?.length) {
+              <div class="sm-gnode__llm-line">
+                <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.topics.tooltip">{{ texts.llm.topics.label }}</span>
+                <div class="sm-gnode__chips">
+                  @for (t of sn.topics; track t) {
+                    <span class="sm-gnode__chip sm-gnode__chip--llm">{{ t }}</span>
+                  }
+                </div>
+              </div>
+            }
+            @if (sn.keyFacts?.length) {
+              <div class="sm-gnode__llm-line">
+                <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.facts.tooltip">{{ texts.llm.facts.label }}</span>
+                <div class="sm-gnode__chips">
+                  @for (f of sn.keyFacts; track f) {
+                    <span class="sm-gnode__chip sm-gnode__chip--llm">{{ f }}</span>
+                  }
+                </div>
+              </div>
+            }
+          }
+          @if (summaryAgent(); as sa) {
+            @if (sa.whenToUse) {
+              <div class="sm-gnode__llm-line">
+                <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.when.tooltip">{{ texts.llm.when.label }}</span>
+                <span>{{ sa.whenToUse }}</span>
+              </div>
+            }
+            @if (sa.interactionStyle) {
+              <div class="sm-gnode__llm-line">
+                <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.style.tooltip">{{ texts.llm.style.label }}</span>
+                <span>{{ sa.interactionStyle }}</span>
+              </div>
+            }
+            @if (sa.capabilities?.length) {
+              <div class="sm-gnode__llm-line">
+                <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.does.tooltip">{{ texts.llm.does.label }}</span>
+                <div class="sm-gnode__chips">
+                  @for (c of sa.capabilities; track c) {
+                    <span class="sm-gnode__chip sm-gnode__chip--llm">{{ c }}</span>
+                  }
+                </div>
+              </div>
+            }
+          }
+          @if (summarySkill(); as ss) {
+            @if (ss.recipe?.length) {
+              <div class="sm-gnode__llm-line">
+                <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.steps.tooltip">{{ texts.llm.steps.label }}</span>
+                <span>
+                  @for (r of ss.recipe; track r.step; let last = $last) {{{ r.step }}. {{ r.description }}{{ last ? '' : ' · ' }}}
+                </span>
+              </div>
+            }
+            @if (ss.preconditions?.length) {
+              <div class="sm-gnode__llm-line">
+                <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.pre.tooltip">{{ texts.llm.pre.label }}</span>
+                <div class="sm-gnode__chips">
+                  @for (p of ss.preconditions; track p) {
+                    <span class="sm-gnode__chip sm-gnode__chip--llm">{{ p }}</span>
+                  }
+                </div>
+              </div>
+            }
+            @if (ss.outputs?.length) {
+              <div class="sm-gnode__llm-line">
+                <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.out.tooltip">{{ texts.llm.out.label }}</span>
+                <div class="sm-gnode__chips">
+                  @for (o of ss.outputs; track o) {
+                    <span class="sm-gnode__chip sm-gnode__chip--llm">{{ o }}</span>
+                  }
+                </div>
+              </div>
+            }
+            @if (ss.sideEffects?.length) {
+              <div class="sm-gnode__llm-line">
+                <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.fx.tooltip">{{ texts.llm.fx.label }}</span>
+                <div class="sm-gnode__chips">
+                  @for (fx of ss.sideEffects; track fx) {
+                    <span class="sm-gnode__chip sm-gnode__chip--llm">{{ fx }}</span>
+                  }
+                </div>
+              </div>
+            }
+          }
+          @if (summaryCommand(); as sc) {
+            @if (sc.invocationExample) {
+              <div class="sm-gnode__llm-line">
+                <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.eg.tooltip">{{ texts.llm.eg.label }}</span>
+                <code class="sm-gnode__llm-code">{{ sc.invocationExample }}</code>
+              </div>
+            }
+            @if (sc.sideEffects?.length) {
+              <div class="sm-gnode__llm-line">
+                <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.fx.tooltip">{{ texts.llm.fx.label }}</span>
+                <div class="sm-gnode__chips">
+                  @for (fx of sc.sideEffects; track fx) {
+                    <span class="sm-gnode__chip sm-gnode__chip--llm">{{ fx }}</span>
+                  }
+                </div>
+              </div>
+            }
+          }
         </div>
       }
-    }
-  </div>
+
+      @if (description()) {
+        <div class="sm-gnode__desc" [innerHTML]="descriptionHtml()"></div>
+      }
+
+      <!-- Kind-specific meta block. Only renders rows that actually have a value. -->
+      @if (fmAgent(); as fa) {
+        @if (fa.model) {
+          <div class="sm-gnode__meta">
+            <div class="sm-gnode__meta-row">
+              <span class="sm-gnode__meta-label">{{ texts.meta.model }}</span>
+              <span class="sm-gnode__meta-value sm-gnode__meta-value--mono">{{ fa.model }}</span>
+            </div>
+          </div>
+        }
+      }
+    </div>
+  }
 
   <div class="sm-gnode__footer">
     <!--
