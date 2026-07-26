@@ -260,6 +260,7 @@ export class NodeTags {
     // agent are different actions for the operator.
     const reason = this.processingAgent.submitGateReason();
     if (reason === 'mcp-disconnected') return this.texts.autoTag.tooltipNoMcp;
+    if (reason === 'agent-silent') return this.texts.autoTag.tooltipAgentSilent;
     if (reason !== null) return this.texts.autoTag.tooltipNoAgent;
     switch (this.autoTagState()) {
       case 'queued':

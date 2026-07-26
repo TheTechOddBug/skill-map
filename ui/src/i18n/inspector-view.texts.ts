@@ -40,6 +40,7 @@ export const INSPECTOR_VIEW_TEXTS = {
        * `tooltipNoAgent`; the AI Actions warning carries the how-to.
        */
       tooltipNoMcp: 'Needs an agent connected to the MCP',
+      tooltipAgentSilent: 'No agent answered the last check',
       tooltipQueued: 'Analysis queued',
       tooltipRunning: 'Analyzing…',
       tooltipReady: 'Show / hide the semantic analysis',
@@ -112,6 +113,20 @@ export const INSPECTOR_VIEW_TEXTS = {
      * already-open finding lives on the finding row (user call
      * 2026-07-20), so the button never morphs.
      */
+    /**
+     * Manual re-probe of the whole submit gate (skill install + MCP
+     * connectivity), sitting beside the Auto-fixer toggle. Exists
+     * because the MCP session can drop and re-form as the operator's
+     * agent comes and goes, and the passive poll only runs while
+     * DISCONNECTED: a stale-looking state needed a trip to Quick Start
+     * just to re-check. Terse register, same as the gate tooltips.
+     */
+    checkAgent: {
+      label: 'Check Agent',
+      tooltip: 'Re-check the agent connection',
+      announceConnected: 'Agent connected.',
+      announceDisconnected: 'Agent not connected. Check the setup in "Quick Start".',
+    },
     autoFix: {
       label: 'Auto-fixer',
       tooltip:
@@ -124,6 +139,7 @@ export const INSPECTOR_VIEW_TEXTS = {
        */
       tooltipNoAgent: 'Needs a jobs agent',
       tooltipNoMcp: 'Needs an agent connected to the MCP',
+      tooltipAgentSilent: 'No agent answered the last check',
     },
     /**
      * Finder button action names (tooltip prefix): Detect runs the

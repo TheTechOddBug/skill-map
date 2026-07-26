@@ -185,9 +185,10 @@ export class InspectorHeader {
     if (this.summaryGated()) {
       // Name WHICH half is missing: "install the skill" and "start your
       // agent" are different actions for the operator.
-      return this.processingAgent.submitGateReason() === 'mcp-disconnected'
-        ? t.tooltipNoMcp
-        : t.tooltipNoAgent;
+      const reason = this.processingAgent.submitGateReason();
+      if (reason === 'mcp-disconnected') return t.tooltipNoMcp;
+      if (reason === 'agent-silent') return t.tooltipAgentSilent;
+      return t.tooltipNoAgent;
     }
     switch (this.summaryState()) {
       case 'queued':

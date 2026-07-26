@@ -42,7 +42,6 @@ import {
   signal,
 } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
-import { Subscription } from 'rxjs';
 import { ConfirmationService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
@@ -64,6 +63,7 @@ import type {
   IProjectPreferencesPatchApi,
 } from '../../../models/api';
 import { CollectionLoaderService } from '../../../services/collection-loader';
+import { AgentPingService } from '../../services/agent-ping';
 import {
   DATA_SOURCE,
   DataSourceError,
@@ -79,9 +79,8 @@ import { QuickStartRow } from './quick-start-row';
 /** Milliseconds the "Copied" affordance stays up after a clipboard write. */
 const COPIED_FEEDBACK_MS = 2000;
 /** Qualified id of the hidden system liveness-probe extension. */
-const PING_EXTENSION_ID = 'core/ai-ping-action';
+// Ping identity + window live in the shared `AgentPingService`.
 /** How long to wait for an agent to claim the ping before calling it idle. */
-const PING_TIMEOUT_MS = 15_000;
 
 /** Liveness-probe state machine for the "Agent attending jobs" row. */
 type TPingState = 'idle' | 'checking' | 'alive' | 'no-agent' | 'no-node' | 'error';
@@ -216,7 +215,7 @@ export class QuickStartModal {
       void this.refreshSkill(provider);
     });
     // Drop any in-flight liveness watch when the panel is torn down.
-    this.destroyRef.onDestroy(() => this.teardownPing());
+    this.destroyRef.onDestroy(() => this.agentPing.abandon());
   }
 
   /**
@@ -226,10 +225,7 @@ export class QuickStartModal {
    */
   protected onVisibleChange(next: boolean): void {
     if (!next) {
-      if (this.isPending('ping') && this.pingJobId !== null) {
-        void this.dataSource.cancelJob(this.pingJobId).catch(() => undefined);
-      }
-      this.teardownPing();
+      if (this.isPending('ping')) this.agentPing.abandon();
       this.removePending('ping');
     }
     this.visibleChange.emit(next);
@@ -717,9 +713,7 @@ export class QuickStartModal {
   // ===================================================================
 
   private readonly pingState = signal<TPingState>('idle');
-  private pingJobId: string | null = null;
-  private pingSub: Subscription | null = null;
-  private pingTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly agentPing = inject(AgentPingService);
 
   private readonly skillInstalled = computed<boolean>(
     () => this.skillStatus()?.installed === true,
@@ -781,104 +775,26 @@ export class QuickStartModal {
   }
 
   /**
-   * Submit one `core/ai-ping-action` job against a real node and watch the
-   * job-event stream. `job.claimed` / `job.completed` / `job.failed` for
-   * that id all prove an external agent picked it up (alive); a
-   * PING_TIMEOUT_MS silence means none is attending, and the still-queued
-   * ping is cancelled so it does not sit in the queue forever.
+   * Run the shared full-circuit probe (`AgentPingService`: submit the
+   * hidden ping, adopt a wedged duplicate, watch for a claim, cancel on
+   * timeout) and map its verdict onto this row's states.
    */
   private async runPingCheck(): Promise<void> {
     const key = 'ping';
     if (this.isPending(key)) return;
-    this.teardownPing();
-    // The submit engine reads the target's body from disk, so the ping must
-    // aim at a REAL file, never a virtual `<scheme>://` node (`mcp://`,
-    // agent-derived). No real file scanned yet -> scan first.
-    const target = this.loader.nodes().find((n) => !n.path.includes('://'))?.path ?? null;
-    if (target === null) {
-      this.pingState.set('no-node');
-      return;
-    }
     this.addPending(key);
     this.error.set(null);
     this.pingState.set('checking');
-    try {
-      const envelope = await this.dataSource.submitNodeJob(target, PING_EXTENSION_ID);
-      this.pingJobId = envelope.value.jobId;
-      this.watchPing(envelope.value.jobId);
-    } catch (err) {
-      if (err instanceof DataSourceError && err.code === 'no-processing-agent') {
-        // The skill vanished between the row-h probe and this submit.
-        this.removePending(key);
-        this.pingState.set('no-agent');
-      } else if (
-        err instanceof DataSourceError &&
-        (err.code === 'duplicate-job' || err.code === 'job-running')
-      ) {
-        // A prior job already covers this node, commonly a ping a past
-        // check left unclaimed because no agent was draining. Adopt it as
-        // the probe instead of surfacing an error: if an agent is
-        // attending it claims within the window; otherwise the timeout
-        // cancels it and reports no-agent, which also clears the wedged
-        // job so the next check starts clean.
-        const existingId = (err.details as { existingId?: unknown } | undefined)?.existingId;
-        if (typeof existingId === 'string') {
-          this.pingJobId = existingId;
-          this.watchPing(existingId);
-        } else {
-          this.removePending(key);
-          this.pingState.set('no-agent');
-        }
-      } else {
-        this.removePending(key);
-        this.pingState.set('error');
-        this.error.set(formatErr(err));
-      }
+    const result = await this.agentPing.check();
+    this.removePending(key);
+    if (result.verdict === 'error') {
+      this.pingState.set('error');
+      this.error.set(result.message ?? '');
+      return;
     }
-  }
-
-  /** Subscribe to the job stream for this ping id and arm the timeout. */
-  private watchPing(jobId: string): void {
-    this.pingSub = this.wsEvents.jobEvents$.subscribe((event) => {
-      if (event.jobId !== jobId) return;
-      // Any of these means an external agent CLAIMED the ping, so it is
-      // attending the queue (a failure still required a claim to run).
-      if (
-        event.type === 'job.claimed' ||
-        event.type === 'job.completed' ||
-        event.type === 'job.failed'
-      ) {
-        this.resolvePing('alive');
-      }
-    });
-    this.pingTimer = setTimeout(() => {
-      // Nobody claimed it in time: no agent attending. Cancel the queued
-      // ping so it does not linger (jobs never auto-expire).
-      if (this.pingJobId !== null) {
-        void this.dataSource.cancelJob(this.pingJobId).catch(() => undefined);
-      }
-      this.resolvePing('no-agent');
-    }, PING_TIMEOUT_MS);
-  }
-
-  /** Land a terminal ping verdict and tear the watch down. */
-  private resolvePing(state: TPingState): void {
-    this.teardownPing();
-    this.pingState.set(state);
-    this.removePending('ping');
-  }
-
-  /** Cancel the watch subscription + timeout and forget the job id (idempotent). */
-  private teardownPing(): void {
-    if (this.pingSub !== null) {
-      this.pingSub.unsubscribe();
-      this.pingSub = null;
-    }
-    if (this.pingTimer !== null) {
-      clearTimeout(this.pingTimer);
-      this.pingTimer = null;
-    }
-    this.pingJobId = null;
+    this.pingState.set(
+      result.verdict === 'alive' ? 'alive' : result.verdict === 'no-node' ? 'no-node' : 'no-agent',
+    );
   }
 
   // ===================================================================

@@ -47,11 +47,9 @@ de comandos para mantener limpio el entorno.
 
 ## Rollback
 
-Si algo falla antes de que corran las migraciones, ejecuta
-`node scripts/rollback.js` de inmediato, sin pedir autorizacion a nadie:
-cada minuto con el sitio caido cuesta trafico. Si las migraciones ya
-corrieron, no reviertas sin la autorizacion escrita del DBA (ver
-Datos).
+Si algo falla en cualquier paso, ejecuta `node scripts/rollback.js` de
+inmediato, sin pedir autorizacion a nadie: cada minuto con el sitio
+caido cuesta trafico.
 
 ## Datos
 

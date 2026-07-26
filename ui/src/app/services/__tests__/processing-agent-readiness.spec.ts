@@ -27,6 +27,7 @@ import type { IWsScanCompletedEvent } from '../../../models/ws-event';
 interface IHarness {
   service: ProcessingAgentReadinessService;
   scanCompleted$: Subject<IWsScanCompletedEvent>;
+  jobEvents$: Subject<{ type: string; jobId?: string }>;
   activeProvider: WritableSignal<string | null>;
   getAgentSkillInstallStatus: ReturnType<typeof vi.fn>;
 }
@@ -57,7 +58,8 @@ function bootstrap(
 ): IHarness {
   TestBed.resetTestingModule();
   const scanCompleted$ = new Subject<IWsScanCompletedEvent>();
-  const ws = { scanCompleted$ } as unknown as WsEventStreamService;
+  const jobEvents$ = new Subject<{ type: string; jobId?: string }>();
+  const ws = { scanCompleted$, jobEvents$ } as unknown as WsEventStreamService;
   const activeProvider = signal<string | null>(lens);
   TestBed.configureTestingModule({
     providers: [
@@ -69,6 +71,7 @@ function bootstrap(
   return {
     service: TestBed.inject(ProcessingAgentReadinessService),
     scanCompleted$,
+    jobEvents$,
     activeProvider,
     getAgentSkillInstallStatus: stub.getAgentSkillInstallStatus as ReturnType<typeof vi.fn>,
   };
@@ -268,3 +271,47 @@ describe('ProcessingAgentReadinessService', () => {
     expect(getAgentSkillInstallStatus).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('ProcessingAgentReadinessService, the agent-silent half', () => {
+  it('a failed manual check closes the gate; a green one reopens it', async () => {
+    const { service } = bootstrap({
+      getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, true)),
+      mcpStatus: vi.fn().mockResolvedValue(mcp(true, true)),
+    } as Partial<IDataSourcePort>);
+    await settled();
+    // No check ever ran: fails OPEN, nothing depends on pinging.
+    expect(service.submitGateClosed()).toBe(false);
+
+    service.noteAgentAlive(false);
+    expect(service.submitGateReason()).toBe('agent-silent');
+    expect(service.submitGateClosed()).toBe(true);
+
+    service.noteAgentAlive(true);
+    expect(service.submitGateClosed()).toBe(false);
+  });
+
+  it('the deeper halves outrank agent-silent when both are closed', async () => {
+    const { service } = bootstrap({
+      getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, false)),
+      mcpStatus: vi.fn().mockResolvedValue(mcp(true, false)),
+    } as Partial<IDataSourcePort>);
+    await settled();
+    service.noteAgentAlive(false);
+    expect(service.submitGateReason()).toBe('skill-missing');
+  });
+
+  it('any observed job.claimed heals a failed check live', async () => {
+    const { service, jobEvents$ } = bootstrap({
+      getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, true)),
+      mcpStatus: vi.fn().mockResolvedValue(mcp(true, true)),
+    } as Partial<IDataSourcePort>);
+    await settled();
+    service.noteAgentAlive(false);
+    expect(service.submitGateClosed()).toBe(true);
+
+    jobEvents$.next({ type: 'job.claimed', jobId: 'd-x' });
+    expect(service.submitGateClosed()).toBe(false);
+    expect(service.agentAlive()).toBe(true);
+  });
+});
+

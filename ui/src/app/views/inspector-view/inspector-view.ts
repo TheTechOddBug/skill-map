@@ -52,6 +52,7 @@ import { cssKindNameOrFallback } from '../../../services/css-guard';
 import { activityNodeLabel, pathBasenameForLink } from '../../../services/path-basename';
 import { ProviderRegistryService } from '../../../services/provider-registry';
 import { ProjectInfoService } from '../../services/project-info';
+import { AgentPingService } from '../../services/agent-ping';
 import { ProcessingAgentReadinessService } from '../../services/processing-agent-readiness';
 import {
   AnnotationsPanel,
@@ -166,6 +167,7 @@ export class InspectorView implements OnInit {
   private readonly processingAgent = inject(ProcessingAgentReadinessService);
   private readonly activityStats = inject(NodeActivityStatsService);
   private readonly announcer = inject(A11yAnnouncerService);
+  private readonly agentPing = inject(AgentPingService);
   private readonly livePrefs = inject(LivePreferencesService);
 
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
@@ -542,6 +544,44 @@ export class InspectorView implements OnInit {
    * deliberately NOT gated: they are local state, they work offline.
    */
   protected readonly submitGateClosed = this.processingAgent.submitGateClosed;
+  /**
+   * Manual full-circuit check (the "Check Agent" chip, right-aligned
+   * like the body's Raw toggle): runs the shared `AgentPingService`
+   * probe, ONE hidden ping job submitted and watched for a claim, so
+   * the verdict proves the whole circuit (submit gate, queue, an agent
+   * actually attending), not just a status read. State machine (user
+   * spec 2026-07-26): the check waits out the ping window, then the
+   * chip holds the VERDICT for 5 seconds, green on a claim, red on
+   * silence (while red, the usual gate / attending warnings are back on
+   * their own; a green ping also flips server-side presence, which
+   * clears the attending warning), and is unclickable until idle.
+   */
+  protected readonly agentCheckState = signal<'idle' | 'checking' | 'ok' | 'fail'>('idle');
+
+  /** Verdict hold: how long the green / red state lingers before re-arming. */
+  private static readonly AGENT_CHECK_HOLD_MS = 5000;
+
+  protected onCheckAgentConnection(): void {
+    if (this.agentCheckState() !== 'idle') return;
+    this.agentCheckState.set('checking');
+    // Gate probes ride along so a stale skill / MCP read refreshes too,
+    // but the VERDICT is the ping's: the full circuit, submit through an
+    // observed claim, is the only proof an agent is really attending.
+    void this.processingAgent.refresh();
+    void this.processingAgent.refreshMcp();
+    void this.agentPing.check().then((result) => {
+      const alive = result.verdict === 'alive';
+      this.agentCheckState.set(alive ? 'ok' : 'fail');
+      this.announcer.announce(
+        alive
+          ? this.texts.aiActions.checkAgent.announceConnected
+          : this.texts.aiActions.checkAgent.announceDisconnected,
+      );
+      setTimeout(() => {
+        this.agentCheckState.set('idle');
+      }, InspectorView.AGENT_CHECK_HOLD_MS);
+    });
+  }
 
   /**
    * The `issueFixers` entry matching a deterministic issue row, or
@@ -781,6 +821,8 @@ export class InspectorView implements OnInit {
         return this.texts.aiActions.autoFix.tooltipNoAgent;
       case 'mcp-disconnected':
         return this.texts.aiActions.autoFix.tooltipNoMcp;
+      case 'agent-silent':
+        return this.texts.aiActions.autoFix.tooltipAgentSilent;
       default:
         return this.texts.aiActions.autoFix.tooltip;
     }

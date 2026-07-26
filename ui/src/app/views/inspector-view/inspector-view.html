@@ -444,23 +444,58 @@
                      carries autoFix and the kernel chains the fixers;
                      off => the button morphs Detect <-> Fix. Only shown
                      when a finder-with-fixer button exists. -->
-                @if (showAutoFixToggle()) {
-                  <div class="inspector__ai-actions-autofix" data-testid="inspector-auto-fix-row">
-                    <p-toggleswitch
-                      [ngModel]="autoFixEnabled()"
-                      (ngModelChange)="onAutoFixToggle($event)"
-                      [disabled]="submitGateClosed()"
-                      inputId="inspector-auto-fix"
-                      [pTooltip]="autoFixTooltip()"
-                      tooltipPosition="left"
-                      appendTo="body"
-                      data-testid="inspector-auto-fix-toggle"
-                    />
-                    <label class="inspector__ai-actions-autofix-label" for="inspector-auto-fix">{{
-                      texts.aiActions.autoFix.label
-                    }}</label>
-                  </div>
-                }
+                <div class="inspector__ai-actions-controls">
+                  @if (showAutoFixToggle()) {
+                    <div class="inspector__ai-actions-autofix" data-testid="inspector-auto-fix-row">
+                      <p-toggleswitch
+                        [ngModel]="autoFixEnabled()"
+                        (ngModelChange)="onAutoFixToggle($event)"
+                        [disabled]="submitGateClosed()"
+                        inputId="inspector-auto-fix"
+                        [pTooltip]="autoFixTooltip()"
+                        tooltipPosition="left"
+                        appendTo="body"
+                        data-testid="inspector-auto-fix-toggle"
+                      />
+                      <label class="inspector__ai-actions-autofix-label" for="inspector-auto-fix">{{
+                        texts.aiActions.autoFix.label
+                      }}</label>
+                    </div>
+                  }
+                  <!-- Manual gate re-probe: the MCP session drops and
+                       re-forms as the operator's agent comes and goes,
+                       and the passive poll only runs while disconnected,
+                       so a stale-looking state gets a one-click re-check
+                       here instead of a trip to Quick Start. Same chip
+                       style + right alignment as the body's Raw toggle.
+                       After the check it HOLDS the verdict 5s (green =
+                       connected, red = not) and stays unclickable. -->
+                  @let checkState = agentCheckState();
+                  <button
+                    type="button"
+                    class="inspector__ai-actions-check"
+                    [class.is-ok]="checkState === 'ok'"
+                    [class.is-fail]="checkState === 'fail'"
+                    [disabled]="checkState !== 'idle'"
+                    (click)="onCheckAgentConnection()"
+                    [pTooltip]="texts.aiActions.checkAgent.tooltip"
+                    tooltipPosition="left"
+                    appendTo="body"
+                    [attr.aria-label]="texts.aiActions.checkAgent.tooltip"
+                    data-testid="inspector-agent-check"
+                  >
+                    <i
+                      class="pi"
+                      [class.pi-sync]="checkState === 'idle'"
+                      [class.pi-spin]="checkState === 'checking'"
+                      [class.pi-spinner]="checkState === 'checking'"
+                      [class.pi-check]="checkState === 'ok'"
+                      [class.pi-times]="checkState === 'fail'"
+                      aria-hidden="true"
+                    ></i>
+                    <span>{{ texts.aiActions.checkAgent.label }}</span>
+                  </button>
+                </div>
                 <!-- Launcher groups (user pick 2026-07-22, iterated the
                      same day): Finders always on top, Standalone below,
                      each a FULL-WIDTH block, and INSIDE each block the

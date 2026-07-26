@@ -68,7 +68,7 @@ import type { IMcpStatusApi } from '../../models/api';
  * Ordered by depth: with no skill installed the MCP session is moot, so
  * `skill-missing` wins when both are true.
  */
-export type TSubmitGateReason = 'skill-missing' | 'mcp-disconnected';
+export type TSubmitGateReason = 'skill-missing' | 'mcp-disconnected' | 'agent-silent';
 
 /** Re-probe cadence while `/mcp` is live with no client attached. */
 const MCP_POLL_MS = 10_000;
@@ -79,6 +79,17 @@ export class ProcessingAgentReadinessService {
   private readonly projectInfo = inject(ProjectInfoService);
 
   private readonly _skillMissing = signal<boolean | null>(null);
+  /**
+   * Full-circuit verdict of the LAST manual Check (either surface's,
+   * they share `AgentPingService`): `false` after a ping nobody
+   * claimed, `true` after a claim, `null` while no check ever ran.
+   * `null` fails OPEN: nothing depends on running a ping, the check is
+   * the operator FORCING the question (user spec 2026-07-26), and only
+   * a failed one closes the gate. Healed by any observed claim or a
+   * later green check.
+   */
+  private readonly _agentAlive = signal<boolean | null>(null);
+  readonly agentAlive = this._agentAlive.asReadonly();
   /**
    * `true` = the active lens SUPPORTS a processing skill that is NOT
    * installed, i.e. no agent is set up to drain launched jobs (gate
@@ -106,6 +117,7 @@ export class ProcessingAgentReadinessService {
   readonly submitGateReason = computed<TSubmitGateReason | null>(() => {
     if (this._skillMissing() === true) return 'skill-missing';
     if (this.mcpConnected() === false) return 'mcp-disconnected';
+    if (this._agentAlive() === false) return 'agent-silent';
     return null;
   });
 
@@ -115,6 +127,14 @@ export class ProcessingAgentReadinessService {
    * hidden) instead of accepting a click that dead-ends.
    */
   readonly submitGateClosed = computed<boolean>(() => this.submitGateReason() !== null);
+
+  /**
+   * Record a full-circuit verdict (see `_agentAlive`): the shared ping
+   * service stamps every check's outcome here.
+   */
+  noteAgentAlive(alive: boolean): void {
+    this._agentAlive.set(alive);
+  }
 
   /** Single in-flight probe; a same-lens refresh awaits the same one. */
   private inFlight: Promise<void> | null = null;
@@ -137,6 +157,13 @@ export class ProcessingAgentReadinessService {
       void this.refreshMcp();
     });
     destroyRef.onDestroy(() => sub.unsubscribe());
+    // Any observed claim proves an agent is attending again: a failed
+    // check heals live the moment a parked or woken agent picks
+    // anything up, no manual re-check needed.
+    const claimSub = events.jobEvents$.subscribe((event) => {
+      if (event.type === 'job.claimed') this._agentAlive.set(true);
+    });
+    destroyRef.onDestroy(() => claimSub.unsubscribe());
     // Boot probe: an inspector node can mount before the first scan tick.
     void this.refresh();
     void this.refreshMcp();

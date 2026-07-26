@@ -82,6 +82,44 @@ describe('AgentPresenceTracker', () => {
 });
 
 describe('WsBroadcaster -> AgentPresenceTracker wiring', () => {
+  it('a ping cancelled UNCLAIMED flips attending false; later evidence flips it back', () => {
+    const tracker = new AgentPresenceTracker();
+    tracker.noteAttempt();
+    assert.equal(tracker.snapshot().attending, true);
+
+    // The manual Check Agent probe: ping submitted, nobody claims, the
+    // UI cancels it on timeout. That is negative evidence with
+    // AUTHORITY: attending flips back to false.
+    tracker.observe({
+      type: 'job.submitted',
+      jobId: 'd-ping-1',
+      data: { extensionId: 'core/ai-ping-action' },
+    });
+    tracker.observe({ type: 'job.cancelled', jobId: 'd-ping-1' });
+    assert.equal(tracker.snapshot().attending, false);
+
+    // Any LATER positive evidence re-flips it (here: a new MCP attempt).
+    tracker.noteAttempt();
+    assert.equal(tracker.snapshot().attending, true);
+  });
+
+  it('a cancel of a CLAIMED ping (or any other job) is not negative evidence', () => {
+    const tracker = new AgentPresenceTracker();
+    tracker.observe({
+      type: 'job.submitted',
+      jobId: 'd-ping-2',
+      data: { extensionId: 'core/ai-ping-action' },
+    });
+    tracker.observe({ type: 'job.claimed', jobId: 'd-ping-2' });
+    // A claimed ping later cancelled says nothing about absence.
+    tracker.observe({ type: 'job.cancelled', jobId: 'd-ping-2' });
+    assert.equal(tracker.snapshot().attending, true);
+    // Cancels of ordinary jobs never count either.
+    tracker.observe({ type: 'job.submitted', jobId: 'd-normal', data: { extensionId: 'core/ai-summary-action' } });
+    tracker.observe({ type: 'job.cancelled', jobId: 'd-normal' });
+    assert.equal(tracker.snapshot().attending, true);
+  });
+
   it('a claim ATTEMPT flips attending without stamping lastClaimAt', () => {
     const tracker = new AgentPresenceTracker();
     // The parked `claim_job { wait }` on an empty queue: the agent asks

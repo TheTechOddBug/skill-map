@@ -837,6 +837,52 @@
   gap: 0.45rem;
 }
 
+/* Controls row above the launcher groups: Auto-fixer toggle at the
+   left (when present), the Check MCP re-probe pinned right. */
+.inspector__ai-actions-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Same chip recipe as .inspector__body-view-toggle, pinned right. The
+   verdict states recolor border + text only (no fills), holding 5s
+   before the component re-arms the button. */
+.inspector__ai-actions-check {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--p-text-muted-color);
+  background: var(--sm-bg-hover);
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-sm);
+  cursor: pointer;
+}
+
+.inspector__ai-actions-check:hover:not(:disabled) {
+  color: var(--p-text-color);
+}
+
+.inspector__ai-actions-check:disabled {
+  cursor: default;
+}
+
+.inspector__ai-actions-check.is-ok {
+  color: var(--sm-severity-success);
+  border-color: var(--sm-severity-success);
+  background: var(--sm-severity-success-bg);
+}
+
+.inspector__ai-actions-check.is-fail {
+  color: var(--sm-severity-error);
+  border-color: var(--sm-severity-error);
+  background: var(--sm-severity-error-bg);
+}
+
 /* Automatic toggle row: sits above the finder buttons, switch + label
    on one baseline-aligned line. */
 .inspector__ai-actions-autofix {

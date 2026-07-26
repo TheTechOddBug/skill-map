@@ -44,6 +44,14 @@ export interface IAgentPresence {
 /** The one envelope type that proves an agent is draining the queue. */
 const CLAIM_EVENT_TYPE = 'job.claimed';
 
+/**
+ * The liveness-probe extension (`boot-ping.ts` owns the constant's
+ * story): a PING submitted and then CANCELLED without a claim in
+ * between is the one event that DISPROVES attendance, the operator (or
+ * the boot probe) explicitly asked "anyone there?" and nobody answered.
+ */
+const PING_EXTENSION = 'core/ai-ping-action';
+
 export class AgentPresenceTracker {
   #lastClaimAt: number | null = null;
   /**
@@ -55,6 +63,22 @@ export class AgentPresenceTracker {
    * picked up work" warning outlived the moment the agent arrived.
    */
   #attemptSeen = false;
+  /**
+   * Sequence number of the last NEGATIVE evidence: a ping cancelled
+   * while still unclaimed (see `PING_EXTENSION`). Presence stops being
+   * one-way here (2026-07-26, the manual Check Agent probe): a failed
+   * check has the AUTHORITY to flip `attending` back to `false`, and
+   * any LATER positive evidence (claim or MCP attempt) flips it true
+   * again. A monotonic sequence, not timestamps, so ordering is exact
+   * even for same-millisecond events.
+   */
+  #negativeSeq = 0;
+  /** Sequence number of the last positive evidence (claim or attempt). */
+  #positiveSeq = 0;
+  /** Monotonic evidence clock. */
+  #seq = 0;
+  /** Ping job ids seen submitted this boot, awaiting claim or cancel. */
+  readonly #pendingPings = new Set<string>();
 
   /**
    * Observe one broadcast envelope. Records a claim when it is a
@@ -67,8 +91,35 @@ export class AgentPresenceTracker {
    * is simply not a claim.
    */
   observe(envelope: unknown): void {
-    if (!isClaimEnvelope(envelope)) return;
+    const frame = narrowJobFrame(envelope);
+    if (frame === null) return;
+    if (frame.type === CLAIM_EVENT_TYPE) this.#recordClaim(frame.jobId);
+    else if (frame.type === 'job.submitted') this.#recordSubmit(frame);
+    else if (frame.type === 'job.cancelled') this.#recordCancel(frame.jobId);
+  }
+
+  #recordClaim(jobId: string | null): void {
     this.#lastClaimAt = Date.now();
+    this.#positiveSeq = ++this.#seq;
+    if (jobId !== null) this.#pendingPings.delete(jobId);
+  }
+
+  /**
+   * Track ping submits so a later cancel can be classified: only a
+   * cancel of a STILL-UNCLAIMED ping is negative evidence (any other
+   * cancel is queue housekeeping, silent about the agent).
+   */
+  #recordSubmit(frame: IJobFrame): void {
+    const extensionId = (frame.data as { extensionId?: unknown } | undefined)?.extensionId;
+    if (frame.jobId !== null && extensionId === PING_EXTENSION) {
+      this.#pendingPings.add(frame.jobId);
+    }
+  }
+
+  #recordCancel(jobId: string | null): void {
+    if (jobId !== null && this.#pendingPings.delete(jobId)) {
+      this.#negativeSeq = ++this.#seq;
+    }
   }
 
   /**
@@ -78,19 +129,33 @@ export class AgentPresenceTracker {
    */
   noteAttempt(): void {
     this.#attemptSeen = true;
+    this.#positiveSeq = ++this.#seq;
   }
 
   /** Current state, a fresh copy (callers never hold tracker internals). */
   snapshot(): IAgentPresence {
-    return {
-      attending: this.#attemptSeen || this.#lastClaimAt !== null,
-      lastClaimAt: this.#lastClaimAt,
-    };
+    const everPositive = this.#attemptSeen || this.#lastClaimAt !== null;
+    // Ordering decides: negative evidence (a ping nobody answered)
+    // outranks OLDER positive evidence, and vice versa; the monotonic
+    // sequence makes "later" exact.
+    const attending = everPositive && this.#positiveSeq > this.#negativeSeq;
+    return { attending, lastClaimAt: this.#lastClaimAt };
   }
 }
 
-/** `true` when the envelope is an object whose `type` is `job.claimed`. */
-function isClaimEnvelope(envelope: unknown): boolean {
-  if (typeof envelope !== 'object' || envelope === null) return false;
-  return (envelope as { type?: unknown }).type === CLAIM_EVENT_TYPE;
+/** Minimal narrowed view of a `job.*` envelope; `null` = not an object. */
+interface IJobFrame {
+  type: unknown;
+  jobId: string | null;
+  data: unknown;
+}
+
+function narrowJobFrame(envelope: unknown): IJobFrame | null {
+  if (typeof envelope !== 'object' || envelope === null) return null;
+  const frame = envelope as { type?: unknown; jobId?: unknown; data?: unknown };
+  return {
+    type: frame.type,
+    jobId: typeof frame.jobId === 'string' ? frame.jobId : null,
+    data: frame.data,
+  };
 }

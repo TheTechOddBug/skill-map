@@ -37,6 +37,7 @@ export const NODE_TAGS_TEXTS = {
      * queue with nobody to drain it. Mirrors the header's wording.
      */
     tooltipNoMcp: 'Needs an agent connected to the MCP',
+    tooltipAgentSilent: 'No agent answered the last check',
   },
   /** Inline title for the view-mode tag row (renders as `TAGS:`). */
   viewLabel: 'Tags',
