@@ -3,7 +3,7 @@
   "langs": ["en", "es"],
   "defaultLang": "en",
   "comment": "Index for the tutorial fixture engine. `sets` name the directories under sets/<name>/{shared,<lang>}/ whose files lay/seed/clear act on; kind is derived from the __PROVIDER__/agents|commands|skills path prefix (else markdown). `footprints` are the full on-disk reach of a fixture (set files PLUS files taught later in its chapters) and are the single source for both `fixtures.js clear` and `state.js wipe`. `edits` append fragment files; `requiresKind` drops a fragment (or whole edit, via its target's kind) on a provider that does not claim that kind.",
-  "sets": ["universal", "prologue", "portfolio", "harness", "master", "cli-external"],
+  "sets": ["universal", "prologue", "portfolio", "harness", "master", "cli-external", "ai-flaws"],
   "footprints": {
     "prologue": [
       "__PROVIDER__/agents/demo-agent.md",
@@ -55,6 +55,14 @@
       ".agents/hooks.json",
       ".opencode/plugin/skill-map-activity.js",
       ".skill-map/activity"
+    ],
+    "ai-flaws": [
+      "docs/REVIEW.md",
+      "docs/OPS.md",
+      "docs/REVIEW.sm",
+      "docs/OPS.sm",
+      "docs/STYLE.sm",
+      "docs/DEPLOY.sm"
     ]
   },
   "edits": {
@@ -92,6 +100,10 @@
     },
     "harness-connected": {
       "lay": ["portfolio", "harness"],
+      "edits": ["agents-hub", "content-editor-style"]
+    },
+    "flawed-portfolio": {
+      "lay": ["portfolio", "harness", "ai-flaws"],
       "edits": ["agents-hub", "content-editor-style"]
     }
   }

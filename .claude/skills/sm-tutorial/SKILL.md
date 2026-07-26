@@ -5,8 +5,10 @@ description: |
   chapters that a first-time tester walks end to end. It opens with
   a live-UI prologue (the tester runs `sm`, opens the browser, and
   watches the map update as `.md` files are edited), then a menu of
-  further parts (watch your agent light the map up in real time,
-  extend skill-map with plugins/settings/slots, the CLI in depth).
+  further parts (watch your agent light the map up in real time, the
+  AI layer where your agent processes the queue with finders / fixers
+  / the tagger, extend skill-map with plugins/settings/slots, the CLI
+  in depth).
   The skill is invoked from an empty directory and
   lays its fixture there directly. State persists in
   `tutorial-state.json` for pause/resume. Triggers: "tutorial",
@@ -220,11 +222,13 @@ for the data layout and the verb surface.
 
 - **Fixture sets** (laid by `fixtures.js lay <set>` / `seed <snap>`):
   `universal` (the two files above), `prologue` (the Part 0 demo,
-  reused by the Part 4 `cli` seed), `portfolio`
+  reused by the Part 5 `cli` seed), `portfolio`
   (Part 1 boot + harness members; the `harness-connected` seed
   fast-forwards Parts 2 + 3 onto it), `harness` (the connect
-  chapters, now folded into Part 1), `master` (Part 5 Extend),
-  `cli-external` (Part 4 reference-paths). The script resolves the
+  chapters, now folded into Part 1), `ai-flaws` (Part 4 AI layer:
+  the two planted-flaw docs the `flawed-portfolio` seed lays on top
+  of the portfolio), `master` (Part 6 Extend),
+  `cli-external` (Part 5 reference-paths). The script resolves the
   `__PROVIDER__` token,
   skips kinds the provider does not claim, and reports `nodeCount` +
   `skipped` for you to narrate.
@@ -294,7 +298,7 @@ install.
   parts use `preflight: seed`; `portfolio-init` is Part 1's flavour,
   handling the Part 0 to Part 1 transition.)
 
-- **`backstage-init`** (Part 5 `extend`): teaches plugins on its own
+- **`backstage-init`** (Part 6 `extend`): teaches plugins on its own
   **master fixture**. On entry, silently:
   1. Clear whatever prior fixture is present (each a no-op when absent),
      then drop the DB: `fixtures.js clear prologue --provider <provider>`,
@@ -302,10 +306,10 @@ install.
   2. `sm init --no-scan` (the pre-flight `.skillmapignore` stays).
   3. `fixtures.js lay master --provider <provider> --lang <lang>`.
 
-  On a Part 5 re-entry where the master fixture is already in place the
+  On a Part 6 re-entry where the master fixture is already in place the
   clears + lay are idempotent; just `sm scan`.
 
-- **`seed: prologue-built`** (Part 4 `cli`): reads the Part 0 demo
+- **`seed: prologue-built`** (Part 5 `cli`): reads the Part 0 demo
   fixture, NOT the portfolio. On entry:
   1. If the portfolio is present, clear it + drop the DB:
      `fixtures.js clear portfolio --provider <provider>`, `rm -rf .skill-map`.
@@ -318,13 +322,20 @@ install.
   3. `sm init` (single `.claude/` marker, no lens prompt), then `sm scan`.
      If `.skill-map/` already exists, skip the init and just `sm scan`.
 
-- **`seed`** (campaign parts `daily-loop` + `realtime`): builds on the
-  accumulating portfolio, but the tester may have jumped here. Run `state.js status`;
+- **`seed`** (campaign parts `daily-loop` + `realtime` + `ai-layer`):
+  builds on the accumulating portfolio, but the tester may have jumped
+  here. Run `state.js status`;
   if every predecessor up the `prereq` chain is `done`, the harness is
-  already on disk, just `sm scan`. Otherwise **fast-forward, silently**:
+  already on disk, just `sm scan` (for `ai-layer` ONLY, first lay its
+  extra docs, which no predecessor laid:
+  `fixtures.js lay ai-flaws --provider <provider> --lang <lang>`, then
+  `sm scan`). Otherwise **fast-forward, silently**:
   1. If the prologue ran first here, `fixtures.js clear prologue --provider <provider>`.
-  2. Seed: `fixtures.js seed harness-connected --provider <provider> --lang <lang>`
-     (the wired harness that `daily-loop` builds on).
+  2. Seed with the part's `seed` snapshot:
+     `fixtures.js seed <seed> --provider <provider> --lang <lang>`,
+     where `<seed>` is `harness-connected` for `daily-loop` /
+     `realtime` (the wired harness) and `flawed-portfolio` for
+     `ai-layer` (the same harness plus the planted-flaw docs).
   3. Provision the lens: the seeded portfolio carries the scaffold
      marker (`.claude/` on the rich track, `.agents/` on the basic
      track), so a plain `sm init` resolves the matching lens with no
@@ -347,6 +358,13 @@ install.
   and a re-invocation mid-part after the taught agent restart is
   RESUME, not entry, do NOT re-seed (the fixture and the DB are
   already on disk; see the part header).
+
+  Two extras for `ai-layer`: the same **lens gate** BEFORE `pick`
+  (`agent-skills` has no runtime to park on the processing skill),
+  and the part leaves live processes behind by design (the parked
+  agent in the tester's third terminal, the MCP-enabled `sm`); on any
+  later part entry that drops the DB, nothing extra is needed, but if
+  the tester asks, the parked session is theirs to Ctrl+C.
 
 Either way, then walk the part's chapters in manifest order,
 dispatching each chapter id to its `step_file` per the §Per-step cycle

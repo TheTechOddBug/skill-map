@@ -106,9 +106,10 @@ async function flushAsync(): Promise<void> {
 
 interface IChassisProbe {
   sections(): readonly { id: TSettingsSection; label: string; dividerBefore?: boolean }[];
-  activeSection: { set(v: TSettingsSection): void };
+  activeSection: { set(v: TSettingsSection): void; (): TSettingsSection };
   activePluginItem(): IPluginItemApi | null;
   applyAndClose(): Promise<void>;
+  selectSection(id: TSettingsSection): void;
 }
 
 describe('SettingsModal, dynamic plugin sections', () => {
@@ -250,5 +251,47 @@ describe('SettingsModal, global Apply', () => {
     await (cmp as unknown as IChassisProbe).applyAndClose();
 
     expect(closeSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('SettingsModal, last-visited section memory', () => {
+  const KEY = 'sm.settings.section';
+
+  it('remembers the visited section and lands on it on the next open', async () => {
+    localStorage.removeItem(KEY);
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope([]));
+    const first = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
+    // First-ever open: the historical default.
+    expect((first.cmp as unknown as IChassisProbe).activeSection()).toBe('plugins');
+
+    (first.cmp as unknown as IChassisProbe).selectSection('project');
+    expect(localStorage.getItem(KEY)).toBe('project');
+
+    // A fresh modal (new session) initializes on the remembered section.
+    const second = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
+    expect((second.cmp as unknown as IChassisProbe).activeSection()).toBe('project');
+    localStorage.removeItem(KEY);
+  });
+
+  it('reconciles a remembered plugin section whose plugin lost its settings', async () => {
+    localStorage.setItem(KEY, 'plugin:ghost');
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope([plainPlugin('other')]));
+    const { cmp, fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
+    expect((cmp as unknown as IChassisProbe).activeSection()).toBe('plugin:ghost');
+
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+
+    expect((cmp as unknown as IChassisProbe).activeSection()).toBe('plugins');
+    localStorage.removeItem(KEY);
+  });
+
+  it('ignores an unknown stored value', async () => {
+    localStorage.setItem(KEY, 'garbage-section');
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope([]));
+    const { cmp } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
+    expect((cmp as unknown as IChassisProbe).activeSection()).toBe('plugins');
+    localStorage.removeItem(KEY);
   });
 });

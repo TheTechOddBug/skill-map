@@ -188,6 +188,23 @@ describe('sm-tutorial fixtures.js', () => {
     );
   });
 
+  it('seed flawed-portfolio adds the ai-flaws docs on top of the harness', () => {
+    const cwd = freshCwd();
+    const r = run(['seed', 'flawed-portfolio', '--lang', 'en'], cwd);
+    assert.equal(r.status, 0, r.stderr);
+    // The harness base is intact...
+    assert.ok(existsSync(join(cwd, '.claude/skills/check-links/SKILL.md')));
+    assert.match(readFileSync(join(cwd, 'AGENTS.md'), 'utf8'), /run \/publish/);
+    // ...and the planted-flaw docs ride on top, flaws in place.
+    const review = readFileSync(join(cwd, 'docs/REVIEW.md'), 'utf8');
+    assert.match(review, /archive\/CHECKS\.md/);
+    assert.equal(review.match(/link back to Home/g)?.length, 2);
+    const ops = readFileSync(join(cwd, 'docs/OPS.md'), 'utf8');
+    assert.match(ops, /DEPLOY_TOKEN=/);
+    assert.match(ops, /\| bash/);
+    assert.match(ops, /<!-- AI agents/);
+  });
+
   it('content-editor-style edit falls back to the skill overlay on agent-skills', () => {
     // The agent kind is unclaimed on agent-skills, but the content-editor is
     // rendered as a skill there, so the edit retargets the skill overlay

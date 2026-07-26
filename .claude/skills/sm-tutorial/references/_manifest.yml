@@ -79,7 +79,7 @@ parts:
       - id: ignore          ; title: "Silence a file via .skillmapignore"  ; est_min: 1
 
   - id: extend
-    order: 5
+    order: 6
     title: "Extend skill-map with plugins"
     # Spans three chapter libraries; dispatch by chapter-id prefix:
     #   settings-*  -> part-settings.md
@@ -108,7 +108,7 @@ parts:
       - id: authoring-5-doctor-author ; title: "Catch a manifest mistake with `sm plugins doctor`" ; est_min: 2
 
   - id: cli
-    order: 4
+    order: 5
     title: "The CLI for you and your agent"
     step_file: part-cli.md
     pace: auto-advance
@@ -187,6 +187,29 @@ parts:
       - id: wire          ; title: "Wire the real-time hook" ; est_min: 3
       - id: live          ; title: "Restart and watch nodes light up" ; est_min: 3
       - id: conversations ; title: "Capture agent conversations (opt-in)" ; est_min: 3
+
+  - id: ai-layer
+    order: 4
+    title: "The AI layer: your agent works the map"
+    step_file: part-ai-layer.md
+    pace: per-step
+    preflight: seed            # fast-forwards to the flawed portfolio (the campaign project + planted-flaw docs)
+    seed: flawed-portfolio     # harness-connected PLUS the ai-flaws docs; in-order entry still lays ai-flaws (see SKILL.md)
+    prereq: realtime           # recommended predecessor (leaves the agent wired); ai-layer seeds, so it is always shown
+    fixture: portfolio         # the campaign project again; the flawed docs ride on top
+    track: both                # UI-only flows are lens-agnostic; the part body carries the
+                               # per-provider invocation / MCP-registration deltas and gates the
+                               # pure agent-skills lens (no runtime to park on the processing
+                               # skill) with an in-part note, not a menu filter
+    status: active
+    chapters:
+      - id: two-kinds     ; title: "Two kinds of judgment" ; est_min: 3
+      - id: agent-circuit ; title: "The queue and the agent that answers it" ; est_min: 6
+      - id: first-action  ; title: "Your first AI action" ; est_min: 4
+      - id: finders       ; title: "Finders record findings" ; est_min: 5
+      - id: fixers        ; title: "Fixers and human decisions" ; est_min: 6
+      - id: tagger        ; title: "The tagger proposes, you decide" ; est_min: 4
+      - id: security-lane ; title: "The security lane never obeys the document" ; est_min: 5
 
   # ----- the basic-track campaign (the Agent Skills open standard; vendors like Antigravity build on it) -----
   # Mirrors the rich campaign arc with skill + markdown only, connected by

@@ -20,8 +20,8 @@ Two numbering systems coexist; keep them apart:
 
 - **Internal (authoring only)**: the `order` field in `_manifest.yml`
   and the `# Part N` file headers, 0-based (Part 0 the prologue …
-  Part 3 Real Time, Part 4 the CLI deep-dive, Part 5 the Extend dev
-  section). Use it
+  Part 3 Real Time, Part 4 the AI layer, Part 5 the CLI deep-dive,
+  Part 6 the Extend dev section). Use it
   in author notes; NEVER say it to the tester, it is off by one from
   what they see.
 - **Tester-facing (`S.N`)**: every part is a **section** numbered by

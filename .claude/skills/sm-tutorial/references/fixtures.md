@@ -43,8 +43,9 @@ fixtures-data/
 | `prologue` | the seven Part 0 demo nodes | Part 0 (progressive, `--only`), `prologue-built` seed |
 | `portfolio` | Express skeleton, handbook, `content-editor`, `docs/STYLE` + `DEPLOY` | Part 1 (`--only` boot, chapters lay the rest), `harness-connected` seed |
 | `harness` | `check-links` skill, `publish` command | Part 1 connect chapters, `harness-connected` seed |
-| `master` | `master-agent`, `master-skill`, `notes/ideas` | Part 5 `backstage-init` |
-| `cli-external` | `link-validation/hijoA` + `hijoB` | Part 4 `reference-paths` |
+| `ai-flaws` | `docs/REVIEW.md` + `docs/OPS.md` (planted flaws: redundancy, contradiction, broken ref, plaintext credential, pipe-to-shell, hidden injection) | Part 4 `flawed-portfolio` seed (and its in-order `lay`) |
+| `master` | `master-agent`, `master-skill`, `notes/ideas` | Part 6 `backstage-init` |
+| `cli-external` | `link-validation/hijoA` + `hijoB` | Part 5 `reference-paths` |
 
 ## Edits (append fragments)
 
@@ -65,8 +66,9 @@ entered out of order.
 
 | Seed | Lays | Edits | Drops |
 |---|---|---|---|
-| `prologue-built` (Part 4 `cli`) | `prologue` | `todo-connectors` | `notes/private-credentials.md` |
+| `prologue-built` (Part 5 `cli`) | `prologue` | `todo-connectors` | `notes/private-credentials.md` |
 | `harness-connected` (Part 2 `daily-loop`, Part 3 `realtime`) | `portfolio` + `harness` | `agents-hub`, `content-editor-style` | , |
+| `flawed-portfolio` (Part 4 `ai-layer`) | `portfolio` + `harness` + `ai-flaws` | `agents-hub`, `content-editor-style` | , |
 
 ## Footprints (what `clear` and `wipe` remove)
 
@@ -79,7 +81,9 @@ lives in ONE place. Add or drop a harness file there. The
 `realtime-hook` footprint has no matching set: it covers what
 `sm activity install` writes during Part 3 (the four provider hook
 configs plus the bridge dir), so a start-over never leaves a hook
-pointing at a deleted bridge.
+pointing at a deleted bridge. The `ai-flaws` footprint covers its two
+laid docs PLUS the `.sm` sidecars Part 4's chapters write next to the
+portfolio docs (the tagger's save, the fixer's resolutions).
 
 ## Changing a fixture
 

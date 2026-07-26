@@ -138,13 +138,15 @@
                   @if (issueFixerForRow(issue); as fixer) {
                     <span class="inspector__finding-actions inspector__finding-actions--push">
                       <p-button
-                        icon="pi pi-sparkles"
+                        [icon]="
+                          issueFixPhase(fixer) === 'queued' ? 'pi pi-clock' : 'pi pi-sparkles'
+                        "
                         severity="info"
                         size="small"
                         [rounded]="true"
                         [text]="true"
                         [disabled]="issueFixDisabled(fixer)"
-                        [loading]="issueFixBusy(fixer)"
+                        [loading]="issueFixPhase(fixer) === 'running'"
                         [pTooltip]="fixer.description"
                         tooltipPosition="left"
                         appendTo="body"
@@ -237,13 +239,17 @@
                       <span class="inspector__finding-actions">
                         @if (aiActionFindingFixable(f)) {
                           <p-button
-                            icon="pi pi-sparkles"
+                            [icon]="
+                              aiActionFindingFixPhase(f) === 'queued'
+                                ? 'pi pi-clock'
+                                : 'pi pi-sparkles'
+                            "
                             severity="info"
                             size="small"
                             [rounded]="true"
                             [text]="true"
                             [disabled]="aiActionFindingFixDisabled(f)"
-                            [loading]="aiActionFindingFixBusy(f)"
+                            [loading]="aiActionFindingFixPhase(f) === 'running'"
                             [pTooltip]="texts.aiActions.finding.fixTooltip"
                             tooltipPosition="left"
                             appendTo="body"

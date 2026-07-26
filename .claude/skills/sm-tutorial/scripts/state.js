@@ -247,6 +247,10 @@ function computeWipePaths(state) {
   // artifact; without this the wipe would leave a hook pointing at a
   // deleted bridge (safe: the tutorial cwd started empty by contract).
   if (has('realtime')) { addFootprint('portfolio'); addFootprint('realtime-hook'); }
+  // `ai-layer` seeds the connected portfolio plus the planted-flaw docs
+  // (flawed-portfolio); its footprint also covers the `.sm` sidecars the
+  // tagger / fixer chapters write next to the portfolio docs.
+  if (has('ai-layer')) { addFootprint('portfolio'); addFootprint('ai-flaws'); }
 
   try {
     for (const entry of readdirSync(process.cwd())) {

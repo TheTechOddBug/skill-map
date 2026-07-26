@@ -85,6 +85,36 @@ function pluginSectionId(pluginId: string): TSettingsSection {
   return `plugin:${pluginId}`;
 }
 
+/**
+ * localStorage key remembering the last section the user visited, so the
+ * modal re-opens where they left off instead of always landing on
+ * Plugins (user call 2026-07-26). Same `sm.settings.*` family as the
+ * plugin-panel filter mirrors.
+ */
+const SECTION_STORAGE_KEY = 'sm.settings.section';
+
+/** Read the remembered section; `null` on absence or storage failure. */
+function readStoredSection(): TSettingsSection | null {
+  try {
+    const raw = window.localStorage.getItem(SECTION_STORAGE_KEY);
+    if (raw === null) return null;
+    const staticIds: readonly string[] = SETTINGS_SECTIONS.map((s) => s.id);
+    if (staticIds.includes(raw) || raw.startsWith('plugin:')) return raw as TSettingsSection;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Persist the visited section; best-effort (private mode etc.). */
+function storeSection(id: TSettingsSection): void {
+  try {
+    window.localStorage.setItem(SECTION_STORAGE_KEY, id);
+  } catch {
+    /* storage unavailable; the modal just defaults next time */
+  }
+}
+
 @Component({
   selector: 'sm-settings-modal',
   imports: [
@@ -131,7 +161,11 @@ export class SettingsModal {
   protected readonly buffer = inject(SettingsBufferService);
 
   protected readonly texts = SETTINGS_TEXTS;
-  protected readonly activeSection = signal<TSettingsSection>('plugins');
+  /** Lands on the remembered section (see `SECTION_STORAGE_KEY`);
+   *  `plugins` only on a first-ever open. A stored `plugin:<id>` whose
+   *  plugin no longer offers settings is reconciled to `plugins` after
+   *  the plugin fetch (`loadSettingsPlugins`). */
+  protected readonly activeSection = signal<TSettingsSection>(readStoredSection() ?? 'plugins');
 
   /**
    * Plugins that declare operator settings, discovered by fetching the
@@ -209,7 +243,12 @@ export class SettingsModal {
     // a section was requested, so a normal gear-click keeps the default.
     effect(() => {
       const requested = this.initialSection();
-      if (this.visible() && requested) this.activeSection.set(requested);
+      if (this.visible() && requested) {
+        this.activeSection.set(requested);
+        // The user SAW this section, so it is the one to remember; a
+        // deep-link is not an exception to the last-visited rule.
+        storeSection(requested);
+      }
     });
   }
 
@@ -224,6 +263,16 @@ export class SettingsModal {
       this.settingsPlugins.set(sortPluginsByPin(withSettings));
     } catch {
       this.settingsPlugins.set([]);
+    }
+    // Reconcile a remembered `plugin:<id>` section whose plugin no longer
+    // offers settings (uninstalled / disabled since the last visit): fall
+    // back to the Plugins panel rather than landing on a dead section.
+    const active = this.activeSection();
+    if (
+      active.startsWith('plugin:') &&
+      !this.settingsPlugins().some((p) => pluginSectionId(p.id) === active)
+    ) {
+      this.activeSection.set('plugins');
     }
   }
 
@@ -275,6 +324,7 @@ export class SettingsModal {
 
   protected selectSection(id: TSettingsSection): void {
     this.activeSection.set(id);
+    storeSection(id);
   }
 
   /**

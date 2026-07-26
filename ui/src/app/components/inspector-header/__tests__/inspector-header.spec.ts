@@ -498,4 +498,36 @@ describe('InspectorHeader summarize button, processing-agent gate', () => {
     ) as HTMLButtonElement;
     expect(refresh.disabled).toBe(true);
   });
+
+  it('"Analyze again" goes busy while a re-run is in flight (disabled + spinner + state tooltip)', async () => {
+    // The block stays visible during a re-run (the stored rows persist),
+    // so the refresh button mirrors the header affordance: locked and
+    // visibly busy instead of a static icon that looks clickable.
+    const fixture = await bootstrap(makeNode(), makeStub(), false);
+    fixture.componentRef.setInput('summaryState', 'running');
+    fixture.componentRef.setInput('summaryExpanded', true);
+    fixture.componentRef.setInput('summaryRows', [
+      {
+        summarizerActionId: 'core/summarizer',
+        generatedAt: 1,
+        stale: false,
+        report: { whatItCovers: 'A subject line.' },
+      },
+    ]);
+    fixture.detectChanges();
+
+    const refresh = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="inspector-summary-refresh"]',
+    ) as HTMLButtonElement;
+    expect(refresh.disabled).toBe(true);
+    expect(refresh.getAttribute('aria-label')).toBe(
+      INSPECTOR_VIEW_TEXTS.header.summary.tooltipRunning,
+    );
+    expect(refresh.querySelector('.pi-spinner')).not.toBeNull();
+
+    fixture.componentRef.setInput('summaryState', 'queued');
+    fixture.detectChanges();
+    expect(refresh.disabled).toBe(true);
+    expect(refresh.querySelector('.pi-clock')).not.toBeNull();
+  });
 });

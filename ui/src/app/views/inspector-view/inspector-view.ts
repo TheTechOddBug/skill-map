@@ -606,6 +606,13 @@ export class InspectorView implements OnInit {
     return this.aiActions.entryState(fixer) !== 'idle' || this.aiActions.isSubmitting(fixer.id);
   }
 
+  /** Busy phase of an issue row's fix button (same clock-then-spin
+   *  convention as the launchers and the finding fix button). */
+  protected issueFixPhase(fixer: IIssueFixerEntryApi): 'idle' | 'queued' | 'running' {
+    if (!this.issueFixBusy(fixer)) return 'idle';
+    return this.aiActions.entryState(fixer) === 'running' ? 'running' : 'queued';
+  }
+
   /**
    * Disabled state of an issue row's fix button: busy, or the submit
    * gate is closed. Split from `issueFixBusy` because that one also
@@ -697,9 +704,21 @@ export class InspectorView implements OnInit {
   }
 
   /**
+   * Busy PHASE of a finding row's fix button, mirroring the launcher
+   * convention (queued pins the clock, only running spins). The submit
+   * round-trip counts as `queued`: the click lands the job in the
+   * queue, so the clock is the honest first state, not the spinner.
+   */
+  protected aiActionFindingFixPhase(finding: IFindingApi): 'idle' | 'queued' | 'running' {
+    if (!this.aiActionFindingFixBusy(finding)) return 'idle';
+    const entry = this.findingFinderEntry(finding);
+    return entry !== null && this.aiActionEntryState(entry) === 'running' ? 'running' : 'queued';
+  }
+
+  /**
    * Disabled state of a finding row's fix (bolt) button: its own busy
    * state, a per-row action in flight, or the submit gate closed. Kept
-   * apart from `aiActionFindingFixBusy` (which drives `[loading]`, and
+   * apart from `aiActionFindingFixBusy` (which drives the busy phase, and
    * also disables the row's NON-submitting resolve / dismiss buttons,
    * which the gate must never touch).
    */

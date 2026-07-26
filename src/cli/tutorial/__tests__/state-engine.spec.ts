@@ -170,7 +170,7 @@ describe('sm-tutorial state.js', () => {
     run(['mark', 'fundamentals', 'init', 'done'], cwd);
     const r = run(['status'], cwd);
     const parts = r.json.parts as any[];
-    assert.deepEqual(parts.map((p) => p.id), ['fundamentals', 'project-kickoff', 'daily-loop', 'realtime', 'cli', 'extend']);
+    assert.deepEqual(parts.map((p) => p.id), ['fundamentals', 'project-kickoff', 'daily-loop', 'realtime', 'ai-layer', 'cli', 'extend']);
     const fund = parts[0];
     assert.equal(fund.status, 'in_progress');
     assert.equal(fund.chapters[0].status, 'done');
@@ -184,13 +184,19 @@ describe('sm-tutorial state.js', () => {
     run(['pick', 'fundamentals'], cwd);
     run(['pick', 'project-kickoff'], cwd);
     run(['pick', 'realtime'], cwd);
+    run(['pick', 'ai-layer'], cwd);
     // Plant the tutorial fixtures the wipe should remove.
     mkdirSync(join(cwd, '.claude', 'agents'), { recursive: true });
     mkdirSync(join(cwd, 'notes'), { recursive: true });
     mkdirSync(join(cwd, '.skill-map'), { recursive: true });
+    mkdirSync(join(cwd, 'docs'), { recursive: true });
     writeFileSync(join(cwd, '.claude', 'agents', 'demo-agent.md'), 'x');
     // The realtime part's `sm activity install` wires the hook config.
     writeFileSync(join(cwd, '.claude', 'settings.json'), '{"hooks":{}}');
+    // The ai-layer part's seed lays the planted-flaw docs; its tagger
+    // chapter writes a sidecar next to a portfolio doc.
+    writeFileSync(join(cwd, 'docs', 'OPS.md'), 'x');
+    writeFileSync(join(cwd, 'docs', 'STYLE.sm'), 'x');
     writeFileSync(join(cwd, 'notes', 'todo.md'), 'x');
     writeFileSync(join(cwd, 'AGENTS.md'), 'x');
     writeFileSync(join(cwd, 'export.json'), 'x');
@@ -206,6 +212,9 @@ describe('sm-tutorial state.js', () => {
     // The realtime-hook footprint rides the wipe (all four provider configs listed).
     assert.ok(paths.includes('.claude/settings.json'));
     assert.ok(paths.includes('.opencode/plugin/skill-map-activity.js'));
+    // The ai-flaws footprint rides too: laid docs + chapter-written sidecars.
+    assert.ok(paths.includes('docs/OPS.md'));
+    assert.ok(paths.includes('docs/STYLE.sm'));
     assert.ok(!paths.includes('notes/keepme.md'));
     // wipe-list is read-only.
     assert.ok(existsSync(join(cwd, 'AGENTS.md')));
@@ -217,6 +226,8 @@ describe('sm-tutorial state.js', () => {
     assert.ok(!existsSync(join(cwd, 'notes', 'todo.md')));
     assert.ok(!existsSync(join(cwd, '.skill-map')));
     assert.ok(!existsSync(join(cwd, '.claude', 'settings.json')));
+    assert.ok(!existsSync(join(cwd, 'docs', 'OPS.md')));
+    assert.ok(!existsSync(join(cwd, 'docs', 'STYLE.sm')));
     // User file + its now-non-empty parent survive.
     assert.ok(existsSync(join(cwd, 'notes', 'keepme.md')));
   });

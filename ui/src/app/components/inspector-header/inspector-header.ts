@@ -174,9 +174,26 @@ export class InspectorHeader {
     return state === 'queued' || state === 'running' || this.summaryGated();
   }
 
-  /** Gate-aware disabled state of the block's "Analyze again" button. */
+  /** Gate-aware disabled state of the block's "Analyze again" button.
+   *  Also locked while a run is in flight, mirroring the header
+   *  affordance: the block stays visible during a re-run (the stored
+   *  rows persist), so it needs the same busy treatment. */
   protected summaryRefreshDisabled(): boolean {
-    return this.submitGateClosed();
+    const state = this.summaryState();
+    return this.submitGateClosed() || state === 'queued' || state === 'running';
+  }
+
+  /** Tooltip for the "Analyze again" button, busy states included. */
+  protected summaryRefreshTooltip(): string {
+    const t = this.texts.header.summary;
+    switch (this.summaryState()) {
+      case 'queued':
+        return t.tooltipQueued;
+      case 'running':
+        return t.tooltipRunning;
+      default:
+        return t.refreshTooltip;
+    }
   }
 
   /** Tooltip for the summary affordance, per state (gate wins). */

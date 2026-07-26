@@ -337,8 +337,56 @@
       ]
     },
     {
-      "id": "cli",
+      "id": "ai-layer",
       "order": 4,
+      "title": "The AI layer: your agent works the map",
+      "status": "active",
+      "preflight": "seed",
+      "seed": "flawed-portfolio",
+      "prereq": "realtime",
+      "pace": "per-step",
+      "track": "both",
+      "chapters": [
+        {
+          "id": "two-kinds",
+          "title": "Two kinds of judgment",
+          "est_min": 3
+        },
+        {
+          "id": "agent-circuit",
+          "title": "The queue and the agent that answers it",
+          "est_min": 6
+        },
+        {
+          "id": "first-action",
+          "title": "Your first AI action",
+          "est_min": 4
+        },
+        {
+          "id": "finders",
+          "title": "Finders record findings",
+          "est_min": 5
+        },
+        {
+          "id": "fixers",
+          "title": "Fixers and human decisions",
+          "est_min": 6
+        },
+        {
+          "id": "tagger",
+          "title": "The tagger proposes, you decide",
+          "est_min": 4
+        },
+        {
+          "id": "security-lane",
+          "title": "The security lane never obeys the document",
+          "est_min": 5
+        }
+      ]
+    },
+    {
+      "id": "cli",
+      "order": 5,
       "title": "The CLI for you and your agent",
       "status": "active",
       "preflight": "seed",
@@ -376,7 +424,7 @@
     },
     {
       "id": "extend",
-      "order": 5,
+      "order": 6,
       "title": "Extend skill-map with plugins",
       "status": "active",
       "preflight": "backstage-init",
