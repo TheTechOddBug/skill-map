@@ -73,8 +73,11 @@ import { mcpNodePath } from '../../../../kernel/util/mcp.js';
  * `tool.execute.after` FILTERED to the `task` tool (the spawn
  * completion, carrying the child session id + final report),
  * `command.execute.before`, `chat.message` (named agent + sessionID),
- * and the `event` catch-all FILTERED to `session.idle` (the native
- * owner release). Filtering by tool / event TYPE is wiring, not
+ * `chat.params` REDUCED to `{ agent, sessionID }` (the early agent-name
+ * source: it fires before each model call, so the owner index learns the
+ * session's agent before the turn's first spawn; the user message it
+ * also carries never leaves the process), and the `event` catch-all
+ * FILTERED to `session.idle` (the native owner release). Filtering by tool / event TYPE is wiring, not
  * mapping: it is what keeps the firehose bus (catalog / registry noise,
  * every other tool's output) from ever leaving the host process.
  */
@@ -94,6 +97,15 @@ const PLUGIN_HOOKS_SOURCE = `    'tool.execute.before': async (input, output) =>
     },
     'chat.message': async (input) => {
       await forward('chat.message', { input });
+    },
+    'chat.params': async (input) => {
+      // Wiring-level reduction: this hook fires BEFORE each model call and
+      // its input carries the user's message; only the agent identity may
+      // leave the process. It exists because 'chat.message' fires when the
+      // assistant message COMPLETES, after a whole delegation already ran.
+      await forward('chat.params', {
+        input: input ? { agent: input.agent, sessionID: input.sessionID } : {},
+      });
     },
     event: async ({ event }) => {
       // Wiring-level filter: only the native end signal leaves the
@@ -128,21 +140,26 @@ export const opencodeActivity: IProviderActivityAdapter = {
   mapEvent(raw: unknown): IActivitySignal[] | null {
     if (raw === null || typeof raw !== 'object') return null;
     const wrapper = raw as Record<string, unknown>;
-    switch (wrapper['hook']) {
-      case 'tool.execute.before':
-        return mapToolCall(wrapper);
-      case 'tool.execute.after':
-        return mapTaskCompletion(wrapper);
-      case 'command.execute.before':
-        return mapCommand(wrapper);
-      case 'chat.message':
-        return mapChatMessage(wrapper);
-      case 'event':
-        return mapSessionIdle(wrapper);
-      default:
-        return null;
-    }
+    const mapper = HOOK_MAPPERS[String(wrapper['hook'])];
+    return mapper ? mapper(wrapper) : null;
   },
+};
+
+/**
+ * Hook -> mapper dispatch (replaces the switch that outgrew the
+ * complexity budget when `chat.params` joined). `chat.message` and
+ * `chat.params` share a mapper on purpose, see `mapChatMessage`.
+ */
+const HOOK_MAPPERS: Record<
+  string,
+  (wrapper: Record<string, unknown>) => IActivitySignal[] | null
+> = {
+  'tool.execute.before': mapToolCall,
+  'tool.execute.after': mapTaskCompletion,
+  'command.execute.before': mapCommand,
+  'chat.message': mapChatMessage,
+  'chat.params': mapChatMessage,
+  event: mapSessionIdle,
 };
 
 /** `input` half of a wrapped hook payload, defensively narrowed. */
@@ -289,6 +306,17 @@ function mapCommand(wrapper: Record<string, unknown>): IActivitySignal[] | null 
  * the session, so the FIRST one lights the agent node (sticky lifecycle
  * claim) and each subsequent one heartbeats the whole session. Built-in
  * agents without an on-disk file drop at the resolver.
+ */
+/**
+ * Shared mapper for `chat.message` AND `chat.params` (identical relevant
+ * input: named `agent` + `sessionID`). `chat.params` is the EARLY twin:
+ * it fires before each model call, so the BFF's owner index learns
+ * "this session runs that agent" BEFORE the turn's first `task` spawn,
+ * which is what anchors a delegation arrow on the real agent node
+ * instead of a session capsule; `chat.message` only fires with the
+ * assistant message, after the whole delegation already ran. Built-in
+ * runtime agents with no on-disk file (`build`, `plan`, `title`) drop
+ * at the resolver as always.
  */
 function mapChatMessage(wrapper: Record<string, unknown>): IActivitySignal[] | null {
   const input = readRecord(wrapper, 'input');

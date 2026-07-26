@@ -35,6 +35,20 @@ if [ ! -d "fixtures/$FIXTURE" ]; then
   exit 1
 fi
 
+# Self-heal the fixture's `.git` marker. Runtimes that resolve their
+# project root by walking up to the nearest git repo (OpenCode, Codex)
+# need the fixture to LOOK like one, or they silently adopt the outer
+# repo as root (its skills leak into the session, the activity plugin
+# never loads, and every event is dropped on the scopeRoot check). The
+# marker cannot live in git itself (an inner `.git` directory is never
+# tracked), so a fresh clone or an aggressive clean loses it; recreating
+# it here makes the trap self-healing. Minimal valid shape: HEAD +
+# objects/ + refs/ (OpenCode 1.18.x rejects a bare empty `.git/`).
+if [ ! -e "fixtures/$FIXTURE/.git/HEAD" ]; then
+  mkdir -p "fixtures/$FIXTURE/.git/objects" "fixtures/$FIXTURE/.git/refs/heads"
+  printf 'ref: refs/heads/main\n' > "fixtures/$FIXTURE/.git/HEAD"
+fi
+
 # Regenerate the built-ins manifest before the panes open. Both panes
 # run from source (BFF via `tsx`, UI via `ng serve`), so no `dist` build
 # is needed; the only generated source the tsx serve imports is

@@ -39,6 +39,7 @@ describe('opencodeActivity.mapEvent', () => {
       "'tool.execute.after'",
       "'command.execute.before'",
       "'chat.message'",
+      "'chat.params'",
     ]) {
       assert.ok(source.includes(hook), hook);
     }
@@ -148,6 +149,22 @@ describe('opencodeActivity.mapEvent', () => {
     });
     assert.deepEqual(signals, [
       { kind: 'command', name: 'demo-cmd', phase: 'start', owner: SESSION },
+    ]);
+  });
+
+  it('maps chat.params like chat.message (the pre-spawn agent-name source)', () => {
+    // Same mapper on purpose: chat.params fires BEFORE each model call,
+    // so the resolver's owner index learns "this session runs that
+    // agent" before the turn's first `task` spawn; without it the first
+    // delegation of a turn anchored on a session capsule because
+    // chat.message only fires with the COMPLETED assistant message.
+    const signals = opencodeActivity.mapEvent({
+      hook: 'chat.params',
+      directory: '/proj',
+      input: { agent: 'orchestrator', sessionID: 'ses_early' },
+    });
+    assert.deepEqual(signals, [
+      { kind: 'agent', name: 'orchestrator', phase: 'start', owner: 'ses_early', sticky: true },
     ]);
   });
 
