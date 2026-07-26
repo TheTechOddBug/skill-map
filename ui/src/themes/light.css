@@ -128,3 +128,20 @@
   --sm-shadow-card-hover: 0 3px 12px rgba(0, 0, 0, 0.12);
   --sm-shadow-panel: 0 4px 24px rgba(0, 0, 0, 0.12);
 }
+
+/* WCAG 1.4.11 (axe sweep 2026-07-26, finding M5): text-field borders
+   must reach 3:1 against the field background; the PrimeNG preset
+   default sat below it on every theme. slate-500: 4.8:1 on the white field.
+   Doubled-up selector so this static override outranks the preset's
+   runtime-injected token of equal origin. */
+:root:root {
+  --p-inputtext-border-color: #64748b;
+}
+
+/* Accent-colored TEXT that must meet 1.4.3 (4.5:1): the active sort
+   header and the active rail tab paint their labels in the accent, and
+   not every theme's primary is contrast-safe at text sizes (axe sweep
+   2026-07-26). violet-700, 7:1 on the light chrome (the default primary sits below 4.5:1 for small text). */
+:root:root {
+  --sm-accent-text: #6d28d9;
+}

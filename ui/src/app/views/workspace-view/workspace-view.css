@@ -52,6 +52,12 @@
 
 /* Open tab strip: the Files / Queue tabs on the left, the collapse
    chevron pushed to the right edge. */
+/* Semantic-only tablist wrapper (a tablist may not contain the
+   chevron); display:contents hands its children to the outer flex. */
+.workspace__rail-tablist {
+  display: contents;
+}
+
 .workspace__rail-tabs {
   display: flex;
   flex: 0 0 auto;
@@ -163,7 +169,7 @@
    collapse buttons never set it. */
 .workspace__rail-btn.is-active,
 .workspace__tab.is-active {
-  color: var(--p-primary-color);
+  color: var(--sm-accent-text);
   background: var(--p-highlight-background);
 }
 

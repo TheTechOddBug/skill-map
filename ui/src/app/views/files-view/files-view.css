@@ -93,7 +93,7 @@
 }
 
 .files__sort-btn--active {
-  color: var(--p-primary-color);
+  color: var(--sm-accent-text);
   font-weight: 600;
 }
 
@@ -105,7 +105,7 @@
 }
 
 .files__sort-btn--active .files__sort-icon {
-  color: var(--p-primary-color);
+  color: var(--sm-accent-text);
   opacity: 1;
 }
 

@@ -211,12 +211,20 @@
                  (`coveredByAncestor`, `folderStateMap`) own the tree walk. -->
             @let folderCovered = coveredByAncestor().has(row.path);
             @let folderState = folderCovered ? 'all' : (folderStateMap().get(row.path) ?? 'none');
+            <!-- No role override: the tr keeps its native row semantics
+                 (which allow aria-expanded / aria-level / naming), so the
+                 table structure stays valid and the nested action buttons
+                 are legal. Keyboard reachability rides tabindex + the key
+                 handlers, not a role swap (axe sweep 2026-07-26:
+                 role=button here tripped aria-allowed-attr,
+                 nested-interactive AND the tbody required children). -->
+            <!-- No aria-expanded / aria-level either: those are valid on
+                 rows only inside a treegrid, and this stays an honest
+                 table (axe aria-conditional-attr). The label already
+                 carries the expand / collapse state. -->
             <tr
               animate.enter="files__row--enter"
               class="files__row files__row--folder"
-              role="button"
-              [attr.aria-expanded]="row.expanded"
-              [attr.aria-level]="row.depth + 1"
               [attr.aria-label]="texts.folderAriaLabel(row.name, row.expanded)"
               tabindex="0"
               [style.--folder-depth]="row.depth"
@@ -302,7 +310,6 @@
             <tr
               animate.enter="files__row--enter"
               class="files__row files__row--leaf"
-              role="button"
               [class.is-selected]="row.path === highlightedPath()"
               tabindex="0"
               [attr.aria-label]="texts.leafAriaLabel(row.name)"
@@ -357,6 +364,7 @@
                   @if (row.isStale) {
                     <i
                       class="pi pi-clock files__stale-icon"
+                      role="img"
                       [pTooltip]="row.staleTooltip"
                       tooltipPosition="top"
                       [attr.aria-label]="row.staleTooltip"

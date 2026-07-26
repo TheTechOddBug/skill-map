@@ -555,3 +555,19 @@ html.app-matrix .severity-palette__btn--warn[aria-pressed='true'] .severity-pale
   color: var(--sm-matrix-accent-dim);
 }
 
+/* WCAG 1.4.11 (axe sweep 2026-07-26, finding M5): text-field borders
+   must reach 3:1 against the field background; the PrimeNG preset
+   default sat below it on every theme. emerald-600: 4.9:1 on the matrix field, keeps the green cast.
+   Doubled-up selector so this static override outranks the preset's
+   runtime-injected token of equal origin. */
+html:root.app-matrix {
+  --p-inputtext-border-color: #059669;
+}
+
+/* Accent-colored TEXT that must meet 1.4.3 (4.5:1): the active sort
+   header and the active rail tab paint their labels in the accent, and
+   not every theme's primary is contrast-safe at text sizes (axe sweep
+   2026-07-26). the matrix accent already clears 4.5:1. */
+html:root.app-matrix {
+  --sm-accent-text: var(--p-primary-color);
+}

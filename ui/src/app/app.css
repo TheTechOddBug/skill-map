@@ -125,7 +125,10 @@
   line-height: 1;
   font-weight: 500;
   letter-spacing: 0.02em;
-  color: var(--p-text-muted-color);
+  /* Full text color, not muted: at 11px this is small text (4.5:1),
+     and the light muted token sits at 4.34:1 on the chip background
+     (axe sweep 2026-07-26). */
+  color: var(--p-text-color);
   background: var(--p-content-hover-background);
   vertical-align: middle;
   user-select: text;
@@ -175,7 +178,10 @@
   line-height: 1;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--provider-color);
+  /* The provider hue arrives at ANY lightness; mixing it toward black
+     keeps the brand hue while guaranteeing 4.5:1 on the pale tint
+     below (axe sweep 2026-07-26: claude's terracotta sat at 2.8:1). */
+  color: color-mix(in srgb, var(--provider-color) 45%, black);
   background: color-mix(in srgb, var(--provider-color) 14%, transparent);
   vertical-align: middle;
   user-select: none;
@@ -570,7 +576,13 @@
 .shell__refresh:focus-visible:not(:disabled) {
   background: var(--shell-topbar-hover-bg);
   color: var(--shell-topbar-text-strong);
-  outline: none;
+}
+
+/* A visible focus RING, not just the hover tint: a background swap
+   alone is not a sufficient focus indicator (a11y audit finding N1). */
+.shell__refresh:focus-visible:not(:disabled) {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 1px;
 }
 
 .shell__refresh:disabled {

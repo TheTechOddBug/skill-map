@@ -96,3 +96,20 @@
   --sm-shadow-card-hover: 0 4px 14px rgba(0, 0, 0, 0.55);
   --sm-shadow-panel: 0 4px 24px rgba(0, 0, 0, 0.5);
 }
+
+/* WCAG 1.4.11 (axe sweep 2026-07-26, finding M5): text-field borders
+   must reach 3:1 against the field background; the PrimeNG preset
+   default sat below it on every theme. zinc-500: 4.1:1 on the near-black field.
+   Doubled-up selector so this static override outranks the preset's
+   runtime-injected token of equal origin. */
+html:root.app-dark {
+  --p-inputtext-border-color: #71717a;
+}
+
+/* Accent-colored TEXT that must meet 1.4.3 (4.5:1): the active sort
+   header and the active rail tab paint their labels in the accent, and
+   not every theme's primary is contrast-safe at text sizes (axe sweep
+   2026-07-26). the dark primary does NOT clear 4.5:1 on the highlight background; lifted to violet-300. */
+html:root.app-dark {
+  --sm-accent-text: #c4b5fd; /* violet-300: the dark primary itself fails 4.5:1 on the highlight bg */
+}

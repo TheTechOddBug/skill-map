@@ -43,11 +43,15 @@
     } @else {
       <!-- Open: a tab strip (Files / Queue) plus the collapse chevron,
            above the shared search cluster and the swappable body. -->
-      <div
-        class="workspace__rail-tabs"
-        role="tablist"
-        [attr.aria-label]="texts.sections.ariaLabel"
-      >
+      <div class="workspace__rail-tabs">
+        <!-- The tablist wraps ONLY the tabs (aria-required-children: a
+             tablist may not contain the collapse chevron); display:
+             contents hands the flex layout to the outer strip. -->
+        <div
+          class="workspace__rail-tablist"
+          role="tablist"
+          [attr.aria-label]="texts.sections.ariaLabel"
+        >
         <button
           type="button"
           class="workspace__tab"
@@ -78,6 +82,7 @@
           <i class="pi pi-list" aria-hidden="true"></i>
           <span>{{ texts.sections.queue }}</span>
         </button>
+        </div>
         <!-- Chevron: collapse-only, shown ONLY when open (no glyph swap). -->
         <button
           type="button"

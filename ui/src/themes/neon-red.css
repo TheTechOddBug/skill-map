@@ -387,3 +387,20 @@ html.app-neon-red sm-perf-hud .perf-hud .perf-hud__header .perf-hud__cell,
 html.app-neon-red sm-perf-hud .perf-hud .perf-hud__expandable-inner .perf-hud__cell {
   color: var(--perf-fg);
 }
+
+/* WCAG 1.4.11 (axe sweep 2026-07-26, finding M5): text-field borders
+   must reach 3:1 against the field background; the PrimeNG preset
+   default sat below it on every theme. red-400: past 3:1 on the dark field (pure reds are too dim).
+   Doubled-up selector so this static override outranks the preset's
+   runtime-injected token of equal origin. */
+html:root.app-neon-red {
+  --p-inputtext-border-color: #f87171;
+}
+
+/* Accent-colored TEXT that must meet 1.4.3 (4.5:1): the active sort
+   header and the active rail tab paint their labels in the accent, and
+   not every theme's primary is contrast-safe at text sizes (axe sweep
+   2026-07-26). lightened crimson, ~6.8:1; the electric #ff3355 fails 4.5:1 as text. */
+html:root.app-neon-red {
+  --sm-accent-text: #ff7788;
+}

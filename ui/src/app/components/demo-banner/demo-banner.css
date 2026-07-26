@@ -41,7 +41,9 @@
 }
 
 .demo-banner__home {
-  color: var(--p-primary-color);
+  /* Contrast-safe accent (the raw light primary is 3.9:1 on the banner
+     tint, axe sweep 2026-07-26). */
+  color: var(--sm-accent-text);
   font-weight: 500;
   text-decoration: none;
   white-space: nowrap;
