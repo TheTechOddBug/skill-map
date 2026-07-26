@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { expectSingleViewport } from './_files-rail.js';
+
 /**
  * Step 9.6.5 — UI sidecar surface smoke tests (demo-mode harness).
  *
@@ -75,6 +77,12 @@ test.describe('sidecar UI surface (Step 9.6.5)', () => {
     // mounted until its ancestor folders are open. Expand the whole tree
     // (the rail's expand-all control) to surface `content-editor.md`.
     await page.getByTestId('files-expand-all').click();
+    // The rail is virtualised: an expanded row is only in the DOM while it
+    // sits inside the render window. Asserting a SPECIFIC nested row is
+    // visible therefore assumes the whole corpus fits one viewport, which
+    // holds for the demo dataset. Pin it so a grown fixture fails here
+    // naming its own cause instead of looking like a sidecar regression.
+    await expectSingleViewport(page);
 
     const row = page.getByTestId(`files-leaf-${STALE_PATH}`);
     await expect(row).toBeVisible();

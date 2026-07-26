@@ -1,6 +1,12 @@
 /* Typographic scale: every size in the view traces back to one ladder.
    When tweaking sizes, edit the tokens below, do NOT introduce a
-   one-off literal. */
+   one-off literal.
+
+   One token is the exception and is NOT declared here: `--files-row-h`
+   is bound onto the table from TypeScript (`FILES_ROW_HEIGHT_PX` in
+   `files-view.ts`). The virtual scroller is a fixed-item-size
+   virtualizer, so the CSS row box and `[virtualScrollItemSize]` MUST be
+   the same number; owning it in TS makes drift impossible. */
 :host {
   --files-fs-xs: 0.75rem;     /* hints, count chips */
   --files-fs-mono: 0.8rem;    /* leaf code paths */
@@ -39,9 +45,35 @@
   width: 100%;
 }
 
+/* VIRTUAL SCROLL INVARIANT: every body row is exactly `--files-row-h`
+   tall. The scroller sizes its spacer as `rows * itemSize` and positions
+   the rendered window with a `translate3d`, so a row that measures
+   anything else makes the content drift away from the scrollbar as you
+   travel down a long list. `white-space: nowrap` is load-bearing for the
+   same reason and not cosmetic: Aura only forces it under
+   `.p-datatable-resizable-table` (which this table is not), so without it
+   a long unbreakable cell could wrap to two lines and silently break the
+   contract. */
 :host ::ng-deep .files__table .p-datatable-tbody td {
   font-size: var(--files-fs-sm);
   vertical-align: middle;
+  box-sizing: border-box;
+  height: var(--files-row-h);
+  white-space: nowrap;
+}
+
+/* Vertical padding that lands the row on `--files-row-h`: the tallest
+   cell content is the leaf's isolate button (1.5rem / 24px), so
+   2 * 5px + 24px + 1px border = 36px.
+
+   The compound `.files__table.p-datatable-sm` is deliberate, not
+   redundant. Aura ships `.p-datatable.p-datatable-sm .p-datatable-tbody >
+   tr > td` at specificity (0,3,2); the plain `.files__table
+   .p-datatable-tbody td` above compiles to (0,3,1) and would LOSE the
+   padding tie, silently leaving rows at their old height. Both classes
+   are ours (see `styleClass` on the table), so pinning both is free. */
+:host ::ng-deep .files__table.p-datatable-sm .p-datatable-tbody > tr > td {
+  padding-block: 0.3125rem;
 }
 
 /* Rail mode: the embedded Folders/Files navigator must read as one
@@ -158,6 +190,28 @@
   font-size: var(--files-fs-xs);
 }
 
+/* NO ROW ANIMATIONS, IN EITHER DIRECTION. This is a standing prohibition,
+   not an omission, and it has cost this codebase real bugs twice over.
+
+   `animate.leave` is categorically forbidden. Commit 2c07e6c9 removed a
+   leave slide whose `forwards` fill ended at `opacity: 0`: live activity
+   frames recompute the rows on every WS flush, so a re-render regularly
+   landed mid-animation, Angular re-used the leaving `<tr>` for the
+   entering view, and the stranded class pinned a LIVE row invisible
+   forever. The rows stayed in the DOM (tooltips kept firing, console
+   clean), they just never repainted.
+
+   `animate.enter` was kept back then because it is safe by construction
+   (only a `from` frame, no fill), but it went too once the table became
+   virtualised: rows now mount and unmount continuously as the render
+   window slides, so an enter slide would fire on every recycle, which is
+   both a visible shimmer and exactly the style/layout cost virtualisation
+   is here to remove.
+
+   Guarded by `e2e/smoke/files-reduced-motion.spec.ts`, which audits
+   PAINTED visibility (computed opacity / visibility / display) rather
+   than class bookkeeping, so a re-introduced hiding animation surfaces
+   there regardless of how it is spelled. */
 .files__row {
   cursor: pointer;
 }
@@ -457,36 +511,6 @@
    `<tr>` alone gets overridden and reads as no change. */
 :host ::ng-deep .files__table .p-datatable-tbody .files__row--folder > td {
   background: color-mix(in srgb, var(--sm-bg-hover) 30%, transparent);
-}
-
-/* Row ENTER slide, applied by `animate.enter` in the template. Angular
-   strips the class when the animation ends, so it only exists
-   mid-flight. PRM-gated (`no-preference`) like every decorative
-   animation in the app (graph-view convention).
-
-   There is deliberately NO leave animation on rows. `animate.leave`
-   classes are poison on trackBy-reused rows: when a re-render lands
-   mid-flight (live activity frames recompute the rows every WS flush),
-   Angular re-uses the leaving element for the entering view but leaves
-   the class residue behind, and a leave rule that hides the row (an
-   `opacity: 0` fill or end-state) then pins a LIVE row invisible
-   permanently. Symptom: sort clicks under churn progressively blank
-   the listing while the rows stay in the DOM (tooltips keep firing,
-   console clean). The enter keyframe is safe by construction: only a
-   `from` frame, no fill, so a stranded enter class cannot hide
-   anything. Regression guard: `e2e/smoke/files-reduced-motion.spec.ts`
-   plus the live-churn repro documented there. */
-@media (prefers-reduced-motion: no-preference) {
-  .files__row--enter {
-    animation: files-row-slide-in 200ms ease-out;
-  }
-}
-
-@keyframes files-row-slide-in {
-  from {
-    opacity: 0;
-    transform: translateY(-12px);
-  }
 }
 
 /* Numeric columns: right-aligned mono, same as files-view. */

@@ -1,7 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  ElementRef,
+  DestroyRef,
   Injector,
   OnInit,
   afterNextRender,
@@ -10,11 +10,15 @@ import {
   inject,
   signal,
   untracked,
+  viewChild,
 } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs/operators';
-import { TableModule } from 'primeng/table';
+import { Table, TableModule } from 'primeng/table';
+import type { ScrollerOptions } from 'primeng/api';
+import type { TablePassThrough } from 'primeng/types/table';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { MessageModule } from 'primeng/message';
 import { ButtonModule } from 'primeng/button';
@@ -50,6 +54,21 @@ import {
   type TSortColumn,
 } from './files-view.sort';
 
+/**
+ * Uniform body-row height, in pixels. Single source of truth for BOTH the
+ * CSS row box (bound onto the table as `--files-row-h`) and the virtual
+ * scroller's `[virtualScrollItemSize]`.
+ *
+ * PrimeNG's scroller is a FIXED-item-size virtualizer: it sizes its spacer
+ * as `rows * itemSize` and positions the rendered window with a
+ * `translate3d` computed from the same number. A row that renders taller
+ * or shorter than this constant makes the content drift away from the
+ * scrollbar the further you scroll, with no error anywhere. Changing this
+ * value is therefore a two-sided edit that this constant makes atomic; the
+ * padding that lands a row on it lives in `files-view.css`.
+ */
+export const FILES_ROW_HEIGHT_PX = 36;
+
 @Component({
   selector: 'sm-files-view',
   imports: [
@@ -73,8 +92,66 @@ export class FilesView implements OnInit {
   private readonly followSelection = inject(FilesFollowSelectionService);
   private readonly route = inject(ActivatedRoute);
   private readonly injector = inject(Injector);
-  private readonly host = inject(ElementRef) as ElementRef<HTMLElement>;
+  private readonly document = inject(DOCUMENT);
+  private readonly destroyRef = inject(DestroyRef);
   protected readonly texts = FILES_VIEW_TEXTS;
+
+  /**
+   * The PrimeNG table instance. `Table` declares no `exportAs`, so a
+   * template reference variable would resolve to the ElementRef; a view
+   * query is the only way to reach `scrollToVirtualIndex` / `scroller`.
+   * Optional because the table sits behind `@if` branches (loading, error,
+   * empty) and is absent until rows exist.
+   */
+  private readonly table = viewChild(Table);
+
+  /** Fed to `[virtualScrollItemSize]`; paired with `rowHeightCss` below. */
+  protected readonly rowHeightPx = FILES_ROW_HEIGHT_PX;
+
+  /** Same number as a CSS length, bound onto the table as `--files-row-h`
+   *  so the row box and the virtualizer can never disagree. */
+  protected readonly rowHeightCss = `${FILES_ROW_HEIGHT_PX}px`;
+
+  /**
+   * Scroller tuning. MUST stay a stable object reference: the scroller's
+   * `options` setter re-assigns its own fields on every identity change,
+   * so an inline literal in the template would re-run it each CD pass.
+   * Event keys (`onLazyLoad` / `onScroll` / `onScrollIndexChange`) must
+   * NEVER go in here, they overwrite the Table's own EventEmitters.
+   *
+   * `autoSize: false` is required, not defensive. `p-table` hardcodes
+   * `[autoSize]="true"`, and the scroller's `calculateAutoSize()` then
+   * writes a literal pixel height onto its host whenever the content
+   * measures shorter than the captured default. With `scrollHeight:
+   * 'flex'` the scroller must stay at `height: 100%` and fill the rail,
+   * so shrink-wrapping would stop a short listing from painting to the
+   * bottom of the panel.
+   */
+  protected readonly scrollerOptions: ScrollerOptions = { autoSize: false };
+
+  /**
+   * Pass-through attributes for PrimeNG-owned DOM.
+   *
+   * - `virtualScroller.root`: a stable `data-testid` on the element that
+   *   actually owns `scrollTop` / `clientHeight`, so tests never have to
+   *   reach for the internal `.p-virtualscroller` class.
+   * - `table.aria-rowcount`: only the rendered window is in the DOM, so
+   *   without this assistive tech would announce ~45 rows instead of the
+   *   real corpus size.
+   */
+  protected readonly tablePt = computed<TablePassThrough>(() => ({
+    virtualScroller: {
+      root: {
+        'data-testid': 'files-scroller',
+        'aria-label': FILES_VIEW_TEXTS.listAriaLabel,
+        // Not in the Tab order (a row owns that, see `activeIndex`), but
+        // focusable programmatically so the focus rescue has somewhere to
+        // put focus when a focused row is recycled away.
+        tabindex: '-1',
+      },
+    },
+    table: { 'aria-rowcount': String(this.rows().length) },
+  }));
 
   readonly loading = this.loader.loading;
   readonly error = this.loader.error;
@@ -156,6 +233,22 @@ export class FilesView implements OnInit {
       const path = this.highlightedPath();
       if (!path) return;
       untracked(() => this.revealLeaf(path));
+    });
+    // Collapsing, filtering or sorting can shrink the listing under the
+    // roving focus; keep it addressable instead of pointing past the end.
+    effect(() => {
+      this.rows().length;
+      untracked(() => this.clampActiveIndex());
+    });
+    // The scroller only exists once the table renders (it sits behind the
+    // loading / error / empty branches), so the rescue listener is bound
+    // the first time the view query resolves rather than on construction.
+    effect(() => {
+      if (!this.table() || this.focusRescueBound) return;
+      this.focusRescueBound = true;
+      untracked(() =>
+        afterNextRender(() => this.bindFocusRescue(), { injector: this.injector }),
+      );
     });
   }
 
@@ -433,30 +526,230 @@ export class FilesView implements OnInit {
         if (changed) this.expanded.set(next);
       }
     }
-    // Scroll after the (possibly expansion-triggered) render, so the target
-    // row exists in the DOM. The files table is not virtualised, so an
-    // expanded row is always present to scroll to.
+    // Scroll after the (possibly expansion-triggered) render, so `rows()`
+    // already contains the revealed row and its index is final. The row
+    // itself may well NOT be in the DOM: the table is virtualised, which is
+    // exactly why the scroll is driven by index instead of by element.
     afterNextRender(() => this.scrollToLeaf(path), { injector: this.injector });
+  }
+
+  // ---------------------------------------------------------------------
+  // Keyboard navigation
+  //
+  // Virtualisation means only a window of rows exists in the DOM, so the
+  // pre-virtual model (every `<tr>` `tabindex="0"`, walk them with Tab)
+  // silently stopped being able to reach row 500. This is a roving
+  // tabindex over rows: exactly one row is tabbable at a time, arrows move
+  // it, and the listing scrolls to follow.
+  //
+  // The table deliberately keeps `role="table"` rather than claiming
+  // `role="treegrid"`. Per the WAI-ARIA APG, treegrid obliges
+  // `role="gridcell"` on every cell plus two-dimensional cell navigation
+  // with a mode switch for widgets inside cells; a treegrid that announces
+  // itself and then does not answer cell navigation is worse for assistive
+  // tech than an honest table. WCAG 2.1 AA wants operability (2.1.1),
+  // visible focus (2.4.7) and coherent focus order (2.4.3), all of which
+  // this satisfies without over-promising semantics.
+  // ---------------------------------------------------------------------
+
+  /** Index into `rows()` of the row that currently owns `tabindex="0"`. */
+  protected readonly activeIndex = signal(0);
+
+  /** Keep the roving index inside the listing as rows appear / disappear. */
+  private clampActiveIndex(): void {
+    const max = this.rows().length - 1;
+    if (max < 0) return;
+    if (this.activeIndex() > max) this.activeIndex.set(max);
+  }
+
+  /**
+   * Whether the keyboard is currently "inside" the listing. Gates the focus
+   * rescue below so scrolling with the mouse never steals focus from
+   * somewhere else on the page.
+   */
+  private keyboardEngaged = false;
+
+  /** One-shot guard for the scroll listener wired in the constructor. */
+  private focusRescueBound = false;
+
+  /** A row took focus (click, Tab, or our own `focus()` call). */
+  protected onRowFocus(index: number): void {
+    this.activeIndex.set(index);
+    this.keyboardEngaged = true;
+  }
+
+  /** Focus left the listing for another element: stop rescuing. */
+  protected onFocusOut(event: FocusEvent): void {
+    const next = event.relatedTarget as Node | null;
+    // A null relatedTarget means focus went nowhere, which is the very case
+    // the rescue exists for, so engagement is deliberately left on.
+    if (next === null) return;
+    const host = this.scrollerEl();
+    if (host && host.contains(next)) return;
+    this.keyboardEngaged = false;
+  }
+
+  /**
+   * Focus rescue for recycled rows (WCAG 2.4.3).
+   *
+   * When the focused row scrolls out of the render window Angular destroys
+   * it, and the browser silently resets focus to `<body>`: the keyboard user
+   * is stranded mid-list with no way back except Tab from the top. Removing
+   * a focused element does NOT reliably fire `focusout`, so this cannot be
+   * event-driven off the row; it hangs off the scroller's own scroll instead
+   * and re-homes focus onto the viewport (which is `tabindex="-1"`, so it
+   * takes focus programmatically without joining the Tab order).
+   *
+   * `activeIndex` is deliberately left untouched, so the next arrow key
+   * resumes exactly where the user was rather than jumping to the top.
+   */
+  private bindFocusRescue(): void {
+    const el = this.scrollerEl();
+    if (!el) return;
+    const onScroll = (): void => {
+      if (!this.keyboardEngaged) return;
+      if (this.document.activeElement !== this.document.body) return;
+      el.focus({ preventScroll: true });
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    this.destroyRef.onDestroy(() => el.removeEventListener('scroll', onScroll));
+  }
+
+  /**
+   * Single delegated key handler for the whole listing (one listener
+   * instead of the three per row the template used to carry).
+   */
+  protected onKeydown(event: KeyboardEvent): void {
+    const rows = this.rows();
+    if (rows.length === 0) return;
+    const current = Math.min(this.activeIndex(), rows.length - 1);
+    const row = rows[current];
+
+    switch (event.key) {
+      case 'ArrowDown':
+        this.moveActive(current + 1);
+        break;
+      case 'ArrowUp':
+        this.moveActive(current - 1);
+        break;
+      case 'Home':
+        this.moveActive(0);
+        break;
+      case 'End':
+        this.moveActive(rows.length - 1);
+        break;
+      case 'PageDown':
+        this.moveActive(current + this.rowsPerViewport());
+        break;
+      case 'PageUp':
+        this.moveActive(current - this.rowsPerViewport());
+        break;
+      case 'ArrowRight':
+        // Tree semantics: open a closed folder, otherwise walk forward.
+        if (row.type === 'folder' && !row.expanded) this.toggleFolder(row);
+        else this.moveActive(current + 1);
+        break;
+      case 'ArrowLeft':
+        // Close an open folder, otherwise climb to the enclosing one.
+        if (row.type === 'folder' && row.expanded) this.toggleFolder(row);
+        else this.moveActive(this.parentIndex(current));
+        break;
+      case 'Enter':
+        if (row.type === 'folder') this.toggleFolder(row);
+        else this.openInMap(row);
+        break;
+      case ' ':
+      case 'Spacebar':
+        // Space operates the row's checkbox, matching what Space does to a
+        // checkbox everywhere else. Enter keeps the "activate" gesture.
+        if (row.type === 'folder') this.mapVisibility.toggleFolder(row.path);
+        else this.mapVisibility.toggleLeaf(row.path);
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+  }
+
+  /** How many whole rows fit in the scroll viewport, for Page Up / Down. */
+  private rowsPerViewport(): number {
+    const el = this.scrollerEl();
+    const height = el?.clientHeight ?? 0;
+    return Math.max(1, Math.floor(height / FILES_ROW_HEIGHT_PX));
+  }
+
+  /**
+   * Index of the row that encloses `index`: the nearest preceding row at a
+   * shallower depth. Returns `index` itself when already at the top level,
+   * so Arrow Left is a no-op there rather than jumping somewhere random.
+   */
+  private parentIndex(index: number): number {
+    const rows = this.rows();
+    const depth = rows[index]?.depth ?? 0;
+    for (let i = index - 1; i >= 0; i -= 1) {
+      if (rows[i].depth < depth) return i;
+    }
+    return index;
+  }
+
+  /**
+   * Move the roving focus: clamp, scroll the row into view, then focus it
+   * once the render lands. The focus has to wait for the render because
+   * the target row may not be mounted yet, which is the whole reason the
+   * scroll is index-driven.
+   */
+  private moveActive(next: number): void {
+    const rows = this.rows();
+    const target = Math.max(0, Math.min(next, rows.length - 1));
+    this.activeIndex.set(target);
+    this.scrollToIndex(target);
+    afterNextRender(() => this.focusRow(target), { injector: this.injector });
+  }
+
+  /** Focus the `<tr>` for `index`, if the render window contains it. */
+  private focusRow(index: number): void {
+    const el = this.scrollerEl()?.querySelector<HTMLElement>(`[data-row-index="${index}"]`);
+    el?.focus({ preventScroll: true });
+  }
+
+  /** The element that actually owns `scrollTop` under virtual scroll: the
+   *  scroller's viewport, not the table host. Null before the scroller's
+   *  own view init. */
+  private scrollerEl(): HTMLElement | null {
+    return (this.table()?.scroller?.getElementRef()?.nativeElement as HTMLElement | undefined) ?? null;
+  }
+
+  /**
+   * Bring row `index` into view, reproducing `scrollIntoView({ block:
+   * 'nearest' })`: a row that is already fully visible does not move.
+   *
+   * Deliberately NOT `Table.scrollToVirtualIndex`, which drops the scroll
+   * behavior (losing the reduced-motion handling) and always parks the row
+   * at the top of the viewport. Under "files follows selection" that would
+   * yank the listing on every map click, including clicks on rows that were
+   * already on screen.
+   *
+   * The arithmetic reads the same fixed item size the virtualizer uses, so
+   * the two cannot disagree about where a row lives.
+   */
+  private scrollToIndex(index: number): void {
+    const el = this.scrollerEl();
+    if (!el || index < 0) return;
+    const rowTop = index * FILES_ROW_HEIGHT_PX;
+    const rowBottom = rowTop + FILES_ROW_HEIGHT_PX;
+    if (rowTop >= el.scrollTop && rowBottom <= el.scrollTop + el.clientHeight) return;
+    const target = rowTop < el.scrollTop ? rowTop : rowBottom - el.clientHeight;
+    el.scrollTo({ top: Math.max(0, target), behavior: this.revealBehavior() });
   }
 
   /** Scroll the selected leaf's row into the rail viewport. Smooth unless
    *  the OS asks to reduce motion. */
   private scrollToLeaf(path: string): void {
-    const selector = `[data-testid="files-leaf-${escapeAttrValue(path)}"]`;
-    const row = this.host.nativeElement.querySelector(selector);
-    row?.scrollIntoView({ block: 'nearest', behavior: this.revealBehavior() });
+    this.scrollToIndex(this.rows().findIndex((row) => row.path === path));
   }
 
   private revealBehavior(): ScrollBehavior {
-    const mq = this.host.nativeElement.ownerDocument.defaultView?.matchMedia?.(
-      '(prefers-reduced-motion: reduce)',
-    );
+    const mq = this.document.defaultView?.matchMedia?.('(prefers-reduced-motion: reduce)');
     return mq?.matches ? 'auto' : 'smooth';
   }
-}
-
-/** Escape a value for use inside a `[data-testid="…"]` attribute selector.
- *  Node paths can carry characters that would break the quoted string. */
-function escapeAttrValue(value: string): string {
-  return value.replace(/["\\]/g, '\\$&');
 }

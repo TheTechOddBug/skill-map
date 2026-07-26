@@ -33,6 +33,7 @@
  */
 
 import { test, expect } from './_fixtures.js';
+import { expectSingleViewport } from '../../smoke/_files-rail.js';
 
 const STALE_PATH = '.claude/agents/stale-agent.md';
 const SEEDED_VERSION = 3;
@@ -73,6 +74,10 @@ test.describe('live-BFF bump flow', () => {
     //     Folders render COLLAPSED by default; expand the whole tree so
     //     the nested leaf row mounts (same recipe as the demo smoke).
     await page.getByTestId('files-expand-all').click();
+    //     The rail is virtualised, so a specific nested row is only in the
+    //     DOM while it is inside the render window; this fixture fits one
+    //     viewport, and the check below fails loudly if that stops holding.
+    await expectSingleViewport(page);
     const staleRow = page.getByTestId(`files-leaf-${STALE_PATH}`);
     await expect(staleRow).toBeVisible();
     await expect(staleRow.locator('.files__stale-icon')).toBeVisible();

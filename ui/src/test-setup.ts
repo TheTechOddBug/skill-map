@@ -153,3 +153,108 @@ function installCanvasContextStub(target: unknown): void {
 for (const t of targets) {
   installCanvasContextStub(t);
 }
+
+/**
+ * Virtual-scroll geometry stubs, scoped to PrimeNG's scroller viewport.
+ *
+ * The files rail runs `<p-table [virtualScroll]="true">`, and the scroller
+ * refuses to initialise at all in jsdom: `@primeuix/utils` defines
+ * `isVisible(el) = !!(el && el.offsetParent != null)`, `Scroller.viewInit()`
+ * gates `setInitialState()` + `init()` on it, and jsdom hardcodes
+ * `get offsetParent() { return null }`. Without a stub `initialized` never
+ * flips, `calculateOptions()` never runs, the rendered slice stays
+ * `items.slice(0, 0)` and EVERY row assertion in a files-view spec sees an
+ * empty table. Note this is not the same thing as `offsetHeight`: patching
+ * only the height changes nothing, because the code reading it never runs.
+ *
+ * The stubs are deliberately scoped to `.p-virtualscroller` instead of
+ * lying globally: `isVisible` is also consumed by select, multiselect,
+ * tieredmenu, panelmenu and styleclass, and a blanket `offsetParent` would
+ * silently change behaviour across unrelated specs.
+ *
+ * With an 800px viewport and 36px rows the scroller computes
+ * `numItemsInViewport = 23`, `numToleratedItems = 12` and therefore
+ * `last = min(items.length, 47)`. Any spec with fewer than 47 rows renders
+ * its whole dataset, so DOM assertions stay total. A spec that needs more
+ * rows than that must either assert against the window deliberately or
+ * raise this viewport.
+ */
+const SCROLLER_SELECTOR = '.p-virtualscroller';
+const TEST_VIEWPORT_H = 800;
+const TEST_VIEWPORT_W = 600;
+
+function isScroller(el: unknown): boolean {
+  const node = el as { matches?: (s: string) => boolean } | null;
+  return typeof node?.matches === 'function' && node.matches(SCROLLER_SELECTOR);
+}
+
+function installGeometryStub(target: unknown, ctorName: 'HTMLElement' | 'Element'): void {
+  if (typeof target !== 'object' || target === null) return;
+  const ctor = (target as Record<string, unknown>)[ctorName] as
+    | { prototype?: object }
+    | undefined;
+  const proto = ctor?.prototype;
+  if (!proto) return;
+
+  const define = (prop: string, value: number): void => {
+    const existing = Object.getOwnPropertyDescriptor(proto, prop) as
+      | { get?: { __smStub?: boolean } }
+      | undefined;
+    if (existing?.get?.__smStub) return;
+    const getter = function (this: unknown): number {
+      return isScroller(this) ? value : 0;
+    };
+    (getter as { __smStub?: boolean }).__smStub = true;
+    Object.defineProperty(proto, prop, { get: getter, configurable: true });
+  };
+
+  if (ctorName === 'HTMLElement') {
+    const parentDescriptor = Object.getOwnPropertyDescriptor(proto, 'offsetParent') as
+      | { get?: { __smStub?: boolean } }
+      | undefined;
+    if (!parentDescriptor?.get?.__smStub) {
+      const getter = function (this: { ownerDocument?: Document }): Element | null {
+        return isScroller(this) ? (this.ownerDocument?.body ?? null) : null;
+      };
+      (getter as { __smStub?: boolean }).__smStub = true;
+      Object.defineProperty(proto, 'offsetParent', { get: getter, configurable: true });
+    }
+    define('offsetHeight', TEST_VIEWPORT_H);
+    define('offsetWidth', TEST_VIEWPORT_W);
+  } else {
+    define('clientHeight', TEST_VIEWPORT_H);
+    define('clientWidth', TEST_VIEWPORT_W);
+  }
+}
+
+/**
+ * `Element.prototype.scrollTo`, which jsdom 29 does not implement at all
+ * (the scroller calls it, and so does the rail's own reveal path). Writing
+ * the coordinates through to `scrollTop` / `scrollLeft` (plain writable
+ * properties in jsdom) is what lets reveal specs assert an exact scroll
+ * position instead of merely "it did not throw".
+ */
+function installScrollToStub(target: unknown): void {
+  if (typeof target !== 'object' || target === null) return;
+  const ctor = (target as Record<string, unknown>)['Element'] as { prototype?: object } | undefined;
+  const proto = ctor?.prototype as Record<string, unknown> | undefined;
+  if (!proto) return;
+  const current = proto['scrollTo'] as { __smStub?: boolean } | undefined;
+  if (current?.__smStub) return;
+  const stub = function (this: Record<string, unknown>, options?: ScrollToOptions | number): void {
+    if (typeof options === 'number') {
+      this['scrollLeft'] = options;
+      return;
+    }
+    if (options?.top !== undefined) this['scrollTop'] = options.top;
+    if (options?.left !== undefined) this['scrollLeft'] = options.left;
+  };
+  (stub as { __smStub?: boolean }).__smStub = true;
+  proto['scrollTo'] = stub;
+}
+
+for (const t of targets) {
+  installGeometryStub(t, 'HTMLElement');
+  installGeometryStub(t, 'Element');
+  installScrollToStub(t);
+}

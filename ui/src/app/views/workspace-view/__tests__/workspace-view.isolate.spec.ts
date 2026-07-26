@@ -188,7 +188,15 @@ async function bootstrap(nodes: INodeView[], links: ILinkApi[], corpusSize = nod
   } catch {
     /* ignore Foblex-internal render glitches in jsdom */
   }
-  await Promise.resolve();
+  // The files rail inside the workspace is a virtualised table: its first
+  // render window is computed in a macrotask, so a microtask flush is not
+  // enough to have any `<tr>` in the DOM for the clicks below.
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  try {
+    fixture.detectChanges();
+  } catch {
+    /* same Foblex guard as above */
+  }
   return { fixture, mapVisibility };
 }
 

@@ -13,6 +13,7 @@ import { FilesView } from '../files-view';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { of } from 'rxjs';
+import { settleVirtualScroll } from '../../../../testing/virtual-scroll';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
 import { NodeActivityStatsService } from '../../../../services/node-activity-stats';
 import { MAP_ISOLATE_INTENT } from '../../../slots/map-isolate-intent';
@@ -28,7 +29,7 @@ function makeNode(path: string, name: string): INodeView {
   };
 }
 
-function boot(activity: Record<string, number>) {
+async function boot(activity: Record<string, number>) {
   const nodes = [
     makeNode('src/hot.md', 'hot'),
     makeNode('src/warm.md', 'warm'),
@@ -86,11 +87,15 @@ function boot(activity: Record<string, number>) {
     ],
   });
   const fixture = TestBed.createComponent(FilesView);
-  fixture.detectChanges();
+  // The table is virtualised: its first render window is computed inside a
+  // macrotask, so a synchronous detectChanges would leave the tbody empty.
+  await settleVirtualScroll(fixture);
   return fixture;
 }
 
-function headerButton(fixture: ReturnType<typeof boot>, col: string): HTMLButtonElement {
+type Fixture = Awaited<ReturnType<typeof boot>>;
+
+function headerButton(fixture: Fixture, col: string): HTMLButtonElement {
   const th = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(
     `[data-testid="files-col-${col}"]`,
   );
@@ -100,15 +105,15 @@ function headerButton(fixture: ReturnType<typeof boot>, col: string): HTMLButton
   return btn;
 }
 
-function leafRows(fixture: ReturnType<typeof boot>): string[] {
+function leafRows(fixture: Fixture): string[] {
   return Array.from(
     (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('tr[data-testid^="files-leaf-"]'),
   ).map((el) => el.getAttribute('data-testid') ?? '');
 }
 
 describe('FilesView: sort-by-activity click sequence (bug repro)', () => {
-  it('keeps all leaves visible after sorting by Activity, then by Tokens, then back to tree', () => {
-    const fixture = boot({ 'src/hot.md': 9, 'src/warm.md': 2 });
+  it('keeps all leaves visible after sorting by Activity, then by Tokens, then back to tree', async () => {
+    const fixture = await boot({ 'src/hot.md': 9, 'src/warm.md': 2 });
 
     // Tree mode boots collapsed: only the compacted single-file chain
     // (docs/cold.md) renders as a leaf; src's leaves stay hidden.
@@ -116,7 +121,7 @@ describe('FilesView: sort-by-activity click sequence (bug repro)', () => {
 
     // 1st click: flatten + sort by activity desc.
     headerButton(fixture, 'activity').click();
-    fixture.detectChanges();
+    await settleVirtualScroll(fixture);
     expect(leafRows(fixture)).toEqual([
       'files-leaf-src/hot.md',
       'files-leaf-src/warm.md',
@@ -125,14 +130,14 @@ describe('FilesView: sort-by-activity click sequence (bug repro)', () => {
 
     // 2nd click on a DIFFERENT column: still all three leaves.
     headerButton(fixture, 'tokens').click();
-    fixture.detectChanges();
+    await settleVirtualScroll(fixture);
     expect(leafRows(fixture)).toHaveLength(3);
 
     // 3rd: toggle activity asc (same column twice).
     headerButton(fixture, 'activity').click();
-    fixture.detectChanges();
+    await settleVirtualScroll(fixture);
     headerButton(fixture, 'activity').click();
-    fixture.detectChanges();
+    await settleVirtualScroll(fixture);
     expect(leafRows(fixture)).toEqual([
       'files-leaf-src/warm.md',
       'files-leaf-src/hot.md',
@@ -141,7 +146,7 @@ describe('FilesView: sort-by-activity click sequence (bug repro)', () => {
 
     // Back to tree: folders render again.
     headerButton(fixture, 'tree').click();
-    fixture.detectChanges();
+    await settleVirtualScroll(fixture);
     const folders = (fixture.nativeElement as HTMLElement).querySelectorAll(
       '[data-testid^="files-folder-"]',
     );

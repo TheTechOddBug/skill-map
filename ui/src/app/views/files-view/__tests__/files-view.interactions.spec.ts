@@ -5,6 +5,7 @@ import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { of } from 'rxjs';
 
 import { FilesView } from '../files-view';
+import { settleVirtualScroll } from '../../../../testing/virtual-scroll';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
 import { MapVisibilityService } from '../../../../services/map-visibility';
 import { NodeActivityStatsService } from '../../../../services/node-activity-stats';
@@ -110,17 +111,17 @@ function statsOf(count: number): INodeActivityStatsApi {
   return { count, lastStartAt: 0, distinctOwners: 1 };
 }
 
-function bootstrap(
+async function bootstrap(
   nodes: INodeView[] = [makeNode(LEAF_PATH, 'readme')],
   counts: Record<string, { errorCount?: number; warnCount?: number }> = {},
   activity: Record<string, number> = {},
-): {
+): Promise<{
   fixture: ReturnType<typeof TestBed.createComponent<FilesView>>;
   isolate: ReturnType<typeof vi.fn>;
   open: ReturnType<typeof vi.fn>;
   loader: ReturnType<typeof makeLoaderStub>;
   selection: MapVisibilityService;
-} {
+}> {
   const isolate = vi.fn();
   const open = vi.fn();
   const loader = makeLoaderStub(nodes, counts);
@@ -160,10 +161,18 @@ function bootstrap(
   });
   const selection = TestBed.inject(MapVisibilityService);
   const fixture = TestBed.createComponent(FilesView);
-  fixture.detectChanges();
+  // Virtualised table: the first render window lands a macrotask later.
+  await settleVirtualScroll(fixture);
   return { fixture, isolate, open, loader, selection };
 }
 
+/**
+ * Throwing on a miss is deliberate. The table is virtualised, so a testid
+ * is only in the DOM while its row sits inside the render window; with the
+ * handful of rows these specs mount (against a 47-row test window, see
+ * `src/test-setup.ts`) every row is present, and a miss is a real failure
+ * rather than a windowing artefact.
+ */
 function query(fixture: ReturnType<typeof TestBed.createComponent<FilesView>>, testid: string): HTMLElement {
   const el = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(
     `[data-testid="${testid}"]`,
@@ -173,8 +182,8 @@ function query(fixture: ReturnType<typeof TestBed.createComponent<FilesView>>, t
 }
 
 describe('FilesView leaf interactions', () => {
-  it('isolate button isolates the chain and does NOT open/select the row', () => {
-    const { fixture, isolate, open } = bootstrap();
+  it('isolate button isolates the chain and does NOT open/select the row', async () => {
+    const { fixture, isolate, open } = await bootstrap();
 
     query(fixture, `files-leaf-graph-${LEAF_PATH}`).click();
 
@@ -183,8 +192,8 @@ describe('FilesView leaf interactions', () => {
     expect(open).not.toHaveBeenCalled();
   });
 
-  it('row click opens the node in the map (the reference gesture)', () => {
-    const { fixture, isolate, open } = bootstrap();
+  it('row click opens the node in the map (the reference gesture)', async () => {
+    const { fixture, isolate, open } = await bootstrap();
 
     query(fixture, `files-leaf-${LEAF_PATH}`).click();
 
@@ -194,8 +203,8 @@ describe('FilesView leaf interactions', () => {
 });
 
 describe('FilesView folder interactions', () => {
-  it('folder CHECKBOX toggles the folder prefix in the map selection', () => {
-    const { fixture, selection } = bootstrap([
+  it('folder CHECKBOX toggles the folder prefix in the map selection', async () => {
+    const { fixture, selection } = await bootstrap([
       makeNode('src/a.md', 'a'),
       makeNode('src/b.md', 'b'),
     ]);
@@ -212,8 +221,8 @@ describe('FilesView folder interactions', () => {
     expect(selection.paths().size).toBe(0);
   });
 
-  it('folder ROW / chevron click is a PURE collapse toggle (no fetch, no selection change)', () => {
-    const { fixture, loader, selection } = bootstrap([
+  it('folder ROW / chevron click is a PURE collapse toggle (no fetch, no selection change)', async () => {
+    const { fixture, loader, selection } = await bootstrap([
       makeNode('src/a.md', 'a'),
       makeNode('src/b.md', 'b'),
     ]);
@@ -226,8 +235,8 @@ describe('FilesView folder interactions', () => {
     expect(selection.paths().size).toBe(0);
   });
 
-  it('disables descendant checkboxes (checked) when an ancestor folder is selected', () => {
-    const { fixture } = bootstrap([
+  it('disables descendant checkboxes (checked) when an ancestor folder is selected', async () => {
+    const { fixture } = await bootstrap([
       makeNode('src/a.md', 'a'),
       makeNode('src/sub/b.md', 'b'),
       makeNode('src/sub/c.md', 'c'),
@@ -236,7 +245,7 @@ describe('FilesView folder interactions', () => {
     // Select the parent prefix, then expand it so the children render.
     query(fixture, 'files-vis-folder-src').click();
     query(fixture, 'files-folder-src').click();
-    fixture.detectChanges();
+    await settleVirtualScroll(fixture);
 
     const childFolder = query(fixture, 'files-vis-folder-src/sub') as HTMLButtonElement;
     const childLeaf = query(fixture, 'files-vis-leaf-src/a.md') as HTMLButtonElement;
@@ -251,8 +260,8 @@ describe('FilesView folder interactions', () => {
     expect(parent.disabled).toBe(false);
   });
 
-  it('renders the session execution count in the Activity cell and its column header', () => {
-    const { fixture } = bootstrap(
+  it('renders the session execution count in the Activity cell and its column header', async () => {
+    const { fixture } = await bootstrap(
       [makeNode(LEAF_PATH, 'readme'), makeNode('quiet.md', 'quiet')],
       {},
       { [LEAF_PATH]: 4 },
@@ -272,8 +281,8 @@ describe('FilesView folder interactions', () => {
     expect(quiet?.textContent?.trim()).toBe('·');
   });
 
-  it('renders rolled-up error / warn badges on the folder row', () => {
-    const { fixture } = bootstrap(
+  it('renders rolled-up error / warn badges on the folder row', async () => {
+    const { fixture } = await bootstrap(
       [makeNode('src/a.md', 'a'), makeNode('src/b.md', 'b')],
       { 'src/a.md': { errorCount: 2 }, 'src/b.md': { warnCount: 3 } },
     );
@@ -313,8 +322,8 @@ describe('FilesView selection-coverage computeds', () => {
     return fixture.componentInstance as unknown as ICoverageProbe;
   }
 
-  it('an exact leaf selection is visible but never covered', () => {
-    const { fixture, selection } = bootstrap([
+  it('an exact leaf selection is visible but never covered', async () => {
+    const { fixture, selection } = await bootstrap([
       makeNode('docs/a.md', 'a'),
       makeNode('root.md', 'root'),
     ]);
@@ -333,8 +342,8 @@ describe('FilesView selection-coverage computeds', () => {
     expect(probe.visibleLeaves().has('docs/a.md')).toBe(false);
   });
 
-  it('a selected folder covers its whole subtree but never itself', () => {
-    const { fixture, selection } = bootstrap([
+  it('a selected folder covers its whole subtree but never itself', async () => {
+    const { fixture, selection } = await bootstrap([
       makeNode('docs/a.md', 'a'),
       makeNode('docs/sub/b.md', 'b'),
       makeNode('root.md', 'root'),
@@ -360,8 +369,8 @@ describe('FilesView selection-coverage computeds', () => {
     expect(visible.has('root.md')).toBe(false);
   });
 
-  it('a nested folder selection covers only its own branch', () => {
-    const { fixture, selection } = bootstrap([
+  it('a nested folder selection covers only its own branch', async () => {
+    const { fixture, selection } = await bootstrap([
       makeNode('docs/a.md', 'a'),
       makeNode('docs/sub/b.md', 'b'),
     ]);

@@ -1,5 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
+import { expectSingleViewport } from './_files-rail.js';
+
 /**
  * Files rail column-sorting smoke tests (demo-mode harness).
  *
@@ -40,6 +42,9 @@ async function gotoFiles(page: Page): Promise<void> {
   await page.waitForLoadState('networkidle');
   await expect(page.getByTestId('files-view')).toBeVisible();
   await expect(page.getByTestId('files-table')).toBeVisible();
+  // The table is virtualised, so the sort assertions below only cover the
+  // WHOLE listing while the corpus fits one viewport. Pin that assumption.
+  await expectSingleViewport(page);
 }
 
 const leafRows = (page: Page): Locator => page.locator('tr[data-testid^="files-leaf-"]');

@@ -26,12 +26,31 @@
         }
       </div>
     } @else {
-      <div class="files__split">
+      <!-- One delegated keyboard listener for the whole listing (arrows,
+           Home / End, Page Up / Down, Enter, Space) instead of handlers on
+           every row: under virtualisation rows mount and unmount as the
+           window slides, and per-row listeners were part of the ~17 per row
+           this work removes. `focusout` catches the case where the focused
+           row is recycled away, which would otherwise strand focus on
+           `<body>` (WCAG 2.4.3). -->
+      <div class="files__split" (keydown)="onKeydown($event)" (focusout)="onFocusOut($event)">
+      <!-- Virtualised on purpose and unconditionally: the rail renders the
+           whole corpus, and mounting every row is what made a large project
+           crawl (cost tracked rows MOUNTED, not rows changed). Only the
+           visible window plus a buffer is in the DOM.
+           `[virtualScrollDelay]` is deliberately absent: PrimeNG forwards it
+           to the scroller only when `[lazy]` is true, so on this table it
+           would be inert configuration. -->
       <p-table
         [value]="rows()"
         [paginator]="false"
         [scrollable]="true"
         [scrollHeight]="'flex'"
+        [style.--files-row-h]="rowHeightCss"
+        [virtualScroll]="true"
+        [virtualScrollItemSize]="rowHeightPx"
+        [virtualScrollOptions]="scrollerOptions"
+        [pt]="tablePt()"
         dataKey="path"
         [rowTrackBy]="trackByPath"
         styleClass="p-datatable-sm files__table"
@@ -205,7 +224,7 @@
             </th>
           </tr>
         </ng-template>
-        <ng-template pTemplate="body" let-row>
+        <ng-template pTemplate="body" let-row let-rowIndex="rowIndex">
           @if (row.type === 'folder') {
             <!-- One Set lookup per row via @let, the memoized computeds
                  (`coveredByAncestor`, `folderStateMap`) own the tree walk. -->
@@ -222,15 +241,20 @@
                  rows only inside a treegrid, and this stays an honest
                  table (axe aria-conditional-attr). The label already
                  carries the expand / collapse state. -->
+            <!-- Roving tabindex, not `tabindex="0"` on every row: the table
+                 is virtualised, so only the render window exists and Tab
+                 could never reach the rest. Exactly one row is tabbable and
+                 the arrow keys move it; the per-row keydown handlers moved
+                 to one delegated listener on the wrapper below. -->
             <tr
-              animate.enter="files__row--enter"
               class="files__row files__row--folder"
               [attr.aria-label]="texts.folderAriaLabel(row.name, row.expanded)"
-              tabindex="0"
+              [attr.tabindex]="activeIndex() === rowIndex ? 0 : -1"
+              [attr.aria-rowindex]="rowIndex + 1"
+              [attr.data-row-index]="rowIndex"
+              (focus)="onRowFocus(rowIndex)"
               [style.--folder-depth]="row.depth"
               (click)="toggleFolder(row)"
-              (keydown.enter)="toggleFolder(row)"
-              (keydown.space)="$event.preventDefault(); toggleFolder(row)"
               [attr.data-testid]="'files-folder-' + row.path"
             >
               <td class="files__cell-tree">
@@ -239,6 +263,7 @@
                   <button
                     type="button"
                     class="files__vis-check"
+                    [attr.tabindex]="activeIndex() === rowIndex ? 0 : -1"
                     [disabled]="folderCovered"
                     [attr.data-state]="folderState"
                     [pTooltip]="folderCovered ? texts.mapCoveredTooltip : texts.mapVisibilityTooltip"
@@ -308,15 +333,15 @@
             @let leafCovered = coveredByAncestor().has(row.path);
             @let leafOnMap = visibleLeaves().has(row.path);
             <tr
-              animate.enter="files__row--enter"
               class="files__row files__row--leaf"
               [class.is-selected]="row.path === highlightedPath()"
-              tabindex="0"
+              [attr.tabindex]="activeIndex() === rowIndex ? 0 : -1"
+              [attr.aria-rowindex]="rowIndex + 1"
+              [attr.data-row-index]="rowIndex"
+              (focus)="onRowFocus(rowIndex)"
               [attr.aria-label]="texts.leafAriaLabel(row.name)"
               [style.--folder-depth]="row.depth"
               (click)="onLeafActivate(row)"
-              (keydown.enter)="onLeafActivate(row)"
-              (keydown.space)="$event.preventDefault(); onLeafActivate(row)"
               [attr.data-testid]="'files-leaf-' + row.path"
             >
               <td class="files__cell-tree">
@@ -325,6 +350,7 @@
                   <button
                     type="button"
                     class="files__vis-check"
+                    [attr.tabindex]="activeIndex() === rowIndex ? 0 : -1"
                     [disabled]="leafCovered"
                     [attr.data-state]="leafOnMap ? 'all' : 'none'"
                     [pTooltip]="leafCovered ? texts.mapCoveredTooltip : texts.mapVisibilityTooltip"
@@ -348,6 +374,7 @@
                   <button
                     type="button"
                     class="files__open-graph"
+                    [attr.tabindex]="activeIndex() === rowIndex ? 0 : -1"
                     [pTooltip]="texts.isolateTooltip"
                     tooltipPosition="top"
                     [attr.aria-label]="texts.isolateAriaLabel(row.name)"

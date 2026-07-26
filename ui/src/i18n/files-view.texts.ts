@@ -67,4 +67,10 @@ export const FILES_VIEW_TEXTS = {
    * here too even though this is a sentinel.
    */
   missing: '·',
+  /**
+   * Label for the scrollable listing itself. The table is virtualised, so
+   * only a window of rows is in the DOM and Tab cannot walk them; arrow
+   * keys move a roving focus instead, which the label announces.
+   */
+  listAriaLabel: 'Files and folders. Use the arrow keys to move between rows.',
 } as const;
