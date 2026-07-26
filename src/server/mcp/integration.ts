@@ -49,6 +49,8 @@ export interface IMcpIntegrationDeps {
   broadcaster: WsBroadcaster;
   /** Boot-cached plugin runtime, threaded to the queue tools' submit / record. */
   pluginRuntime: IPluginRuntime;
+  /** Presence hook for `claim_job` attempts (see `IMcpWriteContext`). */
+  onClaimAttempt?: () => void;
 }
 
 export interface IMcpIntegration {
@@ -74,6 +76,7 @@ export function createMcpIntegration(deps: IMcpIntegrationDeps): IMcpIntegration
       implVersion: deps.implVersion,
       activityStats: deps.activityStats,
       pluginRuntime: deps.pluginRuntime,
+      ...(deps.onClaimAttempt ? { onClaimAttempt: deps.onClaimAttempt } : {}),
       broadcaster: deps.broadcaster,
     }),
   );

@@ -434,7 +434,7 @@
                 [closable]="false"
                 styleClass="inspector__ai-actions-agent-warning"
                 data-testid="inspector-ai-actions-attending-warning"
-                >{{ texts.aiActions.noAgentAttendingWarning }}</p-message
+                >{{ texts.aiActions.noAgentAttendingWarning(processInvocation()) }}</p-message
               >
             }
             @if (aiActionLauncherGroups().length > 0) {
@@ -565,7 +565,7 @@
                      nothing drains it. Point at the UI's own install row
                      (Settings > Project) and the skill invocation. -->
                 <p class="inspector__ai-actions-hint" data-testid="inspector-ai-actions-agent-hint">
-                  {{ texts.aiActions.agentInstallHint }}
+                  {{ texts.aiActions.agentInstallHint(processInvocation()) }}
                 </p>
               }
             }

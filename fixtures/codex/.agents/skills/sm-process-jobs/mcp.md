@@ -4,9 +4,11 @@ You have skill-map's MCP tools in this session, so you are in HYBRID mode.
 MANAGE the queue and findings over these typed tools (no stdout parsing).
 CLAIMING is per-runtime: on Claude Code the backgrounded CLI
 `smx jobs claim --wait` parks for free, so PROCESS with the CLI loop in
-`SKILL.md`. On a runtime whose shell exec times out (Codex kills one at
-~10s, so a re-issued `--wait` burns an LLM turn per cycle), claim with
-`claim_job` + `wait` below, a server-side blocking claim you park on.
+`SKILL.md`. On a runtime that caps shell time (Codex kills an exec at
+~10s; OpenCode's bash tool tops out at 10 minutes), claim with
+`claim_job` + `wait` below, a server-side blocking claim you park on
+(its progress heartbeat keeps timeout-resetting clients like OpenCode
+parked indefinitely).
 
 Queue:
 
@@ -15,8 +17,10 @@ Queue:
 - `claim_job`: claim the next job (returns its id + nonce + rendered
   prompt). Pass `wait` (seconds) for a server-side BLOCKING claim that
   parks until a job arrives, the token-cheap alternative to the CLI
-  `--wait` on a runtime whose shell exec times out; set your MCP client's
-  per-tool timeout >= `wait`.
+  `--wait` on a runtime that caps shell time. While parked the server
+  emits a ~15s progress heartbeat, so a client that resets its request
+  timeout on progress (OpenCode) parks indefinitely; on a fixed-timeout
+  client set the per-tool timeout >= `wait`.
 - `submit_job`: enqueue an extension on a node. Refused with a clear
   error when the `sm-process-jobs` skill is not installed (same
   no-processing-agent gate as the CLI / UI).

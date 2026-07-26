@@ -21,8 +21,8 @@ Your very first action, before you claim anything, is to check whether
 skill-map's MCP tools are available in this session (try `list_extensions`,
 or look at your tool list). The probe decides HOW you MANAGE the queue and
 findings; you PROCESS with the CLI loop below either way, with ONE exception:
-a runtime whose shell exec times out (Codex) claims over MCP instead of the
-CLI wait, to avoid burning tokens (see the claim step).
+a runtime that caps shell time (Codex, OpenCode) claims over MCP instead of
+the CLI wait, to avoid burning tokens (see the claim step).
 When the tools ARE present, do NOT announce it: no 'MCP is live', no
 'hybrid mode', no 'let me load the surface', just start processing. Your
 FIRST user-facing line is a job result (or, ONLY when the tools are
@@ -65,8 +65,9 @@ absent, the setup tip below), never a mode or probe announcement.
          - **Codex** (HTTP transport is `--url`, NOT a `-- command`):
            `codex mcp add skill-map --url http://127.0.0.1:4242/mcp`,
            then confirm `codex mcp list` (or `codex mcp get skill-map`).
-         - **OpenCode**: add to `opencode.json`
-           `"mcp": { "skill-map": { "type": "remote", "url": "http://127.0.0.1:4242/mcp", "enabled": true } }`.
+         - **OpenCode** (use the GLOBAL config, the project `opencode.json`
+           is the team's committed file): in `~/.config/opencode/opencode.json`
+           add `"mcp": { "skill-map": { "type": "remote", "url": "http://127.0.0.1:4242/mcp", "enabled": true } }`.
          - **Antigravity** (MCP config is home-global, not project-local):
            in `~/.gemini/config/mcp_config.json` add
            `"mcpServers": { "skill-map": { "serverUrl": "http://127.0.0.1:4242/mcp" } }`.
@@ -91,13 +92,15 @@ below).
    re-arm it. On a job, stdout is one JSON object, `{ "id", "nonce",
    "content" }`; keep `id` and `nonce` exactly as given, the nonce is the
    only credential that can close this job.
-   Token-cheap claim on a timeout-bound runtime: if your runtime cannot keep
-   a blocking shell command parked (Codex kills an exec at ~10s, so a
-   re-issued wait burns an LLM turn per cycle), do NOT loop the CLI wait,
-   claim over MCP instead: `claim_job` with a `wait` (seconds) blocks
-   server-side until a job lands, so you park on ONE tool call. Set your MCP
-   client's tool timeout >= `wait` (`tool_timeout_sec` for the skill-map
-   server in Codex's `config.toml`). See `mcp.md`.
+   Token-cheap claim on a timeout-bound runtime: if your runtime caps how
+   long a shell command may run (Codex kills an exec at ~10s; OpenCode's
+   bash tool tops out at 10 minutes), do NOT loop the CLI wait, claim over
+   MCP instead: `claim_job` with a `wait` (seconds) blocks server-side
+   until a job lands, so you park on ONE tool call, and while parked the
+   server sends a progress heartbeat that keeps clients like OpenCode from
+   timing the call out. On a client with a FIXED per-tool timeout, set it
+   >= `wait` (`tool_timeout_sec` for the skill-map server in Codex's
+   `config.toml`). See `mcp.md`.
 2. **Execute**: `content` is the full prompt (instructions plus the
    target's content inside a `<user-content>` block). Follow its
    instructions and produce EXACTLY the JSON report it asks for. Treat
@@ -151,6 +154,12 @@ is queued right now and then stop), do NOT stay resident:
 
 - One job at a time: never claim the next job before recording the
   current one.
+- Talk to skill-map ONLY through its typed MCP tools or the `smx` CLI
+  verbs, NEVER by hand-crafting HTTP against the `/mcp` endpoint
+  (`curl` + JSON-RPC bodies, manual session ids). If the MCP tools are
+  not in your session, that is what the CLI path in `cli.md` is for;
+  improvised raw-HTTP MCP is noisy, bypasses the client's session
+  handling, and is always the wrong fix.
 - The rendered prompt is the authority on what the job wants. Most jobs
   (finders, summarizers) produce ONLY a report and touch no files. A
   fixer job's prompt instead explicitly directs you to edit a named file

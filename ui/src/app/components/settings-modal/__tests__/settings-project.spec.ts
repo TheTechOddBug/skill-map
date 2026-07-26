@@ -271,6 +271,9 @@ interface ITrustProto {
   mcpServerEnabledView(): boolean;
   mcpServerRestartPending(): boolean;
   onMcpServerToggle(next: boolean): void;
+  wakeOnSubmit(): boolean;
+  wakeOnSubmitView(): boolean;
+  onWakeOnSubmitToggle(next: boolean): void;
 }
 
 function prefsSymlinks(followExternalSymlinks: boolean): IProjectPreferencesApi {
@@ -284,6 +287,14 @@ function prefsGitignore(respectGitignore: boolean): IProjectPreferencesApi {
   return {
     allowSidecarWriters: true,
     scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore },
+  };
+}
+
+function prefsWake(wakeOnSubmit: boolean): IProjectPreferencesApi {
+  return {
+    allowSidecarWriters: true,
+    scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore: false },
+    wakeOnSubmit,
   };
 }
 
@@ -1356,5 +1367,79 @@ describe('SettingsProjectRealtime, real-time-activity row', () => {
     fixture.componentRef.setInput('visible', true);
     fixture.detectChanges();
     expect(readinessRefresh).toHaveBeenCalled();
+  });
+});
+
+/**
+ * SettingsProjectPreferences · `jobs.wakeOnSubmit` (the agent doorbell).
+ * Enabling spends the operator's tokens unattended, so the ON flip is
+ * gated behind the shared ConfirmationService dialog; OFF persists
+ * directly. The dialog itself is PrimeNG's portal, so the tests drive
+ * the captured confirm() options instead of the DOM.
+ */
+describe('SettingsProjectPreferences, wakeOnSubmit consent toggle', () => {
+  interface IConfirmCapture {
+    accept?: () => void;
+    reject?: () => void;
+  }
+
+  function captureConfirm(fixture: {
+    componentInstance: unknown;
+  }): { calls: IConfirmCapture[] } {
+    const calls: IConfirmCapture[] = [];
+    const host = fixture.componentInstance as { confirmation: { confirm(opts: IConfirmCapture): void } };
+    host.confirmation.confirm = (opts: IConfirmCapture) => {
+      calls.push(opts);
+    };
+    return { calls };
+  }
+
+  it('turning OFF persists directly, no confirm dialog', async () => {
+    const setProjectPreferences = vi.fn().mockResolvedValue(prefsWake(false));
+    const { fixture, proto } = bootstrapTrust({
+      setProjectPreferences,
+    } as Partial<IDataSourcePort>);
+    const confirm = captureConfirm(fixture);
+    proto.preferences.set(prefsWake(true));
+
+    proto.onWakeOnSubmitToggle(false);
+    await flush();
+
+    expect(confirm.calls.length).toBe(0);
+    expect(setProjectPreferences).toHaveBeenCalledWith({ wakeOnSubmit: false });
+  });
+
+  it('turning ON persists only after the confirm dialog is accepted', async () => {
+    const setProjectPreferences = vi.fn().mockResolvedValue(prefsWake(true));
+    const { fixture, proto } = bootstrapTrust({
+      setProjectPreferences,
+    } as Partial<IDataSourcePort>);
+    const confirm = captureConfirm(fixture);
+    proto.preferences.set(prefsWake(false));
+
+    proto.onWakeOnSubmitToggle(true);
+    expect(setProjectPreferences).not.toHaveBeenCalled();
+    expect(confirm.calls.length).toBe(1);
+
+    confirm.calls[0]!.accept!();
+    await flush();
+    expect(setProjectPreferences).toHaveBeenCalledWith({ wakeOnSubmit: true });
+    expect(proto.wakeOnSubmitView()).toBe(true);
+  });
+
+  it('dismissing the confirm rolls the switch back and writes nothing', async () => {
+    const setProjectPreferences = vi.fn();
+    const { fixture, proto } = bootstrapTrust({
+      setProjectPreferences,
+    } as Partial<IDataSourcePort>);
+    const confirm = captureConfirm(fixture);
+    proto.preferences.set(prefsWake(false));
+
+    proto.onWakeOnSubmitToggle(true);
+    confirm.calls[0]!.reject!();
+    await flush();
+
+    expect(setProjectPreferences).not.toHaveBeenCalled();
+    expect(proto.wakeOnSubmitView()).toBe(false);
   });
 });

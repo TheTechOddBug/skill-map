@@ -1123,6 +1123,13 @@ export interface IProjectPreferencesApi {
    * emits a concrete boolean.
    */
   mcpServerEnabled?: boolean;
+  /**
+   * Project-local agent-doorbell consent (`jobs.wakeOnSubmit`, default
+   * `false`): wake a registered agent runtime per queued burst, `once`
+   * mode. Read LIVE by the server, so no restart applies. Optional to
+   * tolerate an older BFF envelope that predates it.
+   */
+  wakeOnSubmit?: boolean;
 }
 
 /**
@@ -1164,6 +1171,12 @@ export interface IProjectPreferencesPatchApi {
    * mount only reflects it on the next `sm serve` restart.
    */
   mcpServerEnabled?: boolean;
+  /**
+   * Flip the project-local agent-doorbell consent (`jobs.wakeOnSubmit`).
+   * The UI gates ENABLING behind a confirm dialog (autonomous token
+   * spending); the write itself needs no confirm flag.
+   */
+  wakeOnSubmit?: boolean;
 }
 
 /**

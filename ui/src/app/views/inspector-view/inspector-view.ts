@@ -51,6 +51,7 @@ import { ActionDispatchService } from '../../../services/action-dispatch';
 import { cssKindNameOrFallback } from '../../../services/css-guard';
 import { activityNodeLabel, pathBasenameForLink } from '../../../services/path-basename';
 import { ProviderRegistryService } from '../../../services/provider-registry';
+import { ProjectInfoService } from '../../services/project-info';
 import { ProcessingAgentReadinessService } from '../../services/processing-agent-readiness';
 import {
   AnnotationsPanel,
@@ -161,6 +162,7 @@ export class InspectorView implements OnInit {
   private readonly wsEvents = inject(WsEventStreamService);
   private readonly actionDispatch = inject(ActionDispatchService);
   private readonly providerRegistry = inject(ProviderRegistryService);
+  private readonly projectInfo = inject(ProjectInfoService);
   private readonly processingAgent = inject(ProcessingAgentReadinessService);
   private readonly activityStats = inject(NodeActivityStatsService);
   private readonly announcer = inject(A11yAnnouncerService);
@@ -497,6 +499,7 @@ export class InspectorView implements OnInit {
     // submitting control (see `submitGateClosed`). The second warning
     // rides the controller's own agent-presence probe.
     skillMissing: this.processingAgent.skillMissing,
+    mcpConnected: this.processingAgent.mcpConnected,
     // The dismiss / restore flows park their consent retries behind the
     // SAME dialog the action buttons use (one instance, one service).
     requestSmConsent: (retry) => this.actionDispatch.requestSmConsent(retry),
@@ -507,6 +510,17 @@ export class InspectorView implements OnInit {
   protected readonly aiActionsAvailable = this.aiActions.available;
   protected readonly aiActionsSkillMissing = this.aiActions.skillMissing;
   protected readonly aiActionsAgentAttending = this.aiActions.agentAttending;
+  /**
+   * The processing-skill invocation for the ACTIVE lens (not the node's
+   * provider): the `sm-process-jobs` handle joined against the lens's
+   * `invocationSigil`, mirroring Quick Start's agent-jobs row, so the
+   * no-agent warnings name the exact thing to type in that runtime.
+   */
+  protected readonly processInvocation = computed<string>(() => {
+    const active = this.projectInfo.activeProvider();
+    const sigil = (active ? this.providerRegistry.lookup(active)?.invocationSigil : undefined) ?? '/';
+    return `${sigil}sm-process-jobs`;
+  });
   protected readonly aiActionsError = this.aiActions.error;
   protected readonly probExtensions = this.aiActions.probExtensions;
   protected readonly aiActionCounts = this.aiActions.counts;

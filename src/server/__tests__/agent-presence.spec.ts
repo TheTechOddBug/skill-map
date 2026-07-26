@@ -82,6 +82,16 @@ describe('AgentPresenceTracker', () => {
 });
 
 describe('WsBroadcaster -> AgentPresenceTracker wiring', () => {
+  it('a claim ATTEMPT flips attending without stamping lastClaimAt', () => {
+    const tracker = new AgentPresenceTracker();
+    // The parked `claim_job { wait }` on an empty queue: the agent asks
+    // for work, wins nothing, and is attending all the same.
+    tracker.noteAttempt();
+    const snap = tracker.snapshot();
+    assert.equal(snap.attending, true);
+    assert.equal(snap.lastClaimAt, null, 'attempts never forge a claim timestamp');
+  });
+
   it('observes an envelope broadcast through the choke point', () => {
     const tracker = new AgentPresenceTracker();
     const broadcaster = new WsBroadcaster({

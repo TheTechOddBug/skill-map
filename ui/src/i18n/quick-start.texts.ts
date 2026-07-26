@@ -252,7 +252,7 @@ export const QUICK_START_TEXTS = {
       description:
         'Copy what your agent needs and apply it there, approve the MCP connection when your ' +
         'agent prompts you, then click Check to confirm the live connection. It belongs in ' +
-        'your own config, never in a file the repository shares.',
+        'your own config.',
       copiedHint: 'Copied to the clipboard.',
       /**
        * Where a `config` snippet goes, shown while nothing else occupies

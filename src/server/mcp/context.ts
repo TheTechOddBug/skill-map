@@ -57,6 +57,14 @@ export interface IMcpWriteContext extends IMcpReadContext {
    * / MCP subscriber sees the completion without a poll.
    */
   broadcaster: WsBroadcaster;
+  /**
+   * Presence hook: called on EVERY `claim_job` attempt (empty queue or
+   * not), because an agent asking for work is attending regardless of
+   * whether work exists. Wired at the composition root to
+   * `AgentPresenceTracker.noteAttempt`; optional so tests and any
+   * presence-less embedding can omit it.
+   */
+  onClaimAttempt?: () => void;
 }
 
 /** Full persisted `ScanResult`, same payload as `GET /api/scan`. */

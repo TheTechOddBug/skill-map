@@ -57,37 +57,72 @@ const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost']);
 const TIMEOUT_MS = ${PLUGIN_TIMEOUT_MS};
 const PROVIDER = '{{PROVIDER_ID}}';
 
-export const SkillMapActivity = async ({ directory }) => {
+export const SkillMapActivity = async ({ directory, serverUrl }) => {
   const root = typeof directory === 'string' && directory.length > 0 ? directory : null;
+  // The runtime's OWN local API base, when its plugin input exposes it
+  // (OpenCode's does). Registered as the agent-doorbell wake endpoint
+  // (spec/job-lifecycle.md §Agent doorbell): once at load, and refreshed
+  // on every forwarded event so a restarted server relearns it.
+  const agentEndpoint = (() => {
+    try {
+      const value = serverUrl === undefined || serverUrl === null ? '' : String(serverUrl);
+      return value.startsWith('http') ? value : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  function discover() {
+    if (root === null) return null;
+    const info = JSON.parse(readFileSync(join(root, '${SKILL_MAP_DIR}', '${SERVE_INFO_FILENAME}'), 'utf8'));
+    if (typeof info.scopeRoot !== 'string' || info.scopeRoot !== root) return null;
+    if (typeof info.host !== 'string' || !LOOPBACK_HOSTS.has(info.host.toLowerCase())) return null;
+    // Port sanity: refuse a tampered serve.json port rather than
+    // interpolate a non-integer / out-of-range value into the URL
+    // (host is already pinned to loopback above).
+    if (!Number.isInteger(info.port) || info.port < 1 || info.port > 65535) return null;
+    return info;
+  }
+
+  async function post(info, path, body) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      await fetch('http://' + info.host + ':' + info.port + path, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-skill-map-token': typeof info.token === 'string' ? info.token : '',
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
   async function forward(hook, payload) {
     try {
-      if (root === null) return;
-      const info = JSON.parse(readFileSync(join(root, '${SKILL_MAP_DIR}', '${SERVE_INFO_FILENAME}'), 'utf8'));
-      if (typeof info.scopeRoot !== 'string' || info.scopeRoot !== root) return;
-      if (typeof info.host !== 'string' || !LOOPBACK_HOSTS.has(info.host.toLowerCase())) return;
-      // Port sanity: refuse a tampered serve.json port rather than
-      // interpolate a non-integer / out-of-range value into the URL
-      // (host is already pinned to loopback above).
-      if (!Number.isInteger(info.port) || info.port < 1 || info.port > 65535) return;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-      try {
-        await fetch('http://' + info.host + ':' + info.port + '/api/activity', {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            'x-skill-map-token': typeof info.token === 'string' ? info.token : '',
-          },
-          body: JSON.stringify({ provider: PROVIDER, event: { hook, directory: root, ...payload } }),
-          signal: controller.signal,
-        });
-      } finally {
-        clearTimeout(timer);
-      }
+      const info = discover();
+      if (info === null) return;
+      const body = { provider: PROVIDER, event: { hook, directory: root, ...payload } };
+      if (agentEndpoint !== null) body.agentEndpoint = agentEndpoint;
+      await post(info, '/api/activity', body);
     } catch {
       // Silent no-op: no server, stale serve.json, unreachable host.
     }
+  }
+
+  // One doorbell registration at load (fire-and-forget, silent): covers
+  // the idle session that never fires a hook before a job is queued.
+  try {
+    const info = discover();
+    if (info !== null && agentEndpoint !== null) {
+      void post(info, '/api/agent/doorbell', { url: agentEndpoint }).catch(() => {});
+    }
+  } catch {
+    // Silent no-op, same posture as forward().
   }
 
   return {

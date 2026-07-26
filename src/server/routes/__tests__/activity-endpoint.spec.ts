@@ -461,6 +461,62 @@ describe('POST /api/activity, ingest', () => {
   });
 });
 
+describe('POST /api/agent/doorbell (registration) + ingest agentEndpoint refresh', () => {
+  it('403 without the session token, before any body processing', async () => {
+    await bootAndUse(async (handle) => {
+      const res = await fetch(url(handle, '/api/agent/doorbell'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ url: 'http://127.0.0.1:4096' }),
+      });
+      assert.equal(res.status, 403);
+    });
+  });
+
+  it('202 on a loopback registration, 422 on a non-loopback one, 400 on a bad body', async () => {
+    await bootAndUse(async (handle) => {
+      const post = (body: unknown): Promise<Response> =>
+        fetch(url(handle, '/api/agent/doorbell'), {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            [TOKEN_HEADER]: handle.activityToken,
+          },
+          body: JSON.stringify(body),
+        });
+      assert.equal((await post({ url: 'http://127.0.0.1:4096' })).status, 202);
+      assert.equal((await post({ url: 'http://evil.example.com' })).status, 422);
+      assert.equal((await post({})).status, 400);
+    });
+  });
+
+  it('the activity ingest accepts (and never errors on) an agentEndpoint refresh', async () => {
+    await bootAndUse(async (handle) => {
+      const res = await postActivity(
+        handle,
+        {
+          provider: 'claude',
+          event: { hook_event_name: 'SomethingUnmapped' },
+          agentEndpoint: 'http://127.0.0.1:4096',
+        },
+        handle.activityToken,
+      );
+      assert.equal(res.status, 202);
+      // A non-loopback refresh is ignored, never an ingest failure.
+      const bad = await postActivity(
+        handle,
+        {
+          provider: 'claude',
+          event: { hook_event_name: 'SomethingUnmapped' },
+          agentEndpoint: 'http://evil.example.com',
+        },
+        handle.activityToken,
+      );
+      assert.equal(bad.status, 202);
+    });
+  });
+});
+
 describe('POST /api/activity, opencode spawn custody + parent anchoring', () => {
   const SESSION = 'ses_065784db5ffehGlcY9Ott8iJzq';
 

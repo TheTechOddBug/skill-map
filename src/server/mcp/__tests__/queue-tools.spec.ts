@@ -23,6 +23,7 @@ import type { IMcpWriteContext } from '../context.js';
 import {
   cancelJob,
   claimJobTool,
+  claimWaitProgressFrom,
   claimWithOptionalWait,
   failJob,
   getJob,
@@ -205,7 +206,9 @@ describe('mcp claim_job', () => {
     const project = await makeProject(true);
     const started = Date.now();
     // Tiny injected interval keeps the test fast while still polling many times.
-    const outcome = await claimWithOptionalWait(bareCtx(project), 'agent', undefined, 1, 10);
+    const outcome = await claimWithOptionalWait(bareCtx(project), 'agent', undefined, 1, {
+      pollIntervalMs: 10,
+    });
     assert.equal(outcome.kind, 'empty');
     assert.ok(Date.now() - started >= 1000, 'held for roughly the full window');
   });
@@ -217,9 +220,109 @@ describe('mcp claim_job', () => {
     setTimeout(() => {
       void seedQueued(project, 'd-20260101-000000-9601');
     }, 30);
-    const outcome = await claimWithOptionalWait(ctx, 'agent', undefined, 5, 10);
+    const outcome = await claimWithOptionalWait(ctx, 'agent', undefined, 5, {
+      pollIntervalMs: 10,
+    });
     assert.equal(outcome.kind, 'claimed');
     if (outcome.kind === 'claimed') assert.equal(outcome.id, 'd-20260101-000000-9601');
+  });
+
+  it('parked wait fires the progress heartbeat on cadence with elapsed seconds', async () => {
+    const project = await makeProject(true);
+    const ticks: number[] = [];
+    // 1s window, 10ms polls, 100ms heartbeat cadence: expect ~9 ticks.
+    const outcome = await claimWithOptionalWait(bareCtx(project), 'agent', undefined, 1, {
+      pollIntervalMs: 10,
+      progressIntervalMs: 100,
+      onProgress: async (elapsed) => {
+        ticks.push(elapsed);
+      },
+    });
+    assert.equal(outcome.kind, 'empty');
+    assert.ok(ticks.length >= 5, `heartbeat fired repeatedly (got ${ticks.length})`);
+    // Elapsed values are non-decreasing whole seconds.
+    for (let i = 1; i < ticks.length; i++) {
+      assert.ok(ticks[i]! >= ticks[i - 1]!, 'elapsed seconds never regress');
+    }
+  });
+
+  it('no heartbeat without an onProgress emitter (token-less request shape)', async () => {
+    const project = await makeProject(true);
+    // Same window with no emitter: just proves the loop tolerates absence
+    // (the registration only builds an emitter when the request carried a
+    // progressToken, per MCP progress semantics).
+    const outcome = await claimWithOptionalWait(bareCtx(project), 'agent', undefined, 1, {
+      pollIntervalMs: 10,
+      progressIntervalMs: 100,
+    });
+    assert.equal(outcome.kind, 'empty');
+  });
+
+  it('an immediate claim never fires the heartbeat (response is the signal)', async () => {
+    const project = await makeProject(true);
+    const ctx = await realCtx(project);
+    const submitted = await submitJob(ctx, { node: SKILL_NODE.path, extension: SUMMARIZER_ID });
+    assert.equal(submitted.outcome, 'created');
+    const ticks: number[] = [];
+    const outcome = await claimWithOptionalWait(ctx, 'agent', undefined, 5, {
+      pollIntervalMs: 10,
+      progressIntervalMs: 20,
+      onProgress: async (elapsed) => {
+        ticks.push(elapsed);
+      },
+    });
+    assert.equal(outcome.kind, 'claimed');
+    assert.deepEqual(ticks, [], 'first-attempt hit parks nothing');
+  });
+
+  it('every claim attempt fires onClaimAttempt (presence), empty queue included', async () => {
+    const project = await makeProject(true);
+    let attempts = 0;
+    const ctx = { ...bareCtx(project), onClaimAttempt: () => { attempts += 1; } };
+    // Empty queue: no claim, still an attending agent.
+    const empty = await claimJobTool(ctx, {});
+    assert.equal(empty, null);
+    assert.equal(attempts, 1);
+    // A real claim counts too (once per tool call, not per poll tick).
+    await seedQueued(project, 'd-20260101-000000-9700');
+    const claimed = await claimJobTool(ctx, {});
+    assert.ok(claimed);
+    assert.equal(attempts, 2);
+  });
+
+  it('claimWaitProgressFrom binds the progressToken and swallows transport errors', async () => {
+    const sent: unknown[] = [];
+    const withToken = {
+      _meta: { progressToken: 'tok-1' },
+      sendNotification: async (n: unknown) => {
+        sent.push(n);
+      },
+    } as unknown as Parameters<typeof claimWaitProgressFrom>[0];
+    const emitter = claimWaitProgressFrom(withToken);
+    assert.ok(emitter, 'a token yields an emitter');
+    await emitter(30);
+    assert.deepEqual(sent, [
+      {
+        method: 'notifications/progress',
+        params: { progressToken: 'tok-1', progress: 30 },
+      },
+    ]);
+
+    // No token -> no emitter (per MCP, progress only goes to who asked).
+    const withoutToken = {
+      _meta: {},
+      sendNotification: async () => {},
+    } as unknown as Parameters<typeof claimWaitProgressFrom>[0];
+    assert.equal(claimWaitProgressFrom(withoutToken), undefined);
+
+    // A dying transport mid-park must not throw out of a heartbeat tick.
+    const failing = {
+      _meta: { progressToken: 7 },
+      sendNotification: async () => {
+        throw new Error('session gone');
+      },
+    } as unknown as Parameters<typeof claimWaitProgressFrom>[0];
+    await assert.doesNotReject(() => claimWaitProgressFrom(failing)!(5));
   });
 
   it('fails and skips a claimed job with a missing content row (McpError)', async () => {

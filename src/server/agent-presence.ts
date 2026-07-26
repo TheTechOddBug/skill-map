@@ -32,8 +32,9 @@
 /** Read projection of the tracker, the wire `value` of `GET /api/agent/presence`. */
 export interface IAgentPresence {
   /**
-   * `true` once a `job.claimed` has been observed this boot. Never flips
-   * back (see the file header on stickiness).
+   * `true` once a `job.claimed` OR an MCP claim attempt has been
+   * observed this boot. Never flips back (see the file header on
+   * stickiness).
    */
   attending: boolean;
   /** Epoch-ms of the most recent observed claim; `null` before the first. */
@@ -45,6 +46,15 @@ const CLAIM_EVENT_TYPE = 'job.claimed';
 
 export class AgentPresenceTracker {
   #lastClaimAt: number | null = null;
+  /**
+   * Sticky like the claim flag: set by `noteAttempt()` when an agent
+   * ASKS for work through the MCP `claim_job` tool, job or no job. A
+   * parked `claim_job { wait }` on an empty queue claims nothing for
+   * hours, yet that agent is attending by definition, it is literally
+   * waiting for work; without this, the inspector's "no agent has
+   * picked up work" warning outlived the moment the agent arrived.
+   */
+  #attemptSeen = false;
 
   /**
    * Observe one broadcast envelope. Records a claim when it is a
@@ -61,9 +71,21 @@ export class AgentPresenceTracker {
     this.#lastClaimAt = Date.now();
   }
 
+  /**
+   * Record a claim ATTEMPT (the MCP `claim_job` tool, empty-queue or
+   * not): proof an agent is watching the queue. `lastClaimAt` stays
+   * claim-only, the attempt only flips `attending`.
+   */
+  noteAttempt(): void {
+    this.#attemptSeen = true;
+  }
+
   /** Current state, a fresh copy (callers never hold tracker internals). */
   snapshot(): IAgentPresence {
-    return { attending: this.#lastClaimAt !== null, lastClaimAt: this.#lastClaimAt };
+    return {
+      attending: this.#attemptSeen || this.#lastClaimAt !== null,
+      lastClaimAt: this.#lastClaimAt,
+    };
   }
 }
 

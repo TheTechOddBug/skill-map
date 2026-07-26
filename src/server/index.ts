@@ -73,6 +73,7 @@ import { tx } from '../kernel/util/tx.js';
 import { readConfigValue } from '../core/config/helper.js';
 import { ActivityConversationStore } from './activity-conversations.js';
 import { ActivityOwnerIndex } from './activity-owner-index.js';
+import { AgentDoorbell } from './agent-doorbell.js';
 import { ActivityStatsService } from './activity-stats.js';
 import { AgentPresenceTracker } from './agent-presence.js';
 import { createApp } from './app.js';
@@ -181,9 +182,18 @@ export async function createServer(
   // still counting BOTH claim paths: the CLI's `POST /api/job-events`
   // rebroadcast and the in-process MCP `claim_job` broadcast.
   const agentPresence = new AgentPresenceTracker();
+  // Agent doorbell (job-lifecycle.md §Agent doorbell): wakes a registered
+  // runtime when a submit survives its settle window unclaimed. Observes
+  // the same choke point as presence; both composed here so the
+  // broadcaster stays a dumb transport.
+  const agentDoorbell = new AgentDoorbell({
+    cwd: runtimeContext.cwd,
+    dbPath: options.dbPath,
+  });
   const broadcaster = new WsBroadcaster({
     onEnvelope: (envelope) => {
       agentPresence.observe(envelope);
+      agentDoorbell.observe(envelope);
     },
   });
   // Per-session ingest token for `POST /api/activity`. 32 random bytes
@@ -232,6 +242,7 @@ export async function createServer(
     broadcaster,
     activityStats,
     pluginRuntime,
+    agentPresence,
   );
 
   const app = createApp({
@@ -242,6 +253,7 @@ export async function createServer(
     activityOwners,
     activityConversations,
     agentPresence,
+    agentDoorbell,
     broadcaster,
     runtimeContext,
     kindRegistry,
@@ -339,6 +351,7 @@ export async function createServer(
         // best-effort; the process is exiting regardless
       }
     }
+    agentDoorbell.close();
     broadcaster.shutdown();
     await closeServer(server);
     wss.close();
@@ -361,6 +374,7 @@ function buildMcpIntegration(
   broadcaster: WsBroadcaster,
   activityStats: ActivityStatsService,
   pluginRuntime: IPluginRuntime,
+  agentPresence: AgentPresenceTracker,
 ): IMcpIntegration | null {
   if (!options.mcpServer) return null;
   return createMcpIntegration({
@@ -369,6 +383,10 @@ function buildMcpIntegration(
     implVersion: VERSION,
     activityStats,
     broadcaster,
+    // A `claim_job` attempt (empty queue or not) proves an agent is
+    // watching the queue: flip presence the moment it parks, not on the
+    // first job it happens to win (spec/cli-contract.md §agent/presence).
+    onClaimAttempt: () => agentPresence.noteAttempt(),
     // The queue + findings-lifecycle tools ride the SAME endpoint as the
     // read map tools: one opt-in (`mcp.server.enabled`) turns the whole
     // surface on (user decision 2026-07-23). The boot-cached plugin

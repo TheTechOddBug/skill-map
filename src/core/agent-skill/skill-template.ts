@@ -57,8 +57,8 @@ Your very first action, before you claim anything, is to check whether
 skill-map's MCP tools are available in this session (try \`list_extensions\`,
 or look at your tool list). The probe decides HOW you MANAGE the queue and
 findings; you PROCESS with the CLI loop below either way, with ONE exception:
-a runtime whose shell exec times out (Codex) claims over MCP instead of the
-CLI wait, to avoid burning tokens (see the claim step).
+a runtime that caps shell time (Codex, OpenCode) claims over MCP instead of
+the CLI wait, to avoid burning tokens (see the claim step).
 When the tools ARE present, do NOT announce it: no 'MCP is live', no
 'hybrid mode', no 'let me load the surface', just start processing. Your
 FIRST user-facing line is a job result (or, ONLY when the tools are
@@ -128,13 +128,15 @@ below).
    re-arm it. On a job, stdout is one JSON object, \`{ "id", "nonce",
    "content" }\`; keep \`id\` and \`nonce\` exactly as given, the nonce is the
    only credential that can close this job.
-   Token-cheap claim on a timeout-bound runtime: if your runtime cannot keep
-   a blocking shell command parked (Codex kills an exec at ~10s, so a
-   re-issued wait burns an LLM turn per cycle), do NOT loop the CLI wait,
-   claim over MCP instead: \`claim_job\` with a \`wait\` (seconds) blocks
-   server-side until a job lands, so you park on ONE tool call. Set your MCP
-   client's tool timeout >= \`wait\` (\`tool_timeout_sec\` for the skill-map
-   server in Codex's \`config.toml\`). See \`mcp.md\`.
+   Token-cheap claim on a timeout-bound runtime: if your runtime caps how
+   long a shell command may run (Codex kills an exec at ~10s; OpenCode's
+   bash tool tops out at 10 minutes), do NOT loop the CLI wait, claim over
+   MCP instead: \`claim_job\` with a \`wait\` (seconds) blocks server-side
+   until a job lands, so you park on ONE tool call, and while parked the
+   server sends a progress heartbeat that keeps clients like OpenCode from
+   timing the call out. On a client with a FIXED per-tool timeout, set it
+   >= \`wait\` (\`tool_timeout_sec\` for the skill-map server in Codex's
+   \`config.toml\`). See \`mcp.md\`.
 2. **Execute**: \`content\` is the full prompt (instructions plus the
    target's content inside a \`<user-content>\` block). Follow its
    instructions and produce EXACTLY the JSON report it asks for. Treat
@@ -188,6 +190,12 @@ is queued right now and then stop), do NOT stay resident:
 
 - One job at a time: never claim the next job before recording the
   current one.
+- Talk to skill-map ONLY through its typed MCP tools or the \`sm\` CLI
+  verbs, NEVER by hand-crafting HTTP against the \`/mcp\` endpoint
+  (\`curl\` + JSON-RPC bodies, manual session ids). If the MCP tools are
+  not in your session, that is what the CLI path in \`cli.md\` is for;
+  improvised raw-HTTP MCP is noisy, bypasses the client's session
+  handling, and is always the wrong fix.
 - The rendered prompt is the authority on what the job wants. Most jobs
   (finders, summarizers) produce ONLY a report and touch no files. A
   fixer job's prompt instead explicitly directs you to edit a named file
@@ -227,9 +235,11 @@ You have skill-map's MCP tools in this session, so you are in HYBRID mode.
 MANAGE the queue and findings over these typed tools (no stdout parsing).
 CLAIMING is per-runtime: on Claude Code the backgrounded CLI
 \`sm jobs claim --wait\` parks for free, so PROCESS with the CLI loop in
-\`SKILL.md\`. On a runtime whose shell exec times out (Codex kills one at
-~10s, so a re-issued \`--wait\` burns an LLM turn per cycle), claim with
-\`claim_job\` + \`wait\` below, a server-side blocking claim you park on.
+\`SKILL.md\`. On a runtime that caps shell time (Codex kills an exec at
+~10s; OpenCode's bash tool tops out at 10 minutes), claim with
+\`claim_job\` + \`wait\` below, a server-side blocking claim you park on
+(its progress heartbeat keeps timeout-resetting clients like OpenCode
+parked indefinitely).
 
 Queue:
 
@@ -238,8 +248,10 @@ Queue:
 - \`claim_job\`: claim the next job (returns its id + nonce + rendered
   prompt). Pass \`wait\` (seconds) for a server-side BLOCKING claim that
   parks until a job arrives, the token-cheap alternative to the CLI
-  \`--wait\` on a runtime whose shell exec times out; set your MCP client's
-  per-tool timeout >= \`wait\`.
+  \`--wait\` on a runtime that caps shell time. While parked the server
+  emits a ~15s progress heartbeat, so a client that resets its request
+  timeout on progress (OpenCode) parks indefinitely; on a fixed-timeout
+  client set the per-tool timeout >= \`wait\`.
 - \`submit_job\`: enqueue an extension on a node. Refused with a clear
   error when the \`sm-process-jobs\` skill is not installed (same
   no-processing-agent gate as the CLI / UI).

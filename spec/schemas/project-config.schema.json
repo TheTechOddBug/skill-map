@@ -181,6 +181,11 @@
           "minimum": 1,
           "description": "Default poll cadence (seconds) for a blocking `sm jobs claim --wait`: how often a resident worker re-reaps and re-claims while the queue is empty (job-lifecycle.md §Atomic claim · Blocking claim). The `--interval` flag overrides it per invocation; absent both, the CLI default is 2. Bounds pickup latency only, the claim stays atomic."
         },
+        "wakeOnSubmit": {
+          "type": "boolean",
+          "description": "Agent doorbell (job-lifecycle.md §Agent doorbell): when `true`, a `job.submitted` that is still queued after a short settle delay wakes a registered agent runtime (today: OpenCode, whose generated activity plugin registers its local server) by creating a fresh session and firing one async prompt that runs the `sm-process-jobs` skill in `once` mode. Default `false`. Read live at wake time (no server restart). **Project-local only** (per `PROJECT_LOCAL_ONLY_KEYS`), stripped with a warning from the committed `project` layer: an autonomous agent spending the operator's tokens is a per-operator decision that must not travel via the shared repo.",
+          "$comment": "Project-local only; a per-operator token-spending consent, never committed."
+        },
         "perExtensionTtl": {
           "type": "object",
           "description": "Per-extension TTL overrides (seconds). Keys are qualified ids of queued probabilistic extensions (Action or Analyzer). Renamed from `perActionTtl` when Analyzers joined the queue.",

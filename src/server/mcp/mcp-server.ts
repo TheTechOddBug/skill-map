@@ -39,6 +39,8 @@ export interface IMcpServerDeps extends IMcpReadContext {
   activityStats: ActivityStatsService;
   /** Boot-cached plugin runtime (submit / record build a fresh runtime from it). */
   pluginRuntime: IPluginRuntime;
+  /** Presence hook for `claim_job` attempts (see `IMcpWriteContext`). */
+  onClaimAttempt?: () => void;
   /** The one `/ws` broadcaster the queue tools broadcast job-lifecycle events on. */
   broadcaster: WsBroadcaster;
 }
@@ -78,6 +80,7 @@ export function createMcpServer(deps: IMcpServerDeps): IMcpServerParts {
     cwd: deps.cwd,
     pluginRuntime: deps.pluginRuntime,
     broadcaster: deps.broadcaster,
+    ...(deps.onClaimAttempt ? { onClaimAttempt: deps.onClaimAttempt } : {}),
   };
   registerMcpQueueTools(server, writeCtx);
   registerMcpFindingsTools(server, writeCtx);

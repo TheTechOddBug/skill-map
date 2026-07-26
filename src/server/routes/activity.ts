@@ -58,6 +58,7 @@ import {
   type IResolvedSpawn,
 } from '../activity-resolver.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
+import type { AgentDoorbell } from '../agent-doorbell.js';
 import { assertIngestToken, INGEST_TOKEN_HEADER } from '../util/ingest-token.js';
 import { makeBodyValidator } from '../util/parse-body.js';
 import type { IRouteDeps } from './deps.js';
@@ -69,6 +70,14 @@ interface IActivityBody {
   provider: string;
   /** The provider runtime's raw hook payload, forwarded verbatim. */
   event: Record<string, unknown>;
+  /**
+   * Optional agent-doorbell refresh (`spec/job-lifecycle.md` §Agent
+   * doorbell): the runtime's local API base, re-registered on every
+   * event so a restarted server relearns it from ordinary traffic. A
+   * non-loopback value is ignored (the doorbell refuses it), never an
+   * ingest error.
+   */
+  agentEndpoint?: string;
 }
 
 const ACTIVITY_BODY_SCHEMA = {
@@ -78,6 +87,7 @@ const ACTIVITY_BODY_SCHEMA = {
   properties: {
     provider: { type: 'string', minLength: 1 },
     event: { type: 'object' },
+    agentEndpoint: { type: 'string', minLength: 1 },
   },
 } as const;
 
@@ -105,6 +115,8 @@ export interface IActivityRouteDeps extends IRouteDeps {
    * anchors a spawn that names no parent on the agent that owner runs.
    */
   owners: ActivityOwnerIndex;
+  /** Agent doorbell, refreshed by the optional `agentEndpoint` field. */
+  doorbell: AgentDoorbell;
   /**
    * Consent-gated conversation store. Explicit extra dep by custody
    * contract (never on `IRouteDeps`, see `activity-conversations.ts`).
@@ -116,6 +128,7 @@ export function registerActivityRoute(app: Hono, deps: IActivityRouteDeps): void
   app.post('/api/activity', async (c) => {
     assertTokenLogged(c.req.raw.headers.get(INGEST_TOKEN_HEADER), deps.activityToken);
     const body = await parseBody(c.req.raw);
+    refreshDoorbell(deps, body);
 
     const resolution = await resolveActivityEvent({
       providers: deps.providers,
@@ -149,6 +162,17 @@ export function registerActivityRoute(app: Hono, deps: IActivityRouteDeps): void
 
     return c.json({ ok: true, resolved: activity.length, spawns: spawns.length }, 202);
   });
+}
+
+/**
+ * Doorbell refresh riding the ingest (`spec/job-lifecycle.md` §Agent
+ * doorbell): a body-level `agentEndpoint` re-registers the runtime's
+ * wake endpoint on every event, so a restarted server relearns it from
+ * ordinary traffic. The doorbell refuses non-loopback values itself;
+ * a refusal is never an ingest error.
+ */
+function refreshDoorbell(deps: IActivityRouteDeps, body: { agentEndpoint?: string }): void {
+  if (body.agentEndpoint !== undefined) deps.doorbell.register(body.agentEndpoint);
 }
 
 /**

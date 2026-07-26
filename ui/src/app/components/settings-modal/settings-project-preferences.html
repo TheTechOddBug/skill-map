@@ -36,6 +36,21 @@
   />
 </div>
 
+<div class="settings-project__row" data-testid="settings-project-wake-on-submit-row">
+  <div class="settings-project__row-text">
+    <div class="settings-project__row-label">{{ texts.project.wakeOnSubmitLabel }}</div>
+    <div class="settings-project__row-description">
+      {{ texts.project.wakeOnSubmitDescription }}
+    </div>
+  </div>
+  <p-toggleswitch
+    [ngModel]="wakeOnSubmitView()"
+    (ngModelChange)="onWakeOnSubmitToggle($event)"
+    [disabled]="loading() || isPending('wakeOnSubmit') || preferences() === null"
+    data-testid="settings-project-wake-on-submit-toggle"
+  />
+</div>
+
 @if (loadError(); as err) {
   <p-message severity="error" [closable]="false" data-testid="settings-project-load-error">
     {{ texts.project.loadErrorPrefix }} {{ err }}

@@ -35,7 +35,14 @@
 
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { ErrorCode, McpError, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
+import {
+  ErrorCode,
+  McpError,
+  type CallToolResult,
+  type ServerNotification,
+  type ServerRequest,
+} from '@modelcontextprotocol/sdk/types.js';
 
 import { processingSkillPresence } from '../../core/agent-skill/targets.js';
 import { buildActionRuntime, type IActionRuntime } from '../../core/jobs/action-runtime.js';
@@ -435,6 +442,26 @@ const MAX_CLAIM_WAIT_SECONDS = 3600;
  */
 const CLAIM_WAIT_POLL_INTERVAL_MS = 2000;
 
+/**
+ * Cadence of the `notifications/progress` heartbeat while a `wait` claim
+ * is parked (spec/mcp-server.md §Tools, `claim_job`). 15s sits well under
+ * the 60s per-request default of the MCP TS SDK, so a client that resets
+ * its timeout on progress (OpenCode passes `resetTimeoutOnProgress: true`
+ * on every tool call) keeps the park alive indefinitely with 4x margin,
+ * while staying quiet enough not to spam the wire.
+ */
+export const CLAIM_WAIT_PROGRESS_INTERVAL_MS = 15_000;
+
+/**
+ * Progress emitter threaded into the wait loop by the `claim_job`
+ * registration, already bound to the request's `progressToken` and
+ * swallowing its own transport errors (a dead session while parked must
+ * surface as the loop's own lifecycle, never as a throw from a tick).
+ * `undefined` when the request carried no `progressToken`: per MCP,
+ * progress is only sent to a client that asked for it.
+ */
+export type TClaimWaitProgress = (elapsedSeconds: number) => Promise<void>;
+
 export const claimJobInputShape = {
   runner: z.string().optional().describe('Runner label stamped on the claim (default "agent").'),
   filter: z.string().optional().describe('Restrict the claim to one extension id.'),
@@ -444,7 +471,7 @@ export const claimJobInputShape = {
     .positive()
     .optional()
     .describe(
-      'Long-poll up to N seconds (server-side blocking claim): the tool holds the response until a job is claimable or the window elapses, so an MCP client can PARK on one call instead of polling. Omit for a single immediate attempt. Set the MCP client tool timeout >= this value.',
+      'Long-poll up to N seconds (server-side blocking claim): the tool holds the response until a job is claimable or the window elapses, so an MCP client can PARK on one call instead of polling. Omit for a single immediate attempt. While parked the server sends a progress notification every ~15s, so a client that resets its request timeout on progress can park indefinitely; a client with a fixed per-tool timeout must set it >= this value.',
     ),
 };
 
@@ -470,12 +497,19 @@ export interface IClaimJobResult {
 export async function claimJobTool(
   ctx: IMcpWriteContext,
   args: IClaimJobArgs,
+  onProgress?: TClaimWaitProgress,
 ): Promise<IClaimJobResult | null> {
   const runner: JobRunner = args.runner === 'in-process' ? 'in-process' : 'agent';
+  // Presence first, outcome-independent: an agent ASKING for work is
+  // attending even when the queue is empty (the parked wait's normal
+  // state), see `IMcpWriteContext.onClaimAttempt`.
+  ctx.onClaimAttempt?.();
   // The engine outcome is mapped OUTSIDE `withWriteDb`: an empty queue must
   // return `null` to the caller, but returning `null` from the DB callback
   // is indistinguishable from a missing-DB short-circuit.
-  const outcome = await claimWithOptionalWait(ctx, runner, args.filter, args.wait);
+  const outcome = await claimWithOptionalWait(ctx, runner, args.filter, args.wait, {
+    onProgress,
+  });
   if (outcome.kind === 'empty') return null;
   if (outcome.kind === 'corrupt') {
     throw new McpError(
@@ -504,33 +538,66 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Injectable knobs of the wait loop (tests shrink the intervals). */
+export interface IClaimWaitOpts {
+  /** Progress heartbeat, absent when the request carried no token. */
+  onProgress?: TClaimWaitProgress | undefined;
+  /** Re-attempt cadence; never exposed on the tool input shape. */
+  pollIntervalMs?: number;
+  /** Heartbeat cadence; never exposed on the tool input shape. */
+  progressIntervalMs?: number;
+}
+
 /**
  * One immediate claim attempt, optionally followed by a server-side
  * blocking long-poll when the first attempt is `empty` and `waitSeconds`
  * is set. Each attempt opens a FRESH `withWriteDb`, and the `sleep()`
  * between attempts happens OUTSIDE any open DB handle, so the long-poll
  * never holds a sqlite write lock across the wait. `waitSeconds` is capped
- * at `MAX_CLAIM_WAIT_SECONDS`; `pollIntervalMs` is injectable for tests
- * (never exposed on the tool input shape).
+ * at `MAX_CLAIM_WAIT_SECONDS`.
+ *
+ * While parked, `onProgress` fires every `progressIntervalMs` with the
+ * elapsed seconds: the keep-alive for clients that reset their request
+ * timeout on progress (spec/mcp-server.md §Tools, `claim_job`). Ticks ride
+ * BETWEEN attempts (same cadence lattice as the poll), and a tick landing
+ * exactly with a successful claim is skipped, the response itself is the
+ * liveness signal then.
  */
 export async function claimWithOptionalWait(
   ctx: IMcpWriteContext,
   runner: JobRunner,
   filter: string | undefined,
   waitSeconds: number | undefined,
-  pollIntervalMs: number = CLAIM_WAIT_POLL_INTERVAL_MS,
+  opts: IClaimWaitOpts = {},
 ): Promise<TClaimOutcome> {
   const attempt = (): Promise<TClaimOutcome> =>
     withWriteDb(ctx, (adapter) => claimJob(adapter, { runner, nowMs: Date.now(), filter }));
 
   const first = await attempt();
   if (first.kind !== 'empty' || !waitSeconds) return first;
+  return parkForClaim(attempt, waitSeconds, opts);
+}
 
-  const deadline = Date.now() + Math.min(waitSeconds, MAX_CLAIM_WAIT_SECONDS) * 1000;
+/** The parked half of the wait: poll + heartbeat until a claim or the window's end. */
+async function parkForClaim(
+  attempt: () => Promise<TClaimOutcome>,
+  waitSeconds: number,
+  opts: IClaimWaitOpts,
+): Promise<TClaimOutcome> {
+  const pollIntervalMs = opts.pollIntervalMs ?? CLAIM_WAIT_POLL_INTERVAL_MS;
+  const progressIntervalMs = opts.progressIntervalMs ?? CLAIM_WAIT_PROGRESS_INTERVAL_MS;
+  const startedAt = Date.now();
+  const deadline = startedAt + Math.min(waitSeconds, MAX_CLAIM_WAIT_SECONDS) * 1000;
+  let nextProgressAt = startedAt + progressIntervalMs;
   while (Date.now() < deadline) {
     await sleep(pollIntervalMs);
     const next = await attempt();
     if (next.kind !== 'empty') return next;
+    const now = Date.now();
+    if (opts.onProgress && now >= nextProgressAt) {
+      nextProgressAt = now + progressIntervalMs;
+      await opts.onProgress(Math.round((now - startedAt) / 1000));
+    }
   }
   return { kind: 'empty' };
 }
@@ -757,7 +824,8 @@ export function registerMcpQueueTools(server: McpServer, ctx: IMcpWriteContext):
       description: 'Atomic claim: returns { id, nonce, content } (the rendered prompt + record credential), or null when the queue is empty.',
       inputSchema: claimJobInputShape,
     },
-    async (args) => toClaimToolResult(await claimJobTool(ctx, args)),
+    async (args, extra) =>
+      toClaimToolResult(await claimJobTool(ctx, args, claimWaitProgressFrom(extra))),
   );
 
   server.registerTool(
@@ -805,4 +873,31 @@ function toClaimToolResult(data: IClaimJobResult | null): CallToolResult {
     return { content: [{ type: 'text', text: 'null' }] };
   }
   return toToolResult(data);
+}
+
+/**
+ * Bind the request's `progressToken` (when the client sent one) into the
+ * wait-loop heartbeat (spec/mcp-server.md §Tools, `claim_job`). Returns
+ * `undefined` for token-less requests, per MCP progress semantics. The
+ * emitter swallows its own transport errors: a session dying mid-park
+ * surfaces through the loop's lifecycle (the response write fails), never
+ * as a throw from a heartbeat tick. Exported for unit coverage of the
+ * token seam (the heartbeat cadence is deliberately not wire-injectable,
+ * so an integration test would have to park for a real 15s tick).
+ */
+export function claimWaitProgressFrom(
+  extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
+): TClaimWaitProgress | undefined {
+  const progressToken = extra._meta?.progressToken;
+  if (progressToken === undefined) return undefined;
+  return async (elapsedSeconds) => {
+    try {
+      await extra.sendNotification({
+        method: 'notifications/progress',
+        params: { progressToken, progress: elapsedSeconds },
+      });
+    } catch {
+      // Dead transport mid-park: the claim response itself will fail.
+    }
+  };
 }

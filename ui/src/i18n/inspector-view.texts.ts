@@ -166,11 +166,20 @@ export const INSPECTOR_VIEW_TEXTS = {
      * MCP or CLI). Shown only when `skillMissing` is a confirmed `false`
      * and `agentAttending` a confirmed `false`.
      */
-    noAgentAttendingWarning:
-      'No agent has picked up work yet: start the processing skill from your agent so queued actions run.',
+    /**
+     * `invocation` is the processing-skill handle joined against the
+     * active lens's `invocationSigil` (`/sm-process-jobs` on claude /
+     * antigravity / opencode, `$sm-process-jobs` on codex), so the
+     * warning names the exact thing to type in THAT runtime.
+     */
+    noAgentAttendingWarning: (invocation: string): string =>
+      `No agent has picked up work yet: run ${invocation} in your agent, ` +
+      'then confirm it with Check in Quick Start ("Agent waiting for jobs").',
     noAgentMessage: 'no agent is set up to process jobs.',
-    agentInstallHint:
-      'Install the processing skill from Settings, Project section ("Agent process skill"), then run it from your agent\'s terminal: "/sm-process-jobs".',
+    /** Same `invocation` contract as `noAgentAttendingWarning`. */
+    agentInstallHint: (invocation: string): string =>
+      'Install the processing skill from Settings, Project section ' +
+      `("Agent process skill"), then run ${invocation} in your agent.`,
     /** Launcher button state tooltips (appended after the description). */
     stateQueued: 'queued',
     stateRunning: 'running',
