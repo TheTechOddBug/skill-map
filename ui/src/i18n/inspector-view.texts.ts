@@ -174,7 +174,7 @@ export const INSPECTOR_VIEW_TEXTS = {
      */
     noAgentAttendingWarning: (invocation: string): string =>
       `No agent has picked up work yet: run ${invocation} in your agent, ` +
-      'then confirm it with Check in Quick Start ("Agent waiting for jobs").',
+      'then confirm it with Check in "Quick Start".',
     noAgentMessage: 'no agent is set up to process jobs.',
     /** Same `invocation` contract as `noAgentAttendingWarning`. */
     agentInstallHint: (invocation: string): string =>
