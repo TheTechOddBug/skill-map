@@ -6,6 +6,17 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.93.2</b> · 2026-07-27</summary>
+
+### CLI Patch
+- Move the generated-artifact ignore rules into a committed `.skill-map/.gitignore` written by the tool itself, replacing the four entries `sm init` appended to the project-root `.gitignore`. The list now also covers the SQLite `-wal` / `-shm` sidecars, the operations log and the generated activity bridge, which the old entries never matched. `sm init`, the scan persist step and `sm activity install` each top it up, so an older project is fixed on its next scan; a `!` negation opts an entry out.
+
+### Spec Patch (0.85.1)
+- Move the generated-artifact ignore rules into a committed `.skill-map/.gitignore` written by the tool itself, replacing the four entries `sm init` appended to the project-root `.gitignore`. The list now also covers the SQLite `-wal` / `-shm` sidecars, the operations log and the generated activity bridge, which the old entries never matched. `sm init`, the scan persist step and `sm activity install` each top it up, so an older project is fixed on its next scan; a `!` negation opts an entry out.
+
+</details>
+
+<details>
 <summary><b>0.93.1</b> · 2026-07-26</summary>
 
 ### CLI Patch
