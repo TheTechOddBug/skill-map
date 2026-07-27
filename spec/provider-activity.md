@@ -535,13 +535,16 @@ or napping and emits nothing, so a parent-side heartbeat on a
 refresh it, else an interrupted spawn is kept alive by the very session
 that abandoned it.
 
-Session-anchor placement is presentation-owned too (informative): when the
-project's instructions file is on the canvas (the vendor-neutral
-`AGENTS.md`, or `CLAUDE.md`), a consumer MAY float the session anchor beside
-that node, reflecting that a session boots from the project instructions.
-This is a visual affinity only, never a wire relation: the runtime reports
-no signal for auto-loaded context, and pair stats never key off the
-instructions node.
+Session-anchor placement is presentation-owned too (informative): a consumer
+SHOULD float the session anchor above the agents the session runs (the
+centroid of its visible spawn targets), so the cluster reads next to the
+work it drives; a session with only unresolved children (capsules, no
+scanned targets) MAY hover above the visible graph instead. An earlier
+revision docked session anchors beside the project-instructions card
+(`AGENTS.md` / `CLAUDE.md`); that affinity was retired after live use, the
+cluster parked away from the agents actually running. Placement is never a
+wire relation: the runtime reports no signal for auto-loaded context, and
+pair stats never key off any placement choice.
 
 ### Spawn custody
 

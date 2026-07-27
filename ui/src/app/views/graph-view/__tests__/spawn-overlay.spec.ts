@@ -474,43 +474,31 @@ describe('resolveSpawnOverlay, agent capsules (unresolved children)', () => {
   });
 });
 
-describe('resolveSpawnOverlay, instructions-node affinity', () => {
+describe('resolveSpawnOverlay, session placement (no instructions affinity)', () => {
   const INSTRUCTIONS = 'AGENTS.md';
 
-  it('a session floats above the instructions card, clamped above its spawned child', () => {
-    const overlay = resolveSpawnOverlay({
-      ...args(
+  it('a session floats above the agents it runs, NOT over a rendered AGENTS.md card', () => {
+    // Regression pin for the affinity retirement (user decision
+    // 2026-07-27 after live use): the instructions card is on the
+    // canvas, far away from the spawn target, and the session must
+    // still dock over its child's centroid.
+    const overlay = resolveSpawnOverlay(
+      args(
         [spawn({ spawnId: 's1', parentOwner: SESSION, parentSession: SESSION, childNodePath: CHILD_A })],
         { [CHILD_A]: { x: 700, y: 400 }, [INSTRUCTIONS]: { x: 100, y: 500 } },
       ),
-      instructionsPath: INSTRUCTIONS,
-    });
+    );
     expect(overlay.sessions.length).toBe(1);
-    // Affinity x (docked over the instructions card), but the y is the
-    // CEILING: the child at y=400 outranks the affinity spot (y=376
-    // would sit level with the child, the arrow would read sideways).
     expect(overlay.sessions[0]!.position).toEqual({
-      x: 100 + NODE_WIDTH / 2 - SESSION_NODE_WIDTH / 2,
+      x: 700 + NODE_WIDTH / 2 - SESSION_NODE_WIDTH / 2,
       y: 400 - SESSION_NODE_GAP - SESSION_NODE_HEIGHT,
     });
   });
 
-  it('a session never sits below the agent node it spawned (the clamp beats the affinity)', () => {
-    const overlay = resolveSpawnOverlay({
-      ...args(
-        [spawn({ spawnId: 's1', parentOwner: SESSION, parentSession: SESSION, childNodePath: CHILD_A })],
-        // The spawned agent sits far ABOVE the instructions card.
-        { [CHILD_A]: { x: 700, y: 100 }, [INSTRUCTIONS]: { x: 100, y: 500 } },
-      ),
-      instructionsPath: INSTRUCTIONS,
-    });
-    expect(overlay.sessions[0]!.position.y).toBe(100 - SESSION_NODE_GAP - SESSION_NODE_HEIGHT);
-  });
-
-  it('parallel sessions stack upward over the instructions card, never overlapping', () => {
+  it('parallel capsule-only sessions stack upward over the graph top, never overlapping', () => {
     const other = 'main:other';
-    const overlay = resolveSpawnOverlay({
-      ...args(
+    const overlay = resolveSpawnOverlay(
+      args(
         [
           spawn({ spawnId: 's1', parentOwner: SESSION, parentSession: SESSION, childName: 'Plan' }),
           spawn({ spawnId: 's2', parentOwner: other, parentSession: other, childName: 'Explore' }),
@@ -521,8 +509,7 @@ describe('resolveSpawnOverlay, instructions-node affinity', () => {
           { owner: other, ordinal: 2 },
         ],
       ),
-      instructionsPath: INSTRUCTIONS,
-    });
+    );
     expect(overlay.sessions.length).toBe(2);
     const first = overlay.sessions[0]!.position;
     const second = overlay.sessions[1]!.position;
@@ -532,27 +519,15 @@ describe('resolveSpawnOverlay, instructions-node affinity', () => {
     expect(first.y - second.y).toBe(SESSION_NODE_HEIGHT + SESSION_NODE_STACK_GAP);
   });
 
-  it('a dragged session still wins over the affinity', () => {
+  it('a dragged session still wins over the derived centroid float', () => {
     const dragged: IPoint = { x: 5, y: 5 };
     const overlay = resolveSpawnOverlay({
       ...args(
         [spawn({ spawnId: 's1', parentOwner: SESSION, parentSession: SESSION, childNodePath: CHILD_A })],
         { [CHILD_A]: { x: 700, y: 400 }, [INSTRUCTIONS]: { x: 100, y: 500 } },
       ),
-      instructionsPath: INSTRUCTIONS,
       sessionPositionOf: (owner) => (owner === SESSION ? dragged : undefined),
     });
     expect(overlay.sessions[0]!.position).toEqual(dragged);
-  });
-
-  it('an instructions path that is not rendered falls back to the centroid float', () => {
-    const overlay = resolveSpawnOverlay({
-      ...args(
-        [spawn({ spawnId: 's1', parentOwner: SESSION, parentSession: SESSION, childNodePath: CHILD_A })],
-        { [CHILD_A]: { x: 100, y: 400 } },
-      ),
-      instructionsPath: INSTRUCTIONS, // hidden by filters: not in visiblePaths
-    });
-    expect(overlay.sessions[0]!.position.y).toBe(400 - SESSION_NODE_GAP - SESSION_NODE_HEIGHT);
   });
 });

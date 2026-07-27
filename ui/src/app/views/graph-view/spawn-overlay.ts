@@ -20,14 +20,12 @@
  *     surfaces in `activeOnStatic` and the static edge takes the live
  *     spawn treatment (no duplicated arrows between the same pair);
  *   - a session anchor renders while >= 1 of its edges OR agent
- *     capsules survives. Position: user-dragged override, else beside
- *     the project-instructions node when one is rendered (the visual
- *     affinity of spec §WS event: `agent.spawn`), else above the
- *     centroid of its visible children, else (only capsules, no
- *     instructions node) above the visible graph's top edge. Whatever
- *     placed it, a derived session is CLAMPED above the highest child
- *     it spawned: the session reads top-down, its edges leave from its
- *     underside, so it must never sit below a target;
+ *     capsules survives. Position: user-dragged override, else above
+ *     the centroid of its visible children (the agents the session
+ *     runs), else (only capsules) above the visible graph's top edge.
+ *     Whatever placed it, a derived session is CLAMPED above the
+ *     highest child it spawned: the session reads top-down, its edges
+ *     leave from its underside, so it must never sit below a target;
  *   - an unresolved child WITH a name becomes an agent capsule (spec
  *     §WS event: `agent.spawn`, unresolved children): one capsule per
  *     (anchor, name) aggregating every live spawn of that pair, with a
@@ -211,14 +209,6 @@ export interface IResolveSpawnOverlayArgs {
    */
   agentPositionOf?: (id: string) => IPoint | undefined;
   /**
-   * The rendered project-instructions node (`AGENTS.md` / `CLAUDE.md`
-   * at the scope root), when visible. Session anchors float beside it
-   * (the visual affinity of spec §WS event: `agent.spawn`): a session
-   * boots from the project instructions, so that card is its natural
-   * visual home. Never a wire relation, purely placement.
-   */
-  instructionsPath?: string;
-  /**
    * Whether unresolved children materialize agent capsules
    * (`ui.showRuntimeAgents`, default true). When `false` they stay
    * invisible, pre-capsule behavior: no capsule, no edge, and a session
@@ -307,13 +297,6 @@ export function resolveSpawnOverlay(args: IResolveSpawnOverlayArgs): ISpawnOverl
     childPointsBySession.set(owner, points);
   }
 
-  // Instructions-node affinity anchor (position of the AGENTS.md /
-  // CLAUDE.md card), when that node is actually rendered.
-  const instructionsPos =
-    args.instructionsPath !== undefined && args.visiblePaths.has(args.instructionsPath)
-      ? args.positionOf(args.instructionsPath)
-      : undefined;
-
   // Occupancy set for collision-aware placement: every visible node
   // card, then every overlay element as it is placed. Derived overlay
   // positions step away from anything already here, so ephemeral
@@ -355,28 +338,18 @@ export function resolveSpawnOverlay(args: IResolveSpawnOverlayArgs): ISpawnOverl
       const ceilingY = minChildY - SESSION_NODE_GAP - SESSION_NODE_HEIGHT;
 
       let base: IPoint;
-      if (instructionsPos) {
-        // Affinity: float above the instructions card, CLAMPED above
-        // the highest spawn target (an instructions card sitting below
-        // a spawned agent must not drag the session under it, the
-        // arrow would read upside down). Parallel sessions stack
-        // upward through the occupancy dodge.
-        base = {
-          x: instructionsPos.x + NODE_WIDTH / 2 - SESSION_NODE_WIDTH / 2,
-          y: Math.min(
-            instructionsPos.y - SESSION_NODE_GAP - SESSION_NODE_HEIGHT,
-            hasEdges ? ceilingY : Number.POSITIVE_INFINITY,
-          ),
-        };
-      } else if (hasEdges) {
-        // Centroid over the CARD CENTERS (positions are top-left), then
-        // float the capsule a fixed gap above the highest child.
+      if (hasEdges) {
+        // Float above the agents the session runs: centroid over the
+        // CARD CENTERS (positions are top-left), a fixed gap above the
+        // highest child. (An earlier revision docked sessions beside
+        // the AGENTS.md / CLAUDE.md card; retired after live use, the
+        // cluster parked away from the agents actually running.)
         base = {
           x: centerXSum / points!.length - SESSION_NODE_WIDTH / 2,
           y: ceilingY,
         };
       } else {
-        // Only capsules and no instructions node: hover above the
+        // Only capsules (no scanned spawn target): hover above the
         // visible graph's top edge so the capsule chain has a home.
         base = graphTopCenterFallback(args);
       }

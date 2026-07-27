@@ -1680,20 +1680,6 @@ export class GraphView implements OnInit {
    */
   private readonly agentPositionOverrides = signal<ReadonlyMap<string, IPoint>>(new Map());
 
-  /**
-   * The rendered project-instructions node, when one exists: session
-   * anchors float beside it (spec §WS event: `agent.spawn`, the visual
-   * affinity). `AGENTS.md` (the vendor-neutral standard) outranks its
-   * `CLAUDE.md` precursor when both are present. Exact root-level
-   * paths only, purely presentational, never parsed into relations.
-   */
-  private readonly instructionsPath = computed<string | undefined>(() => {
-    const visible = this.mapVisiblePaths();
-    if (visible.has('AGENTS.md')) return 'AGENTS.md';
-    if (visible.has('CLAUDE.md')) return 'CLAUDE.md';
-    return undefined;
-  });
-
   protected readonly spawnOverlay = computed<ISpawnOverlay>(() => {
     const spawns = this.agentSpawns.spawnEdges();
     if (spawns.length === 0) return EMPTY_SPAWN_OVERLAY;
@@ -1714,7 +1700,6 @@ export class GraphView implements OnInit {
       positionOf: (path) => pinned.get(path) ?? layout.get(path),
       sessionPositionOf: (owner) => sessionOverrides.get(owner),
       agentPositionOf: (id) => agentOverrides.get(id),
-      instructionsPath: this.instructionsPath(),
       showAgents: this.livePrefs.showRuntimeAgents(),
     });
   });
