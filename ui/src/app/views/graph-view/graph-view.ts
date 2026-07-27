@@ -755,7 +755,7 @@ export class GraphView implements OnInit {
     // `projectVisible` render the new node set first).
     let lastTagForRefit: string | null = null;
     effect(() => {
-      this.mapVisibility.paths(); // refit on curation change ...
+      this.mapVisibility.overrides(); // refit on curation change ...
       const tag = this.activeTagSelection(); // ... but not when a tag drove it
       const tagChanged = tag !== lastTagForRefit;
       lastTagForRefit = tag;

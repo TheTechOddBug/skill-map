@@ -26,6 +26,7 @@ import { DATA_SOURCE_TEXTS } from '../../i18n/data-source.texts';
 import type {
   IAgentPresenceApi,
   IBranchResponseApi,
+  IBranchScopeApi,
   IConfigResolutionRowApi,
   IErrorEnvelopeApi,
   IFindingsEnvelopeApi,
@@ -181,17 +182,22 @@ export class RestDataSource implements IDataSourcePort {
   /**
    * Lazy branch fetch for the graph map (`/api/branch`). Direct shape
    * (no envelope, like `/api/scan`), so it carries no registry, that is
-   * primed by `loadFolders()` at boot. `paths` is the multi-prefix
-   * selection: each prefix is appended as a repeated `?path=` param so
-   * the server returns their UNION; an empty array omits the param
-   * entirely (= whole corpus). `limit` (when set) can only lower the
-   * server cap.
+   * primed by `loadFolders()` at boot. The scope carries the map scope
+   * overrides: repeated `?path=` for includes, repeated `?exclude=` for
+   * excludes, and `excludeRoot=1` when the root is excluded (the UI
+   * always states the root explicitly; `0` is the wire default and is
+   * omitted). An all-empty scope sends no scope params (= whole
+   * corpus). `limit` (when set) can only lower the server cap.
    */
-  async loadBranch(paths: string[] = [], limit?: number): Promise<IBranchResponseApi> {
+  async loadBranch(scope: IBranchScopeApi, limit?: number): Promise<IBranchResponseApi> {
     const params = new URLSearchParams();
-    for (const path of paths) {
+    for (const path of scope.include) {
       if (path) params.append('path', path);
     }
+    for (const path of scope.exclude) {
+      if (path) params.append('exclude', path);
+    }
+    if (scope.excludeRoot) params.set('excludeRoot', '1');
     if (limit !== undefined) params.set('limit', String(limit));
     const query = params.toString();
     return this.getJson<IBranchResponseApi>(

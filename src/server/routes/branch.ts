@@ -1,18 +1,22 @@
 /**
- * `GET /api/branch?path=<prefix>&path=<prefix>&limit=<n>`, branch
- * projection for the graph map.
+ * `GET /api/branch?path=<p>&exclude=<p>&excludeRoot=<1|0>&limit=<n>`,
+ * the override-scoped branch projection for the graph map
+ * (`spec/cli-contract.md` §Map scope overrides).
  *
- * `path` is REPEATABLE: the response is the UNION of the subtrees under
- * every given prefix (forward-slash folder prefix; absent or all-empty =
- * whole corpus), capped at `limit` nodes. Direct shape (NO envelope
- * wrap, like `/api/scan`, so the SPA branches on `schemaVersion` +
- * `kind` exactly as it does for the scan payload):
+ * `path` (repeatable) carries the INCLUDE overrides, `exclude`
+ * (repeatable) the EXCLUDE overrides, `excludeRoot` the root override;
+ * when `excludeRoot` is absent the shared resolver infers it so the
+ * historical forms keep their meaning (no params = whole corpus, bare
+ * `?path=app` = only that subtree). A path in BOTH lists is 400
+ * `bad-query`. Direct shape (NO envelope wrap, like `/api/scan`, so the
+ * SPA branches on `schemaVersion` + `kind` exactly as it does for the
+ * scan payload):
  *
  *   ```
  *   {
  *     schemaVersion: '1',
  *     kind: 'branch',
- *     branch: { paths, total, rendered, truncated, cap },
+ *     branch: { paths, excluded, rootExcluded, total, rendered, truncated, cap },
  *     nodes: Node[],
  *     links: Link[],
  *     issues: Issue[]
@@ -22,10 +26,10 @@
  * Scoping + capping happen entirely in SQL (`port.scans.loadBranch`) so
  * a 50K corpus never hydrates into memory:
  *
- *   - A node is in the branch when, for ANY requested prefix, its
- *     `path === prefix` or starts with `prefix + '/'`. The per-prefix
- *     subtrees are UNIONed. `nodes` is the first `rendered` union nodes
- *     in stable path order (`ORDER BY path`).
+ *   - A node is in the branch when its NEAREST matching override (self
+ *     included, longest path wins, root = `rootExcluded`) is an
+ *     include, or no override matches at all. `nodes` is the first
+ *     `rendered` scoped nodes in stable path order (`ORDER BY path`).
  *   - `links` carries only edges whose source AND RESOLVED target are
  *     both in `nodes`. The resolved target is `resolved_target` (the node
  *     a trigger-style `invokes` / `mentions` link points to), falling back
@@ -33,10 +37,10 @@
  *     genuinely-broken links (`resolved_target` NULL) whose raw target
  *     names no rendered node. `issues` only those whose `nodeIds`
  *     intersect `nodes`.
- *   - `total` is the union node count BEFORE the cap; `cap` is the
- *     effective limit; `rendered` is `min(total, cap)`; `truncated` is
- *     `total > cap`. `paths` echoes the (filtered, de-duped) requested
- *     prefixes; the whole-corpus case echoes `[]`.
+ *   - `total` is the scoped node count BEFORE the cap (post-override);
+ *     `cap` is the effective limit; `rendered` is `min(total, cap)`;
+ *     `truncated` is `total > cap`. `paths` echoes the de-duped
+ *     includes; `excluded` / `rootExcluded` echo the RESOLVED scope.
  *
  * `cap` / `limit`: the default cap is the scan's effective
  * `maxRenderNodes` (`scan_meta.max_render_nodes`, design default 256
@@ -58,7 +62,8 @@ import type { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 
 import type { Issue, Link, Node } from '../../kernel/index.js';
-import type { IPersistedContribution } from '../../kernel/ports/storage.js';
+import type { IBranchScope, IPersistedContribution } from '../../kernel/ports/storage.js';
+import { resolveBranchScope } from '../util/branch-scope.js';
 import type { IFindingSeverityCount } from '../../kernel/types/storage.js';
 import type { TContributionsRegistry } from '../envelope.js';
 import { foldFindingsIntoSeverityChips } from '../../plugins/core/analyzers/issue-counter/severity-fold.js';
@@ -81,6 +86,8 @@ interface IBranchResponse {
   kind: 'branch';
   branch: {
     paths: string[];
+    excluded: string[];
+    rootExcluded: boolean;
     total: number;
     rendered: number;
     truncated: boolean;
@@ -93,11 +100,22 @@ interface IBranchResponse {
 
 export function registerBranchRoute(app: Hono, deps: IRouteDeps): void {
   app.get('/api/branch', async (c) => {
-    // `path` is REPEATABLE: `c.req.queries('path')` returns every value
-    // for the key (`[]` when absent). Drop empty strings, an all-empty /
-    // absent set is the whole-corpus case. No trimming: a folder prefix
-    // is matched verbatim against `scan_nodes.path`.
-    const prefixes = c.req.queries('path')?.filter((p) => p.length > 0) ?? [];
+    // `path` / `exclude` are REPEATABLE: `c.req.queries` returns every
+    // value for the key (`[]` when absent). The shared resolver filters
+    // empties, de-dupes, infers the root when `excludeRoot` is absent,
+    // and rejects a path present in both lists. No trimming: an
+    // override path is matched verbatim against `scan_nodes.path`.
+    const resolved = resolveBranchScope({
+      include: c.req.queries('path') ?? [],
+      exclude: c.req.queries('exclude') ?? [],
+      excludeRoot: parseExcludeRoot(c.req.query('excludeRoot')),
+    });
+    if (!resolved.ok) {
+      throw new HTTPException(400, {
+        message: tx(SERVER_TEXTS.branchConflictingPath, { path: resolved.conflictPath }),
+      });
+    }
+    const scope = resolved.scope;
     // Parse `limit` BEFORE opening the DB so a malformed value fails fast
     // with 400 regardless of DB state. `undefined` = use the scan's cap.
     const limitOverride = parseLimit(c.req.query('limit'));
@@ -113,7 +131,7 @@ export function registerBranchRoute(app: Hono, deps: IRouteDeps): void {
             ? maxRenderNodes
             : Math.min(limitOverride, maxRenderNodes);
         const [branch, favSet] = await Promise.all([
-          adapter.scans.loadBranch(prefixes, cap),
+          adapter.scans.loadBranch(scope, cap),
           adapter.favorites.listPaths(),
         ]);
         // Per-node tags + contributions for the rendered slice (bulk, one
@@ -136,7 +154,7 @@ export function registerBranchRoute(app: Hono, deps: IRouteDeps): void {
       },
     );
 
-    return c.json(buildBranchResponse(prefixes, loaded, deps.contributionsRegistry));
+    return c.json(buildBranchResponse(scope, loaded, deps.contributionsRegistry));
   });
 }
 
@@ -147,7 +165,7 @@ export function registerBranchRoute(app: Hono, deps: IRouteDeps): void {
  * the populated branch share the envelope assembly here.
  */
 function buildBranchResponse(
-  prefixes: string[],
+  scope: IBranchScope,
   loaded: {
     branch: { nodes: Node[]; links: Link[]; issues: Issue[]; total: number; paths: string[] };
     favSet: Set<string>;
@@ -161,13 +179,19 @@ function buildBranchResponse(
   if (loaded === null) {
     // DB file absent → empty branch. `cap` reflects the design default
     // so the SPA reads the same field shape as on a populated DB.
-    // `paths` echoes the (filtered) requested prefixes, de-duped for
-    // parity with the populated branch (which echoes the de-duped set
-    // the storage layer scoped on).
+    // The resolved scope is echoed exactly like on a populated branch.
     return {
       schemaVersion: REST_ENVELOPE_SCHEMA_VERSION,
       kind: 'branch',
-      branch: { paths: [...new Set(prefixes)], total: 0, rendered: 0, truncated: false, cap: DEFAULT_MAX_RENDER_NODES },
+      branch: {
+        paths: scope.include,
+        excluded: scope.exclude,
+        rootExcluded: scope.rootExcluded,
+        total: 0,
+        rendered: 0,
+        truncated: false,
+        cap: DEFAULT_MAX_RENDER_NODES,
+      },
       nodes: [],
       links: [],
       issues: [],
@@ -192,8 +216,11 @@ function buildBranchResponse(
     schemaVersion: REST_ENVELOPE_SCHEMA_VERSION,
     kind: 'branch',
     branch: {
-      // Echo the de-duped prefixes the storage layer actually scoped on.
+      // Echo the de-duped includes the storage layer actually scoped on,
+      // plus the resolved exclude side of the scope.
       paths: branch.paths,
+      excluded: scope.exclude,
+      rootExcluded: scope.rootExcluded,
       total: branch.total,
       rendered,
       truncated: branch.total > cap,
@@ -223,6 +250,21 @@ function parseLimit(raw: string | undefined): number | undefined {
     });
   }
   return parsed;
+}
+
+/**
+ * Parse the optional `excludeRoot` query param: `'1'` = excluded,
+ * `'0'` = included, absent = `undefined` (the resolver infers). Any
+ * other value is 400 `bad-query`, the strict-gate posture of
+ * `parseLimit` above.
+ */
+function parseExcludeRoot(raw: string | undefined): boolean | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === '1') return true;
+  if (raw === '0') return false;
+  throw new HTTPException(400, {
+    message: tx(SERVER_TEXTS.branchInvalidExcludeRoot, { value: raw }),
+  });
 }
 
 /**

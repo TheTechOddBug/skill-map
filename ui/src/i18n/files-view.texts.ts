@@ -12,8 +12,9 @@ export const FILES_VIEW_TEXTS = {
   leafAriaLabel: (name: string) => `Inspect ${name}`,
   /** Map visibility curation (checkboxes + isolate). */
   mapVisibilityTooltip: 'Toggle visibility on the map',
-  mapCoveredTooltip: 'On the map via a selected parent folder. Uncheck the parent to change it.',
   mapVisibilityAriaLabel: (name: string) => `Toggle ${name} visibility on the map`,
+  mapAllTooltip: 'Toggle the whole project on the map',
+  mapAllAriaLabel: 'Toggle every node\'s visibility on the map',
   isolateTooltip: 'Isolate this node and its direct links on the map',
   isolateAriaLabel: (name: string) => `Isolate ${name} and its direct links on the map`,
   /**

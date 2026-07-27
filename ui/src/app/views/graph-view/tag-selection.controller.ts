@@ -22,6 +22,7 @@
 import { signal, type Signal } from '@angular/core';
 
 import type { INodeView } from '../../../models/node';
+import type { TOverrideMap } from '../../../services/map-overrides';
 import type { MapVisibilityService } from '../../../services/map-visibility';
 import { nodeHasTag } from './graph-view.utils';
 
@@ -29,7 +30,10 @@ export interface ITagSelectionConfig {
   /** Source for the full node list (tagged-path resolution). */
   readonly nodes: Signal<INodeView[]>;
   /** Shared map-visibility curation store the tag filter drives. */
-  readonly mapVisibility: Pick<MapVisibilityService, 'paths' | 'setOnly'>;
+  readonly mapVisibility: Pick<
+    MapVisibilityService,
+    'overrides' | 'setOnly' | 'setOverrides'
+  >;
 }
 
 export interface ITagSelectionHandle {
@@ -46,16 +50,16 @@ export function setupTagSelection(config: ITagSelectionConfig): ITagSelectionHan
   const activeTagSelection = signal<string | null>(null);
   // Curation in effect before the first tag activation. Restored on
   // toggle-off so the user returns to their prior view (a manual
-  // checkbox curation, an isolate set, or "show all" == empty set).
+  // checkbox curation, an isolate scope, or "show all" == empty map).
   // Snapshotted once; tag-to-tag swaps do not overwrite it.
-  let curationBeforeTag: ReadonlySet<string> | null = null;
+  let curationBeforeTag: TOverrideMap | null = null;
 
   const restoreCuration = (): void => {
     if (curationBeforeTag === null) return;
     const saved = curationBeforeTag;
     curationBeforeTag = null;
-    // An empty saved set means "show all" (setOnly([]) clears curation).
-    config.mapVisibility.setOnly(saved);
+    // An empty saved map means "show all".
+    config.mapVisibility.setOverrides(saved);
   };
 
   const onTagSelect = (tag: string): void => {
@@ -74,7 +78,7 @@ export function setupTagSelection(config: ITagSelectionConfig): ITagSelectionHan
       return;
     }
     if (curationBeforeTag === null) {
-      curationBeforeTag = new Set(config.mapVisibility.paths());
+      curationBeforeTag = new Map(config.mapVisibility.overrides());
     }
     config.mapVisibility.setOnly(paths);
     activeTagSelection.set(tag);

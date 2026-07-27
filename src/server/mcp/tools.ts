@@ -42,6 +42,9 @@ import {
 import type { IExportQuery } from '../../kernel/index.js';
 import type { IIssueListFilter, IIssueListResult } from '../../kernel/types/storage.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import { tx } from '../../kernel/util/tx.js';
+import { SERVER_TEXTS } from '../i18n/server.texts.js';
+import { resolveBranchScope } from '../util/branch-scope.js';
 import { bffReadVersionCheck } from '../util/db-read-check.js';
 import { DEFAULT_LIMIT, MAX_LIMIT } from '../limits.js';
 import { readNodeBody } from '../node-body.js';
@@ -269,7 +272,15 @@ export async function listIssues(
 export const getBranchInputShape = {
   path: z
     .array(z.string())
-    .describe('One or more forward-slash folder prefixes; the branch is the UNION of their subtrees. Empty = whole corpus.'),
+    .describe('Include overrides: forward-slash folder prefixes whose subtrees are visible (map scope overrides, nearest ancestor wins). Empty with no excludes = whole corpus; a bare list keeps its historical meaning (only those subtrees).'),
+  exclude: z
+    .array(z.string())
+    .optional()
+    .describe('Exclude overrides: subtrees hidden from the branch unless a deeper include rescues part of them.'),
+  excludeRoot: z
+    .boolean()
+    .optional()
+    .describe('The root override. Absent = inferred: excluded iff any include has no strict ancestor among the excludes.'),
   limit: z
     .number()
     .int()
@@ -280,12 +291,16 @@ export const getBranchInputShape = {
 
 export interface IGetBranchArgs {
   path: string[];
+  exclude?: string[] | undefined;
+  excludeRoot?: boolean | undefined;
   limit?: number | undefined;
 }
 
 export interface IGetBranchResult {
   branch: {
     paths: string[];
+    excluded: string[];
+    rootExcluded: boolean;
     total: number;
     rendered: number;
     truncated: boolean;
@@ -297,16 +312,30 @@ export interface IGetBranchResult {
 }
 
 /**
- * Prefix-union branch projection, the `/api/branch` shape. Scoping +
- * capping happen in SQL (`scans.loadBranch`) so a large corpus never
- * hydrates into memory. `limit` clamps to `[1, maxRenderNodes]` (only
- * lowers the scan's recorded cap). An absent DB → empty branch.
+ * Override-scoped branch projection, the `/api/branch` shape
+ * (`spec/cli-contract.md` §Map scope overrides). Scoping + capping
+ * happen in SQL (`scans.loadBranch`) so a large corpus never hydrates
+ * into memory. `limit` clamps to `[1, maxRenderNodes]` (only lowers the
+ * scan's recorded cap). An absent DB → empty branch. A path in both
+ * `path` and `exclude` is invalid params (same conflict the route
+ * rejects with 400).
  */
 export async function getBranch(
   ctx: IMcpReadContext,
   args: IGetBranchArgs,
 ): Promise<IGetBranchResult> {
-  const prefixes = args.path.filter((p) => p.length > 0);
+  const resolved = resolveBranchScope({
+    include: args.path,
+    exclude: args.exclude ?? [],
+    excludeRoot: args.excludeRoot,
+  });
+  if (!resolved.ok) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      tx(SERVER_TEXTS.branchConflictingPath, { path: resolved.conflictPath }),
+    );
+  }
+  const scope = resolved.scope;
   const loaded = await tryWithSqlite(
     { databasePath: ctx.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
     async (adapter) => {
@@ -315,7 +344,7 @@ export async function getBranch(
         args.limit === undefined
           ? maxRenderNodes
           : Math.min(Math.max(1, args.limit), maxRenderNodes);
-      const branch = await adapter.scans.loadBranch(prefixes, cap);
+      const branch = await adapter.scans.loadBranch(scope, cap);
       return { branch, cap };
     },
   );
@@ -323,7 +352,9 @@ export async function getBranch(
   if (loaded === null) {
     return {
       branch: {
-        paths: [...new Set(prefixes)],
+        paths: scope.include,
+        excluded: scope.exclude,
+        rootExcluded: scope.rootExcluded,
         total: 0,
         rendered: 0,
         truncated: false,
@@ -339,6 +370,8 @@ export async function getBranch(
   return {
     branch: {
       paths: branch.paths,
+      excluded: scope.exclude,
+      rootExcluded: scope.rootExcluded,
       total: branch.total,
       rendered: branch.nodes.length,
       truncated: branch.total > cap,

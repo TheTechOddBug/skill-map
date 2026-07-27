@@ -40,6 +40,7 @@ import { DATA_SOURCE_TEXTS } from '../../i18n/data-source.texts';
 import type {
   IAgentPresenceApi,
   IBranchResponseApi,
+  IBranchScopeApi,
   IConfigResolutionRowApi,
   IContributionsRegistryApi,
   IFindingsEnvelopeApi,
@@ -82,6 +83,7 @@ import type {
 } from '../../models/api';
 import type { IWsEvent } from '../../models/ws-event';
 import { ContributionsRegistryService } from '../../app/services/contributions-registry';
+import { effectiveState, type TVisibilityOverride } from '../map-overrides';
 import { KindRegistryService } from '../kind-registry';
 import { ProviderRegistryService } from '../provider-registry';
 import {
@@ -287,24 +289,26 @@ export class StaticDataSource implements IDataSourcePort {
   }
 
   /**
-   * Demo mode: derive the branch projection from `data.json`. Scopes to
-   * the UNION of nodes under ANY prefix in `paths` (a node matches when
-   * its path equals a prefix verbatim or starts with `<prefix>/`); an
-   * empty array = the whole corpus. Stable path order, capped at `limit`
-   * (or the whole union when absent, the demo corpus is small enough
-   * that no scan cap is recorded), then keeps only links whose source AND
-   * resolved endpoint (`resolvedTarget`, else the raw `target` for
-   * path-style links) are both in the slice, and issues touching the
-   * slice, mirroring the live `/api/branch` SQL scoping.
+   * Demo mode: derive the branch projection from `data.json`. Scopes by
+   * the map scope overrides (nearest-ancestor-wins over the rebuilt
+   * override map, `map-overrides.ts` `effectiveState`, the client-side
+   * mirror of the live SQL evaluation). Stable path order, capped at
+   * `limit` (or the whole scoped set when absent, the demo corpus is
+   * small enough that no scan cap is recorded), then keeps only links
+   * whose source AND resolved endpoint (`resolvedTarget`, else the raw
+   * `target` for path-style links) are both in the slice, and issues
+   * touching the slice, mirroring the live `/api/branch` SQL scoping.
    */
-  async loadBranch(paths: string[] = [], limit?: number): Promise<IBranchResponseApi> {
+  async loadBranch(scope: IBranchScopeApi, limit?: number): Promise<IBranchResponseApi> {
     const scan = await this.loadScan();
-    const prefixes = paths.filter((p) => p !== '');
-    const inUnion = (nodePath: string): boolean =>
-      prefixes.length === 0 ||
-      prefixes.some((p) => nodePath === p || nodePath.startsWith(`${p}/`));
+    const include = scope.include.filter((p) => p !== '');
+    const exclude = scope.exclude.filter((p) => p !== '');
+    const overrides = new Map<string, TVisibilityOverride>();
+    for (const p of include) overrides.set(p, 'include');
+    for (const p of exclude) overrides.set(p, 'exclude');
+    if (scope.excludeRoot) overrides.set('', 'exclude');
     const branchNodes = scan.nodes
-      .filter((n) => inUnion(n.path))
+      .filter((n) => effectiveState(overrides, n.path) === 'include')
       .sort((a, b) => a.path.localeCompare(b.path));
     const total = branchNodes.length;
     const cap = limit !== undefined && limit > 0 ? limit : total;
@@ -322,7 +326,15 @@ export class StaticDataSource implements IDataSourcePort {
     return {
       schemaVersion: '1',
       kind: 'branch',
-      branch: { paths: [...prefixes], total, rendered: nodes.length, truncated: total > cap, cap },
+      branch: {
+        paths: [...include],
+        excluded: [...exclude],
+        rootExcluded: scope.excludeRoot,
+        total,
+        rendered: nodes.length,
+        truncated: total > cap,
+        cap,
+      },
       nodes,
       links,
       issues,

@@ -191,13 +191,16 @@ describe('FilesView keyboard navigation', () => {
     await press(booted, 'ArrowDown');
     const leafPath = rows(booted)[1].path;
 
+    // Deviation model: everything starts visible; the first Space
+    // EXCLUDES the leaf, the second re-includes it (override deleted).
     await press(booted, ' ');
-    expect(booted.selection.paths().has(leafPath)).toBe(true);
+    expect(booted.selection.overrides().get(leafPath)).toBe('exclude');
     // Activation is Enter's job; Space must not have opened anything.
     expect(booted.opened).toHaveLength(0);
 
     await press(booted, ' ');
-    expect(booted.selection.paths().has(leafPath)).toBe(false);
+    expect(booted.selection.overrides().has(leafPath)).toBe(false);
+    expect(booted.selection.effectiveState(leafPath)).toBe('include');
   });
 
   it('keeps the active row addressable when the listing shrinks under it', async () => {

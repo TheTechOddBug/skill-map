@@ -15,6 +15,7 @@ import type {
   IAgentPresenceApi,
   IConfigResolutionRowApi,
   IBranchResponseApi,
+  IBranchScopeApi,
   IContributionApi,
   IFindingsEnvelopeApi,
   IFolderNodeLite,
@@ -118,17 +119,19 @@ export interface ICorpusPort {
   loadFolders(): Promise<IFolderNodeLite[]>;
 
   /**
-   * Branch projection for the graph map (`GET /api/branch?path=<prefix>
-   * &path=<prefix>&...&limit=<n>`). `paths` is the multi-prefix
-   * selection (folder prefixes and / or exact leaf paths); an empty
-   * array = whole-corpus root. The response is the UNION of the subtrees
-   * under every prefix, returning the first `branch.rendered` nodes in
-   * stable path order, capped at the scan's `maxRenderNodes`; `links`
-   * only where both endpoints are in `nodes`; `issues` only those
-   * touching `nodes`. `limit` can only LOWER the cap (clamped to
+   * Branch projection for the graph map (`GET /api/branch?path=
+   * &exclude=&excludeRoot=&limit=`), scoped by the map scope overrides
+   * (`spec/cli-contract.md` §Map scope overrides): `scope.include` /
+   * `scope.exclude` carry the non-root override paths, `scope.
+   * excludeRoot` the root override; evaluation is nearest-ancestor-wins,
+   * server-side, BEFORE the cap. An all-empty scope = whole corpus. The
+   * response returns the first `branch.rendered` scoped nodes in stable
+   * path order, capped at the scan's `maxRenderNodes`; `links` only
+   * where both endpoints are in `nodes`; `issues` only those touching
+   * `nodes`. `limit` can only LOWER the cap (clamped to
    * `[1, maxRenderNodes]` server-side).
    */
-  loadBranch(paths: string[], limit?: number): Promise<IBranchResponseApi>;
+  loadBranch(scope: IBranchScopeApi, limit?: number): Promise<IBranchResponseApi>;
 
   /**
    * Trigger a fresh scan and persist it. Mirrors `POST /api/scan`,

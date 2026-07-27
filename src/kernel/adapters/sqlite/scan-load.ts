@@ -48,6 +48,7 @@ import type { Kysely } from 'kysely';
 import type { IPersistedEnrichment } from '../../orchestrator.js';
 import type {
   IBranchProjection,
+  IBranchScope,
   IIssueIncidenceCount,
   ILiteNode,
   INodeCounts,
@@ -379,43 +380,57 @@ export async function loadEffectiveMaxRenderNodes(
 }
 
 /**
- * Prefix-union, capped graph projection for the BFF `/api/branch`
- * endpoint.
+ * Override-scoped, capped graph projection for the BFF `/api/branch`
+ * endpoint (`spec/cli-contract.md` §Map scope overrides).
  *
- * Scoping: a node is in the branch when, for ANY prefix in `prefixes`,
- * `path = prefix` OR `path LIKE prefix || '/%'` (so each prefix matches
- * the folder node itself plus every descendant under `prefix + '/'`).
- * The per-prefix predicates are ORed together, so the result is the
- * UNION of every requested subtree. An empty `prefixes` array skips the
- * WHERE entirely (whole corpus). The `'/%'` pattern is bound as a
- * parameter (no user input interpolated into the SQL string); the
- * literal `%` lives in the template fragment, each prefix binds
- * separately. `_` / `%` glob metacharacters inside a real path are not
- * escaped, a node path almost never contains them, and a stray match
- * only ever widens the branch to a sibling under the same parent, never
- * leaks across the tree (the leading prefix segment still anchors it).
- * Identical prefixes are de-duped defensively before binding.
+ * Scoping: a node's effective state is the override of its NEAREST
+ * ancestor (self included) among the scope's include/exclude paths plus
+ * the root (`rootExcluded`); no matching override = included. The
+ * matching overrides for a node are mutually prefix-ordered, so
+ * "nearest is an include `i`" is exactly "`i` matches AND no exclude
+ * STRICTLY UNDER `i` matches", which compiles to a flat OR-of-ANDs
+ * (see `applyBranchScope`). Per-path matching keeps the historical
+ * shape: `path = p OR path LIKE p || '/%'`, the `'/%'` literal in the
+ * template, each path bound as a parameter (no user input interpolated
+ * into the SQL string). `_` / `%` glob metacharacters inside a real
+ * path are not escaped, a node path almost never contains them, and a
+ * stray match only ever widens the branch to a sibling under the same
+ * parent, never leaks across the tree. Identical paths are de-duped
+ * defensively before binding.
  *
- * Capping: `total` is a `COUNT(*)` over the union (BEFORE the cap);
- * `nodes` is the same set `ORDER BY path LIMIT limit`. `links` are the
- * edges whose `source_path` AND `target_path` are both in the capped
- * node set; `issues` are those whose `node_ids_json` intersects it
- * (`json_each` + `IN`). Every step runs in SQL so the 50K corpus never
- * hydrates into memory.
+ * Capping: `total` is a `COUNT(*)` over the scoped set (BEFORE the cap,
+ * AFTER override evaluation); `nodes` is the same set `ORDER BY path
+ * LIMIT limit`. `links` are the edges whose `source_path` AND resolved
+ * target are both in the capped node set; `issues` are those whose
+ * `node_ids_json` intersects it (`json_each` + `IN`). Every step runs
+ * in SQL so the 50K corpus never hydrates into memory. The fully-
+ * excluded scope (root excluded, no includes) short-circuits to an
+ * empty projection without touching the DB.
  */
 export async function loadBranch(
   db: Kysely<IDatabase>,
-  prefixes: string[],
+  scope: IBranchScope,
   limit: number,
 ): Promise<IBranchProjection> {
-  // De-dup identical prefixes defensively, so a duplicated `?path=` query
-  // value does not duplicate its OR clause in the WHERE.
-  const uniquePrefixes = [...new Set(prefixes)];
-  const total = await countBranchNodes(db, uniquePrefixes);
+  // De-dup identical paths defensively, so a duplicated query value
+  // does not duplicate its clause in the WHERE.
+  const resolved: IBranchScope = {
+    include: [...new Set(scope.include)],
+    exclude: [...new Set(scope.exclude)],
+    rootExcluded: scope.rootExcluded,
+  };
+
+  // Everything excluded and nothing rescued: the projection is empty by
+  // construction; skip the queries (and the degenerate `1 = 0` WHERE).
+  if (resolved.rootExcluded && resolved.include.length === 0) {
+    return { nodes: [], links: [], issues: [], total: 0, paths: [] };
+  }
+
+  const total = await countBranchNodes(db, resolved);
 
   const nodeRows = await applyBranchScope(
     db.selectFrom('scan_nodes').selectAll(),
-    uniquePrefixes,
+    resolved,
   )
     .orderBy('path', 'asc')
     .limit(limit)
@@ -424,7 +439,7 @@ export async function loadBranch(
   const pathSet = new Set(nodes.map((n) => n.path));
 
   if (pathSet.size === 0) {
-    return { nodes, links: [], issues: [], total, paths: uniquePrefixes };
+    return { nodes, links: [], issues: [], total, paths: resolved.include };
   }
 
   const paths = [...pathSet];
@@ -466,22 +481,22 @@ export async function loadBranch(
     links: linkRows.map(rowToLink),
     issues: issueRows.map(rowToIssue),
     total,
-    paths: uniquePrefixes,
+    paths: resolved.include,
   };
 }
 
 /**
- * Count the nodes under the union of `prefixes` (BEFORE the render
- * cap). Shares the scope predicate with the page-slice query so `total`
- * and `nodes` agree on what "in the branch" means.
+ * Count the nodes in the scoped set (BEFORE the render cap, AFTER
+ * override evaluation). Shares the scope predicate with the page-slice
+ * query so `total` and `nodes` agree on what "in the branch" means.
  */
 async function countBranchNodes(
   db: Kysely<IDatabase>,
-  prefixes: string[],
+  scope: IBranchScope,
 ): Promise<number> {
   const row = await applyBranchScope(
     db.selectFrom('scan_nodes'),
-    prefixes,
+    scope,
   )
     .select(({ fn }) => fn.countAll<number>().as('c'))
     .executeTakeFirst();
@@ -489,31 +504,67 @@ async function countBranchNodes(
 }
 
 /**
- * Apply the branch scope predicate, the UNION over each prefix of
- * (`path = prefix OR path LIKE prefix || '/%'`), to a `scan_nodes`
- * query. An empty `prefixes` array is the whole-corpus case and applies
- * no WHERE. Extracted so the count query and the page-slice query stay
- * byte-for-byte identical in their scoping, a drift would surface as
- * `total` disagreeing with the returned node set.
+ * Compile the map scope overrides into one flat WHERE
+ * (`spec/cli-contract.md` §Map scope overrides, nearest-ancestor-wins):
+ *
+ *   visible(n) = (NOT rootExcluded AND no exclude matches n)
+ *             OR any include i: (i matches n AND no exclude STRICTLY
+ *                                under i matches n)
+ *
+ * The first disjunct is the "no override matches -> default include"
+ * case plus every node whose nearest override is the (included) root;
+ * it drops entirely when the root is excluded. The second covers nodes
+ * whose nearest override is an include: because matching override paths
+ * are mutually prefix-ordered, "nearest is `i`" reduces to "no exclude
+ * deeper than `i` matches", and excludes NOT under `i` cannot outrank
+ * it. The whole-corpus scope (root included, no excludes) applies no
+ * WHERE at all, the historical fast path. Includes are redundant in
+ * that scope and skipped. Extracted so the count query and the
+ * page-slice query stay byte-for-byte identical in their scoping, a
+ * drift would surface as `total` disagreeing with the returned node
+ * set.
  */
 function applyBranchScope<
   Q extends import('kysely').SelectQueryBuilder<IDatabase, 'scan_nodes', object>,
->(query: Q, prefixes: string[]): Q {
-  if (prefixes.length === 0) return query;
-  return query.where(({ eb, or }) =>
-    or(
-      prefixes.map((prefix) =>
-        // Per-prefix subtree predicate. `prefix || '/%'`: the `/%` lives
-        // in the template, `prefix` binds separately, so no user input is
-        // interpolated into the SQL. The two clauses are ORed so the
-        // prefix matches the folder node itself plus every descendant.
-        eb.or([
-          eb('path', '=', prefix),
-          eb('path', 'like', sql<string>`${prefix} || '/%'`),
+>(query: Q, scope: IBranchScope): Q {
+  if (!scope.rootExcluded && scope.exclude.length === 0) return query;
+  return query.where(({ eb, or, and, not }) => {
+    const terms = [];
+    if (!scope.rootExcluded) {
+      // Default-include disjunct: no exclude matches the node.
+      terms.push(
+        and(scope.exclude.map((e) => not(matchesSubtree(eb, e)))),
+      );
+    }
+    for (const include of scope.include) {
+      // Nearest-override-is-this-include disjunct. Only excludes
+      // STRICTLY under the include can outrank it.
+      const deeper = scope.exclude.filter((e) => e.startsWith(`${include}/`));
+      terms.push(
+        and([
+          matchesSubtree(eb, include),
+          ...deeper.map((e) => not(matchesSubtree(eb, e))),
         ]),
-      ),
-    ),
-  ) as Q;
+      );
+    }
+    return or(terms);
+  }) as Q;
+}
+
+/**
+ * Per-path subtree predicate: `path = p OR path LIKE p || '/%'` (the
+ * folder node itself plus every descendant). The `/%` lives in the
+ * template, `p` binds separately, so no user input is interpolated into
+ * the SQL.
+ */
+function matchesSubtree(
+  eb: import('kysely').ExpressionBuilder<IDatabase, 'scan_nodes'>,
+  path: string,
+): import('kysely').Expression<import('kysely').SqlBool> {
+  return eb.or([
+    eb('path', '=', path),
+    eb('path', 'like', sql<string>`${path} || '/%'`),
+  ]);
 }
 
 /**

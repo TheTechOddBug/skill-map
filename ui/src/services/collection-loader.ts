@@ -63,6 +63,11 @@ import type {
   IScanResultApi,
 } from '../models/api';
 import { DATA_SOURCE, type IDataSourcePort } from './data-source/data-source.port';
+import {
+  compileOverridesToWire,
+  overridesKey,
+  type TOverrideMap,
+} from './map-overrides';
 import { MapVisibilityService } from './map-visibility';
 import { WsEventStreamService } from './ws-event-stream';
 
@@ -205,10 +210,10 @@ export class CollectionLoaderService {
   );
 
   constructor() {
-    // Seed the last-fetched key to the CURRENT selection so the selection
+    // Seed the last-fetched key to the CURRENT scope so the selection
     // effect's eager initial run is a no-op (the boot `load()` already
-    // fetches this selection); only a genuine post-boot change re-fetches.
-    this.lastFetchedSelectionKey = selectionKey([...this.selection.paths()]);
+    // fetches this scope); only a genuine post-boot change re-fetches.
+    this.lastFetchedSelectionKey = overridesKey(this.selection.overrides());
 
     // Live-mode reactive refresh: every `scan.completed` event re-fires
     // the three boot fetches. Demo mode's `events()` is `EMPTY` so the
@@ -261,19 +266,19 @@ export class CollectionLoaderService {
       this.wsConnectedBefore = true;
     });
 
-    // The map SELECTION drives the branch. A change to the rail's
-    // checkbox set (prefixes + leaf paths) DEBOUNCE-fetches the branch
-    // union (~150ms) so a burst of clicks fires one request. Skips when
-    // the selection still matches what was last fetched (the effect's
-    // eager initial run and the boot `load()` both leave that key set),
-    // so neither double-fetches.
+    // The map scope overrides drive the branch. A change to the rail's
+    // checkbox state DEBOUNCE-fetches the scoped branch (~150ms) so a
+    // burst of clicks fires one request. Skips when the scope still
+    // matches what was last fetched (the effect's eager initial run and
+    // the boot `load()` both leave that key set), so neither
+    // double-fetches.
     effect(() => {
-      const paths = [...this.selection.paths()];
-      if (selectionKey(paths) === this.lastFetchedSelectionKey) return;
+      const overrides = this.selection.overrides();
+      if (overridesKey(overrides) === this.lastFetchedSelectionKey) return;
       if (this.selectionFetchTimer !== null) clearTimeout(this.selectionFetchTimer);
       this.selectionFetchTimer = setTimeout(() => {
         this.selectionFetchTimer = null;
-        void this.loadBranch(paths);
+        void this.loadBranch(overrides);
       }, SELECTION_FETCH_DEBOUNCE_MS);
     });
 
@@ -357,13 +362,13 @@ export class CollectionLoaderService {
     }
     this._loading.set(true);
     this._error.set(null);
-    const selectionPaths = [...this.selection.paths()];
-    this.lastFetchedSelectionKey = selectionKey(selectionPaths);
+    const overrides = this.selection.overrides();
+    this.lastFetchedSelectionKey = overridesKey(overrides);
     try {
       const [meta, lite, branch] = await Promise.all([
         this.dataSource.loadScanMeta(),
         this.dataSource.loadFolders(),
-        this.dataSource.loadBranch(selectionPaths),
+        this.dataSource.loadBranch(compileOverridesToWire(overrides)),
       ]);
       this._scanMeta.set(meta);
       this._liteNodes.set(lite);
@@ -383,21 +388,21 @@ export class CollectionLoaderService {
   }
 
   /**
-   * Re-fetch just the branch for the given selection (the debounced
-   * selection effect's worker). Keeps the cached meta + folders. Shares
-   * the loading / coalesce bookkeeping with `load()` so a selection
-   * change mid-boot does not race.
+   * Re-fetch just the branch for the given override scope (the
+   * debounced selection effect's worker). Keeps the cached meta +
+   * folders. Shares the loading / coalesce bookkeeping with `load()` so
+   * a scope change mid-boot does not race.
    */
-  private async loadBranch(paths: string[]): Promise<void> {
+  private async loadBranch(overrides: TOverrideMap): Promise<void> {
     if (this._loading()) {
       this.pendingRefresh = true;
       return;
     }
     this._loading.set(true);
     this._error.set(null);
-    this.lastFetchedSelectionKey = selectionKey(paths);
+    this.lastFetchedSelectionKey = overridesKey(overrides);
     try {
-      const branch = await this.dataSource.loadBranch(paths);
+      const branch = await this.dataSource.loadBranch(compileOverridesToWire(overrides));
       this.applyBranch(branch);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -420,15 +425,6 @@ export class CollectionLoaderService {
   }
 }
 
-/**
- * Order-independent key for a selection (the set of prefixes / leaf
- * paths). Used to skip a redundant branch re-fetch when the selection
- * still matches what was last fetched. Sorted so two writes that produce
- * the same membership in a different order are treated as equal.
- */
-function selectionKey(paths: readonly string[]): string {
-  return [...paths].sort().join('\n');
-}
 
 /**
  * Project a lite folders-list row into a minimal `INodeView`. The

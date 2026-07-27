@@ -80,7 +80,7 @@ function makeLoaderStub(nodes: INodeView[], links: ILinkApi[], corpusSize = node
   const branch: IBranchResponseApi = {
     schemaVersion: '1',
     kind: 'branch',
-    branch: { paths: [], total: scan.nodes.length, rendered: scan.nodes.length, truncated: false, cap: 256 },
+    branch: { paths: [], excluded: [], rootExcluded: false, total: scan.nodes.length, rendered: scan.nodes.length, truncated: false, cap: 256 },
     nodes: scan.nodes,
     links,
     issues: [],
@@ -224,14 +224,17 @@ describe('WorkspaceView isolate wiring', () => {
     const { fixture, mapVisibility } = await bootstrap([a, b, c], links);
 
     // Baseline: no curation.
-    expect(mapVisibility.paths().size).toBe(0);
+    expect(mapVisibility.overrides().size).toBe(0);
 
     click(fixture, 'files-leaf-graph-a.md');
 
     // a + its direct neighbor b are curated onto the map; the 2-hop c is
     // excluded. End-to-end proof that the rail gesture reaches the graph
     // and applies the 1-hop scope, not the whole connected component.
-    expect(new Set(mapVisibility.paths())).toEqual(new Set(['a.md', 'b.md']));
+    expect(mapVisibility.overrides().get('a.md')).toBe('include');
+    expect(mapVisibility.overrides().get('b.md')).toBe('include');
+    expect(mapVisibility.overrides().get('')).toBe('exclude');
+    expect(mapVisibility.overrides().has('c.md')).toBe(false);
   });
 
   it('a second sitemap click on the same node toggles the map back to show-all', async () => {
@@ -244,12 +247,15 @@ describe('WorkspaceView isolate wiring', () => {
     const { fixture, mapVisibility } = await bootstrap([a, b], links);
 
     click(fixture, 'files-leaf-graph-a.md');
-    expect(new Set(mapVisibility.paths())).toEqual(new Set(['a.md', 'b.md']));
+    expect(mapVisibility.overrides().get('a.md')).toBe('include');
+    expect(mapVisibility.overrides().get('b.md')).toBe('include');
+    expect(mapVisibility.overrides().get('')).toBe('exclude');
+    expect(mapVisibility.overrides().has('c.md')).toBe(false);
 
     // Re-isolating the same node while the map still shows its neighborhood
     // restores the prior (empty == show-all) visibility.
     click(fixture, 'files-leaf-graph-a.md');
-    expect(mapVisibility.paths().size).toBe(0);
+    expect(mapVisibility.overrides().size).toBe(0);
     expect(mapVisibility.isActive()).toBe(false);
   });
 });
@@ -311,7 +317,7 @@ describe('WorkspaceView rail reset control', () => {
     // Seed both axes the control resets: a facet filter and a folder
     // selection. The button only lights up when one of them is active.
     store.setSearchText('foo');
-    mapVisibility.toggleFolder('src');
+    mapVisibility.setSubtree('src', 'exclude');
     expect(store.isActive()).toBe(true);
     expect(mapVisibility.isActive()).toBe(true);
     try {
@@ -324,7 +330,7 @@ describe('WorkspaceView rail reset control', () => {
 
     // One click both shows-all (clears the selection) and resets every facet.
     expect(store.isActive()).toBe(false);
-    expect(mapVisibility.paths().size).toBe(0);
+    expect(mapVisibility.overrides().size).toBe(0);
   });
 
   it('disables the reset control when there is nothing active to reset', async () => {

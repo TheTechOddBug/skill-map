@@ -203,25 +203,27 @@ describe('FilesView leaf interactions', () => {
 });
 
 describe('FilesView folder interactions', () => {
-  it('folder CHECKBOX toggles the folder prefix in the map selection', async () => {
+  it('folder CHECKBOX toggles an exclude override for the subtree (starts checked)', async () => {
     const { fixture, selection } = await bootstrap([
       makeNode('src/a.md', 'a'),
       makeNode('src/b.md', 'b'),
     ]);
 
-    // Folder collapsed by default; expand it is not required, the checkbox
-    // lives on the folder row itself.
-    query(fixture, 'files-vis-folder-src').click();
+    // Every checkbox starts CHECKED (deviation model: no overrides =
+    // everything visible).
+    const box = query(fixture, 'files-vis-folder-src') as HTMLButtonElement;
+    expect(box.getAttribute('data-state')).toBe('all');
 
-    // The prefix is added to the selection verbatim (sent to /api/branch).
-    expect(new Set(selection.paths())).toEqual(new Set(['src']));
+    // Unchecking writes ONE exclude override for the subtree.
+    box.click();
+    expect(selection.overrides().get('src')).toBe('exclude');
 
-    // Toggling again removes it.
+    // Re-checking deletes it (canonical map, back to show-all).
     query(fixture, 'files-vis-folder-src').click();
-    expect(selection.paths().size).toBe(0);
+    expect(selection.overrides().size).toBe(0);
   });
 
-  it('folder ROW / chevron click is a PURE collapse toggle (no fetch, no selection change)', async () => {
+  it('folder ROW / chevron click is a PURE collapse toggle (no fetch, no override change)', async () => {
     const { fixture, loader, selection } = await bootstrap([
       makeNode('src/a.md', 'a'),
       makeNode('src/b.md', 'b'),
@@ -230,34 +232,84 @@ describe('FilesView folder interactions', () => {
     query(fixture, 'files-folder-src').click();
 
     // The chevron only flips the expand state: it never re-fetches the
-    // branch and never touches the map selection.
+    // branch and never touches the overrides.
     expect(loader.load).not.toHaveBeenCalled();
-    expect(selection.paths().size).toBe(0);
+    expect(selection.overrides().size).toBe(0);
   });
 
-  it('disables descendant checkboxes (checked) when an ancestor folder is selected', async () => {
-    const { fixture } = await bootstrap([
+  it('descendant checkboxes stay TOGGLEABLE under an excluded ancestor (deeper override)', async () => {
+    const { fixture, selection } = await bootstrap([
       makeNode('src/a.md', 'a'),
       makeNode('src/sub/b.md', 'b'),
       makeNode('src/sub/c.md', 'c'),
     ]);
 
-    // Select the parent prefix, then expand it so the children render.
+    // Exclude the parent, then expand it so the children render.
     query(fixture, 'files-vis-folder-src').click();
     query(fixture, 'files-folder-src').click();
     await settleVirtualScroll(fixture);
 
     const childFolder = query(fixture, 'files-vis-folder-src/sub') as HTMLButtonElement;
     const childLeaf = query(fixture, 'files-vis-leaf-src/a.md') as HTMLButtonElement;
-    const parent = query(fixture, 'files-vis-folder-src') as HTMLButtonElement;
 
-    // Covered by the selected 'src' prefix: shown checked but disabled.
-    expect(childFolder.disabled).toBe(true);
-    expect(childFolder.getAttribute('data-state')).toBe('all');
-    expect(childLeaf.disabled).toBe(true);
-    expect(childLeaf.getAttribute('data-state')).toBe('all');
-    // The selected parent itself stays enabled (you can uncheck it).
-    expect(parent.disabled).toBe(false);
+    // The subtree inherits the exclusion (unchecked), but nothing is
+    // disabled: the covered-by-ancestor state died with the include set.
+    expect(childFolder.disabled).toBe(false);
+    expect(childFolder.getAttribute('data-state')).toBe('none');
+    expect(childLeaf.disabled).toBe(false);
+    expect(childLeaf.getAttribute('data-state')).toBe('none');
+
+    // Checking a child under the excluded parent writes a deeper
+    // include override (the rescue), never touching the parent's.
+    childLeaf.click();
+    expect(selection.overrides().get('src')).toBe('exclude');
+    expect(selection.overrides().get('src/a.md')).toBe('include');
+  });
+
+  it('a mixed folder clicks to fully visible (indeterminate -> checked)', async () => {
+    const { fixture, selection } = await bootstrap([
+      makeNode('src/a.md', 'a'),
+      makeNode('src/sub/b.md', 'b'),
+    ]);
+
+    // Exclude a child so the parent reads mixed.
+    query(fixture, 'files-folder-src').click();
+    await settleVirtualScroll(fixture);
+    query(fixture, 'files-vis-leaf-src/a.md').click();
+    fixture.detectChanges();
+    const parent = query(fixture, 'files-vis-folder-src') as HTMLButtonElement;
+    expect(parent.getAttribute('data-state')).toBe('some');
+
+    // The mixed parent clicks to ALL VISIBLE (native tri-state
+    // convention), wiping the child's exclude.
+    parent.click();
+    expect(selection.overrides().size).toBe(0);
+  });
+
+  it('the master header checkbox toggles the root override', async () => {
+    // Two leaves per folder: a single-child folder chain compacts into a
+    // prefixed leaf row, and this test needs a real `src` folder row.
+    const { fixture, selection } = await bootstrap([
+      makeNode('src/a.md', 'a'),
+      makeNode('src/b.md', 'b'),
+      makeNode('docs/c.md', 'c'),
+      makeNode('docs/d.md', 'd'),
+    ]);
+
+    const master = query(fixture, 'files-vis-root') as HTMLButtonElement;
+    expect(master.getAttribute('data-state')).toBe('all');
+
+    master.click();
+    expect(selection.overrides().get('')).toBe('exclude');
+    fixture.detectChanges();
+    expect(master.getAttribute('data-state')).toBe('none');
+
+    // Master-uncheck + check one folder = the curation workflow.
+    await settleVirtualScroll(fixture);
+    query(fixture, 'files-vis-folder-src').click();
+    expect(selection.overrides().get('src')).toBe('include');
+    fixture.detectChanges();
+    expect(master.getAttribute('data-state')).toBe('some');
   });
 
   it('renders the session execution count in the Activity cell and its column header', async () => {
@@ -310,80 +362,72 @@ describe('FilesView folder interactions', () => {
  * Asserted against the computeds directly (the DOM checkbox states are
  * covered by the folder-interaction tests above).
  */
-describe('FilesView selection-coverage computeds', () => {
-  interface ICoverageProbe {
-    coveredByAncestor(): ReadonlySet<string>;
+describe('FilesView effective-state computeds', () => {
+  interface IWalkProbe {
+    folderStateMap(): Map<string, 'all' | 'some' | 'none'>;
     visibleLeaves(): ReadonlySet<string>;
+    rootState(): 'all' | 'some' | 'none';
   }
 
-  function coverageProbe(
+  function walkProbe(
     fixture: ReturnType<typeof TestBed.createComponent<FilesView>>,
-  ): ICoverageProbe {
-    return fixture.componentInstance as unknown as ICoverageProbe;
+  ): IWalkProbe {
+    return fixture.componentInstance as unknown as IWalkProbe;
   }
 
-  it('an exact leaf selection is visible but never covered', async () => {
+  it('everything visible by default; a leaf exclude flips only that leaf', async () => {
     const { fixture, selection } = await bootstrap([
       makeNode('docs/a.md', 'a'),
       makeNode('root.md', 'root'),
     ]);
-    const probe = coverageProbe(fixture);
+    const probe = walkProbe(fixture);
 
-    expect(probe.coveredByAncestor().size).toBe(0);
-    expect(probe.visibleLeaves().size).toBe(0);
-
-    selection.toggleLeaf('root.md');
-    fixture.detectChanges();
-
+    expect(probe.visibleLeaves().has('docs/a.md')).toBe(true);
     expect(probe.visibleLeaves().has('root.md')).toBe(true);
-    // Its own selection never disables the checkbox.
-    expect(probe.coveredByAncestor().has('root.md')).toBe(false);
-    // The sibling under a folder is untouched.
-    expect(probe.visibleLeaves().has('docs/a.md')).toBe(false);
+    expect(probe.rootState()).toBe('all');
+
+    selection.setSubtree('root.md', 'exclude');
+    fixture.detectChanges();
+
+    expect(probe.visibleLeaves().has('root.md')).toBe(false);
+    expect(probe.visibleLeaves().has('docs/a.md')).toBe(true);
+    expect(probe.rootState()).toBe('some');
+    expect(probe.folderStateMap().get('docs')).toBe('all');
   });
 
-  it('a selected folder covers its whole subtree but never itself', async () => {
+  it('an excluded folder reads none and hides its whole subtree', async () => {
     const { fixture, selection } = await bootstrap([
       makeNode('docs/a.md', 'a'),
       makeNode('docs/sub/b.md', 'b'),
       makeNode('root.md', 'root'),
     ]);
-    const probe = coverageProbe(fixture);
+    const probe = walkProbe(fixture);
 
-    selection.toggleFolder('docs');
+    selection.setSubtree('docs', 'exclude');
     fixture.detectChanges();
 
-    const covered = probe.coveredByAncestor();
-    // The selected folder stays toggleable (you can uncheck it).
-    expect(covered.has('docs')).toBe(false);
-    // Everything strictly below it is covered: leaves AND subfolders.
-    expect(covered.has('docs/a.md')).toBe(true);
-    expect(covered.has('docs/sub')).toBe(true);
-    expect(covered.has('docs/sub/b.md')).toBe(true);
-    // Outside the prefix: untouched.
-    expect(covered.has('root.md')).toBe(false);
-
-    const visible = probe.visibleLeaves();
-    expect(visible.has('docs/a.md')).toBe(true);
-    expect(visible.has('docs/sub/b.md')).toBe(true);
-    expect(visible.has('root.md')).toBe(false);
+    expect(probe.folderStateMap().get('docs')).toBe('none');
+    expect(probe.folderStateMap().get('docs/sub')).toBe('none');
+    expect(probe.visibleLeaves().has('docs/a.md')).toBe(false);
+    expect(probe.visibleLeaves().has('docs/sub/b.md')).toBe(false);
+    expect(probe.visibleLeaves().has('root.md')).toBe(true);
+    expect(probe.rootState()).toBe('some');
   });
 
-  it('a nested folder selection covers only its own branch', async () => {
+  it('a deeper include under an exclude reads mixed on the ancestor (nearest wins)', async () => {
     const { fixture, selection } = await bootstrap([
       makeNode('docs/a.md', 'a'),
       makeNode('docs/sub/b.md', 'b'),
     ]);
-    const probe = coverageProbe(fixture);
+    const probe = walkProbe(fixture);
 
-    selection.toggleFolder('docs/sub');
+    selection.setSubtree('docs', 'exclude');
+    selection.setSubtree('docs/sub', 'include');
     fixture.detectChanges();
 
-    expect(probe.coveredByAncestor().has('docs/sub/b.md')).toBe(true);
+    expect(probe.folderStateMap().get('docs')).toBe('some');
+    expect(probe.folderStateMap().get('docs/sub')).toBe('all');
     expect(probe.visibleLeaves().has('docs/sub/b.md')).toBe(true);
-    // The parent folder and the sibling leaf above the selection: free.
-    expect(probe.coveredByAncestor().has('docs')).toBe(false);
-    expect(probe.coveredByAncestor().has('docs/a.md')).toBe(false);
     expect(probe.visibleLeaves().has('docs/a.md')).toBe(false);
   });
 });

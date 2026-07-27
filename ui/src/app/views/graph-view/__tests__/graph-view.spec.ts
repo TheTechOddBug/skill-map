@@ -100,6 +100,8 @@ function makeStubLoader(initialNodes: INodeView[] = []): IStubLoader {
     kind: 'branch',
     branch: {
       paths: [],
+      excluded: [],
+      rootExcluded: false,
       total: branchNodes.length,
       rendered: branchNodes.length,
       truncated: false,
@@ -150,7 +152,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   loadBranch: vi.fn().mockResolvedValue({
     schemaVersion: '1',
     kind: 'branch',
-    branch: { paths: [], total: 0, rendered: 0, truncated: false, cap: 256 },
+    branch: { paths: [], excluded: [], rootExcluded: false, total: 0, rendered: 0, truncated: false, cap: 256 },
     nodes: [],
     links: [],
     issues: [],
@@ -577,8 +579,9 @@ describe('GraphView, deep-link reader', () => {
 
 describe('GraphView, isolate (1-hop neighborhood)', () => {
   beforeEach(() => {
-    // Selection persists in localStorage; clear it so each isolate test
-    // starts from an empty (show-all) selection.
+    // Overrides persist in localStorage; clear both the current and the
+    // legacy key so each isolate test starts from show-all.
+    localStorage.removeItem('sm.map.overrides');
     localStorage.removeItem('sm.map.visible-paths');
     TestBed.resetTestingModule();
   });
@@ -600,22 +603,26 @@ describe('GraphView, isolate (1-hop neighborhood)', () => {
     await flushEffects(fixture);
 
     const mapVisibility = TestBed.inject(MapVisibilityService);
-    // Baseline: no selection.
-    expect(mapVisibility.paths().size).toBe(0);
+    // Baseline: no overrides (show-all).
+    expect(mapVisibility.overrides().size).toBe(0);
 
     cmp.isolateNeighborhood('a.md');
     await flushEffects(fixture);
 
-    // Isolate now applies the scope SERVER-SIDE: it re-selects the node +
-    // its direct neighbor b (so the loader re-fetches that union); the
+    // Isolate now applies the scope SERVER-SIDE: it writes the
+    // "only these" override shape (root-exclude + one include per
+    // neighborhood member) so the loader re-fetches that scope; the
     // 2-hop c is excluded. The origin stays selected. The branch render
     // itself follows the loader's re-fetch (stubbed here), so we assert
-    // on the selection the gesture wrote, mirroring workspace-view.isolate.
-    expect(new Set(mapVisibility.paths())).toEqual(new Set(['a.md', 'b.md']));
+    // on the overrides the gesture wrote, mirroring workspace-view.isolate.
+    expect(mapVisibility.overrides().get('')).toBe('exclude');
+    expect(mapVisibility.overrides().get('a.md')).toBe('include');
+    expect(mapVisibility.overrides().get('b.md')).toBe('include');
+    expect(mapVisibility.overrides().has('c.md')).toBe(false);
     expect(cmp.selectedNodeId()).toBe('a.md');
   });
 
-  it('isolates an orphan node down to itself alone (selection = just the node)', async () => {
+  it('isolates an orphan node down to itself alone (scope = just the node)', async () => {
     const a = makeNode('a.md', 'a');
     const b = makeNode('b.md', 'b');
     const { fixture, cmp } = await bootstrap([a, b]);
@@ -625,7 +632,9 @@ describe('GraphView, isolate (1-hop neighborhood)', () => {
     await flushEffects(fixture);
 
     const mapVisibility = TestBed.inject(MapVisibilityService);
-    expect(new Set(mapVisibility.paths())).toEqual(new Set(['a.md']));
+    expect(mapVisibility.overrides().get('')).toBe('exclude');
+    expect(mapVisibility.overrides().get('a.md')).toBe('include');
+    expect(mapVisibility.overrides().size).toBe(2);
   });
 });
 
@@ -707,7 +716,7 @@ describe('GraphView, branch rendering + cap banner', () => {
     // Mark the branch truncated: more nodes in the folder than rendered.
     loader.branch.set({
       ...loader.branch()!,
-      branch: { paths: [], total: 900, rendered: 1, truncated: true, cap: 1 },
+      branch: { paths: [], excluded: [], rootExcluded: false, total: 900, rendered: 1, truncated: true, cap: 1 },
     });
     await flushEffects(fixture);
 
@@ -725,7 +734,7 @@ describe('GraphView, branch rendering + cap banner', () => {
     const { fixture, loader } = await bootstrap([makeNode('a.md', 'a')]);
     loader.branch.set({
       ...loader.branch()!,
-      branch: { paths: [], total: 1, rendered: 1, truncated: false, cap: 256 },
+      branch: { paths: [], excluded: [], rootExcluded: false, total: 1, rendered: 1, truncated: false, cap: 256 },
     });
     await flushEffects(fixture);
 

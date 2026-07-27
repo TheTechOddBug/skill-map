@@ -99,7 +99,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     Promise.resolve({
       schemaVersion: '1',
       kind: 'branch',
-      branch: { paths: [], total: 0, rendered: 0, truncated: false, cap: 256 },
+      branch: { paths: [], excluded: [], rootExcluded: false, total: 0, rendered: 0, truncated: false, cap: 256 },
       nodes: [],
       links: [],
       issues: [],

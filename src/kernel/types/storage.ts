@@ -444,18 +444,32 @@ export interface IFindingSeverityCount {
 }
 
 /**
- * Output of `port.scans.loadBranch(...)`, the prefix-union + capped
+ * Input of `port.scans.loadBranch(...)`: the map scope overrides
+ * (`spec/cli-contract.md` §Map scope overrides). `include` / `exclude`
+ * carry the non-root override paths; the root override rides
+ * `rootExcluded` (the path `''` never appears in the arrays). A node's
+ * effective state is the override of its NEAREST ancestor (self
+ * included); no matching override = included.
+ */
+export interface IBranchScope {
+  include: string[];
+  exclude: string[];
+  rootExcluded: boolean;
+}
+
+/**
+ * Output of `port.scans.loadBranch(...)`, the override-scoped + capped
  * graph projection the BFF `/api/branch` endpoint returns. `nodes` is
- * the first `LIMIT` nodes of the union (every requested prefix's
- * subtree) in stable path order (`ORDER BY path`); `links` carries only
- * edges whose source AND RESOLVED target (`resolvedTarget`, else the raw
- * `target` for path-style links) are both in that node set, so a
- * trigger-style `invokes` / `mentions` edge that resolves to a rendered
- * node is kept and a genuinely-broken link is dropped; `issues`
- * carries only those whose `nodeIds` intersect it. `total` is the count
- * of nodes in the union BEFORE the cap (so the route can compute
- * `truncated`). `paths` echoes the (de-duped) requested prefixes; the
- * whole-corpus case (no prefix) echoes `[]`.
+ * the first `LIMIT` nodes of the scoped set (nearest-ancestor override
+ * evaluation over `IBranchScope`) in stable path order (`ORDER BY
+ * path`); `links` carries only edges whose source AND RESOLVED target
+ * (`resolvedTarget`, else the raw `target` for path-style links) are
+ * both in that node set, so a trigger-style `invokes` / `mentions` edge
+ * that resolves to a rendered node is kept and a genuinely-broken link
+ * is dropped; `issues` carries only those whose `nodeIds` intersect it.
+ * `total` is the count of scoped nodes BEFORE the cap (so the route can
+ * compute `truncated`), post-override by construction. `paths` echoes
+ * the (de-duped) include overrides; the whole-corpus case echoes `[]`.
  */
 export interface IBranchProjection {
   nodes: Node[];

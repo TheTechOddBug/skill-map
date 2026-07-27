@@ -24,6 +24,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { SqliteStorageAdapter } from '../index.js';
+import type { IBranchScope } from '../../../types/storage.js';
 
 let dbRoot: string;
 let dbCounter = 0;
@@ -274,12 +275,22 @@ describe('port.scans.effectiveMaxRenderNodes', () => {
   });
 });
 
+/**
+ * Historical prefix-union scope: the degenerate override set "root
+ * excluded + N includes" (or the whole corpus when the list is empty),
+ * per `spec/cli-contract.md` §Map scope overrides. Keeps the pre-
+ * deviation-model cases readable while exercising the same code path.
+ */
+function union(include: string[]): IBranchScope {
+  return { include, exclude: [], rootExcluded: include.length > 0 };
+}
+
 describe('port.scans.loadBranch', () => {
   it('empty DB returns an empty branch (total 0)', async () => {
     const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('branch-empty'), autoBackup: false });
     await adapter.init();
     try {
-      const branch = await adapter.scans.loadBranch([], 256);
+      const branch = await adapter.scans.loadBranch(union([]), 256);
       assert.equal(branch.total, 0);
       assert.equal(branch.nodes.length, 0);
       assert.equal(branch.links.length, 0);
@@ -296,7 +307,7 @@ describe('port.scans.loadBranch', () => {
     try {
       await plantNode(adapter, 'b/two.md');
       await plantNode(adapter, 'a/one.md');
-      const branch = await adapter.scans.loadBranch([], 256);
+      const branch = await adapter.scans.loadBranch(union([]), 256);
       assert.equal(branch.total, 2);
       assert.deepEqual(branch.nodes.map((n) => n.path), ['a/one.md', 'b/two.md']);
       assert.deepEqual(branch.paths, []);
@@ -315,7 +326,7 @@ describe('port.scans.loadBranch', () => {
       await plantNode(adapter, 'srcother/c.md'); // shares the string prefix but NOT the path boundary
       await plantNode(adapter, 'other/d.md');
 
-      const branch = await adapter.scans.loadBranch(['src'], 256);
+      const branch = await adapter.scans.loadBranch(union(['src']), 256);
       assert.equal(branch.total, 3);
       assert.deepEqual(branch.nodes.map((n) => n.path), [
         'src',
@@ -333,7 +344,7 @@ describe('port.scans.loadBranch', () => {
     await adapter.init();
     try {
       for (let i = 0; i < 5; i++) await plantNode(adapter, `x/n${i}.md`);
-      const branch = await adapter.scans.loadBranch(['x'], 2);
+      const branch = await adapter.scans.loadBranch(union(['x']), 2);
       assert.equal(branch.total, 5);
       assert.equal(branch.nodes.length, 2);
       assert.deepEqual(branch.nodes.map((n) => n.path), ['x/n0.md', 'x/n1.md']);
@@ -352,7 +363,7 @@ describe('port.scans.loadBranch', () => {
       await plantLink(adapter, 'p/a.md', 'p/b.md'); // both in branch p
       await plantLink(adapter, 'p/a.md', 'q/c.md'); // target outside branch p
 
-      const branch = await adapter.scans.loadBranch(['p'], 256);
+      const branch = await adapter.scans.loadBranch(union(['p']), 256);
       assert.equal(branch.links.length, 1);
       assert.equal(branch.links[0]?.source, 'p/a.md');
       assert.equal(branch.links[0]?.target, 'p/b.md');
@@ -376,7 +387,7 @@ describe('port.scans.loadBranch', () => {
         resolvedTarget: '.claude/agents/content-editor.md',
       });
 
-      const branch = await adapter.scans.loadBranch([], 256);
+      const branch = await adapter.scans.loadBranch(union([]), 256);
       assert.equal(branch.links.length, 1);
       assert.equal(branch.links[0]?.source, '.claude/commands/publish.md');
       assert.equal(branch.links[0]?.target, '@content-editor');
@@ -397,7 +408,7 @@ describe('port.scans.loadBranch', () => {
       // edge correctly falls out (same as the full `/api/scan` map).
       await plantLink(adapter, 'AGENTS.md', 'docs/BACKLOG.md');
 
-      const branch = await adapter.scans.loadBranch([], 256);
+      const branch = await adapter.scans.loadBranch(union([]), 256);
       assert.equal(branch.links.length, 0);
     } finally {
       await adapter.close();
@@ -418,7 +429,7 @@ describe('port.scans.loadBranch', () => {
         resolvedTarget: 'q/agent.md',
       });
 
-      const branch = await adapter.scans.loadBranch(['p'], 256);
+      const branch = await adapter.scans.loadBranch(union(['p']), 256);
       assert.equal(branch.links.length, 0);
     } finally {
       await adapter.close();
@@ -434,7 +445,7 @@ describe('port.scans.loadBranch', () => {
       await plantIssue(adapter, 'error', ['p/a.md']); // in branch
       await plantIssue(adapter, 'warn', ['q/c.md']); // outside branch
 
-      const branch = await adapter.scans.loadBranch(['p'], 256);
+      const branch = await adapter.scans.loadBranch(union(['p']), 256);
       assert.equal(branch.issues.length, 1);
       assert.deepEqual(branch.issues[0]?.nodeIds, ['p/a.md']);
     } finally {
@@ -451,7 +462,7 @@ describe('port.scans.loadBranch', () => {
       await plantNode(adapter, 'p/c.md');
       // a -> c, but a cap of 2 only renders a + b, so the edge to c drops.
       await plantLink(adapter, 'p/a.md', 'p/c.md');
-      const branch = await adapter.scans.loadBranch(['p'], 2);
+      const branch = await adapter.scans.loadBranch(union(['p']), 2);
       assert.equal(branch.nodes.length, 2);
       assert.equal(branch.links.length, 0);
     } finally {
@@ -468,7 +479,7 @@ describe('port.scans.loadBranch', () => {
       await plantNode(adapter, 'b/three.md');
       await plantNode(adapter, 'c/four.md'); // outside both prefixes
 
-      const branch = await adapter.scans.loadBranch(['a', 'b'], 256);
+      const branch = await adapter.scans.loadBranch(union(['a', 'b']), 256);
       assert.equal(branch.total, 3);
       // Union in a single stable `ORDER BY path` pass, no duplicates.
       assert.deepEqual(branch.nodes.map((n) => n.path), [
@@ -493,7 +504,7 @@ describe('port.scans.loadBranch', () => {
       await plantNode(adapter, 'b/1.md');
       await plantNode(adapter, 'b/2.md');
 
-      const branch = await adapter.scans.loadBranch(['a', 'b'], 3);
+      const branch = await adapter.scans.loadBranch(union(['a', 'b']), 3);
       assert.equal(branch.total, 4);
       assert.equal(branch.nodes.length, 3);
       assert.deepEqual(branch.nodes.map((n) => n.path), [
@@ -516,7 +527,7 @@ describe('port.scans.loadBranch', () => {
       await plantLink(adapter, 'a/x.md', 'b/y.md'); // both in union {a, b}
       await plantLink(adapter, 'a/x.md', 'c/z.md'); // target outside union
 
-      const branch = await adapter.scans.loadBranch(['a', 'b'], 256);
+      const branch = await adapter.scans.loadBranch(union(['a', 'b']), 256);
       assert.equal(branch.links.length, 1);
       assert.equal(branch.links[0]?.source, 'a/x.md');
       assert.equal(branch.links[0]?.target, 'b/y.md');
@@ -534,7 +545,7 @@ describe('port.scans.loadBranch', () => {
       await plantNode(adapter, 'b/1.md');
       // Edge a/1 -> b/1, but cap 2 renders only a/1 + a/2, so it drops.
       await plantLink(adapter, 'a/1.md', 'b/1.md');
-      const branch = await adapter.scans.loadBranch(['a', 'b'], 2);
+      const branch = await adapter.scans.loadBranch(union(['a', 'b']), 2);
       assert.deepEqual(branch.nodes.map((n) => n.path), ['a/1.md', 'a/2.md']);
       assert.equal(branch.links.length, 0);
     } finally {
@@ -549,7 +560,7 @@ describe('port.scans.loadBranch', () => {
       await plantNode(adapter, 'a/one.md');
       await plantNode(adapter, 'a/two.md');
 
-      const branch = await adapter.scans.loadBranch(['a', 'a'], 256);
+      const branch = await adapter.scans.loadBranch(union(['a', 'a']), 256);
       assert.equal(branch.total, 2);
       assert.deepEqual(branch.nodes.map((n) => n.path), ['a/one.md', 'a/two.md']);
       assert.deepEqual(branch.paths, ['a']);
@@ -566,12 +577,225 @@ describe('port.scans.loadBranch', () => {
       await plantNode(adapter, 'docs/guide.md/sub.md'); // descendant under it
       await plantNode(adapter, 'docs/guideline.md'); // shares the string, NOT the boundary
 
-      const branch = await adapter.scans.loadBranch(['docs/guide.md'], 256);
+      const branch = await adapter.scans.loadBranch(union(['docs/guide.md']), 256);
       assert.equal(branch.total, 2);
       assert.deepEqual(branch.nodes.map((n) => n.path), [
         'docs/guide.md',
         'docs/guide.md/sub.md',
       ]);
+    } finally {
+      await adapter.close();
+    }
+  });
+});
+
+/**
+ * Deviation-model scopes (`spec/cli-contract.md` §Map scope overrides):
+ * nearest-ancestor-wins evaluation compiled into the SQL WHERE. The
+ * union() cases above already pin the two degenerate scopes (whole
+ * corpus, root-excluded prefix union); these pin the new shapes.
+ */
+describe('port.scans.loadBranch (override scopes)', () => {
+  async function plantTree(adapter: SqliteStorageAdapter): Promise<void> {
+    await plantNode(adapter, 'app/one.md');
+    await plantNode(adapter, 'app/legacy/old.md');
+    await plantNode(adapter, 'app/legacy/keep/gem.md');
+    await plantNode(adapter, 'docs/guide.md');
+  }
+
+  it('exclude-only scope: whole corpus minus the excluded subtree', async () => {
+    const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('scope-exclude-only'), autoBackup: false });
+    await adapter.init();
+    try {
+      await plantTree(adapter);
+      const branch = await adapter.scans.loadBranch(
+        { include: [], exclude: ['app/legacy'], rootExcluded: false },
+        256,
+      );
+      assert.equal(branch.total, 2);
+      assert.deepEqual(branch.nodes.map((n) => n.path), ['app/one.md', 'docs/guide.md']);
+      assert.deepEqual(branch.paths, []);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('include rescued under an exclude (nearest ancestor wins)', async () => {
+    const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('scope-rescue'), autoBackup: false });
+    await adapter.init();
+    try {
+      await plantTree(adapter);
+      const branch = await adapter.scans.loadBranch(
+        { include: ['app/legacy/keep'], exclude: ['app/legacy'], rootExcluded: false },
+        256,
+      );
+      assert.equal(branch.total, 3);
+      assert.deepEqual(branch.nodes.map((n) => n.path), [
+        'app/legacy/keep/gem.md',
+        'app/one.md',
+        'docs/guide.md',
+      ]);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('three-level nesting: include, exclude under it, include under that', async () => {
+    const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('scope-three-level'), autoBackup: false });
+    await adapter.init();
+    try {
+      await plantTree(adapter);
+      // Root excluded, app/ rescued, app/legacy/ re-excluded,
+      // app/legacy/keep/ re-rescued.
+      const branch = await adapter.scans.loadBranch(
+        {
+          include: ['app', 'app/legacy/keep'],
+          exclude: ['app/legacy'],
+          rootExcluded: true,
+        },
+        256,
+      );
+      assert.equal(branch.total, 2);
+      assert.deepEqual(branch.nodes.map((n) => n.path), [
+        'app/legacy/keep/gem.md',
+        'app/one.md',
+      ]);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('root excluded with no includes short-circuits to an empty projection (total 0)', async () => {
+    const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('scope-root-only'), autoBackup: false });
+    await adapter.init();
+    try {
+      await plantTree(adapter);
+      const branch = await adapter.scans.loadBranch(
+        { include: [], exclude: [], rootExcluded: true },
+        256,
+      );
+      assert.equal(branch.total, 0);
+      assert.equal(branch.nodes.length, 0);
+      assert.deepEqual(branch.paths, []);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('total is post-override and pre-cap (truncation math over the scoped set)', async () => {
+    const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('scope-total-postfilter'), autoBackup: false });
+    await adapter.init();
+    try {
+      for (let i = 0; i < 4; i++) await plantNode(adapter, `keep/n${i}.md`);
+      for (let i = 0; i < 6; i++) await plantNode(adapter, `noise/n${i}.md`);
+      const branch = await adapter.scans.loadBranch(
+        { include: [], exclude: ['noise'], rootExcluded: false },
+        2,
+      );
+      // total counts the 4 scoped nodes, never the 10 raw ones; the cap
+      // then slices the first 2 in path order.
+      assert.equal(branch.total, 4);
+      assert.deepEqual(branch.nodes.map((n) => n.path), ['keep/n0.md', 'keep/n1.md']);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('an exclude equal to an include loses (defensive; the BFF rejects the conflict upstream)', async () => {
+    const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('scope-conflict'), autoBackup: false });
+    await adapter.init();
+    try {
+      await plantTree(adapter);
+      // Strictly-under comparison: an exclude EQUAL to the include is not
+      // deeper, so the include's disjunct still matches its subtree.
+      const branch = await adapter.scans.loadBranch(
+        { include: ['app'], exclude: ['app'], rootExcluded: true },
+        256,
+      );
+      assert.equal(branch.total, 3);
+    } finally {
+      await adapter.close();
+    }
+  });
+});
+
+/**
+ * Differential contract: the SQL compilation of `applyBranchScope` MUST
+ * agree with a direct evaluation of the §Map scope overrides rule
+ * (nearest-ancestor-wins) for every scope shape. The reference below
+ * restates the normative rule in ten lines; each scope in the battery
+ * is evaluated both ways over the same tree and the node sets must be
+ * identical. Catches compilation bugs (a wrong strictly-under filter, a
+ * dropped disjunct) that hand-picked cases can miss.
+ */
+describe('port.scans.loadBranch (differential vs the reference rule)', () => {
+  const TREE_PATHS = [
+    'app/one.md',
+    'app/legacy/old.md',
+    'app/legacy/keep/gem.md',
+    'app/legacy/keep/deep/leaf.md',
+    'app2/decoy.md',
+    'docs/guide.md',
+    'docs/api/ref.md',
+    'README.md',
+  ];
+
+  /** The normative rule, restated: nearest matching override wins. */
+  function referenceVisible(scope: IBranchScope, path: string): boolean {
+    let bestLen = -1;
+    let best: 'include' | 'exclude' = scope.rootExcluded ? 'exclude' : 'include';
+    const consider = (candidate: string, kind: 'include' | 'exclude'): void => {
+      const matches = path === candidate || path.startsWith(`${candidate}/`);
+      if (matches && candidate.length > bestLen) {
+        bestLen = candidate.length;
+        best = kind;
+      }
+    };
+    for (const p of scope.include) consider(p, 'include');
+    for (const p of scope.exclude) consider(p, 'exclude');
+    return best === 'include';
+  }
+
+  const SCOPES: IBranchScope[] = [
+    { include: [], exclude: [], rootExcluded: false },
+    { include: [], exclude: [], rootExcluded: true },
+    { include: ['app'], exclude: [], rootExcluded: true },
+    { include: [], exclude: ['app/legacy'], rootExcluded: false },
+    { include: ['app/legacy/keep'], exclude: ['app/legacy'], rootExcluded: false },
+    { include: ['app', 'app/legacy/keep'], exclude: ['app/legacy'], rootExcluded: true },
+    // Four alternating levels: exclude root, include app, exclude
+    // legacy, include keep, exclude deep.
+    {
+      include: ['app', 'app/legacy/keep'],
+      exclude: ['app/legacy', 'app/legacy/keep/deep'],
+      rootExcluded: true,
+    },
+    // Sibling excludes under one include + an unrelated include.
+    { include: ['app', 'docs'], exclude: ['app/legacy', 'docs/api'], rootExcluded: true },
+    // String-prefix decoy: excluding `app` must not touch `app2`.
+    { include: [], exclude: ['app'], rootExcluded: false },
+    // Leaf-level overrides.
+    { include: ['app/legacy/old.md'], exclude: ['app/legacy'], rootExcluded: false },
+    { include: [], exclude: ['README.md'], rootExcluded: false },
+    // Exclude an ancestor of an include AND an unrelated subtree.
+    { include: ['docs/api'], exclude: ['docs', 'app'], rootExcluded: false },
+  ];
+
+  it('the SQL scope agrees with the reference on every battery scope', async () => {
+    const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('scope-differential'), autoBackup: false });
+    await adapter.init();
+    try {
+      for (const path of TREE_PATHS) await plantNode(adapter, path);
+      for (const [i, scope] of SCOPES.entries()) {
+        const expected = TREE_PATHS.filter((p) => referenceVisible(scope, p)).sort();
+        const branch = await adapter.scans.loadBranch(scope, 256);
+        assert.deepEqual(
+          branch.nodes.map((n) => n.path).sort(),
+          expected,
+          `scope #${i}: ${JSON.stringify(scope)}`,
+        );
+        assert.equal(branch.total, expected.length, `total of scope #${i}`);
+      }
     } finally {
       await adapter.close();
     }

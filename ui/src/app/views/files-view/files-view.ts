@@ -314,104 +314,84 @@ export class FilesView implements OnInit {
   );
 
   /**
-   * Map selection tri-state, PREFIX-aware. The selection lives in the
-   * shared `MapVisibilityService` as a set of folder PREFIXES + exact
-   * leaf paths; it drives the map (the loader fetches the union). Per
-   * folder:
-   *   - `all`  : the folder's own path is in the selection (its whole
-   *              subtree renders via the prefix);
-   *   - `some` : a strict descendant (folder or leaf) is selected but the
-   *              folder itself is not;
-   *   - `none` : neither.
-   * Computed in one post-order walk (each folder learns whether any
-   * descendant is selected). Re-derived only when the tree or the
-   * selection changes; the template reads `.get(row.path)` so no per-row
-   * tree walk happens during render.
+   * Effective visibility of every row under the map scope overrides
+   * (`spec/cli-contract.md` §Map scope overrides), in ONE post-order
+   * walk per tree / override change. Each folder inherits its parent's
+   * effective state unless it carries its own override (the root key
+   * `''` resolves naturally at the top of the walk); each leaf the
+   * same. Folder tri-state derives from the subtree leaf tally:
+   *   - `all`  : every leaf under it is visible (checked);
+   *   - `none` : none is (unchecked);
+   *   - `some` : mixed (indeterminate).
+   * An EMPTY folder (no leaves anywhere below) renders its own
+   * effective state as `all` / `none` so its checkbox still answers to
+   * toggles. The template reads `.get(row.path)` / `.has(row.path)` via
+   * `@let`, so no per-row walk happens during render. Every row is
+   * TOGGLEABLE: the covered-by-ancestor disabled state died with the
+   * include-set model (a toggle under an overridden ancestor just
+   * writes a deeper override).
    */
-  readonly folderStateMap = computed<Map<string, TFolderVisibility>>(() => {
-    const selected = this.mapVisibility.paths();
-    const out = new Map<string, TFolderVisibility>();
-    // Returns whether the folder OR any strict descendant is selected.
-    const visit = (folder: ITreeFolder): boolean => {
-      const selfSelected = selected.has(folder.path);
-      let descendantSelected = false;
-      for (const leaf of folder.leaves) {
-        if (selected.has(leaf.path)) descendantSelected = true;
-      }
-      for (const sub of folder.subfolders.values()) {
-        if (visit(sub)) descendantSelected = true;
-      }
-      out.set(
-        folder.path,
-        selfSelected ? 'all' : descendantSelected ? 'some' : 'none',
-      );
-      return selfSelected || descendantSelected;
-    };
-    visit(this.tree());
-    return out;
-  });
-
-  /**
-   * Paths (folders AND leaves) that sit under a SELECTED STRICT ANCESTOR
-   * folder. Such a row renders its checkbox checked but DISABLED: a
-   * selected folder includes its whole subtree as one prefix, so a
-   * descendant cannot be toggled on its own; to change it the user
-   * unchecks the ancestor (then, if wanted, re-selects a finer folder /
-   * leaf).
-   *
-   * Derived together with `visibleLeaves` in ONE post-order walk per
-   * tree / selection change (same memoization the folder tri-state
-   * already uses via `folderStateMap`). The previous shape was a
-   * per-call scan of the whole selection set with `startsWith`, invoked
-   * up to six times per row per CD pass, O(rows x |selection|) on every
-   * checkbox click / sort / expand over the full corpus tree.
-   */
-  readonly coveredByAncestor = computed<ReadonlySet<string>>(
-    () => this.selectionCoverage().covered,
-  );
-
-  /**
-   * Leaves currently on the map: their exact path is in the selection OR
-   * an ancestor folder prefix is (a selected folder includes all its
-   * descendants). Template reads `.has(row.path)` via a `@let`, so no
-   * per-row selection scan happens during render.
-   */
-  readonly visibleLeaves = computed<ReadonlySet<string>>(
-    () => this.selectionCoverage().visible,
-  );
-
-  /**
-   * Shared walk behind `coveredByAncestor` / `visibleLeaves`. A leaf
-   * path can never prefix another path (files have no children), so
-   * "strict ancestor prefix selected" is exactly "some enclosing folder
-   * on the tree walk is selected", no `startsWith` needed.
-   */
-  private readonly selectionCoverage = computed<{
-    covered: ReadonlySet<string>;
-    visible: ReadonlySet<string>;
+  private readonly visibilityWalk = computed<{
+    folderStates: Map<string, TFolderVisibility>;
+    visibleLeaves: ReadonlySet<string>;
   }>(() => {
-    const selected = this.mapVisibility.paths();
-    const covered = new Set<string>();
+    const overrides = this.mapVisibility.overrides();
+    const folderStates = new Map<string, TFolderVisibility>();
     const visible = new Set<string>();
-    const visit = (folder: ITreeFolder, underSelected: boolean): void => {
-      if (underSelected && folder.path) covered.add(folder.path);
-      // The root folder's path is '' and an empty prefix never covers
-      // (mirrors the `prefix !== ''` guard of the pre-memoized scan).
-      const childrenUnder =
-        underSelected || (folder.path !== '' && selected.has(folder.path));
+    // Returns [visibleLeafCount, totalLeafCount] for the subtree.
+    const visit = (folder: ITreeFolder, parentState: 'include' | 'exclude'): [number, number] => {
+      const selfState = overrides.get(folder.path) ?? parentState;
+      let shown = 0;
+      let total = 0;
       for (const leaf of folder.leaves) {
-        if (childrenUnder) {
-          covered.add(leaf.path);
-          visible.add(leaf.path);
-        } else if (selected.has(leaf.path)) {
+        const leafState = overrides.get(leaf.path) ?? selfState;
+        total += 1;
+        if (leafState === 'include') {
+          shown += 1;
           visible.add(leaf.path);
         }
       }
-      for (const sub of folder.subfolders.values()) visit(sub, childrenUnder);
+      for (const sub of folder.subfolders.values()) {
+        const [subShown, subTotal] = visit(sub, selfState);
+        shown += subShown;
+        total += subTotal;
+      }
+      folderStates.set(
+        folder.path,
+        total === 0
+          ? selfState === 'include'
+            ? 'all'
+            : 'none'
+          : shown === 0
+            ? 'none'
+            : shown === total
+              ? 'all'
+              : 'some',
+      );
+      return [shown, total];
     };
-    visit(this.tree(), false);
-    return { covered, visible };
+    // The root folder's own key is '' in the override map; above it sits
+    // only the model default (include).
+    visit(this.tree(), 'include');
+    return { folderStates, visibleLeaves: visible };
   });
+
+  readonly folderStateMap = computed<Map<string, TFolderVisibility>>(
+    () => this.visibilityWalk().folderStates,
+  );
+
+  /** Leaves currently on the map (effective state = include). */
+  readonly visibleLeaves = computed<ReadonlySet<string>>(
+    () => this.visibilityWalk().visibleLeaves,
+  );
+
+  /**
+   * The master checkbox's tri-state: the root folder's derived state
+   * from the same walk (`''` is the tree root's path).
+   */
+  readonly rootState = computed<TFolderVisibility>(
+    () => this.visibilityWalk().folderStates.get('') ?? 'all',
+  );
 
   ngOnInit(): void {
     if (this.loader.liteNodes().length === 0 && !this.loader.loading()) {
@@ -478,18 +458,46 @@ export class FilesView implements OnInit {
     this.nodeOpenIntent.open(row.path);
   }
 
+  /**
+   * Shared checkbox toggle for any row (click handlers + the Space
+   * key). Leaves flip to the opposite of their current visibility;
+   * folders follow the user decision "a mixed folder clicks to fully
+   * visible" (the native tri-state convention: indeterminate ->
+   * checked), so only a fully-checked folder excludes on click.
+   * `setSubtree` canonicalizes (drops the subtree's own overrides,
+   * writes only a non-redundant one), so toggling under an overridden
+   * ancestor writes exactly the deeper override the gesture means.
+   */
+  toggleRowVisibility(row: TFolderViewRow): void {
+    if (row.type === 'folder') {
+      const state = this.folderStateMap().get(row.path) ?? 'all';
+      this.mapVisibility.setSubtree(row.path, state === 'all' ? 'exclude' : 'include');
+      return;
+    }
+    const visible = this.visibleLeaves().has(row.path);
+    this.mapVisibility.setSubtree(row.path, visible ? 'exclude' : 'include');
+  }
+
   /** Toggle a single file's visibility on the map. */
   onToggleLeafVisibility(row: IFolderLeaf, event: Event): void {
     event.stopPropagation();
-    this.mapVisibility.toggleLeaf(row.path);
+    this.toggleRowVisibility(row);
   }
 
-  /** Toggle a folder's PREFIX in the map selection. The prefix is sent
-   *  verbatim to `/api/branch`; the server expands it to the capped
-   *  subtree union (so this stays small regardless of subtree size). */
+  /** Toggle a folder's whole subtree on the map. */
   onToggleFolderVisibility(row: IFolderRow, event: Event): void {
     event.stopPropagation();
-    this.mapVisibility.toggleFolder(row.path);
+    this.toggleRowVisibility(row);
+  }
+
+  /**
+   * Master checkbox in the tree-column header: toggles the whole corpus
+   * (the root override, path `''`). Mixed -> all visible, mirroring the
+   * per-folder convention.
+   */
+  onToggleAllVisibility(): void {
+    const state = this.rootState();
+    this.mapVisibility.setSubtree('', state === 'all' ? 'exclude' : 'include');
   }
 
   /**
@@ -662,8 +670,7 @@ export class FilesView implements OnInit {
       case 'Spacebar':
         // Space operates the row's checkbox, matching what Space does to a
         // checkbox everywhere else. Enter keeps the "activate" gesture.
-        if (row.type === 'folder') this.mapVisibility.toggleFolder(row.path);
-        else this.mapVisibility.toggleLeaf(row.path);
+        this.toggleRowVisibility(row);
         break;
       default:
         return;

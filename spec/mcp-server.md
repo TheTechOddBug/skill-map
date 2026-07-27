@@ -115,7 +115,7 @@ structured content. Filters reuse the `sm export` grammar (`kind=` / `has=` /
 | `query_graph` | `{ kind?: string, has?: string, path?: string, limit?: integer }` | A closed subgraph `{ nodes: Node[], links: Link[], issues: Issue[] }` (the `applyExportQuery` result: links survive only if both endpoints survive, issues survive if any node survives). Bounded by `limit` (default 100, max the scan's `maxRenderNodes`). |
 | `get_node` | `{ path: string, includeBody?: boolean }` | Single-node bundle `{ item: Node, links: { incoming: Link[], outgoing: Link[] }, issues: Issue[] }`. `includeBody: true` reads the file body on demand (`item.body`), `null` when unreadable. Unknown path → JSON-RPC error `-32602` (invalid params). |
 | `list_issues` | `{ severity?: string, analyzerId?: string, node?: string, limit?: integer, offset?: integer }` | `{ items: Issue[], total: integer }` (the same SQL-side filter/pagination as `GET /api/issues`). |
-| `get_branch` | `{ path: string[] , limit?: integer }` | Prefix-union branch projection `{ branch, nodes, links, issues }` (the `/api/branch` shape), the map projection for one or more folder prefixes. |
+| `get_branch` | `{ path: string[], exclude?: string[], excludeRoot?: boolean, limit?: integer }` | Override-scoped branch projection `{ branch, nodes, links, issues }` (the `/api/branch` shape and the same map-scope-overrides evaluation, `cli-contract.md` §Map scope overrides): `path` = include overrides, `exclude` = exclude overrides, `excludeRoot` = the root override (inferred when absent, exactly like the route). A bare `path` list keeps its historical meaning (only those subtrees). |
 
 `Node` / `Link` / `Issue` are the shapes in
 [`schemas/node.schema.json`](./schemas/node.schema.json),

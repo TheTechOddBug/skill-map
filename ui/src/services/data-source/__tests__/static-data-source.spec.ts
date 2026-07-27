@@ -226,7 +226,7 @@ describe('StaticDataSource', () => {
       makeFakeProviderRegistry(),
       makeFakeContributionsRegistry(),
     );
-    const branch = await dsT.loadBranch([]);
+    const branch = await dsT.loadBranch({ include: [], exclude: [], excludeRoot: false });
     expect(branch.links).toHaveLength(1);
     expect(branch.links[0]!.target).toBe('@c');
     expect(branch.links[0]!.resolvedTarget).toBe('c.md');
@@ -285,8 +285,8 @@ describe('StaticDataSource', () => {
     ]);
   });
 
-  it('loadBranch([]) with no prefixes returns the whole corpus, no truncation', async () => {
-    const branch = await ds.loadBranch([]);
+  it('loadBranch with an empty scope returns the whole corpus, no truncation', async () => {
+    const branch = await ds.loadBranch({ include: [], exclude: [], excludeRoot: false });
     expect(branch.kind).toBe('branch');
     expect(branch.branch.paths).toEqual([]);
     expect(branch.branch.total).toBe(3);
@@ -300,7 +300,7 @@ describe('StaticDataSource', () => {
   it('loadBranch(prefixes) returns the UNION of nodes matching ANY prefix', async () => {
     // Exact leaf paths match themselves (path === prefix); the union of
     // {a.md, c.md} excludes the unselected b.md.
-    const branch = await ds.loadBranch(['a.md', 'c.md']);
+    const branch = await ds.loadBranch({ include: ['a.md', 'c.md'], exclude: [], excludeRoot: true });
     expect(branch.branch.paths).toEqual(['a.md', 'c.md']);
     expect(branch.branch.total).toBe(2);
     expect(branch.nodes.map((n) => n.path)).toEqual(['a.md', 'c.md']);
@@ -310,14 +310,14 @@ describe('StaticDataSource', () => {
     expect(branch.issues).toHaveLength(0);
   });
 
-  it('loadBranch(prefixes) ignores empty-string entries (treated as whole corpus)', async () => {
-    const branch = await ds.loadBranch(['']);
+  it('loadBranch ignores empty-string entries (treated as whole corpus)', async () => {
+    const branch = await ds.loadBranch({ include: [''], exclude: [], excludeRoot: false });
     expect(branch.branch.paths).toEqual([]);
     expect(branch.nodes.map((n) => n.path)).toEqual(['a.md', 'b.md', 'c.md']);
   });
 
   it('loadBranch(paths, limit) truncates and drops links / issues outside the slice', async () => {
-    const branch = await ds.loadBranch([], 1);
+    const branch = await ds.loadBranch({ include: [], exclude: [], excludeRoot: false }, 1);
     expect(branch.branch.total).toBe(3);
     expect(branch.branch.rendered).toBe(1);
     expect(branch.branch.truncated).toBe(true);
@@ -348,7 +348,7 @@ describe('StaticDataSource', () => {
       makeFakeProviderRegistry(),
       makeFakeContributionsRegistry(),
     );
-    const branch = await nested.loadBranch(['src', 'docs']);
+    const branch = await nested.loadBranch({ include: ['src', 'docs'], exclude: [], excludeRoot: true });
     // `src` pulls both src/api/* nodes; `docs` pulls docs/c.md; other/d.md
     // matches neither prefix and is excluded.
     expect(branch.nodes.map((n) => n.path)).toEqual([
@@ -594,5 +594,60 @@ describe('StaticDataSource', () => {
       name: 'DataSourceError',
       code: 'internal',
     });
+  });
+});
+
+describe('StaticDataSource loadBranch, override scopes (demo mirror of the server rule)', () => {
+  function makeDs(): StaticDataSource {
+    return new StaticDataSource(
+      makeFetch({ 'data.meta.json': META_FIXTURE, 'data.json': SCAN_FIXTURE }),
+      makeFakeRegistry(),
+      makeFakeProviderRegistry(),
+      makeFakeContributionsRegistry(),
+    );
+  }
+
+  it('excludes a subtree from the whole corpus (pure subtractive)', async () => {
+    const ds2 = makeDs();
+    const branch = await ds2.loadBranch({ include: [], exclude: ['b.md'], excludeRoot: false });
+    expect(branch.nodes.map((n) => n.path)).toEqual(['a.md', 'c.md']);
+    expect(branch.branch.excluded).toEqual(['b.md']);
+    expect(branch.branch.rootExcluded).toBe(false);
+  });
+
+  it('a deeper include rescues part of an excluded subtree (nearest ancestor wins)', async () => {
+    const nestedScan = {
+      ...SCAN_FIXTURE,
+      nodes: [
+        { ...SCAN_FIXTURE.nodes[0], path: 'app/one.md' },
+        { ...SCAN_FIXTURE.nodes[1], path: 'app/legacy/old.md' },
+        { ...SCAN_FIXTURE.nodes[2], path: 'app/legacy/keep/gem.md' },
+      ],
+      links: [],
+      issues: [],
+    };
+    const nested = new StaticDataSource(
+      makeFetch({ 'data.meta.json': META_FIXTURE, 'data.json': nestedScan }),
+      makeFakeRegistry(),
+      makeFakeProviderRegistry(),
+      makeFakeContributionsRegistry(),
+    );
+    const branch = await nested.loadBranch({
+      include: ['app/legacy/keep'],
+      exclude: ['app/legacy'],
+      excludeRoot: false,
+    });
+    expect(branch.nodes.map((n) => n.path)).toEqual([
+      'app/legacy/keep/gem.md',
+      'app/one.md',
+    ]);
+  });
+
+  it('root excluded with no includes yields an empty branch', async () => {
+    const ds2 = makeDs();
+    const branch = await ds2.loadBranch({ include: [], exclude: [], excludeRoot: true });
+    expect(branch.branch.total).toBe(0);
+    expect(branch.nodes).toHaveLength(0);
+    expect(branch.branch.rootExcluded).toBe(true);
   });
 });

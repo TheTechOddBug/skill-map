@@ -61,7 +61,7 @@ const EMPTY_META = {
 const EMPTY_BRANCH = {
   schemaVersion: '1',
   kind: 'branch',
-  branch: { paths: [], total: 0, rendered: 0, truncated: false, cap: 256 },
+  branch: { paths: [], excluded: [], rootExcluded: false, total: 0, rendered: 0, truncated: false, cap: 256 },
   nodes: [],
   links: [],
   issues: [],

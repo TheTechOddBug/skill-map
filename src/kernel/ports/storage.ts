@@ -43,6 +43,7 @@ import type {
   IApplyOptions,
   IApplyResult,
   IBranchProjection,
+  IBranchScope,
   IFindingRecord,
   IFindingResolutionIntent,
   IFindingSeverityCount,
@@ -225,21 +226,27 @@ export interface StoragePort {
      */
     effectiveMaxRenderNodes(): Promise<number>;
     /**
-     * Prefix-union, capped graph projection for the BFF `/api/branch`
-     * endpoint. A node is in the branch when, for ANY prefix in
-     * `prefixes`, its `path === prefix` or starts with `prefix + '/'`;
-     * the per-prefix subtrees are UNIONed. An empty `prefixes` array
-     * selects the whole corpus. Identical prefixes are de-duped
-     * defensively. `nodes` is the first `limit` matching nodes of the
-     * union in stable path order (`ORDER BY path LIMIT`); `links`
-     * carries only edges whose source AND target are both in `nodes`;
-     * `issues` carries only those whose `nodeIds` intersect `nodes`.
-     * `total` is the count of union nodes BEFORE the cap (so the route
-     * can compute `truncated`); `paths` echoes the de-duped prefixes.
-     * All scoping + capping happens in SQL so a 50K corpus never
-     * hydrates into memory.
+     * Override-scoped, capped graph projection for the BFF `/api/branch`
+     * endpoint (`spec/cli-contract.md` §Map scope overrides). A node is
+     * in the branch when its NEAREST matching override (longest of the
+     * scope's include/exclude paths that equals the node's path or
+     * prefixes it, the root riding `rootExcluded`) is an include, or no
+     * override matches at all (default include). The degenerate scopes
+     * keep the historical semantics: `{include: [], exclude: [],
+     * rootExcluded: false}` selects the whole corpus with no WHERE;
+     * `{include: P, exclude: [], rootExcluded: true}` is the old
+     * prefix-union over P. Identical paths are de-duped defensively.
+     * `nodes` is the first `limit` scoped nodes in stable path order
+     * (`ORDER BY path LIMIT`); `links` carries only edges whose source
+     * AND resolved target are both in `nodes`; `issues` carries only
+     * those whose `nodeIds` intersect `nodes`. `total` is the count of
+     * scoped nodes BEFORE the cap (so the route can compute
+     * `truncated`); `paths` echoes the de-duped includes. All scoping +
+     * capping happens in SQL so a 50K corpus never hydrates into memory;
+     * the fully-excluded scope (`rootExcluded` with no includes) short-
+     * circuits to an empty projection without querying.
      */
-    loadBranch(prefixes: string[], limit: number): Promise<IBranchProjection>;
+    loadBranch(scope: IBranchScope, limit: number): Promise<IBranchProjection>;
     /**
      * Refresh ONE node's denormalized `scan_nodes.annotations_json`
      * mirror from its just-written `.sm` annotations, the write-through
@@ -897,6 +904,7 @@ export type {
   IApplyOptions,
   IApplyResult,
   IBranchProjection,
+  IBranchScope,
   IFindingRecord,
   IFindingResolutionIntent,
   IFindingSeverityCount,

@@ -254,7 +254,8 @@
 
 /* Map visibility tri-state control. A small custom box (no
    clean indeterminate on PrimeNG checkbox): empty == hidden, check == all,
-   minus == partial folder. Lives at the front of the tree cell. */
+   minus == mixed folder (some of the subtree hidden). Lives at the front
+   of the tree cell; the header hosts the master (root) instance. */
 .files__vis-check {
   display: inline-flex;
   flex: 0 0 auto;
@@ -281,20 +282,14 @@
   border-color: var(--p-primary-color);
 }
 
-/* Covered by a selected ancestor folder: shown checked but not
-   interactive (a folder prefix includes its whole subtree). Dimmed so
-   the user reads it as "controlled by the parent". */
-.files__vis-check:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.files__vis-check:disabled:hover {
-  border-color: var(--p-content-border-color);
-}
-
 .files__vis-check .pi {
   font-size: 0.7rem;
+}
+
+/* The master (root) checkbox sits in the tree-column header, before the
+   sort button; a touch more separation than the in-row 0.35rem. */
+.files__vis-check--all {
+  margin-right: 0.5rem;
 }
 
 .files__split > p-table {

@@ -353,7 +353,7 @@ export class SqliteStorageAdapter implements StoragePort {
       distinctNodeProviders: () => loadDistinctNodeProviders(this.db),
       issueCountsByPath: () => loadIssueCountsByPath(this.db),
       effectiveMaxRenderNodes: () => loadEffectiveMaxRenderNodes(this.db),
-      loadBranch: (prefixes, limit) => loadBranch(this.db, prefixes, limit),
+      loadBranch: (scope, limit) => loadBranch(this.db, scope, limit),
       refreshAnnotations: (path, annotations) =>
         updateNodeAnnotations(this.db, path, annotations),
     };

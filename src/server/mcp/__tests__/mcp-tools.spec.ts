@@ -274,6 +274,24 @@ describe('mcp get_branch', () => {
     assert.equal(res.branch.total, 0);
     assert.deepEqual(res.nodes, []);
   });
+
+  it('applies exclude overrides (map scope overrides, same rule as the route)', async () => {
+    await prime({
+      nodes: [makeNode('app/one.md'), makeNode('app/legacy/old.md'), makeNode('docs/g.md')],
+    });
+    const res = await getBranch(ctx(), { path: [], exclude: ['app/legacy'] });
+    assert.deepEqual(res.nodes.map((n) => n.path).sort(), ['app/one.md', 'docs/g.md']);
+    assert.deepEqual(res.branch.excluded, ['app/legacy']);
+    assert.equal(res.branch.rootExcluded, false);
+  });
+
+  it('rejects a path present as both include and exclude (invalid params)', async () => {
+    await prime({ nodes: [makeNode('a.md')] });
+    await assert.rejects(
+      () => getBranch(ctx(), { path: ['docs'], exclude: ['docs'] }),
+      /include.*exclude|both/i,
+    );
+  });
 });
 
 describe('mcp resources', () => {

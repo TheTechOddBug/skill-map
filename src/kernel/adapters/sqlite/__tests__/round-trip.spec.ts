@@ -411,7 +411,10 @@ describe('branch projection (`loadBranch`) carries resolved trigger edges', () =
         makeScanResult([publish, agent, skill, deploy, root], [invokes, mentions, pathRef, broken]),
       );
 
-      const branch = await adapter.scans.loadBranch([], 256);
+      const branch = await adapter.scans.loadBranch(
+        { include: [], exclude: [], rootExcluded: false },
+        256,
+      );
       const edges = branch.links
         .map((l) => `${l.source} --${l.kind}--> ${l.resolvedTarget ?? l.target}`)
         .sort();

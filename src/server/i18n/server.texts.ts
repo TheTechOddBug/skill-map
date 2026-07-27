@@ -72,6 +72,10 @@ export const SERVER_TEXTS = {
   // so this message only ever fires on a malformed / < 1 input.
   branchInvalidLimit:
     'limit={{value}} is not a positive integer (>= 1).',
+  branchInvalidExcludeRoot:
+    'excludeRoot={{value}} is not valid; use 1 (excluded) or 0 (included).',
+  branchConflictingPath:
+    'The path "{{path}}" appears as both an include (path=) and an exclude (exclude=).',
 
   // Required-query-param miss (used by `parseRequiredString`). The
   // route names the offending parameter so the operator gets a useful

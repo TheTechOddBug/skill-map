@@ -1,21 +1,20 @@
 import { Injectable, computed, effect, signal } from '@angular/core';
 
-import { readStoredVisiblePaths, writeStoredVisiblePaths } from './map-visibility.storage';
+import {
+  applySetSubtree,
+  effectiveState,
+  overrideMapsEqual,
+  type TOverrideMap,
+  type TVisibilityOverride,
+} from './map-overrides';
+import { readStoredOverrides, writeStoredOverrides } from './map-visibility.storage';
 
 /**
- * Tri-state of a folder's selection: `all` when the folder's own prefix
- * is selected, `some` when a strict descendant is selected but the folder
- * is not, `none` otherwise. Computed by the files-view over the tree
- * walk; not derived here.
+ * Tri-state of a folder's subtree on the map: `all` when every node
+ * under it is visible, `none` when none is, `some` when mixed. Computed
+ * by the files-view over the tree walk; not derived here.
  */
 export type TFolderVisibility = 'all' | 'none' | 'some';
-
-/** Value-equality for two path sets (order- and identity-independent). */
-function setsEqual(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
-  if (a.size !== b.size) return false;
-  for (const value of a) if (!b.has(value)) return false;
-  return true;
-}
 
 /** True when at least one path in `validPaths` is a descendant of `prefix`. */
 function hasDescendant(validPaths: ReadonlySet<string>, prefix: string): boolean {
@@ -25,90 +24,86 @@ function hasDescendant(validPaths: ReadonlySet<string>, prefix: string): boolean
 }
 
 /**
- * Shared, project-local store for the MAP selection.
+ * Shared, project-local store for the MAP scope, the deviation model of
+ * `spec/cli-contract.md` §Map scope overrides.
  *
- * Holds the set of PREFIXES (folder paths) and exact LEAF paths the user
- * selected via the rail checkboxes. This selection IS the map control:
- * the loader debounce-fetches `/api/branch` with these paths as repeated
- * `?path=` params and the server returns their capped UNION, which the
- * graph renders directly. An empty set is the default and means "whole
- * corpus root" (the server returns everything up to the cap).
+ * Holds the OVERRIDE map (`path -> include | exclude`, root = `''`).
+ * The default is the EMPTY map: everything visible, every rail checkbox
+ * checked. Unchecking a row writes an exclude override for its subtree;
+ * checking writes an include; a row whose toggle lands back on what it
+ * would inherit anyway deletes its override instead (`applySetSubtree`
+ * keeps the map canonical, so `isActive` is exact). Effective state is
+ * nearest-ancestor-wins, evaluated SERVER-SIDE for the graph: the
+ * loader compiles this map onto `/api/branch` (`path=` / `exclude=` /
+ * `excludeRoot=`) and the server returns the capped scoped set, which
+ * the graph renders directly.
  *
- * Because a folder prefix is sent verbatim (not its expanded leaf set),
- * the request stays small no matter how big the subtree is, and the
- * server applies the cap. The isolate gesture re-selects exact node
- * paths (`setOnly`), which re-fetches that neighborhood; coherent with
- * the rest of the selection. Neighborhood computation lives in the graph
- * view, which owns the link graph, keeping this service decoupled from
- * topology.
- *
- * Persisted to `localStorage` (survives a reload) via an effect, mirroring
- * the `nodePositions` / `collapsed` discipline. Mutations are immutable
- * `new Set(prev)` swaps so signal consumers re-run on identity change.
+ * Persisted to `localStorage` (survives a reload) via an effect,
+ * mirroring the `nodePositions` / `collapsed` discipline; the legacy
+ * inclusion-whitelist entry migrates on first read. Mutations are
+ * immutable map swaps so signal consumers re-run on identity change.
  */
 @Injectable({ providedIn: 'root' })
 export class MapVisibilityService {
-  private readonly _paths = signal<ReadonlySet<string>>(readStoredVisiblePaths());
+  private readonly _overrides = signal<TOverrideMap>(readStoredOverrides());
 
-  /** The selection set (prefixes + leaf paths). Empty == "whole corpus". */
-  readonly paths = this._paths.asReadonly();
+  /** The override map (root = `''`). Empty == everything visible. */
+  readonly overrides = this._overrides.asReadonly();
 
-  /** True when a selection is active (the map is showing a sub-selection). */
-  readonly isActive = computed(() => this._paths().size > 0);
-
-  /** Count of selected prefixes / leaves, for badges. */
-  readonly count = computed(() => this._paths().size);
-
-  /**
-   * Whether a path is part of the selection. When the selection is empty
-   * everything is in scope; once active, only the selected paths are.
-   * Reactive (reads the selection signal), so consumers that call it
-   * inside a `computed` re-run when the selection changes.
-   */
-  inScope(path: string): boolean {
-    const paths = this._paths();
-    return paths.size === 0 || paths.has(path);
-  }
+  /** True when any override is active (the map deviates from show-all). */
+  readonly isActive = computed(() => this._overrides().size > 0);
 
   constructor() {
-    effect(() => writeStoredVisiblePaths(this._paths()));
-  }
-
-  /** Toggle a single leaf node's membership in the selection. */
-  toggleLeaf(path: string): void {
-    const next = new Set(this._paths());
-    if (next.has(path)) next.delete(path);
-    else next.add(path);
-    this._paths.set(next);
+    effect(() => writeStoredOverrides(this._overrides()));
   }
 
   /**
-   * Toggle a single folder PREFIX in the selection. The prefix is sent
-   * verbatim to `/api/branch`; the server expands it to the (capped)
-   * subtree union. Adds the prefix when absent, removes it when present.
+   * Effective visibility of a path under the current overrides
+   * (nearest-ancestor-wins; no override = included). Reactive: reads
+   * the overrides signal, so `computed` consumers re-run on change.
    */
-  toggleFolder(folderPath: string): void {
-    if (folderPath === '') return;
-    const next = new Set(this._paths());
-    if (next.has(folderPath)) next.delete(folderPath);
-    else next.add(folderPath);
-    this._paths.set(next);
+  effectiveState(path: string): TVisibilityOverride {
+    return effectiveState(this._overrides(), path);
   }
 
-  /** Replace the whole set (the isolate gesture's apply primitive). */
+  /**
+   * THE toggle primitive: force `path`'s subtree to `desired`
+   * (`path === ''` = the whole corpus, the master checkbox). Drops the
+   * subtree's own overrides first and writes only a non-redundant
+   * override, so the map stays canonical.
+   */
+  setSubtree(path: string, desired: TVisibilityOverride): void {
+    this._overrides.set(applySetSubtree(this._overrides(), path, desired));
+  }
+
+  /**
+   * Show ONLY `paths` (the tag-selection / isolate apply primitive):
+   * root-exclude plus one include per path. An empty iterable clears to
+   * show-all, preserving the historical `setOnly([])` meaning.
+   */
   setOnly(paths: Iterable<string>): void {
-    this._paths.set(new Set(paths));
+    const next = new Map<string, TVisibilityOverride>();
+    for (const path of paths) {
+      if (path.length > 0) next.set(path, 'include');
+    }
+    if (next.size > 0) next.set('', 'exclude');
+    this._overrides.set(next);
+  }
+
+  /** Restore a snapshot verbatim (tag-selection / isolate toggle-back). */
+  setOverrides(overrides: TOverrideMap): void {
+    this._overrides.set(new Map(overrides));
   }
 
   // --- isolate toggle bookkeeping -----------------------------------------
   // In-memory only (NOT persisted): a reload starts a fresh isolate cycle,
-  // which is the sane default. The snapshot holds the inclusion set as it was
+  // which is the sane default. The snapshot holds the override map as it was
   // right before the last isolate; the origin + result let a re-isolate of the
   // SAME node decide whether the map is still showing exactly what that isolate
   // produced (strict toggle) or whether the user edited curation in between.
   private _isolateOrigin: string | null = null;
-  private _isolateSnapshot: ReadonlySet<string> | null = null;
-  private _isolateResult: ReadonlySet<string> | null = null;
+  private _isolateSnapshot: TOverrideMap | null = null;
+  private _isolateResult: TOverrideMap | null = null;
 
   private resetIsolateMemory(): void {
     this._isolateOrigin = null;
@@ -118,11 +113,11 @@ export class MapVisibilityService {
 
   /**
    * Isolate gesture with toggle-back. The first call snapshots the current
-   * inclusion set, then narrows the map to `neighborhood`. A second call for
+   * override map, then narrows the map to `neighborhood`. A second call for
    * the SAME `origin`, while the map is still showing exactly that
    * neighborhood, restores the snapshot (the visibility from before the
    * isolate). Any other call (a different `origin`, or the curation was edited
-   * in between so the live set no longer matches) starts a fresh isolate and
+   * in between so the live map no longer matches) starts a fresh isolate and
    * re-snapshots. Returns the action taken so the caller can keep node
    * selection in sync (`isolated` selects the origin; `restored` leaves
    * selection untouched).
@@ -131,47 +126,58 @@ export class MapVisibilityService {
    * graph, keeping this service decoupled from topology.
    */
   isolate(origin: string, neighborhood: Iterable<string>): 'isolated' | 'restored' {
-    const result = new Set(neighborhood);
+    const applied = new Map<string, TVisibilityOverride>();
+    for (const path of neighborhood) {
+      if (path.length > 0) applied.set(path, 'include');
+    }
+    if (applied.size > 0) applied.set('', 'exclude');
     const isToggleBack =
       this._isolateOrigin === origin &&
       this._isolateResult !== null &&
-      setsEqual(this._paths(), this._isolateResult);
+      overrideMapsEqual(this._overrides(), this._isolateResult);
     if (isToggleBack) {
-      const snapshot = this._isolateSnapshot ?? new Set<string>();
+      const snapshot = this._isolateSnapshot ?? new Map<string, TVisibilityOverride>();
       this.resetIsolateMemory();
-      this.setOnly(snapshot);
+      this.setOverrides(snapshot);
       return 'restored';
     }
-    this._isolateSnapshot = this._paths();
+    this._isolateSnapshot = this._overrides();
     this._isolateOrigin = origin;
-    this._isolateResult = result;
-    this.setOnly(result);
+    this._isolateResult = applied;
+    this._overrides.set(applied);
     return 'isolated';
   }
 
-  /** Clear curation; the map returns to "show all". */
+  /** Clear every override; the map returns to "show all". */
   clear(): void {
-    if (this._paths().size === 0) return;
-    this._paths.set(new Set());
+    if (this._overrides().size === 0) return;
+    this._overrides.set(new Map());
   }
 
   /**
-   * Drop any selected path no longer present after a re-scan. The
-   * selection holds folder PREFIXES + exact leaf paths, so a path stays
-   * valid when it is itself a node OR it is a folder prefix that still
-   * has at least one descendant node. Without the prefix check a folder
-   * selection (never itself a node path) would be wiped on every prune.
-   * If pruning empties the set the map falls back to "show all".
+   * Drop any override whose path no longer exists after a re-scan. An
+   * override key stays valid when it is the root, itself a node path,
+   * or a folder prefix that still has at least one descendant node
+   * (folder prefixes are never node paths themselves). If pruning
+   * leaves a scope where nothing can be visible (root excluded with no
+   * surviving include), everything clears: the map falls back to
+   * "show all", today's failsafe for a selection that died wholesale.
    */
   prune(validPaths: ReadonlySet<string>): void {
-    const current = this._paths();
+    const current = this._overrides();
     if (current.size === 0) return;
     let changed = false;
-    const next = new Set<string>();
-    for (const path of current) {
-      if (validPaths.has(path) || hasDescendant(validPaths, path)) next.add(path);
-      else changed = true;
+    const next = new Map<string, TVisibilityOverride>();
+    for (const [key, kind] of current) {
+      if (key === '' || validPaths.has(key) || hasDescendant(validPaths, key)) {
+        next.set(key, kind);
+      } else {
+        changed = true;
+      }
     }
-    if (changed) this._paths.set(next);
+    if (!changed) return;
+    const nothingVisible =
+      next.get('') === 'exclude' && ![...next.values()].includes('include');
+    this._overrides.set(nothingVisible ? new Map() : next);
   }
 }

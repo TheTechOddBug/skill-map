@@ -498,3 +498,132 @@ describe('GET /api/branch', () => {
     });
   });
 });
+
+/**
+ * Map scope overrides (`spec/cli-contract.md` §Map scope overrides):
+ * the deviation-model wire surface. The include-only cases above double
+ * as the backcompat proof (bare `?path=` keeps the historical union
+ * semantics via the inference rule); these pin the new parameters.
+ */
+describe('GET /api/branch (map scope overrides)', () => {
+  const TREE = [
+    makeNode('app/one.md'),
+    makeNode('app/legacy/old.md'),
+    makeNode('app/legacy/keep/gem.md'),
+    makeNode('docs/guide.md'),
+  ];
+
+  it('exclude-only: whole corpus minus the excluded subtree, scope echoed', async () => {
+    await prime({ nodes: TREE });
+    await bootAndUse(async (handle) => {
+      const res = await fetch(url(handle, '/api/branch?exclude=app/legacy'));
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as IBranchBody & {
+        branch: { excluded: string[]; rootExcluded: boolean };
+      };
+      assert.deepEqual(body.nodes.map((n) => n.path), ['app/one.md', 'docs/guide.md']);
+      assert.equal(body.branch.total, 2);
+      assert.deepEqual(body.branch.paths, []);
+      assert.deepEqual(body.branch.excluded, ['app/legacy']);
+      assert.equal(body.branch.rootExcluded, false);
+    });
+  });
+
+  it('nested rescue: include under an exclude keeps the root included (inference)', async () => {
+    await prime({ nodes: TREE });
+    await bootAndUse(async (handle) => {
+      const res = await fetch(
+        url(handle, '/api/branch?exclude=app/legacy&path=app/legacy/keep'),
+      );
+      const body = (await res.json()) as IBranchBody & {
+        branch: { rootExcluded: boolean };
+      };
+      assert.deepEqual(body.nodes.map((n) => n.path), [
+        'app/legacy/keep/gem.md',
+        'app/one.md',
+        'docs/guide.md',
+      ]);
+      assert.equal(body.branch.rootExcluded, false);
+    });
+  });
+
+  it('excludeRoot=1 alone: empty branch, total 0', async () => {
+    await prime({ nodes: TREE });
+    await bootAndUse(async (handle) => {
+      const res = await fetch(url(handle, '/api/branch?excludeRoot=1'));
+      const body = (await res.json()) as IBranchBody & {
+        branch: { rootExcluded: boolean };
+      };
+      assert.equal(body.branch.total, 0);
+      assert.equal(body.nodes.length, 0);
+      assert.equal(body.branch.rootExcluded, true);
+      assert.equal(body.branch.truncated, false);
+    });
+  });
+
+  it('an explicit excludeRoot=0 beats the bare-include inference', async () => {
+    await prime({ nodes: TREE });
+    await bootAndUse(async (handle) => {
+      // Bare ?path=docs would infer an excluded root (only docs/); the
+      // explicit 0 keeps the whole corpus (the include is redundant).
+      const res = await fetch(url(handle, '/api/branch?path=docs&excludeRoot=0'));
+      const body = (await res.json()) as IBranchBody;
+      assert.equal(body.branch.total, 4);
+    });
+  });
+
+  it('400 bad-query when a path is both included and excluded', async () => {
+    await prime({ nodes: TREE });
+    await bootAndUse(async (handle) => {
+      const res = await fetch(url(handle, '/api/branch?path=docs&exclude=docs'));
+      assert.equal(res.status, 400);
+      const body = (await res.json()) as { ok: boolean; error: { code: string } };
+      assert.equal(body.ok, false);
+      assert.equal(body.error.code, 'bad-query');
+    });
+  });
+
+  it('400 bad-query on a malformed excludeRoot value', async () => {
+    await prime({ nodes: TREE });
+    await bootAndUse(async (handle) => {
+      for (const bad of ['yes', '2', 'true']) {
+        const res = await fetch(url(handle, `/api/branch?excludeRoot=${bad}`));
+        assert.equal(res.status, 400, `excludeRoot=${bad}`);
+      }
+    });
+  });
+
+  it('total and truncated are post-override (cap math over the scoped set)', async () => {
+    await prime({
+      nodes: [
+        makeNode('keep/a.md'),
+        makeNode('keep/b.md'),
+        makeNode('keep/c.md'),
+        makeNode('noise/x.md'),
+        makeNode('noise/y.md'),
+        makeNode('noise/z.md'),
+      ],
+    });
+    await bootAndUse(async (handle) => {
+      const res = await fetch(url(handle, '/api/branch?exclude=noise&limit=2'));
+      const body = (await res.json()) as IBranchBody;
+      // total counts the 3 scoped nodes, never the 6 raw ones.
+      assert.equal(body.branch.total, 3);
+      assert.equal(body.branch.rendered, 2);
+      assert.equal(body.branch.truncated, true);
+      assert.deepEqual(body.nodes.map((n) => n.path), ['keep/a.md', 'keep/b.md']);
+    });
+  });
+
+  it('DB absent: the resolved scope is echoed on the empty branch too', async () => {
+    await bootAndUse(async (handle) => {
+      const res = await fetch(url(handle, '/api/branch?exclude=noise'));
+      const body = (await res.json()) as IBranchBody & {
+        branch: { excluded: string[]; rootExcluded: boolean };
+      };
+      assert.deepEqual(body.branch.excluded, ['noise']);
+      assert.equal(body.branch.rootExcluded, false);
+      assert.equal(body.branch.total, 0);
+    });
+  });
+});

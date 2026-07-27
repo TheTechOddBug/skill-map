@@ -332,22 +332,37 @@ export interface IFolderNodeLite {
 }
 
 /**
- * `GET /api/branch?path=<prefix>&path=<prefix>&...&limit=<n>` response.
+ * The map scope overrides a branch request carries
+ * (`spec/cli-contract.md` §Map scope overrides): `include` / `exclude`
+ * are the non-root override paths, `excludeRoot` the root override. The
+ * loader compiles it from `MapVisibilityService.overrides()` via
+ * `compileOverridesToWire`; the UI always states `excludeRoot`
+ * explicitly (inference exists for external callers only).
+ */
+export interface IBranchScopeApi {
+  include: string[];
+  exclude: string[];
+  excludeRoot: boolean;
+}
+
+/**
+ * `GET /api/branch?path=&exclude=&excludeRoot=&limit=` response.
  * Direct shape (NO envelope wrap, like `/api/scan`): the SPA branches on
  * `schemaVersion` + `kind`. The graph map renders this; the whole corpus
  * is never hydrated in one payload.
  *
- * The `path` query param is REPEATABLE: the response is the UNION of the
- * subtrees under every requested prefix (plus any exact leaf paths),
- * capped at the scan's `maxRenderNodes`. No prefixes = whole-corpus root.
+ * The scope is evaluated server-side (nearest-ancestor-wins) BEFORE the
+ * cap, so `total` / `truncated` describe the scoped set. No overrides =
+ * whole corpus.
  *
- *   - `branch.paths`: the requested prefixes / leaf paths (empty =
- *     whole-corpus root).
- *   - `branch.total`: union node count BEFORE the cap.
+ *   - `branch.paths`: the resolved include overrides (empty = none).
+ *   - `branch.excluded` / `branch.rootExcluded`: the resolved exclude
+ *     side of the scope.
+ *   - `branch.total`: scoped node count BEFORE the cap.
  *   - `branch.rendered`: nodes actually returned (`min(total, cap)`).
  *   - `branch.truncated`: `total > cap` (drives the branch-cap banner).
  *   - `branch.cap`: the effective render cap for this branch.
- *   - `nodes`: the first `rendered` nodes of the union, in stable
+ *   - `nodes`: the first `rendered` nodes of the scoped set, in stable
  *     path order, capped at the scan's `maxRenderNodes`.
  *   - `links`: only edges whose source AND target are both in `nodes`.
  *   - `issues`: only issues whose `nodeIds` intersect `nodes`.
@@ -357,6 +372,8 @@ export interface IBranchResponseApi {
   kind: 'branch';
   branch: {
     paths: string[];
+    excluded: string[];
+    rootExcluded: boolean;
     total: number;
     rendered: number;
     truncated: boolean;

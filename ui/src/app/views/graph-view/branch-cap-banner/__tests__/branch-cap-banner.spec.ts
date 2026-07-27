@@ -32,6 +32,8 @@ function branch(over: Partial<IBranchResponseApi['branch']>): IBranchResponseApi
     kind: 'branch',
     branch: {
       paths: [],
+      excluded: [],
+      rootExcluded: false,
       total: 0,
       rendered: 0,
       truncated: false,

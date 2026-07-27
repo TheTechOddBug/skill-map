@@ -60,6 +60,26 @@
           <tr>
             <th class="files__col-tree" [attr.aria-sort]="ariaSortFor('tree')" data-testid="files-col-tree">
               <div class="files__tree-head">
+                <!-- Master map-visibility checkbox: the root override
+                     (path ''). Same data-state vocabulary + icons as the
+                     row checkboxes; mixed clicks to fully visible. -->
+                <button
+                  type="button"
+                  class="files__vis-check files__vis-check--all"
+                  [attr.data-state]="rootState()"
+                  [pTooltip]="texts.mapAllTooltip"
+                  tooltipPosition="top"
+                  [attr.aria-label]="texts.mapAllAriaLabel"
+                  (click)="onToggleAllVisibility()"
+                  data-testid="files-vis-root"
+                >
+                  <i
+                    class="pi"
+                    [class.pi-check]="rootState() === 'all'"
+                    [class.pi-minus]="rootState() === 'some'"
+                    aria-hidden="true"
+                  ></i>
+                </button>
                 <button
                   type="button"
                   class="files__sort-btn"
@@ -226,10 +246,9 @@
         </ng-template>
         <ng-template pTemplate="body" let-row let-rowIndex="rowIndex">
           @if (row.type === 'folder') {
-            <!-- One Set lookup per row via @let, the memoized computeds
-                 (`coveredByAncestor`, `folderStateMap`) own the tree walk. -->
-            @let folderCovered = coveredByAncestor().has(row.path);
-            @let folderState = folderCovered ? 'all' : (folderStateMap().get(row.path) ?? 'none');
+            <!-- One Map lookup per row via @let, the memoized effective-
+                 state walk (`folderStateMap`) owns the tree traversal. -->
+            @let folderState = folderStateMap().get(row.path) ?? 'all';
             <!-- No role override: the tr keeps its native row semantics
                  (which allow aria-expanded / aria-level / naming), so the
                  table structure stays valid and the nested action buttons
@@ -264,9 +283,8 @@
                     type="button"
                     class="files__vis-check"
                     [attr.tabindex]="activeIndex() === rowIndex ? 0 : -1"
-                    [disabled]="folderCovered"
                     [attr.data-state]="folderState"
-                    [pTooltip]="folderCovered ? texts.mapCoveredTooltip : texts.mapVisibilityTooltip"
+                    [pTooltip]="texts.mapVisibilityTooltip"
                     tooltipPosition="top"
                     [attr.aria-label]="texts.mapVisibilityAriaLabel(row.name)"
                     (click)="onToggleFolderVisibility(row, $event)"
@@ -330,7 +348,6 @@
             </tr>
           } @else {
             <!-- Same one-lookup-per-row shape as the folder branch. -->
-            @let leafCovered = coveredByAncestor().has(row.path);
             @let leafOnMap = visibleLeaves().has(row.path);
             <tr
               class="files__row files__row--leaf"
@@ -351,9 +368,8 @@
                     type="button"
                     class="files__vis-check"
                     [attr.tabindex]="activeIndex() === rowIndex ? 0 : -1"
-                    [disabled]="leafCovered"
                     [attr.data-state]="leafOnMap ? 'all' : 'none'"
-                    [pTooltip]="leafCovered ? texts.mapCoveredTooltip : texts.mapVisibilityTooltip"
+                    [pTooltip]="texts.mapVisibilityTooltip"
                     tooltipPosition="top"
                     [attr.aria-label]="texts.mapVisibilityAriaLabel(row.name)"
                     (click)="onToggleLeafVisibility(row, $event)"

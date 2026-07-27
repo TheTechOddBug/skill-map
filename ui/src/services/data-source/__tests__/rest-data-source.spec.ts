@@ -188,14 +188,14 @@ describe('RestDataSource', () => {
     ]);
   });
 
-  it('loadBranch([]) GETs /api/branch with no params for the root branch', async () => {
-    const promise = ds.loadBranch([]);
+  it('loadBranch with an empty scope GETs /api/branch with no params (whole corpus)', async () => {
+    const promise = ds.loadBranch({ include: [], exclude: [], excludeRoot: false });
     const req = httpMock.expectOne('/api/branch');
     expect(req.request.method).toBe('GET');
     const payload = {
       schemaVersion: '1',
       kind: 'branch',
-      branch: { paths: [], total: 0, rendered: 0, truncated: false, cap: 256 },
+      branch: { paths: [], excluded: [], rootExcluded: false, total: 0, rendered: 0, truncated: false, cap: 256 },
       nodes: [],
       links: [],
       issues: [],
@@ -204,14 +204,20 @@ describe('RestDataSource', () => {
     await expect(promise).resolves.toEqual(payload);
   });
 
-  it('loadBranch(paths) appends one repeated ?path= param per prefix', async () => {
-    const promise = ds.loadBranch(['src/api', 'docs']);
-    const req = httpMock.expectOne('/api/branch?path=src%2Fapi&path=docs');
+  it('encodes includes, excludes and the root override into the query string', async () => {
+    const promise = ds.loadBranch({
+      include: ['src/api', 'docs'],
+      exclude: ['src/api/legacy'],
+      excludeRoot: true,
+    });
+    const req = httpMock.expectOne(
+      '/api/branch?path=src%2Fapi&path=docs&exclude=src%2Fapi%2Flegacy&excludeRoot=1',
+    );
     expect(req.request.method).toBe('GET');
     req.flush({
       schemaVersion: '1',
       kind: 'branch',
-      branch: { paths: ['src/api', 'docs'], total: 12, rendered: 12, truncated: false, cap: 256 },
+      branch: { paths: ['src/api', 'docs'], excluded: ['src/api/legacy'], rootExcluded: true, total: 12, rendered: 12, truncated: false, cap: 256 },
       nodes: [],
       links: [],
       issues: [],
@@ -219,14 +225,14 @@ describe('RestDataSource', () => {
     await expect(promise).resolves.toMatchObject({ branch: { paths: ['src/api', 'docs'] } });
   });
 
-  it('loadBranch(paths, limit) encodes the prefixes + limit into the query string', async () => {
-    const promise = ds.loadBranch(['src/api'], 50);
-    const req = httpMock.expectOne('/api/branch?path=src%2Fapi&limit=50');
+  it('omits excludeRoot when false and encodes the limit', async () => {
+    const promise = ds.loadBranch({ include: [], exclude: ['noise'], excludeRoot: false }, 50);
+    const req = httpMock.expectOne('/api/branch?exclude=noise&limit=50');
     expect(req.request.method).toBe('GET');
     req.flush({
       schemaVersion: '1',
       kind: 'branch',
-      branch: { paths: ['src/api'], total: 80, rendered: 50, truncated: true, cap: 50 },
+      branch: { paths: [], excluded: ['noise'], rootExcluded: false, total: 80, rendered: 50, truncated: true, cap: 50 },
       nodes: [],
       links: [],
       issues: [],

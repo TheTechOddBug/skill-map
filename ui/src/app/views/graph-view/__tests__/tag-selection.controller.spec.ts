@@ -3,6 +3,7 @@ import { signal } from '@angular/core';
 
 import { setupTagSelection } from '../tag-selection.controller';
 import type { INodeView } from '../../../../models/node';
+import type { TOverrideMap, TVisibilityOverride } from '../../../../services/map-overrides';
 
 /**
  * Tag-selection controller. Clicking a tag curates the map to the nodes
@@ -20,14 +21,30 @@ function node(path: string, tags: string[]): INodeView {
   };
 }
 
-/** Minimal stand-in for `MapVisibilityService` (just the two members the
- *  controller touches), backed by a real signal so the Pick type fits. */
+/** Minimal stand-in for `MapVisibilityService` (just the members the
+ *  controller touches), backed by a real signal so the Pick type fits.
+ *  `current()` reports the include-override paths, sorted, mirroring
+ *  what `setOnly(paths)` writes (root-exclude + includes). */
 function makeMapVisibility(initial: string[] = []) {
-  const paths = signal<ReadonlySet<string>>(new Set(initial));
+  const seed = new Map<string, TVisibilityOverride>();
+  for (const p of initial) seed.set(p, 'include');
+  if (initial.length > 0) seed.set('', 'exclude');
+  const overrides = signal<TOverrideMap>(seed);
+  const setOnly = (p: Iterable<string>): void => {
+    const next = new Map<string, TVisibilityOverride>();
+    for (const path of p) if (path.length > 0) next.set(path, 'include');
+    if (next.size > 0) next.set('', 'exclude');
+    overrides.set(next);
+  };
   return {
-    paths,
-    setOnly: (p: Iterable<string>): void => paths.set(new Set(p)),
-    current: (): string[] => [...paths()].sort(),
+    overrides,
+    setOnly,
+    setOverrides: (m: TOverrideMap): void => overrides.set(new Map(m)),
+    current: (): string[] =>
+      [...overrides().entries()]
+        .filter(([, kind]) => kind === 'include')
+        .map(([path]) => path)
+        .sort(),
   };
 }
 
@@ -55,7 +72,7 @@ describe('setupTagSelection', () => {
     h.onTagSelect('infra');
     h.onTagSelect('infra'); // toggle off
 
-    expect(mv.paths().size).toBe(0); // empty == show all
+    expect(mv.overrides().size).toBe(0); // empty == show all
     expect(h.activeTagSelection()).toBeNull();
   });
 
@@ -80,7 +97,7 @@ describe('setupTagSelection', () => {
     expect(h.activeTagSelection()).toBe('review');
 
     h.onTagSelect('review'); // toggle off -> restore the ORIGINAL (show all)
-    expect(mv.paths().size).toBe(0);
+    expect(mv.overrides().size).toBe(0);
     expect(h.activeTagSelection()).toBeNull();
   });
 

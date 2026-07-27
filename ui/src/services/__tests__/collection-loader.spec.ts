@@ -45,6 +45,8 @@ function branch(nodes: INodeApi[] = [], paths: string[] = []): IBranchResponseAp
     kind: 'branch',
     branch: {
       paths,
+      excluded: [],
+      rootExcluded: false,
       total: nodes.length,
       rendered: nodes.length,
       truncated: false,
@@ -190,7 +192,11 @@ describe('CollectionLoaderService, three-fetch lazy boot', () => {
     expect(stub.loadFolders).toHaveBeenCalledTimes(1);
     expect(stub.loadBranch).toHaveBeenCalledTimes(1);
     // Boot fetches the union for the current (empty) selection = whole corpus.
-    expect(stub.loadBranch).toHaveBeenCalledWith([]);
+    expect(stub.loadBranch).toHaveBeenCalledWith({
+      include: [],
+      exclude: [],
+      excludeRoot: false,
+    });
 
     expect(svc.scanMeta()?.scanCeiling).toBe(1000);
     expect(svc.liteNodes()).toHaveLength(2);
@@ -365,8 +371,10 @@ describe('CollectionLoaderService, selection-driven branch fetch', () => {
     await Promise.resolve();
   }
 
-  it('boot fetches the union for the current (seeded) selection', async () => {
-    // Seed a selection BEFORE the loader boots so load() picks it up.
+  it('boot fetches the scope for the current (seeded, legacy-migrated) selection', async () => {
+    // Seed a LEGACY selection BEFORE the loader boots: the storage
+    // migration converts it to root-exclude + include, and load() sends
+    // that scope on the wire.
     localStorage.setItem('sm.map.visible-paths', JSON.stringify(['src']));
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -378,10 +386,14 @@ describe('CollectionLoaderService, selection-driven branch fetch', () => {
     const svc = TestBed.inject(CollectionLoaderService);
     await svc.load();
     expect(stub.loadBranch).toHaveBeenCalledTimes(1);
-    expect(stub.loadBranch).toHaveBeenCalledWith(['src']);
+    expect(stub.loadBranch).toHaveBeenCalledWith({
+      include: ['src'],
+      exclude: [],
+      excludeRoot: true,
+    });
   });
 
-  it('debounce-fetches the branch when the selection changes (one fetch per burst)', async () => {
+  it('debounce-fetches the branch when the overrides change (one fetch per burst)', async () => {
     const svc = bootstrap(stub, ws);
     await svc.load();
     expect(stub.loadBranch).toHaveBeenCalledTimes(1); // boot
@@ -392,9 +404,9 @@ describe('CollectionLoaderService, selection-driven branch fetch', () => {
 
     const sel = selection();
     // A burst of three toggles before the debounce fires.
-    sel.toggleFolder('src');
-    sel.toggleFolder('docs');
-    sel.toggleFolder('docs'); // toggles docs back off
+    sel.setSubtree('src', 'exclude');
+    sel.setSubtree('docs', 'exclude');
+    sel.setSubtree('docs', 'include'); // toggles docs back to inherited
     TestBed.tick(); // run the selection effect(s)
 
     // Debounce not elapsed yet: still only the boot fetch.
@@ -403,28 +415,35 @@ describe('CollectionLoaderService, selection-driven branch fetch', () => {
     vi.advanceTimersByTime(SELECTION_FETCH_DEBOUNCE_MS);
     await flush();
 
-    // Exactly one coalesced fetch with the final selection (only 'src').
+    // Exactly one coalesced fetch with the final scope (only src excluded).
     expect(stub.loadBranch).toHaveBeenCalledTimes(2);
-    expect(stub.loadBranch).toHaveBeenLastCalledWith(['src']);
+    expect(stub.loadBranch).toHaveBeenLastCalledWith({
+      include: [],
+      exclude: ['src'],
+      excludeRoot: false,
+    });
     expect(svc.nodes()).toHaveLength(1);
     expect(svc.nodes()[0]?.path).toBe('src/x.md');
-    // Meta + folders are NOT re-fetched on a selection change.
+    // Meta + folders are NOT re-fetched on a scope change.
     expect(stub.loadScanMeta).toHaveBeenCalledTimes(1);
     expect(stub.loadFolders).toHaveBeenCalledTimes(1);
   });
 
-  it('sends multiple selected prefixes as the union request', async () => {
+  it('sends the full override scope on the wire (includes + excludes + root)', async () => {
     const svc = bootstrap(stub, ws);
     await svc.load();
 
     const sel = selection();
-    sel.toggleFolder('src');
-    sel.toggleFolder('docs');
+    sel.setOnly(['src', 'docs']);
     TestBed.tick();
     vi.advanceTimersByTime(SELECTION_FETCH_DEBOUNCE_MS);
     await flush();
 
-    expect(stub.loadBranch).toHaveBeenLastCalledWith(['src', 'docs']);
+    expect(stub.loadBranch).toHaveBeenLastCalledWith({
+      include: ['docs', 'src'],
+      exclude: [],
+      excludeRoot: true,
+    });
     void svc;
   });
 
