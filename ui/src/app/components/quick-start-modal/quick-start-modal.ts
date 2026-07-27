@@ -161,6 +161,21 @@ export class QuickStartModal {
     this.activeGroup.set(id);
   }
 
+  /**
+   * Per-group tutorial pointer, shown under the active group's rows:
+   * names the matching part of the `sm-tutorial` book, with the launch
+   * invocation rendered as a command chip between the two segments.
+   */
+  protected readonly tutorialNotePrefix = computed<string>(() =>
+    this.texts.tutorial.notePrefix(this.texts.tutorial.parts[this.activeGroup()]),
+  );
+  /** The book's launch handle on the active lens (same sigil join as `agentJobsDescription`). */
+  protected readonly tutorialInvocation = computed<string>(() => {
+    const active = this.activeProvider();
+    const sigil = (active ? this.providerRegistry.lookup(active)?.invocationSigil : undefined) ?? '/';
+    return `${sigil}sm-tutorial`;
+  });
+
   /** One shared error banner at the top of the body (formatErr output). */
   protected readonly error = signal<string | null>(null);
   /** Pending keys, one per in-flight mutation, so its button disables. */
@@ -787,6 +802,11 @@ export class QuickStartModal {
     this.pingState.set('checking');
     const result = await this.agentPing.check();
     this.removePending(key);
+    if (result.verdict === 'abandoned') {
+      // The surface closed mid-check: back to idle, no verdict to show.
+      this.pingState.set('idle');
+      return;
+    }
     if (result.verdict === 'error') {
       this.pingState.set('error');
       this.error.set(result.message ?? '');

@@ -164,6 +164,27 @@ export const QUICK_START_TEXTS = {
     recheck: 'Recheck',
   },
 
+  /**
+   * Per-group pointer to the guided tutorial (the `sm-tutorial` book).
+   * Each Quick Start group has a matching part of the book; the note
+   * names it and says how to launch it. The book runs in an EMPTY
+   * folder, never this project, so the note spells that out.
+   * `invocation` is the skill handle joined against the active lens's
+   * `invocationSigil`, mirroring `rows.agentJobs.description`.
+   */
+  tutorial: {
+    // The note renders as prefix + a code-styled invocation chip +
+    // suffix, so the segments live separately.
+    notePrefix: (part: string): string =>
+      `Prefer a guided walkthrough? The tutorial covers this in "${part}". In an empty folder, run `,
+    noteSuffix: ' in your agent and pick that part from the menu.',
+    parts: {
+      live: 'The live map (prologue)',
+      realtime: 'Real time: watch your agent run',
+      ai: 'The AI layer: your agent works the map',
+    },
+  },
+
   /** The three capability groups (rail label + its own panel description). */
   groups: {
     live: {

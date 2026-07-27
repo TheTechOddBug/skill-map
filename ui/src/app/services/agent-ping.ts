@@ -39,8 +39,10 @@ export const PING_TIMEOUT_MS = 15_000;
  *     or the submit was refused because the processing skill is missing.
  *   - `no-node`: nothing real is scanned yet to aim the ping at.
  *   - `error`: transport / unexpected submit failure (`message` set).
+ *   - `abandoned`: the surface abandoned the check mid-watch
+ *     (`abandon()`); says nothing about the agent, stamps nothing.
  */
-export type TPingVerdict = 'alive' | 'no-agent' | 'no-node' | 'error';
+export type TPingVerdict = 'alive' | 'no-agent' | 'no-node' | 'error' | 'abandoned';
 
 export interface IPingResult {
   verdict: TPingVerdict;
@@ -59,22 +61,35 @@ export class AgentPingService {
   private jobId: string | null = null;
   private sub: Subscription | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  /** Resolver of the armed watch, so `abandon()` can settle it. */
+  private settleWatch: ((result: IPingResult) => void) | null = null;
 
   /** Run one full-circuit check (single-flight; see the file header). */
   check(): Promise<IPingResult> {
     if (this.inFlight !== null) return this.inFlight;
+    // Latch a closed gate for the whole check window (user spec
+    // 2026-07-27): the side probes riding along with the check must not
+    // reopen the AI affordances before the verdict itself does.
+    this.readiness.noteCheckStarted();
     const run = this.run()
       .then((result) => {
         // The check has AUTHORITY over the connected state (user spec
         // 2026-07-26): a red verdict closes the submit gate (every
         // probabilistic affordance disables) until a claim or a green
-        // check reopens it. `no-node` / `error` say nothing about the
-        // agent and stamp nothing.
-        if (result.verdict === 'alive') this.readiness.noteAgentAlive(true);
+        // check reopens it. `no-node` / `error` / `abandoned` say
+        // nothing about the agent and stamp nothing.
+        if (result.verdict === 'alive') {
+          this.readiness.noteAgentAlive(true);
+          // The claim proves an agent is draining, but the last MCP
+          // reading may predate its attach; re-read now so green opens
+          // the gate immediately instead of waiting out the poll.
+          void this.readiness.refreshMcp();
+        }
         if (result.verdict === 'no-agent') this.readiness.noteAgentAlive(false);
         return result;
       })
       .finally(() => {
+        this.readiness.noteCheckSettled();
         if (this.inFlight === run) this.inFlight = null;
       });
     this.inFlight = run;
@@ -83,14 +98,21 @@ export class AgentPingService {
 
   /**
    * Cancel a still-queued ping and tear the watch down (surface
-   * closing mid-check). The in-flight promise still resolves, with
-   * `no-agent`, via its own timeout path if nothing claims first.
+   * closing mid-check). An armed watch settles immediately with the
+   * neutral `abandoned` verdict (it stamps no connected state and just
+   * releases the check hold; leaving the promise pending would wedge
+   * the single-flight slot AND the gate latch for the session). Before
+   * the watch is armed (submit still in flight) there is nothing to
+   * settle yet; that run still resolves through its own claim /
+   * timeout path.
    */
   abandon(): void {
     if (this.jobId !== null) {
       void this.dataSource.cancelJob(this.jobId).catch(() => undefined);
     }
+    const settle = this.settleWatch;
     this.teardown();
+    settle?.({ verdict: 'abandoned' });
   }
 
   private async run(): Promise<IPingResult> {
@@ -129,6 +151,7 @@ export class AgentPingService {
   private watch(jobId: string): Promise<IPingResult> {
     this.jobId = jobId;
     return new Promise<IPingResult>((resolve) => {
+      this.settleWatch = resolve;
       this.sub = this.wsEvents.jobEvents$.subscribe((event) => {
         if (event.jobId !== jobId) return;
         // Any of these means an external agent CLAIMED the ping, so it
@@ -154,7 +177,7 @@ export class AgentPingService {
     });
   }
 
-  /** Drop the watch subscription + timer + job id (idempotent). */
+  /** Drop the watch subscription + timer + resolver + job id (idempotent). */
   private teardown(): void {
     if (this.sub !== null) {
       this.sub.unsubscribe();
@@ -164,6 +187,7 @@ export class AgentPingService {
       clearTimeout(this.timer);
       this.timer = null;
     }
+    this.settleWatch = null;
     this.jobId = null;
   }
 }

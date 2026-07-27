@@ -570,6 +570,12 @@ export class InspectorView implements OnInit {
     void this.processingAgent.refresh();
     void this.processingAgent.refreshMcp();
     void this.agentPing.check().then((result) => {
+      if (result.verdict === 'abandoned') {
+        // The other surface abandoned the shared check: no verdict to
+        // hold, the chip just re-arms.
+        this.agentCheckState.set('idle');
+        return;
+      }
       const alive = result.verdict === 'alive';
       this.agentCheckState.set(alive ? 'ok' : 'fail');
       this.announcer.announce(

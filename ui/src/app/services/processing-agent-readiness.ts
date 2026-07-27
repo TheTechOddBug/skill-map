@@ -110,16 +110,37 @@ export class ProcessingAgentReadinessService {
   readonly mcpConnected = computed<boolean | null>(() => this._mcpStatus()?.connected ?? null);
 
   /**
-   * Why the submit gate is closed, or `null` while it is open. Both
-   * halves fail OPEN on `null` (unknown), so only confirmed readings
-   * ever disable a control.
+   * Live reading of the gate, before the check hold below is applied:
+   * which half closes it right now, `null` when none does.
    */
-  readonly submitGateReason = computed<TSubmitGateReason | null>(() => {
+  private readonly liveGateReason = computed<TSubmitGateReason | null>(() => {
     if (this._skillMissing() === true) return 'skill-missing';
     if (this.mcpConnected() === false) return 'mcp-disconnected';
     if (this._agentAlive() === false) return 'agent-silent';
     return null;
   });
+
+  /**
+   * Reason latched while a manual full-circuit check runs against a
+   * CLOSED gate (user spec 2026-07-27): the reads that land mid-check,
+   * the skill / MCP probes riding along with it and the claim heal,
+   * must not reopen the AI affordances before the verdict does, so the
+   * gate holds the reason it started with until the check settles.
+   * `null` = no hold: no check in flight, or it started with the gate
+   * already open (an open gate is never frozen open, a red verdict
+   * still closes it the moment it lands).
+   */
+  private readonly _checkHold = signal<TSubmitGateReason | null>(null);
+
+  /**
+   * Why the submit gate is closed, or `null` while it is open. Both
+   * halves fail OPEN on `null` (unknown), so only confirmed readings
+   * ever disable a control. While a manual check is in flight the
+   * reason it started with is latched (see `_checkHold`).
+   */
+  readonly submitGateReason = computed<TSubmitGateReason | null>(
+    () => this._checkHold() ?? this.liveGateReason(),
+  );
 
   /**
    * The submit gate itself: nothing can drain the queue right now, so
@@ -134,6 +155,20 @@ export class ProcessingAgentReadinessService {
    */
   noteAgentAlive(alive: boolean): void {
     this._agentAlive.set(alive);
+  }
+
+  /**
+   * A manual full-circuit check just started: latch a closed gate
+   * closed until `noteCheckSettled()` (see `_checkHold`). The shared
+   * ping service brackets every check with this pair.
+   */
+  noteCheckStarted(): void {
+    this._checkHold.set(untracked(() => this.liveGateReason()));
+  }
+
+  /** The check settled (any verdict, abandoned included): drop the latch. */
+  noteCheckSettled(): void {
+    this._checkHold.set(null);
   }
 
   /** Single in-flight probe; a same-lens refresh awaits the same one. */

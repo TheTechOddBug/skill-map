@@ -21,7 +21,8 @@ import type { IWsScanCompletedEvent } from '../../../models/ws-event';
  * the `scan.completed` re-probe, the lens-change re-probe, and
  * concurrent-refresh coalescing; then the MCP half of the same gate
  * (reason precedence, fail-open, and the unattached-MCP poll that
- * reopens the gate when the operator finally starts their agent).
+ * reopens the gate when the operator finally starts their agent), and
+ * the check hold that latches a closed gate while a manual check runs.
  */
 
 interface IHarness {
@@ -312,6 +313,74 @@ describe('ProcessingAgentReadinessService, the agent-silent half', () => {
     jobEvents$.next({ type: 'job.claimed', jobId: 'd-x' });
     expect(service.submitGateClosed()).toBe(false);
     expect(service.agentAlive()).toBe(true);
+  });
+});
+
+/**
+ * The check hold (user spec 2026-07-27): a manual check started against
+ * a CLOSED gate latches it closed for the whole check window, so the
+ * probes riding along with the check can never enable the AI
+ * affordances before the verdict itself does.
+ */
+describe('ProcessingAgentReadinessService, the check hold', () => {
+  it('latches a closed gate closed while the check runs, then releases on settle', async () => {
+    const mcpStatus = vi.fn().mockResolvedValue(mcp(true, false));
+    const { service } = bootstrap({
+      getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, true)),
+      mcpStatus,
+    } as Partial<IDataSourcePort>);
+    await settled();
+    expect(service.submitGateReason()).toBe('mcp-disconnected');
+
+    service.noteCheckStarted();
+    // The agent attaches mid-check: the live reading flips open, but
+    // the gate must hold the starting reason until the verdict lands.
+    mcpStatus.mockResolvedValue(mcp(true, true));
+    await service.refreshMcp();
+    expect(service.mcpConnected()).toBe(true);
+    expect(service.submitGateReason()).toBe('mcp-disconnected');
+    expect(service.submitGateClosed()).toBe(true);
+
+    service.noteCheckSettled();
+    expect(service.submitGateClosed()).toBe(false);
+  });
+
+  it('the claim heal also waits out the hold', async () => {
+    const { service, jobEvents$ } = bootstrap({
+      getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, true)),
+      mcpStatus: vi.fn().mockResolvedValue(mcp(true, true)),
+    } as Partial<IDataSourcePort>);
+    await settled();
+    service.noteAgentAlive(false);
+    expect(service.submitGateReason()).toBe('agent-silent');
+
+    service.noteCheckStarted();
+    jobEvents$.next({ type: 'job.claimed', jobId: 'd-x' });
+    // Healed underneath, but the gate stays latched until the check
+    // settles (in real flow that follows the claim within microtasks).
+    expect(service.agentAlive()).toBe(true);
+    expect(service.submitGateClosed()).toBe(true);
+
+    service.noteCheckSettled();
+    expect(service.submitGateClosed()).toBe(false);
+  });
+
+  it('never freezes an OPEN gate open: a mid-check close still lands', async () => {
+    const mcpStatus = vi.fn().mockResolvedValue(mcp(true, true));
+    const { service } = bootstrap({
+      getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, true)),
+      mcpStatus,
+    } as Partial<IDataSourcePort>);
+    await settled();
+    expect(service.submitGateClosed()).toBe(false);
+
+    service.noteCheckStarted();
+    mcpStatus.mockResolvedValue(mcp(true, false));
+    await service.refreshMcp();
+    expect(service.submitGateReason()).toBe('mcp-disconnected');
+
+    service.noteCheckSettled();
+    expect(service.submitGateReason()).toBe('mcp-disconnected');
   });
 });
 

@@ -78,6 +78,9 @@ interface ISetupProbe {
   onCheckMcpConnection(): Promise<void>;
   onFollowSymlinksToggle(): void;
   onLiveUpdatesToggle(): void;
+  selectGroup(id: 'live' | 'realtime' | 'ai'): void;
+  tutorialNotePrefix(): string;
+  tutorialInvocation(): string;
 }
 
 interface ISetup {
@@ -519,5 +522,29 @@ describe('QuickStartModal, mutations', () => {
     setup.probe.onLiveUpdatesToggle();
 
     expect(setEnabled).toHaveBeenCalledWith(false);
+  });
+});
+
+/**
+ * The per-group tutorial pointer: every panel closes with a note naming
+ * the matching part of the `sm-tutorial` book and how to launch it on
+ * the active lens (sigil-joined handle, `/` fallback while no lens).
+ */
+describe('QuickStartModal, tutorial pointer', () => {
+  it('names the matching book part per group and the sigil-joined invocation', () => {
+    const setup = bootstrap({
+      getProjectPreferences: vi.fn().mockResolvedValue(prefs()),
+      getActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
+    } as Partial<IDataSourcePort>);
+
+    // No lens resolved: the invocation falls back to the `/` sigil.
+    expect(setup.probe.tutorialNotePrefix()).toContain('The live map (prologue)');
+    expect(setup.probe.tutorialInvocation()).toBe('/sm-tutorial');
+
+    setup.probe.selectGroup('realtime');
+    expect(setup.probe.tutorialNotePrefix()).toContain('Real time: watch your agent run');
+
+    setup.probe.selectGroup('ai');
+    expect(setup.probe.tutorialNotePrefix()).toContain('The AI layer: your agent works the map');
   });
 });

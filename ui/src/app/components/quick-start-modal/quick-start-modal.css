@@ -155,6 +155,36 @@
   margin-bottom: 1rem;
 }
 
+/* Per-group tutorial pointer: a quiet callout under the active group's
+ * rows naming the matching part of the guided tutorial book and how to
+ * launch it in the operator's agent. The accent left bar mirrors the
+ * Settings Changelog entries. */
+.quick-start-modal__tutorial-note {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--p-content-border-color);
+  border-left: 3px solid var(--p-primary-color);
+  border-radius: var(--sm-radius-lg);
+  background: var(--p-content-background);
+  font-size: 0.8rem;
+  color: var(--sm-text-muted);
+  line-height: 1.5;
+}
+
+/* The launch invocation inside the note, as a command chip (same recipe
+ * as the topbar tutorial reminder's `__cmd`, inline in flowing text). */
+.quick-start-modal__tutorial-cmd {
+  font-family: var(--sm-font-mono);
+  background: var(--p-content-hover-background);
+  border: 1px solid var(--p-content-border-color);
+  border-radius: var(--sm-radius-sm);
+  padding: 0.05rem 0.4rem;
+  font-size: 0.85em;
+}
+
 /* Bring the small-size PrimeNG buttons to the modal's dense scale, matching
  * the Settings dialog's treatment (size="small" only trims padding). */
 :host ::ng-deep .quick-start-modal__dialog .p-button {
