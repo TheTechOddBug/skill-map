@@ -64,6 +64,7 @@ describe('resolveSpawnOverlay', () => {
         sourceId: PARENT,
         targetId: CHILD_A,
         fromSession: false,
+        vertical: false,
         pairKey: edgePairKey(PARENT, CHILD_A),
       },
     ]);
@@ -118,6 +119,7 @@ describe('resolveSpawnOverlay', () => {
         sourceId: `session:${SESSION}`,
         targetId: CHILD_A,
         fromSession: true,
+        vertical: true,
         pairKey: edgePairKey(SESSION, CHILD_A),
       },
       {
@@ -125,6 +127,7 @@ describe('resolveSpawnOverlay', () => {
         sourceId: `session:${SESSION}`,
         targetId: CHILD_B,
         fromSession: true,
+        vertical: true,
         pairKey: edgePairKey(SESSION, CHILD_B),
       },
     ]);
@@ -258,6 +261,7 @@ describe('resolveSpawnOverlay, spawn-over-static suppression', () => {
         sourceId: `session:${SESSION}`,
         targetId: CHILD_A,
         fromSession: true,
+        vertical: true,
         pairKey: edgePairKey(SESSION, CHILD_A),
       },
     ]);
@@ -297,6 +301,7 @@ describe('resolveSpawnOverlay, agent capsules (unresolved children)', () => {
         sourceId: PARENT,
         targetId: CAPSULE_EXPLORE,
         fromSession: false,
+        vertical: true,
         pairKey: edgePairKey(PARENT, CAPSULE_EXPLORE),
       },
     ]);
@@ -384,6 +389,7 @@ describe('resolveSpawnOverlay, agent capsules (unresolved children)', () => {
         sourceId: `session:${SESSION}`,
         targetId: capsule.id,
         fromSession: true,
+        vertical: true,
         // Session capsules key their pair by the raw OWNER, mirroring
         // the resolved-child session rule.
         pairKey: edgePairKey(SESSION, capsule.id),
@@ -423,6 +429,24 @@ describe('resolveSpawnOverlay, agent capsules (unresolved children)', () => {
     expect(overlay.agents[0]!.position.y).toBe(368);
     // Still centered under the parent: only the axis of the dodge moves.
     expect(overlay.agents[0]!.position.x).toBeCloseTo(NODE_WIDTH / 2 - VAGENT_NODE_WIDTH / 2);
+  });
+
+  it('a dense column under the parent shifts the row SIDEWAYS instead of overlapping', () => {
+    // Cards stacked under the parent farther than the step budget
+    // reaches (8 steps x 48 = 384): the centered ladder exhausts, so
+    // the row moves one column to the right of the base, at its
+    // preferred depth, instead of best-effort overlapping a card.
+    const positions: Record<string, IPoint> = { [PARENT]: { x: 0, y: 0 } };
+    for (let i = 0; i < 6; i++) {
+      positions[`.claude/agents/rank-${i}.md`] = { x: 0, y: 176 + i * 100 };
+    }
+    const overlay = resolveSpawnOverlay(
+      args([spawn({ spawnId: 'v1', parentNodePath: PARENT, childName: 'Explore' })], positions),
+    );
+    const capsule = overlay.agents[0]!;
+    expect(capsule.position.y).toBe(NODE_HEIGHT + VAGENT_NODE_GAP); // preferred depth
+    // Clear of the column: fully to the right of the node band (x 0..260).
+    expect(capsule.position.x).toBeGreaterThan(NODE_WIDTH);
   });
 
   it('a session anchor dodges UPWARD past a real card occupying its float spot', () => {

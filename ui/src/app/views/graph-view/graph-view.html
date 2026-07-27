@@ -185,11 +185,15 @@
           <ng-container ngProjectAs="[fConnections]">
             @for (edge of spawnOverlay().edges; track edge.spawnId) {
               @let convo = convoCountForKey(edge.pairKey);
+              <!-- Overlay-chrome edges (session anchors / capsules) are
+                   ALWAYS vertical (anchor above, target below), so they
+                   pin bottom -> top regardless of the layout direction;
+                   node-to-node spawn edges follow the static edges. -->
               <f-connection
                 [fSourceId]="edge.sourceId"
                 [fTargetId]="edge.targetId"
-                [fSourceSide]="outputSide()"
-                [fTargetSide]="inputSide()"
+                [fSourceSide]="edge.vertical ? overlaySourceSide : outputSide()"
+                [fTargetSide]="edge.vertical ? overlayTargetSide : inputSide()"
                 [fType]="connectionType()"
                 [fBehavior]="connectionBehavior"
                 [fReassignDisabled]="true"

@@ -525,6 +525,15 @@ export class GraphView implements OnInit {
   protected readonly inputSide = computed(() => this.connectionSides().input);
   protected readonly outputSide = computed(() => this.connectionSides().output);
 
+  /**
+   * Fixed sides for overlay-chrome spawn edges (`edge.vertical`): the
+   * overlay always places vertically (session above, capsules below
+   * their anchor), so the arrow leaves the source's underside and
+   * enters the target's top whatever the layout direction is.
+   */
+  protected readonly overlaySourceSide = EFConnectionConnectableSide.BOTTOM;
+  protected readonly overlayTargetSide = EFConnectionConnectableSide.TOP;
+
   // Layout-control catalogs, labelers, setters, and dynamic icons now
   // live in `<sm-graph-layout-toolbar>` (graph-layout-toolbar/). The
   // toolbar reads + writes `GraphPreferencesService` directly so no

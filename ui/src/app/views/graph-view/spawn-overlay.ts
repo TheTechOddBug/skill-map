@@ -86,6 +86,15 @@ export interface ISpawnOverlayEdge {
   /** True when the parent anchor is a session node. */
   fromSession: boolean;
   /**
+   * True when at least one endpoint is overlay chrome (a session
+   * anchor or an agent capsule). Overlay placement is ALWAYS vertical
+   * (sessions above content, capsules below their anchor), so these
+   * edges bind bottom -> top REGARDLESS of the layout direction; a
+   * node-to-node spawn edge instead follows the same layout-direction
+   * sides as the static edges.
+   */
+  vertical: boolean;
+  /**
    * Directional pair key matching the server accumulator (spec
    * §Execution stats): parent node path for node parents, session
    * OWNER for session parents (the raw owner key, never the
@@ -276,6 +285,7 @@ export function resolveSpawnOverlay(args: IResolveSpawnOverlayArgs): ISpawnOverl
         sourceId: `${spawn.parentNodePath}`,
         targetId: `${child}`,
         fromSession: false,
+        vertical: false,
         pairKey,
       });
       continue;
@@ -287,6 +297,7 @@ export function resolveSpawnOverlay(args: IResolveSpawnOverlayArgs): ISpawnOverl
       sourceId: `${SESSION_NODE_ID_PREFIX}${owner}`,
       targetId: `${child}`,
       fromSession: true,
+      vertical: true,
       // Session parents key by the raw OWNER (the server accumulator's
       // identity), never the synthetic `session:<owner>` node id.
       pairKey: edgePairKey(owner, child),
@@ -494,6 +505,7 @@ function rowCapsules(
       sourceId: row.anchorId,
       targetId: id,
       fromSession: row.fromSession,
+      vertical: true,
       // Deterministic and collision-free with real pairs (the `vagent:`
       // prefix cannot appear in a node path): the server accumulator
       // only counts RESOLVED children (spec §Execution stats), so this
@@ -556,23 +568,37 @@ function intersectsAny(candidate: IRect, occupied: readonly IRect[]): boolean {
 }
 
 /**
- * How many dodge steps `placeClear` tries before giving up and keeping
- * the last candidate (a best-effort overlap beats an unbounded walk
- * off-canvas on a pathologically dense map).
+ * How many dodge steps `placeClear` tries per column before moving to
+ * the next one (a bounded search beats an unbounded walk off-canvas on
+ * a pathologically dense map).
  */
 const MAX_DODGE_STEPS = 8;
 
 /**
  * Collision-aware placement: keep the preferred `base` box when it is
  * clear, else step it along `stepY` (down for below-anchor rows, up
- * for above-content anchors) until it stops touching anything. The
- * final box joins `occupied` either way, so later placements dodge it.
+ * for above-content anchors) until it stops touching anything. When
+ * the whole centered column is occupied (a dense rank of cards under
+ * the anchor can outrun the step budget), retry the ladder one column
+ * to the RIGHT of the base, then one to the LEFT, offset far enough to
+ * clear a node column centered on the same axis. Only after all three
+ * columns exhaust does it keep the deepest centered candidate as a
+ * best-effort overlap. The final box joins `occupied` either way, so
+ * later placements dodge it.
  */
 function placeClear(base: IRect, stepY: number, occupied: IRect[]): IPoint {
-  const candidate = { ...base };
-  for (let step = 0; step < MAX_DODGE_STEPS && intersectsAny(candidate, occupied); step++) {
-    candidate.y += stepY;
+  const sideShift = base.w / 2 + NODE_WIDTH / 2 + 2 * OVERLAY_CLEARANCE;
+  for (const dx of [0, sideShift, -sideShift]) {
+    const candidate = { ...base, x: base.x + dx };
+    for (let step = 0; step < MAX_DODGE_STEPS; step++) {
+      if (!intersectsAny(candidate, occupied)) {
+        occupied.push(candidate);
+        return { x: candidate.x, y: candidate.y };
+      }
+      candidate.y += stepY;
+    }
   }
-  occupied.push(candidate);
-  return { x: candidate.x, y: candidate.y };
+  const fallback = { ...base, y: base.y + (MAX_DODGE_STEPS - 1) * stepY };
+  occupied.push(fallback);
+  return { x: fallback.x, y: fallback.y };
 }
