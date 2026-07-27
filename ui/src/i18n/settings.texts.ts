@@ -189,16 +189,6 @@ export const SETTINGS_TEXTS = {
     mcpServerDescription:
       'Expose skill-map so another agent can read the map, and you can manage the job queue too.',
     mcpServerRestartHint: 'Restart sm to apply.',
-    wakeOnSubmitLabel: 'Wake an agent when jobs are queued',
-    wakeOnSubmitDescription:
-      'Start a fresh agent session that processes the queue and stops, each time work arrives. ' +
-      'It runs unattended and spends your tokens.',
-    wakeOnSubmitConfirmHeader: 'Wake an agent automatically?',
-    wakeOnSubmitConfirmIntro:
-      'Each queued job may start an agent session that works unattended and spends your ' +
-      'tokens until the queue is empty. You can watch or stop it from your agent.',
-    wakeOnSubmitConfirmAccept: 'Enable',
-    wakeOnSubmitConfirmReject: 'Cancel',
     referencePathsLabel: 'Folders for link validation',
     referencePathsDescription:
       'If your notes link to files outside this project, list those ' +

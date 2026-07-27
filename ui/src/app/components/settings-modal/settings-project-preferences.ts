@@ -138,16 +138,6 @@ export class SettingsProjectPreferences {
   });
 
   /**
-   * Agent doorbell (`jobs.wakeOnSubmit`): wake an agent session per
-   * queued burst. Read defensively like the MCP flag; read LIVE by the
-   * server, so no restart hint. Enabling is a token-spending consent,
-   * gated behind a confirm dialog (mirrors the capture gate's posture).
-   */
-  protected readonly wakeOnSubmit = computed<boolean>(() => {
-    return this.preferences()?.wakeOnSubmit ?? false;
-  });
-
-  /**
    * View state the switches bind to, one per toggle. A plain computed
    * cannot roll a cancelled flip back: the p-toggleswitch flips its
    * internal state on click, and when the user dismisses the confirm
@@ -170,7 +160,6 @@ export class SettingsProjectPreferences {
   protected readonly mcpServerEnabledView = linkedSignal(() =>
     this.mcpServerEnabled(),
   );
-  protected readonly wakeOnSubmitView = linkedSignal(() => this.wakeOnSubmit());
 
   /**
    * Sticky "restart `sm serve`" hint for the MCP server toggle. The write
@@ -263,35 +252,6 @@ export class SettingsProjectPreferences {
    * the change only after a restart. On a failed write the view signal rolls
    * back to the committed value and the hint is left untouched.
    */
-  protected onWakeOnSubmitToggle(next: boolean): void {
-    if (!next) {
-      this.wakeOnSubmitView.set(false);
-      void this.runPatch('wakeOnSubmit', { wakeOnSubmit: false }).then((ok) => {
-        if (!ok) this.wakeOnSubmitView.set(this.wakeOnSubmit());
-      });
-      return;
-    }
-    // Enabling spends the operator's tokens autonomously: confirm first.
-    this.confirmation.confirm({
-      header: this.texts.project.wakeOnSubmitConfirmHeader,
-      message: this.texts.project.wakeOnSubmitConfirmIntro,
-      acceptButtonProps: { label: this.texts.project.wakeOnSubmitConfirmAccept },
-      rejectButtonProps: {
-        label: this.texts.project.wakeOnSubmitConfirmReject,
-        severity: 'secondary',
-      },
-      accept: () => {
-        this.wakeOnSubmitView.set(true);
-        void this.runPatch('wakeOnSubmit', { wakeOnSubmit: true }).then((ok) => {
-          if (!ok) this.wakeOnSubmitView.set(this.wakeOnSubmit());
-        });
-      },
-      reject: () => {
-        this.wakeOnSubmitView.set(this.wakeOnSubmit());
-      },
-    });
-  }
-
   protected onMcpServerToggle(next: boolean): void {
     this.mcpServerEnabledView.set(next);
     void this.runPatch('mcpServerEnabled', { mcpServerEnabled: next }).then((ok) => {

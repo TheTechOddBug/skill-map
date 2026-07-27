@@ -132,7 +132,7 @@ The job queue (summaries, finders, fixers, the tagger) is drained by YOUR agent 
 |---|---|---|
 | Claude Code | `sm jobs claim --wait` as a backgrounded command | zero |
 | Codex | parks on the MCP `claim_job` tool with `wait` (server-side blocking claim) | zero while parked (see the caveat) |
-| OpenCode | parks on MCP `claim_job`; the server's progress heartbeat keeps the call alive indefinitely. Or skip residency entirely: the wake-on-submit doorbell (Settings → Project, "Wake an agent when jobs are queued") starts a fresh session per burst that drains and stops | zero |
+| OpenCode | parks on MCP `claim_job`; the server's progress heartbeat keeps the call alive indefinitely | zero |
 | Antigravity | runs the skill's CLI loop pass by pass | one pass per invocation |
 
 **Codex efficiency caveat.** Never let a Codex agent loop the CLI `--wait`: Codex kills a shell command after roughly ten seconds, so every re-issued wait burns an LLM turn, hundreds of turns per idle hour. The skill instructs it to park on the MCP `claim_job { wait }` instead, one tool call that blocks server-side at zero cost.

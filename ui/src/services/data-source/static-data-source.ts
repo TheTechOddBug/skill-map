@@ -661,7 +661,6 @@ export class StaticDataSource implements IDataSourcePort {
       tutorialReminderStep: 0,
       ui: { liveUpdates: true, realtimeActivity: true, showRuntimeAgents: true },
       mcpServerEnabled: false,
-      wakeOnSubmit: false,
     };
   }
 

@@ -237,10 +237,10 @@ Served by the BFF, loopback-gated like every `/api/*` route, plus token-gated:
 
 - **Request**: `{ "provider": "<provider-id>", "event": <raw provider payload> }`
   with the serve.json token in the `x-skill-map-token` header. An optional
-  `agentEndpoint` (string) sibling refreshes the agent-doorbell registration
-  (`job-lifecycle.md` §Agent doorbell) on every event, so a server restarted
-  mid-session relearns the runtime's wake endpoint from ordinary traffic; a
-  non-loopback value is ignored, never an error.
+  `agentEndpoint` (string) sibling is tolerated and ignored: it fed the removed
+  agent doorbell (`job-lifecycle.md` §Blocking claim, removal note), and plugins
+  generated before the removal still stamp it on every event; rejecting it would
+  silence their activity until reinstall.
 - **Responses**: `202` accepted with `{ "ok": true, "resolved": <n>, "spawns":
   <n> }` (also when the event maps to nothing; the bridge never needs the
   outcome), `403` on missing/mismatched token (before any body processing),

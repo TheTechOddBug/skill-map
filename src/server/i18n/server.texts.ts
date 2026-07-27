@@ -234,16 +234,6 @@ export const SERVER_TEXTS = {
   activityEventRequired:
     '`event` is required and must be an object.',
 
-  // Agent doorbell registration (POST /api/agent/doorbell,
-  // spec/job-lifecycle.md §Agent doorbell). Token gate reuses
-  // `activityTokenMismatch` (same serve.json session token).
-  doorbellBodyInvalid:
-    'Request body must be a JSON object with a `url` string.',
-  doorbellUrlRequired:
-    '`url` is required and must be a non-empty string.',
-  doorbellUrlNotLoopback:
-    '`url` must be a valid URL on a loopback host (127.0.0.1, ::1, localhost).',
-
   // Job-event push ingest (POST /api/job-events, the CLI-to-server push
   // leg of spec/job-events.md §Transport). Token gate reuses
   // `activityTokenMismatch` (same serve.json session token, same opaque
@@ -483,7 +473,6 @@ export const SERVER_TEXTS = {
   // Server-stderr advisory after `PATCH /api/project-preferences` toggles the
   // opt-in read-only MCP server. Boot-time, so the note flags the serve restart.
   projectPrefsMcpServerSet: 'project-prefs: mcp.server.enabled = {{value}} (restart sm serve to apply)',
-  projectPrefsWakeOnSubmitSet: 'project-prefs: jobs.wakeOnSubmit = {{value}} (live, no restart needed)',
   // Server-stderr advisory after `PATCH /api/project-preferences`
   // toggles the committed sidecar-writer policy. Lets the operator see
   // the team-shared change land without opening settings.json.

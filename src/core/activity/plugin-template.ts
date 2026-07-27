@@ -57,20 +57,8 @@ const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost']);
 const TIMEOUT_MS = ${PLUGIN_TIMEOUT_MS};
 const PROVIDER = '{{PROVIDER_ID}}';
 
-export const SkillMapActivity = async ({ directory, serverUrl }) => {
+export const SkillMapActivity = async ({ directory }) => {
   const root = typeof directory === 'string' && directory.length > 0 ? directory : null;
-  // The runtime's OWN local API base, when its plugin input exposes it
-  // (OpenCode's does). Registered as the agent-doorbell wake endpoint
-  // (spec/job-lifecycle.md §Agent doorbell): once at load, and refreshed
-  // on every forwarded event so a restarted server relearns it.
-  const agentEndpoint = (() => {
-    try {
-      const value = serverUrl === undefined || serverUrl === null ? '' : String(serverUrl);
-      return value.startsWith('http') ? value : null;
-    } catch {
-      return null;
-    }
-  })();
 
   function discover() {
     if (root === null) return null;
@@ -107,22 +95,10 @@ export const SkillMapActivity = async ({ directory, serverUrl }) => {
       const info = discover();
       if (info === null) return;
       const body = { provider: PROVIDER, event: { hook, directory: root, ...payload } };
-      if (agentEndpoint !== null) body.agentEndpoint = agentEndpoint;
       await post(info, '/api/activity', body);
     } catch {
       // Silent no-op: no server, stale serve.json, unreachable host.
     }
-  }
-
-  // One doorbell registration at load (fire-and-forget, silent): covers
-  // the idle session that never fires a hook before a job is queued.
-  try {
-    const info = discover();
-    if (info !== null && agentEndpoint !== null) {
-      void post(info, '/api/agent/doorbell', { url: agentEndpoint }).catch(() => {});
-    }
-  } catch {
-    // Silent no-op, same posture as forward().
   }
 
   return {

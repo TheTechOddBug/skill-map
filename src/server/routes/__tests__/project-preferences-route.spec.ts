@@ -32,7 +32,6 @@ interface IProjectPrefsEnvelopeWire {
   tutorialReminderStep: number;
   ui: { liveUpdates: boolean; realtimeActivity: boolean; showRuntimeAgents: boolean };
   mcpServerEnabled: boolean;
-  wakeOnSubmit: boolean;
 }
 
 interface IErrorEnvelopeWire {
@@ -101,7 +100,6 @@ describe('GET /api/project-preferences', () => {
         tutorialReminderStep: 0,
         ui: { liveUpdates: true, realtimeActivity: true, showRuntimeAgents: true },
         mcpServerEnabled: false,
-        wakeOnSubmit: false,
       });
     });
   });
@@ -375,38 +373,6 @@ describe('PATCH /api/project-preferences (mcpServerEnabled)', () => {
       assert.equal(res.status, 200);
       const env = (await res.json()) as IProjectPrefsEnvelopeWire;
       assert.equal(env.mcpServerEnabled, true);
-    });
-  });
-});
-
-describe('PATCH /api/project-preferences (wakeOnSubmit, the agent doorbell)', () => {
-  it('400 bad-query when wakeOnSubmit is not a boolean', async () => {
-    await boot(async (handle) => {
-      const res = await fetch(url(handle, '/api/project-preferences'), {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ wakeOnSubmit: 'nope' }),
-      });
-      assert.equal(res.status, 400);
-    });
-  });
-
-  it('writes the consent to the project-local layer and GET reflects it', async () => {
-    await boot(async (handle) => {
-      const res = await fetch(url(handle, '/api/project-preferences'), {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ wakeOnSubmit: true }),
-      });
-      assert.equal(res.status, 200);
-      const env = (await res.json()) as IProjectPrefsEnvelopeWire;
-      assert.equal(env.wakeOnSubmit, true);
-      // Project-LOCAL by contract: token-spending consent never travels
-      // via the committed settings.json.
-      const local = JSON.parse(readFileSync(join(cwd, '.skill-map/settings.local.json'), 'utf8'));
-      assert.equal(local.jobs.wakeOnSubmit, true);
-      const get = await fetch(url(handle, '/api/project-preferences'));
-      assert.equal(((await get.json()) as IProjectPrefsEnvelopeWire).wakeOnSubmit, true);
     });
   });
 });

@@ -67,15 +67,6 @@ export interface IJobsConfig {
    * hand-built config still falls back to that default.
    */
   claimWaitSeconds?: number;
-  /**
-   * Agent doorbell (`spec/job-lifecycle.md` §Agent doorbell): when
-   * `true`, a submit that survives its settle window unclaimed wakes a
-   * registered agent runtime to drain the queue in `once` mode. Default
-   * `false`, read live at wake time. **Project-local only** (per
-   * `PROJECT_LOCAL_ONLY_KEYS`): an autonomous agent spending the
-   * operator's tokens must never be switched on via the shared repo.
-   */
-  wakeOnSubmit?: boolean;
   /** Keys are qualified or bare ids of queued probabilistic extensions. */
   perExtensionTtl: Record<string, number>;
   perExtensionPriority: Record<string, number>;
@@ -380,7 +371,6 @@ export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
   'ui.realtimeActivity',
   'ui.showRuntimeAgents',
   'mcp.server.enabled',
-  'jobs.wakeOnSubmit',
 ]);
 
 export type TConfigLayer =

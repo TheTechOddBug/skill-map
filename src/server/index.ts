@@ -73,7 +73,6 @@ import { tx } from '../kernel/util/tx.js';
 import { readConfigValue } from '../core/config/helper.js';
 import { ActivityConversationStore } from './activity-conversations.js';
 import { ActivityOwnerIndex } from './activity-owner-index.js';
-import { AgentDoorbell } from './agent-doorbell.js';
 import { ActivityStatsService } from './activity-stats.js';
 import { AgentPresenceTracker } from './agent-presence.js';
 import { createApp } from './app.js';
@@ -182,18 +181,9 @@ export async function createServer(
   // still counting BOTH claim paths: the CLI's `POST /api/job-events`
   // rebroadcast and the in-process MCP `claim_job` broadcast.
   const agentPresence = new AgentPresenceTracker();
-  // Agent doorbell (job-lifecycle.md §Agent doorbell): wakes a registered
-  // runtime when a submit survives its settle window unclaimed. Observes
-  // the same choke point as presence; both composed here so the
-  // broadcaster stays a dumb transport.
-  const agentDoorbell = new AgentDoorbell({
-    cwd: runtimeContext.cwd,
-    dbPath: options.dbPath,
-  });
   const broadcaster = new WsBroadcaster({
     onEnvelope: (envelope) => {
       agentPresence.observe(envelope);
-      agentDoorbell.observe(envelope);
     },
   });
   // Per-session ingest token for `POST /api/activity`. 32 random bytes
@@ -253,7 +243,6 @@ export async function createServer(
     activityOwners,
     activityConversations,
     agentPresence,
-    agentDoorbell,
     broadcaster,
     runtimeContext,
     kindRegistry,
@@ -351,7 +340,6 @@ export async function createServer(
         // best-effort; the process is exiting regardless
       }
     }
-    agentDoorbell.close();
     broadcaster.shutdown();
     await closeServer(server);
     wss.close();

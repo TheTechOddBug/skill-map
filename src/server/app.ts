@@ -106,13 +106,11 @@ import { registerProjectIgnoreRoute } from './routes/project-ignore.js';
 import { registerProjectPreferencesRoute } from './routes/project-preferences.js';
 import type { ActivityConversationStore } from './activity-conversations.js';
 import type { ActivityOwnerIndex } from './activity-owner-index.js';
-import type { AgentDoorbell } from './agent-doorbell.js';
 import type { ActivityStatsService } from './activity-stats.js';
 import type { AgentPresenceTracker } from './agent-presence.js';
 import { registerActiveProviderRoute } from './routes/active-provider.js';
 import { registerActionsRoutes } from './routes/actions.js';
 import { registerActivityRoute } from './routes/activity.js';
-import { registerAgentDoorbellRoute } from './routes/agent-doorbell.js';
 import { registerActivityCaptureRoutes } from './routes/activity-capture.js';
 import { registerActivityDetailRoutes } from './routes/activity-detail.js';
 import { registerActivityInstallRoutes } from './routes/activity-install.js';
@@ -432,14 +430,6 @@ export interface IAppDeps {
    */
   activityOwners: ActivityOwnerIndex;
   /**
-   * Agent doorbell (see `agent-doorbell.ts`). Instantiated by the
-   * composition root (which also composes its `observe` into the
-   * broadcaster's envelope observer); `createApp` threads it to the
-   * registration route and the activity ingest (its refresh path) as an
-   * explicit extra dep, never onto `IRouteDeps`.
-   */
-  agentDoorbell: AgentDoorbell;
-  /**
    * Consent-gated conversation store (see `activity-conversations.ts`
    * for the custody contract). Instantiated ONLY by the composition
    * root; threaded ONLY to the activity routes (ingest, detail,
@@ -715,15 +705,7 @@ export function createApp(deps: IAppDeps): Hono {
     activityToken: deps.activityToken,
     stats: deps.activityStats,
     owners: deps.activityOwners,
-    doorbell: deps.agentDoorbell,
     conversations: deps.activityConversations,
-  });
-  // Agent-doorbell wake-endpoint registration (job-lifecycle.md §Agent
-  // doorbell): same token gate as the activity ingest above.
-  registerAgentDoorbellRoute(app, {
-    ...routeDeps,
-    activityToken: deps.activityToken,
-    doorbell: deps.agentDoorbell,
   });
   // Job-event push ingest, `POST /api/job-events` (the CLI-to-server
   // push leg of `spec/job-events.md` §Transport). Same serve.json

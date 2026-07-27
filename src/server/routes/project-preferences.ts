@@ -97,15 +97,6 @@ export interface IProjectPreferencesEnvelope {
    * the project-local layer (a per-operator decision to expose a local server).
    */
   mcpServerEnabled: boolean;
-  /**
-   * Agent doorbell (config key `jobs.wakeOnSubmit`, default `false`,
-   * `spec/job-lifecycle.md` §Agent doorbell): wake a registered agent
-   * runtime when a submit survives its settle window unclaimed. Read
-   * LIVE at wake time, so unlike `mcpServerEnabled` it takes effect
-   * without a restart. Project-local (a per-operator token-spending
-   * consent).
-   */
-  wakeOnSubmit: boolean;
 }
 
 interface IPatchBody {
@@ -123,7 +114,6 @@ interface IPatchBody {
     showRuntimeAgents?: boolean;
   };
   mcpServerEnabled?: boolean;
-  wakeOnSubmit?: boolean;
 }
 
 export function registerProjectPreferencesRoute(app: Hono, deps: IRouteDeps): void {
@@ -171,11 +161,6 @@ function buildEnvelope(deps: IRouteDeps): IProjectPreferencesEnvelope {
     },
     mcpServerEnabled:
       readConfigValue<boolean>('mcp.server.enabled', {
-        cwd,
-        default: false,
-      }) ?? false,
-    wakeOnSubmit:
-      readConfigValue<boolean>('jobs.wakeOnSubmit', {
         cwd,
         default: false,
       }) ?? false,
@@ -246,11 +231,6 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
   // `sm serve`.
   const mcpChanged = applyMcpServerWrite(body, cwd);
 
-  // Project-local agent-doorbell consent (`jobs.wakeOnSubmit`). Read LIVE
-  // by the doorbell at wake time, so persisting it is the whole effect:
-  // no restart, no watcher involvement, only the config-cache reload.
-  const wakeChanged = applyWakeOnSubmitWrite(body, cwd);
-
   // Best-effort watcher restart: the runtime re-reads config every
   // batch so the next file edit picks the change up anyway, but the
   // restart guarantees the operator sees the effect (new path list,
@@ -272,7 +252,6 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
     followChanged,
     uiChanged,
     mcpChanged,
-    wakeChanged,
   ].some(Boolean);
   if (shouldRestart) await maybeRestartWatcher(deps);
   // Successful writes mutate the on-disk config; the cached view would
@@ -408,33 +387,6 @@ function applyMcpServerWrite(body: IPatchBody, cwd: string): boolean {
   log.warn(tx(SERVER_TEXTS.projectPrefsMcpServerSet, { value: String(next) }));
   return true;
 }
-
-/**
- * Apply the `wakeOnSubmit` key (config key `jobs.wakeOnSubmit`): the
- * agent doorbell's consent gate. Written to the gitignored project-local
- * layer (an autonomous agent spending the operator's tokens must never
- * be switched on via the shared repo); read live by the doorbell, so no
- * restart hint applies. Returns `true` when the value actually changed.
- */
-function applyWakeOnSubmitWrite(body: IPatchBody, cwd: string): boolean {
-  const next = body.wakeOnSubmit;
-  if (next === undefined) return false;
-  const before = readConfigValue<boolean>('jobs.wakeOnSubmit', { cwd, default: false }) ?? false;
-  if (before === next) return false;
-  try {
-    writeConfigValue('jobs.wakeOnSubmit', next, { target: 'project-local', cwd });
-  } catch (err) {
-    throw new HTTPException(400, {
-      message: tx(SERVER_TEXTS.projectPrefsPersistFailed, {
-        key: 'jobs.wakeOnSubmit',
-        message: formatErrorMessage(err),
-      }),
-    });
-  }
-  log.warn(tx(SERVER_TEXTS.projectPrefsWakeOnSubmitSet, { value: String(next) }));
-  return true;
-}
-
 
 /**
  * Apply the `scan.*` sub-keys of the patch (today only
@@ -745,14 +697,12 @@ const PATCH_BODY_SCHEMA = {
     { required: ['tutorialReminderStep'] },
     { required: ['ui'] },
     { required: ['mcpServerEnabled'] },
-    { required: ['wakeOnSubmit'] },
   ],
   properties: {
     confirm: { type: 'boolean' },
     allowSidecarWriters: { type: 'boolean' },
     tutorialReminderStep: { type: 'integer', minimum: 0, maximum: 2 },
     mcpServerEnabled: { type: 'boolean' },
-    wakeOnSubmit: { type: 'boolean' },
     ui: {
       type: 'object',
       additionalProperties: false,
