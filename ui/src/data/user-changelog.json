@@ -2,6 +2,31 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.96.0",
+      "date": "2026-07-27",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Broken-reference false positives can now be dismissed: `sm issues dismiss` (or the dismiss button on an issue row) silences an exact flagged value. Code-looking tokens like `@ApiSecurity` or `@nestjs/swagger` now warn instead of error, so scans stop failing on them.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Each Quick Start section now ends with a note pointing at the matching part of the guided tutorial and how to run it in your agent from an empty folder.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Pressing Check Agent no longer lights up the AI buttons while the check is still running: they stay disabled until the check actually comes back green.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.95.0",
       "date": "2026-07-27",
       "kind": "user-facing",

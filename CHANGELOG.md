@@ -6,6 +6,21 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.96.0</b> · 2026-07-27</summary>
+
+### CLI Minor
+- Deterministic issues can now be dismissed per (analyzer, value): the new `sm issues dismiss / undismiss / suppressions` verbs, server routes, an inspector per-issue button, and MCP tools write a standing `annotations.issueSuppressions` entry in the node's `.sm` that `core/reference-broken` honours at emission time. Broken `@`-mentions whose token is code-shaped (`@ApiSecurity`, `@nestjs/swagger`) now emit `warn` instead of `error`, so they no longer fail `sm scan` / `sm check`.
+
+### CLI Patch
+- Each Quick Start group now closes with a tutorial pointer: a visible note naming the part of the sm-tutorial book that covers that group (the live-map prologue, the real-time part, the AI-layer part) and how to launch it, with the invocation joined against the active lens's sigil, mirroring the agent-jobs row.
+- The Check Agent probe no longer enables the AI affordances mid-check: a check that starts with the submit gate closed latches it closed (skill / MCP probe refreshes and the claim heal apply only once the check settles), so only the green verdict reopens them, and a green claim now re-reads MCP status immediately instead of waiting out the poll. Abandoning a check mid-watch settles it with a neutral `abandoned` verdict instead of wedging the shared single-flight slot and the latch.
+
+### Spec Minor (0.88.0)
+- Adds `annotations.issueSuppressions` to the sidecar annotations schema: standing operator dismissals of deterministic analyzer issues keyed by (analyzer, value), applied at emission time (documented in db-schema §scan_issues together with the `data.target` value contract). The CLI contract gains the `sm issues dismiss / undismiss / suppressions` verb rows and the per-node issue dismiss/undismiss server routes.
+
+</details>
+
+<details>
 <summary><b>0.95.0</b> · 2026-07-27</summary>
 
 ### CLI Minor
