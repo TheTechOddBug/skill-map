@@ -2,6 +2,27 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.95.0",
+      "date": "2026-07-27",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The file checkboxes now tell the truth: everything starts checked, unchecking a folder hides it from the map, and re-checking something inside brings just that part back. New files show up on the map by default. Use the new header checkbox to hide or show everything at once.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Live session capsules now float above the agents they are running instead of docking next to AGENTS.md, so the activity reads right where the work happens. Drag still wins if you prefer them elsewhere.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.94.0",
       "date": "2026-07-27",
       "kind": "user-facing",
