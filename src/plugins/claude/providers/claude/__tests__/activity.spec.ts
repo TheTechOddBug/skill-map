@@ -51,6 +51,24 @@ describe('claudeActivity.mapEvent', () => {
     assert.equal(signals, null);
   });
 
+  it('the main-context Stop maps to the node-less TURN-END form (sync spawn sweep)', () => {
+    const signals = claudeActivity.mapEvent({
+      session_id: '6cfe5636-2e56-4271-91a6-87fc3d4355be',
+      cwd: '/home/user/project',
+      hook_event_name: 'Stop',
+      stop_hook_active: false,
+    });
+    // NOT an ownerScope release: main's node claims keep the v1
+    // TTL-decay contract; only the sync spawn relations sweep.
+    assert.deepEqual(signals, [
+      {
+        phase: 'end',
+        owner: 'main:6cfe5636-2e56-4271-91a6-87fc3d4355be',
+        turnEnd: true,
+      },
+    ]);
+  });
+
   it('Skill PreToolUse from the main context is owned by the SESSIONIZED main key', () => {
     const signals = claudeActivity.mapEvent({
       session_id: '6cfe5636-2e56-4271-91a6-87fc3d4355be',
@@ -526,8 +544,7 @@ describe('claudeActivity.mapEvent', () => {
     assert.equal(bare![0]!.report, undefined);
   });
 
-  it('session-level events and garbage are disclaimed', () => {
-    assert.equal(claudeActivity.mapEvent({ hook_event_name: 'Stop', stop_hook_active: false }), null);
+  it('session-level events and garbage are disclaimed (Stop maps, see the turn-end case)', () => {
     assert.equal(claudeActivity.mapEvent({ hook_event_name: 'SessionEnd', reason: 'other' }), null);
     assert.equal(claudeActivity.mapEvent(null), null);
     assert.equal(claudeActivity.mapEvent('not an object'), null);

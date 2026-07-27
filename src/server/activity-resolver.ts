@@ -262,6 +262,16 @@ function resolveNodelessSignal(
     out.activity.push({ phase: 'end', session: signal.session!, sessionScope: true });
     return true;
   }
+  if (isTurnEnd(signal)) {
+    // Node-less turn end (a napping runtime's main context completed
+    // its turn, e.g. Claude's main Stop): nothing to resolve, forward
+    // as-is so the UI sweeps the owner's sync spawn relations whose
+    // completion never arrived (interrupted / failed spawn calls).
+    // Deliberately narrower than the owner release: node claims and
+    // async relations stay untouched (spec §WS event: node.activity).
+    out.activity.push({ phase: 'end', owner: signal.owner!, turnEnd: true });
+    return true;
+  }
   return false;
 }
 
@@ -351,6 +361,18 @@ function isOwnerRelease(signal: IActivitySignal): boolean {
   return (
     signal.phase === 'end' &&
     signal.ownerScope === true &&
+    signal.owner !== undefined &&
+    signal.path === undefined &&
+    signal.kind === undefined &&
+    signal.name === undefined
+  );
+}
+
+/** The turn-end signal form: a turnEnd end with an owner and no node target. */
+function isTurnEnd(signal: IActivitySignal): boolean {
+  return (
+    signal.phase === 'end' &&
+    signal.turnEnd === true &&
     signal.owner !== undefined &&
     signal.path === undefined &&
     signal.kind === undefined &&

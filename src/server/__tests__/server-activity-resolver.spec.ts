@@ -253,6 +253,17 @@ describe('resolveSignalsAgainstNodes', () => {
     ]);
   });
 
+  it('node-less TURN ENDS forward without resolution (sync spawn sweep marker)', () => {
+    const resolved = resolveSignalsAgainstNodes(
+      // Claude main-context Stop: sweep the owner's parented sync relations.
+      [{ phase: 'end', turnEnd: true, owner: 'main:S1' }],
+      provider,
+      NODES,
+    );
+    assert.deepEqual(resolved.activity, [{ phase: 'end', owner: 'main:S1', turnEnd: true }]);
+    assert.deepEqual(resolved.spawns, []);
+  });
+
   it('node-less SESSION RELEASES forward without resolution', () => {
     const resolved = resolveSignalsAgainstNodes(
       // Codex main-context Stop: release every owner grouped under the session.

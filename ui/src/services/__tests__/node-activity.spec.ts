@@ -377,6 +377,44 @@ describe('isNodeActivityEvent', () => {
     ).toBe(false);
   });
 
+  it('accepts the node-less turn-end form (owner + turnEnd)', () => {
+    expect(
+      isNodeActivityEvent({
+        type: 'node.activity',
+        timestamp: 1,
+        data: { phase: 'end', owner: 'main:s1', turnEnd: true },
+      }),
+    ).toBe(true);
+    // turnEnd without an owner has nothing to sweep: rejected.
+    expect(
+      isNodeActivityEvent({
+        type: 'node.activity',
+        timestamp: 1,
+        data: { phase: 'end', turnEnd: true },
+      }),
+    ).toBe(false);
+  });
+
+  it('accepts the node-less session-release form (session + sessionScope)', () => {
+    // Regression: this form (Codex turn end) was REJECTED by the guard,
+    // so the sessionScope handler downstream never saw a live frame.
+    expect(
+      isNodeActivityEvent({
+        type: 'node.activity',
+        timestamp: 1,
+        data: { phase: 'end', session: 'S1', sessionScope: true },
+      }),
+    ).toBe(true);
+    // sessionScope without a session releases nothing: rejected.
+    expect(
+      isNodeActivityEvent({
+        type: 'node.activity',
+        timestamp: 1,
+        data: { phase: 'end', sessionScope: true },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects other event types and malformed payloads', () => {
     expect(isNodeActivityEvent({ type: 'scan.completed', timestamp: 1, data: {} })).toBe(false);
     expect(

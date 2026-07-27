@@ -25,3 +25,25 @@
     data-testid="settings-project-live-activity-toggle"
   />
 </div>
+
+<div class="settings-project__row" data-testid="settings-project-runtime-agents-row">
+  <div class="settings-project__row-text">
+    <div class="settings-project__row-label">
+      {{ texts.project.live.agents.label }}
+    </div>
+    <div class="settings-project__row-description">
+      {{ texts.project.live.agents.description }}
+    </div>
+    @if (!liveWsEnabled() || !liveActivityEnabled()) {
+      <div class="settings-project__row-meta">
+        <span class="settings-project__meta-line">{{ texts.project.live.agents.hint }}</span>
+      </div>
+    }
+  </div>
+  <p-toggleswitch
+    [ngModel]="showRuntimeAgents()"
+    (ngModelChange)="onShowRuntimeAgentsToggle($event)"
+    [disabled]="!liveWsEnabled() || !liveActivityEnabled()"
+    data-testid="settings-project-runtime-agents-toggle"
+  />
+</div>

@@ -66,12 +66,22 @@ export class LivePreferencesService {
 
   private readonly _wsEnabled = signal(true);
   private readonly _activityEnabled = signal(true);
+  private readonly _showRuntimeAgents = signal(true);
   private readonly _followActivity = signal(readStoredBool(FOLLOW_ACTIVITY_KEY, true));
 
   /** Live `/ws` channel wanted at all. Default ON. */
   readonly wsEnabled = this._wsEnabled.asReadonly();
   /** Real-time node activity lighting wanted. Default ON. */
   readonly activityEnabled = this._activityEnabled.asReadonly();
+  /**
+   * Agent capsules for runtime sub-agents with no scanned node wanted
+   * (`ui.showRuntimeAgents`). Default ON; subordinate to
+   * `activityEnabled`. Like the follow switch, the behaviour owner is
+   * `GraphView` (the overlay projection reads it directly) and there is
+   * no runtime state beyond the preference, so the Settings row writes
+   * the setter here directly.
+   */
+  readonly showRuntimeAgents = this._showRuntimeAgents.asReadonly();
   /** Camera auto-frames the executing nodes. Default ON (user call 2026-07-26). */
   readonly followActivityEnabled = this._followActivity.asReadonly();
 
@@ -87,6 +97,7 @@ export class LivePreferencesService {
       const prefs = await this.dataSource.getProjectPreferences();
       this._wsEnabled.set(prefs.ui?.liveUpdates ?? true);
       this._activityEnabled.set(prefs.ui?.realtimeActivity ?? true);
+      this._showRuntimeAgents.set(prefs.ui?.showRuntimeAgents ?? true);
     } catch {
       // Offline BFF or older envelope: keep the ON defaults.
     }
@@ -104,6 +115,12 @@ export class LivePreferencesService {
     this.persist({ ui: { realtimeActivity: value } });
   }
 
+  setShowRuntimeAgents(value: boolean): void {
+    if (this._showRuntimeAgents() === value) return;
+    this._showRuntimeAgents.set(value);
+    this.persist({ ui: { showRuntimeAgents: value } });
+  }
+
   setFollowActivityEnabled(value: boolean): void {
     if (this._followActivity() === value) return;
     this._followActivity.set(value);
@@ -116,7 +133,9 @@ export class LivePreferencesService {
    * is logged and swallowed, the same posture the localStorage era took
    * with quota errors. Next boot re-reads whatever the server holds.
    */
-  private persist(patch: { ui: { liveUpdates?: boolean; realtimeActivity?: boolean } }): void {
+  private persist(patch: {
+    ui: { liveUpdates?: boolean; realtimeActivity?: boolean; showRuntimeAgents?: boolean };
+  }): void {
     void this.dataSource.setProjectPreferences(patch).catch((err: unknown) => {
       console.warn('live-preferences: persisting the toggle failed', err);
     });

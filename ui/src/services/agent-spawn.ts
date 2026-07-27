@@ -15,8 +15,9 @@
  * - `phase: 'handoff'` consolidates (merges `childOwner` /
  *   `childNodePath` once the async child's identity is known).
  * - Release: the explicit `end` frame, OR the `node.activity`
- *   owner-scoped end whose `owner` equals `childOwner`, OR the sticky
- *   TTL sweep as the crash safety net. PAUSE IS NOT END (mirrors the
+ *   owner-scoped end whose `owner` equals `childOwner`, OR (for a
+ *   relation whose child identity never materialized) the parent's
+ *   `turnEnd` frame, OR the sticky TTL sweep as the crash safety net. PAUSE IS NOT END (mirrors the
  *   custody rule in spec §WS event): Claude fires an owner-scoped stop
  *   when an agent merely pauses awaiting its own spawn, so a child
  *   owner's stop only releases when that owner PARENTS no live spawn;
@@ -26,8 +27,11 @@
  *   `spawnCustody: 'blocking'`, so its parents cannot nap) and releases
  *   both sides at once, which is what clears a spawn whose completion
  *   never arrives: a refused or crashed call fires its start and no end.
- * - Heartbeat: any activity signal from an owner refreshes the decay
- *   window of every spawn that owner participates in.
+ * - Heartbeat: an activity signal from an owner refreshes the decay
+ *   window of the spawns it is the CHILD of, and of the parented spawns
+ *   whose child identity is known (async). A childOwner-less relation
+ *   never gets a parent-side refresh: parent activity on one can only
+ *   be post-mortem, see `applyActivity`.
  *
  * Session anchors: a spawn whose frame carries NO `parentNodePath` was
  * spawned by a session (the structural discriminator, owner strings
@@ -220,6 +224,22 @@ export class AgentSpawnService {
 
   private applyActivity(data: IWsNodeActivityData, now: number): void {
     const owner = data.owner!;
+    if (data.phase === 'end' && data.turnEnd === true) {
+      // Turn boundary (a napping runtime's main context completed its
+      // turn, e.g. Claude's main Stop). A sync spawn cannot outlive its
+      // caller's turn, so a relation this owner parents whose child
+      // identity never materialized (no childOwner) is provably dead:
+      // its completion hook never fired (interrupted / failed call).
+      // Async relations (child known, may outlive the turn) and other
+      // owners' relations stay untouched.
+      for (const [spawnId, entry] of this.entries) {
+        const v = entry.view;
+        if (v.parentOwner === owner && v.childOwner === undefined) {
+          this.entries.delete(spawnId);
+        }
+      }
+      return;
+    }
     if (data.phase === 'end' && data.ownerScope === true && data.terminal === true) {
       // Terminal end (a `blocking` runtime: the parent cannot report
       // idle while a child runs, so idle means finished). Release BOTH
@@ -262,11 +282,20 @@ export class AgentSpawnService {
       }
       return;
     }
-    // Heartbeat: any signal from an owner proves its side of the
-    // relation is alive; refresh every spawn it participates in.
+    // Heartbeat: a signal from an owner proves its side of a relation
+    // is alive. Child-side always refreshes; parent-side refreshes ONLY
+    // relations with a known live child (childOwner present, the async
+    // shape whose silent child legitimately leans on the parent's
+    // liveness). A childOwner-less relation gets NO parent refresh:
+    // while a sync spawn genuinely runs its parent is blocked or
+    // napping and emits nothing, so parent activity on such a relation
+    // can only be post-mortem (an interrupted spawn whose end never
+    // came), and refreshing it would keep the zombie alive for as long
+    // as the session works. Those decay at the TTL, and on runtimes
+    // with a turn boundary the turnEnd sweep clears them sooner.
     for (const entry of this.entries.values()) {
       const v = entry.view;
-      if (v.childOwner === owner || v.parentOwner === owner) {
+      if (v.childOwner === owner || (v.parentOwner === owner && v.childOwner !== undefined)) {
         entry.expiresAt = now + this.ttlMs;
       }
     }

@@ -580,6 +580,19 @@ export interface IActivitySignal {
    */
   ownerScope?: boolean;
   /**
+   * Only meaningful on `phase: 'end'` with an `owner`: `true` when the
+   * owner's TURN completed (a `napping` runtime's main context reporting
+   * a real turn boundary, e.g. Claude's main `Stop`). A sync spawn call
+   * cannot outlive its caller's turn, so consumers release every
+   * relation that owner PARENTS whose child identity never materialized
+   * (no `childOwner`), the shape an interrupted or failed spawn call
+   * leaves behind. Async relations and the owner's node claims are
+   * untouched (NOT an `ownerScope` release). Node-less like the
+   * owner-release form. `spec/provider-activity.md` §WS event:
+   * `node.activity`.
+   */
+  turnEnd?: boolean;
+  /**
    * Only meaningful on `phase: 'start'`: `true` for LIFECYCLE claims
    * (an agent's own span, a parent held lit by a running child), which
    * get a much longer decay window than momentary usage claims. Sticky

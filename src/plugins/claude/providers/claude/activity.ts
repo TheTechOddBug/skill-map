@@ -31,7 +31,11 @@
  *   (see `mapMarkdownRead`, filter-first: everything else is
  *   early-disclaimed). Auto-loaded session context (`CLAUDE.md`) fires
  *   no tool event and stays invisible by design.
- * - Everything else (`Stop`, `SessionEnd`, plain tool calls, ...) is
+ * - **Turn boundary**: the main-context `Stop` maps to the node-less
+ *   TURN-END form (`turnEnd: true`), sweeping sync spawn relations whose
+ *   completion hook never fired (see `mapMainTurnEnd`). It is NOT an
+ *   owner release: main's node claims keep the v1 TTL-decay contract.
+ * - Everything else (`SessionEnd`, plain tool calls, ...) is
  *   disclaimed: tools are not graph nodes, and session-level clears are
  *   owned by the UI's TTL decay in v1.
  *
@@ -75,28 +79,49 @@ export const claudeActivity: IProviderActivityAdapter = {
       { event: 'PostToolUse', matcher: '^Agent$' },
       { event: 'SubagentStart', matcher: '*' },
       { event: 'SubagentStop', matcher: '*' },
+      // Main-context turn boundary: sweeps sync spawn relations whose
+      // completion hook never fired (interrupted / failed Agent calls).
+      { event: 'Stop', matcher: '*' },
     ],
   },
 
   mapEvent(raw: unknown): IActivitySignal[] | null {
     if (raw === null || typeof raw !== 'object') return null;
     const event = raw as Record<string, unknown>;
-    switch (event['hook_event_name']) {
-      case 'UserPromptExpansion':
-        return mapSlashExpansion(event);
-      case 'PreToolUse':
-        return mapPreToolUse(event);
-      case 'PostToolUse':
-        return mapPostToolUse(event);
-      case 'SubagentStart':
-        return mapSubagentBoundary(event, 'start');
-      case 'SubagentStop':
-        return mapSubagentBoundary(event, 'end');
-      default:
-        return null;
-    }
+    const name = event['hook_event_name'];
+    const mapper = typeof name === 'string' ? EVENT_MAPPERS.get(name) : undefined;
+    return mapper ? mapper(event) : null;
   },
 };
+
+/**
+ * Consumed-event dispatch. A `Map` (not a plain object) so a garbage
+ * `hook_event_name` like `toString` can never resolve to a prototype
+ * member: the mapper must stay total over arbitrary bridge input.
+ */
+const EVENT_MAPPERS = new Map<string, (event: Record<string, unknown>) => IActivitySignal[] | null>([
+  ['UserPromptExpansion', mapSlashExpansion],
+  ['PreToolUse', mapPreToolUse],
+  ['PostToolUse', mapPostToolUse],
+  ['SubagentStart', (event) => mapSubagentBoundary(event, 'start')],
+  ['SubagentStop', (event) => mapSubagentBoundary(event, 'end')],
+  ['Stop', mapMainTurnEnd],
+]);
+
+/**
+ * Main-context turn boundary. Claude fires `Stop` ONLY when the main
+ * agent's response completes (a subagent's boundary is `SubagentStop`),
+ * so unlike the nap-ambiguous subagent stops this is a real turn end:
+ * any sync spawn of this session still open at this point is provably
+ * dead (`PostToolUse` fires only on a SUCCESSFUL tool call, so an
+ * interrupted or failed `Agent` call left a relation with no end
+ * frame). Emits the node-less TURN-END form; deliberately NOT an
+ * `ownerScope` release, main's node claims keep the v1 TTL-decay
+ * contract (`spec/provider-activity.md` §Per-provider signal notes).
+ */
+function mapMainTurnEnd(event: Record<string, unknown>): IActivitySignal[] {
+  return [{ phase: 'end', owner: sessionizedOwner(event), turnEnd: true }];
+}
 
 /**
  * `/name` typed by the operator. The `/` namespace is shared between

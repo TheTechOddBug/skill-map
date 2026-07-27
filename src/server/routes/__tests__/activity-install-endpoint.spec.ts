@@ -169,7 +169,9 @@ describe('GET /api/activity/install, status probe', () => {
       assert.equal(envelope.supported, true);
       assert.equal(envelope.installed, false);
       assert.equal(envelope.configPath, CONFIG_REL);
-      assert.equal(envelope.events, 5);
+      // UserPromptExpansion, PreToolUse, PostToolUse, SubagentStart,
+      // SubagentStop, Stop (the turn-end sweep).
+      assert.equal(envelope.events, 6);
     });
   });
 

@@ -242,7 +242,7 @@
     "ui": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Web-UI preferences persisted per checkout. Every key is **project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`): per-developer rendering choices, stripped with a warning from the committed `project` layer. Written by the Settings > Project toggles through `PATCH /api/project-preferences`; no confirm gate (nothing here expands disk access or trusts code). Both keys previously lived in the browser's localStorage; moving them here makes the choice follow the checkout instead of the browser profile.",
+      "description": "Web-UI preferences persisted per checkout. Every key is **project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`): per-developer rendering choices, stripped with a warning from the committed `project` layer. Written by the Settings > Project toggles through `PATCH /api/project-preferences`; no confirm gate (nothing here expands disk access or trusts code). The live pair previously lived in the browser's localStorage; moving them here makes the choice follow the checkout instead of the browser profile.",
       "properties": {
         "liveUpdates": {
           "type": "boolean",
@@ -251,6 +251,10 @@
         "realtimeActivity": {
           "type": "boolean",
           "description": "Whether real-time node activity (the executing glow driven by provider activity frames, see provider-activity.md) lights up the map. Default `true`. Subordinate to `liveUpdates`: with live updates off no activity frames arrive at all; with live updates on, turning this off silences just the activity lighting."
+        },
+        "showRuntimeAgents": {
+          "type": "boolean",
+          "description": "Whether the map renders ephemeral agent capsules for runtime sub-agents that match no scanned node (provider-activity.md, unresolved spawn children: a vendor's built-in explorer/planner with no file on disk). Default `true`. When `false` those spawns stay invisible (resolved-node spawn edges and session anchors are unaffected). Subordinate to `realtimeActivity`."
         }
       }
     }

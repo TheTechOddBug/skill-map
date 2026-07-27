@@ -1319,6 +1319,8 @@ describe('SettingsProjectRealtime, real-time-activity row', () => {
     liveActivityEnabled(): boolean;
     activityHookInstalled(): boolean | null;
     onLiveActivityToggle(next: boolean): void;
+    showRuntimeAgents(): boolean;
+    onShowRuntimeAgentsToggle(next: boolean): void;
   }
 
   function createRealtime(): {
@@ -1338,6 +1340,18 @@ describe('SettingsProjectRealtime, real-time-activity row', () => {
     proto.onLiveActivityToggle(false);
     expect(proto.liveActivityEnabled()).toBe(false);
     expect(setProjectPreferences).toHaveBeenCalledWith({ ui: { realtimeActivity: false } });
+  });
+
+  it('the runtime sub-agents row persists ui.showRuntimeAgents through the preference seam', () => {
+    const { setProjectPreferences } = liveProviders();
+    const { fixture, proto } = createRealtime();
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('[data-testid="settings-project-runtime-agents-row"]')).not.toBeNull();
+
+    expect(proto.showRuntimeAgents()).toBe(true);
+    proto.onShowRuntimeAgentsToggle(false);
+    expect(proto.showRuntimeAgents()).toBe(false);
+    expect(setProjectPreferences).toHaveBeenCalledWith({ ui: { showRuntimeAgents: false } });
   });
 
   it('disables with a hint while the activity hook is not installed', () => {

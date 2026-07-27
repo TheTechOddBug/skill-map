@@ -29,6 +29,7 @@ import { FormsModule } from '@angular/forms';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
+import { LivePreferencesService } from '../../../services/live-preferences';
 import { NodeActivityService } from '../../../services/node-activity';
 import { WsEventStreamService } from '../../../services/ws-event-stream';
 import { ActivityReadinessService } from '../../services/activity-readiness';
@@ -44,6 +45,7 @@ export class SettingsProjectRealtime {
   private readonly wsStream = inject(WsEventStreamService);
   private readonly nodeActivity = inject(NodeActivityService);
   private readonly activityReadiness = inject(ActivityReadinessService);
+  private readonly livePrefs = inject(LivePreferencesService);
 
   readonly visible = input.required<boolean>();
 
@@ -69,5 +71,17 @@ export class SettingsProjectRealtime {
 
   protected onLiveActivityToggle(next: boolean): void {
     this.nodeActivity.setEnabled(next);
+  }
+
+  /**
+   * Runtime sub-agent capsules (`ui.showRuntimeAgents`). Behaviour
+   * owner is the graph's overlay projection, which reads the preference
+   * signal directly (no runtime state to clear), so the row writes the
+   * preference setter itself, mirroring the follow-activity shape.
+   */
+  protected readonly showRuntimeAgents = this.livePrefs.showRuntimeAgents;
+
+  protected onShowRuntimeAgentsToggle(next: boolean): void {
+    this.livePrefs.setShowRuntimeAgents(next);
   }
 }

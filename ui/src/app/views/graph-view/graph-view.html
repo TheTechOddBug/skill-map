@@ -188,6 +188,8 @@
               <f-connection
                 [fSourceId]="edge.sourceId"
                 [fTargetId]="edge.targetId"
+                [fSourceSide]="outputSide()"
+                [fTargetSide]="inputSide()"
                 [fType]="connectionType()"
                 [fBehavior]="connectionBehavior"
                 [fReassignDisabled]="true"
@@ -380,10 +382,45 @@
                 class="sm-session-host"
                 data-canvas-click-shield
                 [attr.data-testid]="'graph-session-node-' + session.owner"
-                (pointerdown)="onSessionPointerDown()"
+                (pointerdown)="onSessionPointerDown(session.owner)"
                 (fNodePositionChange)="onSessionPositionChange(session.owner, $event)"
               >
                 <sm-session-node [ordinal]="session.ordinal" [owner]="session.owner" />
+              </div>
+            }
+          </ng-container>
+
+          <!-- Ephemeral agent capsules (spec/provider-activity.md §WS
+               event: agent.spawn, unresolved children): runtime
+               sub-agents with no scanned node, one capsule per
+               (anchor, name) with a live-run count. Same dedicated
+               [fNodes] block treatment as the session anchors: a
+               handful at most, synthetic ids never leak into layout /
+               reconcile / persistence. Draggable into the ephemeral
+               override map, selection disabled; the capsule is the
+               TARGET of its dashed anchor edge. -->
+          <ng-container ngProjectAs="[fNodes]">
+            @for (capsule of spawnOverlay().agents; track capsule.id) {
+              <div
+                fNode
+                fConnector
+                fConnectorType="target"
+                fDragHandle
+                [fNodeId]="capsule.id"
+                [fNodePosition]="capsule.position"
+                [fNodeSelectionDisabled]="true"
+                [fConnectorId]="capsule.id"
+                class="sm-vagent-host"
+                data-canvas-click-shield
+                [attr.data-testid]="'graph-agent-capsule-' + capsule.id"
+                (pointerdown)="onAgentCapsulePointerDown(capsule.id)"
+                (fNodePositionChange)="onAgentCapsulePositionChange(capsule.id, $event)"
+              >
+                <sm-agent-capsule
+                  [name]="capsule.name"
+                  [kind]="capsule.kind"
+                  [count]="capsule.count"
+                />
               </div>
             }
           </ng-container>

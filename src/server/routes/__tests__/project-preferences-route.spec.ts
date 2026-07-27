@@ -30,7 +30,7 @@ interface IProjectPrefsEnvelopeWire {
   allowSidecarWriters: boolean;
   scan: { referencePaths: string[]; followExternalSymlinks: boolean; respectGitignore: boolean };
   tutorialReminderStep: number;
-  ui: { liveUpdates: boolean; realtimeActivity: boolean };
+  ui: { liveUpdates: boolean; realtimeActivity: boolean; showRuntimeAgents: boolean };
   mcpServerEnabled: boolean;
   wakeOnSubmit: boolean;
 }
@@ -99,7 +99,7 @@ describe('GET /api/project-preferences', () => {
         allowSidecarWriters: true,
         scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore: false },
         tutorialReminderStep: 0,
-        ui: { liveUpdates: true, realtimeActivity: true },
+        ui: { liveUpdates: true, realtimeActivity: true, showRuntimeAgents: true },
         mcpServerEnabled: false,
         wakeOnSubmit: false,
       });
@@ -558,7 +558,11 @@ describe('PATCH /api/project-preferences (ui.* live-channel preferences)', () =>
       // the first (both accumulate in settings.local.json), and a plain
       // GET reflects the persisted state of both. Self-contained: does
       // not rely on what the previous test wrote to the shared cwd.
-      const bodies = [{ ui: { liveUpdates: false } }, { ui: { realtimeActivity: false } }];
+      const bodies = [
+        { ui: { liveUpdates: false } },
+        { ui: { realtimeActivity: false } },
+        { ui: { showRuntimeAgents: false } },
+      ];
       for (const body of bodies) {
         const patch = await fetch(url(handle, '/api/project-preferences'), {
           method: 'PATCH',
@@ -572,6 +576,7 @@ describe('PATCH /api/project-preferences (ui.* live-channel preferences)', () =>
       const env = (await res.json()) as IProjectPrefsEnvelopeWire;
       assert.equal(env.ui.liveUpdates, false);
       assert.equal(env.ui.realtimeActivity, false);
+      assert.equal(env.ui.showRuntimeAgents, false);
     });
   });
 

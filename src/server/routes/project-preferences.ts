@@ -80,11 +80,14 @@ export interface IProjectPreferencesEnvelope {
    * checkout in `settings.local.json`. `liveUpdates`: keep the map in
    * sync with `sm serve` (default `true`). `realtimeActivity`: light up
    * executing nodes (default `true`, subordinate to `liveUpdates`).
+   * `showRuntimeAgents`: render capsules for runtime sub-agents with no
+   * scanned node (default `true`, subordinate to `realtimeActivity`).
    * No confirm gate, neither expands disk access nor trusts code.
    */
   ui: {
     liveUpdates: boolean;
     realtimeActivity: boolean;
+    showRuntimeAgents: boolean;
   };
   /**
    * Whether `sm serve` exposes the opt-in read-only MCP server at `/mcp`
@@ -117,6 +120,7 @@ interface IPatchBody {
   ui?: {
     liveUpdates?: boolean;
     realtimeActivity?: boolean;
+    showRuntimeAgents?: boolean;
   };
   mcpServerEnabled?: boolean;
   wakeOnSubmit?: boolean;
@@ -156,6 +160,11 @@ function buildEnvelope(deps: IRouteDeps): IProjectPreferencesEnvelope {
         }) ?? true,
       realtimeActivity:
         readConfigValue<boolean>('ui.realtimeActivity', {
+          cwd,
+          default: true,
+        }) ?? true,
+      showRuntimeAgents:
+        readConfigValue<boolean>('ui.showRuntimeAgents', {
           cwd,
           default: true,
         }) ?? true,
@@ -352,6 +361,7 @@ function applyUiWrites(body: IPatchBody, cwd: string): boolean {
   const entries = [
     { key: 'ui.liveUpdates', next: body.ui.liveUpdates },
     { key: 'ui.realtimeActivity', next: body.ui.realtimeActivity },
+    { key: 'ui.showRuntimeAgents', next: body.ui.showRuntimeAgents },
   ] as const;
   for (const { key, next } of entries) {
     if (next === undefined) continue;
@@ -750,6 +760,7 @@ const PATCH_BODY_SCHEMA = {
       properties: {
         liveUpdates: { type: 'boolean' },
         realtimeActivity: { type: 'boolean' },
+        showRuntimeAgents: { type: 'boolean' },
       },
     },
     scan: {
@@ -790,6 +801,7 @@ const parsePatchBody = makeBodyValidator<IPatchBody>(PATCH_BODY_SCHEMA, {
     '/ui:type:object': SERVER_TEXTS.projectPrefsUiNotObject,
     '/ui/liveUpdates:type:boolean': SERVER_TEXTS.projectPrefsLiveUpdatesNotBoolean,
     '/ui/realtimeActivity:type:boolean': SERVER_TEXTS.projectPrefsRealtimeActivityNotBoolean,
+    '/ui/showRuntimeAgents:type:boolean': SERVER_TEXTS.projectPrefsShowRuntimeAgentsNotBoolean,
     '/mcpServerEnabled:type:boolean': SERVER_TEXTS.projectPrefsMcpServerNotBoolean,
   },
 });

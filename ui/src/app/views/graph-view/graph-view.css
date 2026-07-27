@@ -277,10 +277,12 @@
   --ff-node-shadow-selected: none;
 }
 
-/* Session-anchor [fNode] wrapper (spec/provider-activity.md, session
-   parents). Same Foblex chrome reset as `.sm-gnode-host` (the capsule
-   inside paints its own dashed frame), minus the pointer cursor: the
-   anchor is drag- and selection-disabled, it only anchors edges. */
+/* Session-anchor + agent-capsule [fNode] wrappers
+   (spec/provider-activity.md, session parents / unresolved children).
+   Same Foblex chrome reset as `.sm-gnode-host` (the capsule inside
+   paints its own dashed frame), minus the pointer cursor: the anchors
+   are selection-disabled, they only anchor edges. */
+.sm-vagent-host,
 .sm-session-host {
   position: relative;
   display: inline-block;

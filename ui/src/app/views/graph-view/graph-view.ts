@@ -58,6 +58,7 @@ import { ConversationDialog } from '../../components/conversation-dialog/convers
 import { setupConversationDialog } from '../../components/conversation-dialog/conversation-dialog.controller';
 import { KindPalette } from '../../components/kind-palette/kind-palette';
 import { LinkKindPalette } from '../../components/link-kind-palette/link-kind-palette';
+import { AgentCapsule } from '../../components/agent-capsule/agent-capsule';
 import { SessionNode } from '../../components/session-node/session-node';
 import { SeverityPalette } from '../../components/severity-palette/severity-palette';
 import { NodeCard } from '../../components/node-card/node-card';
@@ -171,6 +172,7 @@ const EDGE_SELECTION_DEFAULT: IEdgeSelectionView = {
     GraphLayoutToolbar,
     KindPalette,
     LinkKindPalette,
+    AgentCapsule,
     SessionNode,
     SeverityPalette,
     NodeCard,
@@ -1308,33 +1310,68 @@ export class GraphView implements OnInit {
   }
 
   /**
-   * Session-anchor drag, mirroring the card pattern (skill rule 9:
-   * buffer per move, flush once at mouseup, `fDragHandle` consumes
-   * `pointerup` so `mouseup` is the reliable end signal). The flushed
-   * position lands in the EPHEMERAL override map that feeds
-   * `spawnOverlay`, never in the persisted node-position store:
-   * session anchors are page-lifetime state by contract.
+   * Session-anchor and agent-capsule drags write the reported position
+   * back into their EPHEMERAL override map ON EVERY MOVE, deliberately
+   * diverging from the card pattern's buffer-and-flush (skill rule 9).
+   * Reason: these anchors' `[fNodePosition]` binds a DERIVED value
+   * (children centroid / instructions affinity / capsule row) that
+   * `spawnOverlay` recomputes whenever a live activity frame lands,
+   * and agents are running by definition while anchors exist. Foblex
+   * reconciles the input on every CD pass, so a mid-drag recompute
+   * would snap the grabbed anchor back to its derived spot; writing
+   * the reported position back per move keeps the bound value in sync
+   * and turns that reconcile into a no-op (the same write-back contract
+   * as the persisted-viewport `[position]` binding). Rule 9's costs do
+   * not apply here: the write only invalidates the cheap `spawnOverlay`
+   * computed (a handful of anchors, never the graph @for), and there is
+   * no sync I/O (overrides are page-lifetime by contract, never the
+   * persisted node-position store).
+   *
+   * The `dragging*` flags gate the writes to an actual grab
+   * (pointerdown -> mouseup, `fDragHandle` consumes `pointerup`): a
+   * position event outside a drag must never pin the anchor, or the
+   * derived float would silently stop following its inputs.
    */
-  private sessionDragBuffer: { owner: string; point: IPoint } | null = null;
+  private draggingSessionOwner: string | null = null;
 
-  onSessionPointerDown(): void {
+  onSessionPointerDown(owner: string): void {
+    this.draggingSessionOwner = owner;
     document.addEventListener('mouseup', this.onSessionMouseUp, { once: true });
   }
 
   onSessionPositionChange(owner: string, position: IPoint): void {
-    this.sessionDragBuffer = { owner, point: { x: position.x, y: position.y } };
+    if (this.draggingSessionOwner !== owner) return;
+    const next = new Map(this.sessionPositionOverrides());
+    next.set(owner, { x: position.x, y: position.y });
+    this.sessionPositionOverrides.set(next);
   }
 
   private readonly onSessionMouseUp = (): void => {
     // One microtask so a final synchronous fNodePositionChange around
-    // the up event lands in the buffer before the flush reads it.
+    // the up event still passes the gate before it closes.
     queueMicrotask(() => {
-      const buffered = this.sessionDragBuffer;
-      this.sessionDragBuffer = null;
-      if (!buffered) return;
-      const next = new Map(this.sessionPositionOverrides());
-      next.set(buffered.owner, buffered.point);
-      this.sessionPositionOverrides.set(next);
+      this.draggingSessionOwner = null;
+    });
+  };
+
+  /** Agent-capsule drag, the exact session-anchor pattern, keyed by capsule id. */
+  private draggingCapsuleId: string | null = null;
+
+  onAgentCapsulePointerDown(id: string): void {
+    this.draggingCapsuleId = id;
+    document.addEventListener('mouseup', this.onAgentCapsuleMouseUp, { once: true });
+  }
+
+  onAgentCapsulePositionChange(id: string, position: IPoint): void {
+    if (this.draggingCapsuleId !== id) return;
+    const next = new Map(this.agentPositionOverrides());
+    next.set(id, { x: position.x, y: position.y });
+    this.agentPositionOverrides.set(next);
+  }
+
+  private readonly onAgentCapsuleMouseUp = (): void => {
+    queueMicrotask(() => {
+      this.draggingCapsuleId = null;
     });
   };
 
@@ -1628,12 +1665,33 @@ export class GraphView implements OnInit {
    */
   private readonly sessionPositionOverrides = signal<ReadonlyMap<string, IPoint>>(new Map());
 
+  /**
+   * User-dragged agent-capsule positions, keyed by the synthetic
+   * capsule id. Same ephemeral contract as the session overrides.
+   */
+  private readonly agentPositionOverrides = signal<ReadonlyMap<string, IPoint>>(new Map());
+
+  /**
+   * The rendered project-instructions node, when one exists: session
+   * anchors float beside it (spec §WS event: `agent.spawn`, the visual
+   * affinity). `AGENTS.md` (the vendor-neutral standard) outranks its
+   * `CLAUDE.md` precursor when both are present. Exact root-level
+   * paths only, purely presentational, never parsed into relations.
+   */
+  private readonly instructionsPath = computed<string | undefined>(() => {
+    const visible = this.mapVisiblePaths();
+    if (visible.has('AGENTS.md')) return 'AGENTS.md';
+    if (visible.has('CLAUDE.md')) return 'CLAUDE.md';
+    return undefined;
+  });
+
   protected readonly spawnOverlay = computed<ISpawnOverlay>(() => {
     const spawns = this.agentSpawns.spawnEdges();
     if (spawns.length === 0) return EMPTY_SPAWN_OVERLAY;
     const pinned = this.nodePositions();
     const layout = this.fullLayout().positions;
     const sessionOverrides = this.sessionPositionOverrides();
+    const agentOverrides = this.agentPositionOverrides();
     // RENDERED static pairs (edge-kind filters + visibility already
     // applied by `graph()`): a spawn whose exact pair is drawn rides
     // that static edge instead of duplicating it; a pair the user
@@ -1646,6 +1704,9 @@ export class GraphView implements OnInit {
       staticPairs,
       positionOf: (path) => pinned.get(path) ?? layout.get(path),
       sessionPositionOf: (owner) => sessionOverrides.get(owner),
+      agentPositionOf: (id) => agentOverrides.get(id),
+      instructionsPath: this.instructionsPath(),
+      showAgents: this.livePrefs.showRuntimeAgents(),
     });
   });
 

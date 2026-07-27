@@ -131,6 +131,18 @@ export const SETTINGS_TEXTS = {
         hookHint:
           "Requires the active lens's real-time hook. Install it in this section.",
       },
+      /**
+       * `ui.showRuntimeAgents`: the ephemeral capsules for runtime
+       * sub-agents with no scanned node (unresolved spawn children).
+       * Subordinate to the activity toggle above.
+       */
+      agents: {
+        label: 'Show runtime sub-agents',
+        description:
+          "Draw a capsule for your agent's built-in helpers (an explorer, a planner) " +
+          'while they run, even though they are not files in your project.',
+        hint: 'Requires real-time node activity.',
+      },
     },
     loadErrorPrefix: 'Could not load project settings:',
     saveErrorPrefix: 'Could not save project settings:',

@@ -1113,6 +1113,11 @@ export interface IProjectPreferencesApi {
   ui?: {
     liveUpdates: boolean;
     realtimeActivity: boolean;
+    /**
+     * Render capsules for runtime sub-agents with no scanned node
+     * (default `true`, subordinate to `realtimeActivity`).
+     */
+    showRuntimeAgents: boolean;
   };
   /**
    * Project-local opt-in for the MCP server (`mcp.server.enabled`).
@@ -1164,6 +1169,7 @@ export interface IProjectPreferencesPatchApi {
   ui?: {
     liveUpdates?: boolean;
     realtimeActivity?: boolean;
+    showRuntimeAgents?: boolean;
   };
   /**
    * Flip the project-local read-only MCP server opt-in (`mcp.server.enabled`).

@@ -387,6 +387,15 @@ export interface IWsNodeActivityData {
    * frame may mean the parent is merely awaiting its own spawn.
    */
   terminal?: boolean;
+  /**
+   * Only on `phase: 'end'`: node-less TURN-END form (`owner` required).
+   * The owner's turn completed (a napping runtime's main context, e.g.
+   * Claude's main `Stop`), so the sync spawn relations it parents
+   * (no `childOwner`) are provably dead and release; async relations
+   * and node claims stay untouched. Narrower than `ownerScope` +
+   * `terminal` by design (spec §WS event: `node.activity`).
+   */
+  turnEnd?: boolean;
 }
 
 export type IWsNodeActivityEvent = IWsEvent<IWsNodeActivityData> & { type: 'node.activity' };
@@ -398,10 +407,18 @@ export function isNodeActivityEvent(value: unknown): value is IWsNodeActivityEve
   if (typeof data !== 'object' || data === null) return false;
   const nodePath = data['nodePath'];
   if (nodePath === undefined) {
-    // Node-less OWNER-RELEASE form: only valid as an owner-scoped end
-    // with an owner to release (a whole execution context ended).
-    if (data['phase'] !== 'end' || data['ownerScope'] !== true) return false;
-    if (typeof data['owner'] !== 'string' || data['owner'].length === 0) return false;
+    // Node-less forms, all `phase: 'end'` (spec §WS event: node.activity):
+    //   - OWNER RELEASE: `ownerScope: true` + `owner` (a context ended);
+    //   - TURN END: `turnEnd: true` + `owner` (sync spawn sweep);
+    //   - SESSION RELEASE: `sessionScope: true` + `session` (a whole
+    //     runtime turn ended, releasing every owner grouped under it).
+    if (data['phase'] !== 'end') return false;
+    if (data['sessionScope'] === true) {
+      if (typeof data['session'] !== 'string' || data['session'].length === 0) return false;
+    } else {
+      if (data['ownerScope'] !== true && data['turnEnd'] !== true) return false;
+      if (typeof data['owner'] !== 'string' || data['owner'].length === 0) return false;
+    }
   } else if (typeof nodePath !== 'string' || nodePath.length === 0) {
     return false;
   }
@@ -410,6 +427,8 @@ export function isNodeActivityEvent(value: unknown): value is IWsNodeActivityEve
   if (owner !== undefined && typeof owner !== 'string') return false;
   const ownerScope = data['ownerScope'];
   if (ownerScope !== undefined && typeof ownerScope !== 'boolean') return false;
+  const turnEnd = data['turnEnd'];
+  if (turnEnd !== undefined && typeof turnEnd !== 'boolean') return false;
   const sticky = data['sticky'];
   if (sticky !== undefined && typeof sticky !== 'boolean') return false;
   const keepAlive = data['keepAlive'];

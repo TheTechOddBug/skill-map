@@ -142,6 +142,17 @@ export interface INodeActivityEventData {
    */
   terminal?: boolean;
   /**
+   * Only on `phase: 'end'` with an `owner`: the owner's TURN completed
+   * (a `napping` runtime's main context reporting a real turn boundary,
+   * Claude's main `Stop`). Node-less. Consumers release the sync spawn
+   * relations that owner PARENTS (no `childOwner`): a sync spawn cannot
+   * outlive its caller's turn, so an open one is an interrupted / failed
+   * call whose completion hook never fired. Async relations and node
+   * claims stay untouched, deliberately narrower than `ownerScope` +
+   * `terminal` (spec §WS event: `node.activity`).
+   */
+  turnEnd?: boolean;
+  /**
    * Only on `phase: 'start'`: lifecycle claim (an agent's own span, a
    * parent held lit by a running child). Gets a much longer decay
    * window; meant to end via an `ownerScope` end.

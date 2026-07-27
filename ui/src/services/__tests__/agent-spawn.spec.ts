@@ -54,6 +54,18 @@ function heartbeat(owner: string, nodePath = CHILD): IWsNodeActivityEvent {
   };
 }
 
+/**
+ * The napping-runtime turn boundary (Claude's main `Stop`): node-less
+ * `turnEnd` frame sweeping the owner's parented sync relations.
+ */
+function turnEndFrame(owner: string): IWsNodeActivityEvent {
+  return {
+    type: 'node.activity',
+    timestamp: 1_700_000_000_000,
+    data: { phase: 'end', owner, turnEnd: true },
+  };
+}
+
 interface IHarness {
   service: AgentSpawnService;
   spawns$: Subject<IWsAgentSpawnEvent>;
@@ -287,6 +299,80 @@ describe('AgentSpawnService', () => {
     activity$.next(ownerEnd('orch-1'));
     await new Promise((resolve) => setTimeout(resolve, 120));
     expect(service.spawnEdges().length).toBe(2);
+  });
+
+  it('a turnEnd frame sweeps the owner parented SYNC relations, keeps async and other owners', async () => {
+    const { service, spawns$, activity$ } = bootstrap();
+    // Interrupted sync spawn (no childOwner, its end will never come).
+    spawns$.next(
+      spawnEvent({ spawnId: 'zombie', phase: 'start', parentOwner: SESSION_OWNER, childName: 'Explore' }),
+    );
+    // Async spawn of the SAME owner: child known + alive, outlives the turn.
+    spawns$.next(
+      spawnEvent({
+        spawnId: 'bg',
+        phase: 'handoff',
+        parentOwner: SESSION_OWNER,
+        childOwner: 'worker-bg',
+        childNodePath: CHILD,
+      }),
+    );
+    // Sync spawn of ANOTHER owner: untouched.
+    spawns$.next(
+      spawnEvent({ spawnId: 'other', phase: 'start', parentOwner: 'orch-1', parentNodePath: PARENT, childName: 'Plan' }),
+    );
+    await flushed();
+    expect(service.spawnEdges().length).toBe(3);
+
+    activity$.next(turnEndFrame(SESSION_OWNER));
+    await flushed();
+    const ids = service.spawnEdges().map((e) => e.spawnId).sort();
+    expect(ids).toEqual(['bg', 'other']);
+  });
+
+  it('a parent heartbeat does NOT keep a childOwner-less relation alive (no immortal zombies)', async () => {
+    // ttl 250ms. The interrupted sync spawn gets parent beats at ~130
+    // and ~230; under the old rule each slid the window and the zombie
+    // outlived every assertion. Now parent beats on a childOwner-less
+    // relation are post-mortem by definition and the TTL reaps it.
+    const { service, spawns$, activity$ } = bootstrap(250);
+    spawns$.next(
+      spawnEvent({ spawnId: 'z1', phase: 'start', parentOwner: SESSION_OWNER, childName: 'Explore' }),
+    );
+    await flushed();
+    expect(service.spawnEdges().length).toBe(1);
+
+    await new Promise((resolve) => setTimeout(resolve, 130));
+    activity$.next(heartbeat(SESSION_OWNER, 'README.md'));
+    await flushed();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    activity$.next(heartbeat(SESSION_OWNER, 'README.md'));
+    await flushed();
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(service.spawnEdges().length).toBe(0);
+  });
+
+  it('a parent heartbeat still refreshes a relation whose child is known (async shape)', async () => {
+    const { service, spawns$, activity$ } = bootstrap(250);
+    spawns$.next(
+      spawnEvent({
+        spawnId: 'bg2',
+        phase: 'handoff',
+        parentOwner: SESSION_OWNER,
+        childOwner: 'worker-quiet',
+        childNodePath: CHILD,
+      }),
+    );
+    await flushed();
+
+    await new Promise((resolve) => setTimeout(resolve, 130));
+    activity$.next(heartbeat(SESSION_OWNER, 'README.md'));
+    await flushed();
+
+    // Past the original 250ms expiry: the parent beat carried it.
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    expect(service.spawnEdges().length).toBe(1);
   });
 
   it('the sticky TTL sweep reaps an edge with no end signal (crash safety net)', async () => {

@@ -348,6 +348,13 @@ export interface IUiPreferencesConfig {
    * Subordinate to `liveUpdates` (no live channel, no frames).
    */
   realtimeActivity?: boolean;
+  /**
+   * Whether the map renders ephemeral agent capsules for runtime
+   * sub-agents that match no scanned node (unresolved spawn children,
+   * `spec/provider-activity.md`). Default `true`. Subordinate to
+   * `realtimeActivity`.
+   */
+  showRuntimeAgents?: boolean;
 }
 
 /**
@@ -371,6 +378,7 @@ export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
   'activity.captureConversations',
   'ui.liveUpdates',
   'ui.realtimeActivity',
+  'ui.showRuntimeAgents',
   'mcp.server.enabled',
   'jobs.wakeOnSubmit',
 ]);
