@@ -1338,15 +1338,6 @@ svg    { display: block; max-width: 100%; }
   letter-spacing: -.02em;
   color: #fff;
 }
-.feature__tag {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  opacity: .8;
-}
-.feature--green  .feature__tag { color: var(--green-400); }
-.feature--violet .feature__tag { color: var(--violet-400); }
-.feature--amber  .feature__tag { color: #F5B850; }
-
 .feature__body {
   font-size: 14px;
   line-height: 1.6;
