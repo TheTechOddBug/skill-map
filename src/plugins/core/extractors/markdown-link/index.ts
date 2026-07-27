@@ -13,21 +13,28 @@
  *   - `[parent readme](../README.md)`
  *   - `[bare](api.md)`           , no leading `./` is fine
  *   - `[anchor inside](./api.md#install)`, anchor stripped, link goes to api.md
+ *   - `[abs](/docs/x.md)`, leading `/` resolves from the SCAN ROOT, the
+ *     GitHub / GitLab semantics ("links starting with `/` will be
+ *     relative to the repository root").
  *
  * Skipped (the extractor emits no link):
  *   - `![alt](./img.png)`, image syntax. The `(?<!\!)` lookbehind drops it.
  *   - `[home](https://...)` / `mailto:` / `tel:`, has a URL scheme. URLs are
  *     counted by `external-url-counter`, not mapped to nodes.
  *   - `[#section](#section)`, same-doc anchor. No file to link to.
- *   - `[abs](/abs/path)`, leading `/` would be ambiguous (root of scope?
- *     filesystem root?) and almost never what an author means in a markdown
- *     body. Skipped to keep the contract simple; revisit if a use case appears.
+ *   - `[root](/)` / `[escape](/../x.md)`, a leading-`/` destination that
+ *     normalises to nothing or escapes the root.
  *
  * Path resolution
  * ---------------
- * Targets are resolved POSIX-style against the source node's directory:
+ * Per `spec/architecture.md` §Extractor · markdown links. Bare targets
+ * resolve POSIX-style against the source node's directory:
  *   `dirname(node.path) + '/' + target` then `path.posix.normalize` to
- *   collapse `.` / `..`. The result is the candidate node path.
+ *   collapse `.` / `..`. Leading-`/` targets resolve against the scan
+ *   root instead: strip the `/`, normalise the remainder. The result is
+ *   the candidate node path either way. Bare targets get NO root
+ *   fallback (the base is standardised file-relative; the root-relative
+ *   form IS the leading `/`).
  *
  * The extractor emits the link unconditionally, whether or not the
  * resolved path matches an existing node. The `reference-broken` rule is the
@@ -158,11 +165,25 @@ function resolveTarget(sourceDir: string, raw: string): string | null {
   // to link to.
   if (URL_SCHEME_RE.test(trimmed)) return null;
 
-  // Leading `/` is ambiguous in a markdown body, skip per the doc
-  // comment.
-  if (trimmed.startsWith('/')) return null;
+  // Leading `/` resolves from the scan root (GitHub / GitLab
+  // repository-root semantics, `spec/architecture.md` §Extractor ·
+  // markdown links).
+  if (trimmed.startsWith('/')) return resolveRootedTarget(trimmed);
 
   const joined = sourceDir === '.' ? trimmed : `${sourceDir}/${trimmed}`;
   return pathPosix.normalize(joined);
+}
+
+/**
+ * Resolve a leading-`/` destination against the scan root: strip the
+ * slash, POSIX-normalise the remainder. A destination that normalises
+ * to nothing (`/`), keeps a leading slash (`//x`), or escapes the root
+ * (`/../x`) emits no link.
+ */
+function resolveRootedTarget(trimmed: string): string | null {
+  const rooted = pathPosix.normalize(trimmed.slice(1));
+  if (rooted.length === 0 || rooted === '.' || rooted === '/') return null;
+  if (rooted.startsWith('/') || rooted.startsWith('..')) return null;
+  return rooted;
 }
 

@@ -412,8 +412,15 @@ describe('markdown-link extractor', () => {
     strictEqual(links.length, 0);
   });
 
-  it('skips absolute paths starting with /', async () => {
-    const { ctx: context, links } = ctx('a.md', '[absolute](/etc/foo.md)');
+  it('resolves a leading-/ destination from the scan root (GitHub semantics)', async () => {
+    const { ctx: context, links } = ctx('docs/deep/a.md', '[rooted](/etc/foo.md)');
+    await extract(markdownLinkExtractor, context);
+    strictEqual(links.length, 1);
+    strictEqual(links[0]!.target, 'etc/foo.md');
+  });
+
+  it('skips leading-/ destinations that normalise to nothing or escape the root', async () => {
+    const { ctx: context, links } = ctx('a.md', '[r](/) [d](//x.md) [e](/../x.md)');
     await extract(markdownLinkExtractor, context);
     strictEqual(links.length, 0);
   });

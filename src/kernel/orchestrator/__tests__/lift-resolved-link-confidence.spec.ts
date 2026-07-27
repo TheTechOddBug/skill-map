@@ -786,3 +786,125 @@ describe('collectBrokenLinks', () => {
     strictEqual(broken.has(link), false);
   });
 });
+
+/**
+ * Root fallback for `points` links (`spec/architecture.md` §Provider ·
+ * resolution rules, rule 1): a backticked prose path that misses
+ * file-relatively retries against the scan root, UNLESS the authored
+ * token declares file-relative intent with an explicit `./` / `../`
+ * prefix. `references` links never fall back (their base is the
+ * standardised file-relative; root-relative is the leading-`/` form).
+ */
+describe('points root fallback', () => {
+  /**
+   * Mirror the backtick-path emit shape: `target` is the token resolved
+   * against `dirname(source)`, `originalTrigger` the authored token
+   * verbatim, `normalizedTrigger` the resolved target.
+   */
+  function pointsLink(token: string, target: string, source: string): Link {
+    return {
+      source,
+      target,
+      kind: 'points',
+      confidence: 0.85,
+      sources: ['backtick-path'],
+      trigger: { originalTrigger: token, normalizedTrigger: target },
+    };
+  }
+
+  const mdNode = (path: string): Node =>
+    mockNode({ path, kind: 'markdown', provider: 'core', frontmatter: {} });
+
+  it('resolves a root-relative token via the fallback and clears the broken flag', () => {
+    // The reported case: `app/context/app-patterns.md` backtick-references
+    // `_work_in_progress/plan.md`, a root-level file. File-relative
+    // resolution (`app/context/_work_in_progress/plan.md`) misses; the
+    // raw token matches a node from the root.
+    const nodes = [mdNode('app/context/app-patterns.md'), mdNode('_work_in_progress/plan.md')];
+    const links = [
+      pointsLink(
+        '_work_in_progress/plan.md',
+        'app/context/_work_in_progress/plan.md',
+        'app/context/app-patterns.md',
+      ),
+    ];
+    liftResolvedLinkConfidence(links, nodes, makeCtx());
+    strictEqual(links[0]!.resolvedTarget, '_work_in_progress/plan.md');
+    const broken = collectBrokenLinks(links, nodes, makeCtx(), () => false);
+    strictEqual(broken.size, 0);
+  });
+
+  it('file-relative wins when both bases resolve to a node', () => {
+    const nodes = [
+      mdNode('app/main.md'),
+      mdNode('app/docs/x.md'),
+      mdNode('docs/x.md'),
+    ];
+    const links = [pointsLink('docs/x.md', 'app/docs/x.md', 'app/main.md')];
+    liftResolvedLinkConfidence(links, nodes, makeCtx());
+    strictEqual(links[0]!.resolvedTarget, 'app/docs/x.md');
+  });
+
+  it('an explicit ./ prefix never falls back (declared file-relative intent)', () => {
+    const nodes = [mdNode('app/context/notes.md'), mdNode('plan.md')];
+    const links = [pointsLink('./plan.md', 'app/context/plan.md', 'app/context/notes.md')];
+    liftResolvedLinkConfidence(links, nodes, makeCtx());
+    strictEqual(links[0]!.resolvedTarget, undefined);
+    const broken = collectBrokenLinks(links, nodes, makeCtx(), () => false);
+    strictEqual(broken.has(links[0]!), true);
+  });
+
+  it('an explicit ../ prefix never falls back either', () => {
+    const nodes = [mdNode('app/context/notes.md'), mdNode('plan.md')];
+    const links = [pointsLink('../plan.md', 'app/plan.md', 'app/context/notes.md')];
+    liftResolvedLinkConfidence(links, nodes, makeCtx());
+    strictEqual(links[0]!.resolvedTarget, undefined);
+    const broken = collectBrokenLinks(links, nodes, makeCtx(), () => false);
+    strictEqual(broken.has(links[0]!), true);
+  });
+
+  it('a token whose inner ".." segments escape the root gets no fallback', () => {
+    const nodes = [mdNode('app/notes.md'), mdNode('x.md')];
+    const links = [pointsLink('a/../../x.md', 'x.md', 'app/notes.md')];
+    // target normalises to `x.md` here (the extractor already collapsed
+    // it), so the path match fires on the FILE-RELATIVE candidate; the
+    // point of this case is the guard, so aim the target elsewhere:
+    links[0]!.target = 'app/a/../../x.md';
+    liftResolvedLinkConfidence(links, nodes, makeCtx());
+    strictEqual(links[0]!.resolvedTarget, undefined);
+  });
+
+  it('references links get no root fallback (standardised file-relative base)', () => {
+    const nodes = [mdNode('app/context/x.md'), mdNode('plan.md')];
+    const links: Link[] = [
+      {
+        source: 'app/context/x.md',
+        target: 'app/context/plan.md',
+        kind: 'references',
+        confidence: 0.95,
+        sources: ['markdown-link'],
+        trigger: { originalTrigger: 'plan.md', normalizedTrigger: 'app/context/plan.md' },
+      },
+    ];
+    liftResolvedLinkConfidence(links, nodes, makeCtx());
+    strictEqual(links[0]!.resolvedTarget, undefined);
+    const broken = collectBrokenLinks(links, nodes, makeCtx(), () => false);
+    strictEqual(broken.has(links[0]!), true);
+  });
+
+  it('the existence probe tries the fallback candidate too', () => {
+    // No node matches either base, but the root-relative file exists on
+    // disk (a real-but-unindexed file): not broken.
+    const nodes = [mdNode('app/context/notes.md')];
+    const links = [
+      pointsLink('assets/diagram.md', 'app/context/assets/diagram.md', 'app/context/notes.md'),
+    ];
+    const consulted: string[] = [];
+    const broken = collectBrokenLinks(links, nodes, makeCtx(), (target) => {
+      consulted.push(target);
+      return target === 'assets/diagram.md';
+    });
+    deepStrictEqual(consulted, ['app/context/assets/diagram.md', 'assets/diagram.md']);
+    strictEqual(broken.size, 0);
+  });
+});

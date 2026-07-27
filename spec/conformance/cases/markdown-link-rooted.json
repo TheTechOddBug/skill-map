@@ -1,0 +1,22 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "markdown-link-rooted",
+  "description": "Leading-`/` markdown links resolve from the scan root, end-to-end (architecture.md §Extractor · markdown links, the GitHub / GitLab repository-root semantics). `[the plan](/docs/plan.md)` written from `guides/intro.md` MUST resolve to the `docs/plan.md` node (resolvedTarget recorded, 1.0 baseline kept, no reference-broken issue), and the degenerate rooted destinations in the same body (`/`, `//x.md`, `/../x.md`) MUST emit no link at all.",
+  "fixture": "markdown-link-rooted",
+  "invoke": {
+    "verb": "scan",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.schemaVersion", "equals": 1 },
+    { "type": "json-path", "path": "$.stats.nodesCount", "equals": 2 },
+    { "type": "json-path", "path": "$.stats.linksCount", "equals": 1 },
+    { "type": "json-path", "path": "$.links[0].source", "equals": "guides/intro.md" },
+    { "type": "json-path", "path": "$.links[0].target", "equals": "docs/plan.md" },
+    { "type": "json-path", "path": "$.links[0].kind", "equals": "references" },
+    { "type": "json-path", "path": "$.links[0].resolvedTarget", "equals": "docs/plan.md" },
+    { "type": "json-path", "path": "$.links[0].confidence", "equals": 1.0 },
+    { "type": "json-path", "path": "$.stats.issuesCount", "equals": 0 }
+  ]
+}

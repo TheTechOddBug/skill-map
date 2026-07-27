@@ -117,6 +117,16 @@ describe('backtick-path extractor', () => {
     strictEqual(targets[1], 'docs/guide/local.md');
   });
 
+  it('keeps the ./ prefix verbatim on originalTrigger (the root-fallback intent bit)', async () => {
+    // The post-walk lift reads `originalTrigger` to decide whether the
+    // author declared file-relative intent (`./` / `../` never fall
+    // back to the scan root); the prefix must survive normalisation.
+    const helper = makeContext(mockNode('docs/guide/index.md'), 'See `./local.md`.');
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 1);
+    strictEqual(helper.links[0]!.trigger?.originalTrigger, './local.md');
+  });
+
   it('emits a points link for a BARE sibling filename (no slash): the runtime follows it', async () => {
     // `lee el archivo: ` + "`algo4.md`" is an instruction the runtime
     // resolves against the skill dir (verified empirically, every tested

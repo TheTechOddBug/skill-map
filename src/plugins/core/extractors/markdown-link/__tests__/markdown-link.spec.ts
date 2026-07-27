@@ -88,18 +88,43 @@ describe('markdown-link extractor', () => {
     strictEqual(helper.links[0]!.target, 'docs/README.md');
   });
 
-  it('skips images, URL schemes, same-doc anchors, and absolute paths', async () => {
+  it('skips images, URL schemes, and same-doc anchors', async () => {
     const body = [
       '![alt](./img.png)',
       '[home](https://example.com)',
       '[mail](mailto:x@y.com)',
       '[sec](#section)',
-      '[abs](/abs/path.md)',
     ].join('\n');
     const helper = makeContext(mockNode('docs/index.md'), body);
     await runAndResolve(helper);
     strictEqual(helper.links.length, 0);
     strictEqual(helper.signals.length, 0);
+  });
+
+  it('resolves a leading-slash destination from the scan root (GitHub semantics)', async () => {
+    const helper = makeContext(
+      mockNode('app/context/app-patterns.md'),
+      'See [the plan](/docs/plan.md) for details.',
+    );
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 1);
+    const link = helper.links[0]!;
+    strictEqual(link.target, 'docs/plan.md');
+    strictEqual(link.trigger?.originalTrigger, '/docs/plan.md');
+  });
+
+  it('strips the anchor from a leading-slash destination too', async () => {
+    const helper = makeContext(mockNode('docs/index.md'), '[x](/docs/api.md#install)');
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 1);
+    strictEqual(helper.links[0]!.target, 'docs/api.md');
+  });
+
+  it('skips leading-slash destinations that normalise to nothing or escape the root', async () => {
+    const body = ['[root](/)', '[dbl](//x.md)', '[esc](/../x.md)'].join('\n');
+    const helper = makeContext(mockNode('docs/index.md'), body);
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 0);
   });
 
   it('skips links inside fenced code and inline code spans', async () => {

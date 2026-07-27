@@ -1,0 +1,27 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "points-root-fallback",
+  "description": "Root fallback for backticked prose paths, end-to-end (architecture.md §Provider · resolution rules, rule 1). A `points` link authored root-relatively from a nested folder (`_work_in_progress/plan.md` mentioned from `app/context/notes.md`) MUST miss file-relatively, retry the authored token against the scan root, resolve to the root-level node (resolvedTarget recorded, 1.0 baseline kept), and MUST NOT flag reference-broken. A sibling token with an explicit `./` prefix declares file-relative intent and never falls back, EVEN THOUGH a root-level file of that name exists (the sharp half of the contract: without the intent bit the fallback would resolve it), so it MUST flag reference-broken (0.25); that error is also why the scan exits 1.",
+  "fixture": "points-root-fallback",
+  "invoke": {
+    "verb": "scan",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 1 },
+    { "type": "json-path", "path": "$.schemaVersion", "equals": 1 },
+    { "type": "json-path", "path": "$.stats.nodesCount", "equals": 3 },
+    { "type": "json-path", "path": "$.stats.linksCount", "equals": 2 },
+    { "type": "json-path", "path": "$.links[0].source", "equals": "app/context/notes.md" },
+    { "type": "json-path", "path": "$.links[0].target", "equals": "app/context/_work_in_progress/plan.md" },
+    { "type": "json-path", "path": "$.links[0].kind", "equals": "points" },
+    { "type": "json-path", "path": "$.links[0].resolvedTarget", "equals": "_work_in_progress/plan.md" },
+    { "type": "json-path", "path": "$.links[0].confidence", "equals": 1.0 },
+    { "type": "json-path", "path": "$.links[1].target", "equals": "app/context/local-only.md" },
+    { "type": "json-path", "path": "$.links[1].kind", "equals": "points" },
+    { "type": "json-path", "path": "$.links[1].confidence", "equals": 0.25 },
+    { "type": "json-path", "path": "$.stats.issuesCount", "equals": 1 },
+    { "type": "json-path", "path": "$.issues[0].analyzerId", "equals": "reference-broken" },
+    { "type": "json-path", "path": "$.issues[0].severity", "equals": "error" }
+  ]
+}

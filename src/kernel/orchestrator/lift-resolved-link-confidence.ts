@@ -44,6 +44,8 @@
  * orchestrator passes the same array on to the analyzer phase.
  */
 
+import { posix as pathPosix } from 'node:path';
+
 import { deriveNodeIdentifiers } from './node-identifiers.js';
 import type { Link, Node } from '../types.js';
 import type { IPostWalkTransformCtx } from './post-walk-transforms.js';
@@ -178,7 +180,38 @@ function buildIndexes(nodes: readonly Node[], ctx: IPostWalkTransformCtx): IInde
  */
 function resolve(link: Link, indexes: IIndexes, ctx: IPostWalkTransformCtx): string | 'none' {
   if (indexes.byPath.has(link.target)) return link.target;
+  const fallback = rootFallbackTarget(link);
+  if (fallback !== null && indexes.byPath.has(fallback)) return fallback;
   return resolveByName(link, indexes, ctx);
+}
+
+/**
+ * Root-fallback candidate for a `points` link (`spec/architecture.md`
+ * §Provider · resolution rules, rule 1): the authored token normalised
+ * against the scan root instead of `dirname(source)`. Backticked prose
+ * paths have no standardised base and the dominant agent-docs
+ * convention (AGENTS.md / CLAUDE.md style) writes them repo-root-
+ * relative, so a file-relative miss retries from the root before being
+ * declared broken. `null` (no fallback) when:
+ *   - the link is not `points` (markdown `references` keep the
+ *     standardised file-relative base; their root-relative form is the
+ *     explicit leading `/`),
+ *   - the authored token carries an explicit `./` / `../` prefix
+ *     (declared file-relative intent),
+ *   - the normalised token escapes the root or equals `link.target`
+ *     (both bases coincide, e.g. a root-level source).
+ */
+function rootFallbackTarget(link: Link): string | null {
+  if (link.kind !== 'points') return null;
+  const token = link.trigger?.originalTrigger?.trim();
+  if (!token || hasExplicitRelativePrefix(token)) return null;
+  const normalized = pathPosix.normalize(token);
+  return normalized.startsWith('..') || normalized === link.target ? null : normalized;
+}
+
+/** `./` / `../` on the authored token = declared file-relative intent. */
+function hasExplicitRelativePrefix(token: string): boolean {
+  return token.startsWith('./') || token.startsWith('../');
 }
 
 /**
@@ -203,10 +236,29 @@ function isGenuinelyBroken(
   targetExists?: TLinkTargetProbe,
 ): boolean {
   if (indexes.byPath.has(link.target)) return false;
+  // Root fallback (points links, spec rule 1): both resolution
+  // candidates consult the path index and the probe; broken means
+  // both miss everything.
+  const fallback = rootFallbackTarget(link);
+  if (fallback !== null && indexes.byPath.has(fallback)) return false;
   const stripped = stripTriggerSigil(link.trigger?.normalizedTrigger);
   if (stripped !== null && indexes.byName.has(stripped)) return false;
-  if (targetExists && isPathStyleTarget(link) && targetExists(link.target)) return false;
-  return true;
+  return !existsOnDisk(link, fallback, targetExists);
+}
+
+/**
+ * Probe leg of the genuinely-broken decision: `true` when either
+ * resolution candidate (file-relative target, then the root fallback)
+ * names an on-disk entry. Trigger-style links never consult the probe.
+ */
+function existsOnDisk(
+  link: Link,
+  fallback: string | null,
+  targetExists?: TLinkTargetProbe,
+): boolean {
+  if (!targetExists || !isPathStyleTarget(link)) return false;
+  if (targetExists(link.target)) return true;
+  return fallback !== null && targetExists(fallback);
 }
 
 /**

@@ -46,11 +46,18 @@
  *   - Near-miss suffixes (`.mdx`, `.md_var`), the `\b` + lookahead pair.
  *   - Absolute paths (`/abs/x.md`), the leading `/` fails the lookbehind.
  *
- * Path resolution mirrors `core/markdown-link`: POSIX-normalised against
- * `dirname(node.path)`, per-node dedup on the resolved target (first
- * occurrence wins). The extractor emits unconditionally, whether or not
- * the resolved path matches an existing node; `core/reference-broken`
- * flags unresolved targets, exactly like the sibling extractors. A
+ * Path resolution is dual-base (`spec/architecture.md` §Extractor ·
+ * code-region file references): the emitted target is POSIX-normalised
+ * against `dirname(node.path)` like `core/markdown-link`, per-node dedup
+ * on that resolved target (first occurrence wins), and the authored
+ * token rides `trigger.originalTrigger` verbatim so the post-walk lift
+ * can retry it against the scan root when the file-relative candidate
+ * resolves to nothing (the dominant agent-docs convention writes prose
+ * paths repo-root-relative). An explicit `./` / `../` prefix declares
+ * file-relative intent and never falls back. The extractor emits
+ * unconditionally, whether or not the resolved path matches an existing
+ * node; `core/reference-broken` flags unresolved targets, exactly like
+ * the sibling extractors. A
  * backticked path pointing at a deleted bundled doc is a real authoring
  * bug worth a red chip; out-of-scope paths (resolved by the consuming
  * runtime against a different root) are silenced via the existing
