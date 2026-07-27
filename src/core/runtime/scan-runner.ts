@@ -37,6 +37,7 @@ import { createStderrProgressEmitter } from './progress-emitter.js';
 import type { IPrinter } from './printer.js';
 import { SCAN_RUNNER_TEXTS } from './i18n/scan-runner.texts.js';
 import { resolveDbPath } from '../paths/db-path.js';
+import { ensureScopeGitignore } from '../scope-gitignore.js';
 import { resolveScanRoots } from './scan-roots.js';
 import { walkReferencePaths } from './reference-paths-walker.js';
 import {
@@ -797,6 +798,14 @@ async function runPersistPath(
   }
   if (outcome.kind === 'scan-error') return outcome;
   if (outcome.kind === 'guard') return { kind: 'guard-trip', existing: outcome.existing };
+  // Self-heal the scope ignore file (`spec/cli-contract.md` §Scope
+  // ignore file). A scan that persisted is the moment the DB and its
+  // WAL / SHM sidecars exist on disk, and it is the one operation every
+  // active project runs constantly, so this is what reaches a project
+  // bootstrapped by an older CLI whose entry list was shorter. Total by
+  // contract (`ensureScopeGitignore` swallows I/O errors), and a no-op
+  // read once the file is current.
+  ensureScopeGitignore((opts.ctx ?? defaultRuntimeContext()).cwd);
   return {
     kind: 'ok',
     result: outcome.result,

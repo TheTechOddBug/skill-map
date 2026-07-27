@@ -67,6 +67,48 @@ in the config layers) is the separate OPERATIONAL axis and grants no trust.
 [`architecture.md` §Locality](./architecture.md) (plugin enable vs import
 trust) for the normative model.
 
+### Scope ignore file
+
+`<cwd>/.skill-map/` mixes two kinds of files: a small committed surface
+(the shared `settings.json`, the drop-in `plugins/` tree) and a larger
+set of per-machine runtime artifacts that MUST NOT travel via the shared
+repo. Implementations MUST keep those artifacts out of version control
+by writing an ignore file **inside the scope directory** itself
+(`<cwd>/.skill-map/.gitignore`), listing entries relative to it:
+
+```gitignore
+settings.local.json
+skill-map.db
+skill-map.db-wal
+skill-map.db-shm
+serve.json
+operations.log*
+backups/
+activity/
+```
+
+(`operations.log*` covers the rotated `operations.log.1` generation.)
+
+The file is itself committed: it is the team's shared statement of what
+skill-map generates. It is written (or topped up) by every verb that
+provisions or mutates the scope directory: `sm init`, the persist step of
+a scan, and `sm activity install`. Placing it inside `.skill-map/`
+instead of appending to the project-root `.gitignore` means the rules
+travel with the directory they describe, reach projects initialized by an
+older version on their next scan, and let the implementation stop editing
+a file it does not own.
+
+Top-up is additive and MUST NOT fight the operator: an entry already
+present (in any form) is left alone, and an entry the operator has
+explicitly re-included with a `!` negation (e.g. `!skill-map.db`, the
+supported way for a team to share the database per
+[`db-schema.md`](./db-schema.md)) is never re-added. Only genuinely
+absent entries are appended.
+
+Anything NOT on the list stays trackable, notably `settings.json` (the
+committed team config layer) and `plugins/` (drop-in plugins a team MAY
+commit).
+
 ### User-settings file (narrow, documented exception)
 
 Genuinely per-user, per-machine preferences live in a **single file**
@@ -95,8 +137,8 @@ Everything else under `$HOME` MUST NOT be touched.
 ### Operations log
 
 Every operation that mutates project state appends ONE line to a plain
-append-only JSONL file at `<cwd>/.skill-map/operations.log` (the
-`.skill-map/` directory is gitignored wholesale, so the log is too;
+append-only JSONL file at `<cwd>/.skill-map/operations.log` (a
+per-machine artifact, so it is listed in the scope ignore file above;
 user decision 2026-07-21, a BASIC log built only from data the mutating
 verb already holds in hand, nothing derived or newly captured). Line
 shape:
@@ -230,6 +272,7 @@ Dry-run is **per-verb opt-in**; not global. Verbs that do not declare it MUST re
 Bootstrap the project scope.
 
 - Creates `./.skill-map/`.
+- Writes the scope ignore file (`./.skill-map/.gitignore`, see §Scope ignore file). Does NOT touch the project-root `.gitignore`.
 - Provisions the database.
 - Runs migrations.
 - Runs a first scan.
@@ -703,7 +746,7 @@ The reference implementation ships a Hono BFF rooted at `src/server/`. One Node 
 - **TTY + `NO_COLOR` (or `--no-color`)**: same figlet block + version + data block, with zero ANSI escapes.
 - **Non-TTY (pipes / redirects)**: banner suppressed; the verb emits two flat lines, `sm serve: listening on http://<host>:<port> (db=<path>)` then `sm serve: opening <url>/ in your browser. Press Ctrl+C to stop.` (or `sm serve: visit <url>/ ...` under `--no-open`). This shape is **stable**; tooling scraping those lines (CI capture, `tee log.txt`) MUST keep working across releases.
 
-**Discovery file (`serve.json`)**: after the listener binds, the verb writes `<scopeRoot>/.skill-map/serve.json` (shape: [`schemas/serve-info.schema.json`](schemas/serve-info.schema.json)) recording the RESOLVED host/port, `pid`, `scopeRoot`, `startedAt`, `smVersion`, and a random per-session `token`; it deletes the file on shutdown. Short-lived local processes (the activity bridge, [`provider-activity.md`](./provider-activity.md)) read it to find and authenticate against the project's running server. Runtime artifact, not user config: written atomically, gitignored (`sm init` adds the entry), overwritten on boot, and readers fail open when it is stale (a hard kill cannot clean up).
+**Discovery file (`serve.json`)**: after the listener binds, the verb writes `<scopeRoot>/.skill-map/serve.json` (shape: [`schemas/serve-info.schema.json`](schemas/serve-info.schema.json)) recording the RESOLVED host/port, `pid`, `scopeRoot`, `startedAt`, `smVersion`, and a random per-session `token`; it deletes the file on shutdown. Short-lived local processes (the activity bridge, [`provider-activity.md`](./provider-activity.md)) read it to find and authenticate against the project's running server. Runtime artifact, not user config: written atomically, gitignored (listed in the scope ignore file, see §Scope ignore file), overwritten on boot, and readers fail open when it is stale (a hard kill cannot clean up).
 
 **Endpoints** (the table is the authoritative surface; rows carry the sub-step marker where semantics landed after the v14.2 baseline):
 

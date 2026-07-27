@@ -7,11 +7,11 @@
  *   - Copies the bundled `.skillmapignore` template into the scope root.
  *   - Provisions `<cwd>/.skill-map/skill-map.db` (kernel migrations
  *     run automatically via `SqliteStorageAdapter.init()`).
- *   - Appends the per-machine runtime artifacts to the project's
- *     `.gitignore` (creating the file when missing), so they stay
- *     untracked unless the team removes an entry by hand. The list is
- *     `GITIGNORE_ENTRIES`: `settings.local.json`, `skill-map.db`,
- *     `serve.json`, and the `backups/` directory.
+ *   - Writes the scope ignore file (`.skill-map/.gitignore`) listing the
+ *     per-machine runtime artifacts, so they stay untracked. The
+ *     project-root `.gitignore` is NOT touched: the rules live inside
+ *     the directory they describe (`core/scope-gitignore.ts`,
+ *     `spec/cli-contract.md` §Scope ignore file).
  *   - Runs a first scan unless `--no-scan` is passed.
  *
  * Per `spec/cli-contract.md` §Scope is always project-local, scope is
@@ -22,7 +22,7 @@
  * unless `--force` is passed.
  */
 
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { Command, Option } from 'clipanion';
@@ -38,10 +38,12 @@ import {
   defaultDbPath,
   defaultIgnoreFilePath,
   defaultLocalSettingsPath,
+  defaultScopeGitignorePath,
   defaultSettingsPath,
-  GITIGNORE_ENTRIES,
+  SCOPE_GITIGNORE_ENTRIES,
   SKILL_MAP_DIR,
 } from '../util/db-path.js';
+import { ensureScopeGitignore, previewScopeGitignore } from '../../core/scope-gitignore.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { pathExists } from '../util/fs.js';
 import { createPrinter, type IPrinter } from '../util/printer.js';
@@ -56,8 +58,8 @@ export class InitCommand extends SmCommand {
     description: 'Bootstrap the current project: scaffold .skill-map/, provision DB, run first scan.',
     details: `
       Creates ./.skill-map/ with settings.json, settings.local.json,
-      and skill-map.db. Drops a starter .skillmapignore at the project
-      root and appends the DB + local settings to .gitignore.
+      skill-map.db and a .gitignore covering the generated artifacts.
+      Drops a starter .skillmapignore at the project root.
 
       Re-running over an existing project errors with exit 2 unless
       --force is passed. --no-scan skips the first scan; useful in CI
@@ -150,17 +152,14 @@ export class InitCommand extends SmCommand {
     const ansi = this.ansiFor('stdout');
     const okGlyph = ansi.green('✓');
 
-    const updated = await ensureGitignoreEntries(scopeRoot, GITIGNORE_ENTRIES);
-    if (updated) {
-      const gitignorePath = join(scopeRoot, '.gitignore');
+    const gitignoreOutcome = ensureScopeGitignore(scopeRoot);
+    if (gitignoreOutcome === 'created' || gitignoreOutcome === 'updated') {
       printer.info(
-        GITIGNORE_ENTRIES.length === 1
-          ? tx(INIT_TEXTS.gitignoreUpdatedSingular, { glyph: okGlyph, path: gitignorePath })
-          : tx(INIT_TEXTS.gitignoreUpdatedPlural, {
-              glyph: okGlyph,
-              path: gitignorePath,
-              count: GITIGNORE_ENTRIES.length,
-            }),
+        tx(INIT_TEXTS.scopeGitignoreWritten, {
+          glyph: okGlyph,
+          path: defaultScopeGitignorePath(scopeRoot),
+          count: SCOPE_GITIGNORE_ENTRIES.length,
+        }),
       );
     }
 
@@ -239,7 +238,7 @@ async function writeDryRunPlan(
   if (!(await pathExists(opts.ignorePath)) || opts.force) {
     printer.info(await dryRunFileMessage(opts.ignorePath));
   }
-  await writeDryRunGitignorePlan(printer, opts.scopeRoot);
+  writeDryRunScopeGitignorePlan(printer, opts.scopeRoot);
   printer.info(tx(INIT_TEXTS.dryRunWouldProvisionDb, { path: opts.dbPath }));
   printer.info(
     opts.noScan ? INIT_TEXTS.dryRunWouldSkipFirstScan : INIT_TEXTS.dryRunWouldRunFirstScan,
@@ -270,33 +269,26 @@ async function safeUnlink(path: string): Promise<void> {
 }
 
 /**
- * Subhelper of `writeDryRunPlan`, render the `.gitignore` preview
- * (unchanged / one-entry / multi-entry phrasing). Project scope only.
+ * Subhelper of `writeDryRunPlan`, render the scope ignore file preview.
+ * The live path (`ensureScopeGitignore`) either creates the file or tops
+ * up the entries it is missing; the preview mirrors both branches
+ * without touching the filesystem.
  */
-async function writeDryRunGitignorePlan(
-  printer: IPrinter,
-  scopeRoot: string,
-): Promise<void> {
-  const wouldAdd = await previewGitignoreEntries(scopeRoot, GITIGNORE_ENTRIES);
-  const gitignorePath = join(scopeRoot, '.gitignore');
-  if (wouldAdd.length === 0) {
-    printer.info(tx(INIT_TEXTS.dryRunWouldLeaveGitignoreUnchanged, { path: gitignorePath }));
-  } else if (wouldAdd.length === 1) {
-    printer.info(
-      tx(INIT_TEXTS.dryRunWouldUpdateGitignoreSingular, {
-        path: gitignorePath,
-        entries: wouldAdd[0]!,
-      }),
-    );
-  } else {
-    printer.info(
-      tx(INIT_TEXTS.dryRunWouldUpdateGitignorePlural, {
-        path: gitignorePath,
-        count: wouldAdd.length,
-        entries: wouldAdd.join(', '),
-      }),
-    );
+function writeDryRunScopeGitignorePlan(printer: IPrinter, scopeRoot: string): void {
+  const { path, exists, wouldAdd } = previewScopeGitignore(scopeRoot);
+  if (!exists) {
+    printer.info(tx(INIT_TEXTS.dryRunWouldWriteScopeGitignore, { path, count: wouldAdd.length }));
+    return;
   }
+  printer.info(
+    wouldAdd.length === 0
+      ? tx(INIT_TEXTS.dryRunWouldLeaveScopeGitignoreUnchanged, { path })
+      : tx(INIT_TEXTS.dryRunWouldTopUpScopeGitignore, {
+          path,
+          count: wouldAdd.length,
+          entries: wouldAdd.join(', '),
+        }),
+  );
 }
 
 /**
@@ -427,57 +419,3 @@ async function runFirstScan(
   return hasErrors ? ExitCode.Issues : ExitCode.Ok;
 }
 
-/**
- * Compute which `entries` would be appended to `<scopeRoot>/.gitignore`
- * by the live `ensureGitignoreEntries` call, WITHOUT writing. Used by
- * `--dry-run` to render an honest preview of what `sm init` would
- * change. Same parsing rules as the live function so the preview tracks
- * the real outcome (skip blank lines and comment lines, dedupe by exact
- * trimmed match).
- */
-async function previewGitignoreEntries(
-  scopeRoot: string,
-  entries: readonly string[],
-): Promise<string[]> {
-  const path = join(scopeRoot, '.gitignore');
-  const body = (await pathExists(path)) ? await readFile(path, 'utf8') : '';
-  const present = new Set(
-    body
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0 && !line.startsWith('#')),
-  );
-  return entries.filter((entry) => !present.has(entry));
-}
-
-/**
- * Append every `entry` to `<scopeRoot>/.gitignore` that is not already
- * present (compared as trimmed line). Creates the file if absent.
- * Returns true if the file was written.
- */
-async function ensureGitignoreEntries(
-  scopeRoot: string,
-  entries: readonly string[],
-): Promise<boolean> {
-  const path = join(scopeRoot, '.gitignore');
-  let body = '';
-  if (await pathExists(path)) {
-    body = await readFile(path, 'utf8');
-  }
-  const present = new Set(
-    body
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0 && !line.startsWith('#')),
-  );
-  let changed = false;
-  for (const entry of entries) {
-    if (present.has(entry)) continue;
-    if (body.length > 0 && !body.endsWith('\n')) body += '\n';
-    body += `${entry}\n`;
-    present.add(entry);
-    changed = true;
-  }
-  if (changed) await writeFile(path, body);
-  return changed;
-}

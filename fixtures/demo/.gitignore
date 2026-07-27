@@ -1,4 +1,7 @@
-.skill-map/settings.local.json
-.skill-map/skill-map.db
-.skill-map/serve.json
-.skill-map/backups/
+# All of `.skill-map/` is a local scan/serve cache. Only settings.json (the
+# committed active-lens pin, re-included below) is tracked; the DB, its WAL,
+# backups, serve.json, settings.local.json, the operations log, and the
+# generated activity bridge (`sm activity install claude` regenerates it)
+# stay out of the tree.
+/.skill-map/*
+!/.skill-map/settings.json

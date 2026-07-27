@@ -47,6 +47,16 @@ export const SERVE_INFO_FILENAME = 'serve.json';
 const ACTIVITY_DIRNAME = 'activity';
 const ACTIVITY_BRIDGE_FILENAME = 'bridge.js';
 
+/** The operations-log filename (`spec/cli-contract.md` §Operations log). */
+export const OPERATIONS_LOG_FILENAME = 'operations.log';
+
+/**
+ * The scope ignore file (`<scopeRoot>/.skill-map/.gitignore`). Same
+ * basename as the project-root `.gitignore`, distinct location: this one
+ * lives INSIDE the scope directory and describes only its contents.
+ */
+const SCOPE_GITIGNORE_FILENAME = '.gitignore';
+
 /**
  * Single source of truth for the relative DB path inside the project
  * scope directory (`.skill-map/skill-map.db`).
@@ -54,20 +64,34 @@ const ACTIVITY_BRIDGE_FILENAME = 'bridge.js';
 const DEFAULT_DB_REL = `${SKILL_MAP_DIR}/${DB_FILENAME}`;
 
 /**
- * Entries `sm init` appends to the project `.gitignore`. Centralised
- * here (instead of the verb file) so the literals live alongside their
- * filename constants and the verb consumes them as a frozen list. Every
- * entry is a per-machine runtime artifact that must never travel via the
- * shared repo: the local settings, the DB, the serve discovery file, and
- * the DB backups directory (pre-migrate snapshots + `sm db backup`
- * output, `.skill-map/backups/`, trailing slash so only the directory
- * matches).
+ * Entries of the scope ignore file (`<scopeRoot>/.skill-map/.gitignore`,
+ * `spec/cli-contract.md` §Scope ignore file). Paths are relative to
+ * `.skill-map/` because the ignore file lives INSIDE it. Centralised
+ * here (instead of the writer) so the literals live alongside their
+ * filename constants and consumers take a frozen list.
+ *
+ * Every entry is a per-machine runtime artifact that must never travel
+ * via the shared repo: the local settings, the DB plus its SQLite
+ * sidecars (`-wal` / `-shm`, which the bare DB pattern does NOT match),
+ * the serve discovery file, the operations log and its rotated
+ * generation (`operations.log.1`, hence the glob), the DB backups
+ * directory (pre-migrate snapshots + `sm db backup` output), and the
+ * generated activity bridge (`sm activity install` regenerates it, so a
+ * committed copy only goes stale against the CLI that wrote it).
+ *
+ * Everything NOT listed stays trackable, notably `settings.json` (the
+ * committed team config layer) and `plugins/` (drop-in plugins a team
+ * may commit).
  */
-export const GITIGNORE_ENTRIES: readonly string[] = [
-  `${SKILL_MAP_DIR}/${LOCAL_SETTINGS_FILENAME}`,
-  `${SKILL_MAP_DIR}/${DB_FILENAME}`,
-  `${SKILL_MAP_DIR}/${SERVE_INFO_FILENAME}`,
-  `${SKILL_MAP_DIR}/${BACKUPS_DIRNAME}/`,
+export const SCOPE_GITIGNORE_ENTRIES: readonly string[] = [
+  LOCAL_SETTINGS_FILENAME,
+  DB_FILENAME,
+  `${DB_FILENAME}-wal`,
+  `${DB_FILENAME}-shm`,
+  SERVE_INFO_FILENAME,
+  `${OPERATIONS_LOG_FILENAME}*`,
+  `${BACKUPS_DIRNAME}/`,
+  `${ACTIVITY_DIRNAME}/`,
 ];
 
 /**
@@ -124,9 +148,6 @@ export function defaultProjectPluginsDir(ctx: IRuntimeContext): string {
   return resolve(ctx.cwd, SKILL_MAP_DIR, PLUGINS_DIRNAME);
 }
 
-/** The operations-log filename (`spec/cli-contract.md` §Operations log). */
-export const OPERATIONS_LOG_FILENAME = 'operations.log';
-
 /**
  * Default project operations log (`<cwd>/.skill-map/operations.log`),
  * the append-only JSONL every mutating verb writes one line to
@@ -179,7 +200,7 @@ export function defaultLocalSettingsPath(scopeRoot: string): string {
  * per-session ingest token, shape per `spec/schemas/serve-info.schema.json`)
  * and deleted on shutdown; the activity bridge reads it to find and
  * authenticate against the project's running server. Runtime artifact,
- * gitignored via `GITIGNORE_ENTRIES`, never committed.
+ * gitignored via `SCOPE_GITIGNORE_ENTRIES`, never committed.
  */
 export function defaultServeInfoPath(scopeRoot: string): string {
   return join(scopeRoot, SKILL_MAP_DIR, SERVE_INFO_FILENAME);
@@ -190,8 +211,13 @@ export function defaultServeInfoPath(scopeRoot: string): string {
  * Holds the zero-dependency bridge script `sm activity install <provider>`
  * writes and the provider hook configs reference (relative to the scope
  * root, so a committed provider config stays portable across machines).
- * Committed (NOT gitignored): the bridge is deterministic generated code
- * a teammate's cloned hooks need present.
+ *
+ * Gitignored, NOT committed (`spec/provider-activity.md` §Bridge
+ * contract, item 6): the installer regenerates it and stamps the CLI
+ * version into it, so a committed copy silently goes stale against the
+ * implementation that reads it. A teammate who wants live activity runs
+ * `sm activity install <provider>` once, which is also what wires their
+ * own hook config.
  */
 export function defaultProjectActivityDir(scopeRoot: string): string {
   return join(scopeRoot, SKILL_MAP_DIR, ACTIVITY_DIRNAME);
@@ -222,6 +248,18 @@ export const ACTIVITY_BRIDGE_REL = `${SKILL_MAP_DIR}/${ACTIVITY_DIRNAME}/${ACTIV
  */
 export function defaultIgnoreFilePath(scopeRoot: string): string {
   return join(scopeRoot, IGNORE_FILENAME);
+}
+
+/**
+ * The scope ignore file (`<scopeRoot>/.skill-map/.gitignore`), the
+ * committed statement of which files inside the scope directory are
+ * machine-generated. Written by `ensureScopeGitignore`
+ * (`core/scope-gitignore.ts`); contract in `spec/cli-contract.md`
+ * §Scope ignore file. Distinct from `defaultGitignorePath` below, which
+ * is the PROJECT-ROOT `.gitignore` the scan's ignore layers read.
+ */
+export function defaultScopeGitignorePath(scopeRoot: string): string {
+  return join(scopeRoot, SKILL_MAP_DIR, SCOPE_GITIGNORE_FILENAME);
 }
 
 /**

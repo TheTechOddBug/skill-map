@@ -185,7 +185,8 @@ it discovers the server through `<scopeRoot>/.skill-map/serve.json`, written by 
   (SIGKILL) cannot clean up, so a stale file may remain: readers MUST fail open
   (see §Bridge contract). A new server overwrites any stale file on boot.
 - **It is a runtime artifact, not user config** (lockfile-like). It is gitignored
-  (`sm init` adds it to `.gitignore`) and never committed. The place to CONFIGURE
+  (listed in the scope ignore file, [`cli-contract.md` §Scope ignore
+  file](./cli-contract.md)) and never committed. The place to CONFIGURE
   host/port is the project config; `serve.json` publishes the resolved outcome.
 - **Token**: a random per-session secret minted at boot. Readers present it on
   every ingest request (§Ingest). It rotates on every server restart. Because the
@@ -221,6 +222,14 @@ CommonJS even inside an ESM host project. Normative behavior:
    decisions); a bridge that breaks these invariants can block or alter the
    operator's session. Every failure path (no server, refused connection, bad
    JSON, timeout) is a silent no-op. Activity is best-effort by design.
+6. **It is a generated per-machine artifact, never committed.** The installer
+   owns `<scopeRoot>/.skill-map/activity/` end to end (bridge + sibling
+   `package.json`), regenerates it on every install, and the directory is
+   listed in the scope ignore file ([`cli-contract.md` §Scope ignore
+   file](./cli-contract.md)) so it stays out of the shared repo. A committed
+   bridge would go stale against the implementation that generated it, and a
+   teammate who never ran the installer would inherit hook wiring pointing at
+   a script their checkout does not have.
 
 ## Ingest: `POST /api/activity`
 

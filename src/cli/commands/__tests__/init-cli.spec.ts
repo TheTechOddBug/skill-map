@@ -106,29 +106,44 @@ describe('sm init, project scope', () => {
     },
   );
 
-  it('appends to .gitignore (creates if missing)', () => {
-    const scope = freshScope('gitignore-create');
+  // `spec/cli-contract.md` §Scope ignore file: the rules live INSIDE
+  // `.skill-map/`, covering every generated artifact. The SQLite
+  // sidecars matter specifically because the bare `skill-map.db`
+  // pattern does not match `skill-map.db-wal` / `-shm`.
+  it('writes the scope ignore file covering every generated artifact', () => {
+    const scope = freshScope('scope-gitignore-create');
     const r = sm(['init', '--no-scan'], scope);
     assert.equal(r.status, 0);
-    const gitignore = readFileSync(join(scope.cwd, '.gitignore'), 'utf8');
-    assert.match(gitignore, /\.skill-map\/settings\.local\.json/);
-    assert.match(gitignore, /\.skill-map\/skill-map\.db/);
+    const lines = readFileSync(join(scope.cwd, '.skill-map', '.gitignore'), 'utf8')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0 && !l.startsWith('#'));
+    assert.deepEqual(lines, [
+      'settings.local.json',
+      'skill-map.db',
+      'skill-map.db-wal',
+      'skill-map.db-shm',
+      'serve.json',
+      'operations.log*',
+      'backups/',
+      'activity/',
+    ]);
+    // The committed surface stays trackable, and the project-root
+    // `.gitignore` is no longer skill-map's business.
+    assert.ok(!lines.includes('settings.json'));
+    assert.ok(!lines.includes('plugins/'));
+    assert.equal(existsSync(join(scope.cwd, '.gitignore')), false);
   });
 
-  it('appends to existing .gitignore without duplicating entries', () => {
-    const scope = freshScope('gitignore-merge');
-    writeFileSync(
-      join(scope.cwd, '.gitignore'),
-      'dist\nnode_modules\n.skill-map/skill-map.db\n',
-    );
+  it('leaves the project-root .gitignore untouched', () => {
+    const scope = freshScope('root-gitignore-untouched');
+    writeFileSync(join(scope.cwd, '.gitignore'), 'dist\nnode_modules\n');
     const r = sm(['init', '--no-scan'], scope);
     assert.equal(r.status, 0);
-    const lines = readFileSync(join(scope.cwd, '.gitignore'), 'utf8')
-      .split('\n')
-      .filter((l) => l.trim().length > 0);
-    const dbCount = lines.filter((l) => l === '.skill-map/skill-map.db').length;
-    assert.equal(dbCount, 1, 'must not duplicate existing entry');
-    assert.ok(lines.includes('.skill-map/settings.local.json'));
+    assert.equal(
+      readFileSync(join(scope.cwd, '.gitignore'), 'utf8'),
+      'dist\nnode_modules\n',
+    );
   });
 
   it('errors with exit 2 when re-running over an existing scope without --force', () => {
@@ -198,7 +213,7 @@ describe('sm init --dry-run (H3, spec §Dry-run)', () => {
     assert.match(r.stderr, /would write.+settings\.json/);
     assert.match(r.stderr, /would write.+settings\.local\.json/);
     assert.match(r.stderr, /would write.+\.skillmapignore/);
-    assert.match(r.stderr, /would update.+\.gitignore.+\(add 4 entries/);
+    assert.match(r.stderr, /would write.+\.skill-map.+\.gitignore \(8 generated artifacts\)/);
     assert.match(r.stderr, /would provision DB/);
     assert.match(r.stderr, /would run first scan/);
 
@@ -239,19 +254,21 @@ describe('sm init --dry-run (H3, spec §Dry-run)', () => {
     assert.equal(after, before);
   });
 
-  it('--dry-run does NOT duplicate gitignore entries that already exist', () => {
-    const scope = freshScope('dryrun-gitignore-merge');
+  // Top-up preview: an ignore file written by an older CLI (short entry
+  // list) is reported as the delta, not as a full rewrite. `--force` is
+  // needed only because the scope already exists.
+  it('--dry-run previews the top-up of an existing scope ignore file', () => {
+    const scope = freshScope('dryrun-scope-gitignore-topup');
+    sm(['init', '--no-scan'], scope);
     writeFileSync(
-      join(scope.cwd, '.gitignore'),
-      'dist\n.skill-map/skill-map.db\n',
+      join(scope.cwd, '.skill-map', '.gitignore'),
+      'settings.local.json\nskill-map.db\nserve.json\nbackups/\n',
     );
-    const r = sm(['init', '--dry-run'], scope);
+    const r = sm(['init', '--dry-run', '--force'], scope);
     assert.equal(r.status, 0);
-    // The DB entry is already present, so only the settings.local,
-    // serve.json, and backups/ entries would be added.
     assert.match(
       r.stderr,
-      /would update.+\.gitignore.+\(add 3 entries: \.skill-map\/settings\.local\.json, \.skill-map\/serve\.json, \.skill-map\/backups\/\)/,
+      /would update.+\.gitignore \(add 4: skill-map\.db-wal, skill-map\.db-shm, operations\.log\*, activity\/\)/,
     );
   });
 });

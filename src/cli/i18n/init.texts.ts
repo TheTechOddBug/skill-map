@@ -15,8 +15,14 @@ export const INIT_TEXTS = {
     '   {{hint}}\n',
   alreadyInitialisedHint: 'Pass --force to overwrite.',
 
-  gitignoreUpdatedSingular: '{{glyph}}  Updated {{path}} (added 1 entry)\n',
-  gitignoreUpdatedPlural: '{{glyph}}  Updated {{path}} (added {{count}} entries)\n',
+  /**
+   * The scope ignore file (`.skill-map/.gitignore`) covering the
+   * generated artifacts. One template for both the created and the
+   * topped-up branch: the operator cares that the file now covers the
+   * N generated artifacts, not which of the two paths got them there.
+   */
+  scopeGitignoreWritten:
+    '{{glyph}}  Wrote {{path}} ({{count}} generated artifacts kept out of git)\n',
 
   initialised: '{{glyph}}  Initialised {{skillMapDir}}\n',
 
@@ -41,12 +47,12 @@ export const INIT_TEXTS = {
   dryRunWouldCreateDir: 'would create   {{path}}/\n',
   dryRunWouldWriteFile: 'would write    {{path}}\n',
   dryRunWouldOverwriteFile: 'would overwrite {{path}}\n',
-  dryRunWouldLeaveGitignoreUnchanged:
+  dryRunWouldWriteScopeGitignore:
+    'would write    {{path}} ({{count}} generated artifacts)\n',
+  dryRunWouldLeaveScopeGitignoreUnchanged:
     'would leave    {{path}} unchanged (entries already present)\n',
-  dryRunWouldUpdateGitignoreSingular:
-    'would update   {{path}} (add 1 entry: {{entries}})\n',
-  dryRunWouldUpdateGitignorePlural:
-    'would update   {{path}} (add {{count}} entries: {{entries}})\n',
+  dryRunWouldTopUpScopeGitignore:
+    'would update   {{path}} (add {{count}}: {{entries}})\n',
   dryRunWouldProvisionDb:
     'would provision DB at {{path}} (apply pending migrations)\n',
   dryRunWouldRunFirstScan: 'would run first scan (no persistence in dry-run)\n',

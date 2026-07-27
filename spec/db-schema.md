@@ -18,7 +18,7 @@ One scope. Skill-map operates on the project scope only (`<cwd>/.skill-map/`). N
 |---|---|---|
 | `project` | `<cwd>/.skill-map/skill-map.db` | The current repository, plus any positional roots or symlink targets the scan reached. |
 
-The project DB is gitignored by default (`sm init` adds the entry). Teams MAY share it by removing that `.gitignore` entry; the file is then committed and the execution log becomes a team artifact.
+The project DB is gitignored by default, together with its `-wal` / `-shm` sidecars (the scope ignore file, [`cli-contract.md` §Scope ignore file](./cli-contract.md)). Teams MAY share it by re-including it with a `!skill-map.db` line in that file; the file is then committed and the execution log becomes a team artifact. Use the `!` negation rather than deleting the line, a deleted entry is topped up again on the next scan while a negation is honoured.
 
 The `--db <path>` CLI flag overrides the DB location as an escape hatch (debugging, custom layouts).
 
@@ -628,7 +628,7 @@ Note: plugins are user-placed code. Protection guards against accidents (a plugi
 - Auto-backup before migrations: `.skill-map/backups/skill-map-pre-migrate-v<N>.db`.
 - `sm db restore <path>` swaps the current DB with the supplied file. Interactive confirmation required unless `--force`.
 
-The `.skill-map/backups/` directory is a per-machine runtime artifact and MUST NOT travel via the shared repo: `sm init` adds it to the project `.gitignore` (alongside `settings.local.json`, `skill-map.db`, and `serve.json`), so pre-migrate snapshots and `sm db backup` output stay local.
+The `.skill-map/backups/` directory is a per-machine runtime artifact and MUST NOT travel via the shared repo: it is listed in the scope ignore file ([`cli-contract.md` §Scope ignore file](./cli-contract.md)) alongside the other generated artifacts, so pre-migrate snapshots and `sm db backup` output stay local.
 
 Backups include `state_*` + `config_*` only; `scan_*` is regenerated after restore via `sm scan`.
 

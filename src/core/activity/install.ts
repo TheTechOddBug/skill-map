@@ -30,6 +30,7 @@ import {
   defaultActivityBridgePath,
   defaultProjectActivityDir,
 } from '../paths/db-path.js';
+import { ensureScopeGitignore } from '../scope-gitignore.js';
 import { BRIDGE_PACKAGE_JSON, renderActivityBridge } from './bridge-template.js';
 import {
   ACTIVITY_PLUGIN_MARKER,
@@ -132,6 +133,13 @@ export async function installActivityBridge(cwd: string, provider: IProvider): P
   await mkdir(dirname(bridgePath), { recursive: true });
   await writeFile(bridgePath, renderActivityBridge(), 'utf8');
   await writeFile(join(dirname(bridgePath), 'package.json'), BRIDGE_PACKAGE_JSON, 'utf8');
+  // The bridge is generated per machine and stamped with the CLI version
+  // that wrote it, so it must never be committed (`provider-activity.md`
+  // §Bridge contract, item 6). Top up the scope ignore file here rather
+  // than trusting `sm init` to have listed `activity/`: a project
+  // bootstrapped by an older CLI has an ignore file that predates the
+  // entry, and this is the exact moment the directory appears on disk.
+  ensureScopeGitignore(cwd);
 }
 
 /**

@@ -66,6 +66,7 @@ import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js
 import { loadConfig } from '../../kernel/config/loader.js';
 import { resolveActiveProvider } from '../config/active-provider.js';
 import { appendOperation } from '../operations-log.js';
+import { ensureScopeGitignore } from '../scope-gitignore.js';
 import { buildSettingsResolver } from '../config/plugin-settings.js';
 import { walkReferencePaths } from '../runtime/reference-paths-walker.js';
 import {
@@ -791,6 +792,12 @@ export function createWatcherRuntime(
           freshlyRunTuples,
         }),
       );
+
+      // Same self-heal as the one-shot persist path (`scan-runner.ts`):
+      // a session that only ever runs `sm serve` / `sm watch` still gets
+      // its scope ignore file topped up (`spec/cli-contract.md` §Scope
+      // ignore file). Total by contract, and a no-op read once current.
+      ensureScopeGitignore(cwd);
 
       appendOperation(cwd, {
         op: 'scan',
