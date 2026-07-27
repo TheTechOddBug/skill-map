@@ -2,6 +2,48 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.94.0",
+      "date": "2026-07-27",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "If you cancel or interrupt your agent while it delegates work, the dashed live arrow and its capsule now disappear when the turn ends instead of sticking around for the rest of your session. Re-run `sm activity install claude` once so the new turn-end hook gets wired.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The \"Wake an agent when jobs are queued\" switch is gone from Settings, Project. To process the queue, keep an agent watching it (ask it to run the processing skill) or process on demand; nothing else changes.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "When your agent spawns built-in helpers that are not files in your project (an explorer, a planner), the map now shows them as live dashed capsules with a run counter, hanging off whoever spawned them. Your session bubble also docks next to your AGENTS.md / CLAUDE.md card.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "New toggle in Settings > Project, \"Show runtime sub-agents\": turn off the floating capsules for your agent's built-in helpers if you prefer the map to show only your own files. On by default.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Fewer false \"Broken pointer\" errors: a path in backticks written from the project root (like docs usually do) now resolves even when the file mentioning it lives in a subfolder, and `[text](/path/from/root.md)` links now work like on GitHub.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.93.2",
       "date": "2026-07-27",
       "kind": "user-facing",

@@ -1,5 +1,41 @@
 # Spec changelog
 
+## 0.86.0
+
+### Minor Changes
+
+- Removed the agent doorbell (wake-on-submit): the `jobs.wakeOnSubmit` key, the `POST /api/agent/doorbell` route, the Settings toggle, and the registration in the generated OpenCode activity plugin. It served one runtime with no path to the others; parking (`sm jobs claim --wait` or the MCP `claim_job` wait) covers the same need at zero idle cost. The activity ingest tolerates and ignores the `agentEndpoint` field plugins generated before the removal still send.
+
+  ## User-facing
+
+  The "Wake an agent when jobs are queued" switch is gone from Settings, Project. To process the queue, keep an agent watching it (ask it to run the processing skill) or process on demand; nothing else changes.
+
+- Dual-base link resolution: a backticked prose path that misses file-relatively now retries against the scan root before being flagged broken (unless it carries an explicit `./` / `../` prefix), and markdown links support GitHub's root-relative form, `[x](/docs/foo.md)` resolves from the scan root instead of being skipped. Closes the false "Broken pointer" on root-relative mentions written from nested folders, the dominant convention in agent docs.
+
+  ## User-facing
+
+  Fewer false "Broken pointer" errors: a path in backticks written from the project root (like docs usually do) now resolves even when the file mentioning it lives in a subfolder, and `[text](/path/from/root.md)` links now work like on GitHub.
+
+### Patch Changes
+
+- Interrupted or failed sub-agent spawns no longer linger on the live map: the claude adapter maps the main-context `Stop` to a new node-less `turnEnd` frame that sweeps the turn's dead sync spawn relations (re-run `sm activity install claude` to wire it), and a completion-less relation is no longer kept alive by its own session's heartbeats. Also fixes the client event guard rejecting the node-less `sessionScope` form (Codex's turn-end release went unprocessed).
+
+  ## User-facing
+
+  If you cancel or interrupt your agent while it delegates work, the dashed live arrow and its capsule now disappear when the turn ends instead of sticking around for the rest of your session. Re-run `sm activity install claude` once so the new turn-end hook gets wired.
+
+- The graph now renders an ephemeral agent capsule for a spawned runtime sub-agent that matches no scanned node (a vendor built-in with no file on disk), aggregated per parent and name with a live-run count and released with its last live relation; a session spawning only built-ins previously drew nothing. Session anchors float beside the project-instructions card (`AGENTS.md` / `CLAUDE.md`), and dragging a live anchor no longer snaps back mid-drag. Spec: `provider-activity.md` §agent.spawn.
+
+  ## User-facing
+
+  When your agent spawns built-in helpers that are not files in your project (an explorer, a planner), the map now shows them as live dashed capsules with a run counter, hanging off whoever spawned them. Your session bubble also docks next to your AGENTS.md / CLAUDE.md card.
+
+- New project-local `ui.showRuntimeAgents` preference (default `true`, subordinate to `ui.realtimeActivity`): gates the map's ephemeral capsules for runtime sub-agents that match no scanned node. Rides the standard preferences pipeline (`project-config` schema, `GET/PATCH /api/project-preferences`, a third toggle in Settings > Project's Real Time block); switching it off restores the pre-capsule rendering without touching resolved-node spawn edges or session anchors.
+
+  ## User-facing
+
+  New toggle in Settings > Project, "Show runtime sub-agents": turn off the floating capsules for your agent's built-in helpers if you prefer the map to show only your own files. On by default.
+
 ## 0.85.1
 
 ### Patch Changes
