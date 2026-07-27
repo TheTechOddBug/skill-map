@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.93.2",
+      "date": "2026-07-27",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Skill-map no longer writes to your project's `.gitignore`: it keeps its own inside `.skill-map/`, covering everything it generates. The database sidecars, the operations log and the activity bridge no longer show up as files to commit. Older projects are fixed on the next scan.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.93.1",
       "date": "2026-07-26",
       "kind": "internal",
