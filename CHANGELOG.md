@@ -6,6 +6,23 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.95.0</b> · 2026-07-27</summary>
+
+### CLI Minor
+- Map visibility flips to a deviation model (spec §Map scope overrides): rail checkboxes start CHECKED, unchecking excludes the subtree, and overrides inherit nearest-ancestor-wins. `/api/branch` and MCP `get_branch` gain `exclude` / `excludeRoot` params evaluated server-side before the render cap; bare `?path=` keeps its historical union meaning via an inference rule, so existing callers are unaffected. The old localStorage include-set migrates automatically.
+
+### CLI Patch
+- Session anchors no longer dock beside the AGENTS.md / CLAUDE.md card: the instructions-node affinity was retired after live use (the session cluster parked away from the agents actually running). A session now floats above the centroid of the agents it runs; capsule-only sessions hover above the graph top. Clamp, collision dodge and drag overrides are unchanged. Placement note updated in `spec/provider-activity.md`.
+
+### Spec Minor (0.87.0)
+- Map visibility flips to a deviation model (spec §Map scope overrides): rail checkboxes start CHECKED, unchecking excludes the subtree, and overrides inherit nearest-ancestor-wins. `/api/branch` and MCP `get_branch` gain `exclude` / `excludeRoot` params evaluated server-side before the render cap; bare `?path=` keeps its historical union meaning via an inference rule, so existing callers are unaffected. The old localStorage include-set migrates automatically.
+
+### Spec Patch (0.87.0)
+- Session anchors no longer dock beside the AGENTS.md / CLAUDE.md card: the instructions-node affinity was retired after live use (the session cluster parked away from the agents actually running). A session now floats above the centroid of the agents it runs; capsule-only sessions hover above the graph top. Clamp, collision dodge and drag overrides are unchanged. Placement note updated in `spec/provider-activity.md`.
+
+</details>
+
+<details>
 <summary><b>0.94.0</b> · 2026-07-27</summary>
 
 ### CLI Minor
