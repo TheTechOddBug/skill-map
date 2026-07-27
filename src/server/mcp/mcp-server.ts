@@ -30,6 +30,7 @@ import { registerMcpResources } from './resources.js';
 import { registerMcpTools } from './tools.js';
 import { registerMcpQueueTools } from './queue-tools.js';
 import { registerMcpFindingsTools } from './findings-tools.js';
+import { registerMcpIssuesTools } from './issues-tools.js';
 
 /** Composition-root inputs for the MCP server (per session). */
 export interface IMcpServerDeps extends IMcpReadContext {
@@ -84,6 +85,7 @@ export function createMcpServer(deps: IMcpServerDeps): IMcpServerParts {
   };
   registerMcpQueueTools(server, writeCtx);
   registerMcpFindingsTools(server, writeCtx);
+  registerMcpIssuesTools(server, writeCtx);
 
   const subscriptions = new Set<string>();
   // The high-level `McpServer` registers list/read handlers but NOT

@@ -138,6 +138,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   resolveFinding: () => Promise.resolve(),
   undismissFinding: () => Promise.resolve(),
   deleteFinding: () => Promise.resolve(),
+  dismissIssue: () => Promise.resolve(),
   cancelAllJobs: () => Promise.resolve(),
   pruneJobs: () => Promise.resolve(),
   listJobs: () => Promise.resolve([]),

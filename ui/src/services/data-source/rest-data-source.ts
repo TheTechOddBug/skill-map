@@ -776,6 +776,31 @@ export class RestDataSource implements IDataSourcePort {
   }
 
   /**
+   * `POST /api/nodes/:pathB64/issues/dismiss` (204-style raw post, mirror
+   * of `dismissFinding`; `confirm-required` / `not-found` propagate as
+   * `DataSourceError`). `analyzer` / `value` travel VERBATIM (the row's
+   * short `analyzerId` and its `data.target`).
+   */
+  async dismissIssue(
+    nodePath: string,
+    analyzer: string,
+    value: string,
+    opts: { confirm?: boolean; always?: boolean } = {},
+  ): Promise<void> {
+    try {
+      await firstValueFrom(
+        this.http.post(`${BASE}/nodes/${encodeNodePath(nodePath)}/issues/dismiss`, {
+          analyzer,
+          value,
+          ...opts,
+        }),
+      );
+    } catch (err) {
+      throw this.translateError(err);
+    }
+  }
+
+  /**
    * `POST /api/jobs/prune[?status=]`, delete terminal jobs now (all terminal
    * states, or just the given one). Answers `204`.
    */

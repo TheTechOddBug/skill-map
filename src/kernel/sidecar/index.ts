@@ -21,6 +21,11 @@ export {
   existingSuppressions,
   mergeSuppression,
   normalizeSuppressionType,
+  buildIssueSuppressionEntry,
+  existingIssueSuppressions,
+  issueSuppressionAnalyzersEquivalent,
+  mergeIssueSuppression,
+  removeIssueSuppression,
 } from './suppression-edit.js';
 export {
   FilesystemSidecarStore,

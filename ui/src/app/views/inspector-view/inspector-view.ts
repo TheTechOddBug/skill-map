@@ -102,6 +102,7 @@ import {
   type IInspectorDerivationsHandle,
 } from './inspector-derivations';
 import {
+  issueDismissValue,
   setupAiActions,
   type IAiActionsHandle,
   type TFindingsBucket,
@@ -505,6 +506,13 @@ export class InspectorView implements OnInit {
     // The dismiss / restore flows park their consent retries behind the
     // SAME dialog the action buttons use (one instance, one service).
     requestSmConsent: (retry) => this.actionDispatch.requestSmConsent(retry),
+    // A successful per-issue dismiss deleted the matching rows
+    // server-side; prune them from the local list so the card agrees
+    // without a refetch (the next one confirms).
+    onIssueDismissed: (analyzer, value) =>
+      this.issues.update((items) =>
+        items.filter((i) => !(i.analyzerId === analyzer && issueDismissValue(i) === value)),
+      ),
     // Narrate submit / fix / resolve / dismiss / restore outcomes to AT.
     announce: (message) => this.announcer.announce(message),
   });
@@ -631,6 +639,23 @@ export class InspectorView implements OnInit {
 
   protected fixIssue(fixer: IIssueFixerEntryApi): void {
     void this.aiActions.submit(fixer.id);
+  }
+
+  /**
+   * The dismiss key value of a deterministic issue row (its verbatim
+   * `data.target`), or `null`. Gates the per-row dismiss button: an
+   * issue without a value has no (analyzer, value) dismiss key.
+   */
+  protected readonly issueDismissValue = issueDismissValue;
+
+  /** Dismiss a deterministic issue for its exact (analyzer, value) key. */
+  protected dismissIssue(issue: IIssueApi): void {
+    void this.aiActions.dismissIssue(issue);
+  }
+
+  /** Busy state of an issue row's dismiss button (round-trip in flight). */
+  protected issueDismissBusy(issue: IIssueApi): boolean {
+    return this.aiActions.isIssueDismissBusy(issue);
   }
 
   /** Direct dismiss (no prompt): one click hides the class, reversible. */

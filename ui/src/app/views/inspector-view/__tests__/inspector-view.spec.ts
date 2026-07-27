@@ -92,6 +92,7 @@ type IStubDataSource = IDataSourcePort & {
   resolveFinding: ReturnType<typeof vi.fn>;
   undismissFinding: ReturnType<typeof vi.fn>;
   deleteFinding: ReturnType<typeof vi.fn>;
+  dismissIssue: ReturnType<typeof vi.fn>;
 };
 
 type IStubLoader = {
@@ -238,6 +239,7 @@ function makeStubDataSource(): IStubDataSource {
     resolveFinding: vi.fn().mockResolvedValue(undefined),
     undismissFinding: vi.fn().mockResolvedValue(undefined),
     deleteFinding: vi.fn().mockResolvedValue(undefined),
+    dismissIssue: vi.fn().mockResolvedValue(undefined),
     getNodeSummary: vi.fn().mockResolvedValue([]),
     deleteNodeSummary: vi.fn().mockResolvedValue(undefined),
     bumpSidecar: vi.fn(),
@@ -2708,6 +2710,72 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
       '[data-testid="inspector-issue-fix-reference-broken"] button',
     ) as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
+  });
+
+  it('the issue dismiss X sends the (analyzer, value) key verbatim and prunes the row', async () => {
+    // Per-issue dismiss (2026-07-27): keyed by the row's SHORT
+    // analyzerId + its verbatim data.target; a row without a target has
+    // no dismiss key, so it renders no X at all.
+    const { fixture, dataSource, node } = await bootAiActions({
+      issues: [
+        makeIssue({ data: { target: '@ApiSecurity' } }),
+        makeIssue({ analyzerId: 'name-collision', severity: 'warn' }),
+      ],
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(dom.querySelectorAll('[data-testid="inspector-finding"]').length).toBe(2);
+    expect(dom.querySelector('[data-testid="inspector-issue-dismiss-name-collision"]')).toBeNull();
+    (
+      dom.querySelector(
+        '[data-testid="inspector-issue-dismiss-reference-broken"] button',
+      ) as HTMLButtonElement
+    ).click();
+    await flush(fixture);
+    // Verbatim key halves, no consent flags on the first attempt.
+    expect(dataSource.dismissIssue).toHaveBeenCalledWith(
+      node.path,
+      'reference-broken',
+      '@ApiSecurity',
+      {},
+    );
+    // The server deleted the matching rows; the local list pruned in
+    // place (no refetch), so only the sibling row survives.
+    expect(dom.querySelectorAll('[data-testid="inspector-finding"]').length).toBe(1);
+    expect(
+      dom.querySelector('[data-testid="inspector-issue-dismiss-reference-broken"]'),
+    ).toBeNull();
+  });
+
+  it('a consent gate parks the issue dismiss behind the shared dialog and retries with the grant', async () => {
+    // The dismissal is a `.sm` sidecar write: the first write in a
+    // project without a standing grant answers 412 confirm-required
+    // (details.key = allowEditSmFiles), which parks the retry behind the
+    // SAME consent dialog the findings restore / delete flows use.
+    const { fixture, dataSource, node } = await bootAiActions({
+      issues: [makeIssue({ data: { target: 'docs/missing.md' } })],
+    });
+    dataSource.dismissIssue.mockRejectedValueOnce(
+      new DataSourceError('confirm-required', 'Confirm .sm writes first.', {
+        key: 'allowEditSmFiles',
+      }),
+    );
+    (
+      fixture.nativeElement.querySelector(
+        '[data-testid="inspector-issue-dismiss-reference-broken"] button',
+      ) as HTMLButtonElement
+    ).click();
+    await flush(fixture);
+    const dispatcher = TestBed.inject(ActionDispatchService);
+    expect(dispatcher.consentOpen()).toBe(true);
+    // Accepting re-runs the dismiss with the granted flags.
+    dispatcher.resolveConsent({ accepted: true, always: false });
+    await flush(fixture);
+    expect(dataSource.dismissIssue).toHaveBeenLastCalledWith(
+      node.path,
+      'reference-broken',
+      'docs/missing.md',
+      { confirm: true },
+    );
   });
 
   it('the header summarize ? queues the summarizer; the summarizer never rides the launcher row', async () => {

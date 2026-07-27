@@ -772,7 +772,7 @@ Skill-map's own metadata layer (versioning, supersession, provenance, taxonomy, 
 Two schemas describe the wire shape:
 
 - [`schemas/sidecar.schema.json`](./schemas/sidecar.schema.json), root shape with reserved blocks `identity` (anchor + drift hashes), `annotations` (the conventional catalog), `settings` (reserved), `audit` (write trail), plus opt-in `<plugin-id>:` namespacing.
-- [`schemas/annotations.schema.json`](./schemas/annotations.schema.json), curated 8-field catalog: versioning (`version`, `stability`), provenance (`authors`, `license`, `source`, `sourceVersion`), taxonomy (`tags`), docs (`docsUrl`). The activity timestamp lives in the reserved `audit:` block (`audit.lastBumpedAt`), not in `annotations:`. `additionalProperties: true` so plugins or users add custom keys without coordination; the built-in `unknown-field` analyzer warns on truly unrecognized keys (typo guard).
+- [`schemas/annotations.schema.json`](./schemas/annotations.schema.json), curated 10-field catalog: versioning (`version`, `stability`), provenance (`authors`, `license`, `source`, `sourceVersion`), taxonomy (`tags`), docs (`docsUrl`), and the two dismissal surfaces, `suppressions` (probabilistic finding classes, per (extension, type)) and `issueSuppressions` (deterministic analyzer issues, per (analyzer, value)). The activity timestamp lives in the reserved `audit:` block (`audit.lastBumpedAt`), not in `annotations:`. `additionalProperties: true` so plugins or users add custom keys without coordination; the built-in `unknown-field` analyzer warns on truly unrecognized keys (typo guard).
 
 ### Identity and drift
 
@@ -785,7 +785,7 @@ At scan time the kernel re-computes the live hashes and compares against the sto
 Where a persisted surface lives follows ONE question (decision 2026-07-21): **did a human decide this?**
 
 - **Machine output** (generated without human judgment, regenerable by re-running the producer): the project DB. Findings, summaries, executions, jobs, enrichments. Deleting it loses nothing a re-run cannot recreate.
-- **Human curation** (an operator's decision or authorship): the node's `.sm` companion, committed and portable. Tags, stability, version bumps, audit stamps, dismiss suppressions.
+- **Human curation** (an operator's decision or authorship): the node's `.sm` companion, committed and portable. Tags, stability, version bumps, audit stamps, dismiss suppressions (finding classes AND issue values). The `scan_issues` delete that accompanies an issue dismiss is not a violation of the split: the suppression itself (the human decision) lives in the `.sm`, and the row delete only converges regenerable machine state toward what the next scan produces anyway.
 
 New persisted surfaces MUST pick their home by this rule; mixing the two inside one feature requires an explicit new decision. The rule admits no carve-out for CURATION: a machine may PROPOSE curation data but never author it. The tagger is the worked example ([`job-lifecycle.md` §Tags proposal](./job-lifecycle.md)): it surfaces inferred tags on its completion event and writes nothing, and the operator saves them through the ordinary consent-gated editor. (Fixers editing MARKDOWN BODIES are not curation and stay unaffected: a body is the vendor's and the author's content, not skill-map's curation store.)
 

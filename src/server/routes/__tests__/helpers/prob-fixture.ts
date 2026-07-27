@@ -191,6 +191,49 @@ export async function seedFindings(
   }
 }
 
+/** One seedable `scan_issues` row (deterministic-analyzer issue). */
+export interface IIssueSeed {
+  /** Stored SHORT analyzer id (`issue.schema.json`: no slash). */
+  analyzerId: string;
+  /** The `data.target` value the issue flags (the suppression key). */
+  target: string;
+  nodeIds?: readonly string[];
+  severity?: 'error' | 'warn' | 'info';
+  message?: string;
+}
+
+/**
+ * Seed `scan_issues` rows (the deterministic issues the per-issue
+ * dismiss surfaces delete on suppression). Plain inserts, mirror of the
+ * `state_findings` seeding above.
+ */
+export async function seedIssues(
+  project: IProbProject,
+  rows: readonly IIssueSeed[],
+): Promise<void> {
+  const adapter = new SqliteStorageAdapter({ databasePath: project.dbPath, autoBackup: false });
+  await adapter.init();
+  try {
+    for (const row of rows) {
+      await adapter.db
+        .insertInto('scan_issues')
+        .values({
+          analyzerId: row.analyzerId,
+          severity: row.severity ?? 'warn',
+          nodeIdsJson: JSON.stringify(row.nodeIds ?? [SKILL_NODE.path]),
+          linkIndicesJson: null,
+          message: row.message ?? `broken reference ${row.target}`,
+          detail: null,
+          fixJson: null,
+          dataJson: JSON.stringify({ target: row.target }),
+        })
+        .execute();
+    }
+  } finally {
+    await adapter.close();
+  }
+}
+
 /** Run `fn` against a fresh adapter over the project DB (open/close managed). */
 export async function withProjectDb<T>(
   project: IProbProject,

@@ -152,10 +152,19 @@ the emission is paired with a resolution gate: the post-walk
 `invokes` link that resolves to no node and whose every occurrence
 carries a code-region `Signal.context` (`'inline-code'` /
 `'code-block'`). A token naming a real entity becomes an edge; payload
-silently vanishes. Prose triggers keep the standing dangling-is-broken
-behaviour, and `core/link-self-loop` skips its warn when a self-loop is
-sourced only from code regions (a doc showing its own usage is not a
-loop risk). Under the claude lens the mention matrix is
+silently vanishes. Prose triggers keep the dangling-is-broken
+behaviour with one severity nuance (2026-07-27): an unresolved prose
+`@`-trigger whose verbatim token is CODE-SHAPED per
+`kernel/util/code-shaped-token.ts` (uppercase identifier `@ApiSecurity`
+/ `@Injectable`, or single-slash npm scope `@nestjs/swagger`) emits
+`reference-broken` at `warn` instead of `error`, prose about code is
+likelier than a typoed reference, so the signal stays visible without
+tripping exit 1; and ANY residual false positive is operator-dismissable
+per (analyzer, value) via `sm issues dismiss` /
+`annotations.issueSuppressions` (emission-time suppression,
+`spec/db-schema.md` §scan_issues). `core/link-self-loop` skips its warn
+when a self-loop is sourced only from code regions (a doc showing its
+own usage is not a loop risk). Under the claude lens the mention matrix is
 priority-ordered `['agent', 'skill', 'markdown']` (Decision #135), so
 backticked `@deploy-site` reaches a skill and `@playbook` reaches a
 plain doc by basename. Normative contract: `spec/architecture.md`

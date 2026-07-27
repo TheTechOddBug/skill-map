@@ -25,28 +25,53 @@
  * graph" and suppressed. Trigger-style links don't participate (a `/foo`
  * invocation has no filesystem target).
  *
- * Severity is `error`: a link pointing at nothing is a structural defect
- * the operator must notice (the card chip paints `danger` to match, per
- * `context/view-slots.md`). The author-facing "add `name:`" nudge that
- * used to ride along here was retired with the resolution consolidation:
- * a same-named file is now reachable via its basename / dirname
- * identifier (so the link resolves rather than breaking), and the case
- * where a name truly is required is already surfaced by
- * `core/schema-violation` ("Missing required frontmatter: name").
+ * **Operator dismissals** (`annotations.issueSuppressions`, the value
+ * grain): a `.sm` entry matching this analyzer and the link's verbatim
+ * target skips BOTH the issue and the confidence penalty, at emission
+ * time (`spec/db-schema.md` §scan_issues; issues are regenerated
+ * wholesale per scan, so there is no read-time lens to hide behind).
+ * Written by `sm issues dismiss` / the inspector's per-issue dismiss.
+ *
+ * Severity is two-tier: `error` for a genuinely dangling authored
+ * reference (a structural defect the operator must notice; the card
+ * chip paints `danger` to match, per `context/view-slots.md`), `warn`
+ * when the unresolved `@`-trigger token is CODE-SHAPED per
+ * `kernel/util/code-shaped-token.ts` (uppercase identifier like
+ * `@ApiSecurity`, or npm-scope package like `@nestjs/swagger`): prose
+ * about code is likelier than a typoed reference there, so the signal
+ * stays visible (amber `warnCount` chip) without tripping the exit-1
+ * contract (`spec/cli-contract.md` §Exit codes fires on `error` only).
+ * The confidence penalty is IDENTICAL in both tiers, broken is broken;
+ * only the operator-facing severity differs. The author-facing "add
+ * `name:`" nudge that used to ride along here was retired with the
+ * resolution consolidation: a same-named file is now reachable via its
+ * basename / dirname identifier (so the link resolves rather than
+ * breaking), and the case where a name truly is required is already
+ * surfaced by `core/schema-violation` ("Missing required frontmatter:
+ * name").
  */
 
 import { resolve } from 'node:path';
 
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
-import type { Issue, Link } from '../../../../kernel/types.js';
+import type { Issue, Link, Node } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { linkLines } from '../../../../kernel/util/link-lines.js';
 import { formatFinding } from '../../../../kernel/util/finding-format.js';
+import { isCodeShapedAtToken } from '../../../../kernel/util/code-shaped-token.js';
+import {
+  isIssueSuppressed,
+  issueSuppressionsFromAnnotations,
+  type IIssueSuppressionEntry,
+} from '../../../../kernel/util/issue-suppressions.js';
 import { BROKEN_PENALTY } from '../../../../kernel/orchestrator/confidence-constants.js';
 import { REFERENCE_BROKEN_TEXTS } from './reference-broken.texts.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'reference-broken';
+
+/** Qualified id issue-suppression entries are matched against. */
+const QUALIFIED_ID = `${CORE_PLUGIN_ID}/${ID}`;
 
 export const referenceBrokenAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
@@ -72,21 +97,66 @@ export const referenceBrokenAnalyzer: IBuiltInManifest<IAnalyzer> = {
     const broken = ctx.brokenLinks;
     if (!broken || broken.size === 0) return [];
     const refIndex = buildReferenceIndex(ctx);
+    const suppressions = buildIssueSuppressionIndex(ctx);
     const adjust = ctx.adjustConfidence; // present only in the score phase
 
     const issues: Issue[] = [];
     for (const link of ctx.links) {
       if (!broken.has(link)) continue;
       if (refIndex && resolvesViaReferencePaths(link, refIndex)) continue;
+      if (isDismissedByOperator(link, suppressions)) continue;
       // Score side: penalize a genuinely-broken edge (delta -0.75 → 0.25).
-      // The penalty follows the issue (both skip the reference-paths-
-      // resolved links above), so detection and scoring stay one decision.
+      // The penalty follows the issue (all three guards above skip both),
+      // so detection and scoring stay one decision.
       penalizeBrokenConfidence(adjust, link);
       issues.push(buildIssue(link));
     }
     return issues;
   },
 };
+
+/**
+ * Per-evaluate index of the operators' issue suppressions, keyed by
+ * node path (the future `link.source`). Sourced from the raw sidecar
+ * roots when the orchestrator threaded them (the zero-file-I/O path,
+ * same access pattern as `annotation-field-unknown`), else from the
+ * node's typed sidecar overlay. Nodes without entries stay absent so
+ * the per-link guard is a cheap map miss.
+ */
+function buildIssueSuppressionIndex(
+  ctx: IAnalyzerContext,
+): ReadonlyMap<string, IIssueSuppressionEntry[]> {
+  const index = new Map<string, IIssueSuppressionEntry[]>();
+  for (const node of ctx.nodes) {
+    const entries = issueSuppressionsFromAnnotations(nodeAnnotations(ctx, node));
+    if (entries.length > 0) index.set(node.path, entries);
+  }
+  return index;
+}
+
+/**
+ * A node's annotations block: raw sidecar root when threaded (zero
+ * file I/O), else the typed overlay. Split out for the complexity cap.
+ */
+function nodeAnnotations(ctx: IAnalyzerContext, node: Node): unknown {
+  const fromRoots = ctx.sidecarRoots?.get(node.path)?.['annotations'];
+  if (fromRoots !== undefined && fromRoots !== null) return fromRoots;
+  return node.sidecar?.annotations ?? null;
+}
+
+/**
+ * The operator-dismissal guard: an active (analyzer, value) entry on
+ * the SOURCE node matching this analyzer (qualified or bare) and the
+ * link's verbatim target skips the issue AND the penalty.
+ */
+function isDismissedByOperator(
+  link: Link,
+  suppressions: ReadonlyMap<string, IIssueSuppressionEntry[]>,
+): boolean {
+  const entries = suppressions.get(link.source);
+  if (!entries) return false;
+  return isIssueSuppressed(QUALIFIED_ID, link.target, entries);
+}
 
 /**
  * Pre-cap the `scan.referencePaths` escape hatch: only usable when both
@@ -117,27 +187,53 @@ function penalizeBrokenConfidence(
   }
 }
 
+/**
+ * Two-tier severity gate: `warn` fires only for a broken `@`-TRIGGER
+ * whose verbatim token is code-shaped (`@ApiSecurity`,
+ * `@nestjs/swagger`): prose about code, visible in the amber
+ * `warnCount` bucket, never exit-1. The shape test reads `link.target`
+ * (case preserved); `normalizedTrigger` is lowercased and only
+ * supplies the sigil check.
+ */
+function isCodeShapedTriggerLink(link: Link): boolean {
+  return (
+    link.trigger?.normalizedTrigger?.startsWith('@') === true && isCodeShapedAtToken(link.target)
+  );
+}
+
+/** Human noun for the message, with the off-catalog fallback. */
+function kindLabelFor(link: Link): string {
+  return (
+    REFERENCE_BROKEN_TEXTS.kindLabels[link.kind] ??
+    tx(REFERENCE_BROKEN_TEXTS.kindLabelFallback, { kind: link.kind })
+  );
+}
+
 function buildIssue(link: Link): Issue {
+  // `error` is the default (a dangling authored reference is a
+  // structural defect; the `danger` chip stays backed by an `error`
+  // Issue per the chip-vs-issue policy in `context/view-slots.md`, so
+  // red lines up with the exit code); the code-shaped gate above is the
+  // only downgrade to `warn`.
+  const codeShaped = isCodeShapedTriggerLink(link);
+  const kindLabel = kindLabelFor(link);
   return {
     analyzerId: ID,
-    // `error`, not `warn`: a link whose target is not in the scan is a
-    // structural defect the operator must notice, and the card chip
-    // paints `danger` (red) to match. Per the chip-vs-issue policy in
-    // `context/view-slots.md`, a `danger` chip MUST be backed by an
-    // `error` Issue so the visual signal lines up with the exit code
-    // and the global error count on the card.
-    severity: 'error',
+    severity: codeShaped ? 'warn' : 'error',
     nodeIds: [link.source],
     message: formatFinding({
       subject: link.target,
       lines: linkLines(link),
-      body: tx(REFERENCE_BROKEN_TEXTS.message, {
-        kindLabel:
-          REFERENCE_BROKEN_TEXTS.kindLabels[link.kind] ??
-          tx(REFERENCE_BROKEN_TEXTS.kindLabelFallback, { kind: link.kind }),
-      }),
+      body: tx(
+        codeShaped ? REFERENCE_BROKEN_TEXTS.messageCodeShaped : REFERENCE_BROKEN_TEXTS.message,
+        { kindLabel },
+      ),
     }),
-    fix: { summary: tx(REFERENCE_BROKEN_TEXTS.fixSummary) },
+    fix: {
+      summary: tx(
+        codeShaped ? REFERENCE_BROKEN_TEXTS.fixSummaryCodeShaped : REFERENCE_BROKEN_TEXTS.fixSummary,
+      ),
+    },
     data: {
       target: link.target,
       kind: link.kind,

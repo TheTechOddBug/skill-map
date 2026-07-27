@@ -70,6 +70,11 @@ import {
   FindingsUndismissCommand,
 } from './commands/findings.js';
 import { GraphCommand } from './commands/graph.js';
+import {
+  IssuesDismissCommand,
+  IssuesSuppressionsCommand,
+  IssuesUndismissCommand,
+} from './commands/issues.js';
 import { HelpCommand, RootHelpCommand, registeredVerbPaths, routeHelpArgs } from './commands/help.js';
 import { ACTIVITY_COMMANDS } from './commands/activity.js';
 import { HOOKS_COMMANDS } from './commands/hooks.js';
@@ -126,6 +131,9 @@ cli.register(FindingsReopenCommand);
 cli.register(FindingsDismissCommand);
 cli.register(FindingsSuppressionsCommand);
 cli.register(FindingsUndismissCommand);
+cli.register(IssuesDismissCommand);
+cli.register(IssuesUndismissCommand);
+cli.register(IssuesSuppressionsCommand);
 cli.register(GraphCommand);
 cli.register(ExportCommand);
 cli.register(HistoryCommand);

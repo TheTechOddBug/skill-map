@@ -95,6 +95,7 @@ import { registerMcpStatusRoute } from './routes/mcp-status.js';
 import { registerIssuesRoute } from './routes/issues.js';
 import { registerLinksRoute } from './routes/links.js';
 import { registerNodeFindingActionsRoutes } from './routes/node-finding-actions.js';
+import { registerNodeIssueActionsRoutes } from './routes/node-issue-actions.js';
 import { registerNodeFindingsRoute } from './routes/node-findings.js';
 import { registerNodeSummaryRoute } from './routes/node-summary.js';
 import { registerNodeJobsRoute } from './routes/node-jobs.js';
@@ -173,6 +174,11 @@ export type TErrorCode =
   | 'finding-already-fixed'
   | 'finding-terminal'
   | 'finding-open'
+  // Issue-action 409 (`POST /api/nodes/:pathB64/issues/undismiss`, the
+  // inspector's per-issue undismiss; `spec/cli-contract.md` route row):
+  // no matching `annotations.issueSuppressions` entry to lift. Carried
+  // by `ConflictError`.
+  | 'issue-suppression-not-found'
   | 'internal';
 
 export interface IErrorEnvelope {
@@ -308,7 +314,8 @@ export class ConflictError extends HTTPException {
     | 'finding-not-dismissible'
     | 'finding-already-fixed'
     | 'finding-terminal'
-    | 'finding-open';
+    | 'finding-open'
+    | 'issue-suppression-not-found';
 
   constructor(init: { code: ConflictError['code']; message: string }) {
     super(409, { message: init.message });
@@ -655,6 +662,10 @@ export function createApp(deps: IAppDeps): Hono {
   // Per-finding mutations (inspector tray): dismiss / resolve / undismiss,
   // the HTTP faces of the `sm findings` verbs (read-time suppression lens).
   registerNodeFindingActionsRoutes(app, routeDeps);
+  // Per-issue mutations (inspector issue rows): dismiss / undismiss, the
+  // HTTP faces of `sm issues dismiss / undismiss` (emission-time
+  // suppressions; dismiss also deletes the covered scan_issues rows).
+  registerNodeIssueActionsRoutes(app, routeDeps);
   registerNodeProbExtensionsRoute(app, routeDeps);
   registerNodeJobsRoute(app, { ...routeDeps, broadcaster: deps.broadcaster });
   registerJobCancelRoute(app, {

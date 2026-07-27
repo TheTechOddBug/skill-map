@@ -359,6 +359,19 @@ export interface StoragePort {
      * a specific row.
      */
     findActive(predicate: (issue: Issue) => boolean): Promise<IIssueRow[]>;
+    /**
+     * Delete every persisted issue row matching an operator's issue
+     * suppression (`spec/db-schema.md` §scan_issues): `analyzer`
+     * (qualified or short, `matchesAnalyzerFilter` semantics against
+     * the stored SHORT `analyzer_id`), the verbatim `data.target`
+     * value (exact, case-sensitive), and membership of `nodePath` in
+     * the row's `nodeIds`. Called by the `sm issues dismiss` surfaces
+     * AFTER the sidecar write so reads agree without waiting for a
+     * rescan; the delete converges regenerable machine state toward
+     * what the next scan (whose analyzer consults the suppression at
+     * emission time) produces anyway. Returns the deleted row count.
+     */
+    deleteForSuppression(nodePath: string, analyzer: string, value: string): Promise<number>;
   };
 
   // --- enrichments namespace ---------------------------------------------

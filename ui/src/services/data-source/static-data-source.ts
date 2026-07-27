@@ -932,6 +932,13 @@ export class StaticDataSource implements IDataSourcePort {
     );
   }
 
+  async dismissIssue(): Promise<void> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Dismissing issues is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
   async pruneJobs(): Promise<void> {
     throw new DataSourceError(
       'demo-readonly',

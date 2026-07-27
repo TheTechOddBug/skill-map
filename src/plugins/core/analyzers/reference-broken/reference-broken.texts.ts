@@ -18,6 +18,13 @@ export const REFERENCE_BROKEN_TEXTS = {
    */
   message: 'Broken {{kindLabel}}; target not found in the graph or on disk',
   /**
+   * Warn-tier variant for code-shaped `@`-trigger tokens (uppercase
+   * identifier or npm-scope package, `kernel/util/code-shaped-token.ts`):
+   * same diagnosis, plus the hint about WHY the severity is softer.
+   */
+  messageCodeShaped:
+    'Broken {{kindLabel}}; target not found, and the token looks like a code identifier or npm package rather than a reference',
+  /**
    * Remediation hint surfaced via `Issue.fix.summary`. Not autofixable:
    * the rule cannot tell which resolution the author wants. The folder
    * option maps to `scan.referencePaths` ("Folders for link validation"
@@ -28,6 +35,13 @@ export const REFERENCE_BROKEN_TEXTS = {
    */
   fixSummary:
     'Fix the path or name, remove the broken link, or add its folder under Folders for link validation.',
+  /**
+   * Warn-tier remediation: the dismiss escape hatch is the headline
+   * option because the likeliest resolution for prose about code is
+   * "this token is intentional, stop flagging it".
+   */
+  fixSummaryCodeShaped:
+    'Dismiss this issue if the token is intentional prose, or fix the name / remove the mention.',
   /**
    * Human noun per link kind for the message above. Fallback for an
    * off-catalog kind: `<kind> link` (composed in the analyzer).

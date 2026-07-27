@@ -129,31 +129,57 @@
                     >{{ issue.severity }}</span
                   >
                   <code class="inspector__finding-analyzer">{{ issue.analyzerId }}</code>
-                  <!-- AI fix (issueFixers bucket): a probabilistic fixer
-                       of THIS deterministic analyzer is enabled and the
-                       node has matching open issues, so the affordance
-                       rides the row it resolves, never the standalone
-                       launcher (user decision 2026-07-22). One submit
-                       fixes every matching issue of the node. -->
-                  @if (issueFixerForRow(issue); as fixer) {
+                  @let issueFixer = issueFixerForRow(issue);
+                  @let dismissValue = issueDismissValue(issue);
+                  @if (issueFixer !== null || dismissValue !== null) {
                     <span class="inspector__finding-actions inspector__finding-actions--push">
-                      <p-button
-                        [icon]="
-                          issueFixPhase(fixer) === 'queued' ? 'pi pi-clock' : 'pi pi-sparkles'
-                        "
-                        severity="info"
-                        size="small"
-                        [rounded]="true"
-                        [text]="true"
-                        [disabled]="issueFixDisabled(fixer)"
-                        [loading]="issueFixPhase(fixer) === 'running'"
-                        [pTooltip]="fixer.description"
-                        tooltipPosition="left"
-                        appendTo="body"
-                        [ariaLabel]="texts.issueFixAriaLabel(fixer.id)"
-                        (onClick)="fixIssue(fixer)"
-                        [attr.data-testid]="'inspector-issue-fix-' + issue.analyzerId"
-                      />
+                      <!-- AI fix (issueFixers bucket): a probabilistic fixer
+                           of THIS deterministic analyzer is enabled and the
+                           node has matching open issues, so the affordance
+                           rides the row it resolves, never the standalone
+                           launcher (user decision 2026-07-22). One submit
+                           fixes every matching issue of the node. -->
+                      @if (issueFixer; as fixer) {
+                        <p-button
+                          [icon]="
+                            issueFixPhase(fixer) === 'queued' ? 'pi pi-clock' : 'pi pi-sparkles'
+                          "
+                          severity="info"
+                          size="small"
+                          [rounded]="true"
+                          [text]="true"
+                          [disabled]="issueFixDisabled(fixer)"
+                          [loading]="issueFixPhase(fixer) === 'running'"
+                          [pTooltip]="fixer.description"
+                          tooltipPosition="left"
+                          appendTo="body"
+                          [ariaLabel]="texts.issueFixAriaLabel(fixer.id)"
+                          (onClick)="fixIssue(fixer)"
+                          [attr.data-testid]="'inspector-issue-fix-' + issue.analyzerId"
+                        />
+                      }
+                      <!-- Per-issue dismiss (2026-07-27): suppress this
+                           analyzer for the row's EXACT value (its verbatim
+                           data.target) via the node's .sm sidecar, behind
+                           the shared consent gate. Rows without a value
+                           carry no dismiss key, so they render no X. -->
+                      @if (dismissValue !== null) {
+                        <p-button
+                          icon="pi pi-times"
+                          severity="secondary"
+                          size="small"
+                          [rounded]="true"
+                          [text]="true"
+                          [disabled]="issueDismissBusy(issue)"
+                          [loading]="issueDismissBusy(issue)"
+                          [pTooltip]="texts.issueDismissTooltip"
+                          tooltipPosition="left"
+                          appendTo="body"
+                          [ariaLabel]="texts.issueDismissAriaLabel(issue.analyzerId)"
+                          (onClick)="dismissIssue(issue)"
+                          [attr.data-testid]="'inspector-issue-dismiss-' + issue.analyzerId"
+                        />
+                      }
                     </span>
                   }
                 </div>

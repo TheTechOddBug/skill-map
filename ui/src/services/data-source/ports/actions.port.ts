@@ -233,6 +233,26 @@ export interface IActionsPort {
   ): Promise<void>;
 
   /**
+   * `POST /api/nodes/:pathB64/issues/dismiss`, the per-issue dismiss on a
+   * DETERMINISTIC issue row (findings card). Keyed by (analyzer, value):
+   * `analyzer` is the row's short `analyzerId` VERBATIM, `value` is the
+   * row's `data.target` VERBATIM (never normalized). The dismissal is a
+   * `.sm` sidecar entry, so the call shares `dismissFinding`'s class-grain
+   * consent handshake: without a standing grant the BFF answers `412`
+   * `confirm-required` (`details.key = 'allowEditSmFiles'`), surfaced as
+   * a `DataSourceError` the consent dialog answers by retrying with
+   * `confirm` / `always`. On success the server also DELETES the matching
+   * persisted issue rows, so the caller prunes its local list (a refetch
+   * agrees). Resolves on `204`. Demo rejects `'demo-readonly'`.
+   */
+  dismissIssue(
+    nodePath: string,
+    analyzer: string,
+    value: string,
+    opts?: { confirm?: boolean; always?: boolean },
+  ): Promise<void>;
+
+  /**
    * `POST /api/jobs/prune[?status=]`, delete terminal jobs now. With no
    * `status` it clears every terminal state (completed + failed +
    * cancelled), the queue inspector's "clear finished"; with a single

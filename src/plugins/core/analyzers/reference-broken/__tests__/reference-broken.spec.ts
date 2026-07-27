@@ -51,6 +51,21 @@ function fakeLink(source: string, target: string): Link {
   };
 }
 
+/** An `@`-trigger mention as the at-directive extractor materialises it. */
+function fakeMention(source: string, target: string): Link {
+  return {
+    source,
+    target,
+    kind: 'mentions',
+    confidence: 0.5,
+    sources: ['at-directive'],
+    trigger: {
+      originalTrigger: target,
+      normalizedTrigger: target.toLowerCase(),
+    },
+  };
+}
+
 /**
  * One recorded `adjustConfidence` call, by link object identity.
  */
@@ -72,7 +87,12 @@ function run(
   brokenLinks: Set<Link>,
   extra?: Partial<IAnalyzerContext> & { adjust?: boolean },
 ): {
-  issues: { nodeIds: readonly string[]; severity: string; fix?: { summary?: string } | null }[];
+  issues: {
+    nodeIds: readonly string[];
+    severity: string;
+    message?: string;
+    fix?: { summary?: string } | null;
+  }[];
   contributions: { nodePath: string; id: string; payload: unknown }[];
   ops: IRecordedOp[];
 } {
@@ -204,6 +224,109 @@ describe('broken-ref analyzer, issue emission', () => {
 
   it('declares no `ui` surface (issue chip is owned by `core/issue-counter`)', () => {
     deepStrictEqual(referenceBrokenAnalyzer.ui, {});
+  });
+});
+
+describe('broken-ref analyzer, code-shaped severity downgrade', () => {
+  it('downgrades an uppercase decorator-shaped at-trigger to warn, penalty intact', () => {
+    const a = fakeNode('a.md');
+    const link = fakeMention('a.md', '@ApiSecurity');
+    const { issues, ops } = run([a], [link], new Set([link]));
+    strictEqual(issues.length, 1, 'the issue still fires, warn tier');
+    strictEqual(issues[0]!.severity, 'warn');
+    // User decision 2026-07-27: broken is broken, the full penalty stays.
+    strictEqual(ops.length, 1);
+    deepStrictEqual(ops[0]!.op, { kind: 'delta', value: -BROKEN_PENALTY });
+  });
+
+  it('downgrades an npm-scope-shaped at-trigger to warn with the code-shaped hint', () => {
+    const a = fakeNode('a.md');
+    const link = fakeMention('a.md', '@nestjs/swagger');
+    const { issues } = run([a], [link], new Set([link]));
+    strictEqual(issues.length, 1);
+    strictEqual(issues[0]!.severity, 'warn');
+    ok(issues[0]!.message?.includes('code identifier or npm package'));
+  });
+
+  it('keeps a lowercase handle-shaped at-trigger at error severity', () => {
+    const a = fakeNode('a.md');
+    const link = fakeMention('a.md', '@my-agent');
+    const { issues } = run([a], [link], new Set([link]));
+    strictEqual(issues.length, 1);
+    strictEqual(issues[0]!.severity, 'error');
+  });
+
+  it('keeps a path-style broken link at error even with uppercase in the target', () => {
+    // The downgrade is gated on the `@` trigger sigil; a `references`
+    // link to `Missing.md` is a real dangling path, not prose about code.
+    const a = fakeNode('a.md');
+    const link = fakeLink('a.md', 'Missing.md');
+    const { issues } = run([a], [link], new Set([link]));
+    strictEqual(issues.length, 1);
+    strictEqual(issues[0]!.severity, 'error');
+  });
+});
+
+describe('broken-ref analyzer, operator issue suppressions', () => {
+  const SUPPRESSED = '@ApiSecurity';
+
+  function sidecarRootsWith(analyzer: string, value: string): Map<string, Record<string, unknown>> {
+    return new Map([
+      ['a.md', { annotations: { issueSuppressions: [{ analyzer, value }] } }],
+    ]);
+  }
+
+  it('skips the issue AND the penalty on a qualified-id suppression match', () => {
+    const a = fakeNode('a.md');
+    const link = fakeMention('a.md', SUPPRESSED);
+    const { issues, ops } = run([a], [link], new Set([link]), {
+      sidecarRoots: sidecarRootsWith('core/reference-broken', SUPPRESSED),
+    });
+    strictEqual(issues.length, 0, 'the dismissed value emits nothing');
+    strictEqual(ops.length, 0, 'the penalty skips with the issue: one decision');
+  });
+
+  it('matches a bare short analyzer id the same way', () => {
+    const a = fakeNode('a.md');
+    const link = fakeMention('a.md', SUPPRESSED);
+    const { issues, ops } = run([a], [link], new Set([link]), {
+      sidecarRoots: sidecarRootsWith('reference-broken', SUPPRESSED),
+    });
+    strictEqual(issues.length, 0);
+    strictEqual(ops.length, 0);
+  });
+
+  it('still emits for a different value (matching is exact and case-sensitive)', () => {
+    const a = fakeNode('a.md');
+    const link = fakeMention('a.md', '@apisecurity');
+    const { issues } = run([a], [link], new Set([link]), {
+      sidecarRoots: sidecarRootsWith('core/reference-broken', SUPPRESSED),
+    });
+    strictEqual(issues.length, 1, 'a lowercased sibling token is a different key');
+  });
+
+  it('falls back to the typed sidecar overlay when sidecarRoots is absent', () => {
+    const a = {
+      ...fakeNode('a.md'),
+      sidecar: {
+        annotations: { issueSuppressions: [{ analyzer: 'core/reference-broken', value: SUPPRESSED }] },
+      },
+    } as unknown as Node;
+    const link = fakeMention('a.md', SUPPRESSED);
+    const { issues, ops } = run([a], [link], new Set([link]));
+    strictEqual(issues.length, 0);
+    strictEqual(ops.length, 0);
+  });
+
+  it('a suppression on another node does not silence this source', () => {
+    const a = fakeNode('a.md');
+    const link = fakeMention('a.md', SUPPRESSED);
+    const { issues } = run([a], [link], new Set([link]), {
+      sidecarRoots: new Map([
+        ['other.md', { annotations: { issueSuppressions: [{ analyzer: 'core/reference-broken', value: SUPPRESSED }] } }],
+      ]),
+    });
+    strictEqual(issues.length, 1, 'suppressions are per node');
   });
 });
 

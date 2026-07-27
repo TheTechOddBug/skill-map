@@ -168,6 +168,57 @@ describe('broken-ref, trigger resolution against frontmatter.name', () => {
     );
   });
 
+  it('prose @ApiSecurity fires as WARN with the code-shaped hint (severity downgrade)', async () => {
+    const fixture = freshFixture('code-shaped');
+    writeNode(
+      fixture,
+      '.claude/agents/api-doc.md',
+      '---\nname: api-doc\ndescription: D.\n---\nGuard endpoints with @ApiSecurity in controllers.\n',
+    );
+
+    const result = await scan(fixture);
+    const brokenRefs = result.issues.filter((i) => i.analyzerId === 'reference-broken');
+    assert.equal(brokenRefs.length, 1, JSON.stringify(result.issues, null, 2));
+    assert.equal(brokenRefs[0]!.severity, 'warn', 'code-shaped tokens warn, never error');
+    assert.match(brokenRefs[0]!.message, /code identifier or npm package/);
+    assert.equal(brokenRefs[0]!.data?.['target'], '@ApiSecurity', 'verbatim case in data.target');
+  });
+
+  it('an annotations.issueSuppressions entry silences the issue at emission time', async () => {
+    const fixture = freshFixture('dismissed');
+    writeNode(
+      fixture,
+      '.claude/agents/api-doc.md',
+      '---\nname: api-doc\ndescription: D.\n---\nGuard endpoints with @ApiSecurity in controllers.\n',
+    );
+    // Stale identity hashes are fine: drift is soft and the annotations
+    // overlay still loads, which is exactly the dismissal read path.
+    writeNode(
+      fixture,
+      '.claude/agents/api-doc.sm',
+      [
+        'identity:',
+        '  path: .claude/agents/api-doc.md',
+        `  bodyHash: ${'a'.repeat(64)}`,
+        `  frontmatterHash: ${'b'.repeat(64)}`,
+        'annotations:',
+        '  issueSuppressions:',
+        '    - analyzer: core/reference-broken',
+        "      value: '@ApiSecurity'",
+        '',
+      ].join('\n'),
+    );
+
+    const result = await scan(fixture);
+    const brokenRefs = result.issues.filter((i) => i.analyzerId === 'reference-broken');
+    assert.equal(
+      brokenRefs.length,
+      0,
+      `the dismissed (analyzer, value) pair must not emit.\n` +
+        `Issues: ${JSON.stringify(result.issues, null, 2)}`,
+    );
+  });
+
   it('hyphen-vs-space normalisation (name: "build deploy" ↔ /build-deploy)', async () => {
     const fixture = freshFixture('hyphen');
     writeNode(

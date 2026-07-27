@@ -314,6 +314,9 @@ describe('mcp server integration', () => {
           'reopen_finding',
           'undismiss_finding',
           'delete_finding',
+          'dismiss_issue',
+          'undismiss_issue',
+          'list_issue_suppressions',
         ]) {
           assert.equal(names.includes(tool), true, `${tool} must be registered`);
         }

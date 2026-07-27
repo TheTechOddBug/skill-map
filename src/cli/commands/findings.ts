@@ -93,12 +93,8 @@ import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
 import { matchesQualifiedExtensionFilter } from '../../kernel/util/analyzer-filter.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
-import {
-  EConsentRequiredError,
-  ensureSidecarWritesAllowed,
-} from '../../core/config/sidecar-consent.js';
+import { ensureSidecarWritesAllowed } from '../../core/config/sidecar-consent.js';
 import { FINDINGS_CLI_TEXTS as T } from '../i18n/findings.texts.js';
-import { CONSENT_TEXTS } from '../i18n/consent.texts.js';
 import type { IAnsi } from '../util/ansi.js';
 import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
@@ -106,6 +102,10 @@ import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { confirm } from '../util/confirm.js';
+import {
+  refreshAnnotationsMirror,
+  runWithSidecarConsentGate,
+} from '../util/sidecar-consent-gate.js';
 import { SmCommand } from '../util/sm-command.js';
 import { withSqlite } from '../util/with-sqlite.js';
 
@@ -1520,73 +1520,6 @@ export class FindingsUndismissCommand extends SmCommand {
       }),
     );
     return ExitCode.NotFound;
-  }
-}
-
-/**
- * Write-through half of a sidecar suppression edit (`dismiss` /
- * `undismiss`): re-read the just-written `.sm` and mirror its
- * `annotations` block into `scan_nodes.annotations_json`, so every read
- * surface (the findings view, the card counters) sees the change without
- * a scan and without per-node file reads (`spec/db-schema.md`
- * §state_findings, read-time suppression lens). The sidecar stays the
- * source of truth; a hand-edited `.sm` reconciles at the next scan.
- */
-async function refreshAnnotationsMirror(
-  adapter: StoragePort,
-  nodeId: string,
-  mdAbs: string,
-): Promise<void> {
-  const annotations = readSidecarFor(mdAbs).parsed?.annotations ?? null;
-  await adapter.scans.refreshAnnotations(nodeId, annotations);
-}
-
-/**
- * The `.sm` consent gate shared by the sidecar-writing findings verbs
- * (`dismiss` / `undismiss`), mirror of `sm bump`: on the first
- * `EConsentRequiredError`, prompt when stdin is a TTY and `--yes` was not
- * passed; on accept flip `--yes` (via `setYes`) and re-run the dispatch
- * (the second pass passes `always: true` and persists the flag). On
- * decline or non-TTY without `--yes`, print the directed message + exit 2.
- */
-async function runWithSidecarConsentGate(opts: {
-  verb: string;
-  yes: boolean;
-  setYes: () => void;
-  stdin: NodeJS.ReadStream;
-  stderr: NodeJS.WriteStream;
-  ansi: IAnsi;
-  printError: (message: string) => void;
-  dispatch: () => Promise<TExitCode>;
-}): Promise<TExitCode> {
-  try {
-    return await opts.dispatch();
-  } catch (err) {
-    if (!(err instanceof EConsentRequiredError)) throw err;
-    const isTTY = opts.stdin.isTTY === true;
-    if (!isTTY || opts.yes) {
-      opts.printError(
-        tx(CONSENT_TEXTS.consentRequiredNonTty, {
-          glyph: opts.ansi.red('✕'),
-          verb: opts.verb,
-          hint: opts.ansi.dim(CONSENT_TEXTS.consentRequiredNonTtyHint),
-        }),
-      );
-      return ExitCode.Error;
-    }
-    const ok = await confirm(
-      tx(CONSENT_TEXTS.consentPrompt, { glyph: opts.ansi.cyan('ℹ') }),
-      { stdin: opts.stdin, stderr: opts.stderr },
-      { defaultAnswer: 'yes' },
-    );
-    if (!ok) {
-      opts.printError(
-        tx(CONSENT_TEXTS.consentAborted, { glyph: opts.ansi.cyan('ℹ'), verb: opts.verb }),
-      );
-      return ExitCode.Error;
-    }
-    opts.setYes();
-    return await opts.dispatch();
   }
 }
 

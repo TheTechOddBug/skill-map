@@ -354,6 +354,16 @@ export const INSPECTOR_VIEW_TEXTS = {
    */
   issueFixAriaLabel: (actionId: string) => `Queue ${actionId} to fix the matching findings`,
   /**
+   * Per-issue dismiss button (deterministic findings card): rendered on
+   * each issue row whose `data.target` carries a dismiss value. The
+   * dismissal is keyed by (analyzer, value) and persists in the node's
+   * `.sm` sidecar, so the tooltip names both the exact-value grain and
+   * the sidecar write.
+   */
+  issueDismissTooltip: "Dismiss this issue for this exact value (writes the node's .sm sidecar)",
+  issueDismissAriaLabel: (analyzerId: string) =>
+    `Dismiss the ${analyzerId} issue for this exact value`,
+  /**
    * Metadata section (the `audit:` sidecar block). Field labels for the
    * panel body; the section no longer shows an inline summary next to
    * the title.
@@ -377,5 +387,6 @@ export const INSPECTOR_VIEW_TEXTS = {
     findingResolved: 'Finding marked as fixed.',
     findingDismissed: 'Finding dismissed.',
     findingRestored: 'Finding restored.',
+    issueDismissed: 'Issue dismissed.',
   },
 } as const;

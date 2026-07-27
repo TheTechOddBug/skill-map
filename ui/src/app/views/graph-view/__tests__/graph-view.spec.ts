@@ -182,6 +182,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   resolveFinding: vi.fn().mockResolvedValue(undefined),
   undismissFinding: vi.fn().mockResolvedValue(undefined),
   deleteFinding: vi.fn().mockResolvedValue(undefined),
+  dismissIssue: vi.fn().mockResolvedValue(undefined),
   cancelAllJobs: vi.fn().mockResolvedValue(undefined),
   pruneJobs: vi.fn().mockResolvedValue(undefined),
   listJobs: vi.fn().mockResolvedValue([]),

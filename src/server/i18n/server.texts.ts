@@ -695,4 +695,11 @@ export const SERVER_TEXTS = {
   findingAlreadyDismissed: 'finding {{id}} is already dismissed',
   findingAlreadyOpen: 'finding {{id}} is already open (no resolution to clear)',
   suppressionNotFound: 'no suppression for {{extension}} on {{node}}',
+
+  // Per-issue mutation routes (`POST /api/nodes/:pathB64/issues/...`);
+  // wording mirrors the CLI's `sm issues dismiss / undismiss`.
+  issueAnalyzerRequired: 'body.analyzer is required (the emitting analyzer id)',
+  issueValueRequired: 'body.value is required (the verbatim flagged token)',
+  issueSuppressionNotFound:
+    'no issue suppression for {{analyzer}} + {{value}} on {{node}}',
 } as const;

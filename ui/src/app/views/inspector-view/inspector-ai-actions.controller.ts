@@ -40,6 +40,7 @@ import { debounceTime, merge, type Observable } from 'rxjs';
 import type {
   IFindingApi,
   IFindingsCountsApi,
+  IIssueApi,
   IIssueFixerEntryApi,
   IProbExtensionEntryApi,
   IProbExtensionsApi,
@@ -112,6 +113,15 @@ export interface IAiActionsSetupDeps {
    * dialog instance.
    */
   requestSmConsent(retry: (grant: ISmConsentGrant) => void): void;
+  /**
+   * Success sink for the per-issue dismiss: the deterministic issues
+   * list lives in the HOST component (its `issues` signal, fed by
+   * `listIssues`), so the controller reports the dismissed
+   * (analyzer, value) pair and the host prunes the matching rows
+   * locally. The server already deleted the persisted rows, so the next
+   * refetch agrees with the pruned list.
+   */
+  onIssueDismissed(analyzer: string, value: string): void;
   /**
    * Screen-reader announcement sink (WCAG 4.1.3). The host wires this to
    * `A11yAnnouncerService.announce` so submit / fix / resolve / dismiss /
@@ -202,6 +212,17 @@ export interface IAiActionsHandle {
   /** True while a per-finding round-trip is in flight for this id. */
   isFindingBusy(findingId: number): boolean;
 
+  // --- per-issue dismiss (deterministic rows, sidecar suppression) ---------
+  /**
+   * Dismiss a DETERMINISTIC issue row by its (analyzer, value) key
+   * (consent-aware `.sm` write; the server deletes the matching rows and
+   * the host prunes them via `onIssueDismissed`). No-op on rows without
+   * a dismiss value (`issueDismissValue` returns `null`).
+   */
+  dismissIssue(issue: IIssueApi): Promise<void>;
+  /** True while an issue-dismiss round-trip is in flight for this row's key. */
+  isIssueDismissBusy(issue: IIssueApi): boolean;
+
   // --- hidden buckets (dismissed / fixed / stale) --------------------------
   /** The bucket currently revealed under the tray, or `null`. */
   revealedBucket: Signal<TFindingsBucket | null>;
@@ -252,6 +273,12 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
   const cancelling = signal<ReadonlySet<string>>(new Set());
   /** Finding ids with a dismiss / resolve / restore round-trip in flight. */
   const findingBusy = signal<ReadonlySet<number>>(new Set());
+  /**
+   * (analyzer, value) keys with a per-issue dismiss round-trip in flight
+   * (see `issueDismissKey`). Deterministic issue rows carry no DB id, so
+   * the suppression key doubles as the busy marker.
+   */
+  const issueDismissBusy = signal<ReadonlySet<string>>(new Set());
   /** The hidden bucket currently revealed under the tray (one at a time). */
   const revealedBucket = signal<TFindingsBucket | null>(null);
   const revealedRows = signal<IFindingApi[]>([]);
@@ -736,6 +763,55 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     }
   }
 
+  /** Immutable add / remove for the per-issue dismiss busy set. */
+  function setIssueDismissBusy(key: string, busy: boolean): void {
+    issueDismissBusy.update((s) => {
+      const next = new Set(s);
+      if (busy) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }
+
+  /**
+   * Dismiss one DETERMINISTIC issue row by its (analyzer, value) key:
+   * `analyzer` is the row's short `analyzerId` VERBATIM, `value` its
+   * `data.target` VERBATIM (never normalized). Unlike the row-grain
+   * finding dismiss above, this IS a durable `.sm` sidecar write, so it
+   * shares the restore / delete consent handshake: a first-write gate
+   * parks a retry behind the shared consent dialog and re-runs with the
+   * granted flags. On success the server has DELETED the matching
+   * persisted rows, so the host prunes its local list through
+   * `deps.onIssueDismissed` (no refetch needed; the next one agrees).
+   */
+  async function dismissIssue(
+    issue: IIssueApi,
+    consent: ISmConsentGrant | Record<string, never> = {},
+  ): Promise<void> {
+    const path = deps.node()?.path;
+    const value = issueDismissValue(issue);
+    if (!path || value === null) return;
+    const key = issueDismissKey(issue.analyzerId, value);
+    if (issueDismissBusy().has(key)) return;
+    error.set(null);
+    setIssueDismissBusy(key, true);
+    try {
+      await deps.dataSource.dismissIssue(path, issue.analyzerId, value, consent);
+      deps.onIssueDismissed(issue.analyzerId, value);
+      deps.announce?.(INSPECTOR_VIEW_TEXTS.announce.issueDismissed);
+    } catch (err) {
+      if (!('confirm' in consent) && isSmConsentRequired(err)) {
+        deps.requestSmConsent((grant) => void dismissIssue(issue, grant));
+        return;
+      }
+      recordSubmitError(err);
+    } finally {
+      // No refreshTray(): the probabilistic tray is untouched; the
+      // deterministic issues list lives in the host and was pruned above.
+      setIssueDismissBusy(key, false);
+    }
+  }
+
   /** Reveal / hide one hidden bucket (one at a time). */
   async function toggleBucket(bucket: TFindingsBucket): Promise<void> {
     const path = deps.node()?.path;
@@ -786,10 +862,37 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     restoreFinding: (finding) => restoreFinding(finding),
     deleteFinding: (finding) => deleteFinding(finding),
     isFindingBusy: (findingId) => findingBusy().has(findingId),
+    dismissIssue: (issue) => dismissIssue(issue),
+    isIssueDismissBusy: (issue) => {
+      const value = issueDismissValue(issue);
+      return value !== null && issueDismissBusy().has(issueDismissKey(issue.analyzerId, value));
+    },
     revealedBucket: revealedBucket.asReadonly(),
     revealedRows: revealedRows.asReadonly(),
     toggleBucket,
   };
+}
+
+/**
+ * The dismiss value of a deterministic issue row: its `data.target`
+ * VERBATIM (the analyzer's flagged token, the `value` half of the
+ * (analyzer, value) suppression key). `null` when the row carries no
+ * non-empty string target, those rows have no dismiss key and render no
+ * dismiss affordance. Shared with the host component, which gates the
+ * per-row button on it.
+ */
+export function issueDismissValue(issue: IIssueApi): string | null {
+  const target = issue.data?.['target'];
+  return typeof target === 'string' && target !== '' ? target : null;
+}
+
+/**
+ * Busy-set key for a per-issue dismiss: `<analyzer>|<value>`. Cosmetic
+ * separator, the key only scopes the row's busy marker (a collision
+ * would merely share a spinner between two in-flight dismissals).
+ */
+function issueDismissKey(analyzer: string, value: string): string {
+  return `${analyzer}|${value}`;
 }
 
 /**

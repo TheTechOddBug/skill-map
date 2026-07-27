@@ -137,6 +137,8 @@ One row per analyzer-emitted issue, matching [`schemas/issue.schema.json`](./sch
 
 Indexes: `ix_scan_issues_analyzer_id`, `ix_scan_issues_severity`.
 
+**Issue suppressions apply at EMISSION time, not read time.** Issues carry no stable row id (`id` is per-scan AUTOINCREMENT, the table is replace-all on every scan), so the durable dismissal grain is the value pair `(analyzer, data_json.target)` stored in the node's `annotations.issueSuppressions` (`.sm` sidecar, [`schemas/annotations.schema.json`](./schemas/annotations.schema.json)): the analyzer consults the entries during evaluation and skips both the issue and its confidence penalty, a deliberate divergence from the findings READ-time lens above (`state_findings` rows survive re-runs and are worth lensing; `scan_issues` rows do not). `sm issues dismiss` additionally DELETEs the matching rows here so reads agree without waiting for a rescan; the delete converges regenerable machine state toward the next scan's output. Contract for analyzers adopting value-keyed dismissal: the verbatim dismissable value MUST land in `data_json.target`, that column path is what both the emission-time matcher and the dismiss-time delete key on.
+
 ### `scan_meta`
 
 Single-row table holding the last persisted scan's metadata. Lets `loadScanResult` return the real `roots` / `scannedAt` / `scannedBy` / `providers` / `stats.filesWalked|filesSkipped|durationMs` instead of synthesising them. Replaced atomically with the rest of `scan_*` on every `sm scan`.

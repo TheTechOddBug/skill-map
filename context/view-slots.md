@@ -109,7 +109,7 @@ A chip MAY paint `warn` (yellow) or `danger` (red) **only when** the same analyz
 
 A purely informational / decorative chip uses `severity: 'info'`, `'success'`, or omits the field (the renderer pick its neutral default). Concrete examples in the built-ins:
 
-- `reference-broken` emits chip `danger` + Issue `error` per source node. Consistent (red chip, counts as error, escalates `sm scan` to exit 1).
+- `reference-broken` emits Issue `error` per genuinely-dangling link (the aggregate `danger` chip is owned by `core/issue-counter`). Consistent (red chip backed by `error` issues, counts as error, escalates `sm scan` to exit 1). Since 2026-07-27 the analyzer is two-tier: a broken `@`-trigger whose token is code-shaped (`@ApiSecurity`, `@nestjs/swagger`, per `kernel/util/code-shaped-token.ts`) emits `warn` instead, feeding the amber `warnCount` chip and never the exit code; the danger chip stays backed exclusively by `error` issues, so the policy holds in both tiers.
 - `node-stability` for `experimental` emits chip with no severity (neutral) + Issue `info`. Consistent (chip shows, nothing counts).
 - `node-stability` for `deprecated` emits chip `warn` + Issue `warn`. Consistent (yellow chip, counts as warn, no exit-code impact).
 

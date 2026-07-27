@@ -127,6 +127,7 @@ import {
   rowToNode,
 } from './scan-load.js';
 import { persistScanResult, updateNodeAnnotations } from './scan-persistence.js';
+import { matchesAnalyzerFilter } from '../../util/analyzer-filter.js';
 import {
   listStaleStateEnrichments,
   listStateEnrichmentsForNode,
@@ -378,6 +379,8 @@ export class SqliteStorageAdapter implements StoragePort {
       listAll: () => listAllIssues(this.db),
       list: (filter) => listIssues(this.db, filter),
       findActive: (predicate) => findActiveIssues(this.db, predicate),
+      deleteForSuppression: (nodePath, analyzer, value) =>
+        deleteIssuesForSuppression(this.db, nodePath, analyzer, value),
     };
 
     this.enrichments = {
@@ -847,6 +850,35 @@ async function findActiveIssues(
     if (predicate(issue)) out.push({ id: row.id, issue });
   }
   return out;
+}
+
+/**
+ * `port.issues.deleteForSuppression(...)`: drop the rows an operator's
+ * fresh issue suppression covers. Same load-then-filter posture as
+ * `findActiveIssues` (the table is one scan's worth of rows): the
+ * analyzer matches via `matchesAnalyzerFilter` (stored id is SHORT,
+ * the entry may be qualified), the value strict against `data.target`,
+ * the node by `nodeIds` membership. Returns the deleted count so the
+ * dismiss surfaces can report it.
+ */
+async function deleteIssuesForSuppression(
+  db: Kysely<IDatabase>,
+  nodePath: string,
+  analyzer: string,
+  value: string,
+): Promise<number> {
+  const rows = await db.selectFrom('scan_issues').selectAll().execute();
+  const ids: number[] = [];
+  for (const row of rows) {
+    if (!matchesAnalyzerFilter(row.analyzerId, [analyzer])) continue;
+    const issue = rowToIssue(row);
+    if (issue.data?.['target'] !== value) continue;
+    if (!issue.nodeIds.includes(nodePath)) continue;
+    ids.push(row.id);
+  }
+  if (ids.length === 0) return 0;
+  await db.deleteFrom('scan_issues').where('id', 'in', ids).execute();
+  return ids.length;
 }
 
 function buildTxSubset(trx: Transaction<IDatabase>): ITransactionalStorage {
