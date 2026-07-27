@@ -20,6 +20,13 @@
  *                          (see `models/node.ts:isStaleSidecar`) then
  *                          returns true and the inspector bump button
  *                          enables.
+ *   docs/
+ *     guide.md, api.md   — TWO plain markdown files, so the files rail
+ *                          renders a real `docs` folder row (a
+ *                          single-child folder chain compacts into a
+ *                          prefixed leaf row and would leave the
+ *                          map-scope spec without a folder checkbox to
+ *                          exercise).
  *
  * The chosen `bodyHash` literal is 64 hex zeros — guaranteed to never
  * collide with `sha256(body)` for any real body, no extra hashing in the
@@ -113,6 +120,12 @@ export function createLiveBffFixture(repoRoot: string): ILiveBffFixture {
   mkdirSync(agentsDir, { recursive: true });
   writeFileSync(join(agentsDir, 'stale-agent.md'), STALE_AGENT_MD, 'utf8');
   writeFileSync(join(agentsDir, 'stale-agent.sm'), STALE_AGENT_SM, 'utf8');
+  // Two plain markdown files under one folder: the map-scope spec needs
+  // a real `docs` folder row in the rail (single-child chains compact).
+  const docsDir = join(cwd, 'docs');
+  mkdirSync(docsDir, { recursive: true });
+  writeFileSync(join(docsDir, 'guide.md'), '# Guide\n\nLive-BFF map-scope fixture file.\n', 'utf8');
+  writeFileSync(join(docsDir, 'api.md'), '# API\n\nLive-BFF map-scope fixture file.\n', 'utf8');
   // `core/node-bump` ships `defaultEnabled: false` (2026-07-21 enabled-gate
   // sweep) and its surface is the header version chip, so the bump spec
   // needs the explicit opt-in. Project layer only: `.sm` write consent
