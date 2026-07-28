@@ -48,6 +48,7 @@ import {
 import { TooltipModule } from 'primeng/tooltip';
 
 import { VENDOR_FRONTMATTER_TEXTS } from '../../../i18n/vendor-frontmatter.texts';
+import { MarkdownImagesDirective } from '../../core/markdown-images.directive';
 import { cssColorOrNull } from '../../../services/css-guard';
 import { MarkdownRenderer } from '../../../services/markdown-renderer';
 import { setupBlockMarkdown } from '../../../services/markdown-inline-signal';
@@ -89,7 +90,7 @@ const RENDERED_SKILL_KEYS: ReadonlySet<string> = new Set([
 
 @Component({
   selector: 'sm-vendor-frontmatter',
-  imports: [TooltipModule],
+  imports: [TooltipModule, MarkdownImagesDirective],
   templateUrl: './vendor-frontmatter.html',
   styleUrl: './vendor-frontmatter.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

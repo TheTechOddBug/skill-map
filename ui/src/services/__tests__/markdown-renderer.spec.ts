@@ -165,31 +165,129 @@ describe('MarkdownRenderer', () => {
   // Audit `app-hacker` L-1, remote-image beacon. A markdown body is
   // author-controlled, so a rendered `<img>` is an outbound request the
   // operator never asked for (IP + view timing to the content author),
-  // the same channel `css-guard` refuses for `url(...)`. The tag is
-  // dropped outright rather than scheme-filtered.
+  // the same channel `css-guard` refuses for `url(...)`.
+  //
+  // The contract is no longer "images disappear": the renderer emits a
+  // click-to-load PLACEHOLDER naming the image and the host, and the
+  // request happens only after an explicit gesture (activated by
+  // `[smMarkdownImages]`). What must still hold is that NO `<img>` and no
+  // other request-firing element reaches the DOM on render.
   describe('audit L-1, no image beacons from author-controlled markdown', () => {
-    it('drops a remote image from a rendered body', async () => {
+    function unwrap(safe: unknown): string {
+      const sanitizer = TestBed.inject(DomSanitizer);
+      return sanitizer.sanitize(SecurityContext.HTML, safe as never) ?? '';
+    }
+
+    it('renders a remote image as an interactive placeholder, never an <img>', async () => {
       const r = makeRenderer();
-      const html = await r.renderToHtml('![pixel](https://attacker.example/p.png)');
+      const html = await r.renderToHtml('![Diagram](https://attacker.example/p.png)');
       expect(html.toLowerCase()).not.toContain('<img');
-      expect(html).not.toContain('attacker.example');
+      expect(html).toContain('data-testid="markdown-image-load"');
+      expect(html).toContain('data-sm-img-src="https://attacker.example/p.png"');
+      // The host is shown so the operator knows where the request would
+      // go BEFORE consenting to it.
+      expect(html).toContain('attacker.example');
+      expect(html).toContain('Diagram');
+      // Accessible name names both the image and the host.
+      expect(html).toContain('aria-label="Load Diagram from attacker.example"');
     });
 
-    it('drops a remote image from an inline render too', async () => {
+    it('falls back to a generic label when the image has no alt text', async () => {
+      const r = makeRenderer();
+      const html = await r.renderToHtml('![](https://attacker.example/p.png)');
+      expect(html.toLowerCase()).not.toContain('<img');
+      expect(html).toContain('data-testid="markdown-image-load"');
+      expect(html).toContain('aria-label="Load Image from attacker.example"');
+    });
+
+    it('keeps the surrounding prose around the placeholder', async () => {
       const r = makeRenderer();
       const html = await r.renderToHtml('text ![pixel](https://attacker.example/p.png) more');
       expect(html.toLowerCase()).not.toContain('<img');
-      expect(html).not.toContain('attacker.example');
-      // The surrounding prose still renders; only the beacon is removed.
       expect(html).toContain('text');
       expect(html).toContain('more');
+      expect(html).toContain('data-sm-img-src="https://attacker.example/p.png"');
     });
 
-    it('drops a reference-style image', async () => {
+    it('renders a reference-style image as a placeholder too', async () => {
       const r = makeRenderer();
       const html = await r.renderToHtml('![x][ref]\n\n[ref]: https://attacker.example/p.png');
       expect(html.toLowerCase()).not.toContain('<img');
-      expect(html).not.toContain('attacker.example');
+      expect(html).toContain('data-sm-img-src="https://attacker.example/p.png"');
+    });
+
+    it('renders a STATIC, non-interactive span on an inline render', async () => {
+      // Inline renders feed node-card and inspector descriptions, where
+      // the host already owns click (selection) and drag (move). A button
+      // there would fight those gestures, so the placeholder carries no
+      // URL and no click target at all.
+      const r = makeRenderer();
+      const html = unwrap(await r.renderInline('see ![Diagram](https://attacker.example/p.png)'));
+      expect(html.toLowerCase()).not.toContain('<img');
+      expect(html).not.toContain('<button');
+      expect(html).not.toContain('data-sm-img-src');
+      expect(html).toContain('sm-md-img--static');
+      expect(html).toContain('Diagram');
+    });
+
+    // Reachable schemes: markdown-it accepts these destinations (its own
+    // `validateLink` allows `data:image/*` and any relative ref), so the
+    // token DOES reach our rule and the rule is what refuses them.
+    for (const bad of ['data:image/png;base64,AAAA', 'not-a-url']) {
+      it(`degrades ${JSON.stringify(bad)} to a static span with no URL`, async () => {
+        // A non-http(s) or malformed `src` never becomes an interactive
+        // placeholder: there is no gesture that could resolve it.
+        const r = makeRenderer();
+        const html = await r.renderToHtml(`![shot](${bad})`);
+        expect(html.toLowerCase()).not.toContain('<img');
+        expect(html).not.toContain('data-sm-img-src');
+        expect(html).not.toContain('markdown-image-load');
+        expect(html).toContain('sm-md-img--static');
+      });
+    }
+
+    // Schemes markdown-it itself refuses: the destination fails its
+    // `validateLink`, so no image token is built at all and the source
+    // stays literal text. Nothing loadable reaches the DOM either way.
+    for (const bad of ['file:///etc/passwd', 'vbscript:msgbox(1)']) {
+      it(`renders ${JSON.stringify(bad)} inert, with no placeholder to click`, async () => {
+        const r = makeRenderer();
+        const html = await r.renderToHtml(`![shot](${bad})`);
+        expect(html.toLowerCase()).not.toContain('<img');
+        expect(html).not.toContain('data-sm-img-src');
+        expect(html).not.toContain('markdown-image-load');
+      });
+    }
+
+    it('escapes the alt text instead of interpolating it raw', async () => {
+      const r = makeRenderer();
+      const html = await r.renderToHtml('![<b>bold</b>](https://attacker.example/p.png)');
+      // Parse the output rather than string-matching: an attribute value
+      // legitimately re-serialises `<` unescaped (only `&` and `"` are
+      // escaped in an attribute), so the contract to assert is that the
+      // alt text became TEXT, never an element.
+      const host = document.createElement('div');
+      host.innerHTML = html;
+      expect(host.querySelector('b')).toBeNull();
+      expect(host.querySelector('.sm-md-img__label')?.textContent).toBe('<b>bold</b>');
+    });
+
+    it('escapes a quote in the alt text so it cannot break out of the attribute', async () => {
+      const r = makeRenderer();
+      const html = await r.renderToHtml(
+        '![x" onclick="alert(1)](https://attacker.example/p.png)',
+      );
+      // The literal text survives (as the chip's label), but never as a
+      // real attribute: the quote stayed inside the value it was written
+      // in, so no `onclick` handler exists on the emitted button.
+      const host = document.createElement('div');
+      host.innerHTML = html;
+      const button = host.querySelector('button');
+      expect(button).not.toBeNull();
+      expect(button?.getAttribute('onclick')).toBeNull();
+      expect(button?.querySelector('.sm-md-img__label')?.textContent).toBe(
+        'x" onclick="alert(1)',
+      );
     });
   });
 });

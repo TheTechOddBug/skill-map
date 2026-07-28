@@ -227,8 +227,11 @@
           `[innerHTML]` is the SafeHtml output of MarkdownRenderer.render()
           (markdown-it html:false + DOMPurify) over project-controlled
           frontmatter, same trust + sanitisation path as the body card.
+          `smMarkdownImages` activates the click-to-load image placeholders
+          inside that inert HTML (no request fires until a click).
         -->
         <blockquote
+          smMarkdownImages
           class="vfm__quote"
           data-testid="vendor-frontmatter-initial-prompt-quote"
           [innerHTML]="initialPromptHtml()"

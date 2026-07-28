@@ -18,6 +18,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
 import { isJobCompletedEvent } from '../../../models/ws-event';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
+import { MarkdownImagesDirective } from '../../core/markdown-images.directive';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { A11yAnnouncerService } from '../../services/a11y-announcer';
 import { WsEventStreamService } from '../../../services/ws-event-stream';
@@ -103,6 +104,7 @@ const SUMMARY_LIVE_REFRESH_DEBOUNCE_MS = 400;
     InspectorFindingsSection,
     InspectorAiActionsSection,
     InspectorActivitySection,
+    MarkdownImagesDirective,
     TooltipModule,
   ],
   templateUrl: './inspector-view.html',

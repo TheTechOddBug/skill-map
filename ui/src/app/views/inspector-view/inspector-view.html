@@ -236,8 +236,11 @@
                   output of `MarkdownRenderer.render()`, which already runs
                   two sanitization layers (`markdown-it` with `html: false` +
                   DOMPurify) over project-controlled markdown bytes.
+                  `smMarkdownImages` activates the click-to-load image
+                  placeholders inside that inert HTML (no request fires
+                  until the operator clicks one).
                 -->
-                <div class="inspector__body-rendered" data-testid="inspector-body-rendered" [innerHTML]="bodyHtml()"></div>
+                <div smMarkdownImages class="inspector__body-rendered" data-testid="inspector-body-rendered" [innerHTML]="bodyHtml()"></div>
               }
             }
           }

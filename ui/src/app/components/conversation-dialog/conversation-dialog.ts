@@ -36,6 +36,7 @@ import type { SafeHtml } from '@angular/platform-browser';
 import { DialogModule } from 'primeng/dialog';
 
 import { CONVERSATION_DIALOG_TEXTS } from '../../../i18n/conversation-dialog.texts';
+import { MarkdownImagesDirective } from '../../core/markdown-images.directive';
 import type { IActivitySpawnRecordApi } from '../../../models/api';
 import { compactNumber } from '../../../models/node-derived';
 import { MarkdownRenderer } from '../../../services/markdown-renderer';
@@ -44,7 +45,7 @@ import type { ISpawnThread } from './spawn-thread';
 
 @Component({
   selector: 'sm-conversation-dialog',
-  imports: [DialogModule],
+  imports: [DialogModule, MarkdownImagesDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <p-dialog
@@ -110,8 +111,12 @@ import type { ISpawnThread } from './spawn-thread';
               @if (r.prompt) {
                 <!-- SafeHtml from MarkdownRenderer.render(): markdown-it
                      with html:false + DOMPurify, same two sanitization
-                     lines as the inspector body. -->
+                     lines as the inspector body. The smMarkdownImages
+                     directive activates the click-to-load image
+                     placeholders inside that inert HTML (no request fires
+                     until the operator clicks one). -->
                 <div
+                  smMarkdownImages
                   class="convo__bubble convo__bubble--parent"
                   [attr.data-testid]="'conversation-dialog-prompt-' + i"
                   [attr.aria-label]="texts.promptLabel"
@@ -120,6 +125,7 @@ import type { ISpawnThread } from './spawn-thread';
               }
               @if (r.response) {
                 <div
+                  smMarkdownImages
                   class="convo__bubble convo__bubble--child"
                   [attr.data-testid]="'conversation-dialog-response-' + i"
                   [attr.aria-label]="texts.responseLabel"

@@ -530,6 +530,101 @@ a {
   font-size: var(--sm-fs-sm);
 }
 
+/* ---------------------------------------------------------------------------
+ * Markdown image placeholder (`.sm-md-img`), click-to-load affordance.
+ *
+ * A markdown body is author-controlled, so `MarkdownRenderer` never emits
+ * an `<img>` (it would fire a request, and leak the operator's IP and
+ * view timing, just by rendering). It emits this chip instead: the image
+ * name plus the host the request would go to. The interactive variant is
+ * a `<button>` that `[smMarkdownImages]` swaps for a real `<img>` on
+ * click; the `--static` variant (inline renders on node cards and
+ * descriptions, where the host already owns click and drag) is inert.
+ *
+ * Global, not component-scoped, for two reasons: the markup lands through
+ * `[innerHTML]` so it carries no `_ngcontent` attribute that scoped CSS
+ * could match, and the same chip renders under five different hosts. Same
+ * precedent as the `.sm-block*` vocabulary above.
+ *
+ * Reads as a quiet inline chip, not a card: dashed hairline, hover surface,
+ * no fill weight, no shadow. Sizing rides the `--sm-fs-*` ramp so it sits
+ * a step below the prose it interrupts.
+ * ------------------------------------------------------------------------- */
+.sm-md-img {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+  margin: 0;
+  padding: 0.1rem 0.45rem;
+  border: 1px dashed var(--sm-border);
+  border-radius: var(--sm-radius-sm);
+  background: var(--sm-bg-hover);
+  color: var(--p-text-muted-color);
+  font: inherit;
+  font-size: var(--sm-fs-xs);
+  line-height: 1.6;
+  text-align: left;
+  vertical-align: baseline;
+}
+
+.sm-md-img .pi {
+  font-size: var(--sm-fs-xs);
+}
+
+.sm-md-img__label {
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The host is the consent signal: the operator sees where the request
+   would go BEFORE clicking, so it stays legible (mono, never truncated)
+   even though it is the smaller of the two labels. */
+.sm-md-img__host {
+  font-family: var(--sm-font-mono);
+  font-size: var(--sm-fs-2xs);
+  color: var(--p-text-muted-color);
+}
+
+/* Interactive variant, keyed off the element rather than a modifier
+   class: only the button form ever carries a URL to load. */
+button.sm-md-img {
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+button.sm-md-img:hover {
+  border-color: var(--p-primary-color);
+  color: var(--p-text-color);
+}
+
+button.sm-md-img:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 2px;
+}
+
+/* Static variant: no URL, no gesture. Dotted + dimmed so it reads as a
+   note about a missing image rather than a control the click ignores. */
+.sm-md-img--static {
+  cursor: default;
+  border-style: dotted;
+  opacity: 0.75;
+}
+
+/* The loaded image replaces the chip in place. The width cap is
+   load-bearing: a remote image is author-sized, and the inspector panel
+   is narrow. */
+.sm-md-img__loaded {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--sm-radius-sm);
+}
+
 /* Settings-dialog select overlays. The panel is appended to <body>
    (appendTo="body", so it escapes the dialog's clipping), which also
    puts it OUTSIDE the dialog's scoped font normalization in
