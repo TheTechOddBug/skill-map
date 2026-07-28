@@ -49,13 +49,11 @@ import { AgentSpawnService } from '../../../services/agent-spawn';
 import { NodeActivityService } from '../../../services/node-activity';
 import { NodeActivityStatsService } from '../../../services/node-activity-stats';
 import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
-import type { INodeActivityStatsApi, TLinkKindApi } from '../../../models/api';
+import type { INodeActivityStatsApi } from '../../../models/api';
 import { directNeighborhood } from './node-neighborhood';
-import { resolveConnectionSides } from './connection-sides';
 import { BranchCapBanner } from './branch-cap-banner/branch-cap-banner';
 import { GraphLayoutToolbar } from './graph-layout-toolbar/graph-layout-toolbar';
 import { ConversationDialog } from '../../components/conversation-dialog/conversation-dialog';
-import { setupConversationDialog } from '../../components/conversation-dialog/conversation-dialog.controller';
 import { KindPalette } from '../../components/kind-palette/kind-palette';
 import { LinkKindPalette } from '../../components/link-kind-palette/link-kind-palette';
 import { AgentCapsule } from '../../components/agent-capsule/agent-capsule';
@@ -74,28 +72,13 @@ import { MiddleMousePanDirective, type IMiddleMousePanTarget } from './middle-mo
 import {
   computeDagreLayout,
   computeForceLayoutPositions,
-  projectVisible,
-  resolveTopology,
   topologyFingerprint,
-  type IFullLayout,
-  type IGraphData,
   type IGraphEdge,
   type IGraphNode,
   type IPoint,
   type TNodePositions,
 } from './graph-layout';
 import { reconcileNodePositions } from './graph-view.reconcile';
-import {
-  EMPTY_SPAWN_OVERLAY,
-  edgePairKey,
-  resolveSpawnOverlay,
-  type ISpawnOverlay,
-} from './spawn-overlay';
-import {
-  EMPTY_INVOCATION_EDGES,
-  resolveInvocationOverlay,
-  type IInvocationOverlayEdge,
-} from './invocation-overlay';
 import { bindSelectionToUrl } from './selection-url-sync';
 import {
   readStoredNodePositions,
@@ -103,7 +86,6 @@ import {
   readStoredViewport,
   writeStoredNodePositions,
   writeStoredPanelWidth,
-  writeStoredViewport,
 } from './graph-view.storage';
 import { setupEdgeResize } from '../../core/edge-resize.controller';
 import { setupTagSelection } from './tag-selection.controller';
@@ -118,13 +100,10 @@ import { setupNodeDrag } from './node-drag.controller';
 import { setupExpansion } from './expansion.controller';
 import { setupFollowActivity } from './follow-activity.controller';
 import { setupLayoutFit } from './layout-fit.controller';
-import {
-  animateViewport,
-  computeCenterTransform,
-  computeFitTransform,
-  TAG_FIT_MAX_ZOOM,
-  type IViewportTransform,
-} from './viewport-animation';
+import { setupGraphPipeline } from './graph-pipeline';
+import { setupCamera, type ICameraHandle } from './camera.controller';
+import { setupSpawnAnchors } from './spawn-anchors.controller';
+import { type IViewportTransform } from './viewport-animation';
 
 const ZOOM_BUTTON_STEP = 0.2;
 
@@ -135,12 +114,6 @@ const PANEL_WIDTH_MIN = 400;
 const PANEL_VIEWPORT_RESERVE = 80;
 /** Pixels the inspector panel grows / shrinks per arrow keypress (WCAG 2.1.1). */
 const PANEL_RESIZE_STEP = 24;
-
-/** Tween duration (ms) for the auto-fit on WS-scan topology change. A
- *  hair longer than the tag-selection tween (320 ms) so the "scan
- *  brought in new nodes, camera glides to frame them" beat reads as a
- *  distinct event without dragging the UX. */
-const AUTO_FIT_ANIM_MS = 420;
 
 /** Default selection bundle when a node is not yet in the selection map. */
 const SELECTION_DEFAULT: ISelectionView = {
@@ -349,122 +322,31 @@ export class GraphView implements OnInit {
   readonly loading = this.loader.loading;
   readonly error = this.loader.error;
 
-  /**
-   * Visible node set. Delegates everything to `FilterStoreService.apply`,
-   * passing the `IssuePathsService.bySeverity` index so the severity
-   * palette toggles work end-to-end. AND semantics across tiers (both
-   * on means a node must carry at least one error AND at least one
-   * warn) lives inside `apply()`; the view only feeds the context.
-   *
-   * The TEXT search only participates when the search → map coupling
-   * is on (`searchAffectsMap`, the toggle next to the rail's search
-   * input), which it is by default: the map narrows on the query
-   * alongside the files rail. Turn the toggle off to keep the map
-   * layout while only the files rail narrows.
-   */
-  private readonly visibleNodes = computed(() =>
-    this.filters.apply(this.loader.nodes(), this.issuePaths.bySeverity(), {
-      includeSearch: this.filters.searchAffectsMap(),
-    }),
-  );
-
-  /**
-   * Topology view: indexed lookups + the resolved edge set. Computed
-   * synchronously, runs once per `loader.nodes()` / `loader.scan()`
-   * change. Carries no positions, those live in `layoutPositions`
-   * below and are filled asynchronously by the dagre effect.
-   *
-   * When a WebSocket `scan.completed` event makes the loader re-fetch
-   * and replace `loader.nodes()` with a fresh array, this computed
-   * re-runs but the topology fingerprint only changes when nodes are
-   * added / removed / relinked. The downstream layout effect skips
-   * the dagre call when the fingerprint + preferences combo matches
-   * the last cache, so the viewport stays put and unmoved nodes do
-   * not jump on every WS push.
-   */
-  private readonly topology = computed(() =>
-    resolveTopology(this.loader.nodes(), this.loader.scan()),
-  );
-
-  /**
-   * Dagre output, top-left positions keyed by node path. Filled by the
-   * async layout effect in the constructor. Initially empty: nodes
-   * render at (0, 0) until dagre resolves, the first frame of the
-   * boot tween hides this via `fitToScreen`.
-   */
-  private readonly layoutPositions = signal<Map<string, IPoint>>(new Map());
-  /** `performance.now()` timestamp of the last dagre run; exposed to the perf HUD. */
-  private readonly layoutComputedAtSignal = signal(0);
-
-  /**
-   * Combined topology + positions, the shape the renderer + reconcile
-   * helpers consume. Kept as a computed so consumers stay reactive
-   * across both topology changes and layout updates without bookkeeping.
-   */
-  private readonly fullLayout = computed<IFullLayout>(() => ({
-    ...this.topology(),
-    positions: this.layoutPositions(),
-    computedAt: this.layoutComputedAtSignal(),
-  }));
-
-  /**
-   * Effective set of node paths the MAP shows: the facet-filtered set
-   * (`visibleNodes`, shared with the rail) over the FETCHED branch union.
-   * The map SELECTION is now applied server-side, the loader fetches the
-   * union of the selected folder prefixes + leaf paths, so `branch()`
-   * already IS the selected set; there is no client-side curation
-   * intersection to layer on top. This stays the single chokepoint both
-   * the canvas (`graph`) and the camera (`runAnimatedFit`) read so they
-   * never disagree on what is visible.
-   */
-  private readonly mapVisiblePaths = computed<Set<string>>(
-    () => new Set(this.visibleNodes().map((n) => n.path)),
-  );
-
-  readonly graph = computed<IGraphData>(() => {
-    const visibleIds = this.mapVisiblePaths();
-    const linkKinds = this.filters.selectedLinkKinds();
-    // An empty whitelist is ambiguous on its own: it is both the default
-    // "no link filter" and the state left behind after the operator turns
-    // the last link toggle off. The sticky flag disambiguates, an empty
-    // Set hides every edge, `null` bypasses the filter.
-    const visibleEdgeKinds = this.filters.linkKindToggleExplicitEmpty()
-      ? new Set<TLinkKindApi>()
-      : linkKinds.length > 0
-        ? new Set(linkKinds)
-        : null;
-    return projectVisible(
-      this.fullLayout(),
-      visibleIds,
-      this.nodePositions(),
-      visibleEdgeKinds,
-    );
+  // Pure derivation chain (visible set -> topology -> layout -> graph),
+  // owned by `setupGraphPipeline`. See `graph-pipeline.ts` for the
+  // per-computed rationale (topology-fingerprint caching, link-kind
+  // whitelist semantics, perf counters, connector sides). The aliases
+  // below keep the template bindings and the rest of this component on
+  // the pre-extraction member names.
+  private readonly pipeline = setupGraphPipeline({
+    nodes: this.loader.nodes,
+    scan: this.loader.scan,
+    filters: this.filters,
+    issuesBySeverity: this.issuePaths.bySeverity,
+    nodePositions: this.nodePositions,
+    layoutAlgorithm: this.graphPreferences.layoutAlgorithm,
+    layoutDirection: this.graphPreferences.layoutDirection,
   });
-
-  /**
-   * Undirected neighbor map over the FULL topology (not the currently
-   * visible subset), built from `fullLayout().edges`. Mirrors the
-   * `adjacency` computed in `selection-state.ts`, but unfiltered: the
-   * isolate gesture must resolve a node's direct neighbors against the
-   * full topology even when curation has narrowed the canvas down. Feeds
-   * `isolateNeighborhood`.
-   */
-  private readonly fullAdjacency = computed<Map<string, Set<string>>>(() => {
-    const map = new Map<string, Set<string>>();
-    const link = (a: string, b: string): void => {
-      let set = map.get(a);
-      if (!set) {
-        set = new Set<string>();
-        map.set(a, set);
-      }
-      set.add(b);
-    };
-    for (const edge of this.fullLayout().edges) {
-      link(edge.from, edge.to);
-      link(edge.to, edge.from);
-    }
-    return map;
-  });
+  private readonly visibleNodes = this.pipeline.visibleNodes;
+  private readonly topology = this.pipeline.topology;
+  /** Dagre output signals, written by the async layout effect in the constructor. */
+  private readonly layoutPositions = this.pipeline.layoutPositions;
+  private readonly layoutComputedAtSignal = this.pipeline.layoutComputedAtSignal;
+  private readonly fullLayout = this.pipeline.fullLayout;
+  private readonly mapVisiblePaths = this.pipeline.mapVisiblePaths;
+  readonly graph = this.pipeline.graph;
+  private readonly fullAdjacency = this.pipeline.fullAdjacency;
+  private readonly pathsFingerprint = this.pipeline.pathsFingerprint;
 
   readonly hasData = computed(() => this.graph().nodes.length > 0);
   /**
@@ -500,30 +382,17 @@ export class GraphView implements OnInit {
     () => !this.hasData() && this.mapVisibility.isActive(),
   );
 
-  /** Counters / timestamp exposed to the perf HUD. Pure derivations. */
-  protected readonly visibleCount = computed(() => this.graph().nodes.length);
-  protected readonly totalCount = computed(() => this.loader.nodes().length);
-  protected readonly edgeCount = computed(() => this.graph().edges.length);
-  protected readonly layoutComputedAt = computed(() => this.layoutComputedAtSignal());
+  /** Counters / timestamp exposed to the perf HUD. Pure derivations in the pipeline. */
+  protected readonly visibleCount = this.pipeline.visibleCount;
+  protected readonly totalCount = this.pipeline.totalCount;
+  protected readonly edgeCount = this.pipeline.edgeCount;
+  protected readonly layoutComputedAt = this.pipeline.layoutComputedAt;
 
-  /**
-   * Connector sides per layout direction, fed into `<f-connection>`
-   * via `[fOutputSide]` / `[fInputSide]` and into each `<div fNode>`
-   * via `[fInputConnectableSide]` / `[fOutputConnectableSide]`.
-   *
-   * Same-element pattern (`fNodeInput` + `fNodeOutput` on the card
-   * itself) means the connection geometry anchors to the card edge
-   * matching the side string, no CSS positioning needed. Direction
-   * table + force-layout fallback live in `./connection-sides`.
-   */
-  protected readonly connectionSides = computed(() =>
-    resolveConnectionSides(
-      this.graphPreferences.layoutAlgorithm(),
-      this.graphPreferences.layoutDirection(),
-    ),
-  );
-  protected readonly inputSide = computed(() => this.connectionSides().input);
-  protected readonly outputSide = computed(() => this.connectionSides().output);
+  // Connector sides per layout direction (direction table +
+  // force-layout fallback live in `./connection-sides`, the computeds
+  // in `graph-pipeline.ts`).
+  protected readonly inputSide = this.pipeline.inputSide;
+  protected readonly outputSide = this.pipeline.outputSide;
 
   /**
    * Fixed sides for overlay-chrome spawn edges (`edge.vertical`): the
@@ -604,17 +473,15 @@ export class GraphView implements OnInit {
   // from the constructor below.
 
 
-  /**
-   * Fingerprint of the loaded path set (NOT edges). Drives the "auto-fit
-   * when a node is added or removed" effect below. Edge-only topology
-   * changes (a new link extracted from an edited body, or a link that
-   * disappeared) do NOT trip this fingerprint, the user kept the same
-   * cards, just their wiring changed; jerking the viewport for that
-   * would feel intrusive.
-   */
-  private readonly pathsFingerprint = computed(() =>
-    this.loader.nodes().map((n) => n.path).sort().join('|'),
-  );
+  // Camera controller handle (fit / center / tween orchestration).
+  // Assigned in the constructor AFTER the reconcile effect is declared:
+  // its auto-fit runner reacts to the same `layoutComputedAt` tick and
+  // relies on effect creation order so reconcile mirrors fresh positions
+  // into `nodePositions` first (see `camera.controller.ts`). Closures
+  // created before the assignment (layout-fit's `fit`, follow's
+  // `animateToTransform`) only dereference it at call time, safely
+  // after construction.
+  private camera!: ICameraHandle;
 
   // Initial fit-to-screen + auto-fit on topology change. Owns the
   // `hasCompletedInitialLayout` flag the viewport store reads to gate
@@ -627,8 +494,8 @@ export class GraphView implements OnInit {
     visibleNodes: this.visibleNodes,
     pathsFingerprint: this.pathsFingerprint,
     savedViewport: this.savedViewport,
-    fit: () => this.fitToScreenClamped(),
-    animatedFit: () => this.animatedFitToScreen(),
+    fit: () => this.camera.fitToScreenClamped(),
+    animatedFit: () => this.camera.animatedFitToScreen(),
   });
 
   constructor() {
@@ -658,11 +525,11 @@ export class GraphView implements OnInit {
       readSelectedNodeId: () => this.selectedNodeId(),
       graphNodes: selectionNodes,
       // A deep link from the files view ("open in map") should glide
-      // the camera onto the node. Stash the id; the center effect below
-      // runs the pan once the boot fit has fixed the zoom and the dagre
-      // positions are in.
+      // the camera onto the node. Stash the id; the camera's center
+      // effect runs the pan once the boot fit has fixed the zoom and
+      // the dagre positions are in.
       onDeepLinkSelect: (id) => {
-        this.pendingCenterNodeId.set(id);
+        this.camera.pendingCenterNodeId.set(id);
       },
       router: this.router,
       route: this.route,
@@ -700,84 +567,37 @@ export class GraphView implements OnInit {
       writeStoredNodePositions(result.next);
     });
 
-    // Auto-fit animation runner. `setupLayoutFit` fires `animatedFit`
-    // on the `pathsFingerprint` change tick, which lands BEFORE the
-    // async dagre layout finishes. We can't read `fullLayout()` at that
-    // moment, the positions are still the pre-change snapshot, so a
-    // deletion tweens toward the bbox of the surviving nodes' OLD
-    // positions and lands wrong once dagre relayouts. Deferring to the
-    // next `layoutComputedAt` tick guarantees fresh positions are in
-    // place before `runAnimatedFit` reads them, AND the reconcile
-    // effect declared above has already mirrored those positions into
-    // `nodePositions` (the source `runAnimatedFit` actually consults
-    // for the bbox, mirroring `projectVisible`).
-    effect(() => {
-      this.layoutComputedAt();
-      if (!this.autoFitPending) return;
-      this.autoFitPending = false;
-      this.runAnimatedFit();
-    });
-
-    // Deep-link center pan. A files-view "open in map" navigation stashes
-    // the target node id in `pendingCenterNodeId`; this effect runs the
-    // camera glide once BOTH gates are satisfied: the boot fit has fixed
-    // the zoom (`hasCompletedInitialLayout`, signal-backed so this
-    // re-fires when it flips) AND dagre has produced positions (the
-    // `layoutComputedAt` tick). The pan itself is deferred to
-    // `afterNextRender` so Foblex's snap fit + clamp have already
-    // applied and the scale `centerOnNode` reads is the settled one,
-    // the pan keeps that zoom and only moves the position.
-    effect(() => {
-      this.layoutComputedAt();
-      const bootFitDone = this.layoutFit.hasCompletedInitialLayout();
-      const id = this.pendingCenterNodeId();
-      if (id === null || !bootFitDone) return;
-      if (this.fullLayout().positions.size === 0) return;
-      this.pendingCenterNodeId.set(null);
-      afterNextRender(() => this.centerOnNode(id), { injector: this.injector });
-    });
-
-    // Re-fit the camera when the map visibility curation changes (decision:
-    // refit on every change) UNLESS that change rode in on a tag selection.
-    // A tag click curates in place (hides the non-matching cards) but
-    // deliberately leaves the camera where it is: the operator clicked a
-    // tag on a card they were already looking at, and a pan / zoom jump
-    // reads as the view running away from them. The genuine curation
-    // gestures (rail checkboxes, isolate) still glide. We tell the two
-    // apart by the `activeTagSelection` transition: when it changed since
-    // the last run (tag activated, swapped, or toggled off) the paths moved
-    // because of the tag and we skip the refit; when it held steady the
-    // paths moved for a non-tag reason and we frame the result. Debounced
-    // so a burst of checkbox toggles coalesces into one glide. Topology is
-    // unchanged on a pure visibility edit, so `layoutComputedAt` does NOT
-    // tick; positions are already settled post-boot, so we drive
-    // `runAnimatedFit` via `afterNextRender` directly (which lets
-    // `projectVisible` render the new node set first).
-    let lastTagForRefit: string | null = null;
-    effect(() => {
-      this.mapVisibility.overrides(); // refit on curation change ...
-      const tag = this.activeTagSelection(); // ... but not when a tag drove it
-      const tagChanged = tag !== lastTagForRefit;
-      lastTagForRefit = tag;
-      if (tagChanged) {
-        // Tag selection curates in place and never reframes. It also
-        // cancels any refit a just-prior curation gesture queued, so the
-        // camera stays put across the tag click.
-        if (this.mapFitDebounce !== null) clearTimeout(this.mapFitDebounce);
-        this.mapFitDebounce = null;
-        return;
-      }
-      // Gate, NOT a dependency: reading it tracked would also refit on the
-      // boot flip of this flag (a redundant re-frame). `untracked` keeps the
-      // effect firing only when the curation set actually changes.
-      if (!untracked(() => this.layoutFit.hasCompletedInitialLayout())) return;
-      if (this.mapFitDebounce !== null) clearTimeout(this.mapFitDebounce);
-      this.mapFitDebounce = setTimeout(() => {
-        afterNextRender(() => this.runAnimatedFit(), { injector: this.injector });
-      }, 180);
-    });
-    this.destroyRef.onDestroy(() => {
-      if (this.mapFitDebounce !== null) clearTimeout(this.mapFitDebounce);
+    // Fit / center / tween orchestration, owned by `setupCamera`
+    // (auto-fit runner, deep-link center pan, curation re-fit debounce;
+    // see `camera.controller.ts` for each effect's rationale). Created
+    // HERE, between the reconcile effect above and the GC effect below,
+    // so effect creation order (and therefore same-tick execution
+    // order) matches the pre-extraction component exactly.
+    this.camera = setupCamera({
+      injector: this.injector,
+      destroyRef: this.destroyRef,
+      canvas: () => this.canvas(),
+      zoom: () => this.zoom(),
+      canvasWrap: () => this.canvasWrap()?.nativeElement ?? null,
+      viewportPosition: this.viewportPosition,
+      viewportScale: this.viewportScale,
+      storeOnCanvasChange: (event) => this.viewportStore.onCanvasChange(event),
+      zoomMin: this.zoomMin,
+      nodes: this.loader.nodes,
+      topology: this.topology,
+      fullLayout: this.fullLayout,
+      mapVisiblePaths: this.mapVisiblePaths,
+      layoutComputedAt: this.layoutComputedAt,
+      nodePositions: this.nodePositions,
+      reservedPanelWidth: () => this.reservedPanelWidth(),
+      hasCompletedInitialLayout: () => this.layoutFit.hasCompletedInitialLayout(),
+      graphPreferences: this.graphPreferences,
+      dagreLayout: this.dagreLayout,
+      framing: () => this.followCtl.framing(),
+      disableFollow: () => this.disableFollow(),
+      resetExpansion: () => this.expansion.resetAll(),
+      curationOverrides: this.mapVisibility.overrides,
+      activeTagSelection: this.activeTagSelection,
     });
 
     // Garbage-collect curated paths a re-scan removed. Keyed on the
@@ -862,7 +682,7 @@ export class GraphView implements OnInit {
             // `connectionsRenderedNodesRevision`), so the bounding
             // box it measures is always against the post-layout DOM.
             this.nodePositions.set(new Map());
-            this.fitToScreenClamped();
+            this.camera.fitToScreenClamped();
           }
         })
         .catch((err) => {
@@ -892,275 +712,12 @@ export class GraphView implements OnInit {
   }
 
   /**
-   * Canvas change handler: mirrors the event into the viewport store
-   * (reconciliation + persistence) and doubles as the manual-gesture
-   * hook for Follow the Activity. Foblex only fires `fCanvasChange`
-   * for USER gestures (wheel / pinch / canvas drag / the zoom buttons'
-   * `setZoom`) plus the middle-mouse pan's explicit
-   * `emitCanvasChangeEvent()` flush, never for programmatic
-   * `[position]` / `[scale]` writes, so the follow tween itself cannot
-   * trip this and the event IS the "operator touched the camera"
-   * signal. Gated on the boot fit: the initial imperative
-   * `fitToScreenClamped` (Foblex `fitToScreen` + `setZoom` clamp)
-   * emits too, and must not kill a persisted follow preference at
-   * startup.
-   *
-   * Follow drops ONLY when the gesture interrupts a camera move in
-   * flight: the operator grabbed the wheel while the camera was
-   * driving itself, so the tween is cancelled on the spot (its rAF
-   * loop would keep writing over the user's hand for the rest of its
-   * 420ms) and the preference switches off. A gesture while the
-   * camera RESTS keeps follow armed, panning around between
-   * executions is free and the next membership change re-frames.
-   * The toolbar's camera / layout buttons (zoom / fit / re-arrange)
-   * keep follow armed; only isolate and the deep-link center still
-   * disable at their call sites.
+   * Canvas change handler, bound in the template. The gesture semantics
+   * (viewport mirroring + persistence, the follow interrupt on an
+   * in-flight tween) live in `camera.controller.ts`.
    */
   protected onCanvasChange(event: FCanvasChangeEvent): void {
-    this.viewportStore.onCanvasChange(event);
-    if (!this.layoutFit.hasCompletedInitialLayout()) return;
-    if (!this.cameraTweenInFlight()) return;
-    this.autoFitAnimToken++;
-    this.disableFollow();
-  }
-
-  /**
-   * Run a fit that respects `zoomMin` / `zoomMax`. Foblex's `FitToFlow`
-   * writes `transform.scale` directly without clamping (verified in
-   * `node_modules/@foblex/flow/fesm2022/foblex-flow.mjs`, `FitToFlow.handle`),
-   * so a sparse graph balloons past the user's max. We delegate the fit
-   * itself to Foblex (it owns the bbox + parent rect math) but follow
-   * it up with our own clamp inside the SAME render cycle via
-   * `afterNextRender`: Foblex's `_afterRedraw` already uses
-   * `afterNextRender`, so by queueing right after we land in the same
-   * `rAF` tick, Foblex's fit runs first, our clamp runs second, and the
-   * browser only paints the post-clamp frame. Non-animated fit is used
-   * so the (briefly held) pre-clamp transform never hits a CSS
-   * transition that would expose the overshoot to the eye.
-   */
-  private fitToScreenClamped(): void {
-    const canvas = this.canvas();
-    const zoom = this.zoom();
-    if (!canvas) return;
-    canvas.fitToScreen({ x: 40, y: 40 }, false);
-    afterNextRender(
-      () => {
-        const scale = canvas.transform.scale;
-        // Clamp the fit to the fit-to-content ceiling (`TAG_FIT_MAX_ZOOM`),
-        // NOT the wheel-zoom max (`zoomMax`): Foblex's `fitToScreen`
-        // ignores the zoom bounds and magnifies a lone node far past
-        // natural size, so a one-node project would otherwise open
-        // gigantic. Zoom-out (many nodes) is bounded by `zoomMin`.
-        if (scale > TAG_FIT_MAX_ZOOM || scale < this.zoomMin) {
-          const clamped = Math.max(this.zoomMin, Math.min(scale, TAG_FIT_MAX_ZOOM));
-          const step = Math.abs(scale - clamped);
-          const direction = scale > clamped ? EFZoomDirection.ZOOM_OUT : EFZoomDirection.ZOOM_IN;
-          // `FZoomDirective.setZoom` clamps via `SetZoom._clamp` (the same
-          // path wheel + button zoom go through), so it lands exactly at
-          // `zoomMin` / `zoomMax`. Non-animated to keep the snap atomic
-          // inside this render cycle.
-          zoom?.setZoom(this.getViewportCenter(), step, direction, false);
-        }
-        // Persist the settled fit. Foblex's `fitToScreen` (FitToFlow)
-        // never emits `fCanvasChange`, so a layout-algorithm / direction
-        // change would otherwise be lost on F5 like the animated fits
-        // were. Read the transform AFTER the optional clamp so the saved
-        // scale matches what is painted; the clamp's `setZoom` also emits
-        // and would write the same value, so this is idempotent there.
-        if (this.layoutFit.hasCompletedInitialLayout()) {
-          const t = canvas.transform;
-          writeStoredViewport({ x: t.position.x, y: t.position.y, scale: t.scale });
-        }
-      },
-      { injector: this.injector },
-    );
-  }
-
-  /** Supersession token for the auto-fit tween, increments on each
-   *  call so a back-to-back WS scan refresh cancels the in-flight tween
-   *  cleanly (mirrors the tag-selection pattern). */
-  private autoFitAnimToken = 0;
-
-  /**
-   * Wall-clock start of the last animated camera tween. A tween runs
-   * exactly `AUTO_FIT_ANIM_MS` from here (a superseding call restarts
-   * the window together with the tween), so "started less than a
-   * duration ago" IS the in-flight state, no completion callback
-   * needed. `-Infinity` so the pre-first-tween window never reads as
-   * moving (`performance.now()` starts near 0 at page load).
-   */
-  private cameraTweenStartedAt = Number.NEGATIVE_INFINITY;
-
-  /** True while an animated camera move (fit / center / follow) is in flight. */
-  private cameraTweenInFlight(): boolean {
-    return performance.now() - this.cameraTweenStartedAt < AUTO_FIT_ANIM_MS;
-  }
-
-  /**
-   * Set to `true` when `setupLayoutFit` fires its animated callback on
-   * a topology change; the actual tween is deferred to the next
-   * `layoutComputedAt` tick (see `autoFitRunner` effect in the
-   * constructor). The deferral is load-bearing: `pathsFingerprint`
-   * changes BEFORE dagre re-layouts, so reading `layoutPositions`
-   * during the callback would tween toward a stale bbox, the symptom
-   * the user reported was deletes anchoring on the pre-delete positions.
-   */
-  private autoFitPending = false;
-
-  /**
-   * Debounce timer for the re-fit on a map-visibility change. A folder
-   * cascade is one signal tick (one fit), but rapid single-leaf toggles
-   * each tick the curation effect; coalescing them into one camera glide
-   * keeps the viewport from thrashing. Cleared on destroy.
-   */
-  private mapFitDebounce: ReturnType<typeof setTimeout> | null = null;
-
-  /**
-   * Node id (== node path) queued by a deep-link selection (the files
-   * view "open in map" navigation). The center effect in the
-   * constructor drains it once the boot fit and dagre positions are
-   * ready. Signal-backed so a repeated deep-link re-fires the effect:
-   * in the fused workspace the graph stays mounted, so clicking a
-   * second file would set this without changing `layoutComputedAt` /
-   * `hasCompletedInitialLayout`, and a plain field would leave the
-   * effect dormant (camera never re-centers). As a signal, each set
-   * invalidates the effect and the camera glides to the new node.
-   */
-  private readonly pendingCenterNodeId = signal<string | null>(null);
-
-  /** Public-facing scheduler the layout-fit controller wires into
-   *  `animatedFit`. Just marks intent; the deferred runner does the work. */
-  private animatedFitToScreen(): void {
-    this.autoFitPending = true;
-  }
-
-  /**
-   * Run the animated fit: the camera glides (pan + zoom) to frame the
-   * on-screen nodes. Drives both the deferred auto-fit (scan add / remove,
-   * curation re-fit) and the explicit re-arrange / fit buttons, so every
-   * fit in the view animates the same way. Pure signal tween via
-   * `viewport-animation`: the clamp lives inside `computeFitTransform`
-   * (returns the scale already clamped to `[zoomMin, TAG_FIT_MAX_ZOOM]`),
-   * so we get the camera-glide UX without Foblex's `FitToFlow`
-   * overshoot the snap-then-clamp path `fitToScreenClamped` is
-   * specifically guarding against.
-   *
-   * Empty-points / no-wrap guards mirror tag-selection; the visible-
-   * paths intersection ensures filter-hidden nodes don't anchor the
-   * bbox (a filter that hides everything but one node should fit on
-   * that one node when the WS scan brings in a sibling).
-   */
-  private runAnimatedFit(): void {
-    const transform = this.computeVisibleFitTransform();
-    if (!transform) return;
-    this.animateToTransform(transform);
-  }
-
-  /**
-   * Glide the viewport toward `transform` with the shared supersession
-   * token. Single tween entry point for every animated camera move
-   * (auto-fit, deep-link center, follow-the-activity), so back-to-back
-   * moves from different features cancel each other cleanly instead of
-   * fighting over the viewport signals.
-   */
-  private animateToTransform(transform: IViewportTransform): void {
-    const token = ++this.autoFitAnimToken;
-    this.cameraTweenStartedAt = performance.now();
-    animateViewport(
-      {
-        readPosition: () => this.viewportPosition(),
-        readScale: () => this.viewportScale(),
-        writePosition: (p) => this.viewportPosition.set(p),
-        writeScale: (s) => this.viewportScale.set(s),
-        isStaleToken: () => token !== this.autoFitAnimToken,
-      },
-      transform,
-      AUTO_FIT_ANIM_MS,
-    );
-    // Persist the destination so a reload restores where the camera was
-    // parked. Foblex only emits `fCanvasChange` (the other writer of
-    // `sm.graph.viewport`) for real gestures and button zoom, never for
-    // the programmatic signal writes `animateViewport` makes, so without
-    // this every fit / re-arrange / show-all / isolate / deep-link
-    // center / follow move was lost on F5. Write the TARGET (already the
-    // clamped final transform) directly rather than through
-    // `emitCanvasChangeEvent()`, which would trip the tween-interrupt
-    // branch in `onCanvasChange` and wrongly disable follow. The boot
-    // gate mirrors `viewport-store`: don't clobber the restored viewport
-    // before the first layout settles.
-    if (this.layoutFit.hasCompletedInitialLayout()) {
-      writeStoredViewport({ x: transform.position.x, y: transform.position.y, scale: transform.scale });
-    }
-  }
-
-  /**
-   * Compute the pan/zoom that fits the on-screen nodes inside the
-   * VISIBLE canvas, reserving the inspector panel's width when it is open
-   * so the camera frames the area the operator actually sees (left of
-   * the panel). Shared by every camera fit (the auto-fit on scan, the
-   * curation re-fit, and the explicit re-arrange / fit buttons) so they
-   * all honour the panel identically.
-   *
-   * Reads EFFECTIVE positions the way `projectVisible` does: user-pinned
-   * (`nodePositions`) wins over the dagre output, layout map as fallback,
-   * so the bbox matches what is actually rendered after manual drags
-   * (reading just the dagre map produced the "zoom expanded too much"
-   * symptom). Fits over the SAME set the canvas renders (facet ∩
-   * curation). The files rail needs no special handling: it is a flex
-   * sibling that already narrows `canvasWrap`, so `clientWidth` excludes
-   * it. Returns null when nothing is on screen or the host is unmounted.
-   */
-  private computeVisibleFitTransform(): IViewportTransform | null {
-    const host = this.canvasWrap()?.nativeElement;
-    if (!host) return null;
-    const layoutPositions = this.fullLayout().positions;
-    if (layoutPositions.size === 0) return null;
-    const pinned = this.nodePositions();
-    const points: IPoint[] = [];
-    for (const path of this.mapVisiblePaths()) {
-      const pt = pinned.get(path) ?? layoutPositions.get(path);
-      if (pt) points.push({ x: pt.x, y: pt.y });
-    }
-    if (points.length === 0) return null;
-    return computeFitTransform({
-      points,
-      wrap: { width: host.clientWidth, height: host.clientHeight },
-      panelW: this.reservedPanelWidth(),
-      zoomMin: this.zoomMin,
-    });
-  }
-
-  /**
-   * Pan the camera so a single node sits in the centre of the visible
-   * canvas (left of the inspector panel), WITHOUT changing zoom. Driven
-   * by the files-view deep link, not by in-map clicks. Reuses the
-   * `autoFitAnimToken` so a competing auto-fit / center supersedes this
-   * tween cleanly. The effective position mirrors `projectVisible` /
-   * `runAnimatedFit`: user-pinned drag position wins over the dagre
-   * output. Bails when the node is not currently visible on the map, has
-   * no resolvable position, or the host isn't mounted.
-   */
-  private centerOnNode(nodeId: string): void {
-    // A deep-link center is an explicit "look at THIS node" intent, the
-    // camera is the operator's again: follow-the-activity yields.
-    this.disableFollow();
-    // Only pan to a node that is actually on the map. When it is curated /
-    // filtered out of the visible set there is nothing on screen to center
-    // on (its full-layout position points at empty space), so leave the
-    // camera where it is.
-    if (!this.mapVisiblePaths().has(nodeId)) return;
-    const host = this.canvasWrap()?.nativeElement;
-    if (!host) return;
-    const pt = this.nodePositions().get(nodeId) ?? this.fullLayout().positions.get(nodeId);
-    if (!pt) return;
-
-    const transform = computeCenterTransform({
-      point: pt,
-      wrap: { width: host.clientWidth, height: host.clientHeight },
-      panelW: this.reservedPanelWidth(),
-      scale: this.viewportScale(),
-    });
-    this.animateToTransform(transform);
+    this.camera.onCanvasChange(event);
   }
 
   /**
@@ -1201,15 +758,15 @@ export class GraphView implements OnInit {
   // activity change. Neither changes layout or membership, so the follow
   // effect does not re-fire and there is nothing to race with.
   zoomIn(): void {
-    this.zoom()?.setZoom(this.getViewportCenter(), ZOOM_BUTTON_STEP, EFZoomDirection.ZOOM_IN, true);
+    this.zoom()?.setZoom(this.camera.getViewportCenter(), ZOOM_BUTTON_STEP, EFZoomDirection.ZOOM_IN, true);
   }
 
   zoomOut(): void {
-    this.zoom()?.setZoom(this.getViewportCenter(), ZOOM_BUTTON_STEP, EFZoomDirection.ZOOM_OUT, true);
+    this.zoom()?.setZoom(this.camera.getViewportCenter(), ZOOM_BUTTON_STEP, EFZoomDirection.ZOOM_OUT, true);
   }
 
   fitToScreen(): void {
-    this.runAnimatedFit();
+    this.camera.runAnimatedFit();
   }
 
   resetLayout(): void {
@@ -1222,7 +779,7 @@ export class GraphView implements OnInit {
     // (low-intensity) warning below.
     const hasManualPositions = [...this.nodePositions().values()].some((p) => p.manual === true);
     if (!hasManualPositions) {
-      this.applyResetLayout(visiblePaths, full);
+      this.camera.applyResetLayout(visiblePaths, full);
       return;
     }
     // Warn that the reset replaces those positions, but at LOW intensity
@@ -1237,77 +794,8 @@ export class GraphView implements OnInit {
       icon: 'pi pi-info-circle',
       acceptButtonProps: { label: t.accept },
       rejectButtonProps: { label: t.reject, severity: 'secondary', outlined: true },
-      accept: () => this.applyResetLayout(visiblePaths, full),
+      accept: () => this.camera.applyResetLayout(visiblePaths, full),
     });
-  }
-
-  private applyResetLayout(visiblePaths: Set<string>, full: boolean): void {
-    // Reset keeps follow armed, like every toolbar button. When follow is
-    // framing a live target, the re-layout tick re-fires its camera
-    // effect, so the fit-all below (`runAnimatedFit`) would only fight
-    // it: skip the fit and let follow frame the active set. With follow
-    // off / idle, fit the fresh layout as before.
-    const framing = this.followCtl.framing();
-    // Reset also collapses every expanded card: the intent is "give me a
-    // clean canvas", and leaving cards open re-introduces the size
-    // variation that made the user reach for reset in the first place.
-    this.expansion.resetAll();
-    if (full) {
-      // Clearing `nodePositions` is the only mechanical step needed: the
-      // reconcile effect runs on the next tick, sees an empty map plus the
-      // current full-graph auto-layout, reseeds every node, and persists.
-      // That's the original delete → re-arrange → save loop.
-      this.nodePositions.set(new Map());
-      if (!framing) this.runAnimatedFit();
-      return;
-    }
-    void this.relayoutVisibleSubset(visiblePaths)
-      .then(() => {
-        if (!framing) this.runAnimatedFit();
-      })
-      .catch(() => {
-        // Layout failure (e.g. dagre CJS interop missing in tests) must
-        // not crash the view; the previous positions stay.
-      });
-  }
-
-  /**
-   * Re-run the layout engine over ONLY the visible nodes and the edges
-   * between them, then pin the result (`manual: true`) so the reconcile
-   * pass, which reseeds AUTO pins from the FULL-graph dagre output, leaves
-   * it verbatim. Hidden nodes keep their stored coordinates, so showing
-   * them again later yields a hybrid layout that a full "show all" reset
-   * re-tidies.
-   */
-  private async relayoutVisibleSubset(visiblePaths: Set<string>): Promise<void> {
-    const subNodes = this.loader.nodes().filter((n) => visiblePaths.has(n.path));
-    if (subNodes.length === 0) return;
-    const subEdges = this.topology().edges.filter(
-      (e) => visiblePaths.has(e.from) && visiblePaths.has(e.to),
-    );
-    const preferences = {
-      algorithm: this.graphPreferences.layoutAlgorithm(),
-      direction: this.graphPreferences.layoutDirection(),
-      spacing: this.graphPreferences.layoutSpacing(),
-    };
-    const positions = await Promise.resolve(
-      preferences.algorithm === 'force'
-        ? computeForceLayoutPositions(subNodes, subEdges)
-        : computeDagreLayout(this.dagreLayout, subNodes, subEdges, preferences),
-    );
-    const next: TNodePositions = new Map(this.nodePositions());
-    for (const [path, pt] of positions) {
-      next.set(path, { x: pt.x, y: pt.y, manual: true });
-    }
-    this.nodePositions.set(next);
-    writeStoredNodePositions(next);
-  }
-
-  private getViewportCenter(): { x: number; y: number } {
-    const host = this.canvasWrap()?.nativeElement;
-    if (!host) return { x: 0, y: 0 };
-    const rect = host.getBoundingClientRect();
-    return { x: rect.width / 2, y: rect.height / 2 };
   }
 
   // Middle-mouse pan is owned by the `[smMiddleMousePan]` directive
@@ -1318,71 +806,26 @@ export class GraphView implements OnInit {
     this.nodeDrag.onNodePointerDown(event);
   }
 
-  /**
-   * Session-anchor and agent-capsule drags write the reported position
-   * back into their EPHEMERAL override map ON EVERY MOVE, deliberately
-   * diverging from the card pattern's buffer-and-flush (skill rule 9).
-   * Reason: these anchors' `[fNodePosition]` binds a DERIVED value
-   * (children centroid / instructions affinity / capsule row) that
-   * `spawnOverlay` recomputes whenever a live activity frame lands,
-   * and agents are running by definition while anchors exist. Foblex
-   * reconciles the input on every CD pass, so a mid-drag recompute
-   * would snap the grabbed anchor back to its derived spot; writing
-   * the reported position back per move keeps the bound value in sync
-   * and turns that reconcile into a no-op (the same write-back contract
-   * as the persisted-viewport `[position]` binding). Rule 9's costs do
-   * not apply here: the write only invalidates the cheap `spawnOverlay`
-   * computed (a handful of anchors, never the graph @for), and there is
-   * no sync I/O (overrides are page-lifetime by contract, never the
-   * persisted node-position store).
-   *
-   * The `dragging*` flags gate the writes to an actual grab
-   * (pointerdown -> mouseup, `fDragHandle` consumes `pointerup`): a
-   * position event outside a drag must never pin the anchor, or the
-   * derived float would silently stop following its inputs.
-   */
-  private draggingSessionOwner: string | null = null;
-
+  // Session-anchor + agent-capsule drags (ephemeral overrides, per-move
+  // write-back, `mouseup` drag-end per skill rule 9) are owned by
+  // `setupSpawnAnchors`; see `spawn-anchors.controller.ts` for the
+  // deliberate rule 9 divergence rationale. One-line delegations keep
+  // the template bindings unchanged.
   onSessionPointerDown(owner: string): void {
-    this.draggingSessionOwner = owner;
-    document.addEventListener('mouseup', this.onSessionMouseUp, { once: true });
+    this.spawnAnchors.onSessionPointerDown(owner);
   }
 
   onSessionPositionChange(owner: string, position: IPoint): void {
-    if (this.draggingSessionOwner !== owner) return;
-    const next = new Map(this.sessionPositionOverrides());
-    next.set(owner, { x: position.x, y: position.y });
-    this.sessionPositionOverrides.set(next);
+    this.spawnAnchors.onSessionPositionChange(owner, position);
   }
 
-  private readonly onSessionMouseUp = (): void => {
-    // One microtask so a final synchronous fNodePositionChange around
-    // the up event still passes the gate before it closes.
-    queueMicrotask(() => {
-      this.draggingSessionOwner = null;
-    });
-  };
-
-  /** Agent-capsule drag, the exact session-anchor pattern, keyed by capsule id. */
-  private draggingCapsuleId: string | null = null;
-
   onAgentCapsulePointerDown(id: string): void {
-    this.draggingCapsuleId = id;
-    document.addEventListener('mouseup', this.onAgentCapsuleMouseUp, { once: true });
+    this.spawnAnchors.onAgentCapsulePointerDown(id);
   }
 
   onAgentCapsulePositionChange(id: string, position: IPoint): void {
-    if (this.draggingCapsuleId !== id) return;
-    const next = new Map(this.agentPositionOverrides());
-    next.set(id, { x: position.x, y: position.y });
-    this.agentPositionOverrides.set(next);
+    this.spawnAnchors.onAgentCapsulePositionChange(id, position);
   }
-
-  private readonly onAgentCapsuleMouseUp = (): void => {
-    queueMicrotask(() => {
-      this.draggingCapsuleId = null;
-    });
-  };
 
   selectNode(node: IGraphNode, event: MouseEvent): void {
     if (!this.nodeDrag.isClickWithoutDrag(event)) return;
@@ -1616,26 +1059,6 @@ export class GraphView implements OnInit {
   }
 
   /**
-   * Transient tool-invocation edges (spec/provider-activity.md §WS
-   * event: node.activity, the `detail` field): caller -> mcp target,
-   * the invoked tool as the label. Projected from the correlated
-   * `NodeActivityService.activeInvocations`, filtered to the pairs whose
-   * BOTH endpoints are visible + positioned. Cheap and empty while
-   * nothing is invoking.
-   */
-  protected readonly invocationEdges = computed<readonly IInvocationOverlayEdge[]>(() => {
-    const invocations = this.nodeActivity.activeInvocations();
-    if (invocations.length === 0) return EMPTY_INVOCATION_EDGES;
-    const pinned = this.nodePositions();
-    const layout = this.fullLayout().positions;
-    return resolveInvocationOverlay({
-      invocations,
-      visiblePaths: this.mapVisiblePaths(),
-      positionOf: (path) => pinned.get(path) ?? layout.get(path),
-    });
-  });
-
-  /**
    * Active-spine edge: both endpoints are executing (the agent that is
    * running and the skill it invoked), so the connection between them
    * lights up with them and the path reads as one live chain instead of
@@ -1657,70 +1080,36 @@ export class GraphView implements OnInit {
     return this.activityStats.stats().get(id) ?? null;
   }
 
-  /**
-   * Ephemeral spawn overlay (spec/provider-activity.md §WS event:
-   * `agent.spawn`), LAYERED BESIDE `graph()`: dashed spawn edges plus
-   * floating session anchors, projected against the SAME visible set
-   * and effective positions the canvas renders, but through a separate
-   * computed so the synthetic `session:<owner>` ids never reach
-   * `fullLayout`, the reconciler, persisted positions, or the fit
-   * bbox. Empty (and dependency-cheap) while nothing is spawning.
-   */
-  /**
-   * User-dragged session-anchor positions, keyed by session owner.
-   * Ephemeral by contract (page lifetime, never persisted); survives a
-   * session's decay so a reappearing session lands where the user left
-   * it. Written only by the drag-end flush above.
-   */
-  private readonly sessionPositionOverrides = signal<ReadonlyMap<string, IPoint>>(new Map());
-
-  /**
-   * User-dragged agent-capsule positions, keyed by the synthetic
-   * capsule id. Same ephemeral contract as the session overrides.
-   */
-  private readonly agentPositionOverrides = signal<ReadonlyMap<string, IPoint>>(new Map());
-
-  protected readonly spawnOverlay = computed<ISpawnOverlay>(() => {
-    const spawns = this.agentSpawns.spawnEdges();
-    if (spawns.length === 0) return EMPTY_SPAWN_OVERLAY;
-    const pinned = this.nodePositions();
-    const layout = this.fullLayout().positions;
-    const sessionOverrides = this.sessionPositionOverrides();
-    const agentOverrides = this.agentPositionOverrides();
-    // RENDERED static pairs (edge-kind filters + visibility already
-    // applied by `graph()`): a spawn whose exact pair is drawn rides
-    // that static edge instead of duplicating it; a pair the user
-    // filtered out keeps the standalone dashed edge.
-    const staticPairs = new Set(this.graph().edges.map((e) => edgePairKey(e.from, e.to)));
-    return resolveSpawnOverlay({
-      spawns,
-      sessions: this.agentSpawns.sessionNodes(),
-      visiblePaths: this.mapVisiblePaths(),
-      staticPairs,
-      positionOf: (path) => pinned.get(path) ?? layout.get(path),
-      sessionPositionOf: (owner) => sessionOverrides.get(owner),
-      agentPositionOf: (id) => agentOverrides.get(id),
-      showAgents: this.livePrefs.showRuntimeAgents(),
-    });
+  // Live-overlay cluster (ephemeral spawn overlay, session anchors,
+  // agent capsules, tool-invocation edges, per-pair conversation
+  // counters, edge click routing, conversation dialog), owned by
+  // `setupSpawnAnchors`; see `spawn-anchors.controller.ts` for the
+  // layering + click-routing rationale. `resolveSpawnActiveId` routes
+  // through the host's `spawnActiveIdFor` method below so an
+  // instance-level pin of that method (the component spec does this)
+  // still intercepts the static-edge click routing.
+  private readonly spawnAnchors = setupSpawnAnchors({
+    destroyRef: this.destroyRef,
+    agentSpawns: this.agentSpawns,
+    nodeActivity: this.nodeActivity,
+    activityStats: this.activityStats,
+    livePrefs: this.livePrefs,
+    dataSource: this.dataSource,
+    nodePositions: this.nodePositions,
+    fullLayout: this.fullLayout,
+    mapVisiblePaths: this.mapVisiblePaths,
+    graph: this.graph,
+    resolveSpawnActiveId: (edge) => this.spawnActiveIdFor(edge),
   });
-
-  /**
-   * pairKey -> representative spawnId for static edges hosting live
-   * spawn state. Any spawn of the pair works, the click opens the
-   * whole THREAD via the two-fetch widening; emission order makes the
-   * last (most recent) spawn win.
-   */
-  protected readonly spawnActiveByPair = computed<ReadonlyMap<string, string>>(() => {
-    const map = new Map<string, string>();
-    for (const entry of this.spawnOverlay().activeOnStatic) {
-      map.set(entry.pairKey, entry.spawnId);
-    }
-    return map;
-  });
+  protected readonly spawnOverlay = this.spawnAnchors.spawnOverlay;
+  protected readonly invocationEdges = this.spawnAnchors.invocationEdges;
+  protected readonly conversationOpen = this.spawnAnchors.conversationOpen;
+  protected readonly conversationThread = this.spawnAnchors.conversationThread;
+  protected readonly conversationCaptureEnabled = this.spawnAnchors.conversationCaptureEnabled;
 
   /** The spawn riding this static edge, or `null` when the edge is plain. */
   protected spawnActiveIdFor(edge: IGraphEdge): string | null {
-    return this.spawnActiveByPair().get(edgePairKey(edge.from, edge.to)) ?? null;
+    return this.spawnAnchors.spawnActiveIdFor(edge);
   }
 
   // ── Follow the Activity ─────────────────────────────────────────────
@@ -1765,77 +1154,37 @@ export class GraphView implements OnInit {
   }
 
   /**
-   * Conversation count of a static edge's directional pair (spec
-   * §Execution stats, per-pair spawn counters). One O(1) Map lookup
-   * per edge; feeds the count pill and gates the historical click.
+   * Shared animated-camera entry point, delegated to the camera
+   * controller (single supersession token, see `camera.controller.ts`).
+   * Kept as a host member so the follow controller's config and every
+   * other caller reach the tween through one seam.
    */
+  private animateToTransform(transform: IViewportTransform): void {
+    this.camera.animateToTransform(transform);
+  }
+
+  // Per-pair conversation counters + edge click routing + conversation
+  // dialog state live in `setupSpawnAnchors` (see
+  // `spawn-anchors.controller.ts`); one-line delegations keep the
+  // template bindings unchanged.
   protected convoCountFor(edge: IGraphEdge): number {
-    return this.convoCountForKey(edgePairKey(edge.from, edge.to));
+    return this.spawnAnchors.convoCountFor(edge);
   }
 
-  /**
-   * Key-form sibling of `convoCountFor` for the dashed spawn edges,
-   * whose pair key is precomputed by `resolveSpawnOverlay` (session
-   * parents key by the raw owner, not the `session:<owner>` node id).
-   */
   protected convoCountForKey(pairKey: string): number {
-    return this.activityStats.pairCounts().get(pairKey) ?? 0;
+    return this.spawnAnchors.convoCountForKey(pairKey);
   }
 
-  /**
-   * Static-edge click, two live paths plus a no-op:
-   *
-   *   1. A spawn-active edge (a live spawn rides it) opens through the
-   *      SAME path as the dashed spawn edge (supersession guard
-   *      included), the live spawnId wins.
-   *   2. A plain edge whose pair has counted conversations opens the
-   *      HISTORICAL thread: the child's activity detail filtered to
-   *      this parent, grouped, most recent thread first.
-   *   3. A label-less static edge stays selection-only (no fetch, no
-   *      dialog).
-   */
   protected onStaticEdgeClick(edge: IGraphEdge, event: MouseEvent): void {
-    const spawnId = this.spawnActiveIdFor(edge);
-    if (spawnId !== null) {
-      this.onSpawnEdgeClick(spawnId, event);
-      return;
-    }
-    if (this.convoCountFor(edge) === 0) return;
-    // Keep the click from bubbling to the canvas wrap (mirrors the
-    // spawn-edge handler): it would clear the node selection.
-    event.stopPropagation();
-    void this.conversation.openHistorical({
-      parentPath: edge.from,
-      childPath: edge.to,
-      pairKey: edgePairKey(edge.from, edge.to),
-    });
+    this.spawnAnchors.onStaticEdgeClick(edge, event);
   }
-
-  /**
-   * Conversation dialog (spec §Conversation capture), state machine
-   * shared with the inspector via
-   * `conversation-dialog.controller.ts` (the inspector's activity rows
-   * drive the same dialog through the no-fetch `openThread` path). The
-   * graph opens it from edge clicks: a spawn edge fetches the record
-   * by id and widens it to the full parent-child thread, a labelled
-   * static edge opens the pair's historical thread; scan-link edges
-   * stay non-clickable. Supersession between racing clicks lives in
-   * the controller.
-   */
-  private readonly conversation = setupConversationDialog({ dataSource: this.dataSource });
-  protected readonly conversationOpen = this.conversation.open;
-  protected readonly conversationThread = this.conversation.thread;
-  protected readonly conversationCaptureEnabled = this.conversation.captureEnabled;
 
   protected onSpawnEdgeClick(spawnId: string, event: MouseEvent): void {
-    // Keep the click from bubbling to the canvas wrap, which would
-    // clear the node selection underneath the dialog.
-    event.stopPropagation();
-    void this.conversation.openSpawn(spawnId);
+    this.spawnAnchors.onSpawnEdgeClick(spawnId, event);
   }
 
   protected onConversationClosed(): void {
-    this.conversation.close();
+    this.spawnAnchors.onConversationClosed();
   }
 
   // Layout-popover labelers + setters + per-item icon helpers now live
