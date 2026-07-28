@@ -47,7 +47,7 @@ import {
 import { WsEventStreamService } from '../../../services/ws-event-stream';
 import { A11yAnnouncerService } from '../../services/a11y-announcer';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
-import { QUEUE_VIEW_TEXTS } from './queue-view.texts';
+import { QUEUE_VIEW_TEXTS } from '../../../i18n/queue-view.texts';
 
 /**
  * Debounce for the live re-fetch, same window as the inspector AI-actions

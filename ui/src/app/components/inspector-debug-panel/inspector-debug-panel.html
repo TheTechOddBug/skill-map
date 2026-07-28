@@ -92,6 +92,7 @@
     class="dbg__copy"
     [attr.title]="value"
     [attr.aria-label]="texts.copyA11y(label)"
+    [attr.data-testid]="'inspector-debug-copy-' + key"
     (click)="copyHash(key, value)"
   >
     <code [class.dbg__diff]="drift">{{ truncateHash(value) }}</code>

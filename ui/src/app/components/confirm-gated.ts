@@ -24,11 +24,24 @@ import { DataSourceError } from '../../services/data-source/data-source.port';
 
 export interface IConfirmGatedContext {
   /**
-   * Paths the 412 envelope exposed (`scan.referencePaths` writes enumerate
-   * the folders the write would expose; every other surface carries none).
-   * Read defensively off the error object, absent = empty.
+   * Paths the 412 envelope exposed (`scan.referencePaths` writes ship the
+   * folder list structured as `error.details.paths`, per
+   * `spec/cli-contract.md` §PATCH /api/project-preferences; every other
+   * consent gate carries none). Absent or malformed = empty.
    */
   readonly exposed: readonly string[];
+}
+
+/**
+ * Narrow the 412 envelope's `details` to the structured exposed-path
+ * list. The wire contract is `details: { paths: string[] } | null`;
+ * anything else (older servers, other consent gates) collapses to [].
+ */
+function exposedPathsOf(details: unknown): readonly string[] {
+  if (details === null || typeof details !== 'object') return [];
+  const paths = (details as { paths?: unknown }).paths;
+  if (!Array.isArray(paths)) return [];
+  return paths.filter((p): p is string => typeof p === 'string');
 }
 
 /**
@@ -73,7 +86,7 @@ export async function runConfirmGated(flow: IConfirmGatedFlow): Promise<boolean>
     return true;
   } catch (err) {
     if (err instanceof DataSourceError && err.code === 'confirm-required' && flow.confirm) {
-      const exposed = (err as DataSourceError & { paths?: string[] }).paths ?? [];
+      const exposed = exposedPathsOf(err.details);
       if (await flow.confirm({ exposed })) {
         try {
           await flow.attempt(true);

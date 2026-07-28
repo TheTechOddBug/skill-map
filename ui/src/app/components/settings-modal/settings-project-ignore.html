@@ -21,8 +21,8 @@
       <span
         class="settings-project__shared-badge"
         [title]="texts.project.sharedBadgeTooltip"
-        [attr.aria-label]="texts.project.sharedBadgeTooltip"
-        >{{ texts.project.sharedBadge }}</span
+        >{{ texts.project.sharedBadge
+        }}<span class="sr-only"> {{ texts.project.sharedBadgeTooltip }}</span></span
       >
     </div>
     <div class="settings-project__row-description">

@@ -58,7 +58,7 @@ export interface ISidecarConsentDecision {
       [dismissableMask]="true"
       appendTo="body"
       [header]="texts.header"
-      [style]="{ width: '32rem' }"
+      styleClass="sidecar-consent__dialog"
       [attr.aria-label]="texts.ariaLabel"
       data-testid="sidecar-consent-dialog"
     >
@@ -95,6 +95,11 @@ export interface ISidecarConsentDecision {
     </p-dialog>
   `,
   styles: [`
+    /* PrimeNG injects [styleClass] on the portal-rendered dialog root
+       (outside view encapsulation, hence the deep reach). Same sizing
+       pattern as the Settings / Quick Start dialogs: fixed comfortable
+       width, viewport cap so narrow windows never clip the dialog. */
+    :host ::ng-deep .sidecar-consent__dialog { width: 32rem; max-width: 92vw; }
     .consent__body { margin: 0 0 1rem; line-height: 1.5;
       color: var(--p-text-color); }
     .consent__always { display: flex; align-items: flex-start; gap: 0.6rem;

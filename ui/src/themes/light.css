@@ -22,6 +22,15 @@
   --sm-border: #e2e8f0;
   --sm-nav-active-bg: #eff6ff;
 
+  /* === Text palette ===
+     SM-owned muted tone for hint / description copy (settings rows,
+     quick-start notes, plugin metadata). Base themes alias PrimeNG's
+     muted; the neon themes retune it for their navy surfaces and even
+     invert the direction (their `--p-text-muted-color` derives FROM
+     it). The `var()` resolves at the consuming element, so specialty
+     overrides of the PrimeNG token still cascade through. */
+  --sm-text-muted: var(--p-text-muted-color);
+
   /* Kind accent (`--sm-kind-<id>`, `-bg`, `-fg`, light + dark) lives at
      runtime now, `KindRegistryService.applyCssVars()` (Step 14.5.d)
      injects a `<style id="sm-kind-vars">` block in `<head>` populated

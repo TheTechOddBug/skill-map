@@ -80,6 +80,9 @@ html.app-matrix body {
 
   --p-text-color: var(--sm-matrix-accent);
   --p-text-muted-color: var(--sm-matrix-muted);
+  /* === Text palette === (see light.css): matrix's muted green drives
+     both the PrimeNG token above and the SM-owned muted tone. */
+  --sm-text-muted: var(--sm-matrix-muted);
   --p-primary-color: var(--sm-matrix-accent);
   --p-primary-contrast-color: #001a05;
   /* Primary button hover/active states, else they fall back to the

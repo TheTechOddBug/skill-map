@@ -208,6 +208,11 @@
                   >
                     <i class="fa-solid fa-circle-xmark" aria-hidden="true"></i>
                     {{ statusLabel(plugin) }}
+                    <!-- The failure reason travels in [title] for mouse users;
+                         mirror it for screen readers, which never see title. -->
+                    @if (plugin.reason) {
+                      <span class="sr-only">{{ plugin.reason }}</span>
+                    }
                   </span>
                 }
                 @if (plugin.locked) {
@@ -218,6 +223,7 @@
                   >
                     <i class="fa-solid fa-lock" aria-hidden="true"></i>
                     {{ texts.lockedLabel }}
+                    <span class="sr-only">{{ texts.lockedTooltip }}</span>
                   </span>
                 }
                 @if (isTrusted(plugin)) {
@@ -228,6 +234,7 @@
                   >
                     <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
                     {{ texts.trust.trustedBadge }}
+                    <span class="sr-only">{{ texts.trust.trustedTooltip }}</span>
                   </span>
                 }
                 @if (isUntrusted(plugin) && !plugin.locked) {
@@ -260,6 +267,7 @@
                   >
                     <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
                     {{ texts.runtimeErrors.badge(runtimeErrorCount(plugin)) }}
+                    <span class="sr-only">{{ texts.runtimeErrors.badgeTooltip }}</span>
                   </span>
                 }
               </div>

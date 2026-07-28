@@ -95,6 +95,8 @@ Each selector ends at the merged host (a scope prefix before it is fine; one row
 | `ui/src/app/components/settings-modal/settings-modal.css` | `.settings-modal__dialog` | `<p-dialog>` | Dialog dimensions (1024 x 720 + viewport caps) via `[styleClass]` on the portal-rendered dialog root. |
 | `ui/src/app/components/quick-start-modal/quick-start-modal.css` | `.quick-start-modal__dialog` | `<p-dialog>` | Same pattern, the Quick Start dialog's 760 x 720 sizing. |
 | `ui/src/app/components/quick-start-modal/quick-start-modal.css` | `.quick-start-modal__panel p-message` | `<p-message>` | Block display + bottom margin on the message host tag itself (element selector, no internal class). |
+| `ui/src/app/components/sidecar-consent-dialog/sidecar-consent-dialog.ts` (inline styles) | `.sidecar-consent__dialog` | `<p-dialog>` | Consent dialog sizing (32rem + 92vw cap) via `[styleClass]`, same pattern as the Settings / Quick Start dialogs. |
+| `ui/src/app/components/link-kind-palette/link-kind-palette.css` | `.link-kind-palette__tooltip` | `<p-tooltip>` | Tooltip root width cap (26rem) via `[tooltipStyleClass]` on the portal-rendered tooltip; the text-node rule for the same tooltip is the Class D row below. |
 | `ui/src/app/views/queue-view/queue-view.css` | `.queue__table` (two blocks) | `<p-table>` | Token-first cell-padding override (`--p-datatable-body-cell-padding`, both size variants, lands the uniform 2rem row) and the flex-column shell for the fixed-footer paginator. |
 | `ui/src/app/views/queue-view/queue-view.css` | `.queue--rail .queue__table` | `<p-table>` | Rail mode: datatable surface tokens pinned to `--sm-bg-content`, row hover flattened. |
 | `ui/src/app/views/files-view/files-view.css` | `.files--rail .files__table` | `<p-table>` | Rail mode: surface tokens pinned to `--sm-bg-content` (hover kept so selection still reads). |
@@ -190,7 +192,7 @@ New CSS picks the nearest stop; do not introduce a new literal in the ramp's ban
 
 - **`em`-relative sizes** (the `0.85em` command / inline-code chips): proportional to the parent by design, never tokenized to rem.
 - **Display band >= 1.25rem** (heroes, empty-state icons, the rendered-markdown `h1`/`h2` ladder): deliberate one-offs above the ramp.
-- **The topbar chip cluster in `app.css`** (Beta / version / dev / lens / update chips): rem-exact conversions of the former px tuning (0.625 / 0.6875 / 0.75rem = 10 / 11 / 12px at the default root), deliberately OFF the ramp; collapsing them onto stops would flatten the tuned three-step chip hierarchy. Optical nudges (`translateY(1px)`) stay px.
+- **The topbar chip cluster in `app.css`** (Beta / version / dev / lens / update chips): rem-exact conversions of the former px tuning (0.625 / 0.6875 / 0.75rem = 10 / 11 / 12px at the default root), deliberately OFF the ramp; collapsing them onto stops would flatten the tuned three-step chip hierarchy. Optical nudges (`translateY(1px)`) stay px. The cluster-relative companion glyph (`.shell__refresh i` at `1rem`, one clear step above the chips) rides the same exemption.
 - **Debug overlays** (`debug-slots.css`, `perf-hud`): kept dev chrome, out of scope.
 
 Inline `styles:` blocks in TS components (view-contribution renderers, capsule / dialog components) are migrated too; `grep -rn "font-size" ui/src --include="*.ts"` returning a literal in a `styles:` block is drift.
@@ -219,7 +221,7 @@ ui/src/
 │   └── registry.ts              <-- EXTRA_THEMES catalog consumed by ThemeService + Settings UI
 ```
 
-**Authority**: opening `light.css`, `dark.css`, or any specialty theme reveals the **same sections in the same order** (`Surface palette` → `Edge palette` → `Link badge palette` → `Severity, foreground` → `Severity, row tint` → `Physical-stat chip tints` → `Accent foreground` → `Elevation shadows`). Keep that symmetry when extending: a token added to one theme must land in the same section across every theme.
+**Authority**: opening `light.css`, `dark.css`, or any specialty theme reveals the **same sections in the same order** (`Surface palette` → `Text palette` → `Edge palette` → `Link badge palette` → `Severity, foreground` → `Severity, row tint` → `Physical-stat chip tints` → `Accent foreground` → `Elevation shadows`). Keep that symmetry when extending: a token added to one theme must land in the same section across every theme.
 
 ### Selector strategy
 

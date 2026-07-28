@@ -36,7 +36,7 @@ interface IProjectPrefsEnvelopeWire {
 
 interface IErrorEnvelopeWire {
   ok: false;
-  error: { code: string; message: string };
+  error: { code: string; message: string; details: unknown };
 }
 
 let tmp: string;
@@ -121,6 +121,12 @@ describe('PATCH /api/project-preferences', () => {
       const env = (await res.json()) as IErrorEnvelopeWire;
       assert.equal(env.ok, false);
       assert.match(env.error.message, /opens disk access outside the project/);
+      // The exposed list also ships structured, `details.paths`, the
+      // array the UI consent dialog enumerates (spec/cli-contract.md
+      // §PATCH /api/project-preferences).
+      const details = env.error.details as { paths?: unknown };
+      assert.ok(Array.isArray(details?.paths));
+      assert.ok((details.paths as string[]).length > 0);
     });
   });
 

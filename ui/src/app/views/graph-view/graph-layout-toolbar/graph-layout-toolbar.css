@@ -38,7 +38,7 @@
   appearance: none;
   border: 0;
   background: transparent;
-  color: var(--sm-text);
+  color: var(--p-text-color);
   font: inherit;
   text-align: left;
   padding: 6px 10px;
@@ -94,7 +94,7 @@
   appearance: none;
   border: 0;
   background: transparent;
-  color: var(--sm-text);
+  color: var(--p-text-color);
   cursor: pointer;
   width: 32px;
   height: 32px;

@@ -261,6 +261,8 @@ describe('SettingsProjectLens active-provider select rollback', () => {
  */
 interface ITrustProto {
   preferences: WritableSignal<IProjectPreferencesApi | null>;
+  newReferencePath: WritableSignal<string>;
+  onReferencePathAdd(): void;
   followExternalSymlinks(): boolean;
   followExternalSymlinksView(): boolean;
   onFollowExternalSymlinksToggle(next: boolean): void;
@@ -415,6 +417,34 @@ describe('SettingsProjectPreferences followExternalSymlinks opt-in', () => {
     expect(setProjectPreferences).toHaveBeenCalledTimes(1);
     expect(proto.followExternalSymlinks()).toBe(false);
     expect(proto.followExternalSymlinksView()).toBe(false);
+  });
+
+  it('enumerates the exposed paths from the 412 details in the confirm dialog', async () => {
+    // Regression: the exposed list rides `error.details.paths` (the
+    // structured half of the 412, spec/cli-contract.md §PATCH
+    // /api/project-preferences); the dialog must render it, not an
+    // empty bullet list.
+    const setProjectPreferences = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new DataSourceError('confirm-required', 'needs confirm', {
+          paths: ['/home/me/notes'],
+        }),
+      );
+    const { fixture, proto } = bootstrapTrust({
+      setProjectPreferences,
+    } as Partial<IDataSourcePort>);
+    const confirmation = fixture.debugElement.injector.get(ConfirmationService);
+    const confirmSpy = vi
+      .spyOn(confirmation, 'confirm')
+      .mockReturnValue(confirmation);
+
+    proto.newReferencePath.set('~/notes');
+    proto.onReferencePathAdd();
+    await flush();
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(confirmSpy.mock.calls[0][0].message).toContain('/home/me/notes');
   });
 });
 

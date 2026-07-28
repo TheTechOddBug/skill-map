@@ -38,6 +38,7 @@ import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { log } from '../../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
+import { ConfirmRequiredError } from '../app.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
 import { makeBodyValidator } from '../util/parse-body.js';
 import type { IRouteDeps } from './deps.js';
@@ -429,11 +430,14 @@ function applyScanWrites(
     .filter((e) => e.expandsSurface);
   if (exposures.length > 0 && body.confirm !== true) {
     const exposed = exposures.flatMap((e) => e.exposedPaths);
-    throw new HTTPException(412, {
-      message: tx(SERVER_TEXTS.projectPrefsConfirmRequired, {
+    // Structured `details.paths` beside the prose: the UI consent dialog
+    // enumerates the list (spec/cli-contract.md §PATCH /api/project-preferences).
+    throw new ConfirmRequiredError(
+      tx(SERVER_TEXTS.projectPrefsConfirmRequired, {
         paths: exposed.join(', '),
       }),
-    });
+      { paths: exposed },
+    );
   }
 
   let mutated = false;

@@ -44,7 +44,12 @@ interface INodeLinkListPayload {
         <ul class="vc-links__list">
           @for (e of links(); track e.path) {
             <li>
-              <button type="button" class="vc-links__btn" (click)="onOpenPath(e.path)">
+              <button
+                type="button"
+                class="vc-links__btn"
+                (click)="onOpenPath(e.path)"
+                [attr.data-testid]="'vc-links-row-' + e.path"
+              >
                 @if (e.kind) {
                   <span class="vc-links__kind">{{ e.kind }}</span>
                 }

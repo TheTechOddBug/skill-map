@@ -233,6 +233,27 @@ export class BulkValidationError extends HTTPException {
 }
 
 /**
+ * 412 `confirm-required` whose consent dialog needs DATA beyond prose.
+ * A plain `HTTPException(412)` maps to `details: null`; gates whose UI
+ * dialog enumerates something structured throw this subclass instead so
+ * `formatError` can ship the payload under `error.details` (mirrors the
+ * sidecar gate's `details.key` and `BulkValidationError`'s `details.id`
+ * precedents). Today only the project-preferences path-exposure gate
+ * uses it (`details: { paths: string[] }`, the out-of-project folders a
+ * `scan.referencePaths` write would expose; `spec/cli-contract.md`
+ * §BFF endpoint PATCH /api/project-preferences).
+ */
+export class ConfirmRequiredError extends HTTPException {
+  readonly details: unknown;
+
+  constructor(message: string, details: unknown) {
+    super(412, { message });
+    this.name = 'ConfirmRequiredError';
+    this.details = details ?? null;
+  }
+}
+
+/**
  * Base for policy-refusal 403s whose envelope is intentionally OPAQUE:
  * a fixed catalog message, a typed `code`, and `details: null` so the
  * response leaks no per-request state to probes. One `instanceof`
@@ -889,17 +910,8 @@ export function formatError(err: unknown, c: Context): Response {
   const dbError = formatDbError(err, c);
   if (dbError) return dbError;
 
-  if (err instanceof BulkValidationError) {
-    const envelope: IErrorEnvelope = {
-      ok: false,
-      error: {
-        code: err.code,
-        message: err.message,
-        details: { id: err.id },
-      },
-    };
-    return c.json(envelope, err.status as ContentfulStatusCode);
-  }
+  const detailed = formatDetailCarryingError(err, c);
+  if (detailed) return detailed;
 
   if (err instanceof OpaqueForbiddenError) {
     const envelope: IErrorEnvelope = {
@@ -981,6 +993,43 @@ function formatDbError(err: unknown, c: Context): Response | null {
       error: { code: 'db-drift', message: err.message, details: null },
     };
     return c.json(envelope, 500);
+  }
+  return null;
+}
+
+/**
+ * Format the `HTTPException` subclasses that carry a STRUCTURED
+ * `error.details` payload (the generic `HTTPException` branch always
+ * emits `details: null`): `BulkValidationError` ships the offending
+ * `id`, `ConfirmRequiredError` ships the consent dialog's data (today
+ * `{ paths }` from the project-preferences path-exposure gate). Runs
+ * before the generic branch so the payload survives. Returns `null`
+ * when `err` is neither so `formatError` can fall through. Extracted
+ * alongside `formatDbError` / `formatConflict` to keep the dispatcher
+ * inside the lint complexity budget.
+ */
+function formatDetailCarryingError(err: unknown, c: Context): Response | null {
+  if (err instanceof BulkValidationError) {
+    const envelope: IErrorEnvelope = {
+      ok: false,
+      error: {
+        code: err.code,
+        message: err.message,
+        details: { id: err.id },
+      },
+    };
+    return c.json(envelope, err.status as ContentfulStatusCode);
+  }
+  if (err instanceof ConfirmRequiredError) {
+    const envelope: IErrorEnvelope = {
+      ok: false,
+      error: {
+        code: 'confirm-required',
+        message: err.message,
+        details: err.details,
+      },
+    };
+    return c.json(envelope, 412);
   }
   return null;
 }
