@@ -353,7 +353,6 @@ export const PLUGINS_TEXTS = {
   slotsListTipText: 'Tip: full spec at spec/view-slots.md and spec/input-types.md.',
 
   // --- upgrade verb ----------------------------------------------------
-  /** Warn row: explicit `<plugin-id>` matched no discovered plugin dir. */
   /** §3.1b block: explicit `<plugin-id>` matched no discovered plugin dir. */
   upgradeNotFound:
     "{{glyph}}  No plugin '{{id}}' under the project plugins dir; nothing to upgrade.\n" +

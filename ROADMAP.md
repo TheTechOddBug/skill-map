@@ -793,6 +793,8 @@ UI-only keys (declared in `ui/src/models/settings.ts`, to be formalised in `spec
 
 Shared flags (inherited by every verb): `--json`, `-v`/`-q`, `--no-color`, `-h`/`--help`, `--db <path>`, with `SKILL_MAP_*` env equivalents and `flag > env > config > default` precedence. There is no `-g/--global` flag (scope is always project-local). `--all` is documented only on verbs with meaningful fan-out (`sm jobs submit/run/cancel`, `sm plugins enable/disable`). The normative **exit codes** (`0` success, `1` success-with-issues, `2` operational error, `3` duplicate job, `4` nonce mismatch, `5` not found, `6–15` reserved, `≥16` per-verb) and the normative **elapsed-time** reporting grammar (`done in <N>ms | <N.N>s | <M>m <S>s` on stderr plus an `elapsedMs` field in object `--json` payloads) are specified in [`spec/cli-contract.md`](./spec/cli-contract.md).
 
+**Output sanitization** (Decision #147): every plugin-, DB- or filesystem-sourced string is stripped of control and ANSI bytes before it reaches a human render path, so a hostile clone cannot repaint the operator's terminal through a stored row. The exemption is narrow and deliberate: a stdout stream that IS the artifact keeps byte fidelity, which today means `--json` bodies and `sm graph` formatter output. Surfaces that print stored content to a human still sanitize (`sm jobs preview`, the `sm plugins show` prompt render); their byte-exact counterparts are the `--json` / `sm jobs claim --json` paths. Full doctrine in [`context/cli-output-style.md`](./context/cli-output-style.md) §Sanitisation.
+
 ### Verb families
 
 The verb surface is specified in [`spec/cli-contract.md`](./spec/cli-contract.md); each verb's flags and JSON shape live there and in `sm help <verb>`. The families:
