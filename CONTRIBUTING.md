@@ -21,6 +21,20 @@ Once `v1.0` lands this policy relaxes and the normal pull-request flow described
 - Read [AGENTS.md](./AGENTS.md) for the day-to-day operating rules (changeset discipline, version-bump policy, kernel boundaries, sanitization, i18n, lint).
 - Check the decision log in the roadmap before proposing something that was already considered and deferred / discarded.
 
+## Repo layout
+
+```
+skill-map/                     pnpm workspaces root (private)
+├── spec/                      specification, published as @skill-map/spec
+├── src/                       reference implementation, published as @skill-map/cli (bins: sm, skill-map)
+├── ui/                        Angular SPA (graph, list, inspector), bundled into @skill-map/cli
+├── web/                       public site (skill-map.ai), hosts the demo bundle
+├── scripts/                   build & validation scripts (spec index, CLI reference, demo dataset, …)
+├── ...
+├── AGENTS.md                  agent operating manual
+└── ROADMAP.md                 design narrative (decisions, phases, deferred)
+```
+
 ## Contribution channels
 
 - **Bug reports + feature requests**: [GitHub Issues](https://github.com/crystian/skill-map/issues/new/choose). Pick the matching template. These are open and welcome at any time, including pre-1.0.

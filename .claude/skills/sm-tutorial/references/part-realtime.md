@@ -241,7 +241,7 @@ On **antigravity / opencode**, no spawn demo:
 > map.
 
 Before closing, give the tester the honest per-provider map of what
-will NOT light up, mirrored from KNOWN-ISSUES.md §Real-time activity
+will NOT light up, mirrored from TROUBLESHOOTING.md §Real-time activity
 (the Known gaps column). Render ONLY the active provider's block:
 
 On **claude**:
