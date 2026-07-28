@@ -1,11 +1,21 @@
 <div class="settings-project__row" data-testid="settings-project-live-updates-row">
   <div class="settings-project__row-text">
-    <div class="settings-project__row-label">{{ texts.project.live.ws.label }}</div>
+    <!-- `<label for>` + `[inputId]` is what NAMES the switch: PrimeNG's
+         `<p-toggleswitch>` renders an `<input type="checkbox"
+         role="switch">` whose accessible name comes only from a paired
+         label, `ariaLabelledBy`, or `ariaLabel`. With none of them the
+         row reads as a bare "switch, off" to a screen reader, which is
+         unusable in a list of switches. The pairing also makes the
+         visible label clickable, for free. -->
+    <label class="settings-project__row-label" for="settings-project-live-updates-switch"
+      >{{ texts.project.live.ws.label }}</label
+    >
     <div class="settings-project__row-description">
       {{ texts.project.live.ws.description }}
     </div>
   </div>
   <p-toggleswitch
+    inputId="settings-project-live-updates-switch"
     [ngModel]="liveWsEnabled()"
     (ngModelChange)="onLiveWsToggle($event)"
     data-testid="settings-project-live-updates-toggle"

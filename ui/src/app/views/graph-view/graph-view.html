@@ -44,9 +44,16 @@
       />
     </div>
   } @else {
+    <!-- `tabindex="-1"` is a focus TARGET, not a tab stop (WCAG 2.4.3):
+         when the inspector panel closes it goes `inert`, so focus sitting
+         inside it would be dropped on `<body>`. `selectionFocusEffect`
+         re-homes focus on the deselected node host, and on this wrap when
+         that node is gone; without the attribute the fallback `focus()`
+         would silently no-op and strand the user at the top of the page. -->
     <div
       class="graph__canvas-wrap"
       #canvasWrap
+      tabindex="-1"
       [smMiddleMousePan]="panTarget"
       (click)="onCanvasClick($event)"
       data-testid="graph-canvas-wrap"
@@ -263,6 +270,27 @@
             constant redraw loop. Stress-test example doesn't use the outlet
             indirection for the same reason. Keep them inline.
           -->
+          <!--
+            Node hosts are `role="group"`, NOT `role="button"` (WCAG 4.1.2 +
+            1.3.1). A `button` role collapses its whole subtree into a flat
+            accessible name (per the ARIA APG list of roles that hide their
+            descendants), which made the card's expand chevron, favorite
+            star, tag chips and contributed badge slots presentational: on
+            the product's primary view, a screen-reader user could reach
+            none of them. `group` is also exactly what Foblex's own
+            always-on semantic layer applies to node hosts
+            (`FA11yController._applySemantics` calls
+            `_setIfAbsent(element, 'role', 'group')`), so the template no
+            longer fights the library, it states the same thing up front and
+            keeps the `aria-roledescription` Foblex adds beside it.
+            `tabindex="0"` stays: Foblex's keyboard layer keeps DOM focus on
+            the `<f-flow>` host and conveys the active node through
+            `aria-activedescendant`, so the host tabindex is what makes the
+            Enter / Space activation below reachable at all.
+            No `aria-pressed` either, it is only defined for `button` /
+            `checkbox`-family roles; the selected state travels in the
+            accessible name (`nodeHostLabel` appends ", selected").
+          -->
           @if (perf.virtualization) {
             <ng-container ngProjectAs="[fNodes]" *fVirtualFor="let node of graph().nodes">
               <div
@@ -277,9 +305,8 @@
                 class="sm-gnode-host"
                 data-canvas-click-shield
                 tabindex="0"
-                role="button"
+                role="group"
                 [attr.aria-label]="nodeHostLabel(node)"
-                [attr.aria-pressed]="isSelected(node.id)"
                 (pointerdown)="onNodePointerDown($event)"
                 (click)="selectNode(node, $event)"
                 (dblclick)="openNode(node)"
@@ -326,9 +353,8 @@
                   class="sm-gnode-host"
                   data-canvas-click-shield
                   tabindex="0"
-                  role="button"
+                  role="group"
                   [attr.aria-label]="nodeHostLabel(node)"
-                  [attr.aria-pressed]="isSelected(node.id)"
                   (pointerdown)="onNodePointerDown($event)"
                   (click)="selectNode(node, $event)"
                   (dblclick)="openNode(node)"
@@ -438,11 +464,27 @@
         <sm-link-kind-palette />
       </div>
 
+      <!--
+        `inert` while closed (WCAG 2.4.3). The panel hides with
+        `transform: translateX(100%)` + `pointer-events: none`, never
+        `display:none` / `visibility:hidden`, so every focusable thing
+        inside it (starting with the `role="separator"` resize handle,
+        which is `tabindex="0"`) stayed in the Tab order: a keyboard user
+        walking the graph hit an invisible "separator, 400" and could
+        resize a panel they could not see. `inert` takes the whole subtree
+        out of the Tab order and the a11y tree in one attribute without
+        touching the slide-in animation, which any of the display /
+        visibility alternatives would kill. It flips off in the same
+        change-detection pass that adds `is-open`, so the focus move in
+        `selectionFocusEffect` (which runs in `afterNextRender`, i.e.
+        after the attribute is gone) still lands.
+      -->
       <aside
         #inspectorPanel
         class="graph__panel"
         data-canvas-click-shield
         tabindex="-1"
+        [attr.inert]="selectedNodeId() === null ? '' : null"
         [class.is-open]="selectedNodeId() !== null"
         [style.width.px]="clampedPanelWidth()"
         role="complementary"

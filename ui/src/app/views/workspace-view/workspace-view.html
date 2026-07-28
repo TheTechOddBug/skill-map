@@ -46,11 +46,27 @@
       <div class="workspace__rail-tabs">
         <!-- The tablist wraps ONLY the tabs (aria-required-children: a
              tablist may not contain the collapse chevron); display:
-             contents hands the flex layout to the outer strip. -->
+             contents hands the flex layout to the outer strip.
+
+             The roving tabindex below (only the selected tab sits at `0`)
+             is legal ONLY while the arrow keys move focus between the tabs;
+             without them the unselected section was reachable solely by
+             collapsing the rail and using the activity-bar buttons, which a
+             keyboard user has no way to discover (WCAG 2.1.1). One
+             delegated handler on the tablist, never one per tab.
+
+             The strip is HORIZONTAL (`.workspace__rail-tabs` is a flex row
+             and this element is `display: contents`), hence Left / Right,
+             not the Up / Down the vertical Quick Start rail binds. The
+             orientation is declared rather than left implicit so the bound
+             axis and the layout axis stay legibly paired: flip one and the
+             other has to follow. -->
         <div
           class="workspace__rail-tablist"
           role="tablist"
+          aria-orientation="horizontal"
           [attr.aria-label]="texts.sections.ariaLabel"
+          (keydown)="onSectionKeydown($event)"
         >
         <button
           type="button"

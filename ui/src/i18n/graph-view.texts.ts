@@ -11,14 +11,24 @@ export const GRAPH_VIEW_TEXTS = {
     panel: 'Selected node details',
     /**
      * Accessible name for a graph node host (WCAG 4.1.2). The host is a
-     * `role="button"` that selects the node; the label names the node,
-     * its kind, and whether it is currently selected so a screen-reader
-     * user knows what activating it does and its current state.
+     * `role="group"` (a `button` role would hide the card's own controls,
+     * see the template) that selects the node on Enter / Space; the label
+     * names the node, its kind, and whether it is currently selected, so a
+     * screen-reader user knows what activating it does and its current
+     * state. The selected word is part of the NAME on purpose: `group`
+     * takes no `aria-pressed` / `aria-selected`, so this string is the
+     * only place the state can travel.
      */
     nodeHost: (name: string, kind: string, selected: boolean): string =>
       `${name}, ${kind}${selected ? ', selected' : ''}. Activate to inspect.`,
     /** Announced when a node is selected and focus moves to the inspector (WCAG 2.4.3). */
     nodeSelected: (name: string): string => `Selected ${name}. Inspector panel opened.`,
+    /**
+     * Announced when the inspector panel closes (WCAG 4.1.3). The panel
+     * slides away silently, so without this the only feedback a
+     * screen-reader user gets is focus landing back on the map.
+     */
+    nodeDeselected: 'Inspector panel closed. Back to the map.',
     /**
      * Accessible name for the inspector panel resize separator (WCAG 2.1.1).
      * `aria-valuenow`/min/max carry the numeric width; the label names

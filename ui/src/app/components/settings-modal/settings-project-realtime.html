@@ -1,8 +1,14 @@
 <div class="settings-project__row" data-testid="settings-project-live-activity-row">
   <div class="settings-project__row-text">
-    <div class="settings-project__row-label">
+    <!-- `<label for>` + `[inputId]` on both rows of this file: PrimeNG's
+         `<p-toggleswitch>` wraps an `<input type="checkbox"
+         role="switch">` that takes its accessible name ONLY from a
+         paired label / ariaLabelledBy / ariaLabel. Unpaired, the two
+         switches here are indistinguishable to a screen reader ("switch,
+         off" twice). The pairing also makes each label clickable. -->
+    <label class="settings-project__row-label" for="settings-project-live-activity-switch">
       {{ texts.project.live.activity.label }}
-    </div>
+    </label>
     <div class="settings-project__row-description">
       {{ texts.project.live.activity.description }}
     </div>
@@ -19,6 +25,7 @@
     }
   </div>
   <p-toggleswitch
+    inputId="settings-project-live-activity-switch"
     [ngModel]="liveActivityEnabled()"
     (ngModelChange)="onLiveActivityToggle($event)"
     [disabled]="!liveWsEnabled() || activityHookInstalled() === false"
@@ -28,9 +35,9 @@
 
 <div class="settings-project__row" data-testid="settings-project-runtime-agents-row">
   <div class="settings-project__row-text">
-    <div class="settings-project__row-label">
+    <label class="settings-project__row-label" for="settings-project-runtime-agents-switch">
       {{ texts.project.live.agents.label }}
-    </div>
+    </label>
     <div class="settings-project__row-description">
       {{ texts.project.live.agents.description }}
     </div>
@@ -41,6 +48,7 @@
     }
   </div>
   <p-toggleswitch
+    inputId="settings-project-runtime-agents-switch"
     [ngModel]="showRuntimeAgents()"
     (ngModelChange)="onShowRuntimeAgentsToggle($event)"
     [disabled]="!liveWsEnabled() || !liveActivityEnabled()"

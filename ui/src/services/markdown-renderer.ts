@@ -398,11 +398,28 @@ function imageHook(node: Element, data: { tagName: string }): void {
   parent.replaceChild(placeholder, node);
 }
 
-/** Non-interactive chip: names the image, carries no URL to load. */
+/**
+ * Non-interactive chip: names the image, carries no URL to load.
+ *
+ * `role="img"` + `aria-label` are load-bearing for parity (WCAG 1.1.1 +
+ * 1.4.1). Visually the dotted border and the dimmed fill say "there is
+ * an image here and it was not loaded"; without the role the same chip
+ * reaches assistive tech as the bare alt string dropped mid-sentence,
+ * or as the literal word "Image" when the markdown carried no alt,
+ * which reads as corrupted copy rather than as a deliberate state. The
+ * role also collapses the inner label span into one atomic node, so the
+ * chip is announced as a single object instead of stray prose.
+ *
+ * Still built with DOM APIs and `textContent` only: the label lands via
+ * `setAttribute` / `labelSpan`, never through markup interpolation, so
+ * the escaping posture of this file is unchanged.
+ */
 function buildStaticPlaceholder(doc: Document, label: string): Element {
   const span = doc.createElement('span');
   span.className = 'sm-md-img sm-md-img--static';
   span.setAttribute('data-testid', 'markdown-image-static');
+  span.setAttribute('role', 'img');
+  span.setAttribute('aria-label', MARKDOWN_TEXTS.imageStaticAriaLabel(label));
   span.appendChild(labelSpan(doc, label));
   return span;
 }

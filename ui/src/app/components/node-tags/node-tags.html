@@ -77,6 +77,12 @@
       />
     }
 
+    <!-- `[ariaLabel]` (the component INPUT), never `[attr.aria-label]`:
+         the attribute form lands on the `<p-button>` custom element,
+         which carries no role, while the real `<button>` PrimeNG renders
+         inside stays unnamed. Harmless while both buttons also have a
+         visible `[label]`, wrong the moment the pattern is copied onto
+         an icon-only button. -->
     <div class="node-tags__actions">
       <p-button
         size="small"
@@ -84,7 +90,7 @@
         [loading]="inFlight()"
         [disabled]="inFlight()"
         (onClick)="save()"
-        [attr.aria-label]="texts.saveAriaLabel"
+        [ariaLabel]="texts.saveAriaLabel"
         data-testid="node-tags-save"
       />
       <p-button
@@ -93,7 +99,7 @@
         [label]="texts.cancel"
         [disabled]="inFlight()"
         (onClick)="cancelEdit()"
-        [attr.aria-label]="texts.cancelAriaLabel"
+        [ariaLabel]="texts.cancelAriaLabel"
         data-testid="node-tags-cancel"
       />
     </div>

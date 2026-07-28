@@ -657,7 +657,10 @@ export const SETTINGS_TEXTS = {
       willEnable ? `Enable plugin ${id}` : `Disable plugin ${id}`,
     extensionToggle: (qualifiedId: string, willEnable: boolean): string =>
       willEnable ? `Enable ${qualifiedId}` : `Disable ${qualifiedId}`,
-    pluginRow: (id: string): string => `Plugin ${id} row`,
-    extensionRow: (qualifiedId: string): string => `Extension ${qualifiedId} row`,
+    // No `pluginRow` / `extensionRow` entries: the plugin and extension
+    // row wrappers are plain `<div>`s again (they used to be
+    // `role="button"`, which made every control and badge inside them
+    // presentational). An unnamed generic container is exactly right,
+    // the row's real controls carry their own names.
   },
 } as const;

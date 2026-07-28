@@ -50,10 +50,24 @@
   transition: background 120ms ease, color 120ms ease;
 }
 
-.graph__layout-menu-item:hover,
+/* Hover and focus are deliberately SPLIT (WCAG 2.4.7 + 1.4.11, a11y
+   audit finding H8). They used to be one grouped rule that applied the
+   12% tint and then killed the outline, so "I am here on the keyboard"
+   and "the mouse happens to be parked there" rendered identically, and
+   the tint alone never reached the 3:1 state-change bar. The tint stays
+   as the pointer affordance; focus additionally paints the app-wide
+   violet ring (`styles.css` `:focus-visible`, same treatment as
+   `.shell__refresh` and `button.sm-md-img`). */
+.graph__layout-menu-item:hover {
+  background: color-mix(in srgb, var(--p-primary-color) 12%, transparent);
+}
+
 .graph__layout-menu-item:focus-visible {
   background: color-mix(in srgb, var(--p-primary-color) 12%, transparent);
-  outline: none;
+  outline: 2px solid var(--p-primary-color);
+  /* Negative offset: the popover clips at a 4px gutter, so an outward
+     ring on the first / last row would be trimmed by the content box. */
+  outline-offset: -2px;
 }
 
 /* Active option: tinted background + leading dot. The dot uses the
@@ -129,10 +143,18 @@
   height: 16px;
 }
 
-.graph__layout-icon-item:hover,
+/* Same split as the vertical menu above: the tint is the pointer
+   affordance, the ring is the keyboard one. These items are icon-only
+   (2px gutter, 32px squares) so the ring is inset for the same clipping
+   reason. */
+.graph__layout-icon-item:hover {
+  background: color-mix(in srgb, var(--p-primary-color) 12%, transparent);
+}
+
 .graph__layout-icon-item:focus-visible {
   background: color-mix(in srgb, var(--p-primary-color) 12%, transparent);
-  outline: none;
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: -2px;
 }
 
 .graph__layout-icon-item.is-active {

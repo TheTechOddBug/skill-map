@@ -416,7 +416,8 @@ export class GraphView implements OnInit {
    * on a real null -> id (or id -> other id) transition, never on the
    * unrelated re-renders that also read `selectedNodeId` (highlight,
    * dim, layout). On a genuine selection it moves keyboard focus into
-   * the inspector container and announces the node name.
+   * the inspector container and announces the node name; on a
+   * deselection it hands focus BACK (see the closing branch).
    */
   private previousSelectedId: string | null = null;
   private readonly selectionFocusEffect = effect(() => {
@@ -424,7 +425,25 @@ export class GraphView implements OnInit {
     const prev = untracked(() => this.previousSelectedId);
     if (id === prev) return;
     this.previousSelectedId = id;
-    if (id === null) return;
+    if (id === null) {
+      // Closing branch. The panel slides off-screen AND goes `inert`
+      // (see the template), so focus parked inside it is dropped on
+      // `<body>` and the keyboard user is stranded at the top of the
+      // document with no way back to the node they were reading. Return
+      // focus where it came from, the node host that was just
+      // deselected, and fall back to the canvas wrap when that node is
+      // gone (filtered away, re-scanned out, map curation). The
+      // `previousSelectedId` bookkeeping above is untouched: `prev` is
+      // the id we are closing, and it is non-null here because an
+      // id === prev transition already returned.
+      if (prev !== null) {
+        this.announcer.announce(GRAPH_VIEW_TEXTS.a11y.nodeDeselected);
+        afterNextRender(() => this.restoreFocusAfterClose(prev), {
+          injector: this.injector,
+        });
+      }
+      return;
+    }
     const node = untracked(() => this.graph().nodes.find((n) => n.id === id));
     if (!node) return;
     this.announcer.announce(GRAPH_VIEW_TEXTS.a11y.nodeSelected(this.nodeDisplayName(node)));
@@ -948,9 +967,11 @@ export class GraphView implements OnInit {
    * `(click)` select without the drag guard (`selectNode` rejects a
    * click that was really a drag, which cannot happen from the keyboard).
    * Enter/Space select; the selection effect then moves focus into the
-   * inspector. Spatial arrow-key navigation across the canvas is deferred
-   * to the Foblex 19 keyboard layer (repo is on 18.6.1); this handler
-   * only provides the tab-reachable activation the AA level requires.
+   * inspector. Spatial arrow-key navigation across the canvas belongs to
+   * the Foblex keyboard layer (installed via `provideFFlow(withA11y(...))`
+   * above), which drives its own active item through `aria-activedescendant`
+   * on the `<f-flow>` host; this handler only provides the tab-reachable
+   * activation the AA level requires on the node host itself.
    */
   selectNodeByKeyboard(node: IGraphNode, event: Event): void {
     event.preventDefault();
@@ -970,6 +991,34 @@ export class GraphView implements OnInit {
       node.view.kind,
       this.isSelected(node.id),
     );
+  }
+
+  /**
+   * Focus destination after the inspector panel closes (WCAG 2.4.3):
+   * the node host that was just deselected, i.e. the element that opened
+   * the panel, else the canvas wrap (`tabindex="-1"`, a focus target and
+   * not a tab stop). Called once per close from `selectionFocusEffect`.
+   */
+  private restoreFocusAfterClose(deselectedId: string): void {
+    const wrap = this.canvasWrap()?.nativeElement ?? null;
+    if (!wrap) return;
+    (this.nodeHostElement(wrap, deselectedId) ?? wrap).focus({ preventScroll: true });
+  }
+
+  /**
+   * The rendered `<div fNode>` host for `nodeId`, or null when the node
+   * is outside the render window (virtualisation) or gone from the graph.
+   *
+   * Matched by reading each host's `data-testid` instead of composing a
+   * `[data-testid="..."]` selector: node ids are file paths, and a path
+   * carrying a quote or a backslash would break the selector string. One
+   * pass over the mounted hosts, run only when the panel closes, never
+   * per node and never per frame.
+   */
+  private nodeHostElement(wrap: HTMLElement, nodeId: string): HTMLElement | null {
+    const testid = `graph-node-${nodeId}`;
+    const hosts = Array.from(wrap.querySelectorAll<HTMLElement>('.sm-gnode-host'));
+    return hosts.find((el) => el.dataset['testid'] === testid) ?? null;
   }
 
   /**

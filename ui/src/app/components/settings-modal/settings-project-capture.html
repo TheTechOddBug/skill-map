@@ -6,7 +6,13 @@
 
 <div class="settings-project__row" data-testid="settings-project-activity-capture-row">
   <div class="settings-project__row-text">
-    <div class="settings-project__row-label">{{ texts.project.activityCapture.label }}</div>
+    <!-- `<label for>` + `[inputId]`: PrimeNG's inner `<input
+         role="switch">` has NO accessible name unless it is paired with
+         a label (or given ariaLabel / ariaLabelledBy), so without this
+         the row announces as a bare "switch, off". -->
+    <label class="settings-project__row-label" for="settings-project-activity-capture-switch"
+      >{{ texts.project.activityCapture.label }}</label
+    >
     <div class="settings-project__row-description">
       {{ texts.project.activityCapture.description }}
     </div>
@@ -22,6 +28,7 @@
     }
   </div>
   <p-toggleswitch
+    inputId="settings-project-activity-capture-switch"
     [ngModel]="captureEnabledView()"
     (ngModelChange)="onCaptureToggle($event)"
     [disabled]="captureToggleDisabled()"

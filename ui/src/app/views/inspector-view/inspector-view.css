@@ -390,8 +390,11 @@
 /* ---------------------------------------------------------------------
  * Metadata body: stacks the audit panel (created / bumped timestamps)
  * above the diagnostic panel (identity hashes, resolved provider/kind,
- * sidecar status). The wrapper inherits the section hairline from the
- * global collapsible-body rule (see `.sm-block` in styles.css); the
+ * sidecar status). The section hairline comes from the global
+ * collapsible-body rule (see `.sm-block` in styles.css), which now lands
+ * on the section's own `.sm-block__body` region wrapper rather than on
+ * this element (that wrapper arrived with the `role="region"` pairing,
+ * a11y audit M6); no visual change, the divider sits one level up. The
  * diagnostic sub-panel gets its own hairline so the technical block
  * reads as a distinct group below the human-facing audit info.
  * ------------------------------------------------------------------- */

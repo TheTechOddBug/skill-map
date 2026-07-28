@@ -76,12 +76,32 @@
   display: block;
 }
 
-.shell__brand h1 {
-  margin: 0;
+/* Brand line: the wordmark `<h1>` and the status-chip cluster share one
+   inline row, but only the wordmark is inside the heading.
+   The chips (version / dev / lens / Beta) plus two REAL controls (the
+   update chip and the npm link) used to be nested in the `<h1>`, so its
+   computed accessible name accumulated all of them ("skill-map Version
+   0.89.0 Lens Claude Code Beta Update available") and screen-reader
+   heading navigation landed on a blob with two buttons buried in it
+   (a11y audit finding L4).
+   The typography lives on THIS wrapper rather than on the heading so the
+   chips inherit exactly what they inherited from the `<h1>` before the
+   move, and the heading itself renders `display: inline` so both still
+   flow in a single line box. Net visual delta: none. */
+.shell__brand-line {
   font-size: var(--sm-fs-xl);
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--shell-topbar-text-strong);
+}
+
+.shell__brand h1 {
+  margin: 0;
+  display: inline;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  color: inherit;
 }
 
 /* "Beta" chip next to the wordmark. Rectangular chip with a soft red
@@ -670,16 +690,35 @@
   }
 }
 
-/* Mobile guard (<768px). Hidden by default; below 768px we render a
-   full-screen friendly message and HIDE the shell entirely so the user
-   never sees the broken desktop-only layout underneath. CSS-only, no JS,
-   the browser handles the media query natively, so the overlay appears /
-   disappears on resize without a reload. */
+/* Mobile guard (<768px on a TOUCH device). Hidden by default; on a
+   narrow phone we render a full-screen friendly message and HIDE the
+   shell entirely so the user never sees the broken desktop-only layout
+   underneath. CSS-only, no JS, the browser handles the media query
+   natively, so the overlay appears / disappears on resize without a
+   reload.
+
+   The `(pointer: coarse)` half is a WCAG 1.4.4 / 1.4.10 fix (a11y audit
+   finding C3), not a device-detection flourish. Browser zoom shrinks the
+   CSS viewport, so a width-only guard fired on ZOOM as well as on small
+   screens: 200% on a 1280px window reports 640px and 400% on 1920px
+   reports 480px, and at exactly the magnification a low-vision operator
+   needs, the application was not degraded, it was GONE, replaced by a
+   card telling them to use a desktop they were already using. Keying on
+   the primary pointing device separates the two cases the width alone
+   conflated: a phone stays coarse and still gets the card, a zoomed
+   desktop stays fine and keeps the app.
+
+   This is a PARTIAL 1.4.10 accommodation, not conformance. The app is
+   reachable and operable under zoom now, but the panes still do not
+   reflow into a single column at 320px-equivalent, which the deliberate
+   desktop-only product decision declines to build. The matching
+   document-level `overflow: hidden` in `styles.css` is left in place on
+   purpose; the rationale is recorded there. */
 .viewport-warning {
   display: none;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 767px) and (pointer: coarse) {
   .viewport-warning {
     position: fixed;
     inset: 0;
@@ -725,8 +764,9 @@
   }
 
   /* Hide the shell entirely while the overlay is active, the layout is
-     not viable below 768px and showing a broken version under the
-     overlay defeats the point. */
+     not viable on a narrow touch screen and showing a broken version
+     under the overlay defeats the point. Scoped to the coarse-pointer
+     query above, so it can never hide the app from a zoomed desktop. */
   .shell {
     display: none;
   }

@@ -1,9 +1,13 @@
 <!--
-  Viewport guard: skill-map UI is built for desktop. Below 768px we replace
-  the shell with a friendly full-screen message instead of letting the user
-  see a broken layout. CSS-only, the overlay is always in the DOM and
-  shows itself at narrow widths via media query, so we don't pay a JS /
+  Viewport guard: skill-map UI is built for desktop. On a narrow TOUCH
+  device we replace the shell with a friendly full-screen message instead
+  of letting the user see a broken layout. CSS-only, the overlay is always
+  in the DOM and shows itself via media query, so we don't pay a JS /
   matchMedia listener for what the browser already does for free.
+  The query is `(max-width: 767px) and (pointer: coarse)`: browser zoom
+  shrinks the CSS viewport, so a width-only guard used to hide the whole
+  application at 200% / 400% zoom on an ordinary desktop (WCAG 1.4.4, a11y
+  audit finding C3). Full rationale on the rule in `app.css`.
 -->
 <div class="viewport-warning" role="alert" data-testid="viewport-warning">
   <div class="viewport-warning__card">
@@ -32,72 +36,99 @@
         aria-hidden="true"
       />
       <div>
-        <h1>
-          {{ texts.brand }}
-          @if (isDevBuild()) {
-            <!--
-              Dev builds suppress the numeric version chip in favour
-              of the `dev` marker. The operator is iterating on the
-              source tree, the published version number is noise (it
-              names the last release, not what's actually running).
-              The tooltip on the chip still surfaces the version for
-              the rare bug-report flow where it matters.
-            -->
-            <span
-              class="shell__dev"
-              [attr.aria-label]="texts.devChipA11y"
-              [pTooltip]="versionTooltip()"
-              tooltipPosition="bottom"
-              data-testid="shell-dev"
-            >{{ texts.devChip }}</span>
-          } @else if (updateCheck.current(); as current) {
-            <span
-              class="shell__version"
-              [attr.aria-label]="versionA11y()"
-              [pTooltip]="versionTooltip()"
-              tooltipPosition="bottom"
-              data-testid="shell-version"
-            >{{ versionLabel() }}</span>
-          }
-          @if (lensChip(); as lens) {
-            <span
-              class="shell__lens"
-              [style.--provider-color]="lens.color"
-              [style.--provider-color-dark]="lens.colorDark ?? lens.color"
-              [attr.aria-label]="texts.lensChipA11y(lens.label)"
-              [pTooltip]="texts.lensChipTooltip(lens.label)"
-              tooltipPosition="bottom"
-              data-testid="shell-lens"
-            >{{ lens.label }}</span>
-          }
-          <span class="shell__beta">{{ texts.beta }}</span>
-          @if (updateCheck.isOutdated() && !isDevMode) {
-            <button
-              type="button"
-              class="shell__update-chip"
-              [attr.aria-label]="updateChipA11y()"
-              [pTooltip]="updateChipTooltip()"
-              tooltipPosition="bottom"
-              (click)="copyUpdateCommand()"
-              data-testid="shell-update-chip"
-            >
-              <i [class]="updateChipIcon()" aria-hidden="true"></i>
-              <span>{{ updateChipText() }}</span>
-            </button>
-            <a
-              class="shell__update-npm-link"
-              [href]="npmLinkUrl"
-              target="_blank"
-              rel="noopener noreferrer"
-              [attr.aria-label]="npmLinkA11y"
-              [pTooltip]="npmLinkTooltip"
-              tooltipPosition="bottom"
-              data-testid="shell-update-npm-link"
-            >
-              <i class="pi pi-external-link" aria-hidden="true"></i>
-            </a>
-          }
-        </h1>
+        <!--
+          Brand line: the `<h1>` holds the wordmark and NOTHING else, the
+          status chips live in the sibling cluster below. They used to be
+          nested inside the heading, which made its computed accessible
+          name accumulate every chip ("skill-map Version 0.89.0 Lens
+          Claude Code Beta Update available") and buried two real controls
+          (the update chip, the npm link) inside a heading, where
+          screen-reader heading navigation reads them as one opaque blob
+          (a11y audit finding L4). Splitting them is name-only: the
+          wrapper carries the heading's former typography so the chips
+          inherit exactly what they inherited before, the `<h1>` renders
+          `display: inline`, and the row paints unchanged (see `app.css`).
+        -->
+        <div class="shell__brand-line">
+          <!--
+            The wordmark stays on its own lines INSIDE the tag, and the
+            closing tag butts straight against the chip span. Angular's
+            whitespace pass collapses a non-blank text node down to single
+            leading / trailing spaces but strips a whitespace-only node
+            outright, so putting the interpolation on one line with its
+            tags would delete the word space that used to sit between the
+            wordmark and the first chip and pull the cluster ~4px left.
+            Written this way the heading keeps that single trailing space
+            and the row paints exactly as it did with the chips nested in.
+          -->
+          <h1>
+            {{ texts.brand }}
+          </h1><span class="shell__brand-chips" data-testid="shell-brand-chips">
+            @if (isDevBuild()) {
+              <!--
+                Dev builds suppress the numeric version chip in favour
+                of the `dev` marker. The operator is iterating on the
+                source tree, the published version number is noise (it
+                names the last release, not what's actually running).
+                The tooltip on the chip still surfaces the version for
+                the rare bug-report flow where it matters.
+              -->
+              <span
+                class="shell__dev"
+                [attr.aria-label]="texts.devChipA11y"
+                [pTooltip]="versionTooltip()"
+                tooltipPosition="bottom"
+                data-testid="shell-dev"
+              >{{ texts.devChip }}</span>
+            } @else if (updateCheck.current(); as current) {
+              <span
+                class="shell__version"
+                [attr.aria-label]="versionA11y()"
+                [pTooltip]="versionTooltip()"
+                tooltipPosition="bottom"
+                data-testid="shell-version"
+              >{{ versionLabel() }}</span>
+            }
+            @if (lensChip(); as lens) {
+              <span
+                class="shell__lens"
+                [style.--provider-color]="lens.color"
+                [style.--provider-color-dark]="lens.colorDark ?? lens.color"
+                [attr.aria-label]="texts.lensChipA11y(lens.label)"
+                [pTooltip]="texts.lensChipTooltip(lens.label)"
+                tooltipPosition="bottom"
+                data-testid="shell-lens"
+              >{{ lens.label }}</span>
+            }
+            <span class="shell__beta">{{ texts.beta }}</span>
+            @if (updateCheck.isOutdated() && !isDevMode) {
+              <button
+                type="button"
+                class="shell__update-chip"
+                [attr.aria-label]="updateChipA11y()"
+                [pTooltip]="updateChipTooltip()"
+                tooltipPosition="bottom"
+                (click)="copyUpdateCommand()"
+                data-testid="shell-update-chip"
+              >
+                <i [class]="updateChipIcon()" aria-hidden="true"></i>
+                <span>{{ updateChipText() }}</span>
+              </button>
+              <a
+                class="shell__update-npm-link"
+                [href]="npmLinkUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                [attr.aria-label]="npmLinkA11y"
+                [pTooltip]="npmLinkTooltip"
+                tooltipPosition="bottom"
+                data-testid="shell-update-npm-link"
+              >
+                <i class="pi pi-external-link" aria-hidden="true"></i>
+              </a>
+            }
+          </span>
+        </div>
         @if (rootLabel(); as label) {
           <p
             class="shell__tag"

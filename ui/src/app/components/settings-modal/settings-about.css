@@ -103,12 +103,24 @@
     border-color 0.15s ease,
     transform 0.15s ease;
 }
+/* Hover and focus SPLIT (WCAG 2.4.7 + 1.4.11, a11y audit finding H8).
+   This is the worst case of the pattern in the app: a full-width link
+   whose only keyboard feedback used to be the same barely perceptible
+   background nudge the mouse produces, with `outline: none` removing the
+   one indicator that distinguished them. The amber lift stays as the
+   pointer affordance; focus keeps it AND paints the app-wide violet ring
+   (`styles.css` `:focus-visible`), so the two states are never confusable
+   and the focused state carries a 3:1 change of its own. */
 .settings-about__star:hover,
 .settings-about__star:focus-visible {
   background: color-mix(in oklab, var(--star-accent) 22%, transparent);
   border-color: color-mix(in oklab, var(--star-accent) 70%, transparent);
   transform: translateY(-1px);
-  outline: none;
+}
+
+.settings-about__star:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 2px;
 }
 :host-context(.app-dark) .settings-about__star {
   background: color-mix(in oklab, var(--star-accent) 18%, transparent);

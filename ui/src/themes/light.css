@@ -54,14 +54,26 @@
      family. `references` uses Tailwind emerald-500 (`#10b981`);
      `mentions` uses sky-500 (`#0ea5e9`). Both have muted siblings
      at idle so the canvas reads calm and the active state pops on
-     hover / selection. */
+     hover / selection.
+
+     WCAG 1.4.11 floor on the IDLE stops (a11y audit finding M8): an
+     edge is a graphical object required to understand the graph, and
+     idle is the state the operator reads almost always, so each idle
+     hue must clear 3:1 against the `--sm-bg-page` canvas (`#f8fafc`).
+     `invokes` (3.14:1) and `points` (3.49:1) already did; `references`
+     (2.50:1) and `mentions` (2.64:1) did not, and were darkened along
+     their own HSL lightness axis (hue and saturation untouched) until
+     they landed in the same 3.1 band as their siblings: 3.11:1 and
+     3.13:1. The "calm network" desaturation survives, it is now capped
+     by the threshold rather than by taste alone. The `*-active` stops
+     are full-saturation and pass on their own, so they are unchanged. */
   --sm-edge-invokes: #b8843a;
   --sm-edge-invokes-active: #f59e0b;
-  --sm-edge-references: #7daa90;
+  --sm-edge-references: #649a7b;
   --sm-edge-references-active: #10b981;
   --sm-edge-points: #8f7cb8;
   --sm-edge-points-active: #7c3aed;
-  --sm-edge-mentions: #6fa2c0;
+  --sm-edge-mentions: #5b95b6;
   --sm-edge-mentions-active: #0ea5e9;
 
   /* Ephemeral spawn edges + session anchors (live agent spawns,
@@ -84,11 +96,19 @@
   /* === Severity, foreground === */
   --sm-severity-info: #1e3a8a;
   --sm-severity-success: #065f46;
-  /* Yellow-600 (gold), clearly yellow on the light theme, slightly
-     darker than yellow-500 #eab308 for a touch more contrast against
-     white surfaces while staying well separated from the error red
-     `#991b1b`. */
-  --sm-severity-warn: #ca8a04;
+  /* Yellow-700 (deep gold), clearly yellow on the light theme and well
+     separated from the error red `#991b1b`.
+     This token is consumed as a FOREGROUND (oversized / skipped-files
+     banner body copy, linked-nodes panel, quick-start rows, the
+     node-counter and node-icon renderers, `.empty-state__icon--warn`),
+     so it owes 4.5:1 as small text and 3:1 as a graphical object.
+     Yellow-600 `#ca8a04` sat at 2.94:1 on `--sm-bg-content` (`#ffffff`)
+     and 2.81:1 on `--sm-bg-page` (`#f8fafc`), failing both (a11y audit
+     finding H6). Yellow-700 measures 4.92:1 and 4.71:1 on the same two
+     surfaces. Light-theme only: dark, matrix and neon already pass, and
+     the 2026-07-26 axe sweep missed this because the consuming surfaces
+     need specific scan outcomes to render. */
+  --sm-severity-warn: #a16207;
   --sm-severity-error: #991b1b;
 
   /* === Severity, row tint === */

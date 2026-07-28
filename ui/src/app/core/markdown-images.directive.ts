@@ -25,12 +25,29 @@
  * `referrerpolicy="no-referrer"` on the created element keeps the second
  * half of the leak closed: the operator consented to the request, not to
  * telling the author which page they were on.
+ *
+ * **The swap is also a focus and status event** (WCAG 2.4.3 + 4.1.3).
+ * Activating the chip DESTROYS the control that was focused, so without
+ * deliberate handling focus falls to `<body>` and the next Tab restarts
+ * from the skip link at the top of the document: in a long README with
+ * several images that is one full restart per image. And because the
+ * control simply vanishes, a screen-reader user is told nothing at all,
+ * not that the image loaded, not that it failed, not what it shows. So
+ * this directive owns two extra obligations beyond the swap:
+ *
+ *   - the replacement `<img>` carries `tabindex="-1"` and takes focus,
+ *     so the reading position survives the gesture;
+ *   - the outcome is announced through `A11yAnnouncerService`, polite on
+ *     load, assertive on error (a broken remote image is otherwise
+ *     completely invisible to assistive tech, and it is the one outcome
+ *     the operator explicitly asked for and did not get).
  */
 
-import { Directive } from '@angular/core';
+import { Directive, inject } from '@angular/core';
 
 import { MARKDOWN_TEXTS } from '../../i18n/markdown.texts';
 import { httpUrlOrNull } from '../../services/url-guard';
+import { A11yAnnouncerService } from '../services/a11y-announcer';
 
 /** Placeholder chip that carries a loadable URL (interactive mode only). */
 const PLACEHOLDER_SELECTOR = '.sm-md-img[data-sm-img-src]';
@@ -42,6 +59,8 @@ const PLACEHOLDER_SELECTOR = '.sm-md-img[data-sm-img-src]';
   },
 })
 export class MarkdownImagesDirective {
+  private readonly announcer = inject(A11yAnnouncerService);
+
   onClick(event: Event): void {
     const target = event.target;
     if (!(target instanceof Element)) return;
@@ -65,16 +84,49 @@ export class MarkdownImagesDirective {
     const src = httpUrlOrNull(placeholder.getAttribute('data-sm-img-src'));
     if (src === null) return;
 
+    const label = placeholderLabel(placeholder);
+    // `src` already passed `httpUrlOrNull`, so `new URL` cannot throw and
+    // the host is the same string the chip displayed before the click.
+    const host = new URL(src).host;
+
     const img = document.createElement('img');
-    img.alt = placeholderLabel(placeholder);
+    img.alt = label;
     img.className = 'sm-md-img__loaded';
     img.setAttribute('data-testid', 'markdown-image-loaded');
+    // Focus destination for the control this swap is about to destroy.
+    // `-1` keeps the image OUT of the tab order (it is content, not a
+    // control) while still making it programmatically focusable, so the
+    // caret lands here and the next Tab continues from this point in the
+    // document instead of restarting at the skip link.
+    img.setAttribute('tabindex', '-1');
+    // Outcome listeners BEFORE `src`, same reasoning as the policy below:
+    // the fetch is live from the assignment onward, and a response that
+    // arrives before the listeners exist would be announced to nobody.
+    // `once` because an `<img>` fires exactly one of the two and the
+    // element is never re-pointed at another URL.
+    img.addEventListener(
+      'load',
+      () => this.announcer.announce(MARKDOWN_TEXTS.imageLoadedAnnouncement(label)),
+      { once: true },
+    );
+    img.addEventListener(
+      'error',
+      () =>
+        this.announcer.announce(
+          MARKDOWN_TEXTS.imageLoadFailedAnnouncement(label, host),
+          'assertive',
+        ),
+      { once: true },
+    );
     // `referrerpolicy` BEFORE `src`: a browser starts the fetch as soon
     // as `src` is set, even on a detached element, so setting the policy
     // afterwards would race the request it is meant to cover.
     img.setAttribute('referrerpolicy', 'no-referrer');
     img.src = src;
     placeholder.replaceWith(img);
+    // AFTER the insertion, never before: `focus()` on a node that is not
+    // in the document is a silent no-op.
+    img.focus();
   }
 }
 

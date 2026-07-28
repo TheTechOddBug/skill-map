@@ -19,7 +19,14 @@
 <div class="settings-project__list-row" data-testid="settings-project-active-provider-row">
   <div class="settings-project__row-text">
     <div class="settings-project__row-label">
-      {{ texts.project.activeProviderLabel }}
+      <!-- The id below is what NAMES the `<p-select>` (see its
+           `ariaLabelledBy` further down). It sits on the label TEXT, not
+           on the row-label container, so the announced name stays
+           "Active lens" instead of trailing the team-shared badge legend
+           every time the combo box takes focus. -->
+      <span id="settings-project-active-provider-label"
+        >{{ texts.project.activeProviderLabel }}</span
+      >
       <span
         class="settings-project__shared-badge"
         [title]="texts.project.sharedBadgeTooltip"
@@ -53,9 +60,18 @@
          dialog scope that shrinks every control to 0.8rem
          (settings-modal.css), so without this class the option list
          renders at the 1rem default, visibly larger than the closed
-         trigger. The matching global rule lives in ui/src/styles.css. -->
+         trigger. The matching global rule lives in ui/src/styles.css.
+
+         ariaLabelledBy (rather than inputId + `<label for>`): PrimeNG
+         renders the non-editable trigger as a `<span role="combobox">`,
+         and `<label for>` only binds to LABELABLE elements, so that
+         pairing would silently do nothing here. Without a name the combo
+         box falls back to `aria-label = label()`, i.e. it announces its
+         CURRENT VALUE ("Claude Code, combo box") and never says what the
+         control selects. -->
     <p-select
       class="settings-project__provider-select"
+      ariaLabelledBy="settings-project-active-provider-label"
       panelStyleClass="sm-settings-select-overlay"
       size="small"
       [options]="providerOptions()"

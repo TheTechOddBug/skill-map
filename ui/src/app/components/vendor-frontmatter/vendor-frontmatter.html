@@ -8,23 +8,24 @@
       The Behavior / Capabilities / Initial-prompt split is a skill-map
       presentation choice, not vendor JSON structure (the frontmatter is
       flat), so it collapses cleanly into one rail.
+
+      Rendered through `<sm-collapsible-section>` rather than a hand-rolled
+      copy of the `.sm-block__row--toggle` markup (WCAG 1.3.1). The
+      duplicate emitted a toggle with NO `role="heading"` wrapper, so
+      Definition, usually the densest section on an agent node, was
+      invisible to heading navigation while every sibling section was
+      listed. Re-implementing the shared chrome was the actual defect;
+      adopting the component fixes the heading, the `aria-controls` link
+      and the body region in one move, and the `.sm-block` vocabulary is
+      global so the visual result is unchanged.
     -->
-    <section class="sm-block sm-block--collapsible" data-testid="vendor-frontmatter-definition">
-      <button
-        type="button"
-        class="sm-block__row sm-block__row--toggle"
-        (click)="toggle.emit()"
-        [attr.aria-expanded]="expanded()"
-        data-testid="vendor-frontmatter-toggle"
-      >
-        <span class="sm-block__title">{{ texts.sections.definition }}</span>
-        <i
-          class="pi sm-block__chevron"
-          [class.pi-chevron-right]="!expanded()"
-          [class.pi-chevron-down]="expanded()"
-          aria-hidden="true"
-        ></i>
-      </button>
+    <sm-collapsible-section
+      [title]="texts.sections.definition"
+      [expanded]="expanded()"
+      toggleTestid="vendor-frontmatter-toggle"
+      (toggle)="toggle.emit()"
+      data-testid="vendor-frontmatter-definition"
+    >
       @if (expanded()) {
       @if (isAgent()) {
         @if (hasBehavior() || hasCapabilities() || extraFields().length) {
@@ -238,7 +239,7 @@
         ></blockquote>
       }
       }
-    </section>
+    </sm-collapsible-section>
 
   </div>
 }

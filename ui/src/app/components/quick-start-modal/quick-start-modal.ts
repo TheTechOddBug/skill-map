@@ -75,6 +75,7 @@ import { WsEventStreamService } from '../../../services/ws-event-stream';
 import { ActivityReadinessService } from '../../services/activity-readiness';
 import { ProjectInfoService } from '../../services/project-info';
 import { ProviderRegistryService } from '../../../services/provider-registry';
+import { handleRovingTablistKeydown } from '../../core/roving-tablist';
 import { runConfirmGated, type TConfirmFlow } from '../confirm-gated';
 import { formatErr } from '../settings-modal/settings-project.utils';
 import {
@@ -177,6 +178,38 @@ export class QuickStartModal {
 
   protected selectGroup(id: TQuickStartGroup): void {
     this.activeGroup.set(id);
+  }
+
+  /**
+   * APG vertical-tabs keyboard navigation for the group rail (WCAG 2.1.1).
+   *
+   * The strip carries a roving tabindex (only the selected tab is in the
+   * tab sequence), which the pattern permits ONLY when the arrow keys move
+   * focus between tabs. Without this handler the dialog opened on `live`,
+   * Tab went straight into the panel, and `realtime` / `ai` (the hook
+   * install, the agent skill, the MCP rows) could not be reached by
+   * keyboard at all.
+   *
+   * Selection FOLLOWS focus (automatic activation): the panel is a cheap
+   * `@switch` swap, and the roving tabindex is keyed off `activeGroup()`,
+   * so letting focus and selection diverge would immediately desync the tab
+   * sequence from where the user actually is.
+   *
+   * The strip is vertical (`aria-orientation="vertical"`, laid out as a
+   * flex column), so ONLY Up / Down are bound; Left / Right keep their
+   * default behaviour, per the pattern's "one axis per orientation" rule.
+   * Home / End jump to the ends, both directions wrap. The workspace rail
+   * strip runs the same logic on its own axis, keep the two in step.
+   */
+  protected onGroupKeydown(event: KeyboardEvent): void {
+    handleRovingTablistKeydown(event, {
+      orientation: 'vertical',
+      selectedIndex: () => this.groups.findIndex((g) => g.id === this.activeGroup()),
+      select: (index) => {
+        const group = this.groups[index];
+        if (group !== undefined) this.selectGroup(group.id);
+      },
+    });
   }
 
   /**

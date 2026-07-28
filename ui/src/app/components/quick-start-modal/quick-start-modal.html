@@ -11,9 +11,20 @@
   contentStyleClass="quick-start-modal__content"
   data-testid="quick-start-modal"
 >
-  <ng-template #header>
+  <!--
+    `ariaLabelledBy` is the id `<p-dialog>` already wrote into the dialog
+    root's `aria-labelledby` (it generates one whenever `header !== null`,
+    and an unbound `[header]` is `undefined`, not `null`). Its own title
+    `<span [id]="ariaLabelledBy">` renders ONLY when no custom header
+    template exists, so a `#header` template that ignores the context leaves
+    that attribute pointing at an id present nowhere in the document and the
+    dialog announces as a bare "dialog" (WCAG 4.1.2). Consuming the context
+    and stamping the id on our own title is what closes the reference. Do
+    not drop `let-ariaLabelledBy` / `[id]` without also binding `[header]`.
+  -->
+  <ng-template #header let-ariaLabelledBy="ariaLabelledBy">
     <div class="quick-start-modal__header">
-      <span class="quick-start-modal__header-title">{{ texts.modalTitle }}</span>
+      <span class="quick-start-modal__header-title" [id]="ariaLabelledBy">{{ texts.modalTitle }}</span>
       <span
         class="quick-start-modal__header-note"
         data-testid="quick-start-modal-subtitle"
@@ -27,11 +38,21 @@
       [attr.aria-label]="texts.modalTitle"
       data-testid="quick-start-modal-sidebar"
     >
+      <!--
+        The roving tabindex below (only the selected tab sits at `0`) is
+        legal ONLY while the arrow keys move focus between the tabs: without
+        them the unselected groups are unreachable by any keyboard means and
+        the dialog offers no other route to them (WCAG 2.1.1). One delegated
+        handler on the tablist, never one per tab: keydown fires on the
+        focused tab and bubbles here, so the strip owns the whole gesture in
+        a single place. Mirrors the workspace rail strip.
+      -->
       <ul
         class="quick-start-modal__sidebar-list"
         role="tablist"
         aria-orientation="vertical"
         [attr.aria-label]="texts.modalTitle"
+        (keydown)="onGroupKeydown($event)"
       >
         @for (group of groups; track group.id) {
           <li role="presentation">

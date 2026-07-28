@@ -35,8 +35,9 @@ const SRC_ROOT = join(dirname(dirname(fileURLToPath(import.meta.url))), 'src');
 /**
  * Floor for the sanity check. A wrong root or a broken walk would
  * otherwise scan nothing and pass, which looks identical to compliance.
- * ~420 sources live under `ui/src` today; 100 leaves room for large
- * consolidations without turning the floor into maintenance.
+ * `ui/src` holds ~427 `.ts` / `.html` files today, ~308 of them once
+ * specs are excluded; 100 leaves room for large consolidations without
+ * turning the floor into maintenance.
  */
 const MIN_SOURCES_SCANNED = 100;
 

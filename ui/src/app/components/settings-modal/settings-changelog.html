@@ -33,7 +33,17 @@
             <ul class="settings-changelog__highlights" role="list">
               @for (h of entry.highlights; track $index) {
                 <li class="settings-changelog__highlight">
+                  <!--
+                    `smMarkdownImages` is not optional chrome here: the
+                    body comes from `MarkdownRenderer.render()`, the
+                    INTERACTIVE mode, so any image in a changelog entry
+                    renders as a focusable click-to-load `<button>`.
+                    Without the directive on this host the `[innerHTML]`
+                    subtree stays inert and that button announces "Load
+                    <image> from <host>" and then does nothing at all.
+                  -->
                   <div
+                    smMarkdownImages
                     class="settings-changelog__highlight-body"
                     [innerHTML]="h.bodyHtml"
                   ></div>

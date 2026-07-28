@@ -25,6 +25,7 @@ import type { OnInit } from '@angular/core';
 import type { SafeHtml } from '@angular/platform-browser';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
+import { MarkdownImagesDirective } from '../../core/markdown-images.directive';
 import { MarkdownRenderer } from '../../../services/markdown-renderer';
 import {
   USER_CHANGELOG,
@@ -52,6 +53,12 @@ interface IRenderedEntry {
 
 @Component({
   selector: 'sm-settings-changelog',
+  // `MarkdownImagesDirective`: highlight bodies go through
+  // `MarkdownRenderer.render()` (interactive mode), which turns every
+  // image into a click-to-load `<button>`. That button is only wired up
+  // by this directive on the `[innerHTML]` host, otherwise it is a dead
+  // focusable control.
+  imports: [MarkdownImagesDirective],
   templateUrl: './settings-changelog.html',
   styleUrl: './settings-changelog.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

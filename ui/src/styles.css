@@ -93,6 +93,37 @@
   outline-offset: 2px;
 }
 
+/* Global keyboard-focus ring (WCAG 2.4.7, and 1.4.11 for the ring
+   itself). This is the app-wide BASELINE, not a per-component style:
+   anything focusable that ships no focus treatment of its own still
+   announces "you are here" with the same violet ring used by
+   `.shell__refresh` and `button.sm-md-img`.
+
+   Why a safety net exists at all: the a11y audit found three controls
+   (the two graph layout-popover item families, the About star card)
+   that had grouped `:hover, :focus-visible` under one tint and then set
+   `outline: none`, which renders focus and hover IDENTICALLY, so a
+   keyboard user cannot tell "I am here" from "the mouse is parked
+   there", and neither shift reached the 3:1 state-change bar. All three
+   were split; `grep -rn "outline: *none" ui/src` is expected to return
+   NOTHING, and this rule is what keeps the next one from silently
+   removing the only indicator (it degrades to the baseline instead of
+   to nothing). A component that genuinely needs a different indicator
+   should REPLACE the ring (e.g. a `box-shadow` ring of equal
+   prominence), never delete it.
+
+   Deliberately NOT `!important`, and it does not double-ring PrimeNG:
+   every PrimeNG widget writes its focus ring to the SAME `outline`
+   property from a class selector (`.p-button:focus-visible { outline: dt(
+   'button.focus.ring.width') ... }`, verified in the pinned
+   `@primeuix/styles@2.0.3`), so it outranks this bare pseudo-class and
+   simply replaces the ring rather than stacking one. Angular component
+   styles are injected later still and can override on purpose too. */
+:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 2px;
+}
+
 :root {
   /* Mono font stack, used by inline code, mono pills, monospaced
      metadata values across components. */
@@ -170,6 +201,21 @@
   --sm-error-pin-border: color-mix(in srgb, #ef4444 45%, transparent);
 }
 
+/* App-shell scroll model: the document itself never scrolls, every pane
+   owns its own scroller inside the 100dvh flex column.
+
+   WCAG 1.4.10 (reflow) note, assessed with the C3 zoom fix in `app.css`:
+   the document-level `overflow: hidden` is what stops a zoomed operator
+   from scrolling to chrome that has been pushed out of the viewport, so
+   it is the second half of the reflow story. It is deliberately LEFT AS
+   IS. Relaxing it here would not buy reflow, it would break the scroll
+   model app-wide: the shell is `height: 100dvh`, so a document scrollbar
+   would let the topbar and banners scroll away while every inner pane
+   kept its own scroller, giving nested scrollbars and no reachable extra
+   content. Real conformance needs the panes themselves to reflow into a
+   single column, which is a responsive redesign the desktop-only product
+   decision has explicitly declined. Documented as a known partial
+   accommodation, not an oversight. */
 html,
 body {
   margin: 0;
@@ -433,12 +479,15 @@ a {
 }
 
 /* Expanded collapsible body, separated from the header row by a hairline.
-   Two shapes host the toggle: `<sm-collapsible-section>` wraps its button
-   in `.sm-block__heading` (so the body follows the wrapper), while
-   `<sm-vendor-frontmatter>` keeps the button as a direct child (body
-   follows the button). Match both so either shape gets the divider. */
-.sm-block--collapsible > .sm-block__heading + *,
-.sm-block--collapsible > .sm-block__row--toggle + * {
+   `<sm-collapsible-section>` is the ONLY emitter of the toggle row and it
+   always wraps the button in `.sm-block__heading`, so the body is always
+   the wrapper's next sibling. A second arm matching a bare
+   `.sm-block__row--toggle` existed for `<sm-vendor-frontmatter>`, which
+   hand-rolled the same chrome as a direct child; that component was
+   migrated onto the shared section (a11y audit M5, it was missing the
+   heading semantics precisely because the markup was a copy), which left
+   the arm dead. */
+.sm-block--collapsible > .sm-block__heading + * {
   margin-top: 0.5rem;
   padding-top: 0.7rem;
   border-top: 1px solid var(--sm-border);
@@ -560,7 +609,19 @@ a {
   border: 1px dashed var(--sm-border);
   border-radius: var(--sm-radius-sm);
   background: var(--sm-bg-hover);
-  color: var(--p-text-muted-color);
+  /* Full text colour, NOT the muted token (WCAG 1.4.3, a11y audit
+     finding H7). The chip renders at `--sm-fs-xs` and its host line at
+     `--sm-fs-2xs`, both small text owing 4.5:1, and the light muted
+     token is `#64748b` on the `#f1f5f9` chip surface = 4.34:1. Same
+     number, same remedy as the topbar version chip (`app.css`). Note
+     that stepping the font UP would not have helped: WCAG's large-text
+     exemption starts at 18.66px (or 14px bold) and the chip is nowhere
+     near either, so the colour is the only lever.
+     `--p-text-color` measures 9.45:1 on the same surface, and 4.66:1
+     once the `--static` variant's 0.75 opacity composites it over a
+     white host (the muted token was at 2.77:1 there, a second failure
+     the same swap clears). */
+  color: var(--p-text-color);
   font: inherit;
   font-size: var(--sm-fs-xs);
   line-height: 1.6;
@@ -581,25 +642,30 @@ a {
 
 /* The host is the consent signal: the operator sees where the request
    would go BEFORE clicking, so it stays legible (mono, never truncated)
-   even though it is the smaller of the two labels. */
+   even though it is the smaller of the two labels.
+   It therefore inherits the chip's full text colour and is NOT muted:
+   a destination the operator cannot read is not informed consent, and
+   at `--sm-fs-2xs` the muted token missed 4.5:1 outright. The mono
+   family and the smaller step still separate it from the label, so the
+   hierarchy survives the contrast fix. */
 .sm-md-img__host {
   font-family: var(--sm-font-mono);
   font-size: var(--sm-fs-2xs);
-  color: var(--p-text-muted-color);
 }
 
 /* Interactive variant, keyed off the element rather than a modifier
    class: only the button form ever carries a URL to load. */
 button.sm-md-img {
   cursor: pointer;
-  transition:
-    border-color 140ms ease,
-    color 140ms ease;
+  transition: border-color 140ms ease;
 }
 
+/* Hover moves the hairline to the accent only. The former companion
+   `color: var(--p-text-color)` was dropped as dead: the base chip now
+   paints that colour already (see the contrast note above), so the
+   declaration and its transition slot animated nothing. */
 button.sm-md-img:hover {
   border-color: var(--p-primary-color);
-  color: var(--p-text-color);
 }
 
 button.sm-md-img:focus-visible {

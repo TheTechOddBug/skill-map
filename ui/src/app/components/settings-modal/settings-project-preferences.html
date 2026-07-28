@@ -1,11 +1,24 @@
 <div class="settings-project__row" data-testid="settings-project-follow-external-symlinks-row">
   <div class="settings-project__row-text">
-    <div class="settings-project__row-label">{{ texts.project.followExternalSymlinksLabel }}</div>
+    <!-- `<label for>` + `[inputId]` on every switch in this file:
+         PrimeNG's `<p-toggleswitch>` renders an `<input type="checkbox"
+         role="switch">` whose accessible name comes ONLY from a paired
+         label / ariaLabelledBy / ariaLabel. Unpaired, all four switches
+         here announce identically ("switch, off"), so a screen-reader
+         user cannot tell this security opt-in apart from the sidecar
+         policy below it. The pairing also makes the label clickable.
+         Rows that carry the team-shared badge wrap only the LABEL TEXT
+         in the `<label>` (see below), keeping the badge legend out of
+         the switch's accessible name. -->
+    <label class="settings-project__row-label" for="settings-project-follow-external-symlinks-switch"
+      >{{ texts.project.followExternalSymlinksLabel }}</label
+    >
     <div class="settings-project__row-description">
       {{ texts.project.followExternalSymlinksDescription }}
     </div>
   </div>
   <p-toggleswitch
+    inputId="settings-project-follow-external-symlinks-switch"
     [ngModel]="followExternalSymlinksView()"
     (ngModelChange)="onFollowExternalSymlinksToggle($event)"
     [disabled]="loading() || isPending('scan.followExternalSymlinks') || preferences() === null"
@@ -15,9 +28,9 @@
 
 <div class="settings-project__row" data-testid="settings-project-mcp-server-row">
   <div class="settings-project__row-text">
-    <div class="settings-project__row-label">
+    <label class="settings-project__row-label" for="settings-project-mcp-server-switch">
       {{ texts.project.mcpServerLabel }}
-    </div>
+    </label>
     <div class="settings-project__row-description">
       {{ texts.project.mcpServerDescription }}
     </div>
@@ -29,6 +42,7 @@
     }
   </div>
   <p-toggleswitch
+    inputId="settings-project-mcp-server-switch"
     [ngModel]="mcpServerEnabledView()"
     (ngModelChange)="onMcpServerToggle($event)"
     [disabled]="loading() || isPending('mcpServerEnabled') || preferences() === null"
@@ -51,7 +65,13 @@
 <div class="settings-project__row" data-testid="settings-project-sidecar-writers-row">
   <div class="settings-project__row-text">
     <div class="settings-project__row-label">
-      {{ texts.project.sidecarWritersLabel }}
+      <!-- Only the label TEXT is the `<label>`: the shared badge stays a
+           sibling so the switch's accessible name is "Allow sidecar
+           writers", not the name plus the whole team-shared legend the
+           badge's `sr-only` mirror carries. -->
+      <label for="settings-project-sidecar-writers-switch"
+        >{{ texts.project.sidecarWritersLabel }}</label
+      >
       <span
         class="settings-project__shared-badge"
         [title]="texts.project.sharedBadgeTooltip"
@@ -64,6 +84,7 @@
     </div>
   </div>
   <p-toggleswitch
+    inputId="settings-project-sidecar-writers-switch"
     [ngModel]="allowSidecarWritersView()"
     (ngModelChange)="onSidecarWritersToggle($event)"
     [disabled]="loading() || isPending('allowSidecarWriters') || preferences() === null"
@@ -121,7 +142,11 @@
 <div class="settings-project__row" data-testid="settings-project-respect-gitignore-row">
   <div class="settings-project__row-text">
     <div class="settings-project__row-label">
-      {{ texts.project.respectGitignoreLabel }}
+      <!-- Label text only, badge stays outside (same reason as the
+           sidecar-writers row above). -->
+      <label for="settings-project-respect-gitignore-switch"
+        >{{ texts.project.respectGitignoreLabel }}</label
+      >
       <span
         class="settings-project__shared-badge"
         [title]="texts.project.sharedBadgeTooltip"
@@ -134,6 +159,7 @@
     </div>
   </div>
   <p-toggleswitch
+    inputId="settings-project-respect-gitignore-switch"
     [ngModel]="respectGitignoreView()"
     (ngModelChange)="onRespectGitignoreToggle($event)"
     [disabled]="loading() || isPending('scan.respectGitignore') || preferences() === null"

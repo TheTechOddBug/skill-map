@@ -9,7 +9,13 @@
   <p class="settings-project__intro">
     {{ texts.project.introLine1 }}<br />
     {{ texts.project.introSharedPrefix }}
-    <span class="settings-project__shared-badge" aria-hidden="true">{{ texts.project.sharedBadge }}</span>
+    <!-- NOT `aria-hidden`, unlike the per-row badges. Here the glyph is
+         not decoration repeating an adjacent label, it is the noun of
+         the sentence ("Rows marked <badge> are shared with your team"),
+         and hiding it left a hole that made the legend unreadable. The
+         per-row instances keep `aria-hidden` because each one is paired
+         with an `sr-only` mirror carrying the full legend. -->
+    <span class="settings-project__shared-badge">{{ texts.project.sharedBadge }}</span>
     {{ texts.project.introSharedMiddle }}
     <code class="settings-project__intro-path">{{ texts.project.introSharedPath }}</code>{{ texts.project.introSharedSuffix }}<br />
     {{ texts.project.introLocalPrefix }}

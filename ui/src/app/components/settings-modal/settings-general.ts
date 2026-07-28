@@ -173,6 +173,19 @@ export class SettingsGeneral {
     });
   }
 
+  /**
+   * DOM id of the switch rendered for `key`, shared by the
+   * `<p-toggleswitch [inputId]>` and the `<label [attr.for]>` that names
+   * it. Derived from the toggle key (the one value guaranteed unique
+   * across `GENERAL_TOGGLES`) so adding a toggle cannot silently collide
+   * two labels onto the same control. Non-id characters (the dot in
+   * `updateCheck.enabled`) are folded to `-` so the value stays usable
+   * as a plain CSS / query selector too.
+   */
+  protected toggleInputId(key: IGeneralToggleDef['key']): string {
+    return `settings-general-toggle-${key.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+  }
+
   protected toggleLabel(key: IGeneralToggleDef['key']): string {
     return SETTINGS_TEXTS.general.toggles[key].label;
   }

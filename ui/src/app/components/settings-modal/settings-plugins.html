@@ -161,14 +161,20 @@
           [class.is-failed]="isFailed(plugin)"
           [attr.data-testid]="'settings-row-' + plugin.id"
         >
+          <!-- NOT a `role="button"`. `button` makes every descendant
+               presentational, which used to erase the whole row from the
+               accessibility tree (chevron, Trust / Untrust actions,
+               status / locked / trusted badges and their `sr-only`
+               mirrors, the description, the runtime-errors toggle): the
+               row announced as "Plugin <id> row, button" and nothing
+               else. The click below is a mouse convenience ONLY; the
+               keyboard path is the real `<button>` chevron inside, which
+               is rendered under exactly the same condition the click
+               acts on (`canExpandExtensions`), so nothing is
+               keyboard-unreachable. -->
           <div
             class="settings-plugins__row-main"
-            role="button"
-            tabindex="0"
-            [attr.aria-label]="texts.a11y.pluginRow(plugin.id)"
             (click)="onRowClick(plugin, $event)"
-            (keydown.enter)="onRowClick(plugin, $event)"
-            (keydown.space)="$event.preventDefault(); onRowClick(plugin, $event)"
           >
             @if (canExpandExtensions(plugin)) {
               <button
@@ -375,14 +381,18 @@
                   [class.is-dirty]="isDirty(qualifiedId)"
                   [attr.data-testid]="'settings-extrow-' + plugin.id + '-' + ext.id"
                 >
+                  <!-- Same reason as the plugin row above: no
+                       `role="button"`, which would flatten the id, kind,
+                       stability, version and locked badges into a single
+                       unreadable "button" and hide the enable switch at
+                       the end of this block. The click is a mouse
+                       shortcut for flipping that switch; the switch
+                       itself is the keyboard path and is disabled under
+                       exactly the condition the click refuses
+                       (`ext.locked`). -->
                   <div
                     class="settings-plugins__subrow-main"
-                    role="button"
-                    tabindex="0"
-                    [attr.aria-label]="texts.a11y.extensionRow(qualifiedId)"
                     (click)="onSubrowClick(plugin.id, ext, $event)"
-                    (keydown.enter)="onSubrowClick(plugin.id, ext, $event)"
-                    (keydown.space)="$event.preventDefault(); onSubrowClick(plugin.id, ext, $event)"
                   >
                     <div class="settings-plugins__subrow-text">
                       <div class="settings-plugins__subrow-headline">

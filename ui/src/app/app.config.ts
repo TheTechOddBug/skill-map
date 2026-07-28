@@ -93,6 +93,22 @@ export const appConfig: ApplicationConfig = {
     // PrimeNG.setThemeConfig() before first render: Angular awaits the
     // returned promise during bootstrap, so there is no flash of
     // unstyled content. See ROADMAP §Step 14.7 bundle hard cut.
+    //
+    // WCAG 1.4.13 (hoverable tooltips, a11y audit finding M7) CANNOT be
+    // fixed from here, verified against the pinned primeng@21.1.9 rather
+    // than assumed. `Tooltip.autoHide` defaults to `true`, which hides the
+    // tooltip the moment the pointer moves onto it, exactly what 1.4.13
+    // forbids for content a magnifier user has to pan across. There is no
+    // global default for it: `PrimeNG.setConfig` reads only
+    // `csp / ripple / inputStyle / inputVariant / theme / overlayOptions /
+    // translation / filterMatchModeOptions / overlayAppendTo / zIndex /
+    // ptOptions / pt / unstyled`; the Tooltip directive consults the config
+    // for just `overlayAppendTo` and `zIndex.tooltip`; and `pt` carries DOM
+    // attributes and classes, not directive inputs. The remaining fixes are
+    // `[autoHide]="false"` on each of the ~100 `[pTooltip]` bindings or a
+    // host directive that supplies the default, both of which reach far
+    // outside this file. Left open deliberately; dismissal (`hideOnEscape`)
+    // and persistence already conform.
     providePrimeNG({}),
     provideAppInitializer(async () => {
       // `inject()` MUST be called synchronously inside the injector

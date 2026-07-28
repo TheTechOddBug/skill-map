@@ -1,10 +1,13 @@
 <section class="queue queue--rail" data-testid="queue-view">
   @if (error()) {
-    <!-- PrimeNG p-message has no implicit role=alert; the wrapper makes the
-         error announce assertively when it appears (WCAG 4.1.3). -->
-    <div role="alert" aria-live="assertive">
-      <p-message severity="error" [text]="error()!" />
-    </div>
+    <!-- No live-region wrapper here (WCAG 4.1.3): `<p-message>` declares
+         `role="alert"` + `aria-live="polite"` on its OWN host (verified in
+         primeng@21.1.9 `primeng-message.mjs`, `host.attributes`), so
+         wrapping it in `<div role="alert" aria-live="assertive">` nested one
+         live region inside another, which is undefined behaviour in AT (the
+         usual outcome is a duplicate or a dropped announcement). Do not
+         re-add the wrapper when copying this block into a new view. -->
+    <p-message severity="error" [text]="error()!" />
   }
 
   @if (showLoading()) {
@@ -124,11 +127,20 @@
         </p>
       </div>
     } @else {
-    <div class="queue__split">
+    <!-- Two DELEGATED listeners for the whole table (WCAG 2.1.1), never one
+         per row: rows are re-created on every live re-fetch (a `job.*` burst
+         re-renders the page every 400ms), so per-row handlers would be
+         re-bound continuously for no gain. `keydown` drives the roving
+         tabindex (arrows / Home / End move, Enter / Space select the row's
+         node); `focusin` (which bubbles, unlike `focus`) syncs the roving
+         index when the user reaches a row by click or Tab. Same mechanism as
+         the files listing. -->
+    <div class="queue__split" (keydown)="onKeydown($event)" (focusin)="onFocusIn($event)">
       <p-table
         [value]="filteredRows()"
         [paginator]="true"
         [rows]="pageSize"
+        (onPage)="onPage($event)"
         [showCurrentPageReport]="true"
         [currentPageReportTemplate]="texts.pageReport"
         [showPageLinks]="false"
@@ -147,11 +159,22 @@
             <th class="queue__col-age">{{ texts.columns.age }}</th>
           </tr>
         </ng-template>
-        <ng-template pTemplate="body" let-row>
+        <!-- Roving tabindex over the rows, NOT `tabindex="0"` on each one:
+             one row is in the Tab order at a time and the arrow keys move
+             it, so Tab still crosses the table in a single step. `rowIndex`
+             is PrimeNG's ABSOLUTE index into `[value]` (it adds `first` when
+             a paginator is on), which is what `data-row-index` carries back
+             to the handler. The table deliberately stays `role="table"`
+             rather than claiming `grid`: a grid owes cell navigation, and
+             announcing semantics we do not answer is worse than an honest
+             table (same call as the files listing). -->
+        <ng-template pTemplate="body" let-row let-rowIndex="rowIndex">
           <tr
             class="queue__row"
             [attr.data-status]="row.status"
             [class.is-selected]="row.nodeId === selectedNodeId()"
+            [attr.tabindex]="tabbableIndex() === rowIndex ? 0 : -1"
+            [attr.data-row-index]="rowIndex"
             (click)="selectNode(row)"
             [attr.data-testid]="'queue-row-' + row.id"
           >
@@ -161,8 +184,15 @@
                  acting on a job does not also select its node. -->
             <td class="queue__cell-status">
               <span class="queue__status-cell">
+                <!-- `role="img"` is load-bearing, not decoration (WCAG 1.1.1
+                     + 4.1.2): the glyph is `aria-hidden`, so the name lives
+                     on this wrapper, and ARIA forbids naming the implicit
+                     `generic` role a bare `<span>` carries. Without the role
+                     the `aria-label` is DROPPED and the Status column, the
+                     most important one in this table, reads as empty. -->
                 <span
                   class="queue__status"
+                  role="img"
                   [attr.data-status]="row.status"
                   [pTooltip]="row.statusLabel"
                   tooltipPosition="top"
@@ -220,8 +250,13 @@
             </td>
             <td class="queue__cell-ext">
               <span class="queue__ext">
+                <!-- Same `role="img"` contract as the status glyph above:
+                     an `<i>` is `generic`, which ARIA does not allow to be
+                     named, so the kind (analyzer / action) would be silent
+                     for AT and only reachable through the mouse tooltip. -->
                 <i
                   [class]="'queue__kind ' + row.kindIcon"
+                  role="img"
                   [attr.data-kind]="row.kind"
                   [pTooltip]="row.kindLabel"
                   tooltipPosition="top"

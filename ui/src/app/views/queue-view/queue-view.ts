@@ -27,7 +27,7 @@ import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { debounceTime, map, merge } from 'rxjs';
-import { TableModule } from 'primeng/table';
+import { TableModule, type TablePageEvent } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
@@ -265,6 +265,132 @@ export class QueueView {
   protected readonly showLoading = computed(
     () => this.loading() && this.jobs().length === 0,
   );
+
+  // ---------------------------------------------------------------------
+  // Keyboard navigation (WCAG 2.1.1)
+  //
+  // Rows were mouse-only: selecting the node a job belongs to was
+  // impossible from the keyboard. This is the files-listing mechanism,
+  // ported: a roving tabindex over the rows (exactly one is tabbable, the
+  // arrows move it) driven by ONE delegated keydown on the wrapper, so the
+  // table costs two listeners regardless of how many rows are on the page
+  // and a live re-fetch does not re-bind anything.
+  //
+  // Navigation is deliberately CLAMPED to the current page rather than
+  // paging on overflow: the page is what is mounted, the paginator is
+  // itself keyboard reachable, and silently jumping pages under an arrow
+  // key is a bigger surprise than stopping at the last row.
+  // ---------------------------------------------------------------------
+
+  /** Index of the first row of the page the table is showing. */
+  private readonly pageFirst = signal(0);
+
+  /** Absolute index (into `filteredRows()`) of the row the user last used. */
+  private readonly activeIndex = signal(0);
+
+  /**
+   * Absolute index of the row that currently owns `tabindex="0"`, clamped
+   * into the page actually rendered. The clamp is what keeps the table
+   * reachable at all: a search / status filter (or a live re-fetch that
+   * drains the queue) can drop the row the roving index pointed at, and a
+   * roving index with no matching row leaves NO tabbable row, i.e. the whole
+   * table silently falls out of the Tab order. `-1` while the list is empty
+   * (no row rendered, nothing to make tabbable).
+   */
+  protected readonly tabbableIndex = computed<number>(() => {
+    const total = this.filteredRows().length;
+    if (total === 0) return -1;
+    // Last page start that still holds a row, so a stale `pageFirst` (the
+    // list shrank under the page we were on) cannot point past the data.
+    const maxStart = Math.floor((total - 1) / this.pageSize) * this.pageSize;
+    const start = Math.min(this.pageFirst(), maxStart);
+    const end = Math.min(start + this.pageSize, total) - 1;
+    return Math.min(Math.max(this.activeIndex(), start), end);
+  });
+
+  /** Page changed: park the roving index on the new page's first row. */
+  protected onPage(event: TablePageEvent): void {
+    this.pageFirst.set(event.first);
+    this.activeIndex.set(event.first);
+  }
+
+  /**
+   * Delegated keydown for the whole table. Arrows / Home / End move the
+   * roving focus, Enter / Space select the row's node (the same intent the
+   * click handler fires, nothing new is announced).
+   */
+  protected onKeydown(event: KeyboardEvent): void {
+    const target = event.target as HTMLElement | null;
+    // Only the row itself navigates. Keys pressed on the row's inline
+    // Cancel / Retry buttons or on the paginator belong to those controls:
+    // without this guard, Enter on Cancel would ALSO select the node and
+    // the `preventDefault` below would swallow the button's own activation.
+    if (!target || !target.matches('tr.queue__row')) return;
+    const host = event.currentTarget;
+    if (!(host instanceof HTMLElement)) return;
+    // Rows are read off the DOM at event time: their order IS the rendered
+    // order, and it needs no index bookkeeping to stay in sync with the
+    // page the table decided to show.
+    const rows = Array.from(host.querySelectorAll<HTMLElement>('tr.queue__row'));
+    const current = rows.indexOf(target);
+    if (current < 0) return;
+
+    switch (event.key) {
+      case 'ArrowDown':
+        this.focusRow(rows, current + 1);
+        break;
+      case 'ArrowUp':
+        this.focusRow(rows, current - 1);
+        break;
+      case 'Home':
+        this.focusRow(rows, 0);
+        break;
+      case 'End':
+        this.focusRow(rows, rows.length - 1);
+        break;
+      case 'Enter':
+      case ' ':
+      case 'Spacebar': {
+        const row = this.rowOfElement(target);
+        if (row) this.selectNode(row);
+        break;
+      }
+      default:
+        return;
+    }
+    event.preventDefault();
+  }
+
+  /**
+   * A row took focus (click, Tab, or the arrow walk below). `focusin` is
+   * used rather than a per-row `(focus)` because focus does not bubble:
+   * one listener on the wrapper covers every row, present and future.
+   */
+  protected onFocusIn(event: FocusEvent): void {
+    const row = (event.target as HTMLElement | null)?.closest<HTMLElement>('tr.queue__row');
+    if (!row) return;
+    const index = Number(row.dataset['rowIndex']);
+    if (!Number.isNaN(index)) this.activeIndex.set(index);
+  }
+
+  /**
+   * Move the roving focus to `index`, clamped to the rendered page. No
+   * render wait: a `tabindex="-1"` row is already programmatically
+   * focusable, the binding only decides which row Tab reaches next.
+   */
+  private focusRow(rows: readonly HTMLElement[], index: number): void {
+    const el = rows[Math.max(0, Math.min(index, rows.length - 1))];
+    if (!el) return;
+    const next = Number(el.dataset['rowIndex']);
+    if (!Number.isNaN(next)) this.activeIndex.set(next);
+    el.focus();
+  }
+
+  /** The row model behind a `<tr>`, via the absolute index it carries. */
+  private rowOfElement(el: HTMLElement): IQueueRow | undefined {
+    const index = Number(el.dataset['rowIndex']);
+    return Number.isNaN(index) ? undefined : this.filteredRows()[index];
+  }
 
   /**
    * Announce the live active-job count when it changes (WCAG 4.1.3), so

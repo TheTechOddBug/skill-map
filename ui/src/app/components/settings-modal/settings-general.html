@@ -27,7 +27,16 @@
         [attr.data-testid]="'settings-general-row-' + def.key"
       >
         <div class="settings-general__row-text">
-          <div class="settings-general__row-label">{{ toggleLabel(def.key) }}</div>
+          <!-- `<label for>` + `[inputId]`: PrimeNG's `<p-toggleswitch>`
+               wraps an `<input type="checkbox" role="switch">` that gets
+               its accessible name only from a paired label (or
+               ariaLabel / ariaLabelledBy). Unpaired, every row in this
+               loop announces as "switch, off" with nothing to tell them
+               apart. The id is derived from the toggle key so it stays
+               unique as `GENERAL_TOGGLES` grows. -->
+          <label class="settings-general__row-label" [attr.for]="toggleInputId(def.key)"
+            >{{ toggleLabel(def.key) }}</label
+          >
           <div class="settings-general__row-description">
             {{ toggleDescription(def.key) }}
           </div>
@@ -36,6 +45,7 @@
           }
         </div>
         <p-toggleswitch
+          [inputId]="toggleInputId(def.key)"
           [ngModel]="valueOf(def)"
           (ngModelChange)="onToggle(def, $event)"
           [disabled]="loading() || isPending(def.key) || preferences() === null"
@@ -49,7 +59,13 @@
       data-testid="settings-general-row-extra-theme"
     >
       <div class="settings-general__row-text">
-        <div class="settings-general__row-label">
+        <!-- `<p-selectbutton>` renders `role="group"` and names it ONLY
+             from `aria-labelledby`; there is no labelable input to pair
+             a `<label for>` with, so the visible label carries an id and
+             the group points at it. Without this the group is anonymous
+             and a screen reader announces the theme options with no clue
+             what axis they belong to. -->
+        <div class="settings-general__row-label" id="settings-general-extra-theme-label">
           {{ texts.general.extraTheme.label }}
         </div>
         <div class="settings-general__row-description">
@@ -57,6 +73,7 @@
         </div>
       </div>
       <p-selectbutton
+        ariaLabelledBy="settings-general-extra-theme-label"
         [options]="extraThemeOptions"
         [ngModel]="extraThemeWire()"
         (ngModelChange)="onExtraThemeChange($event)"

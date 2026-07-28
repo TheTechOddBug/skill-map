@@ -11,6 +11,7 @@ import { FilesFollowSelectionService } from '../../../services/files-follow-sele
 import { FilterStoreService } from '../../../services/filter-store';
 import { MapVisibilityService } from '../../../services/map-visibility';
 import { setupEdgeResize } from '../../core/edge-resize.controller';
+import { handleRovingTablistKeydown } from '../../core/roving-tablist';
 import { MAP_ISOLATE_INTENT, type IMapIsolateIntent } from '../../slots/map-isolate-intent';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import { FilesView } from '../files-view/files-view';
@@ -33,6 +34,14 @@ const RAIL_WIDTH_MIN = 280;
 const RAIL_VIEWPORT_RESERVE = 480;
 /** Pixels the rail grows / shrinks per arrow keypress (WCAG 2.1.1). */
 const RAIL_RESIZE_STEP = 24;
+/**
+ * Tab order of the open rail's strip, in the order the template renders the
+ * buttons. Only consumed by the arrow-key handler's fallback branch (see
+ * `onSectionKeydown`); the tabs themselves are read off the DOM, so this
+ * stays a plain list and does NOT drive the markup. Reorder the template
+ * buttons and this list moves with them.
+ */
+const WORKSPACE_TAB_ORDER: readonly TWorkspaceSection[] = ['files', 'queue'];
 
 /**
  * Fused single-screen workspace: a resizable files rail on the left, the
@@ -229,6 +238,37 @@ export class WorkspaceView implements IMapIsolateIntent {
       writeStoredRailCollapsed(false);
       this.animateRail();
     }
+  }
+
+  /**
+   * APG tabs keyboard navigation for the open rail's tab strip (WCAG 2.1.1).
+   *
+   * The strip carries a roving tabindex (only the selected tab is in the
+   * tab sequence), which the pattern permits ONLY when the arrow keys move
+   * focus between tabs. Without this handler the inactive section could be
+   * reached solely by collapsing the rail with the chevron and hitting the
+   * activity-bar buttons, a route nothing announces.
+   *
+   * Selection FOLLOWS focus (automatic activation), same call as the Quick
+   * Start rail: the roving tabindex is keyed off `activeSection()`, so
+   * focus and selection must not diverge. Routed through `openSection` so
+   * an arrow is exactly the gesture a click is (same persistence, same
+   * `userToggledRail` bookkeeping); the collapse branch inside it is inert
+   * here because this strip only renders while the rail is open.
+   *
+   * The strip is horizontal, so ONLY Left / Right are bound (the vertical
+   * Quick Start rail binds Up / Down instead); Home / End jump to the ends
+   * and both directions wrap. Keep the two strips in step.
+   */
+  protected onSectionKeydown(event: KeyboardEvent): void {
+    handleRovingTablistKeydown(event, {
+      orientation: 'horizontal',
+      selectedIndex: () => WORKSPACE_TAB_ORDER.indexOf(this.activeSection()),
+      select: (index) => {
+        const section = WORKSPACE_TAB_ORDER[index];
+        if (section !== undefined) this.openSection(section);
+      },
+    });
   }
 
   /** Chevron gesture (open state only): collapse the rail to the icon bar. */
