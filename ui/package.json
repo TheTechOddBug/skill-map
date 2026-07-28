@@ -12,7 +12,8 @@
     "test:ci": "FORCE_COLOR=1 node scripts/quiet-test.mjs",
     "bundle-analyze": "pnpm build --configuration=analyze && source-map-explorer dist/ui/browser/*.js --no-border-checks",
     "validate": "pnpm validate:compile && pnpm validate:test",
-    "validate:compile": "pnpm build",
+    "links:check": "node scripts/check-external-links.mjs",
+    "validate:compile": "pnpm links:check && pnpm build",
     "validate:test": "pnpm test:ci"
   },
   "private": true,

@@ -232,7 +232,7 @@ jobs:
         if: steps.pass.outputs.publish == 'true'
         run: pnpm --filter @skill-map/spec spec:check
 
-      - name: Changesets — version PR or publish
+      - name: Changesets (version PR or publish)
         id: changesets
         uses: changesets/action@v1
         with:
