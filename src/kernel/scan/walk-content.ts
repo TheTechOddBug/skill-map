@@ -48,7 +48,7 @@
  */
 
 import { readFile, readdir, lstat, realpath, stat } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import type { IRawNode } from '../extensions/provider.js';
 import { buildIgnoreFilter, type IIgnoreFilter } from './ignore.js';
@@ -143,7 +143,32 @@ export interface IWalkContentOptions {
    * wherever they point (cycle detection still applies). Absent → `false`.
    */
   followExternalSymlinks?: boolean;
+  /**
+   * Directory-level containment memo for the SCOPED path, shared across
+   * the per-provider walks of one pass.
+   *
+   * The scoped read runs once per active provider over the same changed
+   * set, and a containment check needs a `realpath` per path. Resolving
+   * every file individually roughly doubles the incremental pass (measured
+   * +119% on a 2000-file / 5-provider batch); memoising the DIRECTORY
+   * verdict collapses it to +8%, because a batch shares directories and
+   * the escape can only enter through a directory component (the leaf is
+   * handled separately, and only real symlinks pay for it).
+   *
+   * Absent → `walkScoped` allocates its own, so a single-shot caller
+   * (`submit-engine`) stays correct without ceremony. Valid for ONE pass
+   * only: a directory symlink swapped mid-batch keeps its cached verdict
+   * for a few milliseconds, the same TOCTOU window the traversal path
+   * already carries.
+   */
+  scopedContainmentCache?: TScopedContainmentCache;
 }
+
+/**
+ * `dirname` → "resolves inside a scan root" verdict. See
+ * `IWalkContentOptions.scopedContainmentCache`.
+ */
+export type TScopedContainmentCache = Map<string, boolean>;
 
 export class UnknownParserError extends Error {
   constructor(parserId: string) {
@@ -172,7 +197,11 @@ export async function* walkContent(
   // exact list of changed files, so skip the directory traversal
   // entirely and read only those. See `IWalkContentOptions.scopedPaths`.
   if (options.scopedPaths !== undefined) {
-    yield* walkScoped(roots, options.scopedPaths, extensions, sizeLimit, parser, bodyField);
+    yield* walkScoped(roots, options.scopedPaths, extensions, sizeLimit, parser, bodyField, {
+      rootReals: await resolveRootReals(roots),
+      followExternalSymlinks: options.followExternalSymlinks === true,
+      cache: options.scopedContainmentCache ?? new Map(),
+    });
     return;
   }
 
@@ -301,12 +330,72 @@ async function* walkScoped(
   sizeLimit: IWalkSizeLimit,
   parser: ReturnType<typeof getParser>,
   bodyField: string | undefined,
+  gate: IScopedGate,
 ): AsyncIterable<IRawNode> {
   const absRoots = roots.map((r) => (isAbsolute(r) ? r : resolve(r)));
   for (const scoped of scopedPaths) {
-    const rec = await scopedPathToNode(scoped, absRoots, extensions, sizeLimit, parser, bodyField);
+    const rec = await scopedPathToNode(
+      scoped, absRoots, extensions, sizeLimit, parser, bodyField, gate,
+    );
     if (rec !== null) yield rec;
   }
+}
+
+/**
+ * Containment inputs for the scoped path, the counterpart of the
+ * traversal path's `IWalkRootCtx` fields (audit H4). Lexical containment
+ * (`relativeFromRoots`) is not enough: `docs/link/x.md` where `link`
+ * escapes the tree is lexically interior yet reads out-of-tree content.
+ */
+interface IScopedGate {
+  /** Scan-root realpaths; `isContained` matches against these. */
+  rootReals: readonly string[];
+  /** Mirror of `scan.followExternalSymlinks`; when true the gate is disabled. */
+  followExternalSymlinks: boolean;
+  /** Shared per-pass directory verdict memo. */
+  cache: TScopedContainmentCache;
+}
+
+/**
+ * True when reading `full` stays inside a scan root, mirroring the
+ * traversal path's `followSymlink` gate (audit M1) for the scoped read.
+ *
+ * Two escape vectors, resolved at different costs on purpose:
+ *
+ *   - **The leaf is a symlink** (`notes.md -> ~/.ssh/id_rsa`): its own
+ *     `realpath` must be contained. That single call also resolves every
+ *     directory component, so no further check is needed. Rare, so it
+ *     pays full price and is never cached.
+ *   - **A directory component is a symlink** (`docs/x -> ~/`, the case
+ *     the string-only check missed entirely): the parent's `realpath`
+ *     must be contained. This is the common path, so the verdict is
+ *     memoised per directory, which is what keeps the incremental pass
+ *     fast (see `scopedContainmentCache`).
+ */
+async function isScopedPathContained(
+  full: string,
+  isSymlink: boolean,
+  gate: IScopedGate,
+): Promise<boolean> {
+  if (gate.followExternalSymlinks) return true;
+  if (isSymlink) {
+    try {
+      return isContained(await realpath(full), gate.rootReals);
+    } catch {
+      return false; // broken link
+    }
+  }
+  const dir = dirname(full);
+  const cached = gate.cache.get(dir);
+  if (cached !== undefined) return cached;
+  let ok: boolean;
+  try {
+    ok = isContained(await realpath(dir), gate.rootReals);
+  } catch {
+    ok = false; // vanished or unresolvable
+  }
+  gate.cache.set(dir, ok);
+  return ok;
 }
 
 /**
@@ -322,16 +411,16 @@ async function scopedPathToNode(
   sizeLimit: IWalkSizeLimit,
   parser: ReturnType<typeof getParser>,
   bodyField: string | undefined,
+  gate: IScopedGate,
 ): Promise<IRawNode | null> {
   const full = isAbsolute(scoped) ? scoped : resolve(scoped);
   const relPath = relativeFromRoots(full, absRoots);
   if (relPath === null) return null; // outside every root (string form)
   if (!hasMatchingExtension(full, extensions)) return null; // not this provider's
-  // A scoped path reached through a symlinked directory resolves to a real
-  // file at its final component, so `statRegularFile`'s `lstat` accepts it;
-  // symlinks are always followed, so no extra guard is needed here.
-  const s = await statRegularFile(full, relPath, sizeLimit);
-  if (s === null) return null; // vanished, non-regular, or oversized
+  // Lexical containment is not enough (audit H4): resolve the real target
+  // before reading, exactly as the traversal path does.
+  const s = await gatedStatScopedFile(full, relPath, sizeLimit, gate);
+  if (s === null) return null; // outside the roots, vanished, non-regular, or oversized
   const parsed = await readAndParse(full, relPath, parser, bodyField);
   if (parsed === null) return null; // unreadable, silently skipped
   return {
@@ -346,11 +435,75 @@ async function scopedPathToNode(
 }
 
 /**
- * TOCTOU-aligned stat for the scoped path: `lstat` re-verifies the entry
- * is a regular file (not a symlink / socket / FIFO swapped in) and supplies
- * the size for the oversized guard, all before the read. Returns the
- * `Stats` for a passing regular file, or `null` when the path vanished, is
- * not a regular file, or exceeds the size limit (reporting it as oversized).
+ * Containment gate plus stat for one scoped path, in the order that pays
+ * the fewest syscalls: a single `lstat` establishes whether the leaf is a
+ * symlink (which steers the gate) AND feeds the regular-file check, so
+ * the entry is stat'd once rather than twice.
+ *
+ * Returns `null` when the path escapes the roots, vanished, is not a
+ * regular file, or is oversized. Split from `scopedPathToNode` to keep
+ * that function under the complexity cap.
+ */
+async function gatedStatScopedFile(
+  full: string,
+  relPath: string,
+  sizeLimit: IWalkSizeLimit,
+  gate: IScopedGate,
+): Promise<import('node:fs').Stats | null> {
+  let head;
+  try {
+    head = await lstat(full);
+  } catch {
+    return null; // vanished between the chokidar event and the read
+  }
+  if (!(await isScopedPathContained(full, head.isSymbolicLink(), gate))) return null;
+  return statScopedFile(full, relPath, head, sizeLimit);
+}
+
+/**
+ * TOCTOU-aligned stat for the scoped path. `head` is the `lstat` the
+ * caller already took (it steers the containment gate), reused here so
+ * the syscall is not paid twice; it re-verifies the entry is a regular
+ * file rather than a socket / FIFO swapped in, and supplies the size for
+ * the oversized guard, all before the read.
+ *
+ * A leaf symlink is FOLLOWED rather than refused, matching the traversal
+ * path: `followSymlink` there resolves the link and yields its target
+ * when contained. The gate has already established containment by the
+ * time this runs, so the `stat` reads a target known to be inside a scan
+ * root. Refusing symlinks here instead would leave the two walks
+ * disagreeing about the same tree, and would leave the leaf hole plugged
+ * only by accident, which is what made the pre-H4 state fragile.
+ *
+ * Returns the `Stats` for a passing regular file, or `null` when the path
+ * vanished, is not a regular file, or exceeds the size limit (reporting
+ * it as oversized).
+ */
+async function statScopedFile(
+  full: string,
+  relPath: string,
+  head: import('node:fs').Stats,
+  sizeLimit: IWalkSizeLimit,
+): Promise<import('node:fs').Stats | null> {
+  let s = head;
+  if (s.isSymbolicLink()) {
+    try {
+      s = await stat(full); // contained by the gate above; follow it
+    } catch {
+      return null; // broken link, or vanished mid-batch
+    }
+  }
+  return acceptRegularFile(s, relPath, sizeLimit);
+}
+
+/**
+ * TOCTOU-aligned stat for the TRAVERSAL path: `lstat` (NOT `stat`)
+ * re-verifies that the entry `readdir` reported as a regular file still
+ * is one, so a benign `.md` swapped for a symlink in the race window is
+ * rejected (audit H1). Legitimate symlinks never reach here, traversal
+ * routes them through `followSymlink`, which knows from `readdir` that
+ * the entry is a link. The scoped path needs the opposite treatment (it
+ * has no `readdir` verdict to lean on) and uses `statScopedFile`.
  */
 async function statRegularFile(
   full: string,
@@ -361,8 +514,20 @@ async function statRegularFile(
   try {
     s = await lstat(full);
   } catch {
-    return null; // vanished between the chokidar event and the read
+    return null; // vanished between readdir and the stat
   }
+  return acceptRegularFile(s, relPath, sizeLimit);
+}
+
+/**
+ * Shared tail of both stat helpers: accept a regular file within the size
+ * limit, reporting an oversized one through the callback.
+ */
+function acceptRegularFile(
+  s: import('node:fs').Stats,
+  relPath: string,
+  sizeLimit: IWalkSizeLimit,
+): import('node:fs').Stats | null {
   if (!s.isFile()) return null;
   if (sizeLimit.maxFileSizeBytes !== undefined && s.size > sizeLimit.maxFileSizeBytes) {
     sizeLimit.onOversizedFile?.({ path: relPath, bytes: s.size });

@@ -665,7 +665,14 @@ async function walkIncremental(args: IWalkIncrementalArgs): Promise<number> {
   // each active provider in the same iteration order the full walk uses.
   const scopedAbs = [...changed].map((rel) => toAbsolute(rel, args.wctx.opts.roots));
   if (scopedAbs.length > 0) {
-    const scopedWalkOptions = { ...args.walkOptions, scopedPaths: scopedAbs };
+    // One containment memo for the whole pass, not one per provider: the
+    // same changed set is walked once per active provider, so sharing the
+    // directory verdicts is what keeps the H4 gate off the hot path.
+    const scopedWalkOptions = {
+      ...args.walkOptions,
+      scopedPaths: scopedAbs,
+      scopedContainmentCache: new Map<string, boolean>(),
+    };
     for (const provider of args.activeProviders) {
       for await (const raw of resolveProviderWalk(provider)(args.wctx.opts.roots, scopedWalkOptions)) {
         filesWalked += 1;

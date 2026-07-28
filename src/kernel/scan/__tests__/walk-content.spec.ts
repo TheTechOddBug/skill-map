@@ -661,21 +661,23 @@ describe('walkContent, symlinks (in-tree followed, escaping contained by default
     }
   });
 
-  it('scoped read follows a path escaping the roots via a symlink (no containment gate)', async () => {
+  it('scoped read REFUSES a path escaping the roots via a symlink (audit H4)', async () => {
+    // This test previously asserted the opposite: it characterised the
+    // gap, recording that the out-of-root content was read. The
+    // containment gate (audit M1) guarded only the traversal walk, so a
+    // watcher-driven incremental read went straight through an escaping
+    // directory link. Both walks now agree; see
+    // `walk-scoped-containment.spec.ts` for the full matrix.
     const dir = mkRoot();
     const outside = mkdtempSync(join(tmpdir(), 'walk-symlink-out-'));
     try {
       write(join(outside, 'secret.md'), '---\nname: secret\n---\nOUTSIDE');
       if (!link(outside, join(dir, 'escape'))) return;
       const collected = await collectScoped(dir, [join(dir, 'escape/secret.md')]);
-      deepStrictEqual(
-        collected.map((n) => n.path),
-        ['escape/secret.md'],
-        'the escaping scoped path is read under the link form',
-      );
+      deepStrictEqual(collected.map((n) => n.path), [], 'the escaping scoped path is refused');
       ok(
-        collected.some((n) => n.body.includes('OUTSIDE')),
-        'the out-of-root content is read through the followed symlink',
+        !collected.some((n) => n.body.includes('OUTSIDE')),
+        'no out-of-root content reaches the graph',
       );
     } finally {
       rmSync(dir, { recursive: true, force: true });

@@ -1142,6 +1142,14 @@ export interface IProviderWalkOptions {
    * same speedup but is not required to.
    */
   scopedPaths?: readonly string[];
+  /**
+   * Per-pass directory containment memo for the scoped read (audit H4).
+   * The orchestrator allocates ONE and hands the same instance to every
+   * active provider's scoped walk, so the containment `realpath`s are
+   * paid once per directory instead of once per provider per file. A
+   * Provider shipping its own `walk()` may ignore it.
+   */
+  scopedContainmentCache?: Map<string, boolean>;
 }
 
 /**
@@ -1294,4 +1302,7 @@ function copyOptionalWalkOptions(
   if (options.onOversizedFile) walkOptions.onOversizedFile = options.onOversizedFile;
   if (options.priorMtimes) walkOptions.priorMtimes = options.priorMtimes;
   if (options.scopedPaths) walkOptions.scopedPaths = options.scopedPaths;
+  if (options.scopedContainmentCache) {
+    walkOptions.scopedContainmentCache = options.scopedContainmentCache;
+  }
 }
