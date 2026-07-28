@@ -23,8 +23,8 @@
  *       .skill-map/settings.json                         claude lens pinned
  *       .claude/skills/perf-skill-NNNN/SKILL.md     300  skill
  *       .claude/agents/perf-agent-NNNN.md           200  agent
- *       .claude/commands/perf-cmd-NNNN.md           200  command
- *       docs/bucket-NN/perf-doc-NNNN.md             298  markdown
+ *       .claude/commands/perf-cmd-NNNN.md           242  command
+ *       docs/bucket-NN/perf-doc-NNNN.md             256  markdown
  *                                                  ----
  *                                                  1000  .md files
  *
@@ -52,8 +52,14 @@ const MARKER = '.perf-fixture';
 /** How many doc buckets the `docs/` tree is split into (directory fan-out). */
 const DOC_BUCKETS = 10;
 
-/** Share of the total file count per kind; docs absorb the remainder. */
-const MIX = { skill: 0.3, agent: 0.2, command: 0.2 };
+/**
+ * Share of the total file count per kind; docs absorb the remainder. The
+ * command share is tuned so the DEFAULT shape (`--count 1000`) leaves
+ * `docs/` at exactly 256 files, the design-default render cap
+ * (`scan.maxNodes`): scoping the map to `docs/` fills it to the brim
+ * with zero truncation, the exact cap boundary in one click.
+ */
+const MIX = { skill: 0.3, agent: 0.2, command: 0.242 };
 
 /** MCP servers declared in `.mcp.json`, referenced from a few frontmatters. */
 const MCP_SERVERS = ['perf-index', 'perf-store', 'perf-search'];
