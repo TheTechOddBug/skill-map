@@ -21,12 +21,12 @@ import { LIST_TEXTS } from '../i18n/list.texts.js';
 import type { IAnsi } from '../util/ansi.js';
 import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
-import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { parsePositiveIntegerOption } from '../util/option-validators.js';
 import { SmCommand } from '../util/sm-command.js';
-import { truncateTail } from '../util/text.js';
-import { withSqlite } from '../util/with-sqlite.js';
+import { truncateTail } from '../../kernel/util/text.js';
+import { withSqlite } from '../../core/sqlite/with-sqlite.js';
 
 // Whitelist of sortable columns. NEVER interpolate user input into SQL,
 // `--sort-by` is rejected with exit 2 if it isn't in this map. Each entry
@@ -100,7 +100,7 @@ export class ListCommand extends SmCommand {
     if (!flags.ok) return flags.exit;
 
     const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
-    const exit = requireDbOrExit(dbPath, this.context.stderr);
+    const exit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (exit !== null) return exit;
 
     return withSqlite(
@@ -142,7 +142,7 @@ export class ListCommand extends SmCommand {
 
     let limitValue: number | undefined;
     if (this.limit !== undefined) {
-      const parsed = parsePositiveIntegerOption(this.limit, '--limit', this.context.stderr);
+      const parsed = parsePositiveIntegerOption(this.limit, '--limit', this.context.stderr, this.noColor);
       if (parsed === null) return { ok: false, exit: ExitCode.Error };
       limitValue = parsed;
     }

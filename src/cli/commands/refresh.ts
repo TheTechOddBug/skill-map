@@ -82,11 +82,12 @@ import {
   composeScanExtensions,
   emptyPluginRuntime,
   loadPluginRuntime,
-} from '../util/plugin-runtime.js';
+} from '../../core/runtime/plugin-runtime.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
-import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { appendOperation } from '../../core/operations-log.js';
+import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
-import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
+import { tryWithSqlite, withSqlite } from '../../core/sqlite/with-sqlite.js';
 import { buildActionDirMap } from '../../core/jobs/action-runtime.js';
 
 /**
@@ -372,6 +373,16 @@ export class RefreshCommand extends SmCommand {
     }
     const totalRefreshed =
       freshEnrichments.length + [...stateUpsertsByNode.values()].reduce((a, b) => a + b, 0);
+
+    // §Operations log: refresh mutates `node_enrichments` /
+    // `state_enrichments`, same machine-output surface as a scan pass.
+    appendOperation(defaultRuntimeContext().cwd, {
+      op: 'refresh',
+      target: this.nodePath ?? '*',
+      channel: 'cli',
+      outcome: 'ok',
+      detail: `refreshed=${totalRefreshed}`,
+    });
 
     if (this.json) {
       const envelope: IRefreshJsonEnvelope = {

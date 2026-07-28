@@ -48,7 +48,7 @@ import { CONFORMANCE_TEXTS } from '../i18n/conformance.texts.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { SmCommand } from '../util/sm-command.js';
-import { truncateHead } from '../util/text.js';
+import { truncateHead } from '../../kernel/util/text.js';
 import {
   listCaseFiles,
   selectConformanceScopes,
@@ -59,7 +59,7 @@ import {
 // runner can splice subprocess `stderr` content (`stepChild.stderr`) into
 // the reason payload, which is unbounded, a runaway impl could emit
 // kilobytes that drown the user's terminal. Mirrors the cap policy used
-// for plugin-warning interpolation in `cli/util/plugin-runtime.ts`.
+// for plugin-warning interpolation in `core/runtime/plugin-runtime.ts`.
 const ASSERTION_REASON_DISPLAY_CAP = 1000;
 
 /**

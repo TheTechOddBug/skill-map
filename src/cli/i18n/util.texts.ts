@@ -10,6 +10,16 @@ export const UTIL_TEXTS = {
   dbNotFound: '{{glyph}}  DB not found at {{path}}\n   {{hint}}\n',
   dbNotFoundHint: 'Run `sm scan` first.',
 
+  // sm-command.ts (global unhandled-error boundary)
+  /**
+   * §3.1b block for any error escaping a verb's `run()` that no typed
+   * branch claimed. Without this boundary Clipanion resolves the throw
+   * with exit 1 (its generic failure code), colliding with the public
+   * `1 = issues found` contract, and dumps the class name + stack.
+   */
+  unhandledError: '{{glyph}}  {{message}}\n   {{hint}}\n',
+  unhandledErrorHint: 'Unexpected error (likely a bug in skill-map). Re-run with -v for the stack trace.',
+
   // elapsed.ts
   // Leading \n separates the elapsed line from the verb's body output.
   // Every verb's body is expected to end on a content line (with or

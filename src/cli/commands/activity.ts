@@ -51,7 +51,7 @@ import { ACTIVITY_TEXTS } from '../i18n/activity.texts.js';
 import { ACTIVITY_BRIDGE_REL } from '../util/db-path.js';
 import { confirm } from '../util/confirm.js';
 import { ExitCode } from '../util/exit-codes.js';
-import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
 
 /**

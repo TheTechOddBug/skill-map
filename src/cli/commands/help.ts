@@ -21,7 +21,7 @@ import { Cli, Command, Option } from 'clipanion';
 
 import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { ExitCode } from '../util/exit-codes.js';
-import { BINARY_LABEL, VERSION } from '../version.js';
+import { BINARY_LABEL, VERSION } from '../../version.js';
 import { tx } from '../../kernel/util/tx.js';
 import { HELP_TEXTS, HELP_GROUPS } from '../i18n/help.texts.js';
 

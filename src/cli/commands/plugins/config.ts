@@ -52,7 +52,7 @@ import { PLUGINS_CONFIG_TEXTS } from '../../i18n/plugins-config.texts.js';
 import { defaultLocalSettingsPath, defaultSettingsPath } from '../../util/db-path.js';
 import { ExitCode } from '../../util/exit-codes.js';
 import { relativeIfBelow } from '../../util/path-display.js';
-import { defaultRuntimeContext } from '../../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../../core/runtime/runtime-context.js';
 import { SmCommand } from '../../util/sm-command.js';
 import {
   loadAll,

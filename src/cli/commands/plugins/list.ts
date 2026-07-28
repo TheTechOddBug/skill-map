@@ -33,6 +33,7 @@ import {
 import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
+import { pluralSuffix } from '../../../kernel/util/text.js';
 import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
 import type { IAnsi } from '../../util/ansi.js';
 import { ExitCode } from '../../util/exit-codes.js';
@@ -364,7 +365,10 @@ function renderPluginDetailHeader(match: IDiscoveredPlugin, ansi: IAnsi): string
     version,
     source: ansi.dim(PLUGINS_TEXTS.sourceUser),
     extCount: extCount > 0
-      ? `   ${extCount} extension${extCount === 1 ? '' : 's'}`
+      ? tx(PLUGINS_TEXTS.detailHeaderExtCount, {
+          extCount,
+          plural: pluralSuffix(extCount),
+        })
       : '',
   });
 }

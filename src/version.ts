@@ -3,9 +3,7 @@
  * naming constants. Lives at `src/version.ts` (not under `cli/`) so
  * non-CLI surfaces (`server/health.ts`, future BFF endpoints, kernel
  * doctor reports) can pull the version without crossing into CLI
- * territory. The CLI `cli/version.ts` re-exports from here so existing
- * `import ... from '../version.js'` paths under `cli/` keep working
- * unchanged.
+ * territory.
  */
 
 import pkg from './package.json' with { type: 'json' };

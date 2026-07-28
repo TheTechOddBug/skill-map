@@ -23,7 +23,7 @@ import { join } from 'node:path';
 import { Command, Option } from 'clipanion';
 
 import { defaultProjectPluginsDir } from '../../../core/paths/db-path.js';
-import { defaultRuntimeContext } from '../../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../../core/runtime/runtime-context.js';
 import { ExitCode } from '../../util/exit-codes.js';
 import { SmCommand } from '../../util/sm-command.js';
 import { pluginPackageJson } from './scaffold/index.js';

@@ -11,7 +11,7 @@ import { Command } from 'clipanion';
 import { tx } from '../../../kernel/util/tx.js';
 import { DB_TEXTS } from '../../i18n/db.texts.js';
 import { requireDbOrExit, resolveDbPath } from '../../util/db-path.js';
-import { defaultRuntimeContext } from '../../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../../core/runtime/runtime-context.js';
 import { ExitCode } from '../../util/exit-codes.js';
 import { SmCommand } from '../../util/sm-command.js';
 
@@ -34,7 +34,7 @@ export class DbShellCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const path = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
-    const exit = requireDbOrExit(path, this.context.stderr);
+    const exit = requireDbOrExit(path, this.context.stderr, this.noColor);
     if (exit !== null) return exit;
 
     const result = spawnSync('sqlite3', [path], { stdio: 'inherit' });

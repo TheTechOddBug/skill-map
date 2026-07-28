@@ -51,13 +51,18 @@ export {
  * should propagate exit code 5 (not-found) on a false return per
  * `spec/cli-contract.md` §Exit codes.
  */
-export function assertDbExists(path: string, stderr: NodeJS.WritableStream): boolean {
+export function assertDbExists(
+  path: string,
+  stderr: NodeJS.WritableStream,
+  noColorFlag = false,
+): boolean {
   if (path === ':memory:' || existsSync(path)) return true;
-  // No noColor flag is reachable from this helper, so color resolution
-  // falls back to env / TTY only. Tests pin NO_COLOR=1 in spawnSync
-  // shells; production runs see a coloured glyph when stderr is a TTY.
+  // Callers inside an `SmCommand` pass `this.noColor` so the §2
+  // precedence (`--no-color` > `NO_COLOR` env > TTY) holds on this
+  // error path too; the default keeps bare/non-command callers on
+  // env + TTY resolution.
   const stderrTty = stderr as NodeJS.WritableStream & { isTTY?: boolean };
-  const ansi = ansiFor({ isTTY: stderrTty.isTTY === true, noColorFlag: false });
+  const ansi = ansiFor({ isTTY: stderrTty.isTTY === true, noColorFlag });
   stderr.write(
     tx(UTIL_TEXTS.dbNotFound, {
       glyph: ansi.red('✕'),
@@ -87,7 +92,8 @@ export function assertDbExists(path: string, stderr: NodeJS.WritableStream): boo
 export function requireDbOrExit(
   path: string,
   stderr: NodeJS.WritableStream,
+  noColorFlag = false,
 ): TExitCode | null {
-  if (assertDbExists(path, stderr)) return null;
+  if (assertDbExists(path, stderr, noColorFlag)) return null;
   return ExitCode.NotFound;
 }

@@ -76,10 +76,10 @@ import { listScaffoldDestinations, type IScaffoldTarget } from '../../core/agent
 import { type IAnsi } from '../util/ansi.js';
 import { displayCwd, isDirEmpty, listCwdEntries } from '../util/empty-cwd.js';
 import { ExitCode } from '../util/exit-codes.js';
-import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { renderLogoBlock, resolveColorEnabled } from '../util/serve-banner.js';
 import { SmCommand } from '../util/sm-command.js';
-import { VERSION } from '../version.js';
+import { VERSION } from '../../version.js';
 
 /**
  * Skill slug. Used as the leaf directory name under

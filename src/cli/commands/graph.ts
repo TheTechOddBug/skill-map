@@ -25,16 +25,16 @@ import { Command, Option } from 'clipanion';
 import { tx } from '../../kernel/util/tx.js';
 import { GRAPH_TEXTS } from '../i18n/graph.texts.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
-import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { SmCommand } from '../util/sm-command.js';
 import {
   composeFormatters,
   emptyPluginRuntime,
   loadPluginRuntime,
-} from '../util/plugin-runtime.js';
+} from '../../core/runtime/plugin-runtime.js';
 import { buildReadVersionCheck } from '../util/db-version-check.js';
-import { withSqlite } from '../util/with-sqlite.js';
+import { withSqlite } from '../../core/sqlite/with-sqlite.js';
 
 const DEFAULT_FORMAT = 'ascii';
 
@@ -67,7 +67,7 @@ export class GraphCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
-    const exit = requireDbOrExit(dbPath, this.context.stderr);
+    const exit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (exit !== null) return exit;
 
     const pluginRuntime = this.noPlugins

@@ -50,7 +50,7 @@ import { tx } from '../../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
 import type { IAnsi } from '../../util/ansi.js';
 import { defaultProjectPluginsDir } from '../../util/db-path.js';
-import { defaultRuntimeContext } from '../../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../../core/runtime/runtime-context.js';
 import { resolve } from 'node:path';
 
 export interface IPluginDirOption {

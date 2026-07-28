@@ -6,14 +6,15 @@ import { formatOversizedFileRows } from '../../kernel/util/format-oversized.js';
 import { tx } from '../../kernel/util/tx.js';
 import { SCAN_RUNNER_TEXTS } from '../../core/runtime/i18n/scan-runner.texts.js';
 import { SCAN_TEXTS } from '../i18n/scan.texts.js';
+import type { ScanResult } from '../../kernel/index.js';
 import type { IAnsi } from '../util/ansi.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { tryParsePositiveInt } from '../util/option-validators.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import { relativeIfBelow } from '../util/path-display.js';
-import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { appendOperation } from '../../core/operations-log.js';
-import { runScanForCommand } from '../util/scan-runner.js';
+import { runScanForCommand } from '../../core/runtime/scan-runner.js';
 import { setScanExtensions } from '../telemetry/posthog-init.js';
 import { buildScanExtensionSet } from '../telemetry/usage-collector.js';
 import { parseWatchBackend, runWatchLoop } from './watch.js';
@@ -360,7 +361,7 @@ export class ScanCommand extends SmCommand {
    * severity (mirrors `sm check`, per spec § Exit codes).
    */
   private renderOutcome(
-    result: import('../../kernel/index.js').ScanResult,
+    result: ScanResult,
     persistedTo: string | null,
     dbPath: string,
     strict: boolean,
@@ -427,7 +428,7 @@ export class ScanCommand extends SmCommand {
    * not a mid-flight progress line.
    */
   private maybePrintSkippedFilesNotice(
-    result: import('../../kernel/index.js').ScanResult,
+    result: ScanResult,
     ansi: IAnsi,
   ): void {
     const oversized = result.oversizedFiles ?? [];
@@ -454,7 +455,7 @@ export class ScanCommand extends SmCommand {
    * silent.
    */
   private maybePrintCapNotice(
-    result: import('../../kernel/index.js').ScanResult,
+    result: ScanResult,
     ansi: IAnsi,
   ): void {
     if (result.scanTruncated !== true) return;
@@ -483,7 +484,7 @@ export class ScanCommand extends SmCommand {
    * corpus fits under the cap.
    */
   private maybePrintRenderCapNotice(
-    result: import('../../kernel/index.js').ScanResult,
+    result: ScanResult,
     ansi: IAnsi,
   ): void {
     const cap = result.maxRenderNodes;
@@ -524,7 +525,7 @@ export class ScanCommand extends SmCommand {
    * catching drift a custom extractor could otherwise slip into stdout.
    */
   #renderJsonOutcome(
-    result: import('../../kernel/index.js').ScanResult,
+    result: ScanResult,
     exitCode: number,
     strict: boolean,
   ): number {

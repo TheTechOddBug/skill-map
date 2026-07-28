@@ -8,7 +8,9 @@
 export const ORPHANS_TEXTS = {
   /** Empty-state line: `✓  No orphan / auto-rename issues.` */
   noIssues: '{{glyph}}  No orphan / auto-rename issues.\n',
-  aborted: 'Aborted.\n',
+  // Confirm-decline info line (spec/cli-contract.md §Destructive
+  // confirmation: declining is a voluntary no-op, exit 0, `ℹ` glyph).
+  undoAborted: '{{glyph}}  sm orphans undo-rename: aborted by user. Nothing moved.\n',
 
   // --- reconcile ---------------------------------------------------------
   reconcileTargetNotFound:

@@ -59,11 +59,11 @@ import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { loadConfig, type IEffectiveConfig } from '../../kernel/config/loader.js';
 import { tryParseNonNegativeInt, tryParsePositiveInt } from '../util/option-validators.js';
-import { defaultRuntimeContext, type IRuntimeContext } from '../util/runtime-context.js';
+import { defaultRuntimeContext, type IRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { renderBanner, resolveColorEnabled } from '../util/serve-banner.js';
 import { resolveWatcherBackend } from '../../core/watcher/runtime.js';
 import { SmCommand } from '../util/sm-command.js';
-import { VERSION } from '../version.js';
+import { VERSION } from '../../version.js';
 
 export class ServeCommand extends SmCommand {
   static override paths = [['serve']];

@@ -99,7 +99,7 @@ import type { IAnsi } from '../util/ansi.js';
 import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
-import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { confirm } from '../util/confirm.js';
 import {
@@ -107,7 +107,7 @@ import {
   runWithSidecarConsentGate,
 } from '../util/sidecar-consent-gate.js';
 import { SmCommand } from '../util/sm-command.js';
-import { withSqlite } from '../util/with-sqlite.js';
+import { withSqlite } from '../../core/sqlite/with-sqlite.js';
 
 export class FindingsCommand extends SmCommand {
   static override paths = [['findings']];
@@ -188,7 +188,7 @@ export class FindingsCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
-    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (dbExit !== null) return dbExit;
 
     const filter = this.buildFilterOrExit();
@@ -415,7 +415,7 @@ export class FindingsPruneCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
-    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (dbExit !== null) return dbExit;
     // Write verb: refuse a drifted DB before any table mutation
     // (spec/cli-contract.md §Schema-drift rebuild).
@@ -554,7 +554,7 @@ export class FindingsResolveCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
-    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (dbExit !== null) return dbExit;
 
     const id = this.parseId();
@@ -698,7 +698,7 @@ export class FindingsReopenCommand extends SmCommand {
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
-    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (dbExit !== null) return dbExit;
 
     const parsed = Number(this.id);
@@ -811,7 +811,7 @@ export class FindingsDismissCommand extends SmCommand {
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
-    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (dbExit !== null) return dbExit;
 
     const id = this.parseId();
@@ -1107,7 +1107,7 @@ export class FindingsClearCommand extends SmCommand {
     // default would be a footgun, and `-n` + `--all` contradict.
     if ((this.node !== undefined) === this.all) return this.failBadTarget();
     const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
-    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (dbExit !== null) return dbExit;
     // Write verb: refuse a drifted DB before any table mutation
     // (spec/cli-contract.md §Schema-drift rebuild).
@@ -1252,7 +1252,7 @@ export class FindingsSuppressionsCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
-    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (dbExit !== null) return dbExit;
     return withSqlite(
       {
@@ -1370,7 +1370,7 @@ export class FindingsUndismissCommand extends SmCommand {
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
-    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (dbExit !== null) return dbExit;
     return withSqlite(
       {

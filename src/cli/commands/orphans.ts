@@ -27,15 +27,16 @@ import type { Issue } from '../../kernel/types.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import type { IAnsi } from '../util/ansi.js';
+import { appendOperation } from '../../core/operations-log.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
-import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { confirm } from '../util/confirm.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { ORPHANS_TEXTS } from '../i18n/orphans.texts.js';
 import { SmCommand } from '../util/sm-command.js';
 import { buildReadVersionCheck } from '../util/db-version-check.js';
-import { withSqlite } from '../util/with-sqlite.js';
+import { withSqlite } from '../../core/sqlite/with-sqlite.js';
 
 const ORPHAN_RULE_IDS = ['orphan', 'auto-rename-medium', 'auto-rename-ambiguous'] as const;
 type TOrphanRuleId = typeof ORPHAN_RULE_IDS[number];
@@ -110,7 +111,7 @@ export class OrphansCommand extends SmCommand {
     }
 
     const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
-    const exit = requireDbOrExit(dbPath, this.context.stderr);
+    const exit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (exit !== null) return exit;
 
     // Read verb (the listing; reconcile / undo-rename below stay on the
@@ -168,7 +169,7 @@ export class OrphansReconcileCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
-    const exit = requireDbOrExit(dbPath, this.context.stderr);
+    const exit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (exit !== null) return exit;
     // Write verb: reconcile / undo-rename repoint `state_*` rows;
     // refuse a drifted DB before any mutation
@@ -260,6 +261,13 @@ export class OrphansReconcileCommand extends SmCommand {
           }),
         );
       } else {
+        appendOperation(defaultRuntimeContext().cwd, {
+          op: 'orphans.reconcile',
+          target: this.orphanPath,
+          channel: 'cli',
+          outcome: 'ok',
+          detail: `to=${this.to}`,
+        });
         this.printer!.data(
           tx(ORPHANS_TEXTS.reconcileSuccessHead, {
             glyph: ansi.green('✓'),
@@ -324,7 +332,7 @@ export class OrphansUndoRenameCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
-    const exit = requireDbOrExit(dbPath, this.context.stderr);
+    const exit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (exit !== null) return exit;
     // Write verb: reconcile / undo-rename repoint `state_*` rows;
     // refuse a drifted DB before any mutation
@@ -391,8 +399,10 @@ export class OrphansUndoRenameCommand extends SmCommand {
           { stdin: this.context.stdin, stderr: this.context.stderr },
         );
         if (!ok) {
-          this.printer!.error(ORPHANS_TEXTS.aborted);
-          return ExitCode.Error;
+          this.printer!.info(
+            tx(ORPHANS_TEXTS.undoAborted, { glyph: this.ansiFor('stderr').cyan('ℹ') }),
+          );
+          return ExitCode.Ok;
         }
       }
 
@@ -446,6 +456,13 @@ export class OrphansUndoRenameCommand extends SmCommand {
           }),
         );
       } else {
+        appendOperation(defaultRuntimeContext().cwd, {
+          op: 'orphans.undo-rename',
+          target: newPath,
+          channel: 'cli',
+          outcome: 'ok',
+          detail: `to=${toPath} rows=${rows}`,
+        });
         this.printer!.data(
           tx(ORPHANS_TEXTS.undoSuccessHead, {
             glyph: ansi.green('✓'),

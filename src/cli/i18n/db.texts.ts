@@ -22,8 +22,8 @@ export const DB_TEXTS = {
   resetStateAndHardMutexHint:
     'Pick one: `sm db reset --state` (drops scan_* and state_*) or `sm db reset --hard` (deletes the DB file).',
 
-  resetCleared: '{{glyph}}  Cleared {{tableCount}} table(s): {{tableNames}}\n',
-  resetClearedNone: '{{glyph}}  Cleared 0 table(s): (none)\n',
+  resetCleared: '{{glyph}}  Cleared {{tableCount}} table{{plural}}: {{tableNames}}\n',
+  resetClearedNone: '{{glyph}}  Cleared 0 tables: (none)\n',
 
   resetHardConfirm: 'Delete DB file {{path}}?',
   resetHardDeleted: '{{glyph}}  Deleted {{path}}\n',
@@ -68,7 +68,10 @@ export const DB_TEXTS = {
   restoreDone: '{{glyph}}  Restored {{sourcePath}} → {{target}}\n',
 
   // --- shared ----------------------------------------------------------
-  aborted: 'Aborted.\n',
+  // Confirm-decline info lines (spec/cli-contract.md §Destructive
+  // confirmation: declining is a voluntary no-op, exit 0, `ℹ` glyph).
+  resetAborted: '{{glyph}}  sm db reset: aborted by user. Nothing deleted.\n',
+  restoreAborted: '{{glyph}}  sm db restore: aborted by user. DB unchanged.\n',
   backupWritten: '{{glyph}}  Backup written: {{outPath}}\n',
 
   // --- migrate (sm db migrate) -----------------------------------------
@@ -107,11 +110,11 @@ export const DB_TEXTS = {
 
   // --- migrate kernel apply / dry-run output ---------------------------
   migrateKernelDryNothing: '{{glyph}}  kernel · Nothing to apply.\n',
-  migrateKernelDryHeader: 'kernel · Would apply {{count}} migration(s):\n{{lines}}\n',
+  migrateKernelDryHeader: 'kernel · Would apply {{count}} migration{{plural}}:\n{{lines}}\n',
   migrateKernelUpToDate: '{{glyph}}  kernel · Already up to date.\n',
-  migrateKernelApplied: '{{glyph}}  kernel · Applied {{count}} migration(s)\n',
+  migrateKernelApplied: '{{glyph}}  kernel · Applied {{count}} migration{{plural}}\n',
   migrateKernelAppliedWithBackup:
-    '{{glyph}}  kernel · Applied {{count}} migration(s) · backup: {{backupPath}}\n',
+    '{{glyph}}  kernel · Applied {{count}} migration{{plural}} · backup: {{backupPath}}\n',
 
   // --- shell (system sqlite3 binary required for the interactive REPL) ---
   shellSqlite3NotFound:
@@ -141,9 +144,9 @@ export const DB_TEXTS = {
   pluginMigrateFailure: '{{glyph}}  plugin {{pluginId}} · {{reason}}\n',
   pluginMigrateDryNothing: '{{glyph}}  plugin {{pluginId}} · Nothing to apply.\n',
   pluginMigrateDryHeader:
-    'plugin {{pluginId}} · Would apply {{count}} migration(s):\n{{lines}}\n',
+    'plugin {{pluginId}} · Would apply {{count}} migration{{plural}}:\n{{lines}}\n',
   pluginMigrateUpToDate: '{{glyph}}  plugin {{pluginId}} · Already up to date.\n',
-  pluginMigrateApplied: '{{glyph}}  plugin {{pluginId}} · Applied {{count}} migration(s)\n',
+  pluginMigrateApplied: '{{glyph}}  plugin {{pluginId}} · Applied {{count}} migration{{plural}}\n',
   pluginMigrateIntrusion:
     'plugin {{pluginId}} · catalog intrusion detected: {{intrusions}}\n',
 
@@ -151,12 +154,13 @@ export const DB_TEXTS = {
   dryRunHeader: '(dry-run, no DB writes, no file unlinks)\n',
 
   dryRunResetWouldClearNone:
-    'would clear   0 table(s): (none, DB schema is empty)\n',
+    'would clear   0 tables: (none, DB schema is empty)\n',
 
-  // The `lines` arg is a pre-built multi-line block, one "  - name: N row(s)"
-  // per table, joined with `\n`.
+  // The `lines` arg is a pre-built multi-line block, one
+  // `dryRunResetTableLine` row per table, joined with `\n`.
   dryRunResetWouldClearWithRowCounts:
-    'would clear   {{tableCount}} table(s) ({{totalRows}} total row(s)):\n{{lines}}\n',
+    'would clear   {{tableCount}} table{{tablePlural}} ({{totalRows}} total row{{rowPlural}}):\n{{lines}}\n',
+  dryRunResetTableLine: '  - {{name}}: {{rowCount}} row{{plural}}',
 
   dryRunResetHardWouldDelete: 'would delete  {{path}} ({{sizeBytes}} bytes)\n',
   dryRunResetHardWouldDeleteMissing:

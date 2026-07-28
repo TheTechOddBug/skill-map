@@ -20,7 +20,7 @@
  */
 
 import type { IAnsi } from './ansi.js';
-import { VERSION } from './../version.js';
+import { VERSION } from '../../version.js';
 import type { IPrinter } from '../../core/runtime/printer.js';
 import type { TWithSqliteVersionCheck } from '../../core/sqlite/with-sqlite.js';
 

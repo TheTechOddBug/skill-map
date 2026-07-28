@@ -51,17 +51,17 @@ import { tx } from '../../kernel/util/tx.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { SCAN_TEXTS } from '../i18n/scan.texts.js';
 import type { IAnsi } from '../util/ansi.js';
-import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
+import { createStderrProgressEmitter } from '../../core/runtime/progress-emitter.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
-import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import {
   composeScanExtensions,
   emptyPluginRuntime,
   loadPluginRuntime,
   registerEnabledExtensions,
-} from '../util/plugin-runtime.js';
+} from '../../core/runtime/plugin-runtime.js';
 
 export class ScanCompareCommand extends SmCommand {
   static override paths = [['scan', 'compare-with']];
@@ -173,7 +173,7 @@ export class ScanCompareCommand extends SmCommand {
         tokenize: !this.noTokens,
         ignoreFilter,
         strict: effectiveStrict,
-        emitter: createCliProgressEmitter(this.context.stderr),
+        emitter: createStderrProgressEmitter(this.context.stderr),
         // Same wiring as the normal `sm scan` path: without the cwd
         // anchor the link-target existence probe stays off and the
         // fresh in-memory scan would report spurious drift on links

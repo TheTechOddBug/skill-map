@@ -267,15 +267,35 @@ plain hint text. If the hint itself needs interpolation (e.g.
 
 ### 4.3. Pluralisation
 
-Pair singular/plural noun keys explicitly:
+Two catalog-side patterns are blessed (decision 2026-07-28, closing
+the convention split the cli-architect review flagged); pick per key
+and stay consistent within a verb:
+
+1. **Paired noun keys**, the renderer picks one based on
+   `count === 1`:
 
 ```ts
 fooNounSingular: 'row',
 fooNounPlural: 'rows',
 ```
 
-The renderer picks one based on `count === 1`. No `(s)` suffixes, no
-`row${count !== 1 ? 's' : ''}`, those don't translate.
+2. **The `{{plural}}` slot**, the call site passes the suffix
+   (`plural: count === 1 ? '' : 's'`) and the catalog embeds it:
+
+```ts
+fooSummary: '{{glyph}}  {{count}} finding{{plural}} cleared.\n',
+```
+
+The slot is the majority pattern across the verbs and fine for
+regular `-s` plurals; use paired noun keys when the noun is irregular
+(`entry` / `entries`) or the sentence changes shape around the count.
+(The catalogs are English-only by design, AGENTS.md §Externalized
+texts; translatability is not a criterion today.)
+
+Still banned regardless of pattern: parenthesised `row(s)` forms, and
+any plural composed INLINE in a command file
+(`` `row${count !== 1 ? 's' : ''}` `` outside a catalog), the string
+belongs in the `*.texts.ts` catalog either way.
 
 ---
 

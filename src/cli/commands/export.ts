@@ -28,14 +28,14 @@ import {
 import type { IExportSubset } from '../../kernel/scan/query.js';
 import type { Issue, Link, Node } from '../../kernel/types.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
-import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { tx } from '../../kernel/util/tx.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { EXPORT_TEXTS } from '../i18n/export.texts.js';
 import { SmCommand } from '../util/sm-command.js';
 import { buildReadVersionCheck } from '../util/db-version-check.js';
-import { withSqlite } from '../util/with-sqlite.js';
+import { withSqlite } from '../../core/sqlite/with-sqlite.js';
 
 // Built-in Claude Provider catalog rendered first, in this canonical
 // order. External Providers may emit additional kinds; those are
@@ -141,7 +141,7 @@ export class ExportCommand extends SmCommand {
     }
 
     const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
-    const exit = requireDbOrExit(dbPath, this.context.stderr);
+    const exit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (exit !== null) return exit;
 
     // Read verb: advise on drift, never refuse (spec/db-schema.md §Schema

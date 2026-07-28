@@ -67,8 +67,9 @@ import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
+import { appendOperation } from '../../core/operations-log.js';
 import { CONFIG_TEXTS } from '../i18n/config.texts.js';
-import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
 
 // -----------------------------------------------------------------------------
@@ -708,6 +709,17 @@ export class ConfigSetCommand extends SmCommand {
       throw err;
     }
 
+    // §Operations log: config writes are named in the invariant. Key
+    // only, never the value (mirrors the telemetry names-not-values
+    // stance; a value can carry paths or tokens).
+    appendOperation(ctx.cwd, {
+      op: 'config.set',
+      target: '*',
+      channel: 'cli',
+      outcome: 'ok',
+      detail: `key=${this.key}`,
+    });
+
     const ansi = this.ansiFor('stdout');
     this.printer!.data(
       tx(CONFIG_TEXTS.setWritten, {
@@ -919,6 +931,13 @@ export class ConfigResetCommand extends SmCommand {
       );
       return ExitCode.Ok;
     }
+    appendOperation(ctx.cwd, {
+      op: 'config.reset',
+      target: '*',
+      channel: 'cli',
+      outcome: 'ok',
+      detail: `key=${this.key}`,
+    });
     this.printer!.data(
       tx(CONFIG_TEXTS.unsetRemoved, {
         glyph: okGlyph,

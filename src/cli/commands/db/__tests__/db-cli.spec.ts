@@ -103,7 +103,7 @@ describe('sm db reset --dry-run', () => {
     const r = sm(['db', 'reset', '--dry-run'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     assert.match(r.stdout, /\(dry-run/);
-    assert.match(r.stdout, /would clear\s+\d+ table\(s\)/);
+    assert.match(r.stdout, /would clear\s+\d+ tables?/);
     // Names of the three core scan tables MUST appear in the preview.
     assert.match(r.stdout, /scan_nodes/);
     assert.match(r.stdout, /scan_links/);
@@ -159,8 +159,8 @@ describe('sm db reset --dry-run', () => {
     // also fail. The fact that the call returns at all is the assert.
     const r = sm(['db', 'reset', '--state', '--dry-run'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    // No "Aborted." (which would mean the prompt was answered "no").
-    assert.doesNotMatch(r.stderr, /Aborted/);
+    // No decline line (which would mean the prompt was answered "no").
+    assert.doesNotMatch(r.stderr, /aborted by user/);
   });
 });
 

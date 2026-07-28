@@ -5,8 +5,7 @@
  *
  * Lives under `core/runtime/` so the BFF (`src/server/`) and the
  * scan/plugin runtime can consume the abstraction without crossing
- * into `src/cli/`. The historic `cli/util/printer.ts` keeps working
- * through a re-export shim there.
+ * into `src/cli/`.
  *
  * Channel discipline (matches `spec/cli-contract.md` and the M1 review
  * finding):

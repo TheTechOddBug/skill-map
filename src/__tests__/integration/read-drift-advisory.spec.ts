@@ -26,7 +26,7 @@ import { after, before, describe, it } from 'node:test';
 
 import type { BaseContext } from 'clipanion';
 
-import { VERSION } from '../../cli/version.js';
+import { VERSION } from '../../version.js';
 import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import type { Node, ScanResult } from '../../kernel/types.js';
 import { HistoryCommand } from '../../cli/commands/history.js';
@@ -288,11 +288,15 @@ describe('drift hygiene: reads convert failures, writes refuse early', () => {
     const cap = captureContext();
     const cmd = buildFindings(dbPath);
     cmd.context = cap.context;
-    await assert.rejects(
-      () => cmd.execute(),
-      /no such column/,
-      'no drift detected: the raw error rethrows untouched',
-    );
+    const code = await cmd.execute();
+
+    // The genuine SQL failure must NOT be masked by the drift advisory;
+    // it lands in the global unhandled-error boundary (§3.1b block,
+    // exit 2, never Clipanion's generic exit 1) carrying the raw
+    // message.
+    assert.equal(code, 2, 'unhandled-error boundary exits 2');
+    assert.match(cap.stderr(), /no such column/, 'the genuine failure surfaces in the error block');
+    assert.doesNotMatch(cap.stderr(), /drifted DB/, 'the drift advisory never masks a genuine failure');
   });
 
   it('sm jobs submit refuses the drifted DB BEFORE resolution (no misleading not-found)', async () => {

@@ -52,9 +52,9 @@ import { confirm } from '../../util/confirm.js';
 import { resolveDbPath } from '../../util/db-path.js';
 import { assertNoDriftForWrite } from '../../../core/sqlite/db-version-runner.js';
 import { ExitCode } from '../../util/exit-codes.js';
-import { defaultRuntimeContext } from '../../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../../core/runtime/runtime-context.js';
 import { SmCommand } from '../../util/sm-command.js';
-import { withSqlite } from '../../util/with-sqlite.js';
+import { withSqlite } from '../../../core/sqlite/with-sqlite.js';
 import {
   buildResolver,
   loadAll,

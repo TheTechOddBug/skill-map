@@ -20,9 +20,7 @@
  * extend if a future override (e.g. resolved absolute cwd) is needed.
  *
  * Lives under `core/` so the BFF (`src/server/`) can consume it
- * without crossing into `src/cli/`. The historic
- * `cli/util/runtime-context.ts` import path keeps working through a
- * re-export shim there.
+ * without crossing into `src/cli/`.
  */
 
 export interface IRuntimeContext {

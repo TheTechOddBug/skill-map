@@ -4,12 +4,12 @@ import { log } from '../../kernel/util/logger.js';
 import { tx } from '../../kernel/util/tx.js';
 import { VERSION_TEXTS } from '../i18n/version.texts.js';
 import { resolveDbPath } from '../util/db-path.js';
-import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { SmCommand } from '../util/sm-command.js';
 import { isDevBuild } from '../../kernel/util/dev-mode.js';
-import { VERSION } from '../version.js';
-import { tryWithSqlite } from '../util/with-sqlite.js';
+import { VERSION } from '../../version.js';
+import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 
 /**
  * `sm version`, multi-line version matrix.

@@ -33,7 +33,7 @@ import { tx } from '../../kernel/util/tx.js';
 import { HOOKS_TEXTS } from '../i18n/hooks.texts.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { pathExists } from '../util/fs.js';
-import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
 
 /**

@@ -14,15 +14,16 @@ import { relativeIfBelow } from '../../util/path-display.js';
 import { confirm } from '../../util/confirm.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { DB_TEXTS } from '../../i18n/db.texts.js';
+import { appendOperation } from '../../../core/operations-log.js';
 import { resolveDbPath } from '../../util/db-path.js';
-import { defaultRuntimeContext } from '../../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../../core/runtime/runtime-context.js';
 import { ExitCode } from '../../util/exit-codes.js';
 import { pathExists, statOrNull } from '../../util/fs.js';
 import {
   validateRestorableDb,
   type TRestoreValidation,
 } from '../../../core/sqlite/restore-validation.js';
-import { VERSION } from '../../version.js';
+import { VERSION } from '../../../version.js';
 import { SmCommand } from '../../util/sm-command.js';
 
 /**
@@ -97,8 +98,10 @@ export class DbRestoreCommand extends SmCommand {
         stderr: this.context.stderr,
       });
       if (!ok) {
-        this.printer!.error(DB_TEXTS.aborted);
-        return ExitCode.Error;
+        this.printer!.info(
+          tx(DB_TEXTS.restoreAborted, { glyph: this.ansiFor('stderr').cyan('ℹ') }),
+        );
+        return ExitCode.Ok;
       }
     }
 
@@ -116,6 +119,13 @@ export class DbRestoreCommand extends SmCommand {
 
     const ansi = this.ansiFor('stdout');
     const cwd = defaultRuntimeContext().cwd;
+    appendOperation(cwd, {
+      op: 'db.restore',
+      target: '*',
+      channel: 'cli',
+      outcome: 'ok',
+      detail: `source=${relativeIfBelow(sourcePath, cwd)}`,
+    });
     this.printer!.data(
       tx(DB_TEXTS.restoreDone, {
         glyph: ansi.green('✓'),

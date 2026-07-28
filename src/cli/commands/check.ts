@@ -39,19 +39,19 @@ import { CHECK_TEXTS } from '../i18n/check.texts.js';
 import type { IAnsi } from '../util/ansi.js';
 import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
-import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import { ExitCode } from '../util/exit-codes.js';
 import {
   composeScanExtensions,
   emptyPluginRuntime,
   loadPluginRuntime,
-} from '../util/plugin-runtime.js';
-import type { IPrinter } from '../util/printer.js';
+} from '../../core/runtime/plugin-runtime.js';
+import type { IPrinter } from '../../core/runtime/printer.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { SmCommand } from '../util/sm-command.js';
 import { tx } from '../../kernel/util/tx.js';
-import { withSqlite } from '../util/with-sqlite.js';
+import { withSqlite } from '../../core/sqlite/with-sqlite.js';
 
 export class CheckCommand extends SmCommand {
   static override paths = [['check']];
@@ -94,7 +94,7 @@ export class CheckCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
-    const exit = requireDbOrExit(dbPath, this.context.stderr);
+    const exit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (exit !== null) return exit;
 
     // Parse `--analyzers` once. Empty / whitespace tokens dropped.

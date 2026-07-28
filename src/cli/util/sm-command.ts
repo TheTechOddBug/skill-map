@@ -39,15 +39,19 @@ import { Command, Option } from 'clipanion';
 
 import { configureLogger } from '../../kernel/util/logger.js';
 import type { TLogLevel } from '../../kernel/ports/logger.js';
+import { formatErrorMessage } from '../../kernel/util/format-error.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
+import { tx } from '../../kernel/util/tx.js';
 import {
   DbSchemaDriftError,
   DbVersionMismatchError,
 } from '../../core/sqlite/db-version-check.js';
+import { UTIL_TEXTS } from '../i18n/util.texts.js';
 import { ansiFor, type IAnsi } from './ansi.js';
 import { ExitCode } from './exit-codes.js';
 import { Logger } from './logger.js';
 import { emitDoneStderr, startElapsed, type IElapsed } from './elapsed.js';
-import { createPrinter, type IPrinter } from './printer.js';
+import { createPrinter, type IPrinter } from '../../core/runtime/printer.js';
 
 /**
  * Environment-variable presence test consistent with the spec
@@ -138,13 +142,39 @@ export abstract class SmCommand extends Command {
         this.context.stderr.write(block);
         return ExitCode.Error;
       }
-      throw err;
+      this.renderUnhandledError(err);
+      return ExitCode.Error;
     } finally {
       // `run()` may opt out by setting `this.emitElapsed = false`
       // (e.g. the `--watch` alias on `sm scan` delegates into the
       // long-running watcher loop and the watcher owns its own
       // shutdown line).
       if (this.emitElapsed) emitDoneStderr(this.context.stderr, this.elapsed, this.quiet);
+    }
+  }
+
+  /**
+   * Everything escaping `run()` that no typed branch claimed is an
+   * unhandled exception: a bug or an unclassified IO failure, never a
+   * scan/check result. Without this boundary Clipanion resolves the
+   * throw with exit 1 (its generic failure code), which collides with
+   * the public `1 = issues found` contract, and dumps the class name +
+   * stack trace instead of the §3.1b error block the spec promises
+   * ("unhandled exception. Accompanied by an error message on stderr",
+   * §Exit codes). Renders the block on stderr; `-v` keeps the stack
+   * reachable for debugging. The caller returns `ExitCode.Error`.
+   */
+  private renderUnhandledError(err: unknown): void {
+    const ansi = this.ansiFor('stderr');
+    this.context.stderr.write(
+      tx(UTIL_TEXTS.unhandledError, {
+        glyph: ansi.red('✕'),
+        message: sanitizeForTerminal(formatErrorMessage(err)),
+        hint: ansi.dim(UTIL_TEXTS.unhandledErrorHint),
+      }),
+    );
+    if (this.verbose > 0 && err instanceof Error && err.stack !== undefined) {
+      this.context.stderr.write(`${sanitizeForTerminal(err.stack)}\n`);
     }
   }
 

@@ -49,10 +49,10 @@ import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { SKILL_MAP_DIR } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { displayCwd, isDirEmpty, listCwdEntries } from '../util/empty-cwd.js';
-import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { renderLogoBlock, resolveColorEnabled } from '../util/serve-banner.js';
 import { SmCommand } from '../util/sm-command.js';
-import { VERSION } from '../version.js';
+import { VERSION } from '../../version.js';
 
 /** Repo-relative path to the source-of-truth example payload. */
 const EXAMPLE_SOURCE_DIR = 'fixtures/demo';

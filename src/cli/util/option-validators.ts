@@ -84,11 +84,15 @@ export function parsePositiveIntegerOption(
   raw: string,
   label: string,
   stderr: NodeJS.WritableStream,
+  noColorFlag = false,
 ): number | null {
   const parsed = tryParseNonNegativeInt(raw);
   if (parsed === null || parsed === 0) {
+    // Callers inside an `SmCommand` pass `this.noColor` so the §2
+    // precedence (`--no-color` > `NO_COLOR` env > TTY) holds on this
+    // error path too.
     const stderrTty = stderr as NodeJS.WriteStream & { isTTY?: boolean };
-    const ansi = ansiFor({ isTTY: stderrTty.isTTY === true, noColorFlag: false });
+    const ansi = ansiFor({ isTTY: stderrTty.isTTY === true, noColorFlag });
     stderr.write(
       tx(OPTION_VALIDATORS_TEXTS.notPositiveInt, {
         glyph: ansi.red('✕'),

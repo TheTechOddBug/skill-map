@@ -35,7 +35,7 @@ export const PLUGIN_REASON_DISPLAY_CAP = 1000;
  * already a complete diagnostic line (rendered by `formatWarning`); we
  * append the trailing newline here so the catalogue stays
  * trailing-newline-free (matches the convention in
- * `cli/util/printer.ts`).
+ * `core/runtime/printer.ts`).
  */
 export function emitWarnings(runtime: IPluginRuntime, printer: IPrinter): void {
   for (const warn of runtime.warnings) {

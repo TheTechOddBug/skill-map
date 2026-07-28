@@ -26,8 +26,7 @@
  * introspection without re-reading the manifests.
  *
  * Lives under `core/runtime/` so the BFF (`src/server/`) can consume it
- * without crossing into `src/cli/`. Historic `cli/util/plugin-runtime.ts`
- * keeps working through a re-export shim there.
+ * without crossing into `src/cli/`.
  */
 
 import type {

@@ -9,8 +9,7 @@
  * mirroring what `runWatchLoop` does for the watch verb.
  *
  * Lives under `core/runtime/` so the BFF (`src/server/`) can consume it
- * without crossing into `src/cli/`. Historic `cli/util/scan-runner.ts`
- * keeps working through a re-export shim there.
+ * without crossing into `src/cli/`.
  */
 
 import { createKernel, runScan, runScanWithRenames } from '../../kernel/index.js';

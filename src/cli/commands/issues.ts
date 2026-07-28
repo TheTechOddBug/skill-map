@@ -54,14 +54,14 @@ import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
 import { ISSUES_TEXTS as T } from '../i18n/issues.texts.js';
 import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
-import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import {
   refreshAnnotationsMirror,
   runWithSidecarConsentGate,
 } from '../util/sidecar-consent-gate.js';
 import { SmCommand } from '../util/sm-command.js';
-import { withSqlite } from '../util/with-sqlite.js';
+import { withSqlite } from '../../core/sqlite/with-sqlite.js';
 
 /**
  * `sm issues dismiss <analyzer> <value> -n <node.path> [--note <text>]
@@ -129,7 +129,7 @@ export class IssuesDismissCommand extends SmCommand {
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
-    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (dbExit !== null) return dbExit;
     // Write verb: refuse a drifted DB before the scan_issues delete
     // (spec/cli-contract.md §Schema-drift rebuild).
@@ -307,7 +307,7 @@ export class IssuesUndismissCommand extends SmCommand {
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
-    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (dbExit !== null) return dbExit;
     return withSqlite(
       {
@@ -463,7 +463,7 @@ export class IssuesSuppressionsCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
-    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (dbExit !== null) return dbExit;
     return withSqlite(
       {

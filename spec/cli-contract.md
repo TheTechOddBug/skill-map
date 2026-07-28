@@ -148,17 +148,34 @@ shape:
 ```
 
 - `at`: ISO-8601 timestamp. `op`: dotted `family.action` slug
-  (`scan`, `jobs.submit`, `jobs.cancel`, `jobs.record`, `jobs.prune`,
-  `findings.dismiss`, `findings.undismiss`, `findings.resolve`,
-  `findings.delete`, `findings.clear`, `findings.prune`,
-  `summaries.delete`). `target`:
+  (`scan`, `refresh`, `jobs.submit`, `jobs.cancel`, `jobs.record`,
+  `jobs.prune`, `jobs.fail`, `findings.dismiss`, `findings.undismiss`,
+  `findings.resolve`, `findings.reopen`, `findings.delete`,
+  `findings.clear`, `findings.prune`, `issues.dismiss`,
+  `issues.undismiss`, `summaries.delete`, `db.reset`, `db.restore`,
+  `db.migrate`, `orphans.reconcile`, `orphans.undo-rename`,
+  `config.set`, `config.reset`). `target`:
   the node path, or `*` for project-wide operations. `extension`:
   the qualified extension id when the operation has one. `channel`:
-  which surface drove it, `cli` / `ui` / `watcher` / `hook`.
+  which surface drove it, `cli` / `ui` / `watcher` / `hook` / `mcp`
+  (`mcp` per [`mcp-server.md`](./mcp-server.md) §Tool catalog).
   `outcome`: the operation's result word (`ok`, `queued`,
   `completed`, `failed`, `cancelled`, ...). `id` / `detail`: the
   operation's own handle (job id) or a short free-form note
-  (`deleted=16`), only when the verb already has it.
+  (`deleted=16`), only when the verb already has it. `config.set` /
+  `config.reset` log the KEY only, never the value (a value can carry
+  paths or tokens).
+- **Intentional exemptions**: verbs whose only output is committed,
+  human-reviewed files are NOT logged, git history already carries
+  their audit trail. Today: `sm init` and `sm plugins create` /
+  `upgrade` / `trust` (scaffolding / project setup), `sm agent
+  install`, `sm activity install`, `sm hooks install` (installer
+  files), and the pure sidecar-curation verbs (`sm bump`, `sm
+  sidecars annotate` / `refresh` / `prune`). A verb that mutates BOTH
+  a committed surface and machine state under `.skill-map/` (e.g.
+  `issues.dismiss`, sidecar suppression + DB row delete) IS logged.
+  Dry-run and declined-confirm invocations mutate nothing and are
+  never logged.
 - **Fire-and-forget**: a log write failure MUST NOT fail or delay the
   operation; writers swallow errors silently. When no `.skill-map/`
   directory exists (no project), nothing is written.
@@ -239,11 +256,11 @@ All verbs use this shared table. Additional codes MAY be defined per-verb (docum
 | Code | Meaning | When emitted |
 |---|---|---|
 | `0` | OK | Command completed, no issues at or above the configured severity threshold. |
-| `1` | Issues found | Command completed, but deterministic issues at `error` severity exist. Applies to `sm scan`, `sm check`, `sm doctor`. |
+| `1` | Issues found | Command completed, but deterministic issues at `error` severity exist. Applies to `sm scan`, `sm check`. (`sm doctor` defines its own gradation under §sm doctor: `1` = warnings only, `2` = any error-level problem.) |
 | `2` | Operational error | Bad flags, a present-but-unreadable / corrupt DB, unreadable file, corrupt config, runtime / environment mismatch (e.g. wrong Node version, missing native dependency), unhandled exception. Accompanied by an error message on stderr. (An *absent* project DB file is `5`, see below.) |
 | `3` | Duplicate conflict | Job submission refused because an active duplicate exists (same `extension + version + node + contentHash`). Returned by `sm jobs submit`. |
 | `4` | Nonce mismatch | `sm record` called with an `id`/`nonce` pair that does not match. |
-| `5` | Not found | A named resource does not exist (node id, job id, plugin id, config key), or the project DB file is absent so a read verb (`sm check`, `list`, `show`, `graph`, `export`, `history`, `orphans`, `db dump` / `reset` / `backup` / `shell`, `job prune`) has nothing to open, run `sm scan` first. An explicit `--db <path>` that does not exist is the same case (see §Server boot resilience). |
+| `5` | Not found | A named resource does not exist (node id, job id, plugin id, config key), or the project DB file is absent so a read verb (`sm check`, `list`, `show`, `graph`, `export`, `history`, `orphans`, `db dump` / `reset` / `backup` / `shell`, `job prune`) has nothing to open, run `sm scan` first. An explicit `--db <path>` that does not exist is the same case (see §Server boot resilience). Exception: `sm db reset --hard` never probes existence, deleting an absent DB is an idempotent no-op (exit `0`). |
 
 Codes 6–15 are reserved. Codes ≥ 16 are free for verb-specific use.
 
@@ -260,6 +277,18 @@ A verb that exposes `-n` / `--dry-run` MUST honour the following contract:
 - **Dry-run MUST NOT depend on `--yes` / `--force`.** Verbs offering interactive confirmation for destructive operations MUST allow `--dry-run` to bypass the prompt entirely (nothing being destroyed needs no confirmation).
 
 Dry-run is **per-verb opt-in**; not global. Verbs that do not declare it MUST reject `--dry-run` as an unknown option (exit `2`), like any other unknown flag. The verb catalog below names every verb that exposes the flag and its preview.
+
+---
+
+## Destructive confirmation
+
+A destructive verb that offers interactive confirmation (`sm db reset --state` / `--hard`, `sm db restore`, `sm findings prune` / `clear`, `sm sidecars prune`, `sm orphans undo-rename`, and any future verb adopting the pattern) MUST treat a declined prompt as a **voluntary no-op**, not a failure:
+
+- **Exit `0`.** The prompt asked "may I do the destructive thing you invoked?"; answering no is the operator cancelling their own request, nothing failed.
+- **Informational line, not an error.** The decline renders as an info (`ℹ`) line on stderr naming the verb and confirming nothing was touched (e.g. `ℹ  sm db reset: aborted by user. Nothing deleted.`), never a red `✕` error block.
+- **Nothing persisted.** Declining is never remembered; the next invocation prompts again.
+
+This rule covers only the confirmation of the destructive operation itself. A declined prompt that is a **prerequisite for a different requested job** keeps exit `2`, because the invoked verb could not do what was asked: the `.sm` write-consent gate (§`.sm` write consent, `confirm-required`) and the schema-drift rebuild confirmation before `sm serve` boots (§Persistence) are the two current cases.
 
 ---
 

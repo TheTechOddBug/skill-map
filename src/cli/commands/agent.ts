@@ -53,7 +53,7 @@ import { tx } from '../../kernel/util/tx.js';
 import { builtIns } from '../../plugins/built-ins.js';
 import { AGENT_TEXTS as T } from '../i18n/agent.texts.js';
 import { ExitCode } from '../util/exit-codes.js';
-import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
 import {
   listScaffoldTargets,

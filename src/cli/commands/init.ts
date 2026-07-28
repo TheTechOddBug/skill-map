@@ -46,10 +46,10 @@ import {
 import { ensureScopeGitignore, previewScopeGitignore } from '../../core/scope-gitignore.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { pathExists } from '../util/fs.js';
-import { createPrinter, type IPrinter } from '../util/printer.js';
-import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { createPrinter, type IPrinter } from '../../core/runtime/printer.js';
+import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
-import { withSqlite } from '../util/with-sqlite.js';
+import { withSqlite } from '../../core/sqlite/with-sqlite.js';
 
 export class InitCommand extends SmCommand {
   static override paths = [['init']];

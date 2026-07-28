@@ -5,8 +5,10 @@
  * `--force` is passed, per spec/cli-contract.md §Database.
  *
  * Exit codes follow spec/cli-contract.md:
- *   0  ok
- *   2  error (unhandled / config / user aborted)
+ *   0  ok (including a declined destructive confirm, §Destructive
+ *      confirmation: the operator cancelling their own request is a
+ *      voluntary no-op, not an error)
+ *   2  error (unhandled / config)
  *   5  not-found
  *
  * This file is a barrel, each subcommand lives in its own file under

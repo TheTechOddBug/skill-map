@@ -12,10 +12,12 @@ import { Command, Option } from 'clipanion';
 import { relativeIfBelow } from '../../util/path-display.js';
 import { confirm } from '../../util/confirm.js';
 import { tx } from '../../../kernel/util/tx.js';
+import { pluralSuffix } from '../../../kernel/util/text.js';
 import { DB_TEXTS } from '../../i18n/db.texts.js';
 import { requireDbOrExit, resolveDbPath } from '../../util/db-path.js';
-import { defaultRuntimeContext } from '../../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../../core/runtime/runtime-context.js';
 import { ExitCode } from '../../util/exit-codes.js';
+import { appendOperation } from '../../../core/operations-log.js';
 import { removeDbFiles } from '../../../core/sqlite/db-files.js';
 import { statOrNull } from '../../util/fs.js';
 import { SmCommand } from '../../util/sm-command.js';
@@ -82,11 +84,20 @@ export class DbResetCommand extends SmCommand {
           stderr: this.context.stderr,
         });
         if (!ok) {
-          this.printer!.error(DB_TEXTS.aborted);
-          return ExitCode.Error;
+          this.printer!.info(tx(DB_TEXTS.resetAborted, { glyph: stderrAnsiReset.cyan('ℹ') }));
+          return ExitCode.Ok;
         }
       }
       await removeDbFiles(path);
+      // §Operations log: the delete leaves `.skill-map/` in place, so
+      // the log line survives its own subject's destruction.
+      appendOperation(defaultRuntimeContext().cwd, {
+        op: 'db.reset',
+        target: '*',
+        channel: 'cli',
+        outcome: 'ok',
+        detail: 'mode=hard',
+      });
       const ansiHard = this.ansiFor('stdout');
       this.printer!.data(
         tx(DB_TEXTS.resetHardDeleted, {
@@ -97,7 +108,7 @@ export class DbResetCommand extends SmCommand {
       return ExitCode.Ok;
     }
 
-    const exit = requireDbOrExit(path, this.context.stderr);
+    const exit = requireDbOrExit(path, this.context.stderr, this.noColor);
     if (exit !== null) return exit;
 
     if (this.state && !this.yes && !this.dryRun) {
@@ -106,8 +117,8 @@ export class DbResetCommand extends SmCommand {
         stderr: this.context.stderr,
       });
       if (!ok) {
-        this.printer!.error(DB_TEXTS.aborted);
-        return ExitCode.Error;
+        this.printer!.info(tx(DB_TEXTS.resetAborted, { glyph: stderrAnsiReset.cyan('ℹ') }));
+        return ExitCode.Ok;
       }
     }
 
@@ -142,11 +153,21 @@ export class DbResetCommand extends SmCommand {
           return { name: r.name, rowCount: Number(count.c) };
         });
         const totalRows = withCounts.reduce((acc, r) => acc + r.rowCount, 0);
-        const lines = withCounts.map((r) => `  - ${r.name}: ${r.rowCount} row(s)`).join('\n');
+        const lines = withCounts
+          .map((r) =>
+            tx(DB_TEXTS.dryRunResetTableLine, {
+              name: r.name,
+              rowCount: r.rowCount,
+              plural: pluralSuffix(r.rowCount),
+            }),
+          )
+          .join('\n');
         this.printer!.data(
           tx(DB_TEXTS.dryRunResetWouldClearWithRowCounts, {
             tableCount: rows.length,
+            tablePlural: pluralSuffix(rows.length),
             totalRows,
+            rowPlural: pluralSuffix(totalRows),
             lines,
           }),
         );
@@ -159,6 +180,14 @@ export class DbResetCommand extends SmCommand {
       }
       db.exec('COMMIT');
 
+      appendOperation(defaultRuntimeContext().cwd, {
+        op: 'db.reset',
+        target: '*',
+        channel: 'cli',
+        outcome: 'ok',
+        detail: `mode=${this.state ? 'state' : 'scan'} tables=${rows.length}`,
+      });
+
       const ansiReset = this.ansiFor('stdout');
       this.printer!.data(
         rows.length === 0
@@ -166,6 +195,7 @@ export class DbResetCommand extends SmCommand {
           : tx(DB_TEXTS.resetCleared, {
               glyph: ansiReset.green('✓'),
               tableCount: rows.length,
+              plural: pluralSuffix(rows.length),
               tableNames: rows.map((r) => r.name).join(', '),
             }),
       );

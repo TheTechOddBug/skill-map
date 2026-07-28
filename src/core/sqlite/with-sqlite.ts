@@ -44,8 +44,7 @@
  * paths stay unchanged.
  *
  * Lives under `core/` so the BFF consumes it without crossing into
- * `src/cli/`. Historic `cli/util/with-sqlite.ts` keeps working through
- * a re-export shim.
+ * `src/cli/`.
  */
 
 import { existsSync } from 'node:fs';

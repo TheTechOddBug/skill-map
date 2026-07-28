@@ -1,5 +1,5 @@
 /**
- * `createCliProgressEmitter`, bridges orchestrator `extension.error`
+ * `createStderrProgressEmitter`, bridges orchestrator `extension.error`
  * events to the CLI's stderr while keeping every other event in-memory
  * (so scan.progress noise stays out of the user-facing log).
  */
@@ -7,7 +7,7 @@
 import { describe, it } from 'node:test';
 import { strictEqual, match, ok } from 'node:assert';
 
-import { createCliProgressEmitter } from '../cli-progress-emitter.js';
+import { createStderrProgressEmitter } from '../progress-emitter.js';
 
 class CaptureStream {
   chunks: string[] = [];
@@ -20,10 +20,10 @@ class CaptureStream {
   }
 }
 
-describe('createCliProgressEmitter', () => {
+describe('createStderrProgressEmitter', () => {
   it('writes an extension.error event to stderr with its message', () => {
     const stderr = new CaptureStream();
-    const emitter = createCliProgressEmitter(stderr as unknown as NodeJS.WritableStream);
+    const emitter = createStderrProgressEmitter(stderr as unknown as NodeJS.WritableStream);
     emitter.emit({
       type: 'extension.error',
       timestamp: new Date().toISOString(),
@@ -41,7 +41,7 @@ describe('createCliProgressEmitter', () => {
 
   it('falls back to a placeholder when extension.error has no message', () => {
     const stderr = new CaptureStream();
-    const emitter = createCliProgressEmitter(stderr as unknown as NodeJS.WritableStream);
+    const emitter = createStderrProgressEmitter(stderr as unknown as NodeJS.WritableStream);
     emitter.emit({
       type: 'extension.error',
       timestamp: new Date().toISOString(),
@@ -52,7 +52,7 @@ describe('createCliProgressEmitter', () => {
 
   it('does NOT write scan progress events to stderr', () => {
     const stderr = new CaptureStream();
-    const emitter = createCliProgressEmitter(stderr as unknown as NodeJS.WritableStream);
+    const emitter = createStderrProgressEmitter(stderr as unknown as NodeJS.WritableStream);
     emitter.emit({
       type: 'scan.started',
       timestamp: new Date().toISOString(),
@@ -73,7 +73,7 @@ describe('createCliProgressEmitter', () => {
 
   it('subscribers still receive every event (including non-error)', () => {
     const stderr = new CaptureStream();
-    const emitter = createCliProgressEmitter(stderr as unknown as NodeJS.WritableStream);
+    const emitter = createStderrProgressEmitter(stderr as unknown as NodeJS.WritableStream);
     const seen: string[] = [];
     const unsubscribe = emitter.subscribe((event) => {
       seen.push(event.type);

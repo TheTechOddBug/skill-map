@@ -234,9 +234,9 @@ export interface ICreateWatcherRuntimeOpts {
   watchBackendOverride?: 'chokidar' | 'parcel' | undefined;
   /**
    * Build a fresh `ProgressEmitterPort` for each batch. CLI passes
-   * `createCliProgressEmitter(stderr)`; BFF passes the broadcaster
+   * `createStderrProgressEmitter(stderr)`; BFF passes the broadcaster
    * emitter. Called once per batch so per-emitter state
-   * (cli-progress-emitter's `seen` set) starts clean.
+   * (the stderr progress emitter's `seen` set) starts clean.
    */
   emitterFactory: () => ProgressEmitterPort;
   /**

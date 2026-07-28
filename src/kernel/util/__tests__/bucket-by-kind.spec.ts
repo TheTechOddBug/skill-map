@@ -73,7 +73,7 @@ describe('bucketByKind', () => {
   });
 
   it('drops the instance when the bag has no destination for that kind', () => {
-    // `bucketLoaded` (cli/util/plugin-runtime.ts) deliberately omits
+    // `bucketLoaded` (core/runtime/plugin-runtime.ts) deliberately omits
     // `action` from its bag; the helper must silently skip without
     // throwing or mutating any other bucket.
     const provider: unknown[] = [];

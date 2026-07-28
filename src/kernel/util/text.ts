@@ -36,3 +36,13 @@ export function truncateTail(s: string, max: number): string {
   if (chars.length <= max) return s;
   return '…' + chars.slice(chars.length - max + 1).join('');
 }
+
+/**
+ * `{{plural}}`-slot suffix per `context/cli-output-style.md` §4.3:
+ * empty for a count of exactly 1, `'s'` otherwise. Presentation-only
+ * sugar so call sites don't repeat the ternary (which also counts
+ * against the `complexity` lint budget).
+ */
+export function pluralSuffix(count: number): string {
+  return count === 1 ? '' : 's';
+}

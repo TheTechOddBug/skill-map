@@ -10,7 +10,8 @@
  * opt-in error reporting reaches Sentry.
  *
  * It triggers a GENUINE uncaught exception rather than throwing inside
- * `run()`: Clipanion swallows a per-verb throw into a non-zero exit code, so
+ * `run()`: `SmCommand.execute()`'s global boundary turns a per-verb throw
+ * into a rendered error + exit 2 (and Clipanion would swallow it anyway), so
  * it would never reach Sentry's `onUncaughtException` integration (see
  * `telemetry/sentry-init.ts`). Deferring the throw to the next macrotask makes
  * it a real `uncaughtException` that the integration captures, scrubs,

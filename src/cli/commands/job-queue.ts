@@ -93,10 +93,10 @@ import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { JOBS_QUEUE_TEXTS as T } from '../i18n/jobs-queue.texts.js';
 import { appendOperation } from '../../core/operations-log.js';
 import { pushJobEvent } from '../util/job-event-push.js';
-import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { readActiveSuppressions } from '../util/sidecar-suppressions.js';
 import { SmCommand } from '../util/sm-command.js';
-import { withSqlite } from '../util/with-sqlite.js';
+import { withSqlite } from '../../core/sqlite/with-sqlite.js';
 import { loadActionRuntime } from './action-runtime.js';
 
 // ---------------------------------------------------------------------------
@@ -241,7 +241,7 @@ export class JobSubmitCommand extends SmCommand {
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
-    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (dbExit !== null) return dbExit;
     // Write verb: refuse a drifted DB (either axis) BEFORE the plugin
     // runtime loads, or secondary reads (trust store) misbehave and
@@ -748,7 +748,7 @@ export class JobListCommand extends SmCommand {
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
-    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (dbExit !== null) return dbExit;
 
     const filter: IJobListFilter = {};
@@ -817,7 +817,7 @@ export class JobShowCommand extends SmCommand {
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
-    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (dbExit !== null) return dbExit;
 
     return withSqlite(
@@ -891,7 +891,7 @@ export class JobPreviewCommand extends SmCommand {
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
-    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (dbExit !== null) return dbExit;
 
     if (this.last && this.id !== undefined) {
@@ -995,7 +995,7 @@ export class JobClaimCommand extends SmCommand {
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
-    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (dbExit !== null) return dbExit;
 
     // Resolve + validate the --wait knobs before opening the DB. null =
@@ -1206,7 +1206,7 @@ export class JobStatusCommand extends SmCommand {
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
-    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (dbExit !== null) return dbExit;
 
     return withSqlite(
@@ -1289,7 +1289,7 @@ export class JobCancelCommand extends SmCommand {
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
-    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (dbExit !== null) return dbExit;
 
     // Write verb: refuse a drifted DB before any table mutation.
@@ -1405,7 +1405,7 @@ export class JobFailCommand extends SmCommand {
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
-    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (dbExit !== null) return dbExit;
 
     // Write verb: refuse a drifted DB before any table mutation.

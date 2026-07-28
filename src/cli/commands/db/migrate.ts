@@ -20,15 +20,17 @@ import { createSqliteStorage } from '../../../kernel/adapters/sqlite/index.js';
 import type { StoragePort } from '../../../kernel/ports/storage.js';
 import type { IPluginApplyResult } from '../../../kernel/adapters/sqlite/plugin-migrations.js';
 import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
+import { appendOperation } from '../../../core/operations-log.js';
 import { resolveDbPath } from '../../util/db-path.js';
-import { defaultRuntimeContext } from '../../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../../core/runtime/runtime-context.js';
 import { ExitCode } from '../../util/exit-codes.js';
 import { formatErrorMessage } from '../../../kernel/util/format-error.js';
+import { pluralSuffix } from '../../../kernel/util/text.js';
 import { tryParseNonNegativeInt } from '../../util/option-validators.js';
 import {
   emptyPluginRuntime,
   loadPluginRuntime,
-} from '../../util/plugin-runtime.js';
+} from '../../../core/runtime/plugin-runtime.js';
 import { SmCommand } from '../../util/sm-command.js';
 
 export class DbMigrateCommand extends SmCommand {
@@ -214,6 +216,7 @@ export class DbMigrateCommand extends SmCommand {
               ? tx(DB_TEXTS.migrateKernelDryNothing, { glyph: okGlyph })
               : tx(DB_TEXTS.migrateKernelDryHeader, {
                   count: kernelApplied,
+                  plural: pluralSuffix(kernelApplied),
                   lines: result.applied
                     .map((m) => `  ${formatKernelName(m.version, m.description)}`)
                     .join('\n'),
@@ -227,9 +230,14 @@ export class DbMigrateCommand extends SmCommand {
               ? tx(DB_TEXTS.migrateKernelAppliedWithBackup, {
                   glyph: okGlyph,
                   count: kernelApplied,
+                  plural: pluralSuffix(kernelApplied),
                   backupPath: relativeIfBelow(backupPath, cwdMig),
                 })
-              : tx(DB_TEXTS.migrateKernelApplied, { glyph: okGlyph, count: kernelApplied }),
+              : tx(DB_TEXTS.migrateKernelApplied, {
+                  glyph: okGlyph,
+                  count: kernelApplied,
+                  plural: pluralSuffix(kernelApplied),
+                }),
           );
         }
       }
@@ -245,6 +253,17 @@ export class DbMigrateCommand extends SmCommand {
           ansi: ansiMig,
         });
         if (exitCode !== 0) return exitCode;
+      }
+
+      if (!this.dryRun) {
+        appendOperation(cwdMig, {
+          op: 'db.migrate',
+          target: '*',
+          channel: 'cli',
+          outcome: 'ok',
+          detail:
+            kernelApplied === undefined ? 'plugin-only' : `kernelApplied=${kernelApplied}`,
+        });
       }
 
       return ExitCode.Ok;
@@ -293,6 +312,7 @@ async function runPluginMigrations(opts: IRunPluginMigrationsOpts): Promise<numb
           : tx(DB_TEXTS.pluginMigrateDryHeader, {
               pluginId: plugin.id,
               count: result.applied.length,
+              plural: pluralSuffix(result.applied.length),
               lines: result.applied
                 .map((m) => `  ${formatKernelName(m.version, m.description)}`)
                 .join('\n'),
@@ -306,6 +326,7 @@ async function runPluginMigrations(opts: IRunPluginMigrationsOpts): Promise<numb
               glyph: okGlyph,
               pluginId: plugin.id,
               count: result.applied.length,
+              plural: pluralSuffix(result.applied.length),
             }),
       );
     }

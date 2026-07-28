@@ -45,9 +45,9 @@ import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
 import type { IAnsi } from '../../util/ansi.js';
 import { resolveDbPath } from '../../util/db-path.js';
 import { ExitCode } from '../../util/exit-codes.js';
-import { defaultRuntimeContext } from '../../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../../core/runtime/runtime-context.js';
 import { SmCommand } from '../../util/sm-command.js';
-import { tryWithSqlite } from '../../util/with-sqlite.js';
+import { tryWithSqlite } from '../../../core/sqlite/with-sqlite.js';
 import {
   builtInRows,
   buildResolver,

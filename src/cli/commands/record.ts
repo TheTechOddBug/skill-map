@@ -64,9 +64,9 @@ import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { pushJobEvent } from '../util/job-event-push.js';
 import { RECORD_TEXTS as T } from '../i18n/record.texts.js';
 
-import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
-import { withSqlite } from '../util/with-sqlite.js';
+import { withSqlite } from '../../core/sqlite/with-sqlite.js';
 import type { IActionRuntime } from '../../core/jobs/action-runtime.js';
 import {
   buildCompletedEventData,
@@ -157,7 +157,7 @@ export class RecordCommand extends SmCommand {
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
-    const dbExit = requireDbOrExit(dbPath, this.context.stderr);
+    const dbExit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (dbExit !== null) return dbExit;
     // Write verb: refuse a drifted DB before the nonce lookup, the
     // plugin-runtime load, and the record transaction

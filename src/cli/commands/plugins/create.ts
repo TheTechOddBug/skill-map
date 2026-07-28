@@ -29,7 +29,7 @@ import { tx } from '../../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
 import { defaultProjectPluginsDir } from '../../util/db-path.js';
 import { ExitCode } from '../../util/exit-codes.js';
-import { defaultRuntimeContext } from '../../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../../core/runtime/runtime-context.js';
 import { SmCommand } from '../../util/sm-command.js';
 import { generateScaffold } from './scaffold/index.js';
 

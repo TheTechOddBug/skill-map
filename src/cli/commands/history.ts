@@ -26,16 +26,16 @@ import type {
 } from '../../kernel/types.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
-import { truncateHead } from '../util/text.js';
+import { truncateHead } from '../../kernel/util/text.js';
 import type { IAnsi } from '../util/ansi.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { buildReadVersionCheck } from '../util/db-version-check.js';
-import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { formatElapsed } from '../util/elapsed.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { parsePositiveIntegerOption } from '../util/option-validators.js';
 import { SmCommand } from '../util/sm-command.js';
-import { withSqlite } from '../util/with-sqlite.js';
+import { withSqlite } from '../../core/sqlite/with-sqlite.js';
 import { HISTORY_TEXTS } from '../i18n/history.texts.js';
 
 const STATUSES: readonly ExecutionStatus[] = ['completed', 'failed', 'cancelled'];
@@ -162,14 +162,14 @@ export class HistoryCommand extends SmCommand {
       filter.untilMs = ms;
     }
     if (this.limit !== undefined) {
-      const parsed = parsePositiveIntegerOption(this.limit, '--limit', this.context.stderr);
+      const parsed = parsePositiveIntegerOption(this.limit, '--limit', this.context.stderr, this.noColor);
       if (parsed === null) return ExitCode.Error;
       filter.limit = parsed;
     }
 
     // --- DB --------------------------------------------------------------
     const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
-    const exit = requireDbOrExit(dbPath, this.context.stderr);
+    const exit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (exit !== null) return exit;
 
     // Read verb: advise on drift, never refuse (spec/db-schema.md §Schema
@@ -262,14 +262,14 @@ export class HistoryStatsCommand extends SmCommand {
     }
     let topN = 10;
     if (this.top !== undefined) {
-      const parsed = parsePositiveIntegerOption(this.top, '--top', this.context.stderr);
+      const parsed = parsePositiveIntegerOption(this.top, '--top', this.context.stderr, this.noColor);
       if (parsed === null) return ExitCode.Error;
       topN = parsed;
     }
 
     // --- DB --------------------------------------------------------------
     const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
-    const exit = requireDbOrExit(dbPath, this.context.stderr);
+    const exit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (exit !== null) return exit;
 
     // Read verb: advise on drift, never refuse (spec/db-schema.md §Schema

@@ -23,8 +23,8 @@
 
 import { buildActionRuntime, type IActionRuntime } from '../../core/jobs/action-runtime.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
-import { loadPluginRuntime } from '../util/plugin-runtime.js';
-import type { IPrinter } from '../util/printer.js';
+import { loadPluginRuntime } from '../../core/runtime/plugin-runtime.js';
+import type { IPrinter } from '../../core/runtime/printer.js';
 
 /**
  * Load the composed extension catalogs (built-ins + enabled plugins) for

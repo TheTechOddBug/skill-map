@@ -12,7 +12,7 @@ import { Command, Option } from 'clipanion';
 import { tx } from '../../../kernel/util/tx.js';
 import { DB_TEXTS } from '../../i18n/db.texts.js';
 import { assertDbExists, resolveDbPath } from '../../util/db-path.js';
-import { defaultRuntimeContext } from '../../util/runtime-context.js';
+import { defaultRuntimeContext } from '../../../core/runtime/runtime-context.js';
 import { ExitCode } from '../../util/exit-codes.js';
 import { SmCommand } from '../../util/sm-command.js';
 
@@ -58,7 +58,7 @@ export class DbBrowserCommand extends SmCommand {
       ? resolve(this.positional)
       : resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
 
-    if (!assertDbExists(path, this.context.stderr)) {
+    if (!assertDbExists(path, this.context.stderr, this.noColor)) {
       this.printer!.error(DB_TEXTS.browserRunScanFirstHint);
       return ExitCode.NotFound;
     }

@@ -39,7 +39,7 @@ import {
 } from './util/empty-folder-prompt.js';
 import { ExitCode } from './util/exit-codes.js';
 import { formatParseError, isClipanionParseError } from './util/parse-error.js';
-import { defaultRuntimeContext } from './util/runtime-context.js';
+import { defaultRuntimeContext } from '../core/runtime/runtime-context.js';
 import { maybeRunUpdateCheck } from './util/update-check-banner.js';
 import { maybeRunFirstRunPrompt } from './telemetry/first-run-prompt.js';
 import {
@@ -96,7 +96,7 @@ import { SIDECAR_COMMANDS } from './commands/sidecar.js';
 import { TutorialCommand } from './commands/tutorial.js';
 import { VersionCommand } from './commands/version.js';
 import { WatchCommand } from './commands/watch.js';
-import { BINARY_LABEL, BINARY_NAME, VERSION } from './version.js';
+import { BINARY_LABEL, BINARY_NAME, VERSION } from '../version.js';
 
 const cli = new Cli({
   binaryLabel: BINARY_LABEL,
@@ -229,25 +229,22 @@ await lifecycleDispatcher.dispatch(
   }),
 );
 
-// Pre-parse so we can intercept Clipanion's UnknownSyntaxError /
+// Parse ONCE and intercept Clipanion's UnknownSyntaxError /
 // AmbiguousSyntaxError before its default handler dumps every command's
 // USAGE line to stdout. Our replacement writes a concise diagnostic to
 // stderr and exits with `ExitCode.Error` (2) per spec/cli-contract.md
 // §Exit codes, "unknown flag" is operational error, not result issue.
-//
-// Load-bearing detail: `cli.process(argv)` and `cli.run(argv)` parse
-// `argv` independently. We rely on Clipanion's parser being pure (no
-// env-var snapshot, no plugin registration, no shared mutable state) so
-// the second parse on the success path is a true no-op. If a future
-// Clipanion update tightens parser side effects, this double-parse must
-// be collapsed (capture the parsed command from `process()` and feed it
-// to `run()` instead of re-parsing).
+// The hydrated command returned by `process()` feeds `run()` directly
+// (Clipanion 4's `run` accepts `Command | Array<string>`), so the
+// success path never re-parses argv.
+const cliRunContext = {
+  stdin: process.stdin,
+  stdout: process.stdout,
+  stderr: process.stderr,
+};
+let parsedCommand;
 try {
-  cli.process(routedArgs, {
-    stdin: process.stdin,
-    stdout: process.stdout,
-    stderr: process.stderr,
-  });
+  parsedCommand = cli.process(routedArgs, cliRunContext);
 } catch (err) {
   if (isClipanionParseError(err)) {
     process.stderr.write(
@@ -262,11 +259,7 @@ try {
   throw err;
 }
 
-const exitCode = await cli.run(routedArgs, {
-  stdin: process.stdin,
-  stdout: process.stdout,
-  stderr: process.stderr,
-});
+const exitCode = await cli.run(parsedCommand, cliRunContext);
 
 // Usage analytics (opt-in, default OFF; no-op unless the PostHog surface is
 // active, see spec/telemetry.md §Usage event taxonomy). One event per

@@ -33,13 +33,13 @@ import { formatOversizedFileRows } from '../../kernel/util/format-oversized.js';
 import { tx } from '../../kernel/util/tx.js';
 import { WATCH_TEXTS } from '../i18n/watch.texts.js';
 import { ansiFor } from '../util/ansi.js';
-import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
+import { createStderrProgressEmitter } from '../../core/runtime/progress-emitter.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import { resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { tryParseNonNegativeInt, tryParsePositiveInt } from '../util/option-validators.js';
-import { defaultRuntimeContext } from '../util/runtime-context.js';
-import { createPrinter, type IPrinter } from '../util/printer.js';
+import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
+import { createPrinter, type IPrinter } from '../../core/runtime/printer.js';
 import { SmCommand } from '../util/sm-command.js';
 
 export interface IRunWatchOptions {
@@ -196,7 +196,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     noPlugins: opts.noPlugins ?? false,
     strictOverride: opts.strict,
     tokenizeOverride: !opts.noTokens,
-    emitterFactory: () => createCliProgressEmitter(context.stderr),
+    emitterFactory: () => createStderrProgressEmitter(context.stderr),
     runInitialBatch: true,
     // CLI ordering: initial scan first, then subscribe. Matches the
     // historic `runWatchLoop` shape, events arriving during the

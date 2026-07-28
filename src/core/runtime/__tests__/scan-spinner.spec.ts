@@ -4,7 +4,7 @@
  * Exercises the spinner against a capturing fake stream (no `process.*`,
  * no real terminal) plus `node:test`'s `mock.timers` for the animated
  * TTY path. Mirrors the fake-stream style of
- * `cli/util/__tests__/cli-progress-emitter.spec.ts` and the fake-timer
+ * `core/runtime/__tests__/progress-emitter.spec.ts` and the fake-timer
  * style of `server/__tests__/server-ws-heartbeat.spec.ts`.
  *
  * Coverage targets:

@@ -25,7 +25,7 @@ import {
   emptyPluginRuntime,
   filterBuiltInManifests,
   loadPluginRuntime,
-} from '../../../cli/util/plugin-runtime.js';
+} from '../plugin-runtime.js';
 import { readConformanceKillSwitches } from '../../../cli/util/conformance-env.js';
 import { builtInPlugins, listBuiltIns } from '../../../plugins/built-ins.js';
 

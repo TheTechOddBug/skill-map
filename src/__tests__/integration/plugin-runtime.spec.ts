@@ -38,7 +38,7 @@ import type { BaseContext } from 'clipanion';
 
 import { GraphCommand } from '../../cli/commands/graph.js';
 import { ScanCommand } from '../../cli/commands/scan.js';
-import { formatWarning } from '../../cli/util/plugin-runtime.js';
+import { formatWarning } from '../../core/runtime/plugin-runtime.js';
 import { withSqlite } from '../../core/sqlite/with-sqlite.js';
 import type { ScanResult } from '../../kernel/index.js';
 import type { IDiscoveredPlugin } from '../../kernel/types/plugin.js';

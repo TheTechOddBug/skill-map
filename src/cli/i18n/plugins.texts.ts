@@ -251,6 +251,8 @@ export const PLUGINS_TEXTS = {
    * regardless of its load state.
    */
   detailHeaderUser: '  {{glyph}}  {{id}}   v{{version}}   {{source}}{{extCount}}\n',
+  /** `extCount` segment of `detailHeaderUser` when the plugin has extensions. */
+  detailHeaderExtCount: '   {{extCount}} extension{{plural}}',
   /** Field row used for Path / Compat / Summary / Reason. */
   detailFieldRow: '  {{label}}  {{value}}\n',
   /** Field labels (padded at render time to align with the longest in the block). */
