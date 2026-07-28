@@ -843,9 +843,6 @@ export interface IMigrateNodeFksReport {
   }>;
 }
 
-// --- trust namespace ------------------------------------------------------
-
-
 // --- migrations namespace --------------------------------------------------
 
 /** Discovered kernel migration file (one of `NNN_snake_case.sql`). */

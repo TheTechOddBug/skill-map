@@ -12,8 +12,7 @@
  * (`.skill-map/scope.lock.json`). Being gitignored is NOT what makes it
  * safe, the ignore list is the repo author's to edit; the grant is
  * anchored to this checkout's `.skill-map/` identity, so a cloned repo
- * cannot auto-trust its
- * own plugins.
+ * cannot auto-trust its own plugins.
  *
  * Built-ins and host-locked ids are never import-trust-gated, so a trust
  * verb that targets one is rejected with a directed message. `--all`
@@ -176,13 +175,6 @@ abstract class TrustPluginsBase extends SmCommand {
   }
 
   /**
-   * Write the grant for every resolved bare plugin id into the scope
-   * lock. `trusted` true grants import trust, false revokes it (the next
-   * scan / restart reverts the plugin to discovered-but-unexecuted).
-   * Each id gets its OWN grant: a shared one would be refreshed by any
-   * later write and would bless records the operator never approved.
-   */
-  /**
    * Gate the write behind the `--all` confirm, then persist. Split out so
    * `applyTrust` stays under the complexity cap.
    */
@@ -224,6 +216,13 @@ abstract class TrustPluginsBase extends SmCommand {
     );
   }
 
+  /**
+   * Write the grant for every resolved bare plugin id into the scope
+   * lock. `trusted` true grants import trust, false revokes it (the next
+   * scan / restart reverts the plugin to discovered-but-unexecuted).
+   * Each id gets its OWN grant: a shared one would be refreshed by any
+   * later write and would bless records the operator never approved.
+   */
   async #persist(pluginIds: string[], trusted: boolean): Promise<TGrantOutcome> {
     const ctx = defaultRuntimeContext();
     if (!trusted) {
