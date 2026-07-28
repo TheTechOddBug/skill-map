@@ -25,13 +25,13 @@
   background: var(--p-content-background);
   color: var(--p-text-color);
   box-shadow: var(--p-overlay-popover-shadow);
-  font-size: 0.8125rem;
+  font-size: var(--sm-fs-sm);
   line-height: 1.4;
 }
 
 .branch-cap-banner__icon {
   flex: 0 0 auto;
-  font-size: 1rem;
+  font-size: var(--sm-fs-xl);
   color: var(--p-primary-color);
 }
 

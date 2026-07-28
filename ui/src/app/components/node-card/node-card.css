@@ -179,7 +179,7 @@
   background: var(--kind-bg);
   color: var(--kind-fg);
   flex: none;
-  font-size: 1.05rem;
+  font-size: var(--sm-fs-xl);
   grid-row: 1 / span 2;
   align-self: center;
 }
@@ -212,7 +212,7 @@
 }
 
 .sm-gnode__name {
-  font-size: 0.9rem;
+  font-size: var(--sm-fs-md);
   font-weight: 600;
   line-height: 1.2;
   overflow: hidden;
@@ -230,7 +230,7 @@
    vertically against the 22px chevron via align-self. */
 .sm-gnode__name-version {
   font-family: var(--sm-font-mono);
-  font-size: 0.65rem;
+  font-size: var(--sm-fs-2xs);
   color: var(--sm-text-muted);
   background: color-mix(in srgb, var(--accent) 10%, transparent);
   padding: 0.05rem 0.35rem;
@@ -255,7 +255,7 @@
 .sm-gnode__confidence {
   display: flex;
   align-items: flex-start;
-  font-size: 0.65rem;
+  font-size: var(--sm-fs-2xs);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   line-height: 1;
@@ -283,7 +283,7 @@
 }
 
 .sm-gnode__chevron .pi {
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
   line-height: 1;
 }
 
@@ -299,10 +299,11 @@
    top-right of `.sm-gnode__sub` and pulled up via negative `top` so the
    star sits visually close to the chevron above (the bare `top: 0`
    leaves the row-gap + the box's own vertical centring between the two
-   icons, which read as "too far" to the eye). The glyph runs at 0.8rem
-   (chevron is at 0.7rem) to compensate for `pi-star`'s lighter visual
-   mass, the resulting rendered icons read at the same perceived size,
-   with natural inner padding from the 22-vs-13px box/glyph differential. */
+   icons, which read as "too far" to the eye). The glyph runs one ramp
+   stop above the chevron (sm vs xs) to compensate for `pi-star`'s
+   lighter visual mass, the resulting rendered icons read at the same
+   perceived size, with natural inner padding from the box/glyph
+   differential. */
 .sm-gnode__favorite {
   position: absolute;
   top: -3px;
@@ -322,7 +323,7 @@
 }
 
 .sm-gnode__favorite .pi {
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
   line-height: 1;
 }
 
@@ -348,7 +349,7 @@
   align-items: center;
   gap: 6px;
   font-family: var(--sm-font-mono);
-  font-size: 0.6rem;
+  font-size: var(--sm-fs-2xs);
   color: var(--sm-text-muted);
   line-height: 1.2;
   margin-top: 0.1rem;
@@ -367,7 +368,7 @@
   border-radius: var(--sm-radius-sm);
   background: var(--sm-bg-hover);
   font-family: var(--sm-font-mono);
-  font-size: 0.6rem;
+  font-size: var(--sm-fs-2xs);
   color: var(--sm-text-muted);
   font-weight: 400;
   flex: none;
@@ -379,7 +380,7 @@
   gap: 0.15rem;
 }
 
-.sm-gnode__sub-stat i { font-size: 0.65rem; }
+.sm-gnode__sub-stat i { font-size: var(--sm-fs-2xs); }
 .sm-gnode__sub-key { font-weight: 700; }
 
 /* Type-coded subtle tints. Backed by `--sm-stat-*-bg` vars (light + dark
@@ -400,7 +401,7 @@
 /* Same text-stroke fattening as the topbar Real Time toggle: the
    thin pi-wave-pulse glyph reads too light at this size otherwise. */
 .sm-gnode__activity-pulse {
-  font-size: 0.6rem;
+  font-size: var(--sm-fs-2xs);
   -webkit-text-stroke-width: 0.03em;
 }
 
@@ -412,7 +413,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
   line-height: 1.4;
 }
 
@@ -429,7 +430,7 @@
   flex: none;
   font-style: normal;
   color: var(--sm-text-muted);
-  font-size: 0.6rem;
+  font-size: var(--sm-fs-2xs);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   font-weight: 600;
@@ -447,7 +448,7 @@
 }
 
 .sm-gnode__chip {
-  font-size: 0.65rem;
+  font-size: var(--sm-fs-2xs);
   padding: 0.1rem 0.4rem;
   border-radius: var(--sm-radius-sm);
   border: 1px solid var(--sm-border);
@@ -466,7 +467,7 @@
   background: var(--sm-bg-hover);
   padding: 0.1rem 0.4rem;
   border-radius: var(--sm-radius-sm);
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
   font-style: normal;
   color: var(--p-text-color);
 }
@@ -477,7 +478,7 @@
   gap: 0.35rem;
   padding: 0.4rem 0.7rem;
   font-family: var(--sm-font-mono);
-  font-size: 0.68rem;
+  font-size: var(--sm-fs-2xs);
   color: var(--sm-text-muted);
   background: var(--sm-bg-hover);
   border-top: 1px solid var(--sm-border);
@@ -486,7 +487,7 @@
 
 .sm-gnode__path-icon {
   flex: none;
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
   color: var(--sm-text-muted);
 }
 
@@ -511,7 +512,7 @@
 
 .sm-gnode__desc {
   padding: 0.55rem 0.7rem;
-  font-size: 0.78rem;
+  font-size: var(--sm-fs-sm);
   line-height: 1.45;
   color: var(--p-text-color);
   max-height: 140px;
@@ -554,7 +555,7 @@
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
   min-width: 0;
 }
 
@@ -563,7 +564,7 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   font-weight: 600;
-  font-size: 0.6rem;
+  font-size: var(--sm-fs-2xs);
   flex: none;
   min-width: 60px;
   padding-top: 0.15rem;
@@ -582,14 +583,14 @@
   background: var(--sm-bg-hover);
   padding: 0.08rem 0.4rem;
   border-radius: var(--sm-radius-sm);
-  font-size: 0.68rem;
+  font-size: var(--sm-fs-2xs);
 }
 
 
 /* Footer is always rendered (even when no stats) so the collapsed card
    has a stable bottom strip. `min-height` is sized to match the
    populated case where severity pills (`.sm-gnode__stat--error/--warn`)
-   add 0.2rem of inner padding on top of the 0.7rem font size + line-1
+   add 0.2rem of inner padding on top of the xs-stop font size + line-1
    glyphs, without this bump the empty footer renders ~5px shorter
    than a populated one and the card height jitters between nodes. */
 .sm-gnode__footer {
@@ -600,7 +601,7 @@
   padding: 0.4rem 0.7rem;
   border-top: 1px solid var(--sm-border);
   background: var(--sm-bg-hover);
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
   color: var(--sm-text-muted);
 }
 
@@ -625,7 +626,7 @@
 }
 
 .sm-gnode__stat i {
-  font-size: 0.6rem;
+  font-size: var(--sm-fs-2xs);
   line-height: 1;
   display: block;
 }
@@ -684,7 +685,7 @@
 .sm-gnode__tag-chip {
   appearance: none;
   margin: 0;
-  font-size: 0.6rem;
+  font-size: var(--sm-fs-2xs);
   font-family: var(--sm-font-mono);
   padding: 0.05rem 0.35rem;
   border-radius: var(--sm-radius-sm);
@@ -707,7 +708,7 @@
 }
 
 .sm-gnode__tag-more {
-  font-size: 0.6rem;
+  font-size: var(--sm-fs-2xs);
   color: var(--sm-text-muted);
   font-style: italic;
 }

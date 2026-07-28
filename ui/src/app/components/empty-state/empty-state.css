@@ -35,6 +35,6 @@
 
 .empty-state-card__body {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
   line-height: 1.4;
 }

@@ -1,17 +1,14 @@
-/* Typographic scale: every size in the view traces back to one ladder.
-   When tweaking sizes, edit the tokens below, do NOT introduce a
-   one-off literal.
+/* Typography rides the global `--sm-fs-*` ramp (styles.css): xs for
+   hints / count chips, sm for leaf code paths, md for the baseline
+   body. Same stops as the queue view so the two rail panels read as
+   one surface; do NOT introduce one-off literals.
 
-   One token is the exception and is NOT declared here: `--files-row-h`
-   is bound onto the table from TypeScript (`FILES_ROW_HEIGHT_PX` in
-   `files-view.ts`). The virtual scroller is a fixed-item-size
-   virtualizer, so the CSS row box and `[virtualScrollItemSize]` MUST be
-   the same number; owning it in TS makes drift impossible. */
+   One layout token is NOT declared here: `--files-row-h` is bound onto
+   the table from TypeScript (`FILES_ROW_HEIGHT_PX` in `files-view.ts`).
+   The virtual scroller is a fixed-item-size virtualizer, so the CSS row
+   box and `[virtualScrollItemSize]` MUST be the same number; owning it
+   in TS makes drift impossible. */
 :host {
-  --files-fs-xs: 0.75rem;     /* hints, count chips */
-  --files-fs-mono: 0.8rem;    /* leaf code paths */
-  --files-fs-sm: 0.875rem;    /* baseline body */
-
   /* Indentation step per depth level, mirrors VSCode's explorer
      density. The tree column reserves enough room for ~6 levels
      before the indent eats the name. */
@@ -38,7 +35,7 @@
 }
 
 .files__loading-label {
-  font-size: var(--files-fs-xs);
+  font-size: var(--sm-fs-xs);
 }
 
 .files__table {
@@ -55,7 +52,7 @@
    a long unbreakable cell could wrap to two lines and silently break the
    contract. */
 :host ::ng-deep .files__table .p-datatable-tbody td {
-  font-size: var(--files-fs-sm);
+  font-size: var(--sm-fs-md);
   vertical-align: middle;
   box-sizing: border-box;
   height: var(--files-row-h);
@@ -130,7 +127,7 @@
 }
 
 .files__sort-icon {
-  font-size: var(--files-fs-xs);
+  font-size: var(--sm-fs-xs);
   color: var(--p-text-muted-color);
   opacity: 0.5;
   flex-shrink: 0;
@@ -187,7 +184,7 @@
 }
 
 .files__tree-action i {
-  font-size: var(--files-fs-xs);
+  font-size: var(--sm-fs-xs);
 }
 
 /* NO ROW ANIMATIONS, IN EITHER DIRECTION. This is a standing prohibition,
@@ -283,7 +280,7 @@
 }
 
 .files__vis-check .pi {
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
 }
 
 /* The master (root) checkbox sits in the tree-column header, before the
@@ -326,7 +323,7 @@
 
 .files__chevron {
   flex-shrink: 0;
-  font-size: var(--files-fs-xs);
+  font-size: var(--sm-fs-xs);
   color: var(--p-text-muted-color);
   width: 0.85rem;
   text-align: center;
@@ -349,7 +346,7 @@
 
 .files__folder-icon {
   flex-shrink: 0;
-  font-size: var(--files-fs-sm);
+  font-size: var(--sm-fs-md);
   color: var(--p-primary-color);
   width: 1rem;
   text-align: center;
@@ -357,7 +354,7 @@
 
 .files__leaf-icon {
   flex-shrink: 0;
-  font-size: var(--files-fs-sm);
+  font-size: var(--sm-fs-md);
   color: var(--p-text-muted-color);
   width: 1rem;
   text-align: center;
@@ -432,7 +429,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--p-text-muted-color);
-  font-size: var(--files-fs-xs);
+  font-size: var(--sm-fs-xs);
 }
 
 /* A folder-named node's fixed filename (`SKILL.md`) shown as a plain leaf
@@ -470,7 +467,7 @@
 }
 
 .files__open-graph i {
-  font-size: var(--files-fs-sm);
+  font-size: var(--sm-fs-md);
   line-height: 1;
 }
 
@@ -488,7 +485,7 @@
 
 .files__count {
   flex-shrink: 0;
-  font-size: var(--files-fs-xs);
+  font-size: var(--sm-fs-xs);
   font-family: var(--sm-font-mono);
   color: var(--p-text-muted-color);
   padding: 0.05rem 0.4rem;
@@ -516,7 +513,7 @@
 .files__cell-num {
   text-align: right;
   font-family: var(--sm-font-mono);
-  font-size: var(--files-fs-mono);
+  font-size: var(--sm-fs-sm);
   color: var(--p-text-muted-color);
 }
 
@@ -529,7 +526,7 @@
 
 /* Issues column, same dual-signal shape + hue as files-view. */
 .files__stale-icon {
-  font-size: var(--files-fs-sm);
+  font-size: var(--sm-fs-md);
   /* Neutral foreground (not a warn tint): drift is informational. The
      0.65 opacity keeps it quiet at row density. */
   color: var(--p-text-color);
@@ -548,13 +545,13 @@
   align-items: center;
   gap: 0.3rem;
   font-weight: 600;
-  font-size: var(--files-fs-sm);
+  font-size: var(--sm-fs-md);
   line-height: 1;
   opacity: 0.65;
 }
 
 .files__issue i {
-  font-size: var(--files-fs-sm);
+  font-size: var(--sm-fs-md);
   line-height: 1;
 }
 
@@ -573,5 +570,5 @@
 .files__cell-issues-empty {
   color: var(--p-text-muted-color);
   font-family: var(--sm-font-mono);
-  font-size: var(--files-fs-mono);
+  font-size: var(--sm-fs-sm);
 }

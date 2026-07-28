@@ -21,13 +21,13 @@
   border-radius: var(--sm-radius-md);
   background: var(--sm-severity-warn-bg);
   color: var(--sm-severity-warn);
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
 }
 
 .marker-drift__icon {
   flex: none;
   color: var(--sm-severity-warn);
-  font-size: 1rem;
+  font-size: var(--sm-fs-xl);
 }
 
 .marker-drift__body {

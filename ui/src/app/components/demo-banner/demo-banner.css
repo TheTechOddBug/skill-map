@@ -16,11 +16,11 @@
   border-bottom: 1px solid var(--p-content-border-color);
   background: var(--p-highlight-background);
   color: var(--p-text-color);
-  font-size: 0.875rem;
+  font-size: var(--sm-fs-md);
 }
 
 .demo-banner__icon {
-  font-size: 1.1rem;
+  font-size: var(--sm-fs-2xl);
   color: var(--p-primary-color);
 }
 

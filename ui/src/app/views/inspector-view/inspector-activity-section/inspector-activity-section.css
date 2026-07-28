@@ -22,12 +22,12 @@
 .inspector__activity-loading,
 .inspector__activity-empty {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: var(--sm-fs-sm);
   color: var(--p-text-muted-color);
 }
 
 .inspector__activity-capture-chip {
-  font-size: 0.68rem;
+  font-size: var(--sm-fs-2xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -39,7 +39,7 @@
 
 .inspector__activity-heading {
   margin: 0.35rem 0 0;
-  font-size: 0.72rem;
+  font-size: var(--sm-fs-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -80,14 +80,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.78rem;
+  font-size: var(--sm-fs-sm);
   color: var(--p-text-color);
 }
 
 /* Muted line when the active provenance filter matches no entry. */
 .inspector__activity-filter-empty {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: var(--sm-fs-sm);
   font-style: italic;
   color: var(--p-text-muted-color);
 }
@@ -106,7 +106,7 @@
   display: flex;
   align-items: baseline;
   gap: 0.6rem;
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
 }
 
 .inspector__activity-time {
@@ -117,7 +117,7 @@
 
 .inspector__activity-owner {
   font-family: var(--sm-font-mono);
-  font-size: 0.72rem;
+  font-size: var(--sm-fs-xs);
   color: var(--p-text-color);
   /* Short owner now (see shortenOwner), so it no longer needs to wrap
      and can hold its width, leaving room for the tool detail. */
@@ -135,7 +135,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--sm-font-mono);
-  font-size: 0.72rem;
+  font-size: var(--sm-fs-xs);
   color: var(--p-text-muted-color);
 }
 
@@ -151,7 +151,7 @@
   gap: 0.35rem;
   margin-left: auto;
   min-width: 0;
-  font-size: 0.72rem;
+  font-size: var(--sm-fs-xs);
 }
 
 .inspector__activity-invocation-sep {
@@ -164,7 +164,7 @@
    file read. Muted + compact, never grows so it cannot squish the row. */
 .inspector__activity-type-icon {
   flex: none;
-  font-size: 0.68rem;
+  font-size: var(--sm-fs-2xs);
   color: var(--p-text-muted-color);
 }
 
@@ -183,7 +183,7 @@
   border: none;
   background: none;
   font-family: var(--sm-font-mono);
-  font-size: 0.72rem;
+  font-size: var(--sm-fs-xs);
   color: var(--sm-exec-c1);
   cursor: pointer;
   text-align: left;
@@ -228,20 +228,20 @@
 }
 
 .inspector__activity-spawn-pair {
-  font-size: 0.82rem;
+  font-size: var(--sm-fs-sm);
   color: var(--p-text-color);
   overflow-wrap: anywhere;
 }
 
 .inspector__activity-spawn-meta {
-  font-size: 0.72rem;
+  font-size: var(--sm-fs-xs);
   color: var(--p-text-muted-color);
   font-variant-numeric: tabular-nums;
 }
 
 .inspector__activity-hint {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: var(--sm-fs-sm);
   font-style: italic;
   color: var(--p-text-muted-color);
 }

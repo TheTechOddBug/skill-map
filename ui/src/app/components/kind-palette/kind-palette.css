@@ -48,7 +48,7 @@
 
   width: 56px;
   height: 30px;
-  font-size: 0.72rem;
+  font-size: var(--sm-fs-xs);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -90,7 +90,7 @@
    PrimeIcon (`pi-star` / `pi-star-fill`) carried inline instead of an
    `<sm-kind-icon>`. Active state goes primary via the theme token. */
 :host ::ng-deep .kind-palette__btn--favorites .pi {
-  font-size: 0.95rem;
+  font-size: var(--sm-fs-lg);
   line-height: 1;
   color: var(--p-text-muted-color);
 }

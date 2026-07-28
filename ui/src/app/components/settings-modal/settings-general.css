@@ -7,7 +7,7 @@
 
 .settings-general__title {
   margin: 0 0 0.25rem 0;
-  font-size: 1.05rem;
+  font-size: var(--sm-fs-xl);
   font-weight: 600;
   color: var(--p-text-color);
 }
@@ -15,7 +15,7 @@
 .settings-general__intro {
   font-style: italic;
   margin: 0 0 1.25rem 0;
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
   color: var(--sm-text-muted);
   line-height: 1.5;
 }
@@ -55,13 +55,13 @@
 }
 
 .settings-general__row-label {
-  font-size: 0.9rem;
+  font-size: var(--sm-fs-md);
   font-weight: 600;
   color: var(--p-text-color);
 }
 
 .settings-general__row-description {
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
   color: var(--sm-text-muted);
   line-height: 1.45;
 }
@@ -70,7 +70,7 @@
    an aside under the description, not part of it. */
 .settings-general__row-hint {
   margin-top: 0.2rem;
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
   font-style: italic;
   color: var(--sm-text-muted);
 }
@@ -80,7 +80,7 @@
  * than a row of content. */
 .settings-general__storage-hint {
   margin: 2rem 0 0 0;
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
   line-height: 1.5;
   color: var(--sm-text-muted);
   opacity: 0.65;
@@ -88,7 +88,7 @@
 
 .settings-general__storage-hint-path {
   font-family: var(--sm-font-mono);
-  font-size: 0.72rem;
+  font-size: var(--sm-fs-xs);
   padding: 0.05rem 0.3rem;
   border-radius: var(--sm-radius-md);
   background: var(--p-content-background);
@@ -121,7 +121,7 @@
   width: 100%;
   border-collapse: collapse;
   font-family: var(--sm-font-mono);
-  font-size: 0.78rem;
+  font-size: var(--sm-fs-sm);
 }
 
 .settings-config-resolution__table th {
@@ -149,7 +149,7 @@
 }
 
 .settings-config-resolution__layer {
-  font-size: 0.65rem;
+  font-size: var(--sm-fs-2xs);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 0.05rem 0.4rem;

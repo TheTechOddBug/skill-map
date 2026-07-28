@@ -4,7 +4,7 @@
 
 .linked-nodes-panel__status {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
   color: var(--p-text-muted-color);
   font-style: italic;
 }
@@ -29,19 +29,19 @@
   align-items: center;
   gap: 0.4rem;
   margin: 0 0 0.4rem;
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
 }
 
 .linked-nodes-panel__section-icon {
   display: inline-flex;
   align-items: center;
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
   color: var(--p-text-color);
 }
 
 .linked-nodes-panel__section-count {
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: var(--sm-fs-md);
   line-height: 1;
   color: var(--p-text-color);
 }
@@ -93,7 +93,7 @@
   border: none;
   background: none;
   font: inherit;
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
   font-weight: 400;
   text-align: left;
   line-height: 1.35;
@@ -124,7 +124,7 @@ button.linked-nodes-panel__path:focus-visible {
   padding: 0.02rem 0.4rem;
   border: 1px solid var(--p-content-border-color);
   border-radius: 999px;
-  font-size: 0.72rem;
+  font-size: var(--sm-fs-xs);
   line-height: 1.5;
   color: var(--p-text-muted-color);
   white-space: nowrap;
@@ -189,7 +189,7 @@ button.linked-nodes-panel__path:focus-visible {
  * the tooltip). Line numbers are intentionally not shown.
  */
 .linked-nodes-panel__row--external-ref {
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
 }
 
 .linked-nodes-panel__external-ref-url {

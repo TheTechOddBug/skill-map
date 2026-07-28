@@ -57,7 +57,7 @@
 }
 
 .settings-plugins__title {
-  font-size: 1.15rem;
+  font-size: var(--sm-fs-2xl);
   font-weight: 600;
   margin: 0;
 }
@@ -66,7 +66,7 @@
   font-style: italic;
   margin: 0;
   color: var(--p-text-muted-color);
-  font-size: 0.875rem;
+  font-size: var(--sm-fs-md);
 }
 
 .settings-plugins__search {
@@ -112,7 +112,7 @@
   --p-togglebutton-color: color-mix(in oklab, var(--chip-accent) 70%, var(--p-text-color));
   --p-togglebutton-hover-color: color-mix(in oklab, var(--chip-accent) 70%, var(--p-text-color));
   --p-togglebutton-checked-color: var(--p-surface-50);
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
   font-weight: 500;
   letter-spacing: 0.02em;
   text-transform: lowercase;
@@ -160,7 +160,7 @@
   margin: 0;
   padding: 1rem 0;
   color: var(--p-text-muted-color);
-  font-size: 0.875rem;
+  font-size: var(--sm-fs-md);
 }
 
 .settings-plugins__list {
@@ -263,7 +263,7 @@
 .settings-plugins__subrow-version {
   display: inline-flex;
   align-items: center;
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
   font-weight: 500;
   letter-spacing: 0.02em;
   padding: 0.125rem 0.5rem;
@@ -321,7 +321,7 @@
 .settings-plugins__subrow-stability {
   display: inline-flex;
   align-items: center;
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
   font-weight: 500;
   letter-spacing: 0.02em;
   padding: 0.125rem 0.5rem;
@@ -350,7 +350,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
   letter-spacing: 0.02em;
   padding: 0.125rem 0.5rem;
   border-radius: var(--sm-radius-pill);
@@ -375,7 +375,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
   font-weight: 500;
   letter-spacing: 0.02em;
   padding: 0.125rem 0.5rem;
@@ -387,7 +387,7 @@
 }
 
 .settings-plugins__row-locked > .pi {
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
 }
 
 :host-context(.app-dark) .settings-plugins__row-locked {
@@ -404,7 +404,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
   font-weight: 500;
   letter-spacing: 0.02em;
   padding: 0.125rem 0.5rem;
@@ -437,7 +437,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
   font-weight: 500;
   letter-spacing: 0.02em;
   padding: 0.125rem 0.5rem;
@@ -456,13 +456,13 @@
 
 .settings-plugins__row-description {
   margin: 0.25rem 0 0;
-  font-size: 0.8125rem;
+  font-size: var(--sm-fs-sm);
   line-height: 1.4;
   color: var(--p-text-muted-color);
 }
 
 .settings-plugins__row-reason {
-  font-size: 0.8125rem;
+  font-size: var(--sm-fs-sm);
   color: var(--p-message-error-color);
   font-family: var(--sm-font-mono);
   margin-top: 0.25rem;
@@ -548,13 +548,13 @@
 
 .settings-plugins__subrow-id {
   font-family: var(--sm-font-mono);
-  font-size: 0.875rem;
+  font-size: var(--sm-fs-md);
 }
 
 
 .settings-plugins__subrow-description {
   margin: 0.25rem 0 0;
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
   line-height: 1.4;
   color: var(--p-text-muted-color);
 }
@@ -598,7 +598,7 @@
   align-items: flex-start;
   gap: 0.5rem;
   margin: 0.25rem 0 0;
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
   line-height: 1.4;
   color: var(--sm-severity-warn);
 }
@@ -628,7 +628,7 @@
   background: transparent;
   padding: 0;
   cursor: pointer;
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
   font-weight: 500;
   letter-spacing: 0.02em;
   color: color-mix(in oklab, var(--p-message-warn-color) 70%, var(--p-text-color));
@@ -639,7 +639,7 @@
 }
 
 .settings-plugins__runtime-toggle i {
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
 }
 
 .settings-plugins__runtime-list {
@@ -661,7 +661,7 @@
 
 .settings-plugins__runtime-message {
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: var(--sm-fs-sm);
   line-height: 1.4;
   color: var(--p-text-color);
 }
@@ -676,7 +676,7 @@
   display: inline-flex;
   align-items: baseline;
   gap: 0.25rem;
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
 }
 
 .settings-plugins__runtime-meta-label {

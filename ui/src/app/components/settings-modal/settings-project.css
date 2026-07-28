@@ -11,7 +11,7 @@
 
 .settings-project__title {
   margin: 0 0 0.25rem 0;
-  font-size: 1.05rem;
+  font-size: var(--sm-fs-xl);
   font-weight: 600;
   color: var(--p-text-color);
 }
@@ -19,7 +19,7 @@
 .settings-project__intro {
   font-style: italic;
   margin: 0 0 1.25rem 0;
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
   color: var(--sm-text-muted);
   line-height: 1.5;
 }
@@ -32,7 +32,7 @@
  * (emulated encapsulation scopes this copy to the chassis template). */
 .settings-project__intro-path {
   font-family: var(--sm-font-mono);
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
   padding: 0.05rem 0.3rem;
   border-radius: var(--sm-radius-md);
   background: var(--p-content-background);
@@ -43,5 +43,5 @@
    (the row-level rules live in settings-project-rows.css, a different
    component scope). */
 .settings-project__shared-badge {
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
 }

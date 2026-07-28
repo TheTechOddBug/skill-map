@@ -25,7 +25,7 @@
    with the diff highlight. */
 .dbg__absent {
   font-family: var(--sm-font-mono);
-  font-size: 0.78rem;
+  font-size: var(--sm-fs-sm);
   color: var(--sm-text-muted);
   font-style: italic;
 }
@@ -63,7 +63,7 @@
    a successful clipboard write. */
 .dbg__copied {
   font-family: var(--sm-font-mono);
-  font-size: 0.72rem;
+  font-size: var(--sm-fs-xs);
   font-style: italic;
   color: var(--sm-severity-success);
 }

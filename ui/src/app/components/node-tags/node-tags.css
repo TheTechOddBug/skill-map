@@ -22,7 +22,7 @@
 /* View-mode title: a small uppercase label so the row reads as "TAGS: ..."
    and an empty node shows an empty tag row instead of a lone pencil. */
 .node-tags__label {
-  font-size: 0.68rem;
+  font-size: var(--sm-fs-2xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -38,7 +38,7 @@
   border-radius: var(--sm-radius-sm);
   background: var(--sm-bg-hover);
   color: var(--p-text-color);
-  font-size: 0.72rem;
+  font-size: var(--sm-fs-xs);
   font-weight: 500;
   line-height: 1.35;
   cursor: pointer;
@@ -46,7 +46,7 @@
 }
 
 .node-tags__tag .pi {
-  font-size: 0.62rem;
+  font-size: var(--sm-fs-2xs);
   opacity: 0.7;
 }
 
@@ -110,7 +110,7 @@
 }
 
 .node-tags__edit .pi {
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
   opacity: 0.7;
 }
 
@@ -147,7 +147,7 @@
 }
 
 .node-tags__auto .pi {
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
   opacity: 0.7;
 }
 
@@ -173,20 +173,27 @@
   display: none;
 }
 
-/* PrimeNG `size="small"` only trims padding, NOT the font (documented in
- * settings-modal.css). The inline editor sits in the dense inspector, so
- * pull the autocomplete (input + selected-tag tokens) and the Save /
- * Cancel buttons down to the view-chip scale (0.72rem) so edit mode reads
- * at the same size as the chips it replaces. `::ng-deep` because these
- * PrimeNG internals expose no font-size token / pt slot; scoped to the
- * editor so the shared control stays full-size elsewhere. */
+/* The inline editor sits in the dense inspector, so pull the
+ * autocomplete (input + selected-tag tokens) down to the view-chip
+ * scale so edit mode reads at the same size as the chips it replaces.
+ * `::ng-deep` because the autocomplete stylesheet consumes no sm
+ * font-size token (its chip-mode free-text input hardcodes 1rem in the
+ * library CSS) and exposes no pt slot for it; scoped to the editor so
+ * the shared control stays full-size elsewhere. */
 :host ::ng-deep .node-tags__control .p-autocomplete,
-:host ::ng-deep .node-tags__control .p-autocomplete-input,
-:host ::ng-deep .node-tags__actions .p-button {
-  font-size: 0.72rem;
+:host ::ng-deep .node-tags__control .p-autocomplete-input {
+  font-size: var(--sm-fs-xs);
 }
 
+/* Both Save / Cancel buttons render size="small", so the chip scale is
+ * delivered token-first by re-pinning the component-level sm token on
+ * the row (Aura's default, 0.875rem via {form.field.sm.font.size}, is
+ * larger than the chip scale). Component token, not the semantic one:
+ * the theme resolves the token chain at `:root`, so a scoped semantic
+ * override would never reach the buttons (see settings-modal.css). */
 .node-tags__actions {
+  --p-button-sm-font-size: var(--sm-fs-xs);
+
   display: flex;
   gap: 0.4rem;
 }
@@ -199,7 +206,7 @@
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
   color: var(--sm-severity-error);
   background: var(--sm-severity-error-bg);
   padding: 0.55rem 0.75rem;
@@ -224,5 +231,5 @@
 }
 
 .node-tags__error-dismiss .pi {
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
 }

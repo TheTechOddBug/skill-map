@@ -4,7 +4,7 @@
 
 .pcp__empty {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
   color: var(--sm-text-muted);
   font-style: italic;
 }
@@ -21,7 +21,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
 }
 
 .pcp__root-key {
@@ -33,7 +33,7 @@
 }
 
 .pcp__root-badge {
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
   color: var(--sm-text-muted);
   font-style: italic;
   background: var(--sm-bg-hover);
@@ -48,7 +48,7 @@
   background: var(--sm-bg-hover);
   border-radius: var(--sm-radius-sm);
   font-family: var(--sm-font-mono);
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -69,7 +69,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
   font-weight: 600;
 }
 
@@ -78,7 +78,7 @@
 }
 
 .pcp__ns-badge {
-  font-size: 0.65rem;
+  font-size: var(--sm-fs-2xs);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -94,7 +94,7 @@
   column-gap: 0.6rem;
   row-gap: 0.2rem;
   margin: 0;
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
 }
 
 .pcp__kv dt {
@@ -112,7 +112,7 @@
 .pcp__kv dd pre {
   margin: 0;
   font-family: var(--sm-font-mono);
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
   white-space: pre-wrap;
   word-break: break-word;
 }

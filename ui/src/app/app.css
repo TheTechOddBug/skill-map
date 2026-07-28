@@ -78,7 +78,7 @@
 
 .shell__brand h1 {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: var(--sm-fs-xl);
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--shell-topbar-text-strong);
@@ -283,7 +283,7 @@
 
 .shell__tag {
   margin: 0.35rem 0 0;
-  font-size: 0.72rem;
+  font-size: var(--sm-fs-xs);
   color: var(--shell-topbar-text-muted);
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -319,7 +319,7 @@
 .shell__nav a {
   padding: 0.5rem 0.9rem;
   border-radius: 0.5rem;
-  font-size: 0.9rem;
+  font-size: var(--sm-fs-md);
   font-weight: 500;
   color: var(--shell-topbar-text-muted);
   transition: background 0.15s ease, color 0.15s ease;
@@ -374,7 +374,7 @@
 }
 
 .shell__nav-search i {
-  font-size: 0.95rem;
+  font-size: var(--sm-fs-lg);
 }
 
 /* Active-filter dot: shows on the lupa when the input is collapsed
@@ -425,7 +425,7 @@
 }
 
 .shell__search-clear i {
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
 }
 
 .shell__actions {
@@ -533,7 +533,7 @@
   border-radius: var(--sm-radius-pill);
   background: var(--p-primary-color);
   color: var(--p-primary-contrast-color);
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
   font-weight: 600;
   white-space: nowrap;
   pointer-events: none;
@@ -591,6 +591,9 @@
 }
 
 .shell__refresh i {
+  /* Deliberate literal, off the `--sm-fs-*` ramp: the glyph is sized
+     against the px-tuned topbar chrome cluster (10/11/12px above), so it
+     moves with that px-vs-rem decision, not with the type scale. */
   font-size: 1rem;
 }
 
@@ -652,7 +655,7 @@
   }
   .shell__nav a {
     padding: 0.4rem 0.7rem;
-    font-size: 0.85rem;
+    font-size: var(--sm-fs-md);
   }
 }
 
@@ -698,7 +701,7 @@
   }
   .viewport-warning__subtitle {
     margin: 0;
-    font-size: 1rem;
+    font-size: var(--sm-fs-xl);
     font-weight: 500;
     color: var(--p-primary-color);
     line-height: 1.35;
@@ -707,7 +710,7 @@
     margin: 0;
     color: var(--p-text-muted-color);
     line-height: 1.5;
-    font-size: 0.9rem;
+    font-size: var(--sm-fs-md);
   }
 
   /* Hide the shell entirely while the overlay is active, the layout is

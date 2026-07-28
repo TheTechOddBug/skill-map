@@ -26,7 +26,7 @@
   min-width: 0;
 }
 .settings-about__title {
-  font-size: 1.15rem;
+  font-size: var(--sm-fs-2xl);
   font-weight: 600;
   margin: 0;
 }
@@ -34,7 +34,7 @@
   font-style: italic;
   margin: 0;
   color: var(--p-text-muted-color);
-  font-size: 0.875rem;
+  font-size: var(--sm-fs-md);
 }
 .settings-about__error {
   margin: 0;
@@ -42,7 +42,7 @@
   border-radius: var(--sm-radius-md);
   background: var(--p-message-error-background);
   color: var(--p-message-error-color);
-  font-size: 0.875rem;
+  font-size: var(--sm-fs-md);
 }
 .settings-about__list {
   margin: 0;
@@ -64,13 +64,13 @@
 }
 .settings-about__label {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: var(--sm-fs-md);
   color: var(--p-text-muted-color);
 }
 .settings-about__value {
   margin: 0;
   font-family: var(--sm-font-mono);
-  font-size: 0.875rem;
+  font-size: var(--sm-fs-md);
   word-break: break-all;
 }
 .settings-about__link {
@@ -133,10 +133,10 @@
 }
 .settings-about__star-heading {
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: var(--sm-fs-lg);
 }
 .settings-about__star-body {
-  font-size: 0.8125rem;
+  font-size: var(--sm-fs-sm);
   color: var(--p-text-muted-color);
   line-height: 1.4;
 }
@@ -150,7 +150,7 @@
   /* Near-black, theme-agnostic: contrast text for the gold star CTA. */
   color: #1a1a1a;
   font-weight: 600;
-  font-size: 0.8125rem;
+  font-size: var(--sm-fs-sm);
   white-space: nowrap;
   flex-shrink: 0;
 }

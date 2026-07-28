@@ -17,13 +17,13 @@
   border-radius: var(--sm-radius-md);
   background: var(--p-highlight-background);
   color: var(--p-text-color);
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
 }
 
 .tutorial-reminder__icon {
   flex: none;
   color: var(--p-primary-color);
-  font-size: 1rem;
+  font-size: var(--sm-fs-xl);
 }
 
 .tutorial-reminder__body {

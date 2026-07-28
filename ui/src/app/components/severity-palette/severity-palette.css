@@ -46,7 +46,7 @@
 
   width: 56px;
   height: 30px;
-  font-size: 0.72rem;
+  font-size: var(--sm-fs-xs);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -91,7 +91,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.95rem;
+  font-size: var(--sm-fs-lg);
   line-height: 1;
 }
 

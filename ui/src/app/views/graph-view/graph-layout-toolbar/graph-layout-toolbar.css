@@ -106,7 +106,7 @@
 }
 
 .graph__layout-icon-item > i {
-  font-size: 1rem;
+  font-size: var(--sm-fs-xl);
 }
 
 /* Inline SVG slot for the connection-type popover items. 16x16

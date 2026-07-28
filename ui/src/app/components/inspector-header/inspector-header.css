@@ -39,7 +39,7 @@
 .inspector__kind-eyebrow {
   grid-column: 1 / -1;
   grid-row: 1;
-  font-size: 0.78rem;
+  font-size: var(--sm-fs-sm);
   font-weight: 600;
   color: var(--accent);
   text-transform: lowercase;
@@ -56,7 +56,7 @@
   background: var(--accent);
   color: var(--sm-accent-fg);
   flex: none;
-  font-size: 1.05rem;
+  font-size: var(--sm-fs-xl);
   grid-column: 1;
   grid-row: 2;
   align-self: start;
@@ -83,7 +83,7 @@
 
 .inspector__name {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: var(--sm-fs-xl);
   font-weight: 600;
   line-height: 1.25;
   letter-spacing: -0.01em;
@@ -100,7 +100,7 @@
   gap: 0.25rem;
   padding: 0.05rem 0.4rem;
   border-radius: var(--sm-radius-sm);
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
   font-weight: 500;
   text-transform: lowercase;
   white-space: nowrap;
@@ -111,7 +111,7 @@
 }
 
 .inspector__fm-invalid .pi {
-  font-size: 0.68rem;
+  font-size: var(--sm-fs-2xs);
 }
 
 /* Stability tag: sits in the name row right after the version chip
@@ -121,7 +121,7 @@
    and version. An inline-flex would expose the dot's baseline instead and
    sit misaligned. The dot rides along centered via `vertical-align`. */
 .inspector__stability {
-  font-size: 0.78rem;
+  font-size: var(--sm-fs-sm);
   font-weight: 500;
   text-transform: lowercase;
   white-space: nowrap;
@@ -191,7 +191,7 @@
 
 .inspector__path-code {
   font-family: var(--sm-font-mono);
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
   color: var(--p-text-muted-color);
   background: var(--sm-bg-hover);
   padding: 0.1rem 0.4rem;
@@ -204,7 +204,7 @@
    the confirmed state pins it visible in success tint for ~2s. */
 .inspector__path-icon {
   flex: 0 0 auto;
-  font-size: 0.65rem;
+  font-size: var(--sm-fs-2xs);
   color: var(--p-text-muted-color);
   opacity: 0;
   transition: opacity 0.15s ease;
@@ -246,7 +246,7 @@
 }
 
 .inspector__favorite .pi {
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
   line-height: 1;
 }
 
@@ -266,7 +266,7 @@
 
 .inspector__name-version {
   font-family: var(--sm-font-mono);
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
   color: var(--p-text-color);
   background: var(--sm-bg-hover);
   padding: 0.08rem 0.4rem;
@@ -290,7 +290,7 @@
   cursor: pointer;
   color: var(--p-text-muted-color);
   border-radius: var(--sm-radius-sm);
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
 }
 
 .inspector__summary-btn:hover:not(:disabled) {
@@ -321,7 +321,7 @@
 .inspector__summary-block {
   border-top: 1px solid var(--sm-border);
   padding-top: 0.5rem;
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
 }
 
 /* Stacked controls column on the TITLE row only: X, re-analyze,
@@ -362,7 +362,7 @@
 
 .inspector__summary-stale {
   text-transform: uppercase;
-  font-size: 0.65rem;
+  font-size: var(--sm-fs-2xs);
   font-weight: 700;
   letter-spacing: 0.05em;
   padding: 0.05rem 0.4rem;
@@ -373,7 +373,7 @@
 
 .inspector__summary-confidence {
   color: var(--p-text-muted-color);
-  font-size: 0.78rem;
+  font-size: var(--sm-fs-sm);
 }
 
 .inspector__summary-refresh {
@@ -400,7 +400,7 @@
 
 .inspector__summary-quality-label {
   margin-top: 0.5rem;
-  font-size: 0.72rem;
+  font-size: var(--sm-fs-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;

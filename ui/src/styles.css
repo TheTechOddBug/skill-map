@@ -86,7 +86,7 @@
   background: var(--p-primary-color);
   color: var(--p-primary-contrast-color);
   border-radius: var(--sm-radius-sm);
-  font-size: 0.875rem;
+  font-size: var(--sm-fs-md);
   font-weight: 600;
   text-decoration: none;
   outline: 2px solid var(--p-primary-color);
@@ -102,6 +102,23 @@
      other one-off brand-adjacent label. Geist is not bundled; the
      system fallback keeps the chip legible on machines without it. */
   --sm-font-display-brand: 'Geist', system-ui, sans-serif;
+
+  /* Type scale. Seven stops that collapse the ~20 ad-hoc font sizes
+     that had accumulated in the 0.6-1.2rem band across components
+     (0.6 / 0.62 / 0.65 / 0.68 -> 2xs, 0.7 / 0.72 / 0.75 -> xs, and so
+     on), so dense chrome, body copy, and section titles ramp through
+     shared stops instead of near-identical one-offs. Sizes ABOVE the
+     ramp (1.25rem+ heroes, empty-state icons, rendered-markdown h1/h2)
+     are display one-offs and stay literal; `em`-based sizes (inline
+     code / command chips) are proportional to their parent by design
+     and stay em. */
+  --sm-fs-2xs: 0.65rem;
+  --sm-fs-xs: 0.72rem;
+  --sm-fs-sm: 0.8rem;
+  --sm-fs-md: 0.875rem;
+  --sm-fs-lg: 0.95rem;
+  --sm-fs-xl: 1.05rem;
+  --sm-fs-2xl: 1.15rem;
 
   /* Border-radius scale. `sm` for inline glyphs/pills (3px), `md` for
      cards / inputs / chips (4px, also covers 0.25rem), `lg` for grouped
@@ -189,9 +206,9 @@ a {
 
 
 /* Shared empty-state pattern. Sizes mirror the list view's compact
-   ladder (icon 1.75rem, title 0.875rem muted, desc 0.75rem) so every
-   empty state across views (graph, list, inspector) reads identical
-   without per-view overrides. */
+   ladder (display icon 2.25rem, title at the md stop muted, desc at
+   xs) so every empty state across views (graph, list, inspector)
+   reads identical without per-view overrides. */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -225,13 +242,13 @@ a {
 }
 
 .empty-state__title {
-  font-size: 0.875rem;
+  font-size: var(--sm-fs-md);
   color: var(--p-text-muted-color);
   margin: 0;
 }
 
 .empty-state__desc {
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
   color: var(--p-text-muted-color);
   opacity: 0.85;
   max-width: 40ch;
@@ -308,11 +325,11 @@ a {
   color: var(--p-text-muted-color);
   cursor: default;
   text-decoration: none;
-  font-size: 0.83rem;
+  font-size: var(--sm-fs-sm);
 }
 
 .sm-node-link .pi {
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
 }
 
 .sm-node-link--known {
@@ -366,7 +383,7 @@ a {
 
 .sm-block__title {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: var(--sm-fs-sm);
   font-weight: 600;
   letter-spacing: 0;
   color: var(--p-text-color);
@@ -376,14 +393,14 @@ a {
 }
 
 .sm-block__count {
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
   font-weight: 500;
   color: var(--p-text-muted-color);
 }
 
 .sm-block__sub {
   margin: 0;
-  font-size: 0.72rem;
+  font-size: var(--sm-fs-xs);
   font-weight: 500;
   color: var(--p-text-muted-color);
   text-transform: uppercase;
@@ -432,7 +449,7 @@ a {
 }
 
 .sm-block__summary {
-  font-size: 0.78rem;
+  font-size: var(--sm-fs-sm);
   color: var(--p-text-muted-color);
   font-weight: 400;
   flex: 1 1 auto;
@@ -441,7 +458,7 @@ a {
 
 .sm-block__chevron {
   color: var(--p-text-muted-color);
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
   margin-left: auto;
 }
 
@@ -453,14 +470,14 @@ a {
   column-gap: 1rem;
   row-gap: 0.35rem;
   margin: 0;
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
   align-items: baseline;
 }
 
 .sm-block__kv dt {
   color: var(--p-text-muted-color);
   font-weight: 500;
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
 }
 
 .sm-block__kv dd {
@@ -473,7 +490,7 @@ a {
   background: var(--sm-bg-hover);
   padding: 0.05rem 0.4rem;
   border-radius: var(--sm-radius-sm);
-  font-size: 0.78rem;
+  font-size: var(--sm-fs-sm);
   font-family: var(--sm-font-mono);
 }
 
@@ -492,13 +509,13 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  font-size: 0.83rem;
+  font-size: var(--sm-fs-sm);
   color: var(--p-text-color);
 }
 
 .sm-block__meta .pi {
   color: var(--p-text-muted-color);
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
 }
 
 .sm-block__meta a {
@@ -510,15 +527,17 @@ a {
   background: var(--sm-bg-hover);
   padding: 0.05rem 0.35rem;
   border-radius: var(--sm-radius-sm);
-  font-size: 0.78rem;
+  font-size: var(--sm-fs-sm);
 }
 
 /* Settings-dialog select overlays. The panel is appended to <body>
    (appendTo="body", so it escapes the dialog's clipping), which also
-   puts it OUTSIDE the dialog-scoped rule in settings-modal.css that
-   brings every control down to 0.8rem; without this the option list
-   renders at the 1rem default, visibly larger than the closed trigger.
-   Applied via `panelStyleClass` on the p-select. */
+   puts it OUTSIDE the dialog's scoped font normalization in
+   settings-modal.css (the host-pinned `--p-*-sm-font-size` tokens and
+   the dialog-scoped ::ng-deep rule both stop at the dialog subtree);
+   without this the option list renders at the 1rem default, visibly
+   larger than the closed trigger. Applied via `panelStyleClass` on the
+   p-select. */
 .sm-settings-select-overlay .p-select-option {
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
 }

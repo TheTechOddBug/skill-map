@@ -116,13 +116,12 @@ No `pt` section, no `dt` token, no host-merge alternative covers the case. Pin t
 | `ui/src/app/views/queue-view/queue-view.css` | `.queue__table .p-datatable-table-container` | `<p-table>` scroll container | Takes the flex slack so rows scroll inside it while the paginator pins at the bottom. |
 | `ui/src/app/views/queue-view/queue-view.css` | `.queue__table .p-datatable-paginator-bottom` | `<p-table>` paginator wrapper | `flex: 0 0 auto`, the paginator never scrolls with the rows. |
 | `ui/src/app/views/queue-view/queue-view.css` | `.queue__table .p-paginator` | `<p-paginator>` | Compact rail layout: space-between, hairline top border, content background. |
-| `ui/src/app/views/queue-view/queue-view.css` | `.queue__table .p-paginator-current` | `<p-paginator>` page report | Muted `--queue-fs-xs` page report on the left. |
+| `ui/src/app/views/queue-view/queue-view.css` | `.queue__table .p-paginator-current` | `<p-paginator>` page report | Muted `--sm-fs-xs` page report on the left. |
 | `ui/src/app/views/queue-view/queue-view.css` | `.queue__row-action .p-button` | `<p-button>` | Caps the inline cancel / retry button at 1.6rem so it fits the 2rem row (same cap as the inspector's finding actions). |
-| `ui/src/app/components/settings-modal/settings-modal.css` | `.settings-modal__dialog .p-inputtext` (one grouped block, 13 selectors: `.p-button`, `.p-togglebutton`, `.p-select(-label)`, `.p-multiselect(-label)`, `.p-autocomplete`, `.p-password input`, `.p-message(-text)`, `.p-autocomplete-input-chip input`, `.p-autocomplete .p-chip`) | assorted controls | Dense-modal 0.8rem font normalization: `size="small"` only trims padding, and the select / multiselect value labels plus the chip-mode autocomplete input do not inherit the host font-size. |
+| `ui/src/app/components/settings-modal/settings-modal.css` | `.settings-modal__dialog .p-togglebutton` / `.p-select(-label)` / `.p-autocomplete` / `.p-autocomplete-input-chip input` / `.p-autocomplete .p-chip` (one grouped block, 6 selectors) | assorted controls | Dense-modal font floor for the widgets the token-first path cannot reach: the theme selectbutton and plugins-filter togglebuttons plus the provider `p-select` render without `size="small"` (so the sm token never applies to them), and the autocomplete consumes no sm font token at all (its chip-mode input hardcodes `1rem` in the library CSS). Every other control in the dialog rides the component-level sm token pins on `:host` (see §Type scale). |
 | `ui/src/app/components/settings-modal/settings-modal.css` | `.settings-modal__dialog .p-dialog-footer` | `<p-dialog>` footer | Evens out Aura's asymmetric footer padding (`!important` beats the runtime-injected theme rule). |
-| `ui/src/app/components/node-tags/node-tags.css` | `.node-tags__control .p-autocomplete` / `.p-autocomplete-input`, `.node-tags__actions .p-button` (one block) | `<p-autocomplete>`, `<p-button>` | Inline tag editor pulled down to the 0.72rem chip scale; these internals expose no font-size token or `pt` slot. |
+| `ui/src/app/components/node-tags/node-tags.css` | `.node-tags__control .p-autocomplete` / `.p-autocomplete-input` (one block) | `<p-autocomplete>` | Inline tag editor pulled down to the `--sm-fs-xs` chip scale; the autocomplete exposes no sm font token and its chip-mode input hardcodes `1rem`. The editor's Save / Cancel buttons need no deep rule: a scoped `--p-button-sm-font-size` pin on `.node-tags__actions` covers them (see §Type scale). |
 | `ui/src/app/components/quick-start-modal/quick-start-modal.css` | `.quick-start-modal__content` | `<p-dialog>` | `[contentStyleClass]` padding strip, mirror of the `.settings-modal__content` row above. |
-| `ui/src/app/components/quick-start-modal/quick-start-modal.css` | `.quick-start-modal__dialog .p-button` | `<p-button>` | Dense 0.8rem buttons, matching the Settings dialog treatment. |
 | `ui/src/app/components/quick-start-modal/quick-start-row.css` | `.quick-start__row-actions--stacked .p-button` | `<p-button>` | Projected action buttons stretch to the stacked column width (projected content carries the host's encapsulation, so the reach still needs `::ng-deep`). |
 
 ## Debug overlays (kept dev tools, do NOT remove)
@@ -172,6 +171,30 @@ Several unrelated escape-hatches also live under `::ng-deep`, none targets a Pri
 - **Shared `.sm-block` section vocabulary**: no longer a `::ng-deep` case. The `.sm-block*` family (rail, toggle row, chevron, dense `dt`/`dd` grid) was promoted from `inspector-view.css` to `ui/src/styles.css` as plain global rules when the inspector split made the vocabulary cross-component; the emitters (`<sm-collapsible-section>`, `<sm-vendor-frontmatter>`, `<sm-annotations-panel>`) now inherit the chrome wherever they mount. Recorded here so future audits do not re-file the global block as a `::ng-deep` candidate; the block comment in `styles.css` documents the `--accent` inheritance contract.
 - **Custom-element children** in `kind-palette.css` (the `<sm-kind-icon>` tints and PrimeIcon `.pi` rules), styling a project-owned custom element from its parent, again outside Angular encapsulation.
 - **Custom-child label suppression** in `node-tags.css` (1 block, `.node-tags__control ::ng-deep .itc__label`), hides the `<sm-input-type-control>` child's own "Tags" label inside the inline tag editor where it is redundant (the label survives as the autocomplete's `aria-label`). Project-owned class on a project-owned child component, never a PrimeNG internal.
+
+## Type scale (`--sm-fs-*`)
+
+Every `font-size` in `ui/src` consumes a stop of the global type-scale ramp defined in `ui/src/styles.css` `:root` (July 2026 migration; it collapsed ~20 ad-hoc values that had accumulated in the 0.6-1.2rem band, plus the former per-view `--queue-fs-*` / `--files-fs-*` local ramps):
+
+| Token | Value | Role |
+|---|---|---|
+| `--sm-fs-2xs` | 0.65rem | counts, micro-chips, minimap labels |
+| `--sm-fs-xs` | 0.72rem | chip scale, dense metadata, rail tables |
+| `--sm-fs-sm` | 0.8rem | dense modal controls, mono blocks, secondary body |
+| `--sm-fs-md` | 0.875rem | base body text |
+| `--sm-fs-lg` | 0.95rem | emphasized body, palette glyphs, sub-headings |
+| `--sm-fs-xl` | 1.05rem | section headings, banner icons (compact) |
+| `--sm-fs-2xl` | 1.15rem | page-level headings, banner icons (large) |
+
+New CSS picks the nearest stop; do not introduce a new literal in the ramp's band. **Documented exemptions** (literals stay):
+
+- **`em`-relative sizes** (the `0.85em` command / inline-code chips): proportional to the parent by design, never tokenized to rem.
+- **Display band >= 1.25rem** (heroes, empty-state icons, the rendered-markdown `h1`/`h2` ladder): deliberate one-offs above the ramp.
+- **The px-tuned topbar chrome cluster in `app.css`** (10/11/12px): pixel-locked; converting px to rem changes browser-zoom behaviour, so it is a separate future decision, not ramp drift.
+- **Debug overlays** (`debug-slots.css`, `perf-hud`): kept dev chrome, out of scope.
+- **Inline `styles:` blocks in TS components** (the `app/renderers/node-*` view-contribution renderers and a few dialog components, ~42 declarations): NOT yet migrated; natural follow-up when those files are next touched.
+
+**PrimeNG density is token-first, at the COMPONENT token level.** To shrink small-size PrimeNG widgets inside a dense surface, pin the component sm tokens on the consuming host (`--p-button-sm-font-size`, `--p-inputtext-sm-font-size`, `--p-multiselect-sm-font-size`, `--p-message-text-font-size`, valued from `--sm-fs-*`), as the Settings / Quick Start dialogs and `node-tags` do. Do NOT scope the semantic `--p-form-field-sm-font-size`: the theme emits the component chains (`--p-button-sm-font-size: var(--p-form-field-sm-font-size)`) at `:root`, where custom properties substitute their `var()` refs, so a host-scoped semantic override never reaches the widgets (verified empirically on primeng 21.1.9). The token only applies to widgets actually rendering `size="small"` / `pSize="small"`; widgets without the attr, and internals with no font token (the autocomplete chip-mode input hardcodes `1rem`, paginator and datatable cells have no font tokens), keep their Class D deep rules above.
 
 ## Themes
 

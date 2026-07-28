@@ -17,11 +17,11 @@
   border-bottom: 1px solid var(--p-content-border-color);
   background: var(--sm-severity-error-bg);
   color: var(--sm-severity-error);
-  font-size: 0.875rem;
+  font-size: var(--sm-fs-md);
 }
 
 .connection-banner__icon {
-  font-size: 1.1rem;
+  font-size: var(--sm-fs-2xl);
   color: var(--sm-severity-error);
 }
 
@@ -49,7 +49,7 @@
   padding: 0.25rem 0.75rem;
   border-radius: var(--sm-radius-md);
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: var(--sm-fs-sm);
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s ease;

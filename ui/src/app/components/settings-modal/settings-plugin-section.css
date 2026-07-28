@@ -19,7 +19,7 @@
 
 .settings-plugin-section__title {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: var(--sm-fs-2xl);
   font-weight: 600;
   font-family: var(--sm-font-mono);
   word-break: break-all;
@@ -28,7 +28,7 @@
 .settings-plugin-section__intro {
   margin: 0;
   color: var(--p-text-muted-color);
-  font-size: 0.875rem;
+  font-size: var(--sm-fs-md);
 }
 
 .settings-plugin-section__extensions {
@@ -45,7 +45,7 @@
 
 .settings-plugin-section__subtitle {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: var(--sm-fs-lg);
   font-weight: 600;
   font-family: var(--sm-font-mono);
   color: var(--p-text-color);
@@ -73,7 +73,7 @@
 
 .settings-plugin-section__setting-description {
   margin: 0;
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
   line-height: 1.4;
   color: var(--p-text-muted-color);
 }

@@ -58,13 +58,13 @@
 }
 
 .settings-project__row-label {
-  font-size: 0.9rem;
+  font-size: var(--sm-fs-md);
   font-weight: 600;
   color: var(--p-text-color);
 }
 
 .settings-project__row-description {
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
   color: var(--sm-text-muted);
   line-height: 1.45;
 }
@@ -75,7 +75,7 @@
  * copy to the chassis template. */
 .settings-project__intro-path {
   font-family: var(--sm-font-mono);
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
   padding: 0.05rem 0.3rem;
   border-radius: var(--sm-radius-md);
   background: var(--p-content-background);
@@ -103,7 +103,7 @@
 
 .settings-project__path-text {
   font-family: var(--sm-font-mono);
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
   word-break: break-all;
   flex: 1 1 auto;
 }
@@ -117,14 +117,14 @@
 .settings-project__add-row input {
   flex: 1 1 auto;
   font-family: var(--sm-font-mono);
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
 }
 
 .settings-project__row-meta {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
   color: var(--p-text-muted-color);
 }
 
@@ -152,7 +152,7 @@
    title tooltip carrying the legend. */
 .settings-project__shared-badge {
   margin-left: 0.3rem;
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
   cursor: help;
 }
 
@@ -162,7 +162,7 @@
    `cursor: help` signals the native title tooltip. */
 .settings-project__experimental-badge {
   margin-left: 0.4rem;
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -191,7 +191,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
   font-weight: 600;
   color: var(--sm-severity-success);
 }
@@ -205,7 +205,7 @@
   align-items: center;
   gap: 0.3rem;
   margin-top: 0.15rem;
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
   font-style: italic;
   color: var(--sm-severity-warn);
 }

@@ -20,26 +20,26 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.3rem;
-  font-size: 0.83rem;
+  font-size: var(--sm-fs-sm);
 }
 
 .vfm__inline code {
   background: var(--sm-bg-hover);
   padding: 0.05rem 0.4rem;
   border-radius: var(--sm-radius-sm);
-  font-size: 0.78rem;
+  font-size: var(--sm-fs-sm);
   color: var(--p-text-color);
   font-family: var(--sm-font-mono);
 }
 
 .vfm__sep {
   color: var(--sm-border);
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
 }
 
 .vfm__sep-arrow {
   color: var(--p-text-muted-color);
-  font-size: 0.78rem;
+  font-size: var(--sm-fs-sm);
   margin: 0 0.1rem;
 }
 
@@ -56,7 +56,7 @@
 }
 
 .vfm__danger .pi {
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
 }
 
 .vfm__hook {
@@ -69,7 +69,7 @@
   background: var(--sm-bg-hover);
   padding: 0.05rem 0.4rem;
   border-radius: var(--sm-radius-sm);
-  font-size: 0.78rem;
+  font-size: var(--sm-fs-sm);
   font-family: var(--sm-font-mono);
 }
 
@@ -83,7 +83,7 @@
 }
 
 .vfm__unknown {
-  font-size: 0.72rem;
+  font-size: var(--sm-fs-xs);
   color: var(--p-text-muted-color);
   cursor: help;
   line-height: 1;
@@ -111,7 +111,7 @@
   border-left: 2px solid var(--sm-border);
   background: var(--sm-bg-hover);
   color: var(--p-text-color);
-  font-size: 0.9rem;
+  font-size: var(--sm-fs-md);
   line-height: 1.55;
   border-radius: 0 var(--sm-radius-sm) var(--sm-radius-sm) 0;
 }
@@ -132,7 +132,7 @@
   background: var(--sm-bg-content);
   padding: 0.05rem 0.4rem;
   border-radius: var(--sm-radius-sm);
-  font-size: 0.82rem;
+  font-size: var(--sm-fs-sm);
   font-family: var(--sm-font-mono);
 }
 

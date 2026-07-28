@@ -28,13 +28,13 @@
 }
 
 .quick-start__row-label {
-  font-size: 0.9rem;
+  font-size: var(--sm-fs-md);
   font-weight: 600;
   color: var(--p-text-color);
 }
 
 .quick-start__row-description {
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
   color: var(--sm-text-muted);
   line-height: 1.45;
 }
@@ -43,7 +43,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
   color: var(--p-text-muted-color);
 }
 
@@ -99,7 +99,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
   font-weight: 600;
   white-space: nowrap;
 }

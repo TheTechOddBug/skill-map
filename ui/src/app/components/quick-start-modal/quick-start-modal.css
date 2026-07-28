@@ -10,6 +10,16 @@
   --p-message-error-color: var(--sm-error-pin-fg);
   --p-message-error-background: var(--sm-error-pin-bg);
   --p-message-error-border-color: var(--sm-error-pin-border);
+
+  /* Dense-modal button size, token-first (matches the Settings dialog's
+   * treatment). Every p-button in this dialog renders size="small", so
+   * re-pinning the component-level sm token is enough; Aura's default
+   * for it (0.875rem via {form.field.sm.font.size}) is just larger than
+   * the modal's dense scale. The COMPONENT token, not the semantic
+   * form-field token: the theme resolves the token chain at `:root`, so
+   * a scoped semantic override would never reach the buttons (see
+   * settings-modal.css for the full mechanism note). */
+  --p-button-sm-font-size: var(--sm-fs-sm);
 }
 
 /* PrimeNG injects [styleClass] on the dialog root. A single-column,
@@ -92,7 +102,7 @@
 
 .quick-start-modal__sidebar-icon {
   flex: 0 0 auto;
-  font-size: 1rem;
+  font-size: var(--sm-fs-xl);
   color: var(--p-text-muted-color);
 }
 
@@ -102,7 +112,7 @@
 
 .quick-start-modal__sidebar-label {
   flex: 1;
-  font-size: 1rem;
+  font-size: var(--sm-fs-xl);
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -139,7 +149,7 @@
   font-weight: var(--p-dialog-title-font-weight);
 }
 .quick-start-modal__header-note {
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
   color: var(--sm-text-muted);
   opacity: 0.85;
 }
@@ -147,7 +157,7 @@
 /* Per-tab lead line: the active group's own description. */
 .quick-start-modal__group-desc {
   margin: 0 0 1.25rem 0;
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
   color: var(--sm-text-muted);
   line-height: 1.5;
 }
@@ -171,7 +181,7 @@
   border-left: 3px solid var(--p-primary-color);
   border-radius: var(--sm-radius-lg);
   background: var(--p-content-background);
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
   color: var(--sm-text-muted);
   line-height: 1.5;
 }
@@ -185,10 +195,4 @@
   border-radius: var(--sm-radius-sm);
   padding: 0.05rem 0.4rem;
   font-size: 0.85em;
-}
-
-/* Bring the small-size PrimeNG buttons to the modal's dense scale, matching
- * the Settings dialog's treatment (size="small" only trims padding). */
-:host ::ng-deep .quick-start-modal__dialog .p-button {
-  font-size: 0.8rem;
 }

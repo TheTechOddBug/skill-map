@@ -163,7 +163,7 @@ html.app-matrix body {
    dominate the surface it annotates. Scoped to matrix; light / dark
    keep PrimeNG's default sizing. */
 html.app-matrix .p-tooltip-text {
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
   line-height: 1.35;
 }
 
@@ -348,11 +348,12 @@ html.app-matrix .p-button-outlined.p-button-secondary:enabled:active {
    the `<f-minimap>` lives inside `<f-flow>` inside `.graph__canvas-wrap`
    so the cascade reaches it without an extra selector. */
 /* Card title size tweak: JetBrains Mono renders heavier per px than the
-   base Inter, the 0.9rem the card uses by default reads oversized on
-   matrix. Drop one notch so the title sits in the same visual envelope
-   as the other themes. Scoped to matrix so light / dark stay as-is. */
+   base Inter, so the md stop the card uses by default reads oversized
+   on matrix. Drop to the xs stop so the title sits in the same visual
+   envelope as the other themes. Scoped to matrix so light / dark stay
+   as-is. */
 html.app-matrix .sm-gnode__name {
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
 }
 
 /* Settings modal: every panel sizes its text with `rem` (relative to

@@ -23,7 +23,7 @@
 
 /* Compact, low-key setup notice: smaller than default p-message text. */
 .inspector__ai-actions-agent-warning .p-message-text {
-  font-size: 0.72rem;
+  font-size: var(--sm-fs-xs);
   line-height: 1.35;
 }
 
@@ -50,7 +50,7 @@
   align-items: center;
   gap: 0.3rem;
   padding: 0.2rem 0.5rem;
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
   font-weight: 500;
   color: var(--p-text-muted-color);
   background: var(--sm-bg-hover);
@@ -97,7 +97,7 @@
 }
 
 .inspector__ai-actions-autofix-label {
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
   color: var(--p-text-color);
   cursor: pointer;
 }
@@ -136,11 +136,11 @@
    just slightly-accented small text. */
 .inspector__ai-actions-group-head .inspector__ai-actions-run-all {
   padding: 0 0.25rem;
-  font-size: 0.68rem;
+  font-size: var(--sm-fs-2xs);
 }
 
 .inspector__ai-actions-group-title {
-  font-size: 0.68rem;
+  font-size: var(--sm-fs-2xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -186,7 +186,7 @@
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
   color: var(--sm-severity-error);
   background: var(--sm-severity-error-bg);
   padding: 0.25rem 0.5rem;
@@ -209,11 +209,11 @@
 }
 
 .inspector__ai-actions-error-dismiss .pi {
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
 }
 
 .inspector__ai-actions-hint {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: var(--sm-fs-sm);
   color: var(--p-text-muted-color);
 }

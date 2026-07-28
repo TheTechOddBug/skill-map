@@ -14,7 +14,7 @@
 
 .itc__label {
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: var(--sm-fs-md);
   color: var(--p-text-color);
 }
 
@@ -52,7 +52,7 @@
 
 .itc__regex-flags {
   font-family: var(--sm-font-mono);
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
   color: var(--p-text-muted-color);
   white-space: nowrap;
 }
@@ -70,7 +70,7 @@
 }
 
 .itc__secret-status {
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   padding: 0.1rem 0.4rem;
@@ -101,7 +101,7 @@
 }
 
 .itc__kv-col {
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--p-text-muted-color);
@@ -137,7 +137,7 @@
   background: transparent;
   padding: 0.25rem 0;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
   font-weight: 500;
   color: var(--p-primary-color);
 }
@@ -147,7 +147,7 @@
 }
 
 .itc__unsupported {
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
   color: var(--p-text-muted-color);
 }
 
@@ -173,7 +173,7 @@
   border-radius: var(--sm-radius-md);
   background: transparent;
   color: var(--p-text-muted-color);
-  font-size: 0.72rem;
+  font-size: var(--sm-fs-xs);
   line-height: 1.35;
   cursor: pointer;
   transition: color 120ms ease-out, border-color 120ms ease-out, background 120ms ease-out;
@@ -191,6 +191,6 @@
 }
 
 .itc__suggestion .pi {
-  font-size: 0.6rem;
+  font-size: var(--sm-fs-2xs);
   opacity: 0.7;
 }

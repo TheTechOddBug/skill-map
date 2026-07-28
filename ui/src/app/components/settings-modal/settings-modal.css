@@ -11,6 +11,28 @@
   --p-message-error-color: var(--sm-error-pin-fg);
   --p-message-error-background: var(--sm-error-pin-bg);
   --p-message-error-border-color: var(--sm-error-pin-border);
+
+  /* Dense-modal font normalization, token-first. PrimeNG's small size
+   * DOES have a font-size token ({form.field.sm.font.size}, 0.875rem in
+   * Aura), it is just larger than this modal's dense scale, so the
+   * COMPONENT-level sm tokens are re-pinned here. Component tokens, not
+   * the semantic form-field token: the theme resolves the
+   * `--p-<comp>-sm-font-size: var(--p-form-field-sm-font-size)` chains
+   * at `:root`, and CSS custom properties substitute their var() refs on
+   * the element where they are DECLARED, so a scoped override of the
+   * semantic token never reaches the widgets (verified empirically on
+   * primeng 21.1.9 / Chromium). The inputtext token covers every
+   * small-size text input, including the inputnumber / password /
+   * autocomplete inner inputs, which all forward `pSize`; the
+   * multiselect token covers the InputTypeControl multiselects (always
+   * small here); the message text token is consumed directly by
+   * `.p-message-text`, so it reaches the default-size messages. Widgets
+   * that render WITHOUT size="small" cannot receive a sm token and keep
+   * the ::ng-deep rule further down. */
+  --p-inputtext-sm-font-size: var(--sm-fs-sm);
+  --p-button-sm-font-size: var(--sm-fs-sm);
+  --p-multiselect-sm-font-size: var(--sm-fs-sm);
+  --p-message-text-font-size: var(--sm-fs-sm);
 }
 
 /* PrimeNG injects [styleClass] on the dialog root. The dimensions stay
@@ -103,7 +125,7 @@
 
 .settings-modal__sidebar-label {
   flex: 1;
-  font-size: 0.9rem;
+  font-size: var(--sm-fs-md);
   font-weight: 500;
   text-transform: capitalize;
   white-space: nowrap;
@@ -150,7 +172,7 @@
 /* Unsaved-changes line. Compact, warn-toned, single line, ellipsised if
  * the footer ever gets too narrow for it. */
 .settings-modal__footer-message {
-  font-size: 0.8125rem;
+  font-size: var(--sm-fs-sm);
   line-height: 1.3;
   color: color-mix(in oklab, var(--p-message-warn-color) 80%, var(--p-text-color));
   overflow: hidden;
@@ -162,7 +184,7 @@
  * the warn palette used by the Plugins panel's per-row hint. */
 .settings-modal__footer-hint {
   font-style: italic;
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
   line-height: 1.4;
   color: var(--sm-severity-warn);
 }
@@ -170,36 +192,33 @@
 /* Apply-failure line, error-toned, under the status cluster. The buffers
  * stay dirty so the user can retry or discard. */
 .settings-modal__footer-error {
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
   line-height: 1.4;
   color: var(--p-message-error-color);
 }
 
-/* PrimeNG controls inside the Settings dialog, option inputs, footer
- * buttons, the theme select-button (General), the active-provider select
- * (Project), sit at a font-size larger than the dense modal chrome even at
- * size="small" (small only trims padding). Bring them to the modal's
- * scale. The select / multiselect carry their displayed value in a
- * `*-label` child that does not inherit the host font-size, so those are
- * listed explicitly. Scoped to this dialog so the shared InputTypeControl
- * stays full-size in the action-prompt dialog. */
-:host ::ng-deep .settings-modal__dialog .p-inputtext,
-:host ::ng-deep .settings-modal__dialog .p-button,
+/* Widgets the sm-token pinning on `:host` cannot reach, kept as
+ * `::ng-deep` (scoped to this dialog so the shared InputTypeControl
+ * stays full-size in the action-prompt dialog):
+ * - `.p-togglebutton`: the theme select-button (General) and the
+ *   Plugins filter chips render WITHOUT size="small", so the sm token
+ *   never applies to them.
+ * - `.p-select(-label)`: the active-provider select (Project) renders
+ *   WITHOUT size="small"; the displayed value lives in a `*-label`
+ *   child that does not inherit the host font-size, so it is listed
+ *   explicitly. Covers the small plugin-section selects too, same value.
+ * - the autocomplete family: its stylesheet consumes no sm font-size
+ *   token at all (only the dropdown icon does), and in MULTIPLE mode
+ *   (plugin string-list settings) the free-text input inside the chip
+ *   row hardcodes `font-size: 1rem` in the library CSS, so no token
+ *   reaches it either. */
 :host ::ng-deep .settings-modal__dialog .p-togglebutton,
 :host ::ng-deep .settings-modal__dialog .p-select,
 :host ::ng-deep .settings-modal__dialog .p-select-label,
-:host ::ng-deep .settings-modal__dialog .p-multiselect,
-:host ::ng-deep .settings-modal__dialog .p-multiselect-label,
 :host ::ng-deep .settings-modal__dialog .p-autocomplete,
-:host ::ng-deep .settings-modal__dialog .p-password input,
-:host ::ng-deep .settings-modal__dialog .p-message,
-:host ::ng-deep .settings-modal__dialog .p-message-text,
-/* Autocomplete in MULTIPLE mode (plugin string-list settings): the
- * free-text input inside the chip row is NOT a .p-inputtext and the
- * theme hardcodes it to 1rem, so size="small" never reaches it. */
 :host ::ng-deep .settings-modal__dialog .p-autocomplete-input-chip input,
 :host ::ng-deep .settings-modal__dialog .p-autocomplete .p-chip {
-  font-size: 0.8rem;
+  font-size: var(--sm-fs-sm);
 }
 
 /* PrimeNG's theme gives the footer an asymmetric vertical padding

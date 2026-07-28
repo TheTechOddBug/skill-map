@@ -59,7 +59,7 @@
 
 .inspector__finding-severity {
   text-transform: uppercase;
-  font-size: 0.65rem;
+  font-size: var(--sm-fs-2xs);
   font-weight: 700;
   letter-spacing: 0.05em;
   padding: 0.05rem 0.4rem;
@@ -81,7 +81,7 @@
 }
 
 .inspector__finding-analyzer {
-  font-size: 0.78rem;
+  font-size: var(--sm-fs-sm);
   color: var(--p-text-muted-color);
 }
 
@@ -93,7 +93,7 @@
    against autonomous fixer resolutions. */
 .inspector__finding-human {
   text-transform: uppercase;
-  font-size: 0.65rem;
+  font-size: var(--sm-fs-2xs);
   font-weight: 700;
   letter-spacing: 0.05em;
   padding: 0.05rem 0.4rem;
@@ -104,7 +104,7 @@
 
 .inspector__finding-stale {
   text-transform: uppercase;
-  font-size: 0.65rem;
+  font-size: var(--sm-fs-2xs);
   font-weight: 700;
   letter-spacing: 0.05em;
   padding: 0.05rem 0.4rem;
@@ -119,7 +119,7 @@
    neutral border so it reads as provenance, never as a severity. */
 .inspector__finding-kernel {
   text-transform: uppercase;
-  font-size: 0.65rem;
+  font-size: var(--sm-fs-2xs);
   font-weight: 700;
   letter-spacing: 0.05em;
   padding: 0.05rem 0.4rem;
@@ -133,7 +133,7 @@
    geometry as the stale mark, info tint to read as guidance. */
 .inspector__finding-decision {
   text-transform: uppercase;
-  font-size: 0.65rem;
+  font-size: var(--sm-fs-2xs);
   font-weight: 700;
   letter-spacing: 0.05em;
   padding: 0.05rem 0.4rem;
@@ -144,7 +144,7 @@
 
 .inspector__finding-message {
   margin: 0;
-  font-size: 0.88rem;
+  font-size: var(--sm-fs-md);
   color: var(--p-text-color);
   /* The compact finding grammar separates subject and detail with a
      `\n`; render it as a real line break. Long paths on the subject
@@ -155,7 +155,7 @@
 
 .inspector__finding-hint {
   margin: 0.35rem 0 0 0;
-  font-size: 0.82rem;
+  font-size: var(--sm-fs-sm);
   color: var(--p-text-color);
   background: var(--p-content-background);
   padding: 0.35rem 0.5rem;
@@ -172,7 +172,7 @@
  * the submit-error strip live in the sibling AI actions section.
  * ------------------------------------------------------------------- */
 .inspector__ai-action-provenance {
-  font-size: 0.72rem;
+  font-size: var(--sm-fs-xs);
   color: var(--p-text-muted-color);
   white-space: nowrap;
 }
@@ -181,7 +181,7 @@
    (`sm findings resolve <id>`), useful but never the headline. */
 .inspector__ai-action-id {
   margin-left: auto;
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
   color: var(--p-text-muted-color);
   opacity: 0.6;
 }
@@ -219,7 +219,7 @@
 }
 
 .inspector__ai-hidden-label {
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
   color: var(--p-text-muted-color);
 }
 
@@ -232,7 +232,7 @@
   background: transparent;
   color: var(--p-text-muted-color);
   font: inherit;
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
   cursor: pointer;
 }
 

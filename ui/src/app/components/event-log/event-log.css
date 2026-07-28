@@ -50,7 +50,7 @@
   --p-togglebutton-checked-color: inherit;
 
   flex: 1;
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
 }
 
 /* Togglebutton content slot, class applied via [pt]="{ content: { class: ... } }"
@@ -75,7 +75,7 @@
   background: var(--sm-border);
   color: var(--p-text-muted-color);
   border-radius: var(--sm-radius-pill);
-  font-size: 0.7rem;
+  font-size: var(--sm-fs-xs);
   font-weight: 600;
 }
 
@@ -83,7 +83,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.75rem;
+  font-size: var(--sm-fs-xs);
   color: var(--sm-severity-success);
   font-weight: 500;
 }
@@ -106,7 +106,7 @@
   overflow-y: auto;
   padding: 0.5rem 0.9rem 0.9rem;
   font-family: var(--sm-font-mono);
-  font-size: 0.78rem;
+  font-size: var(--sm-fs-sm);
   line-height: 1.55;
 }
 
@@ -119,11 +119,11 @@
   text-align: center;
   margin: 1rem 0;
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: var(--sm-fs-md);
 }
 
 .eventlog__empty-state .pi {
-  font-size: 1.1rem;
+  font-size: var(--sm-fs-2xl);
   opacity: 0.5;
 }
 

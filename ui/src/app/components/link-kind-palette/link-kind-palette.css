@@ -63,7 +63,7 @@
    character span. Same sizing so a `/` and a `pi-link` look like
    peers in the 2x2 grid. */
 :host ::ng-deep .link-kind-palette__glyph {
-  font-size: 0.95rem;
+  font-size: var(--sm-fs-lg);
   line-height: 1;
   font-weight: 600;
   display: inline-flex;
