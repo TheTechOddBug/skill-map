@@ -1,5 +1,55 @@
 # Spec changelog
 
+## 0.89.0
+
+### Minor Changes
+
+- The `sm plugins` management family (`list` / `show` / `enable` / `disable` / `trust` / `untrust` / `doctor` / `config`) now honours the import-trust gate instead of importing project-local plugin code unconditionally, which made `sm plugins list` the shortest clone-and-scan path to a hostile repo's code and `sm plugins trust` run the code it was asking consent for. Manifest fields survive the gate, `--plugin-dir` stays exempt, and the spec drops its stale `config_plugins` trust references.
+
+  ## User-facing
+
+  **Untrusted plugins stay unexecuted everywhere.** Every `sm plugins` command, `list` included, refuses to run a project-local plugin's code until you have trusted it. You still see its id, description and path; `sm plugins trust <id>` unlocks the rest.
+
+- Closes a critical clone-and-scan vulnerability. Plugin import trust and the privileged project-local config keys lived inside `.skill-map/`, defended only by a `.gitignore` the repo author writes, so a hostile repo could ship a pre-granted plugin (arbitrary code on first scan) or a pre-enabled `scan.followExternalSymlinks`. Both now live in a scope lock anchored to that directory's filesystem identity, which git cannot transport, so a grant made elsewhere never verifies.
+
+  ## User-facing
+
+  Security fix. Plugins and privileged local settings now only take effect where you approved them, so a repo you clone cannot pre-approve its own. After upgrading, re-run `sm plugins trust <id>` for plugins you use, and re-apply any local setting that stops taking effect.
+
+- The map's render cap now fills by selection seniority: with the root excluded and two or more includes, `/api/branch` orders nodes by the first include (in `path=` request order) that admits them, then path, so folders selected first keep their nodes when a later selection overflows the cap; every other scope shape keeps plain path order. The include order travels the whole pipeline and the spec gains the normative Seniority fill rule under §Map scope overrides.
+
+  ## User-facing
+
+  When your folder selection has more nodes than the map can draw, the folders you selected first now stay on the map and the newest selection fills whatever room is left, instead of everything competing alphabetically.
+
+- Errors escaping a verb now render a concise error block on stderr and exit 2 instead of Clipanion's generic exit 1 (which collided with the public `1 = issues found` contract); declining a destructive confirmation (`sm db reset` / `db restore` / `orphans undo-rename`) is now a voluntary no-op (exit 0, info line) per the new spec §Destructive confirmation; and the operations log now covers `refresh`, `db.*`, `orphans.*`, and `config.*` (key only, never the value).
+
+  ## User-facing
+
+  **Cleaner exits.** Answering "no" to a destructive prompt (like `sm db reset`) now cancels cleanly with an info line instead of an error, and an unexpected crash prints one concise error message instead of a stack dump.
+
+### Patch Changes
+
+- CLI human output now sanitizes the stored and model-authored strings it interpolates: the jobs family renders through a shared terminal-safe row view, and `sm record`, `sm sidecar`, `sm bump` and `sm db migrate` sanitize the tags, paths, reasons and ledger labels they echo. `sm jobs preview` sanitizes its rendered content while `sm graph` formatter output stays byte-exact, a split the spec now states on the `sm jobs preview` row. `sm plugins upgrade` adopts the standard glyph blocks.
+
+  ## User-facing
+
+  **Terminal output is safer to read.** Text that `sm` quotes back from your project database or from an agent's report can no longer smuggle escape codes into your terminal, and `sm plugins upgrade` now prints the same check marks and error blocks as the rest of the CLI.
+
+- The `PATCH /api/project-preferences` path-exposure consent gate now documents that its 412 `confirm-required` envelope ships the exposed folders structured as `error.details.paths: string[]` beside the prose message (mirroring the sidecar gate's `details.key` precedent), so consent UIs can enumerate the list without parsing prose.
+
+- Both packages now publish with npm provenance: every tarball carries a signed attestation binding it to this repo, the `release` workflow and the commit that built it, recorded in the public Rekor transparency log. Enabled twice on purpose, `publishConfig.provenance` per package plus `NPM_CONFIG_PROVENANCE` in the publish step, because a `changeset publish` that dropped the field would fail silently. No code or API changed.
+
+  ## User-facing
+
+  **Verify where your copy came from.** Every published release now carries a signed record of the repository, commit and CI run that built it. Run `npm audit signatures` after installing, or read the Provenance panel on the npm package page.
+
+- The sm-process-jobs skill now resolves the MCP endpoint from the live `.skill-map/serve.json` (the running server's real host + port) instead of hardcoding the default port: the MCP-absent checklist probes that endpoint and every per-runtime register snippet carries the composed `<mcp-url>`, with `http://127.0.0.1:4242/mcp` surviving only when the file is absent. `spec/cli-contract.md` §Agent process skill names serve.json as the endpoint authority.
+
+  ## User-facing
+
+  The agent processing skill now discovers the skill-map server's real port from the project (instead of assuming the default), so agents running against a custom port register and probe the right MCP address. Installed skills show an update in Settings; apply it to pick this up.
+
 ## 0.88.0
 
 ### Minor Changes
