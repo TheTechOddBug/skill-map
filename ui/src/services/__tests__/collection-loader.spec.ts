@@ -439,6 +439,32 @@ describe('CollectionLoaderService, selection-driven branch fetch', () => {
     vi.advanceTimersByTime(SELECTION_FETCH_DEBOUNCE_MS);
     await flush();
 
+    // Include order = selection order (seniority), not sorted.
+    expect(stub.loadBranch).toHaveBeenLastCalledWith({
+      include: ['src', 'docs'],
+      exclude: [],
+      excludeRoot: true,
+    });
+    void svc;
+  });
+
+  it('an include reorder (same set, new seniority) refetches the branch', async () => {
+    const svc = bootstrap(stub, ws);
+    await svc.load();
+
+    const sel = selection();
+    sel.setOnly(['src', 'docs']);
+    TestBed.tick();
+    vi.advanceTimersByTime(SELECTION_FETCH_DEBOUNCE_MS);
+    await flush();
+    const callsAfterFirst = stub.loadBranch.mock.calls.length;
+
+    sel.setOnly(['docs', 'src']);
+    TestBed.tick();
+    vi.advanceTimersByTime(SELECTION_FETCH_DEBOUNCE_MS);
+    await flush();
+
+    expect(stub.loadBranch.mock.calls.length).toBe(callsAfterFirst + 1);
     expect(stub.loadBranch).toHaveBeenLastCalledWith({
       include: ['docs', 'src'],
       exclude: [],

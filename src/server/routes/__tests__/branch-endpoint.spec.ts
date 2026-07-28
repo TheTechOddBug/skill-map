@@ -417,6 +417,33 @@ describe('GET /api/branch', () => {
     });
   });
 
+  it('seniority fill: repeated `path` order drives the cap, first-named include first', async () => {
+    // `zz` is named FIRST but sorts LAST, so plain path order would
+    // starve it; the fill must honour the request order (spec §Map
+    // scope overrides · Seniority fill) and the echo must keep it too.
+    await prime({
+      nodes: [
+        makeNode('aa/1.md'),
+        makeNode('aa/2.md'),
+        makeNode('aa/3.md'),
+        makeNode('zz/one.md'),
+        makeNode('zz/two.md'),
+      ],
+    });
+    await bootAndUse(async (handle) => {
+      const res = await fetch(url(handle, '/api/branch?path=zz&path=aa&limit=3'));
+      const body = (await res.json()) as IBranchBody;
+      assert.deepEqual(body.branch.paths, ['zz', 'aa']);
+      assert.equal(body.branch.total, 5);
+      assert.equal(body.branch.truncated, true);
+      assert.deepEqual(body.nodes.map((n) => n.path), [
+        'zz/one.md',
+        'zz/two.md',
+        'aa/1.md',
+      ]);
+    });
+  });
+
   it('cap + truncated computed over the UNION total', async () => {
     await prime({
       nodes: [

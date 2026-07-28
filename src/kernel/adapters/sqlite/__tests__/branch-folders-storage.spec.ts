@@ -656,9 +656,11 @@ describe('port.scans.loadBranch (override scopes)', () => {
         256,
       );
       assert.equal(branch.total, 2);
+      // Seniority fill order: `app` is named first, so its admitted
+      // node precedes the deeper rescue's even against the alphabet.
       assert.deepEqual(branch.nodes.map((n) => n.path), [
-        'app/legacy/keep/gem.md',
         'app/one.md',
+        'app/legacy/keep/gem.md',
       ]);
     } finally {
       await adapter.close();
@@ -713,6 +715,112 @@ describe('port.scans.loadBranch (override scopes)', () => {
         256,
       );
       assert.equal(branch.total, 3);
+    } finally {
+      await adapter.close();
+    }
+  });
+});
+
+/**
+ * Seniority fill (spec §Map scope overrides · Seniority fill): with the
+ * root excluded and 2+ includes, the cap fills by include order (the
+ * wire's `path=` order = the operator's selection order, oldest first),
+ * path order within each include. Every other scope shape keeps the
+ * plain path-ordered slice (the fast path).
+ */
+describe('port.scans.loadBranch (seniority fill)', () => {
+  it('fills the cap oldest-include-first: all of A, then the head of B', async () => {
+    const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('branch-seniority'), autoBackup: false });
+    await adapter.init();
+    try {
+      // B sorts BEFORE A alphabetically, so plain path order would
+      // starve A; seniority must win over the alphabet.
+      await plantNode(adapter, 'zz-small/one.md');
+      await plantNode(adapter, 'zz-small/two.md');
+      for (let i = 0; i < 5; i++) await plantNode(adapter, `aa-big/n${i}.md`);
+
+      const branch = await adapter.scans.loadBranch(union(['zz-small', 'aa-big']), 4);
+      assert.equal(branch.total, 7);
+      assert.deepEqual(branch.nodes.map((n) => n.path), [
+        'zz-small/one.md',
+        'zz-small/two.md',
+        'aa-big/n0.md',
+        'aa-big/n1.md',
+      ]);
+      // The echo keeps the request order (first occurrence), not sorted.
+      assert.deepEqual(branch.paths, ['zz-small', 'aa-big']);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('reversing the include order flips the fill', async () => {
+    const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('branch-seniority-rev'), autoBackup: false });
+    await adapter.init();
+    try {
+      await plantNode(adapter, 'zz-small/one.md');
+      await plantNode(adapter, 'zz-small/two.md');
+      for (let i = 0; i < 5; i++) await plantNode(adapter, `aa-big/n${i}.md`);
+
+      const branch = await adapter.scans.loadBranch(union(['aa-big', 'zz-small']), 4);
+      assert.deepEqual(branch.nodes.map((n) => n.path), [
+        'aa-big/n0.md',
+        'aa-big/n1.md',
+        'aa-big/n2.md',
+        'aa-big/n3.md',
+      ]);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('a single include keeps plain path order (fast path)', async () => {
+    const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('branch-seniority-single'), autoBackup: false });
+    await adapter.init();
+    try {
+      await plantNode(adapter, 'x/b.md');
+      await plantNode(adapter, 'x/a.md');
+      const branch = await adapter.scans.loadBranch(union(['x']), 256);
+      assert.deepEqual(branch.nodes.map((n) => n.path), ['x/a.md', 'x/b.md']);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('exclude-mode (root included) keeps plain path order (fast path)', async () => {
+    const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('branch-seniority-exclude'), autoBackup: false });
+    await adapter.init();
+    try {
+      await plantNode(adapter, 'zz/keep.md');
+      await plantNode(adapter, 'aa/keep.md');
+      await plantNode(adapter, 'drop/gone.md');
+      const branch = await adapter.scans.loadBranch(
+        { include: [], exclude: ['drop'], rootExcluded: false },
+        256,
+      );
+      assert.deepEqual(branch.nodes.map((n) => n.path), ['aa/keep.md', 'zz/keep.md']);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('a node admitted by two nested includes (non-canonical caller) counts for the EARLIER one', async () => {
+    const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('branch-seniority-nested'), autoBackup: false });
+    await adapter.init();
+    try {
+      await plantNode(adapter, 'app/keep/gem.md');
+      await plantNode(adapter, 'app/other.md');
+      await plantNode(adapter, 'zz/late.md');
+      // `app` (rank 0) admits app/keep/gem.md too, so it fills before
+      // `zz` even though `app/keep` is also named later in the list.
+      const branch = await adapter.scans.loadBranch(
+        union(['app', 'zz', 'app/keep']),
+        2,
+      );
+      assert.deepEqual(branch.nodes.map((n) => n.path), [
+        'app/keep/gem.md',
+        'app/other.md',
+      ]);
     } finally {
       await adapter.close();
     }

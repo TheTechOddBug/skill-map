@@ -29,7 +29,10 @@
  *   - A node is in the branch when its NEAREST matching override (self
  *     included, longest path wins, root = `rootExcluded`) is an
  *     include, or no override matches at all. `nodes` is the first
- *     `rendered` scoped nodes in stable path order (`ORDER BY path`).
+ *     `rendered` scoped nodes, ordered by the seniority fill rule (spec
+ *     §Map scope overrides): root excluded with 2+ includes ranks by
+ *     the first include (in `path=` request order) that admits the
+ *     node, then path; other shapes keep plain `ORDER BY path`.
  *   - `links` carries only edges whose source AND RESOLVED target are
  *     both in `nodes`. The resolved target is `resolved_target` (the node
  *     a trigger-style `invokes` / `mentions` link points to), falling back
@@ -40,7 +43,8 @@
  *   - `total` is the scoped node count BEFORE the cap (post-override);
  *     `cap` is the effective limit; `rendered` is `min(total, cap)`;
  *     `truncated` is `total > cap`. `paths` echoes the de-duped
- *     includes; `excluded` / `rootExcluded` echo the RESOLVED scope.
+ *     includes in request order (first occurrence kept); `excluded` /
+ *     `rootExcluded` echo the RESOLVED scope.
  *
  * `cap` / `limit`: the default cap is the scan's effective
  * `maxRenderNodes` (`scan_meta.max_render_nodes`, design default 256

@@ -87,40 +87,16 @@ describe('BranchCapBanner', () => {
     expect(body?.textContent).toContain('sub-folder');
   });
 
-  it('renders the corpus-scoped copy when the branch fits but the corpus overflows', () => {
+  it('stays hidden when the branch fits, even while the corpus overflows the cap', () => {
+    // User decision 2026-07-28: once the operator narrowed to a fitting
+    // scope the corpus-wide message read as noise, so no corpus fallback.
     const { fixture } = makeFixture({
       branch: branch({ total: 40, rendered: 40, truncated: false }),
       corpusCount: 300,
       maxRenderNodes: 256,
     });
-    const body = bannerBody(fixture);
-    expect(body).not.toBeNull();
-    expect(body?.textContent).toContain('This project');
-    expect(body?.textContent).toContain('300');
-    expect(body?.textContent).toContain('256');
-  });
-
-  it('prefers the branch-scoped copy when both the branch and corpus overflow', () => {
-    const { fixture } = makeFixture({
-      branch: branch({ total: 900, rendered: 256, truncated: true }),
-      corpusCount: 900,
-      maxRenderNodes: 256,
-    });
-    const body = bannerBody(fixture);
-    expect(body?.textContent).toContain('This folder');
-    expect(body?.textContent).not.toContain('This project');
-  });
-
-  it('falls back to the default cap (256) when scanMeta has no maxRenderNodes', () => {
-    const { fixture } = makeFixture({
-      branch: branch({ total: 40, rendered: 40, truncated: false }),
-      corpusCount: 300,
-      maxRenderNodes: undefined,
-    });
-    const body = bannerBody(fixture);
-    expect(body).not.toBeNull();
-    expect(body?.textContent).toContain('300');
-    expect(body?.textContent).toContain('256');
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-testid="branch-cap-banner"]')).toBeNull();
   });
 
   it('hides when there is no branch and the corpus is empty', () => {

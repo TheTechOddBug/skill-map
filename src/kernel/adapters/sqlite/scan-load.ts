@@ -398,9 +398,15 @@ export async function loadEffectiveMaxRenderNodes(
  * defensively before binding.
  *
  * Capping: `total` is a `COUNT(*)` over the scoped set (BEFORE the cap,
- * AFTER override evaluation); `nodes` is the same set `ORDER BY path
- * LIMIT limit`. `links` are the edges whose `source_path` AND resolved
- * target are both in the capped node set; `issues` are those whose
+ * AFTER override evaluation); `nodes` is the same set ordered and cut
+ * at `LIMIT limit`. The order implements the SENIORITY FILL of spec
+ * §Map scope overrides: with the root excluded and two or more
+ * includes, rows rank by the FIRST include (in scope order) whose
+ * admission term accepts them (a CASE ladder reusing the exact WHERE
+ * terms), then path; every other scope shape keeps plain `ORDER BY
+ * path` (the fast path, byte-identical to the historical query).
+ * `links` are the edges whose `source_path` AND resolved target are
+ * both in the capped node set; `issues` are those whose
  * `node_ids_json` intersects it (`json_each` + `IN`). Every step runs
  * in SQL so the 50K corpus never hydrates into memory. The fully-
  * excluded scope (root excluded, no includes) short-circuits to an
@@ -427,13 +433,15 @@ export async function loadBranch(
 
   const total = await countBranchNodes(db, resolved);
 
-  const nodeRows = await applyBranchScope(
-    db.selectFrom('scan_nodes').selectAll(),
-    resolved,
-  )
-    .orderBy('path', 'asc')
-    .limit(limit)
-    .execute();
+  // Seniority fill (spec §Map scope overrides): only the multi-include
+  // root-excluded shape ranks; everything else keeps the plain
+  // path-ordered slice so the common case pays nothing.
+  const seniorityFill = resolved.rootExcluded && resolved.include.length > 1;
+  const scoped = applyBranchScope(db.selectFrom('scan_nodes').selectAll(), resolved);
+  const ordered = seniorityFill
+    ? scoped.orderBy((eb) => includeRank(eb, resolved), 'asc')
+    : scoped;
+  const nodeRows = await ordered.orderBy('path', 'asc').limit(limit).execute();
   const nodes = nodeRows.map(rowToNode);
   const pathSet = new Set(nodes.map((n) => n.path));
 
@@ -538,16 +546,53 @@ function applyBranchScope<
     for (const include of scope.include) {
       // Nearest-override-is-this-include disjunct. Only excludes
       // STRICTLY under the include can outrank it.
-      const deeper = scope.exclude.filter((e) => e.startsWith(`${include}/`));
-      terms.push(
-        and([
-          matchesSubtree(eb, include),
-          ...deeper.map((e) => not(matchesSubtree(eb, e))),
-        ]),
-      );
+      terms.push(includeTerm(eb, include, scope.exclude));
     }
     return or(terms);
   }) as Q;
+}
+
+/**
+ * One include's admission term: the include matches the node and no
+ * exclude STRICTLY under it outranks it. Shared by the scope WHERE
+ * (`applyBranchScope`) and the seniority-fill rank (`includeRank`) so
+ * the two can never disagree on which include claims a node.
+ */
+function includeTerm(
+  eb: import('kysely').ExpressionBuilder<IDatabase, 'scan_nodes'>,
+  include: string,
+  exclude: readonly string[],
+): import('kysely').Expression<import('kysely').SqlBool> {
+  const deeper = exclude.filter((e) => e.startsWith(`${include}/`));
+  return eb.and([
+    matchesSubtree(eb, include),
+    ...deeper.map((e) => eb.not(matchesSubtree(eb, e))),
+  ]);
+}
+
+/**
+ * Seniority rank of a row under the scope's include list: the index of
+ * the FIRST include (in scope order = the wire's `path=` order = the
+ * operator's selection order, oldest first) whose admission term
+ * accepts the row. CASE first-match semantics resolve a node admitted
+ * by more than one include (a nested pair from a non-canonical caller)
+ * to the EARLIEST one. The ELSE arm is unreachable for rows already
+ * admitted by `applyBranchScope` under a root-excluded scope; it exists
+ * as a total-function safety net. Callers guarantee `include.length >=
+ * 2` (the single-include and root-included shapes keep the plain path
+ * order, see `loadBranch`).
+ */
+function includeRank(
+  eb: import('kysely').ExpressionBuilder<IDatabase, 'scan_nodes'>,
+  scope: IBranchScope,
+): import('kysely').Expression<number | null> {
+  const [first, ...rest] = scope.include;
+  if (first === undefined) throw new Error('includeRank requires at least one include');
+  let chain = eb.case().when(includeTerm(eb, first, scope.exclude)).then(0);
+  rest.forEach((include, i) => {
+    chain = chain.when(includeTerm(eb, include, scope.exclude)).then(i + 1);
+  });
+  return chain.else(scope.include.length).end();
 }
 
 /**

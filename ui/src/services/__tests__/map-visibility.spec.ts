@@ -248,3 +248,57 @@ describe('MapVisibilityService, localStorage persistence', () => {
     expect(entries(service)).toEqual([]);
   });
 });
+
+/**
+ * Selection seniority (spec §Map scope overrides · Seniority fill): the
+ * map's insertion order is the cap-fill priority, so the service must
+ * express the two user decisions (2026-07-28) and persist the order.
+ */
+describe('MapVisibilityService, selection seniority', () => {
+  it('re-checking a folder is a NEW selection: it moves to the tail', () => {
+    const service = inject();
+    service.setOnly(['a', 'b', 'c']);
+    service.setSubtree('a', 'exclude'); // uncheck: entry deleted (inherits root exclude)
+    service.setSubtree('a', 'include'); // re-check: appended last
+    expect([...service.overrides().keys()]).toEqual(['b', 'c', '', 'a']);
+  });
+
+  it('selecting a parent after a child swallows the child, parent at the tail', () => {
+    const service = inject();
+    service.setOnly(['docs/a', 'other']);
+    service.setSubtree('docs', 'include');
+    expect([...service.overrides().keys()]).toEqual(['other', '', 'docs']);
+  });
+
+  it('prune preserves the surviving insertion order', () => {
+    const service = inject();
+    service.setOnly(['z', 'm', 'a']);
+    service.prune(new Set(['z', 'a']));
+    expect([...service.overrides().keys()]).toEqual(['z', 'a', '']);
+  });
+
+  it('persists the insertion order (array shape) and rehydrates it', () => {
+    const service = inject();
+    service.setOnly(['z', 'a']);
+    TestBed.tick();
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '')).toEqual([
+      ['z', 'include'],
+      ['a', 'include'],
+      ['', 'exclude'],
+    ]);
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const fresh = inject();
+    expect([...fresh.overrides().keys()]).toEqual(['z', 'a', '']);
+  });
+
+  it('still reads the legacy object shape (best-effort order)', () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ z: 'include', a: 'include', '': 'exclude' }),
+    );
+    const service = inject();
+    expect(entries(service)).toEqual(['exclude:', 'include:a', 'include:z']);
+  });
+});

@@ -86,14 +86,23 @@ describe('applySetSubtree', () => {
 
 describe('compileOverridesToWire', () => {
   it('splits includes / excludes and lifts the root onto excludeRoot', () => {
+    // Includes keep the map's INSERTION order (selection seniority, the
+    // server's cap-fill priority); only excludes are sorted.
     const wire = compileOverridesToWire(
-      map({ '': 'exclude', 'b/keep': 'include', a: 'exclude', z: 'include' }),
+      map({ '': 'exclude', z: 'include', 'b/keep': 'include', a: 'exclude' }),
     );
     expect(wire).toEqual({
-      include: ['b/keep', 'z'],
+      include: ['z', 'b/keep'],
       exclude: ['a'],
       excludeRoot: true,
     });
+  });
+
+  it('include order survives a delete + re-add round trip (re-check = tail)', () => {
+    let overrides = map({ '': 'exclude', old: 'include', later: 'include' });
+    overrides = new Map(applySetSubtree(overrides, 'old', 'exclude'));
+    overrides = new Map(applySetSubtree(overrides, 'old', 'include'));
+    expect(compileOverridesToWire(overrides).include).toEqual(['later', 'old']);
   });
 
   it('the empty map compiles to the whole-corpus request', () => {
@@ -106,11 +115,16 @@ describe('compileOverridesToWire', () => {
 });
 
 describe('overridesKey / overrideMapsEqual', () => {
-  it('the key is order-independent and state-sensitive', () => {
-    const a = map({ x: 'exclude', y: 'include' });
-    const b = new Map([...map({ y: 'include', x: 'exclude' })]);
-    expect(overridesKey(a)).toBe(overridesKey(b));
-    expect(overridesKey(a)).not.toBe(overridesKey(map({ x: 'include', y: 'include' })));
+  it('the key tracks include ORDER (seniority) but not exclude order', () => {
+    // Include reorder = a different request (the cap fills differently).
+    const inc = map({ '': 'exclude', x: 'include', y: 'include' });
+    const incReordered = map({ '': 'exclude', y: 'include', x: 'include' });
+    expect(overridesKey(inc)).not.toBe(overridesKey(incReordered));
+    // Exclude reorder compiles to the same (sorted) wire = same key.
+    const exc = map({ x: 'exclude', y: 'exclude' });
+    const excReordered = map({ y: 'exclude', x: 'exclude' });
+    expect(overridesKey(exc)).toBe(overridesKey(excReordered));
+    expect(overridesKey(exc)).not.toBe(overridesKey(map({ x: 'include', y: 'exclude' })));
   });
 
   it('equality is value-based', () => {

@@ -272,7 +272,7 @@ export async function listIssues(
 export const getBranchInputShape = {
   path: z
     .array(z.string())
-    .describe('Include overrides: forward-slash folder prefixes whose subtrees are visible (map scope overrides, nearest ancestor wins). Empty with no excludes = whole corpus; a bare list keeps its historical meaning (only those subtrees).'),
+    .describe('Include overrides: forward-slash folder prefixes whose subtrees are visible (map scope overrides, nearest ancestor wins). Empty with no excludes = whole corpus; a bare list keeps its historical meaning (only those subtrees). ORDER is significant: with the root excluded and 2+ includes, the node cap fills by list order (earlier entries claim their nodes first).'),
   exclude: z
     .array(z.string())
     .optional()

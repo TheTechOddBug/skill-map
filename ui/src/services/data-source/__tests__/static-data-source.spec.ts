@@ -316,6 +316,26 @@ describe('StaticDataSource', () => {
     expect(branch.nodes.map((n) => n.path)).toEqual(['a.md', 'b.md', 'c.md']);
   });
 
+  it('loadBranch fills the cap by include seniority, mirroring the live SQL', async () => {
+    // `c.md` is named FIRST, so it outranks the alphabet under the cap
+    // (seniority fill: root excluded + 2 includes).
+    const branch = await ds.loadBranch(
+      { include: ['c.md', 'a.md'], exclude: [], excludeRoot: true },
+      1,
+    );
+    expect(branch.branch.total).toBe(2);
+    expect(branch.branch.truncated).toBe(true);
+    expect(branch.nodes.map((n) => n.path)).toEqual(['c.md']);
+  });
+
+  it('loadBranch keeps plain path order for a single include (fast path)', async () => {
+    const branch = await ds.loadBranch(
+      { include: ['c.md'], exclude: [], excludeRoot: true },
+      1,
+    );
+    expect(branch.nodes.map((n) => n.path)).toEqual(['c.md']);
+  });
+
   it('loadBranch(paths, limit) truncates and drops links / issues outside the slice', async () => {
     const branch = await ds.loadBranch({ include: [], exclude: [], excludeRoot: false }, 1);
     expect(branch.branch.total).toBe(3);
@@ -350,11 +370,12 @@ describe('StaticDataSource', () => {
     );
     const branch = await nested.loadBranch({ include: ['src', 'docs'], exclude: [], excludeRoot: true });
     // `src` pulls both src/api/* nodes; `docs` pulls docs/c.md; other/d.md
-    // matches neither prefix and is excluded.
+    // matches neither prefix and is excluded. Seniority fill: `src` is
+    // named first, so its nodes precede `docs`'s even against the alphabet.
     expect(branch.nodes.map((n) => n.path)).toEqual([
-      'docs/c.md',
       'src/api/a.md',
       'src/api/deep/b.md',
+      'docs/c.md',
     ]);
     expect(branch.branch.total).toBe(3);
   });

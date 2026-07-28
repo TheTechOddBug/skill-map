@@ -4,19 +4,24 @@
  * and a defensive read so a corrupted entry resets to the default
  * (empty map == "show all") rather than crashing.
  *
- * Semantics: the persisted object is the OVERRIDE map of
- * `spec/cli-contract.md` §Map scope overrides, `{ [path]: 'include' |
- * 'exclude' }` with the root as the `''` key. An empty map is the
- * default (fully visible corpus), so a fresh project, a cleared
- * curation, and a corrupted entry all collapse to the same harmless
- * state.
+ * Semantics: the persisted value is the OVERRIDE map of
+ * `spec/cli-contract.md` §Map scope overrides, written as an ARRAY of
+ * `[path, 'include' | 'exclude']` pairs with the root as the `''` key.
+ * The array shape is load-bearing: the map's insertion order is the
+ * selection seniority that drives the render-cap fill, and a plain
+ * object cannot guarantee it (JS reorders integer-like keys, e.g. a
+ * top-level folder named `2024`). An empty map is the default (fully
+ * visible corpus), so a fresh project, a cleared curation, and a
+ * corrupted entry all collapse to the same harmless state.
  *
- * Migration: the pre-deviation-model key (`sm.map.visible-paths`, a
- * JSON array acting as an inclusion whitelist) is read once when the
- * new key is absent and converted to the equivalent override map (root
- * excluded + one include per path), preserving what the operator saw;
- * the legacy key is removed on every write so it never resurrects a
- * stale selection.
+ * Migrations, both one-shot reads with the old shape dying on the next
+ * write: the pre-seniority OBJECT shape (`{ [path]: state }`, same key)
+ * is accepted with best-effort order, and the pre-deviation-model key
+ * (`sm.map.visible-paths`, a JSON array acting as an inclusion
+ * whitelist) is read when the new key is absent and converted to the
+ * equivalent override map (root excluded + one include per path); the
+ * legacy key is removed on every write so it never resurrects a stale
+ * selection.
  */
 
 import type { TVisibilityOverride } from './map-overrides';
@@ -38,8 +43,20 @@ export function readStoredOverrides(): Map<string, TVisibilityOverride> {
   } catch {
     return new Map();
   }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return new Map();
+  if (typeof parsed !== 'object' || parsed === null) return new Map();
   const out = new Map<string, TVisibilityOverride>();
+  if (Array.isArray(parsed)) {
+    // Current shape: array of [path, state] pairs, order = seniority.
+    for (const entry of parsed) {
+      if (!Array.isArray(entry) || entry.length !== 2) continue;
+      const [key, value] = entry as [unknown, unknown];
+      if (typeof key !== 'string') continue;
+      if (value === 'include' || value === 'exclude') out.set(key, value);
+    }
+    return out;
+  }
+  // Legacy object shape: best-effort order (JS reorders integer-like
+  // keys); rewritten as the array shape on the next write.
   for (const [key, value] of Object.entries(parsed)) {
     if (value === 'include' || value === 'exclude') out.set(key, value);
   }
@@ -86,10 +103,7 @@ export function writeStoredOverrides(
       localStorage.removeItem(OVERRIDES_STORAGE_KEY);
       return;
     }
-    localStorage.setItem(
-      OVERRIDES_STORAGE_KEY,
-      JSON.stringify(Object.fromEntries(overrides)),
-    );
+    localStorage.setItem(OVERRIDES_STORAGE_KEY, JSON.stringify([...overrides]));
   } catch {
     // Quota exceeded or storage blocked, ignore.
   }

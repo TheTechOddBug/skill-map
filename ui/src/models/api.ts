@@ -337,7 +337,9 @@ export interface IFolderNodeLite {
  * are the non-root override paths, `excludeRoot` the root override. The
  * loader compiles it from `MapVisibilityService.overrides()` via
  * `compileOverridesToWire`; the UI always states `excludeRoot`
- * explicitly (inference exists for external callers only).
+ * explicitly (inference exists for external callers only). `include`
+ * ORDER is significant: it is the selection seniority the server's cap
+ * fill honours (oldest first, §Seniority fill).
  */
 export interface IBranchScopeApi {
   include: string[];
@@ -362,8 +364,9 @@ export interface IBranchScopeApi {
  *   - `branch.rendered`: nodes actually returned (`min(total, cap)`).
  *   - `branch.truncated`: `total > cap` (drives the branch-cap banner).
  *   - `branch.cap`: the effective render cap for this branch.
- *   - `nodes`: the first `rendered` nodes of the scoped set, in stable
- *     path order, capped at the scan's `maxRenderNodes`.
+ *   - `nodes`: the first `rendered` nodes of the scoped set, capped at
+ *     the scan's `maxRenderNodes`; ordered by (include seniority, path)
+ *     under the seniority fill rule, plain path order otherwise.
  *   - `links`: only edges whose source AND target are both in `nodes`.
  *   - `issues`: only issues whose `nodeIds` intersect `nodes`.
  */

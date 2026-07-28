@@ -461,15 +461,19 @@ export interface IBranchScope {
  * Output of `port.scans.loadBranch(...)`, the override-scoped + capped
  * graph projection the BFF `/api/branch` endpoint returns. `nodes` is
  * the first `LIMIT` nodes of the scoped set (nearest-ancestor override
- * evaluation over `IBranchScope`) in stable path order (`ORDER BY
- * path`); `links` carries only edges whose source AND RESOLVED target
+ * evaluation over `IBranchScope`), ordered by the SENIORITY FILL rule
+ * (spec §Map scope overrides): root excluded with two or more includes
+ * ranks rows by the first include (in `IBranchScope.include` order)
+ * that admits them, then path; every other shape is plain stable path
+ * order; `links` carries only edges whose source AND RESOLVED target
  * (`resolvedTarget`, else the raw `target` for path-style links) are
  * both in that node set, so a trigger-style `invokes` / `mentions` edge
  * that resolves to a rendered node is kept and a genuinely-broken link
  * is dropped; `issues` carries only those whose `nodeIds` intersect it.
  * `total` is the count of scoped nodes BEFORE the cap (so the route can
  * compute `truncated`), post-override by construction. `paths` echoes
- * the (de-duped) include overrides; the whole-corpus case echoes `[]`.
+ * the (de-duped, request-ordered) include overrides; the whole-corpus
+ * case echoes `[]`.
  */
 export interface IBranchProjection {
   nodes: Node[];

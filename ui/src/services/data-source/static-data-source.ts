@@ -292,12 +292,15 @@ export class StaticDataSource implements IDataSourcePort {
    * Demo mode: derive the branch projection from `data.json`. Scopes by
    * the map scope overrides (nearest-ancestor-wins over the rebuilt
    * override map, `map-overrides.ts` `effectiveState`, the client-side
-   * mirror of the live SQL evaluation). Stable path order, capped at
-   * `limit` (or the whole scoped set when absent, the demo corpus is
-   * small enough that no scan cap is recorded), then keeps only links
-   * whose source AND resolved endpoint (`resolvedTarget`, else the raw
-   * `target` for path-style links) are both in the slice, and issues
-   * touching the slice, mirroring the live `/api/branch` SQL scoping.
+   * mirror of the live SQL evaluation). Ordered by the seniority fill
+   * rule (spec §Map scope overrides): with the root excluded and two or
+   * more includes, rows rank by the first include (in wire order) that
+   * admits them, then path; every other shape keeps plain path order.
+   * Capped at `limit` (or the whole scoped set when absent, the demo
+   * corpus is small enough that no scan cap is recorded), then keeps
+   * only links whose source AND resolved endpoint (`resolvedTarget`,
+   * else the raw `target` for path-style links) are both in the slice,
+   * and issues touching the slice, mirroring the live `/api/branch` SQL.
    */
   async loadBranch(scope: IBranchScopeApi, limit?: number): Promise<IBranchResponseApi> {
     const scan = await this.loadScan();
@@ -307,9 +310,26 @@ export class StaticDataSource implements IDataSourcePort {
     for (const p of include) overrides.set(p, 'include');
     for (const p of exclude) overrides.set(p, 'exclude');
     if (scope.excludeRoot) overrides.set('', 'exclude');
+    // Mirror of the SQL `includeTerm`: the first include (wire order =
+    // selection seniority) whose subtree matches the node with no
+    // exclude strictly under it, `include.length` when none does.
+    const admits = (inc: string, path: string): boolean =>
+      (path === inc || path.startsWith(`${inc}/`)) &&
+      !exclude.some(
+        (e) => e.startsWith(`${inc}/`) && (path === e || path.startsWith(`${e}/`)),
+      );
+    const rank = (path: string): number => {
+      const i = include.findIndex((inc) => admits(inc, path));
+      return i === -1 ? include.length : i;
+    };
+    const seniorityFill = scope.excludeRoot && include.length > 1;
     const branchNodes = scan.nodes
       .filter((n) => effectiveState(overrides, n.path) === 'include')
-      .sort((a, b) => a.path.localeCompare(b.path));
+      .sort((a, b) =>
+        seniorityFill && rank(a.path) !== rank(b.path)
+          ? rank(a.path) - rank(b.path)
+          : a.path.localeCompare(b.path),
+      );
     const total = branchNodes.length;
     const cap = limit !== undefined && limit > 0 ? limit : total;
     const nodes = branchNodes.slice(0, cap);
