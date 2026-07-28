@@ -143,7 +143,7 @@
               "properties": {
                 "enabled": {
                   "type": "boolean",
-                  "description": "Per-extension operational on/off, resolved over the plugin-level `enabled` and the extension's installed default (`false` for `experimental` / `deprecated`, `true` otherwise). Shareable: lands in `settings.json` (team baseline) or `settings.local.json` (per-checkout override) via the normal config layering. This is the OPERATIONAL axis only; it does NOT grant import trust for a project-local plugin (that is the separate per-plugin trust axis, the `config_plugins` DB store written by `sm plugins trust`)."
+                  "description": "Per-extension operational on/off, resolved over the plugin-level `enabled` and the extension's installed default (`false` for `experimental` / `deprecated`, `true` otherwise). Shareable: lands in `settings.json` (team baseline) or `settings.local.json` (per-checkout override) via the normal config layering. This is the OPERATIONAL axis only; it does NOT grant import trust for a project-local plugin (that is the separate per-plugin trust axis, the scope lock written by `sm plugins trust`)."
                 },
                 "settings": {
                   "type": "object",

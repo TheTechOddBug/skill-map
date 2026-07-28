@@ -27,6 +27,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, describe, it } from 'node:test';
 
 import { installedSpecVersion } from '../../../../kernel/adapters/plugin-loader.js';
+import { grantTrust } from '../../../../kernel/config/plugin-trust-store.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = resolve(HERE, '..', '..', '..', '..', 'bin', 'sm.js');
@@ -67,10 +68,15 @@ function readSettings(scope: IScope, kind: 'settings' | 'settings.local'): Recor
 /**
  * Drop a mock user plugin with one extractor that declares a
  * `secret`-typed setting (plus a normal string for breadth).
+ *
+ * Trust is granted with it: the settings a plugin declares live in its
+ * module, so `sm plugins config` has to import it, which the gate denies
+ * without the operator's local consent (`plugins-import-gate.spec.ts`).
  */
 function dropSecretPlugin(scope: IScope, pluginId: string, extId: string): void {
   const pluginDir = join(scope.cwd, '.skill-map', 'plugins', pluginId);
   mkdirSync(pluginDir, { recursive: true });
+  grantTrust(scope.cwd, pluginId);
   writeFileSync(
     join(pluginDir, 'plugin.json'),
     JSON.stringify({

@@ -162,9 +162,18 @@ describe('sm plugins create, scaffolder shape', () => {
     assert.equal(counts.invalid, 0, 'no invalid manifests');
     assert.equal(counts.loadError, 0, 'no load errors');
 
-    // The scaffolded plugin itself resolves to `enabled`. The per-plugin
-    // JSON (with the `status` field) is emitted by `list <id> --json`;
-    // `show` is extension-only now.
+    // A freshly scaffolded plugin is UNTRUSTED: `sm plugins create` says
+    // so in its own next-steps output, and since 2026-07-28 the whole
+    // `sm plugins` family honours the gate instead of importing anyway.
+    const beforeTrust = sm(['plugins', 'list', 'demo-highlight', '--json'], scope);
+    assert.equal(beforeTrust.status, 0, `stderr: ${beforeTrust.stderr}`);
+    assert.equal(JSON.parse(beforeTrust.stdout).status, 'disabled', 'untrusted until granted');
+
+    assert.equal(sm(['plugins', 'trust', 'demo-highlight'], scope).status, 0);
+
+    // Once trusted it resolves to `enabled`. The per-plugin JSON (with
+    // the `status` field) is emitted by `list <id> --json`; `show` is
+    // extension-only now.
     const detail = sm(['plugins', 'list', 'demo-highlight', '--json'], scope);
     assert.equal(detail.status, 0, `stderr: ${detail.stderr}`);
     assert.equal(JSON.parse(detail.stdout).status, 'enabled');
@@ -222,6 +231,11 @@ describe('sm plugins create, every extension kind loads enabled', () => {
       const counts = JSON.parse(doctor.stdout).counts;
       assert.equal(counts.invalid, 0, `${kind}: no invalid manifests`);
       assert.equal(counts.loadError, 0, `${kind}: no load errors`);
+
+      // Trust is the author's one-time local grant (the scaffolder's own
+      // next-steps text says to run it); without it the gate keeps the
+      // code unimported, which is the point of the gate.
+      assert.equal(sm(['plugins', 'trust', id], scope).status, 0, `${kind}: trust`);
 
       const detail = sm(['plugins', 'list', id, '--json'], scope);
       assert.equal(detail.status, 0, `list stderr: ${detail.stderr}`);

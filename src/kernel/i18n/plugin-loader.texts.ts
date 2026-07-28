@@ -85,17 +85,21 @@ export const PLUGIN_LOADER_TEXTS = {
    * plugins were found on disk but left unloaded for lack of trust. The
    * `{{count}}` plugins ride the scan without executing any code.
    *
-   * Deliberately does NOT send the operator to `sm plugins list`, which
-   * the previous wording did: that verb still imports plugin code to
-   * enumerate extensions, so recommending it as the "review" step meant
-   * telling someone their code had not run and, in the same sentence,
-   * handing them the command that runs it. Reading the source is the
-   * honest review step until the family enumerates from the manifest.
+   * An earlier wording sent the operator to `sm plugins list` as the
+   * "review" step while that verb still imported plugin code, so it told
+   * someone their code had not run and, in the same sentence, handed
+   * them the command that ran it. The whole `sm plugins` family is
+   * trust-gated now (2026-07-28), so naming it is safe again: it reports
+   * the manifest (id, description, path, compat) without importing.
+   *
+   * Reading the source stays FIRST. The manifest is the plugin author's
+   * own claim about their plugin, and a claim is not a review.
    */
   untrustedPluginsFoundNotice:
     '{{count}} project-local plugin(s) found in .skill-map/plugins/ but not loaded ' +
-    '(untrusted). Their code did NOT run. Read the plugin source, then ' +
-    'trust what you vetted with `sm plugins trust <id>`.',
+    '(untrusted). Their code did NOT run. Read the plugin source (`sm plugins list <id>` ' +
+    'summarises the manifest without running anything), then trust what you vetted ' +
+    'with `sm plugins trust <id>`.',
 
   /**
    * A grant EXISTS for these ids but was minted against a different copy

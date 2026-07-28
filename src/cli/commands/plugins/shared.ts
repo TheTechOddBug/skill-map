@@ -42,8 +42,10 @@ import { resolve } from 'node:path';
 import {
   installedDefaultEnabled,
   makeEnabledResolver,
+  makeTrustResolver,
   type TEnabledResolver,
 } from '../../../kernel/config/plugin-resolver.js';
+import { loadTrust } from '../../../kernel/config/plugin-trust-store.js';
 import { lockedBuiltInIds } from '../../../plugins/locked-built-ins.js';
 import { qualifiedExtensionId } from '../../../kernel/registry.js';
 import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
@@ -72,9 +74,8 @@ export function resolveSearchPaths(opts: IPluginDirOption, cwd: string): string[
  * Build a resolver from the layered config (settings.json). Enable is a
  * pure-config concern now (the DB carries the orthogonal import-trust
  * grant, not enable), so this is a thin wrapper over the layered config
- * read. `loadAll` passes the resulting resolver as `resolveEnabled` only
- * (NOT `resolveImportTrust`), so `sm plugins list` still surfaces
- * untrusted plugins instead of hiding them.
+ * read. This is the ENABLE axis only; `loadAll` builds the orthogonal
+ * import-trust gate separately.
  */
 export async function buildResolver(): Promise<TEnabledResolver> {
   const ctx = defaultRuntimeContext();
@@ -85,7 +86,34 @@ export async function buildResolver(): Promise<TEnabledResolver> {
 /**
  * Run the full PluginLoader discovery + load pass against the search
  * paths derived from `opts`. Used by every verb that needs the live
- * status of user plugins (`list` / `show` / `doctor` / `toggle`).
+ * status of user plugins (`list` / `show` / `doctor` / `toggle` /
+ * `trust` / `config`).
+ *
+ * --- The management family is trust-gated too (2026-07-28) -------------
+ *
+ * This used to omit `resolveImportTrust`, on the reasoning that running
+ * an `sm plugins` verb is itself the operator's explicit choice to work
+ * with the project's plugins. That was wrong twice over.
+ *
+ * Wrong on the facts: the loader's pre-import gate keeps the manifest
+ * and reports `status: 'disabled'` + `untrusted: true`, so gating never
+ * hid anything. The old docstring justified the omission with "so
+ * `sm plugins list` still surfaces untrusted plugins instead of hiding
+ * them", a cost that does not exist.
+ *
+ * Wrong on the threat model: under clone-and-scan, `sm plugins list` was
+ * the shortest path to executing a hostile repo's code, reached by an
+ * operator doing the responsible thing (looking before trusting). The
+ * untrusted advisory pointed straight at it. `sm plugins trust` itself
+ * ran the very code the operator had not yet consented to.
+ *
+ * Reviewing a plugin means reading its source and its manifest, neither
+ * of which requires importing it. The manifest-derived fields survive
+ * the gate; only per-extension `version` / `stability`, which live in
+ * the module, go missing until trust is granted.
+ *
+ * `--plugin-dir <path>` stays exempt, matching the runtime: the
+ * operator pointed the loader at that code on purpose.
  */
 export async function loadAll(opts: IPluginDirOption): Promise<IDiscoveredPlugin[]> {
   const ctx = defaultRuntimeContext();
@@ -96,6 +124,12 @@ export async function loadAll(opts: IPluginDirOption): Promise<IDiscoveredPlugin
     specVersion: installedSpecVersion(),
     resolveEnabled: await buildResolver(),
   };
+  if (!opts.pluginDir) {
+    // Fails closed: a scope lock that cannot be read grants nothing.
+    const { trusted } = loadTrust(ctx.cwd);
+    const trustMap = new Map([...trusted].map((id) => [id, true] as const));
+    loaderOpts.resolveImportTrust = makeTrustResolver(trustMap, lockedBuiltInIds());
+  }
   const loader = createPluginLoader(loaderOpts);
   return loader.discoverAndLoadAll();
 }

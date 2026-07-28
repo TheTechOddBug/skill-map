@@ -11,7 +11,7 @@
  * via `sm config get`; the trust assertions read the DB row directly.
  */
 
-import { loadTrust } from '../../../../kernel/config/plugin-trust-store.js';
+import { grantTrust, loadTrust } from '../../../../kernel/config/plugin-trust-store.js';
 import { strict as assert } from 'node:assert';
 import { spawnSync } from 'node:child_process';
 import {
@@ -57,9 +57,26 @@ function freshScope(label: string): IScope {
   return { cwd, home };
 }
 
-function dropMockPlugin(scope: IScope, id: string): void {
+/**
+ * Options shared by the drop-in fixtures.
+ *
+ * `trusted` defaults to TRUE because these fixtures model a plugin the
+ * operator has already installed and consented to; without the grant
+ * the loader refuses to import it (the whole `sm plugins` family honours
+ * the import-trust gate since 2026-07-28), so every assertion about
+ * loaded extensions would be asserting the gate instead of the verb.
+ * The trust lifecycle tests below pass `{ trusted: false }` to exercise
+ * the pre-consent state, and `plugins-import-gate.spec.ts` is the
+ * dedicated guard for the gate itself.
+ */
+interface IDropOptions {
+  trusted?: boolean;
+}
+
+function dropMockPlugin(scope: IScope, id: string, opts: IDropOptions = {}): void {
   const pluginDir = join(scope.cwd, '.skill-map', 'plugins', id);
   mkdirSync(pluginDir, { recursive: true });
+  if (opts.trusted !== false) grantTrust(scope.cwd, id);
   writeFileSync(
     join(pluginDir, 'plugin.json'),
     JSON.stringify({
@@ -86,9 +103,10 @@ function dropMockPlugin(scope: IScope, id: string): void {
  * is just enough for the loader to accept it (or reject it
  * deterministically when fields are missing).
  */
-function dropMockProvider(scope: IScope, id: string): void {
+function dropMockProvider(scope: IScope, id: string, opts: IDropOptions = {}): void {
   const pluginDir = join(scope.cwd, '.skill-map', 'plugins', id);
   mkdirSync(pluginDir, { recursive: true });
+  if (opts.trusted !== false) grantTrust(scope.cwd, id);
   writeFileSync(
     join(pluginDir, 'plugin.json'),
     JSON.stringify({
@@ -150,7 +168,7 @@ function readEnabled(scope: IScope, id: string): boolean | undefined {
   return JSON.parse(r.stdout) as boolean;
 }
 
-/** Read the per-plugin trust grant from the `config_plugins` DB store. */
+/** Read the per-plugin trust grant. */
 function readTrusted(scope: IScope, pluginId: string): boolean {
   // Trust lives in the scope lock, keyed to the checkout, so this is
   // a file read rather than a DB open.
@@ -620,7 +638,7 @@ describe('sm plugins trust / untrust', () => {
   it('trust grants a per-plugin DB row; enable state in config is untouched', async () => {
     const scope = freshScope('trust-grant');
     sm(['init', '--no-scan'], scope);
-    dropMockPlugin(scope, 'mock-trust');
+    dropMockPlugin(scope, 'mock-trust', { trusted: false });
 
     const r = sm(['plugins', 'trust', 'mock-trust'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
@@ -634,7 +652,7 @@ describe('sm plugins trust / untrust', () => {
   it('untrust clears the trust row; enable state unchanged', async () => {
     const scope = freshScope('untrust-clear');
     sm(['init', '--no-scan'], scope);
-    dropMockPlugin(scope, 'mock-untrust');
+    dropMockPlugin(scope, 'mock-untrust', { trusted: false });
     sm(['plugins', 'trust', 'mock-untrust'], scope);
     assert.equal(readTrusted(scope, 'mock-untrust'), true);
 
@@ -647,7 +665,7 @@ describe('sm plugins trust / untrust', () => {
   it('trust collapses a qualified <plugin>/<ext> id to its bare plugin', async () => {
     const scope = freshScope('trust-qualified');
     sm(['init', '--no-scan'], scope);
-    dropMockPlugin(scope, 'mock-tq');
+    dropMockPlugin(scope, 'mock-tq', { trusted: false });
 
     const r = sm(['plugins', 'trust', 'mock-tq/mock-tq-extractor'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
@@ -658,8 +676,8 @@ describe('sm plugins trust / untrust', () => {
   it('trust --all grants every discovered drop-in plugin (not built-ins)', async () => {
     const scope = freshScope('trust-all');
     sm(['init', '--no-scan'], scope);
-    dropMockPlugin(scope, 'mock-all-a');
-    dropMockPlugin(scope, 'mock-all-b');
+    dropMockPlugin(scope, 'mock-all-a', { trusted: false });
+    dropMockPlugin(scope, 'mock-all-b', { trusted: false });
 
     // `--all` now confirms; a non-TTY caller must opt in explicitly.
     const r = sm(['plugins', 'trust', '--all', '--yes'], scope);
@@ -677,8 +695,8 @@ describe('sm plugins trust / untrust', () => {
     // would ride along. The operator has to see the names first.
     const scope = freshScope('trust-all-confirm');
     sm(['init', '--no-scan'], scope);
-    dropMockPlugin(scope, 'mock-confirm-a');
-    dropMockPlugin(scope, 'mock-confirm-b');
+    dropMockPlugin(scope, 'mock-confirm-a', { trusted: false });
+    dropMockPlugin(scope, 'mock-confirm-b', { trusted: false });
 
     const r = sm(['plugins', 'trust', '--all'], scope);
     assert.match(r.stderr, /About to grant import trust to 2 project-local plugin/);
@@ -709,7 +727,7 @@ describe('sm plugins trust / untrust', () => {
   it('exit 2 when both <id> and --all are passed to trust', () => {
     const scope = freshScope('trust-both');
     sm(['init', '--no-scan'], scope);
-    dropMockPlugin(scope, 'mock-tb');
+    dropMockPlugin(scope, 'mock-tb', { trusted: false });
 
     const r = sm(['plugins', 'trust', 'mock-tb', '--all'], scope);
     assert.equal(r.status, 2, `stderr: ${r.stderr}`);
@@ -722,7 +740,7 @@ describe('sm plugins trust / untrust', () => {
     // hidden, the operator can see what is waiting for a trust grant.
     const scope = freshScope('trust-list-surface');
     sm(['init', '--no-scan'], scope);
-    dropMockPlugin(scope, 'mock-untrusted-list');
+    dropMockPlugin(scope, 'mock-untrusted-list', { trusted: false });
 
     const r = sm(['plugins', 'list'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
@@ -1229,10 +1247,17 @@ describe('sm plugins show, probabilistic contract sections', () => {
     'prob-finder',
   );
 
-  /** Copy the prob-finder fixture into the scope's plugins dir. */
+  /**
+   * Copy the prob-finder fixture into the scope's plugins dir and grant
+   * it trust, the same "installed and consented to" precondition
+   * `dropMockPlugin` models. `sm plugins show` reads per-extension
+   * fields that live in the module, so it needs the import the gate
+   * would otherwise deny.
+   */
   function dropFinderFixture(scope: IScope): string {
     const dest = join(scope.cwd, '.skill-map', 'plugins', 'prob-finder');
     cpSync(FINDER_FIXTURE, dest, { recursive: true });
+    grantTrust(scope.cwd, 'prob-finder');
     return dest;
   }
 
