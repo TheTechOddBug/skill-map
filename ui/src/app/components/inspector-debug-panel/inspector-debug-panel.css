@@ -2,8 +2,8 @@
   display: block;
 }
 
-/* Grid, label styling and code chips come from the shared `.sm-block__kv`
-   vocabulary in inspector-view.css. The rules below are the
+/* Grid, label styling and code chips come from the global `.sm-block__kv`
+   vocabulary in styles.css. The rules below are the
    diagnostic-only extras (the diagnostics grid carries no row icons). */
 
 /* Drift highlight on a hash chip whose stored / live values diverge.

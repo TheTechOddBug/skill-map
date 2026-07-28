@@ -92,7 +92,8 @@ interface ISetupProbe {
   captureActionDisabled(): boolean;
   captureActionLabel(): string;
   captureMeta(): string | null;
-  liveUpdatesStatus(): TQuickStartStatus;
+  /** Row (a) handle from `setupToggleRow` (Live updates). */
+  liveRow: { status(): TQuickStartStatus; toggle(): void };
   mcpInstalledStatus(): TQuickStartStatus;
   mcpInstalledStatusText(): string;
   mcpSnippet(): IMcpRegisterSnippet;
@@ -101,7 +102,6 @@ interface ISetupProbe {
   mcpInstalledMetaTone(): 'muted' | 'warn';
   onCheckMcpConnection(): Promise<void>;
   onFollowSymlinksToggle(): void;
-  onLiveUpdatesToggle(): void;
   selectGroup(id: 'live' | 'realtime' | 'ai'): void;
   tutorialNotePrefix(): string;
   tutorialInvocation(): string;
@@ -247,7 +247,7 @@ describe('QuickStartModal, row status indicators', () => {
 
     // The WsEventStreamService default is enabled, so the row is ready
     // before any probe (it binds the live signal, not a fetch).
-    expect(setup.probe.liveUpdatesStatus()).toBe('ready');
+    expect(setup.probe.liveRow.status()).toBe('ready');
   });
 });
 
@@ -554,7 +554,7 @@ describe('QuickStartModal, mutations', () => {
     const setEnabled = vi.spyOn(setup.ws, 'setEnabled').mockImplementation(() => {});
 
     // Default owner state is enabled, so the toggle turns it OFF.
-    setup.probe.onLiveUpdatesToggle();
+    setup.probe.liveRow.toggle();
 
     expect(setEnabled).toHaveBeenCalledWith(false);
   });

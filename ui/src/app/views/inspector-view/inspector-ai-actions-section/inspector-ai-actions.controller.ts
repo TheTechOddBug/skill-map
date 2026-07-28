@@ -44,18 +44,18 @@ import type {
   IIssueFixerEntryApi,
   IProbExtensionEntryApi,
   IProbExtensionsApi,
-} from '../../../models/api';
-import type { INodeView } from '../../../models/node';
-import type { IWsEvent, IWsScanCompletedEvent } from '../../../models/ws-event';
+} from '../../../../models/api';
+import type { INodeView } from '../../../../models/node';
+import type { IWsEvent, IWsScanCompletedEvent } from '../../../../models/ws-event';
 import {
   isSmConsentRequired,
   type ISmConsentGrant,
-} from '../../../services/action-dispatch';
+} from '../../../../services/action-dispatch';
 import {
   DataSourceError,
   type IDataSourcePort,
-} from '../../../services/data-source/data-source.port';
-import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
+} from '../../../../services/data-source/data-source.port';
+import { INSPECTOR_VIEW_TEXTS } from '../../../../i18n/inspector-view.texts';
 
 /**
  * The two hidden buckets the tray can reveal (the CLI's bucket flags).
@@ -106,11 +106,12 @@ export interface IAiActionsSetupDeps {
   requestSmConsent(retry: (grant: ISmConsentGrant) => void): void;
   /**
    * Success sink for the per-issue dismiss: the deterministic issues
-   * list lives in the HOST component (its `issues` signal, fed by
-   * `listIssues`), so the controller reports the dismissed
-   * (analyzer, value) pair and the host prunes the matching rows
-   * locally. The server already deleted the persisted rows, so the next
-   * refetch agrees with the pruned list.
+   * list lives in `<sm-inspector-findings-section>` (its `issues`
+   * signal, fed by `listIssues`), so the controller reports the
+   * dismissed (analyzer, value) pair and the host relays it to that
+   * section, which prunes the matching rows locally. The server already
+   * deleted the persisted rows, so the next refetch agrees with the
+   * pruned list.
    */
   onIssueDismissed(analyzer: string, value: string): void;
   /**
@@ -763,8 +764,9 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
    * shares the restore / delete consent handshake: a first-write gate
    * parks a retry behind the shared consent dialog and re-runs with the
    * granted flags. On success the server has DELETED the matching
-   * persisted rows, so the host prunes its local list through
-   * `deps.onIssueDismissed` (no refetch needed; the next one agrees).
+   * persisted rows, so the issues owner (the findings section, reached
+   * through `deps.onIssueDismissed`) prunes its local list (no refetch
+   * needed; the next one agrees).
    */
   async function dismissIssue(
     issue: IIssueApi,

@@ -1,0 +1,208 @@
+<!--
+  Activity section (spec/provider-activity.md): per-node execution
+  stats, the recent ring, and the spawn records touching the node.
+  Gated by hasActivity() like the other inspector sections: a quiet
+  node renders no Activity card at all (the stats mirror behind the
+  node-card pill decides). The detail is fetched on first expand
+  and silently refreshed on scan.completed; long conversation
+  content NEVER renders inline, each spawn row opens the dialog
+  instead.
+-->
+@if (hasActivity()) {
+  <sm-collapsible-section
+    [title]="texts.sections.activity"
+    [expanded]="expanded()"
+    toggleTestid="inspector-activity-toggle"
+    (toggle)="toggle.emit()"
+    data-testid="inspector-card-activity"
+  >
+    @if (showCaptureChip()) {
+      <span
+        class="inspector__activity-capture-chip"
+        smSectionTitleExtra
+        [pTooltip]="texts.activity.captureOnChipTooltip"
+        data-testid="inspector-activity-capture-chip"
+      >{{ texts.activity.captureOnChip }}</span>
+    }
+    @if (expanded()) {
+      @if (activityDetail(); as detail) {
+        <div class="inspector__activity" data-testid="inspector-activity-section">
+          @if (activityEmpty()) {
+            <p class="inspector__activity-empty" data-testid="inspector-activity-empty">
+              {{ texts.activity.empty }}
+            </p>
+          } @else {
+            <!-- The stats grid (Executions / Last start / Contexts /
+                 Totals) was dropped 2026-07-17 (user call): the merged
+                 timeline below carries the story, the counters were
+                 redundant chrome. -->
+            @if (activityTimeline().length > 0) {
+              <!-- Merged timeline (user decision 2026-07-17): runtime
+                   executions interleaved with skill-map's own AI-run
+                   history, behind a three-state provenance filter
+                   persisted at inspector level. -->
+              <div class="inspector__activity-timeline-head">
+                <h4 class="inspector__activity-heading">{{ texts.activity.recentHeading }}</h4>
+                <p-selectbutton
+                  class="inspector__activity-filter"
+                  [options]="activityFilterOptions"
+                  [ngModel]="activityFilter()"
+                  (ngModelChange)="onActivityFilterChange($event)"
+                  optionLabel="label"
+                  optionValue="value"
+                  [allowEmpty]="false"
+                  size="small"
+                  data-testid="inspector-activity-filter"
+                >
+                  <ng-template let-option pTemplate="item">
+                    <span [attr.data-testid]="'inspector-activity-filter-' + option.value">{{ option.label }}</span>
+                  </ng-template>
+                </p-selectbutton>
+              </div>
+              @if (filteredActivityTimeline().length > 0) {
+                <ul class="inspector__activity-recent" data-testid="inspector-activity-recent">
+                  <!-- Same content-keyed track rationale as the findings
+                       list: keep row DOM across silent refreshes
+                       (the merge helper precomputes the key). -->
+                  @for (entry of filteredActivityTimeline(); track entry.key) {
+                    @if (entry.provenance === 'runtime') {
+                      @let run = entry.run;
+                      <li class="inspector__activity-recent-row" data-testid="inspector-activity-recent-row">
+                        <span class="inspector__activity-time">{{ formatActivityTime(run.at) }}</span>
+                        <!-- Short owner (full sessionized id in the title). -->
+                        <code class="inspector__activity-owner" [attr.title]="run.owner">{{ shortOwner(run.owner) }}</code>
+                        @if (run.caller ?? run.target; as counterpart) {
+                          <!-- Invocation (either direction reads identically):
+                               owner · <type icon> <counterpart node link> [· tool].
+                               The tool segment is present only for `kind: 'mcp'`
+                               (a read has no tool). The link navigates via the
+                               same node-open intent the connections list uses. -->
+                          <span class="inspector__activity-invocation">
+                            <span class="inspector__activity-invocation-sep" aria-hidden="true">·</span>
+                            @if (run.kind; as kind) {
+                              <i
+                                class="pi inspector__activity-type-icon"
+                                [class.pi-wrench]="kind === 'mcp'"
+                                [class.pi-file]="kind === 'read'"
+                                role="img"
+                                [attr.aria-label]="texts.activity.recentKind[kind]"
+                                [pTooltip]="texts.activity.recentKind[kind]"
+                                [attr.data-testid]="'inspector-activity-recent-icon-' + kind"
+                              ></i>
+                            }
+                            <button
+                              type="button"
+                              class="inspector__activity-node-link"
+                              [attr.title]="counterpart"
+                              (click)="openPath.emit(counterpart)"
+                              data-testid="inspector-activity-recent-node"
+                            >{{ nodeLabel(counterpart) }}</button>
+                            @if (run.detail; as tool) {
+                              <span class="inspector__activity-invocation-sep" aria-hidden="true">·</span>
+                              <code
+                                class="inspector__activity-invocation-tool"
+                                [attr.title]="tool"
+                                data-testid="inspector-activity-recent-tool"
+                              >{{ tool }}</code>
+                            }
+                          </span>
+                        } @else if (run.detail; as tool) {
+                          <!-- Plain execution with a tool detail (no direction). -->
+                          <code
+                            class="inspector__activity-detail"
+                            [attr.title]="tool"
+                            data-testid="inspector-activity-recent-detail"
+                          >{{ tool }}</code>
+                        }
+                      </li>
+                    } @else {
+                      <!-- AI-run row (state_executions history): sparkles
+                           icon + `<extension> · <status> · <duration>`
+                           (core/ prefix stripped, no model). A failed
+                           run carries its failureReason in the row
+                           title. -->
+                      @let run = entry.run;
+                      <li
+                        class="inspector__activity-recent-row inspector__activity-recent-row--run"
+                        [attr.title]="run.failureReason"
+                        data-testid="inspector-activity-run-row"
+                      >
+                        @if (entry.at !== null) {
+                          <span class="inspector__activity-time">{{ formatActivityTime(entry.at) }}</span>
+                        }
+                        <i
+                          class="pi pi-sparkles inspector__activity-type-icon inspector__activity-run-icon"
+                          role="img"
+                          [attr.aria-label]="texts.activity.runKind"
+                          [pTooltip]="texts.activity.runKind"
+                          data-testid="inspector-activity-run-icon"
+                        ></i>
+                        <span class="inspector__activity-run-label" [attr.data-extension-id]="run.extensionId">{{ runRowLabel(run) }}</span>
+                      </li>
+                    }
+                  }
+                </ul>
+              } @else {
+                <!-- The active filter matched nothing (e.g. "AI runs" on
+                     a node that only has runtime executions). -->
+                <p class="inspector__activity-filter-empty" data-testid="inspector-activity-filter-empty">
+                  {{ texts.activity.filter.empty }}
+                </p>
+              }
+            }
+            @if (spawnThreads().length > 0) {
+              <h4 class="inspector__activity-heading">{{ texts.activity.spawnsHeading }}</h4>
+              <!-- One row per parent-child THREAD: the N Task calls of a
+                   pair fuse into one conversation (exchange counter),
+                   opened whole in the dialog. -->
+              <ul class="inspector__activity-spawns" data-testid="inspector-activity-spawns">
+                @for (thread of spawnThreads(); track thread.key) {
+                  <li class="inspector__activity-spawn-row" data-testid="inspector-activity-thread">
+                    <div class="inspector__activity-spawn-main">
+                      <span class="inspector__activity-spawn-pair">{{ threadPairLabel(thread) }}</span>
+                      <span class="inspector__activity-spawn-meta">
+                        {{ texts.activity.exchangeCount(thread.records.length) }} · {{ threadLastRecord(thread).status }} · {{ formatActivityTime(threadLastRecord(thread).startedAt) }}
+                      </span>
+                    </div>
+                    <p-button
+                      [label]="texts.activity.viewConversation"
+                      [ariaLabel]="texts.activity.viewConversationA11y(threadChildLabel(thread))"
+                      severity="secondary"
+                      size="small"
+                      [text]="true"
+                      (onClick)="openSpawnConversation(thread)"
+                      data-testid="inspector-activity-view-conversation"
+                    />
+                  </li>
+                }
+              </ul>
+              @if (!detail.captureEnabled) {
+                <p class="inspector__activity-hint" data-testid="inspector-activity-capture-off">
+                  {{ texts.activity.captureOffHint }}
+                </p>
+              }
+            }
+          }
+        </div>
+      } @else {
+        <p class="inspector__activity-loading" data-testid="inspector-activity-loading">
+          {{ texts.activity.loading }}
+        </p>
+      }
+    }
+  </sm-collapsible-section>
+}
+
+<!--
+  Conversation viewer for the thread list above. The clicked row's
+  records already carry the content halves (when capture is on), so
+  the dialog gets the thread directly, no re-fetch. The p-dialog
+  renders appended to <body>, so its mount point here (inside the
+  scroll column) has no layout effect.
+-->
+<sm-conversation-dialog
+  [open]="conversationOpen()"
+  [thread]="conversationThread()"
+  [captureEnabled]="activityDetail()?.captureEnabled ?? false"
+  (closed)="onConversationClosed()"
+/>

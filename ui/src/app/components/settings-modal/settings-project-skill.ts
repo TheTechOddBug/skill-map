@@ -41,10 +41,8 @@ import { MessageModule } from 'primeng/message';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import type { IAgentSkillInstallStatusApi } from '../../../models/api';
-import {
-  DATA_SOURCE,
-  DataSourceError,
-} from '../../../services/data-source/data-source.port';
+import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
+import { runConfirmGated } from '../confirm-gated';
 import { formatErr } from './settings-project.utils';
 
 /**
@@ -159,6 +157,14 @@ export class SettingsProjectSkill {
     void this.runSkillMutation('uninstall');
   }
 
+  /**
+   * One mutation attempt through the shared `runConfirmGated` runner
+   * (`components/confirm-gated.ts`), the same flow the hook sibling
+   * runs: POST without `confirm`, surface the consent dialog on the
+   * BFF's 412, retry with `confirm: true` on accept, settle quietly on
+   * dismiss; any other failure (and a failed retry) formats into
+   * `skillError`.
+   */
   private async runSkillMutation(op: 'install' | 'uninstall'): Promise<void> {
     const key = 'agent.skill';
     if (this.pending().has(key)) return;
@@ -169,24 +175,29 @@ export class SettingsProjectSkill {
     this.skillError.set(null);
     this.skillAnnouncement.set(null);
     try {
-      await this.dispatchSkill(op, providerId, false);
-    } catch (err) {
-      if (err instanceof DataSourceError && err.code === 'confirm-required') {
-        this.confirmSkillDialog(op, async () => {
-          try {
-            await this.dispatchSkill(op, providerId, true);
-          } catch (innerErr) {
-            this.skillError.set(formatErr(innerErr));
-          }
-        });
-      } else {
-        this.skillError.set(formatErr(err));
-      }
+      await runConfirmGated({
+        attempt: (confirm) => this.dispatchSkill(op, providerId, confirm),
+        confirm: () =>
+          new Promise<boolean>((resolve) => {
+            this.confirmSkillDialog(op, () => resolve(true), () => resolve(false));
+            // Busy contract of this row (pre-dating the shared runner):
+            // the pending key releases once the consent dialog is up, so
+            // the accepted retry runs unpended; the modal dialog overlay
+            // guards re-entry while it shows. The `finally` release below
+            // is then a no-op on this path.
+            this.releasePending(key);
+          }),
+        onError: (err) => this.skillError.set(formatErr(err)),
+      });
     } finally {
-      const after = new Set(this.pending());
-      after.delete(key);
-      this.pending.set(after);
+      this.releasePending(key);
     }
+  }
+
+  private releasePending(key: string): void {
+    const after = new Set(this.pending());
+    after.delete(key);
+    this.pending.set(after);
   }
 
   /**
@@ -219,7 +230,11 @@ export class SettingsProjectSkill {
     }
   }
 
-  private confirmSkillDialog(op: 'install' | 'uninstall', onAccept: () => Promise<void>): void {
+  private confirmSkillDialog(
+    op: 'install' | 'uninstall',
+    onAccept: () => void,
+    onReject: () => void,
+  ): void {
     const t = this.texts.project.agentSkill;
     // Unlike the hook dialog (basename only), the FULL project-relative
     // skill path renders here: it is short, and the folder is the thing
@@ -245,7 +260,13 @@ export class SettingsProjectSkill {
       acceptButtonProps: { severity: 'primary' },
       rejectButtonProps: { severity: 'secondary' },
       accept: () => {
-        void onAccept();
+        onAccept();
+      },
+      // Only settles the shared runner quietly; a dismissed dialog
+      // performs no retry (same visible outcome as before the runner,
+      // when no reject callback was wired at all).
+      reject: () => {
+        onReject();
       },
     });
   }

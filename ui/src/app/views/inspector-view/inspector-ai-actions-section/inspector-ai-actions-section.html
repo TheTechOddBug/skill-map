@@ -1,0 +1,205 @@
+<!--
+  AI actions section: the LAUNCHERS only (finder / standalone
+  buttons + the Automatic toggle + the submit error strip). The
+  probabilistic finding rows moved INTO the Findings card,
+  mixed with the deterministic issues (user call 2026-07-22), so
+  this card gates purely on having something to launch.
+-->
+@if (aiActionsAvailable()) {
+  <sm-collapsible-section
+    [title]="texts.sections.aiActions"
+    [expanded]="expanded()"
+    toggleTestid="inspector-ai-actions-toggle"
+    (toggle)="toggle.emit()"
+    data-testid="inspector-card-ai-actions"
+  >
+    @if (expanded()) {
+      <div class="inspector__ai-actions">
+        @if (aiActionsSkillMissing() === true) {
+          <p-message
+            severity="warn"
+            [closable]="false"
+            styleClass="inspector__ai-actions-agent-warning"
+            data-testid="inspector-ai-actions-no-agent-warning"
+            >{{ texts.aiActions.noProcessingAgentWarning }}</p-message
+          >
+        } @else if (aiActionsSkillMissing() === false && aiActionsAgentAttending() === false) {
+          <p-message
+            severity="warn"
+            [closable]="false"
+            styleClass="inspector__ai-actions-agent-warning"
+            data-testid="inspector-ai-actions-attending-warning"
+            >{{ texts.aiActions.noAgentAttendingWarning(processInvocation()) }}</p-message
+          >
+        }
+        @if (aiActionLauncherGroups().length > 0) {
+          <div class="inspector__ai-actions-launchers" data-testid="inspector-ai-actions-launchers">
+            <!-- Automatic toggle (Step 16): one control for every
+                 finder-with-fixer button. On => the finder submit
+                 carries autoFix and the kernel chains the fixers;
+                 off => the button morphs Detect <-> Fix. Only shown
+                 when a finder-with-fixer button exists. -->
+            <div class="inspector__ai-actions-controls">
+              @if (showAutoFixToggle()) {
+                <div class="inspector__ai-actions-autofix" data-testid="inspector-auto-fix-row">
+                  <p-toggleswitch
+                    [ngModel]="autoFixEnabled()"
+                    (ngModelChange)="onAutoFixToggle($event)"
+                    [disabled]="submitGateClosed()"
+                    inputId="inspector-auto-fix"
+                    [pTooltip]="autoFixTooltip()"
+                    tooltipPosition="left"
+                    appendTo="body"
+                    data-testid="inspector-auto-fix-toggle"
+                  />
+                  <label class="inspector__ai-actions-autofix-label" for="inspector-auto-fix">{{
+                    texts.aiActions.autoFix.label
+                  }}</label>
+                </div>
+              }
+              <!-- Manual gate re-probe: the MCP session drops and
+                   re-forms as the operator's agent comes and goes,
+                   and the passive poll only runs while disconnected,
+                   so a stale-looking state gets a one-click re-check
+                   here instead of a trip to Quick Start. Same chip
+                   style + right alignment as the body's Raw toggle.
+                   After the check it HOLDS the verdict 5s (green =
+                   connected, red = not) and stays unclickable. -->
+              @let checkState = agentCheckState();
+              <button
+                type="button"
+                class="inspector__ai-actions-check"
+                [class.is-ok]="checkState === 'ok'"
+                [class.is-fail]="checkState === 'fail'"
+                [disabled]="checkState !== 'idle'"
+                (click)="onCheckAgentConnection()"
+                [pTooltip]="texts.aiActions.checkAgent.tooltip"
+                tooltipPosition="left"
+                appendTo="body"
+                [attr.aria-label]="texts.aiActions.checkAgent.tooltip"
+                data-testid="inspector-agent-check"
+              >
+                <i
+                  class="pi"
+                  [class.pi-sync]="checkState === 'idle'"
+                  [class.pi-spin]="checkState === 'checking'"
+                  [class.pi-spinner]="checkState === 'checking'"
+                  [class.pi-check]="checkState === 'ok'"
+                  [class.pi-times]="checkState === 'fail'"
+                  aria-hidden="true"
+                ></i>
+                <span>{{ texts.aiActions.checkAgent.label }}</span>
+              </button>
+            </div>
+            <!-- Launcher groups (user pick 2026-07-22, iterated the
+                 same day): Finders always on top, Standalone below,
+                 each a FULL-WIDTH block, and INSIDE each block the
+                 extension rows flow into dynamic columns (auto-fill,
+                 the width decides how many). Each block: a header
+                 line (title + its type-scoped ALL, which queues ONLY
+                 its group), then the rows: launch button stretched
+                 left, stop companion at the right when a job is
+                 active. No last-run meta on the rows (user call:
+                 when it ran does not matter here). -->
+            @for (group of aiActionLauncherGroups(); track group.id) {
+            <div
+              class="inspector__ai-actions-group-buttons"
+              [attr.data-testid]="'inspector-ai-actions-launchers-row-' + group.id"
+            >
+              <div class="inspector__ai-actions-group-head">
+                <span class="inspector__ai-actions-group-title">{{
+                  group.id === 'finders'
+                    ? texts.aiActions.groupTitles.finders
+                    : texts.aiActions.groupTitles.standalone
+                }}</span>
+                <p-button
+                  [label]="texts.aiActions.runAll"
+                  size="small"
+                  [text]="true"
+                  [disabled]="aiActionLauncherAllDisabled()"
+                  styleClass="inspector__ai-actions-run-all"
+                  [pTooltip]="group.id === 'finders' ? texts.aiActions.allFindersTooltip : texts.aiActions.allStandaloneTooltip"
+                  tooltipPosition="right"
+                  appendTo="body"
+                  (onClick)="onLauncherAllGroup(group.id)"
+                  [attr.data-testid]="'inspector-ai-action-launch-all-' + group.id"
+                />
+              </div>
+              <div class="inspector__ai-actions-group-grid">
+              @for (entry of group.entries; track entry.id) {
+                @let item = { entry: entry, isFinder: group.id === 'finders' };
+                <span class="inspector__ai-actions-entry">
+                  <p-button
+                    [label]="aiActionLauncherLabel(item.entry)"
+                    [icon]="aiActionLauncherIcon(item.entry, item.isFinder)"
+                    size="small"
+                    [text]="true"
+                    [disabled]="aiActionLauncherDisabled(item.entry)"
+                    [loading]="aiActionLauncherBusy(item.entry)"
+                    [pTooltip]="aiActionLauncherTooltip(item.entry, item.isFinder)"
+                    tooltipPosition="left"
+                    appendTo="body"
+                    (onClick)="onLauncherClick(item.entry, item.isFinder)"
+                    [attr.data-testid]="'inspector-ai-action-launch-' + item.entry.id"
+                    [attr.data-state]="aiActionEntryState(item.entry)"
+                    [attr.data-action]="item.isFinder ? finderActionMode(item.entry) : 'run'"
+                  />
+                  <!-- Stop companion (user decision 2026-07-17; the
+                       restart twin was dropped same day): only beside an
+                       active launcher whose payload carries the
+                       server-confirmed job handle. -->
+                  @if (aiActionCompanionsVisible(item.entry)) {
+                    <p-button
+                      icon="pi pi-times"
+                      severity="danger"
+                      size="small"
+                      [rounded]="true"
+                      [text]="true"
+                      [disabled]="aiActionCompanionDisabled(item.entry)"
+                      [pTooltip]="texts.aiActions.stopTooltip"
+                      tooltipPosition="left"
+                      appendTo="body"
+                      [ariaLabel]="texts.aiActions.stopTooltip"
+                      (onClick)="stopAiAction(item.entry)"
+                      [attr.data-testid]="'inspector-ai-action-stop-' + item.entry.id"
+                    />
+                  }
+                </span>
+              }
+              </div>
+            </div>
+            }
+          </div>
+        }
+        @if (aiActionsError(); as err) {
+          <div
+            class="inspector__ai-actions-error"
+            role="alert"
+            data-testid="inspector-ai-actions-error"
+          >
+            <span class="inspector__ai-actions-error-text"
+              >{{ texts.aiActions.errorPrefix }} {{ aiActionsErrorText(err) }}</span
+            >
+            <button
+              type="button"
+              class="inspector__ai-actions-error-dismiss"
+              [attr.aria-label]="texts.aiActions.dismissErrorAriaLabel"
+              (click)="dismissAiActionsError()"
+              data-testid="inspector-ai-actions-error-dismiss"
+            >
+              <i class="pi pi-times" aria-hidden="true"></i>
+            </button>
+          </div>
+          @if (err.code === 'no-processing-agent') {
+            <!-- The queue is pull-only: without the processing skill
+                 nothing drains it. Point at the UI's own install row
+                 (Settings > Project) and the skill invocation. -->
+            <p class="inspector__ai-actions-hint" data-testid="inspector-ai-actions-agent-hint">
+              {{ texts.aiActions.agentInstallHint(processInvocation()) }}
+            </p>
+          }
+        }
+      </div>
+    }
+  </sm-collapsible-section>
+}

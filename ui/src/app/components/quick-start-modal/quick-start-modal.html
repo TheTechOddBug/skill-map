@@ -83,15 +83,15 @@
                 testid="quick-start-row-live-updates"
                 [label]="texts.rows.liveUpdates.label"
                 [description]="texts.rows.liveUpdates.description"
-                [status]="liveUpdatesStatus()"
-                [statusText]="liveUpdatesStatusText()"
+                [status]="liveRow.status()"
+                [statusText]="liveRow.statusText()"
               >
                 <p-button
-                  [label]="liveUpdatesActionLabel()"
-                  [severity]="wsEnabled() ? 'secondary' : 'primary'"
-                  [outlined]="wsEnabled()"
+                  [label]="liveRow.actionLabel()"
+                  [severity]="liveRow.enabled() ? 'secondary' : 'primary'"
+                  [outlined]="liveRow.enabled()"
                   size="small"
-                  (onClick)="onLiveUpdatesToggle()"
+                  (onClick)="liveRow.toggle()"
                   data-testid="quick-start-row-live-updates-action"
                 />
               </sm-quick-start-row>
@@ -134,11 +134,11 @@
               >
                 <p-button
                   [label]="hookActionLabel()"
-                  [severity]="hookStatus()?.installed ? 'secondary' : 'primary'"
-                  [outlined]="hookStatus()?.installed === true"
+                  [severity]="hookRow.status()?.installed ? 'secondary' : 'primary'"
+                  [outlined]="hookRow.status()?.installed === true"
                   [disabled]="hookActionDisabled()"
                   size="small"
-                  (onClick)="onHookToggle()"
+                  (onClick)="hookRow.run()"
                   data-testid="quick-start-row-hook-action"
                 />
               </sm-quick-start-row>
@@ -147,17 +147,17 @@
                 testid="quick-start-row-realtime"
                 [label]="texts.rows.realtime.label"
                 [description]="texts.rows.realtime.description"
-                [status]="realtimeStatus()"
-                [statusText]="realtimeStatusText()"
-                [meta]="realtimeMeta()"
+                [status]="realtimeRow.status()"
+                [statusText]="realtimeRow.statusText()"
+                [meta]="realtimeRow.meta()"
               >
                 <p-button
-                  [label]="realtimeActionLabel()"
-                  [severity]="activityEnabled() ? 'secondary' : 'primary'"
-                  [outlined]="activityEnabled()"
-                  [disabled]="realtimeActionDisabled()"
+                  [label]="realtimeRow.actionLabel()"
+                  [severity]="realtimeRow.enabled() ? 'secondary' : 'primary'"
+                  [outlined]="realtimeRow.enabled()"
+                  [disabled]="realtimeRow.actionDisabled()"
                   size="small"
-                  (onClick)="onRealtimeToggle()"
+                  (onClick)="realtimeRow.toggle()"
                   data-testid="quick-start-row-realtime-action"
                 />
               </sm-quick-start-row>
@@ -204,7 +204,7 @@
                     severity="primary"
                     [disabled]="skillActionDisabled()"
                     size="small"
-                    (onClick)="onSkillInstall()"
+                    (onClick)="skillRow.run()"
                     data-testid="quick-start-row-agent-skill-action"
                   />
                 }

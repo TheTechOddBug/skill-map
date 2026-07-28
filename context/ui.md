@@ -66,7 +66,7 @@ PrimeNG internal class names (`.p-togglebutton-content`, `.p-datatable-tbody`, `
 
 The Class B / Class D tables below identify each block by **file + selector**, not `file:line`: line numbers rot on unrelated edits (the original pinned numbers had all drifted by the time the inspector moved off `<p-card>`), so grep the selector to locate the rule. The inspector's `<p-card>`-based hero card and chips were retired when it moved to the `.sm-block` collapsible-section vocabulary (see "Non-PrimeNG `::ng-deep`" below), which is why no `p-card` rows remain.
 
-All classes verified against `primeng@21.1.6`. Re-verify on the next major.
+All classes last verified against `primeng@21.1.9` (July 2026 re-sync; the original M1 sweep ran on 21.1.6). Re-verify on the next bump.
 
 ### Why descendant selectors are wrong on PrimeNG 21+ hosts
 
@@ -74,11 +74,13 @@ PrimeNG 21 components like `<p-chip>`, `<p-card>`, `<p-togglebutton>` merge `[st
 
 ### `[pt]` slot classes (post-M1, not exceptions)
 
-Three components migrated their `.p-togglebutton-content` overrides to a `[pt]="{ content: { class: 'X__content' } }"` binding. The CSS rule still goes through `::ng-deep` because PrimeNG generates the slot DOM outside Angular's view encapsulation (no `[_ngcontent-X]` attribute on the slot element), but the rule no longer depends on the internal `.p-togglebutton-content` class name, only on our own class:
+Five components route their `<p-togglebutton>` content styling through a `[pt]="{ content: { class: 'X__content' } }"` binding (the first three migrated off `.p-togglebutton-content` in M1; the two filter palettes were born on the pattern). The CSS rules still go through `::ng-deep` because PrimeNG generates the slot DOM outside Angular's view encapsulation (no `[_ngcontent-X]` attribute on the slot element), but they no longer depend on the internal `.p-togglebutton-content` class name, only on our own classes:
 
 - `ui/src/app/components/kind-palette/kind-palette.css` — `.kind-palette__content` (plus a deep `> span` rule, see Class D below).
 - `ui/src/app/components/perf-hud/perf-hud.css` — `.perf-hud__content`.
 - `ui/src/app/components/event-log/event-log.css` — `.eventlog__handle-content`.
+- `ui/src/app/components/severity-palette/severity-palette.css` — `.severity-palette__content`, plus the project-owned `.severity-palette__count` / `.severity-palette__glyph` children rendered inside the same slot (severity + pressed/hover tint rules ride the same `::ng-deep`-with-own-class shape).
+- `ui/src/app/components/link-kind-palette/link-kind-palette.css` — `.link-kind-palette__content`, plus the `.link-kind-palette__glyph` per-link-kind tint rules riding the same slot.
 
 A fourth consumer passes **attributes** rather than a class: `ui/src/app/views/files-view/files-view.ts` binds `[pt]` on its `<p-table>` to reach two PrimeNG-owned elements it cannot otherwise address. `virtualScroller.root` receives `data-testid="files-scroller"` (tests need the element that actually owns `scrollTop` / `clientHeight`, and targeting the internal `.p-virtualscroller` class would rot on a PrimeNG bump), `aria-label`, and `tabindex="-1"` for the focus rescue; `table` receives `aria-rowcount`, because under virtual scroll only the render window is in the DOM and assistive tech would otherwise announce ~45 rows instead of the corpus size. The binding is a `computed()` so the row count stays live, which also keeps it a stable reference between changes (the scroller's `options` / `pt` setters re-run on every identity change).
 
@@ -86,15 +88,16 @@ When `<p-togglebutton>` carries `[pTooltip]` on the same host (as in `kind-palet
 
 ### Class B, stable host-merge contract
 
-Each selector targets the merged host directly (no descendant step). `::ng-deep` stays because the host element is rendered by PrimeNG outside Angular's view encapsulation; the targeted class lives in the host-merge contract documented in `host.class = cn(cx('root'), styleClass)` for the relevant component.
+Each selector ends at the merged host (a scope prefix before it is fine; one row targets the component's host tag itself). `::ng-deep` stays because the host element is rendered by PrimeNG outside Angular's view encapsulation; the targeted class lives in the host-merge contract documented in `host.class = cn(cx('root'), styleClass)` for the relevant component. The former `.ann-panel__chip--*` rows (annotations-panel + the inspector's padding override) were removed as dead code in the July 2026 re-sync: the annotations panel renders a `dt`/`dd` grid now, no chips, and the class had zero template references.
 
 | File | Selector | PrimeNG component | Purpose |
 |---|---|---|---|
-| `ui/src/app/components/annotations-panel/annotations-panel.css` | `.ann-panel__chip--user` | `<p-chip>` | Filled user tag chip. |
-| `ui/src/app/components/annotations-panel/annotations-panel.css` | `.ann-panel__chip--user:hover` | `<p-chip>` | Hover state (filter brightness). |
-| `ui/src/app/components/annotations-panel/annotations-panel.css` | `.ann-panel__chip--user:focus-visible` | `<p-chip>` | Focus ring. |
-| `ui/src/app/components/annotations-panel/annotations-panel.css` | `.ann-panel__chip--active` | `<p-chip>` | Active tag overlay (solid primary). |
-| `ui/src/app/views/inspector-view/inspector-view.css` | `.ann-panel__chip--user` | `<p-chip>` | Inspector-scoped padding override of the annotations chip (tighter rows next to the dense `dt`/`dd` grid). |
+| `ui/src/app/components/settings-modal/settings-modal.css` | `.settings-modal__dialog` | `<p-dialog>` | Dialog dimensions (1024 x 720 + viewport caps) via `[styleClass]` on the portal-rendered dialog root. |
+| `ui/src/app/components/quick-start-modal/quick-start-modal.css` | `.quick-start-modal__dialog` | `<p-dialog>` | Same pattern, the Quick Start dialog's 760 x 720 sizing. |
+| `ui/src/app/components/quick-start-modal/quick-start-modal.css` | `.quick-start-modal__panel p-message` | `<p-message>` | Block display + bottom margin on the message host tag itself (element selector, no internal class). |
+| `ui/src/app/views/queue-view/queue-view.css` | `.queue__table` (two blocks) | `<p-table>` | Token-first cell-padding override (`--p-datatable-body-cell-padding`, both size variants, lands the uniform 2rem row) and the flex-column shell for the fixed-footer paginator. |
+| `ui/src/app/views/queue-view/queue-view.css` | `.queue--rail .queue__table` | `<p-table>` | Rail mode: datatable surface tokens pinned to `--sm-bg-content`, row hover flattened. |
+| `ui/src/app/views/files-view/files-view.css` | `.files--rail .files__table` | `<p-table>` | Rail mode: surface tokens pinned to `--sm-bg-content` (hover kept so selection still reads). |
 
 ### Class D, deep internals (accepted lock-in)
 
@@ -109,6 +112,18 @@ No `pt` section, no `dt` token, no host-merge alternative covers the case. Pin t
 | `ui/src/app/views/files-view/files-view.css` | `.files__table .p-datatable-tbody td` | `<p-table>` body cell | Body-cell font-size + vertical-align, **plus the virtual-scroll row box** (`box-sizing`, `height: var(--files-row-h)`, `white-space: nowrap`). No `pt` key reaches the generated `<td>`. The height is load-bearing: PrimeNG's scroller is a fixed-item-size virtualizer, so a row of any other height desynchronises the spacer math. |
 | `ui/src/app/views/files-view/files-view.css` | `.files__table.p-datatable-sm .p-datatable-tbody > tr > td` | `<p-table>` body cell | Vertical padding that lands the row on `--files-row-h`. The **compound** `.files__table.p-datatable-sm` is required, not redundant: Aura ships `.p-datatable.p-datatable-sm .p-datatable-tbody > tr > td` at specificity (0,3,2) and the plain single-class form above resolves to (0,3,1), so it would lose the tie and leave rows at the wrong height *silently*. |
 | `ui/src/app/views/files-view/files-view.css` | `.files__table .p-datatable-tbody .files__row--folder > td` | `<p-table>` body cell | Folder-row tint MUST sit on the `<td>` to beat PrimeNG's per-cell striping background (a `<tr>` rule loses). |
+| `ui/src/app/views/queue-view/queue-view.css` | `.queue__table .p-datatable-tbody td` | `<p-table>` body cell | Compact font, `vertical-align`, and the uniform 2rem row height. No `pt` key reaches the generated `<td>` (same lock as the files-view rows). |
+| `ui/src/app/views/queue-view/queue-view.css` | `.queue__table .p-datatable-table-container` | `<p-table>` scroll container | Takes the flex slack so rows scroll inside it while the paginator pins at the bottom. |
+| `ui/src/app/views/queue-view/queue-view.css` | `.queue__table .p-datatable-paginator-bottom` | `<p-table>` paginator wrapper | `flex: 0 0 auto`, the paginator never scrolls with the rows. |
+| `ui/src/app/views/queue-view/queue-view.css` | `.queue__table .p-paginator` | `<p-paginator>` | Compact rail layout: space-between, hairline top border, content background. |
+| `ui/src/app/views/queue-view/queue-view.css` | `.queue__table .p-paginator-current` | `<p-paginator>` page report | Muted `--queue-fs-xs` page report on the left. |
+| `ui/src/app/views/queue-view/queue-view.css` | `.queue__row-action .p-button` | `<p-button>` | Caps the inline cancel / retry button at 1.6rem so it fits the 2rem row (same cap as the inspector's finding actions). |
+| `ui/src/app/components/settings-modal/settings-modal.css` | `.settings-modal__dialog .p-inputtext` (one grouped block, 13 selectors: `.p-button`, `.p-togglebutton`, `.p-select(-label)`, `.p-multiselect(-label)`, `.p-autocomplete`, `.p-password input`, `.p-message(-text)`, `.p-autocomplete-input-chip input`, `.p-autocomplete .p-chip`) | assorted controls | Dense-modal 0.8rem font normalization: `size="small"` only trims padding, and the select / multiselect value labels plus the chip-mode autocomplete input do not inherit the host font-size. |
+| `ui/src/app/components/settings-modal/settings-modal.css` | `.settings-modal__dialog .p-dialog-footer` | `<p-dialog>` footer | Evens out Aura's asymmetric footer padding (`!important` beats the runtime-injected theme rule). |
+| `ui/src/app/components/node-tags/node-tags.css` | `.node-tags__control .p-autocomplete` / `.p-autocomplete-input`, `.node-tags__actions .p-button` (one block) | `<p-autocomplete>`, `<p-button>` | Inline tag editor pulled down to the 0.72rem chip scale; these internals expose no font-size token or `pt` slot. |
+| `ui/src/app/components/quick-start-modal/quick-start-modal.css` | `.quick-start-modal__content` | `<p-dialog>` | `[contentStyleClass]` padding strip, mirror of the `.settings-modal__content` row above. |
+| `ui/src/app/components/quick-start-modal/quick-start-modal.css` | `.quick-start-modal__dialog .p-button` | `<p-button>` | Dense 0.8rem buttons, matching the Settings dialog treatment. |
+| `ui/src/app/components/quick-start-modal/quick-start-row.css` | `.quick-start__row-actions--stacked .p-button` | `<p-button>` | Projected action buttons stretch to the stacked column width (projected content carries the host's encapsulation, so the reach still needs `::ng-deep`). |
 
 ## Debug overlays (kept dev tools, do NOT remove)
 
@@ -152,9 +167,9 @@ Text catalogs live in a single folder, `ui/src/i18n/`, one `*.texts.ts` file per
 
 Several unrelated escape-hatches also live under `::ng-deep`, none targets a PrimeNG internal so none is part of the M1 sweep. Recorded here so future audits do not lump them in:
 
-- **Foblex Flow internals** in `graph-view.css` (1 block, `.f-connection-drag-handle`), intentional per the `foblex-flow` skill Rule 6, library elements styled in read-only graph contexts.
-- **Rendered markdown DOM** injected via `[innerHTML]`, so component encapsulation does not reach it and child styles go through `::ng-deep`: `settings-changelog.css` (5 blocks under `.settings-changelog__highlight-body`), the inline-markdown description fields in `inspector-view.css` (`.inspector__desc` `code` / `a`) and `node-card.css` (`.sm-gnode__desc` `code` / `a`), and the rendered author quote in `vendor-frontmatter.css` (`.vfm__quote` `> :first-child` / `> :last-child` / `code` / `a`). The description `a` rules also restore link affordance over the global `a` reset.
-- **Shared `.sm-block` section vocabulary**: `inspector-view.css` styles the `.sm-block*` family (rail, toggle row, chevron, dense `dt`/`dd` grid) via `::ng-deep` so the child components that emit that markup, `<sm-vendor-frontmatter>`, `<sm-annotations-panel>`, and `<sm-collapsible-section>` (the generic toggle row the inspector sections are built from), inherit the chrome without redeclaring it. Project-owned classes on project-owned child DOM, never a PrimeNG internal.
+- **Foblex Flow internals** in `graph-view.css` (7 blocks: `.f-connection-drag-handle`, plus the spawn / spawn-active / invocation `.f-connection-path` treatments and their reduced-motion variants), intentional per the `foblex-flow` skill Rule 6, library elements styled in read-only graph contexts.
+- **Rendered markdown DOM** injected via `[innerHTML]`, so component encapsulation does not reach it and child styles go through `::ng-deep`: `settings-changelog.css` (5 blocks under `.settings-changelog__highlight-body`), the full rendered node body in `inspector-view.css` (the `.inspector__body-rendered` family: heading ladder, lists, tables, blockquotes, code), the inline-markdown description fields in `inspector-view.css` (`.inspector__desc` `code` / `a`) and `node-card.css` (`.sm-gnode__desc` `code` / `a`), and the rendered author quote in `vendor-frontmatter.css` (`.vfm__quote` `> :first-child` / `> :last-child` / `code` / `a`). The description `a` rules also restore link affordance over the global `a` reset.
+- **Shared `.sm-block` section vocabulary**: no longer a `::ng-deep` case. The `.sm-block*` family (rail, toggle row, chevron, dense `dt`/`dd` grid) was promoted from `inspector-view.css` to `ui/src/styles.css` as plain global rules when the inspector split made the vocabulary cross-component; the emitters (`<sm-collapsible-section>`, `<sm-vendor-frontmatter>`, `<sm-annotations-panel>`) now inherit the chrome wherever they mount. Recorded here so future audits do not re-file the global block as a `::ng-deep` candidate; the block comment in `styles.css` documents the `--accent` inheritance contract.
 - **Custom-element children** in `kind-palette.css` (the `<sm-kind-icon>` tints and PrimeIcon `.pi` rules), styling a project-owned custom element from its parent, again outside Angular encapsulation.
 - **Custom-child label suppression** in `node-tags.css` (1 block, `.node-tags__control ::ng-deep .itc__label`), hides the `<sm-input-type-control>` child's own "Tags" label inside the inline tag editor where it is redundant (the label survives as the autocomplete's `aria-label`). Project-owned class on a project-owned child component, never a PrimeNG internal.
 

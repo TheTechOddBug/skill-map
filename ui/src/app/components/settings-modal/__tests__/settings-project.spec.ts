@@ -314,8 +314,11 @@ function bootstrapTrust(stub: Partial<IDataSourcePort>): {
 }
 
 async function flush(): Promise<void> {
-  await Promise.resolve();
-  await Promise.resolve();
+  // Drain the microtask chain generously: the shared `runConfirmGated`
+  // runner (components/confirm-gated.ts) adds async-function hops between
+  // a PATCH settling and the caller's `.then` handlers (view rollback,
+  // restart hint), so a fixed two-tick drain no longer reaches them.
+  for (let i = 0; i < 8; i += 1) await Promise.resolve();
 }
 
 /**

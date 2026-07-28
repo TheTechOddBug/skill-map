@@ -15,17 +15,22 @@
  * control on the right. This container owns every probe and mutation; the
  * row shell is purely presentational.
  *
- * The row state machines reuse the Settings Project-section vocabulary:
- *   - a `signal(... | null)` per probed row (null = unknown), re-probed by
- *     an `effect()` when the modal opens (and when the active lens changes,
- *     for the lens-keyed rows);
- *   - the install-type actions (real-time hook, agent skill,
- *     follow-symlinks) POST WITHOUT `confirm`, catch the BFF's 412
- *     `confirm-required`, surface a `ConfirmationService` dialog naming the
- *     target, and retry with `{ confirm: true }`;
- *   - the toggle-type rows (live updates, real-time activity) flip through
- *     their runtime OWNERS (`WsEventStreamService` / `NodeActivityService`)
- *     so the preference and the running behaviour never diverge.
+ * The row state machines reuse the Settings Project-section vocabulary,
+ * assembled from the factories in `quick-start-rows.controller.ts`
+ * (machinery) while this file keeps the per-row declarations (text
+ * mappings, gates) and template wiring:
+ *   - `setupProbe` envelopes are `null` while unknown, re-probed by an
+ *     `effect()` when the modal opens (and when the active lens changes,
+ *     for the lens-keyed `setupInstallRow` rows);
+ *   - the install-type rows (real-time hook, agent skill) and the
+ *     follow-symlinks patch POST WITHOUT `confirm`, catch the BFF's 412
+ *     `confirm-required` through the shared `runConfirmGated` runner,
+ *     surface a `ConfirmationService` dialog naming the target, and
+ *     retry with `{ confirm: true }`;
+ *   - the toggle-type rows (live updates, real-time activity) flip
+ *     through their runtime OWNERS (`WsEventStreamService` /
+ *     `NodeActivityService`) so the preference and the running behaviour
+ *     never diverge.
  *
  * `@defer`-wrapped at the App level so its chunk only loads on first open.
  */
@@ -64,16 +69,21 @@ import type {
 } from '../../../models/api';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { AgentPingService } from '../../services/agent-ping';
-import {
-  DATA_SOURCE,
-  DataSourceError,
-} from '../../../services/data-source/data-source.port';
+import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
 import { NodeActivityService } from '../../../services/node-activity';
 import { WsEventStreamService } from '../../../services/ws-event-stream';
 import { ActivityReadinessService } from '../../services/activity-readiness';
 import { ProjectInfoService } from '../../services/project-info';
 import { ProviderRegistryService } from '../../../services/provider-registry';
+import { runConfirmGated, type TConfirmFlow } from '../confirm-gated';
 import { formatErr } from '../settings-modal/settings-project.utils';
+import {
+  runRowMutation,
+  setupInstallRow,
+  setupProbe,
+  setupToggleRow,
+  type IRowMachineDeps,
+} from './quick-start-rows.controller';
 import { QuickStartRow } from './quick-start-row';
 
 /** Milliseconds the "Copied" affordance stays up after a clipboard write. */
@@ -81,6 +91,14 @@ const COPIED_FEEDBACK_MS = 2000;
 /** Qualified id of the hidden system liveness-probe extension. */
 // Ping identity + window live in the shared `AgentPingService`.
 /** How long to wait for an agent to claim the ping before calling it idle. */
+
+/** Shared On / Off + Enable / Disable vocabulary of the toggle rows. */
+const TOGGLE_ROW_TEXTS = {
+  on: QUICK_START_TEXTS.status.on,
+  off: QUICK_START_TEXTS.status.off,
+  enable: QUICK_START_TEXTS.action.enable,
+  disable: QUICK_START_TEXTS.action.disable,
+} as const;
 
 /** Liveness-probe state machine for the "Agent attending jobs" row. */
 type TPingState = 'idle' | 'checking' | 'alive' | 'no-agent' | 'no-node' | 'error';
@@ -181,12 +199,33 @@ export class QuickStartModal {
   /** Pending keys, one per in-flight mutation, so its button disables. */
   private readonly pending = signal<Set<string>>(new Set());
 
-  // Probed row state. `null` = unknown (probe pending or failed).
-  private readonly preferences = signal<IProjectPreferencesApi | null>(null);
-  private readonly captureStatus = signal<IActivityCaptureStatusApi | null>(null);
-  /** Probed hook envelope, read by the template for the button severity. */
-  protected readonly hookStatus = signal<IActivityInstallStatusApi | null>(null);
-  private readonly skillStatus = signal<IAgentSkillInstallStatusApi | null>(null);
+  /**
+   * Machinery bundle threaded into every row factory: the one pending
+   * set, the one error banner, and the promise-wrapped consent dialog.
+   * Arrow-bound so handles built in field initializers can call it after
+   * construction completes.
+   */
+  private readonly rowDeps: IRowMachineDeps = {
+    isPending: (key) => this.isPending(key),
+    addPending: (key) => this.addPending(key),
+    removePending: (key) => this.removePending(key),
+    setError: (message) => this.error.set(message),
+    reportError: (err) => this.error.set(formatErr(err)),
+    confirmConsent: (header, message, acceptLabel, rejectLabel) =>
+      this.confirmConsent(header, message, acceptLabel, rejectLabel),
+  };
+
+  // Probed envelopes shared across rows. `null` = unknown (probe pending
+  // or failed). Preferences feed rows (b) and (f); capture feeds row (e).
+  private readonly preferencesProbe = setupProbe<IProjectPreferencesApi>({
+    fetch: () => this.dataSource.getProjectPreferences(),
+    onError: (err) => this.rowDeps.reportError(err),
+  });
+  private readonly captureProbe = setupProbe<IActivityCaptureStatusApi>({
+    fetch: () => this.dataSource.getActivityCapture(),
+    onError: (err) => this.rowDeps.reportError(err),
+  });
+
   /**
    * Client count from the last `/api/mcp/status` read, for the "MCP
    * installed on your agent" row's detail line. `null` = not probed yet
@@ -210,8 +249,6 @@ export class QuickStartModal {
   protected readonly mcpCopied = signal(false);
 
   // Live runtime signals (no probe): the row indicators read them directly.
-  protected readonly wsEnabled = this.wsEvents.enabled;
-  protected readonly activityEnabled = this.nodeActivity.enabled;
   private readonly hookInstalledSignal = this.activityReadiness.hookInstalled;
   protected readonly mcpLive = this.projectInfo.mcp;
   private readonly activeProvider = this.projectInfo.activeProvider;
@@ -220,8 +257,8 @@ export class QuickStartModal {
     // Lens-independent probes: re-run whenever the modal opens.
     effect(() => {
       if (!this.visible()) return;
-      void this.refreshPreferences();
-      void this.refreshCapture();
+      void this.preferencesProbe.refresh();
+      void this.captureProbe.refresh();
       void this.refreshMcpStatus();
       void this.activityReadiness.refresh();
     });
@@ -229,8 +266,8 @@ export class QuickStartModal {
     effect(() => {
       const provider = this.activeProvider();
       if (!this.visible() || provider === null) return;
-      void this.refreshHook(provider);
-      void this.refreshSkill(provider);
+      void this.hookRow.refresh(provider);
+      void this.skillRow.refresh(provider);
     });
     // Drop any in-flight liveness watch when the panel is torn down.
     this.destroyRef.onDestroy(() => this.agentPing.abandon());
@@ -257,40 +294,32 @@ export class QuickStartModal {
   // Row (a), Live updates, runtime owner: WsEventStreamService.
   // ===================================================================
 
-  protected readonly liveUpdatesStatus = computed<TQuickStartStatus>(() =>
-    this.wsEnabled() ? 'ready' : 'not-ready',
-  );
-  protected readonly liveUpdatesStatusText = computed<string>(() =>
-    this.wsEnabled() ? this.texts.status.on : this.texts.status.off,
-  );
-  protected readonly liveUpdatesActionLabel = computed<string>(() =>
-    this.wsEnabled() ? this.texts.action.disable : this.texts.action.enable,
-  );
-
-  protected onLiveUpdatesToggle(): void {
-    this.wsEvents.setEnabled(!this.wsEnabled());
-  }
+  protected readonly liveRow = setupToggleRow({
+    enabled: this.wsEvents.enabled,
+    setEnabled: (next) => this.wsEvents.setEnabled(next),
+    texts: TOGGLE_ROW_TEXTS,
+  });
 
   // ===================================================================
   // Row (b), Follow external symlinks, project-preferences PATCH (412 on enable).
   // ===================================================================
 
   protected readonly followSymlinks = computed<boolean>(
-    () => this.preferences()?.scan.followExternalSymlinks ?? false,
+    () => this.preferencesProbe.value()?.scan.followExternalSymlinks ?? false,
   );
   protected readonly followStatus = computed<TQuickStartStatus>(() => {
-    if (this.preferences() === null) return 'unknown';
+    if (this.preferencesProbe.value() === null) return 'unknown';
     return this.followSymlinks() ? 'ready' : 'not-ready';
   });
   protected readonly followStatusText = computed<string>(() => {
-    if (this.preferences() === null) return this.texts.status.checking;
+    if (this.preferencesProbe.value() === null) return this.texts.status.checking;
     return this.followSymlinks() ? this.texts.status.on : this.texts.status.off;
   });
   protected readonly followActionLabel = computed<string>(() =>
     this.followSymlinks() ? this.texts.action.disable : this.texts.action.enable,
   );
   protected readonly followActionDisabled = computed<boolean>(
-    () => this.preferences() === null || this.isPending('follow'),
+    () => this.preferencesProbe.value() === null || this.isPending('follow'),
   );
 
   protected onFollowSymlinksToggle(): void {
@@ -320,90 +349,65 @@ export class QuickStartModal {
   // Real Time toggle reacts to installs from here.
   // ===================================================================
 
+  protected readonly hookRow = setupInstallRow<
+    IActivityInstallStatusApi,
+    'install' | 'uninstall'
+  >({
+    deps: this.rowDeps,
+    key: 'hook',
+    provider: () => this.activeProvider() ?? '',
+    probe: (provider) => this.dataSource.getActivityInstallStatus(provider),
+    chooseOp: (s) => (s.installed ? 'uninstall' : 'install'),
+    dispatch: (op, provider, confirm) => {
+      const opts = confirm ? { confirm: true } : undefined;
+      return op === 'install'
+        ? this.dataSource.installActivityHook(provider, opts)
+        : this.dataSource.uninstallActivityHook(provider, opts);
+    },
+    // Keep the shared readiness signal (topbar toggle + real-time row) in sync.
+    afterDispatch: () => void this.activityReadiness.refresh(),
+    confirmCopy: (op, s) => {
+      const t = QUICK_START_TEXTS.rows.hook;
+      // Basename only, like SettingsProjectHook: the operator recognises
+      // "settings.json" as their CLI's file; the full path reads as noise.
+      const file = (s?.configPath ?? '').split('/').pop() ?? '';
+      return {
+        header: op === 'install' ? t.installConfirmHeader : t.uninstallConfirmHeader,
+        message:
+          op === 'install'
+            ? `${t.installConfirmIntroPrefix} ${file} ${t.installConfirmIntroSuffix}`
+            : `${t.uninstallConfirmIntroPrefix} ${file} ${t.uninstallConfirmIntroSuffix}`,
+        acceptLabel: t.confirmAccept,
+        rejectLabel: t.confirmReject,
+      };
+    },
+  });
+
   protected readonly hookRowStatus = computed<TQuickStartStatus>(() => {
-    const s = this.hookStatus();
+    const s = this.hookRow.status();
     if (s === null) return 'unknown';
     if (!s.supported) return 'not-ready';
     return s.installed ? 'ready' : 'not-ready';
   });
   protected readonly hookStatusText = computed<string>(() => {
-    const s = this.hookStatus();
+    const s = this.hookRow.status();
     if (s === null) return this.texts.status.checking;
     if (!s.supported) return this.texts.status.unavailable;
     return s.installed ? this.texts.status.installed : this.texts.status.notInstalled;
   });
   protected readonly hookActionLabel = computed<string>(() =>
-    this.hookStatus()?.installed === true
+    this.hookRow.status()?.installed === true
       ? this.texts.action.uninstall
       : this.texts.action.install,
   );
   protected readonly hookActionDisabled = computed<boolean>(() => {
-    const s = this.hookStatus();
-    return s === null || !s.supported || this.isPending('hook');
+    const s = this.hookRow.status();
+    return s === null || !s.supported || this.hookRow.busy();
   });
   protected readonly hookMeta = computed<string | null>(() => {
-    const s = this.hookStatus();
+    const s = this.hookRow.status();
     return s !== null && !s.supported ? this.texts.rows.hook.unsupportedHint : null;
   });
-
-  protected onHookToggle(): void {
-    const s = this.hookStatus();
-    if (s === null || !s.supported) return;
-    void this.runHookMutation(s.installed ? 'uninstall' : 'install');
-  }
-
-  private async runHookMutation(op: 'install' | 'uninstall'): Promise<void> {
-    const key = 'hook';
-    if (this.isPending(key)) return;
-    const provider = this.activeProvider() ?? '';
-    this.addPending(key);
-    this.error.set(null);
-    try {
-      await this.dispatchHook(op, provider, false);
-    } catch (err) {
-      if (err instanceof DataSourceError && err.code === 'confirm-required') {
-        const t = this.texts.rows.hook;
-        const file = (this.hookStatus()?.configPath ?? '').split('/').pop() ?? '';
-        const header = op === 'install' ? t.installConfirmHeader : t.uninstallConfirmHeader;
-        const intro =
-          op === 'install'
-            ? `${t.installConfirmIntroPrefix} ${file} ${t.installConfirmIntroSuffix}`
-            : `${t.uninstallConfirmIntroPrefix} ${file} ${t.uninstallConfirmIntroSuffix}`;
-        const accepted = await this.confirmConsent(
-          header,
-          intro,
-          t.confirmAccept,
-          t.confirmReject,
-        );
-        if (accepted) {
-          try {
-            await this.dispatchHook(op, provider, true);
-          } catch (innerErr) {
-            this.error.set(formatErr(innerErr));
-          }
-        }
-      } else {
-        this.error.set(formatErr(err));
-      }
-    } finally {
-      this.removePending(key);
-    }
-  }
-
-  private async dispatchHook(
-    op: 'install' | 'uninstall',
-    provider: string,
-    confirm: boolean,
-  ): Promise<void> {
-    const opts = confirm ? { confirm: true } : undefined;
-    if (op === 'install') {
-      this.hookStatus.set(await this.dataSource.installActivityHook(provider, opts));
-    } else {
-      this.hookStatus.set(await this.dataSource.uninstallActivityHook(provider, opts));
-    }
-    // Keep the shared readiness signal (topbar toggle + real-time row) in sync.
-    void this.activityReadiness.refresh();
-  }
 
   // ===================================================================
   // Row (d), Real-time node activity, runtime owner: NodeActivityService.
@@ -411,28 +415,15 @@ export class QuickStartModal {
   // ===================================================================
 
   private readonly realtimeBlocked = computed<boolean>(
-    () => !this.wsEnabled() || this.hookInstalledSignal() === false,
+    () => !this.wsEvents.enabled() || this.hookInstalledSignal() === false,
   );
-  protected readonly realtimeStatus = computed<TQuickStartStatus>(() =>
-    this.activityEnabled() && !this.realtimeBlocked() ? 'ready' : 'not-ready',
-  );
-  protected readonly realtimeStatusText = computed<string>(() =>
-    this.activityEnabled() ? this.texts.status.on : this.texts.status.off,
-  );
-  protected readonly realtimeActionLabel = computed<string>(() =>
-    this.activityEnabled() ? this.texts.action.disable : this.texts.action.enable,
-  );
-  /** Cannot ENABLE while a gate above is unmet; disabling is always allowed. */
-  protected readonly realtimeActionDisabled = computed<boolean>(
-    () => !this.activityEnabled() && this.realtimeBlocked(),
-  );
-  protected readonly realtimeMeta = computed<string | null>(() =>
-    this.realtimeBlocked() ? this.texts.rows.realtime.blockedHint : null,
-  );
-
-  protected onRealtimeToggle(): void {
-    this.nodeActivity.setEnabled(!this.activityEnabled());
-  }
+  protected readonly realtimeRow = setupToggleRow({
+    enabled: this.nodeActivity.enabled,
+    setEnabled: (next) => this.nodeActivity.setEnabled(next),
+    texts: TOGGLE_ROW_TEXTS,
+    blocked: this.realtimeBlocked,
+    blockedHint: QUICK_START_TEXTS.rows.realtime.blockedHint,
+  });
 
   // ===================================================================
   // Row (e), Capture conversations, capture gate. Consent is client-
@@ -440,20 +431,20 @@ export class QuickStartModal {
   // ===================================================================
 
   protected readonly captureEnabled = computed<boolean>(
-    () => this.captureStatus()?.enabled ?? false,
+    () => this.captureProbe.value()?.enabled ?? false,
   );
   /**
    * Capture ON while the hook is missing is NOT ready: the preference is
    * stored but no activity event ever reaches the server, so there is
    * nothing to capture. Folds the gate into the indicator, the same way the
-   * realtime row does (`activityEnabled() && !realtimeBlocked()`).
+   * realtime row does (its `setupToggleRow` gate).
    */
   protected readonly captureRowStatus = computed<TQuickStartStatus>(() => {
-    if (this.captureStatus() === null) return 'unknown';
+    if (this.captureProbe.value() === null) return 'unknown';
     return this.captureEnabled() && !this.captureBlocked() ? 'ready' : 'not-ready';
   });
   protected readonly captureStatusText = computed<string>(() => {
-    if (this.captureStatus() === null) return this.texts.status.checking;
+    if (this.captureProbe.value() === null) return this.texts.status.checking;
     return this.captureEnabled() ? this.texts.status.on : this.texts.status.off;
   });
   protected readonly captureActionLabel = computed<string>(() =>
@@ -472,7 +463,7 @@ export class QuickStartModal {
   /** Cannot ENABLE while the hook is missing; disabling is always allowed. */
   protected readonly captureActionDisabled = computed<boolean>(
     () =>
-      this.captureStatus() === null ||
+      this.captureProbe.value() === null ||
       this.isPending('capture') ||
       (!this.captureEnabled() && this.captureBlocked()),
   );
@@ -496,20 +487,21 @@ export class QuickStartModal {
     });
   }
 
+  /**
+   * Consent was already settled by the dialog above, so the write always
+   * carries `confirm: true` (no 412 path); a failure lands on the shared
+   * banner via the deps sink.
+   */
   private async runCaptureWrite(enabled: boolean): Promise<void> {
-    const key = 'capture';
-    if (this.isPending(key)) return;
-    this.addPending(key);
-    this.error.set(null);
-    try {
-      this.captureStatus.set(
-        await this.dataSource.setActivityCapture({ enabled, confirm: true }),
-      );
-    } catch (err) {
-      this.error.set(formatErr(err));
-    } finally {
-      this.removePending(key);
-    }
+    await runRowMutation(this.rowDeps, 'capture', async () => {
+      try {
+        this.captureProbe.set(
+          await this.dataSource.setActivityCapture({ enabled, confirm: true }),
+        );
+      } catch (err) {
+        this.rowDeps.reportError(err);
+      }
+    });
   }
 
   // ===================================================================
@@ -519,7 +511,7 @@ export class QuickStartModal {
   // ===================================================================
 
   private readonly mcpPrefOn = computed<boolean>(
-    () => this.preferences()?.mcpServerEnabled ?? false,
+    () => this.preferencesProbe.value()?.mcpServerEnabled ?? false,
   );
   protected readonly mcpLiveStatus = computed<TQuickStartStatus>(() =>
     this.mcpLive() ? 'ready' : 'not-ready',
@@ -534,7 +526,7 @@ export class QuickStartModal {
     () => !this.mcpLive() && !this.mcpPrefOn() && !this.mcpRestartPending(),
   );
   protected readonly mcpLiveActionDisabled = computed<boolean>(
-    () => this.preferences() === null || this.isPending('mcp-pref'),
+    () => this.preferencesProbe.value() === null || this.isPending('mcp-pref'),
   );
   protected readonly mcpLiveMeta = computed<string | null>(() =>
     !this.mcpLive() && (this.mcpPrefOn() || this.mcpRestartPending())
@@ -650,18 +642,43 @@ export class QuickStartModal {
   // constructive action here; up-to-date shows the ready indicator).
   // ===================================================================
 
+  protected readonly skillRow = setupInstallRow<IAgentSkillInstallStatusApi, 'install'>({
+    deps: this.rowDeps,
+    key: 'skill',
+    provider: () => this.activeProvider() ?? '',
+    probe: (provider) => this.dataSource.getAgentSkillInstallStatus(provider),
+    // Install and update collapse to the ONE constructive op here: the
+    // CLI's install endpoint also refreshes a stale copy.
+    chooseOp: () => 'install',
+    dispatch: (_op, provider, confirm) =>
+      this.dataSource.installAgentSkill(provider, confirm ? { confirm: true } : undefined),
+    confirmCopy: (_op, s) => {
+      const t = QUICK_START_TEXTS.rows.agentSkill;
+      const dir = s?.skillDir ?? '';
+      const stale = s?.stale === true;
+      return {
+        header: stale ? t.updateConfirmHeader : t.installConfirmHeader,
+        message: stale
+          ? `${t.updateConfirmIntroPrefix} ${dir} ${t.updateConfirmIntroSuffix}`
+          : `${t.installConfirmIntroPrefix} ${dir} ${t.installConfirmIntroSuffix}`,
+        acceptLabel: t.confirmAccept,
+        rejectLabel: t.confirmReject,
+      };
+    },
+  });
+
   private readonly skillUpToDate = computed<boolean>(() => {
-    const s = this.skillStatus();
+    const s = this.skillRow.status();
     return s !== null && s.installed && !s.stale;
   });
   protected readonly skillRowStatus = computed<TQuickStartStatus>(() => {
-    const s = this.skillStatus();
+    const s = this.skillRow.status();
     if (s === null) return 'unknown';
     if (!s.supported) return 'not-ready';
     return s.installed && !s.stale ? 'ready' : 'not-ready';
   });
   protected readonly skillStatusText = computed<string>(() => {
-    const s = this.skillStatus();
+    const s = this.skillRow.status();
     if (s === null) return this.texts.status.checking;
     if (!s.supported) return this.texts.status.unavailable;
     if (s.installed && s.stale) return this.texts.status.updateAvailable;
@@ -669,63 +686,20 @@ export class QuickStartModal {
     return this.texts.status.notInstalled;
   });
   protected readonly skillActionLabel = computed<string>(() =>
-    this.skillStatus()?.stale === true ? this.texts.action.update : this.texts.action.install,
+    this.skillRow.status()?.stale === true
+      ? this.texts.action.update
+      : this.texts.action.install,
   );
   /** Show the constructive action unless the skill is installed and current. */
   protected readonly skillShowAction = computed<boolean>(() => {
-    const s = this.skillStatus();
+    const s = this.skillRow.status();
     return s !== null && s.supported && !this.skillUpToDate();
   });
-  protected readonly skillActionDisabled = computed<boolean>(() => this.isPending('skill'));
-
-  protected onSkillInstall(): void {
-    const s = this.skillStatus();
-    if (s === null || !s.supported) return;
-    void this.runSkillMutation();
-  }
-
-  private async runSkillMutation(): Promise<void> {
-    const key = 'skill';
-    if (this.isPending(key)) return;
-    const provider = this.activeProvider() ?? '';
-    this.addPending(key);
-    this.error.set(null);
-    try {
-      await this.dispatchSkill(provider, false);
-    } catch (err) {
-      if (err instanceof DataSourceError && err.code === 'confirm-required') {
-        const t = this.texts.rows.agentSkill;
-        const dir = this.skillStatus()?.skillDir ?? '';
-        const stale = this.skillStatus()?.stale === true;
-        const header = stale ? t.updateConfirmHeader : t.installConfirmHeader;
-        const intro = stale
-          ? `${t.updateConfirmIntroPrefix} ${dir} ${t.updateConfirmIntroSuffix}`
-          : `${t.installConfirmIntroPrefix} ${dir} ${t.installConfirmIntroSuffix}`;
-        const accepted = await this.confirmConsent(
-          header,
-          intro,
-          t.confirmAccept,
-          t.confirmReject,
-        );
-        if (accepted) {
-          try {
-            await this.dispatchSkill(provider, true);
-          } catch (innerErr) {
-            this.error.set(formatErr(innerErr));
-          }
-        }
-      } else {
-        this.error.set(formatErr(err));
-      }
-    } finally {
-      this.removePending(key);
-    }
-  }
-
-  private async dispatchSkill(provider: string, confirm: boolean): Promise<void> {
-    const opts = confirm ? { confirm: true } : undefined;
-    this.skillStatus.set(await this.dataSource.installAgentSkill(provider, opts));
-  }
+  /**
+   * Busy alias: unlike the hook row, the button never disables on an
+   * unknown / unsupported envelope, it is HIDDEN then (`skillShowAction`).
+   */
+  protected readonly skillActionDisabled = this.skillRow.busy;
 
   // ===================================================================
   // Row (i), Agent attending jobs. Liveness probe: submit the hidden
@@ -734,14 +708,15 @@ export class QuickStartModal {
   // draining the queue; a timeout cancels the still-queued ping (jobs
   // never auto-expire, Decision #139) so it does not linger. Gated on the
   // agent skill (row h): without it the submit is refused
-  // `no-processing-agent`.
+  // `no-processing-agent`. Deliberately NOT a factory row: the ping is a
+  // one-shot state machine, not a probe + mutation pair.
   // ===================================================================
 
   private readonly pingState = signal<TPingState>('idle');
   private readonly agentPing = inject(AgentPingService);
 
   private readonly skillInstalled = computed<boolean>(
-    () => this.skillStatus()?.installed === true,
+    () => this.skillRow.status()?.installed === true,
   );
 
   protected readonly agentJobsStatus = computed<TQuickStartStatus>(() => {
@@ -802,7 +777,9 @@ export class QuickStartModal {
   /**
    * Run the shared full-circuit probe (`AgentPingService`: submit the
    * hidden ping, adopt a wedged duplicate, watch for a claim, cancel on
-   * timeout) and map its verdict onto this row's states.
+   * timeout) and map its verdict onto this row's states. Kept longhand
+   * (not `runRowMutation`): the pending key deliberately releases BEFORE
+   * the verdict mapping, and `check()` settles instead of throwing.
    */
   private async runPingCheck(): Promise<void> {
     const key = 'ping';
@@ -857,41 +834,32 @@ export class QuickStartModal {
   }
 
   /**
-   * Try a project-preferences PATCH. On a 412 `confirm-required` with a
-   * supplied `confirm` flow, present it and retry with `confirm: true` on
-   * accept. Resolves `true` only when the write actually persisted.
+   * Try a project-preferences PATCH through the shared `runConfirmGated`
+   * runner: on a 412 `confirm-required` with a supplied `confirm` flow,
+   * present it and retry with `confirm: true` on accept. Resolves `true`
+   * only when the write actually persisted. The pending key is held for
+   * the whole flow, dialog included, so the row's control stays disabled
+   * until the user decides.
    */
   private async runPreferencePatch(
     key: string,
     patch: IProjectPreferencesPatchApi,
-    confirm?: () => Promise<boolean>,
+    confirm?: TConfirmFlow,
   ): Promise<boolean> {
-    if (this.isPending(key)) return false;
-    this.addPending(key);
-    this.error.set(null);
-    let success = false;
-    try {
-      this.preferences.set(await this.dataSource.setProjectPreferences(patch));
-      success = true;
-    } catch (err) {
-      if (err instanceof DataSourceError && err.code === 'confirm-required' && confirm) {
-        if (await confirm()) {
-          try {
-            this.preferences.set(
-              await this.dataSource.setProjectPreferences({ ...patch, confirm: true }),
-            );
-            success = true;
-          } catch (innerErr) {
-            this.error.set(formatErr(innerErr));
-          }
-        }
-      } else {
-        this.error.set(formatErr(err));
-      }
-    } finally {
-      this.removePending(key);
-    }
-    return success;
+    const persisted = await runRowMutation(this.rowDeps, key, () =>
+      runConfirmGated({
+        attempt: async (withConsent) => {
+          this.preferencesProbe.set(
+            await this.dataSource.setProjectPreferences(
+              withConsent ? { ...patch, confirm: true } : patch,
+            ),
+          );
+        },
+        confirm,
+        onError: (err) => this.rowDeps.reportError(err),
+      }),
+    );
+    return persisted === true;
   }
 
   private addPending(key: string): void {
@@ -907,33 +875,17 @@ export class QuickStartModal {
   }
 
   // ===================================================================
-  // Probes.
+  // Probes (the bespoke one; the row probes live on their handles).
   // ===================================================================
-
-  private async refreshPreferences(): Promise<void> {
-    try {
-      this.preferences.set(await this.dataSource.getProjectPreferences());
-    } catch (err) {
-      this.error.set(formatErr(err));
-      this.preferences.set(null);
-    }
-  }
-
-  private async refreshCapture(): Promise<void> {
-    try {
-      this.captureStatus.set(await this.dataSource.getActivityCapture());
-    } catch (err) {
-      this.error.set(formatErr(err));
-      this.captureStatus.set(null);
-    }
-  }
 
   /**
    * Cheap O(1) read of `/api/mcp/status` on open, so the Copy affordance
    * is already accurate and the row's detail line (any attached client)
    * is fresh before the operator touches Check. Failure is silent (no
    * error banner): the fallback URL keeps Copy useful, the verdict rides
-   * the live health signal, and Check is the user-visible re-probe.
+   * the live health signal, and Check is the user-visible re-probe. Not a
+   * `setupProbe`: it lands TWO signals with different reset semantics
+   * (`mcpUrl` survives a failed Check, see `onCheckMcpConnection`).
    */
   private async refreshMcpStatus(): Promise<void> {
     try {
@@ -943,24 +895,6 @@ export class QuickStartModal {
     } catch {
       this.mcpUrl.set(null);
       this.mcpClients.set(null);
-    }
-  }
-
-  private async refreshHook(provider: string): Promise<void> {
-    try {
-      this.hookStatus.set(await this.dataSource.getActivityInstallStatus(provider));
-    } catch (err) {
-      this.error.set(formatErr(err));
-      this.hookStatus.set(null);
-    }
-  }
-
-  private async refreshSkill(provider: string): Promise<void> {
-    try {
-      this.skillStatus.set(await this.dataSource.getAgentSkillInstallStatus(provider));
-    } catch (err) {
-      this.error.set(formatErr(err));
-      this.skillStatus.set(null);
     }
   }
 }

@@ -4,8 +4,8 @@
 
 /* An audit block with no populated field renders nothing; drop the host
    from layout so it leaves no gap above the debug sub-panel. Grid, label
-   styling and code chips come from the shared `.sm-block__kv` /
-   `.sm-block__inline` / `.sm-block__meta` vocabulary in inspector-view.css. */
+   styling and code chips come from the global `.sm-block__kv` /
+   `.sm-block__inline` / `.sm-block__meta` vocabulary in styles.css. */
 :host(.audit-panel--empty) {
   display: none;
 }

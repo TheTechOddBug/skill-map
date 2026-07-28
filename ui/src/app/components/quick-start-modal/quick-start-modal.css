@@ -4,10 +4,12 @@
    * errors to green for graph immersion (themes/matrix.css); form-level
    * failures inside this modal need to read as failures, so the universal
    * red signal is preserved here only. Light / dark themes leave these
-   * untouched, so the cascade falls back to their defaults. */
-  --p-message-error-color: #fca5a5;
-  --p-message-error-background: color-mix(in srgb, #ef4444 14%, transparent);
-  --p-message-error-border-color: color-mix(in srgb, #ef4444 45%, transparent);
+   * untouched, so the cascade falls back to their defaults. The pinned
+   * ramp is shared with the Settings modal via the `--sm-error-pin-*`
+   * tokens in `styles.css`. */
+  --p-message-error-color: var(--sm-error-pin-fg);
+  --p-message-error-background: var(--sm-error-pin-bg);
+  --p-message-error-border-color: var(--sm-error-pin-border);
 }
 
 /* PrimeNG injects [styleClass] on the dialog root. A single-column,

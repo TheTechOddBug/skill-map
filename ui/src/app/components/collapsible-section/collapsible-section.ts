@@ -2,13 +2,13 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 import { TooltipModule } from 'primeng/tooltip';
 
 /**
- * Generic collapsible section built on the inspector's `.sm-block`
- * visual vocabulary (left accent rail, hairline divider, chevron
- * toggle). Intentionally style-free: the `.sm-block*` classes it emits
- * are styled by the host view through `::ng-deep` (see
- * `inspector-view.css`), the same contract `<sm-vendor-frontmatter>`
- * and `<sm-annotations-panel>` already follow, so the node's kind hue
- * flows in via the inherited `--accent` var.
+ * Generic collapsible section built on the shared `.sm-block` visual
+ * vocabulary (left accent rail, hairline divider, chevron toggle).
+ * Intentionally style-free: the `.sm-block*` classes it emits are
+ * styled globally (see `styles.css`), the same contract
+ * `<sm-vendor-frontmatter>` and `<sm-annotations-panel>` already
+ * follow, so the host view's accent hue flows in via the inherited
+ * `--accent` var (neutral fallback when no host provides one).
  *
  * The body is projected and gated by the CALLER's `@if (expanded)` so a
  * collapsed section never instantiates its (often data-fetching)

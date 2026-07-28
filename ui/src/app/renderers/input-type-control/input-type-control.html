@@ -220,7 +220,7 @@
             <span class="itc__kv-actions-head"></span>
           </div>
         }
-        @for (row of keyValueRows(); track $index) {
+        @for (row of keyValueRows(); track rowTrackId(row)) {
           <div class="itc__kv-row" [attr.data-testid]="'input-type-control-key-value-row-' + $index">
             <input
               type="text"

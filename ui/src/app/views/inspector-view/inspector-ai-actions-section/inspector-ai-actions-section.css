@@ -1,0 +1,219 @@
+/* The host element renders no box of its own so the collapsible section
+   stays a DIRECT flex item of the inspector's `.inspector__scroll`
+   column (same rationale as `.inspector__vendor` and the
+   view-contributions host): an intermediate box would add a phantom gap
+   when the section self-hides. */
+:host {
+  display: contents;
+}
+
+/* ---------------------------------------------------------------------
+ * AI actions card (Step 16, the findings workbench, launcher half). The
+ * finding rows (and the `.inspector__finding*` vocabulary they reuse)
+ * live in the sibling Findings section; only the launcher-side bits are
+ * here: the launcher groups, the Automatic toggle, the agent-check
+ * chip, and the submit-error strip (mirrors the `vc-action__error`
+ * idiom from the action-button renderer).
+ * ------------------------------------------------------------------- */
+.inspector__ai-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* Compact, low-key setup notice: smaller than default p-message text. */
+.inspector__ai-actions-agent-warning .p-message-text {
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.inspector__ai-actions-launchers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+/* Controls row above the launcher groups: Auto-fixer toggle at the
+   left (when present), the Check MCP re-probe pinned right. */
+.inspector__ai-actions-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Same chip recipe as .inspector__body-view-toggle, pinned right. The
+   verdict states recolor border + text only (no fills), holding 5s
+   before the component re-arms the button. */
+.inspector__ai-actions-check {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--p-text-muted-color);
+  background: var(--sm-bg-hover);
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-sm);
+  cursor: pointer;
+}
+
+.inspector__ai-actions-check:hover:not(:disabled) {
+  color: var(--p-text-color);
+}
+
+.inspector__ai-actions-check:disabled {
+  cursor: default;
+}
+
+.inspector__ai-actions-check.is-ok {
+  color: var(--sm-severity-success);
+  border-color: var(--sm-severity-success);
+  background: var(--sm-severity-success-bg);
+}
+
+.inspector__ai-actions-check.is-fail {
+  color: var(--sm-severity-error);
+  border-color: var(--sm-severity-error);
+  background: var(--sm-severity-error-bg);
+}
+
+/* Automatic toggle row: sits above the finder buttons, switch + label
+   on one baseline-aligned line. */
+.inspector__ai-actions-autofix {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Compact switch (user call 2026-07-22: the stock size reads too big
+   next to the small launcher rows): shrink via the component's own
+   design tokens, keeping the themed colors and focus ring intact. */
+.inspector__ai-actions-autofix .p-toggleswitch {
+  --p-toggleswitch-width: 2.1rem;
+  --p-toggleswitch-height: 1.2rem;
+  --p-toggleswitch-handle-size: 0.85rem;
+}
+
+.inspector__ai-actions-autofix-label {
+  font-size: 0.8rem;
+  color: var(--p-text-color);
+  cursor: pointer;
+}
+
+/* One launcher group block (user pick 2026-07-22): full-width, Finders
+   above Standalone, header line then the rows. */
+.inspector__ai-actions-group-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+/* Inside a group the rows flow into DYNAMIC columns: the available
+   width decides how many (auto-fill), each row keeping its list shape
+   (button stretched, stop at its right edge). */
+.inspector__ai-actions-group-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.1rem 0.8rem;
+  align-items: center;
+}
+
+/* Group header line: muted uppercase title with its "(run all)" link
+   right after it (user pick 2026-07-23, replacing the right-edge ALL
+   buttons). */
+.inspector__ai-actions-group-head {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  border-bottom: 1px solid var(--p-content-border-color);
+  padding-bottom: 0.1rem;
+}
+
+/* The run-all link matches the title's quiet scale: no button chrome,
+   just slightly-accented small text. */
+.inspector__ai-actions-group-head .inspector__ai-actions-run-all {
+  padding: 0 0.25rem;
+  font-size: 0.68rem;
+}
+
+.inspector__ai-actions-group-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--p-text-muted-color);
+}
+
+/* One launcher row: launch button stretched left (icon + name reading
+   as a list item), stop companion at the right edge when active. */
+.inspector__ai-actions-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.inspector__ai-actions-entry > p-button:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.inspector__ai-actions-entry > p-button:first-child .p-button {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+/* The stop companion matches the per-finding action buttons: compact
+   rounded-text icon (user call 2026-07-22: the stock small button read
+   huge next to the flat launcher rows). */
+.inspector__ai-actions-entry > p-button:not(:first-child) .p-button {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+}
+
+.inspector__ai-actions-entry .p-button-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 0 1 auto;
+}
+
+.inspector__ai-actions-error {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--sm-severity-error);
+  background: var(--sm-severity-error-bg);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--sm-radius-sm);
+}
+
+.inspector__ai-actions-error-text {
+  overflow-wrap: anywhere;
+}
+
+.inspector__ai-actions-error-dismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  margin-left: auto;
+  color: var(--sm-severity-error);
+  display: inline-flex;
+}
+
+.inspector__ai-actions-error-dismiss .pi {
+  font-size: 0.7rem;
+}
+
+.inspector__ai-actions-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--p-text-muted-color);
+}

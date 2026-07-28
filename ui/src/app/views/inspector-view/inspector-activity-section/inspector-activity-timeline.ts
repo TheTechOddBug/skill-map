@@ -14,7 +14,7 @@
  * the input order (`Array.prototype.sort` is stable).
  */
 
-import type { IActivityRecentExecutionApi, IActivityRunApi } from '../../../models/api';
+import type { IActivityRecentExecutionApi, IActivityRunApi } from '../../../../models/api';
 
 export type TActivityTimelineEntry =
   | { provenance: 'runtime'; at: number; key: string; run: IActivityRecentExecutionApi }

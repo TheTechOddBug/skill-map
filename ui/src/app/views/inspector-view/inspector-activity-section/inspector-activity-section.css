@@ -1,0 +1,247 @@
+/* The host element renders no box of its own so the collapsible section
+   stays a DIRECT flex item of the inspector's `.inspector__scroll`
+   column (same rationale as `.inspector__vendor` and the
+   view-contributions host): an intermediate box would add a phantom gap
+   when the section self-hides. The conversation dialog child renders
+   through a body-appended p-dialog, so it contributes no box either. */
+:host {
+  display: contents;
+}
+
+/* Activity section (spec/provider-activity.md). Stats grid mirrors the
+   dense dt/dd vocabulary of the metadata panels; spawn rows are flex
+   rows with the "View conversation" affordance pushed right. All state
+   here is ephemeral (session-scoped), so the visuals stay quiet, no
+   severity tints. */
+.inspector__activity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.inspector__activity-loading,
+.inspector__activity-empty {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--p-text-muted-color);
+}
+
+.inspector__activity-capture-chip {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.08rem 0.45rem;
+  border-radius: var(--sm-radius-pill);
+  color: var(--sm-edge-spawn);
+  background: color-mix(in srgb, var(--sm-edge-spawn) 12%, transparent);
+}
+
+.inspector__activity-heading {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--p-text-muted-color);
+}
+
+/* Merged-timeline head: the "Recent executions" heading and the
+   three-state provenance filter (all / runtime / AI runs) share one
+   row, the control pushed to the trailing edge. The filter is a
+   p-selectbutton (the project's segmented-control idiom, see
+   settings-general) at `size="small"` so it stays quiet next to the
+   dense rows. */
+.inspector__activity-timeline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  /* Carries the heading's own 0.35rem top offset (reset below) so the
+     merged block keeps the spacing the bare heading used to have. */
+  margin-top: 0.35rem;
+}
+
+.inspector__activity-timeline-head .inspector__activity-heading {
+  margin: 0;
+}
+
+/* AI-run provenance glyph: the sparkles icon takes the exec accent so
+   the row reads as "skill-map ran something here" at a glance, against
+   the muted wrench / document glyphs of the runtime rows. */
+.inspector__activity-run-icon {
+  color: var(--sm-exec-c1);
+}
+
+/* AI-run row text (`<extension> · <status> · <duration> · <model>`):
+   ellipsised so a long model id never squishes the time + icon. */
+.inspector__activity-run-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  color: var(--p-text-color);
+}
+
+/* Muted line when the active provenance filter matches no entry. */
+.inspector__activity-filter-empty {
+  margin: 0;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--p-text-muted-color);
+}
+
+.inspector__activity-recent,
+.inspector__activity-spawns {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.inspector__activity-recent-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.8rem;
+}
+
+.inspector__activity-time {
+  color: var(--p-text-muted-color);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+
+.inspector__activity-owner {
+  font-family: var(--sm-font-mono);
+  font-size: 0.72rem;
+  color: var(--p-text-color);
+  /* Short owner now (see shortenOwner), so it no longer needs to wrap
+     and can hold its width, leaving room for the tool detail. */
+  flex: none;
+}
+
+/* Which tool the recent execution was (spec/provider-activity.md §WS
+   event: node.activity, `detail`). Muted secondary text pushed to the
+   row's trailing edge; ellipsised (full value in the title) so a long
+   tool name never squishes the time / owner. */
+.inspector__activity-detail {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--sm-font-mono);
+  font-size: 0.72rem;
+  color: var(--p-text-muted-color);
+}
+
+/* MCP invocation segment (spec/provider-activity.md §WS event:
+   node.activity, caller / target). Both directions read identically:
+   `· <counterpart node link> · <tool>`. Pushed to the trailing edge;
+   the link + tool ellipsise and the middot separators stay `flex:none`
+   so a long label never squishes the time + owner (same lesson as the
+   owner fix). */
+.inspector__activity-invocation {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin-left: auto;
+  min-width: 0;
+  font-size: 0.72rem;
+}
+
+.inspector__activity-invocation-sep {
+  flex: none;
+  color: var(--p-text-muted-color);
+}
+
+/* Invocation-kind glyph (spec/provider-activity.md §WS event:
+   node.activity, kind): a wrench for an MCP tool call, a document for a
+   file read. Muted + compact, never grows so it cannot squish the row. */
+.inspector__activity-type-icon {
+  flex: none;
+  font-size: 0.68rem;
+  color: var(--p-text-muted-color);
+}
+
+/* Clickable counterpart node, navigates via the same node-open intent
+   the connections list uses. Reads as a link (exec-palette accent) but
+   ellipsises to protect the row. */
+.inspector__activity-node-link {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: var(--sm-font-mono);
+  font-size: 0.72rem;
+  color: var(--sm-exec-c1);
+  cursor: pointer;
+  text-align: left;
+}
+
+.inspector__activity-node-link:hover {
+  text-decoration: underline;
+}
+
+.inspector__activity-node-link:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 1px;
+  border-radius: var(--sm-radius-sm);
+}
+
+.inspector__activity-invocation-tool {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--sm-font-mono);
+  color: var(--p-text-muted-color);
+}
+
+.inspector__activity-spawn-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-sm);
+  background: var(--p-content-background);
+}
+
+.inspector__activity-spawn-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.inspector__activity-spawn-pair {
+  font-size: 0.82rem;
+  color: var(--p-text-color);
+  overflow-wrap: anywhere;
+}
+
+.inspector__activity-spawn-meta {
+  font-size: 0.72rem;
+  color: var(--p-text-muted-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.inspector__activity-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--p-text-muted-color);
+}

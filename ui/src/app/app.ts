@@ -31,7 +31,7 @@ import { SkippedFilesBanner } from './components/skipped-files-banner/skipped-fi
 import { ConnectionBanner } from './components/connection-banner/connection-banner';
 import { SettingsModal, type TSettingsSection } from './components/settings-modal/settings-modal';
 import { QuickStartModal } from './components/quick-start-modal/quick-start-modal';
-/* DEBUG-SLOTS: remove with debug-slots.css. */
+/* ViewContributionsHost: real topbar.nav.start slot mount (also ringed by the kept debug-slots overlay; see context/ui.md). */
 import { ViewContributionsHost } from './components/view-contributions-host/view-contributions-host';
 
 @Component({

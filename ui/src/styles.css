@@ -141,6 +141,16 @@
   --sm-exec-c3: #34d399;
   --sm-exec-c4: #fbbf24;
   --sm-exec-c5: #fb7185;
+
+  /* Pinned error red for consent-bearing dialogs (Settings, Quick Start).
+     Those hosts re-pin PrimeNG's `--p-message-error-*` so form-level
+     failures keep the universal red signal even under themes that retint
+     errors (matrix turns them green for graph immersion). Deliberately
+     theme-independent: the pin exists precisely to escape the theme
+     palette, so the ramp lives here, defined once, never per theme. */
+  --sm-error-pin-fg: #fca5a5;
+  --sm-error-pin-bg: color-mix(in srgb, #ef4444 14%, transparent);
+  --sm-error-pin-border: color-mix(in srgb, #ef4444 45%, transparent);
 }
 
 html,
@@ -312,6 +322,195 @@ a {
 
 .sm-node-link--known:hover {
   text-decoration: underline;
+}
+
+/* ---------------------------------------------------------------------------
+ * Section block (`.sm-block`), flat with a left accent rail.
+ *
+ * Shared visual vocabulary emitted by `<sm-collapsible-section>`,
+ * `<sm-vendor-frontmatter>` and `<sm-annotations-panel>`, all generic
+ * components under `app/components/`. Global (not component-scoped)
+ * because the emitters must render styled wherever they are mounted;
+ * the markup is project-owned, so there is no encapsulation concern.
+ * Historically these rules lived in `inspector-view.css` under
+ * `:host ::ng-deep`, which left the components unstyled outside that
+ * view (a boundary inversion: view-owned chrome for shared components).
+ *
+ * Each section carries a 2px left rail in the host view's accent
+ * colour: the inspector binds the node's kind colour onto `--accent` at
+ * its `.inspector` root, and the var inherits into every block. The
+ * `var(--sm-kind-markdown)` fallback keeps the rail valid for hosts
+ * that provide no accent; it must stay a fallback INSIDE `var()`, never
+ * a `--accent` declaration on `.sm-block` itself, which would shadow
+ * the inherited per-node accent. No fill, no border box, no shadow:
+ * depth reads from the rail + spacing, not elevation. The title is
+ * title-case bold, no uppercase, no icon; each `dt`/`dd` row reads as a
+ * dense table row.
+ * ------------------------------------------------------------------- */
+
+.sm-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding-left: 0.7rem;
+  border-left: 2px solid
+    color-mix(in srgb, var(--accent, var(--sm-kind-markdown)) 70%, transparent);
+  transition: border-color 140ms ease;
+}
+
+/* Collapsible sections brighten their rail to the full accent on hover;
+   the toggle row recolours the title to match (rule below). */
+.sm-block--collapsible:hover {
+  border-left-color: var(--accent, var(--sm-kind-markdown));
+}
+
+.sm-block__title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--p-text-color);
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.sm-block__count {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--p-text-muted-color);
+}
+
+.sm-block__sub {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--p-text-muted-color);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sm-block__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: none;
+  text-align: left;
+  font: inherit;
+  color: var(--p-text-color);
+}
+
+.sm-block__row--toggle {
+  cursor: pointer;
+}
+
+/* The heading wrapper is a passthrough: the toggle button keeps owning
+   the full-width flex row, the wrapper only carries `role="heading"`. */
+.sm-block__heading {
+  display: block;
+  margin: 0;
+}
+
+/* Expanded collapsible body, separated from the header row by a hairline.
+   Two shapes host the toggle: `<sm-collapsible-section>` wraps its button
+   in `.sm-block__heading` (so the body follows the wrapper), while
+   `<sm-vendor-frontmatter>` keeps the button as a direct child (body
+   follows the button). Match both so either shape gets the divider. */
+.sm-block--collapsible > .sm-block__heading + *,
+.sm-block--collapsible > .sm-block__row--toggle + * {
+  margin-top: 0.5rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--sm-border);
+}
+
+.sm-block__row--toggle:hover .sm-block__title {
+  color: var(--accent, var(--sm-kind-markdown));
+}
+
+.sm-block__summary {
+  font-size: 0.78rem;
+  color: var(--p-text-muted-color);
+  font-weight: 400;
+  flex: 1 1 auto;
+  margin-left: 0.3rem;
+}
+
+.sm-block__chevron {
+  color: var(--p-text-muted-color);
+  font-size: 0.75rem;
+  margin-left: auto;
+}
+
+/* Definition list, two-column grid with the label in muted small caps
+   and the value in the standard text color. */
+.sm-block__kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 1rem;
+  row-gap: 0.35rem;
+  margin: 0;
+  font-size: 0.85rem;
+  align-items: baseline;
+}
+
+.sm-block__kv dt {
+  color: var(--p-text-muted-color);
+  font-weight: 500;
+  font-size: 0.8rem;
+}
+
+.sm-block__kv dd {
+  margin: 0;
+  word-break: break-word;
+  color: var(--p-text-color);
+}
+
+.sm-block__kv code {
+  background: var(--sm-bg-hover);
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--sm-radius-sm);
+  font-size: 0.78rem;
+  font-family: var(--sm-font-mono);
+}
+
+/* Inline value cluster inside a `dd`: one or more icon-led meta items
+   (`.sm-block__meta`) that wrap on narrow panels. Shared by the
+   Annotations and Metadata sections so their rows read identically. */
+.sm-block__inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+  row-gap: 0.35rem;
+}
+
+.sm-block__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.83rem;
+  color: var(--p-text-color);
+}
+
+.sm-block__meta .pi {
+  color: var(--p-text-muted-color);
+  font-size: 0.85rem;
+}
+
+.sm-block__meta a {
+  color: var(--p-primary-color);
+  word-break: break-all;
+}
+
+.sm-block__meta code {
+  background: var(--sm-bg-hover);
+  padding: 0.05rem 0.35rem;
+  border-radius: var(--sm-radius-sm);
+  font-size: 0.78rem;
 }
 
 /* Settings-dialog select overlays. The panel is appended to <body>

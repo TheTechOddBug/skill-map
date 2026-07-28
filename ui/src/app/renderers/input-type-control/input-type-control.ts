@@ -296,6 +296,26 @@ export class InputTypeControl {
     }
   }
 
+  /**
+   * Stable per-row identity for the `key-value-list` `@for` track. Rows
+   * carry no natural key (both columns are freely editable, duplicates are
+   * legal), so identity is minted lazily per row object and carried over
+   * when `updateRow` replaces the object on a keystroke. Tracking by this
+   * id instead of `$index` keeps the trailing rows' DOM (and any focused
+   * input in them) intact when a mid-list row is removed.
+   */
+  private readonly rowIds = new WeakMap<IInputTypeKeyValueEntry, number>();
+  private nextRowId = 0;
+
+  protected rowTrackId(row: IInputTypeKeyValueEntry): number {
+    let id = this.rowIds.get(row);
+    if (id === undefined) {
+      id = this.nextRowId++;
+      this.rowIds.set(row, id);
+    }
+    return id;
+  }
+
   protected onKeyChange(index: number, next: string): void {
     this.updateRow(index, { key: next ?? '' });
   }
@@ -318,7 +338,10 @@ export class InputTypeControl {
     const rows = this.keyValueRows().slice();
     const current = rows[index];
     if (!current) return;
-    rows[index] = { ...current, ...patch };
+    const next = { ...current, ...patch };
+    const id = this.rowIds.get(current);
+    if (id !== undefined) this.rowIds.set(next, id);
+    rows[index] = next;
     this.value.set(rows);
   }
 }

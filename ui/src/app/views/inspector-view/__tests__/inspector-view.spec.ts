@@ -4,10 +4,12 @@ import { provideRouter, Router } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
-import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
+import { By, DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 import { EMPTY, Subject } from 'rxjs';
 
 import { InspectorView } from '../inspector-view';
+import { InspectorActivitySection } from '../inspector-activity-section/inspector-activity-section';
+import { InspectorAiActionsSection } from '../inspector-ai-actions-section/inspector-ai-actions-section';
 import { NODE_OPEN_INTENT } from '../../../slots/node-open-intent';
 import { ActionDispatchService } from '../../../../services/action-dispatch';
 import { WsEventStreamService } from '../../../../services/ws-event-stream';
@@ -419,10 +421,21 @@ async function flush(fixture: ComponentFixture<InspectorView>): Promise<void> {
 
 describe('InspectorView, conversation dialog (no-fetch openThread path)', () => {
   it('hands the clicked thread to the shared controller without fetching', async () => {
-    const { fixture, cmp, dataSource } = bootstrap();
+    // The conversation machinery lives in the Activity section child
+    // (extracted with the section), so the probe targets that component;
+    // a node must be inspected for the child to mount. The Activity card
+    // stays collapsed (default) so no activity fetch muddies the
+    // no-fetch assertion below.
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
 
-    const probe = cmp as unknown as {
+    const probe = fixture.debugElement.query(By.directive(InspectorActivitySection))
+      .componentInstance as unknown as {
       openSpawnConversation(thread: ISpawnThread): void;
       onConversationClosed(): void;
       conversationOpen(): boolean;
@@ -3748,12 +3761,17 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
       autoFixEnabled(): boolean;
       onAutoFixToggle(v: boolean): void;
     }
+    // The Automatic toggle lives in the AI actions section child
+    // (extracted with the section), so the proto probe targets it.
+    const aiActionsSection = (fixture: ComponentFixture<InspectorView>): IAutoFixProto =>
+      fixture.debugElement.query(By.directive(InspectorAiActionsSection))
+        .componentInstance as unknown as IAutoFixProto;
 
     // Default OFF when unset.
     const fresh = await bootAiActions({
       probs: makeProbExtensions({ finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'] })] }),
     });
-    const proto = fresh.fixture.componentInstance as unknown as IAutoFixProto;
+    const proto = aiActionsSection(fresh.fixture);
     expect(proto.autoFixEnabled()).toBe(false);
 
     // Round-trip: a change writes 'true' / 'false' back to storage.
@@ -3769,9 +3787,7 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     const bogus = await bootAiActions({
       probs: makeProbExtensions({ finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'] })] }),
     });
-    expect(
-      (bogus.fixture.componentInstance as unknown as IAutoFixProto).autoFixEnabled(),
-    ).toBe(false);
+    expect(aiActionsSection(bogus.fixture).autoFixEnabled()).toBe(false);
     const btn = bogus.fixture.nativeElement.querySelector(
       '[data-testid="inspector-ai-action-launch-core/todo-finder"]',
     ) as HTMLElement;

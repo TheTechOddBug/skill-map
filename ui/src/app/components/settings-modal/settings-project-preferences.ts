@@ -44,10 +44,8 @@ import type {
   IProjectPreferencesApi,
   IProjectPreferencesPatchApi,
 } from '../../../models/api';
-import {
-  DATA_SOURCE,
-  DataSourceError,
-} from '../../../services/data-source/data-source.port';
+import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
+import { runConfirmGated, type TConfirmFlow } from '../confirm-gated';
 import { SettingsProjectIgnore } from './settings-project-ignore';
 import { formatErr } from './settings-project.utils';
 
@@ -306,18 +304,19 @@ export class SettingsProjectPreferences {
   }
 
   /**
-   * Try the patch; if the BFF answers `confirm-required` AND the caller
-   * supplied a `confirm` flow, surface that flow's confirm dialog and on
-   * user accept retry with `confirm: true`. On any other error (or a 412
-   * with no confirm flow, which only narrowing callers hit, never in
-   * practice) surface in `saveError`. The returned promise settles only
-   * after the whole flow settles, INCLUDING the confirm dialog: `true`
-   * when the PATCH (or the confirmed retry) actually persisted, `false`
-   * on validation errors, a dismissed dialog, or a failed retry. Callers
-   * rely on that to roll their view state back (toggles) or keep an
-   * input editable (`onReferencePathAdd`). The key stays in `pending`
-   * while the dialog is open, so the control is disabled until the
-   * user decides.
+   * Try the patch through the shared `runConfirmGated` runner
+   * (`components/confirm-gated.ts`, extracted FROM this method): if the
+   * BFF answers `confirm-required` AND the caller supplied a `confirm`
+   * flow, that flow's dialog surfaces and user accept retries with
+   * `confirm: true`. Any other error (or a 412 with no confirm flow,
+   * which only narrowing callers hit, never in practice) surfaces in
+   * `saveError`. The returned promise settles only after the whole flow
+   * settles, INCLUDING the confirm dialog: `true` when the PATCH (or the
+   * confirmed retry) actually persisted, `false` on validation errors, a
+   * dismissed dialog, or a failed retry. Callers rely on that to roll
+   * their view state back (toggles) or keep an input editable
+   * (`onReferencePathAdd`). The key stays in `pending` while the dialog
+   * is open, so the control is disabled until the user decides.
    *
    * The confirm dialog is parameterised per surface-expanding key: the
    * mechanism (try -> catch 412 -> dialog -> retry with `confirm: true`)
@@ -327,65 +326,41 @@ export class SettingsProjectPreferences {
   private async runPatch(
     key: string,
     patch: IProjectPreferencesPatchApi,
-    confirm?: IConfirmFlow,
+    confirm?: TConfirmFlow,
   ): Promise<boolean> {
     if (this.pending().has(key)) return false;
     const next = new Set(this.pending());
     next.add(key);
     this.pending.set(next);
     this.saveError.set(null);
-    let success = false;
     try {
-      const envelope = await this.dataSource.setProjectPreferences(patch);
-      this.preferences.set(envelope);
-      success = true;
-    } catch (err) {
-      if (
-        err instanceof DataSourceError &&
-        err.code === 'confirm-required' &&
-        confirm
-      ) {
-        const exposed = (err as DataSourceError & { paths?: string[] }).paths ?? [];
-        success = await new Promise<boolean>((resolve) => {
-          confirm.present(
-            exposed,
-            async () => {
-              try {
-                const envelope = await this.dataSource.setProjectPreferences({
-                  ...patch,
-                  confirm: true,
-                });
-                this.preferences.set(envelope);
-                resolve(true);
-              } catch (innerErr) {
-                this.saveError.set(formatErr(innerErr));
-                resolve(false);
-              }
-            },
-            () => resolve(false),
+      return await runConfirmGated({
+        attempt: async (withConsent) => {
+          const envelope = await this.dataSource.setProjectPreferences(
+            withConsent ? { ...patch, confirm: true } : patch,
           );
-        });
-      } else {
-        this.saveError.set(formatErr(err));
-      }
+          this.preferences.set(envelope);
+        },
+        confirm,
+        onError: (err) => this.saveError.set(formatErr(err)),
+      });
     } finally {
       const after = new Set(this.pending());
       after.delete(key);
       this.pending.set(after);
     }
-    return success;
   }
 
   /**
    * Confirm flow for `scan.referencePaths`: enumerate the exposed paths
-   * in the dialog. The input box is cleared by `onReferencePathAdd`
-   * when `runPatch` reports the persist.
+   * (carried by the 412 envelope) in the dialog. The input box is
+   * cleared by `onReferencePathAdd` when `runPatch` reports the persist.
    */
-  private referencePathsConfirmFlow(): IConfirmFlow {
-    return {
-      present: (exposed, onAccept, onReject) =>
-        this.confirmDialog(exposed, onAccept, onReject),
-    };
+  private referencePathsConfirmFlow(): TConfirmFlow {
+    return ({ exposed }) =>
+      new Promise<boolean>((resolve) => {
+        this.confirmDialog(exposed, () => resolve(true), () => resolve(false));
+      });
   }
 
   /**
@@ -393,16 +368,16 @@ export class SettingsProjectPreferences {
    * that following out-of-tree links can pull sensitive folders into the
    * graph (the exposed-paths list does not apply, so it is ignored).
    */
-  private followExternalSymlinksConfirmFlow(): IConfirmFlow {
-    return {
-      present: (_exposed, onAccept, onReject) =>
-        this.confirmFollowExternalSymlinksDialog(onAccept, onReject),
-    };
+  private followExternalSymlinksConfirmFlow(): TConfirmFlow {
+    return () =>
+      new Promise<boolean>((resolve) => {
+        this.confirmFollowExternalSymlinksDialog(() => resolve(true), () => resolve(false));
+      });
   }
 
   private confirmDialog(
-    paths: string[],
-    onAccept: () => Promise<void>,
+    paths: readonly string[],
+    onAccept: () => void,
     onReject: () => void,
   ): void {
     this.confirmation.confirm({
@@ -416,7 +391,7 @@ export class SettingsProjectPreferences {
       acceptButtonProps: { severity: 'primary' },
       rejectButtonProps: { severity: 'secondary' },
       accept: () => {
-        void onAccept();
+        onAccept();
       },
       reject: () => {
         onReject();
@@ -425,7 +400,7 @@ export class SettingsProjectPreferences {
   }
 
   private confirmFollowExternalSymlinksDialog(
-    onAccept: () => Promise<void>,
+    onAccept: () => void,
     onReject: () => void,
   ): void {
     this.confirmation.confirm({
@@ -436,27 +411,11 @@ export class SettingsProjectPreferences {
       acceptButtonProps: { severity: 'primary' },
       rejectButtonProps: { severity: 'secondary' },
       accept: () => {
-        void onAccept();
+        onAccept();
       },
       reject: () => {
         onReject();
       },
     });
   }
-}
-
-/**
- * Per-key confirm flow injected into `runPatch`. The 412 handling
- * mechanism is shared; this carries the surface-specific dialog
- * presentation.
- */
-interface IConfirmFlow {
-  /** Open the confirm dialog. `exposed` is the path list the 412 carried
-   *  (empty for non-path surfaces); call `onAccept` on confirm and
-   *  `onReject` on dismiss so `runPatch` can settle its promise. */
-  present(
-    exposed: string[],
-    onAccept: () => Promise<void>,
-    onReject: () => void,
-  ): void;
 }

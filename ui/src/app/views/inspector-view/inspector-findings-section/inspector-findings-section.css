@@ -1,0 +1,253 @@
+/* The host element renders no box of its own so the collapsible section
+   stays a DIRECT flex item of the inspector's `.inspector__scroll`
+   column (same rationale as `.inspector__vendor` and the
+   view-contributions host): an intermediate box would add a phantom gap
+   when the section self-hides. */
+:host {
+  display: contents;
+}
+
+/* ---------------------------------------------------------------------
+ * Findings list, severity-tinted rows.
+ * ------------------------------------------------------------------- */
+.inspector__findings-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.inspector__finding {
+  padding: 0.55rem 0.7rem;
+  border-left: 3px solid var(--p-content-border-color);
+  background: var(--p-content-background);
+  border-radius: var(--sm-radius-sm);
+}
+
+.inspector__finding[data-severity='error'] {
+  border-left-color: var(--sm-severity-error);
+  background: var(--sm-severity-error-bg);
+}
+
+.inspector__finding[data-severity='warn'] {
+  border-left-color: var(--sm-severity-warn);
+  background: var(--sm-severity-warn-bg);
+}
+
+.inspector__finding[data-severity='info'] {
+  border-left-color: var(--sm-severity-info);
+  background: var(--sm-severity-info-bg);
+}
+
+/* Findings card body: the deterministic issues list, the AI finding
+   rows below them (mixed card, user call 2026-07-22), and the
+   hidden-buckets honesty line, stacked with one shared gap. */
+.inspector__findings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.inspector__finding-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.2rem;
+}
+
+.inspector__finding-severity {
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--sm-radius-sm);
+  color: var(--p-content-background);
+  background: var(--p-text-color);
+}
+
+.inspector__finding-severity[data-severity='error'] {
+  background: var(--sm-severity-error);
+}
+
+.inspector__finding-severity[data-severity='warn'] {
+  background: var(--sm-severity-warn);
+}
+
+.inspector__finding-severity[data-severity='info'] {
+  background: var(--sm-severity-info);
+}
+
+.inspector__finding-analyzer {
+  font-size: 0.78rem;
+  color: var(--p-text-muted-color);
+}
+
+/* Inline stale mark on a finding row (stale rows ride the tray,
+   never a hidden bucket): same badge geometry as the severity chip,
+   outlined warn tint so it reads as an annotation, not a state. */
+/* Human-decided fixed rows: the stale-chip recipe in the theme's
+   PRIMARY color (user ask 2026-07-26), so the operator's own calls pop
+   against autonomous fixer resolutions. */
+.inspector__finding-human {
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--sm-radius-sm);
+  color: var(--p-primary-color);
+  border: 1px solid var(--p-primary-color);
+}
+
+.inspector__finding-stale {
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--sm-radius-sm);
+  color: var(--sm-severity-warn);
+  border: 1px solid var(--sm-severity-warn);
+}
+
+/* Inline origin mark (a `kernel` row: the safety lane authored the
+   judgment, the extension named on the row only surfaced it): same
+   outlined-annotation geometry as the stale mark, but muted text +
+   neutral border so it reads as provenance, never as a severity. */
+.inspector__finding-kernel {
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--sm-radius-sm);
+  color: var(--p-text-muted-color);
+  border: 1px solid var(--sm-border);
+}
+
+/* Inline needs-decision mark (a `human-decision` row: the fixer left it
+   to the author, no fix button renders): same outlined-annotation
+   geometry as the stale mark, info tint to read as guidance. */
+.inspector__finding-decision {
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--sm-radius-sm);
+  color: var(--sm-severity-info);
+  border: 1px solid var(--sm-severity-info);
+}
+
+.inspector__finding-message {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--p-text-color);
+  /* The compact finding grammar separates subject and detail with a
+     `\n`; render it as a real line break. Long paths on the subject
+     line wrap instead of overflowing the panel. */
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.inspector__finding-hint {
+  margin: 0.35rem 0 0 0;
+  font-size: 0.82rem;
+  color: var(--p-text-color);
+  background: var(--p-content-background);
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--sm-radius-sm);
+}
+
+/* ---------------------------------------------------------------------
+ * AI finding rows (Step 16, the findings workbench, mixed into this
+ * card per the 2026-07-22 user call). They reuse the
+ * `.inspector__finding*` vocabulary above (same severity tints); only
+ * the AI-specific bits live below: the provenance
+ * `(confidence% · model)` note, the dimmed row id, the per-row action
+ * cluster, and the hidden-buckets honesty line. The launcher groups and
+ * the submit-error strip live in the sibling AI actions section.
+ * ------------------------------------------------------------------- */
+.inspector__ai-action-provenance {
+  font-size: 0.72rem;
+  color: var(--p-text-muted-color);
+  white-space: nowrap;
+}
+
+/* Dimmed DB id, pushed to the row's far right. Test / CLI handle
+   (`sm findings resolve <id>`), useful but never the headline. */
+.inspector__ai-action-id {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: var(--p-text-muted-color);
+  opacity: 0.6;
+}
+
+/* Per-finding actions (mark fixed / dismiss / restore), tucked after the
+   id at the row's right edge. Compact: the small rounded-text buttons
+   shrink to icon size. */
+.inspector__finding-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.inspector__finding-actions .p-button {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+}
+
+/* Deterministic issue rows have no dimmed #id pushing the tail right
+   (issues carry no stable id), so the actions span pushes itself,
+   keeping the fix button on the row's right edge like the AI rows. */
+.inspector__finding-actions--push {
+  margin-left: auto;
+}
+
+/* Hidden-buckets honesty line: the CLI's "N dismissed, M fixed, K stale
+   hidden" as reveal chips. */
+.inspector__ai-hidden {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+}
+
+.inspector__ai-hidden-label {
+  font-size: 0.75rem;
+  color: var(--p-text-muted-color);
+}
+
+.inspector__ai-hidden-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-lg);
+  background: transparent;
+  color: var(--p-text-muted-color);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.inspector__ai-hidden-chip:hover {
+  color: var(--p-text-color);
+}
+
+.inspector__ai-hidden-chip.is-on {
+  background: var(--p-highlight-background);
+  color: var(--p-text-color);
+}
+
+/* Revealed bucket rows: slightly inset + dimmed border so they read as a
+   sub-list of the honesty line, not fresh findings. */
+.inspector__findings-list--revealed {
+  margin-top: 0.35rem;
+  opacity: 0.85;
+}

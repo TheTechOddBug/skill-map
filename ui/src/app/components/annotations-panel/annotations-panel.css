@@ -10,7 +10,7 @@
 }
 
 /* Rows share the `.sm-block__kv` grid plus the `.sm-block__inline` /
-   `.sm-block__meta` icon-row vocabulary declared in inspector-view.css
+   `.sm-block__meta` icon-row vocabulary declared globally in styles.css
    (the Metadata section reuses the same classes). */
 
 .ann-panel__rows dd {

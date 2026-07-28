@@ -10,8 +10,8 @@
   gap: 0.85rem;
 }
 
-/* Sections inherit `.sm-block*` styles from the parent inspector-view
-   via `::ng-deep`. The rules here only style content unique to the
+/* Sections inherit `.sm-block*` styles from the global vocabulary in
+   styles.css. The rules here only style content unique to the
    vendor renderer (inline lists, danger marker, link affordance, quote
    block). */
 
