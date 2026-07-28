@@ -2,6 +2,128 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.97.0",
+      "date": "2026-07-28",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The map's node-cap banner no longer lingers after you narrow to a folder that fits, and its copy now says \"this selection\" instead of \"this folder\".",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Terminal output is safer to read.** Text that `sm` quotes back from your project database or from an agent's report can no longer smuggle escape codes into your terminal, and `sm plugins upgrade` now prints the same check marks and error blocks as the rest of the CLI.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Consent dialog now lists the folders it would expose.** Adding a reference path outside your project shows the exact folders in the confirmation dialog instead of an empty list, and hint text renders properly muted again in the light, dark, and matrix themes.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Fixed a visual glitch where opening the inspector made the whole map shift left and slide back in under a second.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Images in rendered markdown now load on click.** Instead of disappearing, an image in a document body shows a placeholder naming it and the site it comes from; click it to load. Nothing is fetched until you do, so opening a file still tells its author nothing about you.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Images in rendered markdown are no longer loaded.** Opening a file from a repo you cloned can no longer tell its author your IP address or when you read it. The trade-off: an image embedded in a document body now disappears instead of rendering.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Markdown that uses HTML blocks now renders.** Collapsible sections, centered blocks, and chart or badge embeds show as intended instead of as raw tags, and images inside them get the same click-to-load placeholder as the rest: nothing is fetched until you click.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "AI action buttons no longer lock up when your agent processes the queue without an MCP connection, and the Quick Start MCP row now simply shows whether the MCP server is on, reporting any attached agent after a Check.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Untrusted plugins stay unexecuted everywhere.** Every `sm plugins` command, `list` included, refuses to run a project-local plugin's code until you have trusted it. You still see its id, description and path; `sm plugins trust <id>` unlocks the rest.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Verify where your copy came from.** Every published release now carries a signed record of the repository, commit and CI run that built it. Run `npm audit signatures` after installing, or read the Provenance panel on the npm package page.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Security fix. Plugins and privileged local settings now only take effect where you approved them, so a repo you clone cannot pre-approve its own. After upgrading, re-run `sm plugins trust <id>` for plugins you use, and re-apply any local setting that stops taking effect.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Fixed: while watching a project, a symlinked folder pointing outside it could pull that outside content into your map. It is now refused unless you opt in, matching what a full scan already did.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Hardening. A malformed or hostile file can no longer crash a scan or a running server, the project database and its backups are now readable only by you, and skill-map tells you when a project-local plugin's code runs.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "When your folder selection has more nodes than the map can draw, the folders you selected first now stay on the map and the newest selection fills whatever room is left, instead of everything competing alphabetically.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Click anywhere on a setting to switch it.** Every on/off option in Settings now flips from anywhere on its row, not just the small switch on the right. The Settings sidebar also gains icons and now matches the Quick Start one.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The agent processing skill now discovers the skill-map server's real port from the project (instead of assuming the default), so agents running against a custom port register and probe the right MCP address. Installed skills show an update in Settings; apply it to pick this up.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**The interface works from the keyboard.** Tab and the arrow keys now reach every settings switch, both tab strips and the queue rows, screen readers announce what each control is, switch labels are clickable, and text and map colours meet contrast minimums.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Cleaner exits.** Answering \"no\" to a destructive prompt (like `sm db reset`) now cancels cleanly with an info line instead of an error, and an unexpected crash prints one concise error message instead of a stack dump.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.96.0",
       "date": "2026-07-27",
       "kind": "user-facing",

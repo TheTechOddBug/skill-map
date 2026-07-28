@@ -1,5 +1,119 @@
 # skill-map
 
+## 0.97.0
+
+### Minor Changes
+
+- The `sm plugins` management family (`list` / `show` / `enable` / `disable` / `trust` / `untrust` / `doctor` / `config`) now honours the import-trust gate instead of importing project-local plugin code unconditionally, which made `sm plugins list` the shortest clone-and-scan path to a hostile repo's code and `sm plugins trust` run the code it was asking consent for. Manifest fields survive the gate, `--plugin-dir` stays exempt, and the spec drops its stale `config_plugins` trust references.
+
+  ## User-facing
+
+  **Untrusted plugins stay unexecuted everywhere.** Every `sm plugins` command, `list` included, refuses to run a project-local plugin's code until you have trusted it. You still see its id, description and path; `sm plugins trust <id>` unlocks the rest.
+
+- Closes a critical clone-and-scan vulnerability. Plugin import trust and the privileged project-local config keys lived inside `.skill-map/`, defended only by a `.gitignore` the repo author writes, so a hostile repo could ship a pre-granted plugin (arbitrary code on first scan) or a pre-enabled `scan.followExternalSymlinks`. Both now live in a scope lock anchored to that directory's filesystem identity, which git cannot transport, so a grant made elsewhere never verifies.
+
+  ## User-facing
+
+  Security fix. Plugins and privileged local settings now only take effect where you approved them, so a repo you clone cannot pre-approve its own. After upgrading, re-run `sm plugins trust <id>` for plugins you use, and re-apply any local setting that stops taking effect.
+
+- The map's render cap now fills by selection seniority: with the root excluded and two or more includes, `/api/branch` orders nodes by the first include (in `path=` request order) that admits them, then path, so folders selected first keep their nodes when a later selection overflows the cap; every other scope shape keeps plain path order. The include order travels the whole pipeline and the spec gains the normative Seniority fill rule under §Map scope overrides.
+
+  ## User-facing
+
+  When your folder selection has more nodes than the map can draw, the folders you selected first now stay on the map and the newest selection fills whatever room is left, instead of everything competing alphabetically.
+
+- Errors escaping a verb now render a concise error block on stderr and exit 2 instead of Clipanion's generic exit 1 (which collided with the public `1 = issues found` contract); declining a destructive confirmation (`sm db reset` / `db restore` / `orphans undo-rename`) is now a voluntary no-op (exit 0, info line) per the new spec §Destructive confirmation; and the operations log now covers `refresh`, `db.*`, `orphans.*`, and `config.*` (key only, never the value).
+
+  ## User-facing
+
+  **Cleaner exits.** Answering "no" to a destructive prompt (like `sm db reset`) now cancels cleanly with an info line instead of an error, and an unexpected crash prints one concise error message instead of a stack dump.
+
+### Patch Changes
+
+- The map's render-cap banner now shows only while the CURRENT selection overflows the cap (`branch.truncated`); the corpus-wide fallback that kept the message up after narrowing to a fitting folder is gone, and the copy opens with "This selection has N nodes" instead of "This folder" since the rail scope can span several folders.
+
+  ## User-facing
+
+  The map's node-cap banner no longer lingers after you narrow to a folder that fits, and its copy now says "this selection" instead of "this folder".
+
+- CLI human output now sanitizes the stored and model-authored strings it interpolates: the jobs family renders through a shared terminal-safe row view, and `sm record`, `sm sidecar`, `sm bump` and `sm db migrate` sanitize the tags, paths, reasons and ledger labels they echo. `sm jobs preview` sanitizes its rendered content while `sm graph` formatter output stays byte-exact, a split the spec now states on the `sm jobs preview` row. `sm plugins upgrade` adopts the standard glyph blocks.
+
+  ## User-facing
+
+  **Terminal output is safer to read.** Text that `sm` quotes back from your project database or from an agent's report can no longer smuggle escape codes into your terminal, and `sm plugins upgrade` now prints the same check marks and error blocks as the rest of the CLI.
+
+- The project-preferences 412 consent envelope now carries the exposed folders as structured `error.details.paths` (new `ConfirmRequiredError` in the BFF), so the UI consent dialog for reference paths actually enumerates them instead of rendering an empty list. Also repairs the `--sm-text-muted` theme token (consumed in 36 places but undefined in light/dark/matrix, so muted text rendered at full strength), mirrors title-only settings badges for screen readers, and bumps Foblex Flow to 19.1.6.
+
+  ## User-facing
+
+  **Consent dialog now lists the folders it would expose.** Adding a reference path outside your project shows the exact folders in the confirmation dialog instead of an empty list, and hint text renders properly muted again in the light, dark, and matrix themes.
+
+- Selecting a node no longer makes the whole graph lurch left and glide back while the inspector opens. The a11y focus move onto the opening panel scrolled the overflow-hidden canvas wrap to reveal the still-sliding-in panel; the focus now passes `preventScroll` so the camera stays put.
+
+  ## User-facing
+
+  Fixed a visual glitch where opening the inspector made the whole map shift left and slide back in under a second.
+
+- Images in rendered markdown come back as click-to-load placeholders, replacing the outright drop from the previous entry. The markdown-it `image` rule now emits an inert chip naming the image and the host the request would go to (interactive in block renders, static inline), and the new `[smMarkdownImages]` directive swaps in an `<img referrerpolicy="no-referrer">` only on a real click; `img` stays in the sanitizer's forbidden tags as the backstop.
+
+  ## User-facing
+
+  **Images in rendered markdown now load on click.** Instead of disappearing, an image in a document body shows a placeholder naming it and the site it comes from; click it to load. Nothing is fetched until you do, so opening a file still tells its author nothing about you.
+
+- The rendered-markdown sanitizer now forbids `img` outright. Markdown bodies are author-controlled (a cloned repo's files, sidecar annotations, agent-written prompts), so `![x](https://attacker/pixel.png)` fired an outbound request the moment the operator opened the node, leaking their IP and view timing to the content author, the same beacon channel `css-guard.ts` already refuses for `url(...)`. Deliberate trade: an image in a body disappears instead of degrading to alt text.
+
+  ## User-facing
+
+  **Images in rendered markdown are no longer loaded.** Opening a file from a repo you cloned can no longer tell its author your IP address or when you read it. The trade-off: an image embedded in a document body now disappears instead of rendering.
+
+- Rendered markdown now passes raw HTML through a hardened sanitizer instead of escaping it at the parser, so `<details>`, `<div align>` and `<picture>` embeds render instead of showing as literal tags. Image rewriting moved from the markdown-it rule to a DOMPurify hook, so a raw `<img>` becomes the same click-to-load chip; the config drops the SVG and MathML profiles, forbids `video`, `audio`, `source` and `input`, strips anchor `target`, and voids forged chips.
+
+  ## User-facing
+
+  **Markdown that uses HTML blocks now renders.** Collapsible sections, centered blocks, and chart or badge embeds show as intended instead of as raw tags, and images inside them get the same click-to-load placeholder as the rest: nothing is fetched until you click.
+
+- The Quick Start "MCP installed on your agent" row now verdicts on the MCP server being ON (the attached-client count becomes a detail line refreshed by Check), and the AI-action submit gate dropped its MCP-session half: an agent draining the queue over the CLI holds no MCP session, so a healthy setup sat disabled as "mcp-disconnected" even after a green agent check. The gate now rides the skill install state plus drainage evidence (an observed claim or the manual check's verdict).
+
+  ## User-facing
+
+  AI action buttons no longer lock up when your agent processes the queue without an MCP connection, and the Quick Start MCP row now simply shows whether the MCP server is on, reporting any attached agent after a Check.
+
+- Both packages now publish with npm provenance: every tarball carries a signed attestation binding it to this repo, the `release` workflow and the commit that built it, recorded in the public Rekor transparency log. Enabled twice on purpose, `publishConfig.provenance` per package plus `NPM_CONFIG_PROVENANCE` in the publish step, because a `changeset publish` that dropped the field would fail silently. No code or API changed.
+
+  ## User-facing
+
+  **Verify where your copy came from.** Every published release now carries a signed record of the repository, commit and CI run that built it. Run `npm audit signatures` after installing, or read the Provenance panel on the npm package page.
+
+- Applies the symlink containment gate to the scoped read, not just the directory traversal. The watcher's incremental pass checked containment lexically, so a file reached through a symlinked directory escaping the scan roots was read into the graph on the next save, despite `scan.followExternalSymlinks` being off. Both walks now resolve the real target first and agree: contained links are followed, escaping ones refused. Per-directory verdicts are memoised so the gate stays off the hot path.
+
+  ## User-facing
+
+  Fixed: while watching a project, a symlinked folder pointing outside it could pull that outside content into your map. It is now refused unless you opt in, matching what a full scan already did.
+
+- Security hardening pass from the cli-hacker audit. Untrusted YAML now parses behind a single bounded entry point (a ~500-byte frontmatter of nested anchors could exhaust the heap and take `sm serve` down). Bumps `js-yaml` and overrides `fast-uri` / `qs` / `body-parser`, clearing every production-reachable advisory. Also tightens the project DB and its backups to `0600`, sanitises `sm watch` output, redacts non-home project roots from telemetry, and announces plugins whose code was imported.
+
+  ## User-facing
+
+  Hardening. A malformed or hostile file can no longer crash a scan or a running server, the project database and its backups are now readable only by you, and skill-map tells you when a project-local plugin's code runs.
+
+- Every boolean row in Settings now flips its switch from anywhere on the row, not just the switch itself: a new `[smToggleRow]` directive forwards the click to the row's `<p-toggleswitch>`, covering the ten toggles across Preferences, Realtime, Live, Capture and General while select, text and button rows stay untouched. The Settings section rail also gains per-section icons and matches the Quick Start rail's label scale, padding and active accent bar.
+
+  ## User-facing
+
+  **Click anywhere on a setting to switch it.** Every on/off option in Settings now flips from anywhere on its row, not just the small switch on the right. The Settings sidebar also gains icons and now matches the Quick Start one.
+
+- The sm-process-jobs skill now resolves the MCP endpoint from the live `.skill-map/serve.json` (the running server's real host + port) instead of hardcoding the default port: the MCP-absent checklist probes that endpoint and every per-runtime register snippet carries the composed `<mcp-url>`, with `http://127.0.0.1:4242/mcp` surviving only when the file is absent. `spec/cli-contract.md` §Agent process skill names serve.json as the endpoint authority.
+
+  ## User-facing
+
+  The agent processing skill now discovers the skill-map server's real port from the project (instead of assuming the default), so agents running against a custom port register and probe the right MCP address. Installed skills show an update in Settings; apply it to pick this up.
+
+- Closes an AA accessibility audit of the SPA. The Settings switches gain accessible names paired to their visible labels, both tab strips get the arrow-key handlers their roving tabindex assumed (now a shared `roving-tablist` helper), queue rows become keyboard-operable, graph node hosts drop the `role="button"` that hid their own controls, the closed inspector panel goes `inert`, three colour tokens clear contrast minimums, and the desktop-only breakpoint is gated on `(pointer: coarse)`.
+
+  ## User-facing
+
+  **The interface works from the keyboard.** Tab and the arrow keys now reach every settings switch, both tab strips and the queue rows, screen readers announce what each control is, switch labels are clickable, and text and map colours meet contrast minimums.
+
 ## 0.96.0
 
 ### Minor Changes
