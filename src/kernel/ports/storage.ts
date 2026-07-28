@@ -141,7 +141,8 @@ export interface ITransactionalStorage {
      */
     insertExecution(record: ExecutionRecord): Promise<void>;
   };
-  // jobs / trust namespaces land in Phases C-D.
+  // The jobs namespace lands in Phase C. Trust is NOT a storage concern
+  // any more: it moved to the scope lock, outside the database.
 }
 
 export interface StoragePort {
@@ -400,8 +401,6 @@ export interface StoragePort {
      */
     listStaleStateCandidates(nowMs: number): Promise<IStateEnrichmentRecord[]>;
   };
-
-  // --- trust namespace --------------------------------------------------
 
   // --- jobs namespace ----------------------------------------------------
   jobs: {
