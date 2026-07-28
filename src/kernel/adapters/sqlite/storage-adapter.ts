@@ -14,8 +14,8 @@
  * transaction; `upsertState` commits atomically with its
  * `state_executions` sibling), so writers are forced to share a
  * transaction. The top-level `enrichments` namespace is the read-only
- * `state_enrichments` projection. Adapters
- * fail to compile when their share is incomplete on their end.
+ * `state_enrichments` projection. Adapters fail to compile when their
+ * share is incomplete on their end.
  *
  * **camelCase ↔ snake_case bridging.** This adapter installs Kysely's
  * `CamelCasePlugin`, so the typed schema (`schema.ts`) speaks
