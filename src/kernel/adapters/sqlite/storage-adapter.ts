@@ -7,13 +7,14 @@
  *
  * **Storage-port-promotion (Phase A).** The adapter exposes the
  * non-transactional namespaces (`scans`, `issues`, `history`, `jobs`,
- * `migrations`, `pluginMigrations`) as direct properties. The `enrichments` MUTATION surfaces are
- * transactional-only by design, they live exclusively on the
- * `ITransactionalStorage` subset returned by `port.transaction(...)`
- * (`upsertMany` shares the refresh persist transaction; `upsertState`
- * commits atomically with its `state_executions` sibling), so writers
- * are forced to share a transaction. The top-level `enrichments`
- * namespace is the read-only `state_enrichments` projection. Adapters
+ * `migrations`, `pluginMigrations`) as direct properties. The
+ * `enrichments` MUTATION surfaces are transactional-only by design, they
+ * live exclusively on the `ITransactionalStorage` subset returned by
+ * `port.transaction(...)` (`upsertMany` shares the refresh persist
+ * transaction; `upsertState` commits atomically with its
+ * `state_executions` sibling), so writers are forced to share a
+ * transaction. The top-level `enrichments` namespace is the read-only
+ * `state_enrichments` projection. Adapters
  * fail to compile when their share is incomplete on their end.
  *
  * **camelCase ↔ snake_case bridging.** This adapter installs Kysely's
