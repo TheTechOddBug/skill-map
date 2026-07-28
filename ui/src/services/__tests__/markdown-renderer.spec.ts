@@ -161,4 +161,35 @@ describe('MarkdownRenderer', () => {
       expect(html).toContain('href="mailto:a@b.c"');
     });
   });
+
+  // Audit `app-hacker` L-1, remote-image beacon. A markdown body is
+  // author-controlled, so a rendered `<img>` is an outbound request the
+  // operator never asked for (IP + view timing to the content author),
+  // the same channel `css-guard` refuses for `url(...)`. The tag is
+  // dropped outright rather than scheme-filtered.
+  describe('audit L-1, no image beacons from author-controlled markdown', () => {
+    it('drops a remote image from a rendered body', async () => {
+      const r = makeRenderer();
+      const html = await r.renderToHtml('![pixel](https://attacker.example/p.png)');
+      expect(html.toLowerCase()).not.toContain('<img');
+      expect(html).not.toContain('attacker.example');
+    });
+
+    it('drops a remote image from an inline render too', async () => {
+      const r = makeRenderer();
+      const html = await r.renderToHtml('text ![pixel](https://attacker.example/p.png) more');
+      expect(html.toLowerCase()).not.toContain('<img');
+      expect(html).not.toContain('attacker.example');
+      // The surrounding prose still renders; only the beacon is removed.
+      expect(html).toContain('text');
+      expect(html).toContain('more');
+    });
+
+    it('drops a reference-style image', async () => {
+      const r = makeRenderer();
+      const html = await r.renderToHtml('![x][ref]\n\n[ref]: https://attacker.example/p.png');
+      expect(html.toLowerCase()).not.toContain('<img');
+      expect(html).not.toContain('attacker.example');
+    });
+  });
 });

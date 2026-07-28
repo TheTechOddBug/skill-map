@@ -149,6 +149,16 @@ The repo has no eslint config in `ui/` today, so the rule is enforced by a stati
 
 Use `httpUrlOrNull` from `ui/src/services/url-guard.ts` whenever the URL bound into `[href]` comes from author-controlled content (markdown bodies, sidecar annotations, plugin payloads). Angular's `DomSanitizer` only blocks `javascript:`; the helper narrows the policy to `http:` / `https:` and rejects `data:` / `blob:` / `file:` / `vbscript:` / custom schemes that a stale extractor could otherwise smuggle into the DOM.
 
+## No outbound requests from author-controlled content
+
+Standing policy across every sink that renders scanned content (markdown bodies, frontmatter values, sidecar annotations, agent-written prompts, plugin payloads): **rendering someone else's repo must never make the browser phone home.** The realistic attacker in this product is the author of a cloned tree, and a request fired on render leaks the operator's IP and view timing back to them. Three enforcement points, all narrow allowlists rather than blocklists:
+
+- **CSS contexts**: `cssColorOrNull` in `ui/src/services/css-guard.ts` accepts only a hex literal or a bare named colour, so `url(https://attacker/beacon)` and declaration breakouts never reach the CSSOM through `[style.*]` or a custom property.
+- **URL contexts**: `httpUrlOrNull` (above) for anything bound into `[href]`.
+- **Markdown**: the DOMPurify config in `ui/src/services/markdown-renderer.ts` forbids `img` outright (plus `style`, `srcset`), because a remote image is the one markdown feature that issues a request purely by being rendered. The trade is deliberate: an image in a body disappears rather than showing alt text. Covered by the `audit L-1` block in `ui/src/services/__tests__/markdown-renderer.spec.ts`.
+
+When adding a new sink that renders scanned content, ask what it would fetch if the value were hostile; if the answer is anything, route it through a guard or drop the feature.
+
 ## Services layering (`ui/src/services/` vs `ui/src/app/services/`)
 
 The workspace ships TWO `services/` folders. The split is intentional, do not collapse them:

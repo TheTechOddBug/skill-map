@@ -13,7 +13,9 @@
  *   2. `DOMPurify` runs over the rendered HTML as the second line of
  *      defence (markdown features that wrap user input, e.g. autolinks,
  *      reference labels, can still smuggle attribute-level vectors
- *      through a permissive parser config).
+ *      through a permissive parser config). Its config also narrows the
+ *      URI-scheme allowlist and drops the two tags that reach outside
+ *      the document on render, `style` and `img` (see `setConfig`).
  *   3. The resulting HTML is wrapped via `bypassSecurityTrustHtml` so
  *      Angular's template binding renders it as DOM rather than text.
  *
@@ -179,7 +181,21 @@ async function importRenderer(): Promise<IRenderer> {
   }).default;
   purify.setConfig({
     ALLOWED_URI_REGEXP,
-    FORBID_TAGS: ['style'],
+    // `img` is forbidden, not merely scheme-restricted: markdown bodies
+    // are AUTHOR-controlled (a cloned repo's `.md` files, sidecar
+    // annotations, agent-written prompts), and an `<img src="https://…">`
+    // fires an outbound request the moment the operator opens the node,
+    // leaking their IP and view timing to the content author. That is the
+    // same beacon channel `services/css-guard.ts` already refuses for
+    // `url(...)` in author-controlled `[style.*]` values, so allowing it
+    // here would leave the two policies contradicting each other. Remote
+    // images are the only markdown feature that phones home on render,
+    // hence the tag-level ban rather than a tighter URI policy (`data:`
+    // is already rejected by ALLOWED_URI_REGEXP, and a local-file image
+    // has no meaning in a browser-served SPA). Cost: an image in a
+    // rendered body disappears instead of showing its alt text; accepted
+    // as the quieter failure over a silent tracking pixel.
+    FORBID_TAGS: ['style', 'img'],
     FORBID_ATTR: ['style', 'srcset'],
   });
   return { md, purify, hljs };
