@@ -1,5 +1,29 @@
 # skill-map
 
+## 0.96.0
+
+### Minor Changes
+
+- Deterministic issues can now be dismissed per (analyzer, value): the new `sm issues dismiss / undismiss / suppressions` verbs, server routes, an inspector per-issue button, and MCP tools write a standing `annotations.issueSuppressions` entry in the node's `.sm` that `core/reference-broken` honours at emission time. Broken `@`-mentions whose token is code-shaped (`@ApiSecurity`, `@nestjs/swagger`) now emit `warn` instead of `error`, so they no longer fail `sm scan` / `sm check`.
+
+  ## User-facing
+
+  Broken-reference false positives can now be dismissed: `sm issues dismiss` (or the dismiss button on an issue row) silences an exact flagged value. Code-looking tokens like `@ApiSecurity` or `@nestjs/swagger` now warn instead of error, so scans stop failing on them.
+
+### Patch Changes
+
+- Each Quick Start group now closes with a tutorial pointer: a visible note naming the part of the sm-tutorial book that covers that group (the live-map prologue, the real-time part, the AI-layer part) and how to launch it, with the invocation joined against the active lens's sigil, mirroring the agent-jobs row.
+
+  ## User-facing
+
+  Each Quick Start section now ends with a note pointing at the matching part of the guided tutorial and how to run it in your agent from an empty folder.
+
+- The Check Agent probe no longer enables the AI affordances mid-check: a check that starts with the submit gate closed latches it closed (skill / MCP probe refreshes and the claim heal apply only once the check settles), so only the green verdict reopens them, and a green claim now re-reads MCP status immediately instead of waiting out the poll. Abandoning a check mid-watch settles it with a neutral `abandoned` verdict instead of wedging the shared single-flight slot and the latch.
+
+  ## User-facing
+
+  Pressing Check Agent no longer lights up the AI buttons while the check is still running: they stay disabled until the check actually comes back green.
+
 ## 0.95.0
 
 ### Minor Changes
