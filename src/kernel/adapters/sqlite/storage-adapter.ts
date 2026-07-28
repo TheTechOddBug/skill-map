@@ -7,8 +7,7 @@
  *
  * **Storage-port-promotion (Phase A).** The adapter exposes the
  * non-transactional namespaces (`scans`, `issues`, `history`, `jobs`,
- * `trust`, `migrations`, `pluginMigrations`) as direct
- * properties. The `enrichments` MUTATION surfaces are
+ * `migrations`, `pluginMigrations`) as direct properties. The `enrichments` MUTATION surfaces are
  * transactional-only by design, they live exclusively on the
  * `ITransactionalStorage` subset returned by `port.transaction(...)`
  * (`upsertMany` shares the refresh persist transaction; `upsertState`

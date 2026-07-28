@@ -14,8 +14,10 @@
  *
  * Phase A lands the **scans / issues / enrichments / transaction**
  * namespaces, the core scan pipeline. The remaining namespaces
- * (history / jobs / trust / migrations / pluginMigrations)
- * arrive in subsequent phases. The port shape declared here is the
+ * (history / jobs / migrations / pluginMigrations)
+ * arrive in subsequent phases. Plugin import trust was once on this
+ * list; it is not a storage concern any more, having moved to the scope
+ * lock outside the database. The port shape declared here is the
  * Phase A subset; later phases extend it without reshaping what
  * lands today.
  */
