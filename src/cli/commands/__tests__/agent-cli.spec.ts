@@ -494,12 +494,28 @@ describe('the canonical sm-process-jobs skill, fixer-edit guidance', () => {
     const serveAt = PROCESS_JOBS_SKILL_CONTENT.indexOf('Is `sm` up on the port');
     const toggleAt = PROCESS_JOBS_SKILL_CONTENT.indexOf('enable the MCP server in Settings');
     const registerAt = PROCESS_JOBS_SKILL_CONTENT.indexOf(
-      'claude mcp add --transport http --scope local skill-map http://127.0.0.1:4242/mcp',
+      'claude mcp add --transport http --scope local skill-map <mcp-url>',
     );
     ok(serveAt !== -1, 'step 1 (serve up on the port) is present');
     ok(toggleAt !== -1, 'step 2 (enable the MCP toggle in Settings) is present');
     ok(registerAt !== -1, 'step 3 (project-local client registration) is present');
     ok(serveAt < toggleAt && toggleAt < registerAt, 'checked in order: serve up -> MCP toggle -> register');
+    // The endpoint authority is the live serve.json, never a hardcoded
+    // port (user report 2026-07-28: `sm --port 5252` sent agents to the
+    // 4242 default); the literal default survives only as the
+    // file-absent fallback.
+    const authorityAt = PROCESS_JOBS_SKILL_CONTENT.indexOf(
+      '`.skill-map/serve.json` is the authority',
+    );
+    ok(authorityAt !== -1 && authorityAt < serveAt, 'the endpoint is resolved from serve.json BEFORE the checklist');
+    ok(
+      PROCESS_JOBS_SKILL_CONTENT.includes('only when that file is absent assume the\n  default `http://127.0.0.1:4242/mcp`'),
+      'the default port is only the serve.json-absent fallback',
+    );
+    ok(
+      !PROCESS_JOBS_SKILL_CONTENT.includes('skill-map http://127.0.0.1:4242/mcp'),
+      'no per-runtime register snippet hardcodes the default port',
+    );
     ok(
       PROCESS_JOBS_SKILL_CONTENT.includes('the MCP server is a separate toggle'),
       'warns that an open serve port does not by itself mount /mcp',

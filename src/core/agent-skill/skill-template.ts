@@ -70,14 +70,21 @@ absent, the setup tip below), never a mode or probe announcement.
   do NOT announce the mode or the probe result to the user (a first line
   is only for the MCP-absent case below).
 - **MCP absent (CLI-only, the FALLBACK):** the tools not showing up means
-  one of three things is missing. Verify each against the \`/mcp\` endpoint
+  one of three things is missing. First resolve the LIVE endpoint:
+  \`.skill-map/serve.json\` is the authority (the running server writes its
+  real \`host\` + \`port\` there at boot), so compose
+  \`http://<host>:<port>/mcp\` from it, substituting \`127.0.0.1\` when
+  \`host\` is \`0.0.0.0\` or \`::\`; only when that file is absent assume the
+  default \`http://127.0.0.1:4242/mcp\`. Below, \`<mcp-url>\` means that
+  composed endpoint. Verify each step against the \`/mcp\` endpoint
   itself (a POST there), never a plain hit to the port root
   (a 200 from \`/\` is only the UI and says nothing about \`/mcp\`). Check
   them IN ORDER (each a prerequisite for the next), and
   make your FIRST line to the user a one-line tip (ONCE, never repeat it
   in later reports) for the first step that fails:
-    1. **Is \`sm\` up on the port?** If nothing answers on the port (default
-       4242, also in \`.skill-map/serve.json\`), the server is down.
+    1. **Is \`sm\` up on the port?** If nothing answers at \`<mcp-url>\`'s
+       port, the server is down (a present \`serve.json\` can be stale, it
+       outlives a crashed server).
        Do NOT start it yourself; bare \`sm\` (no subcommand) is the server,
        so tip the user with exactly: "Tip: run \`sm\` to start the skill-map
        server." Never write \`sm serve\` in the tip.
@@ -90,23 +97,25 @@ absent, the setup tip below), never a mode or probe announcement.
     3. **Has your runtime registered it?** ONLY once \`/mcp\` truly answers
        the MCP handshake. When steps 1 and 2 pass but the tools still are
        not in your session, this is the gap: register skill-map's
-       Streamable HTTP endpoint \`http://127.0.0.1:4242/mcp\` (swap \`4242\`
-       for the port \`sm\` is listening on) in YOUR runtime's MCP config,
-       then confirm with your runtime's own list command.
+       Streamable HTTP endpoint \`<mcp-url>\` in YOUR runtime's MCP config,
+       then confirm with your runtime's own list command. A registration
+       pointing at a STALE port (the server moved, e.g. a \`--port\` flag or
+       \`server.port\` change) is this step too: re-register with the
+       current \`<mcp-url>\`.
        Do not reconfigure the client (re-add / restart) while step 2 is unmet.
-       By runtime:
+       By runtime (\`<mcp-url>\` = the endpoint composed above):
          - **Claude Code** (project-local scope, private to this project):
-           \`claude mcp add --transport http --scope local skill-map http://127.0.0.1:4242/mcp\`,
+           \`claude mcp add --transport http --scope local skill-map <mcp-url>\`,
            then confirm \`claude mcp list\` (or \`claude mcp get skill-map\`).
          - **Codex** (HTTP transport is \`--url\`, NOT a \`-- command\`):
-           \`codex mcp add skill-map --url http://127.0.0.1:4242/mcp\`,
+           \`codex mcp add skill-map --url <mcp-url>\`,
            then confirm \`codex mcp list\` (or \`codex mcp get skill-map\`).
          - **OpenCode** (use the GLOBAL config, the project \`opencode.json\`
            is the team's committed file): in \`~/.config/opencode/opencode.json\`
-           add \`"mcp": { "skill-map": { "type": "remote", "url": "http://127.0.0.1:4242/mcp", "enabled": true } }\`.
+           add \`"mcp": { "skill-map": { "type": "remote", "url": "<mcp-url>", "enabled": true } }\`.
          - **Antigravity** (MCP config is home-global, not project-local):
            in \`~/.gemini/config/mcp_config.json\` add
-           \`"mcpServers": { "skill-map": { "serverUrl": "http://127.0.0.1:4242/mcp" } }\`.
+           \`"mcpServers": { "skill-map": { "serverUrl": "<mcp-url>" } }\`.
   Until MCP is wired, manage with the \`sm\` verbs, read \`cli.md\` in this
   folder. The CLI-only path works fully without MCP.
 

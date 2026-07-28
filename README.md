@@ -200,9 +200,15 @@ The graph view that gives skill-map its identity is built on [**Foblex Flow**](h
 
 Also standing on the shoulders of [Angular](https://angular.dev), [PrimeNG](https://primeng.org), [Hono](https://hono.dev), and [Kysely](https://kysely.dev).
 
-## Star history
+## Star History
 
-[![Star History Chart](https://api.star-history.com/chart?repos=crystian/skill-map&type=timeline&legend=top-left)](https://www.star-history.com/?repos=crystian%2Fskill-map&type=timeline&legend=top-left)
+<a href="https://www.star-history.com/?repos=crystian%2Fskill-map&type=timeline&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=crystian/skill-map&type=timeline&theme=dark&legend=top-left&sealed_token=URw66mVD0x1kwk3Drouhvlf6VKJMG13cLb6-p4ACsmWYmIGd9o3gea8YeIz0fSaZY6jY-6CcZCKREwYDcAFx3zNcz9TotPouDLecJtX8LNNmgx-rwrm43A" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=crystian/skill-map&type=timeline&legend=top-left&sealed_token=URw66mVD0x1kwk3Drouhvlf6VKJMG13cLb6-p4ACsmWYmIGd9o3gea8YeIz0fSaZY6jY-6CcZCKREwYDcAFx3zNcz9TotPouDLecJtX8LNNmgx-rwrm43A" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=crystian/skill-map&type=timeline&legend=top-left&sealed_token=URw66mVD0x1kwk3Drouhvlf6VKJMG13cLb6-p4ACsmWYmIGd9o3gea8YeIz0fSaZY6jY-6CcZCKREwYDcAFx3zNcz9TotPouDLecJtX8LNNmgx-rwrm43A" />
+ </picture>
+</a>
 
 ---
 
