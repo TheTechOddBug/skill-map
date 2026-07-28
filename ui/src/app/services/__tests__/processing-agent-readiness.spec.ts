@@ -19,10 +19,11 @@ import type { IWsScanCompletedEvent } from '../../../models/ws-event';
  * the AI Actions launchers / fix buttons). Covers: boot probe, the
  * unsupported lens, fail-open on error and while no lens is resolved,
  * the `scan.completed` re-probe, the lens-change re-probe, and
- * concurrent-refresh coalescing; then the MCP half of the same gate
- * (reason precedence, fail-open, and the unattached-MCP poll that
- * reopens the gate when the operator finally starts their agent), and
- * the check hold that latches a closed gate while a manual check runs.
+ * concurrent-refresh coalescing; then the agent-silent half (a failed
+ * manual check closes the gate, a green check / observed claim heals
+ * it), and the check hold that latches a closed gate while a manual
+ * check runs. The MCP session count plays NO part in the gate (user
+ * decision 2026-07-28): a CLI-draining agent holds no session.
  */
 
 interface IHarness {
@@ -40,16 +41,6 @@ function status(supported: boolean, installed: boolean, provider = 'claude'): Re
     skillDir: supported ? '.claude/skills/sm-process-jobs' : null,
     installed,
     stale: false,
-  };
-}
-
-/** `GET /api/mcp/status` payload: is `/mcp` exposed, is anyone attached. */
-function mcp(enabled: boolean, connected: boolean): Record<string, unknown> {
-  return {
-    enabled,
-    connected,
-    clients: connected ? 1 : 0,
-    url: 'http://127.0.0.1:4242/mcp',
   };
 }
 
@@ -165,98 +156,6 @@ describe('ProcessingAgentReadinessService', () => {
     expect(harness.service.skillMissing()).toBe(true); // gemini: missing
   });
 
-  /**
-   * The MCP half of the gate (user call 2026-07-25): an installed skill
-   * is not enough, something has to be ATTACHED to drain the queue, so
-   * a live `/mcp` with zero clients closes the gate on its own.
-   */
-  it('closes the gate when no agent is attached to the MCP, naming the reason', async () => {
-    const { service } = bootstrap({
-      getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, true)),
-      mcpStatus: vi.fn().mockResolvedValue(mcp(true, false)),
-    });
-    await settled();
-    expect(service.skillMissing()).toBe(false); // installed, that half is open
-    expect(service.mcpConnected()).toBe(false);
-    expect(service.submitGateReason()).toBe('mcp-disconnected');
-    expect(service.submitGateClosed()).toBe(true);
-  });
-
-  it('a missing skill wins over the MCP half (the deeper problem names itself)', async () => {
-    const { service } = bootstrap({
-      getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, false)),
-      mcpStatus: vi.fn().mockResolvedValue(mcp(true, false)),
-    });
-    await settled();
-    expect(service.submitGateReason()).toBe('skill-missing');
-  });
-
-  it('an attached agent opens the gate; an MCP probe error fails OPEN', async () => {
-    const attached = bootstrap({
-      getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, true)),
-      mcpStatus: vi.fn().mockResolvedValue(mcp(true, true)),
-    });
-    await settled();
-    expect(attached.service.submitGateClosed()).toBe(false);
-
-    const broken = bootstrap({
-      getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, true)),
-      mcpStatus: vi.fn().mockRejectedValue(new Error('down')),
-    });
-    await settled();
-    expect(broken.service.mcpConnected()).toBe(null);
-    expect(broken.service.submitGateClosed()).toBe(false);
-  });
-
-  it('polls while /mcp is live and unattached, then stops once an agent connects', async () => {
-    vi.useFakeTimers();
-    try {
-      const mcpStatus = vi.fn().mockResolvedValue(mcp(true, false));
-      const { service } = bootstrap({
-        getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, true)),
-        mcpStatus,
-      });
-      await settled();
-      TestBed.tick(); // flush the effect that arms the poll
-      expect(service.submitGateClosed()).toBe(true);
-      expect(mcpStatus).toHaveBeenCalledTimes(1); // boot probe only
-
-      // The operator starts the agent: the next tick must reopen the
-      // gate with no scan, no lens change and no navigation.
-      mcpStatus.mockResolvedValue(mcp(true, true));
-      await vi.advanceTimersByTimeAsync(10_000);
-      expect(mcpStatus).toHaveBeenCalledTimes(2);
-      expect(service.mcpConnected()).toBe(true);
-      expect(service.submitGateClosed()).toBe(false);
-
-      // ...and the timer is disarmed, no idle polling forever.
-      TestBed.tick();
-      await vi.advanceTimersByTimeAsync(30_000);
-      expect(mcpStatus).toHaveBeenCalledTimes(2);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('never polls a DISABLED /mcp (turning it on needs a server restart)', async () => {
-    vi.useFakeTimers();
-    try {
-      const mcpStatus = vi.fn().mockResolvedValue(mcp(false, false));
-      const { service } = bootstrap({
-        getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, true)),
-        mcpStatus,
-      });
-      await settled();
-      TestBed.tick();
-      // Still CLOSED: nothing is attached, whatever the reason.
-      expect(service.submitGateClosed()).toBe(true);
-      await vi.advanceTimersByTimeAsync(30_000);
-      expect(mcpStatus).toHaveBeenCalledTimes(1);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
   it('coalesces concurrent refreshes onto one in-flight probe', async () => {
     const getAgentSkillInstallStatus = vi.fn().mockResolvedValue(status(true, true));
     const { service } = bootstrap({ getAgentSkillInstallStatus });
@@ -277,7 +176,6 @@ describe('ProcessingAgentReadinessService, the agent-silent half', () => {
   it('a failed manual check closes the gate; a green one reopens it', async () => {
     const { service } = bootstrap({
       getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, true)),
-      mcpStatus: vi.fn().mockResolvedValue(mcp(true, true)),
     } as Partial<IDataSourcePort>);
     await settled();
     // No check ever ran: fails OPEN, nothing depends on pinging.
@@ -291,10 +189,9 @@ describe('ProcessingAgentReadinessService, the agent-silent half', () => {
     expect(service.submitGateClosed()).toBe(false);
   });
 
-  it('the deeper halves outrank agent-silent when both are closed', async () => {
+  it('the deeper skill half outranks agent-silent when both are closed', async () => {
     const { service } = bootstrap({
       getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, false)),
-      mcpStatus: vi.fn().mockResolvedValue(mcp(true, false)),
     } as Partial<IDataSourcePort>);
     await settled();
     service.noteAgentAlive(false);
@@ -304,7 +201,6 @@ describe('ProcessingAgentReadinessService, the agent-silent half', () => {
   it('any observed job.claimed heals a failed check live', async () => {
     const { service, jobEvents$ } = bootstrap({
       getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, true)),
-      mcpStatus: vi.fn().mockResolvedValue(mcp(true, true)),
     } as Partial<IDataSourcePort>);
     await settled();
     service.noteAgentAlive(false);
@@ -324,21 +220,21 @@ describe('ProcessingAgentReadinessService, the agent-silent half', () => {
  */
 describe('ProcessingAgentReadinessService, the check hold', () => {
   it('latches a closed gate closed while the check runs, then releases on settle', async () => {
-    const mcpStatus = vi.fn().mockResolvedValue(mcp(true, false));
+    const getAgentSkillInstallStatus = vi.fn().mockResolvedValue(status(true, false));
     const { service } = bootstrap({
-      getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, true)),
-      mcpStatus,
+      getAgentSkillInstallStatus,
     } as Partial<IDataSourcePort>);
     await settled();
-    expect(service.submitGateReason()).toBe('mcp-disconnected');
+    expect(service.submitGateReason()).toBe('skill-missing');
 
     service.noteCheckStarted();
-    // The agent attaches mid-check: the live reading flips open, but
-    // the gate must hold the starting reason until the verdict lands.
-    mcpStatus.mockResolvedValue(mcp(true, true));
-    await service.refreshMcp();
-    expect(service.mcpConnected()).toBe(true);
-    expect(service.submitGateReason()).toBe('mcp-disconnected');
+    // The skill lands mid-check (an install finished in a terminal): the
+    // live reading flips open, but the gate must hold the starting
+    // reason until the verdict lands.
+    getAgentSkillInstallStatus.mockResolvedValue(status(true, true));
+    await service.refresh();
+    expect(service.skillMissing()).toBe(false);
+    expect(service.submitGateReason()).toBe('skill-missing');
     expect(service.submitGateClosed()).toBe(true);
 
     service.noteCheckSettled();
@@ -348,7 +244,6 @@ describe('ProcessingAgentReadinessService, the check hold', () => {
   it('the claim heal also waits out the hold', async () => {
     const { service, jobEvents$ } = bootstrap({
       getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, true)),
-      mcpStatus: vi.fn().mockResolvedValue(mcp(true, true)),
     } as Partial<IDataSourcePort>);
     await settled();
     service.noteAgentAlive(false);
@@ -366,21 +261,20 @@ describe('ProcessingAgentReadinessService, the check hold', () => {
   });
 
   it('never freezes an OPEN gate open: a mid-check close still lands', async () => {
-    const mcpStatus = vi.fn().mockResolvedValue(mcp(true, true));
     const { service } = bootstrap({
       getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, true)),
-      mcpStatus,
     } as Partial<IDataSourcePort>);
     await settled();
     expect(service.submitGateClosed()).toBe(false);
 
     service.noteCheckStarted();
-    mcpStatus.mockResolvedValue(mcp(true, false));
-    await service.refreshMcp();
-    expect(service.submitGateReason()).toBe('mcp-disconnected');
+    // The red verdict lands before the settle (that is the real order in
+    // `AgentPingService.check()`): no hold was latched, so it closes.
+    service.noteAgentAlive(false);
+    expect(service.submitGateReason()).toBe('agent-silent');
 
     service.noteCheckSettled();
-    expect(service.submitGateReason()).toBe('mcp-disconnected');
+    expect(service.submitGateReason()).toBe('agent-silent');
   });
 });
 

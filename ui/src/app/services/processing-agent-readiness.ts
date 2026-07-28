@@ -2,8 +2,8 @@
  * `ProcessingAgentReadinessService`, app-level probe of the two facts
  * that decide whether an AI job can actually be drained: the processing
  * skill install state for the ACTIVE lens
- * (`GET /api/agent/install?provider=<lens>`) and live MCP client
- * connectivity (`GET /api/mcp/status`).
+ * (`GET /api/agent/install?provider=<lens>`) and drainage evidence from
+ * the full-circuit check (`AgentPingService`) / observed claims.
  *
  * Nothing that submits an AI job can succeed while no agent is set up to
  * drain the queue, so every affordance that would enqueue one (the
@@ -23,14 +23,14 @@
  *     because the skill is installed PER lens: switching lenses can open
  *     or close the gate on its own.
  *
- * The MCP half needs one more refresh point: an agent attaches whenever
- * the operator starts it, with no scan and no lens change to hang off.
- * While the probe reports a live `/mcp` with zero clients, a light
- * `MCP_POLL_MS` poll re-reads the (Map-size cheap) endpoint so the gate
- * REOPENS on its own the moment the agent connects; it stops on the
- * first connected read and skips ticks while the tab is hidden (a
- * visibility return probes immediately). A disabled `/mcp` is not
- * polled: turning it on takes a server restart, which reloads the SPA.
+ * The MCP session count deliberately plays NO part in the gate (user
+ * decision 2026-07-28, superseding the 2026-07-25 call that closed it on
+ * `connected: false`): an agent parked on the CLI `sm jobs claim --wait`
+ * drains the queue while holding no MCP session, so the count reported a
+ * healthy setup as blocked, the exact wrong-proxy trap
+ * `GET /api/agent/presence` was built to replace server-side. Drainage
+ * evidence, a claim observed on the stream or a green full-circuit
+ * check, is the only signal with authority here.
  *
  * `null` = unknown (probe pending, no lens resolved yet, or the read
  * failed) and consumers FAIL OPEN: a transport hiccup must never lock
@@ -48,30 +48,18 @@
  * rule in `context/ui.md`.
  */
 
-import {
-  DestroyRef,
-  Injectable,
-  computed,
-  effect,
-  inject,
-  signal,
-  untracked,
-} from '@angular/core';
+import { DestroyRef, Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 
 import { DATA_SOURCE } from '../../services/data-source/data-source.port';
 import { WsEventStreamService } from '../../services/ws-event-stream';
 import { ProjectInfoService } from './project-info';
-import type { IMcpStatusApi } from '../../models/api';
 
 /**
  * Which half of the readiness pair closes the submit gate. `null` = open.
- * Ordered by depth: with no skill installed the MCP session is moot, so
+ * Ordered by depth: with no skill installed no check can even submit, so
  * `skill-missing` wins when both are true.
  */
-export type TSubmitGateReason = 'skill-missing' | 'mcp-disconnected' | 'agent-silent';
-
-/** Re-probe cadence while `/mcp` is live with no client attached. */
-const MCP_POLL_MS = 10_000;
+export type TSubmitGateReason = 'skill-missing' | 'agent-silent';
 
 @Injectable({ providedIn: 'root' })
 export class ProcessingAgentReadinessService {
@@ -98,24 +86,12 @@ export class ProcessingAgentReadinessService {
    */
   readonly skillMissing = this._skillMissing.asReadonly();
 
-  /** Last `/api/mcp/status` payload, or `null` while unknown / on error. */
-  private readonly _mcpStatus = signal<IMcpStatusApi | null>(null);
-  /**
-   * `true` = at least one agent is attached to skill-map's MCP server
-   * (gate OPEN); `false` = nobody is attached, whether `/mcp` is live
-   * with zero clients or switched off entirely (gate CLOSED, user call
-   * 2026-07-25: no attached agent means nothing drains the queue);
-   * `null` = unknown, consumers fail open.
-   */
-  readonly mcpConnected = computed<boolean | null>(() => this._mcpStatus()?.connected ?? null);
-
   /**
    * Live reading of the gate, before the check hold below is applied:
    * which half closes it right now, `null` when none does.
    */
   private readonly liveGateReason = computed<TSubmitGateReason | null>(() => {
     if (this._skillMissing() === true) return 'skill-missing';
-    if (this.mcpConnected() === false) return 'mcp-disconnected';
     if (this._agentAlive() === false) return 'agent-silent';
     return null;
   });
@@ -123,9 +99,9 @@ export class ProcessingAgentReadinessService {
   /**
    * Reason latched while a manual full-circuit check runs against a
    * CLOSED gate (user spec 2026-07-27): the reads that land mid-check,
-   * the skill / MCP probes riding along with it and the claim heal,
-   * must not reopen the AI affordances before the verdict does, so the
-   * gate holds the reason it started with until the check settles.
+   * the skill probes riding along with it and the claim heal, must not
+   * reopen the AI affordances before the verdict does, so the gate
+   * holds the reason it started with until the check settles.
    * `null` = no hold: no check in flight, or it started with the gate
    * already open (an open gate is never frozen open, a red verdict
    * still closes it the moment it lands).
@@ -173,10 +149,6 @@ export class ProcessingAgentReadinessService {
 
   /** Single in-flight probe; a same-lens refresh awaits the same one. */
   private inFlight: Promise<void> | null = null;
-  /** Single in-flight MCP probe (lens-independent, so no keying). */
-  private mcpInFlight: Promise<void> | null = null;
-  /** Active poll handle while `/mcp` is live with no client attached. */
-  private mcpPollTimer: ReturnType<typeof setInterval> | null = null;
   /**
    * Lens the in-flight (or last started) probe was launched for.
    * `undefined` before the first probe. Keeps the coalescing honest: a
@@ -189,7 +161,6 @@ export class ProcessingAgentReadinessService {
     const destroyRef = inject(DestroyRef);
     const sub = events.scanCompleted$.subscribe(() => {
       void this.refresh();
-      void this.refreshMcp();
     });
     destroyRef.onDestroy(() => sub.unsubscribe());
     // Any observed claim proves an agent is attending again: a failed
@@ -201,31 +172,6 @@ export class ProcessingAgentReadinessService {
     destroyRef.onDestroy(() => claimSub.unsubscribe());
     // Boot probe: an inspector node can mount before the first scan tick.
     void this.refresh();
-    void this.refreshMcp();
-    // Coming back to the tab is the cheapest "the operator just did
-    // something elsewhere" tick there is (starting the agent IS that
-    // something), so it beats waiting out the poll interval.
-    const onVisibility = (): void => {
-      if (document.visibilityState === 'visible' && untracked(this.mcpConnected) === false) {
-        void this.refreshMcp();
-      }
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-    destroyRef.onDestroy(() => {
-      document.removeEventListener('visibilitychange', onVisibility);
-      this.stopMcpPoll();
-    });
-    // Poll only while `/mcp` is LIVE and unattached: that is the one
-    // state an agent can flip on its own, with no scan and no lens
-    // change to ride. Off / connected / unknown park the timer.
-    effect(() => {
-      const status = this._mcpStatus();
-      const waitingForAgent = status?.enabled === true && status.connected === false;
-      untracked(() => {
-        if (waitingForAgent) this.startMcpPoll();
-        else this.stopMcpPoll();
-      });
-    });
     // Lens changes, including the boot resolution of `/api/health` +
     // `/api/active-provider` (a `null` -> id transition). The first run
     // is a no-op: the constructor probe above already claimed that lens.
@@ -255,44 +201,6 @@ export class ProcessingAgentReadinessService {
     });
     this.inFlight = probe;
     return probe;
-  }
-
-  /**
-   * Re-probe MCP connectivity. Coalesces onto the single in-flight read
-   * (no lens keying: the MCP session is project-wide, not per lens).
-   */
-  refreshMcp(): Promise<void> {
-    if (this.mcpInFlight !== null) return this.mcpInFlight;
-    const probe = this.probeMcp().finally(() => {
-      if (this.mcpInFlight === probe) this.mcpInFlight = null;
-    });
-    this.mcpInFlight = probe;
-    return probe;
-  }
-
-  private async probeMcp(): Promise<void> {
-    try {
-      this._mcpStatus.set(await this.dataSource.mcpStatus());
-    } catch {
-      // Unknown, NOT locked: the gate fails open on a transport hiccup.
-      this._mcpStatus.set(null);
-    }
-  }
-
-  private startMcpPoll(): void {
-    if (this.mcpPollTimer !== null) return;
-    this.mcpPollTimer = setInterval(() => {
-      // A hidden tab cannot act on the answer; the visibility listener
-      // probes on the way back in.
-      if (document.visibilityState === 'hidden') return;
-      void this.refreshMcp();
-    }, MCP_POLL_MS);
-  }
-
-  private stopMcpPoll(): void {
-    if (this.mcpPollTimer === null) return;
-    clearInterval(this.mcpPollTimer);
-    this.mcpPollTimer = null;
   }
 
   private async probe(lens: string | null): Promise<void> {

@@ -23,6 +23,7 @@ import { LivePreferencesService } from '../../../../services/live-preferences';
 import { NodeActivityStatsService } from '../../../../services/node-activity-stats';
 import { ProviderRegistryService } from '../../../../services/provider-registry';
 import { ProjectInfoService } from '../../../services/project-info';
+import { ProcessingAgentReadinessService } from '../../../services/processing-agent-readiness';
 import type { INodeView, ISidecarOverlay } from '../../../../models/node';
 import { activityPairKeyOf } from '../../../../models/api';
 import type {
@@ -2303,15 +2304,6 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
      * or `unknown` (the probe fails, which must stay silent).
      */
     presence?: 'attending' | 'absent' | 'unknown';
-    /**
-     * The MCP half of the shared SUBMIT gate
-     * (`ProcessingAgentReadinessService.mcpConnected`): `connected` (the
-     * stub default, open) or `disconnected` (an agent-less `/mcp`, which
-     * closes the gate on its own even with the skill installed). It no
-     * longer drives any heads-up warning, only the disabled state of the
-     * submitting controls.
-     */
-    mcp?: 'connected' | 'disconnected';
 }
 
   async function bootAiActions(opts: IAiActionsBoot = {}): Promise<{
@@ -2357,9 +2349,6 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
       });
     } else if (opts.presence === 'unknown') {
       dataSource.agentPresence.mockRejectedValue(new Error('down'));
-    }
-    if (opts.mcp === 'disconnected') {
-      dataSource.mcpStatus.mockResolvedValue({ enabled: true, connected: false, clients: 0 });
     }
     const { fixture, jobEvents$ } = bootstrap({ loader, dataSource });
     fixture.componentRef.setInput('path', node.path);
@@ -3377,10 +3366,7 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
    * enqueue a job sits disabled (visible, tooltips untouched) while the
    * non-submitting ones keep working. `null` (probe failed) FAILS OPEN.
    */
-  function gateFixture(
-    agentSkill: IAiActionsBoot['agentSkill'],
-    mcp?: IAiActionsBoot['mcp'],
-  ): Promise<{
+  function gateFixture(agentSkill: IAiActionsBoot['agentSkill']): Promise<{
     fixture: ComponentFixture<InspectorView>;
     dataSource: IStubDataSource;
     node: INodeView;
@@ -3388,7 +3374,6 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
   }> {
     return bootAiActions({
       agentSkill,
-      mcp,
       issues: [makeIssue()],
       findings: makeFindingsEnvelope([makeFinding()]),
       probs: makeProbExtensions({
@@ -3436,12 +3421,16 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
   });
 
   /**
-   * The MCP half (user call 2026-07-25): the skill IS installed, but no
-   * agent is attached, so a submit would sit in the queue with nobody to
-   * drain it. Same closure as a missing skill.
+   * The agent-silent half: the skill IS installed, but a manual
+   * full-circuit check ran and no agent answered, so a submit would sit
+   * in the queue with nobody to drain it. Same closure as a missing
+   * skill. (The MCP session count plays no part here, user decision
+   * 2026-07-28: a CLI-draining agent holds no session.)
    */
-  it('gate CLOSED by a disconnected MCP: every submitting control is disabled', async () => {
-    const { fixture } = await gateFixture('installed', 'disconnected');
+  it('gate CLOSED by a silent agent (red check): every submitting control is disabled', async () => {
+    const { fixture } = await gateFixture('installed');
+    TestBed.inject(ProcessingAgentReadinessService).noteAgentAlive(false);
+    await flush(fixture);
     for (const testid of SUBMITTING_CONTROLS) {
       expect(gateButton(fixture, testid).disabled, testid).toBe(true);
     }
@@ -3462,8 +3451,10 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     const missing = await gateFixture('missing');
     expect(autoFixInput(missing.fixture).disabled).toBe(true);
 
-    const noMcp = await gateFixture('installed', 'disconnected');
-    expect(autoFixInput(noMcp.fixture).disabled).toBe(true);
+    const silent = await gateFixture('installed');
+    TestBed.inject(ProcessingAgentReadinessService).noteAgentAlive(false);
+    await flush(silent.fixture);
+    expect(autoFixInput(silent.fixture).disabled).toBe(true);
 
     const open = await gateFixture('installed');
     expect(autoFixInput(open.fixture).disabled).toBe(false);

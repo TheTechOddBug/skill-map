@@ -33,13 +33,6 @@ export const INSPECTOR_VIEW_TEXTS = {
        * leaves the how-to to the AI Actions warning.
        */
       tooltipNoAgent: 'Needs a jobs agent',
-      /**
-       * The other half of the same gate: the skill IS installed but no
-       * agent is attached to the MCP server, so a submit would sit in
-       * the queue with nobody to drain it. Same terse register as
-       * `tooltipNoAgent`; the AI Actions warning carries the how-to.
-       */
-      tooltipNoMcp: 'Needs an agent connected to the MCP',
       tooltipAgentSilent: 'No agent answered the last check',
       tooltipQueued: 'Analysis queued',
       tooltipRunning: 'Analyzing…',
@@ -138,7 +131,6 @@ export const INSPECTOR_VIEW_TEXTS = {
        * drain the queue.
        */
       tooltipNoAgent: 'Needs a jobs agent',
-      tooltipNoMcp: 'Needs an agent connected to the MCP',
       tooltipAgentSilent: 'No agent answered the last check',
     },
     /**

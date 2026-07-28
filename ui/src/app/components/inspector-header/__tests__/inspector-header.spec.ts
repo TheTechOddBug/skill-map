@@ -77,18 +77,14 @@ async function bootstrap(
    */
   skillMissing: boolean | null = false,
   /**
-   * The MCP half of the same gate. `true` (an agent is attached) keeps
-   * the pre-existing specs enabled; `false` closes the gate on its own
-   * even with the skill installed.
+   * The agent-silent half of the same gate: `true` = a manual check ran
+   * and nobody answered (gate CLOSED even with the skill installed);
+   * `false` / `null` = no red verdict, the gate stays open.
    */
-  mcpConnected: boolean | null = true,
+  agentSilent: boolean | null = false,
 ): Promise<ComponentFixture<InspectorHeader>> {
   const gateReason: TSubmitGateReason | null =
-    skillMissing === true
-      ? 'skill-missing'
-      : mcpConnected === false
-        ? 'mcp-disconnected'
-        : null;
+    skillMissing === true ? 'skill-missing' : agentSilent === true ? 'agent-silent' : null;
   TestBed.resetTestingModule();
   // The header hosts deferred dialog chunks (`@defer`), which need the
   // async compile step + playthrough behavior under the test rig (same
@@ -106,7 +102,6 @@ async function bootstrap(
         provide: ProcessingAgentReadinessService,
         useValue: {
           skillMissing: signal<boolean | null>(skillMissing),
-          mcpConnected: signal<boolean | null>(mcpConnected),
           submitGateReason: signal<TSubmitGateReason | null>(gateReason),
           submitGateClosed: signal<boolean>(gateReason !== null),
         } as unknown as ProcessingAgentReadinessService,
@@ -435,23 +430,25 @@ describe('InspectorHeader summarize button, processing-agent gate', () => {
   });
 
   /**
-   * The other half of the gate (user call 2026-07-25): the skill IS
-   * installed, but no agent is attached to the MCP server, so a submit
-   * would sit in the queue with nobody to drain it. The tooltip names
-   * that reason, not the install one.
+   * The other half of the gate: the skill IS installed, but a manual
+   * full-circuit check ran and no agent answered, so a submit would sit
+   * in the queue with nobody to drain it. The tooltip names that
+   * reason, not the install one.
    */
-  it('gate CLOSED by a disconnected MCP: disabled, with its own tooltip', async () => {
-    const fixture = await bootstrap(makeNode(), makeStub(), false, false);
+  it('gate CLOSED by a silent agent (red check): disabled, with its own tooltip', async () => {
+    const fixture = await bootstrap(makeNode(), makeStub(), false, true);
     fixture.componentRef.setInput('summaryState', 'idle');
     fixture.detectChanges();
 
     const btn = summarizeBtn(fixture);
     expect(btn).not.toBeNull();
     expect(btn.disabled).toBe(true);
-    expect(btn.getAttribute('aria-label')).toBe(INSPECTOR_VIEW_TEXTS.header.summary.tooltipNoMcp);
+    expect(btn.getAttribute('aria-label')).toBe(
+      INSPECTOR_VIEW_TEXTS.header.summary.tooltipAgentSilent,
+    );
   });
 
-  it('unknown MCP state (null) FAILS OPEN', async () => {
+  it('no check ever ran (null) FAILS OPEN', async () => {
     const fixture = await bootstrap(makeNode(), makeStub(), false, null);
     fixture.componentRef.setInput('summaryState', 'idle');
     fixture.detectChanges();

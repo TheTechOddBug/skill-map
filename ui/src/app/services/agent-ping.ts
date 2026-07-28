@@ -78,13 +78,7 @@ export class AgentPingService {
         // probabilistic affordance disables) until a claim or a green
         // check reopens it. `no-node` / `error` / `abandoned` say
         // nothing about the agent and stamp nothing.
-        if (result.verdict === 'alive') {
-          this.readiness.noteAgentAlive(true);
-          // The claim proves an agent is draining, but the last MCP
-          // reading may predate its attach; re-read now so green opens
-          // the gate immediately instead of waiting out the poll.
-          void this.readiness.refreshMcp();
-        }
+        if (result.verdict === 'alive') this.readiness.noteAgentAlive(true);
         if (result.verdict === 'no-agent') this.readiness.noteAgentAlive(false);
         return result;
       })

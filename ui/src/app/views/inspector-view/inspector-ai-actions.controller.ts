@@ -98,15 +98,6 @@ export interface IAiActionsSetupDeps {
    */
   skillMissing: Signal<boolean | null>;
   /**
-   * Live MCP connectivity (`ProcessingAgentReadinessService.mcpConnected`):
-   * the SAME signal whose flip to `true` re-enables every submitting
-   * affordance. The presence warning re-probes on that flip, so "the
-   * buttons lit up" and "the no-agent warning cleared" happen together
-   * (server-side, a parked MCP claim marks the agent attending even with
-   * an empty queue).
-   */
-  mcpConnected: Signal<boolean | null>;
-  /**
    * Park a `.sm`-consent retry behind the shared consent dialog
    * (`ActionDispatchService.requestSmConsent`): the dismiss / restore
    * flows hit the same gate the action buttons do, and reuse the same
@@ -469,15 +460,6 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     // node is inspected, and the answer is server-scoped (no path to
     // guard, a stale resolve carries the same truth as a fresh one).
     void probeAgentPresence();
-  });
-
-  // The MCP client connecting is the moment the submit gate re-enables
-  // the buttons, and (server-side) a parked claim marks the agent
-  // attending without any job frame to ride, so re-probe presence on the
-  // SAME flip: both surfaces update together instead of the warning
-  // outliving the buttons.
-  effect(() => {
-    if (deps.mcpConnected() === true) void probeAgentPresence();
   });
 
   // Live refresh: any job lifecycle frame or a completed re-scan makes

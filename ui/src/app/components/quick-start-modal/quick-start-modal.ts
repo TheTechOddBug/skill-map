@@ -188,11 +188,14 @@ export class QuickStartModal {
   protected readonly hookStatus = signal<IActivityInstallStatusApi | null>(null);
   private readonly skillStatus = signal<IAgentSkillInstallStatusApi | null>(null);
   /**
-   * Live MCP-connection verdict for the "MCP installed on your agent" row.
-   * `null` = not checked yet; `true` = a client is connected to `/mcp`;
-   * `false` = probed but nothing connected (or the probe failed).
+   * Client count from the last `/api/mcp/status` read, for the "MCP
+   * installed on your agent" row's detail line. `null` = not probed yet
+   * (or the probe failed). Deliberately NOT the row's verdict (user
+   * decision 2026-07-28): an agent draining over the CLI holds no MCP
+   * session, so the count says nothing about readiness; the verdict is
+   * whether the MCP server is ON, and the count is information.
    */
-  private readonly mcpConnected = signal<boolean | null>(null);
+  private readonly mcpClients = signal<number | null>(null);
   /**
    * Authoritative MCP endpoint, as reported by `GET /api/mcp/status` (`url`),
    * which the server builds from its OWN bind. `null` until the probe
@@ -219,7 +222,7 @@ export class QuickStartModal {
       if (!this.visible()) return;
       void this.refreshPreferences();
       void this.refreshCapture();
-      void this.refreshMcpUrl();
+      void this.refreshMcpStatus();
       void this.activityReadiness.refresh();
     });
     // Lens-keyed probes: re-run on open AND on every active-lens change.
@@ -546,11 +549,16 @@ export class QuickStartModal {
   }
 
   // ===================================================================
-  // Row (g), MCP installed on your agent. Primary verification is a LIVE
-  // connection probe (`GET /api/mcp/status`): the user applies the register
-  // snippet (a command on claude / codex, a config edit on antigravity /
-  // opencode), approves the runtime trust prompt in their agent, then hits
-  // Check. The Copy affordance stays alongside the Check action.
+  // Row (g), MCP installed on your agent. The verdict is the MCP server
+  // being ON (same live health signal as row f), so the step passes as
+  // soon as there is an endpoint to register against: the user applies
+  // the register snippet (a command on claude / codex, a config edit on
+  // antigravity / opencode) and approves the runtime trust prompt in
+  // their agent. Registration itself is NOT verifiable (the snippets
+  // write personal-scope config, invisible without a `$HOME` read), and
+  // a live session is NOT required (a CLI-draining agent never holds
+  // one), so Check re-probes `GET /api/mcp/status` and reports any
+  // attached client as a detail, never as the bar.
   // ===================================================================
 
   protected readonly mcpChecking = signal(false);
@@ -572,15 +580,16 @@ export class QuickStartModal {
 
   protected readonly mcpInstalledStatus = computed<TQuickStartStatus>(() => {
     if (this.mcpChecking()) return 'unknown';
-    const v = this.mcpConnected();
-    if (v === null) return 'unknown';
-    return v ? 'ready' : 'not-ready';
+    return this.mcpLive() ? 'ready' : 'not-ready';
   });
   protected readonly mcpInstalledStatusText = computed<string>(() => {
     if (this.mcpChecking()) return this.texts.status.checking;
-    const v = this.mcpConnected();
-    if (v === null) return this.texts.status.notChecked;
-    return v ? this.texts.status.connected : this.texts.status.notConnected;
+    if (!this.mcpLive()) return this.texts.status.off;
+    const clients = this.mcpClients();
+    if (clients === null) return this.texts.status.live;
+    return clients > 0
+      ? this.texts.rows.mcpInstalled.liveAttached(clients)
+      : this.texts.rows.mcpInstalled.liveUnattached;
   });
   protected readonly mcpCopyLabel = computed<string>(() => {
     if (this.mcpCopied()) return this.texts.action.copied;
@@ -608,17 +617,18 @@ export class QuickStartModal {
     !this.mcpCopied() && this.mcpInstalledMeta() !== null ? 'warn' : 'muted',
   );
 
-  /** Run the live MCP-connection probe and land its verdict on the row. */
+  /** Re-probe `/api/mcp/status` and refresh the row's detail line. */
   protected async onCheckMcpConnection(): Promise<void> {
     this.mcpChecking.set(true);
     try {
       const res = await this.dataSource.mcpStatus();
-      this.mcpConnected.set(res.connected);
+      this.mcpClients.set(res.clients);
       // Same payload carries the authoritative endpoint, so a Check also
       // refreshes what Copy would hand over.
       this.mcpUrl.set(res.url);
     } catch {
-      this.mcpConnected.set(false);
+      // Detail unknown; the verdict rides the live health signal anyway.
+      this.mcpClients.set(null);
     } finally {
       this.mcpChecking.set(false);
     }
@@ -919,17 +929,20 @@ export class QuickStartModal {
   }
 
   /**
-   * Cheap O(1) read of the MCP endpoint on open, so the Copy affordance is
-   * already accurate before the operator touches Check. Deliberately does
-   * NOT land `connected`: the row's verdict stays "Not checked yet" until
-   * the user asks for it. Failure is silent (no error banner): the fallback
-   * URL keeps Copy useful, and Check is the user-visible MCP probe.
+   * Cheap O(1) read of `/api/mcp/status` on open, so the Copy affordance
+   * is already accurate and the row's detail line (any attached client)
+   * is fresh before the operator touches Check. Failure is silent (no
+   * error banner): the fallback URL keeps Copy useful, the verdict rides
+   * the live health signal, and Check is the user-visible re-probe.
    */
-  private async refreshMcpUrl(): Promise<void> {
+  private async refreshMcpStatus(): Promise<void> {
     try {
-      this.mcpUrl.set((await this.dataSource.mcpStatus()).url);
+      const res = await this.dataSource.mcpStatus();
+      this.mcpUrl.set(res.url);
+      this.mcpClients.set(res.clients);
     } catch {
       this.mcpUrl.set(null);
+      this.mcpClients.set(null);
     }
   }
 

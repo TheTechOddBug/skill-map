@@ -146,7 +146,7 @@ deltas table; render the codex sigil where it applies):
 > silent, and processes whatever the map queues up. Leave it be.
 >
 > Back in Quick Start: hit **Check** on the third row, it should
-> report **Connected**. Then **Check** on the fourth row, **Agent
+> report **"Live, agent attached"**. Then **Check** on the fourth row, **Agent
 > waiting for jobs**: skill-map slips a tiny hidden ping job into the
 > queue, and if your parked agent grabs it you'll see **"An agent is
 > answering"**. That's the full circuit, proven end to end: UI to
@@ -158,10 +158,13 @@ deltas table; render the codex sigil where it applies):
 > and a prompt sitting unanswered over there looks exactly like a job
 > stuck in Queued over here. Tell me what both checks said.
 
-Expected: third row Connected, fourth row "An agent is answering".
-If Connected fails: the registration step was skipped or landed in the
-wrong file (config form: the exact HOME path is printed under the
-copy button), or the session predates the registration (relaunch it).
+Expected: third row "Live, agent attached", fourth row "An agent is
+answering". "Live, no agent attached yet" is not a failure (the row is
+green as long as the MCP server is on): the parked session just is not
+holding an MCP session, usually because the registration step was
+skipped or landed in the wrong file (config form: the exact HOME path
+is printed under the copy button), or because the session predates the
+registration (relaunch it).
 If "No agent answering": the session isn't parked (re-send the
 invocation in terminal 3) or it never got the MCP approval. The same
 Check lives in the inspector's AI actions card as **Check Agent**, so

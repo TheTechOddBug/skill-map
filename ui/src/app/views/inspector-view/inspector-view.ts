@@ -502,7 +502,6 @@ export class InspectorView implements OnInit {
     // submitting control (see `submitGateClosed`). The second warning
     // rides the controller's own agent-presence probe.
     skillMissing: this.processingAgent.skillMissing,
-    mcpConnected: this.processingAgent.mcpConnected,
     // The dismiss / restore flows park their consent retries behind the
     // SAME dialog the action buttons use (one instance, one service).
     requestSmConsent: (retry) => this.actionDispatch.requestSmConsent(retry),
@@ -572,11 +571,10 @@ export class InspectorView implements OnInit {
   protected onCheckAgentConnection(): void {
     if (this.agentCheckState() !== 'idle') return;
     this.agentCheckState.set('checking');
-    // Gate probes ride along so a stale skill / MCP read refreshes too,
-    // but the VERDICT is the ping's: the full circuit, submit through an
+    // The skill probe rides along so a stale read refreshes too, but
+    // the VERDICT is the ping's: the full circuit, submit through an
     // observed claim, is the only proof an agent is really attending.
     void this.processingAgent.refresh();
-    void this.processingAgent.refreshMcp();
     void this.agentPing.check().then((result) => {
       if (result.verdict === 'abandoned') {
         // The other surface abandoned the shared check: no verdict to
@@ -869,8 +867,6 @@ export class InspectorView implements OnInit {
     switch (this.processingAgent.submitGateReason()) {
       case 'skill-missing':
         return this.texts.aiActions.autoFix.tooltipNoAgent;
-      case 'mcp-disconnected':
-        return this.texts.aiActions.autoFix.tooltipNoMcp;
       case 'agent-silent':
         return this.texts.aiActions.autoFix.tooltipAgentSilent;
       default:

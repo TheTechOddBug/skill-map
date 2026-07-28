@@ -137,17 +137,11 @@ export const QUICK_START_TEXTS = {
     checking: 'Checking...',
     live: 'Live',
     optedIn: 'Opted in, restart to apply',
-    registered: 'Registered',
-    notRegistered: 'Not registered',
-    registerManually: 'Register manually',
     updateAvailable: 'Update available',
     attending: 'An agent is answering',
     noAgent: 'No agent answering',
     needsSkill: 'Install the agent skill first',
     noNodeToProbe: 'Scan a file first',
-    connected: 'Connected',
-    notConnected: 'Not connected yet',
-    notChecked: 'Not checked yet',
   },
 
   /** Shared action-button labels. */
@@ -271,9 +265,17 @@ export const QUICK_START_TEXTS = {
       // command, others only by editing a config file, so the row copy has
       // to fit both (the hint below names the file when there is one).
       description:
-        'Copy what your agent needs and apply it there, approve the MCP connection when your ' +
-        'agent prompts you, then click Check to confirm the live connection. It belongs in ' +
-        'your own config.',
+        'Copy what your agent needs and apply it there, and approve the MCP connection when ' +
+        'your agent prompts you. It belongs in your own config. The indicator says the MCP ' +
+        'server is on; Check also reports any agent attached.',
+      /**
+       * Status detail once the client count is known. Not the verdict:
+       * an agent draining over the CLI holds no MCP session, so zero
+       * attached clients is still a working setup.
+       */
+      liveAttached: (clients: number): string =>
+        clients === 1 ? 'Live, agent attached' : `Live, ${clients} agents attached`,
+      liveUnattached: 'Live, no agent attached yet',
       copiedHint: 'Copied to the clipboard.',
       /**
        * Where a `config` snippet goes, shown while nothing else occupies

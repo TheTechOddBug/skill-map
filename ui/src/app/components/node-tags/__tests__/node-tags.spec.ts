@@ -80,18 +80,14 @@ async function bootstrap(
    */
   skillMissing: boolean | null = false,
   /**
-   * The MCP half of the same gate. `true` (an agent is attached) is the
-   * default so the pre-existing specs keep their enabled button; `false`
-   * closes the gate on its own even with the skill installed.
+   * The agent-silent half of the same gate: `true` = a manual check ran
+   * and nobody answered (gate CLOSED even with the skill installed);
+   * `false` / `null` = no red verdict, the gate stays open.
    */
-  mcpConnected: boolean | null = true,
+  agentSilent: boolean | null = false,
 ): Promise<ComponentFixture<NodeTags>> {
   const gateReason: TSubmitGateReason | null =
-    skillMissing === true
-      ? 'skill-missing'
-      : mcpConnected === false
-        ? 'mcp-disconnected'
-        : null;
+    skillMissing === true ? 'skill-missing' : agentSilent === true ? 'agent-silent' : null;
   TestBed.resetTestingModule();
   await TestBed.configureTestingModule({
     imports: [NodeTags],
@@ -105,7 +101,6 @@ async function bootstrap(
         provide: ProcessingAgentReadinessService,
         useValue: {
           skillMissing: signal<boolean | null>(skillMissing),
-          mcpConnected: signal<boolean | null>(mcpConnected),
           submitGateReason: signal<TSubmitGateReason | null>(gateReason),
           submitGateClosed: signal<boolean>(gateReason !== null),
         } as unknown as ProcessingAgentReadinessService,
@@ -221,12 +216,12 @@ describe('NodeTags auto-tag affordance', () => {
   });
 
   /**
-   * The other half of the gate (user call 2026-07-25): the skill IS
-   * installed, but no agent is attached to the MCP server, so a submit
-   * would sit in the queue with nobody to drain it.
+   * The other half of the gate: the skill IS installed, but a manual
+   * full-circuit check ran and no agent answered, so a submit would sit
+   * in the queue with nobody to drain it.
    */
-  it('gate CLOSED by a disconnected MCP: disabled, with its own tooltip', async () => {
-    const fixture = await bootstrap(['infra'], 'agents/architect.md', null, false, false);
+  it('gate CLOSED by a silent agent (red check): disabled, with its own tooltip', async () => {
+    const fixture = await bootstrap(['infra'], 'agents/architect.md', null, false, true);
     fixture.componentRef.setInput('autoTagState', 'idle');
     fixture.detectChanges();
     let clicks = 0;
@@ -235,12 +230,12 @@ describe('NodeTags auto-tag affordance', () => {
     const btn = el(fixture, 'node-tags-auto') as HTMLButtonElement;
     expect(btn).not.toBeNull();
     expect(btn.disabled).toBe(true);
-    expect(btn.getAttribute('aria-label')).toBe(NODE_TAGS_TEXTS.autoTag.tooltipNoMcp);
+    expect(btn.getAttribute('aria-label')).toBe(NODE_TAGS_TEXTS.autoTag.tooltipAgentSilent);
     btn.click();
     expect(clicks).toBe(0);
   });
 
-  it('unknown MCP state (null) FAILS OPEN', async () => {
+  it('no check ever ran (null) FAILS OPEN', async () => {
     const fixture = await bootstrap(['infra'], 'agents/architect.md', null, false, null);
     fixture.componentRef.setInput('autoTagState', 'idle');
     fixture.detectChanges();

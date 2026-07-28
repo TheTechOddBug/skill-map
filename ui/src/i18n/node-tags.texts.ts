@@ -31,12 +31,6 @@ export const NODE_TAGS_TEXTS = {
      * warning.
      */
     tooltipNoAgent: 'Needs a jobs agent',
-    /**
-     * The other half of the same gate: the skill IS installed but no
-     * agent is attached to the MCP server, so a submit would sit in the
-     * queue with nobody to drain it. Mirrors the header's wording.
-     */
-    tooltipNoMcp: 'Needs an agent connected to the MCP',
     tooltipAgentSilent: 'No agent answered the last check',
   },
   /** Inline title for the view-mode tag row (renders as `TAGS:`). */

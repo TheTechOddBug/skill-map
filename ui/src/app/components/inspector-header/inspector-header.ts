@@ -203,7 +203,6 @@ export class InspectorHeader {
       // Name WHICH half is missing: "install the skill" and "start your
       // agent" are different actions for the operator.
       const reason = this.processingAgent.submitGateReason();
-      if (reason === 'mcp-disconnected') return t.tooltipNoMcp;
       if (reason === 'agent-silent') return t.tooltipAgentSilent;
       return t.tooltipNoAgent;
     }

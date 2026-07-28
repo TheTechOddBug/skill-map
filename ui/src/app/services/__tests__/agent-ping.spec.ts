@@ -28,7 +28,6 @@ interface IHarness {
     noteAgentAlive: ReturnType<typeof vi.fn>;
     noteCheckStarted: ReturnType<typeof vi.fn>;
     noteCheckSettled: ReturnType<typeof vi.fn>;
-    refreshMcp: ReturnType<typeof vi.fn>;
   };
   submitNodeJob: ReturnType<typeof vi.fn>;
   cancelJob: ReturnType<typeof vi.fn>;
@@ -43,7 +42,6 @@ function bootstrap(nodePath = 'docs/a.md'): IHarness {
     noteAgentAlive: vi.fn(),
     noteCheckStarted: vi.fn(),
     noteCheckSettled: vi.fn(),
-    refreshMcp: vi.fn().mockResolvedValue(undefined),
   };
   TestBed.configureTestingModule({
     providers: [
@@ -73,7 +71,7 @@ describe('AgentPingService', () => {
     vi.useRealTimers();
   });
 
-  it('a claim inside the window is alive: stamps the verdict, re-reads MCP, releases the hold', async () => {
+  it('a claim inside the window is alive: stamps the verdict, releases the hold', async () => {
     const { service, jobEvents$, readiness } = bootstrap();
     const check = service.check();
     expect(readiness.noteCheckStarted).toHaveBeenCalledTimes(1);
@@ -83,7 +81,6 @@ describe('AgentPingService', () => {
     jobEvents$.next({ type: 'job.claimed', jobId: 'j1' });
     expect(await check).toEqual({ verdict: 'alive' });
     expect(readiness.noteAgentAlive).toHaveBeenCalledWith(true);
-    expect(readiness.refreshMcp).toHaveBeenCalledTimes(1);
     expect(readiness.noteCheckSettled).toHaveBeenCalledTimes(1);
     // The verdict lands BEFORE the latch drops, so the gate never
     // flashes an intermediate state between the two.
@@ -101,7 +98,6 @@ describe('AgentPingService', () => {
     expect(await check).toEqual({ verdict: 'no-agent' });
     expect(cancelJob).toHaveBeenCalledWith('j1');
     expect(readiness.noteAgentAlive).toHaveBeenCalledWith(false);
-    expect(readiness.refreshMcp).not.toHaveBeenCalled();
     expect(readiness.noteCheckSettled).toHaveBeenCalledTimes(1);
   });
 
