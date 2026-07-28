@@ -21,10 +21,16 @@
   gap: 0.6rem;
 }
 
-/* Compact, low-key setup notice: smaller than default p-message text. */
-.inspector__ai-actions-agent-warning .p-message-text {
-  font-size: var(--sm-fs-xs);
-  line-height: 1.35;
+/* Compact, low-key setup notice, token-first: `.p-message-text` consumes
+   `--p-message-text-font-size` directly, and the styleClass-merged host is
+   authored in this template, so pinning the token here reaches the internal
+   text node without `::ng-deep` (see context/ui.md §Type scale). The
+   previous descendant rule onto `.p-message-text` was silently dead:
+   PrimeNG generates that node outside view encapsulation, so the
+   `_ngcontent`-scoped selector never matched and the notice rendered at
+   the 1rem default. */
+.inspector__ai-actions-agent-warning {
+  --p-message-text-font-size: var(--sm-fs-xs);
 }
 
 .inspector__ai-actions-launchers {
