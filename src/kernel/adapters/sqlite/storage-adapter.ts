@@ -108,13 +108,6 @@ import {
   resolvePluginMigrationsDir,
 } from './plugin-migrations.js';
 import {
-  deletePluginTrust,
-  getPluginTrusted,
-  listPluginTrust,
-  loadPluginTrustMap,
-  setPluginTrusted,
-} from './plugins.js';
-import {
   loadBranch,
   loadEffectiveMaxRenderNodes,
   loadExtractorRuns,
@@ -262,7 +255,6 @@ export class SqliteStorageAdapter implements StoragePort {
   findings!: StoragePort['findings'];
   favorites!: StoragePort['favorites'];
   preferences!: StoragePort['preferences'];
-  trust!: StoragePort['trust'];
   migrations!: StoragePort['migrations'];
   pluginMigrations!: StoragePort['pluginMigrations'];
 
@@ -462,13 +454,7 @@ export class SqliteStorageAdapter implements StoragePort {
       saveUpdateCheckCache: (cache) => saveUpdateCheckCache(this.db, cache),
     };
 
-    this.trust = {
-      set: (pluginId, trusted) => setPluginTrusted(this.db, pluginId, trusted),
-      get: (pluginId) => getPluginTrusted(this.db, pluginId),
-      list: () => listPluginTrust(this.db),
-      delete: (pluginId) => deletePluginTrust(this.db, pluginId),
-      loadTrustMap: () => loadPluginTrustMap(this.db),
-    };
+;
 
     const path = this.#options.databasePath;
 

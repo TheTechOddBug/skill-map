@@ -32,11 +32,11 @@ Every kernel table belongs to exactly one zone, identified by a mandatory prefix
 |---|---|---|---|---|---|
 | Scan | `scan_` | Output of the last scan. Truncated and repopulated by `sm scan`. | Yes | No | `scan_nodes` |
 | State | `state_` | Persistent operational data: jobs, executions, summaries, enrichment, plugin KV. | No | Yes | `state_jobs` |
-| Config | `config_` | User-owned configuration: plugin enable/disable, preferences, migration ledger. | No | Yes | `config_plugins` |
+| Config | `config_` | User-owned configuration: preferences, migration ledger. | No | Yes | `config_preferences` |
 
 `sm db reset` drops `scan_*` only (non-destructive, equivalent to forcing the next scan from a clean slate). `sm db reset --state` also drops `state_*` (destructive to operational history). `sm db reset --hard` deletes the DB file entirely. `sm db backup` preserves `state_*` + `config_*`; `scan_*` is regenerated on demand and never included in backups.
 
-**Active-provider lens change**: switching the `activeProvider` setting (see [`cli-contract.md` §Active provider lens](./cli-contract.md#active-provider-lens) and [`architecture.md` §Active Provider Lens](./architecture.md#active-provider-lens)) drops the `scan_*` zone atomically and triggers a fresh scan under the new lens. Same effect as `sm db reset` then `sm scan`, but one transaction so the user never sees an empty graph between the two. `state_*` and `config_*` are preserved; `config_plugins` and `config_preferences` rows survive (including the new `activeProvider` value itself).
+**Active-provider lens change**: switching the `activeProvider` setting (see [`cli-contract.md` §Active provider lens](./cli-contract.md#active-provider-lens) and [`architecture.md` §Active Provider Lens](./architecture.md#active-provider-lens)) drops the `scan_*` zone atomically and triggers a fresh scan under the new lens. Same effect as `sm db reset` then `sm scan`, but one transaction so the user never sees an empty graph between the two. `state_*` and `config_*` are preserved; `config_preferences` rows survive (including the new `activeProvider` value itself).
 
 ---
 
@@ -252,7 +252,7 @@ Cached nodes' rows survive untouched: neither orphaned (still in the live set) n
 
 NOT analogous to `state_plugin_kvs` (which is plugin-managed). Belongs to the `scan_*` family; sweep semantics replace pure replace-all but the data is still scan-derived.
 
-**Eager purge on disable.** `sm plugins disable <id>` calls `StoragePort.contributions.purgeByPlugin(pluginId, extensionId)` immediately after persisting `config_plugins[<id>].enabled = false`. Every persisted toggle key is the qualified `<plugin>/<ext>` shape (the CLI's bundle macro form and the BFF's cascade endpoint expand bare plugin ids before persistence), so the purge always receives both segments. Avoids the "I disabled the extension but its chips still render until I re-scan" gap. Re-enabling (`sm plugins enable <id>`) does NOT restore the rows; the next scan re-emits them, same as a cold start. Contributions are scan-derived, so this is cheap; for plugin-managed state (`state_plugin_kvs`, dedicated tables) the opposite policy holds, see `plugin-kv-api.md` § "disable does not drop data".
+**Eager purge on disable.** `sm plugins disable <id>` calls `StoragePort.contributions.purgeByPlugin(pluginId, extensionId)` immediately after persisting the extension's `enabled = false` in the config layers. Every persisted toggle key is the qualified `<plugin>/<ext>` shape (the CLI's bundle macro form and the BFF's cascade endpoint expand bare plugin ids before persistence), so the purge always receives both segments. Avoids the "I disabled the extension but its chips still render until I re-scan" gap. Re-enabling (`sm plugins enable <id>`) does NOT restore the rows; the next scan re-emits them, same as a cold start. Contributions are scan-derived, so this is cheap; for plugin-managed state (`state_plugin_kvs`, dedicated tables) the opposite policy holds, see `plugin-kv-api.md` § "disable does not drop data".
 
 ### `scan_link_scores`
 
@@ -496,21 +496,16 @@ The BFF's `/api/nodes` route loads the full set of favorited paths once per requ
 
 ## Table catalog: zone `config_`
 
-### `config_plugins`
+### `config_plugins` (REMOVED 2026-07-28)
 
-Records the operator's LOCAL import-trust grants for project-local drop-in plugins. This is the **security** axis (may THIS machine import and run the plugin's code), NOT the operational enable/disable toggle, which lives in the config layers (`plugins.<id>.enabled` / `plugins.<id>.extensions.<ext>.enabled` in `settings.json` / `settings.local.json`). Discovery is still filesystem-based; this table records per-machine consent. The table name is retained for continuity.
+Plugin import trust used to live here as a `(plugin_id, trusted, updated_at)` row. It moved OUT of the database entirely (audit C1) and the table is gone.
 
-| Column | Type | Constraint |
-|---|---|---|
-| `plugin_id` | TEXT | PRIMARY KEY |
-| `trusted` | INTEGER | NOT NULL DEFAULT 0, CHECK (`trusted` IN (0,1)) |
-| `updated_at` | INTEGER | NOT NULL |
+Two reasons, both structural:
 
-**Effective trust resolution.** A project-local plugin's code is imported iff it is **enabled** (config layers) AND it is **trusted** locally. A plugin is trusted iff a `config_plugins` row with `trusted = 1` exists for its `plugin_id`, written by `sm plugins trust <id>` (cleared by `sm plugins untrust`), or by `sm plugins trust --all` which writes a row for every discovered drop-in at once. Keyed by the **bare plugin id** (trust is per-plugin; a qualified `<plugin>/<ext>` collapses to its plugin).
+- **The DB is the wrong home for an authorization.** Per [`architecture.md` §Storage rule](./architecture.md#storage-rule) the database is machine output, regenerable and disposable, and the schema-drift path deletes and rebuilds it, which pre-1.0 is roughly every minor. An operator's vetting decision evaporating on a version bump trained them to re-grant reflexively, and reflexive re-granting is the one habit an import gate cannot survive.
+- **Being gitignored was never a boundary.** The old wording here claimed the store was "structurally LOCAL: the DB never travels in a commit". That describes the default behaviour; the ignore list lives in the repo author's own tree, so `git add -f` ships a pre-granted store and the victim executed the attacker's code on their first scan.
 
-The store is structurally LOCAL: the DB never travels in a commit and is not a config layer, so a cloned repo's committed `settings.json` can never grant import trust to its own plugins (the supply-chain guard). Built-ins and `--plugin-dir` are not trust-gated. See [`architecture.md` §Locality](./architecture.md) (plugin enable vs import trust).
-
-Greenfield note: this table previously stored the enable/disable toggle (`enabled` plus a vestigial `config_json`); both were dropped when enable moved to the config layers. Per the pre-1.0 greenfield posture the redefinition is applied inline to `001_initial.sql` with no migration file; the `scan_meta.schema_fingerprint` drift path rebuilds the cache on the first scan.
+Trust now lives in the **scope lock** (`<cwd>/.skill-map/scope.lock.json`), where each record carries a grant derived from the `.skill-map/` directory's filesystem identity. Git does not transport that identity, so a record made on another machine cannot verify here regardless of how it arrived. See [`architecture.md` §Storage rule](./architecture.md#storage-rule) (machine-local authorization) and [`cli-contract.md`](./cli-contract.md) §Plugins.
 
 ### `config_preferences`
 

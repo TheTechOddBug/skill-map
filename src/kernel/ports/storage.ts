@@ -73,7 +73,6 @@ import type {
   IPluginApplyResult,
   IPluginMigrationFile,
   IPluginMigrationPlan,
-  IPluginTrustRow,
   IPruneResult,
   IQuickCheckResult,
   IStateEnrichmentRecord,
@@ -403,31 +402,7 @@ export interface StoragePort {
   };
 
   // --- trust namespace --------------------------------------------------
-  /**
-   * Per-machine plugin import-trust store (`config_plugins`, the SECURITY
-   * axis). Keyed by bare plugin id. Written by `sm plugins trust /
-   * untrust` and `PATCH /api/plugins/:id/trust`. The operational
-   * enable/disable toggle lives in the config layers, NOT here.
-   */
-  trust: {
-    /**
-     * Upsert the per-plugin trust grant into `config_plugins`. Caller is
-     * `sm plugins trust / untrust` (and the BFF trust route).
-     */
-    set(pluginId: string, trusted: boolean): Promise<void>;
-    /** Read a single trust grant; `undefined` when no row exists. */
-    get(pluginId: string): Promise<boolean | undefined>;
-    /** Every trust row, sorted by `pluginId` for stable rendering. */
-    list(): Promise<IPluginTrustRow[]>;
-    /** Drop a single trust row (no-op when absent). */
-    delete(pluginId: string): Promise<void>;
-    /**
-     * Load every trust grant into a map for quick lookup by bare plugin
-     * id. Used by `loadPluginRuntime` to feed the import-trust gate at
-     * scan boot.
-     */
-    loadTrustMap(): Promise<Map<string, boolean>>;
-  };
+
 
   // --- jobs namespace ----------------------------------------------------
   jobs: {
@@ -947,7 +922,6 @@ export type {
   IPluginMigrationFile,
   IPluginMigrationPlan,
   IPluginMigrationRecord,
-  IPluginTrustRow,
   IPruneResult,
   IQuickCheckResult,
   IStateEnrichmentRecord,

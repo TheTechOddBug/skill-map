@@ -17,6 +17,7 @@
  * never `:memory:`) and write everything under `.tmp/<scope>/`.
  */
 
+import { grantLocalKey } from '../../../kernel/config/local-key-grants.js';
 import { describe, it, before, after } from 'node:test';
 import { ok, strictEqual } from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -78,6 +79,9 @@ function preGrantConsent(fixture: string): void {
     JSON.stringify({ allowEditSmFiles: true }),
     'utf8',
   );
+  // Privileged project-local keys need a grant recorded in this
+  // checkout to count (audit H1), so a clone cannot ship consent.
+  grantLocalKey(fixture, 'allowEditSmFiles', true);
   // `core/node-bump` ships `defaultEnabled: false` and `sm bump` refuses
   // when the extension is disabled (the 2026-07-21 enabled-gate sweep),
   // so the fixture opts it in; the gate has its own dedicated spec.

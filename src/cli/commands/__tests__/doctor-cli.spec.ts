@@ -113,7 +113,7 @@ describe('sm doctor', () => {
       };
       strictEqual(doc.ok, true);
       strictEqual(doc.kind, 'doctor');
-      strictEqual(doc.checks.length, 8);
+      strictEqual(doc.checks.length, 9, 'includes the trust-scope check');
       ok(doc.checks.every((c2) => c2.status === 'ok'), 'all checks ok');
       return c;
     });

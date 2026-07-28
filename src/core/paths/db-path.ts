@@ -18,6 +18,7 @@
  * `SmCommand` and threaded through `resolveDbPath` below).
  */
 
+import { SCOPE_LOCK_FILENAME } from '../../kernel/util/scope-lock.js';
 import { join, resolve } from 'node:path';
 
 import type { IRuntimeContext } from '../runtime/runtime-context.js';
@@ -89,6 +90,7 @@ export const SCOPE_GITIGNORE_ENTRIES: readonly string[] = [
   `${DB_FILENAME}-wal`,
   `${DB_FILENAME}-shm`,
   SERVE_INFO_FILENAME,
+  SCOPE_LOCK_FILENAME,
   `${OPERATIONS_LOG_FILENAME}*`,
   `${BACKUPS_DIRNAME}/`,
   `${ACTIVITY_DIRNAME}/`,

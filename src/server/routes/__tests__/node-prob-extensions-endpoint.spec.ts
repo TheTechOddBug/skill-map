@@ -38,6 +38,7 @@
  *   - malformed `pathB64` / unknown node -> 404.
  */
 
+import { grantTrust, revokeTrust } from '../../../kernel/config/plugin-trust-store.js';
 import { strict as assert } from 'node:assert';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -218,7 +219,7 @@ describe('GET /api/nodes/:pathB64/prob-extensions', () => {
     // Untrust the fixer plugin: `prob-fixer/apply-fix` is no longer
     // composed, so its finder has no actionable fixer and must land in
     // `standalone`, not `finders`.
-    await withProjectDb(project, (adapter) => adapter.trust.set('prob-fixer', false));
+    revokeTrust(project.root, 'prob-fixer');
     try {
       await bootAndUse(project, async (handle) => {
         const env = await fetchCatalog(handle, SKILL_NODE.path);
@@ -229,7 +230,7 @@ describe('GET /api/nodes/:pathB64/prob-extensions', () => {
         assert.equal(fallen.hasOpenFindings, false);
       });
     } finally {
-      await withProjectDb(project, (adapter) => adapter.trust.set('prob-fixer', true));
+      grantTrust(project.root, 'prob-fixer');
     }
   });
 

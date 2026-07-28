@@ -25,6 +25,7 @@
  *                          value never invalidates the rest of the file.
  */
 
+import { isLocalKeyGranted, localKeyAnchor } from './local-key-grants.js';
 import { existsSync, readFileSync } from 'node:fs';
 
 import { loadSchemaValidators, type ISchemaValidators } from '../adapters/schema-validators.js';
@@ -91,7 +92,7 @@ export interface IPluginExtensionConfigEntry {
    * default. Shareable: lands in `settings.json` (team baseline) or
    * `settings.local.json` (per-checkout override) via the normal config
    * layering. Does NOT grant import trust for a project-local plugin,
-   * that is the separate per-plugin `config_plugins` DB trust axis.
+   * that is the separate per-plugin scope-lock trust axis.
    */
   enabled?: boolean;
   /**
@@ -422,10 +423,21 @@ export function loadConfig(opts: ILoadConfigOptions): ILoadedConfig {
     const partial = readJsonSafe(path, layer, warnings, strict);
     if (partial === null) continue;
     const cleaned = validateAndStrip(validators, partial, layer, warnings, strict);
-    // Strip `PROJECT_LOCAL_ONLY_KEYS` from every layer EXCEPT
-    // `project-local`, that is the only legitimate home for them.
-    // See `stripProjectLocalOnlyKeys` for the security rationale.
-    if (layer !== 'project-local') {
+    // `PROJECT_LOCAL_ONLY_KEYS` are stripped from every layer EXCEPT
+    // `project-local`, the only legitimate home for them. See
+    // `stripProjectLocalOnlyKeys` for the security rationale.
+    //
+    // The exemption is no longer unconditional (audit H1). It rested on
+    // "settings.local.json is gitignored, so it cannot arrive in a
+    // clone", which describes the default behaviour, not a boundary: the
+    // ignore list lives in the repo author's own tree and `git add -f`
+    // ships the file anyway. Each privileged key must now carry a grant
+    // minted in THIS checkout; one that does not verify is stripped
+    // exactly like a committed `settings.json` key, so a shipped file
+    // degrades to an ordinary layer instead of granting anything.
+    if (layer === 'project-local') {
+      stripUngrantedLocalKeys(cwd, cleaned, warnings, strict);
+    } else {
       stripProjectLocalOnlyKeys(cleaned, layer, warnings, strict);
     }
     effective = deepMerge(effective as unknown as Record<string, unknown>, cleaned) as unknown as IEffectiveConfig;
@@ -599,6 +611,65 @@ function stripProjectLocalOnlyKeys(
     if (strict) throw new Error(msg);
     warnings.push(msg);
   }
+}
+
+/**
+ * Strip every privileged key in the `project-local` layer whose grant
+ * does not verify against this checkout.
+ *
+ * Three outcomes need three different messages, because they have
+ * different remedies: a key granted in another copy of the project (the
+ * operator copied / restored / re-cloned it, or it arrived in a hostile
+ * repo, and from here those are indistinguishable, so the wording never
+ * accuses), a key that predates the mechanism, and a filesystem that
+ * cannot anchor a grant at all, where re-granting is futile and the
+ * message must name the environment instead.
+ *
+ * This matters more than the plugin-trust advisory: a plugin that fails
+ * to load is visible, whereas a silently disabled
+ * `scan.followExternalSymlinks` just changes what a scan finds, and the
+ * operator would blame the scanner.
+ */
+function stripUngrantedLocalKeys(
+  cwd: string,
+  cleaned: Record<string, unknown>,
+  warnings: string[],
+  strict: boolean,
+): void {
+  const anchor = localKeyAnchor(cwd);
+  for (const dotKey of PROJECT_LOCAL_ONLY_KEYS) {
+    const segments = dotKey.split('.').filter(Boolean);
+    if (segments.length === 0) continue;
+    const leaf = segments.pop() as string;
+    if (!keyPresentAtPath(cleaned, segments, leaf)) continue;
+    const parentPath = '/' + segments.join('/');
+    const value = readAtPath(cleaned, segments, leaf);
+    if (isLocalKeyGranted(cwd, dotKey, value)) continue;
+
+    deleteAtPath(cleaned, parentPath, leaf);
+    const template =
+      anchor.kind === 'value'
+        ? CONFIG_LOADER_TEXTS.localKeyNotGranted
+        : CONFIG_LOADER_TEXTS.localKeyAnchorUnusable;
+    const msg = tx(template, { key: dotKey });
+    if (strict) throw new Error(msg);
+    warnings.push(msg);
+  }
+}
+
+/** Read the value at `segments`/`leaf`, or `undefined` when absent. */
+function readAtPath(
+  cloned: Record<string, unknown>,
+  segments: string[],
+  leaf: string,
+): unknown {
+  let cursor: unknown = cloned;
+  for (const seg of segments) {
+    if (cursor === null || typeof cursor !== 'object') return undefined;
+    cursor = (cursor as Record<string, unknown>)[seg];
+  }
+  if (cursor === null || typeof cursor !== 'object') return undefined;
+  return (cursor as Record<string, unknown>)[leaf];
 }
 
 function keyPresentAtPath(

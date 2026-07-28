@@ -31,6 +31,7 @@
  *      `'annotations.registered'` variant (R7 closed at 9.6.7).
  */
 
+import { grantTrust } from '../../../kernel/config/plugin-trust-store.js';
 import { strict as assert } from 'node:assert';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -165,9 +166,7 @@ function plantContributionPlugin(
  */
 async function trustProjectPlugin(cwd: string, pluginId: string): Promise<void> {
   const dbPath = join(cwd, '.skill-map', 'skill-map.db');
-  await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-    await adapter.trust.set(pluginId, true);
-  });
+  grantTrust(cwd, pluginId);
 }
 
 function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions {

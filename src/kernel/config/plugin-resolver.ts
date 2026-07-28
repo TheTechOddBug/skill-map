@@ -9,7 +9,7 @@
  *
  *   - **Trusted** (security, LOCAL, per-machine). Does THIS machine's
  *     operator consent to importing the plugin's code? Lives in the DB
- *     (`config_plugins` trust store, written by `sm plugins trust <id>`
+ *     (the scope lock, written by `sm plugins trust <id>`
  *     or `sm plugins trust --all`). `makeTrustResolver` owns this question.
  *
  * A project-local plugin's code is imported iff it is **enabled** (config)
@@ -167,13 +167,19 @@ export function makeEnabledResolver(
  * Build the loader's import-trust gate (security boundary): may a
  * project-local disk plugin's code be imported AT ALL?
  *
- * A plugin is trusted when the per-machine `config_plugins` trust store
- * carries a `trusted = true` row for its bare id (written by
- * `sm plugins trust <id>`, or `sm plugins trust --all` for every
- * discovered drop-in at once). The store is LOCAL: the DB never travels
- * in a commit and is not a config layer, so a cloned repo's committed
- * `settings.json` can never auto-execute its own plugins on the victim's
- * first scan.
+ * A plugin is trusted when the scope lock carries a grant for its bare
+ * id (written by `sm plugins trust <id>`, or `sm plugins trust --all`)
+ * that VERIFIES against this checkout.
+ *
+ * This docstring used to justify the gate with "the DB never travels in
+ * a commit". That statement is true of the default behaviour and false
+ * as a security boundary, and the confusion between the two WAS audit
+ * C1: the ignore list lives in the repo author's own tree, so `git add
+ * -f` ships a pre-granted store and the victim executed the attacker's
+ * code on their first scan. What actually holds the line is that a grant
+ * is derived from the `.skill-map/` directory's filesystem identity,
+ * which git does not transport, so a record made on another machine
+ * cannot verify here no matter how it arrived.
  *
  * `trustMap` is keyed by BARE plugin id (trust is per-plugin); the loader
  * calls `resolveImportTrust(pluginId)` with a bare id, so shapes match.

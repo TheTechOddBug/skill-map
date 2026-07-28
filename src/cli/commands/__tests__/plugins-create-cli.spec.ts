@@ -13,6 +13,7 @@
  * never touched and usage telemetry stays dormant.
  */
 
+import { grantTrust } from '../../../kernel/config/plugin-trust-store.js';
 import { strict as assert } from 'node:assert';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -65,20 +66,13 @@ function sm(
 }
 
 /**
- * Grant local import-trust for a project-local plugin, the in-test
- * equivalent of `sm plugins enable <id>`: write a `config_plugins`
- * override into the project DB so the H1 import-trust gate (default-
- * disabled for cloned project-local plugins) loads the plugin's code on
- * the next `sm scan`. The spawned binary reads the override from
- * `<cwd>/.skill-map/skill-map.db` (the default project DB that
- * `sm init` already created); we open that same file in-process to set
- * the row, then the scan runs in a separate process afterwards.
+ * Grant local import-trust so the scaffolded plugin's code is allowed to
+ * load on the scan that follows. The grant is a scope-lock record keyed
+ * to `cwd`, so it must be written against the PROJECT root, not the
+ * shared temp dir the suite lives in.
  */
-async function trustProjectPlugin(cwd: string, pluginId: string): Promise<void> {
-  const dbPath = join(cwd, '.skill-map', 'skill-map.db');
-  await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-    await adapter.trust.set(pluginId, true);
-  });
+function trustProjectPlugin(cwd: string, pluginId: string): void {
+  grantTrust(cwd, pluginId);
 }
 
 before(() => {
@@ -183,7 +177,7 @@ describe('sm plugins create, scaffolder shape', () => {
     // Post-H1 gate: the scaffolded project-local plugin is discovered but
     // its code stays dormant until locally trusted, so grant trust (the
     // in-test equivalent of `sm plugins enable`) before the scan loads it.
-    await trustProjectPlugin(scope.cwd, 'demo-highlight');
+    trustProjectPlugin(scope.cwd, 'demo-highlight');
 
     mkdirSync(join(scope.cwd, 'notes'), { recursive: true });
     writeFileSync(

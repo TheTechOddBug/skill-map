@@ -18,6 +18,7 @@
  * trust store backs both discovery and the read projection.
  */
 
+import { grantTrust, loadTrust } from '../../../kernel/config/plugin-trust-store.js';
 import { strict as assert } from 'node:assert';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -27,7 +28,6 @@ import { after, before, describe, it } from 'node:test';
 import { installedSpecVersion } from '../../../kernel/adapters/plugin-loader.js';
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
 import { persistScanResult } from '../../../kernel/adapters/sqlite/scan-persistence.js';
-import { getPluginTrusted } from '../../../kernel/adapters/sqlite/plugins.js';
 import type { ScanResult } from '../../../kernel/types.js';
 import {
   createServer,
@@ -105,10 +105,9 @@ function dropMockPlugin(scope: IScope, id: string): void {
   );
 }
 
-async function grantTrust(scope: IScope, pluginId: string): Promise<void> {
-  await withSqlite({ databasePath: scope.dbPath, autoBackup: false }, async (adapter) => {
-    await adapter.trust.set(pluginId, true);
-  });
+/** Grant trust the way the product does: a scope-lock record, no DB. */
+function seedTrust(scope: IScope, pluginId: string): void {
+  grantTrust(scope.cwd, pluginId);
 }
 
 function writeSettings(scope: IScope, content: Record<string, unknown>): void {
@@ -180,7 +179,7 @@ describe('GET /api/plugins, trusted projection', () => {
     const scope = freshScope('get-trusted');
     await primeDb(scope.dbPath);
     dropMockPlugin(scope, 'mock-trusted');
-    await grantTrust(scope, 'mock-trusted');
+    seedTrust(scope, 'mock-trusted');
 
     await bootAndUse(scope, {}, async (handle) => {
       const items = await getItems(handle);
@@ -223,7 +222,7 @@ describe('GET /api/plugins, trusted projection', () => {
     const scope = freshScope('get-starts-disabled');
     await primeDb(scope.dbPath);
     dropMockPlugin(scope, 'mock-off');
-    await grantTrust(scope, 'mock-off');
+    seedTrust(scope, 'mock-off');
     // Trusted but operationally disabled at boot. The loader's enable gate
     // runs at the PLUGIN level (bare id), so a plugin-level `enabled: false`
     // is what flips the boot status to disabled (disabledByConfig).
@@ -258,7 +257,7 @@ describe('PATCH enable writes config, not the DB', () => {
       assert.equal(res.status, 200);
     });
 
-    // The toggle landed in the committed config layer, NOT the DB.
+    // The toggle landed in the committed config layer, NOT the trust store.
     const settings = readSettingsFile(scope, 'settings') as {
       plugins?: { core?: { extensions?: { 'external-url-counter'?: { enabled?: boolean } } } };
     };
@@ -266,8 +265,9 @@ describe('PATCH enable writes config, not the DB', () => {
       settings.plugins?.core?.extensions?.['external-url-counter']?.enabled,
       false,
     );
-    // No trust row was written by an enable toggle.
-    assert.equal(await getPluginTrusted2(scope, 'core'), undefined);
+    // No grant was written by an enable toggle: enable and trust stay
+    // orthogonal axes.
+    assert.equal(readTrusted(scope, 'core'), false);
   });
 });
 
@@ -286,7 +286,7 @@ describe('PATCH /api/plugins/:id/trust', () => {
       assert.equal(granted.status, 200);
       const grantedBody = (await granted.json()) as { items: IPluginListItem[] };
       assert.equal(grantedBody.items.find((p) => p.id === 'mock-pt')?.trusted, true);
-      assert.equal(await getPluginTrusted2(scope, 'mock-pt'), true);
+      assert.equal(readTrusted(scope, 'mock-pt'), true);
 
       const revoked = await fetch(url(handle, '/api/plugins/mock-pt/trust'), {
         method: 'PATCH',
@@ -296,7 +296,7 @@ describe('PATCH /api/plugins/:id/trust', () => {
       assert.equal(revoked.status, 200);
       const revokedBody = (await revoked.json()) as { items: IPluginListItem[] };
       assert.equal(revokedBody.items.find((p) => p.id === 'mock-pt')?.trusted, undefined);
-      assert.equal(await getPluginTrusted2(scope, 'mock-pt'), false);
+      assert.equal(readTrusted(scope, 'mock-pt'), false);
     });
   });
 
@@ -344,12 +344,12 @@ describe('PATCH /api/plugins/:id/trust', () => {
     });
   });
 
-  it('returns 500 db-missing when the project DB does not exist (trust is DB-only)', async () => {
-    // Trust persists to the DB store, so without a DB the write cannot
-    // land. The plugin is still DISCOVERED (untrusted), so the route
-    // reaches the persist step and fails fast with db-missing. Note: no
-    // primeDb here, the DB file is genuinely absent.
-    const scope = freshScope('patch-trust-db-missing');
+  it('grants trust with NO project DB at all (the grant is not a DB row)', async () => {
+    // This used to assert a 500 `db-missing`: trust was a `config_plugins`
+    // row, so without a DB the write had nowhere to land. The grant is now
+    // a scope-lock record keyed to the checkout, so the DB is irrelevant
+    // and the route succeeds. Note: no primeDb here, the file is absent.
+    const scope = freshScope('patch-trust-no-db');
     dropMockPlugin(scope, 'mock-ptdm');
 
     await bootAndUse(scope, {}, async (handle) => {
@@ -358,20 +358,14 @@ describe('PATCH /api/plugins/:id/trust', () => {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ trusted: true }),
       });
-      assert.equal(res.status, 500);
-      const body = (await res.json()) as { ok: boolean; error: { code: string } };
-      assert.equal(body.error.code, 'db-missing');
+      assert.equal(res.status, 200);
+      assert.equal(readTrusted(scope, 'mock-ptdm'), true);
     });
   });
+
 });
 
-/** Read the per-plugin trust grant straight from the DB trust store. */
-async function getPluginTrusted2(scope: IScope, pluginId: string): Promise<boolean | undefined> {
-  const adapter = new SqliteStorageAdapter({ databasePath: scope.dbPath, autoBackup: false });
-  await adapter.init();
-  try {
-    return await getPluginTrusted(adapter.db, pluginId);
-  } finally {
-    await adapter.close();
-  }
+/** Read the per-plugin grant from the scope lock, verified against this checkout. */
+function readTrusted(scope: IScope, pluginId: string): boolean {
+  return loadTrust(scope.cwd).trusted.has(pluginId);
 }

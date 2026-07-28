@@ -25,6 +25,8 @@
 import { homedir as osHomedir } from 'node:os';
 import { isAbsolute, join, resolve, sep } from 'node:path';
 
+import { grantLocalKey, revokeLocalKey } from '../../kernel/config/local-key-grants.js';
+
 import {
   loadConfig,
   PROJECT_LOCAL_ONLY_KEYS,
@@ -153,6 +155,18 @@ export function readConfigValue<T>(
  * Throws `ProjectLocalOnlyKeyError` when the caller asks to write a
  * project-local-only key into the committed `project` layer.
  */
+/**
+ * The scope has no usable filesystem anchor, so consent for a privileged
+ * key cannot be recorded. Thrown instead of writing the key silently:
+ * the loader would ignore it and the operator would have no idea why.
+ */
+export class ScopeAnchorUnavailableError extends Error {
+  constructor(public readonly key: string) {
+    super(`cannot record consent for '${key}': this filesystem reports no creation time for .skill-map/`);
+    this.name = 'ScopeAnchorUnavailableError';
+  }
+}
+
 export function writeConfigValue(
   key: string,
   value: unknown,
@@ -166,6 +180,20 @@ export function writeConfigValue(
   setAtPath(merged, key, value);
   validateOrThrow(merged);
   writeJsonAtomic(path, merged);
+
+  // Record consent for the privileged keys (audit H1). Without a grant
+  // the loader ignores the key, so a silent failure here would leave the
+  // operator believing a setting is active while nothing reads it.
+  //
+  // Note what is deliberately NOT done: the whole-file read-modify-write
+  // above still copies any attacker-supplied privileged key back to disk.
+  // That is safe precisely because a grant covers exactly one key and one
+  // value, so this write mints nothing for a key it did not touch. Adding
+  // a purge step would be belt-and-braces, but the security property must
+  // not depend on it.
+  if (opts.target === 'project-local' && PROJECT_LOCAL_ONLY_KEYS.has(key)) {
+    if (!grantLocalKey(opts.cwd, key, value)) throw new ScopeAnchorUnavailableError(key);
+  }
 }
 
 /**
@@ -184,6 +212,11 @@ export function removeConfigValue(key: string, opts: TRemoveConfigValueOpts): bo
   if (!removed) return false;
   validateOrThrow(merged);
   writeJsonAtomic(path, merged);
+  // The grant goes with the key it authorised; a stale one left behind
+  // would silently re-bless the key if it were ever restored by hand.
+  if (opts.target === 'project-local' && PROJECT_LOCAL_ONLY_KEYS.has(key)) {
+    revokeLocalKey(opts.cwd, key);
+  }
   return true;
 }
 

@@ -9,6 +9,7 @@
  * disk holds the expected bytes" is covered.
  */
 
+import { grantLocalKey } from '../../../../../kernel/config/local-key-grants.js';
 import { describe, it, before, after, beforeEach } from 'node:test';
 import { strictEqual, ok, deepStrictEqual } from 'node:assert';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
@@ -55,6 +56,9 @@ before(() => {
     JSON.stringify({ allowEditSmFiles: true }),
     'utf8',
   );
+  // Privileged project-local keys need a grant recorded in this
+  // checkout to count (audit H1), so a clone cannot ship consent.
+  grantLocalKey(consentRoot, 'allowEditSmFiles', true);
 });
 
 after(() => {

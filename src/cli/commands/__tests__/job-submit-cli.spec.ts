@@ -19,6 +19,7 @@
  *     --json OMIT the nonce (spec §Atomic claim · Nonce exposure).
  */
 
+import { grantTrust } from '../../../kernel/config/plugin-trust-store.js';
 import { appendFileSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -135,7 +136,7 @@ async function setupProject(
         writeFileSync(abs, `---\ntitle: t\n---\n${bodyFor(node.path)}`);
       }
     }
-    await adapter.trust.set(PLUGIN_ID, true);
+    grantTrust(root, PLUGIN_ID);
   } finally {
     await adapter.close();
   }

@@ -10,6 +10,7 @@
  * and `<cwd>/.skill-map/settings.local.json`.
  */
 
+import { grantLocalKey } from '../local-key-grants.js';
 import { describe, it, before, after } from 'node:test';
 import { strictEqual, deepStrictEqual, ok, throws, match } from 'node:assert';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -271,10 +272,39 @@ describe('config loader, project-local-only locality', () => {
   it('preserves project-local-only keys in project-local layer', () => {
     const { cwd } = freshScope('plonly-survives-local');
     writeSettings(cwd, 'settings.local', { allowEditSmFiles: true });
+    // Preservation is now GRANT-gated (audit H1): the layer is the only
+    // legitimate home for these keys, but a shipped file is
+    // indistinguishable from a hand-written one, so consent must have
+    // been recorded in THIS checkout.
+    ok(grantLocalKey(cwd, 'allowEditSmFiles', true), 'anchor available in the test scope');
     const { effective, sources, warnings } = loadConfig({ cwd });
     strictEqual(effective.allowEditSmFiles, true);
     strictEqual(sources.get('allowEditSmFiles'), 'project-local');
     ok(!warnings.some((w) => /project-local only/.test(w)));
+  });
+
+  it('STRIPS a project-local key that carries no grant (audit H1)', () => {
+    // The exemption used to be unconditional, resting on
+    // "settings.local.json is gitignored so it cannot arrive in a clone".
+    // That is the default behaviour, not a boundary: `git add -f` ships
+    // it. Without a grant minted here, the key degrades exactly like a
+    // committed one.
+    const { cwd } = freshScope('plonly-ungranted');
+    writeSettings(cwd, 'settings.local', { scan: { followExternalSymlinks: true } });
+    const { effective, warnings } = loadConfig({ cwd });
+    strictEqual(effective.scan.followExternalSymlinks, false, 'the shipped key is ignored');
+    ok(warnings.some((w) => /was not granted in this copy/.test(w)), warnings.join(' | '));
+  });
+
+  it('a grant does NOT carry over to a different VALUE of the same key', () => {
+    // Consent is for a key at a value; editing it on disk afterwards
+    // invalidates that key alone.
+    const { cwd } = freshScope('plonly-value-bound');
+    mkdirSync(join(cwd, '.skill-map'), { recursive: true });
+    ok(grantLocalKey(cwd, 'tutorialReminderStep', 1));
+    writeSettings(cwd, 'settings.local', { tutorialReminderStep: 2 });
+    const { effective } = loadConfig({ cwd });
+    strictEqual(effective.tutorialReminderStep, 0, 'tampered value falls back to defaults');
   });
 
   it('strips tutorialReminderStep from the project layer + warns', () => {
@@ -295,6 +325,9 @@ describe('config loader, project-local-only locality', () => {
   it('preserves tutorialReminderStep in the project-local layer', () => {
     const { cwd } = freshScope('plonly-tutorial-reminder-local');
     writeSettings(cwd, 'settings.local', { tutorialReminderStep: 1 });
+    // Preservation is grant-gated (audit H1).
+    mkdirSync(join(cwd, '.skill-map'), { recursive: true });
+    ok(grantLocalKey(cwd, 'tutorialReminderStep', 1));
     const { effective, sources } = loadConfig({ cwd });
     strictEqual(effective.tutorialReminderStep, 1);
     strictEqual(sources.get('tutorialReminderStep'), 'project-local');
@@ -318,6 +351,9 @@ describe('config loader, project-local-only locality', () => {
   it('preserves mcp.server.enabled in the project-local layer', () => {
     const { cwd } = freshScope('plonly-mcp-server-local');
     writeSettings(cwd, 'settings.local', { mcp: { server: { enabled: true } } });
+    // Preservation is grant-gated (audit H1).
+    mkdirSync(join(cwd, '.skill-map'), { recursive: true });
+    ok(grantLocalKey(cwd, 'mcp.server.enabled', true));
     const { effective, sources } = loadConfig({ cwd });
     strictEqual(effective.mcp?.server?.enabled, true);
     strictEqual(sources.get('mcp.server.enabled'), 'project-local');

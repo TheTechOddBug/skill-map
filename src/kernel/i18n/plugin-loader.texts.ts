@@ -72,23 +72,57 @@ export const PLUGIN_LOADER_TEXTS = {
    * Reason stamped on a project-local disk plugin discovered but not
    * imported because the operator never granted local import trust.
    * Distinct from `disabledByConfig` (an explicit operational toggle-off
-   * in the config layers): this id is enabled but carries no
-   * `config_plugins` trust grant, so its code stays unexecuted until
-   * `sm plugins trust` records local consent.
+   * in the config layers): this id is enabled but carries no scope-lock
+   * grant, so its code stays unexecuted until `sm plugins trust` records
+   * local consent.
    */
   untrustedNotLoaded:
-    'not loaded: project-local plugin is enabled but not trusted on this machine. ' +
+    'not loaded: project-local plugin is enabled but not trusted in this checkout. ' +
     'Run `sm plugins trust {{pluginId}}` to load it.',
 
   /**
    * One-time aggregate notice the runtime emits when project-local
    * plugins were found on disk but left unloaded for lack of trust. The
    * `{{count}}` plugins ride the scan without executing any code.
+   *
+   * Deliberately does NOT send the operator to `sm plugins list`, which
+   * the previous wording did: that verb still imports plugin code to
+   * enumerate extensions, so recommending it as the "review" step meant
+   * telling someone their code had not run and, in the same sentence,
+   * handing them the command that runs it. Reading the source is the
+   * honest review step until the family enumerates from the manifest.
    */
   untrustedPluginsFoundNotice:
     '{{count}} project-local plugin(s) found in .skill-map/plugins/ but not loaded ' +
-    '(untrusted). Their code did NOT run. Review with `sm plugins list`, then ' +
-    'trust any you vetted with `sm plugins trust <id>`.',
+    '(untrusted). Their code did NOT run. Read the plugin source, then ' +
+    'trust what you vetted with `sm plugins trust <id>`.',
+
+  /**
+   * A grant EXISTS for these ids but was minted against a different copy
+   * of the project. Benign causes are the common ones (the project was
+   * copied, restored from a backup, moved across filesystems, or
+   * re-cloned), and from in here they are indistinguishable from a
+   * hostile repo shipping its own grants, so the wording states the fact
+   * and never accuses.
+   *
+   * Deliberately no bulk re-adopt: re-granting stays a per-plugin act so
+   * the operator has to name what they are trusting. A prompt offering to
+   * adopt them all would turn the attack into social engineering.
+   */
+  foreignGrantNotice:
+    '{{count}} project-local plugin(s) were granted in a different copy of this project ' +
+    'and were NOT loaded: {{ids}}. Trust is recorded per checkout. ' +
+    'Re-grant what you still want with `sm plugins trust <id>`.',
+
+  /**
+   * The filesystem cannot anchor a grant at all. Separate from every
+   * other trust message because re-granting is futile here: the operator
+   * needs to know it is the environment, not their data.
+   */
+  anchorUnusableNotice:
+    '{{count}} project-local plugin(s) were NOT loaded: this filesystem reports no ' +
+    'creation time for .skill-map/, so trust cannot be anchored to this checkout. ' +
+    'Known on Windows drives mounted into WSL (/mnt/...), /proc and /sys.',
 
   invalidManifestDirMismatch:
     "directory name '{{dirName}}' does not match manifest id '{{manifestId}}'. " +

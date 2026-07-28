@@ -383,6 +383,13 @@ export const SERVER_TEXTS = {
 
   // 500, DB missing on a write path. Read paths degrade to empty
   // shapes, but mutations cannot persist without a DB so they fail fast.
+  /**
+   * 409: the scope has no usable filesystem anchor, so no trust grant
+   * can be minted. Distinct from every other trust failure because
+   * retrying is futile; the message names the environment.
+   */
+  pluginsTrustAnchorUnusable:
+    "cannot record trust for '{{pluginId}}': this filesystem reports no creation time for .skill-map/, so a grant cannot be anchored to this checkout",
   pluginsDbMissing:
     'Cannot persist plugin override: project DB not found at {{path}}. Run `sm scan` first or pass --db <path>.',
 

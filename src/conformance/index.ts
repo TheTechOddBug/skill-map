@@ -11,11 +11,11 @@
  * alongside Step 2 extensions.
  */
 
+import { grantTrust } from '../kernel/config/plugin-trust-store.js';
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 
 import { formatErrorMessage } from '../kernel/util/format-error.js';
 import { KERNEL_SKILL_MAP_DIR } from '../kernel/util/skill-map-paths.js';
@@ -227,11 +227,7 @@ export function runConformanceCase(options: IRunCaseOptions): IRunCaseResult {
     //     default-disabled import-trust gate would otherwise leave every
     //     plugin-bearing case's plugin unexecuted. Runs AFTER the fixture
     //     is in place and BEFORE the invoke.
-    grantFixturePluginTrust(scope, options.binary, {
-      ...pickSafeEnv(process.env),
-      ...options.env,
-      ...setupEnv,
-    });
+    grantFixturePluginTrust(scope);
 
     // 2c. Replay every `setup.priorInvokes` step against the provisioned
     //     scope (after the top-level fixture copy, so the steps see the
@@ -397,66 +393,28 @@ function replaceFixture(scope: string, fixturesRoot: string, fixture: string): v
 
 /**
  * Grant local import-trust to every drop-in plugin in the provisioned
- * scope by writing a bare-id `config_plugins` trust row (`trusted = 1`),
- * the persisted signal the loader's import-trust gate reads. The plugin
- * id IS the directory name, so this works WITHOUT importing the plugin,
- * including for intentionally-broken plugins a `sm plugins trust` could
- * not enumerate (e.g. the `plugin-missing-ui-rejected` case, whose
- * plugin must be imported to be rejected for its missing UI).
+ * scope, writing the scope-lock records directly through the same
+ * production helper `sm plugins trust` uses.
  *
- * Ensures the schema exists first via a one-shot `sm init --no-scan`
- * (which provisions the DB without populating scan zones, so the case's
- * own invoke is still the first real scan). No-op when the fixture ships
- * no plugins.
+ * Writing records rather than invoking the verb is deliberate: the id IS
+ * the directory name, so this works WITHOUT importing the plugin, which
+ * matters for the intentionally-broken fixtures a real `sm plugins trust`
+ * could not enumerate (`plugin-missing-ui-rejected`, whose plugin must be
+ * imported to be rejected for its missing UI).
+ *
+ * This used to hand-write a `config_plugins` row, which meant bootstrapping
+ * the DB schema first via `sm init --no-scan` (or a throwaway `scan`) just
+ * to have a table to insert into. The lock needs none of that: it is a file
+ * beside the plugins, so the whole dance is gone. No-op when the fixture
+ * ships no plugins.
  */
-function grantFixturePluginTrust(scope: string, binary: string, env: NodeJS.ProcessEnv): void {
+function grantFixturePluginTrust(scope: string): void {
   const pluginsDir = join(scope, KERNEL_SKILL_MAP_DIR, 'plugins');
   if (!existsSync(pluginsDir)) return;
   const ids = readdirSync(pluginsDir, { withFileTypes: true })
     .filter((e) => e.isDirectory() && existsSync(join(pluginsDir, e.name, 'plugin.json')))
     .map((e) => e.name);
-  if (ids.length === 0) return;
-
-  // Ensure the schema exists. `init --no-scan` provisions the DB without
-  // populating scan zones, so a case whose own invoke is `scan` still
-  // sees a fresh first scan. But when the fixture already ships a
-  // `.skill-map/` (e.g. a committed `settings.json`), init treats the
-  // project as initialized and skips the DB, so fall back to a throwaway
-  // `scan` (which always migrates) when `config_plugins` is still absent.
-  const dbPath = join(scope, KERNEL_SKILL_MAP_DIR, 'skill-map.db');
-  if (!existsSync(dbPath)) {
-    spawnSync(process.execPath, [binary, 'init', '--no-scan'], { cwd: scope, env, encoding: 'utf8' });
-  }
-  if (!hasConfigPluginsTable(dbPath)) {
-    spawnSync(process.execPath, [binary, 'scan'], { cwd: scope, env, encoding: 'utf8' });
-  }
-
-  const db = new DatabaseSync(dbPath);
-  try {
-    const stmt = db.prepare(
-      'INSERT INTO config_plugins (plugin_id, trusted, updated_at) VALUES (?, 1, 0) ' +
-        'ON CONFLICT(plugin_id) DO UPDATE SET trusted = 1',
-    );
-    for (const id of ids) stmt.run(id);
-  } finally {
-    db.close();
-  }
-}
-
-/** True when `config_plugins` exists in the DB (schema migrated). */
-function hasConfigPluginsTable(dbPath: string): boolean {
-  if (!existsSync(dbPath)) return false;
-  const db = new DatabaseSync(dbPath, { readOnly: true });
-  try {
-    const row = db
-      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'config_plugins'")
-      .get();
-    return row !== undefined;
-  } catch {
-    return false;
-  } finally {
-    db.close();
-  }
+  for (const id of ids) grantTrust(scope, id);
 }
 
 /**

@@ -35,6 +35,7 @@ import { JobClaimCommand, JobFailCommand, JobSubmitCommand } from '../../cli/com
 import { RecordCommand } from '../../cli/commands/record.js';
 import { PluginsTrustCommand } from '../../cli/commands/plugins/trust.js';
 import { PluginsEnableCommand } from '../../cli/commands/plugins/toggle.js';
+import { ExitCode } from '../../cli/util/exit-codes.js';
 import {
   createServer,
   type IServerOptions,
@@ -378,7 +379,14 @@ describe('drift hygiene: reads convert failures, writes refuse early', () => {
     }
   }
 
-  it('sm plugins trust refuses the drifted DB (a grant written there is lost on rebuild)', async () => {
+  it('sm plugins trust IGNORES DB drift: the grant does not live in the DB', async () => {
+    // This used to assert the opposite. The drift guard existed because a
+    // trust row written into a drifted DB was destroyed by the next
+    // rebuild, so refusing early was kinder than losing the grant. The
+    // grant is now a scope-lock record keyed to the checkout, so a
+    // rebuild cannot touch it and there is nothing to protect the
+    // operator from. The verb proceeds to ordinary id resolution, which
+    // is what rejects an unknown plugin here.
     await withProjectCwd(async (dbPath) => {
       await seedDriftedDb(dbPath);
 
@@ -389,9 +397,12 @@ describe('drift hygiene: reads convert failures, writes refuse early', () => {
       cmd.context = cap.context;
       const code = await cmd.execute();
 
-      assert.equal(code, 2, 'trust refuses on drift before discovery');
-      assert.match(cap.stderr(), /cannot be written safely/);
-      assert.doesNotMatch(cap.stderr(), /not found/, 'never reaches id resolution');
+      assert.doesNotMatch(
+        cap.stderr(),
+        /cannot be written safely/,
+        'no drift refusal: the grant is not a DB row any more',
+      );
+      assert.equal(code, ExitCode.NotFound, 'reaches id resolution and rejects the unknown id');
     });
   });
 

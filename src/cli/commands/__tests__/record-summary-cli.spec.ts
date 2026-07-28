@@ -25,6 +25,7 @@
  *     summary row (history-only).
  */
 
+import { grantTrust } from '../../../kernel/config/plugin-trust-store.js';
 import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -158,7 +159,7 @@ async function setupProject(
     mkdirSync(join(abs, '..'), { recursive: true });
     writeFileSync(abs, `---\ntitle: t\n---\nBody of ${node.path}\n`);
     if (opts.withPlugin === true) {
-      await adapter.trust.set(PLUGIN_ID, true);
+      grantTrust(root, PLUGIN_ID);
     }
   } finally {
     await adapter.close();

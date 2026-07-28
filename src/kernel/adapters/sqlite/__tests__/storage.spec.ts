@@ -62,7 +62,6 @@ describe('SqliteStorageAdapter', () => {
         'state_summaries',
         'state_enrichments',
         'state_plugin_kvs',
-        'config_plugins',
         'config_preferences',
         'config_schema_versions',
       ]) {

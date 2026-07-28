@@ -25,6 +25,7 @@
  * discovery + config layering resolve against it.
  */
 
+import { grantTrust } from '../../../kernel/config/plugin-trust-store.js';
 import { strict as assert } from 'node:assert';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -121,20 +122,12 @@ function dropSecretPlugin(scope: IScope, pluginId: string, extId: string): void 
 }
 
 /**
- * Grant local import-trust for a project-local plugin, the in-test
- * equivalent of `sm plugins enable <id>`: write a `config_plugins`
- * override into the project DB so the H1 import-trust gate (default-
- * disabled for cloned project-local plugins) imports the plugin's code
- * when the BFF boots. The gate reads the override from
- * `<cwd>/.skill-map/skill-map.db` (the default project DB resolved from
- * `runtimeContext.cwd`), NOT the BFF's primed `dbPath`, so trust lands
- * there. Creates the DB if absent (mirrors the real enable flow).
+ * Grant local import-trust the way the product does: a scope-lock record
+ * keyed to `runtimeContext.cwd`, which is the scope the import gate
+ * consults (NOT the BFF's primed `dbPath`).
  */
-async function trustProjectPlugin(scope: IScope, pluginId: string): Promise<void> {
-  const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
-  await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-    await adapter.trust.set(pluginId, true);
-  });
+function trustProjectPlugin(scope: IScope, pluginId: string): void {
+  grantTrust(scope.cwd, pluginId);
 }
 
 function readSettingsFile(scope: IScope, kind: 'settings' | 'settings.local'): Record<string, unknown> {
@@ -249,7 +242,7 @@ describe('GET /api/plugins, settings projection', () => {
     await primeDb(scope.dbPath);
     dropSecretPlugin(scope, 'vault', 'fetcher');
     // Post-H1 gate: trust the dropped plugin so its `fetcher` extension loads.
-    await trustProjectPlugin(scope, 'vault');
+    trustProjectPlugin(scope, 'vault');
     // Pre-seed a stored secret value in the local file.
     writeFileSync(
       join(scope.cwd, '.skill-map', 'settings.local.json'),
@@ -278,7 +271,7 @@ describe('GET /api/plugins, settings projection', () => {
     await primeDb(scope.dbPath);
     dropSecretPlugin(scope, 'vault', 'fetcher');
     // Post-H1 gate: trust the dropped plugin so its `fetcher` extension loads.
-    await trustProjectPlugin(scope, 'vault');
+    trustProjectPlugin(scope, 'vault');
     await bootAndUse(scope, { noPlugins: false }, async (handle) => {
       const items = await getItems(handle);
       const ext = findExt(items, 'vault', 'fetcher');
@@ -384,7 +377,7 @@ describe('PATCH /api/plugins, settings writes', () => {
     await primeDb(scope.dbPath);
     dropSecretPlugin(scope, 'vault', 'fetcher');
     // Post-H1 gate: trust the dropped plugin so its `fetcher` extension loads.
-    await trustProjectPlugin(scope, 'vault');
+    trustProjectPlugin(scope, 'vault');
     await bootAndUse(scope, { noPlugins: false }, async (handle) => {
       const res = await patch(handle, {
         changes: [{ id: 'vault/fetcher', settings: { 'api-token': 'sk-from-http' } }],
@@ -411,7 +404,7 @@ describe('PATCH /api/plugins, settings writes', () => {
     await primeDb(scope.dbPath);
     dropSecretPlugin(scope, 'vault', 'fetcher');
     // Post-H1 gate: trust the dropped plugin so its `fetcher` extension loads.
-    await trustProjectPlugin(scope, 'vault');
+    trustProjectPlugin(scope, 'vault');
     await bootAndUse(scope, { noPlugins: false }, async (handle) => {
       const res = await patch(handle, {
         changes: [{ id: 'vault/fetcher', settings: { 'base-url': 'https://api.test.dev' } }],

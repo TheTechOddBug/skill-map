@@ -14,7 +14,7 @@
  *
  * Write side: enable persists to the CONFIG layers (`settings.json`) via
  * `writeConfigValue`, same path the CLI's `sm plugins enable / disable`
- * uses; trust persists to the `config_plugins` DB store via
+ * uses; trust persists to the scope lock via
  * `adapter.trust.set`, same path as `sm plugins trust / untrust`. The
  * loaded plugin runtime is boot-cached; a newly-trusted plugin's
  * handlers load on the next `sm serve` restart. Spec: cli-contract.md
@@ -46,6 +46,12 @@
 import type { Context, Hono } from 'hono';
 // eslint-disable-next-line import-x/extensions
 import { HTTPException } from 'hono/http-exception';
+
+import {
+  grantTrust,
+  loadTrust,
+  revokeTrust,
+} from '../../kernel/config/plugin-trust-store.js';
 
 import { builtInPlugins, type IBuiltInPlugin } from '../../plugins/built-ins.js';
 import { sortPluginsForPresentation } from '../../plugins/presentation-order.js';
@@ -196,7 +202,7 @@ export interface IPluginListItem {
   startsAsDisabled?: boolean;
   /**
    * Stamped `true` on a drop-in plugin that carries a LOCAL import-trust
-   * grant: a `config_plugins` trust row (written by `sm plugins trust`
+   * grant: a scope-lock record (written by `sm plugins trust`
    * / `sm plugins trust --all` / `PATCH /api/plugins/:id/trust`). Omitted
    * when false, so an untrusted project-local plugin reads `trusted`
    * absent. Built-ins always omit it (they are never trust-gated). The
@@ -246,10 +252,16 @@ interface IBulkPatchBody {
   changes: readonly IBulkChange[];
 }
 
-/** Trust state for the read projection: the DB trust map. */
+/** Trust state for the read projection. */
 interface ITrustState {
-  /** `config_plugins` trust rows keyed by bare plugin id. */
+  /** Bare plugin ids whose scope-lock grant VERIFIED against this checkout. */
   trustMap: Map<string, boolean>;
+  /**
+   * Ids with a record that did NOT verify. The SPA needs these distinct
+   * from plain "untrusted": the remedy differs, and rendering a grant
+   * made in another copy as if it had never existed is confusing.
+   */
+  foreign: Set<string>;
 }
 
 const SINGLE_PATCH_BODY_SCHEMA = {
@@ -367,7 +379,7 @@ export function registerPluginsRoute(app: Hono, deps: IPluginsRouteDeps): void {
     // re-engage, the read row carries `startsAsDisabled: true` so the
     // SPA can surface a per-row hint for that case.
     const resolveEnabled = await buildFreshResolver(deps);
-    const trust = await loadTrustState(deps);
+    const trust = loadTrustState(deps);
     const items = listItems(deps, resolveEnabled, trust);
     // Embed the last scan's runtime contribution-rejections per plugin
     // (read-only). The errors are read from `scan_contribution_errors`
@@ -462,7 +474,7 @@ export function registerPluginsRoute(app: Hono, deps: IPluginsRouteDeps): void {
   // (the SECURITY axis, orthogonal to enable). `:id` MUST be a bare
   // plugin id (no slash); trust is per-plugin. Built-ins and locked ids
   // are rejected with 403 (they are never trust-gated). Writes (true) or
-  // clears (false) the plugin's `config_plugins` trust row.
+  // clears (false) the plugin's scope-lock grant.
   app.patch('/api/plugins/:id/trust', async (c) => {
     const id = c.req.param('id');
     if (id.includes('/')) {
@@ -549,17 +561,17 @@ function listItems(
 }
 
 /**
- * Read the LOCAL trust state for the read projection: the `config_plugins`
- * trust map (DB). A missing DB degrades to an empty map (every drop-in
- * untrusted). Built-ins are never trust-gated and ignore it.
+ * Read the LOCAL trust state for the read projection, from the scope
+ * lock rather than the DB. Keyed to the checkout, so it is the same
+ * store the import gate consults even under a `--db` override pointing
+ * elsewhere. Built-ins are never trust-gated and ignore it.
  */
-async function loadTrustState(deps: IRouteDeps): Promise<ITrustState> {
-  const trustMap =
-    (await tryWithSqlite(
-      { databasePath: deps.options.dbPath, autoBackup: false, versionCheck: bffReadVersionCheck() },
-      (adapter) => adapter.trust.loadTrustMap(),
-    )) ?? new Map<string, boolean>();
-  return { trustMap };
+function loadTrustState(deps: IRouteDeps): ITrustState {
+  const { trusted, skipped } = loadTrust(deps.runtimeContext.cwd);
+  return {
+    trustMap: new Map([...trusted].map((id) => [id, true])),
+    foreign: new Set(skipped.map((s) => s.pluginId)),
+  };
 }
 
 function buildBuiltInItems(
@@ -650,7 +662,7 @@ function buildDiscoveredItem(
  * that ride a discovered plugin's list item. Pulled out of
  * `buildDiscoveredItem` to keep it within the complexity budget.
  *
- * `trusted`: a drop-in is trusted when it carries a `config_plugins` trust
+ * `trusted`: a drop-in is trusted when it carries a scope-lock
  * row (omitted when false).
  *
  * `startsAsDisabled`: snapshots the BOOT-time loader verdict, stamped only
@@ -899,9 +911,13 @@ async function persistManyAndProject(
 }
 
 /**
- * Persist a plugin-level import-trust grant to the `config_plugins` DB
- * store and project the post-write list. Trust is DB-only, so a missing
- * DB fails fast (`db-missing`): the write cannot persist without it.
+ * Persist a plugin-level import-trust grant into the scope lock and
+ * project the post-write list. No DB is involved: the grant is anchored
+ * to the checkout, which is also why it survives a schema-drift rebuild.
+ *
+ * A scope with no usable filesystem anchor cannot back a grant, and the
+ * route refuses rather than persisting a record that would silently
+ * never load.
  */
 async function persistTrustAndProject(
   c: Context,
@@ -909,17 +925,15 @@ async function persistTrustAndProject(
   pluginId: string,
   trusted: boolean,
 ): Promise<Response> {
-  const ok = await tryWithSqlite(
-    { databasePath: deps.options.dbPath, autoBackup: false },
-    async (adapter) => {
-      await adapter.trust.set(pluginId, trusted);
-      return true;
-    },
-  );
-  if (ok === null) {
-    throw new DbMissingError(
-      tx(SERVER_TEXTS.pluginsDbMissing, { path: deps.options.dbPath }),
-    );
+  if (!trusted) {
+    revokeTrust(deps.runtimeContext.cwd, pluginId);
+    return await projectListResponse(c, deps);
+  }
+  const outcome = grantTrust(deps.runtimeContext.cwd, pluginId);
+  if (!outcome.ok) {
+    throw new HTTPException(409, {
+      message: tx(SERVER_TEXTS.pluginsTrustAnchorUnusable, { pluginId }),
+    });
   }
   return await projectListResponse(c, deps);
 }
@@ -1014,7 +1028,7 @@ async function applyDisableCascade(
 
 /**
  * Project the post-write list envelope. Enable comes from the (reloaded)
- * layered config; trust comes from a fresh `config_plugins` read. No
+ * layered config; trust comes from a fresh scope-lock read. No
  * `db-missing` here: enable is config-only, and the trust write already
  * confirmed the DB.
  */
@@ -1023,7 +1037,7 @@ async function projectListResponse(
   deps: IRouteDeps,
 ): Promise<Response> {
   const resolveEnabled = composeResolver(deps);
-  const trust = await loadTrustState(deps);
+  const trust = loadTrustState(deps);
   const items = listItems(deps, resolveEnabled, trust);
   return c.json(
     buildListEnvelope({

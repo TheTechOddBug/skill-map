@@ -15,6 +15,7 @@
  * tests; `mkdtempSync` keeps each test isolated.
  */
 
+import { grantLocalKey } from '../../config/local-key-grants.js';
 import { describe, it, before, after, beforeEach } from 'node:test';
 import { strictEqual, ok, deepStrictEqual, rejects } from 'node:assert';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
@@ -60,6 +61,11 @@ before(() => {
     JSON.stringify({ allowEditSmFiles: true }),
     'utf8',
   );
+  // The key alone stopped being consent (audit H1): a privileged
+  // project-local key is honoured only with a grant recorded in this
+  // checkout, so a clone cannot ship one. The fixture records it the
+  // same way `sm config set` would.
+  grantLocalKey(consentRoot, 'allowEditSmFiles', true);
 });
 
 after(() => {

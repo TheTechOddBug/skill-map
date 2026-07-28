@@ -12,6 +12,7 @@
  *     against `FilesystemSidecarStore` so the round-trip holds.
  */
 
+import { grantLocalKey } from '../../../../../kernel/config/local-key-grants.js';
 import { describe, it, before, after, beforeEach } from 'node:test';
 import { strictEqual, ok, deepStrictEqual } from 'node:assert';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -51,6 +52,9 @@ before(() => {
     JSON.stringify({ allowEditSmFiles: true }),
     'utf8',
   );
+  // Privileged project-local keys need a grant recorded in this
+  // checkout to count (audit H1), so a clone cannot ship consent.
+  grantLocalKey(consentRoot, 'allowEditSmFiles', true);
 });
 
 after(() => {

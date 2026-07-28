@@ -26,6 +26,7 @@
  *   - a non-tagger report (summarizer) never touches the sidecar.
  */
 
+import { grantLocalKey } from '../../../kernel/config/local-key-grants.js';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -129,6 +130,9 @@ async function setupProject(opts: { consent?: boolean } = {}): Promise<IProject>
       join(root, '.skill-map', 'settings.local.json'),
       JSON.stringify({ allowEditSmFiles: true }),
     );
+  // Privileged project-local keys need a grant recorded in this
+  // checkout to count (audit H1), so a clone cannot ship consent.
+  grantLocalKey(root, 'allowEditSmFiles', true);
   }
   // Processing-agent gate (spec/job-lifecycle.md §Submit): submits refuse
   // unless the processing skill is installed.

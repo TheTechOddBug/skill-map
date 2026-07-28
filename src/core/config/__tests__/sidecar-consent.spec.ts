@@ -16,6 +16,7 @@
  * no `:memory:`.
  */
 
+import { grantLocalKey } from '../../../kernel/config/local-key-grants.js';
 import { strict as assert } from 'node:assert';
 import {
   existsSync,
@@ -56,6 +57,10 @@ describe('ensureSidecarWritesAllowed', () => {
       JSON.stringify({ allowEditSmFiles: true }),
       'utf8',
     );
+    // The key alone is no longer consent (audit H1): a hand-written or
+    // clone-delivered `true` is ignored unless a grant records that it
+    // was set in THIS checkout.
+    assert.equal(grantLocalKey(cwd, 'allowEditSmFiles', true), true);
     // Should not throw.
     ensureSidecarWritesAllowed({ confirm: false, cwd });
     // Did NOT write a fresh consent file (it was already there).

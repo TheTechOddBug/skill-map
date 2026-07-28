@@ -16,6 +16,7 @@
  *       stops matching (`promptTemplateHash` folds the contract in).
  */
 
+import { grantTrust } from '../../../kernel/config/plugin-trust-store.js';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -130,7 +131,7 @@ async function setupProject(): Promise<IProject> {
       mkdirSync(join(abs, '..'), { recursive: true });
       writeFileSync(abs, `---\ntitle: t\n---\nBody of ${node.path}\n`);
     }
-    await adapter.trust.set(FINDER_PLUGIN_ID, true);
+    grantTrust(root, FINDER_PLUGIN_ID);
   } finally {
     await adapter.close();
   }

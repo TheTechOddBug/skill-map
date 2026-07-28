@@ -11,6 +11,7 @@
  * via `sm config get`; the trust assertions read the DB row directly.
  */
 
+import { loadTrust } from '../../../../kernel/config/plugin-trust-store.js';
 import { strict as assert } from 'node:assert';
 import { spawnSync } from 'node:child_process';
 import {
@@ -33,7 +34,6 @@ import {
   replaceAllScanContributions,
   type IContributionErrorRecord,
 } from '../../../../kernel/adapters/sqlite/contributions.js';
-import { getPluginTrusted } from '../../../../kernel/adapters/sqlite/plugins.js';
 import { installedSpecVersion } from '../../../../kernel/adapters/plugin-loader.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -151,15 +151,10 @@ function readEnabled(scope: IScope, id: string): boolean | undefined {
 }
 
 /** Read the per-plugin trust grant from the `config_plugins` DB store. */
-async function readTrusted(scope: IScope, pluginId: string): Promise<boolean | undefined> {
-  const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
-  const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-  await adapter.init();
-  try {
-    return await getPluginTrusted(adapter.db, pluginId);
-  } finally {
-    await adapter.close();
-  }
+function readTrusted(scope: IScope, pluginId: string): boolean {
+  // Trust lives in the scope lock, keyed to the checkout, so this is
+  // a file read rather than a DB open.
+  return loadTrust(scope.cwd).trusted.has(pluginId);
 }
 
 before(() => {
@@ -632,7 +627,7 @@ describe('sm plugins trust / untrust', () => {
     assert.match(r.stdout, /trusted: mock-trust/);
 
     // DB trust row written; enable config untouched (no override).
-    assert.equal(await readTrusted(scope, 'mock-trust'), true);
+    assert.equal(readTrusted(scope, 'mock-trust'), true);
     assert.equal(readEnabled(scope, 'mock-trust/mock-trust-extractor'), undefined);
   });
 
@@ -641,12 +636,12 @@ describe('sm plugins trust / untrust', () => {
     sm(['init', '--no-scan'], scope);
     dropMockPlugin(scope, 'mock-untrust');
     sm(['plugins', 'trust', 'mock-untrust'], scope);
-    assert.equal(await readTrusted(scope, 'mock-untrust'), true);
+    assert.equal(readTrusted(scope, 'mock-untrust'), true);
 
     const r = sm(['plugins', 'untrust', 'mock-untrust'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     assert.match(r.stdout, /untrusted: mock-untrust/);
-    assert.equal(await readTrusted(scope, 'mock-untrust'), false);
+    assert.equal(readTrusted(scope, 'mock-untrust'), false);
   });
 
   it('trust collapses a qualified <plugin>/<ext> id to its bare plugin', async () => {
@@ -657,7 +652,7 @@ describe('sm plugins trust / untrust', () => {
     const r = sm(['plugins', 'trust', 'mock-tq/mock-tq-extractor'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     assert.match(r.stdout, /trusted: mock-tq/);
-    assert.equal(await readTrusted(scope, 'mock-tq'), true);
+    assert.equal(readTrusted(scope, 'mock-tq'), true);
   });
 
   it('trust --all grants every discovered drop-in plugin (not built-ins)', async () => {
@@ -666,13 +661,30 @@ describe('sm plugins trust / untrust', () => {
     dropMockPlugin(scope, 'mock-all-a');
     dropMockPlugin(scope, 'mock-all-b');
 
-    const r = sm(['plugins', 'trust', '--all'], scope);
+    // `--all` now confirms; a non-TTY caller must opt in explicitly.
+    const r = sm(['plugins', 'trust', '--all', '--yes'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    assert.equal(await readTrusted(scope, 'mock-all-a'), true);
-    assert.equal(await readTrusted(scope, 'mock-all-b'), true);
+    assert.equal(readTrusted(scope, 'mock-all-a'), true);
+    assert.equal(readTrusted(scope, 'mock-all-b'), true);
     // Built-ins are never trust-gated, so they get no row.
-    assert.equal(await readTrusted(scope, 'core'), undefined);
-    assert.equal(await readTrusted(scope, 'claude'), undefined);
+    assert.equal(readTrusted(scope, 'core'), false);
+    assert.equal(readTrusted(scope, 'claude'), false);
+  });
+
+  it('trust --all lists the ids and grants nothing without confirmation', () => {
+    // `--all` is the reach for anyone who just wants the untrusted
+    // advisory to stop, which is exactly when a hostile repo's plugin
+    // would ride along. The operator has to see the names first.
+    const scope = freshScope('trust-all-confirm');
+    sm(['init', '--no-scan'], scope);
+    dropMockPlugin(scope, 'mock-confirm-a');
+    dropMockPlugin(scope, 'mock-confirm-b');
+
+    const r = sm(['plugins', 'trust', '--all'], scope);
+    assert.match(r.stderr, /About to grant import trust to 2 project-local plugin/);
+    assert.match(r.stderr, /mock-confirm-a/);
+    assert.equal(readTrusted(scope, 'mock-confirm-a'), false, 'nothing granted without a yes');
+    assert.equal(readTrusted(scope, 'mock-confirm-b'), false);
   });
 
   it('trust rejects a built-in id (never trust-gated) with exit 5', async () => {
@@ -682,7 +694,7 @@ describe('sm plugins trust / untrust', () => {
     const r = sm(['plugins', 'trust', 'core'], scope);
     assert.equal(r.status, 5, `stderr: ${r.stderr}`);
     assert.match(r.stderr, /built-in \(or host-locked\) and is never import-trust-gated/);
-    assert.equal(await readTrusted(scope, 'core'), undefined);
+    assert.equal(readTrusted(scope, 'core'), false);
   });
 
   it('trust on an unknown plugin id exits 5', () => {

@@ -12,6 +12,7 @@
  * toggle model (per-extension, no plugin kill-switch) stays consistent.
  */
 
+import { loadTrust, type ITrustSkip } from '../../../kernel/config/plugin-trust-store.js';
 import type {
   IBuiltInPlugin,
   TBuiltInExtension,
@@ -104,8 +105,20 @@ export function isPluginExtensionEnabled(
  */
 export interface IResolverInputs {
   resolveEnabled: TEnabledResolver;
-  /** `config_plugins` trust rows keyed by BARE plugin id (the LOCAL security signal). */
+  /**
+   * VERIFIED trust: bare plugin ids whose scope-lock grant was minted on
+   * this machine, in this checkout. Only these may have their code
+   * imported. Formerly raw DB rows, which a hostile
+   * repo could ship pre-set (audit C1).
+   */
   trustMap: Map<string, boolean>;
+  /**
+   * Records that exist but were NOT honoured, with why. Surfaced so the
+   * operator learns their plugin did not load and what to do about it;
+   * a security control that fails silently is indistinguishable from a
+   * broken one.
+   */
+  trustSkipped: readonly ITrustSkip[];
 }
 
 /**
@@ -117,18 +130,15 @@ export async function buildResolverInputs(
   ctx: IRuntimeContext,
 ): Promise<IResolverInputs> {
   const { effective: cfg } = loadConfig({ ...ctx });
-  const dbPath = resolveDbPath({
-    db: undefined,
-    ...ctx,
-  });
-  const trustMap =
-    (await tryWithSqlite(
-      { databasePath: dbPath, autoBackup: false },
-      (adapter) => adapter.trust.loadTrustMap(),
-    )) ?? new Map<string, boolean>();
+  // Trust comes from the scope lock, not the DB: it is keyed to the
+  // checkout rather than to a database file, so it neither dies with a
+  // schema-drift rebuild nor follows a `--db` override to a file the
+  // import gate never reads. No DB open is needed here at all.
+  const { trusted, skipped } = loadTrust(ctx.cwd);
   return {
     resolveEnabled: makeEnabledResolver(cfg, lockedBuiltInIds()),
-    trustMap,
+    trustMap: new Map([...trusted].map((id) => [id, true])),
+    trustSkipped: skipped,
   };
 }
 

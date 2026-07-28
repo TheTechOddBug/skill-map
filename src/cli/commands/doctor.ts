@@ -22,6 +22,7 @@
  * warns with the actionable verb in the message.
  */
 
+import { loadTrust } from '../../kernel/config/plugin-trust-store.js';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -107,6 +108,7 @@ export class DoctorCommand extends SmCommand {
         Date.now(),
       )),
       checkPlugins(runtime.discovered.map((p) => ({ id: p.id, status: p.status }))),
+      checkTrustScope(cwd),
       ...(await checkProviders(adapter, composed?.providers ?? [], cwd)),
     ];
   }
@@ -313,6 +315,34 @@ function advisoryEstimateFor(
     catalog.find((e) => `${e.pluginId}/${e.id}` === job.extensionId) ??
     catalog.find((e) => e.id === job.extensionId);
   return match?.probExpectedDurationSeconds;
+}
+
+/**
+ * Report scope-lock grants that exist but are not honoured.
+ *
+ * The diagnostic home for the two situations the runtime keeps quiet
+ * about after its one-line advisory, plus the one it never mentions at
+ * all (an unusable anchor with nothing recorded yet). The verdicts stay
+ * separate because the remedies differ: a foreign grant is re-granted
+ * per plugin, while a filesystem with no creation time cannot anchor one
+ * at all and re-granting there is futile.
+ *
+ * Deliberately does NOT print the anchor or any grant value: a disclosed
+ * grant is replayable against that checkout.
+ */
+function checkTrustScope(cwd: string): ICheckRow {
+  const { skipped, anchor } = loadTrust(cwd);
+  if (anchor.kind !== 'value') {
+    return { id: 'trust-scope', status: 'warn', message: T.trustScopeAnchorUnusable };
+  }
+  if (skipped.length === 0) return { id: 'trust-scope', status: 'ok', message: T.trustScopeOk };
+  return {
+    id: 'trust-scope',
+    status: 'warn',
+    message: tx(T.trustScopeForeign, {
+      list: skipped.map((s) => sanitizeForTerminal(s.pluginId)).join(', '),
+    }),
+  };
 }
 
 /** Any discovery status besides the two healthy ones is "error state". */

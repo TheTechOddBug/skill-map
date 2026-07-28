@@ -352,6 +352,30 @@ export const PLUGINS_TEXTS = {
   /** Tip body, dim-wrapped by the caller. */
   slotsListTipText: 'Tip: full spec at spec/view-slots.md and spec/input-types.md.',
 
+  /**
+   * `--all` confirm. Lists the ids about to be trusted so an unfamiliar
+   * name is seen BEFORE consent, marking any whose grant came from
+   * another copy of the project.
+   */
+  trustAllConfirm:
+    'About to grant import trust to {{count}} project-local plugin(s), whose code will then run:\n' +
+    '{{rows}}\n' +
+    'Proceed?',
+  trustAllRow: '  - {{id}}{{note}}',
+  trustAllForeignNote: '   (granted in a different copy of this project)',
+  trustAllAborted: '{{glyph}}  sm plugins trust: aborted by user. Nothing trusted.\n',
+
+  /**
+   * §3.1b block: the scope has no usable filesystem anchor, so no grant
+   * can be minted or verified. Distinct from every other trust failure
+   * because retrying is futile, the hint names the environment.
+   */
+  trustAnchorUnusable:
+    '{{glyph}}  Cannot record trust in this project: the filesystem reports no creation time for .skill-map/.\n' +
+    '   {{hint}}\n',
+  trustAnchorUnusableHint:
+    'Known on Windows drives mounted into WSL (/mnt/...), /proc and /sys. Move the project onto the native filesystem to trust plugins here.',
+
   // --- upgrade verb ----------------------------------------------------
   /** §3.1b block: explicit `<plugin-id>` matched no discovered plugin dir. */
   upgradeNotFound:

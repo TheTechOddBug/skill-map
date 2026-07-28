@@ -35,6 +35,7 @@
  *     exactly one fixer job per `(fixer, node)`.
  */
 
+import { grantTrust } from '../../../kernel/config/plugin-trust-store.js';
 import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -179,10 +180,10 @@ async function setupProject(opts: {
     const abs = join(root, SKILL.path);
     mkdirSync(join(abs, '..'), { recursive: true });
     writeFileSync(abs, `---\ntitle: t\n---\nBody of ${SKILL.path}\n`);
-    await adapter.trust.set(FINDER_PLUGIN_ID, true);
-    if (opts.includeFixer) await adapter.trust.set(FIXER_PLUGIN_ID, true);
-    if (opts.secondFixer) await adapter.trust.set(FIXER2_PLUGIN_ID, true);
-    if (opts.enableAutoFix) await adapter.trust.set(HOOK_PLUGIN_ID, true);
+    grantTrust(root, FINDER_PLUGIN_ID);
+    if (opts.includeFixer) grantTrust(root, FIXER_PLUGIN_ID);
+    if (opts.secondFixer) grantTrust(root, FIXER2_PLUGIN_ID);
+    if (opts.enableAutoFix) grantTrust(root, HOOK_PLUGIN_ID);
   } finally {
     await adapter.close();
   }

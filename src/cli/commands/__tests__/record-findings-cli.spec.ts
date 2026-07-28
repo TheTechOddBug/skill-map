@@ -29,6 +29,7 @@
  *     --json document carries the findings array.
  */
 
+import { grantTrust } from '../../../kernel/config/plugin-trust-store.js';
 import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -144,8 +145,8 @@ async function setupProject(): Promise<IProject> {
     const abs = join(root, SKILL.path);
     mkdirSync(join(abs, '..'), { recursive: true });
     writeFileSync(abs, `---\ntitle: t\n---\nBody of ${SKILL.path}\n`);
-    await adapter.trust.set(FINDER_PLUGIN_ID, true);
-    await adapter.trust.set(ACTION_PLUGIN_ID, true);
+    grantTrust(root, FINDER_PLUGIN_ID);
+    grantTrust(root, ACTION_PLUGIN_ID);
   } finally {
     await adapter.close();
   }

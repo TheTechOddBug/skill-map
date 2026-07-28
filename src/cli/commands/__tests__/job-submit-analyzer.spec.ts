@@ -12,6 +12,8 @@
  *   - the deterministic refusal keeps the conformance-pinned phrase.
  */
 
+import { grantLocalKey } from '../../../kernel/config/local-key-grants.js';
+import { grantTrust } from '../../../kernel/config/plugin-trust-store.js';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -103,8 +105,8 @@ async function setupProject(): Promise<IProject> {
     const abs = join(root, SKILL.path);
     mkdirSync(join(abs, '..'), { recursive: true });
     writeFileSync(abs, `---\ntitle: t\n---\nBody of ${SKILL.path}\n`);
-    await adapter.trust.set('prob-finder', true);
-    await adapter.trust.set('prob-dual', true);
+    grantTrust(root, 'prob-finder');
+    grantTrust(root, 'prob-dual');
   } finally {
     await adapter.close();
   }
@@ -487,6 +489,9 @@ describe('suppressed-judgment advisory (spec §Submit)', () => {
       join(proj.root, '.skill-map/settings.local.json'),
       JSON.stringify({ allowEditSmFiles: true }) + '\n',
     );
+    // The key alone is not consent (audit H1); the grant is what the
+    // original dismiss would have recorded in THIS checkout.
+    grantLocalKey(proj.root, 'allowEditSmFiles', true);
     writeSuppressionSidecar(proj, [
       { extension: 'prob-finder/quality-check', type: 'redundancy' },
       { extension: 'prob-finder/quality-check' },

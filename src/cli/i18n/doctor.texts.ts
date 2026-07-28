@@ -64,4 +64,19 @@ export const DOCTOR_TEXTS = {
   warningNounPlural: 'warnings',
   errorNounSingular: 'error',
   errorNounPlural: 'errors',
+
+  /** No plugin grant was skipped: either none recorded, or all verified. */
+  trustScopeOk: 'plugin trust grants verified for this checkout',
+  /**
+   * Grants exist but were made elsewhere. Never accusatory: copying,
+   * restoring or re-cloning a project produces this exactly like a
+   * hostile repo would, and from here they are indistinguishable.
+   */
+  trustScopeForeign:
+    'plugin trust granted in a different copy of this project, not loaded: {{list}}. ' +
+    'Re-grant what you still want with `sm plugins trust <id>`.',
+  /** The environment, not the data: re-granting cannot help here. */
+  trustScopeAnchorUnusable:
+    'this filesystem reports no creation time for .skill-map/, so plugin trust cannot be ' +
+    'anchored to this checkout (known on /mnt/... under WSL, /proc, /sys)',
 } as const;

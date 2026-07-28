@@ -31,6 +31,7 @@
  * the HTTP request (same pattern the legacy sidecar suite used).
  */
 
+import { grantLocalKey as grantLocalKeyFn } from '../../../kernel/config/local-key-grants.js';
 import { strict as assert } from 'node:assert';
 import { createRequire } from 'node:module';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
@@ -147,6 +148,8 @@ async function primeFixture(grantConsent: boolean): Promise<void> {
       JSON.stringify({ allowEditSmFiles: true }),
       'utf8',
     );
+    // The key alone is not consent (audit H1).
+    grantLocalKeyFn(root.fixtureRoot, 'allowEditSmFiles', true);
   }
 
   // --- stale node ---------------------------------------------------------

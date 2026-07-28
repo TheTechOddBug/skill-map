@@ -5,6 +5,7 @@
  * (install / hand-broken halves) against `.tmp/`-rooted fixture dirs.
  */
 
+import { grantTrust } from '../../../kernel/config/plugin-trust-store.js';
 import { describe, it, before, after } from 'node:test';
 import { ok, strictEqual } from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -221,7 +222,7 @@ async function writeExternalActivityPlugin(
     mkdirSync(join(fixture, '.skill-map'), { recursive: true });
     const dbPath = defaultProjectDbPath({ cwd: fixture });
     await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-      await adapter.trust.set(id, true);
+      grantTrust(fixture, id);
     });
   }
 }

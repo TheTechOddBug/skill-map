@@ -114,7 +114,7 @@ export interface IPluginLoaderOptions {
    *
    * This is distinct from `resolveEnabled` (the per-config enable gate):
    * trust answers "may this disk code run at all?" and is driven ONLY by
-   * a LOCAL signal (`config_plugins`), never the committed
+   * a LOCAL signal (the scope lock), never the committed
    * `settings.json` baseline, since a cloned repo controls the latter.
    * The runtime passes this for project-local discovery so `sm scan` /
    * `sm serve` never auto-execute a cloned repo's plugins; the

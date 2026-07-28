@@ -23,6 +23,7 @@
  * exclusion check.
  */
 
+import { grantTrust } from '../../../../kernel/config/plugin-trust-store.js';
 import { after, before, describe, it } from 'node:test';
 import { match, ok, strictEqual } from 'node:assert';
 import {
@@ -61,9 +62,7 @@ function freshFixture(label: string): string {
  */
 async function trustProjectPlugin(fixture: string, pluginId: string): Promise<void> {
   const dbPath = join(fixture, '.skill-map', 'skill-map.db');
-  await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-    await adapter.trust.set(pluginId, true);
-  });
+  grantTrust(fixture, pluginId);
 }
 
 before(() => {

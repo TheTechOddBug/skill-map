@@ -8,9 +8,11 @@
  * trusted (this DB store) on this machine. `sm plugins enable / disable`
  * is operational only and never touches trust. The trust grant is
  * per-plugin (a bare plugin id; a qualified `<plugin>/<ext>` collapses to
- * its plugin) and persists a row in the `config_plugins` (DB) trust
- * store, written by `adapter.trust.set`. The store is structurally LOCAL:
- * it never travels in a commit, so a cloned repo cannot auto-trust its
+ * its plugin) and persists a grant in the scope lock
+ * (`.skill-map/scope.lock.json`). Being gitignored is NOT what makes it
+ * safe, the ignore list is the repo author's to edit; the grant is
+ * anchored to this checkout's `.skill-map/` identity, so a cloned repo
+ * cannot auto-trust its
  * own plugins.
  *
  * Built-ins and host-locked ids are never import-trust-gated, so a trust
@@ -29,27 +31,30 @@ import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
 import type { IAnsi } from '../../util/ansi.js';
-import { resolveDbPath } from '../../util/db-path.js';
-import { assertNoDriftForWrite } from '../../../core/sqlite/db-version-runner.js';
+import {
+  grantTrust,
+  loadTrust,
+  revokeTrust,
+  type TGrantOutcome,
+} from '../../../kernel/config/plugin-trust-store.js';
+import { confirm } from '../../util/confirm.js';
 import { ExitCode } from '../../util/exit-codes.js';
 import { defaultRuntimeContext } from '../../../core/runtime/runtime-context.js';
 import { SmCommand } from '../../util/sm-command.js';
-import { withSqlite } from '../../../core/sqlite/with-sqlite.js';
 import { loadAll } from './shared.js';
 
 abstract class TrustPluginsBase extends SmCommand {
   all = Option.Boolean('--all', false);
+  yes = Option.Boolean('--yes,-y', false, {
+    description: 'Skip the interactive confirm on --all (required in non-TTY callers).',
+  });
   ids = Option.Rest({ name: 'ids' });
 
   protected async applyTrust(trusted: boolean): Promise<number> {
-    // Write verb: the trust grant is a `config_plugins` DB row, and a
-    // grant written into a drifted DB is lost on the next rebuild.
-    // Refuse before discovery / any write (spec/cli-contract.md
-    // §Schema-drift rebuild). No-ops when the DB does not exist yet
-    // (fresh project: both drift axes read `no-meta`).
-    const ctx = defaultRuntimeContext();
-    assertNoDriftForWrite(resolveDbPath({ db: undefined, cwd: ctx.cwd }));
-
+    // No drift guard here any more: the grant is a scope-lock record, not
+    // a DB row, so a drifted or rebuilt database cannot lose it. That
+    // durability is the point, an operator's vetting decision should not
+    // evaporate on a version bump.
     const verb = trusted ? 'trust' : 'untrust';
     const stderrAnsi = this.ansiFor('stderr');
 
@@ -71,7 +76,26 @@ abstract class TrustPluginsBase extends SmCommand {
       return ExitCode.Ok;
     }
 
-    await this.#persist(resolved, trusted);
+    // `--all` is the reach for anyone who just wants an advisory to stop,
+    // which is exactly the moment a hostile repo's plugin would ride
+    // along. Show the ids first, marking the ones whose grant came from
+    // another copy, so an unfamiliar name is seen before it is trusted.
+    // Explicit ids skip this: the operator already named them.
+    const applied = await this.#confirmAndPersist(resolved, trusted, stderrAnsi);
+    if (applied === 'aborted') return ExitCode.Ok;
+    if (!applied.ok) {
+      // The filesystem cannot anchor a grant (`/mnt/c`, `/proc`, exotic
+      // mounts report no birth time). Re-running would not help, so the
+      // message names the environment rather than telling the operator
+      // to try again.
+      this.printer!.error(
+        tx(PLUGINS_TEXTS.trustAnchorUnusable, {
+          glyph: stderrAnsi.red('✕'),
+          hint: stderrAnsi.dim(PLUGINS_TEXTS.trustAnchorUnusableHint),
+        }),
+      );
+      return ExitCode.Error;
+    }
     this.#renderSuccess(resolved, trusted);
     return ExitCode.Ok;
   }
@@ -152,17 +176,68 @@ abstract class TrustPluginsBase extends SmCommand {
   }
 
   /**
-   * Write the trust grant for every resolved bare plugin id. Single
-   * SQLite open for the whole batch. `trusted` true grants import trust,
-   * false revokes it (the next scan / restart reverts the plugin to
-   * discovered-but-unexecuted).
+   * Write the grant for every resolved bare plugin id into the scope
+   * lock. `trusted` true grants import trust, false revokes it (the next
+   * scan / restart reverts the plugin to discovered-but-unexecuted).
+   * Each id gets its OWN grant: a shared one would be refreshed by any
+   * later write and would bless records the operator never approved.
    */
-  async #persist(pluginIds: string[], trusted: boolean): Promise<void> {
+  /**
+   * Gate the write behind the `--all` confirm, then persist. Split out so
+   * `applyTrust` stays under the complexity cap.
+   */
+  async #confirmAndPersist(
+    resolved: string[],
+    trusted: boolean,
+    ansi: IAnsi,
+  ): Promise<TGrantOutcome | 'aborted'> {
+    if (trusted && this.all && !(await this.#confirmAll(resolved, ansi))) {
+      this.printer!.info(tx(PLUGINS_TEXTS.trustAllAborted, { glyph: ansi.cyan('ℹ') }));
+      return 'aborted';
+    }
+    return this.#persist(resolved, trusted);
+  }
+
+  /**
+   * List what `--all` is about to trust and ask. `--yes` bypasses, and a
+   * non-TTY caller without it is refused rather than auto-approved: the
+   * whole point is that a human sees the names.
+   */
+  async #confirmAll(pluginIds: string[], ansi: IAnsi): Promise<boolean> {
+    if (this.yes) return true;
+    const { trusted: alreadyTrusted, skipped } = loadTrust(defaultRuntimeContext().cwd);
+    const foreign = new Set(
+      skipped.filter((s) => s.reason === 'foreign-scope').map((s) => s.pluginId),
+    );
+    const rows = pluginIds
+      .filter((id) => !alreadyTrusted.has(id))
+      .map((id) =>
+        tx(PLUGINS_TEXTS.trustAllRow, {
+          id: sanitizeForTerminal(id),
+          note: foreign.has(id) ? ansi.dim(PLUGINS_TEXTS.trustAllForeignNote) : '',
+        }),
+      );
+    if (rows.length === 0) return true;
+    return confirm(
+      tx(PLUGINS_TEXTS.trustAllConfirm, { count: rows.length, rows: rows.join('\n') }),
+      { stdin: this.context.stdin, stderr: this.context.stderr },
+    );
+  }
+
+  async #persist(pluginIds: string[], trusted: boolean): Promise<TGrantOutcome> {
     const ctx = defaultRuntimeContext();
-    const dbPath = resolveDbPath({ db: undefined, cwd: ctx.cwd });
-    await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-      for (const id of pluginIds) await adapter.trust.set(id, trusted);
-    });
+    if (!trusted) {
+      for (const id of pluginIds) revokeTrust(ctx.cwd, id);
+      return { ok: true };
+    }
+    for (const id of pluginIds) {
+      const outcome = grantTrust(ctx.cwd, id);
+      // Refuse the whole batch rather than persist records that could
+      // never verify: showing "trusted" for something that will silently
+      // never load is the worst available failure.
+      if (!outcome.ok) return outcome;
+    }
+    return { ok: true };
   }
 
   #renderSuccess(pluginIds: string[], trusted: boolean): void {
@@ -199,7 +274,7 @@ export class PluginsTrustCommand extends TrustPluginsBase {
   static override paths = [['plugins', 'trust']];
   static override usage = Command.Usage({
     category: 'Plugins',
-    description: 'Grant LOCAL import trust to one or more project-local plugins (or --all). Persists in the config_plugins trust store.',
+    description: 'Grant LOCAL import trust to one or more project-local plugins (or --all). Persists in the scope lock, per checkout.',
     details: `
       Records this machine's consent to import and run the plugin's code.
       Trust is the SECURITY axis, distinct from enable: a project-local
@@ -227,7 +302,7 @@ export class PluginsUntrustCommand extends TrustPluginsBase {
     category: 'Plugins',
     description: 'Revoke LOCAL import trust from one or more project-local plugins (or --all). Does not delete files or change enable state.',
     details: `
-      Drops the plugin's config_plugins trust row, so it reverts to
+      Drops the plugin's scope-lock grant, so it reverts to
       discovered-but-unexecuted on the next scan / restart. Does NOT change
       the enable state and does NOT delete the plugin directory. Same
       id / batch semantics as sm plugins trust.

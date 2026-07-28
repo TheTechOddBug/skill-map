@@ -13,7 +13,7 @@
  *     (or `--plugin-dir <path>` override).
  *   - Layer the enabled-resolver from the config layers (settings.json /
  *     settings.local.json). Disabled plugins are surfaced but not run.
- *     The orthogonal import-trust gate (the DB `config_plugins` trust
+ *     The orthogonal import-trust gate (the scope-lock trust
  *     store) decides whether a project-local plugin's code is imported
  *     at all.
  *   - Bucket loaded extensions by kind into the same `IBuiltIns` shape
@@ -29,6 +29,8 @@
  * without crossing into `src/cli/`.
  */
 
+import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
+import type { ITrustSkip } from '../../../kernel/config/plugin-trust-store.js';
 import type {
   IProvider,
   IExtractor,
@@ -195,10 +197,12 @@ export async function loadPluginRuntime(
 
   let resolveEnabled: ((id: string) => boolean) | undefined;
   let trustMap: Map<string, boolean> | undefined;
+  let trustSkipped: readonly ITrustSkip[] = [];
   try {
     const inputs = await buildResolverInputs(ctx);
     resolveEnabled = inputs.resolveEnabled;
     trustMap = inputs.trustMap;
+    trustSkipped = inputs.trustSkipped;
   } catch {
     // Config / DB read failure here is non-fatal, fall through with
     // the loader's default ("every plugin enabled"). The actual scan
@@ -249,10 +253,35 @@ export async function loadPluginRuntime(
   // on disk but left unexecuted for lack of local trust. Keeps the
   // common case (no plugins) silent while making the "your cloned repo
   // ships plugins, none ran" situation discoverable.
-  const untrustedCount = discovered.filter((p) => p.untrusted === true).length;
-  if (untrustedCount > 0) {
+  //
+  // Three distinct situations, three messages: a plugin that was never
+  // granted here, one whose grant was minted in a different copy of the
+  // project, and a filesystem that cannot anchor a grant at all. They
+  // share an effect (nothing runs) but not a remedy, and telling someone
+  // on /mnt/c to "re-grant" is advice that can never work.
+  const skippedIds = new Set(trustSkipped.map((s) => s.pluginId));
+  const foreign = trustSkipped.filter((s) => s.reason === 'foreign-scope');
+  const unanchored = trustSkipped.filter((s) => s.reason === 'anchor-unusable');
+  const neverGranted = discovered.filter(
+    (p) => p.untrusted === true && !skippedIds.has(p.id),
+  ).length;
+
+  if (neverGranted > 0) {
     runtime.warnings.push(
-      tx(PLUGIN_LOADER_TEXTS.untrustedPluginsFoundNotice, { count: untrustedCount }),
+      tx(PLUGIN_LOADER_TEXTS.untrustedPluginsFoundNotice, { count: neverGranted }),
+    );
+  }
+  if (foreign.length > 0) {
+    runtime.warnings.push(
+      tx(PLUGIN_LOADER_TEXTS.foreignGrantNotice, {
+        count: foreign.length,
+        ids: foreign.map((s) => sanitizeForTerminal(s.pluginId)).join(', '),
+      }),
+    );
+  }
+  if (unanchored.length > 0) {
+    runtime.warnings.push(
+      tx(PLUGIN_LOADER_TEXTS.anchorUnusableNotice, { count: unanchored.length }),
     );
   }
 

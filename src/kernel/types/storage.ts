@@ -845,17 +845,6 @@ export interface IMigrateNodeFksReport {
 
 // --- trust namespace ------------------------------------------------------
 
-/**
- * A single `config_plugins` trust row as the kernel sees it. The table
- * is the per-machine import-trust store (the SECURITY axis); the
- * operational enable/disable toggle lives in the config layers, not
- * here. Keyed by the bare plugin id.
- */
-export interface IPluginTrustRow {
-  pluginId: string;
-  trusted: boolean;
-  updatedAt: number;
-}
 
 // --- migrations namespace --------------------------------------------------
 

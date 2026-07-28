@@ -201,7 +201,7 @@ export interface IDiscoveredPlugin {
    *
    * Set by the loader when a project-local disk plugin was discovered
    * (manifest parsed + surfaced) but its extension code was NOT imported
-   * because the operator never granted local trust (no `config_plugins`
+   * because the operator never granted local trust (no scope-lock
    * override enables the plugin or any of its extensions). The plugin
    * still rides as `status: 'disabled'` (extensions absent), this flag
    * lets the runtime distinguish "not yet trusted" from an explicit

@@ -17,6 +17,7 @@
  * this helper contributes no empty test run.
  */
 
+import { grantTrust } from '../../../../kernel/config/plugin-trust-store.js';
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
@@ -148,7 +149,7 @@ export async function setupProbProject(
       }
     }
     for (const plugin of PROB_PLUGINS) {
-      await adapter.trust.set(plugin, true);
+      grantTrust(root, plugin);
     }
   } finally {
     await adapter.close();

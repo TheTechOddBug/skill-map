@@ -124,6 +124,7 @@ describe('sm init, project scope', () => {
       'skill-map.db-wal',
       'skill-map.db-shm',
       'serve.json',
+      'scope.lock.json',
       'operations.log*',
       'backups/',
       'activity/',
@@ -213,7 +214,7 @@ describe('sm init --dry-run (H3, spec §Dry-run)', () => {
     assert.match(r.stderr, /would write.+settings\.json/);
     assert.match(r.stderr, /would write.+settings\.local\.json/);
     assert.match(r.stderr, /would write.+\.skillmapignore/);
-    assert.match(r.stderr, /would write.+\.skill-map.+\.gitignore \(8 generated artifacts\)/);
+    assert.match(r.stderr, /would write.+\.skill-map.+\.gitignore \(9 generated artifacts\)/);
     assert.match(r.stderr, /would provision DB/);
     assert.match(r.stderr, /would run first scan/);
 
@@ -268,7 +269,7 @@ describe('sm init --dry-run (H3, spec §Dry-run)', () => {
     assert.equal(r.status, 0);
     assert.match(
       r.stderr,
-      /would update.+\.gitignore \(add 4: skill-map\.db-wal, skill-map\.db-shm, operations\.log\*, activity\/\)/,
+      /would update.+\.gitignore \(add 5: skill-map\.db-wal, skill-map\.db-shm, scope\.lock\.json, operations\.log\*, activity\/\)/,
     );
   });
 });

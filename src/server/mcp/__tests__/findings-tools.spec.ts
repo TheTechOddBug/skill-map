@@ -7,6 +7,7 @@
  * `allowSidecarWriters: false` policy. Never `:memory:`.
  */
 
+import { grantLocalKey } from '../../../kernel/config/local-key-grants.js';
 import { strict as assert } from 'node:assert';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -75,6 +76,9 @@ function grantConsent(project: IProbProject): void {
     join(project.root, '.skill-map', 'settings.local.json'),
     JSON.stringify({ allowEditSmFiles: true }),
   );
+  // The key alone is not consent (audit H1): it counts only with a grant
+  // recorded in this checkout, so a clone cannot ship it.
+  grantLocalKey(project.root, 'allowEditSmFiles', true);
 }
 
 function forbidSidecarWriters(project: IProbProject): void {

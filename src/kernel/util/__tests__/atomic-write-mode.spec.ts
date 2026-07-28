@@ -15,6 +15,7 @@
  * verification is sufficient for our CI matrix.
  */
 
+import { grantLocalKey } from '../../config/local-key-grants.js';
 import { describe, it } from 'node:test';
 import { strictEqual } from 'node:assert';
 import {
@@ -63,6 +64,10 @@ describe('audit M1, atomic writes land mode 0o600', { skip: SKIP }, () => {
         JSON.stringify({ allowEditSmFiles: true }),
         'utf8',
       );
+      // Privileged project-local keys need a grant recorded in this
+      // checkout to be honoured (audit H1); the fixture records it the
+      // same way `sm config set` would.
+      grantLocalKey(consentRoot, 'allowEditSmFiles', true);
 
       const target = join(sidecarRoot, 'foo.sm');
       const store = new FilesystemSidecarStore(ensureSidecarWritesAllowed);

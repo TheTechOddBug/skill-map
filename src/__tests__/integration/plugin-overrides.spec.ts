@@ -13,8 +13,13 @@
  *      untrusted (the bug this split fixes).
  */
 
+import {
+  grantTrust,
+  loadTrust,
+  revokeTrust,
+} from '../../kernel/config/plugin-trust-store.js';
 import { strict as assert } from 'node:assert';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
@@ -22,13 +27,6 @@ import { after, before, describe, it } from 'node:test';
 import { PluginLoader, installedSpecVersion } from '../../kernel/adapters/plugin-loader.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
-import {
-  deletePluginTrust,
-  getPluginTrusted,
-  listPluginTrust,
-  loadPluginTrustMap,
-  setPluginTrusted,
-} from '../../kernel/adapters/sqlite/plugins.js';
 import {
   installedDefaultEnabled,
   makeEnabledResolver,
@@ -59,57 +57,55 @@ after(() => {
 // Trust-store helpers
 // -----------------------------------------------------------------------------
 
-describe('config_plugins trust-store helpers', () => {
-  it('setPluginTrusted + getPluginTrusted round-trip', async () => {
-    const dbPath = freshDb('round-trip');
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
-    try {
-      assert.equal(await getPluginTrusted(adapter.db, 'foo'), undefined);
-      await setPluginTrusted(adapter.db, 'foo', false);
-      assert.equal(await getPluginTrusted(adapter.db, 'foo'), false);
-      await setPluginTrusted(adapter.db, 'foo', true);
-      assert.equal(await getPluginTrusted(adapter.db, 'foo'), true);
-    } finally {
-      await adapter.close();
-    }
+
+/** Project root with a real `.skill-map/`, the directory the grant anchors to. */
+function freshScopeRoot(name: string): string {
+  const root = freshDb(name).replace(/\/\.skill-map\/[^/]+$/, '');
+  mkdirSync(join(root, '.skill-map'), { recursive: true });
+  return root;
+}
+
+describe('scope-lock trust store', () => {
+  it('grant + revoke round-trip, scoped to the checkout', () => {
+    const root = freshScopeRoot('round-trip');
+    assert.equal(loadTrust(root).trusted.has('foo'), false);
+    assert.equal(grantTrust(root, 'foo').ok, true);
+    assert.equal(loadTrust(root).trusted.has('foo'), true);
+    revokeTrust(root, 'foo');
+    assert.equal(loadTrust(root).trusted.has('foo'), false);
   });
 
-  it('loadPluginTrustMap returns every row keyed by bare id', async () => {
-    const dbPath = freshDb('list');
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
-    try {
-      await setPluginTrusted(adapter.db, 'a', true);
-      await setPluginTrusted(adapter.db, 'b', false);
-      await setPluginTrusted(adapter.db, 'c', true);
-      const map = await loadPluginTrustMap(adapter.db);
-      assert.equal(map.size, 3);
-      assert.equal(map.get('a'), true);
-      assert.equal(map.get('b'), false);
-      assert.equal(map.get('c'), true);
-      const rows = await listPluginTrust(adapter.db);
-      assert.deepEqual(rows.map((r) => r.pluginId), ['a', 'b', 'c']);
-    } finally {
-      await adapter.close();
-    }
+  it('grants are independent per plugin', () => {
+    // The property that makes the store safe: granting one plugin must
+    // never validate another. A store-wide stamp failed exactly here.
+    const root = freshScopeRoot('independent');
+    grantTrust(root, 'a');
+    grantTrust(root, 'c');
+    const { trusted } = loadTrust(root);
+    assert.deepEqual([...trusted].sort(), ['a', 'c']);
+    assert.equal(trusted.has('b'), false);
   });
 
-  it('deletePluginTrust drops the row; idempotent on missing id', async () => {
-    const dbPath = freshDb('delete');
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
-    try {
-      await setPluginTrusted(adapter.db, 'foo', true);
-      assert.equal(await getPluginTrusted(adapter.db, 'foo'), true);
-      await deletePluginTrust(adapter.db, 'foo');
-      assert.equal(await getPluginTrusted(adapter.db, 'foo'), undefined);
-      // Idempotent
-      await deletePluginTrust(adapter.db, 'foo');
-      await deletePluginTrust(adapter.db, 'never-existed');
-    } finally {
-      await adapter.close();
-    }
+  it('revoke is idempotent, including for an id never granted', () => {
+    const root = freshScopeRoot('delete');
+    grantTrust(root, 'foo');
+    revokeTrust(root, 'foo');
+    revokeTrust(root, 'foo');
+    revokeTrust(root, 'never-existed');
+    assert.equal(loadTrust(root).trusted.size, 0);
+  });
+
+  it('a grant made in another checkout does NOT verify here', () => {
+    // The clone-and-scan case: the record travels, the authority does not.
+    const theirs = freshScopeRoot('theirs');
+    const mine = freshScopeRoot('mine');
+    grantTrust(theirs, 'evil');
+    cpSync(join(theirs, '.skill-map', 'scope.lock.json'),
+           join(mine, '.skill-map', 'scope.lock.json'));
+    const { trusted, skipped } = loadTrust(mine);
+    assert.equal(trusted.has('evil'), false);
+    assert.deepEqual(skipped.map((s) => s.pluginId), ['evil']);
+    assert.equal(skipped[0]?.reason, 'foreign-scope');
   });
 });
 
