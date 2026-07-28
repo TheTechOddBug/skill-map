@@ -430,8 +430,13 @@ export class GraphView implements OnInit {
     this.announcer.announce(GRAPH_VIEW_TEXTS.a11y.nodeSelected(this.nodeDisplayName(node)));
     // The panel is always in the DOM (visibility toggles via `is-open`),
     // so the viewChild resolves; move focus after the current render.
+    // `preventScroll` is load-bearing: the closed panel sits at
+    // `translateX(100%)` INSIDE the overflow-hidden canvas wrap, so a
+    // plain focus() mid slide-in makes the browser scroll the wrap to
+    // reveal it (the whole graph lurches left, then glides back as the
+    // transition lands and the overflow clamps scrollLeft back to 0).
     afterNextRender(
-      () => this.inspectorPanel()?.nativeElement.focus(),
+      () => this.inspectorPanel()?.nativeElement.focus({ preventScroll: true }),
       { injector: this.injector },
     );
   });
