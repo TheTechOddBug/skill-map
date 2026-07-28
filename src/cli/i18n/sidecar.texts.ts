@@ -46,8 +46,10 @@ export const SIDECAR_TEXTS = {
 
   pruneItem: '  {{action}} {{sidecarPath}} (expected {{expectedMd}})\n',
 
+  /** One row of the prune confirm listing; `lines` below is these joined with `\n`. */
+  pruneConfirmLine: '  {{sidecarPath}} (expected {{expectedMdPath}})',
   pruneConfirm:
-    'sm sidecars prune is about to delete {{count}} orphan .sm file(s):\n' +
+    'sm sidecars prune is about to delete {{count}} orphan .sm file{{plural}}:\n' +
     '{{lines}}\n' +
     'Proceed?',
 

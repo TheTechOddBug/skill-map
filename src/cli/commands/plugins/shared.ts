@@ -37,10 +37,12 @@ import {
 import { loadSchemaValidators } from '../../../kernel/adapters/schema-validators.js';
 import { loadConfig } from '../../../kernel/config/loader.js';
 import type { TExtensionStability } from '../../../kernel/extensions/index.js';
+import { resolve } from 'node:path';
+
 import {
   installedDefaultEnabled,
   makeEnabledResolver,
-  type EnabledResolver,
+  type TEnabledResolver,
 } from '../../../kernel/config/plugin-resolver.js';
 import { lockedBuiltInIds } from '../../../plugins/locked-built-ins.js';
 import { qualifiedExtensionId } from '../../../kernel/registry.js';
@@ -51,7 +53,6 @@ import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
 import type { IAnsi } from '../../util/ansi.js';
 import { defaultProjectPluginsDir } from '../../util/db-path.js';
 import { defaultRuntimeContext } from '../../../core/runtime/runtime-context.js';
-import { resolve } from 'node:path';
 
 export interface IPluginDirOption {
   pluginDir: string | undefined;
@@ -75,7 +76,7 @@ export function resolveSearchPaths(opts: IPluginDirOption, cwd: string): string[
  * (NOT `resolveImportTrust`), so `sm plugins list` still surfaces
  * untrusted plugins instead of hiding them.
  */
-export async function buildResolver(): Promise<EnabledResolver> {
+export async function buildResolver(): Promise<TEnabledResolver> {
   const ctx = defaultRuntimeContext();
   const { effective: cfg } = loadConfig({ cwd: ctx.cwd });
   return makeEnabledResolver(cfg, lockedBuiltInIds());
@@ -143,7 +144,7 @@ export interface IBuiltInPluginRow {
  * `enabled` is just an aggregate ("any child enabled") so the row
  * renderer can pick a glyph at a glance.
  */
-export function builtInRows(resolveEnabled: EnabledResolver): IBuiltInPluginRow[] {
+export function builtInRows(resolveEnabled: TEnabledResolver): IBuiltInPluginRow[] {
   // Presentation order: `core` first, then the vendor plugins. Runtime
   // iteration of `builtInPlugins` keeps `core` last so `core/markdown`
   // stays the terminal fallback provider; the CLI listing surface
@@ -174,7 +175,7 @@ export function builtInRows(resolveEnabled: EnabledResolver): IBuiltInPluginRow[
 function extensionRowFromBuiltIn(
   ext: TBuiltInExtension,
   plugin: { id: string },
-  resolveEnabled: EnabledResolver,
+  resolveEnabled: TEnabledResolver,
 ): IBuiltInPluginRow['extensions'][number] {
   // `exactOptionalPropertyTypes` rejects assigning `undefined` to an
   // optional field, so we build the row in two steps: required fields

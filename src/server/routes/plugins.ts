@@ -69,7 +69,7 @@ import type { IContributionErrorRecord } from '../../kernel/adapters/sqlite/cont
 import { isLockedBuiltIn } from '../../plugins/locked-built-ins.js';
 import {
   installedDefaultEnabled,
-  type EnabledResolver,
+  type TEnabledResolver,
 } from '../../kernel/config/plugin-resolver.js';
 import type { TExtensionStability } from '../../kernel/extensions/index.js';
 import type { TSettingDeclaration } from '../../kernel/types/view-catalog.js';
@@ -563,7 +563,7 @@ async function loadTrustState(deps: IRouteDeps): Promise<ITrustState> {
 }
 
 function buildBuiltInItems(
-  resolveEnabled: EnabledResolver,
+  resolveEnabled: TEnabledResolver,
   config: IEffectiveConfig,
 ): TPluginListItemDraft[] {
   // Presentation order: `core` first, then vendor plugins. Mirrors
@@ -696,7 +696,7 @@ function optionalDiscoveredFields(
 
 function projectExtensionRows(
   plugin: IDiscoveredPlugin,
-  resolveEnabled: EnabledResolver,
+  resolveEnabled: TEnabledResolver,
   pluginLocked: boolean,
   config: IEffectiveConfig,
 ): IPluginExtensionItem[] | undefined {

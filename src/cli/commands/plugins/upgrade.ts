@@ -22,8 +22,11 @@ import { join } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
+import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
+import { tx } from '../../../kernel/util/tx.js';
 import { defaultProjectPluginsDir } from '../../../core/paths/db-path.js';
 import { defaultRuntimeContext } from '../../../core/runtime/runtime-context.js';
+import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
 import { ExitCode } from '../../util/exit-codes.js';
 import { SmCommand } from '../../util/sm-command.js';
 import { pluginPackageJson } from './scaffold/index.js';
@@ -58,34 +61,53 @@ export class PluginsUpgradeCommand extends SmCommand {
     const pluginsDir = defaultProjectPluginsDir(ctx);
     const result = backfillPluginPackageJson(pluginsDir, this.pluginId);
     this.renderBackfill(result);
+    const ansi = this.ansiFor('stdout');
     this.printer!.data(
-      'sm plugins upgrade: no catalog migrations registered for v1.0.0.\n' +
-        '  All loaded plugins are catalog-current.\n' +
-        '  Run `sm plugins doctor` to surface any incompatible-catalog status.\n',
+      tx(PLUGINS_TEXTS.upgradeNoMigrations, {
+        glyph: ansi.green('✓'),
+        tip: ansi.dim(PLUGINS_TEXTS.upgradeNoMigrationsTip),
+      }),
     );
     return result.notFound !== null ? ExitCode.Error : ExitCode.Ok;
   }
 
   private renderBackfill(result: IBackfillResult): void {
     if (result.notFound !== null) {
-      this.printer!.warn(
-        `  no plugin '${result.notFound}' under the project plugins dir; nothing to upgrade.\n`,
+      // §3.1b block on stderr: the verb exits Error for this case, so the
+      // rejection renders as an error, not a soft warning.
+      const stderrAnsi = this.ansiFor('stderr');
+      this.printer!.error(
+        tx(PLUGINS_TEXTS.upgradeNotFound, {
+          glyph: stderrAnsi.red('✕'),
+          id: sanitizeForTerminal(result.notFound),
+          hint: stderrAnsi.dim(PLUGINS_TEXTS.upgradeNotFoundHint),
+        }),
       );
       return;
     }
     for (const entry of result.entries) {
+      // Plugin ids are directory names read off disk (dirent), so they
+      // sanitize before interpolation per context/kernel.md §CLI output
+      // sanitization (filesystem entries category).
+      const id = sanitizeForTerminal(entry.id);
+      const rowAnsi = this.ansiFor('stdout');
       switch (entry.outcome) {
         case 'created':
           this.printer!.data(
-            `  ${entry.id}: wrote package.json ("type": "module") so Node loads its ESM extensions cleanly.\n`,
+            tx(PLUGINS_TEXTS.upgradeBackfillCreated, { glyph: rowAnsi.green('✓'), id }),
           );
           break;
         case 'added-type':
-          this.printer!.data(`  ${entry.id}: added "type": "module" to its package.json.\n`);
+          this.printer!.data(
+            tx(PLUGINS_TEXTS.upgradeBackfillAddedType, { glyph: rowAnsi.green('✓'), id }),
+          );
           break;
         case 'foreign-type':
           this.printer!.warn(
-            `  ${entry.id}: package.json declares a non-module "type" (or is malformed); left untouched, check it if Node warns about the module type.\n`,
+            tx(PLUGINS_TEXTS.upgradeBackfillForeignType, {
+              glyph: this.ansiFor('stderr').yellow('⚠'),
+              id,
+            }),
           );
           break;
         case 'ok':

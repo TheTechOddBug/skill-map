@@ -22,7 +22,7 @@ import { Command, Option } from 'clipanion';
 
 import {
   installedDefaultEnabled,
-  type EnabledResolver,
+  type TEnabledResolver,
 } from '../../../kernel/config/plugin-resolver.js';
 import type { TExtensionStability } from '../../../kernel/extensions/index.js';
 import {
@@ -177,7 +177,7 @@ interface IIndexRow {
 function renderIndexHuman(
   builtIns: IBuiltInPluginRow[],
   plugins: IDiscoveredPlugin[],
-  resolveEnabled: EnabledResolver,
+  resolveEnabled: TEnabledResolver,
   ansi: IAnsi,
 ): string {
   const rows: IIndexRow[] = [
@@ -221,7 +221,7 @@ function builtInToIndexRow(b: IBuiltInPluginRow): IIndexRow {
 
 function pluginToIndexRow(
   p: IDiscoveredPlugin,
-  resolveEnabled: EnabledResolver,
+  resolveEnabled: TEnabledResolver,
 ): IIndexRow {
   // Every field that originates from the plugin manifest (`id`, `reason`)
   // is user-controlled and runs through `sanitizeForTerminal` before it

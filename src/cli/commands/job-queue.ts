@@ -74,6 +74,7 @@ import {
   ensureSidecarWritesAllowed,
 } from '../../core/config/sidecar-consent.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import {
   nodeMatchesPrecondition,
@@ -161,6 +162,34 @@ function suppressedWhatLabel(matching: readonly ISuppressionMatch[]): string {
   if (matching.some((s) => s.type === undefined)) return T.submitSuppressedAll;
   const types = [...new Set(matching.map((s) => s.type as string))].sort();
   return tx(T.submitSuppressedTypes, { types: types.map((t) => `'${t}'`).join(', ') });
+}
+
+/**
+ * Terminal-safe view of the Job fields the human render paths emit
+ * (context/kernel.md §CLI output sanitization): every string here
+ * originates from DB rows whose ultimate authors include plugins and
+ * on-disk node paths, so sanitize once at this row boundary. Pure
+ * passthrough is forbidden even for enum-shaped fields (`status`), a
+ * tampered DB can hold anything.
+ */
+function safeJobView(job: Job): {
+  id: string;
+  status: string;
+  extensionId: string;
+  extensionKind: string;
+  nodeId: string;
+  contentHash: string;
+  runner: string | null;
+} {
+  return {
+    id: sanitizeForTerminal(job.id),
+    status: sanitizeForTerminal(job.status),
+    extensionId: sanitizeForTerminal(job.extensionId),
+    extensionKind: sanitizeForTerminal(job.extensionKind),
+    nodeId: sanitizeForTerminal(job.nodeId),
+    contentHash: sanitizeForTerminal(job.contentHash),
+    runner: job.runner === null || job.runner === undefined ? null : sanitizeForTerminal(job.runner),
+  };
 }
 
 /** Parse an integer flag; returns `undefined` when absent, throws on garbage. */
@@ -455,7 +484,11 @@ export class JobSubmitCommand extends SmCommand {
         );
       } else {
         this.printer!.info(
-          tx(T.submitDuplicateLine, { glyph: this.warnGlyph(), id: outcome.existingId, node: outcome.nodeId }),
+          tx(T.submitDuplicateLine, {
+            glyph: this.warnGlyph(),
+            id: sanitizeForTerminal(outcome.existingId),
+            node: sanitizeForTerminal(outcome.nodeId),
+          }),
         );
       }
       return ExitCode.Duplicate;
@@ -463,11 +496,14 @@ export class JobSubmitCommand extends SmCommand {
     // Drift / unreadable refusals: exit 2 with a clean advisory (never a
     // stack trace), per spec §Submit step 8.
     if (outcome.kind === 'drift') {
-      return this.fail(tx(T.submitErrNodeDrifted, { node: outcome.nodeId }));
+      return this.fail(tx(T.submitErrNodeDrifted, { node: sanitizeForTerminal(outcome.nodeId) }));
     }
     if (outcome.kind === 'unreadable') {
       return this.fail(
-        tx(T.submitErrNodeUnreadable, { node: outcome.nodeId, detail: outcome.detail }),
+        tx(T.submitErrNodeUnreadable, {
+          node: sanitizeForTerminal(outcome.nodeId),
+          detail: sanitizeForTerminal(outcome.detail),
+        }),
       );
     }
     // Fixer with no matching findings: refuse (exit 2) with the finder-first
@@ -475,8 +511,8 @@ export class JobSubmitCommand extends SmCommand {
     if (outcome.kind === 'no-findings') {
       return this.fail(
         tx(T.submitErrNoFindings, {
-          finders: fixerFindersLabel(prepared),
-          node: outcome.nodeId,
+          finders: sanitizeForTerminal(fixerFindersLabel(prepared)),
+          node: sanitizeForTerminal(outcome.nodeId),
         }),
       );
     }
@@ -526,7 +562,7 @@ export class JobSubmitCommand extends SmCommand {
    */
   private emitSupersededAdvisory(supersededIds: readonly string[]): void {
     for (const id of supersededIds) {
-      this.printer!.info(tx(T.submitSupersededLine, { glyph: this.warnGlyph(), id }));
+      this.printer!.info(tx(T.submitSupersededLine, { glyph: this.warnGlyph(), id: sanitizeForTerminal(id) }));
     }
   }
 
@@ -582,9 +618,9 @@ export class JobSubmitCommand extends SmCommand {
   ): void {
     if (handling.kind === 'none') return;
     const vars = {
-      node: nodeId,
-      what: suppressedWhatLabel(handling.matching),
-      extension: prepared.extensionId,
+      node: sanitizeForTerminal(nodeId),
+      what: sanitizeForTerminal(suppressedWhatLabel(handling.matching)),
+      extension: sanitizeForTerminal(prepared.extensionId),
     };
     this.printer!.info(
       handling.kind === 'lifted'
@@ -644,7 +680,11 @@ export class JobSubmitCommand extends SmCommand {
     }
     for (const o of submitted) {
       this.printer!.info(
-        tx(T.submitQueuedLine, { glyph: this.okGlyph(), id: o.id, node: o.nodeId }),
+        tx(T.submitQueuedLine, {
+          glyph: this.okGlyph(),
+          id: sanitizeForTerminal(o.id),
+          node: sanitizeForTerminal(o.nodeId),
+        }),
       );
       // Per-node fixer supersede advisory (each fan-out submit applies the
       // Supersede rule independently, spec §Findings injection for fixers).
@@ -691,29 +731,37 @@ export class JobSubmitCommand extends SmCommand {
     prepared: ISubmitContext,
   ): string {
     if (o.kind === 'duplicate') {
-      return tx(T.submitDuplicateLine, { glyph: this.warnGlyph(), id: o.existingId, node: o.nodeId });
+      return tx(T.submitDuplicateLine, {
+        glyph: this.warnGlyph(),
+        id: sanitizeForTerminal(o.existingId),
+        node: sanitizeForTerminal(o.nodeId),
+      });
     }
     if (o.kind === 'unreadable') {
       return tx(T.submitUnreadableLine, {
         glyph: this.warnGlyph(),
-        node: o.nodeId,
-        detail: o.detail,
+        node: sanitizeForTerminal(o.nodeId),
+        detail: sanitizeForTerminal(o.detail),
       });
     }
     if (o.kind === 'no-findings') {
       return tx(T.submitNoFindingsLine, {
         glyph: this.warnGlyph(),
-        node: o.nodeId,
-        finders: fixerFindersLabel(prepared),
+        node: sanitizeForTerminal(o.nodeId),
+        finders: sanitizeForTerminal(fixerFindersLabel(prepared)),
       });
     }
-    return tx(T.submitDriftLine, { glyph: this.warnGlyph(), node: o.nodeId });
+    return tx(T.submitDriftLine, { glyph: this.warnGlyph(), node: sanitizeForTerminal(o.nodeId) });
   }
 
   // --- small glyph / error helpers ----------------------------------------
 
   private fail(message: string): TExitCode {
-    this.printer!.error(tx(T.submitErrPrefix, { glyph: this.errGlyph(), message }));
+    // Funnel sanitization: prepare-error messages embed engine details
+    // and raw flag echoes (e.g. the unparseable --ttl value verbatim).
+    this.printer!.error(
+      tx(T.submitErrPrefix, { glyph: this.errGlyph(), message: sanitizeForTerminal(message) }),
+    );
     return ExitCode.Error;
   }
 
@@ -789,12 +837,13 @@ export class JobListCommand extends SmCommand {
     }
     let out = '';
     for (const job of jobs) {
+      const v = safeJobView(job);
       out += tx(T.listRow, {
-        id: job.id,
-        status: job.status,
+        id: v.id,
+        status: v.status,
         priority: job.priority,
-        extension: job.extensionId,
-        node: job.nodeId,
+        extension: v.extensionId,
+        node: v.nodeId,
       });
     }
     this.printer!.data(out);
@@ -849,23 +898,24 @@ export class JobShowCommand extends SmCommand {
   private printPretty(job: Job): void {
     const iso = (ms: number | null | undefined): string =>
       ms === null || ms === undefined ? T.showValueNone : new Date(ms).toISOString();
+    const v = safeJobView(job);
     this.printer!.data(
       tx(T.showDetail, {
-        id: job.id,
-        status: job.status,
-        extension: job.extensionId,
-        kind: job.extensionKind,
-        node: job.nodeId,
+        id: v.id,
+        status: v.status,
+        extension: v.extensionId,
+        kind: v.extensionKind,
+        node: v.nodeId,
         priority: job.priority,
         ttl:
           job.ttlSeconds === null
             ? T.showValueNone
             : tx(T.showTtlSeconds, { seconds: job.ttlSeconds }),
-        contentHash: job.contentHash,
+        contentHash: v.contentHash,
         createdAt: iso(job.createdAt),
         claimedAt: iso(job.claimedAt),
         finishedAt: iso(job.finishedAt),
-        runner: job.runner ?? T.showValueNone,
+        runner: v.runner ?? T.showValueNone,
       }),
     );
   }
@@ -927,14 +977,18 @@ export class JobPreviewCommand extends SmCommand {
         const content = await adapter.jobs.getContent(job.contentHash);
         if (content === null) {
           this.printer!.error(
-            tx(T.previewErrContentMissing, { glyph: this.ansiFor('stderr').red('✕'), id: job.id }),
+            tx(T.previewErrContentMissing, { glyph: this.ansiFor('stderr').red('✕'), id: sanitizeForTerminal(job.id) }),
           );
           return ExitCode.NotFound;
         }
         // Reverse the display-only close-tag neutralisation. This is done
         // ONLY for showing the content to a human, NEVER before hashing (the
         // stored blob keeps the escaped form so `contentHash` stays stable).
-        this.printer!.data(unescapeUserContentClose(content));
+        // Terminal-sanitized (decision 2026-07-28): preview is a human
+        // inspection surface over node-body-derived content (hostile-clone
+        // threat model); the byte-exact machine handover is `sm jobs claim
+        // --json`, where JSON escaping already neutralises control bytes.
+        this.printer!.data(sanitizeForTerminal(unescapeUserContentClose(content)));
         return ExitCode.Ok;
       },
     );
@@ -1160,7 +1214,12 @@ export class JobClaimCommand extends SmCommand {
   }
 
   private failClaim(message: string): TExitCode {
-    this.printer!.error(tx(T.claimErrPrefix, { glyph: this.ansiFor('stderr').red('✕'), message }));
+    this.printer!.error(
+      tx(T.claimErrPrefix, {
+        glyph: this.ansiFor('stderr').red('✕'),
+        message: sanitizeForTerminal(message),
+      }),
+    );
     return ExitCode.Error;
   }
 
@@ -1184,7 +1243,7 @@ export class JobClaimCommand extends SmCommand {
       data: { reason: 'job-file-missing', message: T.claimContentMissingDetail },
     });
     this.printer!.error(
-      tx(T.claimErrContentMissing, { glyph: this.ansiFor('stderr').red('✕'), id: jobId }),
+      tx(T.claimErrContentMissing, { glyph: this.ansiFor('stderr').red('✕'), id: sanitizeForTerminal(jobId) }),
     );
     return ExitCode.Error;
   }
@@ -1235,7 +1294,8 @@ export class JobStatusCommand extends SmCommand {
       );
       return ExitCode.Ok;
     }
-    this.printer!.data(tx(T.statusSingleLine, { id: job.id, status: job.status }));
+    const v = safeJobView(job);
+    this.printer!.data(tx(T.statusSingleLine, { id: v.id, status: v.status }));
     return ExitCode.Ok;
   }
 

@@ -40,6 +40,8 @@ import { discoverOrphanSidecars } from '../../kernel/sidecar/discover-orphans.js
 import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
 import type { Node } from '../../kernel/types.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
+import { pluralSuffix } from '../../kernel/util/text.js';
 import { tx } from '../../kernel/util/tx.js';
 import type { IAnsi } from '../util/ansi.js';
 import { CONSENT_TEXTS } from '../i18n/consent.texts.js';
@@ -236,7 +238,7 @@ export class SidecarRefreshCommand extends SmCommand {
     }
     if (node.sidecar.status === 'fresh') {
       this.printer!.info(
-        tx(SIDECAR_TEXTS.refreshFresh, { glyph: okGlyph, nodePath: node.path }),
+        tx(SIDECAR_TEXTS.refreshFresh, { glyph: okGlyph, nodePath: sanitizeForTerminal(node.path) }),
       );
       return ExitCode.Ok;
     }
@@ -281,7 +283,7 @@ export class SidecarRefreshCommand extends SmCommand {
       );
     } else {
       this.printer!.data(
-        tx(SIDECAR_TEXTS.refreshUpdated, { glyph: okGlyph, sidecarPath: sidecarAbsPath }),
+        tx(SIDECAR_TEXTS.refreshUpdated, { glyph: okGlyph, sidecarPath: sanitizeForTerminal(sidecarAbsPath) }),
       );
     }
     return ExitCode.Ok;
@@ -359,10 +361,19 @@ export class SidecarPruneCommand extends SmCommand {
     // the pre-commit hook) skip the prompt.
     if (!dryRun && !this.yes) {
       const lines = orphans
-        .map((o) => `  ${o.sidecarPath} (expected ${o.expectedMdPath})`)
+        .map((o) =>
+          tx(SIDECAR_TEXTS.pruneConfirmLine, {
+            sidecarPath: sanitizeForTerminal(o.sidecarPath),
+            expectedMdPath: sanitizeForTerminal(o.expectedMdPath),
+          }),
+        )
         .join('\n');
       const ok = await confirm(
-        tx(SIDECAR_TEXTS.pruneConfirm, { count: orphans.length, lines }),
+        tx(SIDECAR_TEXTS.pruneConfirm, {
+          count: orphans.length,
+          plural: pluralSuffix(orphans.length),
+          lines,
+        }),
         { stdin: this.context.stdin, stderr: this.context.stderr },
       );
       if (!ok) {

@@ -17,7 +17,7 @@
 import { parse as parseToml } from 'smol-toml';
 
 import { stripPrototypePollution } from './strip-prototype-pollution.js';
-import { type IMcpServerDescriptor, type McpTransport, mcpServerId } from './mcp.js';
+import { type IMcpServerDescriptor, type TMcpTransport, mcpServerId } from './mcp.js';
 
 /**
  * The closed set of MCP config grammars the kernel knows. Each wraps a
@@ -28,12 +28,12 @@ import { type IMcpServerDescriptor, type McpTransport, mcpServerId } from './mcp
  * `{ type: "remote" | "local", url, enabled }` entry reads through the same
  * `type` / `url` path a Claude `{ type: "http", url }` entry does.
  */
-export type McpConfigDialect = 'json-mcp-servers' | 'toml-mcp-servers';
+export type TMcpConfigDialect = 'json-mcp-servers' | 'toml-mcp-servers';
 
 /** Parse one vendor MCP config file's raw content into descriptors. Never throws. */
 export function parseMcpServerConfig(
   content: string,
-  dialect: McpConfigDialect,
+  dialect: TMcpConfigDialect,
 ): IMcpServerDescriptor[] {
   const root = parseRoot(content, dialect);
   if (!root) return [];
@@ -50,7 +50,7 @@ export function parseMcpServerConfig(
   return out;
 }
 
-function parseRoot(content: string, dialect: McpConfigDialect): Record<string, unknown> | null {
+function parseRoot(content: string, dialect: TMcpConfigDialect): Record<string, unknown> | null {
   try {
     const doc: unknown = dialect === 'toml-mcp-servers' ? parseToml(content) : JSON.parse(content);
     if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return null;
@@ -120,7 +120,7 @@ function resolveTransport(
   type: unknown,
   url: string | undefined,
   command: string | undefined,
-): McpTransport | undefined {
+): TMcpTransport | undefined {
   if (typeof type === 'string') {
     const t = type.toLowerCase();
     if (STDIO_TYPES.has(t)) return 'stdio';

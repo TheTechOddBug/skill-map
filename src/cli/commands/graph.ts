@@ -118,6 +118,12 @@ export class GraphCommand extends SmCommand {
       // Formatter output is text; trailing newline normalisation makes the
       // verb safe to pipe into anything that splits on lines without
       // double-newlining when the formatter already terminates its output.
+      // Deliberately NOT terminal-sanitized (decision 2026-07-28): stdout
+      // is the artifact here (dot / mermaid / a deliberately ANSI-colored
+      // terminal format), a payload channel like `--json` bodies, and the
+      // operator opted into the plugin via the trust gate. See
+      // context/cli-output-style.md §Sanitisation, payload-channel
+      // exemption.
       this.printer!.data(text.endsWith('\n') ? text : text + '\n');
       return ExitCode.Ok;
     });

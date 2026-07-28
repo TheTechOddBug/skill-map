@@ -18,6 +18,8 @@
  * boundary lint.
  */
 
+import type { Kysely } from 'kysely';
+
 import {
   classifyVersionSkew,
   DbSchemaDriftError,
@@ -31,7 +33,6 @@ import { classifyFingerprint } from '../../kernel/adapters/sqlite/schema-fingerp
 import { DB_VERSION_TEXTS } from './i18n/db-version.texts.js';
 import { tx } from '../../kernel/util/tx.js';
 import type { IPrinter } from '../runtime/printer.js';
-import type { Kysely } from 'kysely';
 import type { IDatabase } from '../../kernel/adapters/sqlite/schema.js';
 
 export interface IDbVersionCheckStyle {

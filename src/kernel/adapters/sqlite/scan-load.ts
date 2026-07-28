@@ -43,7 +43,7 @@
  */
 
 import { sql } from 'kysely';
-import type { Kysely } from 'kysely';
+import type { Kysely, Selectable } from 'kysely';
 
 import type { IPersistedEnrichment } from '../../orchestrator.js';
 import type {
@@ -75,7 +75,6 @@ import type {
   IScanMetaTable,
   IScanNodesTable,
 } from './schema.js';
-import type { Selectable } from 'kysely';
 import {
   parseConfidence,
   parseLinkKind,

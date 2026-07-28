@@ -49,10 +49,11 @@
 
 import { existsSync } from 'node:fs';
 
+import type { Kysely } from 'kysely';
+
 import { createSqliteStorage } from '../../kernel/adapters/sqlite/index.js';
 import type { ISqliteStorageAdapterOptions } from '../../kernel/adapters/sqlite/index.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
-import type { Kysely } from 'kysely';
 import type { IDatabase } from '../../kernel/adapters/sqlite/schema.js';
 
 import {

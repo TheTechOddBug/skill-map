@@ -46,7 +46,7 @@ const NO_LOCKS: TLockedIds = new Set();
  * manifest catalog. Omitted == `true`, the historical "everything enabled
  * until told otherwise" behaviour used by plugin-level (bare id) lookups.
  */
-export type EnabledResolver = (id: string, installedDefault?: boolean) => boolean;
+export type TEnabledResolver = (id: string, installedDefault?: boolean) => boolean;
 
 /**
  * Lifecycle labels whose extensions ship DISABLED by default:
@@ -158,7 +158,7 @@ function resolveQualifiedEnabled(
 export function makeEnabledResolver(
   cfg: Pick<IEffectiveConfig, 'plugins'>,
   lockedIds: TLockedIds = NO_LOCKS,
-): EnabledResolver {
+): TEnabledResolver {
   return (pluginId, installedDefault) =>
     resolvePluginEnabled(pluginId, cfg, installedDefault, lockedIds);
 }

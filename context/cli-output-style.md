@@ -343,9 +343,23 @@ runs through `sanitizeForTerminal()` from
 Sanitise once at the boundary (build a flat row shape, sanitise its
 fields), not in every nested template, keeps the renderer focused
 on layout and the gate auditable from one place. See `sm check`
-(`renderHuman` in `cli/commands/check.ts`) and `sm show`
-(`renderHeader` / `renderFieldBlock` in `cli/commands/show.ts`) for
+(`renderHuman` in `cli/commands/check.ts`), `sm show`
+(`renderHeader` / `renderFieldBlock` in `cli/commands/show.ts`) and
+the jobs family (`safeJobView` in `cli/commands/job-queue.ts`) for
 the pattern.
+
+**Payload-channel exemption** (decision 2026-07-28): a stdout stream
+that IS the artifact does not sanitise, because byte fidelity is the
+contract there. Exactly two cases today: `--json` bodies (§7 below)
+and `sm graph` formatter output (dot / mermaid / a deliberately
+ANSI-colored terminal format; the plugin trust gate governs who gets
+to emit it). Human inspection surfaces are NOT payload channels even
+when they print stored blobs: `sm jobs preview` sanitises its
+rendered content (agents consume the byte-exact form via
+`sm jobs claim --json`), and `sm plugins show` sanitises the prompt
+template it renders (raw bytes ride `--json`). When adding a verb
+that prints stored content, ask "is stdout here a machine artifact
+or a human view?" and place it accordingly.
 
 ---
 

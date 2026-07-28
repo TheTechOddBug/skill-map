@@ -30,7 +30,7 @@ import type { IIgnoreFilter } from '../scan/ignore.js';
 import type { IParseIssue } from '../scan/parsers/types.js';
 import { walkContent } from '../scan/walk-content.js';
 import type { LinkKind } from '../types.js';
-import type { McpConfigDialect } from '../util/mcp-config.js';
+import type { TMcpConfigDialect } from '../util/mcp-config.js';
 
 export interface IRawNode {
   /** Path relative to the scan root that produced this node. */
@@ -410,7 +410,7 @@ export interface IProviderMcpConfigSource {
    */
   readonly path: string;
   /** Which config grammar the file uses. */
-  readonly dialect: McpConfigDialect;
+  readonly dialect: TMcpConfigDialect;
 }
 
 /**

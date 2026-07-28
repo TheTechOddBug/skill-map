@@ -20,7 +20,7 @@ import { loadConfig } from '../../../kernel/config/loader.js';
 import {
   installedDefaultEnabled,
   makeEnabledResolver,
-  type EnabledResolver,
+  type TEnabledResolver,
 } from '../../../kernel/config/plugin-resolver.js';
 import { lockedBuiltInIds } from '../../../plugins/locked-built-ins.js';
 import type { TExtensionStability } from '../../../kernel/extensions/base.js';
@@ -52,7 +52,7 @@ export function defaultResolveEnabled(_id: string, installedDefault = true): boo
 export function isBuiltInExtensionEnabled(
   plugin: IBuiltInPlugin,
   ext: TBuiltInExtension,
-  resolveEnabled: EnabledResolver,
+  resolveEnabled: TEnabledResolver,
 ): boolean {
   return isPluginEntryEnabled(plugin, ext.id, resolveEnabled, ext.stability, ext.defaultEnabled);
 }
@@ -69,7 +69,7 @@ export function isBuiltInExtensionEnabled(
 export function isPluginEntryEnabled(
   plugin: IBuiltInPlugin,
   extId: string,
-  resolveEnabled: EnabledResolver,
+  resolveEnabled: TEnabledResolver,
   stability?: TExtensionStability,
   defaultEnabled?: boolean,
 ): boolean {
@@ -88,7 +88,7 @@ export function isPluginEntryEnabled(
  */
 export function isPluginExtensionEnabled(
   ext: { pluginId: string; id: string; stability?: TExtensionStability; defaultEnabled?: boolean },
-  resolveEnabled: EnabledResolver,
+  resolveEnabled: TEnabledResolver,
 ): boolean {
   return resolveEnabled(
     qualifiedExtensionId(ext.pluginId, ext.id),
@@ -103,7 +103,7 @@ export function isPluginExtensionEnabled(
  * so `loadPluginRuntime` builds everything from a single DB read.
  */
 export interface IResolverInputs {
-  resolveEnabled: EnabledResolver;
+  resolveEnabled: TEnabledResolver;
   /** `config_plugins` trust rows keyed by BARE plugin id (the LOCAL security signal). */
   trustMap: Map<string, boolean>;
 }
@@ -140,6 +140,6 @@ export async function buildResolverInputs(
  */
 export async function buildEnabledResolver(
   ctx: IRuntimeContext,
-): Promise<EnabledResolver> {
+): Promise<TEnabledResolver> {
   return (await buildResolverInputs(ctx)).resolveEnabled;
 }

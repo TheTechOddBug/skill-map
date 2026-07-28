@@ -351,4 +351,25 @@ export const PLUGINS_TEXTS = {
   slotsListTipFooter: '\n{{tip}}\n',
   /** Tip body, dim-wrapped by the caller. */
   slotsListTipText: 'Tip: full spec at spec/view-slots.md and spec/input-types.md.',
+
+  // --- upgrade verb ----------------------------------------------------
+  /** Warn row: explicit `<plugin-id>` matched no discovered plugin dir. */
+  /** §3.1b block: explicit `<plugin-id>` matched no discovered plugin dir. */
+  upgradeNotFound:
+    "{{glyph}}  No plugin '{{id}}' under the project plugins dir; nothing to upgrade.\n" +
+    '   {{hint}}\n',
+  upgradeNotFoundHint: 'Run `sm plugins list` for discovered plugin ids.',
+  /** Backfill row: plugin had no package.json; the canonical one was written. */
+  upgradeBackfillCreated:
+    '  {{glyph}}  {{id}}: wrote package.json ("type": "module") so Node loads its ESM extensions cleanly.\n',
+  /** Backfill row: existing package.json gained `"type": "module"`. */
+  upgradeBackfillAddedType: '  {{glyph}}  {{id}}: added "type": "module" to its package.json.\n',
+  /** Warn row: package.json declares a foreign / malformed `type`; left untouched. */
+  upgradeBackfillForeignType:
+    '  {{glyph}}  {{id}}: package.json declares a non-module "type" (or is malformed); left untouched, check it if Node warns about the module type.\n',
+  /** Closing status (§3.1 single-line success + dim tip). */
+  upgradeNoMigrations:
+    '{{glyph}}  No catalog migrations registered for v1.0.0; all loaded plugins are catalog-current.\n' +
+    '   {{tip}}\n',
+  upgradeNoMigrationsTip: 'Run `sm plugins doctor` to surface any incompatible-catalog status.',
 } as const;

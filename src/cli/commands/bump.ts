@@ -58,6 +58,7 @@ import { sidecarPathFor } from '../../kernel/sidecar/parse.js';
 import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
 import type { Node } from '../../kernel/types.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { BUMP_TEXTS } from '../i18n/bump.texts.js';
 import { CONSENT_TEXTS } from '../i18n/consent.texts.js';
@@ -380,7 +381,7 @@ export class BumpCommand extends SmCommand {
       this.printer!.error(
         tx(BUMP_TEXTS.refusedFresh, {
           glyph: errGlyph,
-          nodePath: node.path,
+          nodePath: sanitizeForTerminal(node.path),
           hint: ansi.dim(BUMP_TEXTS.refusedFreshHint),
         }),
       );
@@ -438,11 +439,16 @@ export class BumpCommand extends SmCommand {
     const version = item.report.version ?? 1;
     if (item.report.createdSidecar === true) {
       this.printer!.data(
-        tx(BUMP_TEXTS.bumpedCreated, { glyph: okGlyph, sidecarPath, nodePath: node.path, version }),
+        tx(BUMP_TEXTS.bumpedCreated, {
+          glyph: okGlyph,
+          sidecarPath: sanitizeForTerminal(sidecarPath),
+          nodePath: sanitizeForTerminal(node.path),
+          version,
+        }),
       );
     } else {
       this.printer!.data(
-        tx(BUMP_TEXTS.bumped, { glyph: okGlyph, nodePath: node.path, version }),
+        tx(BUMP_TEXTS.bumped, { glyph: okGlyph, nodePath: sanitizeForTerminal(node.path), version }),
       );
     }
     return ExitCode.Ok;

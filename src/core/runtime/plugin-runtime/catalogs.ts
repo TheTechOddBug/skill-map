@@ -10,7 +10,7 @@ import type {
   IAnalyzer,
   IAction,
 } from '../../../kernel/extensions/index.js';
-import type { EnabledResolver } from '../../../kernel/config/plugin-resolver.js';
+import type { TEnabledResolver } from '../../../kernel/config/plugin-resolver.js';
 import type { IExtension } from '../../../kernel/registry.js';
 import {
   builtInPlugins,
@@ -86,7 +86,7 @@ function addContributionKeysForExtension(
  */
 export function filterBuiltInManifests(
   manifests: IExtension[],
-  resolveEnabled: EnabledResolver,
+  resolveEnabled: TEnabledResolver,
 ): IExtension[] {
   // Build a per-plugin index so the filter can hand `isPluginEntryEnabled`
   // a stable plugin reference. The index is rebuilt every call (cheap,

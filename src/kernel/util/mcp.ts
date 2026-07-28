@@ -25,7 +25,7 @@
 export const MCP_NODE_KIND = 'mcp';
 
 /** How a host reaches an MCP server. `stdio` = local subprocess; `http` = remote Streamable HTTP. */
-export type McpTransport = 'stdio' | 'http';
+export type TMcpTransport = 'stdio' | 'http';
 
 /**
  * Canonical parsed shape of one declared MCP server. Only `server` is always
@@ -36,7 +36,7 @@ export interface IMcpServerDescriptor {
   /** Server id (the `<server>` segment), already normalised via `mcpServerId`. The node identity. */
   readonly server: string;
   /** Transport, when the config declares enough to tell. Absent on a name-only (consumer-side) descriptor. */
-  readonly transport?: McpTransport;
+  readonly transport?: TMcpTransport;
   /** stdio: launch command. */
   readonly command?: string;
   /** stdio: launch arguments. */

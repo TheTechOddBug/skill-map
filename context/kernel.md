@@ -101,6 +101,7 @@ Every CLI sink that writes to `stdout` / `stderr` MUST pass strings sourced from
 - Strings the CLI itself authored in the current process, i18n catalog values reached via `tx(*_TEXTS.*, ...)` are trusted source. The `vars` interpolated INTO the catalog are NOT trusted; sanitize them at the call site.
 - Filesystem paths the CLI composed via `path.join` from trusted parts (e.g. `defaultProjectDbPath(cwd)`).
 - Numeric values, booleans, and other non-string primitives.
+- **Payload channels** (decision 2026-07-28): stdout streams that ARE the artifact, where byte fidelity is the contract. Exactly two today: `--json` bodies, and `sm graph` formatter output (a formatter may legitimately emit ANSI, e.g. a colored terminal tree; the plugin trust gate governs execution). Human inspection surfaces over stored blobs are NOT payload channels: `sm jobs preview` and the `sm plugins show` prompt render both sanitize, with the raw bytes reachable via their `--json` / `sm jobs claim --json` counterparts. Full doctrine: `context/cli-output-style.md` §Sanitisation.
 
 When in doubt, sanitize. The cost is a function call; the cost of forgetting is a screen-clear or fake-prompt smuggled into the user's terminal via a hostile plugin's `Issue.message`.
 

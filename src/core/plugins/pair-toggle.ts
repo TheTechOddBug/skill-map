@@ -30,7 +30,7 @@
  * the additions.
  */
 
-import type { EnabledResolver } from '../../kernel/config/plugin-resolver.js';
+import type { TEnabledResolver } from '../../kernel/config/plugin-resolver.js';
 import { installedDefaultEnabled } from '../../kernel/config/plugin-resolver.js';
 import type { TExtensionStability } from '../../kernel/extensions/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
@@ -259,7 +259,7 @@ function applyInstanceFields(row: IPairEdgeSource, inst: unknown): void {
  */
 export function buildPairEnabledProbe(
   sources: readonly IPairEdgeSource[],
-  resolver: EnabledResolver,
+  resolver: TEnabledResolver,
 ): (key: string) => boolean {
   const defaults = new Map<string, boolean>();
   for (const s of sources) {

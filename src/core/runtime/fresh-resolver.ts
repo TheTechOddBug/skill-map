@@ -31,7 +31,7 @@
  */
 
 import type { IEffectiveConfig } from '../../kernel/config/loader.js';
-import { makeEnabledResolver, type EnabledResolver } from '../../kernel/config/plugin-resolver.js';
+import { makeEnabledResolver, type TEnabledResolver } from '../../kernel/config/plugin-resolver.js';
 import { lockedBuiltInIds } from '../../plugins/locked-built-ins.js';
 
 export interface IFreshResolverDeps {
@@ -51,7 +51,7 @@ export interface IFreshResolverDeps {
  */
 export async function buildFreshResolver(
   deps: IFreshResolverDeps,
-): Promise<EnabledResolver> {
+): Promise<TEnabledResolver> {
   return makeEnabledResolver(deps.effectiveConfig(), lockedBuiltInIds());
 }
 
@@ -63,6 +63,6 @@ export async function buildFreshResolver(
  */
 export function composeResolver(
   effectiveConfig: Pick<IEffectiveConfig, 'plugins'>,
-): EnabledResolver {
+): TEnabledResolver {
   return makeEnabledResolver(effectiveConfig, lockedBuiltInIds());
 }

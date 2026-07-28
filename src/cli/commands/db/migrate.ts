@@ -25,6 +25,7 @@ import { resolveDbPath } from '../../util/db-path.js';
 import { defaultRuntimeContext } from '../../../core/runtime/runtime-context.js';
 import { ExitCode } from '../../util/exit-codes.js';
 import { formatErrorMessage } from '../../../kernel/util/format-error.js';
+import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { pluralSuffix } from '../../../kernel/util/text.js';
 import { tryParseNonNegativeInt } from '../../util/option-validators.js';
 import {
@@ -345,5 +346,8 @@ async function runPluginMigrations(opts: IRunPluginMigrationsOpts): Promise<numb
 
 
 function formatKernelName(version: number, description: string): string {
-  return `${String(version).padStart(3, '0')}_${description}`;
+  // Applied rows read back from the DB ledger and pending filenames from
+  // disk are both untrusted for terminal output (tampered-DB / hostile
+  // clone threat model); sanitize at this shared label boundary.
+  return sanitizeForTerminal(`${String(version).padStart(3, '0')}_${description}`);
 }

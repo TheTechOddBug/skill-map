@@ -60,10 +60,9 @@
 
 import { resolve } from 'node:path';
 
-import { appendOperation } from '../../core/operations-log.js';
-
 import { Command, Option } from 'clipanion';
 
+import { appendOperation } from '../../core/operations-log.js';
 import type {
   IFindingRecord,
   IFindingsListFilter,

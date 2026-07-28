@@ -57,6 +57,7 @@ import type { StoragePort } from '../../kernel/ports/storage.js';
 import { createNdjsonProgressEmitter } from '../../core/runtime/progress-emitter.js';
 import { generateRunId } from '../../kernel/jobs/index.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
@@ -260,19 +261,22 @@ export class RecordCommand extends SmCommand {
         return this.fail(tx(T.errNonceMismatch, { id: this.id }), ExitCode.NonceMismatch);
       case 'not-running':
         return this.fail(
-          tx(T.errNotRunning, { id: this.id, status: outcome.status }),
+          tx(T.errNotRunning, { id: this.id, status: sanitizeForTerminal(outcome.status) }),
           ExitCode.Error,
         );
       case 'schema-unresolved':
         return this.fail(
-          tx(T.errReportSchemaUnresolved, { extension: job.extensionId, detail: outcome.detail }),
+          tx(T.errReportSchemaUnresolved, {
+            extension: sanitizeForTerminal(job.extensionId),
+            detail: sanitizeForTerminal(outcome.detail),
+          }),
           ExitCode.Error,
         );
       case 'report-invalid':
         this.printer!.error(
           tx(T.errPrefix, {
             glyph: this.errGlyph(),
-            message: tx(T.reportInvalid, { errors: outcome.detail }),
+            message: tx(T.reportInvalid, { errors: sanitizeForTerminal(outcome.detail) }),
           }),
         );
         return ExitCode.Error;
@@ -317,12 +321,15 @@ export class RecordCommand extends SmCommand {
    * at the tags editor where the human saves them under their own hand.
    */
   private tagsProposedLine(tags: readonly string[], node: string): string {
+    // Tags are AI-proposed strings straight out of the agent's report,
+    // the highest-risk provenance for terminal output; the node path is
+    // a DB round-trip. Sanitize both.
     return tx(T.tagsProposed, {
       glyph: this.ansiFor('stderr').cyan('ℹ'),
       count: tags.length,
       noun: tags.length === 1 ? T.tagsNounSingular : T.tagsNounPlural,
-      node,
-      tags: tags.join(', '),
+      node: sanitizeForTerminal(node),
+      tags: sanitizeForTerminal(tags.join(', ')),
     });
   }
 
@@ -334,15 +341,19 @@ export class RecordCommand extends SmCommand {
     }
     if (execution.status === 'completed') {
       this.printer!.info(
-        tx(T.completedLine, { glyph: this.okGlyph(), execId: execution.id, id: execution.jobId ?? '' }),
+        tx(T.completedLine, {
+          glyph: this.okGlyph(),
+          execId: sanitizeForTerminal(execution.id),
+          id: sanitizeForTerminal(execution.jobId ?? ''),
+        }),
       );
     } else {
       this.printer!.info(
         tx(T.failedLine, {
           glyph: this.warnGlyph(),
-          execId: execution.id,
-          id: execution.jobId ?? '',
-          reason: execution.failureReason ?? '',
+          execId: sanitizeForTerminal(execution.id),
+          id: sanitizeForTerminal(execution.jobId ?? ''),
+          reason: sanitizeForTerminal(execution.failureReason ?? ''),
         }),
       );
     }
@@ -392,7 +403,11 @@ export class RecordCommand extends SmCommand {
   // --- small glyph / error helpers ---------------------------------------
 
   private fail(message: string, code: TExitCode): TExitCode {
-    this.printer!.error(tx(T.errPrefix, { glyph: this.errGlyph(), message }));
+    // Funnel sanitization: outcome messages can embed DB statuses and
+    // engine details composed upstream.
+    this.printer!.error(
+      tx(T.errPrefix, { glyph: this.errGlyph(), message: sanitizeForTerminal(message) }),
+    );
     return code;
   }
 
