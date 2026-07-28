@@ -144,13 +144,13 @@ type TButtonSeverity = 'info' | 'warn' | 'success' | 'danger' | undefined;
     .vc-action { display: inline-flex; align-items: center; gap: 0.4rem;
       flex-wrap: wrap; }
     .vc-action__error { display: inline-flex; align-items: center;
-      gap: 0.3rem; font-size: 0.8rem; color: var(--sm-severity-error);
+      gap: 0.3rem; font-size: var(--sm-fs-sm); color: var(--sm-severity-error);
       background: var(--sm-severity-error-bg);
       padding: 0.1rem 0.4rem; border-radius: var(--sm-radius-sm); }
     .vc-action__error-dismiss { background: none; border: none;
       cursor: pointer; padding: 0; line-height: 1;
       color: var(--sm-severity-error); display: inline-flex; }
-    .vc-action__error-dismiss .pi { font-size: 0.7rem; }
+    .vc-action__error-dismiss .pi { font-size: var(--sm-fs-xs); }
   `],
 })
 export class NodeActionButton {

@@ -101,7 +101,7 @@ export interface ISidecarConsentDecision {
       cursor: pointer; margin-bottom: 1.25rem; }
     .consent__always-text { display: flex; flex-direction: column; gap: 0.2rem; }
     .consent__always-label { font-weight: 600; color: var(--p-text-color); }
-    .consent__always-hint { font-size: 0.85rem;
+    .consent__always-hint { font-size: var(--sm-fs-md);
       color: var(--p-text-muted-color); line-height: 1.4; }
     .consent__actions { display: flex; justify-content: flex-end;
       gap: 0.5rem; }

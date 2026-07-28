@@ -26,12 +26,17 @@
    * autocomplete inner inputs, which all forward `pSize`; the
    * multiselect token covers the InputTypeControl multiselects (always
    * small here); the message text token is consumed directly by
-   * `.p-message-text`, so it reaches the default-size messages. Widgets
-   * that render WITHOUT size="small" cannot receive a sm token and keep
-   * the ::ng-deep rule further down. */
+   * `.p-message-text`, so it reaches the default-size messages. The
+   * togglebutton token covers the theme select-button and the Plugins
+   * filter chips, the select token covers the active-provider select;
+   * all of them render size="small". Only the autocomplete family
+   * cannot receive a sm token and keeps the ::ng-deep rule further
+   * down. */
   --p-inputtext-sm-font-size: var(--sm-fs-sm);
   --p-button-sm-font-size: var(--sm-fs-sm);
   --p-multiselect-sm-font-size: var(--sm-fs-sm);
+  --p-togglebutton-sm-font-size: var(--sm-fs-sm);
+  --p-select-sm-font-size: var(--sm-fs-sm);
   --p-message-text-font-size: var(--sm-fs-sm);
 }
 
@@ -197,24 +202,16 @@
   color: var(--p-message-error-color);
 }
 
-/* Widgets the sm-token pinning on `:host` cannot reach, kept as
+/* The one family the sm-token pinning on `:host` cannot reach, kept as
  * `::ng-deep` (scoped to this dialog so the shared InputTypeControl
- * stays full-size in the action-prompt dialog):
- * - `.p-togglebutton`: the theme select-button (General) and the
- *   Plugins filter chips render WITHOUT size="small", so the sm token
- *   never applies to them.
- * - `.p-select(-label)`: the active-provider select (Project) renders
- *   WITHOUT size="small"; the displayed value lives in a `*-label`
- *   child that does not inherit the host font-size, so it is listed
- *   explicitly. Covers the small plugin-section selects too, same value.
- * - the autocomplete family: its stylesheet consumes no sm font-size
- *   token at all (only the dropdown icon does), and in MULTIPLE mode
- *   (plugin string-list settings) the free-text input inside the chip
- *   row hardcodes `font-size: 1rem` in the library CSS, so no token
- *   reaches it either. */
-:host ::ng-deep .settings-modal__dialog .p-togglebutton,
-:host ::ng-deep .settings-modal__dialog .p-select,
-:host ::ng-deep .settings-modal__dialog .p-select-label,
+ * stays full-size in the action-prompt dialog): the autocomplete. Its
+ * stylesheet consumes no sm font-size token at all (only the dropdown
+ * icon does), and in MULTIPLE mode (plugin string-list settings) the
+ * free-text input inside the chip row hardcodes `font-size: 1rem` in
+ * the library CSS, so no token reaches it either. Every other widget
+ * in the dialog renders size="small" and rides the `:host` token pins
+ * above (the theme select-button, the Plugins filter chips, and the
+ * active-provider select gained the attr in the July 2026 pass). */
 :host ::ng-deep .settings-modal__dialog .p-autocomplete,
 :host ::ng-deep .settings-modal__dialog .p-autocomplete-input-chip input,
 :host ::ng-deep .settings-modal__dialog .p-autocomplete .p-chip {

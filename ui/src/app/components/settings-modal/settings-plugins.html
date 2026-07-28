@@ -46,6 +46,7 @@
     <p-togglebutton
       [ngModel]="allFilterActive()"
       (ngModelChange)="resetFilters()"
+      size="small"
       styleClass="settings-plugins__source-chip is-all"
       [ariaLabel]="texts.pluginsFilterAllA11y"
       data-testid="settings-plugins-filter-all"
@@ -67,6 +68,7 @@
         <p-togglebutton
           [ngModel]="isSourceFilterActive(source)"
           (ngModelChange)="toggleSourceFilter(source)"
+          size="small"
           styleClass="settings-plugins__source-chip"
           [ariaLabel]="texts.pluginsSourceFilterOptionA11y(source, !isSourceFilterActive(source))"
           [attr.data-testid]="'settings-plugins-source-chip-' + source"
@@ -85,6 +87,7 @@
       <p-togglebutton
         [ngModel]="isKindFilterActive(kind)"
         (ngModelChange)="toggleKindFilter(kind)"
+        size="small"
         styleClass="settings-plugins__kind-chip"
         [style.--kind-color]="kindTint(kind)"
         [ariaLabel]="texts.pluginsKindFilterOptionA11y(kind, !isKindFilterActive(kind))"

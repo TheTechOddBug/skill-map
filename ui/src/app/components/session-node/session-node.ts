@@ -59,12 +59,12 @@ import { SESSION_NODE_TEXTS } from '../../../i18n/session-node.texts';
         border-radius: var(--sm-radius-pill);
         background: color-mix(in srgb, var(--sm-edge-spawn) 10%, transparent);
         color: var(--sm-edge-spawn);
-        font-size: 0.8rem;
+        font-size: var(--sm-fs-sm);
         font-weight: 600;
         user-select: none;
       }
       .sm-session-node__glyph {
-        font-size: 0.7rem;
+        font-size: var(--sm-fs-xs);
       }
     `,
   ],

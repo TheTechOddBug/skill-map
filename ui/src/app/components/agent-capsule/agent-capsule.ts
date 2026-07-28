@@ -66,12 +66,12 @@ import { AGENT_CAPSULE_TEXTS } from '../../../i18n/agent-capsule.texts';
         border-radius: var(--sm-radius-pill);
         background: color-mix(in srgb, var(--sm-edge-spawn) 10%, transparent);
         color: var(--sm-edge-spawn);
-        font-size: 0.75rem;
+        font-size: var(--sm-fs-xs);
         font-weight: 600;
         user-select: none;
       }
       .sm-agent-capsule__glyph {
-        font-size: 0.7rem;
+        font-size: var(--sm-fs-xs);
       }
       .sm-agent-capsule__label {
         overflow: hidden;
@@ -83,7 +83,7 @@ import { AGENT_CAPSULE_TEXTS } from '../../../i18n/agent-capsule.texts';
         padding: 0 0.35rem;
         border-radius: var(--sm-radius-pill);
         background: color-mix(in srgb, var(--sm-edge-spawn) 22%, transparent);
-        font-size: 0.7rem;
+        font-size: var(--sm-fs-xs);
       }
     `,
   ],

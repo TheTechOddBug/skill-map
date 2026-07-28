@@ -37,13 +37,13 @@ interface INodeMarkdownPayload {
     </section>
   `,
   styles: [`
-    .vc-markdown__header { font-size: 0.85rem; color: var(--p-text-muted-color);
+    .vc-markdown__header { font-size: var(--sm-fs-md); color: var(--p-text-muted-color);
       margin: 0 0 0.5rem; }
-    .vc-markdown__body { font-size: 0.85rem; color: var(--p-text-color);
+    .vc-markdown__body { font-size: var(--sm-fs-md); color: var(--p-text-color);
       background: var(--p-surface-50); padding: 0.5rem;
       border-radius: var(--sm-radius-md); white-space: pre-wrap; word-break: break-word;
       margin: 0; max-height: 12rem; overflow: auto; }
-    .vc-markdown__empty { color: var(--p-text-muted-color); font-size: 0.85rem;
+    .vc-markdown__empty { color: var(--p-text-muted-color); font-size: var(--sm-fs-md);
       margin: 0; }
   `],
 })

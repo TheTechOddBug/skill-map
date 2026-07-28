@@ -42,9 +42,9 @@ interface IScopeStatPayload {
   `,
   styles: [`
     .vc-stat { display: inline-flex; align-items: center; gap: 0.25rem;
-      padding: 0.125rem 0.5rem; border-radius: 0.75rem; font-size: 0.85rem;
+      padding: 0.125rem 0.5rem; border-radius: 0.75rem; font-size: var(--sm-fs-md);
       background: var(--p-surface-100); color: var(--p-surface-800); }
-    .vc-stat__label { color: var(--p-surface-500); font-size: 0.8rem; }
+    .vc-stat__label { color: var(--p-surface-500); font-size: var(--sm-fs-sm); }
     .vc-stat--info    { background: var(--p-blue-100); color: var(--p-blue-700); }
     .vc-stat--warn    { background: var(--p-yellow-100); color: var(--p-yellow-800); }
     .vc-stat--success { background: var(--p-green-100); color: var(--p-green-700); }

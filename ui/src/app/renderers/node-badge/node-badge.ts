@@ -70,7 +70,7 @@ interface INodeBadgePayload {
        background (tag-style) via .vc-badge--tinted. */
     .vc-badge { display: inline-flex; align-items: center; gap: 0.3rem;
       line-height: 1; color: var(--p-text-color); }
-    .vc-badge__icon { font-size: 0.6rem; line-height: 1; display: block; }
+    .vc-badge__icon { font-size: var(--sm-fs-2xs); line-height: 1; display: block; }
     .vc-badge__label { font-weight: 500; line-height: 1; display: block; }
     .vc-badge__count { font-weight: 600; line-height: 1; display: block; }
 

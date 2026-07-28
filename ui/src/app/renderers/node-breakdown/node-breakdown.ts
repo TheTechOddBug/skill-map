@@ -52,13 +52,13 @@ interface INodeBreakdownPayload {
     </section>
   `,
   styles: [`
-    .vc-breakdown__header { font-size: 0.85rem; color: var(--p-text-muted-color);
+    .vc-breakdown__header { font-size: var(--sm-fs-md); color: var(--p-text-muted-color);
       margin: 0 0 0.5rem; }
     .vc-breakdown__rows { list-style: none; padding: 0; margin: 0;
       display: flex; flex-direction: column; gap: 0.25rem; }
     .vc-breakdown__row { display: grid;
       grid-template-columns: minmax(4rem, 0.4fr) 1fr 3rem;
-      align-items: center; gap: 0.5rem; font-size: 0.85rem; }
+      align-items: center; gap: 0.5rem; font-size: var(--sm-fs-md); }
     .vc-breakdown__label { color: var(--p-text-color); white-space: nowrap;
       overflow: hidden; text-overflow: ellipsis; }
     .vc-breakdown__bar-track { background: var(--p-surface-100);
@@ -66,7 +66,7 @@ interface INodeBreakdownPayload {
     .vc-breakdown__bar { display: block; height: 100%;
       background: var(--p-primary-500); }
     .vc-breakdown__value { text-align: right; color: var(--p-text-color); }
-    .vc-breakdown__empty { color: var(--p-text-muted-color); font-size: 0.85rem;
+    .vc-breakdown__empty { color: var(--p-text-muted-color); font-size: var(--sm-fs-md);
       margin: 0; }
   `],
 })

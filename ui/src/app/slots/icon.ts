@@ -94,8 +94,8 @@ export function resolveIcon(raw: string | undefined): TResolvedIcon | null {
   // PrimeIcons / FontAwesome `<i>` glyphs ship with absolute, non-inherited
   // font-size in their default CSS. Forcing the `<i>` AND `<span>` to
   // inherit makes the rendered glyph follow the wrapper's font-size in
-  // both branches, so a renderer that wants a 0.6rem icon declares it
-  // on the wrapper class once and both branches obey.
+  // both branches, so a renderer that wants an --sm-fs-2xs icon declares
+  // it on the wrapper class once and both branches obey.
   //
   // The 1px `<i>` nudge mirrors `node-card.css`, PrimeIcons' (and FA's)
   // icon fonts have an asymmetric ascender/descender so the glyph reads

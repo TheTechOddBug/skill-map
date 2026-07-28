@@ -114,7 +114,7 @@ interface IDispatchedItem {
     .vch__overflow { display: inline-flex; align-items: center;
       padding: 0.125rem 0.5rem; border-radius: 0.75rem;
       background: var(--p-surface-100); color: var(--p-surface-600);
-      font-size: 0.8rem; cursor: default; }
+      font-size: var(--sm-fs-sm); cursor: default; }
   `],
 })
 export class ViewContributionsHost {

@@ -143,21 +143,21 @@ import type { ISpawnThread } from './spawn-thread';
     `
       .convo__meta { display: flex; flex-direction: column; gap: 0.2rem;
         margin: 0 0 0.9rem; }
-      .convo__meta-line { font-size: 0.85rem; color: var(--p-text-color); }
-      .convo__meta-line--dim { font-size: 0.78rem;
+      .convo__meta-line { font-size: var(--sm-fs-md); color: var(--p-text-color); }
+      .convo__meta-line--dim { font-size: var(--sm-fs-sm);
         color: var(--p-text-muted-color); }
       .convo__meta-line code { font-family: var(--sm-font-mono);
-        font-size: 0.72rem; }
+        font-size: var(--sm-fs-xs); }
       .convo__thread { display: flex; flex-direction: column; gap: 0.9rem; }
       .convo__turn { display: flex; flex-direction: column; gap: 0.35rem; }
       .convo__turn-head { display: flex; justify-content: flex-end;
         align-items: baseline; gap: 0.5rem; }
-      .convo__turn-meta { font-size: 0.72rem;
+      .convo__turn-meta { font-size: var(--sm-fs-xs);
         color: var(--p-text-muted-color); }
       .convo__bubble { max-width: 88%; padding: 0.6rem 0.75rem;
         border: 1px solid var(--sm-border);
         border-radius: var(--sm-radius-sm);
-        font-size: 0.85rem; line-height: 1.5; overflow-wrap: anywhere; }
+        font-size: var(--sm-fs-md); line-height: 1.5; overflow-wrap: anywhere; }
       /* Parent (the asker) sits right with a subtle primary tint; the
          child's reply sits left on the plain page surface. Bare theme
          tokens only, so every theme retints the pair automatically. */
@@ -165,7 +165,7 @@ import type { ISpawnThread } from './spawn-thread';
         background: color-mix(in srgb, var(--p-primary-color) 8%, var(--sm-bg-page)); }
       .convo__bubble--child { align-self: flex-start;
         background: var(--sm-bg-page); }
-      .convo__note { margin: 0.75rem 0 0; font-size: 0.8rem;
+      .convo__note { margin: 0.75rem 0 0; font-size: var(--sm-fs-sm);
         font-style: italic; color: var(--p-text-muted-color); }
       .convo__note--turn { margin: 0; align-self: flex-end;
         text-align: right; }

@@ -43,7 +43,7 @@ interface INodeAlertPayload {
        chrome quiet. */
     .vc-alert { display: inline-flex; align-items: center;
       justify-content: center; gap: 0.125rem;
-      min-width: 1.1rem; min-height: 1.1rem; font-size: 0.85rem;
+      min-width: 1.1rem; min-height: 1.1rem; font-size: var(--sm-fs-md);
       color: var(--p-surface-700); }
     .vc-alert--info    { color: var(--sm-severity-info); }
     .vc-alert--warn    { color: var(--sm-severity-warn); }

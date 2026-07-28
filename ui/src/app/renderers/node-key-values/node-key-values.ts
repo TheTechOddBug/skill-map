@@ -42,15 +42,15 @@ interface INodeKeyValuesPayload {
     </section>
   `,
   styles: [`
-    .vc-kv__header { font-size: 0.85rem; color: var(--p-text-muted-color);
+    .vc-kv__header { font-size: var(--sm-fs-md); color: var(--p-text-muted-color);
       margin: 0 0 0.5rem; }
     .vc-kv__list { display: grid;
       grid-template-columns: minmax(6rem, max-content) 1fr;
-      gap: 0.25rem 0.75rem; margin: 0; font-size: 0.85rem; }
+      gap: 0.25rem 0.75rem; margin: 0; font-size: var(--sm-fs-md); }
     .vc-kv__list dt { color: var(--p-text-muted-color); font-weight: 500; }
     .vc-kv__list dd { color: var(--p-text-color); margin: 0;
       word-break: break-word; }
-    .vc-kv__empty { color: var(--p-text-muted-color); font-size: 0.85rem;
+    .vc-kv__empty { color: var(--p-text-muted-color); font-size: var(--sm-fs-md);
       margin: 0; }
   `],
 })

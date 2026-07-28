@@ -98,7 +98,11 @@
  */
 .settings-plugins__kind-chip,
 .settings-plugins__source-chip {
-  --p-togglebutton-padding: 0.25rem 0.625rem;
+  /* The chips render size="small" (their text rides the dialog-wide
+     `--p-togglebutton-sm-font-size` pin in settings-modal.css), so the
+     padding pin targets the sm variant token: the base
+     `--p-togglebutton-padding` is not read by `.p-togglebutton-sm`. */
+  --p-togglebutton-sm-padding: 0.25rem 0.625rem;
   --p-togglebutton-content-padding: 0;
   --p-togglebutton-content-checked-background: transparent;
   --p-togglebutton-content-checked-shadow: none;
