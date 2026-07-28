@@ -44,11 +44,12 @@ import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import type { IActivityCaptureStatusApi } from '../../../models/api';
 import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
 import { ActivityReadinessService } from '../../services/activity-readiness';
+import { ToggleRowDirective } from './toggle-row.directive';
 import { formatErr } from './settings-project.utils';
 
 @Component({
   selector: 'sm-settings-project-capture',
-  imports: [FormsModule, ConfirmDialogModule, MessageModule, ToggleSwitchModule],
+  imports: [FormsModule, ConfirmDialogModule, MessageModule, ToggleRowDirective, ToggleSwitchModule],
   providers: [ConfirmationService],
   templateUrl: './settings-project-capture.html',
   styleUrl: './settings-project-rows.css',

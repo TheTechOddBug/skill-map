@@ -1,4 +1,8 @@
-<div class="settings-project__row" data-testid="settings-project-follow-external-symlinks-row">
+<div
+  smToggleRow
+  class="settings-project__row"
+  data-testid="settings-project-follow-external-symlinks-row"
+>
   <div class="settings-project__row-text">
     <!-- `<label for>` + `[inputId]` on every switch in this file:
          PrimeNG's `<p-toggleswitch>` renders an `<input type="checkbox"
@@ -26,7 +30,7 @@
   />
 </div>
 
-<div class="settings-project__row" data-testid="settings-project-mcp-server-row">
+<div smToggleRow class="settings-project__row" data-testid="settings-project-mcp-server-row">
   <div class="settings-project__row-text">
     <label class="settings-project__row-label" for="settings-project-mcp-server-switch">
       {{ texts.project.mcpServerLabel }}
@@ -62,7 +66,7 @@
   </p-message>
 }
 
-<div class="settings-project__row" data-testid="settings-project-sidecar-writers-row">
+<div smToggleRow class="settings-project__row" data-testid="settings-project-sidecar-writers-row">
   <div class="settings-project__row-text">
     <div class="settings-project__row-label">
       <!-- Only the label TEXT is the `<label>`: the shared badge stays a
@@ -139,7 +143,7 @@
   </div>
 </div>
 
-<div class="settings-project__row" data-testid="settings-project-respect-gitignore-row">
+<div smToggleRow class="settings-project__row" data-testid="settings-project-respect-gitignore-row">
   <div class="settings-project__row-text">
     <div class="settings-project__row-label">
       <!-- Label text only, badge stays outside (same reason as the

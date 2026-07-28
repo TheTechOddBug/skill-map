@@ -316,21 +316,9 @@ export function settingValuesEqual(a: unknown, b: unknown): boolean {
   return false;
 }
 
-/**
- * True when the user clicked on (or inside) an interactive child of
- * the row, the toggle, the expand chevron, or anything else with
- * its own click handler. Used by the row / subrow click listeners to
- * back off so we never double-fire (the inner control already did
- * its job and called `stopPropagation` where it mattered, but this
- * guard is defence in depth, `closest('label, button, [role=switch]')`
- * covers the PrimeNG ToggleSwitch root and the chevron button
- * without us having to hard-code a class list).
- */
-export function clickedInteractive(event: Event): boolean {
-  const target = event.target as Element | null;
-  if (!target || typeof target.closest !== 'function') return false;
-  return target.closest('label, button, input, [role="switch"], p-toggleswitch') !== null;
-}
+// `clickedInteractive` moved to `./interactive-click` when the boolean
+// rows started sharing it through `[smToggleRow]`; it was never a
+// plugins-specific concern.
 
 /**
  * Match `plugin` against the lower-cased query. Returns `[plugin]`

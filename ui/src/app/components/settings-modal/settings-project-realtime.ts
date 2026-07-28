@@ -33,10 +33,11 @@ import { LivePreferencesService } from '../../../services/live-preferences';
 import { NodeActivityService } from '../../../services/node-activity';
 import { WsEventStreamService } from '../../../services/ws-event-stream';
 import { ActivityReadinessService } from '../../services/activity-readiness';
+import { ToggleRowDirective } from './toggle-row.directive';
 
 @Component({
   selector: 'sm-settings-project-realtime',
-  imports: [FormsModule, ToggleSwitchModule],
+  imports: [FormsModule, ToggleRowDirective, ToggleSwitchModule],
   templateUrl: './settings-project-realtime.html',
   styleUrl: './settings-project-rows.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

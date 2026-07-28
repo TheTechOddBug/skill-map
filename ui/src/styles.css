@@ -702,3 +702,28 @@ button.sm-md-img:focus-visible {
 .sm-settings-select-overlay .p-select-option {
   font-size: var(--sm-fs-sm);
 }
+
+/* ---------------------------------------------------------------------
+ * Pointer affordance for the boolean Settings rows that flip their
+ * switch from anywhere (`[smToggleRow]`, see the directive for the
+ * mechanism).
+ *
+ * Keyed on the ATTRIBUTE, not on `.settings-project__row`: that class is
+ * also worn by rows whose control is an install button or a path list
+ * (`settings-project-hook`, `settings-project-skill`, the reference-paths
+ * row), and a hand cursor over those would promise a click that does
+ * nothing. The attribute matches exactly where the directive is applied,
+ * so the affordance cannot drift away from the behaviour.
+ *
+ * Global rather than per-component because five components host these
+ * rows and a directive cannot carry styles of its own.
+ * ------------------------------------------------------------------- */
+[smToggleRow] {
+  cursor: pointer;
+}
+
+/* A disabled switch ignores the forwarded click (PrimeNG's own `onClick`
+   bails on `$disabled()`), so the row must not offer a hand either. */
+[smToggleRow]:has(input[role='switch'][disabled]) {
+  cursor: default;
+}

@@ -32,6 +32,7 @@
               (click)="selectSection(section.id)"
               [attr.data-testid]="'settings-nav-' + section.id"
             >
+              <i class="settings-modal__sidebar-icon {{ section.icon }}" aria-hidden="true"></i>
               <span class="settings-modal__sidebar-label">{{ section.label }}</span>
             </button>
           </li>

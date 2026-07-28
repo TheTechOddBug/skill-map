@@ -46,6 +46,7 @@ import type {
 } from '../../../models/api';
 import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
 import { runConfirmGated, type TConfirmFlow } from '../confirm-gated';
+import { ToggleRowDirective } from './toggle-row.directive';
 import { SettingsProjectIgnore } from './settings-project-ignore';
 import { formatErr } from './settings-project.utils';
 
@@ -58,6 +59,7 @@ import { formatErr } from './settings-project.utils';
     InputTextModule,
     MessageModule,
     SettingsProjectIgnore,
+    ToggleRowDirective,
     ToggleSwitchModule,
   ],
   providers: [ConfirmationService],

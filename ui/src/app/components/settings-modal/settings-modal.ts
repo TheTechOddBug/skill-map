@@ -63,6 +63,19 @@ interface ISettingsSection {
   id: TSettingsSection;
   label: string;
   /**
+   * PrimeIcons class for the nav row's leading glyph. Purely decorative
+   * (the row is named by its label, and the `<i>` is `aria-hidden`), so
+   * it lives here rather than in the texts catalog, matching the Quick
+   * Start group catalog this rail was aligned with.
+   *
+   * Every static section names its own; the dynamic `plugin:<id>`
+   * sections share one generic glyph because a plugin manifest has no
+   * icon field today (only provider KINDS declare one, see
+   * `spec/schemas/extensions/provider-kind.schema.json`). If plugins
+   * ever declare one, this becomes the fallback rather than the rule.
+   */
+  icon: string;
+  /**
    * When true, the sidebar renders a thin divider rule immediately
    * before this item. Set on the first dynamic plugin section and on
    * `changelog` (only when dynamic sections exist), so the per-plugin
@@ -73,12 +86,20 @@ interface ISettingsSection {
 }
 
 const SETTINGS_SECTIONS: readonly ISettingsSection[] = [
-  { id: 'general', label: SETTINGS_TEXTS.sections.general },
-  { id: 'project', label: SETTINGS_TEXTS.sections.project },
-  { id: 'plugins', label: SETTINGS_TEXTS.sections.plugins },
-  { id: 'changelog', label: SETTINGS_TEXTS.sections.changelog },
-  { id: 'about', label: SETTINGS_TEXTS.sections.about },
+  { id: 'general', label: SETTINGS_TEXTS.sections.general, icon: 'pi pi-sliders-h' },
+  { id: 'project', label: SETTINGS_TEXTS.sections.project, icon: 'pi pi-folder' },
+  { id: 'plugins', label: SETTINGS_TEXTS.sections.plugins, icon: 'pi pi-box' },
+  { id: 'changelog', label: SETTINGS_TEXTS.sections.changelog, icon: 'pi pi-history' },
+  { id: 'about', label: SETTINGS_TEXTS.sections.about, icon: 'pi pi-info-circle' },
 ] as const;
+
+/**
+ * Glyph for a per-plugin settings section. Deliberately NOT `pi-box`
+ * (the Plugins section's own icon): the list section and one plugin's
+ * options are different destinations, so they should not look
+ * identical in the same rail.
+ */
+const PLUGIN_SECTION_ICON = 'pi pi-cog';
 
 /** Build the `plugin:<id>` section id for a plugin's settings section. */
 function pluginSectionId(pluginId: string): TSettingsSection {
@@ -189,6 +210,7 @@ export class SettingsModal {
     const dynamic: ISettingsSection[] = this.settingsPlugins().map((plugin, index) => ({
       id: pluginSectionId(plugin.id),
       label: this.texts.pluginSection.navLabel(plugin.id),
+      icon: PLUGIN_SECTION_ICON,
       dividerBefore: index === 0,
     }));
     const result: ISettingsSection[] = [];

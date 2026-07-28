@@ -22,7 +22,11 @@
 
   <ul class="settings-general__list" role="list">
     @for (def of toggles; track def.key) {
+      <!-- `smToggleRow`: the whole row flips the switch. Only on the
+           boolean rows, the theme row below is a multi-option control
+           where "click anywhere" has no single meaning. -->
       <li
+        smToggleRow
         class="settings-general__row"
         [attr.data-testid]="'settings-general-row-' + def.key"
       >

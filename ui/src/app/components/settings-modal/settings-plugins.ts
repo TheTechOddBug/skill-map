@@ -69,8 +69,8 @@ import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
 import { kindTint } from '../../../services/extension-kind-tints';
 import { ProviderRegistryService } from '../../../services/provider-registry';
 
+import { clickedInteractive } from './interactive-click';
 import {
-  clickedInteractive,
   isFailureStatus,
   pluginDisplayName,
   qualifiedKey,

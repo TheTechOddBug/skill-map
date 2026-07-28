@@ -23,10 +23,11 @@ import { ToggleSwitchModule } from 'primeng/toggleswitch';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import { WsEventStreamService } from '../../../services/ws-event-stream';
+import { ToggleRowDirective } from './toggle-row.directive';
 
 @Component({
   selector: 'sm-settings-project-live',
-  imports: [FormsModule, ToggleSwitchModule],
+  imports: [FormsModule, ToggleRowDirective, ToggleSwitchModule],
   templateUrl: './settings-project-live.html',
   styleUrl: './settings-project-rows.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

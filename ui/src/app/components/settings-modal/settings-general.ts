@@ -41,6 +41,7 @@ import {
 } from '../../../services/data-source/data-source.port';
 import { ThemeService, type TExtraTheme } from '../../../services/theme';
 import { EXTRA_THEMES } from '../../../themes/registry';
+import { ToggleRowDirective } from './toggle-row.directive';
 
 /**
  * Declarative catalogue of toggles rendered in the General section.
@@ -112,7 +113,7 @@ function fromExtraThemeWire(value: TExtraThemeWire): TExtraTheme {
 
 @Component({
   selector: 'sm-settings-general',
-  imports: [ButtonModule, DialogModule, FormsModule, MessageModule, SelectButtonModule, ToggleSwitchModule, TooltipModule],
+  imports: [ButtonModule, DialogModule, FormsModule, MessageModule, SelectButtonModule, ToggleRowDirective, ToggleSwitchModule, TooltipModule],
   templateUrl: './settings-general.html',
   styleUrl: './settings-general.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
