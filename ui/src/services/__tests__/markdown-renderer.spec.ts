@@ -289,5 +289,108 @@ describe('MarkdownRenderer', () => {
         'x" onclick="alert(1)',
       );
     });
+
+    it('gives a raw HTML <img> the same placeholder treatment', async () => {
+      // The common real-world shape (a README embedding a chart or badge
+      // with an HTML tag for sizing). It reaches the sanitizer verbatim
+      // now that `html: true` is on, and the hook rewrites it exactly
+      // like the markdown-syntax form.
+      const r = makeRenderer();
+      const html = await r.renderToHtml(
+        '<img src="https://attacker.example/p.png" alt="Chart" width="400">',
+      );
+      expect(html.toLowerCase()).not.toContain('<img');
+      expect(html).toContain('data-sm-img-src="https://attacker.example/p.png"');
+      expect(html).toContain('Chart');
+    });
+
+    it('rewrites the <picture> chart embed and drops its <source>', async () => {
+      // `fixtures/claude/.claude/agents/content-editor.md` carries this
+      // shape verbatim: a link wrapping a <picture> whose <source
+      // srcset> would fetch on render even if the <img> did not.
+      const r = makeRenderer();
+      const html = await r.renderToHtml(
+        '<a href="https://star-history.com/x"><picture>' +
+          '<source media="(prefers-color-scheme: dark)" srcset="https://attacker.example/d.png">' +
+          '<img alt="Star History Chart" src="https://attacker.example/p.png">' +
+          '</picture></a>',
+      );
+      expect(html.toLowerCase()).not.toContain('<img');
+      expect(html).not.toContain('srcset');
+      expect(html).not.toContain('attacker.example/d.png');
+      expect(html).toContain('data-sm-img-src="https://attacker.example/p.png"');
+      expect(html).toContain('Star History Chart');
+    });
+
+    // Every remaining element that fetches purely by being rendered.
+    // `html: true` lets author markup reach the sanitizer verbatim, so
+    // these are the channels the parser flag used to cover incidentally
+    // and the config must now close explicitly.
+    for (const [name, src] of [
+      ['video', '<video src="https://attacker.example/v.mp4" autoplay></video>'],
+      ['audio', '<audio src="https://attacker.example/a.mp3"></audio>'],
+      ['svg image', '<svg><image href="https://attacker.example/s.png"></image></svg>'],
+      ['svg use', '<svg><use href="https://attacker.example/s.svg#i"></use></svg>'],
+      ['input type=image', '<input type="image" src="https://attacker.example/i.png">'],
+      ['iframe', '<iframe src="https://attacker.example/f"></iframe>'],
+      ['object', '<object data="https://attacker.example/o"></object>'],
+      ['embed', '<embed src="https://attacker.example/e">'],
+      ['link stylesheet', '<link rel="stylesheet" href="https://attacker.example/s.css">'],
+    ] as const) {
+      it(`drops a raw ${name}, it would fetch on render`, async () => {
+        const r = makeRenderer();
+        const html = await r.renderToHtml(src);
+        expect(html).not.toContain('attacker.example');
+      });
+    }
+
+    it('refuses a hand-written chip that impersonates a placeholder', async () => {
+      // Raw HTML can now copy our class and attribute, so an author could
+      // display one host while pointing the load at another, turning the
+      // consent the chip asks for into a lie. Anything we did not build
+      // ourselves loses the URL and is inert.
+      const r = makeRenderer();
+      const html = await r.renderToHtml(
+        '<button class="sm-md-img" data-sm-img-src="https://attacker.example/x">' +
+          '<span class="sm-md-img__host">github.com</span></button>',
+      );
+      expect(html).not.toContain('data-sm-img-src');
+      expect(html).not.toContain('attacker.example');
+    });
+
+    it('drops target from a raw anchor, the SPA never opens author links in a new tab', async () => {
+      // `context/ui.md` §External-link safety: a `target="_blank"` without
+      // `rel="noopener noreferrer"` hands the destination page a handle on
+      // this origin (reverse tabnabbing). Author HTML can write anchors
+      // now, and it cannot be trusted to bring the `rel`, so the attribute
+      // is dropped and every markdown link stays in-tab.
+      const r = makeRenderer();
+      const html = await r.renderToHtml(
+        '<a href="https://attacker.example" target="_blank">click</a>',
+      );
+      expect(html).toContain('href="https://attacker.example"');
+      expect(html).not.toContain('target');
+    });
+
+    it('still renders the HTML blocks real markdown relies on', async () => {
+      const r = makeRenderer();
+      const html = await r.renderToHtml(
+        '<details><summary>More</summary><div align="center">body</div></details>',
+      );
+      expect(html).toContain('<details>');
+      expect(html).toContain('<summary>');
+      expect(html).toContain('body');
+    });
+
+    it('strips scripts and handlers from raw HTML', async () => {
+      const r = makeRenderer();
+      const html = await r.renderToHtml(
+        '<script>alert(1)</script><b onclick="alert(2)">x</b><a href="javascript:alert(3)">y</a>',
+      );
+      expect(html.toLowerCase()).not.toContain('<script');
+      expect(html).not.toContain('onclick');
+      expect(html.toLowerCase()).not.toMatch(/href\s*=\s*"?javascript:/);
+      expect(html).toContain('<b>x</b>');
+    });
   });
 });

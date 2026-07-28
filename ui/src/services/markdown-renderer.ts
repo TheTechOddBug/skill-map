@@ -4,31 +4,36 @@
  * Rendering pipeline:
  *
  *   1. `markdown-it` (CommonMark + linkify) renders the source string
- *      into HTML with raw HTML disabled (`html: false`). Disabling raw
- *      HTML at the parser level is the first sanitization line, the
- *      worst input the renderer can produce is text-styled markup, no
- *      direct `<script>` injection. Fenced code blocks run through a
- *      `highlight` callback (highlight.js) that emits `hljs-*` token
- *      spans; the spans survive step 2 (DOMPurify keeps `class`).
- *   2. `DOMPurify` runs over the rendered HTML as the second line of
- *      defence (markdown features that wrap user input, e.g. autolinks,
- *      reference labels, can still smuggle attribute-level vectors
- *      through a permissive parser config). Its config also narrows the
- *      URI-scheme allowlist and drops the two tags that reach outside
- *      the document on render, `style` and `img` (see `setConfig`).
+ *      into HTML with raw HTML PASSED THROUGH (`html: true`). Fenced
+ *      code blocks run through a `highlight` callback (highlight.js)
+ *      that emits `hljs-*` token spans; the spans survive step 2
+ *      (DOMPurify keeps `class`).
+ *   2. `DOMPurify` is THE sanitization boundary, not a second opinion.
+ *      Its config narrows the library defaults well past stock: the
+ *      URI-scheme allowlist is explicit, the SVG and MathML profiles are
+ *      off, and every tag that fetches on render is forbidden (see
+ *      `setConfig`). An `uponSanitizeElement` hook turns images into
+ *      click-to-load placeholders on the way through.
+ *
+ * The parser used to escape raw HTML (`html: false`) as a crude first
+ * line of defence. It was dropped because real markdown leans on HTML
+ * blocks (`<details><summary>`, `<div align>`, `<picture>` chart and
+ * badge embeds) and escaping them rendered a wall of literal tags in the
+ * inspector, hiding real content behind what read as a bug. The
+ * remaining line is the one actually designed for hostile HTML, and the
+ * config below closes the vectors that flag was incidentally covering.
  *   3. The resulting HTML is wrapped via `bypassSecurityTrustHtml` so
  *      Angular's template binding renders it as DOM rather than text.
  *
  * **Image placeholders (click to load)**: a markdown body is
  * AUTHOR-controlled, so an `<img src="https://…">` is an outbound
  * request the operator never asked for, leaking their IP and view timing
- * to the content author the moment the node opens. The `image` renderer
- * rule (see `renderImagePlaceholder`) therefore NEVER emits an `<img>`;
- * it emits an inert placeholder naming the image and the host the
- * request would go to, and the fetch happens only after an explicit
- * click, handled by the `[smMarkdownImages]` directive. Two shapes,
- * picked by the `smImageMode` flag threaded through markdown-it's `env`
- * (one parser instance, one rule, per-call mode):
+ * to the content author the moment the node opens. The `imageHook`
+ * therefore rewrites every image, however it arrived (markdown syntax or
+ * raw HTML), into an inert placeholder naming the image and the host the
+ * request would go to; the fetch happens only after an explicit click,
+ * handled by the `[smMarkdownImages]` directive. Two shapes, picked by
+ * `currentImageMode`:
  *
  *   - `interactive` (`render` / `renderToHtml`, the block hosts): a
  *     `<button class="sm-md-img" data-sm-img-src="…">` chip.
@@ -40,9 +45,7 @@
  *
  * A `src` that is not `http(s)` (checked with the same `httpUrlOrNull`
  * guard the `[href]` sinks use) degrades to the static span with no URL
- * attribute, so no gesture can ever resolve it. `img` also stays in
- * `FORBID_TAGS` as the backstop: even if a future rule regressed, the
- * sanitizer would still strip the tag.
+ * attribute, so no gesture can ever resolve it.
  *
  * **Lazy-loaded**: the heavy modules (`markdown-it` ~80 KB, `dompurify`
  * ~30 KB, `highlight.js/lib/common` ~common-language subset) are imported
@@ -89,8 +92,7 @@ export class MarkdownRenderer {
    */
   async render(src: string): Promise<SafeHtml> {
     const renderer = await this.loadLibs();
-    const rendered = renderer.md.render(src, INTERACTIVE_ENV);
-    const clean = renderer.purify.sanitize(rendered);
+    const clean = sanitizeImages(renderer, renderer.md.render(src), 'interactive');
     return this.sanitizer.bypassSecurityTrustHtml(clean);
   }
 
@@ -107,8 +109,7 @@ export class MarkdownRenderer {
    */
   async renderInline(src: string): Promise<SafeHtml> {
     const renderer = await this.loadLibs();
-    const rendered = renderer.md.renderInline(src, STATIC_ENV);
-    const clean = renderer.purify.sanitize(rendered);
+    const clean = sanitizeImages(renderer, renderer.md.renderInline(src), 'static');
     return this.sanitizer.bypassSecurityTrustHtml(clean);
   }
 
@@ -119,8 +120,7 @@ export class MarkdownRenderer {
    */
   async renderToHtml(src: string): Promise<string> {
     const renderer = await this.loadLibs();
-    const rendered = renderer.md.render(src, INTERACTIVE_ENV);
-    return renderer.purify.sanitize(rendered);
+    return sanitizeImages(renderer, renderer.md.render(src), 'interactive');
   }
 
   /**
@@ -156,53 +156,47 @@ interface IRenderer {
   hljs: IHljs;
 }
 
-/**
- * Which placeholder shape the `image` rule emits for this render pass.
- * Threaded through markdown-it's `env` argument rather than built into
- * two parser instances: the mode is a per-CALL property (the same body
- * can be rendered inline in a card and as a block in the inspector), and
- * a second instance would double the parser + highlight setup for one
- * boolean.
- */
-type TImageMode = 'interactive' | 'static';
-
-/** Per-render environment markdown-it passes down to every rule. */
-interface IMdEnv {
-  smImageMode: TImageMode;
-}
-
-const INTERACTIVE_ENV: IMdEnv = { smImageMode: 'interactive' };
-const STATIC_ENV: IMdEnv = { smImageMode: 'static' };
-
-/** Minimal slice of a markdown-it token the image rule reads. */
-interface IMdToken {
-  content: string;
-  children: IMdToken[] | null;
-  attrGet(name: string): string | null;
-}
-
-/**
- * Minimal slice of markdown-it's `Renderer` passed back to a rule as
- * `self`. `renderInlineAsText` flattens the alt-text children to plain
- * text, exactly what the stock image renderer uses to fill `alt`.
- */
-interface IMdRendererSelf {
-  renderInlineAsText(tokens: IMdToken[], options: unknown, env: unknown): string;
-}
-
-type TRenderRule = (
-  tokens: IMdToken[],
-  idx: number,
-  options: unknown,
-  env: IMdEnv | undefined,
-  self: IMdRendererSelf,
-) => string;
-
 /** Minimal slice of the markdown-it instance surface the renderer drives. */
 interface IMarkdownIt {
-  render(src: string, env?: IMdEnv): string;
-  renderInline(src: string, env?: IMdEnv): string;
-  renderer: { rules: Record<string, TRenderRule | undefined> };
+  render(src: string): string;
+  renderInline(src: string): string;
+}
+
+/** Which placeholder shape the image hook builds for this pass. */
+type TImageMode = 'interactive' | 'static';
+
+/**
+ * Mode for the sanitize pass currently in flight, read by the DOMPurify
+ * `uponSanitizeElement` hook (hooks receive no per-call context, so the
+ * mode cannot ride an argument). Module scope is safe here for one
+ * reason only: `sanitize()` is fully synchronous, so no second render can
+ * interleave between the assignment and the read. `sanitizeImages` owns
+ * every write and restores the safe default in a `finally`, so a throw
+ * mid-sanitize can never leave `interactive` armed for a later inline
+ * render.
+ */
+let currentImageMode: TImageMode = 'static';
+
+/**
+ * Placeholders THIS pass created, tracked by object identity so the
+ * anti-impersonation strip below can tell them from author markup. A
+ * WeakSet of live nodes is the one discriminator raw HTML cannot forge:
+ * an author can copy our class and our `data-sm-img-src` attribute, but
+ * not the identity of a node we constructed.
+ */
+const ownPlaceholders = new WeakSet<object>();
+
+/**
+ * Run the sanitizer with the image mode set for its hook. Restores the
+ * static default afterwards, including on a throw.
+ */
+function sanitizeImages(renderer: IRenderer, html: string, mode: TImageMode): string {
+  currentImageMode = mode;
+  try {
+    return renderer.purify.sanitize(html);
+  } finally {
+    currentImageMode = 'static';
+  }
 }
 
 /**
@@ -239,15 +233,20 @@ async function importRenderer(): Promise<IRenderer> {
   const MarkdownIt = (mdMod as unknown as { default: new (opts: unknown) => IMarkdownIt }).default;
   const hljs = (hljsMod as unknown as { default: IHljs }).default;
   const md = new MarkdownIt({
-    html: false,
+    // Raw HTML is PASSED THROUGH to DOMPurify rather than escaped. Real
+    // markdown in the wild leans on HTML blocks (`<details><summary>`,
+    // `<div align>`, `<picture><img>` badge and chart embeds); escaping
+    // them rendered a wall of literal tags in the inspector, which read
+    // as a bug and hid real content. DOMPurify is the tool built for
+    // exactly this input, and the config below narrows it well past its
+    // defaults (see `setConfig`). The trade is deliberate: one strong
+    // sanitizer instead of a blunt parser flag plus that sanitizer.
+    html: true,
     linkify: true,
     // Fenced code blocks render with highlight.js token spans; the theme
     // colours live in `themes/highlight.css`. See `highlightCode`.
     highlight: (str: string, lang: string): string => highlightCode(hljs, str, lang),
   });
-  // Replace the stock `image` renderer so an image token can never
-  // become an `<img>`. See `renderImagePlaceholder` and the file header.
-  md.renderer.rules['image'] = renderImagePlaceholder;
   // DOMPurify's default export IS the singleton DOMPurify instance,
   // calling `.sanitize()` on it directly uses the current `window`
   // (browser default) or jsdom's `window` in unit tests.
@@ -261,33 +260,32 @@ async function importRenderer(): Promise<IRenderer> {
     default: {
       sanitize: (html: string) => string;
       setConfig: (cfg: Record<string, unknown>) => void;
+      addHook: (name: string, cb: (node: Element, data: { tagName: string }) => void) => void;
     };
   }).default;
+  purify.addHook('uponSanitizeElement', imageHook);
   purify.setConfig({
     ALLOWED_URI_REGEXP,
-    // `img` is forbidden, not merely scheme-restricted: markdown bodies
-    // are AUTHOR-controlled (a cloned repo's `.md` files, sidecar
-    // annotations, agent-written prompts), and an `<img src="https://…">`
-    // fires an outbound request the moment the operator opens the node,
-    // leaking their IP and view timing to the content author. That is the
-    // same beacon channel `services/css-guard.ts` already refuses for
-    // `url(...)` in author-controlled `[style.*]` values, so allowing it
-    // here would leave the two policies contradicting each other. Remote
-    // images are the only markdown feature that phones home on render,
-    // hence the tag-level ban rather than a tighter URI policy (`data:`
-    // is already rejected by ALLOWED_URI_REGEXP, and a local-file image
-    // has no meaning in a browser-served SPA).
-    //
-    // This is now the BACKSTOP, not the whole policy: the `image`
-    // renderer rule already emits a click-to-load placeholder instead of
-    // an `<img>` (see the file header), so nothing should reach the
-    // sanitizer as an image tag. Keeping the tag forbidden means a
-    // regression in that rule, or a raw `<img>` smuggled through some
-    // other markdown feature, still cannot fire a request. The
-    // placeholder path emits `button` / `span` / `i` with `class`,
-    // `type`, `title`, `aria-label` and `data-*`, all preserved by this
-    // config as-is, so no widening was needed.
-    FORBID_TAGS: ['style', 'img'],
+    // HTML only: drops the SVG and MathML profiles DOMPurify allows by
+    // default. Load-bearing since `html: true`, an `<svg><image href>`
+    // (and `<use href>`) fetches on render exactly like an `<img>`, and
+    // author markup can now reach the sanitizer verbatim. Verified
+    // against dompurify@3.4.12: with the profile off, both collapse to
+    // nothing.
+    USE_PROFILES: { html: true },
+    // Every remaining tag that issues a network request purely by being
+    // rendered. `img` heads the list but is a special case: the
+    // `imageHook` above converts an image into a click-to-load
+    // placeholder BEFORE the sanitizer removes it, so the ban here is
+    // the backstop that catches any image the hook did not rewrite.
+    // The others have no placeholder treatment and are simply dropped:
+    //   - `video` / `audio`: `src` preloads on render.
+    //   - `source`: feeds `<video>` / `<audio>` a `src` (its `srcset`
+    //     for `<picture>` is separately killed by FORBID_ATTR).
+    //   - `input`: `type="image"` has a fetching `src`.
+    // Rationale for the whole policy, `context/ui.md` §No outbound
+    // requests from author-controlled content.
+    FORBID_TAGS: ['style', 'img', 'video', 'audio', 'source', 'input'],
     FORBID_ATTR: ['style', 'srcset'],
   });
   return { md, purify, hljs };
@@ -344,74 +342,103 @@ function escapeHtml(s: string): string {
 }
 
 /**
- * markdown-it `image` renderer rule, the click-to-load placeholder.
+ * DOMPurify `uponSanitizeElement` hook, the single place an image
+ * becomes a click-to-load placeholder.
  *
- * Replaces the stock renderer entirely: an image token NEVER becomes an
- * `<img>`, so opening a node from a hostile repo issues no request. What
- * it emits instead:
+ * It sits at the SANITIZER rather than in a markdown-it renderer rule so
+ * one implementation covers both ways an image can arrive: markdown
+ * syntax (`![alt](url)`, which markdown-it turns into an `<img>`) and
+ * raw HTML written by the author (`<img>`, including the `<picture>`
+ * badge and chart embeds common in real READMEs). A markdown-it rule
+ * would only ever see the first.
  *
- *   - INTERACTIVE mode, an inert button carrying the URL in
- *     `data-sm-img-src`. Only a real click (handled by the
- *     `[smMarkdownImages]` directive, which re-validates the URL) swaps
+ * The hook runs BEFORE the element is removed for being in
+ * `FORBID_TAGS`, so it can read the `src` and swap the node. Two shapes:
+ *
+ *   - INTERACTIVE, an inert `<button>` carrying the URL in
+ *     `data-sm-img-src`. Only a real click, handled by the
+ *     `[smMarkdownImages]` directive which re-validates the URL, swaps
  *     in a live `<img>`.
- *   - STATIC mode, a plain span with no URL attribute at all.
+ *   - STATIC, a plain `<span>` with no URL attribute at all.
  *
- * A `src` that is not `http(s)` degrades to the static span even in
+ * A `src` that is not `http(s)` degrades to the static shape even in
  * interactive mode, so a `data:` / `file:` / custom-scheme URL is never
- * reachable by any gesture. Everything interpolated into the markup (alt
- * text, host, URL) goes through `escapeHtml` first, and every attribute
- * is DOUBLE-quoted: `escapeHtml` does not escape `'`, so a
- * single-quoted attribute context here would be an injection hole.
+ * reachable by any gesture. The markup is built with DOM APIs and
+ * `textContent`, so author-controlled alt text cannot escape into
+ * markup, no manual escaping is involved.
+ *
+ * The non-image branch is the anti-impersonation guard. Now that raw
+ * HTML reaches the sanitizer, an author can write a chip that LOOKS like
+ * ours (same class, same attribute) but points somewhere other than the
+ * host it displays, turning informed consent into a lie. Stripping
+ * `data-sm-img-src` from every element we did not build ourselves leaves
+ * such a forgery inert: it renders as a dead chip and no click can load
+ * it. Identity comes from `ownPlaceholders`, the one property markup
+ * cannot forge.
  */
-function renderImagePlaceholder(
-  tokens: IMdToken[],
-  idx: number,
-  options: unknown,
-  env: IMdEnv | undefined,
-  self: IMdRendererSelf,
-): string {
-  const token = tokens[idx];
-  const alt = imageAltText(token, options, env, self);
-  const label = alt.length > 0 ? alt : MARKDOWN_TEXTS.imageFallbackLabel;
-  const safeLabel = escapeHtml(label);
-  const url = httpUrlOrNull(token.attrGet('src'));
-  if (url === null || env?.smImageMode !== 'interactive') {
-    return (
-      '<span class="sm-md-img sm-md-img--static" data-testid="markdown-image-static">' +
-      `<span class="sm-md-img__label">${safeLabel}</span>` +
-      '</span>'
-    );
+function imageHook(node: Element, data: { tagName: string }): void {
+  if (node.nodeType !== 1) return;
+  if (data.tagName !== 'img') {
+    if (!ownPlaceholders.has(node)) node.removeAttribute?.('data-sm-img-src');
+    return;
   }
-  const host = new URL(url).host;
-  return (
-    '<button type="button" class="sm-md-img" data-testid="markdown-image-load"' +
-    ` data-sm-img-src="${escapeHtml(url)}"` +
-    ` title="${escapeHtml(MARKDOWN_TEXTS.imageLoadTooltip)}"` +
-    ` aria-label="${escapeHtml(MARKDOWN_TEXTS.imageLoadAriaLabel(label, host))}">` +
-    '<i class="pi pi-image" aria-hidden="true"></i>' +
-    `<span class="sm-md-img__label">${safeLabel}</span>` +
-    `<span class="sm-md-img__host">${escapeHtml(host)}</span>` +
-    '</button>'
-  );
+  const doc = node.ownerDocument;
+  const parent = node.parentNode;
+  if (doc === null || parent === null) return;
+
+  const alt = (node.getAttribute('alt') ?? '').trim();
+  const label = alt.length > 0 ? alt : MARKDOWN_TEXTS.imageFallbackLabel;
+  const url = httpUrlOrNull(node.getAttribute('src'));
+
+  const placeholder =
+    url === null || currentImageMode !== 'interactive'
+      ? buildStaticPlaceholder(doc, label)
+      : buildInteractivePlaceholder(doc, label, url);
+  ownPlaceholders.add(placeholder);
+  parent.replaceChild(placeholder, node);
+}
+
+/** Non-interactive chip: names the image, carries no URL to load. */
+function buildStaticPlaceholder(doc: Document, label: string): Element {
+  const span = doc.createElement('span');
+  span.className = 'sm-md-img sm-md-img--static';
+  span.setAttribute('data-testid', 'markdown-image-static');
+  span.appendChild(labelSpan(doc, label));
+  return span;
 }
 
 /**
- * Plain-text alt for an image token. markdown-it parses the alt into
- * child tokens and leaves the token's own `alt` attribute empty until
- * the stock renderer fills it, so reading `attrGet('alt')` would always
- * yield `''`. `renderInlineAsText` is the same flattening the stock
- * renderer uses; `token.content` (the raw alt source) is the fallback
- * for a token that carries no children.
+ * Click-to-load chip. Shows the HOST beside the label: the operator is
+ * consenting to a request, so they get to see where it goes first.
  */
-function imageAltText(
-  token: IMdToken,
-  options: unknown,
-  env: IMdEnv | undefined,
-  self: IMdRendererSelf,
-): string {
-  const children = token.children;
-  const text = children ? self.renderInlineAsText(children, options, env) : token.content;
-  return (text ?? '').trim();
+function buildInteractivePlaceholder(doc: Document, label: string, url: string): Element {
+  const host = new URL(url).host;
+  const button = doc.createElement('button');
+  button.setAttribute('type', 'button');
+  button.className = 'sm-md-img';
+  button.setAttribute('data-testid', 'markdown-image-load');
+  button.setAttribute('data-sm-img-src', url);
+  button.setAttribute('title', MARKDOWN_TEXTS.imageLoadTooltip);
+  button.setAttribute('aria-label', MARKDOWN_TEXTS.imageLoadAriaLabel(label, host));
+
+  const icon = doc.createElement('i');
+  icon.className = 'pi pi-image';
+  icon.setAttribute('aria-hidden', 'true');
+  button.appendChild(icon);
+  button.appendChild(labelSpan(doc, label));
+
+  const hostSpan = doc.createElement('span');
+  hostSpan.className = 'sm-md-img__host';
+  hostSpan.textContent = host;
+  button.appendChild(hostSpan);
+  return button;
+}
+
+function labelSpan(doc: Document, label: string): Element {
+  const span = doc.createElement('span');
+  span.className = 'sm-md-img__label';
+  span.textContent = label;
+  return span;
 }
 
 /**
