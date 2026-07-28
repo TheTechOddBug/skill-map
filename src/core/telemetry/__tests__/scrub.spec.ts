@@ -1,7 +1,12 @@
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
-import { HOME_PLACEHOLDER, scrubEvent, scrubString } from '../scrub.js';
+import {
+  HOME_PLACEHOLDER,
+  PROJECT_PLACEHOLDER,
+  scrubEvent,
+  scrubString,
+} from '../scrub.js';
 
 describe('scrubString', () => {
   it('redacts a linux /home/<user> prefix, keeps the trailing path', () => {
@@ -140,5 +145,67 @@ describe('scrubEvent', () => {
     const event = { level: 'error', sampled: true, retries: 0, tags: { verb: 'scan' }, missing: null };
     const out = scrubEvent(event);
     assert.deepEqual(out, event);
+  });
+});
+
+/**
+ * Audit L1: the home patterns only recognise `/home/<u>`, `/Users/<u>`,
+ * `C:\Users\<u>` and `/root`, so a checkout anywhere else reached
+ * Sentry verbatim and disclosed the project (often the client) name in
+ * every frame. The driver supplies its own root; the scrubber stays pure.
+ */
+describe('scrubString, caller-supplied project roots', () => {
+  it('redacts a project root the home patterns cannot see', () => {
+    const out = scrubString('at load (/srv/work/client-acme/src/x.ts:12)', [
+      '/srv/work/client-acme',
+    ]);
+    assert.equal(out, `at load (${PROJECT_PLACEHOLDER}/src/x.ts:12)`);
+    assert.ok(!out.includes('client-acme'));
+  });
+
+  it('redacts a WSL-style mounted root', () => {
+    const out = scrubString('/mnt/d/work/client-x/notes.md', ['/mnt/d/work/client-x']);
+    assert.equal(out, `${PROJECT_PLACEHOLDER}/notes.md`);
+  });
+
+  it('beats the home pattern for a project INSIDE the home dir', () => {
+    // `<HOME>/work/acme` would still leak the project name; the project
+    // root runs first precisely so it collapses whole.
+    const out = scrubString('/home/alice/work/acme/src/x.ts', ['/home/alice/work/acme']);
+    assert.equal(out, `${PROJECT_PLACEHOLDER}/src/x.ts`);
+    assert.ok(!out.includes('acme'));
+  });
+
+  it('still redacts the home dir for paths outside the project root', () => {
+    const out = scrubString('/home/alice/other/y.ts', ['/srv/work/acme']);
+    assert.equal(out, `${HOME_PLACEHOLDER}/other/y.ts`);
+  });
+
+  it('matches roots literally, a regex metacharacter needs no escaping', () => {
+    const out = scrubString('/srv/a+b(c)/src/x.ts', ['/srv/a+b(c)']);
+    assert.equal(out, `${PROJECT_PLACEHOLDER}/src/x.ts`);
+  });
+
+  it('applies the longest root first so a parent cannot shadow a child', () => {
+    const out = scrubString('/srv/work/acme/src/x.ts', ['/srv/work', '/srv/work/acme']);
+    assert.equal(out, `${PROJECT_PLACEHOLDER}/src/x.ts`);
+  });
+
+  it('ignores empty roots instead of redacting everything', () => {
+    const out = scrubString('plain message', ['']);
+    assert.equal(out, 'plain message');
+  });
+
+  it('scrubEvent threads the roots through every nested string', () => {
+    const event = {
+      message: '/srv/work/acme/a.ts',
+      exception: { values: [{ stacktrace: { frames: [{ filename: '/srv/work/acme/b.ts' }] } }] },
+    };
+    const out = scrubEvent(event, ['/srv/work/acme']) as typeof event;
+    assert.equal(out.message, `${PROJECT_PLACEHOLDER}/a.ts`);
+    assert.equal(
+      out.exception.values[0]!.stacktrace.frames[0]!.filename,
+      `${PROJECT_PLACEHOLDER}/b.ts`,
+    );
   });
 });

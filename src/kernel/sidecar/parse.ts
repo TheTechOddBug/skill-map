@@ -26,7 +26,7 @@ import { dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 
 import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
-import { load as yamlLoad, JSON_SCHEMA } from 'js-yaml';
+import { loadYamlSafe } from '../util/safe-yaml.js';
 
 import { stripPrototypePollution } from '../util/strip-prototype-pollution.js';
 
@@ -93,9 +93,10 @@ export function readSidecarFor(mdAbsolutePath: string): ISidecarReadResult {
 
   let parsedYaml: unknown;
   try {
-    // Explicit JSON_SCHEMA to match the frontmatter parser and harden
-    // against a future js-yaml default-schema loosening (audit M1).
-    parsedYaml = yamlLoad(raw, { schema: JSON_SCHEMA });
+    // `loadYamlSafe` pins JSON_SCHEMA (audit M1: no `!!js/*` tag can
+    // construct executable values even if the js-yaml default loosens)
+    // and bounds alias expansion, sidecars are attacker-authored too.
+    parsedYaml = loadYamlSafe(raw);
   } catch (err) {
     return {
       parsed: null,

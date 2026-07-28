@@ -16,6 +16,7 @@
  */
 
 import {
+  chmodSync,
   closeSync,
   constants as fsConstants,
   existsSync,
@@ -149,4 +150,28 @@ export function writeFileAtomicExclusive(
 export function writeJsonAtomic(path: string, content: Record<string, unknown>): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileAtomicExclusive(path, JSON.stringify(content, null, 2) + '\n');
+}
+
+/**
+ * Force `0o600` on a file skill-map owns, swallowing failures.
+ *
+ * The atomic writer above creates its files owner-only at `open()` time,
+ * but two artifacts are produced by primitives that do not take a mode:
+ * the SQLite database (created by `DatabaseSync` on first open) and its
+ * backups (`copyFileSync`). Both default to `0o666 & ~umask`, i.e. world
+ * readable under the common `022`, while carrying the same scanned
+ * content as the sidecars we already restrict. This closes that gap so
+ * every file the tool creates lands owner-only.
+ *
+ * Best effort by contract: Windows and non-POSIX filesystems reject
+ * `chmod`, and tightening permissions is a hardening pass, never a
+ * correctness gate, so a failure must not fail the operation that
+ * produced the file.
+ */
+export function chmodOwnerOnlyBestEffort(path: string): void {
+  try {
+    chmodSync(path, 0o600);
+  } catch {
+    // Intentionally silent, see the docstring.
+  }
 }

@@ -54,8 +54,14 @@ export function assertContained(cwd: string, rel: string): void {
   if (isAbsolute(rel)) {
     throw new Error(`node path is absolute, refusing to read: ${rel}`);
   }
-  const abs = resolve(cwd, rel);
-  if (abs !== cwd && !abs.startsWith(cwd + sep)) {
+  // Normalise the root before comparing: every current caller passes an
+  // already-resolved cwd, but a trailing separator or a relative value
+  // would make the `startsWith(root + sep)` test misbehave (accept an
+  // escape, or reject a contained path). Resolving here keeps the guard
+  // correct regardless of what a future caller hands it.
+  const root = resolve(cwd);
+  const abs = resolve(root, rel);
+  if (abs !== root && !abs.startsWith(root + sep)) {
     throw new Error(`node path escapes repo root: ${rel}`);
   }
   let isSymlink: boolean;

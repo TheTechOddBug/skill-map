@@ -28,6 +28,20 @@
 export const HOME_PLACEHOLDER = '<HOME>';
 
 /**
+ * Literal that replaces a redacted project root.
+ *
+ * The home patterns below only recognise `/home/<u>`, `/Users/<u>`,
+ * `C:\\Users\\<u>` and `/root`. A project checked out anywhere else
+ * (`/srv/work/client-acme`, `/opt/...`, a WSL `/mnt/d/work/client-x`)
+ * therefore reached the wire verbatim, disclosing the project, and often
+ * the client, name in every stack frame. The driver knows its own root
+ * and passes it in; the scrubber stays pure and never reads `$HOME` or
+ * `process.cwd()` itself (`spec/cli-contract.md` §User-settings file
+ * keeps that allow-list closed).
+ */
+export const PROJECT_PLACEHOLDER = '<PROJECT>';
+
+/**
  * Envelope keys stripped wholesale from every event. `server_name` is the
  * machine hostname; `user` carries id / ip / username. Neither has any
  * triage value and both identify the operator.
@@ -57,11 +71,22 @@ const HOME_PATTERNS: readonly RegExp[] = [
 ];
 
 /**
- * Redact home-directory prefixes out of a single string. Returns the
- * input unchanged when it carries no recognizable home path. Pure.
+ * Redact caller-supplied roots and home-directory prefixes out of a
+ * single string. Returns the input unchanged when it carries neither.
+ * Pure.
+ *
+ * `extraRoots` are matched literally (no regex compilation, so a path
+ * with regex metacharacters needs no escaping) and longest-first, so a
+ * nested root cannot be shadowed by its own parent. They run BEFORE the
+ * home patterns on purpose: a project under `/home/alice/work/acme`
+ * should collapse to `<PROJECT>`, hiding the project name, rather than
+ * to `<HOME>/work/acme`, which preserves it.
  */
-export function scrubString(value: string): string {
+export function scrubString(value: string, extraRoots: readonly string[] = []): string {
   let out = value;
+  for (const root of [...extraRoots].filter((r) => r.length > 0).sort((a, b) => b.length - a.length)) {
+    out = out.split(root).join(PROJECT_PLACEHOLDER);
+  }
   for (const pattern of HOME_PATTERNS) {
     out = out.replace(pattern, HOME_PLACEHOLDER);
   }
@@ -77,8 +102,8 @@ export function scrubString(value: string): string {
  * The generic return type preserves the caller's event type (the SDK's
  * `beforeSend` expects the same event shape back).
  */
-export function scrubEvent<T>(event: T): T {
-  const walked = walk(event) as T;
+export function scrubEvent<T>(event: T, extraRoots: readonly string[] = []): T {
+  const walked = walk(event, extraRoots) as T;
   if (walked !== null && typeof walked === 'object' && !Array.isArray(walked)) {
     const record = walked as Record<string, unknown>;
     for (const key of STRIPPED_ENVELOPE_KEYS) {
@@ -93,13 +118,13 @@ export function scrubEvent<T>(event: T): T {
  * objects are rebuilt with scrubbed members, everything else (number,
  * boolean, null, undefined) is returned as-is.
  */
-function walk(value: unknown): unknown {
-  if (typeof value === 'string') return scrubString(value);
-  if (Array.isArray(value)) return value.map((item) => walk(item));
+function walk(value: unknown, extraRoots: readonly string[]): unknown {
+  if (typeof value === 'string') return scrubString(value, extraRoots);
+  if (Array.isArray(value)) return value.map((item) => walk(item, extraRoots));
   if (value !== null && typeof value === 'object') {
     const out: Record<string, unknown> = {};
     for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-      out[key] = walk(child);
+      out[key] = walk(child, extraRoots);
     }
     return out;
   }

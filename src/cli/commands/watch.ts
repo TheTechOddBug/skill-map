@@ -30,6 +30,7 @@ import { createWatcherRuntime, type ICreateWatcherRuntimeOpts } from '../../core
 import { DB_DRIFT_TEXTS } from '../../core/sqlite/i18n/db-drift.texts.js';
 import type { ScanResult } from '../../kernel/index.js';
 import { formatOversizedFileRows } from '../../kernel/util/format-oversized.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { WATCH_TEXTS } from '../i18n/watch.texts.js';
 import { ansiFor } from '../util/ansi.js';
@@ -223,7 +224,10 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
           // path below and uses `initialScanFailed` instead.
           if (initialDone) {
             context.stderr.write(
-              tx(WATCH_TEXTS.batchFailed, { glyph: errGlyph, message: outcome.message }),
+              tx(WATCH_TEXTS.batchFailed, {
+                glyph: errGlyph,
+                message: sanitizeForTerminal(outcome.message),
+              }),
             );
           }
         }
@@ -231,7 +235,11 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
       onWatcherError: (message) => {
         // chokidar transport-level error, surface via the templated
         // `watcherError` line so the historic grep prefix is preserved.
-        context.stderr.write(tx(WATCH_TEXTS.watcherError, { glyph: errGlyph, message }));
+        // The message embeds the offending path, which is attacker-authored
+        // under clone-and-scan (POSIX filenames may carry ESC).
+        context.stderr.write(
+          tx(WATCH_TEXTS.watcherError, { glyph: errGlyph, message: sanitizeForTerminal(message) }),
+        );
       },
       onPluginWarning: (message) => {
         // Plugin-load warnings flow through `printer.warn` verbatim

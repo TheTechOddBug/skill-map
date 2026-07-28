@@ -76,7 +76,12 @@ export async function initSentryBff(
     integrations: [],
     tracesSampleRate: 0,
     sendDefaultPii: false,
-    beforeSend: (event) => scrubEvent(event),
+    // The project root is redacted alongside the home patterns: a
+    // checkout outside `$HOME` (`/srv/work/client-acme`, a WSL
+    // `/mnt/d/...`) is invisible to those patterns and would otherwise
+    // disclose the project name in every frame. Resolved by the driver
+    // so the scrubber stays pure.
+    beforeSend: (event) => scrubEvent(event, [process.cwd()]),
   });
   sdk = Sentry;
 }

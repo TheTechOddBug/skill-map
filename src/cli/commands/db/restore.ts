@@ -5,11 +5,12 @@
  * the prompt.
  */
 
-import { chmod, copyFile, mkdir, rm } from 'node:fs/promises';
+import { copyFile, mkdir, rm } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
+import { chmodOwnerOnlyBestEffort } from '../../../kernel/util/atomic-write.js';
 import { relativeIfBelow } from '../../util/path-display.js';
 import { confirm } from '../../util/confirm.js';
 import { tx } from '../../../kernel/util/tx.js';
@@ -25,20 +26,6 @@ import {
 } from '../../../core/sqlite/restore-validation.js';
 import { VERSION } from '../../../version.js';
 import { SmCommand } from '../../util/sm-command.js';
-
-/**
- * Force `0o600` perms on a file, swallowing failures (Windows / non-POSIX
- * filesystems may reject `chmod`). Used after `db restore` to keep the
- * restored DB owner-readable only, see audit L4.
- */
-async function chmodOwnerOnlyBestEffort(target: string): Promise<void> {
-  try {
-    await chmod(target, 0o600);
-  } catch {
-    // Best effort, the DB is already in place; tightening perms is a
-    // hardening pass, not a correctness gate.
-  }
-}
 
 export class DbRestoreCommand extends SmCommand {
   static override paths = [['db', 'restore']];
@@ -107,10 +94,11 @@ export class DbRestoreCommand extends SmCommand {
 
     await mkdir(dirname(target), { recursive: true });
     await copyFile(sourcePath, target);
-    // Defence in depth (audit L4): force restrictive owner-only perms on
-    // the restored DB. Helper-extracted so the try/catch doesn't push
-    // `execute` past the cyclomatic budget.
-    await chmodOwnerOnlyBestEffort(target);
+    // Defence in depth (audit L4): `copyFile` creates the destination
+    // with the default umask mode, so the restored DB would otherwise
+    // land world-readable. Shared helper, same treatment the adapter
+    // applies on create and the backup writer applies on copy.
+    chmodOwnerOnlyBestEffort(target);
     // WAL sidecars from the old DB would be out of sync, delete them so
     // next open starts clean against the restored main file.
     for (const sidecar of [`${target}-wal`, `${target}-shm`]) {

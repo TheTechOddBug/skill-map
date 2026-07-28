@@ -10,7 +10,7 @@ import { resolve } from 'node:path';
 import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
-import { truncateHead } from '../../../kernel/util/text.js';
+import { pluralSuffix, truncateHead } from '../../../kernel/util/text.js';
 import { defaultProjectPluginsDir } from '../../paths/db-path.js';
 import type { IPrinter } from '../printer.js';
 import { PLUGIN_RUNTIME_TEXTS } from '../i18n/plugin-runtime.texts.js';
@@ -41,6 +41,39 @@ export function emitWarnings(runtime: IPluginRuntime, printer: IPrinter): void {
   for (const warn of runtime.warnings) {
     printer.warn(`${warn}\n`);
   }
+  emitExecutedNotice(runtime, printer);
+}
+
+/**
+ * Announce the project-local plugins whose code was actually imported
+ * into this process. Every entry in `runtime.discovered` is a disk
+ * plugin (built-ins never reach the disk loader), and `status ===
+ * 'enabled'` is exactly the set that passed the import-trust gate and
+ * had its module evaluated.
+ *
+ * Security rationale: importing a drop-in plugin executes third-party
+ * code with the operator's privileges. That must never happen silently,
+ * the loader already speaks up when a plugin is REFUSED, so staying mute
+ * on success means the only invisible outcome is the dangerous one. One
+ * line per run keeps the cost trivial while making "third-party code
+ * ran" an observable event.
+ *
+ * Ids are sanitised + capped like every other plugin-authored value on
+ * this surface (they are directory names read off disk).
+ */
+function emitExecutedNotice(runtime: IPluginRuntime, printer: IPrinter): void {
+  const executed = runtime.discovered.filter((p) => p.status === 'enabled');
+  if (executed.length === 0) return;
+  const ids = executed
+    .map((p) => sanitizeForTerminal(truncateHead(p.id, PLUGIN_ID_DISPLAY_CAP)))
+    .join(', ');
+  printer.info(
+    `${tx(PLUGIN_RUNTIME_TEXTS.executedRow, {
+      count: executed.length,
+      plural: pluralSuffix(executed.length),
+      ids,
+    })}\n`,
+  );
 }
 
 /**

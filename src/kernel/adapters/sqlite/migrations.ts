@@ -19,6 +19,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 
 import { MIGRATIONS_TEXTS } from '../../i18n/migrations.texts.js';
+import { chmodOwnerOnlyBestEffort } from '../../util/atomic-write.js';
 import { formatErrorMessage } from '../../util/format-error.js';
 import { kernelBackupsDir } from '../../util/skill-map-paths.js';
 import { tx } from '../../util/tx.js';
@@ -259,6 +260,9 @@ export function writeBackup(dbPath: string, destPath: string): string | null {
     db.close();
   }
   copyFileSync(absoluteSource, absoluteDest);
+  // `copyFileSync` creates the destination with the default umask mode,
+  // so a backup of an owner-only DB would otherwise land world-readable.
+  chmodOwnerOnlyBestEffort(absoluteDest);
   return absoluteDest;
 }
 

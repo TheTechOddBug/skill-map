@@ -8,8 +8,23 @@ packages:
 # Dependency version overrides. pnpm v11 reads these from here, not from
 # the root package.json `pnpm.overrides` block (which it silently ignores).
 overrides:
-  # Pin a transitive `fast-uri` (latest is 4.x) to the 3.x line.
-  fast-uri: 3.1.2
+  # Pin a transitive `fast-uri` (latest is 4.x) to the 3.x line. 3.1.4 is
+  # the PATCHED 3.x: GHSA-v2hh-gcrm-f6hx / GHSA-4c8g-83qw-93j6 (host
+  # confusion via a backslash authority delimiter, failed IDN
+  # canonicalization) hit `>=3.0.0 <=3.1.3`. Reached through
+  # `@modelcontextprotocol/sdk > ajv`, which AJV-validates plugin
+  # manifests and job reports, so a `format: "uri"` check on an
+  # attacker-authored string is in scope. ajv wants `^3.0.1`, so the
+  # patched release stays inside the range it already accepts.
+  fast-uri: 3.1.4
+  # Same tree, same reason: `@modelcontextprotocol/sdk` still bundles a
+  # vulnerable express subtree at 1.30.0 (bumping the SDK does not clear
+  # these). Both are the patched release on the major the dependent
+  # already requires, so nothing crosses a breaking boundary.
+  #   qs          GHSA-q8mj-m7cp-5q26, DoS, hit >=6.11.1 <=6.15.1
+  #   body-parser GHSA-v422-hmwv-36x6, DoS, hit >=2.0.0 <2.3.0
+  qs: 6.15.3
+  body-parser: 2.3.0
   # `posthog-js` bundles an old `dompurify` (3.4.5) that trips several
   # low/moderate advisories. Force it to the patched 3.4.12 the UI already
   # depends on directly, so the shipped bundle carries one clean copy.

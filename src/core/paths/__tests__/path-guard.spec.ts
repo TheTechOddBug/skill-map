@@ -196,3 +196,31 @@ describe('assertContained() symlink guard (audit M1)', () => {
     },
   );
 });
+
+/**
+ * Audit L4: the containment test used to compare against the raw `cwd`
+ * it was handed. Every caller today passes an already-resolved absolute
+ * path, so nothing was exploitable, but a trailing separator or a
+ * relative value would have made `startsWith(root + sep)` misjudge, in
+ * BOTH directions. The guard now normalises its own root.
+ */
+describe('assertContained, root normalisation', () => {
+  it('accepts a contained path when the root carries a trailing separator', () => {
+    writeFileSync(join(scratch, 'kept.md'), 'body\n');
+    assert.doesNotThrow(() => assertContained(`${scratch}${sep}`, 'kept.md'));
+  });
+
+  it('still refuses an escape when the root carries a trailing separator', () => {
+    assert.throws(
+      () => assertContained(`${scratch}${sep}`, `..${sep}outside.md`),
+      /escapes repo root/,
+    );
+  });
+
+  it('refuses an escape when the root is unnormalised mid-path', () => {
+    assert.throws(
+      () => assertContained(join(scratch, 'sub', '..'), `..${sep}..${sep}outside.md`),
+      /escapes repo root/,
+    );
+  });
+});

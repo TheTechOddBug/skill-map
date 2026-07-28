@@ -43,7 +43,9 @@
  * imports from here and stays the single resolution surface.
  */
 
-import { load as yamlLoad, JSON_SCHEMA, YAMLException } from 'js-yaml';
+import { YAMLException } from 'js-yaml';
+
+import { loadYamlSafe } from '../../../../kernel/util/safe-yaml.js';
 
 import type {
   IFileParser,
@@ -66,7 +68,7 @@ export const frontmatterYamlParser: IFileParser = {
     let parsed: Record<string, unknown> = {};
     const issues: IParseIssue[] = [];
     try {
-      const doc = yamlLoad(frontmatterRaw, { schema: JSON_SCHEMA });
+      const doc = loadYamlSafe(frontmatterRaw);
       if (doc && typeof doc === 'object' && !Array.isArray(doc)) {
         // Deep strip (audit M2). The helper returns a fresh
         // own-property-clean object; nested `__proto__` / `constructor`

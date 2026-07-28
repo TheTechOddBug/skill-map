@@ -34,6 +34,8 @@
  */
 
 import { mkdirSync } from 'node:fs';
+
+import { chmodOwnerOnlyBestEffort } from '../../util/atomic-write.js';
 import { dirname, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
@@ -310,6 +312,12 @@ export class SqliteStorageAdapter implements StoragePort {
       }),
       plugins: [new CamelCasePlugin()],
     });
+
+    // The DB carries scanned content (bodies ride the rendered job
+    // contents), so it gets the same owner-only treatment as the
+    // settings files and `.sm` sidecars. `DatabaseSync` creates the file
+    // with `0o666 & ~umask`, i.e. world-readable under the common 022.
+    if (path !== ':memory:') chmodOwnerOnlyBestEffort(resolve(path));
 
     this.#bindNamespaces();
   }

@@ -6,7 +6,7 @@
  * arrive intact?").
  */
 
-import { load as yamlLoad, JSON_SCHEMA } from 'js-yaml';
+import { loadYamlSafe } from '../util/safe-yaml.js';
 
 import { ORCHESTRATOR_TEXTS } from '../i18n/orchestrator.texts.js';
 import type { IProvider } from '../extensions/index.js';
@@ -267,7 +267,7 @@ function leakedSchemaKeys(body: string, schemaJson: unknown): string[] | null {
 /** The segment as a YAML mapping, or `null` when it is not one. */
 function parseLeakedSegment(segment: string): Record<string, unknown> | null {
   try {
-    const doc = yamlLoad(segment, { schema: JSON_SCHEMA });
+    const doc = loadYamlSafe(segment);
     if (doc && typeof doc === 'object' && !Array.isArray(doc)) {
       return doc as Record<string, unknown>;
     }

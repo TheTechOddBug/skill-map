@@ -32,7 +32,9 @@ import { dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 
 import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
-import { dump as yamlDump, load as yamlLoad, CORE_SCHEMA, JSON_SCHEMA } from 'js-yaml';
+import { dump as yamlDump, CORE_SCHEMA } from 'js-yaml';
+
+import { loadYamlSafe } from '../util/safe-yaml.js';
 
 import { writeFileAtomicExclusive } from '../util/atomic-write.js';
 import { applyAjvFormats } from '../util/ajv-interop.js';
@@ -274,9 +276,10 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 function readSidecarObject(sidecarAbsPath: string): Record<string, unknown> {
   if (!existsSync(sidecarAbsPath)) return {};
   const raw = readFileSync(sidecarAbsPath, 'utf8');
-  // Explicit JSON_SCHEMA to match the frontmatter parser and harden
-  // against a future js-yaml default-schema loosening (audit M1).
-  const parsed = yamlLoad(raw, { schema: JSON_SCHEMA });
+  // `loadYamlSafe` pins JSON_SCHEMA (audit M1: no `!!js/*` tag can
+  // construct executable values even if the js-yaml default loosens) and
+  // bounds alias expansion, sidecars are attacker-authored too.
+  const parsed = loadYamlSafe(raw);
   if (parsed === null || parsed === undefined) return {};
   if (!isPlainObject(parsed)) {
     throw new Error(
