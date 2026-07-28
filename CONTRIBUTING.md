@@ -109,6 +109,21 @@ The repo root `CHANGELOG.md` is the **generated consolidated release changelog**
 
 Nothing ships to npm without an explicit merge of the Version Packages PR.
 
+### Publish provenance
+
+Both public packages publish with **npm provenance**: every tarball ships a signed attestation binding it to this repo, the `release` workflow, and the exact commit that built it (Sigstore keyless signing, recorded in the public Rekor transparency log). A stolen `NPM_TOKEN` no longer buys a convincing release, an attacker can publish but cannot forge an attestation without running inside the workflow, so a version lacking one is a visible anomaly.
+
+This is a **commitment to publishing only from CI**. A manual `npm publish` from a laptop produces a version with no attestation, which is exactly the anomaly the mechanism teaches people to distrust. If an emergency manual publish is ever unavoidable, say so in the release notes rather than leaving the gap unexplained.
+
+**Verify after a release** (the failure mode of the plumbing silently dropping the flag is a release everyone believes is signed):
+
+```bash
+npm view @skill-map/cli --json | grep -i provenance   # attestation present on the version
+npm audit signatures                                   # verifies registry signatures + provenance
+```
+
+The npm package page also shows a "Provenance" panel naming the source commit and workflow run. Provenance is configured in two places on purpose: `publishConfig.provenance` in each package (declarative, travels with the package) and `NPM_CONFIG_PROVENANCE` in the workflow (guarantees it even if `changeset publish` does not forward the field). The `id-token: write` permission in `release.yml` is what makes either path work.
+
 ### Integrity hashes
 
 `spec/index.json` carries a sha256 per file shipped. Regenerate after any change under `spec/`:

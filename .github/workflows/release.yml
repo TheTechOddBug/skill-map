@@ -249,6 +249,29 @@ jobs:
           # above: defaults to GITHUB_TOKEN until CHANGESETS_TOKEN is set.
           GITHUB_TOKEN: ${{ secrets.CHANGESETS_TOKEN || secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # npm provenance: publish a signed attestation binding each
+          # tarball to this repo, this workflow, and the exact commit that
+          # built it (Sigstore keyless, recorded in the public Rekor
+          # transparency log). A stolen NPM_TOKEN then no longer buys a
+          # convincing release: an attacker can still publish, but cannot
+          # forge an attestation without running inside this workflow, so
+          # a version that lacks one is a visible anomaly. Consumers
+          # verify with `npm audit signatures`.
+          #
+          # Both packages already declare `publishConfig.provenance`, and
+          # npm honours that on its own. This env var is deliberate
+          # belt-and-braces: `changeset publish` sits between us and
+          # `npm publish`, and the failure mode of it dropping the field
+          # is SILENT (a release with no attestation that everyone
+          # believes is signed), which is worse than not enabling
+          # provenance at all. The `id-token: write` permission at the top
+          # of this file is what makes either path work.
+          #
+          # Prerequisites, all verified before enabling: public repo,
+          # `access: public` on both packages, and a `repository.url` in
+          # each package.json matching this repo (npm validates it and
+          # FAILS the publish on a mismatch).
+          NPM_CONFIG_PROVENANCE: true
 
       - name: Smoke install from npm (post-publish)
         if: steps.changesets.outputs.published == 'true'
