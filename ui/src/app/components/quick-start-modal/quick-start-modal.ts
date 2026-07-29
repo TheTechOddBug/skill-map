@@ -260,14 +260,14 @@ export class QuickStartModal {
   });
 
   /**
-   * Client count from the last `/api/mcp/status` read, for the "MCP
-   * installed on your agent" row's detail line. `null` = not probed yet
-   * (or the probe failed). Deliberately NOT the row's verdict (user
-   * decision 2026-07-28): an agent draining over the CLI holds no MCP
-   * session, so the count says nothing about readiness; the verdict is
-   * whether the MCP server is ON, and the count is information.
+   * Live MCP-connection verdict for the "MCP installed on your agent" row.
+   * `null` = not checked yet; `true` = a client is connected to `/mcp`;
+   * `false` = probed but nothing connected (or the probe failed). The row
+   * owns this signal alone: it deliberately does NOT read the server's
+   * on/off health (user decision 2026-07-29), which is a different fact
+   * and already has its own row right above.
    */
-  private readonly mcpClients = signal<number | null>(null);
+  private readonly mcpConnected = signal<boolean | null>(null);
   /**
    * Authoritative MCP endpoint, as reported by `GET /api/mcp/status` (`url`),
    * which the server builds from its OWN bind. `null` until the probe
@@ -292,7 +292,7 @@ export class QuickStartModal {
       if (!this.visible()) return;
       void this.preferencesProbe.refresh();
       void this.captureProbe.refresh();
-      void this.refreshMcpStatus();
+      void this.refreshMcpUrl();
       void this.activityReadiness.refresh();
     });
     // Lens-keyed probes: re-run on open AND on every active-lens change.
@@ -574,16 +574,24 @@ export class QuickStartModal {
   }
 
   // ===================================================================
-  // Row (g), MCP installed on your agent. The verdict is the MCP server
-  // being ON (same live health signal as row f), so the step passes as
-  // soon as there is an endpoint to register against: the user applies
+  // Row (g), MCP installed on your agent. Verified by a LIVE connection
+  // probe (`GET /api/mcp/status`) and by NOTHING else: the user applies
   // the register snippet (a command on claude / codex, a config edit on
-  // antigravity / opencode) and approves the runtime trust prompt in
-  // their agent. Registration itself is NOT verifiable (the snippets
-  // write personal-scope config, invisible without a `$HOME` read), and
-  // a live session is NOT required (a CLI-draining agent never holds
-  // one), so Check re-probes `GET /api/mcp/status` and reports any
-  // attached client as a detail, never as the bar.
+  // antigravity / opencode), approves the runtime trust prompt in their
+  // agent, then hits Check. Registration itself is not verifiable (the
+  // snippets write personal-scope config, invisible without a `$HOME`
+  // read), so a live session is the only observable end of that wire.
+  //
+  // Deliberately does NOT borrow row (f)'s health signal (user decision
+  // 2026-07-29): "the MCP server is up" is a different fact, it already
+  // has its own row directly above, and repeating it here painted this
+  // row green while reading "no agent attached yet", which is exactly
+  // the state the row exists to report as NOT done. The reason it was
+  // borrowed on 2026-07-28 (a CLI-draining agent holds no session, so a
+  // healthy setup can sit at "Not connected yet" forever) survives as a
+  // hint under the row, not as a verdict: nothing gates on this row
+  // since the `mcp-disconnected` submit gate was dropped, so an honest
+  // unchecked / unconnected reading costs the operator nothing.
   // ===================================================================
 
   protected readonly mcpChecking = signal(false);
@@ -605,16 +613,15 @@ export class QuickStartModal {
 
   protected readonly mcpInstalledStatus = computed<TQuickStartStatus>(() => {
     if (this.mcpChecking()) return 'unknown';
-    return this.mcpLive() ? 'ready' : 'not-ready';
+    const connected = this.mcpConnected();
+    if (connected === null) return 'unknown';
+    return connected ? 'ready' : 'not-ready';
   });
   protected readonly mcpInstalledStatusText = computed<string>(() => {
     if (this.mcpChecking()) return this.texts.status.checking;
-    if (!this.mcpLive()) return this.texts.status.off;
-    const clients = this.mcpClients();
-    if (clients === null) return this.texts.status.live;
-    return clients > 0
-      ? this.texts.rows.mcpInstalled.liveAttached(clients)
-      : this.texts.rows.mcpInstalled.liveUnattached;
+    const connected = this.mcpConnected();
+    if (connected === null) return this.texts.status.unknown;
+    return connected ? this.texts.status.connected : this.texts.status.notConnected;
   });
   protected readonly mcpCopyLabel = computed<string>(() => {
     if (this.mcpCopied()) return this.texts.action.copied;
@@ -622,38 +629,49 @@ export class QuickStartModal {
       ? this.texts.action.copyConfig
       : this.texts.action.copyCommand;
   });
+  /**
+   * Where a config document goes, for the lenses that hand one over. Its
+   * own computed because the tone below keys on THIS hint specifically,
+   * not on "the meta line is populated".
+   */
+  private readonly mcpPasteHint = computed<string | null>(() => {
+    const snippet = this.mcpSnippet();
+    return snippet.kind === 'config' && snippet.target !== undefined
+      ? this.texts.rows.mcpInstalled.pasteHint(snippet.target)
+      : null;
+  });
+
   protected readonly mcpInstalledMeta = computed<string | null>(() => {
     if (this.mcpCopied()) return this.texts.rows.mcpInstalled.copiedHint;
     // A config snippet is useless without knowing which file it goes into,
     // so the target rides the hint line whenever nothing else claims it.
-    const snippet = this.mcpSnippet();
-    if (snippet.kind === 'config' && snippet.target !== undefined) {
-      return this.texts.rows.mcpInstalled.pasteHint(snippet.target);
-    }
-    return null;
+    const paste = this.mcpPasteHint();
+    if (paste !== null) return paste;
+    // Nothing left to paste: explain the one verdict that reads worse than
+    // it is, a checked row whose agent works the queue over the CLI.
+    return this.mcpConnected() === false ? this.texts.rows.mcpInstalled.unconnectedHint : null;
   });
   /**
    * The paste hint names work the operator still has to do by hand
    * (open that file, paste the snippet), so it wears the warning hue
-   * like the restart-pending line above it. The copy confirmation is a
-   * plain acknowledgement and stays muted.
+   * like the restart-pending line above it. The copy confirmation and
+   * the no-session explainer are plain information and stay muted.
    */
   protected readonly mcpInstalledMetaTone = computed<'muted' | 'warn'>(() =>
-    !this.mcpCopied() && this.mcpInstalledMeta() !== null ? 'warn' : 'muted',
+    !this.mcpCopied() && this.mcpPasteHint() !== null ? 'warn' : 'muted',
   );
 
-  /** Re-probe `/api/mcp/status` and refresh the row's detail line. */
+  /** Run the live MCP-connection probe and land its verdict on the row. */
   protected async onCheckMcpConnection(): Promise<void> {
     this.mcpChecking.set(true);
     try {
       const res = await this.dataSource.mcpStatus();
-      this.mcpClients.set(res.clients);
+      this.mcpConnected.set(res.connected);
       // Same payload carries the authoritative endpoint, so a Check also
       // refreshes what Copy would hand over.
       this.mcpUrl.set(res.url);
     } catch {
-      // Detail unknown; the verdict rides the live health signal anyway.
-      this.mcpClients.set(null);
+      this.mcpConnected.set(false);
     } finally {
       this.mcpChecking.set(false);
     }
@@ -912,22 +930,18 @@ export class QuickStartModal {
   // ===================================================================
 
   /**
-   * Cheap O(1) read of `/api/mcp/status` on open, so the Copy affordance
-   * is already accurate and the row's detail line (any attached client)
-   * is fresh before the operator touches Check. Failure is silent (no
-   * error banner): the fallback URL keeps Copy useful, the verdict rides
-   * the live health signal, and Check is the user-visible re-probe. Not a
-   * `setupProbe`: it lands TWO signals with different reset semantics
-   * (`mcpUrl` survives a failed Check, see `onCheckMcpConnection`).
+   * Cheap O(1) read of the MCP endpoint on open, so the Copy affordance is
+   * already accurate before the operator touches Check. Deliberately does
+   * NOT land `connected`: the row's verdict stays "Not checked yet" until
+   * the user asks for it, so the panel never reports a connection the
+   * operator has not confirmed. Failure is silent (no error banner): the
+   * fallback URL keeps Copy useful, and Check is the user-visible probe.
    */
-  private async refreshMcpStatus(): Promise<void> {
+  private async refreshMcpUrl(): Promise<void> {
     try {
-      const res = await this.dataSource.mcpStatus();
-      this.mcpUrl.set(res.url);
-      this.mcpClients.set(res.clients);
+      this.mcpUrl.set((await this.dataSource.mcpStatus()).url);
     } catch {
       this.mcpUrl.set(null);
-      this.mcpClients.set(null);
     }
   }
 }

@@ -137,6 +137,8 @@ export const QUICK_START_TEXTS = {
     checking: 'Checking...',
     live: 'Live',
     optedIn: 'Opted in, restart to apply',
+    connected: 'Connected',
+    notConnected: 'Not connected yet',
     updateAvailable: 'Update available',
     attending: 'An agent is answering',
     noAgent: 'No agent answering',
@@ -265,17 +267,16 @@ export const QUICK_START_TEXTS = {
       // command, others only by editing a config file, so the row copy has
       // to fit both (the hint below names the file when there is one).
       description:
-        'Copy what your agent needs and apply it there, and approve the MCP connection when ' +
-        'your agent prompts you. It belongs in your own config. The indicator says the MCP ' +
-        'server is on; Check also reports any agent attached.',
+        'Copy what your agent needs and apply it there, approve the MCP connection when your ' +
+        'agent prompts you, then click Check to confirm the live connection. It belongs in ' +
+        'your own config.',
       /**
-       * Status detail once the client count is known. Not the verdict:
-       * an agent draining over the CLI holds no MCP session, so zero
-       * attached clients is still a working setup.
+       * Hint under a "Not connected yet" verdict. The row reports the one
+       * thing it can observe, a live MCP session, and an agent that drains
+       * the queue over the CLI never opens one, so the absence of a session
+       * is not necessarily a broken setup and nothing gates on this row.
        */
-      liveAttached: (clients: number): string =>
-        clients === 1 ? 'Live, agent attached' : `Live, ${clients} agents attached`,
-      liveUnattached: 'Live, no agent attached yet',
+      unconnectedHint: 'An agent that works the queue over the CLI never opens a session.',
       copiedHint: 'Copied to the clipboard.',
       /**
        * Where a `config` snippet goes, shown while nothing else occupies

@@ -335,62 +335,59 @@ describe('QuickStartModal, capture gated on the real-time hook', () => {
   });
 });
 
-describe('QuickStartModal, MCP row verdict + detail', () => {
-  it('rides the live health signal: off is not-ready, on is ready, before any Check', async () => {
-    const setup = bootstrap({
-      getProjectPreferences: vi.fn().mockResolvedValue(prefs()),
-      getActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
-      health: vi.fn().mockResolvedValue(health(true)),
-      ...activeProviderStub('claude'),
-    } as Partial<IDataSourcePort>);
-
-    // No health resolved yet = off (the signal never flashes live early).
-    expect(setup.probe.mcpInstalledStatus()).toBe('not-ready');
-    expect(setup.probe.mcpInstalledStatusText()).toBe(QUICK_START_TEXTS.status.off);
-
-    await useMcpLive(true);
-
-    expect(setup.probe.mcpInstalledStatus()).toBe('ready');
-    expect(setup.probe.mcpInstalledStatusText()).toBe(QUICK_START_TEXTS.status.live);
-  });
-
-  it('Check lands the attached-client detail without owning the verdict', async () => {
-    const probeMcp = vi.fn().mockResolvedValue(mcpStatus({ clients: 0 }));
-    const setup = bootstrap({
-      getProjectPreferences: vi.fn().mockResolvedValue(prefs()),
-      getActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
-      health: vi.fn().mockResolvedValue(health(true)),
-      mcpStatus: probeMcp,
-      ...activeProviderStub('claude'),
-    } as Partial<IDataSourcePort>);
-    await useMcpLive(true);
-
-    // Zero clients is a working setup (a CLI-draining agent holds no MCP
-    // session), so the row stays READY and the count is only a detail.
-    await setup.probe.onCheckMcpConnection();
-    expect(setup.probe.mcpInstalledStatus()).toBe('ready');
-    expect(setup.probe.mcpInstalledStatusText()).toBe(
-      QUICK_START_TEXTS.rows.mcpInstalled.liveUnattached,
-    );
-
-    probeMcp.mockResolvedValue(mcpStatus({ connected: true, clients: 2 }));
-    await setup.probe.onCheckMcpConnection();
-    expect(setup.probe.mcpInstalledStatus()).toBe('ready');
-    expect(setup.probe.mcpInstalledStatusText()).toBe(
-      QUICK_START_TEXTS.rows.mcpInstalled.liveAttached(2),
-    );
-  });
-
-  it('probes the endpoint when the modal opens and lands URL + detail', async () => {
+describe('QuickStartModal, MCP connection check', () => {
+  it('marks the row ready + "Connected" when a client is connected', async () => {
     const probeMcp = vi.fn().mockResolvedValue(mcpStatus({ connected: true, clients: 1 }));
     const setup = bootstrap({
       getProjectPreferences: vi.fn().mockResolvedValue(prefs()),
       getActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
-      health: vi.fn().mockResolvedValue(health(true)),
+      mcpStatus: probeMcp,
+    } as Partial<IDataSourcePort>);
+
+    // Not checked yet before the user clicks Check.
+    expect(setup.probe.mcpInstalledStatus()).toBe('unknown');
+    expect(setup.probe.mcpInstalledStatusText()).toBe(QUICK_START_TEXTS.status.unknown);
+
+    await setup.probe.onCheckMcpConnection();
+    await flushAsync();
+
+    expect(probeMcp).toHaveBeenCalled();
+    expect(setup.probe.mcpInstalledStatus()).toBe('ready');
+    expect(setup.probe.mcpInstalledStatusText()).toBe(QUICK_START_TEXTS.status.connected);
+  });
+
+  it('marks the row not-ready + "Not connected yet" when nothing is connected', async () => {
+    const probeMcp = vi.fn().mockResolvedValue(mcpStatus());
+    const setup = bootstrap({
+      getProjectPreferences: vi.fn().mockResolvedValue(prefs()),
+      getActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
+      mcpStatus: probeMcp,
+      // A command lens, so no paste hint competes for the meta line.
+      ...activeProviderStub('claude'),
+    } as Partial<IDataSourcePort>);
+
+    await setup.probe.onCheckMcpConnection();
+    await flushAsync();
+
+    expect(probeMcp).toHaveBeenCalled();
+    expect(setup.probe.mcpInstalledStatus()).toBe('not-ready');
+    expect(setup.probe.mcpInstalledStatusText()).toBe(QUICK_START_TEXTS.status.notConnected);
+    // No session is not necessarily a broken setup, so the row explains
+    // itself instead of leaving the operator to read it as a failure.
+    expect(setup.probe.mcpInstalledMeta()).toBe(
+      QUICK_START_TEXTS.rows.mcpInstalled.unconnectedHint,
+    );
+    expect(setup.probe.mcpInstalledMetaTone()).toBe('muted');
+  });
+
+  it('probes the endpoint when the modal opens, without landing a verdict', async () => {
+    const probeMcp = vi.fn().mockResolvedValue(mcpStatus({ connected: true, clients: 1 }));
+    const setup = bootstrap({
+      getProjectPreferences: vi.fn().mockResolvedValue(prefs()),
+      getActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
       mcpStatus: probeMcp,
       ...activeProviderStub('claude'),
     } as Partial<IDataSourcePort>);
-    await useMcpLive(true);
 
     open(setup);
     await useLens('claude');
@@ -398,10 +395,27 @@ describe('QuickStartModal, MCP row verdict + detail', () => {
 
     expect(probeMcp).toHaveBeenCalled();
     expect(setup.probe.mcpSnippet().payload).toContain(MCP_URL);
-    expect(setup.probe.mcpInstalledStatus()).toBe('ready');
-    expect(setup.probe.mcpInstalledStatusText()).toBe(
-      QUICK_START_TEXTS.rows.mcpInstalled.liveAttached(1),
-    );
+    // The open probe reads the URL only: the connection verdict stays the
+    // user's to ask for through Check.
+    expect(setup.probe.mcpInstalledStatus()).toBe('unknown');
+    expect(setup.probe.mcpInstalledStatusText()).toBe(QUICK_START_TEXTS.status.unknown);
+  });
+
+  it('does not borrow the MCP-server health signal that row (f) already owns', async () => {
+    const setup = bootstrap({
+      getProjectPreferences: vi.fn().mockResolvedValue(prefs()),
+      getActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
+      health: vi.fn().mockResolvedValue(health(true)),
+      mcpStatus: vi.fn().mockResolvedValue(mcpStatus()),
+      ...activeProviderStub('claude'),
+    } as Partial<IDataSourcePort>);
+
+    // The server is live, which is a DIFFERENT fact reported one row up:
+    // this row stays unchecked until the operator confirms the wire.
+    await useMcpLive(true);
+
+    expect(setup.probe.mcpInstalledStatus()).toBe('unknown');
+    expect(setup.probe.mcpInstalledStatusText()).toBe(QUICK_START_TEXTS.status.unknown);
   });
 });
 
