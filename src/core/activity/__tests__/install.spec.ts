@@ -56,6 +56,24 @@ function readConfig(cwd: string): Record<string, unknown> {
   return JSON.parse(readFileSync(join(cwd, CONFIG_REL), 'utf8')) as Record<string, unknown>;
 }
 
+/** Every hook command string in a hook document, wherever it is nested. */
+function hookCommandsOf(config: unknown): string[] {
+  const out: string[] = [];
+  const walk = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item);
+      return;
+    }
+    if (node === null || typeof node !== 'object') return;
+    for (const [key, value] of Object.entries(node)) {
+      if (key === 'command' && typeof value === 'string') out.push(value);
+      else walk(value);
+    }
+  };
+  walk(config);
+  return out;
+}
+
 describe('core/activity install engine', () => {
   let cwd: string;
   const provider = makeProvider();
@@ -118,6 +136,46 @@ describe('core/activity install engine', () => {
       bridgePresent: true,
       installed: true,
     });
+  });
+
+  it('anchors the bridge path on the runtime project-dir variable when declared', async () => {
+    // Regression, live-reported: the command used to be written
+    // cwd-relative (`node .skill-map/activity/bridge.js claude`) on the
+    // premise that hooks are spawned at the project root. That holds when
+    // a session starts and NOT for its lifetime, because an agent that
+    // changes directory while working takes the hook cwd with it. The
+    // operator then gets a `MODULE_NOT_FOUND` naming a path they never
+    // wrote, and ingestion stops silently.
+    //
+    // The variable form is absolute at spawn time yet writes no
+    // machine-specific path, which matters because these hook configs
+    // are routinely committed: a baked `/home/<someone>/...` would break
+    // every teammate. That is why it beats both alternatives rather than
+    // merely being tidier.
+    const withVar = makeProvider();
+    (withVar.activity!.install as { projectDirEnvVar?: string }).projectDirEnvVar = 'DEMO_ROOT';
+    await installActivityBridge(cwd, withVar);
+
+    const commands = hookCommandsOf(readConfig(cwd));
+    assert.ok(commands.length > 0, 'the install must wire at least one command');
+    for (const command of commands) {
+      assert.equal(command, `node "$DEMO_ROOT"/${ACTIVITY_BRIDGE_REL} claude`);
+      // Quote the variable only: the expansion may contain spaces, and
+      // the bare relative substring has to survive for the ownership
+      // marker uninstall keys on.
+      assert.ok(command.includes(ACTIVITY_BRIDGE_REL), 'ownership marker substring must survive');
+    }
+  });
+
+  it('falls back to the cwd-relative path for a runtime exposing no variable', async () => {
+    // Not every runtime offers one, and guessing a name would be worse
+    // than the relative form: an unset `$VAR` expands to empty, so the
+    // path would resolve at the filesystem ROOT and the hook would break
+    // always instead of only from a subdirectory.
+    await installActivityBridge(cwd, makeProvider());
+    for (const command of hookCommandsOf(readConfig(cwd))) {
+      assert.equal(command, `node ${ACTIVITY_BRIDGE_REL} claude`);
+    }
   });
 
   it('reinstall refreshes a stale wiring in place (remove-then-merge)', async () => {

@@ -688,6 +688,29 @@ export interface IActivityInstallJsonHooks extends IActivityInstallBase {
    * path resolution.
    */
   commandCwd?: 'scope-root' | 'config-dir';
+  /**
+   * Name of an environment variable the runtime sets to the PROJECT ROOT
+   * when it spawns a hook command, if it provides one (Claude Code:
+   * `CLAUDE_PROJECT_DIR`, per its changelog "Hooks: Added
+   * CLAUDE_PROJECT_DIR env var for hook commands"). When declared, the
+   * installer anchors the bridge path on it and `commandCwd` is ignored,
+   * because the path is then absolute at spawn time.
+   *
+   * Prefer this over the cwd-relative form wherever the runtime offers
+   * it. The relative form assumes the hook is spawned at the project
+   * root, and that assumption is not stable within a single session: an
+   * agent that changes directory while working (the Bash tool's cwd
+   * persists between calls) makes every later hook resolve against the
+   * subdirectory, so ingestion stops with a `MODULE_NOT_FOUND` naming a
+   * path the operator never wrote.
+   *
+   * An absolute literal would fix the cwd problem and break a worse one:
+   * these hook configs are routinely committed, so a baked
+   * `/home/<someone>/...` breaks every teammate. The variable keeps the
+   * config portable AND cwd-immune, which is why it is the right shape
+   * rather than merely a convenient one.
+   */
+  projectDirEnvVar?: string;
 }
 
 /**

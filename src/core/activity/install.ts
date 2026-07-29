@@ -231,20 +231,47 @@ function pluginFileIsOurs(pluginPath: string): boolean {
 
 /**
  * Command the provider's hook config spawns per event:
- * `node <bridge> <provider>`. The script path is written for the
- * runtime's hook-spawn cwd (`install.commandCwd`): scope-relative for
- * runtimes spawning at the project root (default), prefixed with the
- * hops from `dirname(configPath)` back to the root for runtimes
- * spawning at the config's own directory (Antigravity). Both forms
- * keep the `ACTIVITY_BRIDGE_REL` substring, so the ownership marker is
- * unaffected.
+ * `node <bridge> <provider>`.
+ *
+ * Three forms, in order of preference:
+ *
+ *   1. `install.projectDirEnvVar` declared: anchor on the runtime's
+ *      project-root variable. Absolute at spawn time, so it does not
+ *      care where the hook was spawned from, and still portable because
+ *      no machine-specific path is written into a committed config.
+ *   2. `commandCwd: 'config-dir'`: prefix the hops from
+ *      `dirname(configPath)` back to the root (Antigravity spawns at the
+ *      config's own directory).
+ *   3. Default: the plain scope-relative path, for runtimes that spawn
+ *      at the project root and expose no variable.
+ *
+ * Forms 2 and 3 depend on the spawn cwd, which is exactly the
+ * assumption the bridge itself refuses to make (see
+ * `bridge-template.ts`: "Never derive the scope from the spawn cwd").
+ * That asymmetry was a real defect: the bridge distrusted the cwd for
+ * everything after it loaded, while the command needed the cwd to load
+ * it at all, so an agent that changed directory mid-session silently
+ * stopped ingesting. Form 1 removes the asymmetry wherever a runtime
+ * offers the variable; the others remain for runtimes that do not.
+ *
+ * Every form keeps the `ACTIVITY_BRIDGE_REL` substring, so the
+ * ownership marker used by uninstall is unaffected.
  */
 function bridgeCommand(providerId: string, install: IActivityInstallJsonHooks): string {
-  const script =
-    install.commandCwd === 'config-dir'
-      ? posix.join(posix.relative(posix.dirname(install.configPath), '.'), ACTIVITY_BRIDGE_REL)
-      : ACTIVITY_BRIDGE_REL;
-  return `node ${script} ${providerId}`;
+  return `node ${bridgeScriptPath(install)} ${providerId}`;
+}
+
+function bridgeScriptPath(install: IActivityInstallJsonHooks): string {
+  if (install.projectDirEnvVar !== undefined) {
+    // Quote the variable only, not the whole path: the runtime may
+    // expand it to a directory containing spaces, and this keeps the
+    // literal `ACTIVITY_BRIDGE_REL` substring intact for the marker.
+    return `"$${install.projectDirEnvVar}"/${ACTIVITY_BRIDGE_REL}`;
+  }
+  if (install.commandCwd === 'config-dir') {
+    return posix.join(posix.relative(posix.dirname(install.configPath), '.'), ACTIVITY_BRIDGE_REL);
+  }
+  return ACTIVITY_BRIDGE_REL;
 }
 
 /**

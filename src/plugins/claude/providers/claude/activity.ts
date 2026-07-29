@@ -67,6 +67,15 @@ export const claudeActivity: IProviderActivityAdapter = {
   install: {
     kind: 'json-hooks',
     configPath: '.claude/settings.json',
+    // Claude Code sets this for every hook command it spawns ("Hooks:
+    // Added CLAUDE_PROJECT_DIR env var for hook commands"), so the
+    // bridge path stops depending on the spawn cwd. It used to be
+    // written scope-relative on the documented assumption that hooks run
+    // at the project root; that holds at launch but not for the whole
+    // session, because an agent that changes directory while working
+    // takes the hook cwd with it, and ingestion then dies on a
+    // `MODULE_NOT_FOUND` naming a path nobody wrote.
+    projectDirEnvVar: 'CLAUDE_PROJECT_DIR',
     // Only the events mapEvent consumes: every wired event spawns one
     // bridge process, so the list stays tight. Tool events are narrowed
     // to the attributable tools (Skill invocations, Read for markdown
