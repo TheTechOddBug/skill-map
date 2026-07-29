@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.97.1",
+      "date": "2026-07-29",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The Quick Start MCP row no longer reports itself as done before you check it. It stays \"Not checked yet\" until you hit Check, then says whether an agent is really connected, with a note explaining that an agent working the queue over the CLI never opens a connection.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.97.0",
       "date": "2026-07-28",
       "kind": "user-facing",
