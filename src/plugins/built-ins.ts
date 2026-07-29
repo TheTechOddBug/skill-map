@@ -1371,5 +1371,7 @@ function toExtensionRow(x: TBuiltInExtension): IExtension {
     version: x.version,
     description: x.description ?? '',
   };
+  if (x.stability !== undefined) row.stability = x.stability;
+  if (x.defaultEnabled !== undefined) row.defaultEnabled = x.defaultEnabled;
   return row;
 }

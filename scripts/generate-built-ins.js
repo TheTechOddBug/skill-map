@@ -451,10 +451,22 @@ function render(plugins) {
   lines.push('}');
   lines.push('');
 
-  // Structure-as-truth: `stability` and `preconditions` were retired
-  // with the manifest refactor; `description` is required on every
-  // extension and survives as the only optional-display field on the
-  // row (well, also `entry` which is loader-runtime, not surfaced here).
+  // `stability` / `defaultEnabled` MUST be carried onto the row.
+  //
+  // They were dropped here on the claim that "stability was retired with
+  // the manifest refactor", which was simply wrong: it is declared on
+  // `IExtension`, on `extension-manifest.schema.json`, and it drives the
+  // installed default. Omitting it made `filterBuiltInManifests` read
+  // `undefined` for both, so `installedDefaultEnabled` returned `true`
+  // and the filter kept rows it should have dropped, e.g.
+  // `github/enrichment` (experimental) and `core/node-bump`
+  // (`defaultEnabled: false`) registering on a project with no config.
+  // Execution was never affected (those gates read live instances, not
+  // rows); this was registry VISIBILITY, so `sm help` and the registry
+  // listed extensions that ship disabled.
+  //
+  // `preconditions` really is gone; `entry` is loader-runtime and not
+  // surfaced on a built-in row.
   lines.push('function toExtensionRow(x: TBuiltInExtension): IExtension {');
   lines.push('  const row: IExtension = {');
   lines.push('    id: x.id,');
@@ -463,6 +475,8 @@ function render(plugins) {
   lines.push('    version: x.version,');
   lines.push('    description: x.description ?? \'\',');
   lines.push('  };');
+  lines.push('  if (x.stability !== undefined) row.stability = x.stability;');
+  lines.push('  if (x.defaultEnabled !== undefined) row.defaultEnabled = x.defaultEnabled;');
   lines.push('  return row;');
   lines.push('}');
   lines.push('');

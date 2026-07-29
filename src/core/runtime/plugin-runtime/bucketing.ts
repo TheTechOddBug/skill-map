@@ -48,12 +48,22 @@ export function bucketLoaded(
       hook: runtime.extensions.hooks,
       action: runtime.extensions.actions,
     });
+    // `stability` / `defaultEnabled` are carried deliberately: registry
+    // consumers re-resolve the enabled state off these rows
+    // (`registerEnabledExtensions`), and omitting them made
+    // `installedDefaultEnabled` see `undefined` and answer "enabled",
+    // so a ships-disabled extension registered anyway. Same gap the
+    // built-ins codegen had in `toExtensionRow`. `description` now comes
+    // from the typed field (read from `extension.json`) rather than a
+    // shape-check on the instance.
     runtime.manifests.push({
       id: ext.id,
       pluginId: ext.pluginId,
       kind: ext.kind,
       version: ext.version,
-      description: (instance as { description?: unknown }).description as string ?? '',
+      description: ext.description,
+      ...(ext.stability !== undefined ? { stability: ext.stability } : {}),
+      ...(ext.defaultEnabled !== undefined ? { defaultEnabled: ext.defaultEnabled } : {}),
       ...(ext.entryPath ? { entry: ext.entryPath } : {}),
     });
     // Step 9.6.6, fold this extension's annotation contributions

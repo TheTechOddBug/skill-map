@@ -243,6 +243,45 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
   // declared `analyzerIds` reference real built-in analyzers; see
   // bd-3pw.8 task notes.
 
+  it('listBuiltIns() rows carry stability + defaultEnabled, so ships-disabled stays disabled', () => {
+    // Regression: `toExtensionRow` used to drop both fields, on a comment
+    // claiming "stability was retired with the manifest refactor". It was
+    // not. With them undefined, `installedDefaultEnabled` answered
+    // "enabled", so `filterBuiltInManifests` kept rows for extensions
+    // that ship disabled and they registered on a project with no config
+    // at all. Execution was never affected (those gates read live
+    // instances), which is exactly why it went unnoticed: the bug was
+    // registry VISIBILITY, and `sm help` listed things that never run.
+    const rows = listBuiltIns();
+    const enrichment = rows.find((r) => r.pluginId === 'github' && r.id === 'enrichment');
+    assert.ok(enrichment, 'github/enrichment must be present as a row');
+    assert.equal(enrichment.stability, 'experimental');
+
+    const bump = rows.find((r) => r.pluginId === 'core' && r.id === 'node-bump');
+    assert.ok(bump, 'core/node-bump must be present as a row');
+    assert.equal(bump.defaultEnabled, false, 'the orthogonal opt-in axis survives onto the row');
+
+    // Every row must agree with its live instance on both fields; a
+    // divergence is the same class of bug reappearing somewhere else.
+    const live = Object.values(builtIns()).flat();
+    for (const row of rows) {
+      const instance = live.find(
+        (x) => x.pluginId === row.pluginId && x.id === row.id && x.kind === row.kind,
+      );
+      if (!instance) continue;
+      assert.equal(
+        row.stability,
+        instance.stability,
+        `row ${row.pluginId}/${row.id} lost its stability`,
+      );
+      assert.equal(
+        row.defaultEnabled,
+        instance.defaultEnabled,
+        `row ${row.pluginId}/${row.id} lost its defaultEnabled`,
+      );
+    }
+  });
+
   it('listBuiltIns() rows carry pluginId verbatim', () => {
     const rows = listBuiltIns();
     const valid = new Set(['core', 'claude', 'antigravity', 'codex', 'opencode', 'agent-skills', 'github']);
