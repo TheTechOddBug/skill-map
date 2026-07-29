@@ -6,6 +6,20 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.98.0</b> · 2026-07-29</summary>
+
+### CLI Minor
+- A drop-in extension's module is no longer imported unless its plugin is trusted and both the plugin and that extension are enabled. The four declarative fields (`version`, `description`, `stability`, `defaultEnabled`) moved to a per-extension `extension.json` beside `index.*`, so the decision no longer needs the code it governs; declaring them in the module is now `invalid-manifest`, `sm plugins upgrade` migrates them, and an untrusted plugin's inventory becomes listable. Built-ins are exempt.
+
+### CLI Patch
+- `toExtensionRow` dropped `stability` / `defaultEnabled` from every built-in registry row, and `bucketing.ts` never copied them onto user-plugin rows, so `installedDefaultEnabled` read `undefined` for both and answered "enabled": `github/enrichment` (experimental) and `core/node-bump` (`defaultEnabled: false`) registered on a project with no config at all. Execution was never affected, since those gates read live instances rather than rows, so the bug was registry visibility.
+
+### Spec Minor (0.90.0)
+- A drop-in extension's module is no longer imported unless its plugin is trusted and both the plugin and that extension are enabled. The four declarative fields (`version`, `description`, `stability`, `defaultEnabled`) moved to a per-extension `extension.json` beside `index.*`, so the decision no longer needs the code it governs; declaring them in the module is now `invalid-manifest`, `sm plugins upgrade` migrates them, and an untrusted plugin's inventory becomes listable. Built-ins are exempt.
+
+</details>
+
+<details>
 <summary><b>0.97.1</b> · 2026-07-29</summary>
 
 ### CLI Patch
