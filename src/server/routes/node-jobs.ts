@@ -138,7 +138,7 @@ export function registerNodeJobsRoute(app: Hono, deps: INodeJobsRouteDeps): void
   // Plugin-runtime discovery warnings are static per boot; emit them
   // once here (the per-request runtime build below uses a noop sink so a
   // mid-session recompose never re-spams the server log).
-  for (const line of deps.pluginRuntime.warnings) log.warn(sanitizeForTerminal(line));
+  for (const line of deps.pluginRuntimeHolder.current.warnings) log.warn(sanitizeForTerminal(line));
 
   app.post('/api/nodes/:pathB64/jobs', async (c) => {
     const startedAt = Date.now();
@@ -170,7 +170,7 @@ export function registerNodeJobsRoute(app: Hono, deps: INodeJobsRouteDeps): void
       effectiveConfig: () => deps.configService.effective(),
     });
     const runtime = buildActionRuntime(
-      deps.pluginRuntime,
+      deps.pluginRuntimeHolder.current,
       () => {
         /* discard: warnings emitted once at registration */
       },

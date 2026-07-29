@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.ai/spec/v0/extensions/extension-manifest.schema.json",
+  "title": "ExtensionManifest",
+  "description": "The DECLARATIVE half of an extension, stored on disk at `<plugin>/<kind-plural>/<id>/extension.json`, next to the extension's `index.{js,mjs,ts}`. It exists so the loader can learn whether an extension is allowed to run WITHOUT importing it: the enabled decision depends on `stability` / `defaultEnabled`, and while those lived in the module you had to execute the code to discover you were not allowed to execute it. Reading JSON is not execution, so the gate now closes before the import. Same structure-as-truth family as an Action's `report.schema.json` and a Provider's `kinds/<kindName>/kind.json`: the file's location IS its binding, `id` and `kind` still come from the folder layout and are not fields here. Required for every extension of an on-disk (drop-in) plugin; a missing, unparseable, or invalid file rejects the plugin as `invalid-manifest`. The extension's module must NOT re-declare these fields (the kind schemas' `unevaluatedProperties: false` rejects them), exactly as it must not re-declare `id` / `kind`. Built-in extensions compiled into the reference CLI do not use this file: they never reach the disk loader, so there is no import to gate, and they keep declaring these fields inline (see `version` below).",
+  "type": "object",
+  "required": ["version", "description"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Extension semver. REQUIRED for external (user-authored) plugins, the AJV check at load time rejects manifests missing it. Bumped independently from the plugin's own version; frozen into `state_executions.extension_version` on every run for reproducibility. The reference CLI's built-in extensions under `src/plugins/` use a different authoring path (type `IBuiltInManifest<I<Kind>>` = `Omit<I<Kind>, 'version'>`); the codegen at `scripts/generate-built-ins.js` stamps the CLI version onto every built-in at build time so the runtime shape still satisfies the full interface."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Required short description (1-3 sentences) shown by `sm <kind>s list` and the UI inspector. English-only per AGENTS.md. Readable without importing, so it is what an operator reviews when deciding whether to grant a project-local plugin import trust."
+    },
+    "stability": {
+      "type": "string",
+      "enum": ["experimental", "beta", "stable", "deprecated"],
+      "description": "Optional lifecycle label for the extension. Drives a badge next to the extension in `sm plugins list <id>` / `sm plugins show` and the Settings plugins panel for the non-default values (`experimental`, `beta`, `deprecated`); `stable`, declared or defaulted, renders nothing, so authors only declare the field while the extension is NOT stable. `experimental` and `deprecated` ALSO change behaviour: each flips the extension's installed default to DISABLED, so the extension is NOT IMPORTED (its module body never runs, it does not register, its toggle shows off) until the operator opts in via `sm plugins enable <plugin>/<ext>`, the Settings toggle, or a `settings.json` / `settings.local.json` override. That opt-in is a plain enable override and wins over the installed default like any other id (so a deprecated extension can still be kept running during a migration). The remaining values are presentation-only and default to ENABLED: `beta` runs with a badge, `stable` runs with no badge. Default: missing == `stable` == enabled. Deliberately a superset of the node-level enum at `annotations.schema.json#/properties/stability` (which has no `beta`): this field describes the maturity of the extension itself, not of a scanned node.",
+      "default": "stable"
+    },
+    "defaultEnabled": {
+      "type": "boolean",
+      "description": "Optional installed-default override for the extension's ENABLED state, orthogonal to `stability`. When declared, it wins over the stability-derived default (`experimental` / `deprecated` ship disabled, everything else enabled): a `stable` extension MAY ship `defaultEnabled: false` to be a deliberate opt-in without mislabeling its maturity (e.g. a sidecar-writing action a shared project should not run until the operator turns it on). The operator's explicit enable/disable overrides (`sm plugins enable`, the Settings toggle, `settings.json`) win over this default like any other id. Missing == derive from `stability`."
+    }
+  }
+}

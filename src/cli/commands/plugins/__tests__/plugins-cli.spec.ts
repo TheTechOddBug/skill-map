@@ -89,10 +89,12 @@ function dropMockPlugin(scope: IScope, id: string, opts: IDropOptions = {}): voi
   const extDir = join(pluginDir, 'extractors', `${id}-extractor`);
   mkdirSync(extDir, { recursive: true });
   writeFileSync(
+    join(extDir, 'extension.json'),
+    JSON.stringify({ version: '0.1.0', description: 'mock' }),
+  );
+  writeFileSync(
     join(extDir, 'index.js'),
     `export default {
-       version: '0.1.0',
-       description: 'mock',
        extract() {},
      };`,
   );
@@ -131,6 +133,8 @@ function dropMockProvider(scope: IScope, id: string, opts: IDropOptions = {}): v
   ];
   const provDir = join(pluginDir, 'providers', `${id}-provider`);
   mkdirSync(provDir, { recursive: true });
+  writeFileSync(join(provDir, 'extension.json'), JSON.stringify({ version: '0.1.0', description: 'fixture extension' }));
+  writeFileSync(join(provDir, 'extension.json'), JSON.stringify({ version: '0.1.0', description: 'fixture extension' }));
   writeFileSync(
     join(provDir, 'index.js'),
     `export default {\n  ${manifestParts.join(',\n  ')},\n};\n`,

@@ -2,28 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.ai/spec/v0/extensions/base.schema.json",
   "title": "ExtensionBase",
-  "description": "Base manifest shape common to every extension kind. Kind-specific schemas (`provider`, `extractor`, `analyzer`, `action`, `formatter`, `hook`) extend this via `allOf` and add a kind-specific shape. Both `id` and `kind` are derived from the filesystem structure (`<plugin>/<kind-plural>/<id>/index.ts`, where the parent folder dictates the kind and the leaf folder dictates the id), so they are NOT manifest fields. Manifests carrying `id` or `kind` are rejected as `invalid-manifest`. Closed-content enforcement (unknown keys = bug) lives on the kind schemas via `unevaluatedProperties: false`; those see base's evaluated keys through the `allOf` composition.",
+  "description": "Base shape common to every extension kind, describing what an extension's MODULE may declare. Kind-specific schemas (`provider`, `extractor`, `analyzer`, `action`, `formatter`, `hook`) extend this via `allOf` and add a kind-specific shape. The fields the loader must know BEFORE importing the module (`version`, `description`, `stability`, `defaultEnabled`) are deliberately NOT here: they live on disk at `<plugin>/<kind-plural>/<id>/extension.json` (`extension-manifest.schema.json`). The enabled decision depends on `stability` / `defaultEnabled`, so reading them out of the module would mean executing code to learn whether that code was allowed to execute at all. A module re-declaring any of the four is rejected by the kind schemas' `unevaluatedProperties: false`. Both `id` and `kind` are likewise derived from the filesystem structure (`<plugin>/<kind-plural>/<id>/index.ts`, where the parent folder dictates the kind and the leaf folder dictates the id), so they are NOT manifest fields either; manifests carrying `id` or `kind` are rejected as `invalid-manifest`. Closed-content enforcement (unknown keys = bug) lives on the kind schemas via `unevaluatedProperties: false`; those see base's evaluated keys through the `allOf` composition.",
   "type": "object",
-  "required": ["version", "description"],
   "properties": {
-    "version": {
-      "type": "string",
-      "description": "Extension semver. REQUIRED for external (user-authored) plugins, the AJV check at load time rejects manifests missing it. Bumped independently from the plugin's own version; frozen into `state_executions.extension_version` on every run for reproducibility. The reference CLI's built-in extensions under `src/plugins/` use a different authoring path (type `IBuiltInManifest<I<Kind>>` = `Omit<I<Kind>, 'version'>`); the codegen at `scripts/generate-built-ins.js` stamps the CLI version onto every built-in at build time so the runtime shape still satisfies the full interface."
-    },
-    "description": {
-      "type": "string",
-      "minLength": 1,
-      "description": "Required short description (1-3 sentences) shown by `sm <kind>s list` and the UI inspector. English-only per AGENTS.md."
-    },
-    "stability": {
-      "type": "string",
-      "enum": ["experimental", "beta", "stable", "deprecated"],
-      "description": "Optional lifecycle label for the extension. Drives a badge next to the extension in `sm plugins list <id>` / `sm plugins show` and the Settings plugins panel for the non-default values (`experimental`, `beta`, `deprecated`); `stable`, declared or defaulted, renders nothing, so authors only declare the field while the extension is NOT stable. `experimental` and `deprecated` ALSO change behaviour: each flips the extension's installed default to DISABLED, so the extension does not load (does not run, does not register, shows its toggle off) until the operator opts in via `sm plugins enable <plugin>/<ext>`, the Settings toggle, or a `settings.json` / `settings.local.json` override. That opt-in is a plain enable override and wins over the installed default like any other id (so a deprecated extension can still be kept running during a migration). The remaining values are presentation-only and default to ENABLED: `beta` runs with a badge, `stable` runs with no badge. Default: missing == `stable` == enabled. Deliberately a superset of the node-level enum at `annotations.schema.json#/properties/stability` (which has no `beta`): this field describes the maturity of the extension itself, not of a scanned node."
-    },
-    "defaultEnabled": {
-      "type": "boolean",
-      "description": "Optional installed-default override for the extension's ENABLED state, orthogonal to `stability`. When declared, it wins over the stability-derived default (`experimental` / `deprecated` ship disabled, everything else enabled): a `stable` extension MAY ship `defaultEnabled: false` to be a deliberate opt-in without mislabeling its maturity (e.g. a sidecar-writing action a shared project should not run until the operator turns it on). The operator's explicit enable/disable overrides (`sm plugins enable`, the Settings toggle, `settings.json`) win over this default like any other id. Missing == derive from `stability`."
-    },
     "order": {
       "type": "number",
       "description": "Optional visual ordering hint, inspector-only. Inside a plugin's inspector section (which groups the plugin's `inspector.body.panel.*` contributions), the bricks contributed by each extension are sorted ASC by this value (default 100), tie-break by the contribution's `priority` then qualified id. Does NOT affect execution order, which is governed by `phase` (analyzers) and registration order."

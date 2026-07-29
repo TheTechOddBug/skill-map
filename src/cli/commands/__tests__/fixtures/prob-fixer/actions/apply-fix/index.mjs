@@ -9,9 +9,6 @@
  * resolve` section at submit.
  */
 export default {
-  version: '1.0.0',
-  description:
-    'Test-only probabilistic fixer that resolves prob-finder/quality-check findings via a template-mandated file edit.',
   mode: 'probabilistic',
   probExpectedDurationSeconds: 120,
   precondition: { analyzerIds: ['prob-finder/quality-check'] },

@@ -6,9 +6,6 @@
  * `findings[]` through to `state_findings` (finder lane).
  */
 export default {
-  version: '1.0.0',
-  description:
-    'Test-only probabilistic finder whose report schema extends the canonical findings envelope (drives the state_findings write-through tests).',
   mode: 'probabilistic',
   probExpectedDurationSeconds: 90,
   precondition: { kind: ['claude/skill'] },

@@ -1,0 +1,4 @@
+{
+  "version": "0.1.0",
+  "description": "analyzer emitting bars/pairs/links payloads plus two rejected emissions"
+}

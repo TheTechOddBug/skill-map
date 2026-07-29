@@ -24,8 +24,6 @@ function stub(extId: string): string {
  * See: spec/plugin-author-guide.md, spec/schemas/extensions/hook.schema.json
  */
 export default {
-  version: '0.1.0',
-  description: 'Demo hook; reacts once on boot.',
   triggers: ['boot'],
 
   async on(ctx) {

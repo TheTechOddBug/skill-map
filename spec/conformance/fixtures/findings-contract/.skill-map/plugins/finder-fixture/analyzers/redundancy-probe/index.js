@@ -11,9 +11,6 @@
 // and (b) the queued row froze `extensionKind: "analyzer"`
 // (`sm job list --json`).
 export default {
-  version: '0.1.0',
-  description:
-    'Conformance finder: judges one node for internal redundancy (fixture twin of the core/ai-redundancy-analyzer built-in).',
   mode: 'probabilistic',
   probExpectedDurationSeconds: 60,
 };

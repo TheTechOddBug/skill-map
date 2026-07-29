@@ -10,8 +10,6 @@
 // rejection text and that `sm scan` survives with the good plugin and
 // the markdown node intact.
 export default {
-  version: '0.1.0',
-  description: 'analyzer declaring the retired inspector.header.badge.counter slot',
   mode: 'deterministic',
 
   ui: {

@@ -36,21 +36,28 @@
 
 import { createRequire } from 'node:module';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import semver from 'semver';
 
 import type {
   IDiscoveredPlugin,
+  IExtensionJsonMeta,
   ILoadedExtension,
   IPluginManifest,
+  IUnloadedExtension,
+  TUnloadedReason,
 } from '../../types/plugin.js';
 import type { TExtensionStability } from '../../extensions/base.js';
 import type { PluginLoaderPort } from '../../ports/plugin-loader.js';
 import { PLUGIN_LOADER_TEXTS, SPEC_GITHUB_BASE } from '../../i18n/plugin-loader.texts.js';
 import { tx } from '../../util/tx.js';
-import type { ExtensionKind } from '../../registry.js';
+import { qualifiedExtensionId, type ExtensionKind } from '../../registry.js';
+import {
+  installedDefaultEnabled,
+  type TEnabledResolver,
+} from '../../config/plugin-resolver.js';
 import { formatAjvErrors, type ISchemaValidators } from '../schema-validators.js';
 
 import {
@@ -96,14 +103,28 @@ export interface IPluginLoaderOptions {
   /** Installed @skill-map/spec version, used for specCompat check. */
   specVersion: string;
   /**
-   * When supplied, the loader calls this with every parsed plugin id
-   * AFTER manifest + specCompat validation succeed. A return value of
-   * `false` short-circuits the load: the plugin is reported with
-   * `status: 'disabled'` and its extensions are NOT imported. Defaults
-   * to "always enabled" when omitted (no DB / config integration,
-   * useful for tests that assert raw discovery behaviour).
+   * The enable gate, consulted TWICE and at two granularities:
+   *
+   *   1. With the bare plugin id, after manifest + specCompat validation
+   *      succeed. `false` short-circuits the whole plugin to
+   *      `status: 'disabled'` with nothing imported.
+   *   2. With each QUALIFIED `<plugin>/<ext>` id plus that extension's
+   *      installed default (derived from its `extension.json`
+   *      `stability` / `defaultEnabled`), immediately before its import.
+   *      `false` means the module is never evaluated and the extension
+   *      is reported in `unloadedExtensions`.
+   *
+   * Pass 2 is why this is the full `TEnabledResolver` and not the
+   * narrower `(id) => boolean` it used to be: the installed default has
+   * to reach the resolver. A separate per-extension option was rejected
+   * on purpose, two enable policies would drift and the resolver layer
+   * exists precisely to prevent that.
+   *
+   * Omitted (tests asserting raw discovery, no config integration) means
+   * each extension falls back to its own installed default, so an
+   * `experimental` extension still ships disabled.
    */
-  resolveEnabled?: (pluginId: string) => boolean;
+  resolveEnabled?: TEnabledResolver;
   /**
    * Import-trust gate (security boundary). When supplied, the loader
    * calls this with every parsed plugin id AFTER manifest + specCompat
@@ -224,12 +245,9 @@ export class PluginLoader implements PluginLoaderPort {
     if (gated) return gated;
 
     // --- extension imports + kind validation ------------------------------
-    const loaded: ILoadedExtension[] = [];
-    for (const relEntry of discoverExtensionEntries(pluginPath)) {
-      const result = await this.#loadAndValidateExtensionEntry(pluginPath, pluginId, manifest, relEntry);
-      if (!result.ok) return result.failure;
-      loaded.push(result.extension);
-    }
+    const entries = await this.#loadExtensions(pluginPath, pluginId, manifest);
+    if (!entries.ok) return entries.failure;
+    const { loaded, unloaded } = entries;
 
     // --- storage output schemas (spec § A.12) -----------------------------
     const storageSchemasResult = loadStorageSchemas(pluginPath, pluginId, manifest);
@@ -246,6 +264,10 @@ export class PluginLoader implements PluginLoaderPort {
       status: 'enabled',
       manifest,
       extensions: loaded,
+      // Status stays `enabled` even when every extension was skipped:
+      // it describes the PLUGIN's outcome (parsed, trusted, enabled).
+      // The per-extension truth is the split between the two arrays.
+      ...(unloaded.length > 0 ? { unloadedExtensions: unloaded } : {}),
       ...(storageSchemasResult.schemas
         ? { storageSchemas: storageSchemasResult.schemas }
         : {}),
@@ -274,6 +296,7 @@ export class PluginLoader implements PluginLoaderPort {
         id: pluginId,
         status: 'disabled',
         manifest,
+        unloadedExtensions: this.#inventory(pluginPath, pluginId, 'plugin-disabled'),
         reason: PLUGIN_LOADER_TEXTS.disabledByConfig,
       };
     }
@@ -284,10 +307,113 @@ export class PluginLoader implements PluginLoaderPort {
         status: 'disabled',
         untrusted: true,
         manifest,
+        unloadedExtensions: this.#inventory(pluginPath, pluginId, 'plugin-untrusted'),
         reason: tx(PLUGIN_LOADER_TEXTS.untrustedNotLoaded, { pluginId }),
       };
     }
     return null;
+  }
+
+  /**
+   * Walk every discovered entry and split it three ways: loaded (its
+   * code ran), skipped (disabled, so its code did NOT run), or a failure
+   * that sinks the whole plugin.
+   *
+   * The two success arms stay in separate arrays because only `loaded`
+   * is ever handed to the registry / composer, which is what makes
+   * "disabled code never runs" structural instead of a convention.
+   */
+  async #loadExtensions(
+    pluginPath: string,
+    pluginId: string,
+    manifest: IPluginManifest,
+  ): Promise<
+    | { ok: true; loaded: ILoadedExtension[]; unloaded: IUnloadedExtension[] }
+    | { ok: false; failure: IDiscoveredPlugin }
+  > {
+    const loaded: ILoadedExtension[] = [];
+    const unloaded: IUnloadedExtension[] = [];
+    for (const relEntry of discoverExtensionEntries(pluginPath)) {
+      const result = await this.#loadAndValidateExtensionEntry(pluginPath, pluginId, manifest, relEntry);
+      if (!result.ok) return result;
+      if ('skipped' in result) unloaded.push(result.skipped);
+      else loaded.push(result.extension);
+    }
+    return { ok: true, loaded, unloaded };
+  }
+
+  /**
+   * The plugin's declared extension inventory, read from disk with ZERO
+   * code execution, for a plugin the gate just refused.
+   *
+   * This is what makes "review before you trust" actually reviewable:
+   * the operator sees which extensions a project-local plugin ships, of
+   * which kinds and versions, without any of it running. Reading the
+   * source is still the real review; this is the index to it.
+   *
+   * Best-effort by design. An entry whose `extension.json` is missing or
+   * unreadable is skipped silently rather than failing the plugin: full
+   * validation belongs to the load path, and a refused plugin never
+   * reaches it. Erroring here would turn a listing into a gate.
+   */
+  #inventory(
+    pluginPath: string,
+    pluginId: string,
+    reason: TUnloadedReason,
+  ): IUnloadedExtension[] {
+    const out: IUnloadedExtension[] = [];
+    for (const relEntry of discoverExtensionEntries(pluginPath)) {
+      const parsed = this.#readExtensionManifest(pluginPath, relEntry);
+      if (!parsed.ok) continue;
+      const [kindDir, id] = relEntry.split('/');
+      const kind = kindDir?.endsWith('s') ? (kindDir.slice(0, -1) as ExtensionKind) : undefined;
+      if (!kind || !KNOWN_KINDS.has(kind) || !id) continue;
+      out.push(unloadedRow(parsed.meta, { kind, id, pluginId, entryPath: resolve(pluginPath, relEntry), reason }));
+    }
+    return out;
+  }
+
+  /**
+   * Read + AJV-validate `<ext-dir>/extension.json`.
+   *
+   * Pure disk I/O and JSON parsing; nothing here executes plugin code,
+   * which is the entire reason the file exists. Callers decide whether a
+   * failure is fatal (the load path) or skippable (the inventory above).
+   */
+  #readExtensionManifest(
+    pluginPath: string,
+    relEntry: string,
+  ): { ok: true; meta: IExtensionJsonMeta } | { ok: false; reason: string } {
+    const path = resolve(pluginPath, dirname(relEntry), EXTENSION_MANIFEST_FILE);
+    if (!existsSync(path)) {
+      return {
+        ok: false,
+        reason: tx(PLUGIN_LOADER_TEXTS.invalidManifestExtensionJsonMissing, { relEntry }),
+      };
+    }
+    let raw: unknown;
+    try {
+      raw = JSON.parse(readFileSync(path, 'utf8'));
+    } catch (err) {
+      return {
+        ok: false,
+        reason: tx(PLUGIN_LOADER_TEXTS.invalidManifestExtensionJsonParse, {
+          relEntry,
+          errDescription: describe(err),
+        }),
+      };
+    }
+    const validated = this.#options.validators.validate<IExtensionJsonMeta>('extension-manifest', raw);
+    if (!validated.ok) {
+      return {
+        ok: false,
+        reason: tx(PLUGIN_LOADER_TEXTS.invalidManifestExtensionJsonInvalid, {
+          relEntry,
+          errors: validated.errors,
+        }),
+      };
+    }
+    return { ok: true, meta: validated.data };
   }
 
   /**
@@ -383,7 +509,11 @@ export class PluginLoader implements PluginLoaderPort {
     pluginId: string,
     manifest: IPluginManifest,
     relEntry: string,
-  ): Promise<{ ok: true; extension: ILoadedExtension } | { ok: false; failure: IDiscoveredPlugin }> {
+  ): Promise<
+    | { ok: true; extension: ILoadedExtension }
+    | { ok: true; skipped: IUnloadedExtension }
+    | { ok: false; failure: IDiscoveredPlugin }
+  > {
     if (!isInsidePlugin(pluginPath, relEntry)) {
       return { ok: false, failure: {
         ...fail(
@@ -406,6 +536,54 @@ export class PluginLoader implements PluginLoaderPort {
         ),
         manifest,
       }};
+    }
+
+    // --- everything below this line runs BEFORE any code executes -------
+    //
+    // Structure-as-truth: kind and id come from the path segment, not
+    // from manifest fields. The path layout is
+    // `<kind-plural>/<id>/index.<ext>`; the parent directory dictates
+    // `kind`, the leaf directory dictates `id`. This derivation used to
+    // sit after the import (it needed nothing from the module even
+    // then); it has to precede it now, because the qualified id is what
+    // the enable gate keys on.
+    const derived = deriveEntryIdentity(relEntry);
+    if (!derived.ok) {
+      return { ok: false, failure: {
+        ...fail(pluginPath, pluginId, 'invalid-manifest', derived.reason),
+        manifest,
+      }};
+    }
+    const { kind, id: pathId } = derived;
+
+    const parsedMeta = this.#readExtensionManifest(pluginPath, relEntry);
+    if (!parsedMeta.ok) {
+      return { ok: false, failure: {
+        ...fail(pluginPath, pluginId, 'invalid-manifest', parsedMeta.reason),
+        manifest,
+      }};
+    }
+    const meta = parsedMeta.meta;
+
+    // THE GATE. An extension the operator disabled, or one that ships
+    // disabled because it is `experimental` / `deprecated`, stops here:
+    // its module body is never evaluated. This is only expressible
+    // because `stability` / `defaultEnabled` live on disk; while they
+    // lived in the export, answering "may this run?" required running
+    // it. `resolveEnabled` is consulted with the QUALIFIED id, unlike
+    // the plugin-level gate which passes the bare plugin id.
+    const installedDefault = installedDefaultEnabled(meta.stability, meta.defaultEnabled);
+    const enabled = this.#options.resolveEnabled
+      ? this.#options.resolveEnabled(qualifiedExtensionId(pluginId, pathId), installedDefault)
+      : installedDefault;
+    if (!enabled) {
+      return { ok: true, skipped: unloadedRow(meta, {
+        kind,
+        id: pathId,
+        pluginId,
+        entryPath: abs,
+        reason: 'extension-disabled',
+      }) };
     }
 
     let mod: unknown;
@@ -433,47 +611,6 @@ export class PluginLoader implements PluginLoaderPort {
           pluginPath,
           pluginId,
           'load-error',
-          tx(PLUGIN_LOADER_TEXTS.loadErrorMissingKind, {
-            relEntry,
-            knownKindsList: KNOWN_KINDS_LIST,
-          }),
-        ),
-        manifest,
-      }};
-    }
-
-    // Structure-as-truth: kind and id come from the path segment, not
-    // from manifest fields. The path layout is `<kind-plural>/<id>/index.<ext>`;
-    // the parent directory dictates `kind`, the leaf directory dictates `id`.
-    // Hand-authored manifests re-declaring either are rejected by the
-    // strict guard below (with AJV's `unevaluatedProperties: false` as a
-    // backstop).
-    const [pathKindDir, pathId] = relEntry.split('/');
-    const kindFromPath = pathKindDir && pathKindDir.endsWith('s')
-      ? (pathKindDir.slice(0, -1) as ExtensionKind)
-      : undefined;
-    if (!kindFromPath || !KNOWN_KINDS.has(kindFromPath)) {
-      return { ok: false, failure: {
-        ...fail(
-          pluginPath,
-          pluginId,
-          'invalid-manifest',
-          tx(PLUGIN_LOADER_TEXTS.loadErrorUnknownKind, {
-            relEntry,
-            kindReceived: String(pathKindDir ?? '(missing)'),
-            knownKindsList: KNOWN_KINDS_LIST,
-          }),
-        ),
-        manifest,
-      }};
-    }
-    const kind = kindFromPath;
-    if (!pathId) {
-      return { ok: false, failure: {
-        ...fail(
-          pluginPath,
-          pluginId,
-          'invalid-manifest',
           tx(PLUGIN_LOADER_TEXTS.loadErrorMissingKind, {
             relEntry,
             knownKindsList: KNOWN_KINDS_LIST,
@@ -522,6 +659,26 @@ export class PluginLoader implements PluginLoaderPort {
           tx(PLUGIN_LOADER_TEXTS.invalidManifestRedeclaredField, {
             relEntry,
             fields: redeclared.map((field) => `\`${field}\``).join(', '),
+          }),
+        ),
+        manifest,
+      }};
+    }
+
+    // The relocated four. AJV would reject them anyway (they are no
+    // longer declared in `base.schema.json`, and every kind schema sets
+    // `unevaluatedProperties: false`), but a bare "unevaluated property"
+    // complaint would not tell an author that the field MOVED, or where.
+    const relocated = EXTENSION_JSON_KEYS.filter((field) => field in exported);
+    if (relocated.length > 0) {
+      return { ok: false, failure: {
+        ...fail(
+          pluginPath,
+          pluginId,
+          'invalid-manifest',
+          tx(PLUGIN_LOADER_TEXTS.invalidManifestExtensionJsonFieldInModule, {
+            relEntry,
+            fields: relocated.map((field) => `\`${field}\``).join(', '),
           }),
         ),
         manifest,
@@ -658,26 +815,38 @@ export class PluginLoader implements PluginLoaderPort {
     // the filesystem-discovered `kinds` catalog injected here; the export
     // can no longer inline a `kinds` map (rejected at load), so there is
     // nothing to merge.
-    const instance: Record<string, unknown> = { ...exported, pluginId, id: pathId, kind };
+    //
+    // The four `extension.json` fields are merged back on here, because
+    // downstream code reads them off the live instance in dozens of
+    // places (`bucketLoaded` reads `description`, the BFF projects
+    // `stability`, ...). Moving the SOURCE of truth to disk must not move
+    // the runtime shape. This is a TOP-LEVEL spread of four scalars and
+    // must stay that way: `readDeclaredContributionRefs` matches the `ui`
+    // object an author hands to `emitContribution` by IDENTITY, so a deep
+    // clone here would silently break every view contribution.
+    const instance: Record<string, unknown> = {
+      ...exported,
+      version: meta.version,
+      description: meta.description,
+      ...(meta.stability !== undefined ? { stability: meta.stability } : {}),
+      ...(meta.defaultEnabled !== undefined ? { defaultEnabled: meta.defaultEnabled } : {}),
+      pluginId,
+      id: pathId,
+      kind,
+    };
     if (kind === 'formatter') instance['formatId'] = pathId;
     if (kind === 'provider' && discoveredKinds) {
       instance['kinds'] = discoveredKinds;
     }
 
-    // `stability` / `defaultEnabled` passed the kind schema's AJV check
-    // above (enum / boolean or absent), so the casts are safe. Stamped as
-    // typed fields so list / show / BFF consumers never shape-check
-    // `instance` for them.
-    const stability = exported['stability'] as TExtensionStability | undefined;
-    const defaultEnabled = exported['defaultEnabled'] as boolean | undefined;
-
     return { ok: true, extension: {
       kind,
       id: pathId,
       pluginId,
-      version: exported['version'] as string,
-      ...(stability !== undefined ? { stability } : {}),
-      ...(defaultEnabled !== undefined ? { defaultEnabled } : {}),
+      version: meta.version,
+      description: meta.description,
+      ...(meta.stability !== undefined ? { stability: meta.stability } : {}),
+      ...(meta.defaultEnabled !== undefined ? { defaultEnabled: meta.defaultEnabled } : {}),
       entryPath: abs,
       module: mod,
       instance,
@@ -694,6 +863,86 @@ export class PluginLoader implements PluginLoaderPort {
  * dedicated mismatch check and a matching value is tolerated.
  */
 const DERIVED_MANIFEST_KEYS: readonly string[] = ['id', 'kind', 'kinds', 'formatId'];
+
+/**
+ * Fields that moved OUT of the module and into `extension.json`.
+ *
+ * Kept separate from `DERIVED_MANIFEST_KEYS` because the remedy differs:
+ * those are derived from the folder layout and simply deleted, these
+ * were relocated and the author has to move them to the sibling file.
+ * The two messages say different things for that reason.
+ *
+ * The kind schemas' `unevaluatedProperties: false` already rejects them
+ * (they are no longer declared in `base.schema.json`); this check exists
+ * to say WHY, and where they went, instead of a bare AJV complaint.
+ */
+const EXTENSION_JSON_KEYS: readonly string[] = [
+  'version',
+  'description',
+  'stability',
+  'defaultEnabled',
+];
+
+/** File name of the per-extension declarative manifest. */
+const EXTENSION_MANIFEST_FILE = 'extension.json';
+
+/**
+ * Derive `kind` + `id` from the entry's relative path. Pure string work
+ * over `<kind-plural>/<id>/index.<ext>`, so it can run before the import
+ * and gate on the qualified id without executing anything.
+ */
+function deriveEntryIdentity(
+  relEntry: string,
+): { ok: true; kind: ExtensionKind; id: string } | { ok: false; reason: string } {
+  const [kindDir, id] = relEntry.split('/');
+  const kind = kindDir && kindDir.endsWith('s')
+    ? (kindDir.slice(0, -1) as ExtensionKind)
+    : undefined;
+  if (!kind || !KNOWN_KINDS.has(kind)) {
+    return {
+      ok: false,
+      reason: tx(PLUGIN_LOADER_TEXTS.loadErrorUnknownKind, {
+        relEntry,
+        kindReceived: String(kindDir ?? '(missing)'),
+        knownKindsList: KNOWN_KINDS_LIST,
+      }),
+    };
+  }
+  if (!id) {
+    return {
+      ok: false,
+      reason: tx(PLUGIN_LOADER_TEXTS.loadErrorMissingKind, {
+        relEntry,
+        knownKindsList: KNOWN_KINDS_LIST,
+      }),
+    };
+  }
+  return { ok: true, kind, id };
+}
+
+/**
+ * Build the record for an extension that exists but was not imported.
+ * Spreads the optional fields only when declared, so the row never
+ * invents a `stability` the author did not write.
+ */
+function unloadedRow(
+  meta: IExtensionJsonMeta,
+  identity: {
+    kind: ExtensionKind;
+    id: string;
+    pluginId: string;
+    entryPath: string;
+    reason: TUnloadedReason;
+  },
+): IUnloadedExtension {
+  return {
+    ...identity,
+    version: meta.version,
+    description: meta.description,
+    ...(meta.stability !== undefined ? { stability: meta.stability } : {}),
+    ...(meta.defaultEnabled !== undefined ? { defaultEnabled: meta.defaultEnabled } : {}),
+  };
+}
 
 /**
  * Plural directory name for each extension kind. The path

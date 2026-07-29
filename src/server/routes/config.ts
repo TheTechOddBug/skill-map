@@ -146,7 +146,7 @@ function collectSecretSettingPaths(deps: IRouteDeps): Set<string> {
   const paths = new Set<string>();
   const buckets = [
     ...Object.values(builtIns()).flat(),
-    ...Object.values(deps.pluginRuntime.extensions).flat(),
+    ...Object.values(deps.pluginRuntimeHolder.current.extensions).flat(),
   ] as ReadonlyArray<{
     pluginId: string;
     id: string;

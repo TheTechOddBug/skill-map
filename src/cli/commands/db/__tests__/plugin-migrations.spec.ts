@@ -156,8 +156,6 @@ function plantPlugin(fixture: string, opts: IPlantPluginOpts): void {
     // `extractors/extension/index.mjs`.
     'extractor/extension.mjs': `
       export default {
-        version: '1.0.0',
-        description: 'test',
         extract() {},
       };
     `,
@@ -169,6 +167,14 @@ function plantPlugin(fixture: string, opts: IPlantPluginOpts): void {
     const placed = keyMatch ? `${keyMatch[1]}s/${keyMatch[2]}/index.${keyMatch[3]}` : rel;
     const target = join(dir, placed);
     mkdirSync(join(target, '..'), { recursive: true });
+    // Every extension of an on-disk plugin ships `extension.json`; the
+    // loader reads it before deciding whether to import.
+    if (keyMatch) {
+      writeFileSync(
+        join(target, '..', 'extension.json'),
+        JSON.stringify({ version: '0.1.0', description: 'fixture extension' }),
+      );
+    }
     writeFileSync(target, content);
   }
 

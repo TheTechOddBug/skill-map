@@ -4,7 +4,6 @@
   "title": "ExtensionAction",
   "description": "Manifest shape for an `Action` extension. An action operates on one or more nodes in one of two modes: `deterministic` (code runs in-process, returns a report JSON directly) or `probabilistic` (kernel renders a prompt, a runner executes it against an LLM, the callback closes the job). **Structure-as-truth files**: every Action carries `<action-dir>/report.schema.json` (the JSON Schema for the report, MUST extend `report-base.schema.json`); probabilistic Actions additionally carry `<action-dir>/prompt.md` (the prompt template). An Action whose report schema extends the canonical node-summary schema (under `summaries/`, via `$ref`; today the single universal `summaries/markdown.schema.json`) is a summarizer: recording a `completed` job for it also upserts the validated report into `state_summaries` (see `job-lifecycle.md` §Record). The summarizer signal is the report schema itself; there is no manifest flag. The kernel resolves both by convention; missing or mis-placed files surface as `load-error`. A deterministic Action with a `prompt.md` in its folder is also `load-error` (config inconsistent). **`prob*` prefix convention**: manifest fields that only apply when `mode=probabilistic` start with `prob`; if a deterministic-only field ever appears, it starts with `det`.",
   "type": "object",
-  "required": ["version", "description"],
   "unevaluatedProperties": false,
   "properties": {
     "mode": {

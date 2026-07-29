@@ -88,11 +88,10 @@ function dropSecretPlugin(scope: IScope, pluginId: string, extId: string): void 
   );
   const extDir = join(pluginDir, 'extractors', extId);
   mkdirSync(extDir, { recursive: true });
+  writeFileSync(join(extDir, 'extension.json'), JSON.stringify({ version: '0.1.0', description: 'fixture extension' }));
   writeFileSync(
     join(extDir, 'index.js'),
     `export default {
-       version: '0.1.0',
-       description: 'mock extractor with a secret setting',
        settings: {
          'api-token': { type: 'secret', label: 'API token' },
          'base-url': { type: 'single-string', label: 'Base URL', default: 'https://api.example.com' },

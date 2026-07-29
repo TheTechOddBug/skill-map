@@ -91,8 +91,17 @@ function writePlugin(
   mkdirSync(pluginDir, { recursive: true });
   writeFileSync(join(pluginDir, 'plugin.json'), JSON.stringify(manifest));
   for (const [relPath, contents] of Object.entries(files)) {
-    const target = join(pluginDir, placeExtension(relPath));
+    const placed = placeExtension(relPath);
+    const target = join(pluginDir, placed);
     mkdirSync(join(target, '..'), { recursive: true });
+    // Every extension of an on-disk plugin ships `extension.json`; the
+    // loader reads it before deciding whether to import.
+    if (placed !== relPath) {
+      writeFileSync(
+        join(target, '..', 'extension.json'),
+        JSON.stringify({ version: '0.1.0', description: 'fixture extension' }),
+      );
+    }
     writeFileSync(target, contents);
   }
   return pluginDir;
@@ -257,8 +266,6 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
   // Helper to write a minimal extension that satisfies the loader.
   const minimalExtractorSrc = `
     export default {
-      version: '1.0.0',
-      description: 'test',
       scope: 'body',
       extract() {},
     };

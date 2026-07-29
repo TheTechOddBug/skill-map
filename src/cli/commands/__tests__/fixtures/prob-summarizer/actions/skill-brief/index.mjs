@@ -9,9 +9,6 @@
  * history-only.
  */
 export default {
-  version: '1.0.0',
-  description:
-    'Test-only probabilistic summarizer whose report schema extends the canonical summaries/markdown node-summary schema (drives the plugin-path summary write-through tests).',
   mode: 'probabilistic',
   probExpectedDurationSeconds: 120,
   precondition: { kind: ['claude/skill'] },

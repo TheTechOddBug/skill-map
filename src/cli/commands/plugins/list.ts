@@ -182,7 +182,7 @@ function renderIndexHuman(
 ): string {
   const rows: IIndexRow[] = [
     ...builtIns.map(builtInToIndexRow),
-    ...plugins.map((p) => pluginToIndexRow(p, resolveEnabled)),
+    ...plugins.map((p) => pluginToIndexRow(p)),
   ];
 
   const idWidth = Math.max(...rows.map((r) => r.id.length));
@@ -219,10 +219,7 @@ function builtInToIndexRow(b: IBuiltInPluginRow): IIndexRow {
   };
 }
 
-function pluginToIndexRow(
-  p: IDiscoveredPlugin,
-  resolveEnabled: TEnabledResolver,
-): IIndexRow {
+function pluginToIndexRow(p: IDiscoveredPlugin): IIndexRow {
   // Every field that originates from the plugin manifest (`id`, `reason`)
   // is user-controlled and runs through `sanitizeForTerminal` before it
   // lands in the rendered output.
@@ -230,13 +227,15 @@ function pluginToIndexRow(
   // Plugin aggregate: failure rows are off; loaded rows aggregate the
   // per-extension toggle state (at least one child enabled → ✓, every
   // child disabled → ✕), mirroring the BFF projection.
+  //
+  // Membership in `extensions` now IS the enabled state: the loader
+  // skips the import of a disabled extension and files it under
+  // `unloadedExtensions`, so there is nothing left to re-resolve here.
   const isLoaded = p.status === 'enabled';
-  const extensions = p.extensions ?? [];
-  const extEnabled = (e: { id: string; stability?: TExtensionStability; defaultEnabled?: boolean }): boolean =>
-    resolveEnabled(qualifiedExtensionId(p.id, e.id), installedDefaultEnabled(e.stability, e.defaultEnabled));
-  const enabled = isLoaded
-    ? extensions.length === 0 || extensions.some((e) => extEnabled(e))
-    : false;
+  const loaded = p.extensions ?? [];
+  const unloaded = p.unloadedExtensions ?? [];
+  const inventory = loaded.length + unloaded.length;
+  const enabled = isLoaded && (inventory === 0 || loaded.length > 0);
   const reason =
     p.status === 'enabled'
       ? undefined
@@ -245,7 +244,9 @@ function pluginToIndexRow(
     id: sanitizeForTerminal(p.id),
     enabled,
     source: PLUGINS_TEXTS.sourceUser,
-    extCount: extensions.length,
+    // The DECLARED inventory, so an untrusted or fully-disabled plugin
+    // reports what it ships instead of a bare `0 ext`.
+    extCount: inventory,
     reason,
   };
 }
@@ -409,23 +410,32 @@ function collectPluginExtensionItems(
   match: IDiscoveredPlugin,
   ansi: IAnsi,
 ): IExtensionListItem[] {
-  const enabled = match.status === 'enabled';
-  if (!enabled || !match.extensions) return [];
   const safePluginId = sanitizeForTerminal(match.id);
-  const sorted = sortExtensionsCanonical(match.extensions);
-  return sorted.map((ext) => {
-    const safeExtId = sanitizeForTerminal(ext.id);
-    return {
-      // User plugins surfaced via `loadAll` already filter on the
-      // resolver, so a reachable extension on this surface is enabled
-      // by construction. The disabled path goes through the plugin
-      // status header above (✕ on the row).
-      glyph: ansi.green(PLUGINS_TEXTS.rowGlyphOk),
+  const loaded = sortExtensionsCanonical(match.extensions ?? []).map((ext) => ({
+    // Reaching `extensions` at all means the loader imported it, which
+    // it only does for a trusted, enabled extension. So the green glyph
+    // is true by construction rather than by a second resolve.
+    glyph: ansi.green(PLUGINS_TEXTS.rowGlyphOk),
+    kind: sanitizeForTerminal(ext.kind),
+    name: withStabilityTag(`${safePluginId}/${sanitizeForTerminal(ext.id)}`, ext.stability),
+    version: sanitizeForTerminal(ext.version),
+  }));
+
+  // Declared but not imported. Listing these is the point of reading
+  // `extension.json` from disk: an operator reviewing a plugin they have
+  // not trusted yet still sees what it ships, and one who disabled a
+  // single extension still sees it (off) instead of watching it vanish.
+  const unloaded = (match.unloadedExtensions ?? [])
+    .slice()
+    .sort((a, b) => a.kind.localeCompare(b.kind) || a.id.localeCompare(b.id))
+    .map((ext) => ({
+      glyph: ansi.red(PLUGINS_TEXTS.rowGlyphOff),
       kind: sanitizeForTerminal(ext.kind),
-      name: withStabilityTag(`${safePluginId}/${safeExtId}`, ext.stability),
+      name: withStabilityTag(`${safePluginId}/${sanitizeForTerminal(ext.id)}`, ext.stability),
       version: sanitizeForTerminal(ext.version),
-    };
-  });
+    }));
+
+  return [...loaded, ...unloaded];
 }
 
 /**

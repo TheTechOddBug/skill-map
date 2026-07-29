@@ -34,6 +34,35 @@ import { pluginPackageJson } from './scaffold/index.js';
 /** Per-plugin outcome of the `package.json` structural backfill. */
 type TBackfillOutcome = 'created' | 'added-type' | 'ok' | 'foreign-type';
 
+/** Plural directory name per extension kind, the discovery convention. */
+const KIND_DIRS: readonly string[] = [
+  'providers',
+  'extractors',
+  'analyzers',
+  'actions',
+  'formatters',
+  'hooks',
+];
+
+/** Entry file names checked inside each `<kind>s/<name>/`, priority order. */
+const INDEX_FILES: readonly string[] = ['index.js', 'index.mjs', 'index.ts'];
+
+/** Fields that moved from the module into `extension.json`. */
+const MOVED_FIELDS: readonly string[] = ['version', 'description', 'stability', 'defaultEnabled'];
+
+/** Per-extension outcome of the `extension.json` migration. */
+type TExtOutcome = 'ext-created' | 'ext-partial' | 'ext-ok' | 'ext-stale-module';
+
+interface IExtEntry {
+  /** `<plugin>/<kind>s/<name>`, relative, for the operator to locate it. */
+  where: string;
+  outcome: TExtOutcome;
+  /** For `ext-stale-module`: the field names still declared in the module. */
+  staleFields: string[];
+  /** The entry file that carries them, so the message names a real file. */
+  indexFile: string;
+}
+
 interface IBackfillEntry {
   id: string;
   outcome: TBackfillOutcome;
@@ -44,6 +73,144 @@ interface IBackfillResult {
   /** Set when an explicit `<plugin-id>` matched no discovered plugin dir. */
   notFound: string | null;
 }
+
+/**
+ * Read one field's literal out of an extension module's SOURCE TEXT.
+ *
+ * Deliberately lexical, never a dynamic `import()`. Importing here would
+ * execute exactly the code the enable / trust gates exist to hold back,
+ * in the worst possible moment: an operator running `sm plugins upgrade`
+ * on a freshly cloned repo, before trusting anything. A migration verb
+ * that bypasses the security boundary it is migrating toward is not a
+ * migration, it is the hole.
+ *
+ * Handles both authoring forms the scaffolder and every in-repo fixture
+ * use: the value on the same line as the key, and the value on the next
+ * line (prettier's wrap for long descriptions). Anything it cannot read
+ * is reported so the author fills it in, rather than guessed at.
+ *
+ * Precedent: `scripts/generate-built-ins.js` already scrapes `mode` and
+ * `stability` out of TypeScript source with regexes, for the same reason
+ * (it runs before the TS build and cannot import the module).
+ */
+function readFieldFromSource(source: string, field: string): string | boolean | null {
+  const quoted = new RegExp(`^[ \\t]*${field}:[ \\t]*(['"])(.*?)\\1`, 'm');
+  const sameLine = quoted.exec(source);
+  if (sameLine) return sameLine[2] ?? null;
+  const wrapped = new RegExp(`^[ \\t]*${field}:[ \\t]*\\n[ \\t]*(['"])(.*?)\\1`, 'm');
+  const nextLine = wrapped.exec(source);
+  if (nextLine) return nextLine[2] ?? null;
+  const bool = new RegExp(`^[ \\t]*${field}:[ \\t]*(true|false)`, 'm').exec(source);
+  if (bool) return bool[1] === 'true';
+  return null;
+}
+
+/** Does the module source still declare any of the relocated fields? */
+function staleFieldsIn(source: string): string[] {
+  return MOVED_FIELDS.filter((f) => new RegExp(`^[ \\t]*${f}[ \\t]*:`, 'm').test(source));
+}
+
+/**
+ * Write a missing `extension.json` for every extension of every
+ * discovered plugin, seeding it from the module's source text.
+ *
+ * This verb deliberately does NOT rewrite the module to delete the
+ * relocated fields. Editing someone's JavaScript with regexes is how a
+ * migration corrupts a plugin; the author deletes four lines instead,
+ * and the renderer prints exactly which ones. Until they do, the plugin
+ * stays `invalid-manifest`, which is the honest state.
+ */
+function migrateExtensionManifests(pluginsDir: string, onlyId?: string): IExtEntry[] {
+  const out: IExtEntry[] = [];
+  for (const pluginId of listDirSorted(pluginsDir)) {
+    if (onlyId !== undefined && pluginId !== onlyId) continue;
+    const pluginDir = join(pluginsDir, pluginId);
+    if (!existsSync(join(pluginDir, 'plugin.json'))) continue;
+    for (const { dir, where } of extensionDirsOf(pluginDir, pluginId)) {
+      const entry = migrateOneExtension(dir, where);
+      if (entry !== null) out.push(entry);
+    }
+  }
+  return out;
+}
+
+/** Sorted directory listing, empty for anything absent or unreadable. */
+function listDirSorted(path: string): string[] {
+  if (!existsSync(path)) return [];
+  try {
+    return readdirSync(path).sort();
+  } catch {
+    return [];
+  }
+}
+
+/** Every `<kind>s/<name>/` directory of one plugin, in discovery order. */
+function extensionDirsOf(
+  pluginDir: string,
+  pluginId: string,
+): Array<{ dir: string; where: string }> {
+  const out: Array<{ dir: string; where: string }> = [];
+  for (const kindDir of KIND_DIRS) {
+    const kindPath = join(pluginDir, kindDir);
+    for (const name of listDirSorted(kindPath)) {
+      out.push({ dir: join(kindPath, name), where: `${pluginId}/${kindDir}/${name}` });
+    }
+  }
+  return out;
+}
+
+/** `null` when the directory holds no extension entry file at all. */
+function migrateOneExtension(extDir: string, where: string): IExtEntry | null {
+  const indexFile = INDEX_FILES.find((f) => existsSync(join(extDir, f)));
+  if (indexFile === undefined) return null;
+  let source: string;
+  try {
+    source = readFileSync(join(extDir, indexFile), 'utf8');
+  } catch {
+    return null;
+  }
+  const stale = staleFieldsIn(source);
+  const metaPath = join(extDir, 'extension.json');
+
+  if (existsSync(metaPath)) {
+    // Already migrated. The only thing left to report is a module that
+    // never had its relocated fields deleted, which still fails to load.
+    const outcome: TExtOutcome = stale.length > 0 ? 'ext-stale-module' : 'ext-ok';
+    return { where, outcome, staleFields: stale, indexFile };
+  }
+
+  const { meta, complete } = seedExtensionMeta(source);
+  writeFileSync(metaPath, JSON.stringify(meta, null, 2) + '\n');
+  return {
+    where,
+    outcome: complete ? 'ext-created' : 'ext-partial',
+    staleFields: stale,
+    indexFile,
+  };
+}
+
+/**
+ * Build the `extension.json` body from a module's source text.
+ * `complete` is false when either required field had to fall back to a
+ * placeholder, which the caller surfaces as a warning rather than
+ * pretending the migration finished.
+ */
+function seedExtensionMeta(source: string): { meta: Record<string, unknown>; complete: boolean } {
+  const version = readFieldFromSource(source, 'version');
+  const description = readFieldFromSource(source, 'description');
+  const stability = readFieldFromSource(source, 'stability');
+  const defaultEnabled = readFieldFromSource(source, 'defaultEnabled');
+  const meta: Record<string, unknown> = {
+    version: typeof version === 'string' ? version : TODO_VALUE,
+    description: typeof description === 'string' ? description : TODO_VALUE,
+  };
+  if (typeof stability === 'string') meta['stability'] = stability;
+  if (typeof defaultEnabled === 'boolean') meta['defaultEnabled'] = defaultEnabled;
+  return { meta, complete: typeof version === 'string' && typeof description === 'string' };
+}
+
+/** Placeholder for a field the source did not yield; the author fills it. */
+const TODO_VALUE = 'TODO';
 
 export class PluginsUpgradeCommand extends SmCommand {
   static override paths = [['plugins', 'upgrade']];
@@ -61,6 +228,9 @@ export class PluginsUpgradeCommand extends SmCommand {
     const pluginsDir = defaultProjectPluginsDir(ctx);
     const result = backfillPluginPackageJson(pluginsDir, this.pluginId);
     this.renderBackfill(result);
+    if (result.notFound === null) {
+      this.renderExtensionMigration(migrateExtensionManifests(pluginsDir, this.pluginId));
+    }
     const ansi = this.ansiFor('stdout');
     this.printer!.data(
       tx(PLUGINS_TEXTS.upgradeNoMigrations, {
@@ -113,6 +283,46 @@ export class PluginsUpgradeCommand extends SmCommand {
         case 'ok':
           // Already current; stay quiet so the output highlights only changes.
           break;
+      }
+    }
+  }
+
+  /**
+   * Report the `extension.json` migration. Silent when every extension
+   * was already current, so the verb's output stays a list of changes
+   * rather than an inventory.
+   */
+  private renderExtensionMigration(entries: readonly IExtEntry[]): void {
+    const notable = entries.filter((e) => e.outcome !== 'ext-ok' || e.staleFields.length > 0);
+    if (notable.length === 0) return;
+    this.printer!.data(PLUGINS_TEXTS.upgradeExtHeader);
+    for (const entry of notable) {
+      // `where` is composed from directory names read off disk, so it
+      // sanitizes before interpolation (context/kernel.md §CLI output
+      // sanitization, filesystem entries).
+      const where = sanitizeForTerminal(entry.where);
+      const stdout = this.ansiFor('stdout');
+      if (entry.outcome === 'ext-created') {
+        this.printer!.data(tx(PLUGINS_TEXTS.upgradeExtCreated, { glyph: stdout.green('✓'), where }));
+      } else if (entry.outcome === 'ext-partial') {
+        this.printer!.warn(
+          tx(PLUGINS_TEXTS.upgradeExtPartial, {
+            glyph: this.ansiFor('stderr').yellow('⚠'),
+            where,
+          }),
+        );
+      }
+      // A stale module is reported even when the file was just written,
+      // because writing the file is only half the migration.
+      if (entry.staleFields.length > 0) {
+        this.printer!.warn(
+          tx(PLUGINS_TEXTS.upgradeExtStaleModule, {
+            glyph: this.ansiFor('stderr').yellow('⚠'),
+            where,
+            fields: entry.staleFields.map((f) => `\`${f}\``).join(', '),
+            indexFile: sanitizeForTerminal(entry.indexFile),
+          }),
+        );
       }
     }
   }

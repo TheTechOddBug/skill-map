@@ -145,6 +145,35 @@ export const PLUGIN_LOADER_TEXTS = {
     'and not a manifest field. Remove it: id is the leaf folder, kind the parent folder, provider kinds the ' +
     '`kinds/` catalog, formatter formatId the formatter folder name.',
 
+  /**
+   * The three ways `extension.json` can fail, plus the "you left it in
+   * the module" case. All four are `invalid-manifest`, not `load-error`:
+   * no import is involved, and `load-error` is reserved for a module
+   * that failed to import.
+   *
+   * Every message names the file, because the whole point of the file is
+   * that an author who has never seen it must be able to act on the
+   * error without reading the spec.
+   */
+  invalidManifestExtensionJsonMissing:
+    '{{relEntry}}: missing `extension.json` in its folder. Every extension of an on-disk plugin ships one ' +
+    'next to its entry file, carrying `version` and `description` (plus optional `stability` / ' +
+    '`defaultEnabled`). The loader reads it BEFORE importing your code, which is how a disabled extension ' +
+    'stays unexecuted. Run `sm plugins upgrade` to generate it from your current module. See ' +
+    `${SPEC_GITHUB_BASE}/spec/schemas/extensions/extension-manifest.schema.json.`,
+
+  invalidManifestExtensionJsonParse:
+    '{{relEntry}}: `extension.json` is not readable as JSON ({{errDescription}}).',
+
+  invalidManifestExtensionJsonInvalid:
+    '{{relEntry}}: `extension.json` failed validation: {{errors}}. See ' +
+    `${SPEC_GITHUB_BASE}/spec/schemas/extensions/extension-manifest.schema.json.`,
+
+  invalidManifestExtensionJsonFieldInModule:
+    '{{relEntry}}: the extension module declares {{fields}}, which now live in `extension.json` beside it. ' +
+    'Delete them from the module. They moved because the loader has to know whether an extension is enabled ' +
+    'BEFORE importing it, and it cannot read a field out of a module without running that module first.',
+
   loadErrorStorageSchemaRead:
     "plugin '{{pluginId}}' failed to load schema for table '{{table}}': {{schemaPath}}: {{errDescription}}",
 

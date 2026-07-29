@@ -46,8 +46,6 @@ function stub(pluginId: string, extId: string): string {
  * See: spec/plugin-author-guide.md, spec/schemas/extensions/provider.schema.json
  */
 export default {
-  version: '0.1.0',
-  description: 'Skeleton provider; classify() returns null until a kind is added.',
 
   presentation: {
     label: '${label}',

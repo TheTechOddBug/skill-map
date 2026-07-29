@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, describe, it } from 'node:test';
 
 import { EXTENSION_KINDS } from '../../../kernel/registry.js';
+import { installedSpecVersion } from '../../../kernel/adapters/plugin-loader.js';
 import { withSqlite } from '../../../core/sqlite/with-sqlite.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -336,5 +337,133 @@ describe('sm plugins upgrade, package.json backfill', () => {
     scaffold(scope, 'demo-present');
     const r = sm(['plugins', 'upgrade', 'not-a-plugin'], scope);
     assert.notEqual(r.status, 0);
+  });
+});
+
+/**
+ * `sm plugins upgrade` also migrates a pre-`extension.json` plugin: the
+ * four declarative fields moved out of the module so the loader can
+ * resolve enable + trust before importing, and an existing plugin needs
+ * them lifted onto disk.
+ *
+ * The migration reads the module as TEXT and never imports it. That is
+ * the whole point: importing here would execute exactly the code the
+ * gates exist to hold back, in the worst moment (a freshly cloned repo,
+ * before anything is trusted). These tests pin that, plus the two
+ * authoring forms real plugins use, and the deliberate refusal to
+ * rewrite the author's JavaScript.
+ */
+describe('sm plugins upgrade, extension.json migration', () => {
+  /** A plugin whose extension predates `extension.json`. */
+  function legacyPlugin(scope: IScope, id: string, extSource: string): string {
+    assert.equal(sm(['init', '--no-scan'], scope).status, 0);
+    const extDir = join(scope.cwd, '.skill-map', 'plugins', id, 'extractors', 'legacy-ext');
+    mkdirSync(extDir, { recursive: true });
+    writeFileSync(
+      join(scope.cwd, '.skill-map', 'plugins', id, 'plugin.json'),
+      JSON.stringify({
+        version: '2.1.0',
+        description: 'pre-migration plugin',
+        specCompat: `^${installedSpecVersion()}`,
+        catalogCompat: '*',
+      }),
+    );
+    writeFileSync(join(extDir, 'index.js'), extSource);
+    return extDir;
+  }
+
+  function readMeta(extDir: string): Record<string, unknown> {
+    return JSON.parse(readFileSync(join(extDir, 'extension.json'), 'utf8'));
+  }
+
+  it('lifts version + description off the module source', () => {
+    const scope = freshScope('mig-simple');
+    const extDir = legacyPlugin(
+      scope,
+      'legacy-simple',
+      ["export default {", "  version: '3.4.5',", "  description: 'Lifted.',", '  extract() {},', '};'].join('\n'),
+    );
+    assert.equal(sm(['plugins', 'upgrade', 'legacy-simple'], scope).status, 0);
+    assert.deepEqual(readMeta(extDir), { version: '3.4.5', description: 'Lifted.' });
+  });
+
+  it('handles the wrapped form and carries stability + defaultEnabled', () => {
+    // Prettier wraps a long description onto its own line; that is the
+    // second form every real plugin in this repo uses, so the extractor
+    // has to read both or the migration silently writes TODO.
+    const scope = freshScope('mig-wrapped');
+    const extDir = legacyPlugin(
+      scope,
+      'legacy-wrapped',
+      [
+        'export default {',
+        "  version: '1.2.3',",
+        '  description:',
+        "    'A description long enough that a formatter moved it to the next line.',",
+        "  stability: 'experimental',",
+        '  defaultEnabled: false,',
+        '  extract() {},',
+        '};',
+      ].join('\n'),
+    );
+    assert.equal(sm(['plugins', 'upgrade', 'legacy-wrapped'], scope).status, 0);
+    assert.deepEqual(readMeta(extDir), {
+      version: '1.2.3',
+      description: 'A description long enough that a formatter moved it to the next line.',
+      stability: 'experimental',
+      defaultEnabled: false,
+    });
+  });
+
+  it('writes TODO placeholders rather than guessing an unreadable field', () => {
+    const scope = freshScope('mig-partial');
+    const extDir = legacyPlugin(
+      scope,
+      'legacy-partial',
+      ['export default {', "  version: '1.0.0',", '  extract() {},', '};'].join('\n'),
+    );
+    const r = sm(['plugins', 'upgrade', 'legacy-partial'], scope);
+    assert.equal(r.status, 0);
+    assert.equal(readMeta(extDir)['description'], 'TODO');
+    assert.match(r.stderr, /TODO placeholders/);
+  });
+
+  it('names the exact lines to delete and never edits the module itself', () => {
+    const scope = freshScope('mig-stale');
+    const source = [
+      'export default {',
+      "  version: '1.0.0',",
+      "  description: 'Still in the module.',",
+      '  extract() {},',
+      '};',
+    ].join('\n');
+    const extDir = legacyPlugin(scope, 'legacy-stale', source);
+    const r = sm(['plugins', 'upgrade', 'legacy-stale'], scope);
+    assert.equal(r.status, 0);
+    assert.match(r.stderr, /delete `version`, `description`/);
+    assert.match(r.stderr, /index\.js/);
+    // Rewriting someone's JavaScript with regexes is how a migration
+    // corrupts a plugin; the author deletes the lines.
+    assert.equal(readFileSync(join(extDir, 'index.js'), 'utf8'), source);
+  });
+
+  it('is idempotent and silent once the author finished the migration', () => {
+    const scope = freshScope('mig-idempotent');
+    const extDir = legacyPlugin(
+      scope,
+      'legacy-done',
+      ["export default {", "  version: '1.0.0',", "  description: 'x',", '  extract() {},', '};'].join('\n'),
+    );
+    assert.equal(sm(['plugins', 'upgrade', 'legacy-done'], scope).status, 0);
+    // The author deletes the two lines the first run named.
+    writeFileSync(join(extDir, 'index.js'), 'export default {\n  extract() {},\n};\n');
+    const second = sm(['plugins', 'upgrade', 'legacy-done'], scope);
+    assert.equal(second.status, 0);
+    assert.doesNotMatch(second.stdout, /Extension manifests/);
+    assert.doesNotMatch(second.stderr, /delete/);
+    // And the plugin now loads.
+    assert.equal(sm(['plugins', 'trust', 'legacy-done'], scope).status, 0);
+    const detail = sm(['plugins', 'list', 'legacy-done', '--json'], scope);
+    assert.equal(JSON.parse(detail.stdout).status, 'enabled');
   });
 });

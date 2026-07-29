@@ -10,9 +10,6 @@
  * satisfies the structure-as-truth loader check.
  */
 export default {
-  version: '1.0.0',
-  description:
-    'Test-only probabilistic action that wraps the node body in a one-line summary prompt.',
   mode: 'probabilistic',
   probExpectedDurationSeconds: 120,
   precondition: { kind: ['claude/skill'] },

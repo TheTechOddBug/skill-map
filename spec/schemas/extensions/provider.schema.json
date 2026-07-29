@@ -10,8 +10,6 @@
   ],
   "type": "object",
   "required": [
-    "version",
-    "description",
     "presentation"
   ],
   "unevaluatedProperties": false,

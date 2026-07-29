@@ -53,11 +53,10 @@ function plantExtractor(pluginsDir: string, id: string): void {
   );
   const extDir = join(dir, 'extractors', `${id}-d`);
   mkdirSync(extDir, { recursive: true });
+  writeFileSync(join(extDir, 'extension.json'), JSON.stringify({ version: '0.1.0', description: 'fixture extension' }));
   writeFileSync(
     join(extDir, 'index.mjs'),
     `export default {
-      version: '1.0.0',
-      description: 'test',
       scope: 'body',
       extract() {},
     };`,
@@ -79,11 +78,10 @@ function plantFormatter(pluginsDir: string, id: string, formatId: string): void 
   );
   const fmtDir = join(dir, 'formatters', formatId);
   mkdirSync(fmtDir, { recursive: true });
+  writeFileSync(join(fmtDir, 'extension.json'), JSON.stringify({ version: '0.1.0', description: 'fixture extension' }));
   writeFileSync(
     join(fmtDir, 'index.mjs'),
     `export default {
-      version: '1.0.0',
-      description: 'test',
       format() { return ''; },
     };`,
   );

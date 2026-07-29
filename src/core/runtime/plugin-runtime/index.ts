@@ -58,7 +58,10 @@ import {
   buildResolverInputs,
   defaultResolveEnabled,
 } from './resolver.js';
-import { makeTrustResolver } from '../../../kernel/config/plugin-resolver.js';
+import {
+  makeTrustResolver,
+  type TEnabledResolver,
+} from '../../../kernel/config/plugin-resolver.js';
 import { lockedBuiltInIds } from '../../../plugins/locked-built-ins.js';
 import { bucketLoaded } from './bucketing.js';
 import {
@@ -195,7 +198,11 @@ export async function loadPluginRuntime(
   const searchPaths = resolveSearchPaths(opts, ctx);
   const validators = loadSchemaValidators();
 
-  let resolveEnabled: ((id: string) => boolean) | undefined;
+  // Full `TEnabledResolver`, not the narrower `(id) => boolean`: the
+  // loader now consults it per EXTENSION too, passing that extension's
+  // installed default (from its `extension.json`), and a narrowed local
+  // would silently drop that second argument.
+  let resolveEnabled: TEnabledResolver | undefined;
   let trustMap: Map<string, boolean> | undefined;
   let trustSkipped: readonly ITrustSkip[] = [];
   try {

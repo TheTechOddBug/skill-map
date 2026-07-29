@@ -66,7 +66,11 @@ import { formatErrorMessage } from '../kernel/util/format-error.js';
 import { ConfigService } from '../core/config/service.js';
 import { EConsentRequiredError, ESidecarWritersForbiddenError } from '../core/config/sidecar-consent.js';
 import { DbSchemaDriftError } from '../core/sqlite/db-version-check.js';
-import type { IPluginRuntime } from '../core/runtime/plugin-runtime.js';
+import {
+  emptyPluginRuntime,
+  loadPluginRuntime,
+  type IPluginRuntime,
+} from '../core/runtime/plugin-runtime.js';
 import type { IRuntimeContext } from '../core/runtime/runtime-context.js';
 import { ExportQueryError } from '../kernel/index.js';
 import type { Kernel } from '../kernel/index.js';
@@ -86,7 +90,7 @@ import { registerAnnotationsRoute } from './routes/annotations.js';
 import { registerBranchRoute } from './routes/branch.js';
 import { registerContributionsRoutes } from './routes/contributions.js';
 import { registerConfigRoute } from './routes/config.js';
-import type { IRouteDeps } from './routes/deps.js';
+import type { IPluginRuntimeHolder, IRouteDeps } from './routes/deps.js';
 import { registerFavoritesRoutes } from './routes/favorites.js';
 import { registerFoldersRoute } from './routes/folders.js';
 import { registerGraphRoute } from './routes/graph.js';
@@ -658,6 +662,25 @@ export function createApp(deps: IAppDeps): Hono {
   // 2-9. /api/*, Step 14.2 read-side endpoints. Order matters for
   //      the `/api/nodes/:pathB64` vs `/api/nodes` pair (see
   //      `routes/nodes.ts`, single first, list second).
+  // The plugin runtime is a LIVE view, not a boot-time snapshot.
+  //
+  // It used to be a plain value, and that was fine while the loader
+  // imported every discovered extension and the composer filtered the
+  // disabled ones out afterwards: flipping a toggle changed the filter,
+  // not the set of imported modules, so a config reload was enough.
+  //
+  // Since the loader gates the IMPORT on the enabled axis (an extension
+  // the operator disabled never has its module evaluated), enabling one
+  // mid-session has nothing to re-filter, the instance does not exist.
+  // The runtime has to be rebuilt for it to appear.
+  //
+  // A HOLDER rather than a getter, deliberately: half the routes below
+  // are registered with `{ ...routeDeps, broadcaster }`, and a spread
+  // evaluates a getter once and freezes the result, so a getter would
+  // have gone stale exactly where it mattered. Copying a holder copies
+  // the reference, so every route sees the swap. Same shape as
+  // `watcherHolder`, which solves the same problem for the watcher.
+  const pluginRuntimeHolder: IPluginRuntimeHolder = { current: deps.pluginRuntime };
   const routeDeps: IRouteDeps = {
     options: deps.options,
     runtimeContext: deps.runtimeContext,
@@ -665,7 +688,12 @@ export function createApp(deps: IAppDeps): Hono {
     providerRegistry: deps.providerRegistry,
     providers: deps.providers,
     contributionsRegistry: deps.contributionsRegistry,
-    pluginRuntime: deps.pluginRuntime,
+    pluginRuntimeHolder,
+    reloadPluginRuntime: async (): Promise<void> => {
+      pluginRuntimeHolder.current = deps.options.noPlugins
+        ? emptyPluginRuntime()
+        : await loadPluginRuntime({ runtimeContext: deps.runtimeContext });
+    },
     configService,
     watcherHolder: deps.watcherHolder,
   };

@@ -5,9 +5,6 @@
  * the `action:` / `analyzer:` prefixed forms disambiguate.
  */
 export default {
-  version: '1.0.0',
-  description:
-    'Test-only probabilistic action sharing its extension id with a probabilistic analyzer (drives the kind-prefix disambiguation tests).',
   mode: 'probabilistic',
   probExpectedDurationSeconds: 60,
   precondition: { kind: ['claude/skill'] },

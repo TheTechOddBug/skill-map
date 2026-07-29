@@ -60,6 +60,7 @@ export type TSchemaName =
   | 'extension-action'
   | 'extension-formatter'
   | 'extension-hook'
+  | 'extension-manifest'
   | 'frontmatter-base';
 
 /**
@@ -90,6 +91,7 @@ const SCHEMA_FILES: Record<TSchemaName, string> = {
   'extension-action': 'schemas/extensions/action.schema.json',
   'extension-formatter': 'schemas/extensions/formatter.schema.json',
   'extension-hook': 'schemas/extensions/hook.schema.json',
+  'extension-manifest': 'schemas/extensions/extension-manifest.schema.json',
   'frontmatter-base': 'schemas/frontmatter/base.schema.json',
 };
 

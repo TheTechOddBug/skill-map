@@ -16,8 +16,6 @@
 // phase, the `?.` guard keeps the extension inert if it ever runs
 // elsewhere.
 export default {
-  version: '0.1.0',
-  description: 'score-phase scorer: delta -0.4 then floor 0.5 on every link',
   mode: 'deterministic',
   phase: 'score',
 

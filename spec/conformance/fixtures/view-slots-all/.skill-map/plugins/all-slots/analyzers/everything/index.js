@@ -8,8 +8,6 @@
 // that every catalog slot id is a valid manifest declaration. `evaluate`
 // emits nothing: this case exercises manifest validation, not emission.
 export default {
-  version: '0.1.0',
-  description: 'analyzer declaring a contribution to every one of the 14 view slots',
   mode: 'deterministic',
 
   ui: {

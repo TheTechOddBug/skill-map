@@ -85,11 +85,10 @@ function plantPluginWithViewContributions(
   );
   const extDir = join(dir, 'extractors', `${id}-d`);
   mkdirSync(extDir, { recursive: true });
+  writeFileSync(join(extDir, 'extension.json'), JSON.stringify({ version: '0.1.0', description: 'fixture extension' }));
   writeFileSync(
     join(extDir, 'index.mjs'),
     `export default {
-      version: '1.0.0',
-      description: 'test',
       scope: 'body',
       ui: ${JSON.stringify(ui)},
       extract(ctx) { ${extractBody} },
@@ -231,11 +230,10 @@ describe('view contributions, loadPluginRuntime aggregation', () => {
     );
     const noVcExtDir = join(pdir, 'extractors', 'no-vc-d');
     mkdirSync(noVcExtDir, { recursive: true });
+    writeFileSync(join(noVcExtDir, 'extension.json'), JSON.stringify({ version: '0.1.0', description: 'fixture extension' }));
     writeFileSync(
       join(noVcExtDir, 'index.mjs'),
       `export default {
-        version: '1.0.0',
-        description: 'test',
         scope: 'body',
         extract() {},
       };`,

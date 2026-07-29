@@ -203,11 +203,10 @@ async function writeExternalActivityPlugin(
     join(pluginDir, 'plugin.json'),
     JSON.stringify({ version: '0.1.0', specCompat: '*', catalogCompat: '*', description: 'drop-in activity provider' }),
   );
+  writeFileSync(join(pluginDir, 'providers', id, 'extension.json'), JSON.stringify({ version: '0.1.0', description: 'fixture extension' }));
   writeFileSync(
     join(pluginDir, 'providers', id, 'index.js'),
     `export default {
-       version: '0.1.0',
-       description: 'drop-in provider with an activity adapter',
        presentation: { label: 'Demo Live', color: '#0891b2' },
        gatedByActiveLens: true,
        activity: {

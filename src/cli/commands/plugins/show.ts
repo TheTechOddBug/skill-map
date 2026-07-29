@@ -303,11 +303,12 @@ function renderUserExtensionDetail(
     version: ext.version,
     entry: ext.entryPath,
   };
-  // `stability` is loader-stamped (typed) on `ILoadedExtension`, no
-  // instance shape-check needed. Non-default values only (`stable`,
-  // declared or defaulted, renders no row).
+  // `stability` and `description` are loader-stamped (typed) on
+  // `ILoadedExtension`, read straight from `extension.json`, so no
+  // instance shape-check is needed for either. Non-default stability
+  // only (`stable`, declared or defaulted, renders no row).
   if (ext.stability && ext.stability !== 'stable') input.stability = ext.stability;
-  if (meta.description !== undefined) input.description = meta.description;
+  input.description = ext.description;
   if (meta.preconditions !== undefined) input.preconditions = meta.preconditions;
   return header + '\n' + renderExtensionFields(input);
 }

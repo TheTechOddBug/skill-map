@@ -156,8 +156,6 @@ Use case, a deterministic frontmatter-tag extractor that only makes sense for sk
 
 ```javascript
 export default {
-  version: '1.0.0',
-  description: 'Lifts the `tags:` frontmatter array into `references` links for skill nodes.',
   scope: 'frontmatter',
   precondition: { kind: ['claude/skill'] },
   extract(ctx) {
@@ -200,9 +198,15 @@ Required fields (normative shape in [`schemas/plugins-registry.schema.json#/$def
 
 Optional fields: `storage` (`{ mode: 'kv' }` or `{ mode: 'dedicated', tables, migrations }`), `author`, `license` (SPDX), `homepage`, `repository`.
 
-**Structure-as-truth.** The plugin id is the directory name, NOT a manifest field; a manifest carrying `id` is rejected. The manifest does NOT list extensions, the kernel discovers each by walking `<plugin-dir>/<kind>s/<name>/index.{js,mjs,ts}`. A Provider's kind catalog lives on disk at `<plugin>/kinds/<kindName>/{schema.json, kind.json}` (see [Providers](#providers)).
+**Structure-as-truth.** The plugin id is the directory name, NOT a manifest field; a manifest carrying `id` is rejected. The plugin manifest does NOT list extensions, the kernel discovers each by walking `<plugin-dir>/<kind>s/<name>/index.{js,mjs,ts}`. A Provider's kind catalog lives on disk at `<plugin>/kinds/<kindName>/{schema.json, kind.json}` (see [Providers](#providers)).
 
-**Files by convention.** Siblings of `index.{js,mjs,ts}` that the kernel does not recognise as an entry point are author files. Two names are blessed: **`text.ts`** holds the extension's externalised user-facing strings (one per extension, imported by `index.ts` as `./text.js`; plain TS, no schema, no codegen), and **`<extension-name>.test.ts`** (or `.test.mjs` / `.test.js`) is the colocated test suite, picked up by the workspace test glob (`plugins/**/*.test.ts`). Both optional. The kernel ignores everything that is not `index.{js,mjs,ts}`, so future per-extension fixtures or schemas live in the same folder without manifest plumbing.
+**Every extension ships an `extension.json`.** Sibling of its `index.{js,mjs,ts}`, at `<plugin>/<kind>s/<name>/extension.json`, carrying `version` and `description` (required) plus the optional `stability` and `defaultEnabled`. Normative shape in [`schemas/extensions/extension-manifest.schema.json`](./schemas/extensions/extension-manifest.schema.json). A missing, unparseable or invalid file rejects the plugin as `invalid-manifest`; `sm plugins upgrade [<id>]` generates it for a plugin authored before this existed.
+
+These four fields live on disk rather than in the module because **the kernel decides whether your extension may run before it runs anything**. Whether an extension is enabled depends on `stability` / `defaultEnabled`, so reading them out of the module would mean executing the module to learn whether executing it was allowed. An extension the operator disabled, or one shipping `stability: 'experimental'` that nobody opted into, never has its module body evaluated at all. Declaring any of the four in the module is `invalid-manifest`, exactly like declaring `id` or `kind`.
+
+A practical consequence for authors: **each extension entry must be independently importable.** Skipping a disabled extension skips only its own entry module, so an extension that relied on side effects from a sibling's top-level code will break. Shared setup belongs in a module both import, not in one entry point.
+
+**Files by convention.** Siblings of `index.{js,mjs,ts}` that the kernel does not recognise as an entry point are author files. Two names are blessed: **`text.ts`** holds the extension's externalised user-facing strings (one per extension, imported by `index.ts` as `./text.js`; plain TS, no schema, no codegen), and **`<extension-name>.test.ts`** (or `.test.mjs` / `.test.js`) is the colocated test suite, picked up by the workspace test glob (`plugins/**/*.test.ts`). Both optional. Beyond `extension.json` and the per-kind convention files (`report.schema.json`, `prompt.md`), the kernel ignores everything that is not `index.{js,mjs,ts}`, so further per-extension fixtures live in the same folder without manifest plumbing.
 
 **Module type (`package.json`).** A plugin whose extensions are `.js` files written as ES modules (`export default …`, `import`) MUST ship a `package.json` at its ROOT (sibling of `plugin.json`) declaring `{ "type": "module" }`, so Node treats those `.js` files as ESM regardless of the host project's own module type. Without it, `import()`-ing an extension emits Node's `MODULE_TYPELESS_PACKAGE_JSON` warning and reparses on every load (a perf cost). `sm plugins create` emits this file automatically (`{ "private": true, "type": "module" }`, minimal by design, the plugin's identity lives in `plugin.json`); `sm plugins upgrade [<id>]` backfills it on plugins scaffolded before this was emitted (and adds a missing `type` to an existing `package.json` without clobbering a non-module one). Authors using `.mjs` extensions do not need it (`.mjs` is always ESM); a `.ts` source is compiled by the author's own toolchain before it ships.
 
@@ -225,9 +229,13 @@ The kernel knows six categories. Each has a JSON Schema under [`schemas/extensio
 | `formatter` | `format(ctx)` | full graph | `string` | deterministic only |
 | `hook` | `on(ctx)` | a curated lifecycle event payload | `void` (side effects) | **deterministic only** |
 
-The runtime instance you `export default` includes both the manifest fields (`version`, `description`, plus kind-specific metadata) AND the runtime method. The kernel strips function-typed properties before AJV-validating the manifest, so the method lives beside metadata.
+An extension is TWO files. The declarative half is `extension.json` (`version`, `description`, optional `stability` / `defaultEnabled`), read from disk before anything runs. The behavioural half is the runtime instance you `export default`, carrying the kind-specific metadata (`mode`, `phase`, `precondition`, `ui`, `settings`, `triggers`, ...) AND the runtime method. The kernel strips function-typed properties before AJV-validating that export, so the method lives beside its metadata; it then merges the `extension.json` fields onto the instance, so at runtime `ext.version` and `ext.description` read exactly as before.
 
-Base manifest fields shared by every kind (normative shape in [`schemas/extensions/base.schema.json`](./schemas/extensions/base.schema.json)): `version` (required for external plugins), `description` (required), and the optional `stability`, `order`, `annotation`, `settings`. `stability` (`'experimental' | 'beta' | 'stable' | 'deprecated'`, default `stable`) is a lifecycle label: the non-default values render as a badge next to the extension in `sm plugins list <id>` / `sm plugins show` and the Settings plugins panel. Presentation-only for `beta` and `stable`, but `experimental` and `deprecated` additionally flip the extension's installed default to DISABLED: it does not load (does not run, does not register, toggle shows off) until the operator opts in via `sm plugins enable <plugin>/<ext>`, the Settings toggle, or a `settings.json` / `settings.local.json` enable override. The opt-in wins over the installed default, so a `deprecated` extension can be kept running during a migration. A stable extension omits the field; declaring `stability: 'stable'` is valid but renders nothing.
+Base fields the MODULE may declare, shared by every kind (normative shape in [`schemas/extensions/base.schema.json`](./schemas/extensions/base.schema.json)): the optional `order`, `annotation`, `settings`. The four that moved to `extension.json` are rejected here.
+
+`stability` (`'experimental' | 'beta' | 'stable' | 'deprecated'`, default `stable`) is a lifecycle label: the non-default values render as a badge next to the extension in `sm plugins list <id>` / `sm plugins show` and the Settings plugins panel. Presentation-only for `beta` and `stable`, but `experimental` and `deprecated` additionally flip the extension's installed default to DISABLED: **its module is never imported** (it does not run, does not register, toggle shows off) until the operator opts in via `sm plugins enable <plugin>/<ext>`, the Settings toggle, or a `settings.json` / `settings.local.json` enable override. The opt-in wins over the installed default, so a `deprecated` extension can be kept running during a migration. A stable extension omits the field; declaring `stability: 'stable'` is valid but renders nothing.
+
+An extension that is declared but not imported (disabled, or belonging to a plugin you have not trusted) is still LISTED: `sm plugins list <id>` shows its id, kind, version and stability, read from `extension.json` without executing anything. That is what makes reviewing a project-local plugin before granting it trust actually possible.
 
 ### Extractors
 
@@ -246,8 +254,6 @@ You can read `ctx.node.sidecar.*` freely: the per-`(node, extractor)` cache hash
 
 ```javascript
 export default {
-  version: '1.0.0',
-  description: 'Extracts [[ref:<name>]] tokens from the body.',
   scope: 'body',
   extract(ctx) {
     for (const m of ctx.body.matchAll(/\[\[ref:([a-z0-9-]+)\]\]/gi)) {
@@ -274,8 +280,6 @@ The analyzer↔action relationship is declared from the **Action** side via `pre
 
 ```javascript
 export default {
-  version: '1.0.0',
-  description: 'Flags skill nodes with zero inbound links.',
   evaluate(ctx) {
     const inbound = new Map();
     for (const link of ctx.links) {
@@ -302,8 +306,6 @@ An analyzer that declares `phase: 'score'` runs in the kernel's write-capable ph
 ```javascript
 // analyzers/demote-mentions/index.js → phase: 'score'
 export default {
-  version: '1.0.0',
-  description: 'Demotes low-signal mention edges by a fixed delta.',
   phase: 'score',
   evaluate(ctx) {
     for (const link of ctx.links) {
@@ -337,8 +339,6 @@ Graph-to-string serializers, invoked by `sm graph --format <name>`. The format *
 ```javascript
 // formatters/csv/index.js  → sm graph --format csv
 export default {
-  version: '1.0.0',
-  description: 'Serializes links as CSV.',
   contentType: 'text/csv',
   format(ctx) {
     const rows = ['source,target,kind,confidence'];
@@ -358,8 +358,6 @@ The nine hookable triggers (any other yields `invalid-manifest`): seven pipeline
 
 ```javascript
 export default {
-  version: '1.0.0',
-  description: 'Posts to Slack when a scan completes with issues.',
   triggers: ['scan.completed'],
   // Optional: filter narrows fan-out over the event payload (top-level fields only).
   // filter: { ... }
@@ -483,8 +481,6 @@ A `probabilistic` Analyzer / Action never receives an LLM handle: its contributi
 ```js
 // my-plugin/extractors/last-reviewed-at/index.js  → contributes key `last-reviewed-at`
 export default {
-  version: '1.0.0',
-  description: 'Records the last review timestamp on each node.',
   scope: 'frontmatter',
   annotation: {
     schema: { type: 'string', format: 'date-time' },
@@ -525,8 +521,6 @@ A top-level (root) key requires `location: 'root'` AND `ownership: 'exclusive'`.
 ```js
 // compliance-plugin/analyzers/compliance/index.js  → contributes root key `compliance`
 export default {
-  version: '1.0.0',
-  description: 'Stamps a compliance block on audited nodes.',
   annotation: {
     schema: {
       type: 'object',

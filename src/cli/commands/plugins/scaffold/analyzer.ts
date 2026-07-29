@@ -25,8 +25,6 @@ function stub(extId: string): string {
  * See: spec/plugin-author-guide.md, spec/schemas/extensions/analyzer.schema.json
  */
 export default {
-  version: '0.1.0',
-  description: 'Flags nodes that have no inbound or outbound links.',
   mode: 'deterministic',
 
   evaluate(ctx) {

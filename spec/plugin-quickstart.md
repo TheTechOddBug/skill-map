@@ -50,16 +50,23 @@ THE DETERMINISTIC FLOW   ( the scan: fast · reproducible · offline )
 sm plugins create extractor my-plugin
 ```
 
-Writes a loader-clean plugin under `.skill-map/plugins/my-plugin/`: a `plugin.json`, a `package.json` (`{ "type": "module" }`, so Node loads the ESM stub without a warning), a `README.md`, and a working stub for the chosen kind. The first positional is the kind, the second the plugin id. (Details in [§Manifest](./plugin-author-guide.md#manifest).)
+Writes a loader-clean plugin under `.skill-map/plugins/my-plugin/`: a `plugin.json`, a `package.json` (`{ "type": "module" }`, so Node loads the ESM stub without a warning), a `README.md`, and, per extension, an `extension.json` plus a working stub for the chosen kind. The first positional is the kind, the second the plugin id. (Details in [§Manifest](./plugin-author-guide.md#manifest).)
 
 ## 2. Fill the stub
 
-Open the generated `index.js` and write your logic. An extractor emits its findings through callbacks on `ctx`:
+Your extension is two files. `extension.json` declares who it is, and the kernel reads it BEFORE importing anything, which is how a disabled extension stays unexecuted:
+
+```json
+{
+  "version": "1.0.0",
+  "description": "Link any node that mentions ROADMAP.md."
+}
+```
+
+Then open the generated `index.js` and write your logic. An extractor emits its findings through callbacks on `ctx`:
 
 ```javascript
 export default {
-  version: '1.0.0',
-  description: 'Link any node that mentions ROADMAP.md.',
   scope: 'body',
   extract(ctx) {
     if (ctx.body.includes('ROADMAP.md')) {

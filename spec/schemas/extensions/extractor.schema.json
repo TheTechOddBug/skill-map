@@ -7,7 +7,6 @@
     { "$ref": "base.schema.json" }
   ],
   "type": "object",
-  "required": ["version", "description"],
   "unevaluatedProperties": false,
   "properties": {
     "scope": {

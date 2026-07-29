@@ -49,15 +49,12 @@ const count = {
 };
 
 export default {
-  version: '0.1.0',
-  description: 'Counts configured keywords per node.',
   scope: 'body',
 
   settings: {
     keywords: {
       type: '${DEFAULT_INPUT_TYPE}',
       label: 'Keywords to track',
-      description: 'Words counted across each scanned node body.',
       default: ['TODO', 'FIXME'],
       min: 1,
     },

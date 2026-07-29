@@ -139,7 +139,7 @@ export class PluginsDoctorCommand extends SmCommand {
     const resolveEnabled = await buildResolver();
     const builtIns = builtInRows(resolveEnabled);
 
-    const counts = countByStatus(builtIns, plugins, resolveEnabled);
+    const counts = countByStatus(builtIns, plugins);
     const knownKinds = collectKnownKinds(plugins);
     const applicableKindWarnings = collectApplicableKindWarnings(plugins, knownKinds);
     const unknownSlotWarnings = collectUnknownSlotWarnings(plugins, KNOWN_SLOT_NAMES);
@@ -391,15 +391,9 @@ type TStatusCounts = Record<IDiscoveredPlugin['status'], number>;
  * unit at the plugin level because the per-extension axis is not
  * reachable.
  */
-// Cyclomatic count comes from the seven-key counts init + the two
-// nested loops (built-ins and user plugins). Splitting either loop
-// into its own helper scatters the algorithm without making the
-// tally clearer.
-// eslint-disable-next-line complexity
 function countByStatus(
   builtIns: IBuiltInPluginRow[],
   plugins: IDiscoveredPlugin[],
-  resolveEnabled: (id: string) => boolean,
 ): TStatusCounts {
   const counts: TStatusCounts = {
     enabled: 0,
@@ -420,10 +414,12 @@ function countByStatus(
       counts[p.status]++;
       continue;
     }
-    for (const ext of p.extensions) {
-      const enabled = resolveEnabled(`${p.id}/${ext.id}`);
-      counts[enabled ? 'enabled' : 'disabled']++;
-    }
+    // Imported means enabled: the loader now skips the import of a
+    // disabled extension outright, so membership in `extensions` is the
+    // answer rather than something to re-resolve. The ones it skipped
+    // are still declared on disk and count as disabled.
+    counts.enabled += p.extensions.length;
+    counts.disabled += (p.unloadedExtensions ?? []).length;
   }
   return counts;
 }

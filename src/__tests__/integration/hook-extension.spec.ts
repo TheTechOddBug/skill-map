@@ -88,6 +88,7 @@ function writeHookPlugin(
   );
   const hDir = join(dir, 'hooks', `${id}-hook`);
   mkdirSync(hDir, { recursive: true });
+  writeFileSync(join(hDir, 'extension.json'), JSON.stringify({ version: '0.1.0', description: 'fixture extension' }));
   writeFileSync(join(hDir, 'index.mjs'), hookSource);
   return dir;
 }
@@ -105,8 +106,6 @@ describe('Hook extension kind (spec § A.11)', () => {
     writeHookPlugin(
       'hook-ok',
       `export default {
-        version: '1.0.0',
-        description: 'test',
         triggers: ['scan.completed'],
         on() {},
       };`,
@@ -123,8 +122,6 @@ describe('Hook extension kind (spec § A.11)', () => {
     writeHookPlugin(
       'hook-bad-trigger',
       `export default {
-        version: '1.0.0',
-        description: 'test',
         // 'scan.progress' is intentionally NOT in the curated hookable
         // set, too verbose for a reactive surface.
         triggers: ['scan.progress'],

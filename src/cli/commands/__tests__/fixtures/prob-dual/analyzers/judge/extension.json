@@ -1,0 +1,4 @@
+{
+  "version": "1.0.0",
+  "description": "Test-only probabilistic analyzer sharing its extension id with a probabilistic action (drives the kind-prefix disambiguation tests)."
+}

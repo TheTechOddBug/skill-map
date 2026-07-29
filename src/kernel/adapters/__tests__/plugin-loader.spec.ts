@@ -50,19 +50,41 @@ function placeExtension(relPath: string): string {
   return `${kind}s/${name}/index.${ext}`;
 }
 
+/** What `writePlugin` puts in `extension.json` when a test says nothing. */
+const DEFAULT_EXT_META = { version: '0.1.0', description: 'fixture extension' };
+
+/**
+ * Per-extension `extension.json` overrides, keyed by the same relPath as
+ * the `extensions` record. `null` writes NO file (the missing-manifest
+ * negative case); a string is written verbatim (unparseable JSON); an
+ * object replaces the default wholesale.
+ */
+type TExtMetaOverrides = Record<string, unknown | null>;
+
 function writePlugin(
   rootDir: string,
   id: string,
   manifest: unknown,
   extensions: Record<string, string> = {},
+  extMeta: TExtMetaOverrides = {},
 ): string {
   const pluginDir = join(rootDir, id);
   mkdirSync(pluginDir, { recursive: true });
   writeFileSync(join(pluginDir, 'plugin.json'), JSON.stringify(manifest));
   for (const [relPath, contents] of Object.entries(extensions)) {
-    const target = join(pluginDir, placeExtension(relPath));
+    const placed = placeExtension(relPath);
+    const target = join(pluginDir, placed);
     mkdirSync(join(target, '..'), { recursive: true });
     writeFileSync(target, contents);
+    // Only real `<kind>s/<name>/index.*` layouts get a manifest; the
+    // verbatim paths are negative tests that misplace a file on purpose.
+    if (placed === relPath) continue;
+    const meta = relPath in extMeta ? extMeta[relPath] : DEFAULT_EXT_META;
+    if (meta === null) continue;
+    writeFileSync(
+      join(target, '..', 'extension.json'),
+      typeof meta === 'string' ? meta : JSON.stringify(meta),
+    );
   }
   return pluginDir;
 }
@@ -113,8 +135,6 @@ describe('PluginLoader', () => {
     // `placeExtension` to lay it down at `extractors/url-counter/index.mjs`.
     const extractorSource = `
       export default {
-        version: '1.0.0',
-        description: 'Counts external URLs',
       };
     `;
     writePlugin(
@@ -142,13 +162,14 @@ describe('PluginLoader', () => {
     strictEqual(only.extensions?.[0]?.stability, undefined);
   });
 
-  it('stamps the declared stability lifecycle label on the loaded extension', async () => {
+  it('stamps the stability lifecycle label declared in extension.json', async () => {
+    // `stability` moved out of the module: the loader must know it BEFORE
+    // deciding whether to import, and it cannot read a field off a module
+    // without running that module first. `beta` is presentation-only, so
+    // the extension still loads.
     const root = makePluginsDir('stability-beta');
     const extractorSource = `
       export default {
-        version: '1.0.0',
-        description: 'Counts external URLs',
-        stability: 'beta',
       };
     `;
     writePlugin(
@@ -161,11 +182,118 @@ describe('PluginLoader', () => {
         catalogCompat: '*',
       },
       { 'extractor/url-counter.mjs': extractorSource },
+      { 'extractor/url-counter.mjs': { ...DEFAULT_EXT_META, stability: 'beta' } },
     );
 
     const result = await loaderFor(root).discoverAndLoadAll();
     strictEqual(result[0]!.status, 'enabled');
     strictEqual(result[0]!.extensions?.[0]?.stability, 'beta');
+  });
+
+  it('an experimental extension is NOT imported without an explicit opt-in', async () => {
+    // The guarantee, at the loader level: `experimental` flips the
+    // installed default to disabled, and disabled now means the module
+    // body never runs. Before this, it was imported and only filtered out
+    // afterwards, at registration.
+    const root = makePluginsDir('experimental-skipped');
+    writePlugin(
+      root,
+      'exp-plugin',
+      {
+        version: '0.1.0',
+        description: 'test',
+        specCompat: '>=0.0.0',
+        catalogCompat: '*',
+      },
+      { 'extractor/url-counter.mjs': 'export default {};' },
+      { 'extractor/url-counter.mjs': { ...DEFAULT_EXT_META, stability: 'experimental' } },
+    );
+
+    const result = await loaderFor(root).discoverAndLoadAll();
+    strictEqual(result[0]!.status, 'enabled');
+    strictEqual(result[0]!.extensions?.length, 0);
+    const skipped = result[0]!.unloadedExtensions ?? [];
+    strictEqual(skipped.length, 1);
+    strictEqual(skipped[0]?.id, 'url-counter');
+    strictEqual(skipped[0]?.kind, 'extractor');
+    strictEqual(skipped[0]?.reason, 'extension-disabled');
+    // Readable without importing, which is the whole point.
+    strictEqual(skipped[0]?.version, '0.1.0');
+    strictEqual(skipped[0]?.stability, 'experimental');
+  });
+
+  it('a module that still declares the relocated fields is rejected', async () => {
+    // The migration guard. AJV would reject these anyway via
+    // `unevaluatedProperties: false`, but the directed message is what
+    // tells an author the fields MOVED rather than vanished.
+    const root = makePluginsDir('relocated-in-module');
+    const extractorSource = [
+      'export default {',
+      "  version: '0.1.0',",
+      "  description: 'declared in the module, no longer allowed',",
+      '};',
+    ].join('\n');
+    writePlugin(
+      root,
+      'stale-plugin',
+      {
+        version: '0.1.0',
+        description: 'test',
+        specCompat: '>=0.0.0',
+        catalogCompat: '*',
+      },
+      { 'extractor/url-counter.mjs': extractorSource },
+    );
+
+    const result = await loaderFor(root).discoverAndLoadAll();
+    strictEqual(result[0]!.status, 'invalid-manifest');
+    match(result[0]!.reason!, /`version`, `description`/u);
+    match(result[0]!.reason!, /extension\.json/u);
+  });
+
+  it('invalid-manifest: extension.json missing entirely', async () => {
+    const root = makePluginsDir('meta-missing');
+    writePlugin(
+      root,
+      'no-meta-plugin',
+      { version: '0.1.0', description: 'test', specCompat: '>=0.0.0', catalogCompat: '*' },
+      { 'extractor/url-counter.mjs': 'export default {};' },
+      { 'extractor/url-counter.mjs': null },
+    );
+
+    const result = await loaderFor(root).discoverAndLoadAll();
+    strictEqual(result[0]!.status, 'invalid-manifest');
+    match(result[0]!.reason!, /missing `extension\.json`/u);
+  });
+
+  it('invalid-manifest: extension.json is not parseable JSON', async () => {
+    const root = makePluginsDir('meta-unparseable');
+    writePlugin(
+      root,
+      'bad-json-plugin',
+      { version: '0.1.0', description: 'test', specCompat: '>=0.0.0', catalogCompat: '*' },
+      { 'extractor/url-counter.mjs': 'export default {};' },
+      { 'extractor/url-counter.mjs': '{ not json' },
+    );
+
+    const result = await loaderFor(root).discoverAndLoadAll();
+    strictEqual(result[0]!.status, 'invalid-manifest');
+    match(result[0]!.reason!, /not readable as JSON/u);
+  });
+
+  it('invalid-manifest: extension.json missing a required field', async () => {
+    const root = makePluginsDir('meta-incomplete');
+    writePlugin(
+      root,
+      'partial-meta-plugin',
+      { version: '0.1.0', description: 'test', specCompat: '>=0.0.0', catalogCompat: '*' },
+      { 'extractor/url-counter.mjs': 'export default {};' },
+      { 'extractor/url-counter.mjs': { version: '0.1.0' } },
+    );
+
+    const result = await loaderFor(root).discoverAndLoadAll();
+    strictEqual(result[0]!.status, 'invalid-manifest');
+    match(result[0]!.reason!, /description/u);
   });
 
   it('stamps the declared defaultEnabled override on the loaded extension', async () => {
@@ -175,9 +303,6 @@ describe('PluginLoader', () => {
     const root = makePluginsDir('default-enabled');
     const extractorSource = `
       export default {
-        version: '1.0.0',
-        description: 'Counts external URLs',
-        defaultEnabled: false,
       };
     `;
     writePlugin(
@@ -190,20 +315,23 @@ describe('PluginLoader', () => {
         catalogCompat: '*',
       },
       { 'extractor/url-counter.mjs': extractorSource },
+      { 'extractor/url-counter.mjs': { ...DEFAULT_EXT_META, defaultEnabled: false } },
     );
 
     const result = await loaderFor(root).discoverAndLoadAll();
+    // `defaultEnabled: false` IS the installed default here, and with no
+    // resolver supplied the loader honours it: declared, not imported.
     strictEqual(result[0]!.status, 'enabled');
-    strictEqual(result[0]!.extensions?.[0]?.defaultEnabled, false);
+    strictEqual(result[0]!.extensions?.length, 0);
+    strictEqual(result[0]!.unloadedExtensions?.length, 1);
+    strictEqual(result[0]!.unloadedExtensions?.[0]?.defaultEnabled, false);
+    strictEqual(result[0]!.unloadedExtensions?.[0]?.reason, 'extension-disabled');
   });
 
   it('invalid-manifest: stability outside the closed enum', async () => {
     const root = makePluginsDir('stability-invalid');
     const extractorSource = `
       export default {
-        version: '1.0.0',
-        description: 'Counts external URLs',
-        stability: 'alpha',
       };
     `;
     writePlugin(
@@ -216,6 +344,7 @@ describe('PluginLoader', () => {
         catalogCompat: '*',
       },
       { 'extractor/url-counter.mjs': extractorSource },
+      { 'extractor/url-counter.mjs': { ...DEFAULT_EXT_META, stability: 'alpha' } },
     );
 
     const result = await loaderFor(root).discoverAndLoadAll();
@@ -297,8 +426,6 @@ describe('PluginLoader', () => {
       export default {
         id: 'bad',
         kind: 'extractor',
-        version: '1.0.0',
-        description: 'test',
         // Missing required emitsLinkKinds and defaultConfidence.
       };
     `;
@@ -375,7 +502,7 @@ describe('PluginLoader', () => {
         },
         {
           'extractor/x.mjs':
-            `export default { id: 'x', kind: 'extractor', version: '1.0.0', description: 'redeclares its derived fields' };`,
+            `export default { id: 'x', kind: 'extractor' };`,
         },
       );
       const r = await loaderFor(root).discoverAndLoadAll();
@@ -399,7 +526,7 @@ describe('PluginLoader', () => {
         },
         {
           'provider/p.mjs':
-            `export default { version: '1.0.0', description: 'inlines kinds', kinds: { agent: {} }, detect() { return null; } };`,
+            `export default { kinds: { agent: {} }, detect() { return null; } };`,
         },
       );
       const r = await loaderFor(root).discoverAndLoadAll();
@@ -419,7 +546,7 @@ describe('PluginLoader', () => {
         { version: '1.0.0', description: 'test', specCompat: '>=0.0.0', catalogCompat: '*' },
         {
           'provider/ext-provider.mjs':
-            `export default { version: '1.0.0', description: 'external provider', presentation: { label: 'Ext', color: '#0891b2' }, classify() { return 'agent'; } };`,
+            `export default { presentation: { label: 'Ext', color: '#0891b2' }, classify() { return 'agent'; } };`,
         },
       );
       writeProviderKind(pluginDir, 'agent', {
@@ -449,8 +576,6 @@ describe('PluginLoader', () => {
         {
           'provider/rich-provider.mjs':
             `export default {
-               version: '1.0.0',
-               description: 'external provider with the full runtime surface',
                presentation: { label: 'Rich', color: '#0891b2' },
                resolution: { invokes: ['command'] },
                reservedNames: { command: ['help', 'init'] },
@@ -486,7 +611,7 @@ describe('PluginLoader', () => {
         { version: '1.0.0', description: 'test', specCompat: '>=0.0.0', catalogCompat: '*' },
         {
           'provider/ext-provider-bad.mjs':
-            `export default { version: '1.0.0', description: 'external provider', presentation: { label: 'Ext', color: '#0891b2' }, classify() { return 'agent'; } };`,
+            `export default { presentation: { label: 'Ext', color: '#0891b2' }, classify() { return 'agent'; } };`,
         },
       );
       writeProviderKind(pluginDir, 'agent', {
@@ -511,7 +636,7 @@ describe('PluginLoader', () => {
         },
         {
           'formatter/csv.mjs':
-            `export default { version: '1.0.0', description: 'declares formatId', formatId: 'csv', render() { return ''; } };`,
+            `export default { formatId: 'csv', render() { return ''; } };`,
         },
       );
       const r = await loaderFor(root).discoverAndLoadAll();
@@ -532,9 +657,11 @@ describe('PluginLoader', () => {
 
           catalogCompat: '*',
         },
-        // No `description` → fails formatter.schema.json (via base),
+        // `contentType` must be a string → fails formatter.schema.json,
         // surfacing the directed "points at its kind schema" diagnostic.
-        { 'formatter/f.mjs': `export default { version: '1.0.0' };` },
+        // (It used to be a MISSING `description`; that field moved to
+        // `extension.json`, so its absence is no longer a schema defect.)
+        { 'formatter/f.mjs': `export default { contentType: 42 };` },
       );
       const r = await loaderFor(root).discoverAndLoadAll();
       match(r[0]!.reason!, /spec\/schemas\/extensions\/formatter\.schema\.json/);
@@ -561,8 +688,6 @@ describe('PluginLoader', () => {
         export default {
           id: 'validate-frontmatter',
           kind: 'action',
-          version: '1.0.0',
-          description: 'test',
           mode: 'deterministic',
         };
       `;
@@ -595,8 +720,6 @@ describe('PluginLoader', () => {
         export default {
           id: 'skill-summarizer',
           kind: 'action',
-          version: '1.0.0',
-          description: 'test',
           mode: 'probabilistic',
           probExpectedDurationSeconds: 30,
         };
@@ -631,8 +754,6 @@ describe('PluginLoader', () => {
         export default {
           id: 'bad-prob',
           kind: 'action',
-          version: '1.0.0',
-          description: 'test',
           mode: 'probabilistic',
           probExpectedDurationSeconds: 30,
         };
@@ -664,8 +785,6 @@ describe('PluginLoader', () => {
         export default {
           id: 'bad-det',
           kind: 'action',
-          version: '1.0.0',
-          description: 'test',
           mode: 'deterministic',
         };
       `;
@@ -700,8 +819,6 @@ describe('PluginLoader', () => {
   describe('finder Analyzer file conventions (structure-as-truth)', () => {
     const FINDER_SOURCE = `
       export default {
-        version: '1.0.0',
-        description: 'test finder',
         mode: 'probabilistic',
         probExpectedDurationSeconds: 45,
       };
@@ -797,8 +914,6 @@ describe('PluginLoader', () => {
       const pluginDir = writePlugin(root, 'finder-plugin', MANIFEST, {
         'analyzer/finder.mjs': `
           export default {
-            version: '1.0.0',
-            description: 'test finder',
             mode: 'probabilistic',
           };
         `,
@@ -819,8 +934,6 @@ describe('PluginLoader', () => {
       writePlugin(root, 'modeless-plugin', MANIFEST, {
         'analyzer/det-rule.mjs': `
           export default {
-            version: '1.0.0',
-            description: 'deterministic rule with no mode field',
             evaluate: () => [],
           };
         `,
@@ -836,8 +949,6 @@ describe('PluginLoader', () => {
       const pluginDir = writePlugin(root, 'det-plugin', MANIFEST, {
         'analyzer/det-rule.mjs': `
           export default {
-            version: '1.0.0',
-            description: 'deterministic rule',
             mode: 'deterministic',
             evaluate: () => [],
           };
@@ -864,7 +975,7 @@ describe('PluginLoader', () => {
       // race with the loader's timer should win.
       const hangSource = `
         await new Promise(() => {});
-        export default { version: '1.0.0', description: 'never resolves' };
+        export default {};
       `;
       writePlugin(
         root,
@@ -900,7 +1011,7 @@ describe('PluginLoader', () => {
     it('non-hanging plugin still loads fine with a tight timeout', async () => {
       const root = makePluginsDir('timeout-fast');
       const extractor = `
-        export default { version: '1.0.0', description: 'fast', extract() {} };
+        export default { extract() {} };
       `;
       writePlugin(
         root,
@@ -970,8 +1081,7 @@ describe('PluginLoader', () => {
       const rootB = makePluginsDir('collide-B');
       const extractorSrc = `
         export default {
-          id: 'd', kind: 'extractor', version: '1.0.0',
-          emitsLinkKinds: ['references'], defaultConfidence: 'high',
+          id: 'd', kind: 'extractor', emitsLinkKinds: ['references'], defaultConfidence: 'high',
         };
       `;
       // Same id 'twin' under two different parent roots, directory
@@ -1022,8 +1132,7 @@ describe('PluginLoader', () => {
       });
       const extractorSrc = `
         export default {
-          id: 'd', kind: 'extractor', version: '1.0.0',
-          emitsLinkKinds: ['references'], defaultConfidence: 'high',
+          id: 'd', kind: 'extractor', emitsLinkKinds: ['references'], defaultConfidence: 'high',
         };
       `;
       writePlugin(rootA, 'triplet', manifest(), { 'd.mjs': extractorSrc });
@@ -1046,8 +1155,7 @@ describe('PluginLoader', () => {
       const rootB = makePluginsDir('mix-B');
       const extractorSrc = `
         export default {
-          id: 'd', kind: 'extractor', version: '1.0.0',
-          emitsLinkKinds: ['references'], defaultConfidence: 'high',
+          id: 'd', kind: 'extractor', emitsLinkKinds: ['references'], defaultConfidence: 'high',
         };
       `;
       writePlugin(
@@ -1093,8 +1201,7 @@ describe('PluginLoader', () => {
       const rootB = makePluginsDir('mud-B');
       const extractorSrc = `
         export default {
-          id: 'd', kind: 'extractor', version: '1.0.0',
-          emitsLinkKinds: ['references'], defaultConfidence: 'high',
+          id: 'd', kind: 'extractor', emitsLinkKinds: ['references'], defaultConfidence: 'high',
         };
       `;
       // A real, valid plugin with id 'sibling' under rootA.
@@ -1144,7 +1251,7 @@ describe('PluginLoader', () => {
         catalogCompat: '*',
       },
       {
-        'extractor/d.mjs': `export default { version: '1.0.0', description: 'd', extract() {} };`,
+        'extractor/d.mjs': `export default { extract() {} };`,
       },
     );
     writePlugin(root, 'broken', { /* malformed manifest, missing required fields */ });
@@ -1169,8 +1276,7 @@ describe('PluginLoader', () => {
       const root = makePluginsDir('a6-injection');
       const extractorSrc = `
         export default {
-          id: 'greet', kind: 'extractor', version: '1.0.0',
-          emitsLinkKinds: ['references'], defaultConfidence: 'high',
+          id: 'greet', kind: 'extractor', emitsLinkKinds: ['references'], defaultConfidence: 'high',
         };
       `;
       writePlugin(
@@ -1197,8 +1303,7 @@ describe('PluginLoader', () => {
       const extractorSrc = `
         export default {
           id: 'greet', pluginId: 'my-plugin',
-          kind: 'extractor', version: '1.0.0',
-          emitsLinkKinds: ['references'], defaultConfidence: 'high',
+          kind: 'extractor', emitsLinkKinds: ['references'], defaultConfidence: 'high',
         };
       `;
       writePlugin(
@@ -1220,8 +1325,7 @@ describe('PluginLoader', () => {
         const root = makePluginsDir('granularity-rejected');
         const extractorSrc = `
           export default {
-            id: 'one', kind: 'extractor', version: '1.0.0',
-            emitsLinkKinds: ['references'], defaultConfidence: 'high',
+            id: 'one', kind: 'extractor', emitsLinkKinds: ['references'], defaultConfidence: 'high',
           };
         `;
         writePlugin(
@@ -1248,8 +1352,7 @@ describe('PluginLoader', () => {
       const extractorSrc = `
         export default {
           id: 'greet', pluginId: 'someone-else',
-          kind: 'extractor', version: '1.0.0',
-          emitsLinkKinds: ['references'], defaultConfidence: 'high',
+          kind: 'extractor', emitsLinkKinds: ['references'], defaultConfidence: 'high',
         };
       `;
       writePlugin(
@@ -1282,8 +1385,7 @@ describe('PluginLoader', () => {
       const root = makePluginsDir('a10-unknown-kind');
       const extractorSrc = `
         export default {
-          id: 'd', kind: 'extractor', version: '1.0.0',
-          emitsLinkKinds: ['references'], defaultConfidence: 'high',
+          id: 'd', kind: 'extractor', emitsLinkKinds: ['references'], defaultConfidence: 'high',
           applicableKinds: ['unknown-kind'],
         };
       `;
@@ -1315,8 +1417,7 @@ describe('PluginLoader', () => {
       const root = makePluginsDir('a10-empty-array');
       const extractorSrc = `
         export default {
-          id: 'd', kind: 'extractor', version: '1.0.0',
-          emitsLinkKinds: ['references'], defaultConfidence: 'high',
+          id: 'd', kind: 'extractor', emitsLinkKinds: ['references'], defaultConfidence: 'high',
           applicableKinds: [],
         };
       `;
@@ -1360,7 +1461,7 @@ describe('PluginLoader', () => {
       mkdirSync(join(root, 'shared'), { recursive: true });
       writeFileSync(
         join(root, 'shared', 'leaked.mjs'),
-        `export default { id: 'x', kind: 'extractor', version: '1.0.0' };`,
+        `export default { id: 'x', kind: 'extractor' };`,
       );
       writePlugin(root, 'isolated', {
         // id removed (structure-as-truth)
@@ -1416,7 +1517,7 @@ describe('PluginLoader', () => {
     it('loads a trusted plugin normally when resolveImportTrust returns true', async () => {
       const root = makePluginsDir('trust-allow');
       writePlugin(root, 'trusted-plugin', MANIFEST, {
-        'extractor/url-counter.mjs': "export default { version: '1.0.0', description: 'x' };",
+        'extractor/url-counter.mjs': "export default {};",
       });
       const loader = new PluginLoader({
         searchPaths: [root],
@@ -1435,7 +1536,7 @@ describe('PluginLoader', () => {
     it('omitting resolveImportTrust trusts everything (built-ins / explicit --plugin-dir / tests)', async () => {
       const root = makePluginsDir('trust-omit');
       writePlugin(root, 'ungated-plugin', MANIFEST, {
-        'extractor/url-counter.mjs': "export default { version: '1.0.0', description: 'x' };",
+        'extractor/url-counter.mjs': "export default {};",
       });
       // No resolveImportTrust option at all.
       const result = await loaderFor(root).discoverAndLoadAll();

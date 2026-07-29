@@ -269,6 +269,14 @@ export interface IPluginCatalogueEntry {
  * `show` / `list` (id validation + bare-plugin lookup). Plugins whose
  * manifest never validated list with an empty `extensionIds` so a buggy
  * plugin can still be addressed by its bare id.
+ *
+ * The catalogue is the DECLARED inventory, so it folds in extensions
+ * that exist on disk but were not imported (disabled, or belonging to an
+ * untrusted plugin). This is load-bearing rather than cosmetic: the
+ * catalogue is what `sm plugins enable <plugin>/<ext>` resolves ids
+ * against, so listing only the imported ones would make a disabled
+ * extension impossible to turn back on, and an experimental one
+ * impossible to turn on at all.
  */
 export function pluginCatalogue(plugins: IDiscoveredPlugin[]): IPluginCatalogueEntry[] {
   const out: IPluginCatalogueEntry[] = [];
@@ -276,7 +284,13 @@ export function pluginCatalogue(plugins: IDiscoveredPlugin[]): IPluginCatalogueE
     out.push({ id: plugin.id, extensionIds: plugin.extensions.map((e) => e.id) });
   }
   for (const p of plugins) {
-    out.push({ id: p.id, extensionIds: p.extensions?.map((e) => e.id) ?? [] });
+    out.push({
+      id: p.id,
+      extensionIds: [
+        ...(p.extensions ?? []).map((e) => e.id),
+        ...(p.unloadedExtensions ?? []).map((e) => e.id),
+      ],
+    });
   }
   return out;
 }

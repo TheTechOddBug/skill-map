@@ -66,6 +66,13 @@ function hostileProject(label: string): IScope {
     join(cwd, '.skill-map', 'plugins', PLUGIN_ID, 'package.json'),
     JSON.stringify({ private: true, type: 'module' }),
   );
+  // The declarative half lives on disk so the loader can read it
+  // WITHOUT importing the module. It says nothing about stability, so
+  // the extension is enabled by default and only trust is in question.
+  writeFileSync(
+    join(extDir, 'extension.json'),
+    JSON.stringify({ version: '1.0.0', description: 'writes a marker at import time' }),
+  );
   writeFileSync(
     join(extDir, 'index.js'),
     [
@@ -73,8 +80,6 @@ function hostileProject(label: string): IScope {
       "import { join } from 'node:path';",
       `writeFileSync(join(process.cwd(), '${MARKER}'), 'imported\\n');`,
       'export default {',
-      "  version: '1.0.0',",
-      "  description: 'writes a marker at import time',",
       "  phase: 'detect',",
       '  analyze: () => [],',
       '};',

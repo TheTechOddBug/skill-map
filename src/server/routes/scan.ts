@@ -101,7 +101,7 @@ async function runPersistedScan(c: Context, deps: IScanRouteDeps): Promise<Respo
       // Build a fresh resolver from the layered config BEFORE invoking
       // the runner so a mid-session PATCH to `/api/plugins[/...]` is
       // honoured by this scan without restarting `sm serve`. The cached
-      // `deps.pluginRuntime` carries the boot-time resolver; this one
+      // `deps.pluginRuntimeHolder.current` carries the boot-time resolver; this one
       // overrides it just for this invocation. See
       // `core/runtime/fresh-resolver.ts` for the shared helper.
       const resolveEnabledOverride = await buildBffResolverOverride(deps);
@@ -116,7 +116,7 @@ async function runPersistedScan(c: Context, deps: IScanRouteDeps): Promise<Respo
         strict: false,
         stderr: noopWritable(),
         ctx: deps.runtimeContext,
-        pluginRuntime: deps.pluginRuntime,
+        pluginRuntime: deps.pluginRuntimeHolder.current,
         resolveEnabledOverride,
         printer: bffScanRunnerPrinter,
         emitterFactory: () => buildBroadcasterEmitter(deps.broadcaster),
@@ -319,7 +319,7 @@ async function runFreshScan(deps: IRouteDeps): Promise<ScanResult> {
     // of the BFF already classified against the boot snapshot,
     // discovering new plugins here would surface them in scan output
     // but not in `/api/plugins` or the kindRegistry).
-    pluginRuntime: deps.pluginRuntime,
+    pluginRuntime: deps.pluginRuntimeHolder.current,
     resolveEnabledOverride,
     // M8: explicit printer instead of the runner's old stdout=stderr
     // fallback. The fresh-scan response body IS the ScanResult JSON,

@@ -390,6 +390,23 @@ export const PLUGINS_TEXTS = {
   /** Warn row: package.json declares a foreign / malformed `type`; left untouched. */
   upgradeBackfillForeignType:
     '  {{glyph}}  {{id}}: package.json declares a non-module "type" (or is malformed); left untouched, check it if Node warns about the module type.\n',
+  // --- extension.json migration -----------------------------------------
+  /** Wrote a complete `extension.json` seeded from the module source. */
+  upgradeExtCreated:
+    '  {{glyph}}  {{where}}: wrote extension.json (version + description read from your module).\n',
+  /** Wrote it, but a field could not be read out of the source. */
+  upgradeExtPartial:
+    '  {{glyph}}  {{where}}: wrote extension.json with TODO placeholders; fill them in (could not read the values out of the module source).\n',
+  /**
+   * The file exists but the module still declares the relocated fields,
+   * so the plugin does not load. Upgrade never edits JavaScript, so this
+   * is the one step that stays manual, and the message has to be precise
+   * enough to act on without opening the spec.
+   */
+  upgradeExtStaleModule:
+    '  {{glyph}}  {{where}}: delete {{fields}} from its {{indexFile}}; those fields live in extension.json now, and the plugin will not load until the module stops declaring them.\n',
+  /** Section header, printed only when the migration touched something. */
+  upgradeExtHeader: '\n  Extension manifests\n',
   /** Closing status (§3.1 single-line success + dim tip). */
   upgradeNoMigrations:
     '{{glyph}}  No catalog migrations registered for v1.0.0; all loaded plugins are catalog-current.\n' +

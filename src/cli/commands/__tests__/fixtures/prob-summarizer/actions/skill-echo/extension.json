@@ -1,0 +1,4 @@
+{
+  "version": "1.0.0",
+  "description": "Test-only probabilistic action that wraps the node body in a one-line summary prompt."
+}

@@ -7,8 +7,6 @@
  * end now that no built-in hook ships.
  */
 export default {
-  version: '1.0.0',
-  description: 'Test-only hook chaining matching fixers after a finder completes.',
   triggers: ['job.completed'],
   filter: { extensionKind: 'analyzer' },
 

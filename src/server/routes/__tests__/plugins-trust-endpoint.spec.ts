@@ -95,11 +95,10 @@ function dropMockPlugin(scope: IScope, id: string): void {
   );
   const extDir = join(pluginDir, 'extractors', `${id}-extractor`);
   mkdirSync(extDir, { recursive: true });
+  writeFileSync(join(extDir, 'extension.json'), JSON.stringify({ version: '0.1.0', description: 'fixture extension' }));
   writeFileSync(
     join(extDir, 'index.js'),
     `export default {
-       version: '0.1.0',
-       description: 'mock',
        extract() {},
      };\n`,
   );

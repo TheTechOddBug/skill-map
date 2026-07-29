@@ -26,8 +26,6 @@ function indexStub(extId: string): string {
  * See: spec/plugin-author-guide.md, spec/schemas/extensions/action.schema.json
  */
 export default {
-  version: '0.1.0',
-  description: 'Demo deterministic action; returns a fixed report.',
   mode: 'deterministic',
 
   invoke(input, ctx) {

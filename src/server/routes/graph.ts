@@ -65,7 +65,7 @@ export function registerGraphRoute(app: Hono, deps: IRouteDeps): void {
     // every warning N times under load.
     const formatters = composeFormatters({
       noBuiltIns: deps.options.noBuiltIns,
-      pluginRuntime: deps.pluginRuntime,
+      pluginRuntime: deps.pluginRuntimeHolder.current,
     });
     const formatter = formatters.find((f) => f.formatId === format);
     if (!formatter) {

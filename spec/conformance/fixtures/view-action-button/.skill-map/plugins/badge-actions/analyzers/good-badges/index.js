@@ -23,8 +23,6 @@ const bump = {
 };
 
 export default {
-  version: '0.1.0',
-  description: 'analyzer declaring inspector.header.badge + inspector.action.button',
   mode: 'deterministic',
 
   ui: { keywords, bump },

@@ -15,8 +15,6 @@ const dist = { slot: 'inspector.body.panel.breakdown', label: 'Distribution' };
 const related = { slot: 'inspector.body.panel.link-list', label: 'Related' };
 
 export default {
-  version: '0.1.0',
-  description: 'analyzer emitting bars/pairs/links payloads plus two rejected emissions',
   mode: 'deterministic',
 
   ui: { summary, dist, related },

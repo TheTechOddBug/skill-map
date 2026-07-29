@@ -119,6 +119,66 @@ export type TPluginLoadStatus =
   | 'load-error'
   | 'id-collision';
 
+/**
+ * The parsed `<plugin>/<kind-plural>/<id>/extension.json`, validated
+ * against `spec/schemas/extensions/extension-manifest.schema.json`.
+ *
+ * This is the DECLARATIVE half of an extension, and it exists so the
+ * loader can answer "may this run?" without running it. The enabled
+ * decision depends on `stability` / `defaultEnabled`; while those lived
+ * in the module you had to `import()` the code to discover you were not
+ * allowed to `import()` it. Reading JSON is not execution, so the gate
+ * now closes ahead of the import.
+ */
+export interface IExtensionJsonMeta {
+  version: string;
+  description: string;
+  stability?: TExtensionStability;
+  defaultEnabled?: boolean;
+}
+
+/**
+ * An extension that exists on disk but whose module was deliberately
+ * NOT imported: no trust grant, the plugin is disabled, or this
+ * particular extension is disabled.
+ *
+ * It carries real metadata rather than a bare id because
+ * `extension.json` is readable without executing anything, so an
+ * operator can review a project-local plugin's full inventory BEFORE
+ * granting it trust, which is exactly what the untrusted advisory tells
+ * them to do.
+ *
+ * Deliberately NOT an `ILoadedExtension` with optional fields, and
+ * deliberately not folded into `IDiscoveredPlugin.extensions`: it has no
+ * `instance` and no `module`, so it is structurally incapable of
+ * reaching the registry, the composer or the orchestrator. Membership in
+ * `extensions` is the proof that an extension was allowed to execute;
+ * nothing here can be mistaken for that.
+ */
+export interface IUnloadedExtension {
+  kind: ExtensionKind;
+  id: string;
+  pluginId: string;
+  version: string;
+  description: string;
+  stability?: TExtensionStability;
+  defaultEnabled?: boolean;
+  /** What WOULD have been imported. Never imported. */
+  entryPath: string;
+  reason: TUnloadedReason;
+}
+
+/**
+ * Why an on-disk extension was not imported. Kept distinct so the CLI
+ * can tell an operator whether to run `sm plugins trust` (a security
+ * decision) or `sm plugins enable` (an operational one); conflating them
+ * is how an operator learns to reflexively grant trust.
+ */
+export type TUnloadedReason =
+  | 'plugin-untrusted'
+  | 'plugin-disabled'
+  | 'extension-disabled';
+
 export interface ILoadedExtension {
   kind: ExtensionKind;
   id: string;
@@ -132,17 +192,23 @@ export interface ILoadedExtension {
   pluginId: string;
   version: string;
   /**
-   * Optional lifecycle label copied verbatim from the validated
-   * manifest (`IExtensionBase.stability`). Stamped here by the loader
-   * so consumers (CLI list/show, BFF projection) read a typed field
-   * instead of shape-checking `instance`. Absent when the manifest
+   * Short description, read from `extension.json`. Stamped here (and
+   * merged onto `instance`) so consumers read a typed field instead of
+   * shape-checking the module export.
+   */
+  description: string;
+  /**
+   * Optional lifecycle label read from `extension.json`. Stamped here by
+   * the loader so consumers (CLI list/show, BFF projection) read a typed
+   * field instead of shape-checking `instance`. Absent when the file
    * does not declare it.
    */
   stability?: TExtensionStability;
   /**
-   * Optional installed-default override (spec `base.schema.json
-   * #/properties/defaultEnabled`): a declared value wins over the
-   * stability-derived default when resolving the enabled axis.
+   * Optional installed-default override (spec
+   * `extension-manifest.schema.json#/properties/defaultEnabled`): a
+   * declared value wins over the stability-derived default when
+   * resolving the enabled axis.
    */
   defaultEnabled?: boolean;
   entryPath: string;
@@ -169,8 +235,33 @@ export interface IDiscoveredPlugin {
   status: TPluginLoadStatus;
   /** Only present when status === 'enabled' or 'incompatible-spec'. */
   manifest?: IPluginManifest;
-  /** Only present when status === 'enabled'. */
+  /**
+   * Only present when status === 'enabled'.
+   *
+   * **Membership here is the proof that an extension was allowed to
+   * execute**: it means the plugin was trusted, the plugin was enabled,
+   * this extension was enabled, and only then was its module imported.
+   * Everything discovered but not imported rides in
+   * `unloadedExtensions` instead. Consumers that feed the registry, the
+   * composer or the orchestrator read ONLY this field, which is what
+   * makes "disabled code never runs" a structural property rather than a
+   * convention every call site has to remember.
+   */
   extensions?: ILoadedExtension[];
+  /**
+   * Extensions found on disk whose module was deliberately not imported
+   * (untrusted plugin, disabled plugin, or disabled extension).
+   *
+   * `extensions` ∪ `unloadedExtensions` is the plugin's full declared
+   * inventory. Present alongside `extensions` on an `enabled` plugin
+   * (some of its extensions may be individually disabled) and alongside
+   * a `disabled` status (where `extensions` is absent entirely).
+   *
+   * Populated from each extension's `extension.json`, so it costs no
+   * code execution and stays available exactly when the operator most
+   * needs it: reviewing a project-local plugin before trusting it.
+   */
+  unloadedExtensions?: IUnloadedExtension[];
   /**
    * Runtime-only, never persisted, never spec-modeled.
    *

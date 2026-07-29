@@ -1,0 +1,4 @@
+{
+  "version": "1.0.0",
+  "description": "Test-only probabilistic finder whose report schema extends the canonical findings envelope (drives the state_findings write-through tests)."
+}

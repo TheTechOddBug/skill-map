@@ -536,7 +536,7 @@ export function registerPluginsRoute(app: Hono, deps: IPluginsRouteDeps): void {
  * sources share the same row shape; `granularity` + `extensions` come
  * from the plugin / manifest declaration. The `resolveEnabled` argument
  * is the resolver to use for status projection, typically the cached
- * `deps.pluginRuntime.resolveEnabled`, but PATCH passes a fresh resolver
+ * `deps.pluginRuntimeHolder.current.resolveEnabled`, but PATCH passes a fresh resolver
  * built from the post-write override map.
  */
 function listItems(
@@ -551,7 +551,7 @@ function listItems(
   const config = deps.configService.effective();
   const items = [
     ...(deps.options.noBuiltIns ? [] : buildBuiltInItems(resolveEnabled, config)),
-    ...buildDiscoveredItems(deps.pluginRuntime.discovered, deps, resolveEnabled, config, trust),
+    ...buildDiscoveredItems(deps.pluginRuntimeHolder.current.discovered, deps, resolveEnabled, config, trust),
   ];
   // Presentation `order` = position in this canonical listing (built-ins
   // in `sortPluginsForPresentation` order, then drop-ins). The SPA sorts
@@ -907,6 +907,13 @@ async function persistManyAndProject(
   // Enable writes mutated settings.json; drop the cached layered view so
   // the projection (and any later read) sees the fresh values.
   if (keys.length > 0) deps.configService.reload();
+  // An ENABLE also needs the plugin runtime rebuilt: the loader gates the
+  // import on the enabled axis, so an extension that was off at boot has
+  // no live instance and there is nothing for the composer to un-filter.
+  // Without this the toggle would appear to do nothing until a restart.
+  // Runs after the config reload, which the rebuild reads. Disabling
+  // needs no reload (the instance stays, consumers re-resolve per read).
+  if (enabled && keys.length > 0) await deps.reloadPluginRuntime();
   return await projectListResponse(c, deps);
 }
 
@@ -960,7 +967,7 @@ function expandPairKeys(
   if (keys.length === 0) return [...keys];
   const sources = [
     ...pairEdgeSourcesFromBuiltIns(builtInPlugins),
-    ...pairEdgeSourcesFromDiscovered(deps.pluginRuntime.discovered),
+    ...pairEdgeSourcesFromDiscovered(deps.pluginRuntimeHolder.current.discovered),
   ];
   const probe = buildPairEnabledProbe(
     sources,
@@ -1241,7 +1248,7 @@ async function persistBulkAndProject(
   // 1. Enable toggles land in the config layers (settings.json). Bare
   //    plugin ids cascade across every child; qualified ids apply
   //    verbatim. Returns the disabled keys for the contributions purge.
-  const { disabledKeys, toggleTouched } = applyBulkEnableWrites(deps, changes);
+  const { disabledKeys, enabledKeys, toggleTouched } = applyBulkEnableWrites(deps, changes);
 
   // 2. Settings writes land in settings.json / settings.local.json via
   //    `writeConfigValue` (file writes, AJV-revalidated per write).
@@ -1256,6 +1263,19 @@ async function persistBulkAndProject(
   // 4. The on-disk config mutated; drop the cached layered view so the
   //    projection below (and any later read) sees the fresh values.
   if (toggleTouched || settingsTouched) deps.configService.reload();
+
+  // 5. An ENABLE needs the plugin runtime rebuilt, because the loader
+  //    gates the import on the enabled axis: an extension that was off
+  //    at boot has no live instance, so there is nothing for the
+  //    composer to un-filter and the toggle would appear to do nothing
+  //    until the next restart. Must run AFTER the config reload above,
+  //    since the rebuild reads the config it just invalidated.
+  //
+  //    Disabling deliberately does NOT reload: the instance stays in
+  //    memory and every consumer re-resolves the enabled state per read,
+  //    so a disable takes effect immediately and a needless reload would
+  //    only re-import code the operator just switched off.
+  if (enabledKeys.length > 0) await deps.reloadPluginRuntime();
 
   return await projectListResponse(c, deps);
 }
@@ -1275,7 +1295,7 @@ async function persistBulkAndProject(
 function applyBulkEnableWrites(
   deps: IRouteDeps,
   changes: readonly IBulkChange[],
-): { disabledKeys: string[]; toggleTouched: boolean } {
+): { disabledKeys: string[]; enabledKeys: string[]; toggleTouched: boolean } {
   const cwd = deps.runtimeContext.cwd;
   // Last-write-wins per key (Map preserves first-seen order per key).
   const desired = new Map<string, boolean>();
@@ -1302,6 +1322,7 @@ function applyBulkEnableWrites(
   }
   return {
     disabledKeys: disableKeys,
+    enabledKeys: enableKeys,
     toggleTouched: enableKeys.length > 0 || disableKeys.length > 0,
   };
 }
@@ -1393,7 +1414,7 @@ function composeResolver(deps: IRouteDeps): (id: string) => boolean {
 function findHandle(id: string, deps: IRouteDeps): TPluginHandle | null {
   const builtIn = builtInPlugins.find((b) => b.id === id);
   if (builtIn) return { kind: 'built-in', plugin: builtIn };
-  const discovered = deps.pluginRuntime.discovered.find((p) => p.id === id);
+  const discovered = deps.pluginRuntimeHolder.current.discovered.find((p) => p.id === id);
   if (discovered) return { kind: 'discovered', plugin: discovered };
   return null;
 }
@@ -1403,16 +1424,32 @@ function findHandle(id: string, deps: IRouteDeps): TPluginHandle | null {
  * Used by `PATCH /api/plugins/:id` to expand the bare plugin id into
  * the qualified ids the macro cascade will flip.
  */
+/**
+ * Every extension id the plugin DECLARES, imported or not.
+ *
+ * Load-bearing rather than cosmetic: these two helpers are what the
+ * enable/disable PATCH routes resolve an id against. Since the loader
+ * gates the import on the enabled axis, a disabled extension is absent
+ * from `extensions`, so looking only there would 404 the very request
+ * that turns it back on, and an `experimental` extension could never be
+ * turned on at all. Same fix as `pluginCatalogue` on the CLI side.
+ */
 function pluginExtensionIds(handle: TPluginHandle): string[] {
   if (handle.kind === 'built-in') {
     return handle.plugin.extensions.map((e) => e.id);
   }
-  return (handle.plugin.extensions ?? []).map((e) => e.id);
+  return [
+    ...(handle.plugin.extensions ?? []).map((e) => e.id),
+    ...(handle.plugin.unloadedExtensions ?? []).map((e) => e.id),
+  ];
 }
 
 function hasExtension(handle: TPluginHandle, extensionId: string): boolean {
   if (handle.kind === 'built-in') {
     return handle.plugin.extensions.some((e) => e.id === extensionId);
   }
-  return (handle.plugin.extensions ?? []).some((e) => e.id === extensionId);
+  return (
+    (handle.plugin.extensions ?? []).some((e) => e.id === extensionId) ||
+    (handle.plugin.unloadedExtensions ?? []).some((e) => e.id === extensionId)
+  );
 }

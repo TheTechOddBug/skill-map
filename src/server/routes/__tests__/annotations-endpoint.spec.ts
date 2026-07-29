@@ -143,11 +143,10 @@ function plantContributionPlugin(
   );
   const extDir = join(dir, 'extractors', extensionId);
   mkdirSync(extDir, { recursive: true });
+  writeFileSync(join(extDir, 'extension.json'), JSON.stringify({ version: '0.1.0', description: 'fixture extension' }));
   writeFileSync(
     join(extDir, 'index.mjs'),
     `export default {
-      version: '1.0.0',
-      description: 'test',
       scope: 'body',
       annotation: ${JSON.stringify(annotation)},
       extract() {},

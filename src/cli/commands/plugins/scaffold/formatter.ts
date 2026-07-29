@@ -24,8 +24,6 @@ function stub(extId: string): string {
  * See: spec/plugin-author-guide.md, spec/schemas/extensions/formatter.schema.json
  */
 export default {
-  version: '0.1.0',
-  description: 'Renders the scan as a one-line node/link/issue tally.',
   contentType: 'text/plain',
 
   format(ctx) {

@@ -83,7 +83,37 @@ export function generateScaffold(
       relPath: 'package.json',
       contents: JSON.stringify(pluginPackageJson(), null, 2) + '\n',
     },
+    {
+      relPath: extensionManifestPathFor(main.relPath),
+      contents: JSON.stringify(extensionManifest(pluginId, kind), null, 2) + '\n',
+    },
     ...extFiles,
     { relPath: 'README.md', contents: scaffolderReadme(pluginId, kind, main.relPath) },
   ];
+}
+
+/**
+ * The per-extension `extension.json`, sibling of the stub's `index.js`.
+ * The loader reads this BEFORE importing the stub, which is how a
+ * disabled extension stays unexecuted; the stub itself therefore must
+ * NOT declare these fields (doing so is `invalid-manifest`).
+ *
+ * No `stability` is emitted: a fresh extension is implicitly `stable`
+ * and enabled, so an author who ships one gets something that runs. Add
+ * `"stability": "experimental"` by hand to ship it opt-in instead.
+ */
+export function extensionManifest(
+  pluginId: string,
+  kind: ExtensionKind,
+): Record<string, unknown> {
+  return {
+    version: '0.1.0',
+    description: `Generated ${kind} for ${pluginId}. Edit to taste.`,
+  };
+}
+
+/** `<kind>s/<name>/index.js` → `<kind>s/<name>/extension.json`. */
+function extensionManifestPathFor(mainRelPath: string): string {
+  const slash = mainRelPath.lastIndexOf('/');
+  return `${mainRelPath.slice(0, slash)}/extension.json`;
 }

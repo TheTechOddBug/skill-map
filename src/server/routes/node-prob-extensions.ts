@@ -174,7 +174,7 @@ export function registerNodeProbExtensionsRoute(app: Hono, deps: IRouteDeps): vo
   // Plugin-runtime discovery warnings are static per boot; emit them
   // once here so the per-request recompose below (which uses a noop
   // sink) never re-spams the server log.
-  emitPluginRuntimeWarnings(deps.pluginRuntime);
+  emitPluginRuntimeWarnings(deps.pluginRuntimeHolder.current);
 
   app.get('/api/nodes/:pathB64/prob-extensions', async (c) => {
     const nodePath = decodePathB64Or404(c.req.param('pathB64'));
@@ -234,7 +234,7 @@ async function composeProbSources(deps: IRouteDeps): Promise<ICatalogSources> {
     effectiveConfig: () => deps.configService.effective(),
   });
   const runtime = buildActionRuntime(
-    deps.pluginRuntime,
+    deps.pluginRuntimeHolder.current,
     () => {
       /* discard: warnings emitted once at registration */
     },

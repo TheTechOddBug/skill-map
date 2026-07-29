@@ -15,6 +15,15 @@
 import type { IProvider } from '../../kernel/extensions/index.js';
 import type { ConfigService } from '../../core/config/service.js';
 import type { IPluginRuntime } from '../../core/runtime/plugin-runtime.js';
+
+/**
+ * Mutable one-field box around the plugin runtime, so a swap performed
+ * by `reloadPluginRuntime` reaches every route, including the ones
+ * registered through an object spread. Mirrors `IWatcherServiceHolder`.
+ */
+export interface IPluginRuntimeHolder {
+  current: IPluginRuntime;
+}
 import type { IRuntimeContext } from '../../core/runtime/runtime-context.js';
 import type { TContributionsRegistry, TKindRegistry, TProviderRegistry } from '../envelope.js';
 import type { IServerOptions } from '../options.js';
@@ -72,12 +81,34 @@ export interface IRouteDeps {
    */
   contributionsRegistry: TContributionsRegistry;
   /**
-   * Plugin runtime resolved once at boot (audit M3). Routes
-   * that previously called `loadPluginRuntime` per request now reuse
-   * this cached value, an operator that installs a new plugin
-   * restarts `sm serve`, matching the watcher's contract.
+   * Plugin runtime, resolved at boot (audit M3) and swappable at
+   * runtime. Routes that previously called `loadPluginRuntime` per
+   * request read `pluginRuntimeHolder.current` instead; an operator that
+   * installs a NEW plugin still restarts `sm serve`, matching the
+   * watcher's contract.
+   *
+   * A holder, not a bare value, because enabling a previously-disabled
+   * extension has to REBUILD the runtime (see `reloadPluginRuntime`) and
+   * several routes are registered through `{ ...routeDeps }`. A plain
+   * field, or a getter, would be copied by value at registration and go
+   * stale; the holder's reference survives the spread. Read
+   * `.current` at the point of use, never stash it across an `await`.
    */
-  pluginRuntime: IPluginRuntime;
+  pluginRuntimeHolder: IPluginRuntimeHolder;
+  /**
+   * Rebuild the runtime in `pluginRuntimeHolder` from the current config.
+   *
+   * Required by any route that ENABLES a previously-disabled extension.
+   * The loader gates the import on the enabled axis, so a disabled
+   * extension has no live instance to un-filter; without this, a toggle
+   * in Settings would silently do nothing until the next restart, which
+   * is the interface lying about what is running.
+   *
+   * Disabling needs no reload: the instance stays loaded and every
+   * consumer re-resolves the enabled state per read. Only the
+   * false → true direction has something to build.
+   */
+  reloadPluginRuntime: () => Promise<void>;
   /**
    * Lazily-cached view over `loadConfig`. Routes consume
    * `c.var.configService.get()` (or `.effective()`) instead of calling

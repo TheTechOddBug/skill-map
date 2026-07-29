@@ -166,12 +166,11 @@ function plantPluginExtractor(root: string, id: string, target: string): void {
   );
   const extDir = join(dir, 'extractors', `${id}-extractor`);
   mkdirSync(extDir, { recursive: true });
+  writeFileSync(join(extDir, 'extension.json'), JSON.stringify({ version: '0.1.0', description: 'fixture extension' }));
   writeFileSync(
     join(extDir, 'index.mjs'),
     `
       export default {
-        version: '1.0.0',
-        description: 'Step 9.1 fixture extractor, emits one synthetic reference per node.',
         extract(ctx) {
           ctx.emitLink({
             source: ctx.node.path,
@@ -211,12 +210,11 @@ function plantPluginFormatter(root: string, id: string, formatId: string, sentin
   );
   const fmtDir = join(dir, 'formatters', formatId);
   mkdirSync(fmtDir, { recursive: true });
+  writeFileSync(join(fmtDir, 'extension.json'), JSON.stringify({ version: '0.1.0', description: 'fixture extension' }));
   writeFileSync(
     join(fmtDir, 'index.mjs'),
     `
       export default {
-        version: '1.0.0',
-        description: 'Step 9.1 fixture formatter.',
         format(ctx) {
           return '${sentinel}\\n' + 'nodes:' + ctx.nodes.length;
         },
