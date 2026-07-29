@@ -24,8 +24,9 @@ restore the files.") and stop.
 ## Step `tour-1-intro` - how plugins work (~4 min)
 
 > Plugins are how skill-map gets extended. A **plugin** is the
-> deployable unit: one directory with a `plugin.json` manifest and
-> the extension code. It groups one or more **extensions**, the
+> deployable unit: one directory with a `plugin.json` manifest and,
+> per extension, an `extension.json` beside its code. It groups one
+> or more **extensions**, the
 > actual code units that run inside the kernel. So when we say
 > "skill-map has a plugin for Claude", what we really mean is
 > "there is a plugin called `claude` that contains one extension

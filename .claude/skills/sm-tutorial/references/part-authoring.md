@@ -71,9 +71,10 @@ Mark `authoring-1-scaffold: done`.
 Ask the tester to open the three files and walk through each one
 with you. They DO NOT edit anything yet.
 
-> Open the three files in your editor of choice:
+> Open the four files in your editor of choice:
 >
 > - `.skill-map/plugins/demo-highlight/plugin.json`
+> - `.skill-map/plugins/demo-highlight/extractors/demo-highlight-extractor/extension.json`
 > - `.skill-map/plugins/demo-highlight/extractors/demo-highlight-extractor/index.js`
 > - `.skill-map/plugins/demo-highlight/README.md`
 >
@@ -102,18 +103,39 @@ Then narrate, one file at a time:
 > `index.js` (you'll see them next). The folder layout IS the
 > contract, that's the "structure-as-truth" idea.
 
+> **`extractors/demo-highlight-extractor/extension.json`**: who the
+> extension is
+>
+> Two keys, `version` and `description`, plus two optional ones
+> (`stability`, `defaultEnabled`) the scaffold leaves out.
+>
+> Why a separate file instead of putting them in the code? Because
+> `sm` decides whether your extension is allowed to run **before it
+> runs anything**. Whether an extension is on depends on
+> `stability` / `defaultEnabled`, so if those lived in the code,
+> `sm` would have to execute the file to find out whether executing
+> it was allowed. Reading a JSON file is not executing anything.
+>
+> That is what makes a switched-off extension genuinely off: its
+> code is never even imported. It also means `sm plugins list` can
+> show you what a plugin you have NOT trusted yet ships, before you
+> decide to trust it.
+
 > **`extractors/demo-highlight-extractor/index.js`**: the code
 >
 > Plain JavaScript with a default export. **Structure-as-truth**:
 > the loader derives the extension `kind` (`extractor`), its `id`,
 > and its `pluginId` from the folder path, so the export never
 > repeats them. Re-declaring `kind` or `id` is rejected at load as
-> `invalid-manifest`.
+> `invalid-manifest`, and so is re-declaring anything that belongs
+> in `extension.json`.
 >
 > **What the loader reads:**
 >
 > - **folder layout**: marks this as the extractor
 >   `demo-highlight-extractor`.
+> - **`extension.json`**: its version and description, read before
+>   any of this code runs.
 > - **`ui`**: where the chip shows. The scaffold sends `count` to
 >   the `card.footer.left` slot; the slot picks the renderer and
 >   payload shape for you.
@@ -260,9 +282,12 @@ Mark `authoring-5-doctor-author: done`.
 
 > You wrote a plugin. From here:
 >
-> - The manifest (`plugin.json`) is the source of truth, the
->   loader validates it.
-> - Extensions are plain JS with a default export.
+> - The manifests are the source of truth, and the loader validates
+>   both: `plugin.json` for the plugin, `extension.json` per
+>   extension.
+> - An extension is two files: `extension.json` says who it is (read
+>   before anything runs, which is how "off" really means off), and
+>   `index.js` is plain JS with a default export.
 > - Slots pick the renderer and the payload shape, you cannot
 >   misalign them.
 > - `sm plugins doctor` is the diagnostic verb, run it after any
