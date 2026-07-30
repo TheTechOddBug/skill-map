@@ -19,6 +19,17 @@
     @legacy host skill-map.dev www.skill-map.dev
     redir @legacy https://skill-map.ai{uri} permanent
 
+    # Permanent redirect of the pre-stable /spec/v0/** schema URLs to the
+    # stable /spec/v1/** scheme that shipped with spec 1.0.0, so links minted
+    # before the release keep resolving. handle_path strips the matched
+    # /spec/v0 prefix, so {uri} carries the remainder plus any query string.
+    # The bare /spec/v0 (and /spec/v0/) index gets its own redir because the
+    # wildcard matcher does not cover the prefix itself.
+    redir /spec/v0 /spec/v1/ permanent
+    handle_path /spec/v0/* {
+        redir * /spec/v1{uri} permanent
+    }
+
     # Machine-readable schemas: advertise the JSON Schema media type and allow CORS
     # so browser-based validators can fetch them.
     @schemas path *.schema.json
