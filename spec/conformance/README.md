@@ -51,7 +51,7 @@ Fixtures are read-only inputs. Cases declare what to invoke and what to assert. 
 
 ## Case format
 
-Cases are validated against [`conformance-case.schema.json`](../schemas/conformance-case.schema.json), the normative shape; this section is the human-readable walkthrough. Include `"$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json"` in every case file for IDE support.
+Cases are validated against [`conformance-case.schema.json`](../schemas/conformance-case.schema.json), the normative shape; this section is the human-readable walkthrough. Include `"$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json"` in every case file for IDE support.
 
 A case is a JSON document with this shape:
 

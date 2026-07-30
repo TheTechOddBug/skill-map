@@ -36,9 +36,6 @@ export const CONFORMANCE_RUNNER_TEXTS = {
   stdoutMissingFixture:
     'stdout does not contain fixture {{fixture}} verbatim',
 
-  fileMatchesSchemaUnimplemented:
-    'file-matches-schema not yet implemented (requires ajv; lands with Step 2)',
-
   stderrDidNotMatch:
     'stderr did not match /{{pattern}}/',
 

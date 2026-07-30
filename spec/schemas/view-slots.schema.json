@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/view-slots.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/view-slots.schema.json",
   "title": "ViewSlots",
   "description": "Closed catalog of view slots. A view slot is a kernel-published handle that names a visual surface in the UI, fixes the renderer that draws there, and fixes the payload shape the plugin emits. The plugin author picks ONE slot per view contribution; the kernel validates `ctx.emitContribution(id, payload)` against that slot's payload schema in `$defs.payloads`. There is no separate notion of a 'contract', the slot IS the contract. Closed catalog by design: every new slot requires a spec change + UI renderer mount + scaffolder support + conformance fixtures + tests. Compounds catalog evolution cost; see ROADMAP.md §UI contribution system → 'Known limitations carried forward'. Slots are versioned via the manifest field `catalogCompat` (semver against the catalog as a whole), not per-slot.",
   "type": "object",

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/enrichments/github.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/enrichments/github.schema.json",
   "title": "EnrichmentGithub",
   "description": "Report produced by `github/enrichment` (Model A provenance verification) for a single node carrying `source` + `sourceVersion` annotations. Deterministic: it does NOT extend `report-base.schema.json` (no LLM, no confidence / safety metacognition). A report schema that extends a schema under the canonical `enrichments/` namespace marks its Action as an enricher: `sm refresh` upserts the validated report into `state_enrichments` keyed by `(node_id, <qualified action id>)`, the mirror of the summaries write-through convention. Stability: experimental.",
   "type": "object",

@@ -1,5 +1,5 @@
 {
-  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
   "id": "score-phase-confidence",
   "description": "Score-phase confidence composition, end-to-end. A drop-in plugin ships an analyzer declaring `phase: 'score'` that calls `ctx.adjustConfidence(link, op)`. A `[text](./target.md)` link resolves to `target.md`; the kernel seeds the 1.0 confidence baseline on every link, and a clean resolved link gets no built-in score-phase op. The drop-in then folds a `delta -0.4` (→ 0.6) and a no-op `floor 0.5` on top. The fold is deterministic and clamped to [0,1], so the persisted `scan_links.confidence` MUST be exactly `0.6`. Locks that a third-party `score`-phase analyzer loads from a manifest, composes confidence ops on top of the kernel 1.0 baseline, and the folded value reaches the scan output.",
   "fixture": "score-phase-confidence",

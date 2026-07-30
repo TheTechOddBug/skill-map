@@ -68,6 +68,20 @@ const SPEC_CASES = [
   'preamble-bitwise-match',
   'extension-mode-routing',
   'extension-mode-routing-deterministic',
+  // First consumer of `stdout-matches-schema`. Keeping it in the
+  // in-repo subset matters more than usual: the assertion it exercises
+  // spent its whole life declared-but-unimplemented precisely because
+  // no case used it, so an unused assertion is the failure mode to
+  // guard against, not just an untested one.
+  'scan-result-schema',
+  'project-config-schema',
+  'plugins-doctor-schema',
+  'extension-manifest-enable-gate',
+  'refresh-report-schema',
+  'catalog-slots-input-types',
+  'bump-report-schema',
+  'extension-kind-manifests',
+  'elapsed-time-reporting',
 ] as const;
 const PROVIDER_CLAUDE_CASES = ['rename-high', 'orphan-detection'] as const;
 const PROVIDER_OPENAI_CASES = ['basic-scan', 'body-links'] as const;
@@ -217,6 +231,56 @@ describe('runConformanceCase, path-traversal guard (audit follow-up 6.4)', () =>
         return true;
       },
     );
+  });
+
+  it('refuses a schema assertion whose `path` or `schema` escapes its anchor', () => {
+    // The schema assertions were added long after this guard suite and
+    // arrived without it, because the assertion they implement had been
+    // a permanently-failing stub since Step 0: an assertion nobody could
+    // run is also an assertion nobody could attack, so the gap was
+    // invisible until it started working.
+    //
+    // A conformance runner is expected to execute cases it did NOT
+    // author (that is the entire point of a portable suite), so a case's
+    // `path` and `schema` are untrusted input exactly like a fixture
+    // name. Unlike `fixture`, these are evaluated per assertion AFTER
+    // the child ran, so they surface as a failed assertion rather than a
+    // throw; asserting the reason is what proves the guard fired instead
+    // of the read merely missing.
+    const casesDir = join(tmpRoot, 'cases-schema-escape');
+    const fixturesDir = join(tmpRoot, 'fixtures-schema-escape');
+    mkdirSync(casesDir, { recursive: true });
+    mkdirSync(fixturesDir, { recursive: true });
+
+    const casePath = join(casesDir, 'hostile-schema-escape.json');
+    writeFileSync(
+      casePath,
+      JSON.stringify({
+        id: 'hostile-schema-escape',
+        description: 'Hostile case pointing the schema assertions out of their anchors',
+        invoke: { verb: 'scan', flags: ['--json'] },
+        assertions: [
+          { type: 'file-matches-schema', path: '../../../../etc/passwd', schema: 'node.schema.json' },
+          { type: 'stdout-matches-schema', schema: '../../../../etc/passwd' },
+        ],
+      }),
+    );
+
+    const result = runConformanceCase({
+      binary: BIN,
+      specRoot: SPEC_ROOT,
+      casePath,
+      fixturesRoot: fixturesDir,
+    });
+
+    assert.equal(result.passed, false);
+    const failures = result.assertions.filter(
+      (a): a is Extract<typeof a, { ok: false }> => !a.ok,
+    );
+    assert.equal(failures.length, 2, 'both escaping assertions must be refused');
+    for (const failure of failures) {
+      assert.match(failure.reason, /escapes its anchor/);
+    }
   });
 
   it('rejects a case whose `fixture` is absolute', () => {

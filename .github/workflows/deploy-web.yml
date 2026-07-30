@@ -4,7 +4,7 @@ name: deploy-web
 # versioned bump or infra change occurs:
 #
 #   - web/package.json    bump of @skill-map/web (landing/demo source)
-#   - spec/package.json   bump of @skill-map/spec (schemas served at /spec/v0/)
+#   - spec/package.json   bump of @skill-map/spec (schemas served at /spec/v1/)
 #   - Dockerfile          deploy recipe
 #   - Caddyfile           server config
 #

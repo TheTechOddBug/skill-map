@@ -1,5 +1,5 @@
 {
-  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
   "id": "basic-scan",
   "description": "Scanning the demo-opencode fixture under the pinned opencode lens (`.skill-map/settings.json`, since the fixture carries `.opencode/`, `.claude/`, and `.agents/` markers) classifies the OpenCode territory and the three skill homes it reads, while the Claude-only agents/commands fall through to markdown. Nine nodes: `.opencode/agent/*.md` as opencode/agent, `.opencode/commands/*.md` as opencode/command, and skills from `.opencode/skills/`, `.claude/skills/`, and `.agents/skills/` as opencode/skill; the Claude-only `.claude/agents/` + `.claude/commands/` files, the skill support file, and AGENTS.md fall to core/markdown (the asymmetric Claude-compat: skills cross over, agents/commands do not). Three links, no issues: the agent's `/opencode-cmd-deploy` invocation resolves to the command (confidence 1), the command's own backticked usage example resolves to itself (a warn-exempt self-loop via `core/backtick-slash`), and the skill support file points at its SKILL.md entry.",
   "fixture": "demo-opencode",

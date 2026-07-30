@@ -229,7 +229,7 @@ describe('buildFindingsSection', () => {
 describe('renderJobContent with a findings section (fixer)', () => {
   const FINDER_SCHEMA = {
     $id: 'urn:test:fixer-report',
-    allOf: [{ $ref: 'https://skill-map.ai/spec/v0/report-base.schema.json' }],
+    allOf: [{ $ref: 'https://skill-map.ai/spec/v1/report-base.schema.json' }],
   };
 
   it('places findings BEFORE the report contract BEFORE the <user-content> block', () => {

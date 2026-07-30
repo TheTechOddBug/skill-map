@@ -15,7 +15,7 @@
  */
 
 /** `$id` prefix shared by every `spec/schemas/tags/*.schema.json`. */
-export const TAGS_SCHEMA_ID_PREFIX = 'https://skill-map.ai/spec/v0/tags/';
+export const TAGS_SCHEMA_ID_PREFIX = 'https://skill-map.ai/spec/v1/tags/';
 
 /**
  * True when the report schema references a `tags/*.schema.json`,

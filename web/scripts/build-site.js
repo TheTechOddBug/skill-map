@@ -5,8 +5,8 @@
  * - Copies web/ → .tmp/site/ (the editable landing).
  * - Substitutes {{SPEC_VERSION}} placeholders in .tmp/site/index.html.
  * - Validates that each schema's `$id` matches its target URL exactly,
- *   then copies spec/schemas/**\/*.schema.json → .tmp/site/spec/v0/...
- * - Generates .tmp/site/spec/v0/index.html (the schema browse index).
+ *   then copies spec/schemas/**\/*.schema.json → .tmp/site/spec/v1/...
+ * - Generates .tmp/site/spec/v1/index.html (the schema browse index).
  *
  * Zero dependencies. Node >= 22 ESM.
  */
@@ -23,12 +23,12 @@ const SPEC_PKG_PATH = resolve(REPO_ROOT, 'spec/package.json');
 const WEB_PKG_PATH = resolve(REPO_ROOT, 'web/package.json');
 const WEB_SRC = resolve(REPO_ROOT, 'web');
 const SITE_DST = resolve(REPO_ROOT, '.tmp/site');
-const SCHEMA_DST = resolve(REPO_ROOT, '.tmp/site/spec/v0');
+const SCHEMA_DST = resolve(REPO_ROOT, '.tmp/site/spec/v1');
 const I18N_SRC = resolve(REPO_ROOT, 'web/i18n.json');
 const LANDING_PATH = join(SITE_DST, 'index.html');
 
 const DOMAIN = 'https://skill-map.ai';
-const MAJOR = 'v0';
+const MAJOR = 'v1';
 const SPEC_URL = `${DOMAIN}/spec/${MAJOR}`;
 
 const REPO_URL = 'https://github.com/crystian/skill-map';
@@ -315,7 +315,7 @@ Sitemap: ${DOMAIN}/sitemap.xml
  * sitemap.xml: one <url> per language with xhtml:link hreflang alternates,
  * plus an x-default entry. lastmod is set to the build date (UTC, YYYY-MM-DD)
  * so search engines see a fresh signal on every deploy. The sitemap covers
- * only the landing surface today; spec/v0/index.html is intentionally left
+ * only the landing surface today; spec/v1/index.html is intentionally left
  * out (it's a developer index, not a marketing page).
  */
 function renderSitemapXml({ langs, defaultLang }) {

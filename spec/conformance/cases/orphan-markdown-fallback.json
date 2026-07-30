@@ -1,5 +1,5 @@
 {
-  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
   "id": "orphan-markdown-fallback",
   "description": "spec 0.18.0 universal markdown fallback. A `.md` file no vendor-specific Provider classifies (e.g. `ARCHITECTURE.md` at the project root) MUST be picked up by the built-in `core/markdown` Provider, classified as kind `markdown`, and attributed to the `markdown` provider id. The orchestrator's path-dedup ensures vendor Providers retain priority on files inside their territory (`.claude/agents/reviewer.md` here stays with `claude` as `agent`). Locks the contract that markdown is provider-agnostic and the kernel emits no privileged kinds.",
   "fixture": "orphan-markdown",

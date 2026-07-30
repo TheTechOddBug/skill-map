@@ -176,7 +176,7 @@ describe('sm actions show', () => {
     ok(!('summarizer' in outcome.detail), 'no derived summarizer field');
     strictEqual(
       outcome.detail['reportSchemaRef'],
-      'https://skill-map.ai/spec/v0/summaries/markdown.schema.json',
+      'https://skill-map.ai/spec/v1/summaries/markdown.schema.json',
     );
     strictEqual(outcome.detail['hasPromptTemplate'], true);
   });

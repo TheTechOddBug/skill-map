@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/report-base.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/report-base.schema.json",
   "title": "ReportBase",
   "description": "Base shape for any probabilistic report, whatever extension kind produced it (summarizer Actions, finder Analyzers, plugin-shipped probabilistic extensions). The canonical envelopes under `summaries/` and `findings/` both extend this. Kernel validates the `confidence` and `safety` fields regardless of extension-specific additions.",
   "type": "object",

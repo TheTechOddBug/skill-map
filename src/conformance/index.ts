@@ -21,6 +21,7 @@ import { formatErrorMessage } from '../kernel/util/format-error.js';
 import { KERNEL_SKILL_MAP_DIR } from '../kernel/util/skill-map-paths.js';
 import { tx } from '../kernel/util/tx.js';
 import { CONFORMANCE_RUNNER_TEXTS } from './i18n/runner.texts.js';
+import { checkAgainstSchema, parseJsonForSchema } from './schema-assertions.js';
 
 export type TAssertionResult =
   | { ok: true; type: string }
@@ -187,6 +188,7 @@ export type TAssertion =
   | { type: 'file-contains-verbatim'; path: string; fixture: string }
   | { type: 'stdout-contains-verbatim'; fixture: string }
   | { type: 'file-matches-schema'; path: string; schema: string }
+  | { type: 'stdout-matches-schema'; schema: string }
   | { type: 'stderr-matches'; pattern: string };
 
 // Conformance runner orchestrates: case parse, setup steps, scope
@@ -424,6 +426,31 @@ function grantFixturePluginTrust(scope: string): void {
  * or read files outside the conformance sandbox via `file-exists` /
  * `file-contains-verbatim` assertions.
  */
+/**
+ * Normalise a case's `schema` reference to a spec-root-relative path.
+ *
+ * Cases may write it with or without the `schemas/` prefix, and the
+ * containment guard has to see the SAME string the reader will resolve,
+ * or the check and the read disagree about what was validated.
+ */
+function schemaRelOf(schema: string): string {
+  return schema.startsWith('schemas/') ? schema : `schemas/${schema}`;
+}
+
+/**
+ * Render a JSON value for a failure message, never returning
+ * `undefined`.
+ *
+ * `JSON.stringify(undefined)` is `undefined` rather than a string, and
+ * the interpolator rejects that, so a `json-path` whose expression
+ * matched nothing threw instead of failing. Naming the absence is what
+ * the case author needs: "the key is missing" and "the key holds
+ * something else" are different bugs.
+ */
+function describeJsonValue(value: unknown): string {
+  return value === undefined ? '(no match)' : JSON.stringify(value);
+}
+
 function assertContained(root: string, rel: string, label: string): void {
   if (isAbsolute(rel)) {
     throw new Error(
@@ -525,12 +552,45 @@ function evaluateAssertion(a: TAssertion, ctx: TAssertionContext): TAssertionRes
             reason: tx(CONFORMANCE_RUNNER_TEXTS.stdoutMissingFixture, { fixture: a.fixture }),
           };
     }
-    case 'file-matches-schema':
-      return {
-        ok: false,
-        type: a.type,
-        reason: CONFORMANCE_RUNNER_TEXTS.fileMatchesSchemaUnimplemented,
-      };
+    case 'file-matches-schema': {
+      // Same containment guard every other file-touching assertion runs
+      // (audit follow-up 6.4). A case is data, and a conformance suite
+      // is expected to run cases it did not author, so `path` is exactly
+      // as untrusted here as a link target is during a scan.
+      try {
+        assertContained(ctx.scope, a.path, 'file-matches-schema/path');
+        assertContained(ctx.specRoot, schemaRelOf(a.schema), 'file-matches-schema/schema');
+      } catch (err) {
+        return { ok: false, type: a.type, reason: formatErrorMessage(err) };
+      }
+      const target = resolve(ctx.scope, a.path);
+      if (!existsSync(target)) {
+        return {
+          ok: false,
+          type: a.type,
+          reason: tx(CONFORMANCE_RUNNER_TEXTS.targetNotFound, { path: a.path }),
+        };
+      }
+      const parsed = parseJsonForSchema(readFileSync(target, 'utf8'), a.path);
+      if (!parsed.ok) return { ok: false, type: a.type, reason: parsed.reason };
+      const verdict = checkAgainstSchema(parsed.value, a.schema, ctx.specRoot);
+      return verdict.ok
+        ? { ok: true, type: a.type }
+        : { ok: false, type: a.type, reason: verdict.reason };
+    }
+    case 'stdout-matches-schema': {
+      try {
+        assertContained(ctx.specRoot, schemaRelOf(a.schema), 'stdout-matches-schema/schema');
+      } catch (err) {
+        return { ok: false, type: a.type, reason: formatErrorMessage(err) };
+      }
+      const parsed = parseJsonForSchema(ctx.stdout, 'stdout');
+      if (!parsed.ok) return { ok: false, type: a.type, reason: parsed.reason };
+      const verdict = checkAgainstSchema(parsed.value, a.schema, ctx.specRoot);
+      return verdict.ok
+        ? { ok: true, type: a.type }
+        : { ok: false, type: a.type, reason: verdict.reason };
+    }
     case 'stderr-matches': {
       const re = new RegExp(a.pattern);
       return re.test(ctx.stderr)
@@ -634,8 +694,15 @@ function applyJsonPathComparator(
           type: a.type,
           reason: tx(CONFORMANCE_RUNNER_TEXTS.jsonPathEqualsMismatch, {
             path: a.path,
-            actual: JSON.stringify(current),
-            expected: JSON.stringify(a.equals),
+            // `JSON.stringify(undefined)` returns undefined, NOT a
+            // string, so a path that matched nothing used to blow up in
+            // `tx` with "variable actual is null/undefined" instead of
+            // reporting the mismatch. A case probing a key an
+            // implementation does not emit is the single most likely way
+            // to hit this, which is exactly when the author needs a
+            // readable failure rather than a stack trace.
+            actual: describeJsonValue(current),
+            expected: describeJsonValue(a.equals),
           }),
         };
   }

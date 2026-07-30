@@ -1,9 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/core/ai-frontmatter-action-report.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/core/ai-frontmatter-action-report.schema.json",
   "title": "AiFrontmatterActionReport",
   "description": "Report shape for the built-in `core/ai-frontmatter-action` probabilistic standalone Action. Execution-only (no write-through table): it extends `report-base.schema.json` directly for the `confidence` + `safety` fields the preamble mandates. `fields` records, per base frontmatter field considered, whether the agent added it or kept an existing value; `editsSummary` describes the edit. skill-map never writes the file, the processing agent performs the edit and the next scan re-derives the frontmatter.",
-  "allOf": [{ "$ref": "https://skill-map.ai/spec/v0/report-base.schema.json" }],
+  "allOf": [{ "$ref": "https://skill-map.ai/spec/v1/report-base.schema.json" }],
   "type": "object",
   "required": ["fields", "editsSummary"],
   "properties": {

@@ -1,5 +1,5 @@
 {
-  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
   "id": "basic-scan",
   "description": "Scanning the demo-antigravity corpus under the antigravity lens classifies the two `.agent/workflows/*.md` files as antigravity/workflow (the provider's own kind), the two `.agents/skills/<name>/SKILL.md` files as antigravity/skill (open-standard composition from agent-skills), and the four markdown files (AGENTS.md and three docs) via the core/markdown fallback. Eight nodes, no issues: workflows and skills coexist with their referenced docs in a clean graph. Lens pinned via `.skill-map/settings.json` (the fixture carries both `.agent/workflows/` and `.agents/` markers).",
   "fixture": "demo-antigravity",

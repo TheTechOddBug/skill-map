@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/core/ai-ping-action-report.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/core/ai-ping-action-report.schema.json",
   "title": "AiPingActionReport",
   "description": "Report shape for the built-in system `core/ai-ping-action` liveness probe. Extends the canonical `report-base` (confidence + safety) and nothing else, so record writes through no summary and no finding: the probe cares only that the job was claimed + recorded, not about the payload.",
-  "allOf": [{ "$ref": "https://skill-map.ai/spec/v0/report-base.schema.json" }]
+  "allOf": [{ "$ref": "https://skill-map.ai/spec/v1/report-base.schema.json" }]
 }

@@ -104,7 +104,7 @@ function writeProviderKind(pluginDir: string, name: string, kindJson: unknown): 
     JSON.stringify({
       $schema: 'https://json-schema.org/draft/2020-12/schema',
       $id: `urn:test:${name}`,
-      allOf: [{ $ref: 'https://skill-map.ai/spec/v0/frontmatter/base.schema.json' }],
+      allOf: [{ $ref: 'https://skill-map.ai/spec/v1/frontmatter/base.schema.json' }],
       type: 'object',
       additionalProperties: true,
     }),
@@ -892,7 +892,7 @@ describe('PluginLoader', () => {
     const FINDINGS_REPORT_SCHEMA = JSON.stringify({
       $schema: 'https://json-schema.org/draft/2020-12/schema',
       $id: 'urn:test:finder-report',
-      allOf: [{ $ref: 'https://skill-map.ai/spec/v0/findings/report.schema.json' }],
+      allOf: [{ $ref: 'https://skill-map.ai/spec/v1/findings/report.schema.json' }],
     });
 
     /** Drop a sibling file into `<plugin>/analyzers/<name>/`. */
@@ -966,7 +966,7 @@ describe('PluginLoader', () => {
         'report.schema.json',
         JSON.stringify({
           $id: 'urn:test:not-findings',
-          allOf: [{ $ref: 'https://skill-map.ai/spec/v0/report-base.schema.json' }],
+          allOf: [{ $ref: 'https://skill-map.ai/spec/v1/report-base.schema.json' }],
         }),
       );
 

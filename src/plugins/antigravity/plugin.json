@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "specCompat": "^0.27.0",
+  "specCompat": "^1.0.0",
   "catalogCompat": "^1.0.0",
   "description": "Google Antigravity CLI platform integration (replaces the retired Gemini CLI). Classifies workflows under `.agent/workflows/`, plus the open-standard `.agents/skills/` layout."
 }

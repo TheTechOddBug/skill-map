@@ -1,5 +1,5 @@
 {
-  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
   "id": "reserved-names",
   "description": "The reserved-name catalog applies to BOTH slash-invocable kinds. The demo-antigravity-reserved corpus has a workflow named `tasks` and a skill named `goal`, each shadowing an `agy` built-in slash command. Under the antigravity lens both classify (workflow + skill) and `core/name-reserved` flags both via self scope: two node-level warns. Each body also shows its own usage in backticks, so `core/backtick-slash` emits a resolved self-invocation per node whose target is reserved, adding the per-edge reserved warn (and the -0.9 confidence downgrade): four warn issues total. Proves the catalog covers the `workflow` kind, not only `skill`, on both the node and the edge surface.",
   "fixture": "demo-antigravity-reserved",

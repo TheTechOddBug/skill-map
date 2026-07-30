@@ -1,9 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/core/ai-name-action-report.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/core/ai-name-action-report.schema.json",
   "title": "AiNameActionReport",
   "description": "Report shape for the built-in `core/ai-name-action` probabilistic fixer Action. A fixer is NOT a finder: its report is execution-only, so it extends `report-base.schema.json` directly for the `confidence` + `safety` fields the preamble mandates, rather than the `findings/` envelope. `resolved` records, per name mismatch the processing agent acted on, keyed by the declared name (NOT a finding id: the trigger is a `core/name-mismatch` Issue, which carries no stable identity, so the fix's evidence is the next scan clearing the Issue via the body-hash rule). `editsSummary` describes the edits made. skill-map never writes the body, the processing agent performs the edit.",
-  "allOf": [{ "$ref": "https://skill-map.ai/spec/v0/report-base.schema.json" }],
+  "allOf": [{ "$ref": "https://skill-map.ai/spec/v1/report-base.schema.json" }],
   "type": "object",
   "required": ["resolved", "editsSummary"],
   "properties": {

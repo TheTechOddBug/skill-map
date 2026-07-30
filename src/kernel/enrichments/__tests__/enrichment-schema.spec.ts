@@ -19,7 +19,7 @@ import {
 describe('enrichmentKindOfReportSchema', () => {
   it('detects an enrichments/<kind> $ref inside allOf (the canonical extender shape)', () => {
     const schema = {
-      $id: 'https://skill-map.ai/spec/v0/github/enrichment-report.schema.json',
+      $id: 'https://skill-map.ai/spec/v1/github/enrichment-report.schema.json',
       allOf: [{ $ref: `${ENRICHMENT_SCHEMA_ID_PREFIX}github.schema.json` }],
     };
     strictEqual(enrichmentKindOfReportSchema(schema), 'github');
@@ -43,8 +43,8 @@ describe('enrichmentKindOfReportSchema', () => {
 
   it('returns null for a plain report-base-only schema (non-enricher)', () => {
     const schema = {
-      $id: 'https://skill-map.ai/spec/v0/test/skill-echo-report.schema.json',
-      allOf: [{ $ref: 'https://skill-map.ai/spec/v0/report-base.schema.json' }],
+      $id: 'https://skill-map.ai/spec/v1/test/skill-echo-report.schema.json',
+      allOf: [{ $ref: 'https://skill-map.ai/spec/v1/report-base.schema.json' }],
       type: 'object',
       properties: { summary: { type: 'string' } },
       required: ['summary'],
@@ -55,7 +55,7 @@ describe('enrichmentKindOfReportSchema', () => {
   it('returns null for a summaries-namespace $ref (that is the summarizer signal, not this one)', () => {
     strictEqual(
       enrichmentKindOfReportSchema({
-        allOf: [{ $ref: 'https://skill-map.ai/spec/v0/summaries/markdown.schema.json' }],
+        allOf: [{ $ref: 'https://skill-map.ai/spec/v1/summaries/markdown.schema.json' }],
       }),
       null,
     );
@@ -77,7 +77,7 @@ describe('enrichmentKindOfReportSchema', () => {
   it('ignores enrichments-looking plain strings that are not $ref values', () => {
     const schema = {
       description: `See ${ENRICHMENT_SCHEMA_ID_PREFIX}github.schema.json for the canonical shape.`,
-      allOf: [{ $ref: 'https://skill-map.ai/spec/v0/report-base.schema.json' }],
+      allOf: [{ $ref: 'https://skill-map.ai/spec/v1/report-base.schema.json' }],
     };
     strictEqual(enrichmentKindOfReportSchema(schema), null);
   });
@@ -86,7 +86,7 @@ describe('enrichmentKindOfReportSchema', () => {
     const schema = {
       type: 'object',
       oneOf: [
-        { allOf: [{ $ref: 'https://skill-map.ai/spec/v0/report-base.schema.json' }] },
+        { allOf: [{ $ref: 'https://skill-map.ai/spec/v1/report-base.schema.json' }] },
         { allOf: [{ $ref: `${ENRICHMENT_SCHEMA_ID_PREFIX}github.schema.json` }] },
       ],
     };

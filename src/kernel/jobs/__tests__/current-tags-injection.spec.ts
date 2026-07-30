@@ -85,7 +85,7 @@ describe('buildCurrentTagsSection', () => {
 describe('renderJobContent with a current-tags section (tagger)', () => {
   const TAGGER_SCHEMA = {
     $id: 'urn:test:tagger-report',
-    allOf: [{ $ref: 'https://skill-map.ai/spec/v0/report-base.schema.json' }],
+    allOf: [{ $ref: 'https://skill-map.ai/spec/v1/report-base.schema.json' }],
   };
 
   /** Minimal `state_findings` row, only what `buildFindingsSection` projects. */

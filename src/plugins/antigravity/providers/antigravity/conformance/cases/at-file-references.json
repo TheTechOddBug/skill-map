@@ -1,5 +1,5 @@
 {
-  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
   "id": "at-file-references",
   "description": "Under the antigravity lens the vendor-neutral `core/at-file` extractor runs (its `@`-file-picker grammar is gated to claude / codex / antigravity), so a file-shaped `@<path>` token in a workflow or skill body forms a path-resolved `references` edge. Antigravity reads `@filename` as a file pointer (the documented rules / skill / workflow file reference), the same family as Codex, distinct from Claude's bare-handle agent mention. The demo-antigravity-at-file corpus wires a workflow to a sibling workflow (`@test.md`) and to a doc two levels up (`@../../docs/guide.md`, proving the multi-level relative prefix resolves), plus a skill to a sibling skill (`@../notify/SKILL.md`): five nodes (two workflows, two skills, one markdown doc), three resolved `references` edges, no issues.",
   "fixture": "demo-antigravity-at-file",

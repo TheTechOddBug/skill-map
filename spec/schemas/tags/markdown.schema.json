@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/tags/markdown.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/tags/markdown.schema.json",
   "title": "NodeTagsReport",
   "description": "Canonical tagger-report shape (2026-07-21, the taxonomy leg of the summarizer-split direction; reframed 2026-07-25). An Action whose report schema `$ref`s a schema under the `tags/` namespace is a TAGGER: `sm record` detects that reference (mirror of the `summaries/` detection signal) and surfaces the report's `tags[]` as a PROPOSAL on the completion event (`job-events.md`, `tagsProposed`), writing nothing. Tags are human curation (`architecture.md` §Storage rule), so the operator reviews the proposal in the ordinary tags editor and saves it through the usual consent-gated `.sm` write. See `job-lifecycle.md` §Tags proposal.",
   "type": "object",

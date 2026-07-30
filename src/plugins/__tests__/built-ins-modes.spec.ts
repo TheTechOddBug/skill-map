@@ -397,7 +397,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     };
     assert.ok(
       (schema.allOf ?? []).some(
-        (s) => s.$ref === 'https://skill-map.ai/spec/v0/summaries/markdown.schema.json',
+        (s) => s.$ref === 'https://skill-map.ai/spec/v1/summaries/markdown.schema.json',
       ),
       'reportSchema must extend summaries/markdown by its absolute $id',
     );
@@ -431,7 +431,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     const tagSchema = action.reportSchema as { allOf?: Array<{ $ref?: string }> };
     assert.ok(
       (tagSchema.allOf ?? []).some(
-        (s) => s.$ref === 'https://skill-map.ai/spec/v0/tags/markdown.schema.json',
+        (s) => s.$ref === 'https://skill-map.ai/spec/v1/tags/markdown.schema.json',
       ),
       'reportSchema must extend tags/markdown by its absolute $id',
     );
@@ -486,7 +486,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     const schema = action.reportSchema as { allOf?: Array<{ $ref?: string }> };
     assert.ok(
       (schema.allOf ?? []).some(
-        (s) => s.$ref === 'https://skill-map.ai/spec/v0/enrichments/github.schema.json',
+        (s) => s.$ref === 'https://skill-map.ai/spec/v1/enrichments/github.schema.json',
       ),
       'reportSchema must extend enrichments/github by its absolute $id',
     );

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/scan-result.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/scan-result.schema.json",
   "title": "ScanResult",
   "description": "Canonical output of `sm scan --json` (and the data shape sent over WebSocket scan events). Self-describing and versioned; consumers MUST check `schemaVersion` before parsing.",
   "type": "object",

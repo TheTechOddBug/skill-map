@@ -14,7 +14,7 @@ import { reportSchemaExtendsFindings, FINDINGS_SCHEMA_ID_PREFIX } from '../findi
 describe('reportSchemaExtendsFindings', () => {
   it('detects a findings $ref inside allOf (the canonical extender shape)', () => {
     const schema = {
-      $id: 'https://skill-map.ai/spec/v0/test/quality-check-report.schema.json',
+      $id: 'https://skill-map.ai/spec/v1/test/quality-check-report.schema.json',
       allOf: [{ $ref: `${FINDINGS_SCHEMA_ID_PREFIX}report.schema.json` }],
     };
     strictEqual(reportSchemaExtendsFindings(schema), true);
@@ -38,8 +38,8 @@ describe('reportSchemaExtendsFindings', () => {
 
   it('returns false for a plain report-base-only schema (non-finder)', () => {
     const schema = {
-      $id: 'https://skill-map.ai/spec/v0/test/skill-echo-report.schema.json',
-      allOf: [{ $ref: 'https://skill-map.ai/spec/v0/report-base.schema.json' }],
+      $id: 'https://skill-map.ai/spec/v1/test/skill-echo-report.schema.json',
+      allOf: [{ $ref: 'https://skill-map.ai/spec/v1/report-base.schema.json' }],
       type: 'object',
       properties: { summary: { type: 'string' } },
       required: ['summary'],
@@ -63,7 +63,7 @@ describe('reportSchemaExtendsFindings', () => {
   it('ignores findings-looking plain strings that are not $ref values', () => {
     const schema = {
       description: `See ${FINDINGS_SCHEMA_ID_PREFIX}report.schema.json for the canonical shape.`,
-      allOf: [{ $ref: 'https://skill-map.ai/spec/v0/report-base.schema.json' }],
+      allOf: [{ $ref: 'https://skill-map.ai/spec/v1/report-base.schema.json' }],
     };
     strictEqual(reportSchemaExtendsFindings(schema), false);
   });
@@ -72,7 +72,7 @@ describe('reportSchemaExtendsFindings', () => {
     const schema = {
       type: 'object',
       oneOf: [
-        { allOf: [{ $ref: 'https://skill-map.ai/spec/v0/report-base.schema.json' }] },
+        { allOf: [{ $ref: 'https://skill-map.ai/spec/v1/report-base.schema.json' }] },
         { allOf: [{ $ref: `${FINDINGS_SCHEMA_ID_PREFIX}report.schema.json` }] },
       ],
     };

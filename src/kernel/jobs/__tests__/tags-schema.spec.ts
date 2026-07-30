@@ -15,7 +15,7 @@ import { isTagsReportSchema, TAGS_SCHEMA_ID_PREFIX } from '../tags-schema.js';
 describe('isTagsReportSchema', () => {
   it('detects a tags $ref inside allOf (the canonical extender shape)', () => {
     const schema = {
-      $id: 'https://skill-map.ai/spec/v0/core/ai-tagger-action-report.schema.json',
+      $id: 'https://skill-map.ai/spec/v1/core/ai-tagger-action-report.schema.json',
       allOf: [{ $ref: `${TAGS_SCHEMA_ID_PREFIX}markdown.schema.json` }],
     };
     strictEqual(isTagsReportSchema(schema), true);
@@ -29,7 +29,7 @@ describe('isTagsReportSchema', () => {
     const schema = {
       type: 'object',
       oneOf: [
-        { allOf: [{ $ref: 'https://skill-map.ai/spec/v0/report-base.schema.json' }] },
+        { allOf: [{ $ref: 'https://skill-map.ai/spec/v1/report-base.schema.json' }] },
         { allOf: [{ $ref: `${TAGS_SCHEMA_ID_PREFIX}markdown.schema.json` }] },
       ],
     };
@@ -38,8 +38,8 @@ describe('isTagsReportSchema', () => {
 
   it('returns false for a plain report-base-only schema (non-tagger)', () => {
     const schema = {
-      $id: 'https://skill-map.ai/spec/v0/test/skill-echo-report.schema.json',
-      allOf: [{ $ref: 'https://skill-map.ai/spec/v0/report-base.schema.json' }],
+      $id: 'https://skill-map.ai/spec/v1/test/skill-echo-report.schema.json',
+      allOf: [{ $ref: 'https://skill-map.ai/spec/v1/report-base.schema.json' }],
       type: 'object',
       properties: { summary: { type: 'string' } },
       required: ['summary'],
@@ -50,7 +50,7 @@ describe('isTagsReportSchema', () => {
   it('returns false for a summaries $ref (the sibling namespace is not a tagger signal)', () => {
     strictEqual(
       isTagsReportSchema({
-        allOf: [{ $ref: 'https://skill-map.ai/spec/v0/summaries/markdown.schema.json' }],
+        allOf: [{ $ref: 'https://skill-map.ai/spec/v1/summaries/markdown.schema.json' }],
       }),
       false,
     );
@@ -59,7 +59,7 @@ describe('isTagsReportSchema', () => {
   it('ignores tags-looking plain strings that are not $ref values', () => {
     const schema = {
       description: `See ${TAGS_SCHEMA_ID_PREFIX}markdown.schema.json for the canonical shape.`,
-      allOf: [{ $ref: 'https://skill-map.ai/spec/v0/report-base.schema.json' }],
+      allOf: [{ $ref: 'https://skill-map.ai/spec/v1/report-base.schema.json' }],
     };
     strictEqual(isTagsReportSchema(schema), false);
   });

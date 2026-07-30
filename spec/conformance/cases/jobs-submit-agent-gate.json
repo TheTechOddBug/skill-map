@@ -1,5 +1,5 @@
 {
-  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
   "id": "jobs-submit-agent-gate",
   "description": "Processing-agent gate (`job-lifecycle.md` §Submit): the queue is processed by external agents, so a probabilistic submit into a project with NO installed processing skill (no `sm agent install` ran) must refuse with exit 2 and an advisory explaining the mechanism, instead of enqueuing work nothing will ever claim.",
   "fixture": "extension-mode-routing",

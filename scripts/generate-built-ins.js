@@ -132,7 +132,7 @@ function isProbabilisticSource(indexTsSource) {
 }
 
 /** `$id` prefix of the canonical findings envelope (mirror of `kernel/jobs/findings-schema.ts`). */
-const FINDINGS_SCHEMA_ID_PREFIX = 'https://skill-map.ai/spec/v0/findings/';
+const FINDINGS_SCHEMA_ID_PREFIX = 'https://skill-map.ai/spec/v1/findings/';
 
 /**
  * Structural scan for a `$ref` under the canonical findings namespace,

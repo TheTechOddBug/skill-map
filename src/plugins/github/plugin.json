@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "specCompat": "^0.27.0",
+  "specCompat": "^1.0.0",
   "catalogCompat": "^1.0.0",
   "description": "GitHub integration. Verifies that a node's content matches its declared upstream on GitHub (provenance verification via `source` / `sourceVersion` sidecar annotations)."
 }

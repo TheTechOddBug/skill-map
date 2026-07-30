@@ -1,0 +1,24 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "bump-report-schema",
+  "description": "`sm bump <node> --json` MUST emit a report validating against `bump-report.schema.json`. The case is also the worked example of the two consent gates a sidecar-writing Action passes through: `core/node-bump` ships `defaultEnabled: false`, so it must be enabled explicitly, and writing a `.sm` sidecar needs `--yes`. Both are staged rather than assumed, which is the point: an implementation that emitted this report without either gate would still satisfy the schema, so the case pins the gates alongside the shape by reaching the report only through them.",
+  "fixture": "orphan-markdown",
+  "setup": {
+    "priorInvokes": [
+      { "verb": "scan" },
+      { "verb": "plugins", "sub": "enable", "args": ["core/node-bump"] }
+    ]
+  },
+  "invoke": {
+    "verb": "bump",
+    "args": ["ARCHITECTURE.md"],
+    "flags": ["--json", "--yes"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "stdout-matches-schema", "schema": "bump-report.schema.json" },
+    { "type": "json-path", "path": "$.ok", "equals": true },
+    { "type": "json-path", "path": "$.version", "equals": 1 },
+    { "type": "file-exists", "path": "ARCHITECTURE.sm" }
+  ]
+}

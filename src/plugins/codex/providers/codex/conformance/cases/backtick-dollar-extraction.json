@@ -1,5 +1,5 @@
 {
-  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
   "id": "backtick-dollar-extraction",
   "description": "Code-region `$skill` triggers, end-to-end under the codex lens. A backticked `$check-links` in prose plus its fenced repeat MUST dedupe into exactly ONE `invokes` Link via `codex/backtick-dollar`, resolved to the fixture skill and lifted to confidence 1.0. The lowercase shell variable `$file` inside the sh fence matches the shared grammar but resolves to nothing and MUST be pruned by the resolution gate: no link, no broken issue.",
   "fixture": "backtick-dollar",

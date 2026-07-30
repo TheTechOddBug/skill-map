@@ -96,7 +96,7 @@ The policy: **deploy only when something the site actually publishes changes**. 
 | Path | Reason |
 |---|---|
 | `web/package.json` | bump of `@skill-map/web` |
-| `spec/package.json` | bump of `@skill-map/spec` (the site serves these schemas at `/spec/v0/`) |
+| `spec/package.json` | bump of `@skill-map/spec` (the site serves these schemas at `/spec/v1/`) |
 | `Dockerfile` | deploy recipe |
 | `Caddyfile` | server config |
 
@@ -139,7 +139,7 @@ Three tags in the footer, with two distinct policies depending on what each vers
 
 | Tag | Source | Policy | Reason |
 |---|---|---|---|
-| `spec v…` | `spec/package.json` | **build-time** (`{{SPEC_VERSION}}` placeholder) | The site serves the schemas itself at `/spec/v0/`. The version shown in the footer MUST match what the site delivers, otherwise it would be misleading. |
+| `spec v…` | `spec/package.json` | **build-time** (`{{SPEC_VERSION}}` placeholder) | The site serves the schemas itself at `/spec/v1/`. The version shown in the footer MUST match what the site delivers, otherwise it would be misleading. |
 | `web v…` | `web/package.json` | **build-time** (`{{WEB_VERSION}}` placeholder) | This is the site's own version. Build-time is trivially correct. |
 | `cli v…` | `https://registry.npmjs.org/@skill-map/cli/latest` | **runtime fetch** (`web/app.js`) | The site does NOT serve the CLI (it's installed via `npm i -g @skill-map/cli`). The footer reports "the latest published on npm", not something the site delivers. Build-time would go stale between deploys. If the fetch fails (offline, npm down), the `cli v…` placeholder stays in place. |
 

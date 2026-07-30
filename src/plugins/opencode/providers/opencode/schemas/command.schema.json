@@ -4,7 +4,7 @@
   "title": "FrontmatterOpenCodeCommand",
   "description": "Frontmatter shape for nodes classified as `command` by the OpenCode Provider. OpenCode custom commands live as markdown files under `.opencode/commands/<name>.md` (https://opencode.ai/docs/commands); the markdown body is the command template and the filename stem is the command name (invoked `/<name>`). No required fields beyond the base (OpenCode treats the frontmatter as optional metadata); `additionalProperties: true` lets inherited keys flow through unchanged.",
   "allOf": [
-    { "$ref": "https://skill-map.ai/spec/v0/frontmatter/base.schema.json" }
+    { "$ref": "https://skill-map.ai/spec/v1/frontmatter/base.schema.json" }
   ],
   "type": "object",
   "additionalProperties": true,

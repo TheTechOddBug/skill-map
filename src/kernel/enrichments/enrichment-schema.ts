@@ -23,7 +23,7 @@
  */
 
 /** `$id` prefix shared by every `spec/schemas/enrichments/<kind>.schema.json`. */
-export const ENRICHMENT_SCHEMA_ID_PREFIX = 'https://skill-map.ai/spec/v0/enrichments/';
+export const ENRICHMENT_SCHEMA_ID_PREFIX = 'https://skill-map.ai/spec/v1/enrichments/';
 
 const SCHEMA_FILE_SUFFIX = '.schema.json';
 

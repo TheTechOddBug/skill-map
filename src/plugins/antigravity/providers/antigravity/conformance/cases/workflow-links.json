@@ -1,5 +1,5 @@
 {
-  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
   "id": "workflow-links",
   "description": "Under the antigravity lens the slash extractor runs over every node body, so `/name` invocations resolve across BOTH kinds via the provider's `invokes: ['skill', 'workflow']` matrix: a workflow's `/run-tests` and `/changelog-entry` resolve to skills, a workflow's `/deploy` resolves to another workflow, and AGENTS.md's `/deploy` (a core/markdown node) resolves to the deploy workflow too. Together with the markdown links to the docs, plus the two resolved self-invocations each skill's body shows as a backticked usage example (`core/backtick-slash`, warn-exempt self-loops), the demo-antigravity corpus yields ten resolved edges and zero issues, proving cross-kind slash resolution end to end.",
   "fixture": "demo-antigravity",

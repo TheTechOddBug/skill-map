@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
   "title": "ConformanceCase",
   "description": "Shape of a single declarative test case under `spec/conformance/cases/<id>.json`. Consumed by language-neutral conformance runners. See `spec/conformance/README.md` for the runner contract.",
   "type": "object",
@@ -113,6 +113,7 @@
         { "$ref": "#/$defs/FileContainsVerbatim" },
         { "$ref": "#/$defs/StdoutContainsVerbatim" },
         { "$ref": "#/$defs/FileMatchesSchema" },
+        { "$ref": "#/$defs/StdoutMatchesSchema" },
         { "$ref": "#/$defs/StderrMatches" }
       ]
     },
@@ -169,7 +170,7 @@
         "type": { "const": "file-exists" },
         "path": {
           "type": "string",
-          "description": "Relative to the scope root. Glob patterns permitted; at least one match MUST exist."
+          "description": "Relative to the scope root, and MUST stay inside it: a path escaping the scope is an assertion failure, never a read. Exactly one file; glob syntax is not interpreted."
         }
       }
     },
@@ -181,7 +182,7 @@
         "type": { "const": "file-contains-verbatim" },
         "path": {
           "type": "string",
-          "description": "Relative to the scope root. Glob permitted; MUST resolve to exactly one file."
+          "description": "Relative to the scope root, and MUST stay inside it: a path escaping the scope is an assertion failure, never a read. Exactly one file; glob syntax is not interpreted."
         },
         "fixture": {
           "type": "string",
@@ -209,11 +210,24 @@
         "type": { "const": "file-matches-schema" },
         "path": {
           "type": "string",
-          "description": "Relative to the scope root. Glob permitted; MUST resolve to exactly one file. File MUST parse as JSON."
+          "description": "Relative to the scope root, and MUST stay inside it: a path escaping the scope is an assertion failure, never a read. Exactly one file; glob syntax is not interpreted. The file MUST parse as JSON; an unparseable file fails the assertion rather than being skipped."
         },
         "schema": {
           "type": "string",
-          "description": "Path under `schemas/` that the file MUST validate against."
+          "description": "Path under `schemas/` that the file MUST validate against, with or without the `schemas/` prefix. MUST stay inside the spec root."
+        }
+      }
+    },
+    "StdoutMatchesSchema": {
+      "type": "object",
+      "required": ["type", "schema"],
+      "additionalProperties": false,
+      "description": "The stdout twin of `file-matches-schema`, and the form most schema-coverage rows need: a CLI's machine-readable surface is `--json` on stdout, not a file it happens to leave behind. Without it, a row claiming a schema is covered could only ever be backed by field-by-field `json-path` probes, which assert the fields someone remembered rather than the contract.",
+      "properties": {
+        "type": { "const": "stdout-matches-schema" },
+        "schema": {
+          "type": "string",
+          "description": "Path under `schemas/` that the invocation's stdout MUST validate against, with or without the `schemas/` prefix. MUST stay inside the spec root. Stdout MUST parse as JSON; a non-JSON stdout fails the assertion rather than being skipped."
         }
       }
     },

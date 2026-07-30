@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/refresh-report.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/refresh-report.schema.json",
   "title": "RefreshReport",
   "description": "Machine-readable output of `sm refresh <node.path> --json` and `sm refresh --stale --json`. Reports the count of enrichment rows persisted across the targeted node set (universal enrichment layer per `architecture.md` §A.8). The `elapsedMs` top-level field is the command's own wall-clock (see `cli-contract.md` §Elapsed time).",
   "type": "object",

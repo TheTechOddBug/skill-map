@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/core/ai-trigger-analyzer-report.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/core/ai-trigger-analyzer-report.schema.json",
   "title": "AiTriggerAnalyzerReport",
   "description": "Report shape for the built-in `core/ai-trigger-analyzer` probabilistic finder Analyzer (one of the five optimization finders). Extends the canonical findings envelope (`findings/report.schema.json`); that reference is BOTH the load-time gate and the record-path routing signal (the validated `findings[]` land in `state_findings`, see `job-lifecycle.md` \u00a7Record). Narrows every finding's `type` to the const `trigger` so this finder can only emit its own judgment; any other slug fails the record as `report-invalid`.",
   "allOf": [
     {
-      "$ref": "https://skill-map.ai/spec/v0/findings/report.schema.json"
+      "$ref": "https://skill-map.ai/spec/v1/findings/report.schema.json"
     }
   ],
   "type": "object",

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/execution-record.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/execution-record.schema.json",
   "title": "ExecutionRecord",
   "description": "A single row in the execution history (`state_executions`). One record per extension execution (Action or finder Analyzer), whether an external agent processed the job (agent) or the extension ran in-process.",
   "type": "object",

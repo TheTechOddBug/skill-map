@@ -1,5 +1,5 @@
 {
-  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
   "id": "reference-broken-existence",
   "description": "Broken-reference existence probe, end-to-end. A markdown link targeting a sibling `.json` that exists on disk but is not an indexed node MUST NOT flag `reference-broken` and keeps the 1.0 baseline (the on-disk existence clause of the genuinely-broken definition, architecture.md §Provider · resolution rules, rule 3). A link in the same body targeting a file that exists neither in the graph nor on disk MUST emit exactly one `reference-broken` error and fold to confidence 0.25 (`BROKEN_PENALTY = 0.75`); that error-severity issue is also why the scan exits 1.",
   "fixture": "reference-broken-existence",

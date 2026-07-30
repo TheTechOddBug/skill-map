@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/job.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/job.schema.json",
   "title": "Job",
   "description": "Row in `state_jobs`. Non-terminal state until it reaches `completed` or `failed`, at which point an `ExecutionRecord` is also written. The queue is kind-agnostic: `extensionId` names a probabilistic Action OR a probabilistic Analyzer (the columns were renamed from `action_id` / `action_version` when Analyzers joined the queue; `state_executions.extension_id` set the naming precedent).",
   "type": "object",

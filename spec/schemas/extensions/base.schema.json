@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/extensions/base.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/extensions/base.schema.json",
   "title": "ExtensionBase",
   "description": "Base shape common to every extension kind, describing what an extension's MODULE may declare. Kind-specific schemas (`provider`, `extractor`, `analyzer`, `action`, `formatter`, `hook`) extend this via `allOf` and add a kind-specific shape. The fields the loader must know BEFORE importing the module (`version`, `description`, `stability`, `defaultEnabled`) are deliberately NOT here: they live on disk at `<plugin>/<kind-plural>/<id>/extension.json` (`extension-manifest.schema.json`). The enabled decision depends on `stability` / `defaultEnabled`, so reading them out of the module would mean executing code to learn whether that code was allowed to execute at all. A module re-declaring any of the four is rejected by the kind schemas' `unevaluatedProperties: false`. Both `id` and `kind` are likewise derived from the filesystem structure (`<plugin>/<kind-plural>/<id>/index.ts`, where the parent folder dictates the kind and the leaf folder dictates the id), so they are NOT manifest fields either; manifests carrying `id` or `kind` are rejected as `invalid-manifest`. Closed-content enforcement (unknown keys = bug) lives on the kind schemas via `unevaluatedProperties: false`; those see base's evaluated keys through the `allOf` composition.",
   "type": "object",

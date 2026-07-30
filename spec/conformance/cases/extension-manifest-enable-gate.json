@@ -1,0 +1,27 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "extension-manifest-enable-gate",
+  "description": "An extension declaring `stability: 'experimental'` in its `extension.json` ships DISABLED, and disabled MUST mean its module is never imported. The fixture's only extension throws at module top level, so an implementation that imports it surfaces the plugin as `load-error`; reaching `enabled` with an empty `extensions` array is the proof that the enable decision was made BEFORE the import. That ordering is only expressible because the declarative fields live on disk: while they lived in the module, answering 'may this run?' required running it. The case also validates the `extension.json` document itself against its schema, so the file that carries the decision is checked alongside the decision.",
+  "fixture": "extension-enable-gate",
+  "invoke": {
+    "verb": "plugins",
+    "sub": "list",
+    "args": ["gated"],
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    {
+      "type": "file-matches-schema",
+      "path": ".skill-map/plugins/gated/analyzers/boom/extension.json",
+      "schema": "extensions/extension-manifest.schema.json"
+    },
+    { "type": "json-path", "path": "$.status", "equals": "enabled" },
+    { "type": "json-path", "path": "$.extensions.length", "equals": 0 },
+    { "type": "json-path", "path": "$.unloadedExtensions.length", "equals": 1 },
+    { "type": "json-path", "path": "$.unloadedExtensions[0].id", "equals": "boom" },
+    { "type": "json-path", "path": "$.unloadedExtensions[0].kind", "equals": "analyzer" },
+    { "type": "json-path", "path": "$.unloadedExtensions[0].stability", "equals": "experimental" },
+    { "type": "json-path", "path": "$.unloadedExtensions[0].reason", "equals": "extension-disabled" }
+  ]
+}

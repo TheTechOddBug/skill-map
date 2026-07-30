@@ -1,0 +1,6 @@
+{
+  "version": "1.0.0",
+  "specCompat": ">=0.0.0",
+  "catalogCompat": "*",
+  "description": "Fixture whose only extension ships disabled and MUST NOT be imported."
+}

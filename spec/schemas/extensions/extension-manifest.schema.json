@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/extensions/extension-manifest.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/extensions/extension-manifest.schema.json",
   "title": "ExtensionManifest",
   "description": "The DECLARATIVE half of an extension, stored on disk at `<plugin>/<kind-plural>/<id>/extension.json`, next to the extension's `index.{js,mjs,ts}`. It exists so the loader can learn whether an extension is allowed to run WITHOUT importing it: the enabled decision depends on `stability` / `defaultEnabled`, and while those lived in the module you had to execute the code to discover you were not allowed to execute it. Reading JSON is not execution, so the gate now closes before the import. Same structure-as-truth family as an Action's `report.schema.json` and a Provider's `kinds/<kindName>/kind.json`: the file's location IS its binding, `id` and `kind` still come from the folder layout and are not fields here. Required for every extension of an on-disk (drop-in) plugin; a missing, unparseable, or invalid file rejects the plugin as `invalid-manifest`. The extension's module must NOT re-declare these fields (the kind schemas' `unevaluatedProperties: false` rejects them), exactly as it must not re-declare `id` / `kind`. Built-in extensions compiled into the reference CLI do not use this file: they never reach the disk loader, so there is no import to gate, and they keep declaring these fields inline (see `version` below).",
   "type": "object",

@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "specCompat": "^0.27.0",
+  "specCompat": "^1.0.0",
   "catalogCompat": "^1.0.0",
   "description": "OpenAI Codex CLI platform integration. Classifies TOML sub-agent definitions under `.codex/agents/*.toml`."
 }

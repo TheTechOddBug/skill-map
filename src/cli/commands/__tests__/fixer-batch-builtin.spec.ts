@@ -60,8 +60,8 @@ const ACTIONS_ROOT = resolve(HERE, '..', '..', '..', 'plugins', 'core', 'actions
 
 const CLEAN_SAFETY = { injectionDetected: false, contentQuality: 'clean' };
 
-const REPORT_BASE_REF = 'https://skill-map.ai/spec/v0/report-base.schema.json';
-const FINDINGS_ENVELOPE_FRAGMENT = 'https://skill-map.ai/spec/v0/findings/';
+const REPORT_BASE_REF = 'https://skill-map.ai/spec/v1/report-base.schema.json';
+const FINDINGS_ENVELOPE_FRAGMENT = 'https://skill-map.ai/spec/v1/findings/';
 
 /**
  * The batch under test. `analyzerIds` is the fixer's declared precondition;

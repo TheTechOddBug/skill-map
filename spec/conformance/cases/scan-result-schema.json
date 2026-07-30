@@ -1,0 +1,37 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "scan-result-schema",
+  "description": "`sm scan --json` MUST emit a payload that validates against `scan-result.schema.json` in full, not merely one carrying the fields a case remembered to probe. The fixture is chosen so every array is POPULATED (nodes, links AND issues): `scan-result.schema.json` `$ref`s `node`, `link` and `issue`, so validating the whole document transitively validates each row against its own schema, and an empty array would validate while exercising nothing. This is the first case to use `stdout-matches-schema`, the assertion that lets a coverage row claiming a schema is covered mean the contract was checked rather than a handful of keys. `kernel-empty-boot` remains the zero-filled companion asserting specific values. Exit 1 is asserted deliberately rather than 0: the fixture ships a genuinely broken reference, so a clean exit would mean the scan failed to notice it, and the populated `issues` array this case depends on would be empty.",
+  "fixture": "reference-broken-existence",
+  "invoke": {
+    "verb": "scan",
+    "flags": [
+      "--json"
+    ]
+  },
+  "assertions": [
+    {
+      "type": "exit-code",
+      "value": 1
+    },
+    {
+      "type": "stdout-matches-schema",
+      "schema": "scan-result.schema.json"
+    },
+    {
+      "type": "json-path",
+      "path": "$.nodes.length",
+      "greaterThan": 0
+    },
+    {
+      "type": "json-path",
+      "path": "$.links.length",
+      "greaterThan": 0
+    },
+    {
+      "type": "json-path",
+      "path": "$.issues.length",
+      "greaterThan": 0
+    }
+  ]
+}

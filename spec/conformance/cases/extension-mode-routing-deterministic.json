@@ -1,5 +1,5 @@
 {
-  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
   "id": "extension-mode-routing-deterministic",
   "description": "The deterministic half of the mode-routing contract: `sm jobs submit` REFUSES a deterministic Action with exit 2 and an advisory naming the in-process path (deterministic Actions never become queued jobs).",
   "fixture": "extension-mode-routing",

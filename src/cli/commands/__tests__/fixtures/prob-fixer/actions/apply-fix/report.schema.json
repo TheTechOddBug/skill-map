@@ -1,9 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/test/apply-fix-report.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/test/apply-fix-report.schema.json",
   "title": "ApplyFixReport",
   "description": "Test-only report shape for the apply-fix probabilistic fixer. Extends report-base (never a summaries/<kind> schema): it carries the mandatory safety + confidence fields plus the fixer resolved[] echo, but writes no state_summaries row.",
-  "allOf": [{ "$ref": "https://skill-map.ai/spec/v0/report-base.schema.json" }],
+  "allOf": [{ "$ref": "https://skill-map.ai/spec/v1/report-base.schema.json" }],
   "type": "object",
   "required": ["resolved", "editsSummary"],
   "properties": {

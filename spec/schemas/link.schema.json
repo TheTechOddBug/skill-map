@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/link.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/link.schema.json",
   "title": "Link",
   "description": "Directed relation between two nodes, produced by one or more extractors during a scan.",
   "type": "object",

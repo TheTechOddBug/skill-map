@@ -1,0 +1,22 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "extension-kind-manifests",
+  "description": "A drop-in plugin shipping ONE valid extension of every kind (provider, extractor, analyzer, action, formatter, hook) plus a `kinds/<name>/` catalog MUST load with all six registered. Loading is the observable proof that each manifest passed its kind schema: the loader AJV-validates every extension export against `extensions/<kind>.schema.json` (which extends `extensions/base.schema.json`) and projects `kinds/<name>/kind.json` through `extensions/provider-kind.schema.json`, so a plugin reaching `enabled` with six extensions is a plugin whose six manifests conformed. The positive direction is what these rows lacked: the suite already proves an INVALID manifest is rejected (`plugin-missing-ui-rejected`), and a gate that only ever rejects is indistinguishable from one that rejects everything.",
+  "fixture": "extension-kinds",
+  "invoke": {
+    "verb": "plugins",
+    "sub": "list",
+    "args": ["allkinds"],
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.status", "equals": "enabled" },
+    { "type": "json-path", "path": "$.extensions.length", "equals": 6 },
+    {
+      "type": "file-matches-schema",
+      "path": ".skill-map/plugins/allkinds/kinds/demo/kind.json",
+      "schema": "extensions/provider-kind.schema.json"
+    }
+  ]
+}

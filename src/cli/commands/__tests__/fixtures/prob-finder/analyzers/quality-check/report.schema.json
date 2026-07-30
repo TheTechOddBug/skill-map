@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/test/quality-check-report.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/test/quality-check-report.schema.json",
   "title": "QualityCheckReport",
   "description": "Test-only finder report shape that extends the canonical findings envelope. The $ref is the load-time gate AND the record-path routing contract: a completed record for this analyzer replaces the pair's state_findings rows.",
-  "allOf": [{ "$ref": "https://skill-map.ai/spec/v0/findings/report.schema.json" }]
+  "allOf": [{ "$ref": "https://skill-map.ai/spec/v1/findings/report.schema.json" }]
 }

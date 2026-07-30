@@ -4,7 +4,7 @@
   "title": "FrontmatterOpenCodeAgent",
   "description": "Frontmatter shape for nodes classified as `agent` by the OpenCode Provider. OpenCode agents live as markdown files under `.opencode/agent/<name>.md` (https://opencode.ai/docs/agents); the markdown body is the agent prompt. There is NO `name` field, the filename stem is the handle. Field set mirrors OpenCode's documented agent frontmatter; `additionalProperties: true` lets any other inherited key flow through unchanged.",
   "allOf": [
-    { "$ref": "https://skill-map.ai/spec/v0/frontmatter/base.schema.json" }
+    { "$ref": "https://skill-map.ai/spec/v1/frontmatter/base.schema.json" }
   ],
   "type": "object",
   "additionalProperties": true,

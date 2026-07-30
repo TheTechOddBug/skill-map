@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/issue.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/issue.schema.json",
   "title": "Issue",
   "description": "Deterministic finding emitted by a analyzer when evaluating the graph. Not to be confused with `Finding`, which is probabilistic (LLM-produced).",
   "type": "object",

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "catalog-slots-input-types",
+  "description": "`sm plugins slots list --json` MUST emit the browsable catalog of view slots and setting input types, validating against BOTH `view-slots.schema.json` and `input-types.schema.json`. Both catalogs are closed by design: a plugin author picks a slot or an input type by name and gets its renderer and payload shape for free, which only works if the published catalog is exactly what the implementation offers. Validating the emitted catalog against the schemas is what stops the two from drifting, since an implementation that quietly adds or drops an entry is indistinguishable from one that does not until an author picks the missing name.",
+  "fixture": "orphan-markdown",
+  "invoke": {
+    "verb": "plugins",
+    "sub": "slots",
+    "args": ["list"],
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "stdout-matches-schema", "schema": "view-slots.schema.json" },
+    { "type": "stdout-matches-schema", "schema": "input-types.schema.json" }
+  ]
+}

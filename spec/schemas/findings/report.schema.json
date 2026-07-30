@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/findings/report.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/findings/report.schema.json",
   "title": "FindingsReport",
   "description": "Canonical findings envelope: the report shape every probabilistic Analyzer records. A probabilistic Analyzer's `report.schema.json` MUST extend this schema via `$ref` (typically inside `allOf`); the kernel enforces the reference at load time (`invalid-manifest` otherwise) and `sm record` writes the validated `findings` array through to `state_findings` (see `job-lifecycle.md` §Record). Extends `report-base.schema.json`, so every findings report also carries the model's `confidence` and the `safety` block. The envelope and the per-finding item are deliberately open (no `additionalProperties: false`): a finder's own schema MAY narrow `type` to an enum of its categories and MAY add evidence fields per finding. Stability: experimental.",
   "allOf": [

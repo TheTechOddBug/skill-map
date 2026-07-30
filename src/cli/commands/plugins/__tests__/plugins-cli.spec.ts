@@ -1297,7 +1297,7 @@ describe('sm plugins show, probabilistic contract sections', () => {
     );
     assert.equal(
       payload.reportSchema.allOf[0].$ref,
-      'https://skill-map.ai/spec/v0/findings/report.schema.json',
+      'https://skill-map.ai/spec/v1/findings/report.schema.json',
       'reportSchema rides as an object',
     );
   });
@@ -1319,7 +1319,7 @@ describe('sm plugins show, probabilistic contract sections', () => {
     assert.ok(payload.promptTemplate.includes('{{userContent}}'));
     assert.ok(
       JSON.stringify(payload.reportSchema).includes(
-        'https://skill-map.ai/spec/v0/summaries/markdown.schema.json',
+        'https://skill-map.ai/spec/v1/summaries/markdown.schema.json',
       ),
       'built-in reportSchema extends the summaries envelope',
     );

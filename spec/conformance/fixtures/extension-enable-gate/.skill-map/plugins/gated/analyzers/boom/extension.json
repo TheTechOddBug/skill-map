@@ -1,0 +1,5 @@
+{
+  "version": "1.0.0",
+  "description": "Throws at import. Ships experimental, so it must never be imported.",
+  "stability": "experimental"
+}

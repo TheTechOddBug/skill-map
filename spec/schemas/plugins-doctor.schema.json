@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/plugins-doctor.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/plugins-doctor.schema.json",
   "title": "PluginsDoctorReport",
   "description": "Machine-readable output of `sm plugins doctor --json`. Aggregates per-status counts across built-in and drop-in plugins plus the structured issue / warning lists the human renderer produces, and the runtime contribution rejections persisted by the last scan. The `elapsedMs` top-level field is the command's own wall-clock (see `cli-contract.md` §Elapsed time).",
   "type": "object",

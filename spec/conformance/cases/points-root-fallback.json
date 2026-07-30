@@ -1,5 +1,5 @@
 {
-  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
   "id": "points-root-fallback",
   "description": "Root fallback for backticked prose paths, end-to-end (architecture.md §Provider · resolution rules, rule 1). A `points` link authored root-relatively from a nested folder (`_work_in_progress/plan.md` mentioned from `app/context/notes.md`) MUST miss file-relatively, retry the authored token against the scan root, resolve to the root-level node (resolvedTarget recorded, 1.0 baseline kept), and MUST NOT flag reference-broken. A sibling token with an explicit `./` prefix declares file-relative intent and never falls back, EVEN THOUGH a root-level file of that name exists (the sharp half of the contract: without the intent bit the fallback would resolve it), so it MUST flag reference-broken (0.25); that error is also why the scan exits 1.",
   "fixture": "points-root-fallback",

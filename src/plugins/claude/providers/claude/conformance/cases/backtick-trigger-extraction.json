@@ -1,5 +1,5 @@
 {
-  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
   "id": "backtick-trigger-extraction",
   "description": "Code-region triggers, end-to-end. Backtick-wrapped triggers MUST produce exactly FOUR resolved Links: `@reviewer` (span + fenced repeat deduped into one `mentions` link to the agent), `@deploy-site` (`mentions` to the skill) and `@playbook` (`mentions` to the plain markdown doc, both via the priority-ordered claude matrix `['agent', 'skill', 'markdown']`), and `/deploy-site` (`invokes` to the skill via `core/backtick-slash`). All lift to confidence 1.0. The npm-scope bait (`@changesets/cli`) and the shell-path bait (`/killdb`) resolve to nothing and MUST be pruned by the resolution gate: no links, no broken issues. The mention + invocation pair converging on the same skill surfaces as the standing `reference-redundant` warn (two authoring forms, one target), the only issue in the run.",
   "fixture": "backtick-trigger",

@@ -1,0 +1,3 @@
+{ "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:test:allkinds/stamp/report", "type": "object",
+  "properties": { "ok": { "type": "boolean" } }, "additionalProperties": true }

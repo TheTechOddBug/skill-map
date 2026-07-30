@@ -1,7 +1,7 @@
 # Sample sidecar matching agent-example.md.
 # Validates against:
-#   - https://skill-map.ai/spec/v0/sidecar.schema.json (root shape)
-#   - https://skill-map.ai/spec/v0/annotations.schema.json (annotations block)
+#   - https://skill-map.ai/spec/v1/sidecar.schema.json (root shape)
+#   - https://skill-map.ai/spec/v1/annotations.schema.json (annotations block)
 # Hashes are sha256 over the kernel's canonical forms (body bytes; canonical YAML
 # of the frontmatter via `js-yaml` dump with sortKeys+CORE_SCHEMA). Regenerate
 # when agent-example.md changes (the fixture is meant to be drift-free).

@@ -18,7 +18,7 @@
  */
 
 /** `$id` prefix shared by every `spec/schemas/summaries/<kind>.schema.json`. */
-export const SUMMARY_SCHEMA_ID_PREFIX = 'https://skill-map.ai/spec/v0/summaries/';
+export const SUMMARY_SCHEMA_ID_PREFIX = 'https://skill-map.ai/spec/v1/summaries/';
 
 const SCHEMA_FILE_SUFFIX = '.schema.json';
 

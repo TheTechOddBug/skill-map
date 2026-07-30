@@ -1,0 +1,16 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "plugins-doctor-schema",
+  "description": "`sm plugins doctor --json` MUST emit a report validating against `plugins-doctor.schema.json`. The doctor is the diagnostic surface an operator reaches for when a plugin will not load, and the one external tooling parses to decide whether a project's extension set is healthy, so its shape is a contract rather than console output. The case runs against a corpus with no drop-in plugins: the built-in set alone MUST already produce a conforming report, so a green result never depends on a fixture plugin happening to load.",
+  "fixture": "orphan-markdown",
+  "invoke": {
+    "verb": "plugins",
+    "sub": "doctor",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "stdout-matches-schema", "schema": "plugins-doctor.schema.json" },
+    { "type": "json-path", "path": "$.kind", "equals": "plugins.doctor" }
+  ]
+}

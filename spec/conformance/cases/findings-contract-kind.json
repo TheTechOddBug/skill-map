@@ -1,5 +1,5 @@
 {
-  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
   "id": "findings-contract-kind",
   "description": "The analyzer half of the kind-agnostic queue freezes its kind on the job row. Submitting the fixture finder (`finder-fixture/redundancy-probe`) enqueues exactly one job whose `sm jobs list --json` row carries `extensionKind: \"analyzer\"` (the record path routes on this frozen value, never re-resolving the id) alongside the qualified extension id and the `queued` status.",
   "fixture": "findings-contract",

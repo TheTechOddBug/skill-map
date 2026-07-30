@@ -1,0 +1,16 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "project-config-schema",
+  "description": "`sm config list --json` MUST emit the effective merged configuration as a document validating against `project-config.schema.json`. This is the operator-facing view of the config layering (`defaults` → `project` → `project-local` → `override`), so the schema is the contract an implementation owes anyone reading or writing `.skill-map/settings.json`, not an internal detail. Validated in full rather than by probing individual keys: a config surface is exactly where a silently-added or silently-renamed key does the most damage.",
+  "fixture": "orphan-markdown",
+  "invoke": {
+    "verb": "config",
+    "sub": "list",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "stdout-matches-schema", "schema": "project-config.schema.json" },
+    { "type": "json-path", "path": "$.schemaVersion", "equals": 1 }
+  ]
+}

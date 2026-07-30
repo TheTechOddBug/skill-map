@@ -1,9 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/test/skill-echo-report.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/test/skill-echo-report.schema.json",
   "title": "SkillEchoReport",
   "description": "Test-only report shape for the skill-echo probabilistic action. Extends report-base ONLY (never a summaries/<kind> schema), so it carries the mandatory safety + confidence fields but is NOT a summarizer: a completed record stays history-only, no state_summaries row.",
-  "allOf": [{ "$ref": "https://skill-map.ai/spec/v0/report-base.schema.json" }],
+  "allOf": [{ "$ref": "https://skill-map.ai/spec/v1/report-base.schema.json" }],
   "type": "object",
   "properties": {
     "summary": {

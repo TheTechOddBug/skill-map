@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/serve-info.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/serve-info.schema.json",
   "title": "ServeInfo",
   "description": "Runtime discovery file written by `sm serve` at `<scopeRoot>/.skill-map/serve.json` while the server is up, and deleted on shutdown. It publishes the RESOLVED listening address (after config layering and flag overrides) plus a per-session ingest token, so short-lived local processes (the activity bridge, see `spec/provider-activity.md`) can find and authenticate against the project's running server without re-deriving config. It is a runtime artifact (lockfile-like), NOT user config: gitignored, never committed, overwritten on every boot. A hard kill can leave a stale copy behind, so readers MUST fail open (treat a refused connection as 'no server' and stay silent). Written atomically (temp file + rename) so a reader never observes a half-written document.",
   "type": "object",

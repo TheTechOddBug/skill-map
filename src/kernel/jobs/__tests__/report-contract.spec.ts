@@ -63,7 +63,7 @@ describe('buildReportContract', () => {
   it('report-base-only schema: two blocks, no namespace envelope', () => {
     const schema = {
       $id: 'urn:test:plain-report',
-      allOf: [{ $ref: 'https://skill-map.ai/spec/v0/report-base.schema.json' }],
+      allOf: [{ $ref: 'https://skill-map.ai/spec/v1/report-base.schema.json' }],
     };
     const contract = buildReportContract({
       schemaText: JSON.stringify(schema, null, 2),

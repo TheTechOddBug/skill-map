@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/test/skill-brief-report.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/test/skill-brief-report.schema.json",
   "title": "SkillBriefReport",
   "description": "Test-only report shape that extends the canonical node-summary schema (summaries/markdown, universal across kinds). The $ref is the summarizer signal the record path detects: a completed record for this action lands a state_summaries row.",
-  "allOf": [{ "$ref": "https://skill-map.ai/spec/v0/summaries/markdown.schema.json" }]
+  "allOf": [{ "$ref": "https://skill-map.ai/spec/v1/summaries/markdown.schema.json" }]
 }

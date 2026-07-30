@@ -200,7 +200,7 @@ Mirrors the interactive timeline on `skill-map.ai` (driven by `web/modules/roadm
 ● Config hierarchy · defaults → project → project-local → override
 ● Versioning policy · changesets, independent semver per package
 ● Spec as a standard · separable from reference impl
-● 37 schemas + 9 prose contracts + conformance suite
+● 38 schemas + 9 prose contracts + conformance suite
 ● 293 architectural decisions, logged
 ● @skill-map/spec published on npm
   ────────────────────────────────────────────────────────────────────────
@@ -301,11 +301,19 @@ Mirrors the interactive timeline on `skill-map.ai` (driven by `web/modules/roadm
 
 `skill-map` is a reusable standard, not only a tool. The **spec** is separated from the **reference implementation** from day zero. Anyone can build a UI, a CLI, a VSCode extension, or an entirely new implementation (any language) using only `spec/`, without reading the reference source.
 
+**Conformance made real (2026-07-30, preparing the v1.0.0 gate).** Auditing the coverage matrix against the v1.0 release gate ("every row 🟢 covered or 🟠 deferred to v1.1") turned up something worse than missing cases: `file-matches-schema`, the assertion that would let a row claiming a schema is covered actually MEAN it, had shipped as a permanently-failing stub ("requires ajv; lands with Step 2") and no case used it. Zero usage meant zero red, so the gap stayed invisible for the project's whole life. Its stdout twin, which is the form a CLI's `--json` surface actually needs, did not exist at all. Both now work, reading the spec tree directly rather than borrowing the kernel's closed schema list, because a conformance runner checks an implementation against the spec AS PUBLISHED and inheriting the kernel's list would scope it to "the schemas this implementation already knows".
+
+Three defects surfaced in the same pass, each of the same family, a declared contract nobody exercised. The vocabulary's stability clause omitted `stdout-contains-verbatim`, which had shipped in both schema and runner. Three assertions advertised glob support in their normative descriptions that no implementation ever honoured and no case ever used; the claim was removed rather than implemented on the eve of freezing the contract. And `json-path` THREW instead of failing when its expression matched nothing, because `JSON.stringify(undefined)` is not a string, which fired exactly when a case probed a key an implementation does not emit, i.e. the moment the author most needed a readable failure.
+
+The matrix went from 33 red and 11 partial rows to zero of either (28 covered, 23 deferred across both tables). The deferrals are tracked in [issue #182](https://github.com/crystian/skill-map/issues/182) and grouped by real cause rather than waved through: the assertion vocabulary cannot express a per-element check for list-shaped output (`sm history`, `sm jobs list`) or target a `$def` inside a schema; `sm record` needs the claim-issued nonce a static case cannot thread; the envelope and event rows need a server-capable runner. Each row states what would unblock it. One deferral is deliberate rather than blocked: `user-settings.schema.json` lives at `~/.skill-map/settings.json`, outside the provisioned scope, and the runner's containment guard refuses it correctly, so the row waits rather than the guard weakening.
+
+Two habits proved their worth and are worth keeping. Every new case was checked in BOTH directions, most sharply the enable-gate case, whose fixture module throws at import: with `stability: 'experimental'` the plugin reports `enabled` with zero extensions, and with the field removed it reports `load-error`, so the case detects a broken gate instead of passing by inertia. And a promotion was nearly made on a false premise: `scan-result.schema.json` `$ref`s `node` / `link` / `issue`, so validating a populated ScanResult covers all three transitively, except the chosen fixture emitted zero links and zero issues. An empty array validates against anything. The case was repointed at a fixture that populates all three and now ASSERTS they are non-empty, so the transitive coverage cannot silently evaporate when a fixture changes.
+
 ### Repo layout
 
 ```
 skill-map/
-├── spec/                          ← source of truth for the STANDARD (25 schemas + 7 prose contracts + plugin author guide)
+├── spec/                          ← source of truth for the STANDARD (38 schemas + prose contracts + plugin author guide)
 │   ├── README.md                  ← human-readable spec
 │   ├── CHANGELOG.md               ← spec history (independent from tool)
 │   ├── versioning.md              ← evolution policy
@@ -369,8 +377,8 @@ skill-map/
 
 ### Distribution
 
-- Publish schemas to JSON Schema Store (deferred until the `v0 → v1` stable release; current `v0` URLs are live but pre-stable).
-- Canonical URLs: `https://skill-map.ai/spec/v0/<path>.schema.json` (live today via Railway-deployed Caddy; DNS at Vercel). Scheme bumps to `v1` at the first stable release.
+- Publish schemas to JSON Schema Store (unblocked by the 1.0.0 release: the stable `v1` URL scheme it waited on is now the shipped one).
+- Canonical URLs: `https://skill-map.ai/spec/v1/<path>.schema.json` (Railway-deployed Caddy; DNS at Vercel). The scheme bumped from the pre-stable `v0` at the 1.0.0 release, as `versioning.md` §Canonical URLs prescribed; the `v0` path is no longer emitted by the site build.
 - npm package `@skill-map/spec`, schemas + conformance tests.
 - Spec semver separate from CLI semver; the current reference roadmap stabilizes both tracks at `v1.0.0`, but future versions can diverge.
 
@@ -1224,7 +1232,7 @@ Acceptance: every CLI verb shipped at Step 11 has a UI flow that does not requir
 - Compatibility matrix (kernel ↔ plugin API ↔ spec).
 - Breaking-changes / deprecation policy.
 - `sm doctor` diagnostics for user installs (verifies the install, reads the merged settings, confirms each hierarchy layer is parseable).
-- **Launch polish on `skill-map.ai`**: the domain is live (Railway-deployed Caddy + DNS at Vercel, serving `/spec/v0/**` schemas). The landing source lives in `web/` (editable HTML/CSS/JS, copied into `site/` by `web/scripts/build-site.js`). The build performs (a) i18n via `data-i18n` markers, content rendered once into `/index.html` (en) and `/es/index.html` (es), `web/i18n.json` itself excluded from the build output, (b) per-language `{{CANONICAL_URL}}` substitution, (c) generation of `robots.txt` and `sitemap.xml` (with `xhtml:link hreflang` alternates) at the site root. SEO surface in place: per-language `<title>` + `<meta name="description">`, `<link rel="canonical">`, full Open Graph (title / description / url / image / locale + locale:alternate), Twitter cards (`summary_large_image`, `@crystian` as site/creator), JSON-LD `SoftwareApplication` with translated `description`, `theme-color`, `color-scheme`. The 1200×630 OG image asset (`web/img/og-image.png`) is in place and copied verbatim into the site at build time, so social previews render with the proper card. Step 15 still adds HTTP redirects, Astro Starlight docs, and registration on JSON Schema Store once `v0 → v1` ships.
+- **Launch polish on `skill-map.ai`**: the domain is live (Railway-deployed Caddy + DNS at Vercel, serving `/spec/v1/**` schemas). The landing source lives in `web/` (editable HTML/CSS/JS, copied into `site/` by `web/scripts/build-site.js`). The build performs (a) i18n via `data-i18n` markers, content rendered once into `/index.html` (en) and `/es/index.html` (es), `web/i18n.json` itself excluded from the build output, (b) per-language `{{CANONICAL_URL}}` substitution, (c) generation of `robots.txt` and `sitemap.xml` (with `xhtml:link hreflang` alternates) at the site root. SEO surface in place: per-language `<title>` + `<meta name="description">`, `<link rel="canonical">`, full Open Graph (title / description / url / image / locale + locale:alternate), Twitter cards (`summary_large_image`, `@crystian` as site/creator), JSON-LD `SoftwareApplication` with translated `description`, `theme-color`, `color-scheme`. The 1200×630 OG image asset (`web/img/og-image.png`) is in place and copied verbatim into the site at build time, so social previews render with the proper card. Step 15 still adds HTTP redirects, Astro Starlight docs, and registration on JSON Schema Store, the last one unblocked now that the `v1` scheme shipped with 1.0.0.
 
 #### Distribution flow (end-to-end)
 

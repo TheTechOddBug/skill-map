@@ -1,5 +1,5 @@
 {
-  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
   "id": "sidecar-end-to-end",
   "description": "Step 9.6.6 — co-located `.sm` sidecar end-to-end. Scanning a fixture that carries a stale sidecar (wrong `identity.{bodyHash,frontmatterHash}`) plus an orphan sidecar (no sibling `.md`) MUST surface `sidecar.status` on the node and emit the `annotation-orphan` warning (per orphan `.sm`) from the built-in core analyzers. Drift is icon-only since 2026-07-20: the `annotation-stale` analyzer surfaces the derived `sidecar.status` via card contributions and emits NO issue, so a default scan yields exactly one issue for this corpus.",
   "fixture": "sidecar-end-to-end",

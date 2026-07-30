@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.ai/spec/v0/test/dual-judge-analyzer-report.schema.json",
+  "$id": "https://skill-map.ai/spec/v1/test/dual-judge-analyzer-report.schema.json",
   "title": "DualJudgeAnalyzerReport",
   "description": "Test-only finder report extending the canonical findings envelope.",
-  "allOf": [{ "$ref": "https://skill-map.ai/spec/v0/findings/report.schema.json" }]
+  "allOf": [{ "$ref": "https://skill-map.ai/spec/v1/findings/report.schema.json" }]
 }

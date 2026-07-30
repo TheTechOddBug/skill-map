@@ -1,5 +1,5 @@
 {
-  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
   "id": "orphan-detection",
   "description": "Deleting a file with no replacement triggers the orphan branch of the rename heuristic: exactly one issue with analyzerId `orphan` is emitted, severity `info`, naming the dead path. The remaining survivor node is reported normally.",
   "fixture": "orphan-after",

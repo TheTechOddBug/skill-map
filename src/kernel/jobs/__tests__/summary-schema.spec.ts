@@ -14,7 +14,7 @@ import { summaryKindOfReportSchema, SUMMARY_SCHEMA_ID_PREFIX } from '../summary-
 describe('summaryKindOfReportSchema', () => {
   it('detects a summaries/<kind> $ref inside allOf (the canonical extender shape)', () => {
     const schema = {
-      $id: 'https://skill-map.ai/spec/v0/core/ai-summarizer-action-report.schema.json',
+      $id: 'https://skill-map.ai/spec/v1/core/ai-summarizer-action-report.schema.json',
       allOf: [{ $ref: `${SUMMARY_SCHEMA_ID_PREFIX}markdown.schema.json` }],
     };
     strictEqual(summaryKindOfReportSchema(schema), 'markdown');
@@ -38,8 +38,8 @@ describe('summaryKindOfReportSchema', () => {
 
   it('returns null for a plain report-base-only schema (non-summarizer)', () => {
     const schema = {
-      $id: 'https://skill-map.ai/spec/v0/test/skill-echo-report.schema.json',
-      allOf: [{ $ref: 'https://skill-map.ai/spec/v0/report-base.schema.json' }],
+      $id: 'https://skill-map.ai/spec/v1/test/skill-echo-report.schema.json',
+      allOf: [{ $ref: 'https://skill-map.ai/spec/v1/report-base.schema.json' }],
       type: 'object',
       properties: { summary: { type: 'string' } },
       required: ['summary'],
@@ -63,7 +63,7 @@ describe('summaryKindOfReportSchema', () => {
   it('ignores summaries-looking plain strings that are not $ref values', () => {
     const schema = {
       description: `See ${SUMMARY_SCHEMA_ID_PREFIX}markdown.schema.json for the canonical shape.`,
-      allOf: [{ $ref: 'https://skill-map.ai/spec/v0/report-base.schema.json' }],
+      allOf: [{ $ref: 'https://skill-map.ai/spec/v1/report-base.schema.json' }],
     };
     strictEqual(summaryKindOfReportSchema(schema), null);
   });
@@ -72,7 +72,7 @@ describe('summaryKindOfReportSchema', () => {
     const schema = {
       type: 'object',
       oneOf: [
-        { allOf: [{ $ref: 'https://skill-map.ai/spec/v0/report-base.schema.json' }] },
+        { allOf: [{ $ref: 'https://skill-map.ai/spec/v1/report-base.schema.json' }] },
         { allOf: [{ $ref: `${SUMMARY_SCHEMA_ID_PREFIX}hook.schema.json` }] },
       ],
     };

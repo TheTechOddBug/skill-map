@@ -4,7 +4,7 @@
   "title": "FrontmatterSkillBase",
   "description": "Shared frontmatter base for `skill` and `command` nodes per Anthropic's documented merger (https://code.claude.com/docs/en/skills.md, \"Custom commands have been merged into skills\"). Both kinds carry the same vendor frontmatter today; skill-map keeps them as distinct `IProviderKind`s in the registry (different UI presentation, different `defaultRefreshAction`) but extends the same base via `allOf` + `$ref` so the field catalog is single-sourced. Field naming is reproduced verbatim from Anthropic, a deliberate mix of kebab-case (`argument-hint`, `disable-model-invocation`, `user-invocable`, `allowed-tools`), snake_case (`when_to_use`), and camelCase. `additionalProperties: true` so future Anthropic additions flow through unchanged until this schema catches up.",
   "allOf": [
-    { "$ref": "https://skill-map.ai/spec/v0/frontmatter/base.schema.json" }
+    { "$ref": "https://skill-map.ai/spec/v1/frontmatter/base.schema.json" }
   ],
   "type": "object",
   "additionalProperties": true,
