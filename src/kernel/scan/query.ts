@@ -228,11 +228,11 @@ function compileGlob(pattern: string): RegExp {
   const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
   // `**` first so the `*` pass below doesn't double-process it. Use a
   // sentinel that can't appear in user input post-escape.
-  const withDouble = escaped.replace(/\*\*/g, ' DOUBLESTAR ');
+  const withDouble = escaped.replace(/\*\*/g, '\u0000DOUBLESTAR\u0000');
   const withSingle = withDouble.replace(/\*/g, '[^/]*');
   // Null-byte sentinel is intentional, guarantees the marker can't
   // collide with anything in user-supplied glob patterns post-escape.
   // eslint-disable-next-line no-control-regex
-  const final = withSingle.replace(/ DOUBLESTAR /g, '.*');
+  const final = withSingle.replace(/\u0000DOUBLESTAR\u0000/g, '.*');
   return new RegExp(`^${final}$`);
 }
