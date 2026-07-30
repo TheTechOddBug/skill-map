@@ -1,0 +1,39 @@
+{
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
+  "id": "record-findings-envelope-gate",
+  "description": "A finder report whose finding carries a severity outside the envelope's closed set MUST be rejected with exit 2 and MUST NOT write a findings row. The fixture differs from its valid sibling in that one field, so the rejection can only come from `findings/report.schema.json` itself, reached through the finder's own report schema which `$ref`s it. The negative direction is what makes the envelope normative rather than decorative: an implementation that accepted any shape would still pass every case asserting a well-formed report.",
+  "fixture": "findings-contract",
+  "setup": {
+    "priorScans": [{ "fixture": "findings-contract" }],
+    "priorInvokes": [
+      { "verb": "agent", "sub": "install", "flags": ["--for", "claude"] },
+      {
+        "verb": "jobs",
+        "sub": "submit",
+        "args": ["finder-fixture/redundancy-probe"],
+        "flags": ["-n", "notes.md"]
+      },
+      {
+        "verb": "jobs",
+        "sub": "claim",
+        "flags": ["--json"],
+        "capture": { "jobId": "$.id", "jobNonce": "$.nonce" }
+      },
+      {
+        "verb": "record",
+        "flags": [
+          "--id", "{{jobId}}",
+          "--nonce", "{{jobNonce}}",
+          "--status", "completed",
+          "--report", "findings-report-invalid.json"
+        ],
+        "expectExit": 2
+      }
+    ]
+  },
+  "invoke": { "verb": "findings", "flags": ["--json"] },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.total", "equals": 0 }
+  ]
+}

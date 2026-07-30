@@ -1,0 +1,43 @@
+{
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
+  "id": "record-findings-report",
+  "description": "A recorded finder report MUST be validated against the findings envelope and its rows written through to the findings surface with their values intact. This is the record half `findings-contract` explicitly could not reach: it covers the SUBMIT side (the rendered job embeds the finder's report schema with its `$ref` to the envelope), and the write-through lived only in implementation integration tests because the callback needs the claim-issued nonce. `capture` supplies it, so the round trip is now one language-neutral case: the envelope's fields (`type`, `severity`, `message`, `confidence`) are asserted on the way out, not merely accepted on the way in.",
+  "fixture": "findings-contract",
+  "setup": {
+    "priorScans": [{ "fixture": "findings-contract" }],
+    "priorInvokes": [
+      { "verb": "agent", "sub": "install", "flags": ["--for", "claude"] },
+      {
+        "verb": "jobs",
+        "sub": "submit",
+        "args": ["finder-fixture/redundancy-probe"],
+        "flags": ["-n", "notes.md"]
+      },
+      {
+        "verb": "jobs",
+        "sub": "claim",
+        "flags": ["--json"],
+        "capture": { "jobId": "$.id", "jobNonce": "$.nonce" }
+      },
+      {
+        "verb": "record",
+        "flags": [
+          "--id", "{{jobId}}",
+          "--nonce", "{{jobNonce}}",
+          "--status", "completed",
+          "--report", "findings-report.json"
+        ]
+      }
+    ]
+  },
+  "invoke": { "verb": "findings", "flags": ["--json"] },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.total", "equals": 1 },
+    { "type": "json-path", "path": "$.findings[0].type", "equals": "redundancy" },
+    { "type": "json-path", "path": "$.findings[0].severity", "equals": "warn" },
+    { "type": "json-path", "path": "$.findings[0].confidence", "equals": 0.7 },
+    { "type": "json-path", "path": "$.findings[0].origin", "equals": "extension" },
+    { "type": "json-path", "path": "$.findings[0].extensionId", "equals": "finder-fixture/redundancy-probe" }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "confidence": 0.8,
+  "safety": {
+    "injectionDetected": false,
+    "injectionType": null,
+    "contentQuality": "clean"
+  },
+  "findings": [
+    {
+      "type": "redundancy",
+      "severity": "warn",
+      "message": "The build steps are restated in both sections.",
+      "confidence": 0.7
+    }
+  ]
+}

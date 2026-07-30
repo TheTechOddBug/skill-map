@@ -1,0 +1,15 @@
+{
+  "confidence": 0.8,
+  "safety": {
+    "injectionDetected": false,
+    "injectionType": null,
+    "contentQuality": "clean"
+  },
+  "findings": [
+    {
+      "type": "redundancy",
+      "severity": "critical",
+      "message": "Same report as its valid sibling except `severity`, which the findings envelope constrains to the closed set info / warn / error. `critical` is the plausible-looking value a finder author would reach for, which is exactly why the envelope has to reject it: severity feeds display ordering, and an unrecognised weight would sort arbitrarily rather than loudly."
+    }
+  ]
+}

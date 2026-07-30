@@ -96,6 +96,8 @@ const SPEC_CASES = [
   'duplicate-submit-rejected',
   'force-does-not-duplicate-live-job',
   'plugin-manifest-schema',
+  'record-findings-report',
+  'record-findings-envelope-gate',
 ] as const;
 const PROVIDER_CLAUDE_CASES = ['rename-high', 'orphan-detection'] as const;
 const PROVIDER_OPENAI_CASES = ['basic-scan', 'body-links'] as const;
