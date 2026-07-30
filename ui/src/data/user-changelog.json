@@ -2,6 +2,26 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.98.0",
+      "date": "2026-07-29",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**An extension you switch off no longer runs.** Its code is not even read until you trust the plugin and turn that extension on. `sm plugins list` now shows everything a plugin ships (ids, kinds, versions, maturity) before you trust it, instead of reporting `0 ext`.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "`sm help` and the plugin registry no longer list extensions that ship switched off, such as the GitHub enrichment and the version bump. They appear once you enable them.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.97.1",
       "date": "2026-07-29",
       "kind": "user-facing",
