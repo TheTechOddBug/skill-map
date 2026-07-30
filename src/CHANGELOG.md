@@ -1,5 +1,23 @@
 # skill-map
 
+## 0.99.0
+
+### Minor Changes
+
+- The backtick-path grammar was the last holdout of a bug class already fixed on the `@`-token grammar: its relative prefix was capped at one level, so `../../ui/context/theme.md` matched at no start position and produced neither a link nor a `reference-broken` issue. Both grammars now pin the same prefix construct. The link-target probe also checks scan-root containment before it stats, refusing an escaping target unread; that rule moved to `kernel/util/path-containment.ts`, now shared.
+
+  ## User-facing
+
+  **A path that walks up more than one folder is no longer ignored.** Write `../../ui/context/theme.md` in a skill or agent file and it now shows on the map as a link; if it points nowhere you get a broken-reference error instead of silence.
+
+### Patch Changes
+
+- `sm activity install claude` wrote the bridge path cwd-relative (`node .skill-map/activity/bridge.js claude`) on the premise that hooks always spawn at the project root, so an agent that changed directory mid-session made every later hook die with `MODULE_NOT_FOUND`. The `json-hooks` install descriptor gains an optional `projectDirEnvVar` and Claude declares `CLAUDE_PROJECT_DIR`, so the command anchors on the runtime variable. Codex and Antigravity keep the relative form.
+
+  ## User-facing
+
+  **Claude Code activity hooks survive a change of directory.** Live-activity hooks no longer stop working once the agent moves into a subfolder of your project. If you installed them already, re-run `sm activity install claude` to pick up the new wiring.
+
 ## 0.98.0
 
 ### Minor Changes

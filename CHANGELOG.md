@@ -6,6 +6,20 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>0.99.0</b> · 2026-07-30</summary>
+
+### CLI Minor
+- The backtick-path grammar was the last holdout of a bug class already fixed on the `@`-token grammar: its relative prefix was capped at one level, so `../../ui/context/theme.md` matched at no start position and produced neither a link nor a `reference-broken` issue. Both grammars now pin the same prefix construct. The link-target probe also checks scan-root containment before it stats, refusing an escaping target unread; that rule moved to `kernel/util/path-containment.ts`, now shared.
+
+### CLI Patch
+- `sm activity install claude` wrote the bridge path cwd-relative (`node .skill-map/activity/bridge.js claude`) on the premise that hooks always spawn at the project root, so an agent that changed directory mid-session made every later hook die with `MODULE_NOT_FOUND`. The `json-hooks` install descriptor gains an optional `projectDirEnvVar` and Claude declares `CLAUDE_PROJECT_DIR`, so the command anchors on the runtime variable. Codex and Antigravity keep the relative form.
+
+### Spec Minor (0.91.0)
+- The backtick-path grammar was the last holdout of a bug class already fixed on the `@`-token grammar: its relative prefix was capped at one level, so `../../ui/context/theme.md` matched at no start position and produced neither a link nor a `reference-broken` issue. Both grammars now pin the same prefix construct. The link-target probe also checks scan-root containment before it stats, refusing an escaping target unread; that rule moved to `kernel/util/path-containment.ts`, now shared.
+
+</details>
+
+<details>
 <summary><b>0.98.0</b> · 2026-07-29</summary>
 
 ### CLI Minor

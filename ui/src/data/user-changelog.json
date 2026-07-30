@@ -2,6 +2,26 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.99.0",
+      "date": "2026-07-30",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**Claude Code activity hooks survive a change of directory.** Live-activity hooks no longer stop working once the agent moves into a subfolder of your project. If you installed them already, re-run `sm activity install claude` to pick up the new wiring.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**A path that walks up more than one folder is no longer ignored.** Write `../../ui/context/theme.md` in a skill or agent file and it now shows on the map as a link; if it points nowhere you get a broken-reference error instead of silence.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.98.0",
       "date": "2026-07-29",
       "kind": "user-facing",
