@@ -1,0 +1,11 @@
+{
+  "version": "0.1.0",
+  "specCompat": "*",
+  "catalogCompat": "*",
+  "description": "Conformance fixture: a plugin declaring dedicated storage whose first migration creates a correctly prefixed table and whose second one reaches for a kernel table. The kernel MUST apply the first and reject the second, proving the namespace boundary is enforced rather than papered over by a rewrite.",
+  "storage": {
+    "mode": "dedicated",
+    "tables": ["rule_exceptions"],
+    "migrations": ["migrations/001_initial.sql"]
+  }
+}

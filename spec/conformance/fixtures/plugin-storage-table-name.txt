@@ -1,0 +1,1 @@
+CREATE TABLE plugin_storeplug_rule_exceptions

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
+  "id": "plugin-storage-prefix-enforced",
+  "description": "A dedicated-storage plugin whose migration names its objects with the `plugin_<normalizedId>_` prefix MUST have them applied, and the object MUST land under exactly the name the migration wrote. The case asserts the EFFECT via `sm db dump` rather than the success line on stdout: human output is not contract, and the contract here is precisely that the physical name is the authored one, which is what a rewriting kernel would break while still reporting success. This is also the positive control the namespace rows needed, since a kernel that rejected every plugin migration would satisfy the refusal case on its own. The manifest declares the LOGICAL table name while the SQL writes the PHYSICAL one, deliberately: the prefix derives from the plugin id, so restating it in the manifest would only add a second place to get it wrong.",
+  "fixture": "plugin-storage-namespace",
+  "setup": {
+    "priorScans": [{ "fixture": "plugin-storage-namespace" }],
+    "priorInvokes": [{ "verb": "db", "sub": "migrate" }]
+  },
+  "invoke": { "verb": "db", "sub": "dump" },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "stdout-contains-verbatim", "fixture": "plugin-storage-table-name.txt" }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
+  "id": "plugin-storage-namespace-rejected",
+  "description": "A dedicated-storage migration creating an object OUTSIDE the plugin's `plugin_<normalizedId>_` namespace MUST be refused with exit 2, and the kernel MUST NOT rewrite the name to make it fit. The fixture is identical to `plugin-storage-prefix-enforced` except the table is unprefixed, so the refusal can only come from the namespace rule. Refusal rather than injection is the contract because the alternative silently creates a table whose name appears nowhere in the author's source; the same rule is what stops a migration from reaching a `state_*` kernel table, which fails on this identical check rather than a separate one.",
+  "fixture": "plugin-storage-intrusion",
+  "setup": {
+    "priorScans": [{ "fixture": "plugin-storage-intrusion" }]
+  },
+  "invoke": { "verb": "db", "sub": "migrate" },
+  "assertions": [
+    { "type": "exit-code", "value": 2 },
+    { "type": "stderr-matches", "pattern": "outside the plugin's namespace" },
+    { "type": "stderr-matches", "pattern": "plugin_storeplug_\\*" }
+  ]
+}

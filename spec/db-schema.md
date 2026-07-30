@@ -54,8 +54,8 @@ These analyzers apply to every kernel table and to every plugin-authored table u
 - **JSON blobs**: suffix `_json`, `TEXT`. Parsed on read, serialized on write.
 - **Counts**: suffix `_count`, `INTEGER`. Example: `links_out_count`.
 - **Enums**: plain column + `CHECK` constraint listing allowed values. Values are kebab-case lowercase. No lookup tables.
-- **Indexes**: named `ix_<table>_<cols>`. Example: `ix_state_jobs_status`.
-- **Constraints**: `fk_`, `uq_`, `ck_` prefixes.
+- **Indexes**: named `ix_<table>_<cols>`. Example: `ix_state_jobs_status`. Kernel tables only: a PLUGIN cannot use this convention, because its namespace prefix must come first (see §Triple protection for mode B).
+- **Constraints**: `fk_`, `uq_`, `ck_` prefixes. Same caveat for plugins.
 - **SQL keywords**: UPPERCASE. Identifiers lowercase.
 
 The kernel MUST reject any plugin migration that violates these analyzers at validation time (see `plugin-kv-api.md`).
@@ -603,13 +603,12 @@ Collisions after normalization are a load-time error; both plugins are disabled 
 The kernel MUST enforce all three layers **in this exact order** for every plugin migration:
 
 1. **Parse**, the kernel parses each plugin migration SQL file into an AST. Parse errors disable the plugin with status `load-error`.
-2. **DDL validation (pre-rewrite)**, the AST is validated against the original table names authored by the plugin. Kernel MUST reject, before any rewrite:
+2. **DDL validation**, the AST is validated against the table names exactly as the plugin authored them. Kernel MUST reject:
    - References (FK / trigger / view) to any kernel table (prefix `scan_`, `state_`, `config_`) or to another plugin's table (prefix `plugin_<other-id>_`).
-   - `DROP` / `ALTER` / `TRUNCATE` against anything outside the plugin's own logical table names.
+   - `DROP` / `ALTER` / `TRUNCATE` against anything outside the plugin's own namespace.
    - `ATTACH DATABASE` statements.
    - Global `PRAGMA` statements (anything not scoped to a plugin-owned table).
-   Validation runs **before** prefix injection so kernel tables are named as the plugin wrote them, making the reject test straightforward.
-3. **Prefix injection (rewrite)**, the kernel rewrites the AST so every table name the plugin authored becomes `plugin_<normalizedId>_<originalName>` if not already prefixed. Index and constraint names get the same treatment. A plugin CANNOT create un-prefixed tables.
+3. **Prefix enforcement**, every object the migration creates MUST already be named `plugin_<normalizedId>_<name>`. The kernel REJECTS anything outside that namespace, tables, indexes and constraints alike, with `object "<name>" is outside the plugin's namespace ("plugin_<normalizedId>_*")`. It does NOT rewrite the statement to add a missing prefix. The check is a literal string prefix on the object name, so the kernel index / constraint conventions (`ix_`, `fk_`, `uq_`, `ck_`) cannot lead a plugin object name; put the namespace first (`plugin_<normalizedId>_rule_exceptions_node_ix`). A plugin therefore cannot create un-prefixed tables, and it also cannot create them by accident and have them silently renamed: the name in the migration is the name on disk. Rejection was chosen over rewriting so one name is in play everywhere the author looks, and so an out-of-namespace reference is an error rather than a quietly relocated table.
 4. **Scoped connection (runtime)**, at runtime the plugin receives a `Database` wrapper (not a raw handle). The wrapper rejects any query touching tables whose name doesn't start with this plugin's prefix. Last-line defense: even if a migration-time layer were bypassed, runtime queries still cannot reach out-of-namespace data.
 
 Step 4 is separate from 1–3 because it applies at query time, not migration time. Together the four steps form the "triple protection" referenced across the spec (the name predates the explicit parse step).
