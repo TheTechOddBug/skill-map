@@ -38,6 +38,11 @@ import type {
   IPersistedEnrichment,
 } from '../orchestrator.js';
 import type { IPriorExtractorRun } from '../adapters/sqlite/scan-load.js';
+import type {
+  IPluginKvListQuery,
+  IPluginKvRow,
+  IPluginKvScope,
+} from '../adapters/sqlite/plugin-kvs.js';
 import type { ISuppressionEntry } from '../jobs/findings-report.js';
 import type { IUpdateCheckCache } from '../update-check/index.js';
 import type { IDiscoveredPlugin } from './plugin-loader.js';
@@ -779,6 +784,42 @@ export interface StoragePort {
      * one query per request, no SQL JOIN against `scan_nodes`.
      */
     listPaths(): Promise<Set<string>>;
+  };
+
+  // --- pluginKvs namespace ------------------------------------------------
+  /**
+   * Mode A plugin storage (`state_plugin_kvs`), the engine-level half
+   * of the `KvStore` accessor specified in `spec/plugin-kv-api.md`.
+   *
+   * This namespace is NOT what a plugin calls. `ctx.store` is the
+   * plugin-facing wrapper built by
+   * `kernel/adapters/plugin-store.ts:makeKvStoreWrapper`; the wrapper
+   * owns key validation, JSON encoding, size ceilings, the typed error
+   * taxonomy and the `nodePath ↔ nodeId` sentinel, and delegates here
+   * through a `pluginId`-bound port (`core/runtime/plugin-stores.ts`).
+   * Everything below therefore speaks storage terms: encoded
+   * `valueJson`, sentinel `nodeId` (`''` = global scope, never NULL).
+   *
+   * Every method takes a fully-qualified `pluginId`, which is what
+   * makes cross-plugin reads structurally impossible rather than
+   * merely discouraged.
+   */
+  pluginKvs: {
+    /** One row, or `null` when absent. */
+    get(scope: IPluginKvScope): Promise<IPluginKvRow | null>;
+    /** Upsert one row against the `(pluginId, nodeId, key)` primary key. */
+    set(row: IPluginKvRow): Promise<void>;
+    /** Delete one row. `true` iff a row was removed. Idempotent. */
+    delete(scope: IPluginKvScope): Promise<boolean>;
+    /** One scope's rows, key ASC, optionally narrowed by key prefix. */
+    list(query: IPluginKvListQuery): Promise<IPluginKvRow[]>;
+    /**
+     * Drop every row a plugin owns; returns the deleted count. Not
+     * wired to a verb today (`sm plugins disable` keeps plugin
+     * storage on purpose), reserved for the future
+     * `sm plugins forget <id>`.
+     */
+    purgeByPlugin(pluginId: string): Promise<number>;
   };
 
   // --- history namespace -------------------------------------------------

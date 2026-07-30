@@ -54,7 +54,7 @@ Operations MAY be additionally scoped by `nodePath`:
 - **Global KV (no `nodePath`)**: `{pluginId, nodePath: null, key}`. One row per plugin + key.
 - **Node-scoped KV (with `nodePath`)**: `{pluginId, nodePath: "<path>", key}`. One row per plugin + node + key.
 
-Both scopes share the `state_plugin_kvs` table (see [`db-schema.md`](./db-schema.md)). The `nodePath` column is nullable; implementations MUST use a sentinel empty string internally when the backing engine rejects NULL in composite primary keys.
+Both scopes share the `state_plugin_kvs` table (see [`db-schema.md`](./db-schema.md)). The `nodePath` column is nullable; implementations MUST use a sentinel empty string internally when the backing engine rejects NULL in composite primary keys. Because that sentinel is internal, an implementation MUST reject a caller-supplied empty `nodePath` (`KvNodePathInvalidError`) rather than silently routing it to global scope.
 
 ### Semantics
 
@@ -92,6 +92,7 @@ All errors are typed. An implementation MUST expose these error classes (or lang
 | Error | Cause |
 |---|---|
 | `KvKeyInvalidError` | Key is empty, non-string, or too long. |
+| `KvNodePathInvalidError` | `nodePath` is a non-string, or the empty string. The empty string is REJECTED rather than treated as global: it is the internal sentinel for global scope, so accepting it would make a write that said "node-scoped" read back as global, silently collapsing every per-node row into one. Omit the option (or pass `null`) for global scope. |
 | `KvValueNotSerializableError` | Value cannot be JSON-encoded. |
 | `KvValueTooLargeError` | Encoded value exceeds the size limit. |
 | `KvOperationFailedError` | Unexpected backend failure (e.g., DB full, IO error). Wraps the underlying cause. |

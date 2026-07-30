@@ -136,6 +136,10 @@ export const PLUGIN_LOADER_TEXTS = {
     "Plugin '{{id}}' at {{pathA}} collides with the plugin at {{pathB}}. " +
     'Rename one and rerun.',
 
+  builtInIdShadowed:
+    "Plugin '{{id}}' at {{path}} shadows the built-in plugin of the same name. " +
+    'Built-in ids are reserved. Rename the directory and rerun.',
+
   loadErrorPluginIdMismatch:
     "{{relEntry}}: extension declares pluginId '{{declared}}' but its plugin.json declares id '{{manifestId}}'. " +
     'Remove the explicit pluginId from the extension; the loader injects it from plugin.json#/id.',

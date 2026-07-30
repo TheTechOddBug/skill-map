@@ -200,7 +200,7 @@ Mirrors the interactive timeline on `skill-map.ai` (driven by `web/modules/roadm
 ● Config hierarchy · defaults → project → project-local → override
 ● Versioning policy · changesets, independent semver per package
 ● Spec as a standard · separable from reference impl
-● 38 schemas + 9 prose contracts + conformance suite
+● 38 schemas + 14 prose contracts + conformance suite
 ● 293 architectural decisions, logged
 ● @skill-map/spec published on npm
   ────────────────────────────────────────────────────────────────────────

@@ -1,19 +1,21 @@
 # Contributing to skill-map
 
-Thanks for your interest in `skill-map`. The project is in active pre-1.0 development, Steps 0a–9 are complete, Step 14 (Full Web UI) is in progress, and wave 2 (job subsystem + LLM verbs) follows. See [ROADMAP.md](./ROADMAP.md) for the full design narrative, decision log, and the canonical completeness marker.
+Thanks for your interest in `skill-map`. For the current state of the work, read the completeness marker in [ROADMAP.md](./ROADMAP.md) (search for `YOU ARE HERE`), which is the canonical source alongside the full design narrative and decision log. This file deliberately does not restate the step status: a duplicated summary here went stale for months, still describing the job subsystem as upcoming long after it shipped.
 
-## Project status: pre-1.0, external code contributions paused
+## Project status: external code contributions paused
 
-skill-map is still under construction toward its first stable release (`v1.0`). The spec, kernel APIs, and internal architecture move week to week, so reviewing and merging outside code against a moving target costs more than it gives, for both sides.
+The spec, kernel APIs, and internal architecture still move week to week, so reviewing and merging outside code against a moving target costs more than it gives, for both sides.
 
-**Until `v1.0` ships, external pull requests are not accepted.** PRs from outside the core team will be closed with a pointer to open a feature request instead. This is deliberate, not a judgement on the contribution.
+**External pull requests are not accepted right now.** PRs from outside the core team will be closed with a pointer to open a feature request instead. This is deliberate, not a judgement on the contribution.
+
+Note this is a standing policy, not one tied to a version number: shipping `1.0.0` freezes the SPEC, which is a different promise from opening the contribution flow. The policy changes when this section changes, and not before.
 
 What is open right now, and genuinely wanted:
 
 - **Feature requests / new functionality**: [open a feature request](https://github.com/crystian/skill-map/issues/new/choose). These feed the roadmap directly.
 - **Bug reports**: [open a bug report](https://github.com/crystian/skill-map/issues/new/choose).
 
-Once `v1.0` lands this policy relaxes and the normal pull-request flow described below applies.
+When the policy relaxes, the normal pull-request flow described below applies. Until this section says otherwise, it has not.
 
 ## Before contributing
 

@@ -61,6 +61,7 @@ import {
 import { formatAjvErrors, type ISchemaValidators } from '../schema-validators.js';
 
 import {
+  applyBuiltInIdShadowing,
   applyIdCollisions,
   describe,
   fail,
@@ -210,6 +211,12 @@ export class PluginLoader implements PluginLoaderPort {
    * their `id` field is untrusted (it may be a fall-back path hint when
    * the manifest could not be parsed) and they would muddy the
    * collision report.
+   *
+   * Two passes run, in order: `applyBuiltInIdShadowing` blocks a
+   * drop-in directory named after a built-in plugin (built-ins share
+   * the flat `pluginId` namespace that keys `ctx.store` and friends,
+   * but never appear in this array, so the cross-root pass cannot see
+   * them), then `applyIdCollisions` handles drop-in-vs-drop-in.
    */
   async discoverAndLoadAll(): Promise<IDiscoveredPlugin[]> {
     const paths = this.discoverPaths();
@@ -217,7 +224,7 @@ export class PluginLoader implements PluginLoaderPort {
     for (const path of paths) {
       out.push(await this.loadOne(path));
     }
-    return applyIdCollisions(out);
+    return applyIdCollisions(applyBuiltInIdShadowing(out));
   }
 
   /**

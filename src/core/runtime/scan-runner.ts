@@ -18,6 +18,7 @@ import type {
   IExtractorRunRecord,
   RenameOp,
   ScanResult,
+  TPluginStore,
 } from '../../kernel/index.js';
 import type {
   IContributionErrorRecord,
@@ -57,6 +58,7 @@ import {
   type IConformanceKillSwitches,
   type IPluginRuntime,
 } from './plugin-runtime.js';
+import { buildPluginStores } from './plugin-stores.js';
 import { defaultRuntimeContext, type IRuntimeContext } from './runtime-context.js';
 
 export interface IScanRunOpts {
@@ -315,9 +317,21 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<TScanRunRes
     cfg.tokenizer,
   );
 
+  // `ctx.store` composition root. Every discovered plugin that declared
+  // `storage: { mode: 'kv' }` gets a plugin-bound KV accessor
+  // (`spec/plugin-kv-api.md` § Mode A) built against the open storage
+  // port. Deferred behind a closure because the port only exists inside
+  // the persist branch's `withSqlite` scope.
+  const bindPluginStores = (port: StoragePort): ReadonlyMap<string, TPluginStore> =>
+    buildPluginStores({
+      discovered: pluginRuntime.discovered,
+      port,
+      warn: (message) => opts.printer.warn(message),
+    });
+
   const willPersist = !opts.noBuiltIns && !opts.dryRun;
   const scanned = await (willPersist
-    ? runPersistPath(opts, dbPath, strict, loadPrior, runScanWith, extensions)
+    ? runPersistPath(opts, dbPath, strict, loadPrior, runScanWith, bindPluginStores, extensions)
     : runEphemeralPath(opts, dbPath, strict, loadPrior, runScanWith));
   // Thread the auto-detect outcome onto the public result so the CLI
   // can announce it next to the scan summary (same stream, in order).
@@ -555,9 +569,44 @@ function makePriorLoader(
 }
 
 /**
+ * Everything one `runScanWithRenames` invocation hands back. Named so
+ * the persist / ephemeral branches and `makeScanRunner` share one
+ * declaration instead of restating the shape three times.
+ */
+interface IScanRunnerOutcome {
+  result: ScanResult;
+  renameOps: RenameOp[];
+  extractorRuns: IExtractorRunRecord[];
+  enrichments: IEnrichmentRecord[];
+  contributions: IContributionRecord[];
+  contributionErrors: IContributionErrorRecord[];
+  linkScores: IConfidenceAdjustment[];
+  freshlyRunTuples: ReadonlySet<string>;
+}
+
+/**
+ * The closure `makeScanRunner` returns. `pluginStores` is supplied only
+ * by the persisting branch, which is the one that holds an open
+ * storage port for the Mode A KV accessor to write through.
+ */
+type TScanRunnerFn = (
+  prior: ScanResult | null,
+  priorExtractorRuns?: Map<string, Map<string, IPriorExtractorRun>>,
+  pluginStores?: ReadonlyMap<string, TPluginStore>,
+) => Promise<IScanRunnerOutcome>;
+
+/**
+ * Bind the open storage port into the per-plugin `ctx.store` map. Only
+ * the persisting branch can supply one, so this is the single seam
+ * where the KV accessor meets real persistence.
+ */
+type TPluginStoreBinder = (port: StoragePort) => ReadonlyMap<string, TPluginStore>;
+
+/**
  * Build the closure that invokes `runScanWithRenames` with the wired
  * options (extensions, ignore filter, prior, optional Phase-4
- * extractor cache). Used by both the persist and ephemeral branches.
+ * extractor cache, per-plugin KV stores). Used by both the persist and
+ * ephemeral branches.
  */
 function makeScanRunner(
   kernel: ReturnType<typeof createKernel>,
@@ -574,20 +623,8 @@ function makeScanRunner(
   maxFileSizeBytes: number,
   followExternalSymlinks: boolean,
   tokenizer: string,
-) {
-  return async (
-    prior: ScanResult | null,
-    priorExtractorRuns?: Map<string, Map<string, IPriorExtractorRun>>,
-  ): Promise<{
-    result: ScanResult;
-    renameOps: RenameOp[];
-    extractorRuns: IExtractorRunRecord[];
-    enrichments: IEnrichmentRecord[];
-    contributions: IContributionRecord[];
-    contributionErrors: IContributionErrorRecord[];
-    linkScores: IConfidenceAdjustment[];
-    freshlyRunTuples: ReadonlySet<string>;
-  }> => {
+): TScanRunnerFn {
+  return async (prior, priorExtractorRuns, pluginStores) => {
     if (opts.changed && prior === null) {
       opts.stderr.write(SCAN_RUNNER_TEXTS.changedNoPriorWarning);
     }
@@ -607,6 +644,7 @@ function makeScanRunner(
       followExternalSymlinks,
       tokenizer,
       ...(priorExtractorRuns ? { priorExtractorRuns } : {}),
+      ...(pluginStores ? { pluginStores } : {}),
     });
     return runScanWithRenames(kernel, runOptions);
   };
@@ -628,17 +666,23 @@ interface IBuildRunScanOptionsArgs {
   followExternalSymlinks: boolean;
   tokenizer: string;
   priorExtractorRuns?: Map<string, Map<string, IPriorExtractorRun>>;
+  /**
+   * Per-plugin `ctx.store` accessors, keyed by plugin id. Present only
+   * on the persisting branch (the Mode A KV rows need an open storage
+   * port); absent, extractors see `ctx.store === undefined`.
+   */
+  pluginStores?: ReadonlyMap<string, TPluginStore>;
 }
 
 /**
- * Build the `RunScanOptions` bag for one invocation. Each conditional
- * field maps to one `RunScanOptions` slot; pulling the assembly out
- * of the closure keeps the arrow function under the project's
+ * Build the `RunScanOptions` bag for one invocation. The always-present
+ * fields land here; the two conditional groups (prior-snapshot inputs,
+ * scope inputs) live in the helpers below, one `RunScanOptions` slot
+ * per conditional, which keeps every function under the project's
  * cyclomatic-complexity cap.
  */
- 
 function buildRunScanOptions(args: IBuildRunScanOptionsArgs): Parameters<typeof runScan>[1] {
-  const { opts, prior, priorExtractorRuns, referenceablePaths } = args;
+  const { opts } = args;
   const runOptions: Parameters<typeof runScan>[1] = {
     roots: args.effectiveRoots.slice(),
     tokenize: !opts.noTokens,
@@ -654,15 +698,44 @@ function buildRunScanOptions(args: IBuildRunScanOptionsArgs): Parameters<typeof 
     maxFileSizeBytes: args.maxFileSizeBytes,
     followExternalSymlinks: args.followExternalSymlinks,
   };
+  applyPriorRunScanOptions(runOptions, args);
+  applyScopeRunScanOptions(runOptions, args);
+  runOptions.cwd = args.cwd;
+  return runOptions;
+}
+
+/**
+ * Prior-snapshot inputs: composed extensions, the previous `ScanResult`
+ * (which also arms the `--changed` cache) and the per-extractor run
+ * ledger. Split out of `buildRunScanOptions` to keep each function
+ * under the project's cyclomatic-complexity cap.
+ */
+function applyPriorRunScanOptions(
+  runOptions: Parameters<typeof runScan>[1],
+  args: IBuildRunScanOptionsArgs,
+): void {
+  const { opts, prior, priorExtractorRuns } = args;
   if (args.extensions) runOptions.extensions = args.extensions;
   if (prior) {
     runOptions.priorSnapshot = prior;
     runOptions.enableCache = opts.changed;
   }
   if (priorExtractorRuns) runOptions.priorExtractorRuns = priorExtractorRuns;
-  if (referenceablePaths?.size) runOptions.referenceablePaths = referenceablePaths;
-  runOptions.cwd = args.cwd;
-  return runOptions;
+}
+
+/**
+ * Scope inputs: the referenceable-path side set and the per-plugin
+ * `ctx.store` accessors. Both are omitted entirely when empty so the
+ * orchestrator keeps its "absent means no feature" branches.
+ */
+function applyScopeRunScanOptions(
+  runOptions: Parameters<typeof runScan>[1],
+  args: IBuildRunScanOptionsArgs,
+): void {
+  if (args.referenceablePaths?.size) {
+    runOptions.referenceablePaths = args.referenceablePaths;
+  }
+  if (args.pluginStores?.size) runOptions.pluginStores = args.pluginStores;
 }
 
 /**
@@ -717,25 +790,19 @@ async function rebuildOnDrift(
  * Persist branch, single `withSqlite` open: read prior, scan, guard,
  * persist. The guard refuses to wipe a populated DB with a zero-result
  * scan unless `--allow-empty` is set.
+ *
+ * This is also the only branch that can hand extractors a working
+ * `ctx.store`: the Mode A KV accessor writes through the same open
+ * adapter, so `bindPluginStores(adapter)` runs inside the `withSqlite`
+ * scope and the wrappers die with it.
  */
 async function runPersistPath(
   opts: IScanRunOpts,
   dbPath: string,
   strict: boolean,
   loadPrior: (adapter: StoragePort) => Promise<ScanResult | null>,
-  runScanWith: (
-    prior: ScanResult | null,
-    priorExtractorRuns?: Map<string, Map<string, IPriorExtractorRun>>,
-  ) => Promise<{
-    result: ScanResult;
-    renameOps: RenameOp[];
-    extractorRuns: IExtractorRunRecord[];
-    enrichments: IEnrichmentRecord[];
-    contributions: IContributionRecord[];
-    contributionErrors: IContributionErrorRecord[];
-    linkScores: IConfidenceAdjustment[];
-    freshlyRunTuples: ReadonlySet<string>;
-  }>,
+  runScanWith: TScanRunnerFn,
+  bindPluginStores: TPluginStoreBinder,
   extensions?: ReturnType<typeof composeScanExtensions>,
 ): Promise<TScanRunResult> {
   type IPersistOutcome =
@@ -771,7 +838,7 @@ async function runPersistPath(
         opts.changed && prior ? await adapter.scans.loadExtractorRuns() : undefined;
       let scanned;
       try {
-        scanned = await runScanWith(prior, priorExtractorRuns);
+        scanned = await runScanWith(prior, priorExtractorRuns, bindPluginStores(adapter));
       } catch (err) {
         return { kind: 'scan-error', message: formatErrorMessage(err) } as IPersistOutcome;
       }
@@ -820,20 +887,19 @@ async function runPersistPath(
  * Non-persist branch, ephemeral read-only open for the prior, scan in
  * memory. We do NOT auto-create the DB here; a `--dry-run` over a
  * missing scope must not provision one.
+ *
+ * No `pluginStores` here on purpose: the adapter is closed again the
+ * moment the prior is loaded, long before extractors run, and a
+ * `--dry-run` / `--no-built-ins` scan must not write plugin KV rows
+ * any more than it writes nodes. Extractors on this branch keep seeing
+ * `ctx.store === undefined`, the documented shape for "no storage".
  */
 async function runEphemeralPath(
   opts: IScanRunOpts,
   dbPath: string,
   strict: boolean,
   loadPrior: (adapter: StoragePort) => Promise<ScanResult | null>,
-  runScanWith: (
-    prior: ScanResult | null,
-  ) => Promise<{
-    result: ScanResult;
-    renameOps: RenameOp[];
-    extractorRuns: IExtractorRunRecord[];
-    enrichments: IEnrichmentRecord[];
-  }>,
+  runScanWith: TScanRunnerFn,
 ): Promise<TScanRunResult> {
   let prior: ScanResult | null;
   try {

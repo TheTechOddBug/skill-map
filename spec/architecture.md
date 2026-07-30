@@ -613,7 +613,7 @@ The pairing also drives the **enable axis**: the toggle surface (CLI `sm plugins
 
 ### Hook · curated trigger set
 
-Hooks subscribe declaratively to a curated set of kernel lifecycle events and react. Reaction-only by design: a hook cannot mutate the pipeline, block emission, or alter outputs. The hookable trigger set is intentionally small, nine events out of the full [`job-events.md`](./job-events.md) catalog. Eight are pipeline-driven (emitted from inside `runScan`); two (`boot`, `shutdown`) are CLI-process-driven (emitted by the driving binary before / after the verb runs, fire-and-forget so `process.exit` is never blocked). Other events (per-node `scan.progress`, `run.*`, `job.claimed`, `job.callback.received`) are deliberately NOT hookable: too verbose for a reactive surface, or covered elsewhere. A trigger outside the curated set yields `invalid-manifest` at load time. EVERY dispatch path honours the enabled toggle: the pipeline-driven triggers because the composed hook catalog already filters disabled extensions, and the CLI-process-driven `boot` / `shutdown` dispatcher by filtering the bundled built-in hooks against the project's layered config before dispatching; a disabled hook (e.g. `plugins.core.extensions.update-check.enabled: false`) never fires on any trigger.
+Hooks subscribe declaratively to a curated set of kernel lifecycle events and react. Reaction-only by design: a hook cannot mutate the pipeline, block emission, or alter outputs. The hookable trigger set is intentionally small, nine events out of the full [`job-events.md`](./job-events.md) catalog. Seven are pipeline-driven (emitted from inside `runScan`); two (`boot`, `shutdown`) are CLI-process-driven (emitted by the driving binary before / after the verb runs, fire-and-forget so `process.exit` is never blocked). Other events (per-node `scan.progress`, `run.*`, `job.claimed`, `job.callback.received`) are deliberately NOT hookable: too verbose for a reactive surface, or covered elsewhere. A trigger outside the curated set yields `invalid-manifest` at load time. EVERY dispatch path honours the enabled toggle: the pipeline-driven triggers because the composed hook catalog already filters disabled extensions, and the CLI-process-driven `boot` / `shutdown` dispatcher by filtering the bundled built-in hooks against the project's layered config before dispatching; a disabled hook (e.g. `plugins.core.extensions.update-check.enabled: false`) never fires on any trigger.
 
 | Trigger | When it fires | Payload (key fields) | Hook scope |
 |---|---|---|---|
@@ -633,14 +633,15 @@ A hook MAY narrow further with an optional declarative `filter` map: keys are pa
 - `filter: { actionId: 'claude/skill-summarizer' }`, invoke only for one Action.
 - `filter: { reason: 'runner-error' }` (on `job.failed`), invoke only when the runner crashed.
 
-#### Mode semantics
+#### Dispatch semantics
 
-- **Deterministic** (default): the hook's `on(ctx)` runs in-process during dispatch of the matching event, synchronously between the event's emission and the next pipeline step. Errors are caught by the dispatcher (logged through a synthetic `extension.error` event with kind `hook-error`) and NEVER block the main pipeline. A buggy hook degrades gracefully and the scan continues.
-- **Probabilistic**: the hook is enqueued as a job. Until the job subsystem ships at Step 10, probabilistic hooks load but skip dispatch with a stderr advisory. The hook still surfaces in `sm plugins list` / `sm plugins doctor`; it just does not fire today.
+Hooks are **deterministic-only**: the kind has no `mode` axis, and a manifest declaring one is rejected (see the mode-capability matrix above). The hook's `on(ctx)` runs in-process during dispatch of the matching event, synchronously between the event's emission and the next pipeline step. Errors are caught by the dispatcher (logged through a synthetic `extension.error` event with kind `hook-error`) and NEVER block the main pipeline. A buggy hook degrades gracefully and the scan continues.
+
+A probabilistic hook would mean enqueuing a job from inside the dispatch path, which inverts the queue's pull-only contract: work is submitted by an operator or a verb, never by a pipeline step reacting to itself. An extension that needs model work in response to an event is an Analyzer or an Action, both of which have a probabilistic mode.
 
 #### Cross-extension impact
 
-Hooks introduce no new persisted state and do NOT participate in the deterministic scan cache (A.9). A re-scan against an unchanged corpus dispatches `scan.started` / `scan.completed` as before; subscribed hooks fire on every scan regardless of cache hit / miss. Hooks needing cache-aware behaviour MUST inspect their own state via `ctx.store` (declared in the plugin's manifest).
+Hooks introduce no new persisted state and do NOT participate in the deterministic scan cache (A.9). A re-scan against an unchanged corpus dispatches `scan.started` / `scan.completed` as before; subscribed hooks fire on every scan regardless of cache hit / miss. `IHookContext` exposes no `store`, so a hook that needs cache-aware behaviour has to derive it from the payload it receives rather than from persisted state of its own.
 
 ### Contract analyzers
 
@@ -930,7 +931,7 @@ The six `inspector.body.panel.*` slots render grouped **one collapsible section 
 
 ### Settings
 
-Plugin user-configurable settings live **on each extension's manifest** (structure-as-truth) in `settings: Record<string, ISettingDeclaration>` (see [`schemas/extensions/base.schema.json`](./schemas/extensions/base.schema.json) and [`schemas/input-types.schema.json`](./schemas/input-types.schema.json)). Each setting picks an input-type from the closed catalog (`string-list`, `single-string`, `boolean-flag`, `integer`, `enum-pick`, `enum-multipick`, `path-glob`, `regex`, `secret`, `key-value-list`). The kernel exposes resolved settings via `ctx.settings.<settingId>` to the extension's runtime methods (`extract`, `evaluate`, `invoke`, etc.); the UI generates a form per declaration; the CLI's `sm plugins config <plugin>/<extension>` exposes the same surface. Plugin-level settings are no longer supported; the field moved from `plugin.json` to each extension that consumes it.
+Plugin user-configurable settings live **on each extension's manifest** (structure-as-truth) in `settings: Record<string, ISettingDeclaration>` (see [`schemas/extensions/base.schema.json`](./schemas/extensions/base.schema.json) and [`schemas/input-types.schema.json`](./schemas/input-types.schema.json)). Each setting picks an input-type from the closed catalog (`string-list`, `single-string`, `boolean-flag`, `integer`, `number`, `enum-pick`, `enum-multipick`, `path-glob`, `regex`, `secret`, `key-value-list`). The kernel exposes resolved settings via `ctx.settings.<settingId>` to the extension's runtime methods (`extract`, `evaluate`, `invoke`, etc.); the UI generates a form per declaration; the CLI's `sm plugins config <plugin>/<extension>` exposes the same surface. Plugin-level settings are no longer supported; the field moved from `plugin.json` to each extension that consumes it.
 
 Settings are read once at extension invocation; changing one requires `sm scan` to re-emit affected contributions. The UI surfaces a "settings changed, rescan needed" indicator on mismatch; live re-emission is explicitly out of scope (a stability decision per `ROADMAP.md` §UI contribution system D4).
 

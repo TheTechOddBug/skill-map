@@ -156,6 +156,13 @@ import {
   loadTagsForPaths,
 } from './tags.js';
 import {
+  deletePluginKv,
+  getPluginKv,
+  listPluginKvs,
+  purgePluginKvs,
+  setPluginKv,
+} from './plugin-kvs.js';
+import {
   loadUpdateCheckCache,
   saveUpdateCheckCache,
 } from '../../storage/update-check.js';
@@ -254,6 +261,7 @@ export class SqliteStorageAdapter implements StoragePort {
   summaries!: StoragePort['summaries'];
   findings!: StoragePort['findings'];
   favorites!: StoragePort['favorites'];
+  pluginKvs!: StoragePort['pluginKvs'];
   preferences!: StoragePort['preferences'];
   migrations!: StoragePort['migrations'];
   pluginMigrations!: StoragePort['pluginMigrations'];
@@ -447,6 +455,14 @@ export class SqliteStorageAdapter implements StoragePort {
       set: (path) => setFavorite(this.db, path),
       unset: (path) => unsetFavorite(this.db, path),
       listPaths: () => listFavoritePaths(this.db),
+    };
+
+    this.pluginKvs = {
+      get: (scope) => getPluginKv(this.db, scope),
+      set: (row) => setPluginKv(this.db, row),
+      delete: (scope) => deletePluginKv(this.db, scope),
+      list: (query) => listPluginKvs(this.db, query),
+      purgeByPlugin: (pluginId) => purgePluginKvs(this.db, pluginId),
     };
 
     this.preferences = {

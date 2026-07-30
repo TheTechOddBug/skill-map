@@ -38,12 +38,29 @@ import {
   installedSpecVersion,
 } from '../plugin-loader.js';
 import { loadSchemaValidators } from '../schema-validators.js';
+import type { IKvStorePersist } from '../plugin-store.js';
 import type {
   IDiscoveredPlugin,
   IPluginStorageSchema,
 } from '../../types/plugin.js';
 
 import { Ajv2020 } from 'ajv/dist/2020.js';
+
+/**
+ * Capture-only `IKvStorePersist` double. Only `set` matters to the
+ * AJV-gate tests, so it records `[key, decodedValue]` pairs; the read
+ * side stays a stub because nothing here calls it.
+ */
+function capturingKvPersist(sink: Array<[string, unknown]>): IKvStorePersist {
+  return {
+    get: () => null,
+    set: (_nodeId, key, valueJson) => {
+      sink.push([key, JSON.parse(valueJson)]);
+    },
+    delete: () => false,
+    list: () => [],
+  };
+}
 
 let tempRoot: string;
 
@@ -207,9 +224,7 @@ describe('A.12, plugin storage outputSchema (runtime wrapper)', () => {
     const wrapper = makeKvStoreWrapper({
       pluginId: 'demo',
       schema: compile(valueSchema, 'schemas/kv-value.schema.json'),
-      persist: (key, value) => {
-        persisted.push([key, value]);
-      },
+      persist: capturingKvPersist(persisted),
     });
 
     await wrapper.set('feature.x', { enabled: true });
@@ -250,9 +265,7 @@ describe('A.12, plugin storage outputSchema (runtime wrapper)', () => {
     const persisted: Array<[string, unknown]> = [];
     const wrapper = makePluginStore({
       plugin: kvPlugin,
-      persistKv: (k, v) => {
-        persisted.push([k, v]);
-      },
+      persistKv: capturingKvPersist(persisted),
     });
     ok(wrapper, 'wrapper present for kv plugin with persistKv');
     if (wrapper && 'set' in wrapper) {

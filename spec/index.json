@@ -168,7 +168,7 @@
     "files": {
       "CHANGELOG.md": "b591fab6361c2daf42ee9f384ffd8725d31ebeebdef383cd840ae37d8a2497c3",
       "README.md": "ecf504ecbc74f2ef0aad7dcb178a52d549186eb23e2ecdaf0c6cee3f0c826d72",
-      "architecture.md": "632e6188a7d7b9741056a71fa1527e0dbd608279fbf29aebf61b010efd8982a8",
+      "architecture.md": "5a6aa1835d386723e2ea1a335950f33aa6512aead3827780930751c94b825950",
       "cli-contract.md": "b1daff2258143d277f059aee406e6948364097823b89ae2633d04ec1ab9dfc3c",
       "conformance/README.md": "0f1cbb635bdac6a5bdb70f1de32b02707aa9908fd58e54ef59e3122bd59e107f",
       "conformance/cases/backtick-path-extraction.json": "4112b5724156c4d6ad5cf90a762e43741d25d68735f91d453ac580a77b3764da",
@@ -310,12 +310,12 @@
       "conformance/fixtures/view-slots-all/.skill-map/plugins/all-slots/analyzers/everything/extension.json": "8f13f91539ced01f332246f90e1957efeedfeb249c647e21a6b4ffda67d312c5",
       "conformance/fixtures/view-slots-all/.skill-map/plugins/all-slots/analyzers/everything/index.js": "3aea0f750e4ff3495210ec6306e3bff7130d87c9d970a02feb31a28860fe227d",
       "conformance/fixtures/view-slots-all/.skill-map/plugins/all-slots/plugin.json": "c48e8a0574947ade0b4eb189d6bc27a48e24f92f616aacdc177f2d22d472a599",
-      "db-schema.md": "34820937eec97293a2e04fae1b81eca7bc489a78ba0ccbc0c4b86f27cce795c0",
+      "db-schema.md": "09a6a9ec9b2d95e41c7a86d231c96f8b318daf35b10dc6f1596a9a7315b8aab3",
       "interfaces/security-scanner.md": "ae0574e5b6e95aa95a5edc920773c4a866a0ef51836d3490edfd6579fc6c3cc4",
       "job-events.md": "31a5057bef799dd41d4d60e867db6b83d23fb5e6222f0360ca09d3b84d9a6fe3",
       "job-lifecycle.md": "b87eec61af5a356dd6ed4456e37804b3fe74cd2359aa60dff42a3397a010f9a4",
       "plugin-author-guide.md": "a3f1eae31ee950ecdadd03542fd53e8fd627a2f95f3e05219ea51bff24d5b0c9",
-      "plugin-kv-api.md": "f4fbd466b116c7ea5290ad81f59ee32a5a7bdc0b2f31435cdfdca49795889d3f",
+      "plugin-kv-api.md": "6b448666ce9491c85f04470f70fc7f71fa3b7fafcbd175c26801a600b5147b85",
       "plugin-quickstart.md": "e5bfbba7729767fc24fb0f21db0d65abfb9f7d9cb7939835196db3db67dde630",
       "prompt-preamble.md": "e8d1118ff3e4dcc34b714838357925679d05005a1d8d6e1f15b6b0452f0405e1",
       "provider-activity.md": "f61e9fe02ecbb4a8cc96974f756aa8e81c05268b319741ce0a118dfe446a8af3",
@@ -357,7 +357,7 @@
       "schemas/tags/markdown.schema.json": "9fcbaf7942da80705d5da4fb5e195bfd97ec53ca17914e69a80fd15c865d6723",
       "schemas/user-settings.schema.json": "36ba5f1d8babf2f4ec3d707d50ef1c095a5117f62a92998a6bc33f5b1a84f3d8",
       "schemas/view-slots.schema.json": "fd2c4baee1ac9beffcb1cdd08dc2f607bfc08b38d6907c32377ef0a820dfd699",
-      "telemetry.md": "46ab28d6306cbd02180323a2c89c7a18ad2449df5981d0e95a5246a192091d2d",
+      "telemetry.md": "3de924d71f668cbd725282999e4193572e77a681f2f75ecbee4bb75de9a04a8c",
       "versioning.md": "142c9cd4521e001216114d477b635d8dff6e38a9a33105cef814b6ca2d2eecf2"
     }
   }

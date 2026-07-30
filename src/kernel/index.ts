@@ -141,7 +141,14 @@ export type {
 // --- adapters (./adapters/...) -----------------------------------------
 export { InMemoryProgressEmitter } from './adapters/in-memory-progress.js';
 export {
+  KV_DISPLAY_CAP,
+  KV_GLOBAL_NODE_ID,
+  KV_KEY_MAX_BYTES,
+  KV_KEY_WARN_BYTES,
+  KV_KEY_WARN_MAX_TRACKED,
+  KV_PLUGIN_SOFT_TOTAL_BYTES,
   KV_SCHEMA_KEY,
+  KV_VALUE_MAX_BYTES,
   makeDedicatedStoreWrapper,
   makeKvStoreWrapper,
   makePluginStore,
@@ -149,10 +156,22 @@ export {
 export type {
   IDedicatedStorePersist,
   IDedicatedStoreWrapper,
+  IKvEntry,
+  IKvListOptions,
+  IKvPersistedRow,
+  IKvScopeOptions,
   IKvStorePersist,
   IKvStoreWrapper,
+  IKvStoreWrapperOptions,
   TPluginStore,
 } from './adapters/plugin-store.js';
+export {
+  KvKeyInvalidError,
+  KvNodePathInvalidError,
+  KvOperationFailedError,
+  KvValueNotSerializableError,
+  KvValueTooLargeError,
+} from './adapters/plugin-store-errors.js';
 
 // --- scan utilities (./scan/...) ---------------------------------------
 export { createChokidarWatcher, createParcelWatcher } from './scan/watcher.js';

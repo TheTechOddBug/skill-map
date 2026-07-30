@@ -125,6 +125,6 @@ Same authority level as AGENTS.md. Load on demand when entering the relevant are
 
 - `README.md`, product overview, philosophy, specification surface, doc pointers (the repo layout tree lives in `CONTRIBUTING.md` §Repo layout).
 - `ROADMAP.md`, design narrative, decisions, execution plan, stack conventions, persistence, testing, rejected proposals. The completeness marker flags the last fully-done step.
-- `spec/`, normative standard: JSON Schemas, prose contracts (`architecture.md`, `cli-contract.md`, `job-lifecycle.md`, `job-events.md`, `prompt-preamble.md`, `db-schema.md`, `plugin-kv-api.md`), conformance suite.
+- `spec/`, normative standard: JSON Schemas, prose contracts, conformance suite. The canonical list of prose contracts is the `PROSE_DOCS` array in `web/scripts/build-site.js` (it drives `llms.txt`), not a copy kept here; a copy is what went stale, listing 7 of the 14 that exist.
 - `CONTRIBUTING.md`, PR workflow, changeset analyzers.
 - `CLAUDE.md`, single-line pointer (`@AGENTS.md`) so Claude Code and Codex pick up this file under either filename.

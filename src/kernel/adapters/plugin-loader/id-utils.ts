@@ -66,6 +66,80 @@ export function pathId(p: string): string {
 }
 
 /**
+ * The closed set of plugin ids the generated `src/plugins/built-ins.ts`
+ * stamps onto its extensions. Frozen the same way
+ * `kernel/scan/parsers/index.ts` freezes its built-in parser ids: a
+ * hardcoded kernel-side list, because the loader must not import the
+ * built-ins registry (that would pull every bundled extension module
+ * into the discovery path, inverting the layering).
+ *
+ * Drift is caught at CI time by a guard test that compares this set
+ * against the live `builtIns()` output, so adding a built-in plugin
+ * without updating this list fails the suite instead of silently
+ * reopening the shadowing lane below.
+ *
+ * NOTE: deliberately NOT shared with `cli/telemetry/usage-collector.ts`'s
+ * same-named constant. That one is an allow-list governing what may
+ * leave the machine; conflating the two would let a change made for
+ * loader reasons widen a privacy surface.
+ */
+export const BUILT_IN_PLUGIN_IDS: ReadonlySet<string> = new Set([
+  'agent-skills',
+  'antigravity',
+  'claude',
+  'codex',
+  'core',
+  'github',
+  'opencode',
+]);
+
+/**
+ * Built-in id shadowing pass. A drop-in plugin directory whose name
+ * matches a built-in plugin id is blocked with status `id-collision`,
+ * the same treatment (and the same spec-frozen status, see
+ * `plugins-registry.schema.json`) two colliding drop-in directories
+ * get.
+ *
+ * Why it matters: several kernel surfaces key by bare `pluginId` in a
+ * FLAT namespace shared by built-ins and drop-ins, `ctx.store`
+ * (`core/runtime/plugin-stores.ts`) being the sharpest example, yet
+ * built-ins never appear in `IDiscoveredPlugin[]`, so
+ * `applyIdCollisions` structurally cannot see them. A directory named
+ * `core` would therefore own the `core` KV slot with no diagnostic at
+ * all. No built-in uses `ctx.store` today, which is what keeps the
+ * impact at zero and this at a latent confused-deputy rather than a
+ * live bug; blocking it now means the first built-in that DOES adopt
+ * KV storage inherits a closed door instead of an open one.
+ *
+ * Runs BEFORE `applyIdCollisions` so a shadowing plugin is already
+ * stripped of its extensions when the cross-root pass groups by id.
+ */
+export function applyBuiltInIdShadowing(plugins: IDiscoveredPlugin[]): IDiscoveredPlugin[] {
+  if (!plugins.some(isBuiltInShadow)) return plugins;
+  return plugins.map((p) => {
+    if (!isBuiltInShadow(p)) return p;
+    const next: IDiscoveredPlugin = {
+      ...p,
+      status: 'id-collision',
+      reason: tx(PLUGIN_LOADER_TEXTS.builtInIdShadowed, { id: p.id, path: p.path }),
+    };
+    // Same posture as the cross-root pass: a blocked plugin's
+    // extensions are inert, strip them so a careless caller cannot
+    // register them anyway. The manifest stays for diagnostics.
+    delete next.extensions;
+    return next;
+  });
+}
+
+/**
+ * A discovered plugin shadows a built-in when its manifest parsed (so
+ * the directory-derived id is trusted) and that id is reserved.
+ */
+function isBuiltInShadow(plugin: IDiscoveredPlugin): boolean {
+  return Boolean(plugin.manifest) && BUILT_IN_PLUGIN_IDS.has(plugin.id);
+}
+
+/**
  * Cross-root id-collision pass. Group survivors (plugins whose individual
  * load reached a status that exposes a trusted id) by id, and for any
  * group of size ≥ 2 rewrite every member's status to `id-collision` with
