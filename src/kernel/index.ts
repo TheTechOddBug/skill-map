@@ -146,7 +146,7 @@ export {
   KV_KEY_MAX_BYTES,
   KV_KEY_WARN_BYTES,
   KV_KEY_WARN_MAX_TRACKED,
-  KV_PLUGIN_SOFT_TOTAL_BYTES,
+  KV_PLUGIN_MAX_TOTAL_BYTES,
   KV_SCHEMA_KEY,
   KV_VALUE_MAX_BYTES,
   makeDedicatedStoreWrapper,
@@ -166,6 +166,7 @@ export type {
   TPluginStore,
 } from './adapters/plugin-store.js';
 export {
+  KvBudgetExceededError,
   KvKeyInvalidError,
   KvNodePathInvalidError,
   KvOperationFailedError,

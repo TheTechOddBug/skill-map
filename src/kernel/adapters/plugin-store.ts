@@ -44,6 +44,7 @@ import { sanitizeForTerminal } from '../util/safe-text.js';
 import { truncateHead } from '../util/text.js';
 import { PLUGIN_STORE_TEXTS } from '../i18n/plugin-store.texts.js';
 import {
+  KvBudgetExceededError,
   KvKeyInvalidError,
   KvNodePathInvalidError,
   KvOperationFailedError,
@@ -88,22 +89,30 @@ export const KV_KEY_WARN_BYTES = 128;
 export const KV_VALUE_MAX_BYTES = 1024 * 1024;
 
 /**
- * Advisory-only aggregate ceiling, counted per wrapper instance (one
- * scan) as BYTES ACCEPTED BY `set`, not net bytes stored. Crossing it
- * emits exactly one `warn` and changes nothing else: a scan is never
- * aborted over storage volume, that is a product decision, not a
- * kernel one.
+ * Aggregate storage ceiling per plugin, counted per wrapper instance
+ * (one scan) as BYTES ACCEPTED BY `set`, not net bytes stored.
  *
- * Why 16 MiB: an extractor runs once per node, so a plugin on a
+ * Why 4 MiB: an extractor runs once per node, so a plugin on a
  * 5,000-node tree writing a 200-byte record per node lands around
- * 1 MB, comfortably clear. Reaching 16 MiB means the plugin is either
+ * 1 MB, comfortably clear. Reaching 4 MiB means the plugin is either
  * storing bulk content (which belongs in Mode B, or nowhere) or
- * looping, and the operator should hear about it before the project
- * database grows past the size where they would notice it themselves.
- * It is 16x the single-value ceiling, so it also cannot trip on one
- * legitimate large write.
+ * looping. It is 4x the single-value ceiling, so one legitimate large
+ * write cannot trip it either.
+ *
+ * This is a HARD ceiling: the `set` that would cross it is rejected
+ * with `KvBudgetExceededError` and nothing is persisted. An advisory
+ * alone was the earlier design and it was the wrong call: the value of
+ * a budget is that the database cannot grow without bound, and a
+ * warning a plugin never reads bounds nothing. The scan itself is not
+ * aborted, the extractor sees a typed rejection and decides, exactly
+ * as it does for an oversized value.
+ *
+ * The budget is per plugin and per wrapper, so it resets each scan. It
+ * therefore bounds the damage ONE scan can do, not the total a plugin
+ * accumulates across many; the latter needs a stored running total,
+ * which is a bigger change than this ceiling is worth.
  */
-export const KV_PLUGIN_SOFT_TOTAL_BYTES = 16 * 1024 * 1024;
+export const KV_PLUGIN_MAX_TOTAL_BYTES = 4 * 1024 * 1024;
 
 /**
  * How many distinct over-soft-limit keys one wrapper tracks before it
@@ -239,7 +248,7 @@ export interface IKvStoreWrapperOptions {
 export function makeKvStoreWrapper(opts: IKvStoreWrapperOptions): IKvStoreWrapper {
   const { pluginId, schema, persist } = opts;
   const warnLongKey = makeLongKeyWarner(pluginId, opts.warn);
-  const countBytes = makeVolumeCounter(pluginId, opts.warn);
+  const chargeBudget = makeBudgetCounter(pluginId);
 
   return {
     async get<T = unknown>(key: string, options?: IKvScopeOptions): Promise<T | null> {
@@ -256,7 +265,9 @@ export function makeKvStoreWrapper(opts: IKvStoreWrapperOptions): IKvStoreWrappe
       const nodeId = resolveNodeId(pluginId, options?.nodePath);
       assertSchemaAccepts(pluginId, schema, key, value);
       const valueJson = encodeValue(pluginId, key, value);
-      countBytes(assertValueSize(pluginId, key, valueJson));
+      // Charge the budget BEFORE persisting, so a rejected write leaves
+      // no row and no accounting behind.
+      chargeBudget(key, assertValueSize(pluginId, key, valueJson));
       await runBackend(pluginId, 'set', () =>
         persist.set(nodeId, key, valueJson, Date.now()),
       );
@@ -507,35 +518,34 @@ function makeLongKeyWarner(
 }
 
 /**
- * Build the aggregate-volume counter. Accumulates the encoded bytes of
- * every accepted `set` and fires ONE advisory the first time the
- * running total crosses `KV_PLUGIN_SOFT_TOTAL_BYTES`.
+ * Build the per-plugin storage budget counter, enforcing
+ * `KV_PLUGIN_MAX_TOTAL_BYTES` across one wrapper's lifetime (one scan).
  *
- * Advisory only, by design: the wrapper is the single choke point and
- * already owns the byte accounting, so it is the cheapest place to give
- * the operator visibility into a plugin quietly inflating the project
- * database. It deliberately does NOT enforce a budget, aborting a scan
- * over storage volume is a product decision that has not been taken.
+ * The wrapper is the single choke point and already measures encoded
+ * bytes for the per-value ceiling, so charging the budget here costs
+ * nothing extra. The rejected write is not counted: a plugin that keeps
+ * trying past its budget keeps getting the same total back rather than
+ * an ever-growing one, which makes the error message stable and the
+ * accounting honest about what was actually stored.
  */
-function makeVolumeCounter(
-  pluginId: string,
-  warn: ((message: string) => void) | undefined,
-): (bytes: number) => void {
-  if (!warn) return noCount;
+function makeBudgetCounter(pluginId: string): (key: string, bytes: number) => void {
   let written = 0;
-  let announced = false;
-  return (bytes: number): void => {
-    if (announced) return;
-    written += bytes;
-    if (written < KV_PLUGIN_SOFT_TOTAL_BYTES) return;
-    announced = true;
-    warn(
-      tx(PLUGIN_STORE_TEXTS.kvAggregateSoftLimit, {
-        pluginId: safeText(pluginId),
-        written,
-        soft: KV_PLUGIN_SOFT_TOTAL_BYTES,
-      }),
-    );
+  return (key: string, bytes: number): void => {
+    const would = written + bytes;
+    if (would > KV_PLUGIN_MAX_TOTAL_BYTES) {
+      throw new KvBudgetExceededError(
+        tx(PLUGIN_STORE_TEXTS.kvBudgetExceeded, {
+          pluginId: safeText(pluginId),
+          key: safeText(key),
+          would,
+          budget: KV_PLUGIN_MAX_TOTAL_BYTES,
+        }),
+        key,
+        would,
+        KV_PLUGIN_MAX_TOTAL_BYTES,
+      );
+    }
+    written = would;
   };
 }
 
@@ -547,10 +557,6 @@ function noWarn(): void {
   // Intentionally empty, there is nowhere to write the advisory.
 }
 
-/** Counter used when no sink was supplied; nothing would read the total. */
-function noCount(): void {
-  // Intentionally empty, there is nowhere to write the advisory.
-}
 
 /**
  * The Mode A AJV gate. Only `set` runs it; `get` / `list` return what

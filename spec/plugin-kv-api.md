@@ -78,6 +78,7 @@ Return order of `list` is NOT specified; consumers MUST NOT rely on ordering. Im
 - Value MUST be JSON-serializable (plain objects, arrays, strings, numbers, booleans, null).
 - Values containing `undefined` or functions MUST be rejected with a typed error before writing.
 - The kernel MAY impose a per-value size limit (reference impl: 1 MiB). Exceeding it is a typed error, not a silent truncation.
+- The kernel SHOULD also impose an AGGREGATE budget per plugin, because a per-value ceiling bounds nothing on its own: an Extractor runs once per node, so a plugin on a large tree can write within the per-value limit on every call and still grow the project database without limit. The reference impl budgets 4 MiB per plugin per scan and rejects the write that would cross it with `KvBudgetExceededError`, persisting nothing. A rejected write does NOT consume budget, so the plugin is throttled rather than bricked, and the scan itself continues: the Extractor sees a typed rejection and decides, exactly as it does for an oversized value. Implementations MAY choose a different number; they MUST NOT silently truncate or silently drop the write.
 
 ### Transactions
 
@@ -94,7 +95,8 @@ All errors are typed. An implementation MUST expose these error classes (or lang
 | `KvKeyInvalidError` | Key is empty, non-string, or too long. |
 | `KvNodePathInvalidError` | `nodePath` is a non-string, or the empty string. The empty string is REJECTED rather than treated as global: it is the internal sentinel for global scope, so accepting it would make a write that said "node-scoped" read back as global, silently collapsing every per-node row into one. Omit the option (or pass `null`) for global scope. |
 | `KvValueNotSerializableError` | Value cannot be JSON-encoded. |
-| `KvValueTooLargeError` | Encoded value exceeds the size limit. |
+| `KvValueTooLargeError` | Encoded value exceeds the per-value size limit. |
+| `KvBudgetExceededError` | The write would push the plugin past its aggregate storage budget. Distinct from `KvValueTooLargeError`, which is about one value being too big: this fires when many individually-legal writes add up, the shape a plugin looping over every node produces. |
 | `KvOperationFailedError` | Unexpected backend failure (e.g., DB full, IO error). Wraps the underlying cause. |
 
 Errors MUST NOT leak backend-specific details (SQL strings, file paths) to plugin code unless wrapped in `KvOperationFailedError.cause`.

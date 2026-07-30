@@ -46,10 +46,11 @@ export const PLUGIN_STORE_TEXTS = {
     "plugin '{{pluginId}}' ctx.store: key '{{key}}' is {{bytes}} bytes, above the " +
     '{{soft}}-byte soft limit (still accepted, hard limit is {{max}})\n',
 
-  kvAggregateSoftLimit:
-    "plugin '{{pluginId}}' ctx.store: has written {{written}} bytes this scan, above the " +
-    '{{soft}}-byte advisory threshold. Plugin storage grows the project database; check that ' +
-    'the plugin is not using the KV store for bulk content.\n',
+  kvBudgetExceeded:
+    "plugin '{{pluginId}}' ctx.store.set('{{key}}'): this write would put the plugin at " +
+    '{{would}} bytes for this scan, over its {{budget}}-byte budget. Nothing was persisted. ' +
+    'Plugin storage grows the project database, so the KV store is for metadata, not bulk ' +
+    'content; a plugin that needs relational volume declares dedicated storage instead.',
 
   kvNodePathEmpty:
     "plugin '{{pluginId}}' ctx.store: nodePath must not be an empty string, it is reserved " +

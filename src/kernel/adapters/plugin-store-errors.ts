@@ -66,6 +66,31 @@ export class KvValueNotSerializableError extends Error {
   }
 }
 
+/**
+ * The write would push the plugin past its per-scan storage budget.
+ *
+ * Distinct from `KvValueTooLargeError`, which is about ONE value being
+ * too big: this one fires when many individually-legal writes add up.
+ * A plugin looping over 5,000 nodes hits this and never that, so
+ * collapsing them would tell the author to shrink a value that is
+ * already within its limit.
+ */
+export class KvBudgetExceededError extends Error {
+  readonly key: string;
+  /** Bytes the plugin would have written this scan, including this value. */
+  readonly wouldTotalBytes: number;
+  /** The ceiling that was crossed. */
+  readonly budgetBytes: number;
+
+  constructor(message: string, key: string, wouldTotalBytes: number, budgetBytes: number) {
+    super(message);
+    this.name = 'KvBudgetExceededError';
+    this.key = key;
+    this.wouldTotalBytes = wouldTotalBytes;
+    this.budgetBytes = budgetBytes;
+  }
+}
+
 /** Encoded value exceeds the reference implementation's 1 MiB ceiling. */
 export class KvValueTooLargeError extends Error {
   readonly key: string;

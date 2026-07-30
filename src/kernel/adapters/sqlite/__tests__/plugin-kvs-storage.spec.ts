@@ -40,7 +40,7 @@ import { SqliteStorageAdapter } from '../index.js';
 import {
   KV_KEY_MAX_BYTES,
   KV_KEY_WARN_MAX_TRACKED,
-  KV_PLUGIN_SOFT_TOTAL_BYTES,
+  KV_PLUGIN_MAX_TOTAL_BYTES,
   KV_SCHEMA_KEY,
   KV_VALUE_MAX_BYTES,
   makeKvStoreWrapper,
@@ -714,7 +714,8 @@ const ESC = '\u001B';
 const NUL = '\u0000';
 const BEL = '\u0007';
 
-function memoryPersist(): IKvStorePersist {
+/** In-memory persist double, exposing its rows so a test can assert what landed. */
+function memoryPersist(): IKvStorePersist & { rows: () => IKvPersistedRow[] } {
   const rows = new Map<string, IKvPersistedRow>();
   const id = (nodeId: string, key: string): string => `${nodeId} ${key}`;
   return {
@@ -724,21 +725,24 @@ function memoryPersist(): IKvStorePersist {
     },
     delete: (nodeId, key) => rows.delete(id(nodeId, key)),
     list: (nodeId) => [...rows.values()].filter((row) => row.nodeId === nodeId),
+    rows: () => [...rows.values()],
   };
 }
 
 function warnCapturingStore(pluginId = 'demo'): {
   store: IKvStoreWrapper;
   warnings: string[];
+  rows: () => IKvPersistedRow[];
 } {
   const warnings: string[] = [];
+  const persist = memoryPersist();
   const store = makeKvStoreWrapper({
     pluginId,
     schema: undefined,
-    persist: memoryPersist(),
+    persist,
     warn: (message) => warnings.push(message),
   });
-  return { store, warnings };
+  return { store, warnings, rows: persist.rows };
 }
 
 describe('Mode A KV store, terminal safety of advisories and errors', () => {
@@ -817,26 +821,39 @@ describe('Mode A KV store, volume advisories', () => {
     );
   });
 
-  it('warns exactly once when the plugin crosses the aggregate soft threshold', async () => {
-    const { store, warnings } = warnCapturingStore();
+  it('rejects the write that would cross the per-plugin budget, persisting nothing', async () => {
+    const { store, rows } = warnCapturingStore();
     const CHUNK = 512 * 1024;
     const chunk = 'x'.repeat(CHUNK);
-    const writes = Math.ceil(KV_PLUGIN_SOFT_TOTAL_BYTES / CHUNK) + 2;
-    for (let i = 0; i < writes; i += 1) {
-      await store.set(`bulk.${i}`, chunk);
-    }
-    const aggregate = warnings.filter((w) => w.includes('advisory threshold'));
-    strictEqual(aggregate.length, 1, 'one advisory, not one per write');
-    ok(aggregate[0]!.endsWith('\n'));
-    ok(aggregate[0]!.includes('demo'));
+    // Fill to just under the ceiling, then take one more step over it.
+    const fits = Math.floor(KV_PLUGIN_MAX_TOTAL_BYTES / (CHUNK + 32));
+    for (let i = 0; i < fits; i += 1) await store.set(`bulk.${i}`, chunk);
+    const before = rows().length;
+
+    await rejects(
+      () => store.set('bulk.over', chunk),
+      (err: Error) => {
+        strictEqual(err.name, 'KvBudgetExceededError');
+        ok(err.message.includes('demo'), 'names the plugin');
+        ok(err.message.includes('bulk.over'), 'names the key');
+        return true;
+      },
+    );
+    strictEqual(rows().length, before, 'the rejected write persisted nothing');
+
+    // The budget is not consumed by a rejected write, so a SMALL value
+    // still fits afterwards: the plugin is throttled, not bricked.
+    await store.set('small', 'ok');
+    strictEqual(await store.get('small'), 'ok');
   });
 
-  it('stays silent for a plugin writing a normal metadata volume', async () => {
+  it('never trips for a plugin writing a normal metadata volume', async () => {
     const { store, warnings } = warnCapturingStore();
     // 5,000 nodes x a ~200-byte record, the realistic shape.
     for (let i = 0; i < 5000; i += 1) {
       await store.set(`node.${i}`, { seen: true, at: i, note: 'x'.repeat(150) });
     }
     deepStrictEqual(warnings, [], 'no advisory for legitimate per-node metadata');
+    strictEqual(await store.get('node.4999') !== null, true, 'every write landed');
   });
 });
