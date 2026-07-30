@@ -11,7 +11,7 @@
  *     self-documenting and resilient to future Dirent API changes.
  *     DECISION (2026-07-05, supersedes the 2026-07-02 "always follow"
  *     stance): a symlink whose real target ESCAPES every scan root is
- *     refused by default (the realpath-containment gate `isContained`),
+ *     refused by default (the realpath-containment gate `isPathContained`),
  *     because under the clone-and-scan threat model the link author is the
  *     attacker, not the operator, so a committed `notes.md -> ~/.ssh/id_rsa`
  *     (arbitrary file read into the graph) or `docs/x -> ~/` / `-> /`
@@ -51,6 +51,7 @@ import { readFile, readdir, lstat, realpath, stat } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import type { IRawNode } from '../extensions/provider.js';
+import { isPathContained } from '../util/path-containment.js';
 import { buildIgnoreFilter, type IIgnoreFilter } from './ignore.js';
 import { getParser } from './parsers/index.js';
 import type { IParseIssue } from './parsers/types.js';
@@ -348,7 +349,7 @@ async function* walkScoped(
  * escapes the tree is lexically interior yet reads out-of-tree content.
  */
 interface IScopedGate {
-  /** Scan-root realpaths; `isContained` matches against these. */
+  /** Scan-root realpaths; `isPathContained` matches against these. */
   rootReals: readonly string[];
   /** Mirror of `scan.followExternalSymlinks`; when true the gate is disabled. */
   followExternalSymlinks: boolean;
@@ -380,7 +381,7 @@ async function isScopedPathContained(
   if (gate.followExternalSymlinks) return true;
   if (isSymlink) {
     try {
-      return isContained(await realpath(full), gate.rootReals);
+      return isPathContained(await realpath(full), gate.rootReals);
     } catch {
       return false; // broken link
     }
@@ -390,7 +391,7 @@ async function isScopedPathContained(
   if (cached !== undefined) return cached;
   let ok: boolean;
   try {
-    ok = isContained(await realpath(dir), gate.rootReals);
+    ok = isPathContained(await realpath(dir), gate.rootReals);
   } catch {
     ok = false; // vanished or unresolvable
   }
@@ -702,7 +703,7 @@ async function followSymlink(
   // directory link that would recurse an out-of-tree subtree
   // (`docs/x -> ~/`, or `-> /` as a traversal DoS). A link that stays
   // inside a root is always followed.
-  if (!ctx.followExternalSymlinks && !isContained(real, ctx.rootReals)) {
+  if (!ctx.followExternalSymlinks && !isPathContained(real, ctx.rootReals)) {
     return null;
   }
   let s;
@@ -792,7 +793,7 @@ function hasMatchingExtension(name: string, extensions: readonly string[]): bool
  * dropped rather than approximated, so containment can only ever hold
  * against a real, existing anchor, escaping links stay refused when a root
  * is bogus. Returns absolute realpaths with no trailing separator (the
- * form `realpath` yields), which `isContained` matches against.
+ * form `realpath` yields), which `isPathContained` matches against.
  */
 async function resolveRootReals(roots: readonly string[]): Promise<string[]> {
   const out: string[] = [];
@@ -806,20 +807,4 @@ async function resolveRootReals(roots: readonly string[]): Promise<string[]> {
     }
   }
   return out;
-}
-
-/**
- * True when `real` (a resolved symlink-target realpath) is equal to, or a
- * descendant of, one of the scan-root realpaths. Uses a separator-aware
- * prefix test so `/a/proj` does NOT contain `/a/project` (a sibling whose
- * name merely shares a prefix). Handles a root that already ends in `sep`
- * (e.g. the filesystem root `/`) without producing a doubled separator.
- */
-function isContained(real: string, roots: readonly string[]): boolean {
-  for (const root of roots) {
-    if (real === root) return true;
-    const prefix = root.endsWith(sep) ? root : root + sep;
-    if (real.startsWith(prefix)) return true;
-  }
-  return false;
 }

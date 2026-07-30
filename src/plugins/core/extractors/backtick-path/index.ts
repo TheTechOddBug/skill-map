@@ -27,7 +27,8 @@
  *   - ``lee el archivo: `algo4.md` ``            , bare sibling filename (no `/`)
  *   - `` `cat refs/a.md refs/b.md` ``            , several paths in ONE span
  *   - fenced blocks, every line, same grammar
- *   - `./` and `../` prefixes, POSIX-normalised away
+ *   - `./` and `../` prefixes, the latter repeatable
+ *     (`../../ui/context/theme.md`), POSIX-normalised away
  *
  * A bare filename is captured because the consuming runtime follows it
  * (`lee el archivo: ` + "`algo4.md`" is an instruction the LLM resolves
@@ -91,7 +92,25 @@ const ID = 'backtick-path';
 //   - `(?<![\w/:.-])`     , a match cannot start mid-URL, mid-path or
 //                           mid-word; backticks and whitespace qualify
 //                           as boundaries, `/` `:` `.` `-` do not.
-//   - `(?:\.{1,2}\/)?`    , optional `./` or `../` prefix.
+//   - `(?:\.{1,2}\/)*`     , ZERO OR MORE `./` / `../` segments, the same
+//                           shape `AT_TOKEN_RE` uses (`kernel/util/at-token.ts`).
+//                           Deliberately identical: two path grammars that
+//                           differ for no reason is what produced this very
+//                           bug, the `@`-token grammar was widened to
+//                           multi-level and this one was left behind. The
+//                           repeat matters: capped at one
+//                           level this missed `../../ui/context/theme.md`,
+//                           the shape a file under `.claude/agents/` or
+//                           `.claude/skills/<name>/` needs to reach the
+//                           rest of the repo, i.e. the common case. And it
+//                           missed it INVISIBLY: with two levels the token
+//                           matched at no start position (the second `../`
+//                           falls outside the group, and the lookbehind
+//                           refuses a later start because the preceding
+//                           char is always `/` or `.`), so there was no
+//                           link AND no `reference-broken` either. A
+//                           broken link is actionable; an unparsed one
+//                           looks like the author never wrote it.
 //   - `[\w][\w.-]*(?:\/[\w.-]+)*`, a first segment that MUST start with a
 //                           word char, then ZERO or more `/`-separated
 //                           segments. A bare `algo4.md` matches (the
@@ -103,7 +122,7 @@ const ID = 'backtick-path';
 //                           the class.
 //   - `\.md\b(?![\w/])`   , a real `.md` suffix: `.mdx`, `.md_var` and
 //                           `x.md/y` tails are refused.
-const PATH_RE = /(?<![\w/:.-])(?:\.{1,2}\/)?[\w][\w.-]*(?:\/[\w.-]+)*\.md\b(?![\w/])/g;
+const PATH_RE = /(?<![\w/:.-])(?:\.{1,2}\/)*[\w][\w.-]*(?:\/[\w.-]+)*\.md\b(?![\w/])/g;
 
 export const backtickPathExtractor: IBuiltInManifest<IExtractor> = {
   id: ID,

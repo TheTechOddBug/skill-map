@@ -36,6 +36,8 @@
 import { lstatSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { isPathContained } from '../util/path-containment.js';
+
 /** Existence probe: `true` when the target names an on-disk entry under any scan root. */
 export type TLinkTargetProbe = (target: string) => boolean;
 
@@ -47,10 +49,30 @@ export type TLinkTargetProbe = (target: string) => boolean;
  */
 export function makeLinkTargetProbe(cwd: string, roots: readonly string[]): TLinkTargetProbe {
   const verdicts = new Map<string, boolean>();
+  const rootAbs = roots.map((root) => resolve(cwd, root));
   return (target: string): boolean => {
     const cached = verdicts.get(target);
     if (cached !== undefined) return cached;
-    const exists = roots.some((root) => entryExists(resolve(cwd, root, target)));
+    const exists = rootAbs.some((root) => {
+      const absPath = resolve(root, target);
+      // Containment BEFORE the stat, not after (audit posture, 2026-07-30).
+      //
+      // `target` comes from a link a scanned file authored, so under
+      // clone-and-scan it is attacker-controlled text. A `../`-laden
+      // target resolves outside the scan root, and statting it would
+      // turn the scan into an existence oracle for the operator's
+      // filesystem: the verdict decides whether the link is reported
+      // `reference-broken`, so the answer is readable straight out of
+      // `sm check --json`. Only `.md`-suffixed paths are reachable
+      // (the token grammar requires it), which narrows the oracle
+      // without closing it.
+      //
+      // Refusing costs nothing real: every node lives inside a scan
+      // root, so an escaping target could never have resolved to one
+      // anyway. This turns a pointless read into no read.
+      if (!isPathContained(absPath, [root])) return false;
+      return entryExists(absPath);
+    });
     verdicts.set(target, exists);
     return exists;
   };

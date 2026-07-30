@@ -55,6 +55,34 @@ describe('makeLinkTargetProbe', () => {
     assert.equal(probe('docs/other.png'), false);
   });
 
+  it('refuses a target that escapes the scan root, even when the file EXISTS', () => {
+    // The load-bearing case. `target` is authored inside a scanned file,
+    // so under clone-and-scan it is attacker-controlled text. A real file
+    // is planted OUTSIDE the root: an unguarded probe would stat it and
+    // answer `true`, and that answer is readable from the scan output
+    // (it decides whether the link reports `reference-broken`), which
+    // makes the scan an existence oracle for the operator's filesystem.
+    //
+    // Asserting `false` against a file that genuinely exists is the only
+    // way to prove containment rather than a coincidental miss.
+    writeFileSync(join(tempRoot, 'outside.md'), 'secret');
+    const probe = makeLinkTargetProbe(cwd, ['.']);
+    assert.equal(probe('../outside.md'), false, 'one level up must be refused');
+    assert.equal(probe('../../../../../../etc/passwd.md'), false, 'deep escape must be refused');
+  });
+
+  it('does not accept a sibling whose name merely starts with the root name', () => {
+    // The trailing-separator half of `isPathContained`. `<cwd>-evil` is
+    // NOT inside `<cwd>`, but a bare `startsWith` comparison would say it
+    // is, so a containment check written the obvious way leaks exactly
+    // one directory: the one an attacker can create next to the project.
+    const sibling = `${cwd}-evil`;
+    mkdirSync(sibling, { recursive: true });
+    writeFileSync(join(sibling, 'x.md'), '');
+    const probe = makeLinkTargetProbe(cwd, ['.']);
+    assert.equal(probe('../project-evil/x.md'), false);
+  });
+
   it('tries every root and hits on the second one', () => {
     const other = join(tempRoot, 'other');
     mkdirSync(other, { recursive: true });

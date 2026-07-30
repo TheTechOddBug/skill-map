@@ -117,6 +117,55 @@ describe('backtick-path extractor', () => {
     strictEqual(targets[1], 'docs/guide/local.md');
   });
 
+  it('resolves a REPEATED ../ prefix, the .claude/agents shape', async () => {
+    // Live-reported. The prefix was capped at one level, so this exact
+    // token, which is what a file under `.claude/agents/` needs to reach
+    // the rest of the repo, matched at NO start position: the second
+    // `../` falls outside the prefix group and the lookbehind refuses a
+    // later start because the preceding char is always `/` or `.`.
+    //
+    // The failure mode is what made it worth fixing rather than
+    // documenting: no link AND no `reference-broken`, so the reference
+    // was indistinguishable from one the author never wrote. A broken
+    // link at least tells you where to look.
+    const helper = makeContext(
+      mockNode('.claude/agents/react.md'),
+      'Visual rules live in `../../ui/context/theme.md`, read it first.',
+    );
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 1);
+    strictEqual(helper.links[0]!.target, 'ui/context/theme.md');
+  });
+
+  it('accepts a mixed ./../ prefix, matching the @-token grammar', async () => {
+    // Odd but legal, and `AT_TOKEN_RE` accepts it. The two grammars are
+    // pinned to the same prefix construct precisely because divergence
+    // between them is what let this bug live in one and not the other.
+    const helper = makeContext(mockNode('docs/guide/index.md'), 'See `./../mix.md`.');
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 1);
+    strictEqual(helper.links[0]!.target, 'docs/mix.md');
+  });
+
+  it('resolves three or more ../ levels', async () => {
+    const helper = makeContext(
+      mockNode('a/b/c/d/deep.md'),
+      'See `../../../top.md` for the root rules.',
+    );
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 1);
+    strictEqual(helper.links[0]!.target, 'a/top.md');
+  });
+
+  it('keeps a repeated ../ prefix verbatim on originalTrigger (intent bit)', async () => {
+    // Same contract as the `./` case below: the post-walk lift reads the
+    // authored token to decide the author declared file-relative intent,
+    // and `../../` must not silently become a root-fallback candidate.
+    const helper = makeContext(mockNode('.claude/agents/react.md'), 'See `../../ui/theme.md`.');
+    await runAndResolve(helper);
+    strictEqual(helper.links[0]!.trigger?.originalTrigger, '../../ui/theme.md');
+  });
+
   it('keeps the ./ prefix verbatim on originalTrigger (the root-fallback intent bit)', async () => {
     // The post-walk lift reads `originalTrigger` to decide whether the
     // author declared file-relative intent (`./` / `../` never fall
@@ -163,6 +212,10 @@ describe('backtick-path extractor', () => {
       'Near miss: `5/3.mdx`',
       'Absolute: `/abs/x.md`',
       'Bare extension word: `formato .md solo`',
+      // Guards the widened prefix: `(\.\.\/)+` must not start matching
+      // dot runs that are not a chain of `../` segments.
+      'Dot run: `....//x.md`',
+      'Lone dots: `.../y.md`',
     ].join('\n');
     const helper = makeContext(mockNode('skills/demo/SKILL.md'), body);
     await runAndResolve(helper);
