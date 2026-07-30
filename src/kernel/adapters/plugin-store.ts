@@ -557,7 +557,6 @@ function noWarn(): void {
   // Intentionally empty, there is nowhere to write the advisory.
 }
 
-
 /**
  * The Mode A AJV gate. Only `set` runs it; `get` / `list` return what
  * is stored even if a schema landed after the row did.
