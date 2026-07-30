@@ -398,7 +398,7 @@ export interface MarkdownPayload {
   markdown: string;
 }
 /**
- * Single value summarizing the entire scope. Emitted ONCE per scan (not per node). Plugins use `ctx.emitScopeContribution(...)` (analyzer context), extractors do not see `emitScopeContribution`.
+ * Single value summarizing the entire scope. Emitted ONCE per scan (not per node). The emit path is `ctx.emitScopeContribution(...)` on the analyzer context (extractors never see it), which is RESERVED in the spec but NOT YET IMPLEMENTED: today's IAnalyzerContext does not expose the callback, so a manifest declaring this slot loads clean but its emissions are deferred until the kernel adds it. See view-slots.md.
  */
 export interface ScopeStatPayload {
   /**

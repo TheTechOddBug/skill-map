@@ -17,7 +17,7 @@ function stub(extId: string): string {
  *
  * \`triggers\` is the curated set this hook subscribes to (one of: boot,
  * scan.started, scan.completed, extractor.completed, analyzer.completed,
- * action.completed, job.spawning, job.completed, job.failed, shutdown).
+ * action.completed, job.completed, job.failed, shutdown).
  * \`on(ctx)\` reads the event off \`ctx.event\` (\`ctx.event.data\` is the
  * payload); the dispatcher catches errors so a throw never breaks the verb.
  *

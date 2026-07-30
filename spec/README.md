@@ -61,47 +61,52 @@ spec/                              ← published as @skill-map/spec
 ├── [plugin-kv-api.md](./plugin-kv-api.md)    ← ctx.store contract for storage mode A
 ├── [job-lifecycle.md](./job-lifecycle.md)     ← queued → running → completed | failed
 ├── [telemetry.md](./telemetry.md)            ← opt-in error reporting (default OFF)
+├── [mcp-server.md](./mcp-server.md)          ← skill-map as an MCP server (opt-in, off by default)
+├── [provider-activity.md](./provider-activity.md) ← live node activity reported by external AI CLIs
+├── [view-slots.md](./view-slots.md)          ← closed catalog of UI slots a plugin can emit into
+├── [input-types.md](./input-types.md)        ← closed catalog of plugin-setting input types
 ├── [plugin-quickstart.md](./plugin-quickstart.md) ← 3-step path to a working plugin
 ├── [plugin-author-guide.md](./plugin-author-guide.md) ← full plugin author guide (descriptive)
 │
 ├── schemas/                       ← JSON Schemas, draft 2020-12, camelCase keys (authoritative list + sha256 in index.json)
-│   ├── node.schema.json                     ┐
-│   ├── link.schema.json                     │
-│   ├── issue.schema.json                    │
-│   ├── scan-result.schema.json              │
-│   ├── execution-record.schema.json         │ 11 top-level
-│   ├── project-config.schema.json           │
-│   ├── plugins-registry.schema.json         │
-│   ├── job.schema.json                      │
-│   ├── report-base.schema.json              │
-│   ├── conformance-case.schema.json         │
-│   ├── history-stats.schema.json            ┘
+│   ├── *.schema.json              ← the top-level domain shapes: node, link, issue,
+│   │                                 scan-result, execution-record, project-config,
+│   │                                 plugins-registry, job, report-base, conformance-case,
+│   │                                 history-stats, sidecar, signal, and the report
+│   │                                 envelopes each verb emits. `index.json` is the
+│   │                                 authoritative list; this tree is illustrative.
 │   │
-│   ├── extensions/                          ← base + one per kind (provider, extractor,
-│   │                                            analyzer, action, formatter, hook) +
-│   │                                            provider-kind.schema.json; validated at plugin load
+│   ├── api/                       ← RestEnvelope, the wrapper every `/api/*` response uses
+│   ├── enrichments/               ← per-enrichment report payloads (github)
+│   ├── findings/                  ← FindingsReport, the envelope every probabilistic
+│   │                                 Analyzer's own report.schema.json extends
+│   ├── tags/                      ← NodeTagsReport, the canonical tagger-report shape
 │   │
-│   ├── frontmatter/                         ← user-authored; additionalProperties: true
-│   │   └── base.schema.json                  ← universal shape; per-kind schemas live with
-│   │                                            the Provider that emits the kind (e.g. the
-│   │                                            built-in Claude Provider's `skill / agent /
-│   │                                            command / hook / note` schemas live in
-│   │                                            `src/extensions/providers/claude/schemas/`)
+│   ├── extensions/                ← base + one per kind (provider, extractor,
+│   │                                 analyzer, action, formatter, hook) +
+│   │                                 provider-kind.schema.json +
+│   │                                 extension-manifest.schema.json (the per-extension
+│   │                                 `extension.json`); validated at plugin load
 │   │
-│   └── summaries/                           ← kernel-controlled; additionalProperties: false
-│       ├── skill.schema.json                ┐
-│       ├── agent.schema.json                │ 5 summaries (each extends
-│       ├── command.schema.json              │ report-base via allOf)
-│       ├── hook.schema.json                 │
-│       └── markdown.schema.json             ┘
+│   ├── frontmatter/               ← user-authored; additionalProperties: true
+│   │   └── base.schema.json        ← universal shape; per-kind schemas live with
+│   │                                 the Provider that emits the kind (the built-in
+│   │                                 Claude Provider declares `agent`, `command`,
+│   │                                 `skill` and `mcp`, and ships their schemas in
+│   │                                 `src/plugins/claude/providers/claude/schemas/`)
+│   │
+│   └── summaries/                 ← kernel-controlled; additionalProperties: false
+│       └── markdown.schema.json    ← extends report-base via allOf. Per-kind summary
+│                                     shapes are a Provider concern; only the
+│                                     provider-agnostic `markdown` one is spec-owned.
 │
 ├── interfaces/
 │   └── [security-scanner.md](./interfaces/security-scanner.md) ← convention over the Analyzer kind (NOT a 7th extension kind)
 ├── [conformance/](./conformance/README.md)
 │   ├── [coverage.md](./conformance/coverage.md) ← schema-to-case coverage matrix
 │   ├── fixtures/                  ← controlled MD corpora + preamble-v2.txt
-│   └── cases/                     ← declarative test cases: basic-scan, kernel-empty-boot
-│                                    (preamble-bitwise-match deferred to ../ROADMAP.md Step 10)
+│   └── cases/                     ← declarative test cases (kernel-empty-boot,
+│                                    preamble-bitwise-match, orphan-markdown-fallback, ...)
 ```
 
 ## How to read this spec
@@ -109,7 +114,7 @@ spec/                              ← published as @skill-map/spec
 - **Building a tool or plugin that consumes skill-map output?** Start with [`schemas/scan-result.schema.json`](./schemas/scan-result.schema.json) and [`schemas/node.schema.json`](./schemas/node.schema.json).
 - **Building a custom extractor, analyzer, or formatter?** Read [`architecture.md`](./architecture.md), then the relevant schema under [`schemas/extensions/`](./schemas/extensions/).
 - **Building an alternative CLI implementation?** Read [`cli-contract.md`](./cli-contract.md) and run [`conformance/`](./conformance/README.md).
-- **Integrating a new platform (adapter)?** Read [`architecture.md`](./architecture.md) §adapters, then the Claude adapter source in `../src/extensions/adapters/claude/` as a worked example.
+- **Integrating a new platform (adapter)?** Read [`architecture.md`](./architecture.md) §adapters, then the built-in Claude Provider source in `../src/plugins/claude/providers/claude/` as a worked example.
 - **Shipping a job-running runner?** Read [`job-events.md`](./job-events.md), [`job-lifecycle.md`](./job-lifecycle.md), [`prompt-preamble.md`](./prompt-preamble.md).
 
 ## Relationship to the reference implementation
@@ -160,7 +165,7 @@ console.log(actual === index.integrity.files[file] ? 'ok' : 'drift');
 
 ### JSON Schema Store
 
-The schemas register on JSON Schema Store once the canonical URLs under `skill-map.ai/spec/v1/` are stable (Step 14).
+The schemas register on JSON Schema Store once the canonical URLs under `skill-map.ai/spec/v1/` are stable.
 
 ## License
 

@@ -252,7 +252,7 @@ The claim-side reap (`sm jobs claim` reaps expired running jobs before claiming,
 
 These event families cover kernel activity other than job execution. They share the common envelope (`type`, `timestamp`, `runId`, `jobId`, `data`). For non-job events `jobId` is always `null`; `runId` identifies the invocation: a scan gets an `r-scan-YYYYMMDD-HHMMSS-XXXX` id, an issue recomputation outside a scan an `r-check-...` id, following the same `r-<mode>-...` shape as the external-Skill envelope (`r-ext-...`).
 
-The **shapes below are experimental through spec v0.x**. The reference impl starts emitting them at Step 13 alongside the WebSocket broadcaster; once real consumers exercise the stream, the fields lock. Bumping to `stable` is a minor spec bump; field-shape changes before `stable` are allowed without a major bump (per [`versioning.md`](./versioning.md) §Pre-1.0).
+The **shapes below are experimental through spec v0.x**. The reference impl emits them through the WebSocket broadcaster that feeds the Web UI; once more consumers exercise the stream, the fields lock. Bumping to `stable` is a minor spec bump; field-shape changes before `stable` are allowed without a major bump (per [`versioning.md`](./versioning.md) §Pre-1.0).
 
 ### Scan events
 
@@ -373,7 +373,7 @@ Emitted once per Action invocation, after the report is recorded.
 }
 ```
 
-`actionId` is the qualified extension id; `node` carries the target node summary (full `Node` shape per [`schemas/node.schema.json`](./schemas/node.schema.json) is forward-compatible). Lands at Step 10 with the job subsystem.
+`actionId` is the qualified extension id; `node` carries the target node summary (full `Node` shape per [`schemas/node.schema.json`](./schemas/node.schema.json) is forward-compatible). Emitted by the job subsystem.
 
 > **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Per-Action notification. Filter by `data.actionId`.
 
@@ -457,6 +457,6 @@ Consumers MUST ignore unknown fields (forward compatibility).
 
 The envelope (`type`, `timestamp`, `runId`, `jobId`, `data`) is stable. Adding an envelope field is a major bump because every consumer would need to handle it.
 
-The **non-job event families** (`scan.*`, `issue.*`, `extractor.completed`, `analyzer.completed`, `action.completed`) are **experimental** across spec v0.x. They ship alongside the WebSocket broadcaster at Step 13 of the reference impl; shapes may tighten before a stable tag lands. Once promoted to `stable` (a minor spec bump), the same add/remove/rename semantics as the job events apply.
+The **non-job event families** (`scan.*`, `issue.*`, `extractor.completed`, `analyzer.completed`, `action.completed`) are **experimental** across spec v0.x. They ship through the reference impl's WebSocket broadcaster; shapes may tighten before a stable tag lands. Once promoted to `stable` (a minor spec bump), the same add/remove/rename semantics as the job events apply.
 
 The **Hook curated trigger set** (eight hookable lifecycle events; see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set)) is stable as of the minor in which it lands: adding a hookable trigger is a minor bump, removing or renaming one is a major bump. The curation policy ("a hook subscribes only to a deliberately small set") is normative; surface noise reduction is the point.

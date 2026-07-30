@@ -28,7 +28,7 @@ Rule of thumb: if a strict v1 implementation could fail a v1.X conformance run, 
 All of the following are normative and governed by this policy:
 
 - Every JSON Schema in `schemas/` (fields, types, required, enums, defaults, `additionalProperties`).
-- Every MUST / SHOULD / MAY statement in prose documents ([`architecture.md`](./architecture.md), [`cli-contract.md`](./cli-contract.md), [`job-events.md`](./job-events.md), [`prompt-preamble.md`](./prompt-preamble.md), [`db-schema.md`](./db-schema.md), [`plugin-kv-api.md`](./plugin-kv-api.md), [`job-lifecycle.md`](./job-lifecycle.md)).
+- Every MUST / SHOULD / MAY statement in **every prose document under `spec/`**, without exception. The rule is the document's location, not a list: any `.md` shipped inside `@skill-map/spec` (this file included, plus the ones under `conformance/` and `interfaces/`) is a normative contract, and a MUST written in one binds implementations exactly as a schema `required` does. Deliberately stated as a rule rather than an inventory: an enumeration silently drops whichever contract was written last, which is the failure mode this clause exists to prevent. Where a document defers to a schema in its own opening (as [`input-types.md`](./input-types.md) and [`view-slots.md`](./view-slots.md) do, "author-facing reference, the normative shape lives in the schema"), the schema wins on shape and the prose still binds on everything the schema cannot express. A `(Stability: experimental)` tag narrows what a change costs, per §Stability tags below; it never makes a MUST advisory.
 - Exit codes, verb names, required flags, canonical error messages marked "normative".
 - Conformance fixtures and cases; removing or tightening a case is major.
 

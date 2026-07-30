@@ -799,7 +799,7 @@ sm plugins create <kind> <plugin-id>
 
 - `sm plugins doctor`, surfaces `incompatible-catalog`, `invalid-manifest`, deprecated-slot usage.
 - `sm plugins upgrade <id>`, applies catalog migrations.
-- `sm plugins slots list`, prints the catalog (slots + input-types), flags deprecated entries.
+- `sm plugins slots list`, prints the closed catalog (slots + input-types), `--json` for the machine-readable form.
 
 ### Watch out for
 

@@ -7,7 +7,7 @@
  * are notification (Slack on `job.completed`), integration glue (CI
  * webhook on `job.failed`), and bookkeeping (per-extractor metrics).
  *
- * The hookable trigger set is INTENTIONALLY SMALL, ten events. Eight
+ * The hookable trigger set is INTENTIONALLY SMALL, nine events. Seven
  * are pipeline-driven (emitted from inside `runScan`); two
  * (`boot`, `shutdown`) are CLI-process-driven (emitted by the driving
  * binary before / after the verb runs, fire-and-forget so
@@ -35,20 +35,27 @@
  *   3. `extractor.completed` , aggregated per-Extractor outputs.
  *   4. `analyzer.completed`      , aggregated per-Rule outputs.
  *   5. `action.completed`    , Action executed on a node.
- *   6. `job.spawning`        , pre-spawn of runner subprocess.
- *   7. `job.completed`       , most common trigger.
- *   8. `job.failed`          , alerts, retry triggers.
- *   9. `shutdown`            , once per CLI process, after the verb's
+ *   6. `job.completed`       , most common trigger.
+ *   7. `job.failed`          , alerts, retry triggers.
+ *   8. `shutdown`            , once per CLI process, after the verb's
  *                                exit code resolves and before
  *                                `process.exit`.
+ *
+ * Nine triggers, matching `extensions/hook.schema.json` exactly. A tenth,
+ * `job.spawning`, used to sit between `action.completed` and
+ * `job.completed`: it meant "pre-spawn of the runner subprocess", and the
+ * pull-only decision (2026-07-13) removed the subprocess it named. It
+ * outlived that removal here without ever being dispatched, so a plugin
+ * could declare it, pass validation, and never fire. It was removed
+ * rather than implemented, because there is no longer a spawn to hook.
  */
 
 import type { IExtensionBase } from './base.js';
 import type { Node } from '../types.js';
 
 /**
- * The ten hookable lifecycle events. Mirrors the `triggers[]` enum in
- * `spec/schemas/extensions/hook.schema.json`. Eight are pipeline-driven
+ * The nine hookable lifecycle events. Mirrors the `triggers[]` enum in
+ * `spec/schemas/extensions/hook.schema.json`. Seven are pipeline-driven
  * (emitted from inside `runScan`); two (`boot`, `shutdown`) are
  * CLI-process-driven (emitted by the driving binary before / after the
  * verb runs). Anything outside this set is rejected at load time as
@@ -61,7 +68,6 @@ export type THookTrigger =
   | 'extractor.completed'
   | 'analyzer.completed'
   | 'action.completed'
-  | 'job.spawning'
   | 'job.completed'
   | 'job.failed'
   | 'shutdown';
@@ -80,7 +86,6 @@ export const HOOK_TRIGGERS: readonly THookTrigger[] = Object.freeze([
   'extractor.completed',
   'analyzer.completed',
   'action.completed',
-  'job.spawning',
   'job.completed',
   'job.failed',
   'shutdown',
@@ -134,9 +139,8 @@ export interface IHookContext {
    */
   actionId?: string;
   /**
-   * Set on `job.*` events once the job subsystem lands. Carries the
-   * report payload for `job.completed`, the failure record for
-   * `job.failed`, and the spawn metadata for `job.spawning`.
+   * Set on `job.*` events: the report payload for `job.completed`,
+   * the failure record for `job.failed`.
    */
   jobResult?: unknown;
   /**

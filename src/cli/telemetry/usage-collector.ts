@@ -26,6 +26,7 @@ export const BUILT_IN_PLUGIN_IDS: ReadonlySet<string> = new Set([
   'opencode',
   'agent-skills',
   'core',
+  'github',
 ]);
 
 /** The literal that replaces every non-built-in extension id. */

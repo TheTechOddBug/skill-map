@@ -1,6 +1,6 @@
 # MCP server (skill-map as a Model Context Protocol server)
 
-*(Stability: experimental. Opt-in, off by default. One toggle exposes the whole surface: the read-only map tools/resources plus the queue + findings-lifecycle tools. See [§Stability](#stability).)*
+*(Stability: experimental. Opt-in, off by default. One toggle exposes the whole surface: the read-only map tools/resources plus the queue, findings-lifecycle and issue-suppression tools. See [§Stability](#stability).)*
 
 skill-map is primarily a cartographer: it observes a project and draws the
 skill / agent / command graph. This contract adds a **secondary, opt-in
@@ -23,24 +23,27 @@ skill, spawns an agent, or invokes a command (that is the host's job), and it
 never mutates the graph itself, the scanned node/link/issue tables, config, or a
 node body.
 
-The **same server** also lets an MCP host DRIVE THE JOB QUEUE and manage
-findings (decision 2026-07-23). This is not "the map became writable": it is the
-same job-queue + findings-lifecycle contract the CLI verbs and BFF routes
-already expose, offered to an MCP client so it can be the processing agent
-without a shell. It rides the SAME endpoint and the SAME single opt-in
-(`mcp.server.enabled`, see [§Enablement](#enablement)); there is no separate
-toggle. When the server is off, nothing is registered and it behaves exactly as
-before; when it is on, the whole surface (map reads + queue + findings) is
-available. The surface is loopback-only and unauthenticated, so enabling it
-grants queue + findings control to any local process (the same trust boundary
-the REST mutating routes already sit behind, Decision #119).
+The **same server** also lets an MCP host DRIVE THE JOB QUEUE, manage findings,
+and suppress deterministic issues (decision 2026-07-23). This is not "the map
+became writable": it is the same job-queue, findings-lifecycle and
+issue-suppression contracts the CLI verbs and BFF routes already expose, offered
+to an MCP client so it can be the processing agent without a shell. They ride
+the SAME endpoint and the SAME single opt-in (`mcp.server.enabled`, see
+[§Enablement](#enablement)); there is no separate toggle. When the server is
+off, nothing is registered and it behaves exactly as before; when it is on, the
+whole surface (map reads + queue + findings + issue suppressions) is available.
+The surface is loopback-only and unauthenticated, so enabling it grants that
+control to any local process (the same trust boundary the REST mutating routes
+already sit behind, Decision #119).
 
 The operable surface honours the storage rule ([`architecture.md` §Storage
 rule](./architecture.md)): `record_job` persists machine output (executions,
 findings, summaries) to the DB; the findings state flips (`resolve`, row
-`dismiss`, `reopen`) are DB-only; the two curation writes (`dismiss --class`,
-`undismiss`) go to the node's `.sm` sidecar through the SAME consent gate every
-other channel uses (see [§Findings lifecycle tools](#findings-lifecycle-tools)).
+`dismiss`, `reopen`) are DB-only; and every curation write goes to the node's
+`.sm` sidecar through the SAME consent gate every other channel uses, the two
+findings ones (`dismiss --class`, `undismiss`, see [§Findings lifecycle
+tools](#findings-lifecycle-tools)) plus `dismiss_issue` / `undismiss_issue` (see
+[§Issue-suppression tools](#issue-suppression-tools)).
 There is still no MCP `prompts` capability (a future revision MAY expose skill /
 command bodies as MCP prompts; that is still "serve what we already know").
 
@@ -68,9 +71,10 @@ host spawns) is deferred; today the server is HTTP-only and rides the running
 
 ### Security posture
 
-The MCP endpoint inherits the server's loopback posture (loopback-only through
-v0.6.0, no per-connection auth, Decision #119) and is covered by the same
-first-stage Host + Origin gate as `/api/*` and `/ws`:
+The MCP endpoint inherits the server's loopback posture (loopback-only, no
+per-connection auth, Decision #119, a standing limitation rather than a
+scheduled one) and is covered by the same first-stage Host + Origin gate as
+`/api/*` and `/ws`:
 
 - **Host** header hostname MUST be loopback (`127.0.0.1`, `localhost`, `::1`),
   closing DNS rebinding. This satisfies the MCP spec's own requirement that a
@@ -168,6 +172,45 @@ bypassable by `confirm`. Every tool appends one operations-log line with
 | `undismiss_finding` | `{ node: string, extension: string, type?: string, confirm?: boolean, always?: boolean }` | Removes the matching suppression from the sidecar (consent), `{ outcome: 'unsuppressed' }`, or a consent refusal. Re-running the finder re-judges the class. |
 | `delete_finding` | `{ id: integer, confirm?: boolean, always?: boolean }` | Hard-delete one finding row: `{ outcome: 'deleted' \| 'not-found' }`. Pure DB EXCEPT it lifts a now-orphan class suppression from the sidecar (consent) when deleting the last dismissed row of a class; the lift runs first, so a missing consent aborts before any delete. |
 
+## Issue-suppression tools
+
+Registered whenever the server is on (`mcp.server.enabled`). The DETERMINISTIC
+counterpart of the findings tools above: they mirror `sm issues dismiss /
+undismiss / suppressions` ([`cli-contract.md` §Browse](./cli-contract.md)) and
+the `POST /api/nodes/:pathB64/issues/*` routes, and they go through the SAME
+shared writer, no third copy of the logic.
+
+A suppression is keyed by the `(analyzer, value)` pair: `analyzer` is the
+emitting analyzer id stored VERBATIM (qualified or short; matching accepts
+either spelling), `value` is the flagged token, the issue's `data.target`,
+matched **exactly and case-sensitively**. Only value-carrying issues are
+suppressible; an issue without a `data.target` has no key.
+
+The two mutating tools write the node's `.sm` sidecar
+(`annotations.issueSuppressions`), so they are **human curation** under the
+storage rule ([`architecture.md` §Storage rule](./architecture.md)) and pass
+through the SAME consent gate every other channel uses. Because MCP has no
+interactive prompt they take `confirm` / `always`, exactly like the findings
+sidecar tools: they succeed under a standing `allowEditSmFiles` grant or with
+`confirm: true`, and otherwise refuse with an MCP error carrying
+`details.key = 'allowEditSmFiles'`. The team policy `allowSidecarWriters: false`
+is a HARD block, not bypassable by `confirm`. Both open the DB with the WRITE
+posture and append one operations-log line with `channel: 'mcp'`.
+
+Unlike a findings dismissal (a read-time lens), an issue suppression acts at
+**emission time**: `scan_issues` rows have no stable identity and are
+regenerated wholesale each scan, so `dismiss_issue` DELETES the covered rows
+immediately and the analyzer skips the issue (and its confidence penalty) on
+every later scan. The asymmetry is deliberate and carries over here: dismissing
+takes effect at once, undismissing only surfaces the issue again at the NEXT
+scan, because there is nothing left to reveal.
+
+| Tool | Input | Returns |
+|---|---|---|
+| `dismiss_issue` | `{ node: string, analyzer: string, value: string, note?: string, confirm?: boolean, always?: boolean }` | `{ outcome: 'suppressed' \| 'already-suppressed', deletedIssues: integer }`. Writes the standing entry to the sidecar (consent), refreshes the write-through `scan_nodes.annotations_json` mirror, and deletes the covered `scan_issues` rows (`deletedIssues` is that count). Idempotent: an equivalent standing entry reports `already-suppressed` and adds no duplicate, while the row delete still runs so a drifted DB converges. Unknown `node` → `-32602`. |
+| `undismiss_issue` | `{ node: string, analyzer: string, value: string, confirm?: boolean, always?: boolean }` | `{ outcome: 'unsuppressed', removed } \| { outcome: 'not-found' }`. Removes the matching entry from the sidecar (consent) and refreshes the mirror; `removed` is the entry taken out. `not-found` covers BOTH an unknown node and a missing entry (the missing-entry branch self-heals the mirror from the live `.sm` first, the analog of the route's 409). |
+| `list_issue_suppressions` | `{ node?: string }` | `{ suppressions: Array<Entry & { node: string }> }` projected from the write-through annotations mirror: pass `node` for one node, OMIT it for the WHOLE project. Read posture (advisory drift check, like `list_findings`); a missing DB degrades to the empty list, an unknown `node` is `-32602`. |
+
 ## Resources
 
 Resources expose the graph as readable documents. mimeType is
@@ -213,8 +256,8 @@ The MCP server is **off by default** and gated by a single config key:
 
 - `mcp.server.enabled` (boolean, default `false`) mounts the endpoint and
   registers the WHOLE surface: the read-only map tools/resources plus the
-  queue + findings-lifecycle tools. There is no separate write toggle (unified
-  2026-07-23). `sm serve` accepts `--mcp` / `--no-mcp` as the per-invocation
+  queue, findings-lifecycle and issue-suppression tools. There is no separate
+  write toggle (unified 2026-07-23). `sm serve` accepts `--mcp` / `--no-mcp` as the per-invocation
   override (precedence: flag > `mcp.server.enabled` > default off). The key lives
   in [`schemas/project-config.schema.json`](./schemas/project-config.schema.json),
   resolved through the normal config layering, and is project-local-only (never
@@ -230,7 +273,8 @@ changes.
 Everything in this document is **experimental** as of v0.x. Off by default,
 opt-in, and additive: enabling the toggle changes no existing behaviour, and
 the REST / WS / CLI surfaces are unaffected whether it is on or off. The single
-opt-in exposes the whole surface (map reads + queue + findings).
+opt-in exposes the whole surface (map reads + queue + findings + issue
+suppressions).
 
 Locked at a future minor once the tool / resource vocabulary settles. Breaking
 changes to the tool names, tool input shapes, resource URIs, or the transport
@@ -241,7 +285,7 @@ and an MCP `prompts` capability (skill / command bodies as prompt templates)
 are candidate additive extensions, none of which is promised here.
 
 Security note: the surface is loopback-only, Origin-gated, NO per-connection
-auth. Enabling the server therefore grants map reads AND queue + findings
-control to any process that can reach `127.0.0.1`; that is the same trust
+auth. Enabling the server therefore grants map reads AND queue, findings and
+issue-suppression control to any process that can reach `127.0.0.1`; that is the same trust
 boundary the REST mutating routes already sit behind (Decision #119), documented
 here so an operator opts in knowingly.

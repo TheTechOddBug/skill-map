@@ -68,7 +68,7 @@ Each README also ships a short essentials-only glossary with a pointer back to t
 | **Analyzer** | Extension kind. Evaluates the graph and emits issues. **Dual-mode**: deterministic Analyzers run in `sm check`; probabilistic Analyzers run only as queued jobs (opt-in via `sm check --include-prob`). |
 | **Action** | Extension kind. Operation executable over one or more nodes. **Dual-mode**: `deterministic` (plugin code, in-process) or `probabilistic` (rendered prompt the runner executes against an LLM). |
 | **Formatter** | Extension kind. Serializes the graph into ascii / mermaid / dot / json. **Deterministic-only** (snapshot diffability). |
-| **Hook** | Extension kind. Reacts declaratively to one of ten curated lifecycle events, eight pipeline-driven (`scan.started`, `scan.completed`, `extractor.completed`, `analyzer.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`) plus two CLI-process-driven (`boot` before verb routing, `shutdown` after the verb's exit code resolves). **Dual-mode**. Reaction-only: a Hook cannot mutate, block, or steer the pipeline. |
+| **Hook** | Extension kind. Reacts declaratively to one of nine curated lifecycle events, seven pipeline-driven (`scan.started`, `scan.completed`, `extractor.completed`, `analyzer.completed`, `action.completed`, `job.completed`, `job.failed`) plus two CLI-process-driven (`boot` before verb routing, `shutdown` after the verb's exit code resolves). **Dual-mode**. Reaction-only: a Hook cannot mutate, block, or steer the pipeline. |
 
 ### Execution modes
 
@@ -619,7 +619,7 @@ An Extractor emits through three context channels, in any combination per `extra
 
 ### Hook trigger set
 
-Hooks subscribe to a curated set of **ten** lifecycle events: eight pipeline-driven (`scan.started`, `scan.completed`, `extractor.completed`, `analyzer.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`) plus two CLI-process-driven, `boot` (before the verb routes, the dispatcher awaits hooks so their output lands above the verb, `core/update-check` relies on this) and `shutdown` (after the exit code resolves, never altering it). Everything else (`scan.progress`, `model.delta`, `job.claimed`, ...) is intentionally not hookable. Hooks are **deterministic-only** and may narrow with a declarative `filter`; the shared dispatcher (`src/kernel/extensions/hook-dispatcher.ts`) serves both the orchestrator and the CLI entry, with `core/update-check` (on `boot`) as the first built-in consumer. Full catalog and payloads: [`spec/architecture.md`](./spec/architecture.md) §Hook.
+Hooks subscribe to a curated set of **nine** lifecycle events: seven pipeline-driven (`scan.started`, `scan.completed`, `extractor.completed`, `analyzer.completed`, `action.completed`, `job.completed`, `job.failed`) plus two CLI-process-driven, `boot` (before the verb routes, the dispatcher awaits hooks so their output lands above the verb, `core/update-check` relies on this) and `shutdown` (after the exit code resolves, never altering it). Everything else (`scan.progress`, `model.delta`, `job.claimed`, ...) is intentionally not hookable. Hooks are **deterministic-only** and may narrow with a declarative `filter`; the shared dispatcher (`src/kernel/extensions/hook-dispatcher.ts`) serves both the orchestrator and the CLI entry, with `core/update-check` (on `boot`) as the first built-in consumer. Full catalog and payloads: [`spec/architecture.md`](./spec/architecture.md) §Hook.
 
 ### Storage modes
 

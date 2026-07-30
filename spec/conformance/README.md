@@ -4,18 +4,20 @@ Language-neutral test suite the specification demands. A conforming implementati
 
 The suite splits across two ownership boundaries:
 
-- **Spec-owned cases**, kernel-agnostic. They live in this directory and ship with `@skill-map/spec` (see the inventory below; `kernel-empty-boot` guards the boot invariant, `preamble-bitwise-match` the preamble bytes). The universal preamble fixture (`preamble-v2.txt`) lives here too.
-- **Provider-owned cases**, exercise a Provider's own `kinds` catalog. They live next to the Provider's manifest, under `<plugin-dir>/conformance/`. The reference impl ships one such suite at [`src/extensions/providers/claude/conformance/`](../../src/extensions/providers/claude/conformance/) covering Claude's five kinds (`skill` / `agent` / `command` / `hook` / `note`) via cases `basic-scan`, `rename-high`, `orphan-detection`.
+- **Spec-owned cases**, kernel-agnostic. They live in [`cases/`](./cases/) in this directory and ship with `@skill-map/spec` (`kernel-empty-boot` guards the boot invariant, `preamble-bitwise-match` the preamble bytes, `no-global-scope` the project-local scope rule, and so on). The universal preamble fixture (`preamble-v2.txt`) lives here too.
+- **Provider-owned cases**, exercise a Provider's own `kinds` catalog. They live next to the Provider's manifest, under `<plugin-dir>/conformance/`. The reference impl ships one such suite per built-in Provider, e.g. [`src/plugins/claude/providers/claude/conformance/`](../../src/plugins/claude/providers/claude/conformance/) covering Claude's four kinds (`agent` / `command` / `skill` / `mcp`).
 
-The shape below is normative; the case count in either bucket expands before spec-v1.0.0 (see [`../versioning.md`](../versioning.md)). See [`coverage.md`](./coverage.md) for the spec-owned matrix and the Provider's own coverage file (e.g. `src/extensions/providers/claude/conformance/coverage.md`) for the Provider-owned matrix.
+The shape below is normative; the case count in either bucket grows as the suite does (see [`../versioning.md`](../versioning.md)). Neither inventory is transcribed here, a hand-copied list goes stale the moment a case lands: the directories themselves are the authoritative enumeration, [`coverage.md`](./coverage.md) is the spec-owned schema-to-case matrix, and each Provider's own coverage file (e.g. `src/plugins/claude/providers/claude/conformance/coverage.md`) is the Provider-owned one. `sm conformance run --json` prints every case the installed implementation actually resolves.
 
 The reference CLI exposes both buckets via `sm conformance run`:
 
 ```
 sm conformance run --scope spec               # spec-owned cases only
-sm conformance run --scope provider:claude    # the Claude Provider's cases
-sm conformance run --scope all                # both (default)
+sm conformance run --scope provider:<id>      # one Provider's own cases
+sm conformance run --scope all                # every visible scope (default)
 ```
+
+The `provider:<id>` scopes are **discovered**, not enumerated by this document: the implementation walks each Provider for a `conformance/` directory and offers one scope per suite it finds.
 
 External consumers (alt-impl authors, Provider authors validating their own work) can drive the suite without bespoke scripting; the verb provisions the same isolated tmp scope per case as the in-process reference runner does.
 
@@ -26,14 +28,17 @@ External consumers (alt-impl authors, Provider authors validating their own work
 ```
 spec/conformance/
 ├── README.md                 ← this file
+├── coverage.md               ← schema-to-case coverage matrix (authoritative inventory)
 ├── fixtures/
-│   └── preamble-v2.txt       ← verbatim preamble text for bitwise-match checks
+│   ├── preamble-v2.txt       ← verbatim preamble text for bitwise-match checks
+│   └── <name>/               ← one controlled corpus per case that needs one
 └── cases/
-    └── kernel-empty-boot.json ← declarative case (see "Case format" below)
+    └── <id>.json             ← one declarative case per file (see "Case format" below),
+                                filename MUST equal the case `id`
 ```
 
 ```
-src/extensions/providers/<id>/conformance/   ← Provider-owned, mirrors the layout
+src/plugins/<plugin>/providers/<id>/conformance/   ← Provider-owned, mirrors the layout
 ├── coverage.md
 ├── cases/
 │   └── *.json
@@ -125,30 +130,22 @@ Assertion types beyond this list MAY be proposed via spec-vX.Y.Z minor bumps. Im
 
 ---
 
-## Current case inventory
+## Case inventory
 
-### Spec-owned (this directory)
+**There is no transcribed inventory in this document, by design.** A hand-maintained table of case ids is stale the day a case lands, and this section used to be exactly that. The authoritative enumerations are:
 
-| Id | Verifies |
-|---|---|
-| `kernel-empty-boot` | With every Provider/Extractor/Analyzer disabled, scanning an empty scope returns a valid empty graph. |
-| `no-global-scope` | The `-g/--global` flag does not exist. Implementations MUST reject it on every verb (exit `2`, "unknown option"). Guards `cli-contract.md` §Scope is always project-local. |
-| `orphan-markdown-fallback` | Multi-Provider corpus where one node lands via the universal `core/markdown` fallback and another via vendor-specific claude classification. Locks the orchestrator's path-dedup contract. |
-| `preamble-bitwise-match` | Rendered job content contains `preamble-v2.txt` byte-for-byte: a `ai-summarizer-action` job submitted over a scanned markdown node (via `setup.priorInvokes`), read back with `sm jobs preview --last`. Guards `prompt-preamble.md` §Stability. |
-| `extension-mode-routing` | Dispatch routing follows the Action manifest `mode`: a probabilistic Action submitted via `sm jobs submit` lands as a queued `state_jobs` row (asserted through `sm jobs list --json`), never executing in-process. |
-| `extension-mode-routing-deterministic` | The deterministic half: `sm jobs submit` refuses a deterministic Action with exit 2 and the in-process advisory. |
-| `plugin-missing-ui-rejected` | Drop-in Provider whose `kinds[*]` entry omits the required `ui` block fails AJV validation with `invalid-manifest`; the rest of the pipeline keeps running. |
-| `score-phase-confidence` | Drop-in analyzer declaring `phase: 'score'` composes a confidence adjustment (`delta -0.4`, then a no-op `floor 0.5`) on top of the kernel's 1.0 baseline (a clean resolved link keeps that baseline, no built-in op); the folded `scan_links.confidence` lands at exactly `0.6`. |
-| `sidecar-end-to-end` | Co-located `.sm` sidecar shape, stale / orphan detection, populated `Node.sidecar` overlay, the `annotation-orphan` issue emitted (drift is icon-only, no `annotation-stale` issue). |
-| `view-action-button` | An analyzer declaring the unified `inspector.header.badge` + the new `inspector.action.button` slots loads clean, while a sibling declaring the retired `inspector.header.badge.counter` slot fails as `invalid-manifest`; `sm scan` survives. |
+- **Spec-owned**: every `*.json` file in [`cases/`](./cases/), shipped inside `@skill-map/spec`. Each file's `id` equals its filename and its `description` states what it verifies, so `ls` plus the file itself is the inventory. [`coverage.md`](./coverage.md) maps them onto the schemas and invariants they cover, and is the document to read (and to update) when judging whether the suite covers a given contract.
+- **Provider-owned**: every `*.json` under each Provider's `conformance/cases/`, one suite per Provider that ships one (in the reference impl, `src/plugins/<plugin>/providers/<id>/conformance/`). Each suite carries its own `coverage.md`.
+- **Resolved at runtime**: `sm conformance run --json` reports every case the installed implementation actually found, per scope, which is the only inventory that can never drift.
 
-### Provider-owned (per `<plugin-dir>/conformance/`)
+A few named cases recur throughout the prose contracts and are worth knowing by name:
 
-| Provider | Id | Verifies |
+| Id | Bucket | Verifies |
 |---|---|---|
-| `claude` | `basic-scan` | Scanning the `minimal-claude` corpus detects exactly five nodes (one per kind) with no issues. Implicitly validates each per-kind schema. |
-| `claude` | `rename-high` | High-confidence rename emits no issue; the new path is the sole node. |
-| `claude` | `orphan-detection` | Deletion with no replacement triggers exactly one `orphan` issue (severity `info`). |
+| `kernel-empty-boot` | spec-owned | With every Provider/Extractor/Analyzer disabled, scanning an empty scope returns a valid empty graph. Referenced by [`../architecture.md`](../architecture.md). |
+| `preamble-bitwise-match` | spec-owned | Rendered job content contains `preamble-v2.txt` byte-for-byte: a `ai-summarizer-action` job submitted over a scanned markdown node (via `setup.priorInvokes`), read back with `sm jobs preview --last`. Guards [`../prompt-preamble.md`](../prompt-preamble.md) §Stability. |
+| `no-global-scope` | spec-owned | The `-g/--global` flag does not exist. Implementations MUST reject it on every verb (exit `2`, "unknown option"). Guards [`../cli-contract.md`](../cli-contract.md) §Scope is always project-local. |
+| `basic-scan` | provider-owned | Each Provider's baseline: scanning its minimal corpus yields the expected node count with no issues, implicitly validating its per-kind frontmatter schemas. The Claude suite asserts exactly **four** nodes (`agent`, `command`, `skill`, plus the `notes/architecture.md` node the universal `core/markdown` fallback claims). |
 
 ---
 

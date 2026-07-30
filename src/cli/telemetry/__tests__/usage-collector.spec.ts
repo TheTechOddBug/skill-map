@@ -9,7 +9,9 @@
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
+import { listBuiltIns } from '../../../plugins/built-ins.js';
 import {
+  BUILT_IN_PLUGIN_IDS,
   buildCliVerbProperties,
   buildScanExtensionSet,
   cliVerbEventName,
@@ -108,6 +110,35 @@ describe('extractFlagNames', () => {
 
   it('returns empty for no flags', () => {
     assert.deepEqual(extractFlagNames(['scan', 'roots']), []);
+  });
+});
+
+describe('BUILT_IN_PLUGIN_IDS, the privacy allow-list', () => {
+  // The dangerous direction is one-way. An id in this list passes through
+  // to PostHog verbatim, so a NON-built-in leaking in is a privacy defect;
+  // a built-in missing from it only costs signal (the id collapses to
+  // `external_plugin`, which always conforms). Assert the dangerous
+  // direction strictly and the lossy one loosely, rather than demanding
+  // set equality, which would let a loader-side edit widen this list.
+  it('contains no id that is not actually a shipped built-in', () => {
+    const shipped = new Set(listBuiltIns().map((p) => p.pluginId));
+    const notShipped = [...BUILT_IN_PLUGIN_IDS].filter((id) => !shipped.has(id));
+    assert.deepEqual(
+      notShipped,
+      [],
+      `allow-list carries ids this CLI does not ship: ${notShipped.join(', ')}`,
+    );
+  });
+
+  it('covers every shipped built-in, so real usage is not misreported as third-party', () => {
+    const missing = [...new Set(listBuiltIns().map((p) => p.pluginId))].filter(
+      (id) => !BUILT_IN_PLUGIN_IDS.has(id),
+    );
+    assert.deepEqual(
+      missing,
+      [],
+      `shipped built-ins absent from the allow-list collapse to external_plugin: ${missing.join(', ')}`,
+    );
   });
 });
 
