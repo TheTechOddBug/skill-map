@@ -286,7 +286,12 @@
                 "scope-root",
                 "config-dir"
               ],
-              "description": "Working directory the provider runtime spawns hook commands with, which decides how the bridge command's script path is written. `scope-root` (default): the runtime spawns at the project root, the plain scope-relative bridge path resolves. `config-dir` (Antigravity, live-verified): the runtime spawns at the hook config's own directory, so install prefixes the relative hops from `dirname(configPath)` back to the root. The bridge itself derives its scope root from its installed location, never the spawn cwd."
+              "description": "Working directory the provider runtime spawns hook commands with, which decides how the bridge command's script path is written. `scope-root` (default): the runtime spawns at the project root, the plain scope-relative bridge path resolves. `config-dir` (Antigravity, live-verified): the runtime spawns at the hook config's own directory, so install prefixes the relative hops from `dirname(configPath)` back to the root. Ignored when `projectDirEnvVar` is declared, since that form is absolute at spawn time. The bridge itself derives its scope root from its installed location, never the spawn cwd."
+            },
+            "projectDirEnvVar": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]*$",
+              "description": "Name of an environment variable the runtime sets to the PROJECT ROOT when it spawns a hook command, if it offers one (Claude Code: `CLAUDE_PROJECT_DIR`). When declared, install anchors the bridge path on it (`node \"$VAR\"/.skill-map/activity/bridge.js <provider>`) and `commandCwd` no longer applies. Implementations SHOULD prefer this over the cwd-relative forms wherever the runtime provides it: those forms assume the hook is spawned at the project root, and that assumption is not stable for the lifetime of a session, since an agent that changes directory while working takes the hook cwd with it and every later hook then fails to find the bridge. An absolute literal would also defeat the cwd problem and introduce a worse one, because these hook configs are routinely committed and a baked machine-specific path breaks every other contributor; the variable is portable and cwd-immune at once. Quote the VARIABLE only, not the whole path, so an expansion containing spaces survives and the bare `.skill-map/activity/bridge.js` substring stays intact for the ownership marker uninstall keys on. Declaring a name the runtime does not actually set is worse than omitting the field: an unset variable expands to empty and the path resolves at the filesystem root, so the hook breaks always rather than only from a subdirectory."
             }
           },
           "allOf": [
@@ -305,9 +310,10 @@
                 "properties": {
                   "events": false,
                   "group": false,
-                  "commandCwd": false
+                  "commandCwd": false,
+                  "projectDirEnvVar": false
                 },
-                "description": "`events` / `group` / `commandCwd` parameterize the spawned-bridge wiring and are meaningless for an in-process plugin: a `plugin-file` descriptor carries only `kind` + `configPath`."
+                "description": "`events` / `group` / `commandCwd` / `projectDirEnvVar` parameterize the spawned-bridge wiring and are meaningless for an in-process plugin: a `plugin-file` descriptor carries only `kind` + `configPath`. `projectDirEnvVar` is forbidden here for the same reason as `commandCwd`, there is no spawn, so there is no command path to anchor and no spawn cwd to be immune from."
               }
             }
           ]

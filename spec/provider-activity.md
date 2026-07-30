@@ -51,9 +51,10 @@ Two halves:
 - **Declarative (manifest JSON)**: the `install` descriptor. Where the provider's
   project-local hook config lives (`configPath`, always relative to the scope root)
   and which install shape applies (`kind`). The remaining fields are PER-KIND:
-  `events` / `group` / `commandCwd` parameterize the spawned-bridge wiring and are
-  valid ONLY on `json-hooks` descriptors (schema-enforced; a `plugin-file`
-  descriptor carries only `kind` + `configPath`).
+  `events` / `group` / `commandCwd` / `projectDirEnvVar` parameterize the
+  spawned-bridge wiring and are valid ONLY on `json-hooks` descriptors
+  (schema-enforced; a `plugin-file` descriptor carries only `kind` +
+  `configPath`, since it runs in-process and there is no command to spawn).
 - **Runtime (TypeScript only, never in the manifest, mirroring `classify()` /
   `walk()`)**: `mapEvent(raw)` receives one raw provider hook payload and returns
   zero or more activity signals, or `null` to disclaim. Providers with a
@@ -132,8 +133,35 @@ Install shapes (`install.kind`, closed set, extensible by minor bump):
 | `plugin-file` | write an in-process plugin file that POSTs directly (no spawn) | `.opencode/plugin/skill-map-activity.js` |
 
 `json-hooks` covers two document shapes, selected by the optional
-`install.group` field, and two command-path conventions, selected by the
-optional `install.commandCwd` field (`'scope-root'` default / `'config-dir'`
+`install.group` field, and THREE command-path conventions.
+
+The preferred one is `install.projectDirEnvVar`: the name of an environment
+variable the runtime sets to the project root when it spawns a hook command
+(Claude Code: `CLAUDE_PROJECT_DIR`). When declared, install writes
+`node "$VAR"/.skill-map/activity/bridge.js <provider>` and `commandCwd` no
+longer applies, because the path is absolute at spawn time. Implementations
+SHOULD prefer it wherever the runtime offers one. The two cwd-relative forms
+below assume the hook is spawned at the project root, and that assumption
+holds when a session starts but not for its lifetime: an agent that changes
+directory while working takes the hook cwd with it, so every later hook
+resolves against the subdirectory and activity ingestion stops with a
+module-not-found naming a path the operator never wrote. Note the asymmetry
+this removes, the bridge already refuses to trust the spawn cwd (it derives
+its scope root from its own installed location), so a cwd-relative command
+made the wiring depend on exactly what the bridge distrusted.
+
+An absolute literal would also defeat the cwd problem and introduce a worse
+one: these hook configs are routinely committed, so a baked machine-specific
+path breaks every other contributor. Quote the VARIABLE only, never the whole
+path, so an expansion containing spaces survives and the bare
+`.skill-map/activity/bridge.js` substring stays intact for the ownership
+marker uninstall keys on. A provider MUST NOT declare a variable name its
+runtime does not actually set: an unset variable expands to empty, the path
+resolves at the filesystem root, and the hook then breaks always rather than
+only from a subdirectory, which is strictly worse than the relative form.
+
+The remaining two are selected by the optional `install.commandCwd` field
+(`'scope-root'` default / `'config-dir'`
 for runtimes that spawn hook commands at the hook config's own directory, in
 which case install writes the bridge command with the relative hops from
 `dirname(configPath)` back to the root). Claude / Codex nest the per-event entry map under the

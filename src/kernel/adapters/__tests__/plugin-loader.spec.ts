@@ -534,6 +534,72 @@ describe('PluginLoader', () => {
       match(r[0]!.reason!, /declares `kinds`/);
     });
 
+    it('accepts an EXTERNAL provider declaring activity.install.projectDirEnvVar', async () => {
+      // Regression on the spec-first rule. The field was added to the TS
+      // interface and to the built-in Claude adapter, but not to
+      // `provider.schema.json`, which is `additionalProperties: false`.
+      // Nothing was red: built-ins never reach the disk loader, so no
+      // built-in and no test exercised that schema. An external provider
+      // plugin declaring the field was the only thing that would have
+      // failed, at load, in someone else's project.
+      const root = makePluginsDir('provider-project-dir-env');
+      writePlugin(
+        root,
+        'ext-provider',
+        {
+          version: '1.0.0',
+          description: 'test',
+          specCompat: '>=0.0.0',
+          catalogCompat: '*',
+        },
+        {
+          'provider/p.mjs': [
+            'export default {',
+            "  presentation: { label: 'Ext', color: '#0891b2' },",
+            '  activity: {',
+            "    install: { kind: 'json-hooks', configPath: '.ext/hooks.json', projectDirEnvVar: 'EXT_PROJECT_DIR' },",
+            '    mapEvent: () => null,',
+            '  },',
+            "  classify() { return 'agent'; },",
+            '};',
+          ].join('\n'),
+        },
+      );
+      const r = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(r[0]?.status, 'enabled', r[0]?.reason ?? '');
+    });
+
+    it('rejects projectDirEnvVar on a plugin-file descriptor (nothing is spawned)', async () => {
+      // Same reasoning as `commandCwd`: an in-process plugin has no
+      // command whose path could be anchored, so accepting the field
+      // would let an author believe they configured something.
+      const root = makePluginsDir('provider-env-on-plugin-file');
+      writePlugin(
+        root,
+        'bad-provider',
+        {
+          version: '1.0.0',
+          description: 'test',
+          specCompat: '>=0.0.0',
+          catalogCompat: '*',
+        },
+        {
+          'provider/p.mjs': [
+            'export default {',
+            "  presentation: { label: 'Ext', color: '#0891b2' },",
+            '  activity: {',
+            "    install: { kind: 'plugin-file', configPath: '.ext/p.js', projectDirEnvVar: 'EXT_PROJECT_DIR' },",
+            '    mapEvent: () => null,',
+            '  },',
+            "  classify() { return 'agent'; },",
+            '};',
+          ].join('\n'),
+        },
+      );
+      const r = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(r[0]?.status, 'invalid-manifest');
+    });
+
     it('projects `identifiers` + `identifierMismatch` from an external `kind.json` onto the runtime descriptor', async () => {
       // An external Provider reaches the same name-resolution lane a
       // built-in gets from `IProviderKind.identifiers`: the loader
