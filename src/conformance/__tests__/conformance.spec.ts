@@ -82,6 +82,20 @@ const SPEC_CASES = [
   'bump-report-schema',
   'extension-kind-manifests',
   'elapsed-time-reporting',
+  // The `capture` / `each` / `expectExit` / `schemaPointer` family. Same
+  // reasoning as `scan-result-schema` above, and more acute: these four
+  // fields exist to make a contract expressible, so a regression in the
+  // runner would not fail any OTHER case, it would silently shrink what
+  // the suite is able to say.
+  'history-record-schema',
+  'history-stats-schema',
+  'job-document-schema',
+  'record-nonce-mismatch',
+  'record-report-schema-gate',
+  'record-tags-report',
+  'duplicate-submit-rejected',
+  'force-does-not-duplicate-live-job',
+  'plugin-manifest-schema',
 ] as const;
 const PROVIDER_CLAUDE_CASES = ['rename-high', 'orphan-detection'] as const;
 const PROVIDER_OPENAI_CASES = ['basic-scan', 'body-links'] as const;

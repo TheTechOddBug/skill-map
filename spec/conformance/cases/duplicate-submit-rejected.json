@@ -1,0 +1,25 @@
+{
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
+  "id": "duplicate-submit-rejected",
+  "description": "A second `sm jobs submit` over the same `(extensionId, extensionVersion, nodeId, contentHash)` while the first is still queued MUST be refused with exit 3, naming the job that already covers the node. Deduplication is what stops a re-run from spending tokens recomputing an unchanged result (`job-lifecycle.md` §Duplicate prevention rationale), so the refusal is the contract, not an inconvenience.",
+  "fixture": "job-record-chain",
+  "setup": {
+    "priorScans": [{ "fixture": "job-record-chain" }],
+    "priorInvokes": [
+      { "verb": "agent", "sub": "install", "flags": ["--for", "claude"] },
+      { "verb": "jobs", "sub": "submit", "args": ["ai-summarizer-action"], "flags": ["-n", "notes.md"] }
+    ]
+  },
+  "invoke": {
+    "verb": "jobs",
+    "sub": "submit",
+    "args": ["ai-summarizer-action"],
+    "flags": ["-n", "notes.md", "--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 3 },
+    { "type": "json-path", "path": "$.duplicate", "equals": true },
+    { "type": "json-path", "path": "$.nodeId", "equals": "notes.md" },
+    { "type": "json-path", "path": "$.existingId", "matches": "^[a-z]-" }
+  ]
+}

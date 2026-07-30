@@ -1,0 +1,35 @@
+{
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
+  "id": "history-record-schema",
+  "description": "`sm history --json` MUST emit an array whose EVERY element validates against `execution-record.schema.json`. This is the first case to use two primitives at once: `capture`, which binds the claim-issued nonce a static case could not otherwise thread into `sm record`, and `each`, which validates per element because the history surface is a list and a whole-document assertion cannot name its element contract. The chain is the full job round trip (submit, claim, record), so the record under assertion is one the implementation actually wrote rather than a fixture someone hand-authored. An empty array fails `each` by contract, which matters here: a broken chain would leave history empty and an element-wise check over zero elements would otherwise report green.",
+  "fixture": "job-record-chain",
+  "setup": {
+    "priorScans": [{ "fixture": "job-record-chain" }],
+    "priorInvokes": [
+      { "verb": "agent", "sub": "install", "flags": ["--for", "claude"] },
+      { "verb": "jobs", "sub": "submit", "args": ["ai-summarizer-action"], "flags": ["-n", "notes.md"] },
+      {
+        "verb": "jobs",
+        "sub": "claim",
+        "flags": ["--json"],
+        "capture": { "jobId": "$.id", "jobNonce": "$.nonce" }
+      },
+      {
+        "verb": "record",
+        "flags": [
+          "--id", "{{jobId}}",
+          "--nonce", "{{jobNonce}}",
+          "--status", "completed",
+          "--report", "report.json"
+        ]
+      }
+    ]
+  },
+  "invoke": { "verb": "history", "flags": ["--json"] },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "stdout-matches-schema", "schema": "execution-record.schema.json", "each": true },
+    { "type": "json-path", "path": "$[0].status", "equals": "completed" },
+    { "type": "json-path", "path": "$[0].extensionId", "equals": "core/ai-summarizer-action" }
+  ]
+}

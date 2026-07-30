@@ -1,0 +1,27 @@
+{
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
+  "id": "record-nonce-mismatch",
+  "description": "`sm record` MUST reject a callback whose nonce does not match the claim, exiting 4 and mutating nothing. The case captures the REAL job id from `sm jobs claim --json` and then supplies a wrong nonce, so the only thing under test is the credential: an id-not-found path would exit 5 and prove something else entirely. Asserting the job stays claimable-state rather than merely checking the exit code is what makes this a rejection test instead of an error-message test.",
+  "fixture": "job-record-chain",
+  "setup": {
+    "priorScans": [{ "fixture": "job-record-chain" }],
+    "priorInvokes": [
+      { "verb": "agent", "sub": "install", "flags": ["--for", "claude"] },
+      { "verb": "jobs", "sub": "submit", "args": ["ai-summarizer-action"], "flags": ["-n", "notes.md"] },
+      { "verb": "jobs", "sub": "claim", "flags": ["--json"], "capture": { "jobId": "$.id" } }
+    ]
+  },
+  "invoke": {
+    "verb": "record",
+    "flags": [
+      "--id", "{{jobId}}",
+      "--nonce", "00000000000000000000000000000000",
+      "--status", "completed",
+      "--report", "report.json"
+    ]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 4 },
+    { "type": "stderr-matches", "pattern": "nonce" }
+  ]
+}

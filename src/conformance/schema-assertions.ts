@@ -21,7 +21,7 @@
  * the circularity a conformance suite exists to avoid.
  */
 
-import { Ajv2020, type AnySchema } from 'ajv/dist/2020.js';
+import { Ajv2020, type AnySchema, type ValidateFunction } from 'ajv/dist/2020.js';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
@@ -93,6 +93,18 @@ function collectSchemaFiles(dir: string): string[] {
 
 export type TSchemaCheck = { ok: true } | { ok: false; reason: string };
 
+/** Optional narrowing knobs both schema assertions accept. */
+export interface ISchemaCheckOptions {
+  /**
+   * JSON Pointer selecting a subschema INSIDE the named schema, for the
+   * schemas whose root models an aggregate nobody writes while a `$def`
+   * describes the real artifact.
+   */
+  schemaPointer?: string | undefined;
+  /** Validate every element of an array payload instead of the whole document. */
+  each?: boolean | undefined;
+}
+
 /**
  * Validate `payload` against the schema at `schemaRel` (relative to the
  * spec root, with or without a leading `schemas/`).
@@ -106,6 +118,7 @@ export function checkAgainstSchema(
   payload: unknown,
   schemaRel: string,
   specRoot: string,
+  options: ISchemaCheckOptions = {},
 ): TSchemaCheck {
   const rel = schemaRel.startsWith('schemas/') ? schemaRel : `schemas/${schemaRel}`;
   const file = resolve(specRoot, rel);
@@ -119,18 +132,88 @@ export function checkAgainstSchema(
   }
 
   const ajv = specAjv(specRoot);
-  let validate;
+  const compiled = compileTarget(ajv, schema, rel, options.schemaPointer);
+  if (!compiled.ok) return compiled;
+  const { validate, label } = compiled;
+
+  if (options.each) return validateEach(ajv, validate, payload, label);
+
+  if (validate(payload)) return { ok: true };
+  return {
+    ok: false,
+    reason: `does not validate against ${label}: ${ajv.errorsText(validate.errors)}`,
+  };
+}
+
+/**
+ * Element-wise arm of `checkAgainstSchema`, for the list-shaped CLI
+ * surfaces whose element contract a whole-document assertion cannot name.
+ */
+function validateEach(
+  ajv: Ajv2020,
+  validate: ValidateFunction,
+  payload: unknown,
+  label: string,
+): TSchemaCheck {
+  if (!Array.isArray(payload)) {
+    return { ok: false, reason: `each: expected an array, got ${describeType(payload)}` };
+  }
+  // An empty array validates against any element schema, so accepting it
+  // would report green while checking nothing. List surfaces are exactly
+  // where that vacuous pass hides: a case whose fixture stopped producing
+  // rows would keep claiming its schema is covered.
+  if (payload.length === 0) {
+    return { ok: false, reason: `each: array is empty, so no element was validated against ${label}` };
+  }
+  for (const [index, element] of payload.entries()) {
+    if (validate(element)) continue;
+    return {
+      ok: false,
+      reason: `each: element ${index} does not validate against ${label}: ${ajv.errorsText(validate.errors)}`,
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * Resolve the validator for a schema, optionally narrowed to a subschema
+ * by JSON Pointer.
+ *
+ * The pointer path goes through AJV's `$id#<pointer>` lookup rather than
+ * compiling the plucked sub-object: a `$def` routinely carries relative
+ * `$ref`s that only resolve against the parent document's base URI, and
+ * compiling it standalone would strand them.
+ */
+function compileTarget(
+  ajv: Ajv2020,
+  schema: AnySchema,
+  rel: string,
+  pointer?: string,
+): ({ ok: true; validate: ValidateFunction; label: string }) | { ok: false; reason: string } {
+  const id = (schema as { $id?: unknown }).$id;
   try {
-    const id = (schema as { $id?: unknown }).$id;
+    if (pointer !== undefined) {
+      if (typeof id !== 'string') {
+        return { ok: false, reason: `schemaPointer needs a schema with an $id: ${rel}` };
+      }
+      const found = ajv.getSchema(`${id}#${pointer}`);
+      if (found === undefined) {
+        return { ok: false, reason: `schemaPointer resolves to nothing: ${rel}#${pointer}` };
+      }
+      return { ok: true, validate: found, label: `${rel}#${pointer}` };
+    }
     // Prefer the already-registered compilation so a schema that the
     // tree walk added is not compiled twice under two identities.
-    validate = (typeof id === 'string' ? ajv.getSchema(id) : undefined) ?? ajv.compile(schema);
+    const validate = (typeof id === 'string' ? ajv.getSchema(id) : undefined) ?? ajv.compile(schema);
+    return { ok: true, validate, label: rel };
   } catch (err) {
     return { ok: false, reason: `schema failed to compile: ${rel} (${describe(err)})` };
   }
+}
 
-  if (validate(payload)) return { ok: true };
-  return { ok: false, reason: `does not validate against ${rel}: ${ajv.errorsText(validate.errors)}` };
+function describeType(value: unknown): string {
+  if (value === null) return 'null';
+  return Array.isArray(value) ? 'array' : typeof value;
 }
 
 /**

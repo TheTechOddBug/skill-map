@@ -1,0 +1,33 @@
+{
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
+  "id": "record-tags-report",
+  "description": "A recorded `ai-tagger-action` report MUST validate against `tags/markdown.schema.json`, and its tags MUST be surfaced as a PROPOSAL rather than written to the node. That second half is the contract worth pinning: tags are human curation, so they belong in the node's `.sm` companion only once a person accepts them, and an implementation that silently persisted a model's tags would violate the storage rule while still satisfying the schema. The Action ships `defaultEnabled: false`, so the case enables it explicitly rather than assuming the operator's registry state.",
+  "fixture": "job-record-chain",
+  "setup": {
+    "priorScans": [{ "fixture": "job-record-chain" }],
+    "priorInvokes": [
+      { "verb": "agent", "sub": "install", "flags": ["--for", "claude"] },
+      { "verb": "plugins", "sub": "enable", "args": ["core/ai-tagger-action"] },
+      { "verb": "jobs", "sub": "submit", "args": ["ai-tagger-action"], "flags": ["-n", "notes.md"] },
+      {
+        "verb": "jobs",
+        "sub": "claim",
+        "flags": ["--json"],
+        "capture": { "jobId": "$.id", "jobNonce": "$.nonce" }
+      }
+    ]
+  },
+  "invoke": {
+    "verb": "record",
+    "flags": [
+      "--id", "{{jobId}}",
+      "--nonce", "{{jobNonce}}",
+      "--status", "completed",
+      "--report", "tags-report.json"
+    ]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "stderr-matches", "pattern": "2 tags proposed for notes\\.md" }
+  ]
+}

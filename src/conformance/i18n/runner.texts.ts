@@ -13,7 +13,19 @@ export const CONFORMANCE_RUNNER_TEXTS = {
     'setup.priorScans step `{{fixture}}` failed with exit {{exit}}: {{stderr}}',
 
   priorInvokeFailed:
-    'setup.priorInvokes step `{{argv}}` failed with exit {{exit}}: {{stderr}}',
+    'setup.priorInvokes step `{{argv}}` expected exit {{expected}}, got {{exit}}: {{stderr}}',
+
+  unboundPlaceholder:
+    'placeholder "{{name}}" is not bound by any earlier setup.priorInvokes capture',
+
+  captureStdoutNotJson:
+    'setup.priorInvokes step `{{argv}}` declares capture but its stdout is not JSON: {{message}}',
+
+  captureNoMatch:
+    'setup.priorInvokes step `{{argv}}` capture "{{name}}" ({{path}}) matched nothing',
+
+  captureNotScalar:
+    'setup.priorInvokes step `{{argv}}` capture "{{name}}" ({{path}}) resolved to {{type}}, expected a string or number',
 
   pathMustBeRelative:
     'conformance: {{label}} path "{{path}}" must be relative to its anchor ({{anchor}})',

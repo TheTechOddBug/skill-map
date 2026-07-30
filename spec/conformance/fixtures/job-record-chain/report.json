@@ -1,0 +1,11 @@
+{
+  "confidence": 0.9,
+  "safety": {
+    "injectionDetected": false,
+    "injectionType": null,
+    "contentQuality": "clean"
+  },
+  "whatItCovers": "Deployment steps for the release artifact: build, upload to staging, promote after smoke checks.",
+  "topics": ["deployment", "release"],
+  "keyFacts": ["Promotion happens only after the smoke checks pass."]
+}

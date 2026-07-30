@@ -1,0 +1,5 @@
+{
+  "confidence": 0.9,
+  "safety": "clean",
+  "whatItCovers": "Same report as its valid sibling except `safety`, which the report-base contract requires to be an object carrying `injectionDetected` and `contentQuality`, not a bare string. Exists so a case can prove the record path REJECTS a non-conforming report rather than only accepting a conforming one."
+}

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
+  "id": "force-does-not-duplicate-live-job",
+  "description": "`--force` bypasses the duplicate PRE-CHECK but MUST NOT create a second live job: `job-lifecycle.md` names the unique partial index over `status IN ('queued','running')` the hard invariant, so forcing while a matching job is still active fails on the constraint (exit 3) rather than silently enqueueing a twin. The case reads as `--force` behaving identically to a plain submit here, and that is precisely the point worth pinning: the flag is for legitimate reruns once the prior job is terminal, and an implementation that let it punch through the index while a job was live would corrupt the claim guarantee.",
+  "fixture": "job-record-chain",
+  "setup": {
+    "priorScans": [{ "fixture": "job-record-chain" }],
+    "priorInvokes": [
+      { "verb": "agent", "sub": "install", "flags": ["--for", "claude"] },
+      { "verb": "jobs", "sub": "submit", "args": ["ai-summarizer-action"], "flags": ["-n", "notes.md"] },
+      {
+        "verb": "jobs",
+        "sub": "submit",
+        "args": ["ai-summarizer-action"],
+        "flags": ["-n", "notes.md", "--force"],
+        "expectExit": 3
+      }
+    ]
+  },
+  "invoke": { "verb": "jobs", "sub": "list", "flags": ["--json"] },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.length", "equals": 1 },
+    { "type": "json-path", "path": "$[0].status", "equals": "queued" },
+    { "type": "json-path", "path": "$[0].nodeId", "equals": "notes.md" }
+  ]
+}

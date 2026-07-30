@@ -61,13 +61,28 @@ export interface IRunCaseOptions {
   env?: NodeJS.ProcessEnv;
 }
 
-/** `invoke` / `setup.priorInvokes[N]` shape (`conformance-case.schema.json#/$defs/Invocation`). */
+/** `invoke` shape (`conformance-case.schema.json#/$defs/Invocation`). */
 interface IInvocation {
   verb: string;
   sub?: string;
   args?: string[];
   flags?: string[];
 }
+
+/**
+ * `setup.priorInvokes[N]` shape
+ * (`conformance-case.schema.json#/$defs/StagedInvocation`), an invocation
+ * plus the two staging-only controls.
+ */
+interface IStagedInvocation extends IInvocation {
+  /** Exit code this step MUST return; defaults to 0. */
+  expectExit?: number;
+  /** Variable name to JSONPath, extracted from this step's stdout. */
+  capture?: Record<string, string>;
+}
+
+/** Accumulated `capture` bindings, variable name to captured value. */
+type TCaptures = Record<string, string>;
 
 interface IConformanceCase {
   id: string;
@@ -78,19 +93,56 @@ interface IConformanceCase {
     disableAllExtractors?: boolean;
     disableAllAnalyzers?: boolean;
     priorScans?: Array<{ fixture: string; flags?: string[] }>;
-    priorInvokes?: IInvocation[];
+    priorInvokes?: IStagedInvocation[];
   };
   invoke: IInvocation;
   assertions: TAssertion[];
 }
 
-/** Flatten an invocation into the argv tail passed to the binary. */
-function invocationArgv(invoke: IInvocation): string[] {
+/**
+ * Flatten an invocation into the argv tail passed to the binary,
+ * substituting `{{name}}` placeholders from earlier `capture` steps.
+ *
+ * Substitution covers `args` and `flags` only. `verb` and `sub` are left
+ * literal on purpose: a captured value is CLI output, and letting it
+ * choose which command runs would turn any implementation that echoes
+ * attacker-controlled content into a way to redirect the invocation.
+ *
+ * Throws on an unresolved placeholder rather than passing it through.
+ * A literal `{{nonce}}` reaching the CLI surfaces as a puzzling
+ * credential rejection several steps downstream; naming the missing
+ * capture points at the actual mistake.
+ */
+function invocationArgv(invoke: IInvocation, captures: TCaptures = {}): string[] {
   const argv = [invoke.verb];
   if (invoke.sub) argv.push(invoke.sub);
-  if (invoke.args) argv.push(...invoke.args);
-  if (invoke.flags) argv.push(...invoke.flags);
+  const substitute = (value: string): string =>
+    value.replace(/\{\{([a-zA-Z_][a-zA-Z0-9_]*)\}\}/g, (_match, name: string) => {
+      const bound = captures[name];
+      if (bound === undefined) {
+        throw new Error(tx(CONFORMANCE_RUNNER_TEXTS.unboundPlaceholder, { name }));
+      }
+      return bound;
+    });
+  if (invoke.args) argv.push(...invoke.args.map(substitute));
+  if (invoke.flags) argv.push(...invoke.flags.map(substitute));
   return argv;
+}
+
+/**
+ * `invocationArgv` as a discriminated union rather than a throw, so both
+ * call sites (staging steps and the main invoke) report an unresolved
+ * placeholder as a case failure instead of unwinding the runner.
+ */
+function resolveArgv(
+  invoke: IInvocation,
+  captures: TCaptures,
+): { ok: true; argv: string[] } | { ok: false; reason: string } {
+  try {
+    return { ok: true, argv: invocationArgv(invoke, captures) };
+  } catch (err) {
+    return { ok: false, reason: formatErrorMessage(err) };
+  }
 }
 
 /**
@@ -187,8 +239,8 @@ export type TAssertion =
   | { type: 'file-exists'; path: string }
   | { type: 'file-contains-verbatim'; path: string; fixture: string }
   | { type: 'stdout-contains-verbatim'; fixture: string }
-  | { type: 'file-matches-schema'; path: string; schema: string }
-  | { type: 'stdout-matches-schema'; schema: string }
+  | { type: 'file-matches-schema'; path: string; schema: string; schemaPointer?: string; each?: boolean }
+  | { type: 'stdout-matches-schema'; schema: string; schemaPointer?: string; each?: boolean }
   | { type: 'stderr-matches'; pattern: string };
 
 // Conformance runner orchestrates: case parse, setup steps, scope
@@ -233,38 +285,58 @@ export function runConformanceCase(options: IRunCaseOptions): IRunCaseResult {
 
     // 2c. Replay every `setup.priorInvokes` step against the provisioned
     //     scope (after the top-level fixture copy, so the steps see the
-    //     same corpus the main invoke will). Each step MUST exit 0.
-    const invokeFailure = runPriorInvokesSetup(c, options, scope, setupEnv);
+    //     same corpus the main invoke will). Each step must exit 0 unless
+    //     it declares `expectExit`, and may bind `capture` variables the
+    //     later steps and the main invoke substitute into their argv.
+    const captures: TCaptures = {};
+    const invokeFailure = runPriorInvokesSetup(c, options, scope, setupEnv, captures);
     if (invokeFailure) return invokeFailure;
 
-    const argv = invocationArgv(c.invoke);
-
-    const child = spawnSync(process.execPath, [options.binary, ...argv], {
-      cwd: scope,
-      env: { ...pickSafeEnv(process.env), ...options.env, ...setupEnv },
-      encoding: 'utf8',
-    });
-
-    const stdout = child.stdout ?? '';
-    const stderr = child.stderr ?? '';
-    const exitCode = child.status ?? 0;
-
-    const assertions = c.assertions.map((a) =>
-      evaluateAssertion(a, {
-        exitCode,
-        stdout,
-        stderr,
-        scope,
-        specRoot: options.specRoot,
-        fixturesRoot,
-      }),
-    );
-    const passed = assertions.every((a) => a.ok);
-
-    return { caseId: c.id, passed, exitCode, stdout, stderr, assertions };
+    // 3. Run the case's own `invoke` and evaluate its assertions.
+    return runMainInvoke(c, options, scope, setupEnv, fixturesRoot, captures);
   } finally {
     rmSync(scope, { recursive: true, force: true });
   }
+}
+
+/**
+ * Phase 3 of `runConformanceCase`, run the case's `invoke` against the
+ * staged scope and evaluate every assertion against its streams.
+ */
+function runMainInvoke(
+  c: IConformanceCase,
+  options: IRunCaseOptions,
+  scope: string,
+  setupEnv: NodeJS.ProcessEnv,
+  fixturesRoot: string,
+  captures: TCaptures,
+): IRunCaseResult {
+  const resolvedArgv = resolveArgv(c.invoke, captures);
+  if (!resolvedArgv.ok) return stagingFailure(c, 0, '', '', resolvedArgv.reason);
+
+  const child = spawnSync(process.execPath, [options.binary, ...resolvedArgv.argv], {
+    cwd: scope,
+    env: { ...pickSafeEnv(process.env), ...options.env, ...setupEnv },
+    encoding: 'utf8',
+  });
+
+  const stdout = child.stdout ?? '';
+  const stderr = child.stderr ?? '';
+  const exitCode = child.status ?? 0;
+
+  const assertions = c.assertions.map((a) =>
+    evaluateAssertion(a, {
+      exitCode,
+      stdout,
+      stderr,
+      scope,
+      specRoot: options.specRoot,
+      fixturesRoot,
+    }),
+  );
+  const passed = assertions.every((a) => a.ok);
+
+  return { caseId: c.id, passed, exitCode, stdout, stderr, assertions };
 }
 
 /**
@@ -332,45 +404,139 @@ function runPriorScansSetup(
  * with a single `priorInvoke` failure assertion (caller returns it
  * unchanged).
  */
-// Per-step replay: spawn the invocation, check exit. The failure-result
-// construction is verbose because it carries every stream the caller
-// reports back (same shape as `runPriorScansSetup`).
+// Per-step replay: substitute, spawn, check exit, capture. The failure-
+// result construction is verbose because it carries every stream the
+// caller reports back (same shape as `runPriorScansSetup`).
 // eslint-disable-next-line complexity
 function runPriorInvokesSetup(
   c: IConformanceCase,
   options: IRunCaseOptions,
   scope: string,
   setupEnv: NodeJS.ProcessEnv,
+  captures: TCaptures,
 ): IRunCaseResult | null {
   for (const step of c.setup?.priorInvokes ?? []) {
-    const stepArgv = invocationArgv(step);
+    const resolved = resolveArgv(step, captures);
+    if (!resolved.ok) return stagingFailure(c, 0, '', '', resolved.reason);
+    const stepArgv = resolved.argv;
     const stepChild = spawnSync(process.execPath, [options.binary, ...stepArgv], {
       cwd: scope,
       env: { ...pickSafeEnv(process.env), ...options.env, ...setupEnv },
       encoding: 'utf8',
     });
-    if ((stepChild.status ?? 0) !== 0) {
-      return {
-        caseId: c.id,
-        passed: false,
-        exitCode: stepChild.status ?? 0,
-        stdout: stepChild.stdout ?? '',
-        stderr: stepChild.stderr ?? '',
-        assertions: [
-          {
-            ok: false,
-            type: 'priorInvoke',
-            reason: tx(CONFORMANCE_RUNNER_TEXTS.priorInvokeFailed, {
-              argv: stepArgv.join(' '),
-              exit: stepChild.status ?? 0,
-              stderr: stepChild.stderr ?? '',
-            }),
-          },
-        ],
-      };
+    const stepStdout = stepChild.stdout ?? '';
+    const stepStderr = stepChild.stderr ?? '';
+    const stepExit = stepChild.status ?? 0;
+    // A step defaults to "must succeed"; `expectExit` is how a case
+    // stages a REFUSAL (a duplicate submit that must be rejected before
+    // the `--force` bypass can be asserted).
+    const expected = step.expectExit ?? 0;
+    if (stepExit !== expected) {
+      return stagingFailure(
+        c,
+        stepExit,
+        stepStdout,
+        stepStderr,
+        tx(CONFORMANCE_RUNNER_TEXTS.priorInvokeFailed, {
+          argv: stepArgv.join(' '),
+          expected,
+          exit: stepExit,
+          stderr: stepStderr,
+        }),
+      );
+    }
+    if (step.capture) {
+      const bound = applyCaptures(step.capture, stepStdout, stepArgv);
+      if (!bound.ok) return stagingFailure(c, stepExit, stepStdout, stepStderr, bound.reason);
+      Object.assign(captures, bound.values);
     }
   }
   return null;
+}
+
+/** One-assertion failure result for a staging step, in the shape callers return unchanged. */
+function stagingFailure(
+  c: IConformanceCase,
+  exitCode: number,
+  stdout: string,
+  stderr: string,
+  reason: string,
+): IRunCaseResult {
+  return {
+    caseId: c.id,
+    passed: false,
+    exitCode,
+    stdout,
+    stderr,
+    assertions: [{ ok: false, type: 'priorInvoke', reason }],
+  };
+}
+
+/**
+ * Evaluate a step's `capture` map against its stdout.
+ *
+ * Every failure is fatal to the case rather than silently skipped: a
+ * capture that matched nothing would leave its placeholder unbound, and
+ * the downstream invocation would fail for a reason that has nothing to
+ * do with what the case is testing.
+ */
+function applyCaptures(
+  capture: Record<string, string>,
+  stdout: string,
+  stepArgv: string[],
+): { ok: true; values: TCaptures } | { ok: false; reason: string } {
+  const argv = stepArgv.join(' ');
+  let doc: unknown;
+  try {
+    doc = JSON.parse(stdout);
+  } catch (err) {
+    return {
+      ok: false,
+      reason: tx(CONFORMANCE_RUNNER_TEXTS.captureStdoutNotJson, {
+        argv,
+        message: formatErrorMessage(err),
+      }),
+    };
+  }
+  const values: TCaptures = {};
+  for (const [name, path] of Object.entries(capture)) {
+    const resolved = resolveCapture(doc, name, path, argv);
+    if (!resolved.ok) return resolved;
+    values[name] = resolved.value;
+  }
+  return { ok: true, values };
+}
+
+/** Resolve one `capture` entry to the scalar string spliced into argv. */
+function resolveCapture(
+  doc: unknown,
+  name: string,
+  path: string,
+  argv: string,
+): { ok: true; value: string } | { ok: false; reason: string } {
+  const segments = parsePath(path);
+  if (!segments) {
+    return { ok: false, reason: tx(CONFORMANCE_RUNNER_TEXTS.unsupportedJsonPath, { path }) };
+  }
+  const walked = traverseJsonPath(doc, segments, path);
+  if (!walked.ok || walked.value === undefined) {
+    return { ok: false, reason: tx(CONFORMANCE_RUNNER_TEXTS.captureNoMatch, { argv, name, path }) };
+  }
+  // Only scalars: the captured value is spliced into argv, and an object
+  // or array there would stringify into something no CLI can consume,
+  // failing far from the mistake.
+  if (typeof walked.value !== 'string' && typeof walked.value !== 'number') {
+    return {
+      ok: false,
+      reason: tx(CONFORMANCE_RUNNER_TEXTS.captureNotScalar, {
+        argv,
+        name,
+        path,
+        type: walked.value === null ? 'null' : typeof walked.value,
+      }),
+    };
+  }
+  return { ok: true, value: String(walked.value) };
 }
 
 /**
@@ -573,7 +739,10 @@ function evaluateAssertion(a: TAssertion, ctx: TAssertionContext): TAssertionRes
       }
       const parsed = parseJsonForSchema(readFileSync(target, 'utf8'), a.path);
       if (!parsed.ok) return { ok: false, type: a.type, reason: parsed.reason };
-      const verdict = checkAgainstSchema(parsed.value, a.schema, ctx.specRoot);
+      const verdict = checkAgainstSchema(parsed.value, a.schema, ctx.specRoot, {
+        schemaPointer: a.schemaPointer,
+        each: a.each,
+      });
       return verdict.ok
         ? { ok: true, type: a.type }
         : { ok: false, type: a.type, reason: verdict.reason };
@@ -586,7 +755,10 @@ function evaluateAssertion(a: TAssertion, ctx: TAssertionContext): TAssertionRes
       }
       const parsed = parseJsonForSchema(ctx.stdout, 'stdout');
       if (!parsed.ok) return { ok: false, type: a.type, reason: parsed.reason };
-      const verdict = checkAgainstSchema(parsed.value, a.schema, ctx.specRoot);
+      const verdict = checkAgainstSchema(parsed.value, a.schema, ctx.specRoot, {
+        schemaPointer: a.schemaPointer,
+        each: a.each,
+      });
       return verdict.ok
         ? { ok: true, type: a.type }
         : { ok: false, type: a.type, reason: verdict.reason };

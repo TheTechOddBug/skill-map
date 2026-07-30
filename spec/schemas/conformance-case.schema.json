@@ -65,12 +65,15 @@
         },
         "priorInvokes": {
           "type": "array",
-          "description": "Ordered staging invocations, each run against the fully-provisioned scope (after the top-level `fixture` copy) and before the main `invoke`. Every step MUST exit 0; a non-zero exit fails the case without evaluating its assertions. Use when the main `invoke` needs prior state that `priorScans` cannot establish (e.g. a submitted job).",
-          "items": { "$ref": "#/$defs/Invocation" }
+          "description": "Ordered staging invocations, each run against the fully-provisioned scope (after the top-level `fixture` copy) and before the main `invoke`. A step MUST exit 0 unless it declares `expectExit`; an unexpected exit fails the case without evaluating its assertions. Use when the main `invoke` needs prior state that `priorScans` cannot establish (e.g. a submitted job).",
+          "items": { "$ref": "#/$defs/StagedInvocation" }
         }
       }
     },
-    "invoke": { "$ref": "#/$defs/Invocation" },
+    "invoke": {
+      "allOf": [{ "$ref": "#/$defs/Invocation" }],
+      "unevaluatedProperties": false
+    },
     "assertions": {
       "type": "array",
       "description": "Ordered list of assertions. A case passes iff every assertion passes.",
@@ -82,7 +85,7 @@
     "Invocation": {
       "type": "object",
       "required": ["verb"],
-      "additionalProperties": false,
+      "description": "A single CLI invocation. Deliberately does NOT close itself with `additionalProperties` / `unevaluatedProperties`: it is composed via `allOf` at both use sites (`invoke` and `StagedInvocation`), and a closure declared HERE would see only its own annotations, rejecting the extra properties its composer legitimately adds.",
       "properties": {
         "verb": {
           "type": "string",
@@ -101,6 +104,30 @@
           "type": "array",
           "description": "Flags. Implementations MUST accept them in any order; ordering here is cosmetic.",
           "items": { "type": "string" }
+        }
+      }
+    },
+    "StagedInvocation": {
+      "type": "object",
+      "description": "A `setup.priorInvokes` step: an `Invocation` plus the two staging-only controls. Composed via `allOf` so the invocation shape stays defined once.",
+      "allOf": [{ "$ref": "#/$defs/Invocation" }],
+      "unevaluatedProperties": false,
+      "properties": {
+        "expectExit": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "description": "Exit code this staging step MUST return. Defaults to 0. Declare it when the state under test is a REFUSAL rather than a success (e.g. staging a duplicate `sm jobs submit` that must exit 3 before asserting the `--force` bypass): without it, every staged step is required to succeed, so a case can establish the happy path but never the rejection that precedes the behaviour it verifies."
+        },
+        "capture": {
+          "type": "object",
+          "description": "Values extracted from THIS step's stdout and bound as substitution variables for every later step and the main `invoke`, where `{{name}}` is replaced by the captured value. Exists because some credentials are minted at runtime and cannot be written into a static case: `sm jobs claim --json` issues the nonce `sm record` then requires. Keys are variable names; values are JSONPath expressions (same subset the `json-path` assertion accepts) evaluated against the step's parsed stdout. Stdout MUST parse as JSON and every expression MUST match, otherwise the case fails at staging: an unmatched capture would silently pass `{{nonce}}` through verbatim and surface as a puzzling credential rejection instead of a missing capture. Substitution applies to `args` and `flags` only, never to `verb` or `sub`, so a captured value can never redirect which command runs.",
+          "propertyNames": { "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$" },
+          "additionalProperties": {
+            "type": "string",
+            "description": "JSONPath expression (RFC 9535 subset) evaluated against the step's parsed stdout."
+          },
+          "minProperties": 1
         }
       }
     },
@@ -215,7 +242,9 @@
         "schema": {
           "type": "string",
           "description": "Path under `schemas/` that the file MUST validate against, with or without the `schemas/` prefix. MUST stay inside the spec root."
-        }
+        },
+        "schemaPointer": { "$ref": "#/$defs/SchemaPointer" },
+        "each": { "$ref": "#/$defs/EachElement" }
       }
     },
     "StdoutMatchesSchema": {
@@ -228,8 +257,19 @@
         "schema": {
           "type": "string",
           "description": "Path under `schemas/` that the invocation's stdout MUST validate against, with or without the `schemas/` prefix. MUST stay inside the spec root. Stdout MUST parse as JSON; a non-JSON stdout fails the assertion rather than being skipped."
-        }
+        },
+        "schemaPointer": { "$ref": "#/$defs/SchemaPointer" },
+        "each": { "$ref": "#/$defs/EachElement" }
       }
+    },
+    "SchemaPointer": {
+      "type": "string",
+      "pattern": "^/",
+      "description": "Optional JSON Pointer (RFC 6901, leading slash) resolved INSIDE the referenced schema document, selecting the subschema the payload MUST validate against (e.g. `/$defs/PluginManifest`). Exists for schemas whose ROOT models an aggregate no implementation writes while a `$def` inside it describes the real artifact. The pointer navigates within the named schema only; it cannot reach another file, and a pointer that resolves to nothing fails the assertion."
+    },
+    "EachElement": {
+      "type": "boolean",
+      "description": "When true, the payload MUST be a NON-EMPTY array and every element MUST validate against the (pointer-resolved) schema; the assertion reports the first offending index. An empty array fails: validating zero elements proves nothing, and list surfaces are exactly where a vacuous pass hides. Default false: the whole document validates as one instance. Exists because list-shaped CLI surfaces (`sm history --json`, `sm jobs list --json`) emit arrays of per-item documents, and a whole-document assertion cannot name their element contract."
     },
     "StderrMatches": {
       "type": "object",

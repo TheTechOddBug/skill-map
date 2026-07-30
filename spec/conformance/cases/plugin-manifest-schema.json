@@ -1,0 +1,25 @@
+{
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
+  "id": "plugin-manifest-schema",
+  "description": "A drop-in plugin's `plugin.json` MUST validate against `plugins-registry.schema.json#/$defs/PluginManifest`. The assertion targets a `$def` rather than the schema root, and that indirection is the whole reason this row stayed open: the ROOT of `plugins-registry.schema.json` models `.skill-map/plugins.json`, an aggregate registry no implementation writes, while the manifest `$def` inside it describes a file that exists on disk in every plugin-bearing scope. Without `schemaPointer` a case could only have validated the fictional aggregate. The staged scan proves the manifest is one the loader accepted rather than an inert file, since a malformed manifest would leave the plugin unloaded.",
+  "fixture": "findings-contract",
+  "setup": {
+    "priorScans": [{ "fixture": "findings-contract" }]
+  },
+  "invoke": {
+    "verb": "plugins",
+    "sub": "list",
+    "args": ["finder-fixture"],
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.status", "equals": "enabled" },
+    {
+      "type": "file-matches-schema",
+      "path": ".skill-map/plugins/finder-fixture/plugin.json",
+      "schema": "plugins-registry.schema.json",
+      "schemaPointer": "/$defs/PluginManifest"
+    }
+  ]
+}

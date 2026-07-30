@@ -1,0 +1,35 @@
+{
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
+  "id": "history-stats-schema",
+  "description": "`sm history stats --json` MUST emit a document validating against `history-stats.schema.json`. Unlike `sm history --json`, which is a list, the stats surface is a single OBJECT, so a plain whole-document assertion covers it: the coverage row previously deferred this on the per-element limitation that governs its sibling row, which was simply the wrong diagnosis. The chain records a real execution first so the totals are populated rather than a zero-filled shell that would validate while exercising none of the aggregation.",
+  "fixture": "job-record-chain",
+  "setup": {
+    "priorScans": [{ "fixture": "job-record-chain" }],
+    "priorInvokes": [
+      { "verb": "agent", "sub": "install", "flags": ["--for", "claude"] },
+      { "verb": "jobs", "sub": "submit", "args": ["ai-summarizer-action"], "flags": ["-n", "notes.md"] },
+      {
+        "verb": "jobs",
+        "sub": "claim",
+        "flags": ["--json"],
+        "capture": { "jobId": "$.id", "jobNonce": "$.nonce" }
+      },
+      {
+        "verb": "record",
+        "flags": [
+          "--id", "{{jobId}}",
+          "--nonce", "{{jobNonce}}",
+          "--status", "completed",
+          "--report", "report.json"
+        ]
+      }
+    ]
+  },
+  "invoke": { "verb": "history", "sub": "stats", "flags": ["--json"] },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "stdout-matches-schema", "schema": "history-stats.schema.json" },
+    { "type": "json-path", "path": "$.totals.executionsCount", "equals": 1 },
+    { "type": "json-path", "path": "$.totals.completedCount", "equals": 1 }
+  ]
+}

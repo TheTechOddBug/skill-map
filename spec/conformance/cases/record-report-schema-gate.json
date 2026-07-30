@@ -1,0 +1,32 @@
+{
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
+  "id": "record-report-schema-gate",
+  "description": "`sm record` MUST validate the submitted report against the schema the job's report contract names, rejecting a non-conforming document with exit 2. The fixture's `report-invalid.json` differs from its valid sibling in exactly one field (`safety` as a bare string where `report-base.schema.json` requires an object), so the rejection can only come from the contract itself. This is how `summaries/markdown.schema.json` earns its coverage: the schema is normative because the record path ENFORCES it, and a case that merely validated a hand-authored document against it would prove the fixture conforms, not the implementation. Its positive half lives in `history-record-schema`, which records the valid sibling and exits 0.",
+  "fixture": "job-record-chain",
+  "setup": {
+    "priorScans": [{ "fixture": "job-record-chain" }],
+    "priorInvokes": [
+      { "verb": "agent", "sub": "install", "flags": ["--for", "claude"] },
+      { "verb": "jobs", "sub": "submit", "args": ["ai-summarizer-action"], "flags": ["-n", "notes.md"] },
+      {
+        "verb": "jobs",
+        "sub": "claim",
+        "flags": ["--json"],
+        "capture": { "jobId": "$.id", "jobNonce": "$.nonce" }
+      }
+    ]
+  },
+  "invoke": {
+    "verb": "record",
+    "flags": [
+      "--id", "{{jobId}}",
+      "--nonce", "{{jobNonce}}",
+      "--status", "completed",
+      "--report", "report-invalid.json"
+    ]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 2 },
+    { "type": "stderr-matches", "pattern": "schema validation" }
+  ]
+}

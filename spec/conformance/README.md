@@ -94,24 +94,32 @@ A case is a JSON document with this shape:
 | `id` | yes | Stable identifier. Used in reports. MUST match the filename: `cases/<id>.json`. |
 | `description` | yes | Human-readable, short. |
 | `fixture` | sometimes | Folder name under `fixtures/`. Omit for cases that do not need a corpus (e.g. empty-boot). |
-| `setup` | no | Pre-invocation flags and staging steps. All boolean toggles default to `false`. `priorScans` are ordered fixture-swap + `sm scan` steps (prior snapshots for heuristic verbs); `priorInvokes` are ordered arbitrary invocations run after the top-level `fixture` copy and before the main `invoke`, each of which MUST exit 0 (state a scan cannot establish, e.g. a submitted job). |
+| `setup` | no | Pre-invocation flags and staging steps. All boolean toggles default to `false`. `priorScans` are ordered fixture-swap + `sm scan` steps (prior snapshots for heuristic verbs); `priorInvokes` are ordered arbitrary invocations run after the top-level `fixture` copy and before the main `invoke` (state a scan cannot establish, e.g. a submitted job). |
+| `setup.priorInvokes[].expectExit` | no | Exit code the step MUST return; defaults to 0. Declare it to stage a REFUSAL, e.g. a duplicate submit that must be rejected before the queue state it leaves behind can be asserted. |
+| `setup.priorInvokes[].capture` | no | Map of variable name to JSONPath, extracted from that step's stdout and substituted into every later step and the main `invoke` wherever `{{name}}` appears. Exists for credentials minted at runtime: `sm jobs claim --json` issues the nonce `sm record` then requires, and no static case could carry it. Substitution touches `args` and `flags` only, never `verb` / `sub`, so a captured value can never redirect which command runs. Stdout MUST parse as JSON, every expression MUST match, and every placeholder MUST be bound; each failure aborts the case rather than passing the token through verbatim. |
 | `invoke.verb` | yes | First-level CLI verb. |
 | `invoke.sub` | no | Subcommand for verbs that have them (e.g. `job submit`). |
 | `invoke.args` | no | Positional arguments. |
 | `invoke.flags` | no | Flags. Order-significant iff the CLI defines it (the reference impl accepts them in any order). |
 | `assertions` | yes | Array, ≥ 1 item. Ordering matters for reporting only. |
 
-### Assertion types (stub-level, expansion before v1.0)
+### Assertion types
 
 | `type` | Fields | Meaning |
 |---|---|---|
 | `exit-code` | `value: integer` | Exit code of the invocation MUST equal `value`. |
 | `json-path` | `path: string`, one of `equals` / `greaterThan` / `lessThan` / `matches` | JSONPath (RFC 9535 subset) evaluated against stdout (parsed as JSON); the extracted value MUST satisfy the comparator. `matches` uses ECMAScript regex. |
-| `file-exists` | `path: string` | Path (glob permitted) MUST exist after invocation, relative to the scope root. |
-| `file-contains-verbatim` | `path: string`, `fixture: string` | File at `path` (glob permitted; resolves to exactly one) MUST contain the bytes of `fixtures/<fixture>` verbatim. |
+| `file-exists` | `path: string` | Path MUST exist after invocation, relative to the scope root. |
+| `file-contains-verbatim` | `path: string`, `fixture: string` | File at `path` MUST contain the bytes of `fixtures/<fixture>` verbatim. |
 | `stdout-contains-verbatim` | `fixture: string` | stdout of the invocation MUST contain the bytes of `fixtures/<fixture>` verbatim. Used for preamble bitwise checks. |
-| `file-matches-schema` | `path: string`, `schema: string` | File at `path` (glob permitted; resolves to exactly one) MUST be valid JSON and MUST validate against `schemas/<schema>`. |
+| `file-matches-schema` | `path: string`, `schema: string`, optional `schemaPointer` / `each` | File at `path` MUST be valid JSON and MUST validate against `schemas/<schema>`. |
+| `stdout-matches-schema` | `schema: string`, optional `schemaPointer` / `each` | stdout MUST parse as JSON and validate against `schemas/<schema>`. The form most coverage rows need: a CLI's machine-readable surface is `--json` on stdout, not a file it happens to leave behind. |
 | `stderr-matches` | `pattern: string` | stderr MUST match the regex (ECMAScript). |
+
+Both schema assertions accept two optional narrowing fields:
+
+- **`schemaPointer`**: a JSON Pointer (leading `/`) resolved INSIDE the named schema, selecting the subschema to validate against, e.g. `/$defs/PluginManifest`. For schemas whose ROOT models an aggregate no implementation writes while a `$def` describes the real on-disk artifact. The pointer navigates within the named document only; it cannot reach another file, and one that resolves to nothing fails the assertion. Without it such a row could only be backed by a validation against the permissive root, which passes while checking nothing.
+- **`each`**: when true, the payload MUST be a NON-EMPTY array and every element MUST validate; the report names the first offending index. An empty array fails deliberately: validating zero elements proves nothing, and list surfaces are where that vacuous pass hides.
 
 Assertion types beyond this list MAY be proposed via spec-vX.Y.Z minor bumps. Implementations MUST reject unknown assertion types loudly; silently skipping a check is itself a conformance violation.
 
@@ -179,7 +187,7 @@ The reference runner ships under `src/conformance/index.ts`; the verb lives at `
 
 ## Stability
 
-- The **case format** above is stable as of the first spec release that includes the suite. Adding an assertion type is a minor bump. Removing or changing one is a major bump.
+- The **case format** above is stable as of the first spec release that includes the suite. Adding an assertion type is a minor bump. Removing or changing one is a major bump. The same rule governs the optional fields on an existing assertion (`schemaPointer`, `each`) and the staging controls (`expectExit`, `capture`): adding one is a minor bump because a case that omits it behaves exactly as before, while changing what an existing field means is a major bump.
 - Adding a case is a minor bump (new case required by a new conforming implementation → compat break).
 - Removing or tightening a case is a major bump.
 - Changing a fixture's contents is a major bump iff the fixture is referenced by any case.

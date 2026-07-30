@@ -1,0 +1,9 @@
+{
+  "confidence": 0.85,
+  "safety": {
+    "injectionDetected": false,
+    "injectionType": null,
+    "contentQuality": "clean"
+  },
+  "tags": ["deployment", "release-process"]
+}
