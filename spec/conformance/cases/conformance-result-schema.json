@@ -1,0 +1,20 @@
+{
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
+  "id": "conformance-result-schema",
+  "description": "`sm conformance run --json` MUST emit a report validating against `conformance-result.schema.json`. The row was deferred because a case invoking the suite would run the whole suite including itself, which recurses without end. `--case <id>` resolves it: this case runs ONE other case (`kernel-empty-boot`, chosen because it needs no fixture and no prior state, so the inner run cannot fail for reasons unrelated to the report shape) and validates the envelope it produces. The recursion is broken by construction, since the inner run is filtered to a case that is not this one. The assertions also pin the envelope's internal consistency: `totals.scopes` MUST agree with the length of the `scopes` array it summarises.",
+  "invoke": {
+    "verb": "conformance",
+    "sub": "run",
+    "flags": ["--case", "kernel-empty-boot", "--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "stdout-matches-schema", "schema": "conformance-result.schema.json" },
+    { "type": "json-path", "path": "$.kind", "equals": "conformance.result" },
+    { "type": "json-path", "path": "$.totals.cases", "equals": 1 },
+    { "type": "json-path", "path": "$.totals.passCount", "equals": 1 },
+    { "type": "json-path", "path": "$.totals.scopes", "equals": 1 },
+    { "type": "json-path", "path": "$.scopes.length", "equals": 1 },
+    { "type": "json-path", "path": "$.scopes[0].cases[0].id", "equals": "kernel-empty-boot" }
+  ]
+}

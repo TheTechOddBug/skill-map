@@ -59,10 +59,12 @@ describe('sm conformance run', () => {
     const cmd = new ConformanceRunCommand();
     cmd.scope = 'spec';
     // Clipanion populates Option-backed fields when it drives the
-    // command; we instantiate directly, so seed the inherited globals
-    // explicitly. Without `cmd.json = false`, the field still carries
-    // Clipanion's Option descriptor (a truthy object) and `if (this.json)`
-    // would mistakenly take the `--json` branch.
+    // command; we instantiate directly, so seed EVERY option the body
+    // reads. An un-seeded field still carries Clipanion's Option
+    // descriptor, a truthy object: `if (this.json)` would take the
+    // `--json` branch, and `this.case_ !== undefined` would filter the
+    // run by a case id that is an object and matches nothing.
+    cmd.case_ = undefined;
     cmd.json = false;
     cmd.quiet = false;
     cmd.noColor = false;
@@ -84,6 +86,7 @@ describe('sm conformance run', () => {
     const cap = captureContext();
     const cmd = new ConformanceRunCommand();
     cmd.scope = 'bogus-scope';
+    cmd.case_ = undefined;
     cmd.json = false;
     cmd.quiet = false;
     cmd.noColor = false;
@@ -93,6 +96,70 @@ describe('sm conformance run', () => {
     strictEqual(exit, 2, `expected exit 2, got ${exit}`);
     match(cap.stderr(), /unknown --scope 'bogus-scope'/);
     match(cap.stderr(), /Available: spec/);
+  });
+
+  it('narrows the run to a single case with --case', async () => {
+    const cap = captureContext();
+    const cmd = new ConformanceRunCommand();
+    cmd.case_ = 'kernel-empty-boot';
+    // Same reason `json` is seeded above: instantiating the command
+    // directly leaves every un-set Option field holding Clipanion's
+    // descriptor object, which `--scope` would then read as a value.
+    cmd.scope = undefined;
+    cmd.json = false;
+    cmd.quiet = false;
+    cmd.noColor = false;
+    Object.defineProperty(cmd, 'context', { value: cap.context });
+
+    const exit = await cmd.execute();
+    strictEqual(exit, 0, `expected exit 0, got ${exit}\n${cap.stderr()}`);
+    // One case, and one SCOPE: a scope holding no match is skipped
+    // rather than reported as empty, so the summary describes what
+    // actually ran.
+    match(cap.stdout(), /sm conformance: 1\/1 passed across 1 scope/);
+    match(cap.stderr(), /ok\s+kernel-empty-boot/);
+    // No default scope filter was set, so every scope was searched and
+    // the other cases were skipped rather than run.
+    ok(!/preamble-bitwise-match/.test(cap.stderr()), 'other cases must not run');
+  });
+
+  it('rejects a --case id that matches nothing rather than reporting a clean sweep', async () => {
+    // The failure mode worth designing against: a typo in CI that goes
+    // green forever because zero cases trivially all passed.
+    const cap = captureContext();
+    const cmd = new ConformanceRunCommand();
+    cmd.case_ = 'no-such-case-id';
+    cmd.scope = undefined;
+    cmd.json = false;
+    cmd.quiet = false;
+    cmd.noColor = false;
+    Object.defineProperty(cmd, 'context', { value: cap.context });
+
+    const exit = await cmd.execute();
+    strictEqual(exit, 2, `expected exit 2, got ${exit}\n${cap.stdout()}`);
+    match(cap.stderr(), /no case with id "no-such-case-id"/);
+    ok(!/passed across/.test(cap.stdout()), 'must not print a success summary');
+  });
+
+  it('emits a bad-query error envelope for an unknown --case under --json', async () => {
+    const cap = captureContext();
+    const cmd = new ConformanceRunCommand();
+    cmd.case_ = 'no-such-case-id';
+    cmd.scope = undefined;
+    cmd.json = true;
+    cmd.quiet = false;
+    cmd.noColor = false;
+    Object.defineProperty(cmd, 'context', { value: cap.context });
+
+    const exit = await cmd.execute();
+    strictEqual(exit, 2, `expected exit 2, got ${exit}`);
+    const payload = JSON.parse(cap.stdout()) as {
+      ok: boolean;
+      error: { code: string; message: string };
+    };
+    strictEqual(payload.ok, false);
+    strictEqual(payload.error.code, 'bad-query');
+    match(payload.error.message, /no-such-case-id/);
   });
 });
 

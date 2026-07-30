@@ -1,6 +1,6 @@
 /**
- * `sm conformance run [--scope spec|provider:<id>|all]`, kernel-side CLI
- * verb for the conformance suite (Phase 5 / A.13).
+ * `sm conformance run [--scope spec|provider:<id>|all] [--case <id>]`,
+ * kernel-side CLI verb for the conformance suite (Phase 5 / A.13).
  *
  * The verb is a thin orchestration layer over `runConformanceCase` (in
  * `src/conformance/index.ts`) and the scope registry at
@@ -24,15 +24,11 @@
  *   1  one or more cases failed
  *   2  configuration error (unknown `--scope`, missing binary, ...)
  *
- * Stub caveats, the surface beyond the dispatch loop is intentionally
- * thin in this bump:
+ * Known limits:
  *
  *   - No parallelism. Cases run sequentially per scope; the runner
  *     already provisions an isolated tmp directory per case so this is
  *     a perf knob, not a correctness one.
- *   - The `file-matches-schema` assertion is still stubbed in the
- *     runner itself (lands with Step 2's AJV wiring). Cases relying on
- *     it report `not yet implemented` per case, not per verb.
  */
 
 import { existsSync, readFileSync } from 'node:fs';
@@ -159,9 +155,14 @@ export class ConformanceRunCommand extends SmCommand {
                                     \`orphan-detection\`).
         --scope all (default)      every scope, in registry order.
 
+      \`--case <id>\` narrows the run to a single case, searched across
+      the selected scopes and matched on the case's declared \`id\`. An
+      id that matches nothing is an error, not an empty run, so a typo
+      cannot report a clean sweep of zero cases.
+
       Exit codes mirror the rest of the verb catalog: 0 on a clean
       sweep, 1 if any case failed, 2 on a configuration error
-      (unknown scope, missing binary).
+      (unknown scope, unknown case id, missing binary).
     `,
     examples: [
       ['Run every conformance suite', '$0 conformance run'],
@@ -170,6 +171,7 @@ export class ConformanceRunCommand extends SmCommand {
         'Run only the Claude Provider suite',
         '$0 conformance run --scope provider:claude',
       ],
+      ['Run a single case by id', '$0 conformance run --case kernel-empty-boot'],
     ],
   });
 
@@ -177,6 +179,12 @@ export class ConformanceRunCommand extends SmCommand {
     required: false,
     description:
       "Suite selector: 'all' (default), 'spec', or 'provider:<id>'.",
+  });
+
+  case_ = Option.String('--case', {
+    required: false,
+    description:
+      'Run only the case with this id, searched across the selected scopes.',
   });
 
   // CLI orchestrator: scope resolution + per-case run loop +
@@ -221,10 +229,17 @@ export class ConformanceRunCommand extends SmCommand {
     let totalPass = 0;
     let totalCases = 0;
     let anyFailure = false;
+    let caseFilterMatched = false;
     const scopeReports: IConformanceJsonEnvelope['scopes'] = [];
 
     for (const scope of scopes) {
-      const cases = listCaseFiles(scope);
+      const cases = selectCases(listCaseFiles(scope), this.case_);
+      if (cases.length > 0) caseFilterMatched = true;
+      // With `--case`, a scope that holds no match is simply not the
+      // scope the case lives in; saying so per scope would bury the one
+      // line that matters. The unknown-id error below covers the case
+      // where NO scope matched.
+      if (cases.length === 0 && this.case_ !== undefined) continue;
       if (cases.length === 0) {
         if (!this.json) {
           // Per cli-output-style.md §8: per-scope progress (header,
@@ -338,12 +353,37 @@ export class ConformanceRunCommand extends SmCommand {
       totalCases += cases.length;
     }
 
+    // A `--case` id that matched nothing is a configuration error, not a
+    // clean sweep of zero cases. Reporting success here is the failure
+    // mode worth designing against: a typo in CI would go green forever.
+    if (this.case_ !== undefined && !caseFilterMatched) {
+      if (this.json) {
+        this.#emitJsonError(
+          'bad-query',
+          `no case with id "${this.case_}" in the selected scope(s)`,
+        );
+        return ExitCode.Error;
+      }
+      this.printer!.error(
+        tx(CONFORMANCE_TEXTS.unknownCase, {
+          glyph: errGlyph,
+          caseId: sanitizeForTerminal(this.case_),
+          hint: stderrAnsi.dim(CONFORMANCE_TEXTS.unknownCaseHint),
+        }),
+      );
+      return ExitCode.Error;
+    }
+
     if (this.json) {
       const envelope: IConformanceJsonEnvelope = {
         ok: true,
         kind: 'conformance.result',
         totals: {
-          scopes: scopes.length,
+          // Reported scopes, not selected ones. They are the same number
+          // without `--case`; with it, a scope holding no match is
+          // skipped entirely, and counting it here would describe an
+          // envelope whose `scopes` array disagrees with its own total.
+          scopes: scopeReports.length,
           cases: totalCases,
           passCount: totalPass,
           failCount: totalCases - totalPass,
@@ -359,7 +399,7 @@ export class ConformanceRunCommand extends SmCommand {
       tx(CONFORMANCE_TEXTS.totalSummary, {
         passCount: totalPass,
         caseCount: totalCases,
-        scopeCount: scopes.length,
+        scopeCount: scopeReports.length,
       }),
     );
 
@@ -400,6 +440,19 @@ function projectAssertionFailures(
     });
   }
   return out;
+}
+
+/**
+ * Narrow a scope's case list to the one matching `--case`, or return it
+ * unchanged when the flag is absent.
+ *
+ * Matching is on the case's declared `id`, not its filename: the id is
+ * what the suite reports and what a coverage row cites, so it is the
+ * handle an operator already has in hand.
+ */
+function selectCases(cases: string[], caseId: string | undefined): string[] {
+  if (caseId === undefined) return cases;
+  return cases.filter((casePath) => readCaseId(casePath) === caseId);
 }
 
 function readCaseId(casePath: string): string {

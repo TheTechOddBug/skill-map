@@ -100,6 +100,7 @@ const SPEC_CASES = [
   'record-findings-envelope-gate',
   'plugin-storage-prefix-enforced',
   'plugin-storage-namespace-rejected',
+  'conformance-result-schema',
 ] as const;
 const PROVIDER_CLAUDE_CASES = ['rename-high', 'orphan-detection'] as const;
 const PROVIDER_OPENAI_CASES = ['basic-scan', 'body-links'] as const;

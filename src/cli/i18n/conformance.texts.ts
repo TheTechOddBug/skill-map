@@ -38,6 +38,11 @@ export const CONFORMANCE_TEXTS = {
   // --- failures -------------------------------------------------------------
   unknownScope: '{{glyph}}  sm conformance: {{message}}\n',
 
+  unknownCase:
+    '{{glyph}}  sm conformance: no case with id "{{caseId}}" in the selected scope(s).\n' +
+    '   {{hint}}\n',
+  unknownCaseHint: 'Run without --case to see every case id, or widen --scope.',
+
   noBinary:
     '{{glyph}}  sm conformance: cannot locate the sm binary at {{binary}}.\n' +
     '   {{hint}}\n',
