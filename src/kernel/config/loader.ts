@@ -372,6 +372,16 @@ export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
   'ui.realtimeActivity',
   'ui.showRuntimeAgents',
   'mcp.server.enabled',
+  // The `github/enrichment` base-URL overrides. The extension's `token`
+  // setting rides the Authorization header to whatever host `apiBaseUrl`
+  // names, so a committed override in a cloned repo would exfiltrate the
+  // operator's token to an attacker host on the first `sm refresh`.
+  // Same treatment as `scan.followExternalSymlinks`: honoured from
+  // `settings.local.json` only (grant-gated), stripped with a warning
+  // everywhere else. See `spec/cli-contract.md` §Project-local-only
+  // config and the extension manifest's setting descriptions.
+  'plugins.github.extensions.enrichment.settings.apiBaseUrl',
+  'plugins.github.extensions.enrichment.settings.rawBaseUrl',
 ]);
 
 export type TConfigLayer =

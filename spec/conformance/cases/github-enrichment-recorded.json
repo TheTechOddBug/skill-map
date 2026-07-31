@@ -1,0 +1,48 @@
+{
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
+  "id": "github-enrichment-recorded",
+  "description": "A `github/enrichment` verification against recorded upstream responses MUST take the REAL fetch path (the API ref resolution, then the raw fetch at the resolved SHA) and persist a report the implementation validated against the canonical `enrichments/github.schema.json` before writing anything. `setup.staticServe` serves the recorded responses over loopback and the base-URL settings are redirected at it through the project-LOCAL config layer only (a committed override would exfiltrate the token setting to an attacker host, so the committed layer is stripped). The case reaches the report only through every gate: the extension ships disabled, the `allowNetworkActions` project policy defaults off, and a non-conforming report would record a `report-invalid` FAILED execution and persist no row, so the asserted `completed` execution with `verified: true` and the recorded SHA is the schema gate holding end-to-end.",
+  "fixture": "github-enrichment-recorded",
+  "setup": {
+    "staticServe": { "fixture": "github-enrichment-recorded-remote" },
+    "priorScans": [{ "fixture": "github-enrichment-recorded" }],
+    "priorInvokes": [
+      {
+        "verb": "config",
+        "sub": "set",
+        "args": [
+          "plugins.github.extensions.enrichment.settings.apiBaseUrl",
+          "{{staticServeUrl}}/api"
+        ]
+      },
+      {
+        "verb": "config",
+        "sub": "set",
+        "args": [
+          "plugins.github.extensions.enrichment.settings.rawBaseUrl",
+          "{{staticServeUrl}}/raw"
+        ]
+      },
+      { "verb": "config", "sub": "set", "args": ["allowNetworkActions", "true"] },
+      { "verb": "plugins", "sub": "enable", "args": ["github/enrichment"] },
+      { "verb": "refresh", "args": ["notes.md"], "flags": ["--json"] }
+    ]
+  },
+  "invoke": {
+    "verb": "history",
+    "flags": ["--extension", "github/enrichment", "--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "stdout-matches-schema", "schema": "execution-record.schema.json", "each": true },
+    { "type": "json-path", "path": "$[0].extensionId", "equals": "github/enrichment" },
+    { "type": "json-path", "path": "$[0].status", "equals": "completed" },
+    { "type": "json-path", "path": "$[0].reportPath", "matches": "\"verified\":\\s*true" },
+    { "type": "json-path", "path": "$[0].reportPath", "matches": "\"method\":\\s*\"api-ref\"" },
+    {
+      "type": "json-path",
+      "path": "$[0].reportPath",
+      "matches": "\"resolvedSha\":\\s*\"8c5f01d5a2e4b3c6d7e8f9a0b1c2d3e4f5a6b7c8\""
+    }
+  ]
+}

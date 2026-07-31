@@ -8,14 +8,22 @@
  *
  *   - `sourceVersion` is a full 40-hex commit SHA → `method: 'raw-sha'`.
  *     The pin IS the SHA, so the content is fetched straight from the
- *     immutable raw URL (`raw.githubusercontent.com/<o>/<r>/<sha>/<p>`),
- *     no API call, `resolvedSha` stays null.
+ *     immutable raw URL (`<rawBaseUrl>/<o>/<r>/<sha>/<p>`, default host
+ *     `raw.githubusercontent.com`), no API call, `resolvedSha` stays null.
  *   - anything else (tag / branch) → `method: 'api-ref'`. The ref is
  *     resolved to a commit SHA via
- *     `GET https://api.github.com/repos/<o>/<r>/commits/<ref>`
- *     (Authorization only when the optional `token` secret setting is
- *     configured), recorded as `resolvedSha`, then the raw fetch runs
- *     at that SHA.
+ *     `GET <apiBaseUrl>/repos/<o>/<r>/commits/<ref>` (default host
+ *     `api.github.com`; Authorization only when the optional `token`
+ *     secret setting is configured), recorded as `resolvedSha`, then
+ *     the raw fetch runs at that SHA.
+ *
+ * **Base-URL overrides are project-local only.** `apiBaseUrl` /
+ * `rawBaseUrl` are `PROJECT_LOCAL_ONLY_KEYS` members
+ * (`kernel/config/loader.ts`): the `token` rides the Authorization
+ * header to whatever host `apiBaseUrl` names, so a committed override
+ * in a cloned repo would exfiltrate it. The loader strips both from the
+ * committed `settings.json` with a warning; only `settings.local.json`
+ * (gitignored, grant-gated) is honoured.
  *
  * **Hash semantics (load-bearing).** `localBodyHash` is the node's
  * `body_hash`, which the scan computes as sha256 of the body AFTER the
@@ -86,12 +94,17 @@ interface IGithubSourceRef {
 
 const FULL_SHA_RE = /^[0-9a-f]{40}$/;
 
+/** Default GitHub API host; overridable via the `apiBaseUrl` setting. */
+const DEFAULT_API_BASE_URL = 'https://api.github.com';
+/** Default raw-content host; overridable via the `rawBaseUrl` setting. */
+const DEFAULT_RAW_BASE_URL = 'https://raw.githubusercontent.com';
+
 export const enrichmentAction: IBuiltInManifest<IAction> = {
   id: 'enrichment',
   pluginId: PLUGIN_ID,
   kind: 'action',
   description:
-    'Verifies a node against its declared GitHub upstream: fetches the file pinned by the `source` / `sourceVersion` annotations and reports whether the local body still matches it. Runs via `sm refresh` and requires the `allowNetworkActions` project policy.',
+    'Verifies a node against its declared GitHub upstream: fetches the file pinned by the `source` / `sourceVersion` annotations and reports whether the local body still matches it. Runs via `sm refresh` and requires the `allowNetworkActions` project policy. The `apiBaseUrl` / `rawBaseUrl` settings redirect the two fetch hosts (GitHub Enterprise, recorded fixtures) and are honoured from the project-local config layer only, because the `token` setting is sent to the host `apiBaseUrl` names.',
   // Ships disabled (experimental): a network-reaching action must be a
   // double opt-in, the extension toggle AND the allowNetworkActions
   // project policy. Same ships-disabled mechanism as core/node-bump.
@@ -106,6 +119,26 @@ export const enrichmentAction: IBuiltInManifest<IAction> = {
       label: 'GitHub token',
       description:
         'Optional personal access token. Sent as the Authorization header on GitHub API ref-resolution calls, raising the unauthenticated rate limit and reaching private repositories.',
+    },
+    // SECURITY: both base-URL overrides are PROJECT-LOCAL ONLY
+    // (`PROJECT_LOCAL_ONLY_KEYS`, kernel/config/loader.ts). The token
+    // above rides the Authorization header to whatever host apiBaseUrl
+    // names, so a committed override in a cloned repo would exfiltrate
+    // it on the first `sm refresh`; the config loader strips the keys
+    // from the committed layer with a warning.
+    apiBaseUrl: {
+      type: 'single-string',
+      label: 'GitHub API base URL',
+      default: DEFAULT_API_BASE_URL,
+      description:
+        'Base URL for the GitHub API ref-resolution call. Project-local only: honoured from the gitignored settings.local.json, never from the committed settings.json (the token setting rides the Authorization header to this host, so a committed override would exfiltrate it). Override for GitHub Enterprise hosts or a recorded-fixture transport.',
+    },
+    rawBaseUrl: {
+      type: 'single-string',
+      label: 'GitHub raw content base URL',
+      default: DEFAULT_RAW_BASE_URL,
+      description:
+        'Base URL for the raw content fetch at the anchored SHA. Project-local only, same class as apiBaseUrl: honoured from settings.local.json only, a committed override is ignored with a warning.',
     },
   },
 
@@ -154,7 +187,7 @@ async function invokeEnrichment(
     return failure(prov.method, resolved.attemptedUrl, localBodyHash, null, resolved.detail);
   }
 
-  const rawUrl = rawContentUrl(ref, resolved.sha);
+  const rawUrl = rawContentUrl(settingBaseUrl(ctx, 'rawBaseUrl', DEFAULT_RAW_BASE_URL), ref, resolved.sha);
   const fetched = await fetchRawBody(fetchImpl, rawUrl);
   if (!fetched.ok) {
     return failure(prov.method, rawUrl, localBodyHash, resolved.resolvedSha, fetched.detail);
@@ -272,7 +305,8 @@ async function resolveVerificationSha(
     return { ok: true, sha: version, resolvedSha: null };
   }
 
-  const apiUrl = `https://api.github.com/repos/${ref.owner}/${ref.repo}/commits/${encodeURIComponent(version)}`;
+  const apiBase = settingBaseUrl(ctx, 'apiBaseUrl', DEFAULT_API_BASE_URL);
+  const apiUrl = `${apiBase}/repos/${ref.owner}/${ref.repo}/commits/${encodeURIComponent(version)}`;
   const headers: Record<string, string> = { accept: 'application/vnd.github+json' };
   const token = ctx.settings['token'];
   if (typeof token === 'string' && token.length > 0) {
@@ -349,9 +383,23 @@ async function fetchRawBody(
   }
 }
 
-/** The immutable raw-content URL for `(owner, repo, sha, path)`. */
-function rawContentUrl(ref: IGithubSourceRef, sha: string): string {
-  return `https://raw.githubusercontent.com/${ref.owner}/${ref.repo}/${sha}/${ref.path}`;
+/** The immutable raw-content URL for `(base, owner, repo, sha, path)`. */
+function rawContentUrl(base: string, ref: IGithubSourceRef, sha: string): string {
+  return `${base}/${ref.owner}/${ref.repo}/${sha}/${ref.path}`;
+}
+
+/**
+ * Resolve one of the base-URL override settings off `ctx.settings`,
+ * falling back to the public host when unset (a direct invocation with
+ * empty settings) and trimming trailing slashes so composed URLs never
+ * double the separator. The settings resolver only surfaces these keys
+ * from the project-LOCAL config layer (`PROJECT_LOCAL_ONLY_KEYS`,
+ * kernel/config/loader.ts), see the manifest's setting descriptions.
+ */
+function settingBaseUrl(ctx: IActionContext, key: string, fallback: string): string {
+  const value = ctx.settings[key];
+  const base = typeof value === 'string' && value.trim().length > 0 ? value : fallback;
+  return base.replace(/\/+$/, '');
 }
 
 /**

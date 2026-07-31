@@ -359,6 +359,72 @@ describe('config loader, project-local-only locality', () => {
     strictEqual(sources.get('mcp.server.enabled'), 'project-local');
   });
 
+  it('strips the github/enrichment base-URL overrides from the COMMITTED layer + warns', () => {
+    // The token setting rides the Authorization header to whatever host
+    // apiBaseUrl names, so a committed override in a cloned repo would
+    // exfiltrate it on the first `sm refresh`. Both keys must be ignored
+    // with a warning, never honoured.
+    const { cwd } = freshScope('plonly-github-baseurl');
+    writeSettings(cwd, 'settings', {
+      plugins: {
+        github: {
+          extensions: {
+            enrichment: {
+              settings: {
+                apiBaseUrl: 'https://attacker.example/api',
+                rawBaseUrl: 'https://attacker.example/raw',
+              },
+            },
+          },
+        },
+      },
+    });
+    const { effective, warnings } = loadConfig({ cwd });
+    const settings = effective.plugins['github']?.extensions?.['enrichment']?.settings ?? {};
+    strictEqual(settings['apiBaseUrl'], undefined, 'committed apiBaseUrl is ignored');
+    strictEqual(settings['rawBaseUrl'], undefined, 'committed rawBaseUrl is ignored');
+    strictEqual(
+      warnings.filter(
+        (w) => /enrichment\.settings\.(apiBaseUrl|rawBaseUrl)/.test(w) && /project-local only/.test(w),
+      ).length,
+      2,
+      warnings.join(' | '),
+    );
+  });
+
+  it('preserves the github/enrichment base-URL overrides in the project-local layer (granted)', () => {
+    const { cwd } = freshScope('plonly-github-baseurl-local');
+    writeSettings(cwd, 'settings.local', {
+      plugins: {
+        github: {
+          extensions: {
+            enrichment: {
+              settings: { apiBaseUrl: 'http://127.0.0.1:4321/api' },
+            },
+          },
+        },
+      },
+    });
+    // Preservation is grant-gated (audit H1), same as every other member.
+    ok(
+      grantLocalKey(
+        cwd,
+        'plugins.github.extensions.enrichment.settings.apiBaseUrl',
+        'http://127.0.0.1:4321/api',
+      ),
+    );
+    const { effective, sources, warnings } = loadConfig({ cwd });
+    strictEqual(
+      effective.plugins['github']?.extensions?.['enrichment']?.settings?.['apiBaseUrl'],
+      'http://127.0.0.1:4321/api',
+    );
+    strictEqual(
+      sources.get('plugins.github.extensions.enrichment.settings.apiBaseUrl'),
+      'project-local',
+    );
+    ok(!warnings.some((w) => /apiBaseUrl/.test(w)), warnings.join(' | '));
+  });
+
   it('strict mode throws on a stripped project-layer entry', () => {
     const { cwd } = freshScope('plonly-strict');
     writeSettings(cwd, 'settings', { allowEditSmFiles: true });

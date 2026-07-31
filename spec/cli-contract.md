@@ -436,7 +436,7 @@ The Settings UI's Project section enforces the same analyzer via a confirm dialo
 
 #### Project-local-only config
 
-The privacy-sensitive keys above PLUS `allowEditSmFiles` are members of `PROJECT_LOCAL_ONLY_KEYS` (see [`architecture.md` §Config layering · Per-key locality](./architecture.md#per-key-locality)). The values are per-user-per-project and MUST NOT travel via the committed repo:
+The privacy-sensitive keys above PLUS `allowEditSmFiles` are members of `PROJECT_LOCAL_ONLY_KEYS` (see [`architecture.md` §Config layering · Per-key locality](./architecture.md#per-key-locality)). The `github/enrichment` base-URL overrides (`plugins.github.extensions.enrichment.settings.apiBaseUrl` / `.rawBaseUrl`) are members of the same class: the extension's `token` setting rides the Authorization header to whatever host `apiBaseUrl` names, so a committed override in a cloned repo would exfiltrate the operator's token to an attacker host on the first `sm refresh`. The values are per-user-per-project and MUST NOT travel via the committed repo:
 
 - `sm config set` writes them to `<cwd>/.skill-map/settings.local.json` (gitignored).
 - The loader strips them (with a warning) when found in the committed `project` layer (`settings.json`). An older install that wrote one to `settings.json` keeps validating against the schema, but the value is ignored at read time and `sm config show --source` surfaces the warning.

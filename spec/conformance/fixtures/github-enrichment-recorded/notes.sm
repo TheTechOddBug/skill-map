@@ -1,0 +1,18 @@
+# Sidecar carrying the provenance annotations the `github/enrichment`
+# Action consumes (`spec/schemas/annotations.schema.json`): `source`
+# names the GitHub upstream, `sourceVersion` pins a ref (a branch here,
+# so the verification takes the `api-ref` path and resolves it to the
+# commit SHA the recorded API response carries).
+#
+# Identity hashes are placeholders (the sidecar reads as drift-stale),
+# which does not gate the enrichment: it reads the annotations and
+# compares the node's LIVE body hash against the recorded remote copy.
+
+identity:
+  path: notes.md
+  bodyHash: '0000000000000000000000000000000000000000000000000000000000000000'
+  frontmatterHash: '0000000000000000000000000000000000000000000000000000000000000000'
+
+annotations:
+  source: https://github.com/acme/docs/blob/main/notes.md
+  sourceVersion: main

@@ -22,7 +22,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, describe, it } from 'node:test';
 
-import { runConformanceCase, type IRunCaseResult } from '../index.js';
+import { _startStaticServeForTests, runConformanceCase, type IRunCaseResult } from '../index.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WORKSPACE = resolve(HERE, '..', '..');
@@ -464,6 +464,89 @@ describe('conformance runner, sleepAfterMs', () => {
       Date.now() - started >= 1200,
       `case finished in ${Date.now() - started}ms, faster than the armed 1200ms sleep`,
     );
+  });
+});
+
+describe('conformance runner, setup.staticServe', () => {
+  it('rejects a staticServe fixture escaping the fixtures root before serving anything', async () => {
+    // Same posture as a traversal in `fixture` / `priorScans[].fixture`:
+    // the reference is case-author-controlled, so the containment guard
+    // throws before any listener binds or any child spawns.
+    await assert.rejects(
+      () =>
+        run('static-serve-escape', {
+          id: 'static-serve-escape',
+          description: 'A staticServe fixture escaping the fixtures root must be refused.',
+          fixture: 'corpus',
+          setup: { staticServe: { fixture: '../../../../../../etc' } },
+          invoke: { verb: 'version' },
+          assertions: [{ type: 'exit-code', value: 0 }],
+        }),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /escapes its anchor/);
+        return true;
+      },
+    );
+  });
+
+  it('serves recorded files with 200 and answers 404 for everything else', async () => {
+    // The HTTP contract, probed through the test seam: recorded file →
+    // its bytes; unrecorded path, the bare root (no directory listing),
+    // and an encoded traversal → 404 with no body served.
+    const remote = join(root, 'static-serve-http', 'remote');
+    mkdirSync(join(remote, 'api'), { recursive: true });
+    writeFileSync(join(remote, 'api', 'answer.json'), '{"answer":42}');
+    const handle = await _startStaticServeForTests(remote);
+    try {
+      const recorded = await fetch(`${handle.url}/api/answer.json`);
+      assert.equal(recorded.status, 200);
+      assert.equal(await recorded.text(), '{"answer":42}');
+
+      const unrecorded = await fetch(`${handle.url}/api/nope.json`);
+      assert.equal(unrecorded.status, 404);
+
+      const rootListing = await fetch(`${handle.url}/`);
+      assert.equal(rootListing.status, 404, 'directory listings are not served');
+
+      const dirListing = await fetch(`${handle.url}/api`);
+      assert.equal(dirListing.status, 404, 'a directory path is a 404, not an index');
+
+      // fetch() normalises literal `..` client-side, so the traversal
+      // must travel encoded to reach the server's own containment gate.
+      const traversal = await fetch(`${handle.url}/api/%2e%2e/%2e%2e/etc/passwd`);
+      assert.equal(traversal.status, 404, 'an escaping request path is refused');
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it('binds {{staticServeUrl}} into argv substitution for the main invoke', async () => {
+    // The binding proof: the placeholder reaches the child's argv as the
+    // real loopback base URL. `sm show <url>` finds no such node, so the
+    // not-found message quotes the substituted URL back on stderr.
+    const { casePath, fixturesRoot } = writeCase('static-serve-binding', {
+      id: 'static-serve-binding',
+      description: 'The staticServe base URL is substituted like any captured value.',
+      fixture: 'corpus',
+      setup: {
+        staticServe: { fixture: 'remote' },
+        priorScans: [{ fixture: 'corpus' }],
+      },
+      invoke: { verb: 'show', args: ['{{staticServeUrl}}'] },
+      assertions: [
+        { type: 'exit-code', value: 5 },
+        { type: 'stderr-matches', pattern: 'http://127\\.0\\.0\\.1:\\d+' },
+      ],
+    });
+    mkdirSync(join(fixturesRoot, 'remote'), { recursive: true });
+    const result = await runConformanceCase({
+      binary: BIN,
+      specRoot: SPEC_ROOT,
+      casePath,
+      fixturesRoot,
+    });
+    assert.ok(result.passed, JSON.stringify(result.assertions));
   });
 });
 

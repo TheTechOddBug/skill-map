@@ -9,14 +9,21 @@
  * implementation's server on an ephemeral port and keep it alive through
  * assertion evaluation (the `http-matches-schema` target), torn down with
  * an awaited SIGTERM/SIGKILL so the child never outlives the case.
+ * `setup.staticServe` cases serve a recorded-fixture directory read-only
+ * over loopback HTTP (ephemeral port, containment-guarded paths, 404 for
+ * anything unrecorded) and bind the base URL as `{{staticServeUrl}}`, so
+ * network-fetching extensions exercise their real fetch path against
+ * deterministic bytes while the scope stays offline.
  *
  * Step 0b scope: single-case dispatch. Suite-level runner + reporter land
  * alongside Step 2 extensions.
  */
 
 import { grantTrust } from '../kernel/config/plugin-trust-store.js';
-import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { spawn, type ChildProcess } from 'node:child_process';
+import { cpSync, createReadStream, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -123,6 +130,14 @@ interface IConformanceCase {
      * `file-matches-schema` can observe `serve.json`), then torn down.
      */
     serve?: boolean;
+    /**
+     * Recorded-fixture network transport: serve the named fixture
+     * directory read-only over loopback HTTP on an ephemeral port for
+     * the case's lifetime (up before `setup.priorInvokes`, torn down
+     * after assertion evaluation), binding the base URL as the
+     * `{{staticServeUrl}}` substitution variable.
+     */
+    staticServe?: { fixture: string };
     priorScans?: Array<{ fixture: string; flags?: string[] }>;
     priorInvokes?: IStagedInvocation[];
   };
@@ -378,7 +393,7 @@ export async function runConformanceCase(options: IRunCaseOptions): Promise<IRun
     // 1. Replay every `setup.priorScans` step into the scope DB before
     //    the main invoke runs. Returns the failure result early if any
     //    step exits non-zero.
-    const priorFailure = runPriorScansSetup(c, options, scope, fixturesRoot, setupEnv);
+    const priorFailure = await runPriorScansSetup(c, options, scope, fixturesRoot, setupEnv);
     if (priorFailure) return priorFailure;
 
     // 2. Copy the main fixture (replacing prior fixture content but
@@ -408,23 +423,29 @@ export async function runConformanceCase(options: IRunCaseOptions): Promise<IRun
 /**
  * Phases 2c..3 of `runConformanceCase`.
  *
- * 2c. `setup.serve`: boot the implementation's server on an ephemeral
- *     port, after fixture copy + plugin trust and BEFORE
- *     `setup.priorInvokes` (per the case schema). It stays up through
- *     the main invoke AND assertion evaluation, which is the point:
- *     `http-matches-schema` needs a live target and `file-matches-schema`
- *     may observe `serve.json`, a file that exists only while the server
- *     runs.
+ * 2c. `setup.staticServe`: start the recorded-fixture file server on an
+ *     ephemeral loopback port and bind its base URL into the captures
+ *     map as `{{staticServeUrl}}` BEFORE `setup.priorInvokes`, so
+ *     staged config writes (base-URL settings) and the main invoke can
+ *     splice it exactly like a captured value. `setup.serve`: boot the
+ *     implementation's server on an ephemeral port, after fixture copy
+ *     + plugin trust and BEFORE `setup.priorInvokes` (per the case
+ *     schema). Both stay up through the main invoke AND assertion
+ *     evaluation, which is the point: `http-matches-schema` needs a
+ *     live target and `file-matches-schema` may observe `serve.json`,
+ *     a file that exists only while the server runs.
  * 2d. Replay every `setup.priorInvokes` step against the provisioned
  *     scope. Each step must exit 0 unless it declares `expectExit`, and
  *     may bind `capture` variables the later steps and the main invoke
  *     substitute into their argv.
  * 3.  Run the case's own `invoke` and evaluate its assertions.
  *
- * The serve teardown lives in this function's `finally`, AWAITED, so the
- * child can NEVER outlive the case (the no-leaked-processes rule applied
- * to the runner): SIGTERM first (clean shutdown removes `serve.json`),
- * SIGKILL if it lingers, and only then does the caller remove the scope.
+ * Both teardowns live in this function's `finally`, AWAITED, so neither
+ * the serve child nor the static file server can EVER outlive the case
+ * (the no-leaked-processes rule applied to the runner): SIGTERM first
+ * for the child (clean shutdown removes `serve.json`), SIGKILL if it
+ * lingers, an awaited `close()` for the static server, and only then
+ * does the caller remove the scope.
  */
 async function runServeAndInvokePhases(
   c: IConformanceCase,
@@ -434,7 +455,13 @@ async function runServeAndInvokePhases(
   fixturesRoot: string,
 ): Promise<IRunCaseResult> {
   let serve: IServeChild | null = null;
+  let staticServe: IStaticServeHandle | null = null;
   try {
+    const captures: TCaptures = {};
+    const staticStarted = await setupStaticServePhase(c, fixturesRoot, captures);
+    if (!staticStarted.ok) return staticStarted.failure;
+    staticServe = staticStarted.handle;
+
     let servePort: number | undefined;
     if (c.setup?.serve) {
       serve = spawnServeChild(options, scope, setupEnv);
@@ -443,14 +470,146 @@ async function runServeAndInvokePhases(
       servePort = ready.port;
     }
 
-    const captures: TCaptures = {};
     const invokeFailure = await runPriorInvokesSetup(c, options, scope, setupEnv, captures);
     if (invokeFailure) return invokeFailure;
 
     return await runMainInvoke(c, options, scope, setupEnv, fixturesRoot, captures, servePort);
   } finally {
     if (serve) await stopServeChild(serve.child);
+    if (staticServe) await staticServe.close();
   }
+}
+
+/** A running `setup.staticServe` file server: its base URL + awaited teardown. */
+interface IStaticServeHandle {
+  /** Loopback base URL, e.g. `http://127.0.0.1:49152` (no trailing slash). */
+  url: string;
+  /** Close the listener (and any lingering keep-alive connections), awaited. */
+  close: () => Promise<void>;
+}
+
+/**
+ * Phase 2c's staticServe half: start the recorded-fixture server when
+ * the case declares one and bind its base URL into `captures` as
+ * `staticServeUrl`. Resolves `handle: null` for cases without the
+ * toggle so the caller's teardown stays a single null check.
+ */
+async function setupStaticServePhase(
+  c: IConformanceCase,
+  fixturesRoot: string,
+  captures: TCaptures,
+): Promise<
+  { ok: true; handle: IStaticServeHandle | null } | { ok: false; failure: IRunCaseResult }
+> {
+  const declared = c.setup?.staticServe;
+  if (!declared) return { ok: true, handle: null };
+  const started = await startStaticServe(c, declared.fixture, fixturesRoot);
+  if (!started.ok) return started;
+  captures['staticServeUrl'] = started.handle.url;
+  return started;
+}
+
+/**
+ * Start the `setup.staticServe` file server over the named fixture
+ * directory. The fixture reference runs through the SAME containment
+ * guard every other fixture reference does (a hostile case cannot serve
+ * an arbitrary directory), which throws and unwinds the runner exactly
+ * like a traversal in `fixture` / `priorScans[].fixture`; a listen
+ * failure instead folds into a staging failure the caller returns.
+ */
+async function startStaticServe(
+  c: IConformanceCase,
+  fixture: string,
+  fixturesRoot: string,
+): Promise<{ ok: true; handle: IStaticServeHandle } | { ok: false; failure: IRunCaseResult }> {
+  assertContained(fixturesRoot, fixture, 'staticServe/fixture');
+  try {
+    const handle = await listenStaticServe(join(fixturesRoot, fixture));
+    return { ok: true, handle };
+  } catch (err) {
+    return {
+      ok: false,
+      failure: stagingFailure(
+        c,
+        0,
+        '',
+        '',
+        tx(CONFORMANCE_RUNNER_TEXTS.staticServeBootFailed, {
+          fixture,
+          message: formatErrorMessage(err),
+        }),
+      ),
+    };
+  }
+}
+
+/**
+ * Bind the static file server on an ephemeral loopback port and resolve
+ * with its handle. Read-only by construction: the handler only ever
+ * streams files, there is no route that writes.
+ */
+function listenStaticServe(fixtureRoot: string): Promise<IStaticServeHandle> {
+  return new Promise((resolveListen, rejectListen) => {
+    const server = createServer((req, res) => {
+      const target = resolveStaticServePath(fixtureRoot, req.url ?? '/');
+      if (target === null) {
+        res.statusCode = 404;
+        res.end();
+        return;
+      }
+      res.statusCode = 200;
+      createReadStream(target).pipe(res);
+    });
+    server.once('error', rejectListen);
+    server.listen(0, '127.0.0.1', () => {
+      const port = (server.address() as AddressInfo).port;
+      resolveListen({
+        url: `http://127.0.0.1:${port}`,
+        close: () => closeStaticServe(server),
+      });
+    });
+  });
+}
+
+/**
+ * Resolve a request URL to the recorded file it names, or `null` (a
+ * 404) for anything else: an undecodable escape, the bare root, a path
+ * escaping the fixture directory (the same `assertContained` gate every
+ * fixture reference passes, so `..` chains and absolute paths are
+ * refused), a missing file, and a directory (listings are not served).
+ */
+export function resolveStaticServePath(fixtureRoot: string, rawUrl: string): string | null {
+  let rel: string;
+  try {
+    rel = decodeURIComponent(rawUrl.split('?', 1)[0] ?? '/').replace(/^\/+/, '');
+    if (rel.length === 0) return null;
+    assertContained(fixtureRoot, rel, 'staticServe/request');
+  } catch {
+    return null;
+  }
+  const abs = resolve(fixtureRoot, rel);
+  if (!existsSync(abs) || !statSync(abs).isFile()) return null;
+  return abs;
+}
+
+/** Awaited teardown: sever keep-alive sockets, then close the listener. */
+function closeStaticServe(server: Server): Promise<void> {
+  server.closeAllConnections();
+  return new Promise((resolveClose) => {
+    server.close(() => resolveClose());
+  });
+}
+
+/**
+ * Test-only seam (same convention as the `_set*ForTests` seams across
+ * `cli/commands/`): start a static file server over `fixtureRoot` so
+ * the unit suite can probe the HTTP contract (200 for recorded files,
+ * 404 for unrecorded paths / directories / traversals) without
+ * composing a whole case around it. Production callers go through
+ * `setup.staticServe` only.
+ */
+export function _startStaticServeForTests(fixtureRoot: string): Promise<IStaticServeHandle> {
+  return listenStaticServe(fixtureRoot);
 }
 
 /**
@@ -478,15 +637,19 @@ async function runMainInvoke(
     return runParallelInvoke(c, options, scope, setupEnv, resolvedArgv.argv);
   }
 
-  const child = spawnSync(process.execPath, [options.binary, ...resolvedArgv.argv], {
-    cwd: scope,
-    env: { ...pickSafeEnv(process.env), ...options.env, ...setupEnv },
-    encoding: 'utf8',
+  // Async spawn, never `spawnSync`: the runner may be HOSTING services
+  // the child depends on (`setup.staticServe` binds its file server in
+  // THIS process), and a synchronous wait blocks the event loop that
+  // would answer the child's requests, a deadlock by construction.
+  const child = await spawnCollect(process.execPath, [options.binary, ...resolvedArgv.argv], scope, {
+    ...pickSafeEnv(process.env),
+    ...options.env,
+    ...setupEnv,
   });
 
-  const stdout = child.stdout ?? '';
-  const stderr = child.stderr ?? '';
-  const exitCode = child.status ?? 0;
+  const stdout = child.stdout;
+  const stderr = child.stderr;
+  const exitCode = child.exitCode;
 
   const assertions: TAssertionResult[] = [];
   for (const a of c.assertions) {
@@ -507,8 +670,8 @@ async function runMainInvoke(
   return { caseId: c.id, passed, exitCode, stdout, stderr, assertions };
 }
 
-/** One parallel invocation's collected outcome, indexed by spawn order. */
-interface IParallelResult {
+/** One spawned invocation's collected outcome (exit code + flushed streams). */
+interface ISpawnResult {
   exitCode: number;
   stdout: string;
   stderr: string;
@@ -543,7 +706,7 @@ async function runParallelInvoke(
 ): Promise<IRunCaseResult> {
   const n = c.invoke.parallel ?? 0;
   const env = { ...pickSafeEnv(process.env), ...options.env, ...setupEnv };
-  const pending: Array<Promise<IParallelResult>> = [];
+  const pending: Array<Promise<ISpawnResult>> = [];
   for (let i = 0; i < n; i++) {
     pending.push(spawnCollect(process.execPath, [options.binary, ...argv], scope, env));
   }
@@ -555,7 +718,7 @@ async function runParallelInvoke(
   const passed = assertions.every((a) => a.ok);
 
   const sortedCodes = results.map((r) => r.exitCode).sort((a, b) => a - b);
-  const joinStreams = (pick: (r: IParallelResult) => string): string =>
+  const joinStreams = (pick: (r: ISpawnResult) => string): string =>
     results.map((r, i) => `--- [${i}] ---\n${pick(r)}`).join('\n');
 
   return {
@@ -579,7 +742,7 @@ function spawnCollect(
   argv: string[],
   cwd: string,
   env: NodeJS.ProcessEnv,
-): Promise<IParallelResult> {
+): Promise<ISpawnResult> {
   return new Promise((resolveRun) => {
     const child = spawn(command, argv, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
@@ -597,7 +760,7 @@ function spawnCollect(
 /** Dispatch one `parallel-*` set assertion over the N collected results. */
 function evaluateParallelAssertion(
   a: TParallelAssertion,
-  results: IParallelResult[],
+  results: ISpawnResult[],
 ): TAssertionResult {
   if (a.type === 'parallel-exit-codes') return evaluateParallelExitCodes(a, results);
   return evaluateParallelJsonPathCount(a, results);
@@ -611,7 +774,7 @@ function evaluateParallelAssertion(
  */
 function evaluateParallelExitCodes(
   a: Extract<TParallelAssertion, { type: 'parallel-exit-codes' }>,
-  results: IParallelResult[],
+  results: ISpawnResult[],
 ): TAssertionResult {
   const actual = results.map((r) => r.exitCode).sort((x, y) => x - y);
   return deepEqual(actual, a.sorted)
@@ -634,7 +797,7 @@ function evaluateParallelExitCodes(
  */
 function evaluateParallelJsonPathCount(
   a: Extract<TParallelAssertion, { type: 'parallel-json-path-count' }>,
-  results: IParallelResult[],
+  results: ISpawnResult[],
 ): TAssertionResult {
   const segments = parsePath(a.path);
   if (!segments) {
@@ -692,38 +855,39 @@ function resultSatisfiesPathComparator(
  */
 // Per-step replay: replace fixture, spawn `sm scan`, check exit. The
 // failure-result construction is verbose because it carries every
-// stream the caller reports back.
-// eslint-disable-next-line complexity
-function runPriorScansSetup(
+// stream the caller reports back. The spawn is awaited rather than
+// `spawnSync` for the same event-loop reason as the other phases: the
+// runner never blocks while a child runs.
+async function runPriorScansSetup(
   c: IConformanceCase,
   options: IRunCaseOptions,
   scope: string,
   fixturesRoot: string,
   setupEnv: NodeJS.ProcessEnv,
-): IRunCaseResult | null {
+): Promise<IRunCaseResult | null> {
   for (const step of c.setup?.priorScans ?? []) {
     replaceFixture(scope, fixturesRoot, step.fixture);
     const stepArgv = ['scan', ...(step.flags ?? [])];
-    const stepChild = spawnSync(process.execPath, [options.binary, ...stepArgv], {
-      cwd: scope,
-      env: { ...pickSafeEnv(process.env), ...options.env, ...setupEnv },
-      encoding: 'utf8',
+    const stepChild = await spawnCollect(process.execPath, [options.binary, ...stepArgv], scope, {
+      ...pickSafeEnv(process.env),
+      ...options.env,
+      ...setupEnv,
     });
-    if ((stepChild.status ?? 0) !== 0) {
+    if (stepChild.exitCode !== 0) {
       return {
         caseId: c.id,
         passed: false,
-        exitCode: stepChild.status ?? 0,
-        stdout: stepChild.stdout ?? '',
-        stderr: stepChild.stderr ?? '',
+        exitCode: stepChild.exitCode,
+        stdout: stepChild.stdout,
+        stderr: stepChild.stderr,
         assertions: [
           {
             ok: false,
             type: 'priorScan',
             reason: tx(CONFORMANCE_RUNNER_TEXTS.priorScanFailed, {
               fixture: step.fixture,
-              exit: stepChild.status ?? 0,
-              stderr: stepChild.stderr ?? '',
+              exit: stepChild.exitCode,
+              stderr: stepChild.stderr,
             }),
           },
         ],
@@ -746,9 +910,11 @@ function runPriorScansSetup(
  */
 // Per-step replay: substitute, spawn, check exit, capture, sleep. The
 // failure-result construction is verbose because it carries every stream
-// the caller reports back (same shape as `runPriorScansSetup`). Async
-// only for `sleepAfterMs`; each step's child still runs to completion
-// before the next starts.
+// the caller reports back (same shape as `runPriorScansSetup`). Each
+// step's child runs to completion before the next starts; the spawn is
+// awaited rather than `spawnSync` because a step may call back into a
+// service THIS process hosts (`setup.staticServe`), and a synchronous
+// wait would deadlock the event loop that answers it.
 // eslint-disable-next-line complexity
 async function runPriorInvokesSetup(
   c: IConformanceCase,
@@ -761,14 +927,14 @@ async function runPriorInvokesSetup(
     const resolved = resolveArgv(step, captures);
     if (!resolved.ok) return stagingFailure(c, 0, '', '', resolved.reason);
     const stepArgv = resolved.argv;
-    const stepChild = spawnSync(process.execPath, [options.binary, ...stepArgv], {
-      cwd: scope,
-      env: { ...pickSafeEnv(process.env), ...options.env, ...setupEnv },
-      encoding: 'utf8',
+    const stepChild = await spawnCollect(process.execPath, [options.binary, ...stepArgv], scope, {
+      ...pickSafeEnv(process.env),
+      ...options.env,
+      ...setupEnv,
     });
-    const stepStdout = stepChild.stdout ?? '';
-    const stepStderr = stepChild.stderr ?? '';
-    const stepExit = stepChild.status ?? 0;
+    const stepStdout = stepChild.stdout;
+    const stepStderr = stepChild.stderr;
+    const stepExit = stepChild.exitCode;
     // A step defaults to "must succeed"; `expectExit` is how a case
     // stages a REFUSAL (a duplicate submit that must be rejected before
     // the `--force` bypass can be asserted).

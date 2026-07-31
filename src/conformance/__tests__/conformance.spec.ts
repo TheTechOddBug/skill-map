@@ -121,6 +121,15 @@ const SPEC_CASES = [
   // to observe either.
   'claim-race-atomicity',
   'ttl-reap-abandoned',
+  // The recorded-transport case (row 13). Exercises `setup.staticServe`
+  // end-to-end: recorded API + raw responses served over loopback, the
+  // `{{staticServeUrl}}` binding spliced into staged `config set` steps
+  // (project-LOCAL base-URL settings), and the double opt-in
+  // (`plugins enable` + `allowNetworkActions`) before a real
+  // `sm refresh` fetch chain. Same reasoning as the families above: the
+  // primitive exists to make a contract expressible, so a runner
+  // regression would not fail any OTHER case.
+  'github-enrichment-recorded',
 ] as const;
 const PROVIDER_CLAUDE_CASES = ['rename-high', 'orphan-detection'] as const;
 const PROVIDER_OPENAI_CASES = ['basic-scan', 'body-links'] as const;

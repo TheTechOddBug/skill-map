@@ -47,6 +47,18 @@
           "type": "boolean",
           "description": "When true, the runner starts the implementation's server (the `sm serve` equivalent) on an EPHEMERAL port inside the scope, after the top-level fixture copy and plugin trust and BEFORE `setup.priorInvokes`. Readiness is observed via `.skill-map/serve.json` (the discovery file the serve contract already mandates), and the server stays up through the main `invoke` AND assertion evaluation, then is torn down. Keeping it up through assertions is the point: it lets `file-matches-schema` observe files that exist only while the server runs, and it is what the `http-matches-schema` assertion depends on."
         },
+        "staticServe": {
+          "type": "object",
+          "required": ["fixture"],
+          "additionalProperties": false,
+          "description": "Recorded-fixture network transport. The runner serves the named fixture directory READ-ONLY over loopback HTTP on an EPHEMERAL port for the case's lifetime (up before `setup.priorInvokes`, torn down only after assertion evaluation), and binds the base URL (e.g. `http://127.0.0.1:49152`) as the substitution variable `{{staticServeUrl}}`, available everywhere `capture` variables are. Exists for extensions whose contract involves a network fetch: the fixture holds RECORDED responses as plain files whose relative paths mirror the request paths, so the case exercises the REAL fetch path against deterministic bytes while the scope stays offline (no real network is ever reached). Path resolution is containment-guarded like every other fixture reference: a fixture reference or request path escaping its anchor is refused, directory listings are not served, and unknown paths return 404.",
+          "properties": {
+            "fixture": {
+              "type": "string",
+              "description": "Folder under `conformance/fixtures/` whose files are served verbatim: a request for `/a/b` answers with the bytes of `<fixture>/a/b` (200) or 404 when no such file exists. MUST stay inside the fixtures root."
+            }
+          }
+        },
         "priorScans": {
           "type": "array",
           "description": "Ordered staging scans, each running before the next. For step N, the runner first replaces the scope's Provider content with `priorScans[N].fixture`, then invokes `sm scan` with the supplied flags. After the last step, the runner copies the top-level `fixture` (overwriting again) and runs the main `invoke`. The DB persists across all steps because `.skill-map/` is preserved between fixture swaps.",

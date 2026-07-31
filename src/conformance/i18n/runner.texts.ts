@@ -78,6 +78,9 @@ export const CONFORMANCE_RUNNER_TEXTS = {
   jsonPathNoComparator:
     'no comparator on json-path assertion',
 
+  staticServeBootFailed:
+    'setup.staticServe: could not serve fixture `{{fixture}}`: {{message}}',
+
   serveExitedBeforeReady:
     'setup.serve: the server exited with {{exit}} before publishing {{file}}: {{stderr}}',
 

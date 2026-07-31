@@ -280,6 +280,84 @@ describe('github/enrichment, source parsing', () => {
   });
 });
 
+describe('github/enrichment, base-URL override settings', () => {
+  const RESOLVED = 'c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00';
+
+  it('routes BOTH construction sites through apiBaseUrl / rawBaseUrl on the api-ref path', async () => {
+    const calls: IFetchCall[] = [];
+    const node = makeNode({ source: BLOB_SOURCE, sourceVersion: 'main' });
+    const ctx = makeCtx(
+      node,
+      fakeFetch(
+        (url) =>
+          url.includes('/recorded-api/')
+            ? new Response(JSON.stringify({ sha: RESOLVED }))
+            : new Response(LOCAL_BODY),
+        calls,
+      ),
+      {
+        // Trailing slashes on purpose: the resolver trims them so the
+        // composed URLs never double the separator.
+        apiBaseUrl: 'http://127.0.0.1:4242/recorded-api/',
+        rawBaseUrl: 'http://127.0.0.1:4242/recorded-raw/',
+      },
+    );
+
+    const report = await invoke(ctx);
+    strictEqual(report.verified, true);
+    strictEqual(report.resolvedSha, RESOLVED);
+    deepStrictEqual(
+      calls.map((c) => c.url),
+      [
+        'http://127.0.0.1:4242/recorded-api/repos/octo/tools/commits/main',
+        `http://127.0.0.1:4242/recorded-raw/octo/tools/${RESOLVED}/agents/architect.md`,
+      ],
+      'both fetches leave through the overridden hosts, never the public ones',
+    );
+  });
+
+  it('routes the raw-sha pin fetch through rawBaseUrl (no API call at all)', async () => {
+    const calls: IFetchCall[] = [];
+    const node = makeNode({ source: BLOB_SOURCE, sourceVersion: SHA_PIN });
+    const ctx = makeCtx(node, fakeFetch(() => new Response(LOCAL_BODY), calls), {
+      rawBaseUrl: 'http://ghe.internal/raw',
+    });
+
+    const report = await invoke(ctx);
+    strictEqual(report.verified, true);
+    deepStrictEqual(
+      calls.map((c) => c.url),
+      [`http://ghe.internal/raw/octo/tools/${SHA_PIN}/agents/architect.md`],
+    );
+  });
+
+  it('falls back to the public hosts when the settings are absent or blank', async () => {
+    const calls: IFetchCall[] = [];
+    const node = makeNode({ source: BLOB_SOURCE, sourceVersion: 'main' });
+    const ctx = makeCtx(
+      node,
+      fakeFetch(
+        (url) =>
+          url.startsWith('https://api.github.com/')
+            ? new Response(JSON.stringify({ sha: RESOLVED }))
+            : new Response(LOCAL_BODY),
+        calls,
+      ),
+      { apiBaseUrl: '   ', rawBaseUrl: '' },
+    );
+
+    await invoke(ctx);
+    deepStrictEqual(
+      calls.map((c) => c.url),
+      [
+        'https://api.github.com/repos/octo/tools/commits/main',
+        `https://raw.githubusercontent.com/octo/tools/${RESOLVED}/agents/architect.md`,
+      ],
+      'blank overrides degrade to the public defaults, never to a malformed URL',
+    );
+  });
+});
+
 describe('github/enrichment, contract guards', () => {
   it('throws when invoked without ctx.fetch (programmer error, not a report)', async () => {
     const node = makeNode({ source: BLOB_SOURCE, sourceVersion: SHA_PIN });

@@ -184,6 +184,20 @@ describe('PROJECT_LOCAL_ONLY_KEYS catalogue', () => {
     assert.equal(PROJECT_LOCAL_ONLY_KEYS.has('allowEditSmFiles'), true);
     assert.equal(PROJECT_LOCAL_ONLY_KEYS.has('scan.referencePaths'), true);
   });
+
+  it('declares the github/enrichment base-URL overrides (token exfiltration guard)', () => {
+    // The extension's token rides the Authorization header to whatever
+    // host apiBaseUrl names, so both overrides must be project-local
+    // only; a committed value is stripped by the loader.
+    assert.equal(
+      PROJECT_LOCAL_ONLY_KEYS.has('plugins.github.extensions.enrichment.settings.apiBaseUrl'),
+      true,
+    );
+    assert.equal(
+      PROJECT_LOCAL_ONLY_KEYS.has('plugins.github.extensions.enrichment.settings.rawBaseUrl'),
+      true,
+    );
+  });
 });
 
 describe('writeConfigValue, project-local-only keys', () => {
