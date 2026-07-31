@@ -713,7 +713,7 @@ export class PluginLoader implements PluginLoaderPort {
     // (rejects unknown `slot` names with `invalid-manifest`)". The
     // kind-specific schema validates the exported manifest shape
     // (e.g. `viewContributions[*].slot` against the closed catalog,
-    // extractor's required `emitsLinkKinds`, etc.). Failures here are
+    // a provider's required `presentation`, etc.). Failures here are
     // structurally manifest-invalid, not module-load failures, the
     // module imported fine; the declared shape is wrong.
     const extValidator = this.#options.validators.validatorForExtension(kind);

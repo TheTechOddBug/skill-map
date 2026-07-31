@@ -48,9 +48,12 @@ export const ORCHESTRATOR_TEXTS = {
     'has no equal-length closer). Close the inline span with a matching backtick run, or escape ' +
     'a literal backtick with a backslash.',
 
+  // Names the global closed enum, not the retired per-extractor
+  // `emitsLinkKinds` allowlist: the message an author reads has to point
+  // at the constraint that actually rejected their link.
   extensionErrorLinkKindNotDeclared:
-    'Extractor "{{extractorId}}" emitted a link of kind "{{linkKind}}" outside its ' +
-    'declared `emitsLinkKinds` set [{{declaredKinds}}]. Link dropped.',
+    'Extractor "{{extractorId}}" emitted a link of kind "{{linkKind}}", which is not one of ' +
+    'the link kinds the spec defines [{{declaredKinds}}]. Link dropped.',
 
   extensionErrorIssueInvalidSeverity:
     'Rule "{{analyzerId}}" emitted an issue with invalid severity {{severity}} ' +

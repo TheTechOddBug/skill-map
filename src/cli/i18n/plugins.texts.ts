@@ -50,14 +50,14 @@ export const PLUGINS_TEXTS = {
   listQualifiedIdHint:
     'Run `sm plugins show {{id}}` for that extension, or `sm plugins list {{pluginId}}` for the whole plugin.',
 
-  // Spec § A.10, `applicableKinds` filter on Extractors. When an extractor
+  // The `precondition.kind` filter on Extractors. When an extractor
   // declares a kind that no installed Provider emits, the load succeeds
   // (the Provider may arrive later) but `sm plugins doctor` surfaces a
   // non-blocking warning so the author sees the typo / missing dependency.
   // Exit code is NOT promoted by this warning.
   // The id is rendered as the entry header (`⚠  <id>`); the body skips
   // re-stating it so the message reads cleanly under the entry.
-  doctorApplicableKindUnknown:
+  doctorPreconditionKindUnknown:
     "Declares applicableKinds including '{{unknownKind}}', but no installed Provider declares that kind. " +
     'The extractor is loaded but will never fire on that kind.',
   // Phase 7 / View contribution system, defence-in-depth slot drift
@@ -73,6 +73,19 @@ export const PLUGINS_TEXTS = {
   doctorUnknownSlot:
     "Contribution '{{contributionId}}' targets unknown slot '{{slot}}'. " +
     'Run `sm plugins upgrade {{pluginId}}` or update the plugin to a slot in the current catalog (`sm plugins slots list`).',
+  // Modelo B (`spec/schemas/extensions/action.schema.json`,
+  // `precondition.analyzerIds`), dangling-reference check. An Action
+  // declares which analyzers' findings it resolves; an entry naming an
+  // analyzer no loaded plugin declares (typo, analyzer plugin not
+  // installed) still loads, so the doctor says it out loud. Resolution
+  // spans every plugin and strips the optional `:<sub-id>` suffix.
+  // Exit code is NOT promoted by this warning.
+  // The id is rendered as the entry header (`⚠  <pluginId>/<actionId>`);
+  // the body skips re-stating it so the message reads cleanly under the
+  // entry.
+  doctorRecommendedActionMissing:
+    "Declares precondition.analyzerIds including '{{analyzerId}}', but no loaded plugin declares that analyzer. " +
+    'The action is loaded but will never surface as the recommended fix for it.',
 
   // --- list verb -------------------------------------------------------
   listEmpty: 'No plugins discovered.\n',

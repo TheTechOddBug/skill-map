@@ -65,7 +65,7 @@
     },
     "warnings": {
       "type": "array",
-      "description": "Informational warnings that do NOT gate the exit code: `applicable-kind-unknown` (an extractor declares a `applicableKinds` referencing a kind no Provider emits) and `unknown-slot` (a view contribution targets a slot id absent from the closed catalog). Iteration order matches the human renderer.",
+      "description": "Informational warnings that do NOT gate the exit code: `precondition-kind-unknown` (an extractor declares a `applicableKinds` referencing a kind no Provider emits), `unknown-slot` (a view contribution targets a slot id absent from the closed catalog), and `recommended-action-missing` (an action's `precondition.analyzerIds` names an analyzer no loaded plugin declares). Iteration order matches the human renderer.",
       "items": {
         "type": "object",
         "required": ["id", "kind", "message"],
@@ -74,11 +74,11 @@
           "id": {
             "type": "string",
             "minLength": 1,
-            "description": "Qualified extension id (`<plugin>/<ext>`) for `applicable-kind-unknown`, or `<plugin>/<ext>/<contributionId>` for `unknown-slot`."
+            "description": "Qualified extension id (`<plugin>/<ext>`) for `precondition-kind-unknown` and `recommended-action-missing`, or `<plugin>/<ext>/<contributionId>` for `unknown-slot`."
           },
           "kind": {
             "type": "string",
-            "enum": ["applicable-kind-unknown", "unknown-slot"],
+            "enum": ["precondition-kind-unknown", "unknown-slot", "recommended-action-missing"],
             "description": "Warning discriminator."
           },
           "message": {

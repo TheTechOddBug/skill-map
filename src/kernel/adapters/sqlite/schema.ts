@@ -353,7 +353,8 @@ export interface INodeEnrichmentsTable {
  *     against the slot's payload schema at emit time
  *     (`view-slots.schema.json#/$defs/payloads/<slot>`). Off-slot
  *     payloads are silently dropped before they reach this table
- *     (mirror of `emitLink` rejecting off-`emitsLinkKinds` links).
+ *     (mirror of `emitLink` rejecting links whose kind is outside the
+ *     spec's closed enum).
  *   - `emitted_at`, wall-clock ms at emit time.
  *
  * Index on `node_path` for the inspector lazy-fetch route and for the

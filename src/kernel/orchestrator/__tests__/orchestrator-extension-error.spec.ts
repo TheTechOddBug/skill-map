@@ -1,8 +1,8 @@
 /**
  * M6, extension.error event coverage.
  *
- * The orchestrator drops links whose kind is not in the extractor's
- * declared `emitsLinkKinds`, and issues whose severity is not one of
+ * The orchestrator drops links whose kind is outside the global closed
+ * enum of link kinds, and issues whose severity is not one of
  * `error` / `warn` / `info`. Until M6 those drops were silent, a
  * plugin author saw their link / issue vanish from the result with no
  * pointer at the cause. The orchestrator now emits a
@@ -72,15 +72,13 @@ after(() => {
 });
 
 describe('orchestrator, extension.error events', () => {
-  // `emitsLinkKinds` was retired with the structure-as-truth refactor;
-  // the orchestrator now validates against the global closed enum of
-  // link kinds, so the per-extractor allowlist mismatch path no longer
-  // exists. A follow-up will write a parallel coverage for the
-  // "kind outside the global enum" path.
-  it.skip('extractor emitting a kind outside emitsLinkKinds → link dropped + extension.error', async () => {
-    // Extractor declares `emitsLinkKinds: ['references']` but emits a
-    // `mentions` link. The orchestrator MUST drop the link and surface
-    // the drop via an `extension.error` event.
+  // The per-extractor `emitsLinkKinds` allowlist was retired with the
+  // structure-as-truth refactor; the GLOBAL closed enum of link kinds
+  // (`invokes` / `references` / `mentions` / `points`, mirroring
+  // `spec/schemas/link.schema.json`) is the contract now, per
+  // `spec/architecture.md` §`ctx.emitLink`. Same drop + diagnose
+  // behaviour, one rung up: a kind nobody declares anywhere.
+  it('extractor emitting a kind outside the global enum → link dropped + extension.error', async () => {
     const buggyExtractor: IExtractor = {
       kind: 'extractor',
       id: 'bad-kind-extractor',
@@ -90,8 +88,10 @@ describe('orchestrator, extension.error events', () => {
       scope: 'body',
       extract: (ctx): void => {
         ctx.emitLink({
-          // Off-contract: 'mentions' is NOT in emitsLinkKinds above.
-          kind: 'mentions',
+          // Off-contract: 'teleports' is in no enum, anywhere. The cast
+          // is deliberate, the static type forbids the value the runtime
+          // guard exists to catch.
+          kind: 'teleports' as unknown as Link['kind'],
           source: '.claude/agents/architect.md',
           target: '.claude/commands/deploy.md',
           confidence: 0.3,
@@ -114,24 +114,40 @@ describe('orchestrator, extension.error events', () => {
     });
 
     // Result links have no entry from the buggy extractor.
-    const fromBuggy = result.links.filter((l) => l.kind === 'mentions');
-    strictEqual(fromBuggy.length, 0, 'off-contract link must be dropped');
+    const fromBuggy = result.links.filter(
+      (l) => (l.kind as string) === 'teleports',
+    );
+    strictEqual(fromBuggy.length, 0, 'off-enum link must be dropped');
 
     // The extractor runs once PER node walked (2 nodes in the fixture);
-    // each invocation emits one off-contract link → one
-    // `extension.error` event per dropped link.
+    // each invocation emits one off-enum link → one `extension.error`
+    // event per dropped link.
     const extErrors = emitter.events.filter((e) => e.type === 'extension.error');
     strictEqual(extErrors.length, 2, 'one extension.error per dropped link');
     const data = extErrors[0]!.data as Record<string, unknown>;
     strictEqual(data['kind'], 'link-kind-not-declared');
     // Spec § A.6, `extensionId` is the qualified id `<pluginId>/<id>`.
     strictEqual(data['extensionId'], 'test/bad-kind-extractor');
-    strictEqual(data['linkKind'], 'mentions');
-    deepStrictEqual(data['declaredKinds'], ['references']);
+    strictEqual(data['linkKind'], 'teleports');
+    // The rejected-against set is the GLOBAL enum, not a per-extractor
+    // list; pinning it here is what would catch a silent widening of
+    // `KNOWN_LINK_KINDS` (e.g. someone adding a kind to the orchestrator
+    // without adding it to `link.schema.json`).
+    deepStrictEqual(data['declaredKinds'], ['invokes', 'references', 'mentions', 'points']);
+    // The dropped link is echoed back so the author can locate it.
+    deepStrictEqual(data['link'], {
+      source: '.claude/agents/architect.md',
+      target: '.claude/commands/deploy.md',
+      kind: 'teleports',
+    });
     ok(typeof data['message'] === 'string');
     ok(
       (data['message'] as string).includes('test/bad-kind-extractor'),
       'message names the extractor with its qualified id',
+    );
+    ok(
+      (data['message'] as string).includes('teleports'),
+      'message names the off-enum kind that was dropped',
     );
   });
 
@@ -193,10 +209,11 @@ describe('orchestrator, extension.error events', () => {
     // produce zero extension.error events. Catches a future regression
     // where the orchestrator starts complaining about valid emissions.
     //
-    // Manifests MUST be registered before the scan so the kernel
-    // registry carries every Action a built-in analyzer recommends,
-    // the `recommended-action-missing` guard scans the registry, not
-    // the runtime `IScanExtensions` set.
+    // Manifests are registered before the scan so the run has the shape
+    // a real boot has: guards that consult the kernel REGISTRY (rather
+    // than the runtime `IScanExtensions` set) see a fully populated one,
+    // and a false positive here would be a registry gap, not a genuine
+    // off-contract emission.
     const emitter = new CapturingEmitter();
     const kernel = createKernel();
     for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
@@ -209,45 +226,19 @@ describe('orchestrator, extension.error events', () => {
     strictEqual(extErrors.length, 0);
   });
 
-  // `recommendedActions` was retired with the structure-as-truth refactor;
-  // the relationship is now declared on the Action side via
-  // `precondition.analyzerIds` (Modelo B). The dangling-reference
-  // diagnostic moved to `sm plugins doctor`.
-  it.skip('analyzer with unresolved recommendedActions → extension.error per missing id', async () => {
-    const danglingAnalyzer: IAnalyzer = {
-      kind: 'analyzer',
-      id: 'dangling-recommendation',
-      pluginId: 'test',
-      version: '1.0.0',
-      description: 'test',
-      evaluate: () => [],
-    };
-
-    const emitter = new CapturingEmitter();
-    const kernel = createKernel();
-    const result = await runScan(kernel, {
-      roots: [fixture],
-      emitter,
-      extensions: {
-        providers: [],
-        extractors: [],
-        analyzers: [danglingAnalyzer],
-      },
-    });
-
-    // Analyzer is not gated, it ran (emitted zero issues, but it ran).
-    strictEqual(result.issues.length, 0);
-
-    const extErrors = emitter.events.filter((e) => e.type === 'extension.error');
-    strictEqual(extErrors.length, 1, 'one extension.error per missing recommendation');
-    const data = extErrors[0]!.data as Record<string, unknown>;
-    strictEqual(data['kind'], 'recommended-action-missing');
-    strictEqual(data['extensionId'], 'test/dangling-recommendation');
-    strictEqual(data['actionId'], 'test/never-registered');
-    ok(typeof data['message'] === 'string');
-    ok(
-      (data['message'] as string).includes('test/never-registered'),
-      'message names the missing action id',
-    );
-  });
+  // DELETED: `analyzer with unresolved recommendedActions → extension.error
+  // per missing id`. `Analyzer.recommendedActions` was retired with the
+  // structure-as-truth refactor and the edge now points the other way,
+  // the Action declares `precondition.analyzerIds` (Modelo B), so the
+  // orchestrator has nothing analyzer-side left to resolve and emits no
+  // `recommended-action-missing` event. The surviving contract, matching
+  // findings to the fixer that declares their finder, is covered in
+  // `cli/commands/__tests__/fixer-batch-builtin.spec.ts` (§`analyzerIds`
+  // selection) and `cli/commands/__tests__/ai-reference-action-builtin.spec.ts`.
+  // Do not re-add here. NOTE: the dangling-`analyzerIds` DIAGNOSTIC that
+  // `kernel/extensions/action.ts` promises ("warn via
+  // `recommended-action-missing` in `sm plugins doctor`") lives in
+  // `plugins/doctor.ts` as a non-blocking warning, NOT in the
+  // orchestrator, and is covered by `cli/commands/plugins/__tests__/
+  // plugins-cli.spec.ts` (§`recommended-action-missing`).
 });

@@ -411,41 +411,72 @@ describe('PluginLoader', () => {
     strictEqual(result[0]?.extensions?.length ?? 0, 0);
   });
 
-  // The original variant of this test asserted `emitsLinkKinds` /
-  // `defaultConfidence` were required on extractor manifests; both
-  // fields were retired with the structure-as-truth refactor. A
-  // follow-up will rewrite this against a still-required field in
-  // another kind schema (e.g. analyzer.precondition shape).
-  it.skip('invalid-manifest: extension default export fails kind schema', async () => {
-    // Per spec/architecture.md §Plugin discovery, AJV on the
-    // kind-specific schema (which references the closed slot enum
-    // via base.schema.json) rejects with `invalid-manifest`. The
-    // module imported fine; only the exported shape is wrong.
+  // Per spec/architecture.md §Plugin discovery, the loader AJV-validates
+  // every extension export against its KIND schema and reports a failure
+  // as `invalid-manifest`: the module imported fine, only the exported
+  // shape is wrong. The original variant pinned `emitsLinkKinds` /
+  // `defaultConfidence`, both retired with structure-as-truth. The pair
+  // below pins the same gate against a field the kind catalog still
+  // requires today, `provider.schema.json#/required: ['presentation']`
+  // (`version` / `description` moved to `extension.json`, so they are no
+  // longer candidates).
+  it('invalid-manifest: extension default export fails its kind schema (provider without `presentation`)', async () => {
     const root = makePluginsDir('load-schema');
-    const badExtractor = `
+    // `detect` is a runtime method (stripped before AJV), so the export
+    // reaches the validator as `{}`: structurally a provider, missing
+    // the one field the kind schema requires.
+    const badProvider = `
       export default {
-        id: 'bad',
-        kind: 'extractor',
-        // Missing required emitsLinkKinds and defaultConfidence.
+        detect() { return null; },
       };
     `;
     writePlugin(
       root,
-      'bad-extractor',
+      'bad-provider',
       {
-        // id removed (structure-as-truth)
         version: '1.0.0',
         description: 'test',
         specCompat: '>=0.0.0',
-
         catalogCompat: '*',
       },
-      { 'bad.mjs': badExtractor },
+      { 'provider/p.mjs': badProvider },
     );
 
     const result = await loaderFor(root).discoverAndLoadAll();
     strictEqual(result[0]?.status, 'invalid-manifest');
-    match(result[0]!.reason!, /emitsLinkKinds|defaultConfidence|required/);
+    // Precise on BOTH halves so the test cannot pass on an unrelated
+    // rejection: the AJV keyword that fired, and the schema the
+    // diagnostic points the author at.
+    match(result[0]!.reason!, /required property.*presentation|presentation.*required/);
+    match(result[0]!.reason!, /spec\/schemas\/extensions\/provider\.schema\.json/);
+  });
+
+  it('the same provider loads once `presentation` is declared (the AJV pass is the only thing rejecting it)', async () => {
+    // Control for the negative above: identical fixture plus the one
+    // required field. If this ever fails, the negative test is passing
+    // for the wrong reason and must be re-read.
+    const root = makePluginsDir('load-schema-ok');
+    const goodProvider = `
+      export default {
+        presentation: { label: 'Good', color: '#0891b2' },
+        detect() { return null; },
+      };
+    `;
+    writePlugin(
+      root,
+      'good-provider',
+      {
+        version: '1.0.0',
+        description: 'test',
+        specCompat: '>=0.0.0',
+        catalogCompat: '*',
+      },
+      { 'provider/p.mjs': goodProvider },
+    );
+
+    const result = await loaderFor(root).discoverAndLoadAll();
+    strictEqual(result[0]?.status, 'enabled');
+    strictEqual(result[0]?.extensions?.[0]?.kind, 'provider');
   });
 
   // Step 9.4, polished diagnostics: every reason string carries an
@@ -734,75 +765,75 @@ describe('PluginLoader', () => {
     });
   });
 
-  // Step 10 prep, Action manifest contract. Phase 0 lifted `IAction` from
-  // `extensions/action.schema.json` into a runtime contract; the loader has
-  // to accept both modes (`deterministic` / `probabilistic`), enforce the
-  // conditional `promptTemplateRef` shape, and surface a directed diagnostic
-  // when the conditional fails. Runtime invocation lands later (Decision
-  // #114), but the manifest gate ships now.
-  // The `Step 10 prep, Action manifest contract` suite below verified
-  // the old `reportSchemaRef` / `promptTemplateRef` conditional schema
-  // shape. Both fields were retired with the structure-as-truth refactor;
-  // the Action loader now looks for `report.schema.json` and `prompt.md`
-  // by convention. A follow-up suite will exercise the convention-based
-  // file lookup. Skipped here so the suite still runs without false
-  // positives on the obsolete shape.
-  describe.skip('Step 10 prep, Action manifest contract', () => {
-    it('loads a deterministic action manifest', async () => {
-      const root = makePluginsDir('action-deterministic');
-      const actionSource = `
-        export default {
-          id: 'validate-frontmatter',
-          kind: 'action',
-          mode: 'deterministic',
-        };
-      `;
-      writePlugin(
-        root,
-        'det-action',
-        {
-          // id removed (structure-as-truth)
-          version: '1.0.0',
-          description: 'test',
-          specCompat: '>=0.0.0',
+  // Action file conventions (structure-as-truth). The retired
+  // `reportSchemaRef` / `promptTemplateRef` manifest fields became a
+  // folder convention enforced by `validateActionFileConventions`:
+  // every Action carries `report.schema.json` next to its `index.*`,
+  // and a probabilistic one additionally carries `prompt.md` (a
+  // deterministic one must NOT). The AJV conditional in
+  // `action.schema.json` still requires `probExpectedDurationSeconds`
+  // when `mode: 'probabilistic'`. Mirrors the finder-Analyzer suite
+  // below; note the statuses differ by design (a missing convention
+  // FILE is `load-error`, a manifest that contradicts the files on disk
+  // is `invalid-manifest`).
+  describe('Action file conventions (structure-as-truth)', () => {
+    const MANIFEST = {
+      version: '1.0.0',
+      description: 'test',
+      specCompat: '>=0.0.0',
+      catalogCompat: '*',
+    };
+    /** Minimal report schema; the loader only checks the file EXISTS. */
+    const REPORT_SCHEMA = JSON.stringify({
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      $id: 'urn:test:action-report',
+      type: 'object',
+    });
 
-          catalogCompat: '*',
-        },
-        { 'action.mjs': actionSource },
-      );
+    /** Drop a sibling file into `<plugin>/actions/<name>/`. */
+    function writeActionSibling(
+      pluginDir: string,
+      name: string,
+      file: string,
+      contents: string,
+    ): void {
+      writeFileSync(join(pluginDir, 'actions', name, file), contents);
+    }
+
+    it('loads a deterministic action carrying report.schema.json', async () => {
+      const root = makePluginsDir('action-deterministic');
+      const pluginDir = writePlugin(root, 'det-action', MANIFEST, {
+        'action/validate-frontmatter.mjs': `
+          export default {
+            mode: 'deterministic',
+            invoke: () => ({ ok: true }),
+          };
+        `,
+      });
+      writeActionSibling(pluginDir, 'validate-frontmatter', 'report.schema.json', REPORT_SCHEMA);
 
       const result = await loaderFor(root).discoverAndLoadAll();
       strictEqual(result.length, 1);
       strictEqual(result[0]?.status, 'enabled');
       const ext = result[0]?.extensions?.[0];
       strictEqual(ext?.kind, 'action');
+      strictEqual(ext?.id, 'validate-frontmatter');
       const instance = (ext as { instance?: Record<string, unknown> }).instance;
       strictEqual(instance?.['mode'], 'deterministic');
     });
 
-    it('loads a probabilistic action manifest with promptTemplateRef + probExpectedDurationSeconds', async () => {
+    it('loads a probabilistic action carrying report.schema.json + prompt.md', async () => {
       const root = makePluginsDir('action-probabilistic');
-      const actionSource = `
-        export default {
-          id: 'skill-summarizer',
-          kind: 'action',
-          mode: 'probabilistic',
-          probExpectedDurationSeconds: 30,
-        };
-      `;
-      writePlugin(
-        root,
-        'prob-action',
-        {
-          // id removed (structure-as-truth)
-          version: '1.0.0',
-          description: 'test',
-          specCompat: '>=0.0.0',
-
-          catalogCompat: '*',
-        },
-        { 'action.mjs': actionSource },
-      );
+      const pluginDir = writePlugin(root, 'prob-action', MANIFEST, {
+        'action/skill-summarizer.mjs': `
+          export default {
+            mode: 'probabilistic',
+            probExpectedDurationSeconds: 30,
+          };
+        `,
+      });
+      writeActionSibling(pluginDir, 'skill-summarizer', 'report.schema.json', REPORT_SCHEMA);
+      writeActionSibling(pluginDir, 'skill-summarizer', 'prompt.md', 'Summarize.\n');
 
       const result = await loaderFor(root).discoverAndLoadAll();
       strictEqual(result.length, 1);
@@ -811,66 +842,85 @@ describe('PluginLoader', () => {
       strictEqual(ext?.kind, 'action');
       const instance = (ext as { instance?: Record<string, unknown> }).instance;
       strictEqual(instance?.['mode'], 'probabilistic');
-      strictEqual(instance?.['promptTemplateRef'], './prompt.md');
+      strictEqual(instance?.['probExpectedDurationSeconds'], 30);
     });
 
-    it('rejects a probabilistic action without promptTemplateRef', async () => {
-      const root = makePluginsDir('action-prob-missing-template');
-      const actionSource = `
-        export default {
-          id: 'bad-prob',
-          kind: 'action',
-          mode: 'probabilistic',
-          probExpectedDurationSeconds: 30,
-        };
-      `;
-      writePlugin(
-        root,
-        'bad-prob',
-        {
-          // id removed (structure-as-truth)
-          version: '1.0.0',
-          description: 'test',
-          specCompat: '>=0.0.0',
+    it('load-error: action without report.schema.json in its folder', async () => {
+      const root = makePluginsDir('action-no-report-schema');
+      writePlugin(root, 'schemaless-action', MANIFEST, {
+        'action/validate-frontmatter.mjs': `
+          export default {
+            mode: 'deterministic',
+            invoke: () => ({ ok: true }),
+          };
+        `,
+      });
 
-          catalogCompat: '*',
-        },
-        { 'action.mjs': actionSource },
-      );
+      const result = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(result.length, 1);
+      strictEqual(result[0]?.status, 'load-error');
+      match(result[0]!.reason!, /report\.schema\.json/);
+      match(result[0]!.reason!, /actions\/validate-frontmatter/);
+    });
+
+    it('load-error: probabilistic action without prompt.md in its folder', async () => {
+      const root = makePluginsDir('action-prob-no-prompt');
+      const pluginDir = writePlugin(root, 'promptless-action', MANIFEST, {
+        'action/skill-summarizer.mjs': `
+          export default {
+            mode: 'probabilistic',
+            probExpectedDurationSeconds: 30,
+          };
+        `,
+      });
+      writeActionSibling(pluginDir, 'skill-summarizer', 'report.schema.json', REPORT_SCHEMA);
+
+      const result = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(result.length, 1);
+      strictEqual(result[0]?.status, 'load-error');
+      match(result[0]!.reason!, /prompt\.md/);
+      match(result[0]!.reason!, /Probabilistic Action/);
+    });
+
+    it('invalid-manifest: deterministic action carrying a stray prompt.md', async () => {
+      // The mirror image of the case above: the files on disk say
+      // "probabilistic", the manifest says otherwise. The author has to
+      // pick one, so the manifest is what the loader blames.
+      const root = makePluginsDir('action-det-stray-prompt');
+      const pluginDir = writePlugin(root, 'stray-prompt-action', MANIFEST, {
+        'action/validate-frontmatter.mjs': `
+          export default {
+            mode: 'deterministic',
+            invoke: () => ({ ok: true }),
+          };
+        `,
+      });
+      writeActionSibling(pluginDir, 'validate-frontmatter', 'report.schema.json', REPORT_SCHEMA);
+      writeActionSibling(pluginDir, 'validate-frontmatter', 'prompt.md', 'stray\n');
 
       const result = await loaderFor(root).discoverAndLoadAll();
       strictEqual(result.length, 1);
       strictEqual(result[0]?.status, 'invalid-manifest');
-      match(result[0]!.reason!, /spec\/schemas\/extensions\/action\.schema\.json/);
-      match(result[0]!.reason!, /promptTemplateRef/);
+      match(result[0]!.reason!, /prompt\.md/);
+      match(result[0]!.reason!, /Deterministic Action/);
     });
 
-    it('rejects a deterministic action with promptTemplateRef', async () => {
-      const root = makePluginsDir('action-det-with-template');
-      const actionSource = `
-        export default {
-          id: 'bad-det',
-          kind: 'action',
-          mode: 'deterministic',
-        };
-      `;
-      writePlugin(
-        root,
-        'bad-det',
-        {
-          // id removed (structure-as-truth)
-          version: '1.0.0',
-          description: 'test',
-          specCompat: '>=0.0.0',
-
-          catalogCompat: '*',
-        },
-        { 'action.mjs': actionSource },
-      );
+    it('invalid-manifest: probabilistic action without probExpectedDurationSeconds (AJV conditional)', async () => {
+      const root = makePluginsDir('action-prob-no-duration');
+      const pluginDir = writePlugin(root, 'durationless-action', MANIFEST, {
+        'action/skill-summarizer.mjs': `
+          export default {
+            mode: 'probabilistic',
+          };
+        `,
+      });
+      writeActionSibling(pluginDir, 'skill-summarizer', 'report.schema.json', REPORT_SCHEMA);
+      writeActionSibling(pluginDir, 'skill-summarizer', 'prompt.md', 'Summarize.\n');
 
       const result = await loaderFor(root).discoverAndLoadAll();
       strictEqual(result.length, 1);
       strictEqual(result[0]?.status, 'invalid-manifest');
+      match(result[0]!.reason!, /probExpectedDurationSeconds/);
       match(result[0]!.reason!, /spec\/schemas\/extensions\/action\.schema\.json/);
     });
   });
@@ -1104,67 +1154,39 @@ describe('PluginLoader', () => {
     });
   });
 
-  // Spec § A.5, plugin id global uniqueness. Two enforcement points:
-  //   (a) directory name MUST equal manifest id   → invalid-manifest
-  //   (b) cross-root same-id collision            → id-collision (both)
-  // The `Step A.5, id uniqueness` suite below verified the old contract
-  // where `plugin.json` carried `id` and the loader cross-checked it
-  // against the directory name. With structure-as-truth the manifest
-  // no longer carries `id`; the directory name IS the id, so the
-  // dir-name-mismatch branch is impossible by construction. The
-  // cross-root id-collision tests need rewriting against the
-  // path-derived id; deferred to a follow-up.
-  describe.skip('Step A.5, id uniqueness', () => {
-    it('invalid-manifest: directory name does not match manifest id', async () => {
-      const root = makePluginsDir('dir-mismatch');
-      // Directory is 'wrong-dir' but manifest id is 'real-id'. AJV passes
-      // (the manifest is structurally valid), so the new structural rule
-      // is what catches it.
-      writePlugin(
-        root,
-        'wrong-dir',
-        {
-          // id removed (structure-as-truth)
-          version: '1.0.0',
-          description: 'test',
-          specCompat: '>=0.0.0',
+  // Spec § A.5, plugin id global uniqueness. The old suite had two
+  // enforcement points; only one survives.
+  //   (a) "directory name MUST equal manifest id" is GONE by
+  //       construction: with structure-as-truth the manifest carries no
+  //       `id`, the directory name IS the id (`pathId`), so the two can
+  //       no longer disagree. Nothing to test.
+  //   (b) cross-root same-id collision → `id-collision` on every member
+  //       of the group, rewritten below against the path-derived id
+  //       (`applyIdCollisions` in `plugin-loader/id-utils.ts`).
+  // The sibling lane, a drop-in directory shadowing a BUILT-IN plugin
+  // id, lives in `plugin-builtin-shadowing.spec.ts` (it runs before this
+  // pass and cannot be exercised from here: built-ins never appear in
+  // `IDiscoveredPlugin[]`).
+  describe('Step A.5, cross-root id collision', () => {
+    const MANIFEST = {
+      version: '1.0.0',
+      description: 'test',
+      specCompat: '>=0.0.0',
+      catalogCompat: '*',
+    };
+    const EXTRACTOR_SRC = `export default { scope: 'body', extract() {} };`;
 
-          catalogCompat: '*',
-        },
-      );
-      const result = await loaderFor(root).discoverAndLoadAll();
-      strictEqual(result.length, 1);
-      strictEqual(result[0]?.status, 'invalid-manifest');
-      ok(result[0]?.reason, 'reason populated');
-      match(result[0]!.reason!, /directory name 'wrong-dir' does not match manifest id 'real-id'/);
-      // Manifest is preserved on a dir-mismatch so `sm plugins list/show`
-      // can still surface the conflicting id and version.
-      ok(result[0]?.manifest, 'manifest preserved on dir-mismatch');
-    });
-
-    it('id-collision: two plugins in different roots claim the same id', async () => {
+    it('id-collision: two plugins in different roots resolve to the same id', async () => {
       const rootA = makePluginsDir('collide-A');
       const rootB = makePluginsDir('collide-B');
-      const extractorSrc = `
-        export default {
-          id: 'd', kind: 'extractor', emitsLinkKinds: ['references'], defaultConfidence: 'high',
-        };
-      `;
-      // Same id 'twin' under two different parent roots, directory
-      // names match (rule #1 passes), but cross-root id check (rule #2)
-      // fires.
-      writePlugin(
-        rootA,
-        'twin',
-        { id: 'twin', version: '1.0.0', specCompat: '>=0.0.0' },
-        { 'd.mjs': extractorSrc },
-      );
-      writePlugin(
-        rootB,
-        'twin',
-        { id: 'twin', version: '2.0.0', specCompat: '>=0.0.0' },
-        { 'd.mjs': extractorSrc },
-      );
+      // Same directory name 'twin' under two different parent roots.
+      // Each plugin is individually valid; only the pair is not.
+      writePlugin(rootA, 'twin', { ...MANIFEST, version: '1.0.0' }, {
+        'extractor/d.mjs': EXTRACTOR_SRC,
+      });
+      writePlugin(rootB, 'twin', { ...MANIFEST, version: '2.0.0' }, {
+        'extractor/d.mjs': EXTRACTOR_SRC,
+      });
 
       const loader = new PluginLoader({
         searchPaths: [rootA, rootB],
@@ -1174,36 +1196,32 @@ describe('PluginLoader', () => {
       const result = await loader.discoverAndLoadAll();
 
       strictEqual(result.length, 2);
-      // Both members of the collision pair receive the new status, no
-      // precedence rule applies.
+      // Both members of the collision pair receive the status, no
+      // precedence rule applies (neither root wins).
       for (const p of result) {
         strictEqual(p.status, 'id-collision');
         match(p.reason!, /Plugin 'twin' at .* collides with the plugin at .*\. Rename one and rerun\./);
       }
+      // Each reason names the OTHER path, not its own, so the operator
+      // can tell the two directories apart.
+      const a = result.find((p) => p.path.includes('collide-A'))!;
+      const b = result.find((p) => p.path.includes('collide-B'))!;
+      ok(a.reason!.includes(b.path), `A's reason must name B's path; got: ${a.reason}`);
+      ok(b.reason!.includes(a.path), `B's reason must name A's path; got: ${b.reason}`);
       // Extensions are stripped from a colliding plugin so a careless
-      // caller cannot register them.
+      // caller cannot register them; the manifest stays for diagnostics.
       strictEqual(result[0]?.extensions, undefined);
       strictEqual(result[1]?.extensions, undefined);
+      ok(result[0]?.manifest, 'manifest kept for `sm plugins list/show`');
     });
 
     it('id-collision: three-way collision lists every other path in the reason', async () => {
       const rootA = makePluginsDir('collide-3-A');
       const rootB = makePluginsDir('collide-3-B');
       const rootC = makePluginsDir('collide-3-C');
-      const manifest = (specCompat = '>=0.0.0') => ({
-        id: 'triplet',
-        version: '1.0.0',
-        description: 'test',
-        specCompat,
-      });
-      const extractorSrc = `
-        export default {
-          id: 'd', kind: 'extractor', emitsLinkKinds: ['references'], defaultConfidence: 'high',
-        };
-      `;
-      writePlugin(rootA, 'triplet', manifest(), { 'd.mjs': extractorSrc });
-      writePlugin(rootB, 'triplet', manifest(), { 'd.mjs': extractorSrc });
-      writePlugin(rootC, 'triplet', manifest(), { 'd.mjs': extractorSrc });
+      for (const root of [rootA, rootB, rootC]) {
+        writePlugin(root, 'triplet', MANIFEST, { 'extractor/d.mjs': EXTRACTOR_SRC });
+      }
 
       const loader = new PluginLoader({
         searchPaths: [rootA, rootB, rootC],
@@ -1213,36 +1231,23 @@ describe('PluginLoader', () => {
       const result = await loader.discoverAndLoadAll();
 
       strictEqual(result.length, 3);
-      for (const p of result) strictEqual(p.status, 'id-collision');
+      for (const p of result) {
+        strictEqual(p.status, 'id-collision');
+        // The rare 3-way case joins the remaining paths, so every
+        // member's reason names BOTH of its neighbours.
+        for (const other of result.filter((q) => q.path !== p.path)) {
+          ok(p.reason!.includes(other.path), `reason must name ${other.path}; got: ${p.reason}`);
+        }
+      }
     });
 
     it('id-collision: a non-colliding plugin alongside a colliding pair is unaffected', async () => {
       const rootA = makePluginsDir('mix-A');
       const rootB = makePluginsDir('mix-B');
-      const extractorSrc = `
-        export default {
-          id: 'd', kind: 'extractor', emitsLinkKinds: ['references'], defaultConfidence: 'high',
-        };
-      `;
-      writePlugin(
-        rootA,
-        'twin',
-        { id: 'twin', version: '1.0.0', specCompat: '>=0.0.0' },
-        { 'd.mjs': extractorSrc },
-      );
-      writePlugin(
-        rootB,
-        'twin',
-        { id: 'twin', version: '2.0.0', specCompat: '>=0.0.0' },
-        { 'd.mjs': extractorSrc },
-      );
+      writePlugin(rootA, 'twin', MANIFEST, { 'extractor/d.mjs': EXTRACTOR_SRC });
+      writePlugin(rootB, 'twin', MANIFEST, { 'extractor/d.mjs': EXTRACTOR_SRC });
       // Independent plugin in rootA, its id is unique across the search set.
-      writePlugin(
-        rootA,
-        'solo',
-        { id: 'solo', version: '1.0.0', specCompat: '>=0.0.0' },
-        { 'd.mjs': extractorSrc },
-      );
+      writePlugin(rootA, 'solo', MANIFEST, { 'extractor/d.mjs': EXTRACTOR_SRC });
 
       const loader = new PluginLoader({
         searchPaths: [rootA, rootB],
@@ -1252,33 +1257,26 @@ describe('PluginLoader', () => {
       const result = await loader.discoverAndLoadAll();
 
       strictEqual(result.length, 3);
-      const byId = new Map(result.map((p) => [p.id, p] as const));
-      strictEqual(byId.get('solo')?.status, 'enabled');
+      const solo = result.find((p) => p.id === 'solo');
+      strictEqual(solo?.status, 'enabled');
+      strictEqual(solo?.extensions?.length, 1, 'a bystander keeps its extensions');
       // Both 'twin' entries collide.
-      strictEqual(result.filter((p) => p.id === 'twin').every((p) => p.status === 'id-collision'), true);
+      const twins = result.filter((p) => p.id === 'twin');
+      strictEqual(twins.length, 2);
+      strictEqual(twins.every((p) => p.status === 'id-collision'), true);
     });
 
     it('id-collision: a parse-failed sibling does not muddy the trusted-id collision report', async () => {
       // A plugin whose plugin.json fails to parse exposes an *untrusted*
       // id (the directory basename). It must NOT be confused with a real
-      // id collision: the loader excludes invalid-manifest entries from
+      // id collision: the loader excludes manifest-less entries from
       // the collision-detection set.
       const rootA = makePluginsDir('mud-A');
       const rootB = makePluginsDir('mud-B');
-      const extractorSrc = `
-        export default {
-          id: 'd', kind: 'extractor', emitsLinkKinds: ['references'], defaultConfidence: 'high',
-        };
-      `;
       // A real, valid plugin with id 'sibling' under rootA.
-      writePlugin(
-        rootA,
-        'sibling',
-        { id: 'sibling', version: '1.0.0', specCompat: '>=0.0.0' },
-        { 'd.mjs': extractorSrc },
-      );
+      writePlugin(rootA, 'sibling', MANIFEST, { 'extractor/d.mjs': EXTRACTOR_SRC });
       // A directory under rootB also called 'sibling', but with a broken
-      // plugin.json, its fall-back id is 'sibling' (path basename) but
+      // plugin.json: its fall-back id is 'sibling' (path basename) while
       // the manifest never validated.
       const brokenDir = join(rootB, 'sibling');
       mkdirSync(brokenDir, { recursive: true });
@@ -1296,6 +1294,7 @@ describe('PluginLoader', () => {
       const broken = result.find((p) => p.path.includes('mud-B'));
       // The valid one keeps loading, its id is unique among trusted ids.
       strictEqual(valid?.status, 'enabled');
+      strictEqual(valid?.extensions?.length, 1);
       // The broken one stays invalid-manifest, NOT id-collision: a
       // collision report would mislead ("rename your good plugin to fix
       // the JSON typo in the bad one"); we keep the original diagnostic.
@@ -1330,27 +1329,26 @@ describe('PluginLoader', () => {
     strictEqual(statuses[1], 'invalid-manifest');
   });
 
-  // Spec § A.6, qualified extension ids. The loader injects
-  // `pluginId = manifest.id` so the registry can key by `<pluginId>/<id>`.
-  // The `Step A.6, qualified id injection` suite covered the old
-  // contract where `pluginId` came from `manifest.id`. With
-  // structure-as-truth the loader derives it from the plugin folder
-  // name; the tests stay valuable but need their fixtures updated to
-  // the new shape. Deferred to a follow-up.
-  describe.skip('Step A.6, qualified id injection', () => {
-    it('injects pluginId from plugin.json#/id into every loaded extension', async () => {
+  // Spec § A.6, qualified extension ids. The contract is unchanged (the
+  // registry keys by `<pluginId>/<id>`, so the loader stamps `pluginId`
+  // onto every loaded extension); only the SOURCE moved. It used to be
+  // `plugin.json#/id`; with structure-as-truth it is the plugin
+  // DIRECTORY name, exactly like `id` is the extension's leaf folder.
+  describe('Step A.6, qualified id injection', () => {
+    const MANIFEST = {
+      version: '1.0.0',
+      description: 'test',
+      specCompat: '>=0.0.0',
+      catalogCompat: '*',
+    };
+
+    it('injects the plugin DIRECTORY name as pluginId on every loaded extension', async () => {
       const root = makePluginsDir('a6-injection');
-      const extractorSrc = `
-        export default {
-          id: 'greet', kind: 'extractor', emitsLinkKinds: ['references'], defaultConfidence: 'high',
-        };
-      `;
-      writePlugin(
-        root,
-        'my-plugin',
-        { id: 'my-plugin', version: '1.0.0', specCompat: '>=0.0.0' },
-        { 'd.mjs': extractorSrc },
-      );
+      // Neither id nor pluginId is declared anywhere in the fixture: both
+      // halves of `my-plugin/greet` come from the path.
+      writePlugin(root, 'my-plugin', MANIFEST, {
+        'extractor/greet.mjs': `export default { scope: 'body', extract() {} };`,
+      });
       const result = await loaderFor(root).discoverAndLoadAll();
       strictEqual(result.length, 1);
       strictEqual(result[0]?.status, 'enabled');
@@ -1358,159 +1356,131 @@ describe('PluginLoader', () => {
       ok(ext, 'expected one loaded extension');
       strictEqual(ext.id, 'greet');
       strictEqual(ext.pluginId, 'my-plugin');
+      // The runtime instance handed to the registry carries the same
+      // stamp, not just the `ILoadedExtension` envelope.
+      const instance = (ext as { instance?: Record<string, unknown> }).instance;
+      strictEqual(instance?.['pluginId'], 'my-plugin');
+      strictEqual(instance?.['id'], 'greet');
     });
 
     it('tolerates a matching pluginId hand-coded in the extension', async () => {
       // Defensive: an author who copies built-ins style and includes
-      // `pluginId` matching the manifest id is accepted (no-op). The
+      // `pluginId` matching the directory name is accepted (no-op). The
       // loader strips the field before AJV so it doesn't violate
-      // `unevaluatedProperties: false`.
+      // `unevaluatedProperties: false`. Unlike `id` / `kind`, which are
+      // rejected outright even when they match.
       const root = makePluginsDir('a6-tolerate');
-      const extractorSrc = `
-        export default {
-          id: 'greet', pluginId: 'my-plugin',
-          kind: 'extractor', emitsLinkKinds: ['references'], defaultConfidence: 'high',
-        };
-      `;
-      writePlugin(
-        root,
-        'my-plugin',
-        { id: 'my-plugin', version: '1.0.0', specCompat: '>=0.0.0' },
-        { 'd.mjs': extractorSrc },
-      );
+      writePlugin(root, 'my-plugin', MANIFEST, {
+        'extractor/greet.mjs':
+          `export default { pluginId: 'my-plugin', scope: 'body', extract() {} };`,
+      });
       const result = await loaderFor(root).discoverAndLoadAll();
       strictEqual(result[0]?.status, 'enabled');
       strictEqual(result[0]?.extensions?.[0]?.pluginId, 'my-plugin');
     });
 
-    // The `granularity` manifest field was removed (every extension is
-    // independently toggle-able by its qualified id). A manifest that
-    // still declares it is rejected by AJV as `invalid-manifest`.
-    describe('granularity field removed', () => {
-      it('manifest declaring granularity is rejected as invalid-manifest', async () => {
-        const root = makePluginsDir('granularity-rejected');
-        const extractorSrc = `
-          export default {
-            id: 'one', kind: 'extractor', emitsLinkKinds: ['references'], defaultConfidence: 'high',
-          };
-        `;
-        writePlugin(
-          root,
-          'legacy',
-          {
-            version: '1.0.0',
-            description: 'test',
-            specCompat: '>=0.0.0',
-            catalogCompat: '*',
-            // Legacy field, no longer accepted; AJV
-            // `additionalProperties: false` should reject the manifest.
-          } as Record<string, unknown>,
-          { 'd.mjs': extractorSrc },
-        );
-        const result = await loaderFor(root).discoverAndLoadAll();
-        strictEqual(result.length, 1);
-        strictEqual(result[0]?.status, 'invalid-manifest');
-      });
-    });
-
-    it('invalid-manifest: extension declares pluginId that disagrees with plugin.json', async () => {
+    it('invalid-manifest: extension declares a pluginId that disagrees with its directory', async () => {
       const root = makePluginsDir('a6-mismatch');
-      const extractorSrc = `
-        export default {
-          id: 'greet', pluginId: 'someone-else',
-          kind: 'extractor', emitsLinkKinds: ['references'], defaultConfidence: 'high',
-        };
-      `;
-      writePlugin(
-        root,
-        'my-plugin',
-        { id: 'my-plugin', version: '1.0.0', specCompat: '>=0.0.0' },
-        { 'd.mjs': extractorSrc },
-      );
+      writePlugin(root, 'my-plugin', MANIFEST, {
+        'extractor/greet.mjs':
+          `export default { pluginId: 'someone-else', scope: 'body', extract() {} };`,
+      });
       const result = await loaderFor(root).discoverAndLoadAll();
       strictEqual(result.length, 1);
       strictEqual(result[0]?.status, 'invalid-manifest');
       ok(result[0]?.reason, 'reason populated');
       match(result[0]!.reason!, /pluginId 'someone-else'/);
-      match(result[0]!.reason!, /plugin\.json declares id 'my-plugin'/);
+      match(result[0]!.reason!, /id 'my-plugin'/);
+    });
+
+    // The `granularity` manifest field was removed (every extension is
+    // independently toggle-able by its qualified id). `plugin.json` is
+    // validated with `additionalProperties: false`, so a manifest that
+    // still declares it is rejected as `invalid-manifest`.
+    describe('granularity field removed', () => {
+      it('manifest declaring granularity is rejected as invalid-manifest', async () => {
+        const root = makePluginsDir('granularity-rejected');
+        writePlugin(
+          root,
+          'legacy',
+          { ...MANIFEST, granularity: 'plugin' },
+          { 'extractor/one.mjs': `export default { scope: 'body', extract() {} };` },
+        );
+        const result = await loaderFor(root).discoverAndLoadAll();
+        strictEqual(result.length, 1);
+        strictEqual(result[0]?.status, 'invalid-manifest');
+        match(result[0]!.reason!, /granularity/);
+        match(result[0]!.reason!, /plugins-registry\.schema\.json/);
+      });
     });
   });
 
-  // Spec § A.10, `applicableKinds` filter on Extractors.
+  // Spec § A.10's Extractor `applicableKinds` was retired in favour of
+  // `precondition.kind` (qualified `<provider-plugin>/<kindName>`). The
+  // FILTER behaviour (which nodes the extractor is invoked against, and
+  // that `extract()` is never called for excluded kinds) moved to
+  // `src/__tests__/integration/extractor-applicable-kinds.spec.ts`; do
+  // not re-add it here, the loader cannot observe invocation.
   //
-  //   - Empty array `[]` is rejected by AJV (`minItems: 1`) → load-error.
-  //   - Unknown kinds (no installed Provider declares them) load OK
-  //     (status `enabled`); the warning surfaces in `sm plugins doctor`,
-  //     covered by `plugins-cli.test.ts` separately. Here we just pin
-  //     that the loader does NOT block unknown kinds.
-  // `applicableKinds` was retired with the structure-as-truth refactor
-  // in favour of `precondition.kind` (qualified `<plugin>/<kindName>`).
-  // The filter coverage moved to `__tests__/integration/extractor-applicable-kinds.spec.ts`.
-  describe.skip('Step A.10, applicableKinds filter', () => {
-    it('(e) extractor with applicableKinds: ["unknown-kind"] loads OK (status: enabled)', async () => {
-      const root = makePluginsDir('a10-unknown-kind');
-      const extractorSrc = `
-        export default {
-          id: 'd', kind: 'extractor', emitsLinkKinds: ['references'], defaultConfidence: 'high',
-          applicableKinds: ['unknown-kind'],
-        };
-      `;
-      writePlugin(
-        root,
-        'maybe-someday',
-        {
-          // id removed (structure-as-truth)
-          version: '1.0.0',
-          description: 'test',
-          specCompat: '>=0.0.0',
+  // What stays is the loader half of the old suite: the two declaration
+  // shapes the loader accepts / rejects at load time. They are NOT
+  // covered by the integration file, which builds its extractors in
+  // memory and never goes through AJV.
+  describe('Step A.10, precondition.kind declaration (loader half)', () => {
+    const MANIFEST = {
+      version: '1.0.0',
+      description: 'test',
+      specCompat: '>=0.0.0',
+      catalogCompat: '*',
+    };
 
-          catalogCompat: '*',
-        },
-        { 'd.mjs': extractorSrc },
-      );
+    it('an unknown qualified kind loads OK (status: enabled), it is a doctor warning, not a load failure', async () => {
+      const root = makePluginsDir('a10-unknown-kind');
+      writePlugin(root, 'maybe-someday', MANIFEST, {
+        'extractor/d.mjs': `
+          export default {
+            scope: 'body',
+            precondition: { kind: ['nobody/unknownKind'] },
+            extract() {},
+          };
+        `,
+      });
       const result = await loaderFor(root).discoverAndLoadAll();
       strictEqual(result.length, 1);
       strictEqual(result[0]?.status, 'enabled');
       const ext = result[0]?.extensions?.[0];
       ok(ext, 'extension loaded');
-      // The applicableKinds field survives the load (the loader does
-      // not strip it; the runtime carries it for the orchestrator and
-      // doctor to inspect).
-      strictEqual(ext.kind, 'extractor');
+      // The declaration survives the load: the loader does not strip it,
+      // the orchestrator's matcher and `sm plugins doctor` both read it
+      // off the runtime instance afterwards.
+      const instance = (ext as { instance?: Record<string, unknown> }).instance;
+      deepStrictEqual(
+        (instance?.['precondition'] as { kind?: unknown } | undefined)?.kind,
+        ['nobody/unknownKind'],
+      );
     });
 
-    it('(f) extractor with applicableKinds: [] is rejected by AJV (minItems: 1)', async () => {
+    it('invalid-manifest: precondition.kind: [] is rejected by AJV (minItems: 1)', async () => {
       const root = makePluginsDir('a10-empty-array');
-      const extractorSrc = `
-        export default {
-          id: 'd', kind: 'extractor', emitsLinkKinds: ['references'], defaultConfidence: 'high',
-          applicableKinds: [],
-        };
-      `;
-      writePlugin(
-        root,
-        'empty-applies',
-        {
-          // id removed (structure-as-truth)
-          version: '1.0.0',
-          description: 'test',
-          specCompat: '>=0.0.0',
-
-          catalogCompat: '*',
-        },
-        { 'd.mjs': extractorSrc },
-      );
+      writePlugin(root, 'empty-applies', MANIFEST, {
+        'extractor/d.mjs': `
+          export default {
+            scope: 'body',
+            precondition: { kind: [] },
+            extract() {},
+          };
+        `,
+      });
       const result = await loaderFor(root).discoverAndLoadAll();
       strictEqual(result.length, 1);
-      // AJV rejects the exported extension shape against the
-      // kind-specific schema (extractor.schema.json's
-      // `applicableKinds.minItems: 1`). Per spec/architecture.md
-      // §Plugin discovery, that surfaces as `invalid-manifest`, the
-      // module imported fine; only the declared shape is wrong.
+      // AJV rejects the exported extension shape against the kind schema
+      // (`extractor.schema.json#/properties/precondition/properties/kind/minItems`).
+      // Per spec/architecture.md §Plugin discovery that surfaces as
+      // `invalid-manifest`: the module imported fine, only the declared
+      // shape is wrong.
       strictEqual(result[0]?.status, 'invalid-manifest');
-      ok(result[0]?.reason, 'reason populated');
-      // The reason names the offending field (AJV path or keyword).
-      match(result[0]!.reason!, /applicableKinds|minItems|fewer than 1/i);
+      match(result[0]!.reason!, /precondition\/kind/);
+      match(result[0]!.reason!, /fewer than 1|minItems/i);
     });
   });
 

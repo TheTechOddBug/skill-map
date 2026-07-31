@@ -1,14 +1,14 @@
 /**
  * `sm plugins doctor`, full load pass + structured summary.
  *
- * Three diagnostic sections, each gated on having content:
+ * Four diagnostic sections, each gated on having content:
  *
  *   1. **Counts**, per-status row table (enabled / disabled /
  *      incompatible-* / invalid-manifest / load-error / id-collision)
  *      with built-ins folded in. Errors gate the exit code; `disabled`
  *      is intentional and never an issue.
  *   2. **Applicable-kind warnings**, Extractor declares
- *      `applicableKinds` referencing a `node.kind` no installed
+ *      `precondition.kind` referencing a node kind no installed
  *      Provider emits (Spec § A.10). Informational, does NOT
  *      promote the exit code.
  *   3. **Unknown-slot warnings**. Any extension's
@@ -20,6 +20,13 @@
  *      `catalogCompat` happens to satisfy the current major
  *      syntactically (the slot disappeared on a rename / deprecation).
  *      Informational, does NOT promote the exit code.
+ *   4. **Recommended-action warnings**. An Action declares
+ *      `precondition.analyzerIds` (Modelo B) naming an analyzer no
+ *      loaded plugin declares. The reference is resolved across the
+ *      whole registry (an Action in plugin A may legitimately name an
+ *      analyzer in plugin B) and the optional `:<sub-id>` suffix is
+ *      stripped first. Informational, does NOT promote the exit code
+ *      (`action.schema.json`: dangling references "do NOT block load").
  *
  * Exit code: 0 when every plugin is enabled or intentionally disabled;
  * 1 when any plugin is in an error / incompatible state.
@@ -30,6 +37,7 @@ import { Command, Option } from 'clipanion';
 import { builtInPlugins } from '../../../plugins/built-ins.js';
 import type { IContributionErrorRecord } from '../../../kernel/adapters/sqlite/contributions.js';
 import type {
+  IAction,
   IExtractor,
   IProvider,
 } from '../../../kernel/extensions/index.js';
@@ -56,7 +64,7 @@ import {
   type IBuiltInPluginRow,
 } from './shared.js';
 
-interface IApplicableKindWarning {
+interface IPreconditionKindWarning {
   extractorQualifiedId: string;
   unknownKind: string;
 }
@@ -65,6 +73,15 @@ interface IUnknownSlotWarning {
   extensionQualifiedId: string;
   contributionId: string;
   slot: string;
+}
+
+interface IRecommendedActionWarning {
+  actionQualifiedId: string;
+  /**
+   * The entry EXACTLY as the manifest wrote it, sub-id suffix included,
+   * so the author can grep for the string that does not resolve.
+   */
+  missingAnalyzerId: string;
 }
 
 /**
@@ -85,7 +102,11 @@ interface IPluginsDoctorJsonEnvelope {
     warnings: number;
   };
   issues: Array<{ id: string; status: string; reason: string }>;
-  warnings: Array<{ id: string; kind: 'applicable-kind-unknown' | 'unknown-slot'; message: string }>;
+  warnings: Array<{
+    id: string;
+    kind: 'precondition-kind-unknown' | 'unknown-slot' | 'recommended-action-missing';
+    message: string;
+  }>;
   contributionErrors: Array<{
     pluginId: string;
     extensionId: string;
@@ -141,8 +162,10 @@ export class PluginsDoctorCommand extends SmCommand {
 
     const counts = countByStatus(builtIns, plugins);
     const knownKinds = collectKnownKinds(plugins);
-    const applicableKindWarnings = collectApplicableKindWarnings(plugins, knownKinds);
+    const preconditionKindWarnings = collectPreconditionKindWarnings(plugins, knownKinds);
     const unknownSlotWarnings = collectUnknownSlotWarnings(plugins, KNOWN_SLOT_NAMES);
+    const knownAnalyzerIds = collectKnownAnalyzerIds(plugins);
+    const recommendedActionWarnings = collectRecommendedActionWarnings(plugins, knownAnalyzerIds);
     // "off-shape visible" follow-up. Read the last scan's persisted
     // contribution rejections. Best-effort: a fresh project (no DB / no
     // table yet) yields an empty list so doctor still runs cleanly.
@@ -150,14 +173,18 @@ export class PluginsDoctorCommand extends SmCommand {
     const contribErrorGroups = groupContributionErrorsByPlugin(contribErrors);
 
     const bad = plugins.filter((p) => p.status !== 'enabled' && p.status !== 'disabled');
-    const totalWarnings = applicableKindWarnings.length + unknownSlotWarnings.length;
+    const totalWarnings =
+      preconditionKindWarnings.length
+      + unknownSlotWarnings.length
+      + recommendedActionWarnings.length;
 
     if (this.json) {
       const envelope = buildDoctorJsonEnvelope({
         counts,
         bad,
-        applicableKindWarnings,
+        preconditionKindWarnings,
         unknownSlotWarnings,
+        recommendedActionWarnings,
         totalWarnings,
         contribErrors,
         elapsedMs: this.elapsed!.ms(),
@@ -170,8 +197,9 @@ export class PluginsDoctorCommand extends SmCommand {
       counts,
       builtInCount: builtIns.length,
       userCount: plugins.length,
-      applicableKindWarnings,
+      preconditionKindWarnings,
       unknownSlotWarnings,
+      recommendedActionWarnings,
       totalWarnings,
       bad,
       contribErrorGroups,
@@ -193,8 +221,9 @@ export class PluginsDoctorCommand extends SmCommand {
     counts: TStatusCounts;
     builtInCount: number;
     userCount: number;
-    applicableKindWarnings: IApplicableKindWarning[];
+    preconditionKindWarnings: IPreconditionKindWarning[];
     unknownSlotWarnings: IUnknownSlotWarning[];
+    recommendedActionWarnings: IRecommendedActionWarning[];
     totalWarnings: number;
     bad: IDiscoveredPlugin[];
     contribErrorGroups: IContributionErrorGroup[];
@@ -206,8 +235,9 @@ export class PluginsDoctorCommand extends SmCommand {
     this.#renderStatusBreakdown(args.counts, ansi);
     if (args.totalWarnings > 0) {
       this.#renderWarnings(
-        args.applicableKindWarnings,
+        args.preconditionKindWarnings,
         args.unknownSlotWarnings,
+        args.recommendedActionWarnings,
         args.totalWarnings,
         ansi,
       );
@@ -275,18 +305,19 @@ export class PluginsDoctorCommand extends SmCommand {
   }
 
   #renderWarnings(
-    applicableKindWarnings: IApplicableKindWarning[],
+    preconditionKindWarnings: IPreconditionKindWarning[],
     unknownSlotWarnings: IUnknownSlotWarning[],
+    recommendedActionWarnings: IRecommendedActionWarning[],
     totalWarnings: number,
     ansi: IAnsi,
   ): void {
     this.printer!.data(tx(PLUGINS_TEXTS.doctorWarningsHeader, { count: totalWarnings }));
     const warnGlyph = ansi.yellow('⚠');
-    for (const w of applicableKindWarnings) {
+    for (const w of preconditionKindWarnings) {
       this.#emitWarningEntry(
         warnGlyph,
         sanitizeForTerminal(w.extractorQualifiedId),
-        tx(PLUGINS_TEXTS.doctorApplicableKindUnknown, {
+        tx(PLUGINS_TEXTS.doctorPreconditionKindUnknown, {
           unknownKind: sanitizeForTerminal(w.unknownKind),
         }),
         ansi,
@@ -304,6 +335,16 @@ export class PluginsDoctorCommand extends SmCommand {
           contributionId: sanitizeForTerminal(w.contributionId),
           slot: sanitizeForTerminal(w.slot),
           pluginId: sanitizeForTerminal(pluginId),
+        }),
+        ansi,
+      );
+    }
+    for (const w of recommendedActionWarnings) {
+      this.#emitWarningEntry(
+        warnGlyph,
+        sanitizeForTerminal(w.actionQualifiedId),
+        tx(PLUGINS_TEXTS.doctorRecommendedActionMissing, {
+          analyzerId: sanitizeForTerminal(w.missingAnalyzerId),
         }),
         ansi,
       );
@@ -481,7 +522,7 @@ function forEachUserPluginProvider(
  * extension's runtime export lives at `module.default` (or, for a CJS
  * fallback, on the namespace itself). Returns `null` when the shape
  * is not recognisable, the caller treats that as "no
- * applicableKinds to inspect" and moves on.
+ * precondition.kind to inspect" and moves on.
  */
 function extensionInstance(ext: ILoadedExtension): Record<string, unknown> | null {
   const mod = ext.module;
@@ -520,30 +561,30 @@ function collectKnownKinds(plugins: IDiscoveredPlugin[]): Set<string> {
   return known;
 }
 
-// --- applicableKinds collection -----------------------------------------
+// --- precondition.kind collection -----------------------------------------
 
 /**
  * Walk every loaded Extractor (built-in + user plugin) and produce
- * one warning per unknown kind referenced via `applicableKinds`. An
- * extractor with no `applicableKinds` field is silent (default =
+ * one warning per unknown kind referenced via `precondition.kind`. An
+ * extractor with no `precondition.kind` is silent (default =
  * applies to all kinds). Iteration order is deterministic so the
  * rendered doctor output stays stable across runs.
  *
  * Split into two helpers per source mirroring the Provider iteration
  * helpers, each loop stays trivially small.
  */
-function collectApplicableKindWarnings(
+function collectPreconditionKindWarnings(
   plugins: IDiscoveredPlugin[],
   knownKinds: Set<string>,
-): IApplicableKindWarning[] {
-  const out: IApplicableKindWarning[] = [];
-  collectBuiltInApplicableKindWarnings(out, knownKinds);
-  collectUserApplicableKindWarnings(out, plugins, knownKinds);
+): IPreconditionKindWarning[] {
+  const out: IPreconditionKindWarning[] = [];
+  collectBuiltInPreconditionKindWarnings(out, knownKinds);
+  collectUserPreconditionKindWarnings(out, plugins, knownKinds);
   return out;
 }
 
-function collectBuiltInApplicableKindWarnings(
-  out: IApplicableKindWarning[],
+function collectBuiltInPreconditionKindWarnings(
+  out: IPreconditionKindWarning[],
   knownKinds: Set<string>,
 ): void {
   // Structure-as-truth: extractor / analyzer / action declare their kind
@@ -566,8 +607,8 @@ function collectBuiltInApplicableKindWarnings(
   }
 }
 
-function collectUserApplicableKindWarnings(
-  out: IApplicableKindWarning[],
+function collectUserPreconditionKindWarnings(
+  out: IPreconditionKindWarning[],
   plugins: IDiscoveredPlugin[],
   knownKinds: Set<string>,
 ): void {
@@ -582,7 +623,7 @@ function collectUserApplicableKindWarnings(
 function collectKindsFromExtension(
   ext: ILoadedExtension,
   knownKinds: Set<string>,
-  out: IApplicableKindWarning[],
+  out: IPreconditionKindWarning[],
 ): void {
   if (ext.kind !== 'extractor') return;
   const inst = extensionInstance(ext);
@@ -600,12 +641,12 @@ function collectKindsFromExtension(
 }
 
 function appendUnknownKindWarnings(
-  out: IApplicableKindWarning[],
+  out: IPreconditionKindWarning[],
   extractorQualifiedId: string,
-  applicableKinds: readonly unknown[],
+  declaredKinds: readonly unknown[],
   knownKinds: Set<string>,
 ): void {
-  for (const k of applicableKinds) {
+  for (const k of declaredKinds) {
     if (typeof k !== 'string') continue;
     if (!knownKinds.has(k)) out.push({ extractorQualifiedId, unknownKind: k });
   }
@@ -691,6 +732,147 @@ function appendUnknownSlotWarnings(
   }
 }
 
+// --- recommended-action collection --------------------------------------
+
+/**
+ * Collect the qualified id (`<pluginId>/<analyzerId>`) of every Analyzer
+ * reachable from this run, built-in plugins first, then user plugins
+ * (enabled only). This is the resolution surface for an Action's
+ * `precondition.analyzerIds`, and it is deliberately built ACROSS the
+ * whole registry rather than per plugin: Modelo B edges are cross-plugin
+ * by design (an Action in plugin A legitimately names an analyzer in
+ * plugin B), so a per-plugin check would flag every valid cross-plugin
+ * fixer as dangling.
+ *
+ * Split into two helpers per source, mirroring the Provider iteration
+ * helpers above, so each loop body stays trivially small.
+ */
+function collectKnownAnalyzerIds(plugins: IDiscoveredPlugin[]): Set<string> {
+  const known = new Set<string>();
+  addBuiltInAnalyzerIds(known);
+  addUserPluginAnalyzerIds(known, plugins);
+  return known;
+}
+
+function addBuiltInAnalyzerIds(known: Set<string>): void {
+  for (const plugin of builtInPlugins) {
+    for (const ext of plugin.extensions) {
+      if (ext.kind !== 'analyzer') continue;
+      known.add(qualifiedExtensionId(plugin.id, ext.id));
+    }
+  }
+}
+
+function addUserPluginAnalyzerIds(known: Set<string>, plugins: IDiscoveredPlugin[]): void {
+  for (const p of plugins) {
+    if (p.status !== 'enabled' || !p.extensions) continue;
+    for (const ext of p.extensions) {
+      if (ext.kind !== 'analyzer') continue;
+      known.add(qualifiedExtensionId(ext.pluginId, ext.id));
+    }
+  }
+}
+
+/**
+ * Walk every loaded Action (built-in + user plugin) and produce one
+ * warning per `precondition.analyzerIds` entry that resolves to no known
+ * Analyzer (`spec/schemas/extensions/action.schema.json`: dangling
+ * references "warn via `recommended-action-missing` in `sm plugins
+ * doctor` but do NOT block load"). An Action with no `analyzerIds` is
+ * silent (a standalone Action resolves nobody's findings).
+ *
+ * Iteration order is deterministic so the rendered doctor output stays
+ * stable across runs. Split into two helpers per source, mirroring the
+ * applicable-kind / unknown-slot collectors above.
+ */
+function collectRecommendedActionWarnings(
+  plugins: IDiscoveredPlugin[],
+  knownAnalyzerIds: ReadonlySet<string>,
+): IRecommendedActionWarning[] {
+  const out: IRecommendedActionWarning[] = [];
+  collectBuiltInRecommendedActionWarnings(out, knownAnalyzerIds);
+  collectUserRecommendedActionWarnings(out, plugins, knownAnalyzerIds);
+  return out;
+}
+
+function collectBuiltInRecommendedActionWarnings(
+  out: IRecommendedActionWarning[],
+  knownAnalyzerIds: ReadonlySet<string>,
+): void {
+  for (const plugin of builtInPlugins) {
+    for (const ext of plugin.extensions) {
+      if (ext.kind !== 'action') continue;
+      const action = ext as IAction;
+      const analyzerIds = action.precondition?.analyzerIds;
+      if (!analyzerIds || analyzerIds.length === 0) continue;
+      appendMissingAnalyzerWarnings(
+        out,
+        qualifiedExtensionId(plugin.id, action.id),
+        analyzerIds,
+        knownAnalyzerIds,
+      );
+    }
+  }
+}
+
+function collectUserRecommendedActionWarnings(
+  out: IRecommendedActionWarning[],
+  plugins: IDiscoveredPlugin[],
+  knownAnalyzerIds: ReadonlySet<string>,
+): void {
+  for (const p of plugins) {
+    if (p.status !== 'enabled' || !p.extensions) continue;
+    for (const ext of p.extensions) {
+      collectAnalyzerIdsFromExtension(ext, knownAnalyzerIds, out);
+    }
+  }
+}
+
+function collectAnalyzerIdsFromExtension(
+  ext: ILoadedExtension,
+  knownAnalyzerIds: ReadonlySet<string>,
+  out: IRecommendedActionWarning[],
+): void {
+  if (ext.kind !== 'action') return;
+  const inst = extensionInstance(ext);
+  if (!inst) return;
+  const pre = inst['precondition'];
+  if (!pre || typeof pre !== 'object') return;
+  const analyzerIds = (pre as { analyzerIds?: unknown }).analyzerIds;
+  if (!Array.isArray(analyzerIds)) return;
+  appendMissingAnalyzerWarnings(
+    out,
+    qualifiedExtensionId(ext.pluginId, ext.id),
+    analyzerIds,
+    knownAnalyzerIds,
+  );
+}
+
+function appendMissingAnalyzerWarnings(
+  out: IRecommendedActionWarning[],
+  actionQualifiedId: string,
+  analyzerIds: readonly unknown[],
+  knownAnalyzerIds: ReadonlySet<string>,
+): void {
+  for (const entry of analyzerIds) {
+    if (typeof entry !== 'string') continue;
+    if (knownAnalyzerIds.has(baseAnalyzerId(entry))) continue;
+    out.push({ actionQualifiedId, missingAnalyzerId: entry });
+  }
+}
+
+/**
+ * Strip the optional `:<sub-id>` narrowing suffix an `analyzerIds` entry
+ * may carry (`<plugin>/<analyzer>:<sub-id>`, per the schema's pattern):
+ * the sub-id names one of the analyzer's sub-typed issues, so the
+ * EXISTENCE question is always about the base `<plugin>/<analyzer>` id.
+ * A qualified id never contains a colon, so the first one delimits.
+ */
+function baseAnalyzerId(entry: string): string {
+  const colon = entry.indexOf(':');
+  return colon >= 0 ? entry.slice(0, colon) : entry;
+}
+
 // --- --json envelope ----------------------------------------------------
 
 /**
@@ -702,8 +884,9 @@ function appendUnknownSlotWarnings(
 function buildDoctorJsonEnvelope(args: {
   counts: TStatusCounts;
   bad: IDiscoveredPlugin[];
-  applicableKindWarnings: IApplicableKindWarning[];
+  preconditionKindWarnings: IPreconditionKindWarning[];
   unknownSlotWarnings: IUnknownSlotWarning[];
+  recommendedActionWarnings: IRecommendedActionWarning[];
   totalWarnings: number;
   contribErrors: IContributionErrorRecord[];
   elapsedMs: number;
@@ -714,11 +897,11 @@ function buildDoctorJsonEnvelope(args: {
     reason: sanitizeForTerminal(p.reason ?? ''),
   }));
   const warnings: IPluginsDoctorJsonEnvelope['warnings'] = [];
-  for (const w of args.applicableKindWarnings) {
+  for (const w of args.preconditionKindWarnings) {
     warnings.push({
       id: sanitizeForTerminal(w.extractorQualifiedId),
-      kind: 'applicable-kind-unknown',
-      message: tx(PLUGINS_TEXTS.doctorApplicableKindUnknown, {
+      kind: 'precondition-kind-unknown',
+      message: tx(PLUGINS_TEXTS.doctorPreconditionKindUnknown, {
         unknownKind: sanitizeForTerminal(w.unknownKind),
       }),
     });
@@ -733,6 +916,15 @@ function buildDoctorJsonEnvelope(args: {
         contributionId: sanitizeForTerminal(w.contributionId),
         slot: sanitizeForTerminal(w.slot),
         pluginId: sanitizeForTerminal(pluginId),
+      }),
+    });
+  }
+  for (const w of args.recommendedActionWarnings) {
+    warnings.push({
+      id: sanitizeForTerminal(w.actionQualifiedId),
+      kind: 'recommended-action-missing',
+      message: tx(PLUGINS_TEXTS.doctorRecommendedActionMissing, {
+        analyzerId: sanitizeForTerminal(w.missingAnalyzerId),
       }),
     });
   }

@@ -152,6 +152,8 @@ Prefer `precondition.kind` over `precondition.provider` when the filter is reall
 
 **Unknown qualified kinds are non-blocking.** A `precondition.kind` naming a kind no installed Provider declares (typo, missing Provider plugin) still loads with status `enabled`; `sm plugins doctor` surfaces an informational `precondition-kind-unknown` warning without promoting its exit code, the matching Provider may arrive later.
 
+**Dangling `analyzerIds` are non-blocking too.** A `precondition.analyzerIds` entry naming an analyzer no loaded plugin declares (typo, missing analyzer plugin) still loads with status `enabled`; `sm plugins doctor` surfaces an informational `recommended-action-missing` warning without promoting its exit code. Resolution is cross-plugin (an Action in plugin A may legitimately name an analyzer in plugin B) and the optional `:<sub-id>` suffix is stripped before matching, so `core/reference-broken:missing-file` resolves against `core/reference-broken`.
+
 Use case, a deterministic frontmatter-tag extractor that only makes sense for skills.
 
 ```javascript

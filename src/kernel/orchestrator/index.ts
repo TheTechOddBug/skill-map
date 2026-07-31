@@ -33,8 +33,9 @@
  *
  * Extractor output model (B.1, post-rename from Detector): extractors
  * return `void` and emit through three callbacks injected on the context:
- *   - `ctx.emitLink(link)` → orchestrator validates against
- *     `emitsLinkKinds` then partitions into internal / external buckets.
+ *   - `ctx.emitLink(link)` → orchestrator validates the kind against
+ *     the spec's closed enum, then partitions into internal / external
+ *     buckets.
  *   - `ctx.enrichNode(partial)` → orchestrator records ONE enrichment
  *     entry per `(node, extractor)` so attribution survives into the DB.
  *     Persisted into `node_enrichments` (A.8). The author-supplied

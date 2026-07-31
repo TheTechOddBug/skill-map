@@ -14,6 +14,7 @@
 import { grantTrust, loadTrust } from '../../../../kernel/config/plugin-trust-store.js';
 import { strict as assert } from 'node:assert';
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import {
   cpSync,
   mkdirSync,
@@ -26,6 +27,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, describe, it } from 'node:test';
+
+import { Ajv2020 } from 'ajv/dist/2020.js';
 
 import { SqliteStorageAdapter } from '../../../../kernel/adapters/sqlite/index.js';
 import {
@@ -73,7 +76,13 @@ interface IDropOptions {
   trusted?: boolean;
 }
 
-function dropMockPlugin(scope: IScope, id: string, opts: IDropOptions = {}): void {
+/**
+ * Create `<cwd>/.skill-map/plugins/<id>/plugin.json` (compatible with the
+ * installed spec + catalog) and grant import trust unless the caller opts
+ * out. Returns the plugin directory so the per-kind droppers below only
+ * have to plant their own extension folder.
+ */
+function writePluginRoot(scope: IScope, id: string, opts: IDropOptions = {}): string {
   const pluginDir = join(scope.cwd, '.skill-map', 'plugins', id);
   mkdirSync(pluginDir, { recursive: true });
   if (opts.trusted !== false) grantTrust(scope.cwd, id);
@@ -86,6 +95,11 @@ function dropMockPlugin(scope: IScope, id: string, opts: IDropOptions = {}): voi
       catalogCompat: '*',
     }),
   );
+  return pluginDir;
+}
+
+function dropMockPlugin(scope: IScope, id: string, opts: IDropOptions = {}): void {
+  const pluginDir = writePluginRoot(scope, id, opts);
   const extDir = join(pluginDir, 'extractors', `${id}-extractor`);
   mkdirSync(extDir, { recursive: true });
   writeFileSync(
@@ -106,18 +120,7 @@ function dropMockPlugin(scope: IScope, id: string, opts: IDropOptions = {}): voi
  * deterministically when fields are missing).
  */
 function dropMockProvider(scope: IScope, id: string, opts: IDropOptions = {}): void {
-  const pluginDir = join(scope.cwd, '.skill-map', 'plugins', id);
-  mkdirSync(pluginDir, { recursive: true });
-  if (opts.trusted !== false) grantTrust(scope.cwd, id);
-  writeFileSync(
-    join(pluginDir, 'plugin.json'),
-    JSON.stringify({
-      version: '0.1.0',
-      description: 'test',
-      specCompat: `^${installedSpecVersion()}`,
-      catalogCompat: '*',
-    }),
-  );
+  const pluginDir = writePluginRoot(scope, id, opts);
   // Structure-as-truth: the Provider runtime shape no longer carries
   // `kinds` (the runtime descriptor is populated by the loader from
   // `kinds/<kindName>/` folders). The mock keeps an inline `kinds`
@@ -138,6 +141,102 @@ function dropMockProvider(scope: IScope, id: string, opts: IDropOptions = {}): v
   writeFileSync(
     join(provDir, 'index.js'),
     `export default {\n  ${manifestParts.join(',\n  ')},\n};\n`,
+  );
+}
+
+/**
+ * Drop a plugin whose single extension is a deterministic Action
+ * declaring `precondition.analyzerIds` (Modelo B). Structure-as-truth:
+ * an Action carries a sibling `report.schema.json`, and a deterministic
+ * one must NOT carry a `prompt.md`. The extension lands at
+ * `<id>/<id>-action`.
+ */
+function dropMockActionPlugin(
+  scope: IScope,
+  id: string,
+  analyzerIds: string[],
+  opts: IDropOptions = {},
+): void {
+  const pluginDir = writePluginRoot(scope, id, opts);
+  const actionDir = join(pluginDir, 'actions', `${id}-action`);
+  mkdirSync(actionDir, { recursive: true });
+  writeFileSync(
+    join(actionDir, 'extension.json'),
+    JSON.stringify({ version: '0.1.0', description: 'mock action' }),
+  );
+  writeFileSync(
+    join(actionDir, 'report.schema.json'),
+    JSON.stringify({
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      $id: `urn:test:${id}/${id}-action/report`,
+      type: 'object',
+      required: ['confidence', 'safety'],
+      additionalProperties: true,
+    }),
+  );
+  writeFileSync(
+    join(actionDir, 'index.js'),
+    `export default {
+       mode: 'deterministic',
+       precondition: { analyzerIds: ${JSON.stringify(analyzerIds)} },
+       invoke() {
+         return {
+           report: {
+             confidence: 1,
+             safety: { injectionDetected: false, contentQuality: 'unknown' },
+           },
+         };
+       },
+     };\n`,
+  );
+}
+
+/**
+ * Drop a plugin whose single extension is a deterministic Analyzer, the
+ * resolution target for a cross-plugin `precondition.analyzerIds` entry.
+ * The extension lands at `<id>/<id>-analyzer`.
+ */
+function dropMockAnalyzerPlugin(scope: IScope, id: string, opts: IDropOptions = {}): void {
+  const pluginDir = writePluginRoot(scope, id, opts);
+  const analyzerDir = join(pluginDir, 'analyzers', `${id}-analyzer`);
+  mkdirSync(analyzerDir, { recursive: true });
+  writeFileSync(
+    join(analyzerDir, 'extension.json'),
+    JSON.stringify({ version: '0.1.0', description: 'mock analyzer' }),
+  );
+  writeFileSync(
+    join(analyzerDir, 'index.js'),
+    `export default {
+       mode: 'deterministic',
+       evaluate() { return []; },
+     };\n`,
+  );
+}
+
+/**
+ * Drop a plugin whose single extension is an Extractor declaring
+ * `precondition.kind` (the qualified `<provider-plugin>/<kindName>`
+ * form), the input to the doctor's `precondition-kind-unknown` warning.
+ */
+function dropMockExtractorWithKind(
+  scope: IScope,
+  id: string,
+  kinds: string[],
+  opts: IDropOptions = {},
+): void {
+  const pluginDir = writePluginRoot(scope, id, opts);
+  const extDir = join(pluginDir, 'extractors', `${id}-extractor`);
+  mkdirSync(extDir, { recursive: true });
+  writeFileSync(
+    join(extDir, 'extension.json'),
+    JSON.stringify({ version: '0.1.0', description: 'mock' }),
+  );
+  writeFileSync(
+    join(extDir, 'index.js'),
+    `export default {
+       precondition: { kind: ${JSON.stringify(kinds)} },
+       extract() {},
+     };\n`,
   );
 }
 
@@ -1005,6 +1104,170 @@ describe('sm plugins doctor, runtime contribution errors (last scan)', () => {
     assert.equal(json.status, 0, `stderr: ${json.stderr}`);
     const payload = JSON.parse(json.stdout);
     assert.deepEqual(payload.contributionErrors, []);
+  });
+});
+
+interface IDoctorEnvelope {
+  counts: { warnings: number };
+  issues: unknown[];
+  warnings: Array<{ id: string; kind: string; message: string }>;
+}
+
+/**
+ * Run `sm plugins doctor --json` and return the envelope plus the
+ * warnings of one kind. The doctor's exit code is never gated by
+ * warnings, so the helper asserts exit 0 for every caller (each of the
+ * scopes below carries healthy plugins and no contribution errors).
+ */
+function doctorWarningsOfKind(
+  scope: IScope,
+  kind: string,
+): { payload: IDoctorEnvelope; matching: IDoctorEnvelope['warnings'] } {
+  const r = sm(['plugins', 'doctor', '--json'], scope);
+  assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+  const payload = JSON.parse(r.stdout) as IDoctorEnvelope;
+  return { payload, matching: payload.warnings.filter((w) => w.kind === kind) };
+}
+
+/**
+ * Compile `spec/schemas/plugins-doctor.schema.json` from the published
+ * spec payload. The doctor's warning `kind` is a CLOSED enum there, so
+ * validating a warning-bearing envelope is what keeps the emitted kinds
+ * and the spec's enum from drifting apart (the drift that let
+ * `recommended-action-missing` be promised by one schema and forbidden
+ * by its sibling for as long as it did).
+ */
+function compileDoctorSchema(): ReturnType<Ajv2020['compile']> {
+  const require = createRequire(import.meta.url);
+  const specRoot = dirname(require.resolve('@skill-map/spec/index.json'));
+  const schema = JSON.parse(
+    readFileSync(resolve(specRoot, 'schemas', 'plugins-doctor.schema.json'), 'utf8'),
+  ) as Record<string, unknown>;
+  return new Ajv2020({ strict: false, allErrors: true }).compile(schema);
+}
+
+// `recommended-action-missing`, the dangling-`precondition.analyzerIds`
+// diagnostic `action.schema.json` promises ("Dangling references warn via
+// `recommended-action-missing` in `sm plugins doctor` but do NOT block
+// load"). Resolution runs over the WHOLE registry (built-ins + every
+// enabled drop-in), because Modelo B edges are cross-plugin by design.
+describe('sm plugins doctor, recommended-action-missing warning', () => {
+  it('warns once, naming the action and the missing analyzer id', () => {
+    const scope = freshScope('doctor-dangling-analyzer');
+    sm(['init', '--no-scan'], scope);
+    dropMockActionPlugin(scope, 'mock-dangle', ['mock-dangle/no-such-analyzer']);
+
+    const r = sm(['plugins', 'doctor'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    // Section header + entry header (the action) + body (the missing id).
+    assert.match(r.stdout, /Warnings \(1\)/);
+    assert.match(r.stdout, /⚠\s+mock-dangle\/mock-dangle-action/);
+    assert.match(r.stdout, /mock-dangle\/no-such-analyzer/);
+
+    const { payload, matching } = doctorWarningsOfKind(scope, 'recommended-action-missing');
+    assert.equal(matching.length, 1, JSON.stringify(payload.warnings));
+    assert.equal(matching[0]!.id, 'mock-dangle/mock-dangle-action');
+    assert.match(matching[0]!.message, /mock-dangle\/no-such-analyzer/);
+    assert.equal(payload.counts.warnings, 1);
+
+    // The warning-bearing envelope still satisfies the spec schema, the
+    // `kind` enum accepts `recommended-action-missing`.
+    const validate = compileDoctorSchema();
+    assert.ok(validate(payload), `schema errors: ${JSON.stringify(validate.errors)}`);
+  });
+
+  // The control that stops the check from firing on everything: a
+  // reference that RESOLVES (here to a built-in analyzer) is silent.
+  it('a resolvable reference produces no warning', () => {
+    const scope = freshScope('doctor-resolvable-analyzer');
+    sm(['init', '--no-scan'], scope);
+    dropMockActionPlugin(scope, 'mock-resolves', ['core/reference-broken']);
+
+    const { payload, matching } = doctorWarningsOfKind(scope, 'recommended-action-missing');
+    assert.equal(matching.length, 0, JSON.stringify(payload.warnings));
+    assert.equal(payload.counts.warnings, 0);
+  });
+
+  // The case a naive per-plugin implementation gets wrong: the Action
+  // lives in plugin A and names an analyzer declared by plugin B.
+  it('a cross-plugin reference to an analyzer in another drop-in produces no warning', () => {
+    const scope = freshScope('doctor-cross-plugin-analyzer');
+    sm(['init', '--no-scan'], scope);
+    dropMockAnalyzerPlugin(scope, 'mock-lib');
+    dropMockActionPlugin(scope, 'mock-consumer', ['mock-lib/mock-lib-analyzer']);
+
+    const { payload, matching } = doctorWarningsOfKind(scope, 'recommended-action-missing');
+    assert.equal(matching.length, 0, JSON.stringify(payload.warnings));
+    assert.equal(payload.counts.warnings, 0);
+  });
+
+  // `<plugin>/<analyzer>:<sub-id>` narrows to one sub-typed issue of the
+  // SAME analyzer, so the suffix is stripped before resolution: the
+  // known base id stays silent, the unknown one still warns (and the
+  // message quotes the entry verbatim, suffix included).
+  it('the `:<sub-id>` suffix resolves against the base analyzer id', () => {
+    const scope = freshScope('doctor-subid-analyzer');
+    sm(['init', '--no-scan'], scope);
+    dropMockActionPlugin(scope, 'mock-subid', [
+      'core/reference-broken:missing-file',
+      'core/no-such-analyzer:missing-file',
+    ]);
+
+    const { payload, matching } = doctorWarningsOfKind(scope, 'recommended-action-missing');
+    assert.equal(matching.length, 1, JSON.stringify(payload.warnings));
+    assert.equal(matching[0]!.id, 'mock-subid/mock-subid-action');
+    assert.match(matching[0]!.message, /core\/no-such-analyzer:missing-file/);
+    assert.doesNotMatch(matching[0]!.message, /core\/reference-broken/);
+  });
+
+  // The doctor's exit code is driven by bad plugins and runtime
+  // contribution errors only; warnings are informational.
+  it('never promotes the exit code', () => {
+    const scope = freshScope('doctor-dangling-exit-code');
+    sm(['init', '--no-scan'], scope);
+    dropMockActionPlugin(scope, 'mock-exit', ['mock-exit/no-such-analyzer']);
+
+    const human = sm(['plugins', 'doctor'], scope);
+    assert.equal(human.status, 0, `stderr: ${human.stderr}`);
+    assert.match(human.stdout, /0 issues · 1 warning\b/);
+
+    const { payload } = doctorWarningsOfKind(scope, 'recommended-action-missing');
+    assert.equal(payload.counts.warnings, 1);
+    assert.deepEqual(payload.issues, []);
+  });
+});
+
+// The sibling warning, pinned here for the first time: an Extractor's
+// `precondition.kind` naming a kind no installed Provider declares loads
+// fine and warns (Spec § A.10).
+describe('sm plugins doctor, precondition-kind-unknown warning', () => {
+  it('warns once, naming the extractor and the unknown kind', () => {
+    const scope = freshScope('doctor-unknown-kind');
+    sm(['init', '--no-scan'], scope);
+    dropMockExtractorWithKind(scope, 'mock-kind', ['nope/nothing']);
+
+    const r = sm(['plugins', 'doctor'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stdout, /Warnings \(1\)/);
+    assert.match(r.stdout, /⚠\s+mock-kind\/mock-kind-extractor/);
+    assert.match(r.stdout, /nope\/nothing/);
+
+    const { payload, matching } = doctorWarningsOfKind(scope, 'precondition-kind-unknown');
+    assert.equal(matching.length, 1, JSON.stringify(payload.warnings));
+    assert.equal(matching[0]!.id, 'mock-kind/mock-kind-extractor');
+    assert.match(matching[0]!.message, /nope\/nothing/);
+    assert.equal(payload.counts.warnings, 1);
+  });
+
+  it('a kind an installed Provider declares produces no warning', () => {
+    const scope = freshScope('doctor-known-kind');
+    sm(['init', '--no-scan'], scope);
+    // `claude/agent` is declared by the built-in `claude` Provider.
+    dropMockExtractorWithKind(scope, 'mock-kind-ok', ['claude/agent']);
+
+    const { payload, matching } = doctorWarningsOfKind(scope, 'precondition-kind-unknown');
+    assert.equal(matching.length, 0, JSON.stringify(payload.warnings));
+    assert.equal(payload.counts.warnings, 0);
   });
 });
 
