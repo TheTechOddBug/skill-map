@@ -58,7 +58,7 @@ spec/                              ← published as @skill-map/spec
 ├── [job-events.md](./job-events.md)          ← canonical event stream schema
 ├── [prompt-preamble.md](./prompt-preamble.md) ← canonical injection-mitigation preamble (verbatim normative)
 ├── [db-schema.md](./db-schema.md)            ← table catalog (kernel-owned)
-├── [plugin-kv-api.md](./plugin-kv-api.md)    ← ctx.store contract for storage mode A
+├── [plugin-kv-api.md](./plugin-kv-api.md)    ← ctx.store KV persistence contract
 ├── [job-lifecycle.md](./job-lifecycle.md)     ← queued → running → completed | failed
 ├── [telemetry.md](./telemetry.md)            ← opt-in error reporting + usage analytics (both default OFF)
 ├── [mcp-server.md](./mcp-server.md)          ← skill-map as an MCP server (opt-in, off by default)

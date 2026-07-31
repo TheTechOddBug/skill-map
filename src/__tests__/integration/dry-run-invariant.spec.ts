@@ -206,8 +206,6 @@ describe('spec § Dry-run, every verb that exposes `--dry-run` is byte-equal bef
     cmd.status = false;
     cmd.to = undefined;
     cmd.noBackup = true;
-    cmd.kernelOnly = true;
-    cmd.pluginId = undefined;
     cmd.context = cap.context;
     const exit = await cmd.execute();
 

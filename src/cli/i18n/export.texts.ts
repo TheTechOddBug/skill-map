@@ -16,32 +16,24 @@ export const EXPORT_TEXTS = {
   errorPrefix: '{{glyph}}  sm export: {{message}}\n',
 
   /**
-   * §3.1b error block emitted when the operator asks for a formatter
-   * the verb knows about but has not implemented yet (e.g. `mermaid`
-   * pre-Step 12). Hint surfaces the supported alternatives.
-   */
-  formatNotImplemented:
-    '{{glyph}}  sm export: format "{{format}}" is not implemented yet ({{reason}}).\n' +
-    '   {{hint}}\n',
-  formatNotImplementedHint: 'Supported today: {{supported}}.',
-
-  /**
    * §3.1b error block emitted when the operator asks for a format
-   * outside the closed catalogue. Hint lists the supported ids AND
-   * the ones documented as deferred so the operator knows which
-   * arguments will eventually work.
+   * outside the closed catalogue. Hint lists the supported ids.
    */
   formatUnsupported:
     '{{glyph}}  sm export: unsupported format "{{format}}".\n' +
     '   {{hint}}\n',
-  formatUnsupportedHint: 'Supported: {{supported}}. Deferred: {{deferred}}.',
+  formatUnsupportedHint: 'Supported: {{supported}}.',
 
   /**
-   * Reason emitted by `formatNotImplemented` when the user asks for
-   * `--format mermaid`. Pre-1.0 placeholder until the formatter lands as
-   * a built-in.
+   * §3.1b error block emitted when `--format mermaid` is asked for but
+   * the built-in formatter backing it is turned off. Mirrors the
+   * `sm bump` refusal: a disabled extension must not work through ANY
+   * surface, the verb that wraps it included.
    */
-  formatDeferredReasonMermaid: 'lands at Step 12 with the mermaid formatter',
+  formatterDisabled:
+    '{{glyph}}  sm export: format "{{format}}" needs the {{extension}} extension, which is disabled.\n' +
+    '   {{hint}}\n',
+  formatterDisabledHint: 'Enable it with `sm plugins enable {{extension}}`, or export with --format json or md.',
 
   // --- markdown body ---------------------------------------------------------
   /** Top-level heading for the markdown export. */

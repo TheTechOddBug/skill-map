@@ -75,27 +75,7 @@ export const DB_TEXTS = {
   backupWritten: '{{glyph}}  Backup written: {{outPath}}\n',
 
   // --- migrate (sm db migrate) -----------------------------------------
-  /**
-   * §3.1b two-line block. Hint names the two valid scopes.
-   */
-  migrateKernelOnlyAndPluginMutex:
-    '{{glyph}}  --kernel-only and --plugin are mutually exclusive.\n' +
-    '   {{hint}}\n',
-  migrateKernelOnlyAndPluginMutexHint:
-    'Pick one scope: `--kernel-only` (kernel migrations only) or `--plugin <id>` (a single plugin store).',
-  /**
-   * §3.1b two-line block. The plugin id resolves to nothing the migrator
-   * can touch (unknown or shares the kernel store); hint nudges toward
-   * the discovery verbs.
-   */
-  migratePluginNotFound:
-    '{{glyph}}  --plugin {{pluginId}}: no loaded plugin with that id and `storage.mode = "dedicated"`.\n' +
-    '   {{hint}}\n',
-  migratePluginNotFoundHint:
-    'Run `sm plugins list` for discovered ids. Only plugins with a dedicated SQLite store carry migrations.',
   migrateStatusKernelHeader: 'kernel · Applied: {{applied}} · Pending: {{pending}}\n',
-  migrateStatusPluginHeader:
-    '\nplugin {{pluginId}} · Applied: {{applied}} · Pending: {{pending}}\n',
   migrateStatusPending: '  pending  {{name}}\n',
   migrateStatusApplied: '  applied  {{name}}\n',
   /**
@@ -139,16 +119,6 @@ export const DB_TEXTS = {
     '   {{hint}}\n',
   dumpInvalidTableHint: 'Table names must match [a-zA-Z_][a-zA-Z0-9_]*.',
   dumpFailure: '{{glyph}}  sm db dump: {{message}}\n',
-
-  // --- plugin migration runner -----------------------------------------
-  pluginMigrateFailure: '{{glyph}}  plugin {{pluginId}} · {{reason}}\n',
-  pluginMigrateDryNothing: '{{glyph}}  plugin {{pluginId}} · Nothing to apply.\n',
-  pluginMigrateDryHeader:
-    'plugin {{pluginId}} · Would apply {{count}} migration{{plural}}:\n{{lines}}\n',
-  pluginMigrateUpToDate: '{{glyph}}  plugin {{pluginId}} · Already up to date.\n',
-  pluginMigrateApplied: '{{glyph}}  plugin {{pluginId}} · Applied {{count}} migration{{plural}}\n',
-  pluginMigrateIntrusion:
-    'plugin {{pluginId}} · catalog intrusion detected: {{intrusions}}\n',
 
   // --- dry-run previews ------------------------------------------------
   dryRunHeader: '(dry-run, no DB writes, no file unlinks)\n',

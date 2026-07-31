@@ -1,29 +1,25 @@
 # Plugin KV API
 
-Normative contract for plugin-accessible persistence. Two modes exist (see [`db-schema.md`](./db-schema.md) for the catalog entries):
+Normative contract for plugin-accessible persistence: the kernel-provided `ctx.store.*` accessor, backed by the shared `state_plugin_kvs` table (see [`db-schema.md`](./db-schema.md) for the catalog entry).
 
-- **Mode A, KV**: plugin uses the kernel-provided `ctx.store.*` accessor. Backed by the shared `state_plugin_kvs` table.
-- **Mode B, Dedicated**: plugin owns its own tables with the `plugin_<normalizedId>_` prefix, migrated by the kernel.
-
-This document defines mode A in full and the boundary with mode B. Implementations MUST expose this API to every plugin that declares `"storage": { "mode": "kv" }` in its manifest.
+Implementations MUST expose this API to every plugin that declares `"storage": { "mode": "kv" }` in its manifest.
 
 ---
 
 ## Overview
 
-A plugin extension receives a `ctx` object at construction time. `ctx.store` is present if and only if the plugin declared storage. Its shape depends on the mode:
+A plugin extension receives a `ctx` object at construction time. `ctx.store` is present if and only if the plugin declared storage:
 
-| Mode | `ctx.store` shape |
+| Manifest | `ctx.store` shape |
 |---|---|
 | No storage declared | `undefined`. |
-| `mode: "kv"` | `KvStore` (this document). |
-| `mode: "dedicated"` | `undefined` in v1. The tables are created and namespaced, but no runtime accessor is handed to the plugin yet. See mode B below. |
+| `"storage": { "mode": "kv" }` | `KvStore` (this document). |
 
-Plugins SHOULD pick the minimum mode they need. Mode A is simpler, requires no migrations, and is the only mode with a working accessor in v1. Mode B reserves relational shape and indexes for a plugin that will own migrations, but cannot read or write those tables from plugin code until the accessor lands post-v1.
+`kv` is the only storage mode. It requires no migrations and is ready the moment the plugin loads; a plugin that needs relational shape keeps that data outside skill-map's database.
 
 ---
 
-## Mode A: `ctx.store` KV accessor
+## `ctx.store` KV accessor
 
 ### Interface
 
@@ -82,9 +78,9 @@ Return order of `list` is NOT specified; consumers MUST NOT rely on ordering. Im
 
 ### Transactions
 
-The `KvStore` operations are individually atomic. There is NO multi-operation transaction in mode A, plugins that need transactional semantics across several rows MUST use mode B.
+The `KvStore` operations are individually atomic. There is NO multi-operation transaction: a plugin that needs transactional semantics across several rows keeps that data outside skill-map's database.
 
-Implementations MUST NOT expose a `transaction()` method on `KvStore` in mode A. The shape is minimal to keep the backing table simple.
+Implementations MUST NOT expose a `transaction()` method on `KvStore`. The shape is minimal to keep the backing table simple.
 
 ### Errors
 
@@ -103,70 +99,9 @@ Errors MUST NOT leak backend-specific details (SQL strings, file paths) to plugi
 
 ---
 
-## Mode B: dedicated tables
-
-Mode B is governed by [`db-schema.md`](./db-schema.md) (catalog analyzers + triple protection). This section restates the API surface.
-
-### Declaration
-
-```json
-{
-  "storage": {
-    "mode": "dedicated",
-    "tables": ["rule_exceptions", "cache_entries"],
-    "migrations": ["migrations/001_initial.sql"]
-  }
-}
-```
-
-The `tables` array lists logical table names **without** the `plugin_<id>_` prefix. The prefix is the kernel's namespace boundary, and it is ENFORCED rather than applied for you: migration SQL MUST write the physical, prefixed name (`CREATE TABLE plugin_<normalizedId>_rule_exceptions`). The manifest stays logical so the plugin id can be normalised into the prefix without the author restating it.
-
-### Runtime accessor: NOT part of v1
-
-**Mode B declares storage; it does not yet hand the plugin a runtime accessor.** In v1 a `dedicated` plugin gets its tables created and namespace-enforced (below), and `ctx.store` stays `undefined`. There is no `DedicatedStore.db`, no scoped `Database` wrapper, no per-query validator and no transaction API.
-
-This is a deliberate narrowing, recorded rather than quietly dropped. Earlier drafts of this document specified a `db: Database` wrapper that rejected out-of-namespace queries, DDL, `ATTACH` and unscoped `PRAGMA` per query, raising a typed violation, plus `db.transaction(...)`. None of it was ever implemented, no plugin depends on it, and freezing that surface into v1 would commit every implementation to a SQL-parsing query validator: a large security surface, specified with no consumer to validate the design against. Shipping the honest smaller contract costs nothing today and leaves the larger one free to be designed against a real use case.
-
-What a plugin can rely on in v1: its declared tables exist, they are namespaced, and nothing outside its namespace can be created (see §Migrations). Reading and writing them is out of contract until a post-v1 minor adds the accessor, which is additive and therefore a minor bump.
-
-Mode A (`kv`) is the mode with a working accessor. A plugin that needs to READ and WRITE its own state in v1 declares `mode: "kv"`.
-
-### Migrations
-
-- Location: `<plugin-dir>/migrations/NNN_snake_case.sql`.
-- Applied in order, after the kernel migrations, when the operator runs `sm db migrate`. NOT on boot: opening the database applies kernel migrations only, so a freshly installed plugin has no tables until that verb runs. The bullet below on failure handling depends on this distinction.
-- Prefix enforcement: every object a migration creates MUST already carry the `plugin_<normalizedId>_` prefix. The kernel REJECTS an unprefixed or out-of-namespace name (`object "<name>" is outside the plugin's namespace`); it does NOT rewrite the statement to add the prefix. Rejecting rather than rewriting keeps one name in play: the author reads the same table name in the migration, in the runtime query and in a `sm db dump`, and a typo surfaces as an error instead of silently creating a differently-named table.
-- The rule is literal and applies to EVERY object, indexes and constraints included: the name must START with the prefix. The kernel's own `ix_<table>_<cols>` convention is therefore unavailable to a plugin, since `ix_plugin_foo_bar` starts with `ix_`. Put the namespace first and the convention after (`plugin_foo_bar_ix`).
-- A failing plugin migration fails the `sm db migrate` invocation (exit 2) and applies none of that plugin's migrations; other plugins and the kernel are unaffected. The plugin itself stays loadable, its extensions keep working, and only the storage its migration would have created is missing, because the migration runs at `sm db migrate` time rather than at load time.
-
-See [`db-schema.md`](./db-schema.md) for the normative migration analyzers.
-
----
-
-## Mode selection guidance
-
-Non-normative guidance for plugin authors.
-
-**Prefer mode A when**:
-
-- Each value is a small JSON blob (preferences, per-node flags, hash pins).
-- Queries are "get by key" or "list under a prefix".
-- You need to ship without asking the user to run a migration.
-
-**Prefer mode B when**:
-
-- You need indexes beyond `(pluginId, nodePath, key)`.
-- You need to `JOIN` rows, aggregate, or do relational queries.
-- Your data model is tabular (cache with TTL, observation log, provider registry).
-- You are willing to own migrations forever.
-
-A plugin MUST declare **exactly one** storage mode; mixing modes is forbidden. [`plugins-registry.schema.json`](./schemas/plugins-registry.schema.json) enforces this at the manifest level (`storage` is a `oneOf` between `kv` and `dedicated`), and at runtime `ctx.store` exposes the `KvStore` shape for mode A, or stays `undefined` for mode B in v1. A plugin that needs to read and write its own state today MUST use mode A.
-
----
-
 ## Visibility analyzers
 
-- A plugin MUST NOT read or write rows outside its scope. Mode A: the accessor is scoped by construction (the plugin id is captured when the accessor is built and is never an argument). Mode B: the migration validator enforces the namespace at creation time, and there is no runtime accessor to scope in v1.
+- A plugin MUST NOT read or write rows outside its scope. The accessor is scoped by construction: the plugin id is captured when the accessor is built and is never an argument.
 - The kernel MAY expose read-only introspection for diagnostics (e.g., `sm plugins show <id> --storage` lists key counts). Authoritative, not a plugin-level API.
 - `sm db shell` can read any table. Operator-level escape hatch; plugins MUST NOT rely on it.
 
@@ -174,20 +109,19 @@ A plugin MUST declare **exactly one** storage mode; mixing modes is forbidden. [
 
 ## Backup and retention
 
-- Mode A rows live in `state_plugin_kvs` and are backed up with `sm db backup`.
-- Mode B rows live in the plugin's dedicated tables (prefixed `plugin_<id>_`) and are likewise backed up.
-- `sm plugins disable <id>` does NOT drop the plugin's data; disabled plugins keep their KV rows and dedicated tables. (`scan_contributions` rows ARE purged eagerly on disable, see `db-schema.md` § `scan_contributions`, because those are scan-derived and would otherwise keep rendering in the UI until the next scan. KV / dedicated-table data is plugin-managed and survives toggle cycles so re-enabling restores state.) `sm plugins forget <id>` (deferred to post-`v1.0`) wipes everything.
-- `sm db reset` (no modifier) drops only `scan_*`. Plugin KV rows (mode A) and plugin-dedicated tables (mode B) are **preserved** (non-destructive to plugin storage).
-- `sm db reset --state` drops `state_*` AND every `plugin_<normalized_id>_*` table, which includes `state_plugin_kvs` (mode A) AND the plugin-dedicated tables (mode B). The CLI MUST require interactive confirmation unless `--yes` is passed.
-- `sm db reset --hard` deletes the DB file entirely, destroying all plugin storage regardless of mode.
+- Plugin rows live in `state_plugin_kvs` and are backed up with `sm db backup`.
+- `sm plugins disable <id>` does NOT drop the plugin's data; disabled plugins keep their KV rows. (`scan_contributions` rows ARE purged eagerly on disable, see `db-schema.md` § `scan_contributions`, because those are scan-derived and would otherwise keep rendering in the UI until the next scan. KV data is plugin-managed and survives toggle cycles so re-enabling restores state.) `sm plugins forget <id>` (deferred to post-`v1.0`) wipes everything.
+- `sm db reset` (no modifier) drops only `scan_*`. Plugin KV rows are **preserved** (non-destructive to plugin storage).
+- `sm db reset --state` drops `state_*`, which includes `state_plugin_kvs`. The CLI MUST require interactive confirmation unless `--yes` is passed.
+- `sm db reset --hard` deletes the DB file entirely, destroying all plugin storage.
 
 ---
 
 ## Honest note on isolation
 
-Mode A is isolated at the row level: the accessor physically cannot see another plugin's rows.
+The accessor is isolated at the row level: it physically cannot see another plugin's rows, because the plugin id is captured at construction and is never an argument.
 
-Mode B is **isolated against accidents, not hostile code**. The namespace is enforced when migrations run, so a plugin cannot create tables outside its own prefix; in v1 there is no runtime accessor left to scope (see §Runtime accessor), and a malicious plugin in the same JavaScript process can reach any table regardless by importing raw engine bindings directly. Plugins are user-placed code; the kernel trusts the user's judgement at install time.
+That isolation holds against **accidents, not hostile code**. A malicious plugin runs in the same JavaScript process and can reach any table regardless, by importing raw engine bindings directly. Plugins are user-placed code; the kernel trusts the user's judgement at install time.
 
 Hardening that would change this posture (signed manifests, sandboxed worker-thread isolation, a per-plugin database file) is out of scope for v1 and not scheduled here. Each is additive, so none of them needs a major bump to land.
 
@@ -195,7 +129,7 @@ Hardening that would change this posture (signed manifests, sandboxed worker-thr
 
 ## See also
 
-- [`db-schema.md`](./db-schema.md), table catalog, migration analyzers, triple protection for mode B.
+- [`db-schema.md`](./db-schema.md), table catalog and migration analyzers.
 - [`architecture.md`](./architecture.md), extension contract analyzers and `ctx.store` injection via the kernel.
 
 ---
@@ -204,6 +138,6 @@ Hardening that would change this posture (signed manifests, sandboxed worker-thr
 
 - The `KvStore` interface (method names, options, return shapes) is **stable** as of spec v1.0.0.
 - Adding a method to `KvStore` is a minor bump; removing or changing a signature is a major bump.
-- Mode names (`kv`, `dedicated`) are **stable**. Adding a third mode is a minor bump.
+- The mode name (`kv`) is **stable**. Adding a second mode is a minor bump.
 - Key and value size limits are implementation-defined and MAY change without a spec bump; implementations MUST document their limits in their own changelog.
 - Error class names are **stable**; adding a new error class is a minor bump.

@@ -2,8 +2,9 @@
  * `sm graph [--format <name>]`
  *
  * Renders the persisted graph through a registered formatter and writes
- * the result to stdout. Default `--format ascii` (the only built-in
- * formatter at v0.5.0; mermaid / dot land at Step 12 as drop-in additions).
+ * the result to stdout. Default `--format ascii`; the other built-in
+ * formatters are `json`, `mermaid`, and `dot`. The set is OPEN: any
+ * enabled plugin-supplied formatter is selectable by its folder name.
  *
  * Read-only: opens the DB, calls `loadScanResult`, picks the formatter
  * whose `formatId` matches `--format`, and prints. Never persists.
@@ -44,16 +45,19 @@ export class GraphCommand extends SmCommand {
     category: 'Browse',
     description: 'Render the full graph via the named formatter.',
     details: `
-      Reads the persisted scan and prints a textual rendering. The
-      built-in \`ascii\` formatter is the only format available at
-      v0.5.0; \`mermaid\` and \`dot\` are deferred to Step 12 and will
-      surface here automatically once they ship as built-ins.
+      Reads the persisted scan and prints a textual rendering. Built-in
+      formats: \`ascii\` (default), \`json\`, \`mermaid\` (a Mermaid
+      \`flowchart\`), and \`dot\` (a Graphviz \`digraph\`, pipe it into
+      \`dot -Tsvg\`). Any enabled plugin formatter surfaces here too,
+      selected by its folder name.
 
       Run \`sm scan\` first to populate the DB.
     `,
     examples: [
       ['Render the graph as ASCII (default)', '$0 graph'],
       ['Render with an explicit format', '$0 graph --format ascii'],
+      ['Mermaid flowchart', '$0 graph --format mermaid'],
+      ['Graphviz SVG', '$0 graph --format dot | dot -Tsvg > graph.svg'],
       ['Use a non-default DB file', '$0 graph --db /path/to/skill-map.db'],
     ],
   });

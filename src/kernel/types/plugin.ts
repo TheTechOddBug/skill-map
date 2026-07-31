@@ -18,26 +18,18 @@ export type { ExtensionKind } from '../registry.js';
 export type { TSettingDeclaration } from './view-catalog.js';
 
 /**
- * Plugin storage mode. Matches the `oneOf` in the plugin manifest schema:
- * either shared `state_plugin_kvs` (mode `kv`) or dedicated plugin-owned
- * tables with explicit migrations (mode `dedicated`). Absent = the plugin
- * does not persist state at all.
+ * Plugin storage declaration. Matches the `storage` block in the plugin
+ * manifest schema: the shared `state_plugin_kvs` table (mode `kv`).
+ * Absent = the plugin does not persist state at all.
  *
- * Optional output-schema declarations (spec § A.12, opt-in correctness
- * for plugin custom storage):
- *   - Mode `kv` → `schema` (single relative path). Validates the value
- *     written by `ctx.store.set(key, value)`.
- *   - Mode `dedicated` → `schemas` (per-table relative paths). Validates
- *     each row written by `ctx.store.write(table, row)` whose table has
- *     a declared schema; tables absent from the map accept any shape.
- *
- * Absent in both cases = permissive (status quo, no validation). Schema
- * load failures surface as `load-error`. `emitLink` and `enrichNode`
- * keep their universal kernel validation regardless of these fields.
+ * The optional output-schema declaration (spec § A.12, opt-in
+ * correctness for plugin custom storage) is `schema`, a single relative
+ * path validating the value written by `ctx.store.set(key, value)`.
+ * Absent = permissive (status quo, no validation). Schema load failures
+ * surface as `load-error`. `emitLink` and `enrichNode` keep their
+ * universal kernel validation regardless of this field.
  */
-export type TPluginStorage =
-  | { mode: 'kv'; schema?: string }
-  | { mode: 'dedicated'; tables: string[]; migrations: string[]; schemas?: Record<string, string> };
+export type TPluginStorage = { mode: 'kv'; schema?: string };
 
 /**
  * Raw `plugin.json` shape after successful AJV validation.
@@ -266,19 +258,14 @@ export interface IDiscoveredPlugin {
    * Runtime-only, never persisted, never spec-modeled.
    *
    * Spec § A.12, opt-in JSON Schema validation for plugin custom storage.
-   * Populated by the loader when `manifest.storage.schemas` (Mode B) or
-   * `manifest.storage.schema` (Mode A) declares schema paths the loader
-   * successfully read and AJV-compiled. Consumed by the runtime store
-   * wrapper to validate `ctx.store.write(table, row)` (Mode B) and
-   * `ctx.store.set(key, value)` (Mode A) before persisting.
+   * Populated by the loader when `manifest.storage.schema` declares a
+   * schema path the loader successfully read and AJV-compiled. Consumed
+   * by the runtime store wrapper to validate `ctx.store.set(key, value)`
+   * before persisting.
    *
-   * Mode B layout, keyed by logical table name (without the
-   * `plugin_<normalizedId>_` prefix), matching the manifest's `schemas`
-   * map. Tables not present in the map accept any shape (permissive).
-   *
-   * Mode A layout, uses the sentinel key `__kv__` for the single
-   * value-shape schema. The sentinel survives the runtime contract change
-   * if Mode A ever grows multiple namespaces.
+   * Keyed by the sentinel `__kv__` for the single value-shape schema.
+   * The map shape survives the runtime contract change if the store ever
+   * grows multiple namespaces.
    *
    * Absent (`undefined`) when no schemas were declared OR when the load
    * surfaced a `load-error` (the discovered plugin keeps its failure

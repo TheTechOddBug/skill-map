@@ -364,7 +364,7 @@ describe('plugin-runtime, branch coverage', () => {
       // Formatter composer also respects the filter.
       const formatters = composeFormatters({ pluginRuntime: runtime });
       // ascii + json formatters; name-collision toggle is unrelated to either.
-      assert.equal(formatters.length, 2, 'ascii + json formatters still on; name-collision toggle is unrelated');
+      assert.equal(formatters.length, 4, 'ascii + json + mermaid + dot formatters still on; name-collision toggle is unrelated');
     });
 
     it('(c) default: every built-in runs except experimental ones', () => {
@@ -392,7 +392,7 @@ describe('plugin-runtime, branch coverage', () => {
         'core/node-bump is experimental → ships disabled, not in the default pipeline',
       );
       const formatters = composeFormatters({ pluginRuntime: emptyPluginRuntime() });
-      assert.equal(formatters.length, 2, 'ascii + json formatters loaded');
+      assert.equal(formatters.length, 4, 'ascii + json + mermaid + dot formatters loaded');
     });
 
     it('(d) --no-built-ins overrides per-extension config (everything off)', () => {

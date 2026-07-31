@@ -637,13 +637,33 @@ describe('/api/graph', () => {
     });
   });
 
-  it('rejects unknown ?format=mermaid with 400 bad-query', async () => {
+  it('renders the mermaid formatter with text/plain', async () => {
     await bootAndUse(defaultOptions(), async (handle) => {
       const res = await fetch(url(handle, '/api/graph?format=mermaid'));
+      assert.equal(res.status, 200);
+      // Mermaid source is NOT markdown (it is commonly embedded in it),
+      // so it rides the plain-text default rather than text/markdown.
+      assert.match(res.headers.get('content-type') ?? '', /text\/plain/);
+      assert.match(await res.text(), /^flowchart LR\n/);
+    });
+  });
+
+  it('renders the dot formatter with text/plain', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const res = await fetch(url(handle, '/api/graph?format=dot'));
+      assert.equal(res.status, 200);
+      assert.match(res.headers.get('content-type') ?? '', /text\/plain/);
+      assert.match(await res.text(), /^digraph "skill-map" \{\n/);
+    });
+  });
+
+  it('rejects an unregistered ?format=csv with 400 bad-query', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const res = await fetch(url(handle, '/api/graph?format=csv'));
       assert.equal(res.status, 400);
       const body = (await res.json()) as { error: { code: string; message: string } };
       assert.equal(body.error.code, 'bad-query');
-      assert.match(body.error.message, /mermaid/);
+      assert.match(body.error.message, /csv/);
     });
   });
 });

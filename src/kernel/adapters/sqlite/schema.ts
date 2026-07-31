@@ -84,7 +84,13 @@ export type TJobExtensionKind = 'action' | 'analyzer';
 export type TExecutionKind = 'action';
 export type TExecutionStatus = 'completed' | 'failed' | 'cancelled';
 
-export type TSchemaVersionScope = 'kernel' | 'plugin';
+/**
+ * Migration-ledger scope. `kernel` is the only value: plugins do not own
+ * tables in the project database, so nothing else migrates. The column
+ * (and the pair with `owner_id`) is kept so the ledger's shape can carry
+ * a second owner later without a PK change.
+ */
+export type TSchemaVersionScope = 'kernel';
 
 // --- Scan zone -------------------------------------------------------------
 

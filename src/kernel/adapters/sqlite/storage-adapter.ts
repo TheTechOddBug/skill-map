@@ -7,7 +7,7 @@
  *
  * **Storage-port-promotion (Phase A).** The adapter exposes the
  * non-transactional namespaces (`scans`, `issues`, `history`, `jobs`,
- * `migrations`, `pluginMigrations`) as direct properties. The
+ * `migrations`) as direct properties. The
  * `enrichments` MUTATION surfaces are transactional-only by design, they
  * live exclusively on the `ITransactionalStorage` subset returned by
  * `port.transaction(...)` (`upsertMany` shares the refresh persist
@@ -101,12 +101,6 @@ import {
   runQuickCheck,
   writeBackup,
 } from './migrations.js';
-import {
-  applyPluginMigrations,
-  discoverPluginMigrations,
-  planPluginMigrations,
-  resolvePluginMigrationsDir,
-} from './plugin-migrations.js';
 import {
   loadBranch,
   loadEffectiveMaxRenderNodes,
@@ -264,7 +258,6 @@ export class SqliteStorageAdapter implements StoragePort {
   pluginKvs!: StoragePort['pluginKvs'];
   preferences!: StoragePort['preferences'];
   migrations!: StoragePort['migrations'];
-  pluginMigrations!: StoragePort['pluginMigrations'];
 
   constructor(options: ISqliteStorageAdapterOptions) {
     this.#options = options;
@@ -492,18 +485,6 @@ export class SqliteStorageAdapter implements StoragePort {
           return typeof v === 'number' && Number.isFinite(v) ? v : null;
         }),
       quickCheck: () => withRawDb(path, (raw) => runQuickCheck(raw)),
-    };
-
-    this.pluginMigrations = {
-      resolveDir: (plugin) => resolvePluginMigrationsDir(plugin),
-      discover: (plugin) => discoverPluginMigrations(plugin),
-      plan: (plugin, files) =>
-        withRawDb(path, (raw) => planPluginMigrations(raw, plugin, files)),
-      apply: (plugin, options, files) =>
-        withRawDb(path, (raw) => {
-          raw.exec('PRAGMA foreign_keys = ON');
-          return applyPluginMigrations(raw, plugin, options, files);
-        }),
     };
   }
 }
@@ -1023,7 +1004,7 @@ async function listFavoritePaths(db: Kysely<IDatabase>): Promise<Set<string>> {
  * verb's per-method calls are infrequent, so the open/close
  * overhead is negligible). The synchronous `fn` matches the
  * underlying free functions, which run BEGIN/COMMIT on the raw
- * handle directly per `migrations.ts` / `plugin-migrations.ts`.
+ * handle directly per `migrations.ts`.
  */
 function withRawDb<T>(path: string, fn: (raw: DatabaseSync) => T): T {
   const raw = new DatabaseSync(path);

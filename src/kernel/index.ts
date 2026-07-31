@@ -149,13 +149,10 @@ export {
   KV_PLUGIN_MAX_TOTAL_BYTES,
   KV_SCHEMA_KEY,
   KV_VALUE_MAX_BYTES,
-  makeDedicatedStoreWrapper,
   makeKvStoreWrapper,
   makePluginStore,
 } from './adapters/plugin-store.js';
 export type {
-  IDedicatedStorePersist,
-  IDedicatedStoreWrapper,
   IKvEntry,
   IKvListOptions,
   IKvPersistedRow,

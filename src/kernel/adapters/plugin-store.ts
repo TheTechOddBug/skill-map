@@ -1,22 +1,17 @@
 /**
- * Plugin store wrappers, runtime injection for `ctx.store`.
+ * Plugin store wrapper, runtime injection for `ctx.store`.
  *
- * Two shapes, mirroring the manifest's storage modes documented in
- * `spec/plugin-kv-api.md`:
+ * One shape, mirroring the manifest's `storage` block documented in
+ * `spec/plugin-kv-api.md`: the `KvStore`, a full four-method accessor
+ * (`get` / `set` / `delete` / `list`) the spec declares as a MUST.
+ * `set` AJV-validates `value` against the schema declared by
+ * `manifest.storage.schema` (single value-shape) when present. Absent =
+ * permissive. `get` / `list` never validate, they return what is
+ * stored.
  *
- *   - Mode A, `KvStore`: the full four-method accessor
- *     (`get` / `set` / `delete` / `list`) the spec declares as a MUST.
- *     `set` AJV-validates `value` against the schema declared by
- *     `manifest.storage.schema` (single value-shape) when present.
- *     Absent = permissive. `get` / `list` never validate, they return
- *     what is stored.
- *   - Mode B, `DedicatedStore.write(table, row)`. AJV-validates `row`
- *     against the per-table schema declared in `manifest.storage.schemas`
- *     when present. Tables absent from the map accept any shape.
- *
- * Both wrappers are storage-engine agnostic, they accept a `persist`
- * port the caller supplies. The persistence side (SQLite, in-memory,
- * mock) is the caller's concern; this wrapper owns the plugin-facing
+ * The wrapper is storage-engine agnostic, it accepts a `persist` port
+ * the caller supplies. The persistence side (SQLite, in-memory, mock)
+ * is the caller's concern; this wrapper owns the plugin-facing
  * contract: key validation, JSON encoding / decoding, size ceilings,
  * the AJV gate, the typed error taxonomy, and the `nodePath ↔ nodeId`
  * sentinel translation. That separation lets the test suite exercise
@@ -53,11 +48,11 @@ import {
 } from './plugin-store-errors.js';
 
 /**
- * Sentinel key under which Mode A stores its single value-shape schema
- * inside `IDiscoveredPlugin.storageSchemas`. The sentinel keeps the
- * shared `Record<string, IPluginStorageSchema>` map a single-typed
- * surface across both modes; consumers look up by sentinel for KV and
- * by table name for dedicated.
+ * Sentinel key under which the store's single value-shape schema lives
+ * inside `IDiscoveredPlugin.storageSchemas`. The map shape
+ * (`Record<string, IPluginStorageSchema>`) is kept rather than a bare
+ * field so a future second namespace can join without reshaping the
+ * discovered-plugin surface.
  */
 export const KV_SCHEMA_KEY = '__kv__';
 
@@ -95,9 +90,9 @@ export const KV_VALUE_MAX_BYTES = 1024 * 1024;
  * Why 4 MiB: an extractor runs once per node, so a plugin on a
  * 5,000-node tree writing a 200-byte record per node lands around
  * 1 MB, comfortably clear. Reaching 4 MiB means the plugin is either
- * storing bulk content (which belongs in Mode B, or nowhere) or
- * looping. It is 4x the single-value ceiling, so one legitimate large
- * write cannot trip it either.
+ * storing bulk content (which does not belong here) or looping. It is
+ * 4x the single-value ceiling, so one legitimate large write cannot
+ * trip it either.
  *
  * This is a HARD ceiling: the `set` that would cross it is rejected
  * with `KvBudgetExceededError` and nothing is persisted. An advisory
@@ -134,7 +129,7 @@ export const KV_KEY_WARN_MAX_TRACKED = 20;
 export const KV_DISPLAY_CAP = 200;
 
 /**
- * One stored Mode A row as the plugin sees it. Mirrors the spec's
+ * One stored row as the plugin sees it. Mirrors the spec's
  * `KvEntry`: `value` is already JSON-decoded and `nodePath` is `null`
  * for globally-scoped rows.
  */
@@ -171,7 +166,7 @@ export interface IKvPersistedRow {
 }
 
 /**
- * Engine-agnostic persistence port for Mode A, already bound to a
+ * Engine-agnostic persistence port, already bound to a
  * single `pluginId` by whoever constructs it. Every method may be sync
  * or async so an in-memory test double stays a plain object literal.
  *
@@ -194,18 +189,13 @@ export interface IKvStorePersist {
   ): readonly IKvPersistedRow[] | Promise<readonly IKvPersistedRow[]>;
 }
 
-export interface IDedicatedStorePersist {
-  (table: string, row: unknown): void | Promise<void>;
-}
-
 /**
- * Mode A wrapper, the plugin-facing `KvStore` from
- * `spec/plugin-kv-api.md`.
+ * The plugin-facing `KvStore` from `spec/plugin-kv-api.md`.
  *
  * - `get` returns the decoded value or `null`; a missing row is not an
  *   error.
  * - `set` upserts. It runs the AJV gate (when the plugin declared a
- *   Mode A schema), JSON-encodes, checks the size ceiling, then
+ *   value schema), JSON-encodes, checks the size ceiling, then
  *   forwards. Any rejection happens before persistence, so a failed
  *   `set` leaves no row.
  * - `delete` returns `true` iff a row was removed. Idempotent.
@@ -214,7 +204,7 @@ export interface IDedicatedStorePersist {
  *
  * Every method is scoped to the wrapper's plugin and to the requested
  * `nodePath` (or the global sentinel). There is deliberately no
- * `transaction()`, mode A is single-operation atomic by contract.
+ * `transaction()`, the store is single-operation atomic by contract.
  */
 export interface IKvStoreWrapper {
   get<T = unknown>(key: string, options?: IKvScopeOptions): Promise<T | null>;
@@ -224,12 +214,12 @@ export interface IKvStoreWrapper {
 }
 
 /**
- * Union shape exposed to extractors via `ctx.store`. Mode A (`kv`)
- * returns the `KvStore` surface; Mode B (`dedicated`) returns
- * `write(table, row)`. Plugin authors narrow at the call site based on
- * the storage mode declared in their `plugin.json`.
+ * Shape exposed to extractors via `ctx.store`. An alias rather than a
+ * bare re-export of `IKvStoreWrapper`: consumers name the injected
+ * surface by its role (the plugin store) while the wrapper interface
+ * keeps naming the contract it implements.
  */
-export type TPluginStore = IKvStoreWrapper | IDedicatedStoreWrapper;
+export type TPluginStore = IKvStoreWrapper;
 
 /** Constructor bag for `makeKvStoreWrapper`. */
 export interface IKvStoreWrapperOptions {
@@ -289,78 +279,25 @@ export function makeKvStoreWrapper(opts: IKvStoreWrapperOptions): IKvStoreWrappe
   };
 }
 
-/**
- * Mode B wrapper. `write(table, row)` AJV-validates `row` against
- * `storageSchemas[table]` when declared, then forwards to `persist`.
- * Tables absent from the map are permissive, the wrapper forwards
- * straight to `persist` without validation.
- *
- * The wrapper accepts the full `storageSchemas` map (rather than a
- * single schema) so a plugin author can declare schemas for some
- * tables and leave others permissive in the same map without the
- * caller having to lookup-then-narrow.
- */
-export interface IDedicatedStoreWrapper {
-  write(table: string, row: unknown): Promise<void>;
-}
-
-export function makeDedicatedStoreWrapper(opts: {
-  pluginId: string;
-  schemas: Record<string, IPluginStorageSchema> | undefined;
-  persist: IDedicatedStorePersist;
-}): IDedicatedStoreWrapper {
-  const { pluginId, schemas, persist } = opts;
-  return {
-    async write(table, row) {
-      const schema = schemas?.[table];
-      if (schema) {
-        if (!schema.validate(row)) {
-          throw new Error(
-            tx(PLUGIN_STORE_TEXTS.dedicatedValidationFailed, {
-              pluginId,
-              table,
-              schemaPath: schema.schemaPath,
-              errors: formatAjvErrors(schema.validate.errors ?? null),
-            }),
-          );
-        }
-      }
-      await persist(table, row);
-    },
-  };
-}
-
 /** Constructor bag for `makePluginStore`. */
 export interface IMakePluginStoreOptions {
   plugin: IDiscoveredPlugin;
   persistKv?: IKvStorePersist;
-  persistDedicated?: IDedicatedStorePersist;
   warn?: (message: string) => void;
 }
 
 /**
- * Convenience entry point: build whichever wrapper matches the
- * discovered plugin's storage mode. Returns `undefined` when the
- * plugin declared no storage at all (the orchestrator omits
- * `ctx.store` in that case, per the existing contract), and also when
- * the caller supplied no persistence for the declared mode, which is
- * how Mode B stays dark while its scoped-`Database` wrapper is still
- * unbuilt.
+ * Convenience entry point: build the wrapper for a discovered plugin
+ * that declared storage. Returns `undefined` when the plugin declared
+ * no storage at all (the orchestrator omits `ctx.store` in that case,
+ * per the existing contract), and when the caller supplied no
+ * persistence to write through.
  */
 export function makePluginStore(
   opts: IMakePluginStoreOptions,
 ): TPluginStore | undefined {
   const storage = opts.plugin.manifest?.storage;
   if (!storage) return undefined;
-  if (storage.mode === 'kv') return makeKvStoreForPlugin(opts);
-  if (storage.mode === 'dedicated') return makeDedicatedStoreForPlugin(opts);
-  return undefined;
-}
-
-/** Mode A branch of `makePluginStore`, sentinel-keyed schema lookup. */
-function makeKvStoreForPlugin(
-  opts: IMakePluginStoreOptions,
-): IKvStoreWrapper | undefined {
   if (!opts.persistKv) return undefined;
   return makeKvStoreWrapper({
     pluginId: opts.plugin.id,
@@ -370,19 +307,7 @@ function makeKvStoreForPlugin(
   });
 }
 
-/** Mode B branch of `makePluginStore`, forwards the full schema map. */
-function makeDedicatedStoreForPlugin(
-  opts: IMakePluginStoreOptions,
-): IDedicatedStoreWrapper | undefined {
-  if (!opts.persistDedicated) return undefined;
-  return makeDedicatedStoreWrapper({
-    pluginId: opts.plugin.id,
-    schemas: opts.plugin.storageSchemas,
-    persist: opts.persistDedicated,
-  });
-}
-
-// --- Mode A internals -------------------------------------------------
+// --- internals --------------------------------------------------------
 
 /**
  * Render a plugin-controlled string for inclusion in an error or
@@ -558,7 +483,7 @@ function noWarn(): void {
 }
 
 /**
- * The Mode A AJV gate. Only `set` runs it; `get` / `list` return what
+ * The AJV gate. Only `set` runs it; `get` / `list` return what
  * is stored even if a schema landed after the row did.
  */
 function assertSchemaAccepts(

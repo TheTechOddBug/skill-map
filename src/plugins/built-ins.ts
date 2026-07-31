@@ -60,7 +60,9 @@ import { referenceBrokenAnalyzer as _referenceBrokenAnalyzer } from './core/anal
 import { referenceRedundantAnalyzer as _referenceRedundantAnalyzer } from './core/analyzers/reference-redundant/index.js';
 import { schemaViolationAnalyzer as _schemaViolationAnalyzer } from './core/analyzers/schema-violation/index.js';
 import { asciiFormatter as _asciiFormatter } from './core/formatters/ascii/index.js';
+import { dotFormatter as _dotFormatter } from './core/formatters/dot/index.js';
 import { jsonFormatter as _jsonFormatter } from './core/formatters/json/index.js';
+import { mermaidFormatter as _mermaidFormatter } from './core/formatters/mermaid/index.js';
 import { aiContradictionAction as _aiContradictionAction } from './core/actions/ai-contradiction-action/index.js';
 import { aiFrontmatterAction as _aiFrontmatterAction } from './core/actions/ai-frontmatter-action/index.js';
 import { aiIncoherenceAction as _aiIncoherenceAction } from './core/actions/ai-incoherence-action/index.js';
@@ -500,7 +502,9 @@ const referenceBrokenAnalyzer = { ..._referenceBrokenAnalyzer, pluginId: 'core',
 const referenceRedundantAnalyzer = { ..._referenceRedundantAnalyzer, pluginId: 'core', version: VERSION };
 const schemaViolationAnalyzer = { ..._schemaViolationAnalyzer, pluginId: 'core', version: VERSION };
 const asciiFormatter = { ..._asciiFormatter, pluginId: 'core', version: VERSION };
+const dotFormatter = { ..._dotFormatter, pluginId: 'core', version: VERSION };
 const jsonFormatter = { ..._jsonFormatter, pluginId: 'core', version: VERSION };
+const mermaidFormatter = { ..._mermaidFormatter, pluginId: 'core', version: VERSION };
 const aiContradictionAction = { ..._aiContradictionAction, pluginId: 'core', version: VERSION, promptTemplate: `Resolve the contradiction findings listed in the
 "## Findings to resolve" section above by editing the document.
 
@@ -1302,7 +1306,9 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       referenceRedundantAnalyzer,
       schemaViolationAnalyzer,
       asciiFormatter,
+      dotFormatter,
       jsonFormatter,
+      mermaidFormatter,
       aiContradictionAction,
       aiFrontmatterAction,
       aiIncoherenceAction,

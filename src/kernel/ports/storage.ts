@@ -14,8 +14,7 @@
  *
  * Phase A lands the **scans / issues / enrichments / transaction**
  * namespaces, the core scan pipeline. The remaining namespaces
- * (history / jobs / migrations / pluginMigrations)
- * arrive in subsequent phases. Plugin import trust was once on this
+ * (history / jobs / migrations) arrive in subsequent phases. Plugin import trust was once on this
  * list; it is not a storage concern any more, having moved to the scope
  * lock outside the database. The port shape declared here is the
  * Phase A subset; later phases extend it without reshaping what
@@ -45,7 +44,6 @@ import type {
 } from '../adapters/sqlite/plugin-kvs.js';
 import type { ISuppressionEntry } from '../jobs/findings-report.js';
 import type { IUpdateCheckCache } from '../update-check/index.js';
-import type { IDiscoveredPlugin } from './plugin-loader.js';
 import type {
   IApplyOptions,
   IApplyResult,
@@ -76,10 +74,6 @@ import type {
   INodeFilter,
   IPersistedContribution,
   IPersistOptions,
-  IPluginApplyOptions,
-  IPluginApplyResult,
-  IPluginMigrationFile,
-  IPluginMigrationPlan,
   IPruneResult,
   IQuickCheckResult,
   IStateEnrichmentRecord,
@@ -897,28 +891,6 @@ export interface StoragePort {
     quickCheck(): IQuickCheckResult;
   };
 
-  // --- pluginMigrations namespace (sm db verb, per-plugin) --------------
-  pluginMigrations: {
-    /** Path to the plugin's `migrations/` directory, or `null` when absent. */
-    resolveDir(plugin: IDiscoveredPlugin): string | null;
-    /** Discover the plugin's migration files. */
-    discover(plugin: IDiscoveredPlugin): IPluginMigrationFile[];
-    /**
-     * Plan against `config_schema_versions` for the plugin's
-     * `(scope='plugin', ownerId=plugin.id)`.
-     */
-    plan(
-      plugin: IDiscoveredPlugin,
-      files?: IPluginMigrationFile[],
-    ): IPluginMigrationPlan;
-    /** Apply pending plugin migrations. Same per-file BEGIN/COMMIT pattern. */
-    apply(
-      plugin: IDiscoveredPlugin,
-      options?: IPluginApplyOptions,
-      files?: IPluginMigrationFile[],
-    ): IPluginApplyResult;
-  };
-
   // --- transactions ------------------------------------------------------
   /**
    * Open a transaction. The callback receives a transactional subset
@@ -958,11 +930,6 @@ export type {
   INodeFilter,
   IPersistedContribution,
   IPersistOptions,
-  IPluginApplyOptions,
-  IPluginApplyResult,
-  IPluginMigrationFile,
-  IPluginMigrationPlan,
-  IPluginMigrationRecord,
   IPruneResult,
   IQuickCheckResult,
   IStateEnrichmentRecord,

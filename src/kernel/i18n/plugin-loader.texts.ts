@@ -178,12 +178,6 @@ export const PLUGIN_LOADER_TEXTS = {
     'Delete them from the module. They moved because the loader has to know whether an extension is enabled ' +
     'BEFORE importing it, and it cannot read a field out of a module without running that module first.',
 
-  loadErrorStorageSchemaRead:
-    "plugin '{{pluginId}}' failed to load schema for table '{{table}}': {{schemaPath}}: {{errDescription}}",
-
-  loadErrorStorageSchemaCompile:
-    "plugin '{{pluginId}}' failed to compile schema for table '{{table}}': {{schemaPath}}: {{errDescription}}",
-
   loadErrorStorageKvSchemaRead:
     "plugin '{{pluginId}}' failed to load KV schema: {{schemaPath}}: {{errDescription}}",
 

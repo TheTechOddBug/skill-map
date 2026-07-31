@@ -342,7 +342,9 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // Action an external agent claims + records so the Setup panel can tell an
     // agent is attending the queue; follows the ai- naming convention, stripped
     // from every discovery surface) brings it to 64.
-    assert.equal(rows.length, 64);
+    // `core/mermaid` + `core/dot` (the two graph formatters `cli-contract.md`
+    // had documented since before they existed) bring it to 66.
+    assert.equal(rows.length, 66);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a

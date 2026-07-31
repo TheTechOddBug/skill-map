@@ -100,6 +100,6 @@ Whatever you need next is one section away in the [Plugin author guide](./plugin
 
 - [Manifest fields](./plugin-author-guide.md#manifest) and the [`specCompat` strategy](./plugin-author-guide.md#speccompat-strategy)
 - [The six extension kinds](./plugin-author-guide.md#the-six-extension-kinds), in full, with an example each
-- [Storage](./plugin-author-guide.md#storage): a KV bag or a dedicated table
+- [Storage](./plugin-author-guide.md#storage): the plugin-scoped KV bag
 - [View contributions](./plugin-author-guide.md#view-contributions): chips, badges, and buttons in the UI
 - [Testing your plugin](./plugin-author-guide.md#testing-your-plugin) against the kernel's public types

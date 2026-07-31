@@ -1,8 +1,7 @@
 /**
- * Spec § A.12, read and AJV-compile the storage output schemas a plugin
- * declares in its manifest. Mode A (`storage.schema`, single value-shape
- * under the KV sentinel) and Mode B (`storage.schemas`, per-table map)
- * share the same compile path; only the surrounding plumbing differs.
+ * Spec § A.12, read and AJV-compile the storage output schema a plugin
+ * declares in its manifest (`storage.schema`, the single value-shape
+ * stored under the KV sentinel).
  *
  * Both helpers are pure functions that the loader's `loadOne` reaches
  * for in its last phase before declaring a plugin "enabled".
@@ -23,28 +22,24 @@ import { describe, isInsidePlugin } from './id-utils.js';
 type TAjv = InstanceType<typeof Ajv2020>;
 
 /**
- * Spec § A.12, read and AJV-compile the storage output schemas a
+ * Spec § A.12, read and AJV-compile the storage output schema a
  * plugin declares in its manifest. Returns either:
  *
- *   - `{ ok: true, schemas: undefined }`, the plugin declared no
- *     schemas (Mode A without `schema`, Mode B without `schemas`, or
- *     no storage at all). Permissive, `storageSchemas` is omitted
- *     from the discovered row and the runtime store wrapper skips
- *     validation.
- *   - `{ ok: true, schemas }`, every declared schema was read and
- *     compiled. Mode A's single value-shape lives under the sentinel
- *     `KV_SCHEMA_KEY`; Mode B's per-table schemas live under their
- *     logical table name (matching the manifest map).
- *   - `{ ok: false, reason }`, at least one schema file was missing,
- *     unparseable as JSON, or rejected by AJV's compiler. The caller
- *     surfaces the reason as `load-error`.
+ *   - `{ ok: true, schemas: undefined }`, the plugin declared no schema
+ *     (storage without `schema`, or no storage at all). Permissive,
+ *     `storageSchemas` is omitted from the discovered row and the
+ *     runtime store wrapper skips validation.
+ *   - `{ ok: true, schemas }`, the declared schema was read and
+ *     compiled, stored under the sentinel `KV_SCHEMA_KEY`.
+ *   - `{ ok: false, reason }`, the schema file was missing, unparseable
+ *     as JSON, or rejected by AJV's compiler. The caller surfaces the
+ *     reason as `load-error`.
  *
  * One fresh Ajv instance per plugin keeps schema `$id` collisions from
  * leaking across plugins (and from polluting the kernel's spec
  * validators, which live on a separate cached instance, see
  * `schema-validators.ts`).
  */
-// eslint-disable-next-line complexity
 export function loadStorageSchemas(
   pluginPath: string,
   pluginId: string,
@@ -53,60 +48,31 @@ export function loadStorageSchemas(
   | { ok: true; schemas?: Record<string, IPluginStorageSchema> }
   | { ok: false; reason: string } {
   const storage = manifest.storage;
-  if (!storage) return { ok: true };
+  if (!storage?.schema) return { ok: true };
 
-  // Mode A, single optional `schema`.
-  if (storage.mode === 'kv') {
-    if (!storage.schema) return { ok: true };
-    const compiled = compilePluginSchema(pluginPath, storage.schema);
-    if (!compiled.ok) {
-      const reason = tx(
-        compiled.phase === 'read'
-          ? PLUGIN_LOADER_TEXTS.loadErrorStorageKvSchemaRead
-          : PLUGIN_LOADER_TEXTS.loadErrorStorageKvSchemaCompile,
-        {
-          pluginId,
-          schemaPath: storage.schema,
-          errDescription: compiled.errDescription,
-        },
-      );
-      return { ok: false, reason };
-    }
-    return {
-      ok: true,
-      schemas: {
-        [KV_SCHEMA_KEY]: {
-          schemaPath: storage.schema,
-          validate: compiled.validate,
-        },
+  const compiled = compilePluginSchema(pluginPath, storage.schema);
+  if (!compiled.ok) {
+    const reason = tx(
+      compiled.phase === 'read'
+        ? PLUGIN_LOADER_TEXTS.loadErrorStorageKvSchemaRead
+        : PLUGIN_LOADER_TEXTS.loadErrorStorageKvSchemaCompile,
+      {
+        pluginId,
+        schemaPath: storage.schema,
+        errDescription: compiled.errDescription,
       },
-    };
+    );
+    return { ok: false, reason };
   }
-
-  // Mode B, optional `schemas` map keyed by logical table name.
-  if (!storage.schemas || Object.keys(storage.schemas).length === 0) {
-    return { ok: true };
-  }
-  const out: Record<string, IPluginStorageSchema> = {};
-  for (const [table, relPath] of Object.entries(storage.schemas)) {
-    const compiled = compilePluginSchema(pluginPath, relPath);
-    if (!compiled.ok) {
-      const reason = tx(
-        compiled.phase === 'read'
-          ? PLUGIN_LOADER_TEXTS.loadErrorStorageSchemaRead
-          : PLUGIN_LOADER_TEXTS.loadErrorStorageSchemaCompile,
-        {
-          pluginId,
-          table,
-          schemaPath: relPath,
-          errDescription: compiled.errDescription,
-        },
-      );
-      return { ok: false, reason };
-    }
-    out[table] = { schemaPath: relPath, validate: compiled.validate };
-  }
-  return { ok: true, schemas: out };
+  return {
+    ok: true,
+    schemas: {
+      [KV_SCHEMA_KEY]: {
+        schemaPath: storage.schema,
+        validate: compiled.validate,
+      },
+    },
+  };
 }
 
 /**

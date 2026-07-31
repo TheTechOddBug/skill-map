@@ -12,10 +12,16 @@
  *   2  bad flag / unsupported format / invalid query / unhandled error
  *   5  DB missing
  *
- * **Format support at v0.5.0**: `json` and `md` are real; `mermaid`
- * exits 2 with a clear pointer to Step 12, when the mermaid formatter
- * lands as a built-in. Wiring the format here ahead of the formatter
- * would require a synthesis layer this verb shouldn't carry.
+ * **Format support**: `json` and `md` are rendered by this verb (their
+ * shape is the curated subset envelope, which is not an
+ * `IFormatterContext`). `mermaid` is NOT re-implemented here: the verb
+ * resolves the built-in `core/mermaid` formatter from the built-ins
+ * CATALOG and runs it over the FILTERED subset, so
+ * `sm export "kind=agent" --format mermaid` and `sm graph --format
+ * mermaid` render the same graph through the same code. The catalog
+ * lookup (rather than a deep import of the formatter implementation)
+ * mirrors `sm bump`'s `resolveBumpAction`, and the enabled gate mirrors
+ * its refusal: a disabled extension must not work through any surface.
  */
 
 import { Command, Option } from 'clipanion';
@@ -27,6 +33,7 @@ import {
 } from '../../kernel/scan/query.js';
 import type { IExportSubset } from '../../kernel/scan/query.js';
 import type { Issue, Link, Node } from '../../kernel/types.js';
+import type { IFormatter } from '../../kernel/extensions/index.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -36,6 +43,10 @@ import { EXPORT_TEXTS } from '../i18n/export.texts.js';
 import { SmCommand } from '../util/sm-command.js';
 import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { withSqlite } from '../../core/sqlite/with-sqlite.js';
+import { builtIns } from '../../plugins/built-ins.js';
+import { qualifiedExtensionId } from '../../kernel/registry.js';
+import { isBuiltInEnabledFor } from '../../core/runtime/built-in-enabled.js';
+import type { IAnsi } from '../util/ansi.js';
 
 // Built-in Claude Provider catalog rendered first, in this canonical
 // order. External Providers may emit additional kinds; those are
@@ -43,19 +54,35 @@ import { withSqlite } from '../../core/sqlite/with-sqlite.js';
 const KIND_ORDER: readonly string[] = ['agent', 'command', 'skill', 'markdown'];
 
 /**
- * `sm export` formats are a CLOSED catalog (today: `json`, `md`, with
- * `mermaid` deferred to Step 12), unlike `sm graph` whose format set
- * is OPEN to plugin-registered `IFormatter` instances. The split is
- * intentional: export emits a curated subset shape
+ * `sm export` formats are a CLOSED catalog (`json`, `md`, `mermaid`),
+ * unlike `sm graph` whose format set is OPEN to plugin-registered
+ * `IFormatter` instances. The split is intentional and survives the
+ * mermaid wiring: `json` / `md` emit a curated subset shape
  * (`query` / `filters` / `counts` / `nodes` / `links` / `issues`)
  * that is not part of `IFormatterContext`, so opening the catalog to
- * plugin authors would require extending the formatter contract
- * first. See `src/cli/commands/graph.ts` for the open-catalog pattern.
+ * plugin authors would require extending the formatter contract first.
+ * `mermaid` reaches the registry the narrow way, by qualified id, so a
+ * drop-in plugin cannot shadow it. See `src/cli/commands/graph.ts` for
+ * the open-catalog pattern.
  */
-const SUPPORTED_FORMATS = ['json', 'md'] as const;
-const DEFERRED_FORMATS: Record<string, string> = {
-  mermaid: EXPORT_TEXTS.formatDeferredReasonMermaid,
-};
+const SUPPORTED_FORMATS = ['json', 'md', 'mermaid'] as const;
+
+/**
+ * The built-in formatter backing `--format mermaid`. Resolved from the
+ * built-ins CATALOG at call time (never a deep import of the
+ * implementation, kernel-agnosticism sweep 2026-07-23), the same shape
+ * `sm bump` uses for `core/node-bump`.
+ */
+const MERMAID_FORMATTER_ID = 'core/mermaid';
+
+/** The catalog manifest backing `--format mermaid`; throws if the catalog drifts. */
+function resolveMermaidFormatter(): IFormatter {
+  const formatter = builtIns().formatters.find(
+    (f) => qualifiedExtensionId(f.pluginId, f.id) === MERMAID_FORMATTER_ID,
+  );
+  if (!formatter) throw new Error(`built-in catalog is missing ${MERMAID_FORMATTER_ID}`);
+  return formatter;
+}
 
 export class ExportCommand extends SmCommand {
   static override paths = [['export']];
@@ -75,6 +102,10 @@ export class ExportCommand extends SmCommand {
       Pass an empty query (\`""\`), or omit the argument entirely, to
       export every node.
 
+      Formats: \`json\` (default) and \`md\` describe the filtered
+      subset; \`mermaid\` renders it as a Mermaid \`flowchart\` through
+      the same built-in formatter \`sm graph --format mermaid\` uses.
+
       Run \`sm scan\` first to populate the DB.
     `,
     examples: [
@@ -82,6 +113,7 @@ export class ExportCommand extends SmCommand {
       ['Every command node', '$0 export "kind=command" --format json'],
       ['Skills + agents with issues', '$0 export "kind=skill,agent has=issues" --format md'],
       ['Files under a path glob', '$0 export "path=.claude/commands/**" --format json'],
+      ['Diagram of one subtree', '$0 export "path=.claude/agents/**" --format mermaid'],
     ],
   });
 
@@ -92,36 +124,9 @@ export class ExportCommand extends SmCommand {
     const stderrAnsi = this.ansiFor('stderr');
     const errGlyph = stderrAnsi.red('✕');
     const format = (this.format ?? 'json').toLowerCase();
-    if (DEFERRED_FORMATS[format]) {
-      this.printer!.error(
-        tx(EXPORT_TEXTS.formatNotImplemented, {
-          glyph: errGlyph,
-          format,
-          reason: DEFERRED_FORMATS[format],
-          hint: stderrAnsi.dim(
-            tx(EXPORT_TEXTS.formatNotImplementedHint, {
-              supported: SUPPORTED_FORMATS.join(', '),
-            }),
-          ),
-        }),
-      );
-      return ExitCode.Error;
-    }
-    if (!(SUPPORTED_FORMATS as readonly string[]).includes(format)) {
-      this.printer!.error(
-        tx(EXPORT_TEXTS.formatUnsupported, {
-          glyph: errGlyph,
-          format,
-          hint: stderrAnsi.dim(
-            tx(EXPORT_TEXTS.formatUnsupportedHint, {
-              supported: SUPPORTED_FORMATS.join(', '),
-              deferred: Object.keys(DEFERRED_FORMATS).join(', '),
-            }),
-          ),
-        }),
-      );
-      return ExitCode.Error;
-    }
+    const ctx = defaultRuntimeContext();
+    const formatError = this.#validateFormat(format, ctx.cwd, stderrAnsi);
+    if (formatError !== null) return formatError;
 
     let parsedQuery;
     try {
@@ -140,7 +145,7 @@ export class ExportCommand extends SmCommand {
       throw err;
     }
 
-    const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
+    const dbPath = resolveDbPath({ db: this.db, ...ctx });
     const exit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (exit !== null) return exit;
 
@@ -158,11 +163,75 @@ export class ExportCommand extends SmCommand {
         this.printer!.data(JSON.stringify(serialiseSubset(subset)) + '\n');
         return ExitCode.Ok;
       }
+      if (format === 'mermaid') {
+        this.printer!.data(renderThroughFormatter(resolveMermaidFormatter(), subset));
+        return ExitCode.Ok;
+      }
       // format === 'md'
       this.printer!.data(renderMarkdown(subset));
       return ExitCode.Ok;
     });
   }
+
+  /**
+   * Gate the `--format` value before any DB work: reject anything
+   * outside the closed catalog, then reject `mermaid` when the built-in
+   * formatter backing it is turned off. Returns the exit code to
+   * propagate, or `null` when the format is usable.
+   *
+   * Extracted from `run()` so the verb body stays under the project's
+   * cyclomatic cap, same shape as `sm bump`'s `#validateFlagCombo`.
+   */
+  #validateFormat(format: string, cwd: string, ansi: IAnsi): number | null {
+    const glyph = ansi.red('✕');
+    if (!(SUPPORTED_FORMATS as readonly string[]).includes(format)) {
+      this.printer!.error(
+        tx(EXPORT_TEXTS.formatUnsupported, {
+          glyph,
+          format,
+          hint: ansi.dim(
+            tx(EXPORT_TEXTS.formatUnsupportedHint, {
+              supported: SUPPORTED_FORMATS.join(', '),
+            }),
+          ),
+        }),
+      );
+      return ExitCode.Error;
+    }
+    if (format === 'mermaid' && !isBuiltInEnabledFor(cwd, resolveMermaidFormatter())) {
+      this.printer!.error(
+        tx(EXPORT_TEXTS.formatterDisabled, {
+          glyph,
+          format,
+          extension: MERMAID_FORMATTER_ID,
+          hint: ansi.dim(
+            tx(EXPORT_TEXTS.formatterDisabledHint, { extension: MERMAID_FORMATTER_ID }),
+          ),
+        }),
+      );
+      return ExitCode.Error;
+    }
+    return null;
+  }
+}
+
+/**
+ * Render the filtered subset through a registered formatter. The
+ * subset's three primary arrays ARE the formatter context; the curated
+ * `query` / `filters` / `counts` envelope is export-only and has no
+ * place in `IFormatterContext`, so it is deliberately not passed.
+ * `scanResult` is likewise omitted: the whole point of this verb is that
+ * the graph has been filtered, and handing over the unfiltered envelope
+ * would let a formatter quietly render rows the query excluded.
+ */
+function renderThroughFormatter(formatter: IFormatter, subset: IExportSubset): string {
+  const text = formatter.format({
+    nodes: subset.nodes,
+    links: subset.links,
+    issues: subset.issues,
+    settings: formatter.resolvedSettings ?? {},
+  });
+  return text.endsWith('\n') ? text : text + '\n';
 }
 
 function serialiseSubset(subset: IExportSubset): {

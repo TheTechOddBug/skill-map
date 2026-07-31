@@ -1,17 +1,20 @@
 /**
- * `GET /api/graph?format=ascii|json|md`, render the persisted graph
- * through a registered formatter.
- *
- * Default `format=ascii`, the only built-in formatter at v0.5.0.
- * `mermaid` and `dot` arrive at Step 12 as drop-in additions; the route
- * picks them up automatically once they ship as built-ins.
+ * `GET /api/graph?format=<formatId>`, render the persisted graph
+ * through a registered formatter. The format set is whatever is
+ * registered: the built-ins are `ascii` (default), `json`, `mermaid`,
+ * and `dot`, plus any enabled plugin formatter.
  *
  * Content-type per format:
  *
- *   - `ascii` → `text/plain; charset=utf-8`
- *   - `md`    → `text/markdown; charset=utf-8`
- *   - `json`  → `application/json; charset=utf-8`
- *   - other (auto-detected from formatter id) → `text/plain; charset=utf-8`
+ *   - `json`             → `application/json; charset=utf-8`
+ *   - `md` / `markdown`  → `text/markdown; charset=utf-8`
+ *   - everything else    → `text/plain; charset=utf-8`
+ *
+ * `mermaid` and `dot` fall in the last bucket on purpose: neither has a
+ * registered media type, and Mermaid source is NOT markdown (it is
+ * commonly EMBEDDED in markdown, which is a different thing). `md` and
+ * `markdown` are not built-in formatters today; the branch stays because
+ * a plugin may register either id.
  *
  * Unknown `format` (no formatter registered with that `formatId`) →
  * 400 `bad-query` with the available formats listed.
@@ -123,8 +126,6 @@ function renderGraphPayload(
 
 function contentTypeFor(format: string): string {
   if (format === 'json') return 'application/json; charset=utf-8';
-  if (format === 'md' || format === 'markdown' || format === 'mermaid') {
-    return 'text/markdown; charset=utf-8';
-  }
+  if (format === 'md' || format === 'markdown') return 'text/markdown; charset=utf-8';
   return 'text/plain; charset=utf-8';
 }

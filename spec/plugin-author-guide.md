@@ -1,6 +1,6 @@
 # Plugin author guide
 
-How to ship a third-party `skill-map` plugin: directory layout, manifest fields, the six extension kinds, storage choice, version compatibility, dual-mode posture, and how to unit-test the result against the kernel's public types.
+How to ship a third-party `skill-map` plugin: directory layout, manifest fields, the six extension kinds, storage, version compatibility, dual-mode posture, and how to unit-test the result against the kernel's public types.
 
 *In a hurry? The [Plugin quickstart](./plugin-quickstart.md) gets a working plugin in three steps; this guide is the full contract.*
 
@@ -89,11 +89,11 @@ Examples from the reference impl's built-in extensions:
 | Backtick-path extractor | `backtick-path` | `core/backtick-path` |
 | External-URL counter | `external-url-counter` | `core/external-url-counter` |
 | Reference-broken analyzer | `reference-broken` | `core/reference-broken` |
-| ASCII formatter | `ascii` | `core/ascii` |
+| Mermaid formatter | `mermaid` | `core/mermaid` |
 
 Built-ins split between two namespaces:
 
-- **`core/`**, kernel-internal primitives, platform-agnostic: every built-in analyzer, the ASCII formatter, the cross-vendor extractors (`annotations`, `markdown-link`, `backtick-path`, `external-url-counter`), the universal `markdown` Provider fallback, and the `update-check` hook.
+- **`core/`**, kernel-internal primitives, platform-agnostic: every built-in analyzer, every built-in formatter, the cross-vendor extractors (`annotations`, `markdown-link`, `backtick-path`, `external-url-counter`), the universal `markdown` Provider fallback, and the `update-check` hook.
 - **`claude/`**, the Claude Code Provider plugin: the Provider plus the Claude-flavoured extractors (`slash-command`, `at-directive`). **`codex/`** ships the Provider plus its OWN grammar extractors (`dollar-skill` for `$skill` invocation, `at-file` for `@`-file references), because Codex's invocation grammar differs from Claude's (`/` is a built-in command, `@` is a file picker). The other vendor plugins (`antigravity`, `agent-skills`) are Provider-only: Antigravity reuses claude's `/command` parser via its precondition list (it shares the `/`-invoke grammar), and the neutral `agent-skills` lens relies on the universal `core/` extractors only.
 
 ### Extension id shape
@@ -198,7 +198,7 @@ Required fields (normative shape in [`schemas/plugins-registry.schema.json#/$def
 | `catalogCompat` | semver range | **Required.** Range against the view-slots + input-types catalog, which evolves on its own cadence independent of `specCompat`. |
 | `description` | string | Short description shown in `sm plugins list` and the UI. English-only. |
 
-Optional fields: `storage` (`{ mode: 'kv' }` or `{ mode: 'dedicated', tables, migrations }`), `author`, `license` (SPDX), `homepage`, `repository`.
+Optional fields: `storage` (`{ mode: 'kv' }`), `author`, `license` (SPDX), `homepage`, `repository`.
 
 **Structure-as-truth.** The plugin id is the directory name, NOT a manifest field; a manifest carrying `id` is rejected. The plugin manifest does NOT list extensions, the kernel discovers each by walking `<plugin-dir>/<kind>s/<name>/index.{js,mjs,ts}`. A Provider's kind catalog lives on disk at `<plugin>/kinds/<kindName>/{schema.json, kind.json}` (see [Providers](#providers)).
 
@@ -248,7 +248,7 @@ Pure single-node analysis. **Never** read another node, the graph, or the databa
 - **`ctx.emitLink(link)`**, append a `Link`. The kernel validates `link.kind` against the **global closed enum** (`invokes`, `references`, `mentions`, `points`); off-enum kinds drop as `extension.error`. Confidence is declared per emit (default `'medium'`). URL-shaped targets are partitioned into `node.externalRefsCount` and never persisted. (No per-extractor `emitsLinkKinds` allowlist anymore.)
 - **`ctx.enrichNode(partial)`**, merge kernel-curated properties onto the node's enrichment layer (persisted into `node_enrichments`). **Strictly separate from the author frontmatter**, which is immutable from any Extractor. Use it for inferred facts (computed titles, summaries) the author did not write.
 - **`ctx.emitContribution(id, payload)`**, view contributions (see [View contributions](#view-contributions)).
-- **`ctx.store`**, plugin-scoped persistence, present only when `plugin.json` declares `storage.mode`. See [`plugin-kv-api.md`](./plugin-kv-api.md).
+- **`ctx.store`**, plugin-scoped persistence, present only when `plugin.json` declares `storage`. See [`plugin-kv-api.md`](./plugin-kv-api.md).
 
 You can read `ctx.node.sidecar.*` freely: the per-`(node, extractor)` cache hashes the sidecar `annotations` block alongside the body, so a `.sm`-only edit invalidates the cached run automatically.
 
@@ -429,38 +429,21 @@ To make custom frontmatter keys first-class, write a deterministic **Analyzer** 
 
 ## Storage
 
-A plugin that persists state declares `storage` in its manifest. Two modes, both documented in full at [`plugin-kv-api.md`](./plugin-kv-api.md).
-
-### Mode A, KV
+A plugin that persists state declares `storage` in its manifest:
 
 ```jsonc
 { "storage": { "mode": "kv" } }
 ```
 
-Backed by the kernel-owned `state_plugin_kvs` table. `ctx.store` exposes `get` / `set` / `list` / `delete`. No migrations, ready immediately. Pick KV for a small map (< ~1 MB, simple key lookup or prefix list); 90% of plugins fit.
+Backed by the kernel-owned `state_plugin_kvs` table. `ctx.store` exposes `get` / `set` / `list` / `delete`, scoped to your plugin and optionally to a node. No migrations, ready immediately. Documented in full at [`plugin-kv-api.md`](./plugin-kv-api.md).
 
-### Mode B, Dedicated
-
-```jsonc
-{
-  "storage": {
-    "mode": "dedicated",
-    "tables": ["items"],
-    "migrations": ["./migrations/001_init.sql"]
-  }
-}
-```
-
-The plugin owns SQL tables prefixed `plugin_<normalizedId>_*`; the `tables` array lists the LOGICAL names, without that prefix, while your migration SQL writes the physical prefixed name. Migrations live under `<plugin-dir>/migrations/NNN_<name>.sql` and apply through `sm db migrate`. Pick Dedicated when you need indexes, joins, or relational shape. The kernel enforces the namespace prefix on every migration and forbids transaction / pragma statements in migration files; the ordered checks are normative in [`db-schema.md`](./db-schema.md) §Triple protection for mode B, with the storage contract in [`plugin-kv-api.md`](./plugin-kv-api.md).
+`kv` is the only mode: a plugin never owns tables in the project database. Data that needs relational shape (indexes, joins, a cache with TTL) lives outside skill-map's database, under your own control.
 
 ### Opt-in write validation
 
-`emitLink` and `enrichNode` are always validated by the kernel against `link.schema.json` / `node.schema.json`. `ctx.store` writes are permissive by default (the author owns the table layout). To validate your own writes, declare JSON Schemas in the manifest:
+`emitLink` and `enrichNode` are always validated by the kernel against `link.schema.json` / `node.schema.json`. `ctx.store` writes are permissive by default (the author owns the value shape). To validate your own writes, declare `storage.schema`, a JSON Schema path relative to the plugin root, and every `ctx.store.set(key, value)` is checked against it.
 
-- **Mode A**: `storage.schema` (single value-shape) validates every `ctx.store.set(key, value)`.
-- **Mode B**: `storage.schemas` (sparse map, table → schema path) is declared alongside the tables and reserved with them: it will validate writes once the Mode B accessor lands post-v1. Declaring it today is harmless and forward-compatible, but nothing calls it, because v1 hands a `dedicated` plugin no runtime accessor (see [`plugin-kv-api.md`](../spec/plugin-kv-api.md) §Runtime accessor).
-
-A schema file missing / unparseable / AJV-rejected at load flips the plugin to `load-error`. A write violating its declared schema throws synchronously, naming the plugin, table, and AJV errors. Skip validation for free-form payloads (cache rows, counters), friction with no payoff.
+A schema file missing / unparseable / AJV-rejected at load flips the plugin to `load-error`. A write violating the declared schema throws synchronously, naming the plugin, key, and AJV errors. Skip validation for free-form payloads (cache rows, counters), friction with no payoff.
 
 ---
 
@@ -781,7 +764,7 @@ Analyzers take a `ctx` with `nodes`, `links`, and (if you assert on view contrib
 | Status | Meaning | Common cause |
 |---|---|---|
 | `loaded` | manifest valid, compat satisfied, every extension imported and validated. | (none) |
-| `disabled` | user toggled it off. Manifest parsed; extensions not imported; `scan_contributions` rows purged eagerly (UI chips disappear); KV / dedicated state preserved. | Intentional. |
+| `disabled` | user toggled it off. Manifest parsed; extensions not imported; `scan_contributions` rows purged eagerly (UI chips disappear); KV state preserved. | Intentional. |
 | `incompatible-spec` | `semver.satisfies` failed against the installed spec. | Built against an older / newer spec. |
 | `incompatible-catalog` | `catalogCompat` failed against the installed view-slots + input-types catalog. | Slot / input-type catalog moved; run `sm plugins upgrade <id>`. |
 | `invalid-manifest` | `plugin.json` missing / unparseable / AJV-fails, OR the manifest carries `id` / `kind`, OR an extension declares an unknown `slot`. | Typo, missing required field, wrong shape. |
@@ -823,8 +806,8 @@ sm plugins create <kind> <plugin-id>
 - [`architecture.md`](./architecture.md), normative extension contract, ports, execution modes, annotation + view contribution systems.
 - [`view-slots.md`](./view-slots.md), canonical per-slot catalog reference.
 - [`input-types.md`](./input-types.md), canonical per-input-type catalog reference.
-- [`plugin-kv-api.md`](./plugin-kv-api.md), `ctx.store` contract (Storage Mode A + B).
-- [`db-schema.md`](./db-schema.md), table catalog and migration rules (Mode B).
+- [`plugin-kv-api.md`](./plugin-kv-api.md), the `ctx.store` storage contract.
+- [`db-schema.md`](./db-schema.md), table catalog and migration rules.
 - [`schemas/plugins-registry.schema.json`](./schemas/plugins-registry.schema.json) and [`schemas/extensions/*.schema.json`](./schemas/extensions), normative manifest shapes.
 
 ---

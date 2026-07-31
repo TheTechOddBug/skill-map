@@ -133,11 +133,10 @@ export class DbResetCommand extends SmCommand {
         .all() as Array<{ name: string }>;
 
       // Defence in depth, the LIKE filter above already restricts
-      // results to `scan_*` (and optionally `state_*`) catalog rows, but
-      // the per-plugin migration validator approves DML in plugin-owned
-      // tables. A future bug there could yield a row with an unsafe
-      // name reaching this loop. Whitelist + double-quote before
-      // interpolating into a statement that is exec'd as-is.
+      // results to `scan_*` (and optionally `state_*`) catalog rows, so
+      // nothing outside the kernel's own naming should reach this loop.
+      // Whitelist + double-quote anyway before interpolating into a
+      // statement that is exec'd as-is.
       for (const r of rows) assertSafeIdentifier(r.name);
 
       if (this.dryRun) {

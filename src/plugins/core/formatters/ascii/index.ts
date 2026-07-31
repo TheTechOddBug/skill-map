@@ -1,8 +1,8 @@
 /**
  * `ascii` formatter. Produces a plain-text dump of the graph for
  * `sm graph --format ascii`. Purposely minimal, a human reads it to
- * grok the shape of a scan, not to study layout. Fancier formatters
- * (mermaid, dot) land as drop-in additions in later steps.
+ * grok the shape of a scan, not to study layout. The diagram formatters
+ * (`mermaid`, `dot`) are its siblings under `formatters/`.
  *
  * Output layout:
  *
@@ -40,9 +40,11 @@ export const asciiFormatter: IBuiltInManifest<IFormatter> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'formatter',
-  // Host-locked (spec architecture.md §Locked extensions): the only
-  // built-in formatter and the `sm graph` default; disabling it breaks
-  // the verb with no fallback. Revisit when more formatters land.
+  // Host-locked (spec architecture.md §Locked extensions): the `sm graph`
+  // default format. The verb resolves `--format ascii` when the operator
+  // passes no flag, so disabling this formatter would break the bare
+  // `sm graph` with no fallback. The sibling formatters (`json`,
+  // `mermaid`, `dot`) are opt-in per invocation and stay toggle-able.
   locked: true,
   formatId: ID,
   description: 'Renders the scan as plain text in three sections: nodes (grouped by kind), arrows, and issues. Used by `sm scan --format ascii`.',

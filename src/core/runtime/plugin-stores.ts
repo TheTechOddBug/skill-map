@@ -1,6 +1,6 @@
 /**
- * `ctx.store` composition root, the seam that turns the Mode A KV
- * contract from a declared interface into a working accessor.
+ * `ctx.store` composition root, the seam that turns the KV contract
+ * from a declared interface into a working accessor.
  *
  * Three pieces have to meet for a plugin's `ctx.store` to exist:
  *
@@ -20,14 +20,6 @@
  * could name another plugin's rows. That is the runtime half of
  * `spec/plugin-kv-api.md` § Scoping ("the kernel enforces this when
  * constructing `ctx.store`").
- *
- * Mode B (`mode: 'dedicated'`) is deliberately NOT wired here, and as
- * of the 1.0.0 spec freeze that is the CONTRACT rather than a gap:
- * `plugin-kv-api.md` §Runtime accessor states that a dedicated plugin
- * gets its tables created and namespaced but no runtime accessor in v1.
- * `makePluginStore` returns `undefined` when no dedicated persistence
- * is supplied, so those plugins see `ctx.store === undefined`, which is
- * exactly what the spec now promises.
  */
 
 import { makePluginStore } from '../../kernel/adapters/plugin-store.js';

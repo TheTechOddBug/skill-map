@@ -173,8 +173,6 @@ describe('spec § Elapsed time, every read-side verb emits `done in <…>` on st
       cmd.status = true;
       cmd.to = undefined;
       cmd.noBackup = true;
-      cmd.kernelOnly = true;
-      cmd.pluginId = undefined;
     });
     await c.cmd.execute();
     assert.match(c.capture.stderr(), ELAPSED_REGEX, c.capture.stderr());

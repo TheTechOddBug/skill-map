@@ -691,7 +691,7 @@ describe('Mode A KV store, declared value schema', () => {
     }
   });
 
-  it('KV_SCHEMA_KEY is the sentinel a discovered plugin stores its Mode A schema under', () => {
+  it('KV_SCHEMA_KEY is the sentinel a discovered plugin stores its value schema under', () => {
     strictEqual(KV_SCHEMA_KEY, '__kv__');
   });
 });

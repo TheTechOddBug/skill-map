@@ -54,7 +54,7 @@ These analyzers apply to every kernel table and to every plugin-authored table u
 - **JSON blobs**: suffix `_json`, `TEXT`. Parsed on read, serialized on write.
 - **Counts**: suffix `_count`, `INTEGER`. Example: `links_out_count`.
 - **Enums**: plain column + `CHECK` constraint listing allowed values. Values are kebab-case lowercase. No lookup tables.
-- **Indexes**: named `ix_<table>_<cols>`. Example: `ix_state_jobs_status`. Kernel tables only: a PLUGIN cannot use this convention, because its namespace prefix must come first (see §Triple protection for mode B).
+- **Indexes**: named `ix_<table>_<cols>`. Example: `ix_state_jobs_status`.
 - **Constraints**: `fk_`, `uq_`, `ck_` prefixes. Same caveat for plugins.
 - **SQL keywords**: UPPERCASE. Identifiers lowercase.
 
@@ -252,7 +252,7 @@ Cached nodes' rows survive untouched: neither orphaned (still in the live set) n
 
 NOT analogous to `state_plugin_kvs` (which is plugin-managed). Belongs to the `scan_*` family; sweep semantics replace pure replace-all but the data is still scan-derived.
 
-**Eager purge on disable.** `sm plugins disable <id>` calls `StoragePort.contributions.purgeByPlugin(pluginId, extensionId)` immediately after persisting the extension's `enabled = false` in the config layers. Every persisted toggle key is the qualified `<plugin>/<ext>` shape (the CLI's bundle macro form and the BFF's cascade endpoint expand bare plugin ids before persistence), so the purge always receives both segments. Avoids the "I disabled the extension but its chips still render until I re-scan" gap. Re-enabling (`sm plugins enable <id>`) does NOT restore the rows; the next scan re-emits them, same as a cold start. Contributions are scan-derived, so this is cheap; for plugin-managed state (`state_plugin_kvs`, dedicated tables) the opposite policy holds, see `plugin-kv-api.md` § "disable does not drop data".
+**Eager purge on disable.** `sm plugins disable <id>` calls `StoragePort.contributions.purgeByPlugin(pluginId, extensionId)` immediately after persisting the extension's `enabled = false` in the config layers. Every persisted toggle key is the qualified `<plugin>/<ext>` shape (the CLI's bundle macro form and the BFF's cascade endpoint expand bare plugin ids before persistence), so the purge always receives both segments. Avoids the "I disabled the extension but its chips still render until I re-scan" gap. Re-enabling (`sm plugins enable <id>`) does NOT restore the rows; the next scan re-emits them, same as a cold start. Contributions are scan-derived, so this is cheap; for plugin-managed state (`state_plugin_kvs`) the opposite policy holds, see `plugin-kv-api.md` § "disable does not drop data".
 
 ### `scan_link_scores`
 
@@ -465,7 +465,7 @@ Primary key: `(node_id, provider_id)`. Indexes: `ix_state_enrichments_stale_afte
 
 ### `state_plugin_kvs`
 
-Shared key-value store for plugins that declared storage mode `kv`. See [`plugin-kv-api.md`](./plugin-kv-api.md) for the accessor contract.
+Shared key-value store for plugins that declared `"storage": { "mode": "kv" }`. See [`plugin-kv-api.md`](./plugin-kv-api.md) for the accessor contract.
 
 | Column | Type | Constraint |
 |---|---|---|
@@ -519,17 +519,17 @@ Key-value cache for the kernel's OWN durable preferences and bookkeeping, not a 
 
 ### `config_schema_versions`
 
-Migration ledger. One row per successfully applied migration, per scope.
+Migration ledger. One row per successfully applied migration.
 
 | Column | Type | Constraint |
 |---|---|---|
-| `scope` | TEXT | NOT NULL, CHECK in (`kernel`, `plugin`) |
-| `owner_id` | TEXT | NOT NULL | `kernel` for kernel migrations, plugin id otherwise. |
+| `scope` | TEXT | NOT NULL, CHECK = `kernel` |
+| `owner_id` | TEXT | NOT NULL | `kernel`. |
 | `version` | INTEGER | NOT NULL |
 | `description` | TEXT | NOT NULL |
 | `applied_at` | INTEGER | NOT NULL |
 
-Primary key: `(scope, owner_id, version)`.
+Primary key: `(scope, owner_id, version)`. Only the kernel migrates, so both leading columns are `kernel` today; the pair is kept in the key so a second migration owner can join later without a PK change.
 
 The kernel ALSO maintains `PRAGMA user_version` (or the engine equivalent) as a fast pre-check for kernel migrations. A mismatch between `user_version` and `config_schema_versions` is flagged by `sm doctor`.
 
@@ -580,42 +580,15 @@ This is a pre-1.0 affordance. The first `1.0.0` replaces it with real up-only mi
 
 ## Plugin storage
 
-Two modes declared in `plugin.json` (see [`schemas/plugins-registry.schema.json`](./schemas/plugins-registry.schema.json)).
+A plugin persists state by declaring `storage` in `plugin.json` (see [`schemas/plugins-registry.schema.json`](./schemas/plugins-registry.schema.json)).
 
 | Mode | Manifest | Backing |
 |---|---|---|
-| **KV** (mode A) | `"storage": { "mode": "kv" }` | Shared `state_plugin_kvs`. See [`plugin-kv-api.md`](./plugin-kv-api.md). |
-| **Dedicated** (mode B) | `"storage": { "mode": "dedicated", "tables": [...], "migrations": [...] }` | Plugin-owned tables, prefixed `plugin_<normalized_id>_`. |
+| **KV** | `"storage": { "mode": "kv" }` | Shared `state_plugin_kvs`, scoped by plugin id. See [`plugin-kv-api.md`](./plugin-kv-api.md). |
 
-Normalization of `plugin_id` for the prefix:
+`kv` is the only mode: a plugin never owns tables in the project database, so there is no plugin DDL, no plugin migration ledger, and no per-plugin table namespace to police. A plugin whose data needs relational shape keeps it outside skill-map's database.
 
-1. Lowercase.
-2. Replace `[^a-z0-9]` with `_`.
-3. Collapse runs of `_`.
-4. Strip leading/trailing `_`.
-
-Example: `@skill-map/cluster-triggers` → `skill_map_cluster_triggers` → prefix `plugin_skill_map_cluster_triggers_`.
-
-Collisions after normalization are a load-time error; both plugins are disabled with reason `invalid-manifest`.
-
-### Triple protection for mode B
-
-The kernel MUST enforce these four steps **in this exact order** for every plugin migration:
-
-1. **Parse**, the kernel parses each plugin migration SQL file into an AST. Parse errors disable the plugin with status `load-error`.
-2. **DDL validation**, the AST is validated against the table names exactly as the plugin authored them. Kernel MUST reject:
-   - References (FK / trigger / view) to any kernel table (prefix `scan_`, `state_`, `config_`) or to another plugin's table (prefix `plugin_<other-id>_`).
-   - `DROP` / `ALTER` / `TRUNCATE` against anything outside the plugin's own namespace.
-   - `ATTACH DATABASE` statements.
-   - Global `PRAGMA` statements (anything not scoped to a plugin-owned table).
-3. **Prefix enforcement**, every object the migration creates MUST already be named `plugin_<normalizedId>_<name>`. The kernel REJECTS anything outside that namespace, tables, indexes and constraints alike, with `object "<name>" is outside the plugin's namespace ("plugin_<normalizedId>_*")`. It does NOT rewrite the statement to add a missing prefix. The check is a literal string prefix on the object name, so the kernel index / constraint conventions (`ix_`, `fk_`, `uq_`, `ck_`) cannot lead a plugin object name; put the namespace first (`plugin_<normalizedId>_rule_exceptions_node_ix`). A plugin therefore cannot create un-prefixed tables, and it also cannot create them by accident and have them silently renamed: the name in the migration is the name on disk. Rejection was chosen over rewriting so one name is in play everywhere the author looks, and so an out-of-namespace reference is an error rather than a quietly relocated table.
-4. **Post-apply catalog assertion**, after a plugin's batch is applied the kernel re-reads the engine catalog (`sqlite_master` for the reference impl) and asserts that every object it now owns is inside its namespace. This is the backstop for anything the statement-level checks could miss, for instance a SQL feature the validator does not model.
-
-The three PASSES an implementation makes are discovery (steps 1 to 3, over every migration file before any is applied), apply (steps 2 and 3 re-run immediately before each `exec`, so a file cannot change between validation and execution), and post-apply (step 4). That is the "triple protection" the name refers to.
-
-A fifth layer, a scoped `Database` wrapper rejecting out-of-namespace QUERIES at runtime, was specified in earlier drafts and is NOT part of v1: mode B ships no runtime accessor at all (see [`plugin-kv-api.md`](./plugin-kv-api.md) §Runtime accessor), so there are no plugin queries to scope. Every protection above is therefore migration-time.
-
-Note: plugins are user-placed code. Protection guards against accidents (a plugin that mistakenly names a table `state_jobs`), not hostile plugins. A malicious plugin in the same process can bypass any JS-level guard. Post-v1.0 evaluates sandboxing (worker threads, VM contexts) and/or signing.
+Note: plugins are user-placed code running in the kernel's own process. Row-level scoping on the KV accessor guards against accidents (a plugin reaching for another plugin's keys), not against hostile plugins, which can bypass any JS-level guard. Post-v1.0 evaluates sandboxing (worker threads, VM contexts) and/or signing.
 
 ---
 
@@ -679,7 +652,7 @@ Failures are reported with suggested remediation (e.g., "run `sm db migrate`", "
 ## See also
 
 - [`architecture.md`](./architecture.md), `StoragePort` interface definition and dependency analyzers.
-- [`plugin-kv-api.md`](./plugin-kv-api.md), `ctx.store` accessor for mode A / mode B persistence.
+- [`plugin-kv-api.md`](./plugin-kv-api.md), the `ctx.store` accessor contract.
 - [`job-lifecycle.md`](./job-lifecycle.md), atomic claim and TTL/reap semantics that drive `state_jobs`.
 - [`cli-contract.md`](./cli-contract.md), `sm db` verb surface (reset, backup, restore, migrate).
 
@@ -691,4 +664,4 @@ The **three-zone model** and the **naming conventions** are stable as of spec v1
 
 The **table catalog** above is stable within a spec major version. Adding a column to a kernel table is a minor bump (consumers MUST ignore unknown columns). Adding a table is a minor bump. Removing or renaming a column is a major bump.
 
-Plugin storage mode names (`kv`, `dedicated`) are stable. Adding a third mode is a minor bump.
+The plugin storage mode name (`kv`) is stable. Adding a second mode is a minor bump.

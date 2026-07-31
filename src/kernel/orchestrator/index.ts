@@ -42,7 +42,7 @@
  *     frontmatter on `node.frontmatter` stays immutable from any Extractor
  *    , the enrichment layer is the only writable surface, and rules /
  *     formatters consume it via `mergeNodeWithEnrichments`.
- *   - `ctx.store` → plugin's own KV / dedicated tables (spec § A.12).
+ *   - `ctx.store` → the plugin's own KV namespace (spec § A.12).
  *     Wired by the driving adapter via `RunScanOptions.pluginStores`,
  *     which the orchestrator looks up per-extractor by `pluginId` and
  *     attaches to the context. The orchestrator never inspects what

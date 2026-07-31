@@ -25,10 +25,6 @@ export const PLUGIN_STORE_TEXTS = {
     "plugin '{{pluginId}}' ctx.store.set('{{key}}', value): value violates declared schema " +
     '({{schemaPath}}): {{errors}}',
 
-  dedicatedValidationFailed:
-    "plugin '{{pluginId}}' ctx.store.write('{{table}}', row): row violates declared schema " +
-    '({{schemaPath}}): {{errors}}',
-
   kvKeyNotAString:
     "plugin '{{pluginId}}' ctx.store: key must be a string, received {{received}}",
 
@@ -50,7 +46,7 @@ export const PLUGIN_STORE_TEXTS = {
     "plugin '{{pluginId}}' ctx.store.set('{{key}}'): this write would put the plugin at " +
     '{{would}} bytes for this scan, over its {{budget}}-byte budget. Nothing was persisted. ' +
     'Plugin storage grows the project database, so the KV store is for metadata, not bulk ' +
-    'content; a plugin that needs relational volume declares dedicated storage instead.',
+    'content.',
 
   kvNodePathEmpty:
     "plugin '{{pluginId}}' ctx.store: nodePath must not be an empty string, it is reserved " +

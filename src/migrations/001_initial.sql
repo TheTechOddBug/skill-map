@@ -402,7 +402,7 @@ CREATE TABLE config_schema_versions (
   description TEXT NOT NULL,
   applied_at INTEGER NOT NULL,
   PRIMARY KEY (scope, owner_id, version),
-  CONSTRAINT ck_config_schema_versions_scope CHECK (scope IN ('kernel','plugin'))
+  CONSTRAINT ck_config_schema_versions_scope CHECK (scope = 'kernel')
 );
 
 -- --- Scan meta envelope ----------------------------------------------------

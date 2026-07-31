@@ -38,34 +38,16 @@
         },
         "storage": {
           "type": "object",
-          "description": "Persistence mode for this plugin. Absent = plugin does not persist state.",
-          "oneOf": [
-            {
-              "required": ["mode"],
-              "additionalProperties": false,
-              "properties": {
-                "mode": { "const": "kv", "description": "Shared `state_plugin_kvs` table, scoped by plugin id." },
-                "schema": {
-                  "type": "string",
-                  "description": "Optional. JSON Schema (path relative to plugin root) that validates the value on every `ctx.store.set(key, value)`. Absent = permissive (no validation, status quo). The kernel AJV-compiles the schema at load time; a missing or unparseable schema file surfaces as `load-error`."
-                }
-              }
-            },
-            {
-              "required": ["mode", "tables", "migrations"],
-              "additionalProperties": false,
-              "properties": {
-                "mode": { "const": "dedicated", "description": "Plugin-owned tables, prefixed `plugin_<normalizedId>_`." },
-                "tables": { "type": "array", "minItems": 1, "items": { "type": "string" } },
-                "migrations": { "type": "array", "minItems": 1, "items": { "type": "string" }, "description": "Relative paths to `.sql` migration files." },
-                "schemas": {
-                  "type": "object",
-                  "description": "Optional. Maps each declared table to a JSON Schema (path relative to plugin root) that validates rows on write. Tables not present here accept any shape (permissive, status quo). The kernel AJV-validates `ctx.store.write(table, row)` against the declared schema and throws on shape violation. A missing or unparseable schema file surfaces as `load-error`.",
-                  "additionalProperties": { "type": "string" }
-                }
-              }
+          "description": "Persistence declaration for this plugin. Absent = plugin does not persist state.",
+          "required": ["mode"],
+          "additionalProperties": false,
+          "properties": {
+            "mode": { "const": "kv", "description": "Shared `state_plugin_kvs` table, scoped by plugin id. The only storage mode." },
+            "schema": {
+              "type": "string",
+              "description": "Optional. JSON Schema (path relative to plugin root) that validates the value on every `ctx.store.set(key, value)`. Absent = permissive (no validation, status quo). The kernel AJV-compiles the schema at load time; a missing or unparseable schema file surfaces as `load-error`."
             }
-          ]
+          }
         },
         "author": { "type": "string" },
         "license": { "type": "string", "description": "SPDX identifier." },

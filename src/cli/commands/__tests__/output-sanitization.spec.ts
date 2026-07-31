@@ -312,8 +312,6 @@ describe('sm db migrate --status sanitizes ledger rows (tampered-DB threat model
     cmd.status = true;
     cmd.to = undefined;
     cmd.noBackup = false;
-    cmd.kernelOnly = true;
-    cmd.pluginId = undefined;
     const cap = captureContext();
     const exit = await withCwd(root, () => run(cmd, cap));
     strictEqual(exit, ExitCode.Ok, cap.stderr());

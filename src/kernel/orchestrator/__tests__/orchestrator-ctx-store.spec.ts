@@ -30,7 +30,6 @@ import {
   InMemoryProgressEmitter,
   createKernel,
   makeKvStoreWrapper,
-  makeDedicatedStoreWrapper,
   runExtractorsForNode,
   runScan,
 } from '../../index.js';
@@ -39,7 +38,6 @@ import type {
   IKvPersistedRow,
   IKvStorePersist,
   IKvStoreWrapper,
-  IDedicatedStoreWrapper,
 } from '../../index.js';
 import { builtIns } from '../../../plugins/built-ins.js';
 import type { IExtractor } from '../../extensions/index.js';
@@ -179,10 +177,10 @@ describe('IExtractorContext.store wiring (spec § A.12)', () => {
       schema: undefined,
       persist: capturingPersist([]),
     });
-    const wrapperB: IDedicatedStoreWrapper = makeDedicatedStoreWrapper({
+    const wrapperB: IKvStoreWrapper = makeKvStoreWrapper({
       pluginId: 'plugin-b',
-      schemas: undefined,
-      persist: () => {},
+      schema: undefined,
+      persist: capturingPersist([]),
     });
 
     const probeA = buildProbe('plugin-a');
@@ -210,11 +208,8 @@ describe('IExtractorContext.store wiring (spec § A.12)', () => {
     strictEqual(probeB.seen.length, 1);
     strictEqual(probeB.seen[0]?.store, wrapperB);
     // Cross-check: neither extractor saw the OTHER plugin's wrapper.
-    // Cast through `unknown` because TS rejects an identity check
-    // between the Mode A and Mode B shapes (their structural overlap
-    // is empty).
-    ok((probeA.seen[0]?.store as unknown) !== (wrapperB as unknown));
-    ok((probeB.seen[0]?.store as unknown) !== (wrapperA as unknown));
+    ok(probeA.seen[0]?.store !== wrapperB);
+    ok(probeB.seen[0]?.store !== wrapperA);
   });
 
   it('(c2) Plugin without an entry in pluginStores → ctx.store stays undefined for that one only', async () => {

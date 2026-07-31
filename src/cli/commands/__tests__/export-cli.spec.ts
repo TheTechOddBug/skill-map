@@ -371,23 +371,62 @@ describe('sm export', () => {
     match(out, /\.claude\/commands\/deploy\.md/);
   });
 
-  it('--format mermaid → exit 2 with Step 12 pointer', async () => {
+  it('--format mermaid renders the FILTERED subset through the built-in formatter', async () => {
     const fixture = freshFixture('export-mermaid');
     plantMixedFixture(fixture);
     const dbPath = freshDbPath('export-mermaid');
     await primeDb(fixture, dbPath);
 
     const cap = captureContext();
-    const cmd = buildExport({ query: '', format: 'mermaid', db: dbPath });
+    const cmd = buildExport({ query: 'kind=command', format: 'mermaid', db: dbPath });
     cmd.context = cap.context;
     const code = await cmd.execute();
 
-    strictEqual(code, 2);
-    // §3.1b error block: headline names the offending format, hint
-    // lists what works today. Both lines surface in stderr.
-    match(cap.stderr(), /format "mermaid" is not implemented yet/);
-    match(cap.stderr(), /Step 12/);
-    match(cap.stderr(), /Supported today: json, md/);
+    strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
+    const out = cap.stdout();
+    const lines = out.trimEnd().split('\n');
+    strictEqual(lines[0], 'flowchart LR');
+    // The QUERY is honoured: the header counts and the node statements
+    // describe the filtered subset, not the whole graph.
+    match(out, /%% skill-map graph: 2 nodes, /);
+    ok(
+      lines.includes('  n0[".claude/commands/deploy.md"]'),
+      `expected the filtered command node:\n${out}`,
+    );
+    ok(!out.includes('.claude/agents/'), `agent nodes must be filtered out:\n${out}`);
+    ok(out.endsWith('\n'), 'output should be newline-terminated');
+  });
+
+  it('--format mermaid → exit 2 when the built-in formatter is disabled', async () => {
+    const fixture = freshFixture('export-mermaid-off');
+    plantMixedFixture(fixture);
+    const dbPath = freshDbPath('export-mermaid-off');
+    await primeDb(fixture, dbPath);
+    // The gate reads the LAYERED CONFIG of the process cwd, so the
+    // refusal only reproduces from inside a project that turned the
+    // extension off.
+    writeFixtureFile(
+      fixture,
+      '.skill-map/settings.json',
+      JSON.stringify({ plugins: { core: { extensions: { mermaid: { enabled: false } } } } }),
+    );
+
+    const cap = captureContext();
+    const cmd = buildExport({ query: '', format: 'mermaid', db: dbPath });
+    cmd.context = cap.context;
+    const originalCwd = process.cwd();
+    process.chdir(fixture);
+    let code: number;
+    try {
+      code = await cmd.execute();
+    } finally {
+      process.chdir(originalCwd);
+    }
+
+    strictEqual(code, 2, `unexpected exit ${code}; stdout=${cap.stdout()}`);
+    match(cap.stderr(), /needs the core\/mermaid extension, which is disabled/);
+    match(cap.stderr(), /sm plugins enable core\/mermaid/);
+    strictEqual(cap.stdout(), '', 'a refused export must not emit a partial document');
   });
 
   it('unsupported format → exit 2 with available list', async () => {
@@ -402,12 +441,10 @@ describe('sm export', () => {
     const code = await cmd.execute();
 
     strictEqual(code, 2);
-    // §3.1b error block: headline + hint. The hint lists both
-    // supported and deferred formats so the operator sees the full
-    // catalogue.
+    // §3.1b error block: headline + hint. The hint lists the closed
+    // catalogue so the operator sees every argument that works.
     match(cap.stderr(), /unsupported format "xml"/);
-    match(cap.stderr(), /Supported: json, md/);
-    match(cap.stderr(), /Deferred: mermaid/);
+    match(cap.stderr(), /Supported: json, md, mermaid/);
   });
 
   it('arbitrary kind token → exit 0, zero nodes match (open-by-design)', async () => {

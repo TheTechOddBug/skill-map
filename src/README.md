@@ -50,8 +50,8 @@ sm --help                       # top-level help
 sm init                         # scaffold .skill-map/ in the current scope, run first scan
 sm scan [roots...] [--json]     # walk roots, persist scan_* tables; pretty or JSON
 sm list / sm show / sm check    # read-side reporters over the persisted scan
-sm graph [--format <name>]      # render the graph (ascii / mermaid / dot when shipped)
-sm export <query> --format ...  # filtered subgraph export (json / md)
+sm graph [--format <name>]      # render the graph (ascii / json / mermaid / dot)
+sm export <query> --format ...  # filtered subgraph export (json / md / mermaid)
 sm watch [roots...]             # incremental scans on file change (chokidar)
 sm serve [--port N]             # boot the bundled Web UI + Hono BFF (loopback-only)
 sm plugins list / doctor / ...  # plugin discovery + diagnostics

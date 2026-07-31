@@ -1,21 +1,17 @@
 /**
  * Spec § A.12 acceptance, opt-in JSON Schema validation for plugin
- * custom storage writes. Five scenarios, mirroring the cases listed
- * in the implementation brief:
+ * custom storage writes:
  *
- *   (a) Mode B with `schemas` declared, valid row → forwards to persist.
- *   (b) Mode B with `schemas` declared, invalid row → throws with the
- *       schema path AND the AJV error in the message.
- *   (c) Mode B without `schemas` (or table absent from the map) →
- *       permissive: forwards every shape to persist.
- *   (d) Mode A (kv) with `schema` declared: valid value → persists;
- *       invalid value → throws.
- *   (e) Plugin manifest with `storage.schemas` pointing at a missing
- *       file → loader returns `load-error` and the message names both
- *       the plugin id and the schema path.
+ *   (a) `storage.schema` declared: a valid value persists, an invalid
+ *       one throws with the schema path AND the AJV error in the
+ *       message.
+ *   (b) `storage.schema` pointing at a missing / unparseable file →
+ *       loader returns `load-error` and the message names both the
+ *       plugin id and the schema path.
+ *   (c) No schema declared → permissive, `storageSchemas` stays absent.
  *
- * Tests are split between the runtime store wrapper (a–d, no plugin
- * loader needed) and the loader (e). The runtime wrapper takes the
+ * Tests are split between the runtime store wrapper (a, no plugin
+ * loader needed) and the loader (b, c). The runtime wrapper takes the
  * compiled schema and a `persist` callback directly, so tests do not
  * need a real DB. Loader tests use the same `mkdtempSync` plugin
  * fixture pattern as `plugin-loader.test.ts`.
@@ -29,7 +25,6 @@ import { join } from 'node:path';
 
 import {
   KV_SCHEMA_KEY,
-  makeDedicatedStoreWrapper,
   makeKvStoreWrapper,
   makePluginStore,
 } from '../plugin-store.js';
@@ -133,86 +128,7 @@ function loaderFor(rootDir: string): PluginLoader {
 }
 
 describe('A.12, plugin storage outputSchema (runtime wrapper)', () => {
-  const itemsSchema = {
-    type: 'object',
-    required: ['name', 'count'],
-    properties: {
-      name: { type: 'string', minLength: 1 },
-      count: { type: 'integer', minimum: 0 },
-    },
-    additionalProperties: false,
-  };
-
-  it('(a) Mode B with schema: valid row forwards to persist', async () => {
-    const persisted: Array<[string, unknown]> = [];
-    const wrapper = makeDedicatedStoreWrapper({
-      pluginId: 'demo',
-      schemas: { items: compile(itemsSchema, 'schemas/items.schema.json') },
-      persist: (table, row) => {
-        persisted.push([table, row]);
-      },
-    });
-
-    await wrapper.write('items', { name: 'alpha', count: 3 });
-    deepStrictEqual(persisted, [['items', { name: 'alpha', count: 3 }]]);
-  });
-
-  it('(b) Mode B with schema: invalid row throws naming schema path + AJV error', async () => {
-    const persisted: Array<[string, unknown]> = [];
-    const wrapper = makeDedicatedStoreWrapper({
-      pluginId: 'demo',
-      schemas: { items: compile(itemsSchema, 'schemas/items.schema.json') },
-      persist: (table, row) => {
-        persisted.push([table, row]);
-      },
-    });
-
-    await rejects(
-      () => wrapper.write('items', { name: 'beta' }), // missing required `count`
-      (err: Error) => {
-        match(err.message, /demo/);
-        match(err.message, /items/);
-        match(err.message, /schemas\/items\.schema\.json/);
-        match(err.message, /count|required/);
-        return true;
-      },
-    );
-    strictEqual(persisted.length, 0, 'persist must NOT be called on validation failure');
-  });
-
-  it('(c) Mode B without schemas (or table absent): permissive, any shape forwards', async () => {
-    const persisted: Array<[string, unknown]> = [];
-
-    // No `schemas` map at all.
-    const noMap = makeDedicatedStoreWrapper({
-      pluginId: 'demo',
-      schemas: undefined,
-      persist: (table, row) => {
-        persisted.push([table, row]);
-      },
-    });
-    await noMap.write('whatever', { anything: 'goes' });
-    await noMap.write('whatever', 42 as unknown);
-
-    // Map present but the table is absent from it.
-    const sparse = makeDedicatedStoreWrapper({
-      pluginId: 'demo',
-      schemas: { items: compile(itemsSchema, 'schemas/items.schema.json') },
-      persist: (table, row) => {
-        persisted.push([table, row]);
-      },
-    });
-    // `history` is not in the schemas map → permissive.
-    await sparse.write('history', { freeform: true, junk: [1, 2, 3] });
-    // `items` IS in the schemas map → still validated; this row would
-    // throw if invalid. We pass a valid row to keep the permissive
-    // assertion pure.
-    await sparse.write('items', { name: 'gamma', count: 1 });
-
-    strictEqual(persisted.length, 4);
-  });
-
-  it('(d) Mode A with schema: valid value persists, invalid throws', async () => {
+  it('with schema: valid value persists, invalid throws', async () => {
     const valueSchema = {
       type: 'object',
       required: ['enabled'],
@@ -242,7 +158,7 @@ describe('A.12, plugin storage outputSchema (runtime wrapper)', () => {
     strictEqual(persisted.length, 1, 'persist NOT called on validation failure');
   });
 
-  it('makePluginStore picks the right wrapper from the discovered plugin', async () => {
+  it('makePluginStore builds the wrapper from the discovered plugin', async () => {
     const valueSchema = compile(
       { type: 'object', required: ['n'], properties: { n: { type: 'integer' } } },
       'schemas/kv.json',
@@ -284,7 +200,7 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
     };
   `;
 
-  it('(e) storage.schemas points at a missing file → load-error', async () => {
+  it('storage.schema points at a missing file → load-error', async () => {
     const root = makePluginsDir('a12-missing-schema');
     writePlugin(
       root,
@@ -296,30 +212,19 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
         specCompat: '>=0.0.0',
 
         catalogCompat: '*',
-        storage: {
-          mode: 'dedicated',
-          tables: ['items'],
-          migrations: ['migrations/001_init.sql'],
-          schemas: {
-            items: 'schemas/missing.schema.json',
-          },
-        },
+        storage: { mode: 'kv', schema: 'schemas/missing.schema.json' },
       },
-      {
-        'extractor/x.mjs': minimalExtractorSrc,
-        'migrations/001_init.sql': 'CREATE TABLE plugin_has_bad_schema_items (id TEXT PRIMARY KEY);',
-      },
+      { 'extractor/x.mjs': minimalExtractorSrc },
     );
 
     const result = await loaderFor(root).discoverAndLoadAll();
     strictEqual(result.length, 1);
     strictEqual(result[0]?.status, 'load-error');
     match(result[0]!.reason!, /has-bad-schema/);
-    match(result[0]!.reason!, /items/);
     match(result[0]!.reason!, /missing\.schema\.json/);
   });
 
-  it('storage.schemas points at unparseable JSON → load-error', async () => {
+  it('storage.schema points at unparseable JSON → load-error', async () => {
     const root = makePluginsDir('a12-bad-json-schema');
     writePlugin(
       root,
@@ -331,16 +236,10 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
         specCompat: '>=0.0.0',
 
         catalogCompat: '*',
-        storage: {
-          mode: 'dedicated',
-          tables: ['items'],
-          migrations: ['migrations/001_init.sql'],
-          schemas: { items: 'schemas/items.schema.json' },
-        },
+        storage: { mode: 'kv', schema: 'schemas/items.schema.json' },
       },
       {
         'extractor/x.mjs': minimalExtractorSrc,
-        'migrations/001_init.sql': 'CREATE TABLE plugin_bad_json_schema_items (id TEXT PRIMARY KEY);',
         'schemas/items.schema.json': '{ this is not json }',
       },
     );
@@ -351,7 +250,7 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
     match(result[0]!.reason!, /items\.schema\.json/);
   });
 
-  it('storage.schema (Mode A) green path attaches storageSchemas with the KV sentinel', async () => {
+  it('storage.schema green path attaches storageSchemas with the KV sentinel', async () => {
     const root = makePluginsDir('a12-kv-ok');
     writePlugin(
       root,

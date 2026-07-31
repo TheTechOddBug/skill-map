@@ -99,8 +99,6 @@ const SPEC_CASES = [
   'plugin-manifest-schema',
   'record-findings-report',
   'record-findings-envelope-gate',
-  'plugin-storage-prefix-enforced',
-  'plugin-storage-namespace-rejected',
   'conformance-result-schema',
   // The server-capable trio (rows 25 / 36 / H). `serve-info-schema` and
   // `rest-envelope-schema` exercise `setup.serve` + `http-matches-schema`

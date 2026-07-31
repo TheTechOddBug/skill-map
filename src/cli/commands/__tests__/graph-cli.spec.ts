@@ -8,7 +8,9 @@
  * Coverage:
  *   - default `--format ascii` renders the persisted graph (happy path).
  *   - explicit `--format ascii` matches the same output as the default.
- *   - unknown `--format mermaid` exits 2 with a clear stderr listing
+ *   - `--format mermaid` / `--format dot` render the diagram formats
+ *     end to end (exit 0, document shape asserted).
+ *   - unknown `--format csv` exits 2 with a clear stderr listing
  *     the available formats.
  *   - missing DB exits 5 (delegated to `assertDbExists`).
  *   - empty DB (migrated but never scanned) renders the zero-graph and
@@ -177,12 +179,10 @@ describe('sm graph', () => {
     strictEqual(capDefault.stdout(), capExplicit.stdout(), 'default and explicit ascii must produce identical output');
   });
 
-  // --- error paths ---------------------------------------------------------
-
-  it('unknown --format mermaid exits 2 with a clear hint', async () => {
-    const fixture = freshFixture('graph-unknown');
+  it('--format mermaid renders a flowchart over the persisted graph', async () => {
+    const fixture = freshFixture('graph-mermaid');
     plantTinyFixture(fixture);
-    const dbPath = freshDbPath('graph-unknown');
+    const dbPath = freshDbPath('graph-mermaid');
     await primeDb(fixture, dbPath);
 
     const cap = captureContext();
@@ -190,9 +190,68 @@ describe('sm graph', () => {
     cmd.context = cap.context;
     const code = await cmd.execute();
 
+    strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
+    const lines = cap.stdout().trimEnd().split('\n');
+    // Shape assertion: declaration leads, the two fixture files each get
+    // one quoted-label node statement, and each node carries a kind class.
+    strictEqual(lines[0], 'flowchart LR');
+    match(cap.stdout(), /%% skill-map graph: 2 nodes, \d+ links, \d+ issues/);
+    ok(
+      lines.includes('  n0[".claude/agents/architect.md"]'),
+      `agent node statement missing:\n${cap.stdout()}`,
+    );
+    ok(
+      lines.includes('  n1[".claude/commands/deploy.md"]'),
+      `command node statement missing:\n${cap.stdout()}`,
+    );
+    ok(lines.includes('  class n0 kind_agent;'), 'agent class assignment missing');
+    ok(lines.includes('  class n1 kind_command;'), 'command class assignment missing');
+    ok(cap.stdout().endsWith('\n'), 'output should be newline-terminated');
+  });
+
+  it('--format dot renders a digraph over the persisted graph', async () => {
+    const fixture = freshFixture('graph-dot');
+    plantTinyFixture(fixture);
+    const dbPath = freshDbPath('graph-dot');
+    await primeDb(fixture, dbPath);
+
+    const cap = captureContext();
+    const cmd = buildGraph({ db: dbPath, format: 'dot' });
+    cmd.context = cap.context;
+    const code = await cmd.execute();
+
+    strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
+    const lines = cap.stdout().trimEnd().split('\n');
+    strictEqual(lines[0], 'digraph "skill-map" {');
+    strictEqual(lines.at(-1), '}');
+    ok(
+      lines.includes('  ".claude/agents/architect.md" [label=".claude/agents/architect.md\\nagent"];'),
+      `agent node statement missing:\n${cap.stdout()}`,
+    );
+    ok(
+      lines.includes('  ".claude/commands/deploy.md" [label=".claude/commands/deploy.md\\ncommand"];'),
+      `command node statement missing:\n${cap.stdout()}`,
+    );
+    ok(cap.stdout().endsWith('\n'), 'output should be newline-terminated');
+  });
+
+  // --- error paths ---------------------------------------------------------
+
+  it('unregistered --format csv exits 2 with a clear hint', async () => {
+    const fixture = freshFixture('graph-unknown');
+    plantTinyFixture(fixture);
+    const dbPath = freshDbPath('graph-unknown');
+    await primeDb(fixture, dbPath);
+
+    const cap = captureContext();
+    const cmd = buildGraph({ db: dbPath, format: 'csv' });
+    cmd.context = cap.context;
+    const code = await cmd.execute();
+
     strictEqual(code, 2, `unexpected exit ${code}; stdout=${cap.stdout()}`);
-    match(cap.stderr(), /No formatter registered for format=mermaid/);
-    match(cap.stderr(), /Available: ascii/);
+    match(cap.stderr(), /No formatter registered for format=csv/);
+    // The hint lists every registered formatter, sorted.
+    match(cap.stderr(), /Available: ascii, dot, json, mermaid/);
   });
 
   it('missing DB exits 5 with the standard "DB not found" hint', async () => {

@@ -884,43 +884,6 @@ export interface IApplyResult {
   backupPath: string | null;
 }
 
-// --- pluginMigrations namespace -------------------------------------------
-
-/** Discovered plugin migration file. Same `NNN_snake_case.sql` convention. */
-export interface IPluginMigrationFile {
-  version: number;
-  description: string;
-  filePath: string;
-}
-
-/** A row from the `config_schema_versions` ledger for a single plugin. */
-export interface IPluginMigrationRecord {
-  version: number;
-  description: string;
-  appliedAt: number;
-}
-
-/** `port.pluginMigrations.plan` output for a single plugin. */
-export interface IPluginMigrationPlan {
-  pluginId: string;
-  applied: IPluginMigrationRecord[];
-  pending: IPluginMigrationFile[];
-}
-
-/** Apply-time options for `port.pluginMigrations.apply`. */
-export interface IPluginApplyOptions {
-  /** No actual writes; surfaces what would run. Default false. */
-  dryRun?: boolean;
-}
-
-/** Result of `port.pluginMigrations.apply`. */
-export interface IPluginApplyResult {
-  pluginId: string;
-  applied: IPluginMigrationFile[];
-  /** Catalog intrusions caught by Layer 3 (post-apply sweep). Empty when clean. */
-  intrusions: string[];
-}
-
 // --- contributions namespace ----------------------------------------------
 
 /**
