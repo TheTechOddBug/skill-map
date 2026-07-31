@@ -75,6 +75,45 @@ interface IBackfillResult {
 }
 
 /**
+ * One row of the `--json` envelope's `migrated` list: exactly the set of
+ * things the human renderer reports, in the same order (plugin-level
+ * `package.json` backfills first, then per-extension manifests). An
+ * already-current target contributes nothing, so an empty list means the
+ * sweep found nothing to do.
+ */
+interface IUpgradeChange {
+  /** Plugin id, or `<plugin>/<kind>s/<name>` for an extension. */
+  target: string;
+  change: TBackfillOutcome | TExtOutcome;
+  /** Relocated fields the module still declares, when any remain. */
+  staleFields?: string[];
+}
+
+/** Project both migration passes into the `migrated` wire list. */
+function collectChanges(
+  entries: readonly IBackfillEntry[],
+  extEntries: readonly IExtEntry[],
+): IUpgradeChange[] {
+  const out: IUpgradeChange[] = [];
+  for (const entry of entries) {
+    // `ok` = already current. The human renderer stays quiet on it so
+    // the output highlights only changes; the envelope matches.
+    if (entry.outcome === 'ok') continue;
+    out.push({ target: sanitizeForTerminal(entry.id), change: entry.outcome });
+  }
+  for (const entry of extEntries) {
+    if (entry.outcome === 'ext-ok' && entry.staleFields.length === 0) continue;
+    const change: IUpgradeChange = {
+      target: sanitizeForTerminal(entry.where),
+      change: entry.outcome,
+    };
+    if (entry.staleFields.length > 0) change.staleFields = [...entry.staleFields];
+    out.push(change);
+  }
+  return out;
+}
+
+/**
  * Read one field's literal out of an extension module's SOURCE TEXT.
  *
  * Deliberately lexical, never a dynamic `import()`. Importing here would
@@ -218,7 +257,7 @@ export class PluginsUpgradeCommand extends SmCommand {
     category: 'Plugins',
     description: 'Bring drop-in plugins up to the current scaffolding standard.',
     details:
-      'Backfills a `package.json` with `"type": "module"` on plugins missing it (so Node loads their ESM extensions without the MODULE_TYPELESS warning), then applies any registered catalog migrations (none against catalog v1.0.0 yet). Pass a `<plugin-id>` to upgrade one; omit it to upgrade every discovered plugin.',
+      'Backfills a `package.json` with `"type": "module"` on plugins missing it (so Node loads their ESM extensions without the MODULE_TYPELESS warning), then applies any registered catalog migrations (none against catalog v1.0.0 yet). Pass a `<plugin-id>` to upgrade one; omit it to upgrade every discovered plugin. `--json` emits `{ ok, kind: \'plugins-upgrade\', migrated, elapsedMs }`.',
   });
 
   pluginId = Option.String({ required: false, name: 'plugin-id' });
@@ -227,10 +266,16 @@ export class PluginsUpgradeCommand extends SmCommand {
     const ctx = defaultRuntimeContext();
     const pluginsDir = defaultProjectPluginsDir(ctx);
     const result = backfillPluginPackageJson(pluginsDir, this.pluginId);
+    const extEntries =
+      result.notFound === null ? migrateExtensionManifests(pluginsDir, this.pluginId) : [];
+
+    // §Machine-readable output: under `--json` stdout carries the
+    // envelope alone, so the human sweep report is skipped entirely.
+    if (this.json) return this.emitJson(result, extEntries);
+
     this.renderBackfill(result);
-    if (result.notFound === null) {
-      this.renderExtensionMigration(migrateExtensionManifests(pluginsDir, this.pluginId));
-    }
+    // No-op for the not-found path, whose list is empty by construction.
+    this.renderExtensionMigration(extEntries);
     const ansi = this.ansiFor('stdout');
     this.printer!.data(
       tx(PLUGINS_TEXTS.upgradeNoMigrations, {
@@ -241,18 +286,45 @@ export class PluginsUpgradeCommand extends SmCommand {
     return result.notFound !== null ? ExitCode.Error : ExitCode.Ok;
   }
 
+  /**
+   * One JSON document on stdout. An unresolvable `<plugin-id>` keeps its
+   * §3.1b block on stderr and emits no document: the verb exits 2, and
+   * an `ok: true` envelope would contradict that.
+   */
+  private emitJson(result: IBackfillResult, extEntries: readonly IExtEntry[]): number {
+    if (result.notFound !== null) {
+      this.renderNotFound(result.notFound);
+      return ExitCode.Error;
+    }
+    this.printer!.data(
+      JSON.stringify({
+        ok: true,
+        kind: 'plugins-upgrade',
+        migrated: collectChanges(result.entries, extEntries),
+        elapsedMs: this.elapsed!.ms(),
+      }) + '\n',
+    );
+    return ExitCode.Ok;
+  }
+
+  /**
+   * §3.1b block on stderr: the verb exits Error for this case, so the
+   * rejection renders as an error, not a soft warning.
+   */
+  private renderNotFound(id: string): void {
+    const stderrAnsi = this.ansiFor('stderr');
+    this.printer!.error(
+      tx(PLUGINS_TEXTS.upgradeNotFound, {
+        glyph: stderrAnsi.red('✕'),
+        id: sanitizeForTerminal(id),
+        hint: stderrAnsi.dim(PLUGINS_TEXTS.upgradeNotFoundHint),
+      }),
+    );
+  }
+
   private renderBackfill(result: IBackfillResult): void {
     if (result.notFound !== null) {
-      // §3.1b block on stderr: the verb exits Error for this case, so the
-      // rejection renders as an error, not a soft warning.
-      const stderrAnsi = this.ansiFor('stderr');
-      this.printer!.error(
-        tx(PLUGINS_TEXTS.upgradeNotFound, {
-          glyph: stderrAnsi.red('✕'),
-          id: sanitizeForTerminal(result.notFound),
-          hint: stderrAnsi.dim(PLUGINS_TEXTS.upgradeNotFoundHint),
-        }),
-      );
+      this.renderNotFound(result.notFound);
       return;
     }
     for (const entry of result.entries) {

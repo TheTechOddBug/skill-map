@@ -39,6 +39,7 @@ import {
   shouldServeAfterInit,
 } from './util/empty-folder-prompt.js';
 import { ExitCode } from './util/exit-codes.js';
+import { flushStdio, ignoreEpipe } from './util/flush-stdio.js';
 import { formatParseError, isClipanionParseError } from './util/parse-error.js';
 import { defaultRuntimeContext } from '../core/runtime/runtime-context.js';
 import { maybeRunUpdateCheck } from './util/update-check-banner.js';
@@ -53,6 +54,11 @@ import { extractFlagNames } from './telemetry/usage-collector.js';
 import { createSmCli } from './command-registry.js';
 import { registeredVerbPaths, routeHelpArgs } from './commands/help.js';
 import { VERSION } from '../version.js';
+
+// Piped output whose consumer stops reading (`sm ... | head`) must end
+// the pipeline quietly, not with an unhandled EPIPE stack trace. Armed
+// before the first byte is written. See `cli/util/flush-stdio.ts`.
+ignoreEpipe();
 
 // Composition root lives in `cli/command-registry.ts` so tests and
 // tooling can build the exact same CLI without booting this driver.
@@ -199,6 +205,12 @@ await lifecycleDispatcher.dispatch(
 // network cannot hang shutdown. No-op when telemetry was never initialised.
 await closeSentryCli();
 await flushUsageCli();
+
+// Let stdout / stderr reach the OS before the hard exit. Over a pipe
+// these streams are asynchronous, so `process.exit()` would drop
+// whatever is still queued and cut the payload at one pipe buffer.
+// See `cli/util/flush-stdio.ts`.
+await flushStdio();
 
 process.exit(exitCode);
 

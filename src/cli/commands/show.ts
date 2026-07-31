@@ -55,6 +55,13 @@ type TShowDocument = Pick<INodeBundle, 'node' | 'linksOut' | 'linksIn' | 'issues
   findings: IFindingRecord[];
   /** Stored per-node summaries, each carrying a computed `stale` flag. */
   summaries: IShowSummary[];
+  /**
+   * Wall clock of the verb (`spec/cli-contract.md` §Elapsed time §JSON
+   * output: an object-shaped `--json` payload carries a top-level
+   * integer `elapsedMs`). Populated only on the `--json` branch; the
+   * human renderer never reads it.
+   */
+  elapsedMs?: number;
 };
 
 /**
@@ -156,7 +163,9 @@ export class ShowCommand extends SmCommand {
         };
 
         if (this.json) {
-          this.printer!.data(JSON.stringify(doc) + '\n');
+          this.printer!.data(
+            JSON.stringify({ ...doc, elapsedMs: this.elapsed!.ms() }) + '\n',
+          );
           return ExitCode.Ok;
         }
 

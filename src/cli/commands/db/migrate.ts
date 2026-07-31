@@ -14,7 +14,11 @@ import { tx } from '../../../kernel/util/tx.js';
 import { DB_TEXTS } from '../../i18n/db.texts.js';
 
 import { createSqliteStorage } from '../../../kernel/adapters/sqlite/index.js';
-import type { IApplyResult, IMigrationPlan } from '../../../kernel/types/storage.js';
+import type {
+  IApplyResult,
+  IMigrationFile,
+  IMigrationPlan,
+} from '../../../kernel/types/storage.js';
 import type { IPrinter } from '../../../core/runtime/printer.js';
 import { appendOperation } from '../../../core/operations-log.js';
 import { resolveDbPath } from '../../util/db-path.js';
@@ -35,6 +39,8 @@ export class DbMigrateCommand extends SmCommand {
       --status        print applied vs pending summary and exit.
       --to <n>        apply up to (and including) version N.
       --no-backup     skip the pre-apply backup.
+      --json emits { ok, kind: 'db-migrate', mode, applied, pending,
+      dryRun, backupPath, elapsedMs }.
     `,
   });
 
@@ -64,7 +70,7 @@ export class DbMigrateCommand extends SmCommand {
 
       // --- status branch (read-only summary) ---------------------------
       if (this.status) {
-        printStatus(this.printer!, adapter.migrations.plan(files));
+        this.#renderStatus(adapter.migrations.plan(files));
         return ExitCode.Ok;
       }
 
@@ -78,15 +84,15 @@ export class DbMigrateCommand extends SmCommand {
       };
       if (toValue !== undefined) options.to = toValue;
 
+      // The ledger BEFORE the apply. `--to <n>` can leave migrations
+      // behind, so "what is still pending afterwards" is only knowable
+      // by diffing the pre-state against what actually ran; the apply
+      // result alone cannot answer it. Cheap local read on the handle
+      // that is already open (the `--status` branch above does the same).
+      const beforePlan = adapter.migrations.plan(files);
       const result = adapter.migrations.apply(options, files);
       const cwdMig = defaultRuntimeContext().cwd;
-      printApplyOutcome({
-        printer: this.printer!,
-        okGlyph: this.ansiFor('stdout').green('✓'),
-        dryRun: this.dryRun,
-        result,
-        cwd: cwdMig,
-      });
+      this.#renderApplyOutcome(beforePlan, result, cwdMig);
 
       if (!this.dryRun) {
         appendOperation(cwdMig, {
@@ -127,6 +133,76 @@ export class DbMigrateCommand extends SmCommand {
     );
     return 'invalid';
   }
+
+  /**
+   * `--status`. Human mode prints the ledger summary; `--json` emits the
+   * `status`-mode envelope and NOTHING else on stdout
+   * (`spec/cli-contract.md` §Machine-readable output).
+   */
+  #renderStatus(plan: IMigrationPlan): void {
+    if (!this.json) {
+      printStatus(this.printer!, plan);
+      return;
+    }
+    this.#emitJson({
+      mode: 'status',
+      applied: plan.applied.map((r) => formatKernelName(r.version, r.description)),
+      pending: plan.pending.map(migrationName),
+      backupPath: null,
+    });
+  }
+
+  /**
+   * The apply outcome. Human mode keeps its receipt verbatim; `--json`
+   * reports what THIS invocation applied (empty under `--dry-run`,
+   * where nothing moved) and what is still pending afterwards.
+   */
+  #renderApplyOutcome(before: IMigrationPlan, result: IApplyResult, cwd: string): void {
+    if (!this.json) {
+      printApplyOutcome({
+        printer: this.printer!,
+        okGlyph: this.ansiFor('stdout').green('✓'),
+        dryRun: this.dryRun,
+        result,
+        cwd,
+      });
+      return;
+    }
+    // A dry run applies nothing, so every pre-existing pending migration
+    // stays pending; a live run drops the versions that actually ran
+    // (`--to <n>` legitimately leaves the rest behind).
+    const applied = this.dryRun ? [] : result.applied;
+    const ran = new Set(applied.map((m) => m.version));
+    this.#emitJson({
+      mode: 'apply',
+      applied: applied.map(migrationName),
+      pending: before.pending.filter((m) => !ran.has(m.version)).map(migrationName),
+      backupPath: result.backupPath,
+    });
+  }
+
+  /** One JSON document on stdout, the two modes sharing one envelope. */
+  #emitJson(body: {
+    mode: 'status' | 'apply';
+    applied: string[];
+    pending: string[];
+    backupPath: string | null;
+  }): void {
+    this.printer!.data(
+      JSON.stringify({
+        ok: true,
+        kind: 'db-migrate',
+        ...body,
+        dryRun: this.dryRun,
+        elapsedMs: this.elapsed!.ms(),
+      }) + '\n',
+    );
+  }
+}
+
+/** `<version padded>_<description>`, the label both modes report. */
+function migrationName(file: IMigrationFile): string {
+  return formatKernelName(file.version, file.description);
 }
 
 /** `--status`: the applied / pending ledger summary, newest section last. */

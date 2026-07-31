@@ -71,6 +71,30 @@ function skillFileDisplay(target: IScaffoldTarget): string {
 }
 
 /**
+ * The one JSON document `sm agent install` / `sm agent uninstall` put on
+ * stdout under `--json` (`spec/cli-contract.md` §Machine-readable
+ * output: stdout carries the document and nothing else). Both verbs
+ * share the envelope; only `kind` and the `outcome` vocabulary differ.
+ */
+function agentEnvelope(
+  kind: 'agent-install' | 'agent-uninstall',
+  target: IScaffoldTarget,
+  outcome: TInstallOutcome | 'removed' | 'not-installed',
+  elapsedMs: number,
+): string {
+  return (
+    JSON.stringify({
+      ok: true,
+      kind,
+      provider: target.id,
+      skillDir: target.skillDir,
+      outcome,
+      elapsedMs,
+    }) + '\n'
+  );
+}
+
+/**
  * Shared base of the three verbs: the `--for` override plus the
  * destination resolution both `install`, `uninstall`, and `status` run
  * through, so the family can never fork its refusals.
@@ -151,7 +175,8 @@ export class AgentInstallCommand extends AgentBaseCommand {
       overrides it. A Provider without a skill directory is refused
       (exit 2). Idempotent: reinstalling rewrites the folder in place,
       refreshing an older copy. Does NOT require an initialized
-      \`.skill-map/\` project.
+      \`.skill-map/\` project. \`--json\` emits
+      \`{ ok, kind: 'agent-install', provider, skillDir, outcome, elapsedMs }\`.
     `,
     examples: [
       ['Install for the active lens', '$0 agent install'],
@@ -196,6 +221,10 @@ export class AgentInstallCommand extends AgentBaseCommand {
 
   /** Success line per outcome; the next-step hint only when bytes moved. */
   private reportInstall(outcome: TInstallOutcome, target: IScaffoldTarget): void {
+    if (this.json) {
+      this.printer!.data(agentEnvelope('agent-install', target, outcome, this.elapsed!.ms()));
+      return;
+    }
     const ansi = this.ansiFor('stdout');
     const line =
       outcome === 'installed' ? T.installed : outcome === 'updated' ? T.updated : T.upToDate;
@@ -222,7 +251,8 @@ export class AgentUninstallCommand extends AgentBaseCommand {
       \`sm-process-jobs\` folder from the destination Provider's skill
       directory (active lens by default, \`--for <provider>\` overrides).
       Idempotent: when the skill is not installed, nothing happens and
-      the verb exits 0 with an advisory.
+      the verb exits 0 with an advisory. \`--json\` emits
+      \`{ ok, kind: 'agent-uninstall', provider, skillDir, outcome, elapsedMs }\`.
     `,
     examples: [
       ['Uninstall for the active lens', '$0 agent uninstall'],
@@ -247,6 +277,23 @@ export class AgentUninstallCommand extends AgentBaseCommand {
       );
       return ExitCode.Error;
     }
+    this.reportUninstall(target, removed);
+    return ExitCode.Ok;
+  }
+
+  /** Removal receipt, or the idempotent "nothing was there" advisory. */
+  private reportUninstall(target: IScaffoldTarget, removed: boolean): void {
+    if (this.json) {
+      this.printer!.data(
+        agentEnvelope(
+          'agent-uninstall',
+          target,
+          removed ? 'removed' : 'not-installed',
+          this.elapsed!.ms(),
+        ),
+      );
+      return;
+    }
     if (!removed) {
       this.printer!.info(
         tx(T.nothingToUninstall, {
@@ -254,7 +301,7 @@ export class AgentUninstallCommand extends AgentBaseCommand {
           path: skillFolderDisplay(target),
         }),
       );
-      return ExitCode.Ok;
+      return;
     }
     this.printer!.data(
       tx(T.uninstalled, {
@@ -262,7 +309,6 @@ export class AgentUninstallCommand extends AgentBaseCommand {
         path: skillFolderDisplay(target),
       }),
     );
-    return ExitCode.Ok;
   }
 }
 

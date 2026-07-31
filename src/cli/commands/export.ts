@@ -161,7 +161,11 @@ export class ExportCommand extends SmCommand {
       );
 
       if (format === 'json') {
-        this.printer!.data(JSON.stringify(serialiseSubset(subset)) + '\n');
+        // §Elapsed time §JSON output: the document is a top-level
+        // object, so it carries the verb's wall clock inline.
+        this.printer!.data(
+          JSON.stringify(serialiseSubset(subset, this.elapsed!.ms())) + '\n',
+        );
         return ExitCode.Ok;
       }
       if (format === 'mermaid') {
@@ -235,13 +239,14 @@ function renderThroughFormatter(formatter: IFormatter, subset: IExportSubset): s
   return text.endsWith('\n') ? text : text + '\n';
 }
 
-function serialiseSubset(subset: IExportSubset): {
+function serialiseSubset(subset: IExportSubset, elapsedMs: number): {
   query: string;
   filters: { kinds?: string[]; hasIssues?: boolean; pathGlobs?: string[] };
   counts: { nodes: number; links: number; issues: number };
   nodes: Node[];
   links: Link[];
   issues: Issue[];
+  elapsedMs: number;
 } {
   const filters: ReturnType<typeof serialiseSubset>['filters'] = {};
   if (subset.query.kinds) filters.kinds = subset.query.kinds;
@@ -258,6 +263,7 @@ function serialiseSubset(subset: IExportSubset): {
     nodes: subset.nodes,
     links: subset.links,
     issues: subset.issues,
+    elapsedMs,
   };
 }
 

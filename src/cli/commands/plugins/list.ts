@@ -75,8 +75,14 @@ export class PluginsListCommand extends SmCommand {
     }
 
     if (this.json) {
+      // §Elapsed time §JSON output: the index payload is a top-level
+      // object, so it carries the verb's wall clock inline.
       this.printer!.data(
-        JSON.stringify({ builtIns, plugins }, omitModule, 2) + '\n',
+        JSON.stringify(
+          { builtIns, plugins, elapsedMs: this.elapsed!.ms() },
+          omitModule,
+          2,
+        ) + '\n',
       );
       return ExitCode.Ok;
     }
@@ -136,7 +142,15 @@ export class PluginsListCommand extends SmCommand {
 
     if (this.json) {
       const payload = builtIn ?? match;
-      this.printer!.data(JSON.stringify(payload, omitModule, 2) + '\n');
+      // Same top-level object rule as the index branch above; the detail
+      // payload is the plugin row plus the verb's wall clock.
+      this.printer!.data(
+        JSON.stringify(
+          { ...payload, elapsedMs: this.elapsed!.ms() },
+          omitModule,
+          2,
+        ) + '\n',
+      );
       return ExitCode.Ok;
     }
 

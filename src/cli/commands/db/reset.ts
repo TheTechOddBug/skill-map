@@ -38,6 +38,8 @@ export class DbResetCommand extends SmCommand {
       With --dry-run: previews what would be cleared / deleted without
       touching the DB. Bypasses the confirmation prompt entirely (the
       preview itself is non-destructive).
+      --json emits { ok, kind: 'db-reset', scope, dryRun, tables[],
+      elapsedMs }.
     `,
   });
 
@@ -48,11 +50,12 @@ export class DbResetCommand extends SmCommand {
     description: 'Preview the reset without dropping any tables or unlinking any files.',
   });
 
-  // CLI orchestrator: --state vs --hard flag combo + --dry-run + --yes
-  // confirm + per-mode actions. The early-return chain is the clearest
-  // expression of the flag semantics; splitting per branch would
-  // distance the validations from their guards.
-  // eslint-disable-next-line complexity
+  /**
+   * Flag-combo gate, then hand off to the mode that owns the work.
+   * `--hard` unlinks the file (and never probes existence, deleting an
+   * absent DB is an idempotent no-op); everything else clears tables in
+   * place and therefore needs the DB to be there.
+   */
   protected async run(): Promise<number> {
     const stderrAnsiReset = this.ansiFor('stderr');
     if (this.state && this.hard) {
@@ -66,142 +69,210 @@ export class DbResetCommand extends SmCommand {
     }
 
     const path = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
-
-    if (this.hard) {
-      if (this.dryRun) {
-        this.printer!.data(DB_TEXTS.dryRunHeader);
-        const dbStat = await statOrNull(path);
-        const sizeBytes = dbStat ? dbStat.size : null;
-        this.printer!.data(
-          sizeBytes === null
-            ? tx(DB_TEXTS.dryRunResetHardWouldDeleteMissing, { path })
-            : tx(DB_TEXTS.dryRunResetHardWouldDelete, { path, sizeBytes }),
-        );
-        return ExitCode.Ok;
-      }
-      if (!this.yes) {
-        const ok = await confirm(tx(DB_TEXTS.resetHardConfirm, { path }), {
-          stdin: this.context.stdin,
-          stderr: this.context.stderr,
-        });
-        if (!ok) {
-          this.printer!.info(tx(DB_TEXTS.resetAborted, { glyph: stderrAnsiReset.cyan('ℹ') }));
-          return ExitCode.Ok;
-        }
-      }
-      await removeDbFiles(path);
-      // §Operations log: the delete leaves `.skill-map/` in place, so
-      // the log line survives its own subject's destruction.
-      appendOperation(defaultRuntimeContext().cwd, {
-        op: 'db.reset',
-        target: '*',
-        channel: 'cli',
-        outcome: 'ok',
-        detail: 'mode=hard',
-      });
-      const ansiHard = this.ansiFor('stdout');
-      this.printer!.data(
-        tx(DB_TEXTS.resetHardDeleted, {
-          glyph: ansiHard.green('✓'),
-          path: relativeIfBelow(path, defaultRuntimeContext().cwd),
-        }),
-      );
-      return ExitCode.Ok;
-    }
+    if (this.hard) return this.#runHard(path);
 
     const exit = requireDbOrExit(path, this.context.stderr, this.noColor);
     if (exit !== null) return exit;
+    return this.#runTables(path);
+  }
 
+  /** `--hard`: preview, confirm, then unlink the DB file and its siblings. */
+  async #runHard(path: string): Promise<number> {
+    if (this.dryRun) return this.#previewHard(path);
+    if (!this.yes) {
+      const ok = await confirm(tx(DB_TEXTS.resetHardConfirm, { path }), {
+        stdin: this.context.stdin,
+        stderr: this.context.stderr,
+      });
+      if (!ok) {
+        this.printer!.info(
+          tx(DB_TEXTS.resetAborted, { glyph: this.ansiFor('stderr').cyan('ℹ') }),
+        );
+        return ExitCode.Ok;
+      }
+    }
+    await removeDbFiles(path);
+    // §Operations log: the delete leaves `.skill-map/` in place, so
+    // the log line survives its own subject's destruction.
+    appendOperation(defaultRuntimeContext().cwd, {
+      op: 'db.reset',
+      target: '*',
+      channel: 'cli',
+      outcome: 'ok',
+      detail: 'mode=hard',
+    });
+    if (this.json) {
+      this.#emitJson([]);
+      return ExitCode.Ok;
+    }
+    const ansiHard = this.ansiFor('stdout');
+    this.printer!.data(
+      tx(DB_TEXTS.resetHardDeleted, {
+        glyph: ansiHard.green('✓'),
+        path: relativeIfBelow(path, defaultRuntimeContext().cwd),
+      }),
+    );
+    return ExitCode.Ok;
+  }
+
+  /**
+   * `--hard --dry-run`: report the file that would go, never unlink it.
+   * `--hard` deletes a FILE, not tables, so the envelope's `tables` list
+   * is legitimately empty here.
+   */
+  async #previewHard(path: string): Promise<number> {
+    if (this.json) {
+      this.#emitJson([]);
+      return ExitCode.Ok;
+    }
+    this.printer!.data(DB_TEXTS.dryRunHeader);
+    const dbStat = await statOrNull(path);
+    const sizeBytes = dbStat ? dbStat.size : null;
+    this.printer!.data(
+      sizeBytes === null
+        ? tx(DB_TEXTS.dryRunResetHardWouldDeleteMissing, { path })
+        : tx(DB_TEXTS.dryRunResetHardWouldDelete, { path, sizeBytes }),
+    );
+    return ExitCode.Ok;
+  }
+
+  /** Default / `--state`: confirm when destructive, then clear the tables. */
+  async #runTables(path: string): Promise<number> {
     if (this.state && !this.yes && !this.dryRun) {
       const ok = await confirm(tx(DB_TEXTS.resetStateConfirm, { path }), {
         stdin: this.context.stdin,
         stderr: this.context.stderr,
       });
       if (!ok) {
-        this.printer!.info(tx(DB_TEXTS.resetAborted, { glyph: stderrAnsiReset.cyan('ℹ') }));
+        this.printer!.info(
+          tx(DB_TEXTS.resetAborted, { glyph: this.ansiFor('stderr').cyan('ℹ') }),
+        );
         return ExitCode.Ok;
       }
     }
 
     const db = new DatabaseSync(path);
     try {
-      const rows = db
-        .prepare(
-          "SELECT name FROM sqlite_master WHERE type='table' AND (name LIKE 'scan\\_%' ESCAPE '\\'"
-            + (this.state ? " OR name LIKE 'state\\_%' ESCAPE '\\'" : '')
-            + ')',
-        )
-        .all() as Array<{ name: string }>;
-
-      // Defence in depth, the LIKE filter above already restricts
-      // results to `scan_*` (and optionally `state_*`) catalog rows, so
-      // nothing outside the kernel's own naming should reach this loop.
+      const rows = listResettableTables(db, this.state);
+      // Defence in depth, the LIKE filter already restricts results to
+      // `scan_*` (and optionally `state_*`) catalog rows, so nothing
+      // outside the kernel's own naming should reach this loop.
       // Whitelist + double-quote anyway before interpolating into a
       // statement that is exec'd as-is.
       for (const r of rows) assertSafeIdentifier(r.name);
 
-      if (this.dryRun) {
-        this.printer!.data(DB_TEXTS.dryRunHeader);
-        if (rows.length === 0) {
-          this.printer!.data(DB_TEXTS.dryRunResetWouldClearNone);
-          return ExitCode.Ok;
-        }
-        // Probe row counts so the user sees the destructive scope. Read-
-        // only queries, safe in dry-run.
-        const withCounts = rows.map((r) => {
-          const count = db.prepare(`SELECT COUNT(*) AS c FROM "${r.name}"`).get() as { c: number };
-          return { name: r.name, rowCount: Number(count.c) };
-        });
-        const totalRows = withCounts.reduce((acc, r) => acc + r.rowCount, 0);
-        const lines = withCounts
-          .map((r) =>
-            tx(DB_TEXTS.dryRunResetTableLine, {
-              name: r.name,
-              rowCount: r.rowCount,
-              plural: pluralSuffix(r.rowCount),
-            }),
-          )
-          .join('\n');
-        this.printer!.data(
-          tx(DB_TEXTS.dryRunResetWouldClearWithRowCounts, {
-            tableCount: rows.length,
-            tablePlural: pluralSuffix(rows.length),
-            totalRows,
-            rowPlural: pluralSuffix(totalRows),
-            lines,
-          }),
-        );
-        return ExitCode.Ok;
-      }
-
-      db.exec('BEGIN');
-      for (const { name } of rows) {
-        db.exec(`DELETE FROM "${name}"`);
-      }
-      db.exec('COMMIT');
-
-      appendOperation(defaultRuntimeContext().cwd, {
-        op: 'db.reset',
-        target: '*',
-        channel: 'cli',
-        outcome: 'ok',
-        detail: `mode=${this.state ? 'state' : 'scan'} tables=${rows.length}`,
-      });
-
-      const ansiReset = this.ansiFor('stdout');
-      this.printer!.data(
-        rows.length === 0
-          ? tx(DB_TEXTS.resetClearedNone, { glyph: ansiReset.green('✓') })
-          : tx(DB_TEXTS.resetCleared, {
-              glyph: ansiReset.green('✓'),
-              tableCount: rows.length,
-              plural: pluralSuffix(rows.length),
-              tableNames: rows.map((r) => r.name).join(', '),
-            }),
-      );
+      if (this.dryRun) return this.#previewTables(db, rows);
+      this.#clearTables(db, rows);
     } finally {
       db.close();
     }
     return ExitCode.Ok;
   }
+
+  /** `--dry-run`: report the tables and the rows at stake, delete nothing. */
+  #previewTables(db: DatabaseSync, rows: ReadonlyArray<{ name: string }>): number {
+    if (this.json) {
+      this.#emitJson(rows.map((r) => ({ name: r.name, rows: countRows(db, r.name) })));
+      return ExitCode.Ok;
+    }
+    this.printer!.data(DB_TEXTS.dryRunHeader);
+    if (rows.length === 0) {
+      this.printer!.data(DB_TEXTS.dryRunResetWouldClearNone);
+      return ExitCode.Ok;
+    }
+    // Probe row counts so the user sees the destructive scope. Read-
+    // only queries, safe in dry-run.
+    const withCounts = rows.map((r) => ({ name: r.name, rowCount: countRows(db, r.name) }));
+    const totalRows = withCounts.reduce((acc, r) => acc + r.rowCount, 0);
+    const lines = withCounts
+      .map((r) =>
+        tx(DB_TEXTS.dryRunResetTableLine, {
+          name: r.name,
+          rowCount: r.rowCount,
+          plural: pluralSuffix(r.rowCount),
+        }),
+      )
+      .join('\n');
+    this.printer!.data(
+      tx(DB_TEXTS.dryRunResetWouldClearWithRowCounts, {
+        tableCount: rows.length,
+        tablePlural: pluralSuffix(rows.length),
+        totalRows,
+        rowPlural: pluralSuffix(totalRows),
+        lines,
+      }),
+    );
+    return ExitCode.Ok;
+  }
+
+  /**
+   * Clear every matched table inside one transaction, log the operation,
+   * and report. The DELETE runs through a prepared statement so the
+   * deleted-row count comes back with the write itself; the envelope's
+   * `rows` therefore means the same thing in both modes (the rows the
+   * reset is accountable for) with no extra probe query.
+   */
+  #clearTables(db: DatabaseSync, rows: ReadonlyArray<{ name: string }>): void {
+    db.exec('BEGIN');
+    const cleared = rows.map((r) => ({
+      name: r.name,
+      rows: Number(db.prepare(`DELETE FROM "${r.name}"`).run().changes),
+    }));
+    db.exec('COMMIT');
+
+    appendOperation(defaultRuntimeContext().cwd, {
+      op: 'db.reset',
+      target: '*',
+      channel: 'cli',
+      outcome: 'ok',
+      detail: `mode=${this.state ? 'state' : 'scan'} tables=${rows.length}`,
+    });
+
+    if (this.json) {
+      this.#emitJson(cleared);
+      return;
+    }
+    const ansiReset = this.ansiFor('stdout');
+    this.printer!.data(
+      rows.length === 0
+        ? tx(DB_TEXTS.resetClearedNone, { glyph: ansiReset.green('✓') })
+        : tx(DB_TEXTS.resetCleared, {
+            glyph: ansiReset.green('✓'),
+            tableCount: rows.length,
+            plural: pluralSuffix(rows.length),
+            tableNames: rows.map((r) => r.name).join(', '),
+          }),
+    );
+  }
+
+  /** One JSON document on stdout, shared by every completion path. */
+  #emitJson(tables: ReadonlyArray<{ name: string; rows: number }>): void {
+    this.printer!.data(
+      JSON.stringify({
+        ok: true,
+        kind: 'db-reset',
+        scope: this.hard ? 'hard' : this.state ? 'state' : 'scan',
+        dryRun: this.dryRun,
+        tables,
+        elapsedMs: this.elapsed!.ms(),
+      }) + '\n',
+    );
+  }
+}
+
+/** The `scan_*` (and, with `--state`, `state_*`) tables this reset owns. */
+function listResettableTables(db: DatabaseSync, includeState: boolean): Array<{ name: string }> {
+  return db
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND (name LIKE 'scan\\_%' ESCAPE '\\'"
+        + (includeState ? " OR name LIKE 'state\\_%' ESCAPE '\\'" : '')
+        + ')',
+    )
+    .all() as Array<{ name: string }>;
+}
+
+/** Row count of one already-whitelisted table. */
+function countRows(db: DatabaseSync, name: string): number {
+  const count = db.prepare(`SELECT COUNT(*) AS c FROM "${name}"`).get() as { c: number };
+  return Number(count.c);
 }

@@ -413,7 +413,25 @@ abstract class TogglePluginsBase extends SmCommand {
     });
   }
 
+  /**
+   * The applied-toggle receipt. Under `--json` it is ONE document on
+   * stdout (`spec/cli-contract.md` §Machine-readable output); the
+   * companion / macro lines this verb also emits already ride stderr as
+   * `info`, so nothing else can land on the machine channel.
+   */
   #renderSuccess(keys: string[], enabled: boolean): void {
+    if (this.json) {
+      this.printer!.data(
+        JSON.stringify({
+          ok: true,
+          kind: 'plugins-toggle',
+          action: enabled ? 'enable' : 'disable',
+          ids: keys,
+          elapsedMs: this.elapsed!.ms(),
+        }) + '\n',
+      );
+      return;
+    }
     const verbPast = enabled ? 'enabled' : 'disabled';
     if (keys.length === 1) {
       this.printer!.data(tx(PLUGINS_TEXTS.toggleAppliedSingle, { verbPast, id: keys[0]! }));
@@ -496,6 +514,8 @@ export class PluginsEnableCommand extends TogglePluginsBase {
       it references via precondition.analyzerIds, and enabling an
       analyzer also enables the fixers referencing it. Companions are
       reported as informational lines and follow the same --local target.
+
+      --json emits { ok, kind: 'plugins-toggle', action, ids, elapsedMs }.
     `,
   });
 
@@ -534,6 +554,8 @@ export class PluginsDisableCommand extends TogglePluginsBase {
       symmetrically when disabling a fixer. Companion disables run the
       full disable side effects (contribution purge, queued-job
       cancellation).
+
+      --json emits { ok, kind: 'plugins-toggle', action, ids, elapsedMs }.
     `,
   });
 

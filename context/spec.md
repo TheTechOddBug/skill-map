@@ -28,3 +28,31 @@ Annex of [`AGENTS.md`](../AGENTS.md). Read this file before editing anything und
 - [ ] No absolute URL in `$ref`.
 - [ ] Extends `base` / `report-base` via `allOf` where applicable; no field duplication.
 - [ ] `pnpm --filter @skill-map/spec spec` run; `spec/index.json` reflects the change.
+- [ ] If the change adds or renames a verb, flag, flag value, endpoint or exit code: it was EXECUTED, not just written (see below).
+
+## Verifying a contract claim
+
+The defect this repo produces most is not a contradiction between two documents. It is a promise nothing implements: a flag, an enumerated flag VALUE, an endpoint or an exit code that `spec/cli-contract.md` describes and the binary does not have. Reading cannot find it, because both sides of a read are documents. Only running can.
+
+Concrete cases, all shipped and all invisible to document review:
+
+| Promise | Reality when audited |
+|---|---|
+| `sm graph --format ascii\|mermaid\|dot\|json` | `mermaid` / `dot` exited 2, "No formatter registered" |
+| `sm scan -n <node.path>`, "partial scan: one node" | No such capability; `-n` is the `--dry-run` alias, so following the doc silently dry-runs |
+| `POST /api/sidecar/bump`, with request body, four error envelopes and a `sidecar.bumped` WS event | 404; the live route is `POST /api/actions/:pluginId/:actionId`, which the endpoint table never listed |
+| "Dangling `analyzerIds` warn via `recommended-action-missing` in `sm plugins doctor`" | The doctor's own schema forbade that value in its closed enum, and no code emitted it |
+| `sm help --format json` is normative, "third-party consumers rely on it" | Published 494 of 572 flags and zero of 79 verbs' exit codes |
+
+### How to check
+
+Build once, then drive the built binary (`src/bin/sm.js`, or the `smx` alias) inside a throwaway `.tmp/<name>/` scope seeded with a small corpus. For the claim you are adding or changing:
+
+1. Run the flag. Then run each enumerated VALUE separately: `--format mermaid` was a real flag with a fake value, so checking the flag alone would have passed.
+2. Provoke each exit code the row documents, and compare against §Exit codes.
+3. If the row names a schema for `--json`, AJV-validate the real payload against that schema file. A payload that exits 0 and fails its schema is still a defect.
+4. For a BFF route, start the server on an ephemeral port (`--no-open --no-watcher --port 0`, read the resolved port from `.skill-map/serve.json`) and issue the request.
+
+### The guards
+
+`src/__tests__/integration/contract-*.spec.ts` automate the four checks above and run in about 47 seconds. They are the reason this class should not recur. Two rules govern them, both in [`AGENTS.md`](../AGENTS.md) §Spec & docs sync: a red guard is a real violation to fix or explicitly exclude, and **narrowing a guard to restore green is a defect**. Each one carries a tripwire against its own decay (a parser that matches too little, a negative control per enumerated value, a verb neither covered nor excluded), because a guard that quietly stops checking reads exactly like a guard that passes.

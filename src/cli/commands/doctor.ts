@@ -64,7 +64,7 @@ export class DoctorCommand extends SmCommand {
       Exit 0 when all green, 1 when any check warns, 2 when an
       error-level problem exists (DB corruption, jobs whose rendered
       content row is missing). --json emits
-      { ok, kind: 'doctor', checks[] } with one entry per check.
+      { ok, kind: 'doctor', checks[], elapsedMs } with one entry per check.
     `,
   });
 
@@ -122,7 +122,12 @@ export class DoctorCommand extends SmCommand {
 
     if (this.json) {
       this.printer!.data(
-        JSON.stringify({ ok: exit === ExitCode.Ok, kind: 'doctor', checks }) + '\n',
+        JSON.stringify({
+          ok: exit === ExitCode.Ok,
+          kind: 'doctor',
+          checks,
+          elapsedMs: this.elapsed!.ms(),
+        }) + '\n',
       );
       return exit;
     }

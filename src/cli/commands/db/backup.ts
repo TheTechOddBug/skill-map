@@ -29,6 +29,7 @@ export class DbBackupCommand extends SmCommand {
       scan_* is regenerated on demand and is NOT excluded from the raw file
       copy, but restoring a backup over a live DB is the expected use;
       running sm scan afterwards refreshes scan_*.
+      --json emits { ok, kind: 'db-backup', path, elapsedMs }.
     `,
   });
 
@@ -58,6 +59,21 @@ export class DbBackupCommand extends SmCommand {
         storage.migrations.writeBackup(outPath);
       },
     );
+
+    // §Machine-readable output: under `--json` stdout carries the
+    // envelope and nothing else, so the human receipt is skipped rather
+    // than moved (human mode keeps the exact line it always had).
+    if (this.json) {
+      this.printer!.data(
+        JSON.stringify({
+          ok: true,
+          kind: 'db-backup',
+          path: outPath,
+          elapsedMs: this.elapsed!.ms(),
+        }) + '\n',
+      );
+      return ExitCode.Ok;
+    }
 
     const ansi = this.ansiFor('stdout');
     this.printer!.data(

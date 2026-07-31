@@ -79,6 +79,25 @@ function activityProviders(providers: readonly IProvider[]): IProvider[] {
   return providers.filter((p) => p.activity !== undefined);
 }
 
+/**
+ * The three states `sm activity status` reports (`cli-contract.md`
+ * §Activity). `partial` means the hook config is wired while the bridge
+ * artifact is missing; the inverse never counts as partial, because the
+ * bridge is shared across hook-file providers.
+ */
+type TActivityState = 'installed' | 'partial' | 'not-installed';
+
+/**
+ * Single source of the per-provider verdict, read by BOTH the human
+ * line and the `--json` envelope so the two can never disagree.
+ */
+function activityStateOf(cwd: string, provider: IProvider): TActivityState {
+  const status = activityInstallStatus(cwd, provider);
+  if (status.installed) return 'installed';
+  if (status.configWired) return 'partial';
+  return 'not-installed';
+}
+
 export class ActivityInstallCommand extends SmCommand {
   static override paths = [['activity', 'install']];
   static override usage = Command.Usage({
@@ -301,7 +320,9 @@ export class ActivityStatusCommand extends SmCommand {
       one) reports \`installed\`, \`not installed\`, or \`partial\`
       (one half of the install present without the other; a re-install
       repairs both). Names each provider's hook config path. Never
-      writes anything.
+      writes anything. \`--json\` emits
+      \`{ ok, kind: 'activity-status', providers[], elapsedMs }\`, one
+      entry per provider (\`{ id, state, configPath }\`).
     `,
     examples: [
       ['All providers', '$0 activity status'],
@@ -344,6 +365,23 @@ export class ActivityStatusCommand extends SmCommand {
     }
 
     const ctx = defaultRuntimeContext();
+    // §Machine-readable output: `--json` puts the envelope on stdout and
+    // nothing else; the human report keeps its exact per-provider lines.
+    if (this.json) {
+      this.printer!.data(
+        JSON.stringify({
+          ok: true,
+          kind: 'activity-status',
+          providers: targets.map((provider) => ({
+            id: provider.id,
+            state: activityStateOf(ctx.cwd, provider),
+            configPath: provider.activity!.install.configPath,
+          })),
+          elapsedMs: this.elapsed!.ms(),
+        }) + '\n',
+      );
+      return ExitCode.Ok;
+    }
     for (const provider of targets) {
       this.printer!.data(this.statusLine(provider, ctx.cwd, okGlyph, ansi));
     }
@@ -357,18 +395,14 @@ export class ActivityStatusCommand extends SmCommand {
     okGlyph: string,
     ansi: { dim(s: string): string; yellow(s: string): string },
   ): string {
-    const configPath = provider.activity!.install.configPath;
-    const status = activityInstallStatus(cwd, provider);
-    const vars = { provider: provider.id, configPath };
-    if (status.installed) {
+    const vars = { provider: provider.id, configPath: provider.activity!.install.configPath };
+    const state = activityStateOf(cwd, provider);
+    if (state === 'installed') {
       return tx(ACTIVITY_TEXTS.statusInstalled, { glyph: okGlyph, ...vars });
     }
-    if (status.configWired) {
+    if (state === 'partial') {
       return tx(ACTIVITY_TEXTS.statusPartialBridgeMissing, { glyph: ansi.yellow('!'), ...vars });
     }
-    // `bridgePresent` without config wiring is NOT partial: the bridge
-    // artifact is shared across hook-file providers, so another
-    // provider's install legitimately leaves it behind.
     return tx(ACTIVITY_TEXTS.statusNotInstalled, { glyph: ansi.dim('·'), ...vars });
   }
 }

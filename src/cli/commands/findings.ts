@@ -239,8 +239,8 @@ export class FindingsCommand extends SmCommand {
   }
 
   /**
-   * `{ ok, kind, findings, total, dismissedExcluded, fixedExcluded }`.
-   * `total` keeps its meaning (the RETURNED rows). The
+   * `{ ok, kind, findings, total, dismissedExcluded, fixedExcluded,
+   * elapsedMs }`. `total` keeps its meaning (the RETURNED rows). The
    * excluded counts are a DEFAULT-view honesty device: the disjoint tally
    * of what the default view held back under the same filters (precedence
    * dismissed > fixed; stale rows ride the default view inline since
@@ -261,6 +261,7 @@ export class FindingsCommand extends SmCommand {
         total: findings.length,
         dismissedExcluded: countDismissedHidden(hidden, isSuppressed),
         fixedExcluded: countFixedHidden(hidden, isSuppressed),
+        elapsedMs: this.elapsed!.ms(),
       }) + '\n',
     );
     return ExitCode.Ok;
