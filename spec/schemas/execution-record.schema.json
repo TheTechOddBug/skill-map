@@ -13,8 +13,8 @@
     },
     "kind": {
       "type": "string",
-      "enum": ["action", "analyzer"],
-      "description": "Which extension kind was executed: `action`, or `analyzer` for a probabilistic finder processed through the queue (the audit kind was removed pre-1.0)."
+      "enum": ["action"],
+      "description": "Which extension kind was executed. Single-valued in v1: every recorded execution is stamped `action`, including the run of a probabilistic finder Analyzer processed through the queue (the queue records the EXECUTION channel, not the extension kind; `state_jobs.extension_kind` is where the kind travels). Matches the `state_executions.kind` CHECK constraint in `db-schema.md`. The audit kind was removed pre-1.0; widening this enum later is an additive change."
     },
     "extensionId": {
       "type": "string",

@@ -280,7 +280,8 @@ Locked at a future minor once the tool / resource vocabulary settles. Breaking
 changes to the tool names, tool input shapes, resource URIs, or the transport
 ship as a **minor** bump pre-1.0 (per [`versioning.md`](./versioning.md) §Pre-1.0)
 and MUST be recorded in [`CHANGELOG.md`](./CHANGELOG.md). Adding a new tool or
-resource is a patch. The stdio transport, an optional bearer credential,
+resource is a minor bump (a backward-compatible addition, per
+[`versioning.md`](./versioning.md) §Semver for the spec). The stdio transport, an optional bearer credential,
 and an MCP `prompts` capability (skill / command bodies as prompt templates)
 are candidate additive extensions, none of which is promised here.
 

@@ -45,7 +45,7 @@ Any other transition attempt MUST be rejected and MUST NOT mutate state. Impleme
 
 ## Submit
 
-`sm jobs submit <extension> -n <node.path>` (the target is any probabilistic extension, Action or Analyzer; see [`cli-contract.md` §Job queue](./cli-contract.md) for the id-matching and disambiguation rules):
+`sm jobs submit <extension> -n <node.path>` (the target is any probabilistic extension, Action or Analyzer; see [`cli-contract.md` §Jobs](./cli-contract.md) for the id-matching and disambiguation rules):
 
 1. Resolve the extension (`extensionId`, `extensionVersion`, `extensionKind`, `promptTemplateHash`). The resolved kind is frozen onto `state_jobs.extension_kind` (like the version); `sm record` routes on it. An id that matches no extension at all refuses with exit 5 (not found); an id whose only match is deterministic refuses with exit 2.
 2. Resolve the target node (`bodyHash`, `frontmatterHash`). Fail with exit 5 if the node does not exist.

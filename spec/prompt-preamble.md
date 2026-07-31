@@ -26,7 +26,7 @@ Rules the kernel MUST apply when rendering:
 3. **Nesting**: `<user-content>` elements MUST NOT be nested. If an extension template needs to include multiple nodes, each gets its own top-level `<user-content>` block.
 4. **Outside the delimiter**: nothing authored by a user. Extension templates supply the surrounding prose; the template itself is part of the kernel-controlled prompt surface.
 
-An extension template that violates rule 4 (e.g., interpolates user text outside `<user-content>`) MUST be rejected at registration time by the kernel.
+An extension template that violates rule 4 (e.g., interpolates user text outside `<user-content>`) MUST be rejected when the job is rendered, at `sm jobs submit` (see §How the kernel applies the preamble, step 2), with no job enqueued. NOT at plugin load: the loader checks that a `prompt.md` EXISTS, it never reads its contents, so a violating template loads fine and is refused the first time it would produce a job. Rendering is also the only point where the check is meaningful, since the violation is about how the template interpolates content it is being given.
 
 ---
 

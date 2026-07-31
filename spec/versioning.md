@@ -46,7 +46,7 @@ All of the following are normative and governed by this policy:
 - Every JSON Schema in `schemas/` (fields, types, required, enums, defaults, `additionalProperties`).
 - Every MUST / SHOULD / MAY statement in **every prose document under `spec/`**, without exception. The rule is the document's location, not a list: any `.md` shipped inside `@skill-map/spec` (this file included, plus the ones under `conformance/` and `interfaces/`) is a normative contract, and a MUST written in one binds implementations exactly as a schema `required` does. Deliberately stated as a rule rather than an inventory: an enumeration silently drops whichever contract was written last, which is the failure mode this clause exists to prevent. Where a document defers to a schema in its own opening (as [`input-types.md`](./input-types.md) and [`view-slots.md`](./view-slots.md) do, "author-facing reference, the normative shape lives in the schema"), the schema wins on shape and the prose still binds on everything the schema cannot express. A `(Stability: experimental)` tag narrows what a change costs, per §Stability tags below; it never makes a MUST advisory.
 - Exit codes, verb names, required flags, canonical error messages marked "normative".
-- Conformance fixtures and cases; removing or tightening a case is major.
+- Conformance fixtures and cases. Changing a fixture referenced by any case is major (the bytes are the input a case computes its expectations against); what a case change costs is governed by §Conformance suite changes above, where removing or weakening a case is a patch and tightening one is governed by the contract change it implies.
 
 The following are **non-normative** and can change at any time without a version bump:
 

@@ -134,7 +134,7 @@ Mode A (`kv`) is the mode with a working accessor. A plugin that needs to READ a
 ### Migrations
 
 - Location: `<plugin-dir>/migrations/NNN_snake_case.sql`.
-- Applied in order after kernel migrations on boot.
+- Applied in order, after the kernel migrations, when the operator runs `sm db migrate`. NOT on boot: opening the database applies kernel migrations only, so a freshly installed plugin has no tables until that verb runs. The bullet below on failure handling depends on this distinction.
 - Prefix enforcement: every object a migration creates MUST already carry the `plugin_<normalizedId>_` prefix. The kernel REJECTS an unprefixed or out-of-namespace name (`object "<name>" is outside the plugin's namespace`); it does NOT rewrite the statement to add the prefix. Rejecting rather than rewriting keeps one name in play: the author reads the same table name in the migration, in the runtime query and in a `sm db dump`, and a typo surfaces as an error instead of silently creating a differently-named table.
 - The rule is literal and applies to EVERY object, indexes and constraints included: the name must START with the prefix. The kernel's own `ix_<table>_<cols>` convention is therefore unavailable to a plugin, since `ix_plugin_foo_bar` starts with `ix_`. Put the namespace first and the convention after (`plugin_foo_bar_ix`).
 - A failing plugin migration fails the `sm db migrate` invocation (exit 2) and applies none of that plugin's migrations; other plugins and the kernel are unaffected. The plugin itself stays loadable, its extensions keep working, and only the storage its migration would have created is missing, because the migration runs at `sm db migrate` time rather than at load time.

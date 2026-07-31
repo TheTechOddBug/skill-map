@@ -449,7 +449,7 @@ Consumers MAY treat `emitter.error` as a soft failure (log and continue). Implem
 
 ## Stability
 
-The **job event type list** (`run.started`, `run.summary`, `job.claimed`, `job.callback.received`, `job.completed`, `job.failed`, `emitter.error`) is stable as of spec v1.0.0. Adding a new event type is a minor bump; removing or renaming one is a major bump.
+The **job event type list** (`run.started`, `run.summary`, `job.submitted`, `job.claimed`, `job.callback.received`, `job.completed`, `job.failed`, `job.cancelled`, `emitter.error`) is stable as of spec v1.0.0. Adding a new event type is a minor bump; removing or renaming one is a major bump.
 
 **Adding** fields to `data` is a minor bump; changing a field's type or removing a field is a major bump.
 
@@ -459,4 +459,4 @@ The envelope (`type`, `timestamp`, `runId`, `jobId`, `data`) is stable. Adding a
 
 The **non-job event families** (`scan.*`, `issue.*`, `extractor.completed`, `analyzer.completed`, `action.completed`) are **experimental** across spec v0.x. They ship through the reference impl's WebSocket broadcaster; shapes may tighten before a stable tag lands. Once promoted to `stable` (a minor spec bump), the same add/remove/rename semantics as the job events apply.
 
-The **Hook curated trigger set** (eight hookable lifecycle events; see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set)) is stable as of the minor in which it lands: adding a hookable trigger is a minor bump, removing or renaming one is a major bump. The curation policy ("a hook subscribes only to a deliberately small set") is normative; surface noise reduction is the point.
+The **Hook curated trigger set** (nine hookable lifecycle events; see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set)) is stable as of the minor in which it lands: adding a hookable trigger is a minor bump, removing or renaming one is a major bump. The curation policy ("a hook subscribes only to a deliberately small set") is normative; surface noise reduction is the point.

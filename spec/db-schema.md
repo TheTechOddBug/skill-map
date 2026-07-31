@@ -30,13 +30,13 @@ Every kernel table belongs to exactly one zone, identified by a mandatory prefix
 
 | Zone | Prefix | Nature | Regenerable | Backed up | Example |
 |---|---|---|---|---|---|
-| Scan | `scan_` | Output of the last scan. Truncated and repopulated by `sm scan`. | Yes | No | `scan_nodes` |
+| Scan | `scan_` | Output of the last scan. Truncated and repopulated by `sm scan`. | Yes | Yes (rides the file copy) | `scan_nodes` |
 | State | `state_` | Persistent operational data: jobs, executions, summaries, enrichment, plugin KV. | No | Yes | `state_jobs` |
-| Config | `config_` | User-owned configuration: preferences, migration ledger. | No | Yes | `config_preferences` |
+| Config | `config_` | Kernel-owned durable bookkeeping: the internal preference cache, migration ledger. User-facing configuration lives in `.skill-map/settings.json`, not here. | No | Yes | `config_preferences` |
 
-`sm db reset` drops `scan_*` only (non-destructive, equivalent to forcing the next scan from a clean slate). `sm db reset --state` also drops `state_*` (destructive to operational history). `sm db reset --hard` deletes the DB file entirely. `sm db backup` preserves `state_*` + `config_*`; `scan_*` is regenerated on demand and never included in backups.
+`sm db reset` drops `scan_*` only (non-destructive, equivalent to forcing the next scan from a clean slate). `sm db reset --state` also drops `state_*` (destructive to operational history). `sm db reset --hard` deletes the DB file entirely. `sm db backup` is a WAL checkpoint plus a copy of the whole DB file, so `scan_*` rides along rather than being filtered out; it is regenerable, so a restored backup carrying stale scan rows is refreshed by the next `sm scan`.
 
-**Active-provider lens change**: switching the `activeProvider` setting (see [`cli-contract.md` §Active provider lens](./cli-contract.md#active-provider-lens) and [`architecture.md` §Active Provider Lens](./architecture.md#active-provider-lens)) drops the `scan_*` zone atomically and triggers a fresh scan under the new lens. Same effect as `sm db reset` then `sm scan`, but one transaction so the user never sees an empty graph between the two. `state_*` and `config_*` are preserved; `config_preferences` rows survive (including the new `activeProvider` value itself).
+**Active-provider lens change**: switching the `activeProvider` setting (see [`cli-contract.md` §Active provider lens](./cli-contract.md#active-provider-lens) and [`architecture.md` §Active Provider Lens](./architecture.md#active-provider-lens)) drops the `scan_*` zone atomically and triggers a fresh scan under the new lens. Same effect as `sm db reset` then `sm scan`, but one transaction so the user never sees an empty graph between the two. `state_*` and `config_*` are preserved. The lens value itself is NOT a DB row: `activeProvider` lives in `<cwd>/.skill-map/settings.json` (project config), so it is untouched by the zone drop.
 
 ---
 
@@ -373,7 +373,7 @@ Matching [`schemas/execution-record.schema.json`](./schemas/execution-record.sch
 
 Indexes: `ix_state_executions_extension_id`, `ix_state_executions_started_at`, `ix_state_executions_job_id`.
 
-The full report payload (the JSON the model returned, validated against the action's `reportSchemaRef`) is stored inline in `report_json`. No on-disk report file. `sm jobs show <id>` and `sm history --json` read the column directly.
+The full report payload (the JSON the model returned, validated against the action's own `report.schema.json`, a sibling of the action directory by convention) is stored inline in `report_json`. No on-disk report file. `sm jobs show <id>` and `sm history --json` read the column directly.
 
 `model` is the executing model's name as SELF-REPORTED by the recording agent via `sm record --model <name>` (unverifiable by design, exactly like the token counts; NULL when the agent does not declare one). It answers "which model produced this analysis, and when" together with the timestamps, and is denormalized onto `state_findings.model` / `state_summaries.model` at record time for join-free display.
 
@@ -509,7 +509,7 @@ Trust now lives in the **scope lock** (`<cwd>/.skill-map/scope.lock.json`), wher
 
 ### `config_preferences`
 
-General-purpose key-value for user preferences (`sm config set`).
+Key-value cache for the kernel's OWN durable preferences and bookkeeping, not a user-config surface. `sm config set` never writes here (it writes `.skill-map/settings.json` / `settings.local.json`, per [`architecture.md` §Config layering](./architecture.md#config-layering)), and neither does the UI's settings form. Kernel-managed rows are keyed with a `_kernel.` prefix; the only one in v1 is `_kernel.update-check`, the update-check probe cache (written by the `core/update-check` boot hook, read by `GET /api/update-status`). Unprefixed keys are reserved for future kernel-owned preferences.
 
 | Column | Type | Constraint |
 |---|---|---|
@@ -600,7 +600,7 @@ Collisions after normalization are a load-time error; both plugins are disabled 
 
 ### Triple protection for mode B
 
-The kernel MUST enforce all three layers **in this exact order** for every plugin migration:
+The kernel MUST enforce these four steps **in this exact order** for every plugin migration:
 
 1. **Parse**, the kernel parses each plugin migration SQL file into an AST. Parse errors disable the plugin with status `load-error`.
 2. **DDL validation**, the AST is validated against the table names exactly as the plugin authored them. Kernel MUST reject:
@@ -609,9 +609,11 @@ The kernel MUST enforce all three layers **in this exact order** for every plugi
    - `ATTACH DATABASE` statements.
    - Global `PRAGMA` statements (anything not scoped to a plugin-owned table).
 3. **Prefix enforcement**, every object the migration creates MUST already be named `plugin_<normalizedId>_<name>`. The kernel REJECTS anything outside that namespace, tables, indexes and constraints alike, with `object "<name>" is outside the plugin's namespace ("plugin_<normalizedId>_*")`. It does NOT rewrite the statement to add a missing prefix. The check is a literal string prefix on the object name, so the kernel index / constraint conventions (`ix_`, `fk_`, `uq_`, `ck_`) cannot lead a plugin object name; put the namespace first (`plugin_<normalizedId>_rule_exceptions_node_ix`). A plugin therefore cannot create un-prefixed tables, and it also cannot create them by accident and have them silently renamed: the name in the migration is the name on disk. Rejection was chosen over rewriting so one name is in play everywhere the author looks, and so an out-of-namespace reference is an error rather than a quietly relocated table.
-4. **Scoped connection (runtime)**, at runtime the plugin receives a `Database` wrapper (not a raw handle). The wrapper rejects any query touching tables whose name doesn't start with this plugin's prefix. Last-line defense: even if a migration-time layer were bypassed, runtime queries still cannot reach out-of-namespace data.
+4. **Post-apply catalog assertion**, after a plugin's batch is applied the kernel re-reads the engine catalog (`sqlite_master` for the reference impl) and asserts that every object it now owns is inside its namespace. This is the backstop for anything the statement-level checks could miss, for instance a SQL feature the validator does not model.
 
-Step 4 is separate from 1–3 because it applies at query time, not migration time. Together the four steps form the "triple protection" referenced across the spec (the name predates the explicit parse step).
+The three PASSES an implementation makes are discovery (steps 1 to 3, over every migration file before any is applied), apply (steps 2 and 3 re-run immediately before each `exec`, so a file cannot change between validation and execution), and post-apply (step 4). That is the "triple protection" the name refers to.
+
+A fifth layer, a scoped `Database` wrapper rejecting out-of-namespace QUERIES at runtime, was specified in earlier drafts and is NOT part of v1: mode B ships no runtime accessor at all (see [`plugin-kv-api.md`](./plugin-kv-api.md) §Runtime accessor), so there are no plugin queries to scope. Every protection above is therefore migration-time.
 
 Note: plugins are user-placed code. Protection guards against accidents (a plugin that mistakenly names a table `state_jobs`), not hostile plugins. A malicious plugin in the same process can bypass any JS-level guard. Post-v1.0 evaluates sandboxing (worker threads, VM contexts) and/or signing.
 
@@ -626,7 +628,7 @@ Note: plugins are user-placed code. Protection guards against accidents (a plugi
 
 The `.skill-map/backups/` directory is a per-machine runtime artifact and MUST NOT travel via the shared repo: it is listed in the scope ignore file ([`cli-contract.md` §Scope ignore file](./cli-contract.md)) alongside the other generated artifacts, so pre-migrate snapshots and `sm db backup` output stay local.
 
-Backups include `state_*` + `config_*` only; `scan_*` is regenerated after restore via `sm scan`.
+A backup is a copy of the whole DB file, so it carries every zone, `scan_*` included; there is no per-zone filtering. `scan_*` is regenerable, so the expected flow after a restore is to run `sm scan` and refresh it.
 
 ---
 

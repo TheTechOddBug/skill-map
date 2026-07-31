@@ -160,7 +160,7 @@ ctx.emitContribution('urlsCount', { value: 7 });
 
 ## `graph.node.alert`
 
-**Use for**: a small visual decoration on the graph node, alert pin, status badge, count badge.
+**Use for**: **RESERVED, special-case signals only.** A small corner decoration on the graph node (alert pin, status badge, count badge) for something that genuinely warrants interrupting the map read. No core analyzer emits here, and a routine "this node has a problem" finding does NOT belong in this slot: it belongs in [`card.footer.right`](#cardfooterright). The graph is the orientation surface; a badge every plugin can paint turns it into noise. Reach for this slot only when the signal is exceptional and cannot wait for the operator to open the card.
 
 **Manifest declaration**:
 ```jsonc

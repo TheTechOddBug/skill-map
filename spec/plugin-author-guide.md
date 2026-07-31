@@ -443,13 +443,13 @@ Backed by the kernel-owned `state_plugin_kvs` table. `ctx.store` exposes `get` /
 {
   "storage": {
     "mode": "dedicated",
-    "tables": ["plugin_my_plugin_items"],
+    "tables": ["items"],
     "migrations": ["./migrations/001_init.sql"]
   }
 }
 ```
 
-The plugin owns SQL tables prefixed `plugin_<normalizedId>_*`. Migrations live under `<plugin-dir>/migrations/NNN_<name>.sql` and apply through `sm db migrate`. Pick Dedicated when you need indexes, joins, or relational shape. The kernel enforces the namespace prefix at three layers (discovery, apply, post-commit catalog sweep) and forbids transaction / pragma statements in migration files, see [`plugin-kv-api.md`](./plugin-kv-api.md) and [`db-schema.md`](./db-schema.md) for the normative rules.
+The plugin owns SQL tables prefixed `plugin_<normalizedId>_*`; the `tables` array lists the LOGICAL names, without that prefix, while your migration SQL writes the physical prefixed name. Migrations live under `<plugin-dir>/migrations/NNN_<name>.sql` and apply through `sm db migrate`. Pick Dedicated when you need indexes, joins, or relational shape. The kernel enforces the namespace prefix on every migration and forbids transaction / pragma statements in migration files; the ordered checks are normative in [`db-schema.md`](./db-schema.md) §Triple protection for mode B, with the storage contract in [`plugin-kv-api.md`](./plugin-kv-api.md).
 
 ### Opt-in write validation
 
@@ -647,6 +647,11 @@ The kernel ships exactly these 19 slots. Each fixes a renderer + a payload shape
 | `graph.node.alert` | graph corner badge (reserved, see `view-slots.md`) |
 | `inspector.header.badge` | unified header badge (icon and/or label and/or count) |
 | `inspector.action.button` | action button (dispatches an Action, see `view-slots.md`) |
+| `inspector.surface.version` | version surface (header chip + card label) |
+| `inspector.surface.stability` | stability surface (header chip + card badge) |
+| `inspector.surface.tags` | tag-row surface (editor + card chips) |
+| `inspector.surface.summary` | header summarize affordance |
+| `inspector.surface.auto-tag` | tag-row sparkles affordance |
 | `inspector.body.panel.breakdown` | bar chart panel |
 | `inspector.body.panel.records` | table panel |
 | `inspector.body.panel.tree` | tree panel |
@@ -670,7 +675,7 @@ Two optional, inspector-only `order` hints (both `number`, default `100`) contro
 
 ### Chip vs Issue
 
-For analyzers, a per-node card surfaces a finding through two independent channels: the `Issue` returned by `evaluate(ctx)` feeds the aggregated stats and the scan / check exit code; a view contribution to a card slot is **purely presentational** (its `severity` controls only the chip's own colour, never the count, never the exit code). The colour rule (when a chip may paint `warn` / `danger`) and the reserved status of `graph.node.alert` are documented in [`view-slots.md` §Chip vs Issue](./view-slots.md). Breaking it produces misleading cards and is caught in code review, not by the schema.
+For analyzers, a per-node card surfaces a finding through two independent channels: the `Issue` returned by `evaluate(ctx)` feeds the aggregated stats and the scan / check exit code; a view contribution to a card slot is **purely presentational** (its `severity` controls only the chip's own colour, never the count, never the exit code). The colour rule (when a chip may paint `warn` / `danger`) is documented in [`view-slots.md`](./view-slots.md) §Common conventions, and the reserved status of `graph.node.alert` in that document's §`graph.node.alert`. Breaking it produces misleading cards and is caught in code review, not by the schema.
 
 ### Emit path
 
@@ -711,7 +716,7 @@ User-configurable settings live on each extension's manifest in `settings: Recor
 }
 ```
 
-The ten input-types: `string-list`, `single-string`, `boolean-flag`, `integer`, `enum-pick`, `enum-multipick`, `path-glob`, `regex`, `secret`, `key-value-list`. The per-type parameters and runtime value shapes are the canonical reference in [`input-types.md`](./input-types.md) (schema at [`schemas/input-types.schema.json`](./schemas/input-types.schema.json) at `$defs/Setting_<TypeName>`).
+The eleven input-types: `string-list`, `single-string`, `boolean-flag`, `integer`, `number`, `enum-pick`, `enum-multipick`, `path-glob`, `regex`, `secret`, `key-value-list`. The per-type parameters and runtime value shapes are the canonical reference in [`input-types.md`](./input-types.md) (schema at [`schemas/input-types.schema.json`](./schemas/input-types.schema.json) at `$defs/Setting_<TypeName>`).
 
 The kernel exposes resolved settings via `ctx.settings.<settingId>`. Settings are read once at extension invocation; **changing a setting requires `sm scan` to re-emit** affected contributions (the UI surfaces a "settings changed, rescan needed" indicator).
 

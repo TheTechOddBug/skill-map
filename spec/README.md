@@ -60,7 +60,7 @@ spec/                              ← published as @skill-map/spec
 ├── [db-schema.md](./db-schema.md)            ← table catalog (kernel-owned)
 ├── [plugin-kv-api.md](./plugin-kv-api.md)    ← ctx.store contract for storage mode A
 ├── [job-lifecycle.md](./job-lifecycle.md)     ← queued → running → completed | failed
-├── [telemetry.md](./telemetry.md)            ← opt-in error reporting (default OFF)
+├── [telemetry.md](./telemetry.md)            ← opt-in error reporting + usage analytics (both default OFF)
 ├── [mcp-server.md](./mcp-server.md)          ← skill-map as an MCP server (opt-in, off by default)
 ├── [provider-activity.md](./provider-activity.md) ← live node activity reported by external AI CLIs
 ├── [view-slots.md](./view-slots.md)          ← closed catalog of UI slots a plugin can emit into

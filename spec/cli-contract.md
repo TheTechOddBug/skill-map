@@ -163,7 +163,7 @@ shape:
   the node path, or `*` for project-wide operations. `extension`:
   the qualified extension id when the operation has one. `channel`:
   which surface drove it, `cli` / `ui` / `watcher` / `hook` / `mcp`
-  (`mcp` per [`mcp-server.md`](./mcp-server.md) §Tool catalog).
+  (`mcp` per [`mcp-server.md`](./mcp-server.md) §Tools).
   `outcome`: the operation's result word (`ok`, `queued`,
   `completed`, `failed`, `cancelled`, ...). `id` / `detail`: the
   operation's own handle (job id) or a short free-form note
@@ -197,15 +197,24 @@ shape:
 
 ### Telemetry consent
 
-skill-map sends nothing off the machine by default. Opt-in, anonymous
-**error reporting** is the one documented exception, governed in full by
+skill-map sends nothing off the machine by default. The documented
+exceptions are two opt-in, anonymous telemetry surfaces, **error reporting**
+(Sentry) and **usage analytics** (PostHog), governed in full by
 [`telemetry.md`](./telemetry.md). The operator-facing contract:
 
-- **Default OFF.** The `telemetry.errorsEnabled` flag in
-  `~/.skill-map/settings.json` is absent until the operator decides. Absent
-  or `false` means no telemetry SDK is loaded and nothing is sent, on every
-  surface (CLI, BFF, UI), zero added latency.
-- **Consent prompt (interactive terminals only, second eligible run).** The
+- **Default OFF, per toggle.** Three independent flags live in
+  `~/.skill-map/settings.json`: `telemetry.errorsEnabled` (error reporting),
+  `telemetry.usageCliEnabled` and `telemetry.usageUiEnabled` (usage
+  analytics, CLI and UI respectively). Each is absent until the operator
+  decides. A flag absent or `false` means its SDK is never loaded and that
+  surface sends nothing, with zero added latency; the toggles are scoped
+  independently, so error reporting being on says nothing about usage, and
+  vice versa. With all three off, nothing leaves the machine on any surface
+  (CLI, BFF, UI).
+- **Consent prompt (interactive terminals only, second eligible run).** One
+  shared prompt covers both surfaces: a **yes** turns all three toggles on
+  and mints the anonymous id, a **no** turns all three off and mints
+  nothing. Afterwards each toggle moves on its own from the Settings UI. The
   CLI MAY show a one-time consent prompt (yes (default) / no / details),
   but NOT on the operator's first eligible run: that run only records
   `telemetry.firstRunAt` and stays silent so the prompt does not stack on
@@ -213,11 +222,12 @@ skill-map sends nothing off the machine by default. Opt-in, anonymous
   persists the choice, and stamps `telemetry.promptedAt` (never shown
   again). When stdout is not a TTY (CI, pipes), nothing is asked or
   recorded and the state stays OFF.
-- **Kill switch.** `SKILL_MAP_TELEMETRY=0` forces OFF everywhere regardless
-  of the persisted flag. There is no env value that forces ON.
-- **No `sm config` key.** Per-machine, so it lives in the user-settings
+- **Kill switch.** `SKILL_MAP_TELEMETRY=0` forces OFF everywhere (errors and
+  both usage toggles) regardless of the persisted flags. There is no env
+  value that forces ON.
+- **No `sm config` key.** Per-machine, so they live in the user-settings
   file, not project config. `sm config` writes project-local settings only
-  and MUST NOT surface this key. Consent is changed after the first run
+  and MUST NOT surface these keys. Consent is changed after the first run
   through the Settings UI (persisted via the BFF), mirroring the update-
   check toggle. A future `sm telemetry` verb family MAY expose CLI status /
   toggling; not part of this level.
@@ -264,7 +274,7 @@ All verbs use this shared table. Additional codes MAY be defined per-verb (docum
 | Code | Meaning | When emitted |
 |---|---|---|
 | `0` | OK | Command completed, no issues at or above the configured severity threshold. |
-| `1` | Issues found | Command completed, but deterministic issues at `error` severity exist. Applies to `sm scan`, `sm check`. (`sm doctor` defines its own gradation under §sm doctor: `1` = warnings only, `2` = any error-level problem.) |
+| `1` | Issues found | Command completed, but its subject matter carries a non-clean result the caller should act on: deterministic issues at `error` severity, per-item failures inside a batch, or an empty queue. Any verb MAY return it; the verb's own entry defines what "not clean" means for it (`sm scan` / `sm check` / `sm init`: error-severity issues; `sm bump --pending` / `sm sidecars prune`: at least one per-item error; `sm jobs claim`: nothing claimable; `sm scan compare-with`: a non-empty delta; `sm conformance run`: at least one failing case). (`sm doctor` defines its own gradation under §sm doctor: `1` = warnings only, `2` = any error-level problem.) |
 | `2` | Operational error | Bad flags, a present-but-unreadable / corrupt DB, unreadable file, corrupt config, runtime / environment mismatch (e.g. wrong Node version, missing native dependency), unhandled exception. Accompanied by an error message on stderr. (An *absent* project DB file is `5`, see below.) |
 | `3` | Duplicate conflict | Job submission refused because an active duplicate exists (same `extension + version + node + contentHash`). Returned by `sm jobs submit`. |
 | `4` | Nonce mismatch | `sm record` called with an `id`/`nonce` pair that does not match. |
@@ -316,7 +326,7 @@ Bootstrap the project scope.
 
 Flags: `--no-scan` (skip the first scan), `--force` (rewrite an existing config), `-n` / `--dry-run` (preview the scope provisioning, would-create lines for every directory and file the live invocation would write, without touching the filesystem; respects `--force` for the "would-overwrite" preview).
 
-Exit: 0 on success, 2 on failure.
+Exit: `0` on success, `1` when the first scan completes but reports `error`-severity issues (same gate as `sm scan`; `--no-scan` never yields it), `2` on failure.
 
 #### `sm tutorial`
 
@@ -422,7 +432,7 @@ Consumers: docs generator, shell completion, Web UI form generation, IDE extensi
 
 Config precedence (lowest → highest): library defaults → project config → project-local config → env vars → CLI flags.
 
-Keys are dot-paths (`jobs.minimumTtlSeconds`, `scan.tokenize`). Unknown keys → exit 5.
+Keys are dot-paths (`jobs.ttlSeconds`, `scan.tokenize`). Unknown keys → exit 5.
 
 #### Privacy-sensitive config
 
@@ -523,7 +533,7 @@ Exit: 0 on clean (or clean watcher shutdown), 1 if error-severity issues exist (
 | Command | Purpose |
 |---|---|
 | `sm actions list` | Registered action types (manifest view). |
-| `sm actions show <id>` | Full manifest, including declared `preconditions`, `expectedDurationSeconds`, report schema ref. |
+| `sm actions show <id>` | Full manifest, including the declared `precondition` block, `probExpectedDurationSeconds`, and the action's `report.schema.json` (by convention, a sibling of the action directory; there is no manifest ref field). |
 
 Actions are not invoked via `sm actions`. Probabilistic extensions (Actions AND finder Analyzers) queue via `sm jobs submit` (below); deterministic enrichment Actions (`io: ['network']` + an `enrichments/` report schema) execute via `sm refresh`; the remaining deterministic Actions dispatch in-process (`POST /api/actions/:id`, `sm bump`, ...).
 
@@ -533,9 +543,9 @@ The built-in deterministic `core/node-bump` Action is the canonical write channe
 
 | Command | Purpose |
 |---|---|
-| `sm bump <node.path> [--force] [--yes]` | Single-node bump. Wraps `core/node-bump`; the verb honours that extension's enabled toggle (it ships `defaultEnabled: false`), so with the extension disabled the verb refuses up front (exit `2`) with a hint naming the enable path, exactly like the UI's version-chip surface. Refuses on a fresh node that already carries an `annotations.version` (`{ ok: false, reason: 'fresh' }`, exit `2`) unless `--force`; with `--force` on such a node the verb is a silent no-op (exit `0`, no stdout). A fresh node WITHOUT `annotations.version` is NOT a refusal (2026-07-21, the version chip invites stamping the first version): the bump stamps `version: 1` and the audit block; the identity hashes are already live so their refresh is byte-stable. On a stale node (or first-time creation) increments `annotations.version`, refreshes `for.{bodyHash, frontmatterHash}`, and stamps the audit block (`audit.lastBumpedAt` + `audit.lastBumpedBy`; on first creation also `audit.createdAt` + `audit.createdBy`). The `by` fields carry the Git author name (`git config user.name`) when the project is a Git repository, else the channel literal `'cli'`. Exit `5` if the node is not in the persisted scan. `--json` emits the report shape declared by `bump-report.schema.json`. `--yes` confirms consent for `.sm` writes, see §`.sm` write consent below. |
+| `sm bump <node.path> [--force] [--yes]` | Single-node bump. Wraps `core/node-bump`; the verb honours that extension's enabled toggle (it ships `defaultEnabled: false`), so with the extension disabled the verb refuses up front (exit `2`) with a hint naming the enable path, exactly like the UI's version-chip surface. Refuses on a fresh node that already carries an `annotations.version` (`{ ok: false, reason: 'fresh' }`, exit `2`) unless `--force`; with `--force` on such a node the verb is a silent no-op (exit `0`, no stdout). A fresh node WITHOUT `annotations.version` is NOT a refusal (2026-07-21, the version chip invites stamping the first version): the bump stamps `version: 1` and the audit block; the identity hashes are already live so their refresh is byte-stable. On a stale node (or first-time creation) increments `annotations.version`, refreshes `identity.{bodyHash, frontmatterHash}`, and stamps the audit block (`audit.lastBumpedAt` + `audit.lastBumpedBy`; on first creation also `audit.createdAt` + `audit.createdBy`). The `by` fields carry the Git author name (`git config user.name`) when the project is a Git repository, else the channel literal `'cli'`. Exit `5` if the node is not in the persisted scan. `--json` emits the report shape declared by `bump-report.schema.json`. `--yes` confirms consent for `.sm` writes, see §`.sm` write consent below. |
 | `sm bump --pending [--staged] [--force] [--yes]` | Batch bump. Same enabled gate as the single-node form (extension disabled → exit `2` before any write). Walks every node whose sidecar overlay reports drift in `node.path` ASC order and bumps each. `--staged` runs `git add <sidecar-path>` after each successful bump so the content lands in the same commit; `git add` failure degrades to a stderr warning, the batch keeps running. Empty stale set → exit `0` with a "nothing to do" advisory. `--json` envelope: `{ bumped, refused, skipped, errors[], elapsedMs }`. Exit `0` on a clean run; `1` when at least one per-node error landed in `errors[]`. **Git error matrix for `--staged`**: not inside a git repo (no `.git/` parent of `cwd`) → exit `5`; `git` binary not on PATH (spawn ENOENT) → exit `2`. Both checks run BEFORE any sidecar write so a misconfigured environment never produces partial state. `--yes` confirms consent for `.sm` writes, see §`.sm` write consent below. |
-| `sm sidecars refresh <node.path> [--yes]` | Hash-only update on the sidecar. Refreshes `for.{bodyHash, frontmatterHash}` to match the live node WITHOUT bumping `annotations.version` or touching the audit block. Useful when a body change is editorial-only and the user doesn't want a version increment. Distinct from top-level `sm refresh` (enrichment layer, Step A.8): different storage, different concept; the sub-namespace prefix prevents the collision. Exit `5` if the node has no sidecar or is not in the persisted scan. No-op on a fresh node (informational stderr, exit `0`). `--yes` confirms consent for `.sm` writes, see §`.sm` write consent below. |
+| `sm sidecars refresh <node.path> [--yes]` | Hash-only update on the sidecar. Refreshes `identity.{bodyHash, frontmatterHash}` to match the live node WITHOUT bumping `annotations.version` or touching the audit block. Useful when a body change is editorial-only and the user doesn't want a version increment. Distinct from top-level `sm refresh` (enrichment layer, Step A.8): different storage, different concept; the sub-namespace prefix prevents the collision. Exit `5` if the node has no sidecar or is not in the persisted scan. No-op on a fresh node (informational stderr, exit `0`). `--yes` confirms consent for `.sm` writes, see §`.sm` write consent below. |
 | `sm sidecars prune [--dry-run] [--yes]` | Delete orphan `.sm` files (sidecars whose `<basename>.md` does not exist on disk). Destructive; without `--dry-run` prompts for interactive confirmation listing every file to be deleted (per the §Dry-run analyzer for destructive verbs). `--yes` (alias `--force`) bypasses the destructive-confirmation prompt for non-interactive callers (CI, the pre-commit hook, scripts), NOT the `.sm` write-consent gate (delete is not a write). With `--dry-run` reports what would be deleted without touching disk and never prompts. Different domain from `sm orphans` (node graph, rename heuristic); this operates on the filesystem layer. `--json` envelope: `{ deleted, wouldDelete, errors, items[], elapsedMs }`. Exit `1` when delete failures landed in `errors`. |
 | `sm sidecars annotate <node.path> [--force] [--yes]` | Pure scaffolding. Writes a minimal `.sm` next to the `.md` with the `identity:` block populated and an empty `annotations: {}` block, ready for editing. Refuses if the file exists; `--force` overwrites. The optional legacy-frontmatter migration helper (`--from-frontmatter`) is deferred, no released consumer demands it. `--yes` confirms consent for `.sm` writes, see §`.sm` write consent below. |
 | `sm hooks install pre-commit-bump [--dry-run]` | Install (or chain into) a git pre-commit hook that runs `sm bump --pending --staged` so staged drift in `.sm` sidecars auto-bumps before the commit lands. Idempotent: re-running detects the skill-map marker and no-ops. When the repo already has a custom `pre-commit`, the verb appends the skill-map block rather than replacing it. `--dry-run` prints the planned content with `--- target: <path> ---` markers and writes nothing. Exit `5` if no `.git/` parent is found at or above `cwd`; exit `2` on write failures or unknown hook flavours. |
@@ -704,7 +714,7 @@ Authentication: the nonce is the sole credential. An implementation MUST reject 
 
 ### Agent process skill
 
-The distributable half of the agent process protocol (`job-lifecycle.md` §Runners): a runtime-agnostic skill file teaching ANY agent the claim → execute → record loop. skill-map materialises it into the active lens's own skill territory; it never invokes the agent.
+The distributable half of the agent process protocol (`job-lifecycle.md` §Atomic claim and §Record (callback)): a runtime-agnostic skill file teaching ANY agent the claim → execute → record loop. skill-map materialises it into the active lens's own skill territory; it never invokes the agent.
 
 | Verb | Behavior |
 |---|---|
@@ -812,7 +822,7 @@ The reference implementation ships a Hono BFF rooted at `src/server/`. One Node 
 | `GET /api/folders` | implemented | `RestEnvelope` (`kind: 'folders'`), lightweight full-corpus projection: one entry per scanned node `{ path, kind, linksInCount, linksOutCount, tokensTotal, modifiedAtMs, errorCount, warnCount, sidecarStatus }`. Only cheap scalar columns of `scan_nodes` (no frontmatter, body, links, signals, or contributions), so the SPA folders tree renders the whole corpus (up to `scan.maxScan`) with per-node data columns + per-folder issue badges without hydrating the full `ScanResult`. `tokensTotal` / `modifiedAtMs` are nullable (tokenization disabled / unknown mtime). `errorCount` / `warnCount` are the node's TOTAL problem incidence per severity, both provenances summed (2026-07-23, matching the card's aggregate severity chips): deterministic issues whose `nodeIds` include the path PLUS the node's fresh unresolved probabilistic findings (`countUnresolvedByPath`, the same read-time source the severity fold uses); the tree rolls the sums up across descendants. `sidecarStatus` is the node's sidecar drift status (`scan_nodes.sidecar_status`), `null` when there is no parseable sidecar, so the folders tree can flag per-row staleness without hydrating the branch payload. No pagination (the complete tree is the point; the corpus is already bounded by `scan.maxScan`). DB absent → zero items. |
 | `GET /api/branch?path=<p>&exclude=<p>&excludeRoot=<1\|0>&limit=<n>` | implemented | Branch projection for the map, scoped by **map scope overrides** (see §Map scope overrides for the evaluation rule). `path` (repeatable) carries the INCLUDE overrides, `exclude` (repeatable) the EXCLUDE overrides, `excludeRoot` the root override (`1` excluded, `0` included; any other value 400 `bad-query`); empty values are filtered, duplicates de-duped keeping the FIRST occurrence (the `path` order is significant, see §Map scope overrides · Seniority fill). When `excludeRoot` is ABSENT, the root is inferred excluded iff at least one `path` value has no strict ancestor among the `exclude` values, so the historical forms keep their meaning byte-for-byte: no params = whole corpus, bare `?path=app` = only the `app/` subtree. A path present in BOTH `path` and `exclude` → 400 `bad-query`. The scoped set is capped at `limit` nodes (default and effective max = the scan's `maxRenderNodes`); `total` / `truncated` are computed AFTER override evaluation, before the cap. Direct shape (no envelope wrap, like `/api/scan`): `{ schemaVersion, kind: 'branch', branch: { paths, excluded, rootExcluded, total, rendered, truncated, cap }, nodes: Node[], links: Link[], issues: Issue[] }`, where `paths` echoes the de-duped includes in request order and `excluded` / `rootExcluded` echo the RESOLVED scope (post-inference). `nodes` is the first `rendered` nodes of the scoped set, ordered by (include seniority, then stable path order) under the seniority fill rule, plain stable path order otherwise; `links` carries only edges whose source AND **resolved target** are in `nodes` (the resolved target is `resolvedTarget`, the node a trigger-style `invokes` / `mentions` link points to, falling back to the raw `target` for path-style links; a genuinely-broken link whose target resolves to no node is excluded); `issues` carries those touching `nodes`. `truncated` is `total > cap`. Lets the SPA render the rail's checkbox state without hydrating the full `ScanResult`. DB absent → empty branch (zero nodes) echoing the resolved scope. Validation: `limit` integer ≥ 1 else 400 `bad-query`. |
 | `GET /api/graph?format=ascii\|json\|md` | implemented | formatter-rendered graph. `Content-Type` per format: `text/plain` (ascii), `application/json` (json), `text/markdown` (md / mermaid). Default `format=ascii`. Unknown format → 400 `bad-query`. |
-| `GET /api/config` | implemented | `RestEnvelope` (`kind: 'config'`), merged effective config (defaults → user → user-local → project → project-local → override). |
+| `GET /api/config` | implemented | `RestEnvelope` (`kind: 'config'`), merged effective config (defaults → project → project-local → override). |
 | `GET /api/config/resolution` | implemented | `RestEnvelope` (`kind: 'config.resolution'`), the settings-hierarchy viewer's data (user shape 2026-07-21): `value.rows[]` flattens the effective config to one entry per LEAF key, `{ key, value, layer, secret }`, where `layer` is the loader's per-key provenance (which of `defaults` / `project` / `project-local` / `override` last wrote it) and `secret: true` marks a plugin-extension setting declared `type: 'secret'`, whose value is MASKED server-side and never reaches the wire in clear. Read-only; rendered by the Settings > General nested dialog. |
 | `GET /api/plugins` | implemented | `RestEnvelope` (`kind: 'plugins'`), list of installed plugins (built-in + drop-in) with status. Item shape: `{ id, version, kinds, status, reason, source: 'built-in'\|'project', description?: string, locked?: boolean, order: number, startsAsDisabled?: boolean, trusted?: boolean, extensions?: Array<{ id, kind, version, enabled, description?: string, stability?: 'experimental'\|'beta'\|'stable'\|'deprecated', locked?: boolean }> }`. `order` is the item's presentation position in the canonical listing (0-based; built-ins first per the host presentation order, then drop-ins); the SPA sorts by it and keeps no client-side pin list. The plugin row has no granular toggle axis; its `status` aggregates the children (`'enabled'` when at least one extension is enabled, else `'disabled'`). An **untrusted** drop-in reads `'disabled'` regardless of the config-enable axis (its code never loaded, see §Plugin enable vs import trust in `architecture.md`), so a `beta` plugin that ships config-enabled still shows `'disabled'` until it is trusted, never a misleading `'enabled'` for code that is not running. The `description` carries the manifest-declared description (built-ins: hardcoded on `IBuiltInPlugin`; drop-ins: `plugin.json#/description`); each `extensions[]` entry carries its manifest's `description` per `IExtensionBase` (`extensions/base.schema.json#/properties/description`), plus the optional `stability` lifecycle label per `extensions/base.schema.json#/properties/stability` (omitted when undeclared; missing means `stable`. The SPA badges only non-default values, `experimental` / `beta` / `deprecated`, next to the extension row; `stable` renders nothing. Presentation-only EXCEPT `experimental` and `deprecated`, which each flip the extension's installed default to disabled). The SPA's Settings list renders descriptions as muted secondary text and indexes them for substring search alongside the ids. The `extensions` array is present whenever the plugin declares any extension AND loaded successfully. Each entry's `enabled` reflects the per-extension config resolution (`settings.local.json` over `settings.json` over installed default, where the default is `false` for `experimental` and `deprecated` extensions and `true` otherwise); enable no longer reads from the DB. The optional `locked: true` flag is stamped when the extension's manifest declares `locked: true` (host-reserved, built-in only; see `architecture.md` §Locked extensions); locked items render the toggle disabled in the SPA and any `PATCH` returns `403 locked`. Omitted when false. The optional `trusted: true` flag is stamped on a drop-in plugin that carries a local import-trust grant (a scope-lock record that VERIFIES against this checkout); omitted when false, so an untrusted project-local plugin reads `trusted` absent (built-ins omit it, they are never trust-gated). The optional `startsAsDisabled: true` flag is stamped on a drop-in plugin (never built-ins) that was config-disabled at `sm serve` boot (discovery-time `status: 'disabled'` for a reason OTHER than untrust), so the handlers were never bucketed into the runtime; an untrusted plugin carries the one-time untrusted boot notice instead and does NOT get `startsAsDisabled`. The SPA renders a per-row hint when `startsAsDisabled` is set AND the user re-enables at least one of the plugin's extensions in the buffered state, since re-enabling requires `sm serve` restart (the rest of the toggle pipeline applies live). Omitted when false. |
 | `PATCH /api/plugins/:id` | implemented | **Bundle (aggregate) macro endpoint**: fans the toggle out across every extension inside the plugin. `:id` MUST be a top-level plugin id (no slash); qualified-id form is the sibling route below. Body `{ enabled: boolean }` (JSON). Writes the per-extension `enabled` (`plugins.<id>.extensions.<ext>.enabled`) for every child to the config layers (the shared `settings.json`); locked children are silently dropped, mirroring the CLI's bulk-mode lock semantics. Response is the canonical `RestEnvelope` (`kind: 'plugins'`) reflecting the post-write state. **Lock**, rejected with 403 `locked` when the plugin id itself is a manifest-locked claimant (see `architecture.md` §Locked extensions). **Apply window**, the override applies on the next scan; both the BFF and the watcher build a fresh resolver from the config layers before composing extensions, so the toggle is honoured without restarting `sm serve`. The endpoint purges `scan_contributions` rows for each disabled extension immediately so the UI stops rendering its chips before the next scan, and cancels each disabled extension's `queued` jobs (the disable cascade, [`job-lifecycle.md`](./job-lifecycle.md) §Cancellation), broadcasting one `job.cancelled` WS event per affected id; `running` jobs are untouched. **Exception**, drop-in plugins whose discovery-time `status` was `'disabled'` (carried as `startsAsDisabled: true`) are NOT in the runtime extension buckets; re-enabling them via PATCH persists the override but requires `sm serve` restart for the handlers to load. The SPA surfaces this per-row. Beyond those per-job cancel events, the endpoint does NOT broadcast a plugins-changed WS event today. Applies the **pair toggle** ([`plugin-author-guide.md` §Paired extensions](./plugin-author-guide.md#paired-extensions-pair-toggle)): companion extensions flip in the same write and are reflected in the returned envelope. |
@@ -934,15 +944,15 @@ The `/ws` endpoint is the live-events channel for the SPA. Clients connect once 
 
 - **Wire format**: each event is a single WebSocket text frame carrying one JSON object conforming to `job-events.md` §Common envelope (`type`, `timestamp`, `runId?`, `jobId? | null`, `data`).
 - **Event catalog at v14.4.a**:
-  - `scan.started` (per `job-events.md` §Scan events line 325).
-  - `scan.progress` (per `job-events.md` line 345, emitted by the kernel orchestrator at every node; throttling deferred).
-  - `scan.completed` (per `job-events.md` line 363).
-  - `extractor.completed` (per `job-events.md` line 384) and `analyzer.completed` (per `job-events.md` line 404) ride along as side effects of the same emitter bridge.
+  - `scan.started` (per `job-events.md` §Scan events → `scan.started`).
+  - `scan.progress` (per `job-events.md` §Scan events → `scan.progress`, emitted by the kernel orchestrator at every node; throttling deferred).
+  - `scan.completed` (per `job-events.md` §Scan events → `scan.completed`).
+  - `extractor.completed` (per `job-events.md` §Scan events → `extractor.completed`) and `analyzer.completed` (per `job-events.md` §Scan events → `analyzer.completed`) ride along as side effects of the same emitter bridge.
   - `extension.error` (kernel-internal, emitted when an extension violates its declared contract; the BFF forwards verbatim).
   - `watcher.started` and `watcher.error`, BFF-internal advisories. Non-normative; consumers MUST ignore unknown event types per the forward-compatibility analyzer.
   - `node.activity` (experimental), live-activity signal `{ nodePath, phase: 'start'|'end', owner?, ownerScope?, sticky?, keepAlive?, stats? }` broadcast when `POST /api/activity` resolves a provider runtime hook event to a scanned node. Shape normative in [`provider-activity.md`](./provider-activity.md) §WS event.
   - `agent.spawn` (experimental), spawn-relation frame `{ spawnId, phase: 'start'|'handoff'|'end', parentOwner, parentNodePath?, childKind?, childName?, childNodePath?, childOwner?, pairCount? }` broadcast per spawn relation reported by a provider signal; conversation content never rides it. Shape normative in [`provider-activity.md`](./provider-activity.md) §WS event: `agent.spawn`.
-- **Deferred**: `issue.added` / `issue.resolved` (per `job-events.md` §Issue events line 446) and `scan.failed`. The 14.4.a surface fans out only events the kernel emitter already produces; diff-based issue events and a dedicated batch-failure event need more plumbing inside the BFF watcher loop.
+- **Deferred**: `issue.added` / `issue.resolved` (per `job-events.md` §Issue events) and `scan.failed`. The 14.4.a surface fans out only events the kernel emitter already produces; diff-based issue events and a dedicated batch-failure event need more plumbing inside the BFF watcher loop.
 - **Connection lifecycle**:
   1. Client opens `ws://<host>:<port>/ws`. The server completes the handshake and registers the socket with the broadcaster.
   2. Server pushes events. The client sends no application frames; `onMessage` is intentionally not registered for app data (transport-level pong frames are answered by the browser automatically, see **Keep-alive** below). A future client-initiated subscribe / filter request lands in a follow-up.

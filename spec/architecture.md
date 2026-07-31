@@ -177,6 +177,14 @@ Emits progress events during long operations (scans, job runs). Consumers: CLI p
 
 Operations: `emit(event)`, `subscribe(listener)`. Events are defined in [`job-events.md`](./job-events.md).
 
+### `LoggerPort`
+
+Structured logging. The kernel MUST NOT write to stdout / stderr directly: anything that would otherwise be a `console.log` / `console.error` goes through this port, and the adapter (CLI, server, test harness) owns format, level filtering, and destination.
+
+Operations: one method per level, `trace(message, context?)`, `debug(...)`, `info(...)`, `warn(...)`, `error(...)`, where `context` is an optional caller-owned `Record<string, unknown>`. Levels order lowest (most verbose) to highest: `trace < debug < info < warn < error < silent`; `silent` is a filtering sentinel only, it never labels an emitted record. A record carries `level`, an ISO 8601 `timestamp` produced at call time, `message`, and the optional `context`.
+
+Reference impl: a module-level proxy the driving adapter swaps at boot (a level-filtered console logger in the CLI / server), defaulting to a silent logger so an unconfigured kernel prints nothing.
+
 ---
 
 ## Kernel
@@ -263,7 +271,7 @@ Six kinds, all first-class, all loaded through the same registry. Each has a JSO
 
 Extensions (Provider / Extractor / Analyzer / Action / Formatter / Hook) are **pure**: they consume kernel-supplied context and emit data through return values or `ctx.*` callbacks. They MUST NOT perform filesystem writes directly, not via `fs.writeFile`, not via shell, not via a third-party library. Implementations MUST NOT expose any port that hands an extension a writable filesystem handle. The same posture covers the NETWORK: no extension reaches it, with ONE declared carve-out: an Action whose manifest declares `io: ['network']` receives an injected `ctx.fetch` inside `invoke()` (implementations MUST route remote calls through it, never a global), executes only via `sm refresh` (never inside `sm scan`, never as a queued job), and is refused at execution time while the committed project policy `allowNetworkActions` (default `false`) is off.
 
-Materialising any kernel-managed artefact (the SQLite DB at `.skill-map/skill-map.db`, the `.sm` sidecars, the job ledger at `.skill-map/jobs/`, the `scan_extractor_runs` cache, the enrichment overlay rows) is the **kernel's** responsibility, gated through the relevant Port:
+Materialising any kernel-managed artefact (the SQLite DB at `.skill-map/skill-map.db`, the `.sm` sidecars, the `scan_extractor_runs` cache, the enrichment overlay rows) is the **kernel's** responsibility, gated through the relevant Port:
 
 - Extractors persist via `ctx.emitLink` / `ctx.enrichNode` / `ctx.store`, never by writing files. `ctx.store` is plugin-scoped persistence routed through `StoragePort`; it cannot reach the project filesystem.
 - Actions return a deterministic report (JSON), a rendered prompt (probabilistic), or, for the subset that legitimately mutate persisted state, an explicit `TActionWrite` discriminated union the kernel interprets. The built-in `core/node-bump`, `core/node-set-tags`, and `core/node-set-stability` return `{ kind: 'sidecar' }`; each declares the capability via `writes: ['sidecar']` on its manifest ([`schemas/extensions/action.schema.json`](./schemas/extensions/action.schema.json)), so consumers gate on the declaration without invoking the action. The kernel routes those writes through `SidecarStore.applyPatch`, the single gated chokepoint for all `.sm` writes (see §Annotation system · Write consent).
@@ -646,7 +654,7 @@ Hooks introduce no new persisted state and do NOT participate in the determinist
 ### Contract analyzers
 
 1. An extension declares its kind in its module export and its manifest. Kind mismatch → load-error.
-2. An extension MAY declare `preconditions`, predicates that must be satisfied for the extension to be offered (e.g., `action.requires: ["kind=skill"]`).
+2. An Action MAY declare a `precondition` block, the declarative filter a node must satisfy for the action to be offered (see [`schemas/extensions/action.schema.json`](./schemas/extensions/action.schema.json#/properties/precondition)).
 3. An extension MUST NOT retain state across invocations. Scoped persistence goes through `ctx.store`, which storage mode `kv` provides; mode `dedicated` reserves tables but exposes no accessor in v1. See [`plugin-kv-api.md`](./plugin-kv-api.md).
 4. An extension MUST NOT import another extension directly. Cross-extension communication goes through the kernel's registry lookup.
 5. An extension MUST provide a sibling test file. The reference impl treats a missing test as a contract-check failure; other impls MAY relax this to a warning.
@@ -729,7 +737,7 @@ This makes "CLI-first" coherent: every CLI verb is a kernel function call. The U
 
 ## Config layering
 
-`.skill-map/settings.json` (and its `.local.json` partner) are loaded through a layered hierarchy. Implementations MUST evaluate the six layers in order (low → high precedence) and deep-merge per key:
+`.skill-map/settings.json` (and its `.local.json` partner) are loaded through a layered hierarchy. Implementations MUST evaluate the four layers in order (low → high precedence) and deep-merge per key:
 
 | # | Layer | Source | Audience |
 |---|---|---|---|
@@ -818,7 +826,7 @@ The Action stays pure (no IO). The kernel materializes the patch through the `Si
 
 Every `.sm` write, scaffold (`sm sidecars annotate`), hash-only update (`sm sidecars refresh`), bump (`sm bump`, `POST /api/sidecar/bump`), action dispatch (`POST /api/actions/:id` for any `.sm`-writing Action), or any future write surface, passes through `SidecarStore.applyPatch` (or, where the verb writes a fresh sidecar, the equivalent kernel-managed entry point).
 
-**Project policy gate (evaluated first).** Before the consent ladder, the chokepoint consults the committed `allowSidecarWriters` policy (see §Config layering; default `true`, lives in the team-shared `project` layer). When `allowSidecarWriters === false` the kernel raises `ESidecarWritersForbiddenError` and refuses the write outright, regardless of `allowEditSmFiles` or any `confirm` / `always` signal: a team policy forbidding sidecar writers is a HARD gate a per-machine consent cannot override, and `--yes` does not bypass it. The same policy drops every Action declaring `writes: ['sidecar']` from the scan composer, so those Actions never project their `inspector.action.button` and the chokepoint deny is only a backstop. The CLI surfaces the error as a terminal message naming the policy; the BFF maps it to `403 sidecar-writers-forbidden`. The consent ladder below applies only when the policy permits writers (`allowSidecarWriters !== false`).
+**Project policy gate (evaluated first).** Before the consent ladder, the chokepoint consults the committed `allowSidecarWriters` policy (see [`project-config.schema.json`](./schemas/project-config.schema.json#/properties/allowSidecarWriters); default `true`, lives in the team-shared `project` layer). When `allowSidecarWriters === false` the kernel raises `ESidecarWritersForbiddenError` and refuses the write outright, regardless of `allowEditSmFiles` or any `confirm` / `always` signal: a team policy forbidding sidecar writers is a HARD gate a per-machine consent cannot override, and `--yes` does not bypass it. The same policy drops every Action declaring `writes: ['sidecar']` from the scan composer, so those Actions never project their `inspector.action.button` and the chokepoint deny is only a backstop. The CLI surfaces the error as a terminal message naming the policy; the BFF maps it to `403 sidecar-writers-forbidden`. The consent ladder below applies only when the policy permits writers (`allowSidecarWriters !== false`).
 
 That single chokepoint MUST consult `allowEditSmFiles` (see §Config layering) before touching disk. Every write asks unless `allowEditSmFiles === true`; the dispatch / bump body carries two orthogonal consent fields, `confirm` (one-shot grant) and `always` (persist the grant):
 
@@ -870,7 +878,7 @@ The **layout decision** (co-located `.sm`, not mirror tree under `.skill-map/`) 
 
 The **format** (YAML, extension `.sm`, not `.md.sm`) is stable as of spec v1.0.0. Switching format or extension is a major bump.
 
-The **reserved block names** (`for`, `annotations`, `settings`, `audit`) are stable as of spec v1.0.0. Adding a new reserved block is a minor bump; renaming or removing one is a major bump.
+The **reserved block names** (`identity`, `annotations`, `settings`, `audit`) are stable as of spec v1.0.0. Adding a new reserved block is a minor bump; renaming or removing one is a major bump.
 
 The **identity contract** (`identity.path` + `identity.bodyHash` + `identity.frontmatterHash`, with `resolvedAs` optional) is stable as of spec v1.0.0. Changing the hash algorithm or canonicalization analyzer is a major bump.
 
@@ -897,8 +905,8 @@ Sibling system to the annotation contributions above. Both let plugins extend th
 
 Two schemas describe the wire shape:
 
-- [`schemas/view-slots.schema.json`](./schemas/view-slots.schema.json), closed catalog: 14 slot names + the `IViewContribution` manifest declaration shape + per-slot payload schemas (in `$defs/payloads`) the kernel uses to validate emit-time payloads.
-- [`schemas/input-types.schema.json`](./schemas/input-types.schema.json), closed catalog: 10 input-type names + the `ISettingDeclaration` manifest declaration shape (discriminated by `type`).
+- [`schemas/view-slots.schema.json`](./schemas/view-slots.schema.json), closed catalog: 19 slot names + the `IViewContribution` manifest declaration shape + per-slot payload schemas (in `$defs/payloads`) the kernel uses to validate emit-time payloads.
+- [`schemas/input-types.schema.json`](./schemas/input-types.schema.json), closed catalog: 11 input-type names + the `ISettingDeclaration` manifest declaration shape (discriminated by `type`).
 
 ### Identity
 
@@ -1028,15 +1036,13 @@ View contributions extend the existing plugin-isolation model (see [`plugin-kv-a
 
 Same honest-note posture as [`plugin-kv-api.md`](./plugin-kv-api.md): isolated against accidents, not hostile code. That is a standing limitation of the current model, an extension runs in the host process; a worker-thread or iframe sandbox would raise the ceiling to hostile code, and none is promised here.
 
-### Soft-warning analyzers
+### Soft-warning path for catalog drift
 
-Two built-ins ship with the system to cover catalog evolution and rename edge cases:
-
-- **`core/unknown-slot`**, walks every loaded plugin's `ui[*].slot`; emits an `Issue` of severity `warn` for any slot not in the current kernel catalog. Parallel to `core/annotation-field-unknown` for annotations. AJV at manifest load already rejects unknown slots as `invalid-manifest`; this analyzer covers the soft-warning path when a plugin stays loaded across a catalog version bump.
+No built-in analyzer covers catalog evolution: the check lives in `sm plugins doctor`, which walks every loaded extension's `ui[*].slot` (built-in and drop-in alike) and reports one `unknown-slot` warning per slot absent from the current kernel catalog, pointing the operator at `sm plugins upgrade <id>`. It is a diagnostic verb warning, NOT an `Issue`: it never reaches the scan output, the aggregated stats, or the exit code. AJV at manifest load already rejects unknown slots as `invalid-manifest`; the doctor pass is the defence-in-depth path for a plugin that stays loaded across a catalog version bump (its `catalogCompat` satisfies the current major syntactically while a slot id it uses was renamed or removed).
 
 ### Catalog versioning
 
-The catalog of slots and input-types evolves on its own cadence, independent of the spec version. Plugin manifests carry an optional `catalogCompat: string` (semver range) field at the root, parallel to `specCompat`. The kernel checks `semver.satisfies(catalogVersion, plugin.catalogCompat)` at load. Mismatch surfaces as `incompatible-catalog` plugin status (new entry in the load-status enum). Resolution: `sm plugins upgrade <id>` runs registered migrations from a closed kernel-side registry of `{ from, to, transform }` triples; auto-migration impossible → CLI exit ≠ 0 + UI dialog naming the offending slot / input-type.
+The catalog of slots and input-types evolves on its own cadence, independent of the spec version. Plugin manifests carry a required `catalogCompat: string` (semver range) field at the root, parallel to `specCompat`. The kernel checks `semver.satisfies(catalogVersion, plugin.catalogCompat)` at load. Mismatch surfaces as `incompatible-catalog` plugin status (new entry in the load-status enum). Resolution: `sm plugins upgrade <id>` runs registered migrations from a closed kernel-side registry of `{ from, to, transform }` triples; auto-migration impossible → CLI exit ≠ 0 + UI dialog naming the offending slot / input-type.
 
 Pre-1.0 versioning analyzer (per [`AGENTS.md`](../AGENTS.md)): catalog breaking changes ship as minor bumps while in `0.y.z`; the first `1.0.0` is a deliberate stabilization moment, not a side effect.
 

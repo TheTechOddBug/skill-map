@@ -227,7 +227,7 @@
           "description": "ECMAScript regex flags allowed. Subset: `g`, `i`, `m`, `s`, `u`, `y`. Author chooses which flags the user-supplied pattern compiles with, the user supplies only the body."
         }
       },
-      "description": "ECMAScript regex pattern (the body, no `/` delimiters). Validated by attempting `new RegExp(value, flags)` at form submit and at extractor invocation. Compilation failure → form error / `invalid-settings` at runtime. Value type at runtime: `string`."
+      "description": "ECMAScript regex pattern (the body, no `/` delimiters). Validated by attempting `new RegExp(value, flags)` at form submit and again at extension invocation. Compilation failure → form error at write time; at runtime the resolver falls back to the declared `default` and warns, it never aborts the scan. Value type at runtime: `string`."
     },
     "Setting_Secret": {
       "allOf": [{ "$ref": "#/$defs/_Common" }],

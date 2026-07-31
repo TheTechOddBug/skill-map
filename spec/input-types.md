@@ -1,6 +1,6 @@
 # Input-types for plugin settings
 
-Closed catalog of input-types for the manifest-root `settings` map. Plugin authors pick a `type` by name; the kernel knows the value schema; the UI generates a form per declaration; the CLI's `sm plugins config <id>` exposes the same surface. Authors NEVER write JSON Schema for settings, they pick a name and supply per-type parameters.
+Closed catalog of input-types for the per-extension `settings` map (plugin-level settings are not supported; the map lives on each extension's manifest). Plugin authors pick a `type` by name; the kernel knows the value schema; the UI generates a form per declaration; the CLI's `sm plugins config <id>` exposes the same surface. Authors NEVER write JSON Schema for settings, they pick a name and supply per-type parameters.
 
 This doc is the **author-facing reference**. The normative shape lives in [`schemas/input-types.schema.json`](./schemas/input-types.schema.json):
 
@@ -8,7 +8,7 @@ This doc is the **author-facing reference**. The normative shape lives in [`sche
 - `$defs/ISettingDeclaration`, manifest-side declaration shape (discriminated by `type`)
 - `$defs/Setting_<TypeName>`, per-type declaration schema with parameters
 
-The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.schema.json`](./schemas/plugins-registry.schema.json) at `$defs/PluginManifest`. Tutorial walkthrough is in [`plugin-author-guide.md`](./plugin-author-guide.md) §View contributions → "Settings".
+The `settings` field lives on the extension manifest base, [`schemas/extensions/base.schema.json`](./schemas/extensions/base.schema.json) at `#/properties/settings`. Tutorial walkthrough is in [`plugin-author-guide.md`](./plugin-author-guide.md) §View contributions → "Settings".
 
 ## Catalog overview
 
@@ -32,7 +32,7 @@ The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.sc
 
 **Default values**: most types accept a `default` parameter, used when the user has not yet configured the setting.
 
-**Validation**: the kernel validates the resolved value against the per-type value schema at extractor invocation. Failure surfaces as `invalid-settings` plugin status.
+**Validation**: the kernel's settings resolver takes the manifest `default`, overlays the operator's merged config value, and validates the result against the per-type value rules while composing the enabled extensions. A value that fails **falls back to the declared default and emits a warning**; it never aborts the scan and never changes the plugin's load status (there is no `invalid-settings` status). The CLI writer rejects a bad value earlier, at write time, so the fallback is the last line of defence for a hand-edited settings file.
 
 **CLI coercion**: `sm plugins config <plugin>/<ext> <settingId> <value>` receives the value as a shell string and coerces it to the declared type before validating and writing (`integer` / `number` parsed numerically, `boolean-flag` from `true` / `false`, `string-list` / `enum-multipick` / `key-value-list` parsed as JSON). A value that cannot be coerced or fails validation is rejected at write time with a typed error, not deferred to the next scan.
 
@@ -253,7 +253,7 @@ The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.sc
 
 **Value type**: `string` (the regex body, no `/` delimiters).
 
-**UI**: text input. Compilation tested at form submit and extractor invocation; failure → `invalid-settings`.
+**UI**: text input. Compilation tested at form submit (rejected at write time) and again at extension invocation, where a pattern that fails to compile falls back to the declared default with a warning.
 
 ---
 
