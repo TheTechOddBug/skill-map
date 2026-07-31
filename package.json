@@ -13,6 +13,7 @@
     "start": "bash scripts/start.sh",
     "fix:claude": "pnpm start",
     "fix:demo": "bash scripts/start.sh demo",
+    "fix:graph": "bash scripts/start.sh graph",
     "fix:ai": "bash scripts/start.sh ai-engineering",
     "fix:skills": "bash scripts/start.sh skills",
     "fix:codex": "bash scripts/start.sh codex",

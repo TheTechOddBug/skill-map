@@ -1,0 +1,23 @@
+# Anything matching is skipped during `sm scan`. Same syntax as
+# `.gitignore` (kaelzhang/ignore).
+
+# Version-control + dependency dirs
+.git/
+node_modules/
+
+# Project-local transient artifacts
+.tmp/
+.skill-map/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Logs
+*.log
+
+# Work in progress: the pipeline's own output. Kept out of the map on
+# purpose, the graph is about the five agents, not about what they wrote.
+drafts/
