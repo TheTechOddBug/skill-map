@@ -456,7 +456,7 @@ The plugin owns SQL tables prefixed `plugin_<normalizedId>_*`. Migrations live u
 `emitLink` and `enrichNode` are always validated by the kernel against `link.schema.json` / `node.schema.json`. `ctx.store` writes are permissive by default (the author owns the table layout). To validate your own writes, declare JSON Schemas in the manifest:
 
 - **Mode A**: `storage.schema` (single value-shape) validates every `ctx.store.set(key, value)`.
-- **Mode B**: `storage.schemas` (sparse map, table → schema path) validates `ctx.store.write(table, row)` for the named tables; tables absent from the map accept any shape.
+- **Mode B**: `storage.schemas` (sparse map, table → schema path) is declared alongside the tables and reserved with them: it will validate writes once the Mode B accessor lands post-v1. Declaring it today is harmless and forward-compatible, but nothing calls it, because v1 hands a `dedicated` plugin no runtime accessor (see [`plugin-kv-api.md`](../spec/plugin-kv-api.md) §Runtime accessor).
 
 A schema file missing / unparseable / AJV-rejected at load flips the plugin to `load-error`. A write violating its declared schema throws synchronously, naming the plugin, table, and AJV errors. Skip validation for free-form payloads (cache rows, counters), friction with no payoff.
 

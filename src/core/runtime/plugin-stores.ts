@@ -21,11 +21,13 @@
  * `spec/plugin-kv-api.md` § Scoping ("the kernel enforces this when
  * constructing `ctx.store`").
  *
- * Mode B (`mode: 'dedicated'`) is deliberately NOT wired here: the
- * scoped-`Database` wrapper it needs does not exist yet, and
- * `makePluginStore` already returns `undefined` when no dedicated
- * persistence is supplied, so those plugins keep seeing
- * `ctx.store === undefined` exactly as before.
+ * Mode B (`mode: 'dedicated'`) is deliberately NOT wired here, and as
+ * of the 1.0.0 spec freeze that is the CONTRACT rather than a gap:
+ * `plugin-kv-api.md` §Runtime accessor states that a dedicated plugin
+ * gets its tables created and namespaced but no runtime accessor in v1.
+ * `makePluginStore` returns `undefined` when no dedicated persistence
+ * is supplied, so those plugins see `ctx.store === undefined`, which is
+ * exactly what the spec now promises.
  */
 
 import { makePluginStore } from '../../kernel/adapters/plugin-store.js';

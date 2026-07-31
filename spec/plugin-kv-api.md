@@ -17,9 +17,9 @@ A plugin extension receives a `ctx` object at construction time. `ctx.store` is 
 |---|---|
 | No storage declared | `undefined`. |
 | `mode: "kv"` | `KvStore` (this document). |
-| `mode: "dedicated"` | `DedicatedStore` (scoped Database wrapper). See mode B below. |
+| `mode: "dedicated"` | `undefined` in v1. The tables are created and namespaced, but no runtime accessor is handed to the plugin yet. See mode B below. |
 
-Plugins SHOULD pick the minimum mode they need. Mode A is simpler and requires no migrations. Mode B is for plugins that need relational shape, indexes, or cross-row queries.
+Plugins SHOULD pick the minimum mode they need. Mode A is simpler, requires no migrations, and is the only mode with a working accessor in v1. Mode B reserves relational shape and indexes for a plugin that will own migrations, but cannot read or write those tables from plugin code until the accessor lands post-v1.
 
 ---
 
@@ -119,28 +119,17 @@ Mode B is governed by [`db-schema.md`](./db-schema.md) (catalog analyzers + trip
 }
 ```
 
-The `tables` array lists logical table names **without** the `plugin_<id>_` prefix. The prefix is the kernel's namespace boundary, and it is ENFORCED rather than applied for you: migration SQL MUST write the physical, prefixed name (`CREATE TABLE plugin_<normalizedId>_rule_exceptions`), and a runtime query MUST reference it the same way. The manifest stays logical so the plugin id can be normalised into the prefix without the author restating it.
+The `tables` array lists logical table names **without** the `plugin_<id>_` prefix. The prefix is the kernel's namespace boundary, and it is ENFORCED rather than applied for you: migration SQL MUST write the physical, prefixed name (`CREATE TABLE plugin_<normalizedId>_rule_exceptions`). The manifest stays logical so the plugin id can be normalised into the prefix without the author restating it.
 
-### Accessor
+### Runtime accessor: NOT part of v1
 
-```typescript
-interface DedicatedStore {
-  db: Database;   // scoped wrapper, see below
-}
-```
+**Mode B declares storage; it does not yet hand the plugin a runtime accessor.** In v1 a `dedicated` plugin gets its tables created and namespace-enforced (below), and `ctx.store` stays `undefined`. There is no `DedicatedStore.db`, no scoped `Database` wrapper, no per-query validator and no transaction API.
 
-`DedicatedStore.db` is a wrapper, NOT a raw handle. Every query passes through a validator that rejects:
+This is a deliberate narrowing, recorded rather than quietly dropped. Earlier drafts of this document specified a `db: Database` wrapper that rejected out-of-namespace queries, DDL, `ATTACH` and unscoped `PRAGMA` per query, raising a typed violation, plus `db.transaction(...)`. None of it was ever implemented, no plugin depends on it, and freezing that surface into v1 would commit every implementation to a SQL-parsing query validator: a large security surface, specified with no consumer to validate the design against. Shipping the honest smaller contract costs nothing today and leaves the larger one free to be designed against a real use case.
 
-- References to tables whose name doesn't start with this plugin's prefix.
-- DDL statements (`CREATE`, `ALTER`, `DROP`, `TRUNCATE`). Mode B DDL is runtime-immutable after migrations; plugins change shape via a new migration.
-- `ATTACH DATABASE` statements.
-- `PRAGMA` statements that aren't scoped to the plugin's own tables.
+What a plugin can rely on in v1: its declared tables exist, they are namespaced, and nothing outside its namespace can be created (see §Migrations). Reading and writing them is out of contract until a post-v1 minor adds the accessor, which is additive and therefore a minor bump.
 
-A query that fails validation raises `ScopedDbViolationError`. The plugin continues to run; only the offending query is rejected.
-
-### Transaction support
-
-Mode B plugins MAY call `db.transaction(async (tx) => { ... })`. The kernel provides transaction isolation consistent with the backing engine. Nested transactions are NOT supported; the kernel MUST reject a nested `transaction()` call with a typed error.
+Mode A (`kv`) is the mode with a working accessor. A plugin that needs to READ and WRITE its own state in v1 declares `mode: "kv"`.
 
 ### Migrations
 
@@ -171,13 +160,13 @@ Non-normative guidance for plugin authors.
 - Your data model is tabular (cache with TTL, observation log, provider registry).
 - You are willing to own migrations forever.
 
-A plugin MUST declare **exactly one** storage mode; mixing modes is forbidden. [`plugins-registry.schema.json`](./schemas/plugins-registry.schema.json) enforces this at the manifest level (`storage` is a `oneOf` between `kv` and `dedicated`), and at runtime `ctx.store` exposes either the `KvStore` or the `DedicatedStore` shape, never both. A plugin that needs both KV-like and relational access MUST use mode B and implement KV-style rows as a dedicated table.
+A plugin MUST declare **exactly one** storage mode; mixing modes is forbidden. [`plugins-registry.schema.json`](./schemas/plugins-registry.schema.json) enforces this at the manifest level (`storage` is a `oneOf` between `kv` and `dedicated`), and at runtime `ctx.store` exposes the `KvStore` shape for mode A, or stays `undefined` for mode B in v1. A plugin that needs to read and write its own state today MUST use mode A.
 
 ---
 
 ## Visibility analyzers
 
-- A plugin MUST NOT read or write rows outside its scope. Mode A: the accessor is scoped. Mode B: the validator enforces the prefix.
+- A plugin MUST NOT read or write rows outside its scope. Mode A: the accessor is scoped by construction (the plugin id is captured when the accessor is built and is never an argument). Mode B: the migration validator enforces the namespace at creation time, and there is no runtime accessor to scope in v1.
 - The kernel MAY expose read-only introspection for diagnostics (e.g., `sm plugins show <id> --storage` lists key counts). Authoritative, not a plugin-level API.
 - `sm db shell` can read any table. Operator-level escape hatch; plugins MUST NOT rely on it.
 
@@ -198,7 +187,7 @@ A plugin MUST declare **exactly one** storage mode; mixing modes is forbidden. [
 
 Mode A is isolated at the row level: the accessor physically cannot see another plugin's rows.
 
-Mode B is **isolated against accidents, not hostile code**. The scoped `Database` wrapper rejects cross-namespace queries at runtime, but a malicious plugin in the same JavaScript process can bypass it by importing raw engine bindings directly. Plugins are user-placed code; the kernel trusts the user's judgement at install time.
+Mode B is **isolated against accidents, not hostile code**. The namespace is enforced when migrations run, so a plugin cannot create tables outside its own prefix; in v1 there is no runtime accessor left to scope (see §Runtime accessor), and a malicious plugin in the same JavaScript process can reach any table regardless by importing raw engine bindings directly. Plugins are user-placed code; the kernel trusts the user's judgement at install time.
 
 Post-v1.0 work: signed manifest, sandboxed worker-thread isolation, per-plugin DB file. None land before `v0.5.0`.
 
