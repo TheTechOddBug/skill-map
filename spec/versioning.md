@@ -18,10 +18,26 @@ Patch, minor, major have precise meaning for a specification, distinct from code
 | Bump | Allowed changes | Examples |
 |---|---|---|
 | **Patch** (`1.0.0 → 1.0.1`) | Editorial only. No normative change. | Typo fixes, clarified wording, examples added, non-binding notes. |
-| **Minor** (`1.0.0 → 1.1.0`) | Backward-compatible additions. Existing conforming implementations remain conforming. | New optional field, new optional schema, new optional CLI flag, new extension kind capability that is opt-in, new conformance case that tests a new optional feature. |
+| **Minor** (`1.0.0 → 1.1.0`) | Backward-compatible additions. Existing conforming implementations remain conforming. | New optional field, new optional schema, new optional CLI flag, new extension kind capability that is opt-in, a new conformance case (see §Conformance suite changes). |
 | **Major** (`1.0.0 → 2.0.0`) | Any change that can break a conforming implementation. | Remove a field, rename a field, change a field's type, tighten an enum, make an optional field required, change an exit code's meaning, change an event's payload shape, change a verb's default behavior. |
 
-Rule of thumb: if a strict v1 implementation could fail a v1.X conformance run, the change is major.
+Rule of thumb: if an implementation that satisfied the v1 CONTRACT would no longer satisfy it, the change is major.
+
+The rule is deliberately about the contract, not about the conformance run. An earlier wording said "could fail a v1.X conformance run", which contradicted §Conformance below (failing a case is a bug report, not a spec violation) and, taken literally, would have made every new case a major bump, freezing the suite at whatever size it happened to have on the day v1 shipped.
+
+### Conformance suite changes
+
+The suite VERIFIES the contract; it does not define it. Bumps follow from that:
+
+| Suite change | Bump | Why |
+|---|---|---|
+| Add a case for behaviour the contract ALREADY requires | **minor** | No new requirement. An implementation that fails it was already non-conforming; the case only made that measurable. |
+| Add a case for a newly added optional feature | **minor** | The feature's own addition is what makes it minor; the case rides along. |
+| Add an assertion type, or an optional field on an existing one | **minor** | A case that omits it behaves exactly as before. |
+| Change a case to demand MORE than the contract states | governed by the CONTRACT change it implies | If the extra demand is legitimate, the contract text must change too, and that change sets the bump. A case cannot quietly raise the bar on its own. |
+| Remove or weaken a case | **patch** | Nothing is required that was not required before. |
+| Remove or change the meaning of an assertion type | **major** | Existing cases stop parsing or silently mean something else. |
+| Change a fixture referenced by any case | **major** | Fixture bytes are inputs the case's expectations are computed against. |
 
 ## What counts as normative
 

@@ -5,78 +5,130 @@
   "schemas": {
     "topLevel": [
       {
-        "id": "node",
-        "path": "schemas/node.schema.json"
+        "id": "annotations",
+        "path": "schemas/annotations.schema.json"
       },
       {
-        "id": "link",
-        "path": "schemas/link.schema.json"
-      },
-      {
-        "id": "issue",
-        "path": "schemas/issue.schema.json"
-      },
-      {
-        "id": "scan-result",
-        "path": "schemas/scan-result.schema.json"
-      },
-      {
-        "id": "execution-record",
-        "path": "schemas/execution-record.schema.json"
-      },
-      {
-        "id": "project-config",
-        "path": "schemas/project-config.schema.json"
-      },
-      {
-        "id": "plugins-registry",
-        "path": "schemas/plugins-registry.schema.json"
-      },
-      {
-        "id": "job",
-        "path": "schemas/job.schema.json"
-      },
-      {
-        "id": "report-base",
-        "path": "schemas/report-base.schema.json"
+        "id": "bump-report",
+        "path": "schemas/bump-report.schema.json"
       },
       {
         "id": "conformance-case",
         "path": "schemas/conformance-case.schema.json"
       },
       {
+        "id": "conformance-result",
+        "path": "schemas/conformance-result.schema.json"
+      },
+      {
+        "id": "execution-record",
+        "path": "schemas/execution-record.schema.json"
+      },
+      {
         "id": "history-stats",
         "path": "schemas/history-stats.schema.json"
+      },
+      {
+        "id": "input-types",
+        "path": "schemas/input-types.schema.json"
+      },
+      {
+        "id": "issue",
+        "path": "schemas/issue.schema.json"
+      },
+      {
+        "id": "job",
+        "path": "schemas/job.schema.json"
+      },
+      {
+        "id": "link",
+        "path": "schemas/link.schema.json"
+      },
+      {
+        "id": "node",
+        "path": "schemas/node.schema.json"
+      },
+      {
+        "id": "plugins-doctor",
+        "path": "schemas/plugins-doctor.schema.json"
+      },
+      {
+        "id": "plugins-registry",
+        "path": "schemas/plugins-registry.schema.json"
+      },
+      {
+        "id": "project-config",
+        "path": "schemas/project-config.schema.json"
+      },
+      {
+        "id": "refresh-report",
+        "path": "schemas/refresh-report.schema.json"
+      },
+      {
+        "id": "report-base-deterministic",
+        "path": "schemas/report-base-deterministic.schema.json"
+      },
+      {
+        "id": "report-base",
+        "path": "schemas/report-base.schema.json"
+      },
+      {
+        "id": "scan-result",
+        "path": "schemas/scan-result.schema.json"
+      },
+      {
+        "id": "serve-info",
+        "path": "schemas/serve-info.schema.json"
       },
       {
         "id": "sidecar",
         "path": "schemas/sidecar.schema.json"
       },
       {
-        "id": "annotations",
-        "path": "schemas/annotations.schema.json"
+        "id": "signal",
+        "path": "schemas/signal.schema.json"
+      },
+      {
+        "id": "user-settings",
+        "path": "schemas/user-settings.schema.json"
+      },
+      {
+        "id": "view-slots",
+        "path": "schemas/view-slots.schema.json"
+      }
+    ],
+    "api": [
+      {
+        "id": "api/rest-envelope",
+        "path": "schemas/api/rest-envelope.schema.json"
+      }
+    ],
+    "enrichments": [
+      {
+        "id": "enrichments/github",
+        "path": "schemas/enrichments/github.schema.json"
       }
     ],
     "extensions": [
       {
-        "id": "extensions/base",
-        "path": "schemas/extensions/base.schema.json"
-      },
-      {
-        "id": "extensions/provider",
-        "path": "schemas/extensions/provider.schema.json"
-      },
-      {
-        "id": "extensions/extractor",
-        "path": "schemas/extensions/extractor.schema.json"
+        "id": "extensions/action",
+        "path": "schemas/extensions/action.schema.json"
       },
       {
         "id": "extensions/analyzer",
         "path": "schemas/extensions/analyzer.schema.json"
       },
       {
-        "id": "extensions/action",
-        "path": "schemas/extensions/action.schema.json"
+        "id": "extensions/base",
+        "path": "schemas/extensions/base.schema.json"
+      },
+      {
+        "id": "extensions/extension-manifest",
+        "path": "schemas/extensions/extension-manifest.schema.json"
+      },
+      {
+        "id": "extensions/extractor",
+        "path": "schemas/extensions/extractor.schema.json"
       },
       {
         "id": "extensions/formatter",
@@ -85,6 +137,20 @@
       {
         "id": "extensions/hook",
         "path": "schemas/extensions/hook.schema.json"
+      },
+      {
+        "id": "extensions/provider-kind",
+        "path": "schemas/extensions/provider-kind.schema.json"
+      },
+      {
+        "id": "extensions/provider",
+        "path": "schemas/extensions/provider.schema.json"
+      }
+    ],
+    "findings": [
+      {
+        "id": "findings/report",
+        "path": "schemas/findings/report.schema.json"
       }
     ],
     "frontmatter": [
@@ -98,20 +164,26 @@
         "id": "summaries/markdown",
         "path": "schemas/summaries/markdown.schema.json"
       }
+    ],
+    "tags": [
+      {
+        "id": "tags/markdown",
+        "path": "schemas/tags/markdown.schema.json"
+      }
     ]
   },
   "prose": [
     {
       "file": "README.md",
-      "title": "README"
-    },
-    {
-      "file": "versioning.md",
-      "title": "Versioning policy"
+      "title": "skill-map spec"
     },
     {
       "file": "CHANGELOG.md",
       "title": "Spec changelog"
+    },
+    {
+      "file": "versioning.md",
+      "title": "Spec versioning"
     },
     {
       "file": "architecture.md",
@@ -144,6 +216,30 @@
     {
       "file": "provider-activity.md",
       "title": "Provider activity (live node activity)"
+    },
+    {
+      "file": "plugin-author-guide.md",
+      "title": "Plugin author guide"
+    },
+    {
+      "file": "plugin-quickstart.md",
+      "title": "Plugin quickstart"
+    },
+    {
+      "file": "telemetry.md",
+      "title": "Telemetry"
+    },
+    {
+      "file": "input-types.md",
+      "title": "Input-types for plugin settings"
+    },
+    {
+      "file": "view-slots.md",
+      "title": "View slots"
+    },
+    {
+      "file": "mcp-server.md",
+      "title": "MCP server (skill-map as a Model Context Protocol server)"
     }
   ],
   "interfaces": [
@@ -157,8 +253,180 @@
     "fixturesDir": "conformance/fixtures",
     "cases": [
       {
+        "id": "backtick-path-extraction",
+        "file": "conformance/cases/backtick-path-extraction.json"
+      },
+      {
+        "id": "bump-report-schema",
+        "file": "conformance/cases/bump-report-schema.json"
+      },
+      {
+        "id": "catalog-slots-input-types",
+        "file": "conformance/cases/catalog-slots-input-types.json"
+      },
+      {
+        "id": "conformance-result-schema",
+        "file": "conformance/cases/conformance-result-schema.json"
+      },
+      {
+        "id": "duplicate-submit-rejected",
+        "file": "conformance/cases/duplicate-submit-rejected.json"
+      },
+      {
+        "id": "elapsed-time-reporting",
+        "file": "conformance/cases/elapsed-time-reporting.json"
+      },
+      {
+        "id": "extension-kind-manifests",
+        "file": "conformance/cases/extension-kind-manifests.json"
+      },
+      {
+        "id": "extension-manifest-enable-gate",
+        "file": "conformance/cases/extension-manifest-enable-gate.json"
+      },
+      {
+        "id": "extension-mode-routing-deterministic",
+        "file": "conformance/cases/extension-mode-routing-deterministic.json"
+      },
+      {
+        "id": "extension-mode-routing",
+        "file": "conformance/cases/extension-mode-routing.json"
+      },
+      {
+        "id": "extractor-collision-detection",
+        "file": "conformance/cases/extractor-collision-detection.json"
+      },
+      {
+        "id": "extractor-emits-signal",
+        "file": "conformance/cases/extractor-emits-signal.json"
+      },
+      {
+        "id": "findings-contract-kind",
+        "file": "conformance/cases/findings-contract-kind.json"
+      },
+      {
+        "id": "findings-contract",
+        "file": "conformance/cases/findings-contract.json"
+      },
+      {
+        "id": "force-does-not-duplicate-live-job",
+        "file": "conformance/cases/force-does-not-duplicate-live-job.json"
+      },
+      {
+        "id": "history-record-schema",
+        "file": "conformance/cases/history-record-schema.json"
+      },
+      {
+        "id": "history-stats-schema",
+        "file": "conformance/cases/history-stats-schema.json"
+      },
+      {
+        "id": "job-document-schema",
+        "file": "conformance/cases/job-document-schema.json"
+      },
+      {
+        "id": "jobs-submit-agent-gate",
+        "file": "conformance/cases/jobs-submit-agent-gate.json"
+      },
+      {
         "id": "kernel-empty-boot",
         "file": "conformance/cases/kernel-empty-boot.json"
+      },
+      {
+        "id": "markdown-link-rooted",
+        "file": "conformance/cases/markdown-link-rooted.json"
+      },
+      {
+        "id": "no-global-scope",
+        "file": "conformance/cases/no-global-scope.json"
+      },
+      {
+        "id": "orphan-markdown-fallback",
+        "file": "conformance/cases/orphan-markdown-fallback.json"
+      },
+      {
+        "id": "plugin-manifest-schema",
+        "file": "conformance/cases/plugin-manifest-schema.json"
+      },
+      {
+        "id": "plugin-missing-ui-rejected",
+        "file": "conformance/cases/plugin-missing-ui-rejected.json"
+      },
+      {
+        "id": "plugin-storage-namespace-rejected",
+        "file": "conformance/cases/plugin-storage-namespace-rejected.json"
+      },
+      {
+        "id": "plugin-storage-prefix-enforced",
+        "file": "conformance/cases/plugin-storage-prefix-enforced.json"
+      },
+      {
+        "id": "plugins-doctor-schema",
+        "file": "conformance/cases/plugins-doctor-schema.json"
+      },
+      {
+        "id": "points-root-fallback",
+        "file": "conformance/cases/points-root-fallback.json"
+      },
+      {
+        "id": "preamble-bitwise-match",
+        "file": "conformance/cases/preamble-bitwise-match.json"
+      },
+      {
+        "id": "project-config-schema",
+        "file": "conformance/cases/project-config-schema.json"
+      },
+      {
+        "id": "record-findings-envelope-gate",
+        "file": "conformance/cases/record-findings-envelope-gate.json"
+      },
+      {
+        "id": "record-findings-report",
+        "file": "conformance/cases/record-findings-report.json"
+      },
+      {
+        "id": "record-nonce-mismatch",
+        "file": "conformance/cases/record-nonce-mismatch.json"
+      },
+      {
+        "id": "record-report-schema-gate",
+        "file": "conformance/cases/record-report-schema-gate.json"
+      },
+      {
+        "id": "record-tags-report",
+        "file": "conformance/cases/record-tags-report.json"
+      },
+      {
+        "id": "reference-broken-existence",
+        "file": "conformance/cases/reference-broken-existence.json"
+      },
+      {
+        "id": "refresh-report-schema",
+        "file": "conformance/cases/refresh-report-schema.json"
+      },
+      {
+        "id": "scan-result-schema",
+        "file": "conformance/cases/scan-result-schema.json"
+      },
+      {
+        "id": "score-phase-confidence",
+        "file": "conformance/cases/score-phase-confidence.json"
+      },
+      {
+        "id": "sidecar-end-to-end",
+        "file": "conformance/cases/sidecar-end-to-end.json"
+      },
+      {
+        "id": "view-action-button",
+        "file": "conformance/cases/view-action-button.json"
+      },
+      {
+        "id": "view-contribution-payloads",
+        "file": "conformance/cases/view-contribution-payloads.json"
+      },
+      {
+        "id": "view-slots-all",
+        "file": "conformance/cases/view-slots-all.json"
       }
     ]
   },
@@ -170,7 +438,7 @@
       "README.md": "aa10b6ccfc36b40ed52f2e4932c6dfdb046b7fa726871c80e8d8958614ecd33b",
       "architecture.md": "3f428b6a51f65dce2edebd0c04688f4d298107be5e52ab5fec7585ff2a2c773f",
       "cli-contract.md": "b6355838b1321b1444f72f46b24eed8b9a44651ba2ccc9d07971da550bf307fc",
-      "conformance/README.md": "9f215fa43446c774ae63f907eebb5b91bfeaa23a5e18c2b63fa9acdfc9d6f80c",
+      "conformance/README.md": "5a99ddad71c51f4d0918ca4ef6faf6b0b19355aaeb6bb58cd9c5f3b205656cc2",
       "conformance/cases/backtick-path-extraction.json": "4112b5724156c4d6ad5cf90a762e43741d25d68735f91d453ac580a77b3764da",
       "conformance/cases/bump-report-schema.json": "f9f1b9f1143e5750bea045001aff60d0f5f6b15e41597d9bd983c4159540fb22",
       "conformance/cases/catalog-slots-input-types.json": "ba63224f8e679618ae5b240b96acdf950b65031a50403c4ca0f026b1801813bf",
@@ -360,7 +628,7 @@
       "schemas/user-settings.schema.json": "36ba5f1d8babf2f4ec3d707d50ef1c095a5117f62a92998a6bc33f5b1a84f3d8",
       "schemas/view-slots.schema.json": "2a3a39a3f8a5e0db51a4cb3a5e0e3589230e5a9b22b4440f331470c89369af77",
       "telemetry.md": "3de924d71f668cbd725282999e4193572e77a681f2f75ecbee4bb75de9a04a8c",
-      "versioning.md": "eb8a8fe689f7c63855caef5a48b3555bce4054a6993aa97aa4bb860f57b7779d",
+      "versioning.md": "442a4a6d5cf6311f81e8e6ad4ed24ea18dd448ea665a5db31ba20c6b551067ec",
       "view-slots.md": "2b92322447c5b7853174f9d70d7f1cf3afc69400cbcbb84e5876e981fc6bc7c1"
     }
   }

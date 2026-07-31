@@ -185,6 +185,8 @@ The reference runner ships under `src/conformance/index.ts`; the verb lives at `
 ## Stability
 
 - The **case format** above is stable as of the first spec release that includes the suite. Adding an assertion type is a minor bump. Removing or changing one is a major bump. The same rule governs the optional fields on an existing assertion (`schemaPointer`, `each`) and the staging controls (`expectExit`, `capture`): adding one is a minor bump because a case that omits it behaves exactly as before, while changing what an existing field means is a major bump.
-- Adding a case is a minor bump (new case required by a new conforming implementation → compat break).
-- Removing or tightening a case is a major bump.
-- Changing a fixture's contents is a major bump iff the fixture is referenced by any case.
+- Adding a case is a minor bump. The old justification here ("a new conforming implementation must now pass it, so it is a compat break") was wrong: the suite VERIFIES the contract, it does not define it, and per `versioning.md` failing a case is a bug report rather than a spec violation. An implementation that fails a newly added case was already non-conforming; the case only made that measurable.
+- Removing or weakening a case is a patch bump; nothing is required that was not required before.
+- A case that demands MORE than the contract states is not a suite change at all: the contract text has to change with it, and THAT change sets the bump. A case cannot quietly raise the bar on its own.
+- Changing a fixture's contents is a major bump iff the fixture is referenced by any case, since fixture bytes are the input a case computes its expectations against.
+- The full table lives in [`../versioning.md`](../versioning.md) §Conformance suite changes; this list is its summary.
