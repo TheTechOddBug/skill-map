@@ -23,7 +23,10 @@
  * Identity: `analyzer` qualified preferred, bare short id accepted
  * (either spelling matches either stored form, same grammar as
  * `sm check --analyzers`); `value` is the issue's verbatim
- * `data.target`, matched exact and case-sensitive.
+ * `data.target`, matched exact and case-sensitive. `dismiss` (and ONLY
+ * dismiss) validates the id against the live analyzer catalog, exit 2
+ * on an unknown one; `undismiss` / `suppressions` deliberately do not,
+ * see the comment in `IssuesUndismissCommand.run()`.
  */
 
 import { resolve } from 'node:path';
@@ -51,7 +54,12 @@ import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { ensureSidecarWritesAllowed } from '../../core/config/sidecar-consent.js';
 import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
+import { validateAnalyzerFilter } from '../../core/runtime/analyzer-catalog.js';
 import { ISSUES_TEXTS as T } from '../i18n/issues.texts.js';
+import {
+  formatKnownAnalyzerIds,
+  loadAnalyzerCatalog,
+} from '../util/analyzer-catalog.js';
 import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
@@ -71,7 +79,9 @@ import { withSqlite } from '../../core/sqlite/with-sqlite.js';
  * of the matching persisted rows. Idempotent: re-dismissing an
  * already-suppressed pair rewrites nothing but still runs the row
  * delete (harmless convergence toward what the next scan produces
- * anyway). Node absent from the scan: exit 5.
+ * anyway). Node absent from the scan: exit 5. `<analyzer>` unknown to
+ * the live catalog: exit 2, refused before ANY write (the sidecar is
+ * committed state, a typo there is permanent and unmatchable).
  */
 export class IssuesDismissCommand extends SmCommand {
   static override paths = [['issues', 'dismiss']];
@@ -95,6 +105,11 @@ export class IssuesDismissCommand extends SmCommand {
       Idempotent: re-dismissing an already-suppressed pair rewrites
       nothing. Undo with sm issues undismiss (the issue returns at the
       next scan); list the active entries with sm issues suppressions.
+
+      The analyzer must exist: an unknown id exits 2 and writes nothing,
+      because the .sm sidecar is committed state and a typo there would
+      never match an issue. undismiss does NOT validate, so a suppression
+      whose plugin was uninstalled can always be cleaned up.
     `,
     examples: [
       [
@@ -131,6 +146,13 @@ export class IssuesDismissCommand extends SmCommand {
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
     const dbExit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (dbExit !== null) return dbExit;
+    // Validate `<analyzer>` against the live catalog BEFORE anything is
+    // written (spec/cli-contract.md §sm issues dismiss, unknown analyzer
+    // exit 2). This runs first on purpose: the sidecar is COMMITTED
+    // human-curation state, so a typo would otherwise become permanent
+    // repo junk that no scan can ever match.
+    const unknownAnalyzerExit = await this.rejectUnknownAnalyzer();
+    if (unknownAnalyzerExit !== null) return unknownAnalyzerExit;
     // Write verb: refuse a drifted DB before the scan_issues delete
     // (spec/cli-contract.md §Schema-drift rebuild).
     assertNoDriftForWrite(dbPath);
@@ -154,6 +176,39 @@ export class IssuesDismissCommand extends SmCommand {
         dispatch: () => this.dismiss(adapter, bundle.node, ctx.cwd),
       });
     });
+  }
+
+  /**
+   * Refuse an `<analyzer>` the live catalog does not know, returning the
+   * exit code to short-circuit `run()` with (`null` = the id resolves,
+   * carry on). Same catalog and same qualified-or-bare grammar as
+   * `sm check --analyzers`, same exit 2 (usage error).
+   *
+   * Deliberately NOT mirrored on `sm issues undismiss` (see that
+   * command's `run()`): creating junk is the defect, deleting junk is
+   * the feature.
+   *
+   * The verb validates exactly one id, so the message quotes
+   * `this.analyzer` directly; the shared helper's `unknown` list would
+   * carry that same single entry.
+   */
+  private async rejectUnknownAnalyzer(): Promise<TExitCode | null> {
+    const analyzers = await loadAnalyzerCatalog({
+      noPlugins: false,
+      printer: this.printer!,
+    });
+    const validation = validateAnalyzerFilter([this.analyzer], analyzers);
+    if (validation === null) return null;
+    const ansi = this.ansiFor('stderr');
+    this.printer!.error(
+      tx(T.dismissUnknownAnalyzer, {
+        glyph: ansi.red('✕'),
+        analyzer: sanitizeForTerminal(this.analyzer),
+        known: formatKnownAnalyzerIds(validation.known, '     '),
+        hint: ansi.dim(T.dismissUnknownAnalyzerHint),
+      }),
+    );
+    return ExitCode.Error;
   }
 
   /**
@@ -309,6 +364,17 @@ export class IssuesUndismissCommand extends SmCommand {
     const dbPath = resolveDbPath({ db: this.db, ...ctx });
     const dbExit = requireDbOrExit(dbPath, this.context.stderr, this.noColor);
     if (dbExit !== null) return dbExit;
+    // NO analyzer-catalog validation here, and that asymmetry with
+    // `sm issues dismiss` (which exits 2 on an unknown id) is
+    // deliberate. Undismiss exists to REMOVE a suppression, and one
+    // legitimate reason an entry is stale is that the plugin owning its
+    // analyzer was uninstalled: refusing to delete the entry because its
+    // analyzer no longer resolves would trap the operator with committed
+    // `.sm` junk they cannot clean up. Creating junk is the defect,
+    // deleting junk is the feature. Same reasoning keeps
+    // `sm issues suppressions` from filtering unresolvable entries out of
+    // its listing (hiding them would make the state invisible, the exact
+    // thing that read verb exists to prevent).
     return withSqlite(
       {
         databasePath: dbPath,

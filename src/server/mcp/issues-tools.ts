@@ -8,7 +8,11 @@
  *   - `dismiss_issue`            -> standing `annotations.issueSuppressions`
  *                                   entry (consent-gated sidecar write) +
  *                                   delete of the covered `scan_issues`
- *                                   rows (emission-time semantics).
+ *                                   rows (emission-time semantics). The
+ *                                   `analyzer` must resolve against the
+ *                                   live catalog, refused BEFORE any
+ *                                   write otherwise (dismiss only, see
+ *                                   `assertKnownAnalyzer`).
  *   - `undismiss_issue`          -> remove the matching entry
  *                                   (consent-gated); the issue reappears
  *                                   at the NEXT scan (rows were deleted
@@ -39,6 +43,10 @@ import {
   ESidecarWritersForbiddenError,
 } from '../../core/config/sidecar-consent.js';
 import { appendOperation } from '../../core/operations-log.js';
+import {
+  analyzerCatalogFrom,
+  validateAnalyzerFilter,
+} from '../../core/runtime/analyzer-catalog.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
 import type { Node } from '../../kernel/types.js';
@@ -111,6 +119,32 @@ function nodeNotFound(node: string): McpError {
   return new McpError(ErrorCode.InvalidParams, `No node with path "${node}".`);
 }
 
+/**
+ * Refuse an `analyzer` the live catalog does not know, the tool analog
+ * of the route's `400 bad-query` and the CLI's exit 2. Raised BEFORE the
+ * DB is opened, so an unrecognised id produces no `.sm` write, no
+ * `scan_issues` delete, and no operations-log line.
+ *
+ * Same catalog and same qualified-or-bare grammar as
+ * `sm check --analyzers`, projected out of the boot-cached
+ * `ctx.pluginRuntime` (`analyzerCatalogFrom` folds the built-ins in, so
+ * a short `core` id resolves with no drop-in plugin present).
+ *
+ * DISMISS ONLY. `undismiss_issue` and `list_issue_suppressions`
+ * deliberately skip this gate: creating junk is the defect, deleting or
+ * listing junk is the feature (see `undismissIssue`).
+ */
+function assertKnownAnalyzer(ctx: IMcpWriteContext, analyzer: string): void {
+  const analyzers = analyzerCatalogFrom(ctx.pluginRuntime);
+  // Single id in, so the shared helper's `unknown` list carries just
+  // this one; the message quotes it directly.
+  if (validateAnalyzerFilter([analyzer], analyzers) === null) return;
+  throw new McpError(
+    ErrorCode.InvalidParams,
+    `Unknown analyzer "${analyzer}", nothing was written. It must resolve against the live analyzer catalog (qualified or bare form); a suppression naming an analyzer that does not exist would sit in the committed .sm sidecar forever without ever matching an issue.`,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // dismiss_issue
 // ---------------------------------------------------------------------------
@@ -149,12 +183,17 @@ export type TDismissIssueResult = {
  * rows so reads agree without a rescan. Idempotent: an equivalent
  * standing entry reports `already-suppressed` (no duplicate is added);
  * the row delete still runs so a drifted DB converges. Unknown node ->
- * invalid-params `McpError` (the tool analog of the route's 404).
+ * invalid-params `McpError` (the tool analog of the route's 404); an
+ * `analyzer` the live catalog does not know is refused the same way,
+ * BEFORE any write (the tool analog of the route's `400 bad-query`).
  */
 export async function dismissIssue(
   ctx: IMcpWriteContext,
   args: IDismissIssueArgs,
 ): Promise<TDismissIssueResult> {
+  // Typo gate BEFORE the DB is even opened: the write below is
+  // COMMITTED human-curation state.
+  assertKnownAnalyzer(ctx, args.analyzer);
   return withWriteDb(ctx, async (adapter) => {
     const bundle = await adapter.scans.findNode(args.node);
     if (!bundle) throw nodeNotFound(args.node);
@@ -221,6 +260,14 @@ export type TUndismissIssueResult =
  * node and a missing entry; the missing-entry branch self-heals the
  * mirror from the live `.sm` first (mirror of the BFF 409). The issue
  * itself reappears at the NEXT scan (dismiss deleted its rows).
+ *
+ * NO `assertKnownAnalyzer` here, on purpose (same asymmetry as
+ * `sm issues undismiss` and the BFF undismiss route): this tool REMOVES
+ * an entry, and one legitimate reason an entry is stale is that the
+ * plugin owning its analyzer was uninstalled. Refusing an unknown id
+ * would trap the operator with committed junk they cannot clean;
+ * `list_issue_suppressions` keeps showing such entries for the same
+ * reason.
  */
 export async function undismissIssue(
   ctx: IMcpWriteContext,

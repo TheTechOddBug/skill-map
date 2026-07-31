@@ -19,10 +19,15 @@
  *     no-match -> 409 `issue-suppression-not-found` AND the stale
  *     mirror self-heals first.
  *   - unknown node / malformed body -> 404 / 400.
+ *   - dismiss with an analyzer the live catalog does not know -> 400
+ *     `bad-query` AND no side effect at all (no `.sm`, no row delete,
+ *     no operations log), while a BARE known id (what the UI sends) and
+ *     a QUALIFIED known id both still succeed, and undismiss with an
+ *     unknown analyzer still works (the deliberate asymmetry).
  */
 
 import { strict as assert } from 'node:assert';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, beforeEach, describe, it } from 'node:test';
@@ -34,6 +39,7 @@ import {
 import { encodeNodePath } from '../../path-codec.js';
 import {
   bootAndUse,
+  liveBodyHash,
   seedIssues,
   serverUrl,
   setupProbProject,
@@ -50,6 +56,8 @@ interface IErrorBody {
 /** Short analyzer id, exactly as the issue row stores it. */
 const ANALYZER = 'reference-broken';
 const VALUE = '@missing-agent';
+/** Names no analyzer in any catalog: the typo the dismiss gate exists for. */
+const GHOST_ANALYZER = 'refrence-broken';
 
 let tmpRoot: string;
 let counter = 0;
@@ -102,6 +110,36 @@ async function mirrorIssueSuppressions(): Promise<IIssueSuppressionEntry[]> {
 
 async function issueRowCount(): Promise<number> {
   return withProjectDb(project, async (adapter) => (await adapter.issues.listAll()).length);
+}
+
+/** The operations log's contents, or `''` when the file was never created. */
+function operationsLog(): string {
+  const path = join(project.root, '.skill-map', 'operations.log');
+  return existsSync(path) ? readFileSync(path, 'utf8') : '';
+}
+
+/**
+ * Hand-write a `.sm` carrying ONE suppression whose analyzer no catalog
+ * knows: the shape an operator is left with after uninstalling the
+ * plugin that owned it. The dismiss route can no longer produce it,
+ * which is exactly why undismiss must still be able to remove it.
+ */
+function seedGhostSuppression(): void {
+  writeFileSync(
+    sidecarAbs(),
+    [
+      'annotations:',
+      '  issueSuppressions:',
+      // Quoted: `@` opens a YAML reserved indicator in a plain scalar.
+      `    - analyzer: '${GHOST_ANALYZER}'`,
+      `      value: '${VALUE}'`,
+      'identity:',
+      `  bodyHash: ${liveBodyHash(SKILL_NODE.path)}`,
+      `  frontmatterHash: ${'f'.repeat(64)}`,
+      `  path: ${SKILL_NODE.path}`,
+      '',
+    ].join('\n'),
+  );
 }
 
 describe('POST /api/nodes/:pathB64/issues/dismiss', () => {
@@ -202,6 +240,45 @@ describe('POST /api/nodes/:pathB64/issues/dismiss', () => {
       assert.equal(noValue.status, 400);
     });
   });
+
+  it('400 bad-query on an unknown analyzer, with NO side effect at all', async () => {
+    await bootAndUse(project, async (handle) => {
+      // `confirm: true` so consent can never be the reason for the
+      // refusal: the ONLY thing under test is the catalog gate.
+      const refused = await post(handle, '/issues/dismiss', {
+        analyzer: GHOST_ANALYZER,
+        value: VALUE,
+        confirm: true,
+      });
+      assert.equal(refused.status, 400);
+      const body = (await refused.json()) as IErrorBody;
+      assert.equal(body.error.code, 'bad-query');
+      assert.match(body.error.message, new RegExp(GHOST_ANALYZER));
+    });
+    // Not-writing is the whole point, so assert the ARTIFACTS, not just
+    // the status: no committed sidecar, no row delete, no ops line.
+    assert.equal(existsSync(sidecarAbs()), false, 'no .sm written');
+    assert.equal(await issueRowCount(), 1, 'scan_issues rows intact');
+    assert.doesNotMatch(operationsLog(), /"op":"issues\.dismiss"/);
+  });
+
+  it('a known analyzer still dismisses in BOTH spellings (the UI sends the bare one)', async () => {
+    await bootAndUse(project, async (handle) => {
+      const bare = await post(handle, '/issues/dismiss', {
+        analyzer: ANALYZER,
+        value: VALUE,
+        confirm: true,
+      });
+      assert.equal(bare.status, 204, 'bare id passes the gate');
+      const qualified = await post(handle, '/issues/dismiss', {
+        analyzer: `core/${ANALYZER}`,
+        value: 'other-token',
+        confirm: true,
+      });
+      assert.equal(qualified.status, 204, 'qualified id passes the gate');
+    });
+    assert.equal((await mirrorIssueSuppressions()).length, 2, 'both entries landed');
+  });
 });
 
 describe('POST /api/nodes/:pathB64/issues/undismiss', () => {
@@ -249,6 +326,23 @@ describe('POST /api/nodes/:pathB64/issues/undismiss', () => {
       assert.equal(((await miss.json()) as IErrorBody).error.code, 'issue-suppression-not-found');
       assert.equal((await mirrorIssueSuppressions()).length, 0, 'stale mirror self-healed');
     });
+  });
+
+  it('still removes a suppression whose analyzer no catalog knows', async () => {
+    // The deliberate asymmetry: dismiss validates, undismiss must not.
+    // A stale entry is usually the residue of an uninstalled plugin, and
+    // refusing to delete it would trap the operator with committed junk.
+    seedGhostSuppression();
+    await bootAndUse(project, async (handle) => {
+      const ok = await post(handle, '/issues/undismiss', {
+        analyzer: GHOST_ANALYZER,
+        value: VALUE,
+        confirm: true,
+      });
+      assert.equal(ok.status, 204);
+      assert.equal((await mirrorIssueSuppressions()).length, 0, 'ghost entry removed');
+    });
+    assert.doesNotMatch(readFileSync(sidecarAbs(), 'utf8'), new RegExp(GHOST_ANALYZER));
   });
 
   it('404 on an unknown node', async () => {

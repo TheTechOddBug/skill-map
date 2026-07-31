@@ -28,6 +28,23 @@ export const ISSUES_TEXTS = {
     '   {{hint}}\n',
   dismissDoneHint:
     'The analyzer skips this exact value on every future scan; `sm issues undismiss` lifts it (the issue returns at the next scan).',
+  /**
+   * Exit 2 (usage error, same code and meaning as `sm check --analyzers`
+   * on an unknown id): the `<analyzer>` positional names an analyzer the
+   * loaded catalog does not know. Refused BEFORE any write, because a
+   * typo would otherwise land as a standing
+   * `annotations.issueSuppressions` entry in the node's COMMITTED `.sm`
+   * sidecar, permanent repo state that can never match an issue.
+   * `{{known}}` is the indented list of valid qualified ids so the
+   * operator fixes the call without a trip through `sm plugins list`.
+   */
+  dismissUnknownAnalyzer:
+    '{{glyph}}  Unknown analyzer "{{analyzer}}", nothing was written.\n' +
+    '   Valid ids (qualified or bare form accepted):\n' +
+    '{{known}}\n' +
+    '   {{hint}}\n',
+  dismissUnknownAnalyzerHint:
+    'A suppression naming an analyzer that does not exist would sit in the committed .sm sidecar forever without ever matching an issue.',
   /** Exit 5: the node is not in the current scan, nothing to anchor to. */
   dismissNodeGone:
     '{{glyph}}  Node {{node}} is not in the current scan.\n' +

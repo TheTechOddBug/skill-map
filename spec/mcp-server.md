@@ -205,10 +205,22 @@ every later scan. The asymmetry is deliberate and carries over here: dismissing
 takes effect at once, undismissing only surfaces the issue again at the NEXT
 scan, because there is nothing left to reveal.
 
+`dismiss_issue` also requires its `analyzer` to resolve against the live
+analyzer catalog (same catalog and same qualified-or-bare grammar as
+`sm check --analyzers`), refusing an unknown id BEFORE any write: the sidecar
+is committed human-curation state, so a typo would otherwise become permanent
+repo junk that never matches an issue. **The validation is asymmetric on
+purpose**: `undismiss_issue` and `list_issue_suppressions` MUST NOT validate.
+Undismiss exists to REMOVE an entry, and one legitimate reason an entry is
+stale is that the plugin owning its analyzer was uninstalled, so refusing to
+delete it would trap the operator with junk they cannot clean; the list surface
+shows every entry, resolvable or not, because hiding one would recreate the
+invisible state it exists to prevent.
+
 | Tool | Input | Returns |
 |---|---|---|
-| `dismiss_issue` | `{ node: string, analyzer: string, value: string, note?: string, confirm?: boolean, always?: boolean }` | `{ outcome: 'suppressed' \| 'already-suppressed', deletedIssues: integer }`. Writes the standing entry to the sidecar (consent), refreshes the write-through `scan_nodes.annotations_json` mirror, and deletes the covered `scan_issues` rows (`deletedIssues` is that count). Idempotent: an equivalent standing entry reports `already-suppressed` and adds no duplicate, while the row delete still runs so a drifted DB converges. Unknown `node` → `-32602`. |
-| `undismiss_issue` | `{ node: string, analyzer: string, value: string, confirm?: boolean, always?: boolean }` | `{ outcome: 'unsuppressed', removed } \| { outcome: 'not-found' }`. Removes the matching entry from the sidecar (consent) and refreshes the mirror; `removed` is the entry taken out. `not-found` covers BOTH an unknown node and a missing entry (the missing-entry branch self-heals the mirror from the live `.sm` first, the analog of the route's 409). |
+| `dismiss_issue` | `{ node: string, analyzer: string, value: string, note?: string, confirm?: boolean, always?: boolean }` | `{ outcome: 'suppressed' \| 'already-suppressed', deletedIssues: integer }`. Writes the standing entry to the sidecar (consent), refreshes the write-through `scan_nodes.annotations_json` mirror, and deletes the covered `scan_issues` rows (`deletedIssues` is that count). Idempotent: an equivalent standing entry reports `already-suppressed` and adds no duplicate, while the row delete still runs so a drifted DB converges. Unknown `node` → `-32602`; an `analyzer` that resolves against no analyzer in the live catalog → `-32602` too, refused BEFORE any write (no sidecar entry, no `scan_issues` delete, no operations-log line). |
+| `undismiss_issue` | `{ node: string, analyzer: string, value: string, confirm?: boolean, always?: boolean }` | `{ outcome: 'unsuppressed', removed } \| { outcome: 'not-found' }`. Removes the matching entry from the sidecar (consent) and refreshes the mirror; `removed` is the entry taken out. `not-found` covers BOTH an unknown node and a missing entry (the missing-entry branch self-heals the mirror from the live `.sm` first, the analog of the route's 409). Deliberately does NOT validate `analyzer` against the live catalog. |
 | `list_issue_suppressions` | `{ node?: string }` | `{ suppressions: Array<Entry & { node: string }> }` projected from the write-through annotations mirror: pass `node` for one node, OMIT it for the WHOLE project. Read posture (advisory drift check, like `list_findings`); a missing DB degrades to the empty list, an unknown `node` is `-32602`. |
 
 ## Resources

@@ -31,23 +31,19 @@
 
 import { Command, Option } from 'clipanion';
 
-import type { IAnalyzer } from '../../kernel/extensions/index.js';
-import { qualifiedExtensionId } from '../../kernel/registry.js';
 import type { Issue, Severity } from '../../kernel/types.js';
 import { matchesAnalyzerFilter } from '../../kernel/util/analyzer-filter.js';
 import { CHECK_TEXTS } from '../i18n/check.texts.js';
+import { validateAnalyzerFilter } from '../../core/runtime/analyzer-catalog.js';
+import {
+  formatKnownAnalyzerIds,
+  loadAnalyzerCatalog,
+} from '../util/analyzer-catalog.js';
 import type { IAnsi } from '../util/ansi.js';
 import { buildReadVersionCheck } from '../util/db-version-check.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
-import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import { ExitCode } from '../util/exit-codes.js';
-import {
-  composeScanExtensions,
-  emptyPluginRuntime,
-  loadPluginRuntime,
-} from '../../core/runtime/plugin-runtime.js';
-import type { IPrinter } from '../../core/runtime/printer.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { SmCommand } from '../util/sm-command.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -158,7 +154,12 @@ export class CheckCommand extends SmCommand {
 
     const validation = validateAnalyzerFilter(analyzerFilter, analyzers);
     if (validation !== null) {
-      this.printer!.error(validation);
+      this.printer!.error(
+        tx(CHECK_TEXTS.unknownAnalyzerIds, {
+          unknown: validation.unknown.join(', '),
+          known: formatKnownAnalyzerIds(validation.known),
+        }),
+      );
       return { exit: ExitCode.Error };
     }
     return { exit: null };
@@ -179,74 +180,6 @@ function parseAnalyzersFlag(raw: string | undefined): readonly string[] | undefi
     .filter((s) => s.length > 0);
   if (ids.length === 0) return undefined;
   return ids;
-}
-
-interface ILoadAnalyzerCatalogOptions {
-  noPlugins: boolean;
-  printer: IPrinter;
-}
-
-/**
- * Load the plugin runtime + built-ins and return the full Analyzer
- * catalog the orchestrator would dispatch under the current config.
- * Plugin load warnings are forwarded to stderr so the user sees the
- * same diagnostics `sm scan` produces.
- *
- * The result feeds `--analyzers` validation: every user-supplied id
- * must appear here.
- */
-async function loadAnalyzerCatalog(opts: ILoadAnalyzerCatalogOptions): Promise<IAnalyzer[]> {
-  const pluginRuntime = opts.noPlugins
-    ? emptyPluginRuntime()
-    : await loadPluginRuntime();
-  pluginRuntime.emitWarnings(opts.printer);
-  // `resolveSettings` is intentionally omitted: this compose only
-  // enumerates the Analyzer catalog (ids for `--analyzers` validation).
-  // No analyzer is invoked here, so its `ctx.settings` never matters,
-  // and `sm check` has no merged config in hand at this call site. Per
-  // the wiring contract, leave it unset.
-  const composed = composeScanExtensions({
-    noBuiltIns: false,
-    pluginRuntime,
-    killSwitches: readConformanceKillSwitches(),
-  });
-  return composed?.analyzers ?? [];
-}
-
-/**
- * Validate every token in the `--analyzers` flag against the loaded
- * catalog. Accepts qualified (`core/reference-broken`) and short
- * (`reference-broken`) forms, matching the runtime filter
- * (`matchesAnalyzerFilter`). Returns `null` when every token is
- * recognised, or a multi-line error string ready for stderr otherwise.
- *
- * The error message names the unknown id(s) and lists every valid
- * qualified id so the user can fix the call without bouncing through
- * `sm plugins list`. Listing the short form alongside the qualified
- * form would double the output without adding information, the
- * matcher accepts the suffix automatically.
- */
-function validateAnalyzerFilter(
-  filter: readonly string[],
-  analyzers: readonly IAnalyzer[],
-): string | null {
-  const knownQualified = new Set<string>();
-  const knownShort = new Set<string>();
-  for (const analyzer of analyzers) {
-    const qualified = qualifiedExtensionId(analyzer.pluginId, analyzer.id);
-    knownQualified.add(qualified);
-    knownShort.add(analyzer.id);
-  }
-  const unknown = filter.filter((id) => !knownQualified.has(id) && !knownShort.has(id));
-  if (unknown.length === 0) return null;
-  const knownList = [...knownQualified]
-    .sort()
-    .map((id) => `  ${id}`)
-    .join('\n');
-  return tx(CHECK_TEXTS.unknownAnalyzerIds, {
-    unknown: unknown.join(', '),
-    known: knownList,
-  });
 }
 
 /**

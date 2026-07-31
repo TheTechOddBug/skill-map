@@ -6,6 +6,12 @@
  * `allowEditSmFiles`, a refused consent, and the hard
  * `allowSidecarWriters: false` policy); `list_issue_suppressions` is a
  * pure read over the annotations mirror. Never `:memory:`.
+ *
+ * Also covers the analyzer-catalog gate: `dismiss_issue` refuses an
+ * unknown analyzer BEFORE any write (no `.sm`, no row delete, no ops
+ * line) while both spellings of a known one still pass, and
+ * `undismiss_issue` / `list_issue_suppressions` keep working for an
+ * analyzer no catalog knows (the deliberate asymmetry).
  */
 
 import { grantLocalKey } from '../../../kernel/config/local-key-grants.js';
@@ -27,6 +33,7 @@ import {
   undismissIssue,
 } from '../issues-tools.js';
 import {
+  liveBodyHash,
   seedIssues,
   setupProbProject,
   SKILL_NODE,
@@ -37,6 +44,8 @@ import {
 /** Short analyzer id, exactly as the issue row stores it. */
 const ANALYZER = 'reference-broken';
 const VALUE = '@missing-agent';
+/** Names no analyzer in any catalog: the typo the dismiss gate exists for. */
+const GHOST_ANALYZER = 'refrence-broken';
 
 let tmpRoot: string;
 let counter = 0;
@@ -86,6 +95,36 @@ function sidecarAbs(project: IProbProject): string {
 
 async function issueRowCount(project: IProbProject): Promise<number> {
   return withProjectDb(project, async (adapter) => (await adapter.issues.listAll()).length);
+}
+
+/** The operations log's contents, or `''` when the file was never created. */
+function operationsLog(project: IProbProject): string {
+  const path = join(project.root, '.skill-map', 'operations.log');
+  return existsSync(path) ? readFileSync(path, 'utf8') : '';
+}
+
+/**
+ * Hand-write a `.sm` carrying ONE suppression whose analyzer no catalog
+ * knows: the shape an operator is left with after uninstalling the
+ * plugin that owned it. `dismiss_issue` can no longer produce it, which
+ * is exactly why `undismiss_issue` must still be able to remove it.
+ */
+function seedGhostSuppression(project: IProbProject): void {
+  writeFileSync(
+    sidecarAbs(project),
+    [
+      'annotations:',
+      '  issueSuppressions:',
+      // Quoted: `@` opens a YAML reserved indicator in a plain scalar.
+      `    - analyzer: '${GHOST_ANALYZER}'`,
+      `      value: '${VALUE}'`,
+      'identity:',
+      `  bodyHash: ${liveBodyHash(SKILL_NODE.path)}`,
+      `  frontmatterHash: ${'f'.repeat(64)}`,
+      `  path: ${SKILL_NODE.path}`,
+      '',
+    ].join('\n'),
+  );
 }
 
 describe('mcp dismiss_issue (sidecar + row delete) consent', () => {
@@ -176,6 +215,49 @@ describe('mcp dismiss_issue (sidecar + row delete) consent', () => {
       McpError,
     );
   });
+
+  it('refuses an unknown analyzer with NO side effect at all', async () => {
+    const project = await makeProject();
+    grantConsent(project);
+    await seedIssues(project, [{ analyzerId: ANALYZER, target: VALUE }]);
+    // Consent is GRANTED, so the refusal can only come from the gate.
+    await assert.rejects(
+      () =>
+        dismissIssue(ctxFor(project), {
+          node: SKILL_NODE.path,
+          analyzer: GHOST_ANALYZER,
+          value: VALUE,
+        }),
+      (err: unknown) => err instanceof McpError && new RegExp(GHOST_ANALYZER).test(err.message),
+    );
+    // Not-writing is the whole point, so assert the ARTIFACTS.
+    assert.equal(existsSync(sidecarAbs(project)), false, 'no .sm written');
+    assert.equal(await issueRowCount(project), 1, 'scan_issues rows intact');
+    assert.doesNotMatch(operationsLog(project), /"op":"issues\.dismiss"/);
+  });
+
+  it('a known analyzer still dismisses in BOTH spellings', async () => {
+    const project = await makeProject();
+    grantConsent(project);
+    const ctx = ctxFor(project);
+    assert.equal(
+      (await dismissIssue(ctx, { node: SKILL_NODE.path, analyzer: ANALYZER, value: VALUE }))
+        .outcome,
+      'suppressed',
+      'bare id passes the gate',
+    );
+    assert.equal(
+      (
+        await dismissIssue(ctx, {
+          node: SKILL_NODE.path,
+          analyzer: `core/${ANALYZER}`,
+          value: 'other-token',
+        })
+      ).outcome,
+      'suppressed',
+      'qualified id passes the gate',
+    );
+  });
 });
 
 describe('mcp undismiss_issue (sidecar) consent', () => {
@@ -196,6 +278,40 @@ describe('mcp undismiss_issue (sidecar) consent', () => {
       removed: { analyzer: ANALYZER, value: VALUE },
     });
     assert.doesNotMatch(readFileSync(sidecarAbs(project), 'utf8'), /reference-broken/);
+    assert.deepEqual(await listIssueSuppressions(ctx, { node: SKILL_NODE.path }), {
+      suppressions: [],
+    });
+  });
+
+  it('still removes a suppression whose analyzer no catalog knows', async () => {
+    // The deliberate asymmetry: dismiss validates, undismiss must not.
+    // A stale entry is usually the residue of an uninstalled plugin, and
+    // refusing to delete it would trap the operator with committed junk.
+    const project = await makeProject();
+    grantConsent(project);
+    seedGhostSuppression(project);
+    await withProjectDb(project, (adapter) =>
+      adapter.scans.refreshAnnotations(SKILL_NODE.path, {
+        issueSuppressions: [{ analyzer: GHOST_ANALYZER, value: VALUE }],
+      }),
+    );
+    const ctx = ctxFor(project);
+    // The read surface keeps showing it, for the same reason: hiding an
+    // unresolvable entry recreates the invisible state it exists to prevent.
+    assert.deepEqual(await listIssueSuppressions(ctx, { node: SKILL_NODE.path }), {
+      suppressions: [{ node: SKILL_NODE.path, analyzer: GHOST_ANALYZER, value: VALUE }],
+    });
+
+    const result = await undismissIssue(ctx, {
+      node: SKILL_NODE.path,
+      analyzer: GHOST_ANALYZER,
+      value: VALUE,
+    });
+    assert.deepEqual(result, {
+      outcome: 'unsuppressed',
+      removed: { analyzer: GHOST_ANALYZER, value: VALUE },
+    });
+    assert.doesNotMatch(readFileSync(sidecarAbs(project), 'utf8'), new RegExp(GHOST_ANALYZER));
     assert.deepEqual(await listIssueSuppressions(ctx, { node: SKILL_NODE.path }), {
       suppressions: [],
     });

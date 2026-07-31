@@ -10,6 +10,11 @@
  *     refreshes the `scan_nodes.annotations_json` mirror, DELETES the
  *     matching `scan_issues` rows, and appends the `issues.dismiss`
  *     operations-log line.
+ *   - dismiss REFUSES an `<analyzer>` the live catalog does not know
+ *     (exit 2) before writing anything, while undismiss / suppressions
+ *     deliberately keep working on entries whose analyzer no longer
+ *     resolves (the documented asymmetry: creating junk is the defect,
+ *     deleting junk is the feature).
  *   - idempotent: a repeat dismiss of the same (analyzer, value) pair
  *     does NOT duplicate the entry (deletedIssues converges to 0).
  *   - undismiss removes ONE entry (bare / qualified analyzer spellings
@@ -44,9 +49,16 @@ import { _resetSidecarValidatorCacheForTests } from '../../../kernel/sidecar/par
 
 const NODE = 'notes/guide.md';
 const HASH = 'a'.repeat(64);
+const FM_HASH = 'f'.repeat(64);
 const ANALYZER = 'reference-broken';
 const QUALIFIED = 'core/reference-broken';
 const VALUE = '@ApiSecurity';
+/**
+ * An analyzer id no catalog resolves: a typo on the way in, or (for the
+ * suppression already on disk) the analyzer of a plugin that was
+ * uninstalled after the entry was written.
+ */
+const GHOST_ANALYZER = 'ghost-plugin/ghost-analyzer';
 
 let tmpRoot: string;
 let counter = 0;
@@ -86,7 +98,7 @@ async function insertNode(adapter: SqliteStorageAdapter): Promise<void> {
       sidecarRootJson: null,
       frontmatterJson: '{}',
       bodyHash: HASH,
-      frontmatterHash: 'f'.repeat(64),
+      frontmatterHash: FM_HASH,
       bytesFrontmatter: 0,
       bytesBody: 8,
       bytesTotal: 8,
@@ -272,6 +284,47 @@ function readOpsLog(root: string): Array<Record<string, unknown>> {
     .map((line) => JSON.parse(line) as Record<string, unknown>);
 }
 
+/**
+ * Hand-write a `.sm` carrying a suppression whose analyzer NO catalog
+ * resolves (the plugin that owned it was uninstalled) and mirror it into
+ * `scan_nodes.annotations_json` the way a scan would. `sm issues dismiss`
+ * can no longer produce this state, but a project committed before the
+ * plugin was removed still carries it, and the read / remove verbs must
+ * keep working on it.
+ */
+async function seedGhostSuppression(proj: IProject): Promise<void> {
+  writeFileSync(
+    join(proj.root, sidecarPathFor(NODE)),
+    [
+      'identity:',
+      `  path: ${NODE}`,
+      `  bodyHash: ${HASH}`,
+      `  frontmatterHash: ${FM_HASH}`,
+      'annotations:',
+      '  issueSuppressions:',
+      `    - analyzer: ${GHOST_ANALYZER}`,
+      `      value: "${VALUE}"`,
+      '',
+    ].join('\n'),
+  );
+  _resetSidecarValidatorCacheForTests();
+  const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+  await adapter.init();
+  try {
+    await adapter.db
+      .updateTable('scan_nodes')
+      .set({
+        annotationsJson: JSON.stringify({
+          issueSuppressions: [{ analyzer: GHOST_ANALYZER, value: VALUE }],
+        }),
+      })
+      .where('path', '=', NODE)
+      .execute();
+  } finally {
+    await adapter.close();
+  }
+}
+
 /** Dismiss (analyzer, value) on NODE with consent, asserting success. */
 async function dismissPair(
   proj: IProject,
@@ -369,6 +422,42 @@ describe('sm issues dismiss', () => {
     deepStrictEqual(readIssueSuppressions(proj.root), [
       { analyzer: QUALIFIED, value: VALUE },
       { analyzer: QUALIFIED, value: '@apisecurity' },
+    ]);
+  });
+
+  it('exit 2 on an analyzer the catalog does not know, and NOTHING is written', async () => {
+    // The defect this pins: the sidecar is COMMITTED human-curation
+    // state, so a typo'd analyzer would become permanent repo junk that
+    // can never match an issue. Validation runs before every write.
+    const proj = await setupProject();
+    const cap = captureContext();
+    const code = await withCwd(proj.root, async () =>
+      run(buildDismiss({ analyzer: 'bogus-analyzer', yes: true }), cap),
+    );
+
+    strictEqual(code, 2, `expected ExitCode.Error (2); got ${code}; stderr=${cap.stderr()}`);
+    ok(/Unknown analyzer "bogus-analyzer"/.test(cap.stderr()), cap.stderr());
+    // The message lists the valid ids the way `sm check --analyzers` does.
+    ok(/core\/reference-broken/.test(cap.stderr()), cap.stderr());
+
+    // The whole point: no sidecar file exists at all (asserted on the
+    // FILE, not just on the exit code).
+    strictEqual(existsSync(join(proj.root, sidecarPathFor(NODE))), false);
+    // No row was deleted and no operations-log line was appended.
+    deepStrictEqual(await remainingTargets(proj), ['@ApiSecurity', '@Other']);
+    strictEqual(await readMirror(proj), null);
+    deepStrictEqual(readOpsLog(proj.root), []);
+  });
+
+  it('a known BARE id passes validation and writes end to end (qualified is the case above)', async () => {
+    // A naive validation (qualified-only) would break the bare form the
+    // contract accepts, so the bare spelling gets its own end-to-end pass.
+    const proj = await setupProject();
+    await dismissPair(proj, { analyzer: ANALYZER });
+    deepStrictEqual(readIssueSuppressions(proj.root), [{ analyzer: ANALYZER, value: VALUE }]);
+    deepStrictEqual(await remainingTargets(proj), ['@Other']);
+    deepStrictEqual((await readMirror(proj))?.['issueSuppressions'], [
+      { analyzer: ANALYZER, value: VALUE },
     ]);
   });
 
@@ -482,6 +571,22 @@ describe('sm issues undismiss', () => {
     strictEqual(code, 5);
     ok(/not in the current scan/.test(cap.stderr()), cap.stderr());
   });
+
+  it('removes an entry whose analyzer no longer resolves (the deliberate asymmetry with dismiss)', async () => {
+    // Dismiss validates, undismiss does NOT: a suppression goes stale
+    // exactly when the plugin owning its analyzer is uninstalled, and
+    // refusing to delete it would trap the operator with committed junk.
+    const proj = await setupProject();
+    await seedGhostSuppression(proj);
+
+    const cap = captureContext();
+    const code = await withCwd(proj.root, async () =>
+      run(buildUndismiss({ analyzer: GHOST_ANALYZER, yes: true }), cap),
+    );
+    strictEqual(code, 0, cap.stderr());
+    deepStrictEqual(readIssueSuppressions(proj.root), []);
+    deepStrictEqual((await readMirror(proj))?.['issueSuppressions'], []);
+  });
 });
 
 describe('sm issues suppressions', () => {
@@ -544,6 +649,21 @@ describe('sm issues suppressions', () => {
       (JSON.parse(miss.stdout()) as { suppressions: unknown[] }).suppressions.length,
       0,
     );
+  });
+
+  it('lists an entry whose analyzer no longer resolves (never filters the listing)', async () => {
+    // The read verb exists so a silenced value is never invisible state;
+    // hiding an unresolvable analyzer would recreate exactly that.
+    const proj = await setupProject();
+    await seedGhostSuppression(proj);
+    const cap = captureContext();
+    strictEqual(
+      await withCwd(proj.root, async () => run(buildSuppressions({ json: true }), cap)),
+      0,
+    );
+    deepStrictEqual((JSON.parse(cap.stdout()) as { suppressions: unknown[] }).suppressions, [
+      { node: NODE, analyzer: GHOST_ANALYZER, value: VALUE },
+    ]);
   });
 
   it('friendly empty line when nothing is suppressed', async () => {

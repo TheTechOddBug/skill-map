@@ -707,6 +707,14 @@ export const SERVER_TEXTS = {
   // wording mirrors the CLI's `sm issues dismiss / undismiss`.
   issueAnalyzerRequired: 'body.analyzer is required (the emitting analyzer id)',
   issueValueRequired: 'body.value is required (the verbatim flagged token)',
+  /**
+   * DISMISS-only refusal (400 `bad-query`): the id names no analyzer in
+   * the live catalog, so the suppression would sit in the committed
+   * `.sm` sidecar forever without ever matching an issue. Deliberately
+   * NOT raised by the undismiss route, see `node-issue-actions.ts`.
+   */
+  issueUnknownAnalyzer:
+    'unknown analyzer {{analyzer}}, nothing was written; it must resolve against the live analyzer catalog (qualified or bare form)',
   issueSuppressionNotFound:
     'no issue suppression for {{analyzer}} + {{value}} on {{node}}',
 } as const;
