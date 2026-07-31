@@ -99,6 +99,18 @@ export const CONFORMANCE_RUNNER_TEXTS = {
   ndjsonNoLineMatched:
     'ndjson-line: no stdout line deep-equals {{match}} on its top-level keys',
 
+  perResultAssertionWithParallel:
+    'assertion type `{{type}}` is per-result and cannot be used with invoke.parallel: "the" result is ambiguous across N invocations, a case authoring error (use the parallel-* set assertions; nothing was spawned)',
+
+  parallelAssertionWithoutParallel:
+    'assertion type `{{type}}` requires invoke.parallel >= 2: without concurrent invocations there is no result set to assert over, a case authoring error (nothing was spawned)',
+
+  parallelExitCodesMismatch:
+    'parallel-exit-codes: sorted exit codes {{actual}} do not deep-equal expected {{expected}}',
+
+  parallelJsonPathCountMismatch:
+    'parallel-json-path-count: {{actual}} of {{total}} results satisfy {{path}}, expected {{expected}}',
+
   specRootMissingIndex:
     'spec root missing index.json at {{specRoot}}',
 } as const;

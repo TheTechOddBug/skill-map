@@ -76,15 +76,33 @@ interface IInvocation {
 }
 
 /**
+ * The main `invoke` wrapper: an `Invocation` plus `parallel`, the
+ * concurrency primitive. When `parallel >= 2` the runner spawns that many
+ * IDENTICAL invocations concurrently (all started before any is awaited),
+ * the only way a case can express a race; capture substitution applies to
+ * each copy identically.
+ */
+interface IMainInvocation extends IInvocation {
+  /** Number of identical concurrent invocations (2..8); absent = one. */
+  parallel?: number;
+}
+
+/**
  * `setup.priorInvokes[N]` shape
  * (`conformance-case.schema.json#/$defs/StagedInvocation`), an invocation
- * plus the two staging-only controls.
+ * plus the staging-only controls.
  */
 interface IStagedInvocation extends IInvocation {
   /** Exit code this step MUST return; defaults to 0. */
   expectExit?: number;
   /** Variable name to JSONPath, extracted from this step's stdout. */
   capture?: Record<string, string>;
+  /**
+   * Milliseconds to sleep AFTER this step completes (post exit check and
+   * captures) and before the next one. Exists solely so TTL-expiry
+   * contracts become observable; cases arm at least 3x the TTL staged.
+   */
+  sleepAfterMs?: number;
 }
 
 /** Accumulated `capture` bindings, variable name to captured value. */
@@ -108,7 +126,7 @@ interface IConformanceCase {
     priorScans?: Array<{ fixture: string; flags?: string[] }>;
     priorInvokes?: IStagedInvocation[];
   };
-  invoke: IInvocation;
+  invoke: IMainInvocation;
   assertions: TAssertion[];
 }
 
@@ -271,7 +289,56 @@ export type TAssertion =
       lessThan?: number;
       matches?: string;
     }
-  | { type: 'stderr-matches'; pattern: string };
+  | { type: 'stderr-matches'; pattern: string }
+  | { type: 'parallel-exit-codes'; sorted: number[] }
+  | {
+      type: 'parallel-json-path-count';
+      path: string;
+      equals?: unknown;
+      greaterThan?: number;
+      lessThan?: number;
+      matches?: string;
+      count: number;
+    };
+
+/** The set assertions that only make sense over a `parallel` invoke's N results. */
+type TParallelAssertion = Extract<
+  TAssertion,
+  { type: 'parallel-exit-codes' } | { type: 'parallel-json-path-count' }
+>;
+
+function isParallelAssertion(a: TAssertion): a is TParallelAssertion {
+  return a.type === 'parallel-exit-codes' || a.type === 'parallel-json-path-count';
+}
+
+/**
+ * Authoring-error gate for the `parallel` pairing, evaluated BEFORE any
+ * child (staging or main) is spawned: a per-result assertion with
+ * `parallel` set is ambiguous across N results, and a `parallel-*`
+ * assertion without it has no result set to assert over. Failing loudly
+ * up front, instead of picking a result silently, is the contract the
+ * case schema states.
+ */
+function checkParallelPairing(c: IConformanceCase): TAssertionResult | null {
+  const parallel = (c.invoke.parallel ?? 0) >= 2;
+  for (const a of c.assertions) {
+    if (parallel && !isParallelAssertion(a)) {
+      return {
+        ok: false,
+        type: a.type,
+        reason: tx(CONFORMANCE_RUNNER_TEXTS.perResultAssertionWithParallel, { type: a.type }),
+      };
+    }
+    if (!parallel && isParallelAssertion(a)) {
+      return {
+        ok: false,
+        type: a.type,
+        reason: tx(CONFORMANCE_RUNNER_TEXTS.parallelAssertionWithoutParallel, { type: a.type }),
+      };
+    }
+  }
+  return null;
+}
 
 // Conformance runner orchestrates: case parse, setup steps, scope
 // provision, serve lifecycle, sm invocation, assert dispatch over the
@@ -288,6 +355,22 @@ export async function runConformanceCase(options: IRunCaseOptions): Promise<IRun
   // cap the length so an over-long id (or one carrying path separators
   // / control bytes) can't escape `tmpdir()` or grow the prefix beyond
   // a reasonable bound.
+  // Authoring errors are detectable statically, so the parallel pairing
+  // gate fires BEFORE the scope is staged and before ANY child process
+  // (staging or main) is spawned: a violating case fails without side
+  // effects rather than after minutes of setup.
+  const pairingFailure = checkParallelPairing(c);
+  if (pairingFailure) {
+    return {
+      caseId: c.id,
+      passed: false,
+      exitCode: 0,
+      stdout: '',
+      stderr: '',
+      assertions: [pairingFailure],
+    };
+  }
+
   const safeId = c.id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 32);
   const scope = mkdtempSync(join(tmpdir(), `sm-conformance-${safeId}-`));
   const setupEnv = disableEnv(c.setup);
@@ -361,7 +444,7 @@ async function runServeAndInvokePhases(
     }
 
     const captures: TCaptures = {};
-    const invokeFailure = runPriorInvokesSetup(c, options, scope, setupEnv, captures);
+    const invokeFailure = await runPriorInvokesSetup(c, options, scope, setupEnv, captures);
     if (invokeFailure) return invokeFailure;
 
     return await runMainInvoke(c, options, scope, setupEnv, fixturesRoot, captures, servePort);
@@ -391,6 +474,10 @@ async function runMainInvoke(
   const resolvedArgv = resolveArgv(c.invoke, captures);
   if (!resolvedArgv.ok) return stagingFailure(c, 0, '', '', resolvedArgv.reason);
 
+  if ((c.invoke.parallel ?? 0) >= 2) {
+    return runParallelInvoke(c, options, scope, setupEnv, resolvedArgv.argv);
+  }
+
   const child = spawnSync(process.execPath, [options.binary, ...resolvedArgv.argv], {
     cwd: scope,
     env: { ...pickSafeEnv(process.env), ...options.env, ...setupEnv },
@@ -418,6 +505,178 @@ async function runMainInvoke(
   const passed = assertions.every((a) => a.ok);
 
   return { caseId: c.id, passed, exitCode, stdout, stderr, assertions };
+}
+
+/** One parallel invocation's collected outcome, indexed by spawn order. */
+interface IParallelResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}
+
+/**
+ * The `invoke.parallel` branch of `runMainInvoke`: spawn N IDENTICAL
+ * children via async `spawn` (never `spawnSync`, whose serialisation
+ * would erase the very overlap the case exists to create), ALL started
+ * before any is awaited, then evaluate the `parallel-*` set assertions
+ * over the collected results.
+ *
+ * The overlap guarantee: each `spawn()` call forks the child immediately
+ * and returns without waiting, so by the time `Promise.all` starts
+ * awaiting, every child is already running; the OS schedules them
+ * concurrently and only the exit collection is sequentialised.
+ *
+ * The pairing gate in `runConformanceCase` already guaranteed every
+ * assertion is a `parallel-*` one, so the filter here is a type
+ * narrowing, not a semantic decision.
+ *
+ * Result shape: `exitCode` is the sorted-first code, `stdout` / `stderr`
+ * are per-index-headed concatenations, readable in failure reports where
+ * they surface.
+ */
+async function runParallelInvoke(
+  c: IConformanceCase,
+  options: IRunCaseOptions,
+  scope: string,
+  setupEnv: NodeJS.ProcessEnv,
+  argv: string[],
+): Promise<IRunCaseResult> {
+  const n = c.invoke.parallel ?? 0;
+  const env = { ...pickSafeEnv(process.env), ...options.env, ...setupEnv };
+  const pending: Array<Promise<IParallelResult>> = [];
+  for (let i = 0; i < n; i++) {
+    pending.push(spawnCollect(process.execPath, [options.binary, ...argv], scope, env));
+  }
+  const results = await Promise.all(pending);
+
+  const assertions: TAssertionResult[] = c.assertions
+    .filter(isParallelAssertion)
+    .map((a) => evaluateParallelAssertion(a, results));
+  const passed = assertions.every((a) => a.ok);
+
+  const sortedCodes = results.map((r) => r.exitCode).sort((a, b) => a - b);
+  const joinStreams = (pick: (r: IParallelResult) => string): string =>
+    results.map((r, i) => `--- [${i}] ---\n${pick(r)}`).join('\n');
+
+  return {
+    caseId: c.id,
+    passed,
+    exitCode: sortedCodes[0] ?? 0,
+    stdout: joinStreams((r) => r.stdout),
+    stderr: joinStreams((r) => r.stderr),
+    assertions,
+  };
+}
+
+/**
+ * Spawn one child and resolve with its collected streams and exit code.
+ * The `spawn()` call itself starts the process before this function
+ * returns; only the resolution waits (on `close`, so both streams are
+ * fully flushed before the result is read).
+ */
+function spawnCollect(
+  command: string,
+  argv: string[],
+  cwd: string,
+  env: NodeJS.ProcessEnv,
+): Promise<IParallelResult> {
+  return new Promise((resolveRun) => {
+    const child = spawn(command, argv, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    let err = '';
+    child.stdout?.on('data', (chunk: Buffer) => {
+      out += chunk.toString('utf8');
+    });
+    child.stderr?.on('data', (chunk: Buffer) => {
+      err += chunk.toString('utf8');
+    });
+    child.on('close', (code) => resolveRun({ exitCode: code ?? 0, stdout: out, stderr: err }));
+  });
+}
+
+/** Dispatch one `parallel-*` set assertion over the N collected results. */
+function evaluateParallelAssertion(
+  a: TParallelAssertion,
+  results: IParallelResult[],
+): TAssertionResult {
+  if (a.type === 'parallel-exit-codes') return evaluateParallelExitCodes(a, results);
+  return evaluateParallelJsonPathCount(a, results);
+}
+
+/**
+ * `parallel-exit-codes`: the multiset of the N exit codes, sorted
+ * ascending, must deep-equal the declared `sorted` array. With one
+ * queued job and two concurrent claims, `[0, 1]` IS the atomicity
+ * proof: two zeros would be a double handout, two ones a lost job.
+ */
+function evaluateParallelExitCodes(
+  a: Extract<TParallelAssertion, { type: 'parallel-exit-codes' }>,
+  results: IParallelResult[],
+): TAssertionResult {
+  const actual = results.map((r) => r.exitCode).sort((x, y) => x - y);
+  return deepEqual(actual, a.sorted)
+    ? { ok: true, type: a.type }
+    : {
+        ok: false,
+        type: a.type,
+        reason: tx(CONFORMANCE_RUNNER_TEXTS.parallelExitCodesMismatch, {
+          actual: JSON.stringify(actual),
+          expected: JSON.stringify(a.sorted),
+        }),
+      };
+}
+
+/**
+ * `parallel-json-path-count`: count how many of the N results have a
+ * JSON stdout satisfying the comparator at `path`; the count must equal
+ * `count` exactly. A non-JSON stdout simply does not count, which is the
+ * point: the losing claim prints nothing.
+ */
+function evaluateParallelJsonPathCount(
+  a: Extract<TParallelAssertion, { type: 'parallel-json-path-count' }>,
+  results: IParallelResult[],
+): TAssertionResult {
+  const segments = parsePath(a.path);
+  if (!segments) {
+    return {
+      ok: false,
+      type: a.type,
+      reason: tx(CONFORMANCE_RUNNER_TEXTS.unsupportedJsonPath, { path: a.path }),
+    };
+  }
+  let satisfied = 0;
+  for (const result of results) {
+    if (resultSatisfiesPathComparator(a, segments, result.stdout)) satisfied++;
+  }
+  return satisfied === a.count
+    ? { ok: true, type: a.type }
+    : {
+        ok: false,
+        type: a.type,
+        reason: tx(CONFORMANCE_RUNNER_TEXTS.parallelJsonPathCountMismatch, {
+          actual: satisfied,
+          total: results.length,
+          path: a.path,
+          expected: a.count,
+        }),
+      };
+}
+
+/** True when one result's stdout is JSON and its value at the path satisfies the comparator. */
+function resultSatisfiesPathComparator(
+  a: Extract<TParallelAssertion, { type: 'parallel-json-path-count' }>,
+  segments: Array<string | number>,
+  stdout: string,
+): boolean {
+  let doc: unknown;
+  try {
+    doc = JSON.parse(stdout);
+  } catch {
+    return false;
+  }
+  const walked = traverseJsonPath(doc, segments, a.path);
+  if (!walked.ok) return false;
+  return applyJsonPathComparator(a, walked.value).ok;
 }
 
 /**
@@ -485,17 +744,19 @@ function runPriorScansSetup(
  * with a single `priorInvoke` failure assertion (caller returns it
  * unchanged).
  */
-// Per-step replay: substitute, spawn, check exit, capture. The failure-
-// result construction is verbose because it carries every stream the
-// caller reports back (same shape as `runPriorScansSetup`).
+// Per-step replay: substitute, spawn, check exit, capture, sleep. The
+// failure-result construction is verbose because it carries every stream
+// the caller reports back (same shape as `runPriorScansSetup`). Async
+// only for `sleepAfterMs`; each step's child still runs to completion
+// before the next starts.
 // eslint-disable-next-line complexity
-function runPriorInvokesSetup(
+async function runPriorInvokesSetup(
   c: IConformanceCase,
   options: IRunCaseOptions,
   scope: string,
   setupEnv: NodeJS.ProcessEnv,
   captures: TCaptures,
-): IRunCaseResult | null {
+): Promise<IRunCaseResult | null> {
   for (const step of c.setup?.priorInvokes ?? []) {
     const resolved = resolveArgv(step, captures);
     if (!resolved.ok) return stagingFailure(c, 0, '', '', resolved.reason);
@@ -530,6 +791,12 @@ function runPriorInvokesSetup(
       const bound = applyCaptures(step.capture, stepStdout, stepArgv);
       if (!bound.ok) return stagingFailure(c, stepExit, stepStdout, stepStderr, bound.reason);
       Object.assign(captures, bound.values);
+    }
+    // TTL-expiry window: the sleep runs AFTER the step passed its exit
+    // check and captures, so a case can arm a TTL, claim, and let real
+    // time pass before the step that observes the reap.
+    if (step.sleepAfterMs !== undefined && step.sleepAfterMs > 0) {
+      await delay(step.sleepAfterMs);
     }
   }
   return null;
@@ -1007,6 +1274,19 @@ async function evaluateAssertion(a: TAssertion, ctx: TAssertionContext): Promise
             reason: tx(CONFORMANCE_RUNNER_TEXTS.stderrDidNotMatch, { pattern: a.pattern }),
           };
     }
+    case 'parallel-exit-codes':
+    case 'parallel-json-path-count':
+      // Unreachable by construction: the pairing gate in
+      // `runConformanceCase` rejects a `parallel-*` assertion before any
+      // spawn when `invoke.parallel` is absent, and the parallel branch
+      // evaluates them via `evaluateParallelAssertion` over the N
+      // results. Kept as a loud failure (never a crash, never a skip) so
+      // a future wiring mistake surfaces as a named authoring error.
+      return {
+        ok: false,
+        type: a.type,
+        reason: tx(CONFORMANCE_RUNNER_TEXTS.parallelAssertionWithoutParallel, { type: a.type }),
+      };
   }
 }
 

@@ -366,6 +366,107 @@ describe('conformance runner, ndjson-line', () => {
   });
 });
 
+describe('conformance runner, parallel', () => {
+  it('fails a per-result assertion combined with parallel, without spawning anything', async () => {
+    const result = await run('parallel-per-result', {
+      id: 'parallel-per-result',
+      description: 'With N results "the" exit code is ambiguous; the pairing is an authoring error.',
+      invoke: { verb: 'version', parallel: 2 },
+      assertions: [{ type: 'exit-code', value: 0 }],
+    });
+    assert.ok(!result.passed);
+    const reason = soleFailure(result);
+    // Names the offending type, and states nothing ran: the gate fires
+    // before the scope is staged, so both streams are empty, the cheap
+    // observable that no child was spawned.
+    assert.match(reason, /`exit-code`/);
+    assert.match(reason, /nothing was spawned/);
+    assert.equal(result.stdout, '');
+    assert.equal(result.stderr, '');
+  });
+
+  it('fails a parallel-* assertion without parallel, naming the type', async () => {
+    const result = await run('parallel-without-flag', {
+      id: 'parallel-without-flag',
+      description: 'A set assertion over one result has no set to assert over.',
+      invoke: { verb: 'version' },
+      assertions: [{ type: 'parallel-exit-codes', sorted: [0, 0] }],
+    });
+    assert.ok(!result.passed);
+    const reason = soleFailure(result);
+    assert.match(reason, /`parallel-exit-codes`/);
+    assert.match(reason, /invoke\.parallel/);
+    assert.equal(result.stdout, '');
+  });
+
+  it('fails parallel-exit-codes on a wrong multiset, showing actual vs expected', async () => {
+    // `version` is fixture-free and always exits 0, so two concurrent
+    // copies yield [0, 0]; asserting [0, 1] must fail showing both sides.
+    const result = await run('parallel-codes-mismatch', {
+      id: 'parallel-codes-mismatch',
+      description: 'Two version invocations both exit 0; the [0, 1] expectation must fail.',
+      invoke: { verb: 'version', parallel: 2 },
+      assertions: [{ type: 'parallel-exit-codes', sorted: [0, 1] }],
+    });
+    assert.ok(!result.passed);
+    const reason = soleFailure(result);
+    assert.match(reason, /\[0,0\]/);
+    assert.match(reason, /\[0,1\]/);
+  });
+
+  it('counts non-JSON stdouts as zero and fails a crafted count mismatch', async () => {
+    // The real one-winner race is covered by the shipped
+    // `claim-race-atomicity` case in conformance.spec.ts; here the cheap
+    // fixture-free variant pins the counting semantics. `version` prints
+    // a human-mode matrix, not JSON, so zero results can ever satisfy
+    // the comparator: count 0 passes, count 2 must fail naming 0 of 2.
+    const passing = await run('parallel-count-zero', {
+      id: 'parallel-count-zero',
+      description: 'Non-JSON stdouts simply do not count; an expected zero passes.',
+      invoke: { verb: 'version', parallel: 2 },
+      assertions: [
+        { type: 'parallel-json-path-count', path: '$.x', matches: '.+', count: 0 },
+      ],
+    });
+    assert.ok(passing.passed, JSON.stringify(passing.assertions));
+
+    const mismatch = await run('parallel-count-mismatch', {
+      id: 'parallel-count-mismatch',
+      description: 'The same invoke against an impossible count must fail with the tally.',
+      invoke: { verb: 'version', parallel: 2 },
+      assertions: [
+        { type: 'parallel-json-path-count', path: '$.x', matches: '.+', count: 2 },
+      ],
+    });
+    assert.ok(!mismatch.passed);
+    assert.match(soleFailure(mismatch), /0 of 2 results satisfy \$\.x, expected 2/);
+  });
+});
+
+describe('conformance runner, sleepAfterMs', () => {
+  it('delays between staged steps by at least the armed duration', async () => {
+    // The primitive is a wall-clock guarantee, so the observable IS the
+    // elapsed time: two trivial staged steps with a 1200ms sleep after
+    // the first cannot complete faster than the sleep itself.
+    const started = Date.now();
+    const result = await run('sleep-after-ms', {
+      id: 'sleep-after-ms',
+      description: 'The runner sleeps after a staged step before the next one.',
+      fixture: 'corpus',
+      setup: {
+        priorInvokes: [{ verb: 'version', sleepAfterMs: 1200 }, { verb: 'version' }],
+      },
+      invoke: { verb: 'version' },
+      assertions: [{ type: 'exit-code', value: 0 }],
+    });
+    assert.ok(result.passed, JSON.stringify(result.assertions));
+    assert.ok(
+      Date.now() - started >= 1200,
+      `case finished in ${Date.now() - started}ms, faster than the armed 1200ms sleep`,
+    );
+  });
+});
+
 describe('conformance runner, setup.serve lifecycle', () => {
   it('boots the server, asserts against it, and tears the child down', async () => {
     const result = await run('serve-teardown', {

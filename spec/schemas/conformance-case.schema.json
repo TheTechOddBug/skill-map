@@ -76,7 +76,15 @@
     },
     "invoke": {
       "allOf": [{ "$ref": "#/$defs/Invocation" }],
-      "unevaluatedProperties": false
+      "unevaluatedProperties": false,
+      "properties": {
+        "parallel": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 8,
+          "description": "The runner spawns this many IDENTICAL invocations CONCURRENTLY (all started before any is awaited), which is the only way a case can express a race; capture substitution applies to each copy identically. When `parallel` is set, the per-result assertion types (`exit-code`, `json-path`, the schema and verbatim families, `stderr-matches`) are AUTHORING ERRORS, because \"the\" result is ambiguous across N; only the `parallel-*` set assertions may be used, and the runner MUST fail loudly on a violation rather than picking a result silently."
+        }
+      }
     },
     "assertions": {
       "type": "array",
@@ -132,6 +140,12 @@
             "description": "JSONPath expression (RFC 9535 subset) evaluated against the step's parsed stdout."
           },
           "minProperties": 1
+        },
+        "sleepAfterMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 30000,
+          "description": "The runner sleeps this long AFTER the step completes and before the next one. Exists solely to let TTL-expiry contracts become observable (`sm jobs submit --ttl 1`, then a sleep, then the reap); a case SHOULD arm a sleep of at least 3x the TTL it staged so wall-clock noise cannot flip the outcome. It is NOT a general pacing tool."
         }
       }
     },
@@ -147,7 +161,9 @@
         { "$ref": "#/$defs/StdoutMatchesSchema" },
         { "$ref": "#/$defs/HttpMatchesSchema" },
         { "$ref": "#/$defs/NdjsonLineMatches" },
-        { "$ref": "#/$defs/StderrMatches" }
+        { "$ref": "#/$defs/StderrMatches" },
+        { "$ref": "#/$defs/ParallelExitCodes" },
+        { "$ref": "#/$defs/ParallelJsonPathCount" }
       ]
     },
     "ExitCode": {
@@ -358,6 +374,59 @@
           "description": "ECMAScript regex. The full stderr output MUST match at least once."
         }
       }
+    },
+    "ParallelExitCodes": {
+      "type": "object",
+      "required": ["type", "sorted"],
+      "additionalProperties": false,
+      "description": "Set assertion over the N results of a `parallel` invoke: the multiset of the N invocations' exit codes, sorted ascending, MUST deep-equal `sorted`. The canonical use: with one queued job and two concurrent claims, `[0, 1]` IS the atomicity proof, since both succeeding would mean a double handout and both failing would mean a lost job. Declaring it without `invoke.parallel` is an authoring error the runner MUST fail loudly, never skip.",
+      "properties": {
+        "type": { "const": "parallel-exit-codes" },
+        "sorted": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 8,
+          "items": { "type": "integer", "minimum": 0, "maximum": 255 },
+          "description": "Expected exit-code multiset, sorted ascending. Length MUST equal `invoke.parallel`."
+        }
+      }
+    },
+    "ParallelJsonPathCount": {
+      "type": "object",
+      "required": ["type", "path", "count"],
+      "additionalProperties": false,
+      "description": "Set assertion over the N results of a `parallel` invoke: of the N results, the number whose stdout parses as JSON AND satisfies the comparator at `path` MUST equal `count`. A result whose stdout is not JSON simply does not count (the losing claim prints nothing, and that is the point). Declaring it without `invoke.parallel` is an authoring error the runner MUST fail loudly, never skip.",
+      "properties": {
+        "type": { "const": "parallel-json-path-count" },
+        "path": {
+          "type": "string",
+          "description": "JSONPath expression (RFC 9535 subset) evaluated against each result's parsed stdout."
+        },
+        "equals": {
+          "description": "Any JSON value. The extracted value MUST deep-equal this for the result to count."
+        },
+        "greaterThan": {
+          "type": "number"
+        },
+        "lessThan": {
+          "type": "number"
+        },
+        "matches": {
+          "type": "string",
+          "description": "ECMAScript regex. The extracted value (coerced to string) MUST match for the result to count."
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Exact number of results that MUST satisfy the comparator."
+        }
+      },
+      "anyOf": [
+        { "required": ["equals"] },
+        { "required": ["greaterThan"] },
+        { "required": ["lessThan"] },
+        { "required": ["matches"] }
+      ]
     }
   }
 }

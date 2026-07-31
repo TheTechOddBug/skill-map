@@ -112,6 +112,15 @@ const SPEC_CASES = [
   'serve-info-schema',
   'rest-envelope-schema',
   'record-run-envelope',
+  // The concurrency + clock pair (rows C / G). `claim-race-atomicity`
+  // exercises `invoke.parallel` (two overlapping claims, exactly one
+  // handover); `ttl-reap-abandoned` exercises `sleepAfterMs` (a 3x-TTL
+  // wait so the ride-along reap observably fails the expired job).
+  // Together they add ~5s of wall-clock, accepted: the real race and the
+  // real TTL expiry are the contracts, and there is no faster honest way
+  // to observe either.
+  'claim-race-atomicity',
+  'ttl-reap-abandoned',
 ] as const;
 const PROVIDER_CLAUDE_CASES = ['rename-high', 'orphan-detection'] as const;
 const PROVIDER_OPENAI_CASES = ['basic-scan', 'body-links'] as const;

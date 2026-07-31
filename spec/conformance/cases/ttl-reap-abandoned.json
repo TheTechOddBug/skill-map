@@ -1,0 +1,22 @@
+{
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
+  "id": "ttl-reap-abandoned",
+  "description": "TTL is opt-in per `job-lifecycle.md` §TTL and auto-reap: a job submitted with `--ttl 1` and then claimed becomes abandoned once real time passes its expiry, and the reap that runs at the start of every `sm jobs claim` fails it with reason `abandoned`. The staged sleep is 3x the armed TTL so the case is timing-safe, and the second claim exits 1 because the reap leaves the queue empty. The reap is asserted through its EFFECT (the abandoned row in `sm jobs list --json`) rather than any message, since the claim-side reap is silent by contract.",
+  "fixture": "job-record-chain",
+  "setup": {
+    "priorScans": [{ "fixture": "job-record-chain" }],
+    "priorInvokes": [
+      { "verb": "agent", "sub": "install", "flags": ["--for", "claude"] },
+      { "verb": "jobs", "sub": "submit", "args": ["ai-summarizer-action"], "flags": ["-n", "notes.md", "--ttl", "1"] },
+      { "verb": "jobs", "sub": "claim", "flags": ["--json"], "sleepAfterMs": 3000 },
+      { "verb": "jobs", "sub": "claim", "flags": ["--json"], "expectExit": 1 }
+    ]
+  },
+  "invoke": { "verb": "jobs", "sub": "list", "flags": ["--json"] },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$[0].status", "equals": "failed" },
+    { "type": "json-path", "path": "$[0].failureReason", "equals": "abandoned" },
+    { "type": "json-path", "path": "$.length", "equals": 1 }
+  ]
+}

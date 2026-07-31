@@ -1,0 +1,18 @@
+{
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
+  "id": "claim-race-atomicity",
+  "description": "The atomic claim is THE queue's concurrency contract (`job-lifecycle.md` §Concurrency: no two agents ever hold the same job), and it is only observable as a race, which is what `parallel` exists for. With one queued job and two concurrent `sm jobs claim --json` processes, exactly one receives the `{id, nonce, content}` handover (exit 0, a `nonce` in its stdout) and the other finds the queue empty (exit 1, no JSON), in either order: `parallel-exit-codes [0, 1]` rules out both the double handout (two zeros) and the lost job (two ones), and the nonce count of 1 pins that the winner is a real handover rather than a shared one.",
+  "fixture": "job-record-chain",
+  "setup": {
+    "priorScans": [{ "fixture": "job-record-chain" }],
+    "priorInvokes": [
+      { "verb": "agent", "sub": "install", "flags": ["--for", "claude"] },
+      { "verb": "jobs", "sub": "submit", "args": ["ai-summarizer-action"], "flags": ["-n", "notes.md"] }
+    ]
+  },
+  "invoke": { "verb": "jobs", "sub": "claim", "flags": ["--json"], "parallel": 2 },
+  "assertions": [
+    { "type": "parallel-exit-codes", "sorted": [0, 1] },
+    { "type": "parallel-json-path-count", "path": "$.nonce", "matches": ".+", "count": 1 }
+  ]
+}
