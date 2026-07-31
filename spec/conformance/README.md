@@ -56,7 +56,7 @@ Fixtures are read-only inputs. Cases declare what to invoke and what to assert. 
 
 ## Case format
 
-Cases are validated against [`conformance-case.schema.json`](../schemas/conformance-case.schema.json), the normative shape; this section is the human-readable walkthrough. Include `"$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json"` in every case file for IDE support.
+Cases are validated against [`conformance-case.schema.json`](../schemas/conformance-case.schema.json), the normative shape; this section is the human-readable walkthrough. A runner MUST validate every case document against that schema BEFORE executing it, reporting a non-validating case as a named failure (`case-invalid` in the reference impl) rather than proceeding into whatever behaviour its missing or misspelled fields happen to produce. This load-time gate is also how the schema's own coverage closes: the case documents live outside any provisioned scope and a case invoking the suite would recurse, so the one place every case necessarily passes through is the enforcement point. Include `"$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json"` in every case file for IDE support.
 
 A case is a JSON document with this shape:
 

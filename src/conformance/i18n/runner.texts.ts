@@ -27,6 +27,9 @@ export const CONFORMANCE_RUNNER_TEXTS = {
   captureNotScalar:
     'setup.priorInvokes step `{{argv}}` capture "{{name}}" ({{path}}) resolved to {{type}}, expected a string or number',
 
+  caseInvalid:
+    'the case document does not validate against conformance-case.schema.json: {{reason}}',
+
   pathMustBeRelative:
     'conformance: {{label}} path "{{path}}" must be relative to its anchor ({{anchor}})',
 

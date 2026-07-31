@@ -1,11 +1,12 @@
 import { strict as assert } from 'node:assert';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
 import { runConformanceCase } from '../index.js';
+import { checkAgainstSchema } from '../schema-assertions.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WORKSPACE = resolve(HERE, '..', '..');
@@ -363,5 +364,59 @@ describe('runConformanceCase, path-traversal guard (audit follow-up 6.4)', () =>
         return true;
       },
     );
+  });
+});
+
+/**
+ * The `conformance-case.schema.json` coverage row closes HERE rather
+ * than in a case: the case documents live outside any provisioned
+ * scope and a case invoking the suite would recurse, so the schema is
+ * enforced at the runner's load gate and audited by this sweep. Every
+ * bundled case in every scope MUST validate; an offender is named
+ * individually so the failure reads as "fix this file", not "something
+ * in the suite broke".
+ */
+describe('bundled case documents validate against conformance-case.schema.json', () => {
+  const CASE_DIRS: ReadonlyArray<readonly [string, string]> = [
+    ['spec', SPEC_CASES_DIR],
+    ['provider:claude', CLAUDE_CASES_DIR],
+    ['provider:codex', OPENAI_CASES_DIR],
+    ['provider:antigravity', ANTIGRAVITY_CASES_DIR],
+    ['provider:agent-skills', resolve(WORKSPACE, 'plugins', 'agent-skills', 'providers', 'agent-skills', 'conformance', 'cases')],
+    ['provider:opencode', resolve(WORKSPACE, 'plugins', 'opencode', 'providers', 'opencode', 'conformance', 'cases')],
+  ];
+
+  for (const [label, dir] of CASE_DIRS) {
+    it(`every ${label} case validates`, () => {
+      const files = readdirSync(dir).filter((f) => f.endsWith('.json'));
+      assert.ok(files.length > 0, `${label}: no case files found at ${dir}`);
+      const offenders: string[] = [];
+      for (const file of files) {
+        const doc: unknown = JSON.parse(readFileSync(join(dir, file), 'utf8'));
+        const verdict = checkAgainstSchema(doc, 'conformance-case.schema.json', SPEC_ROOT);
+        if (!verdict.ok) offenders.push(`${file}: ${verdict.reason}`);
+      }
+      assert.deepEqual(offenders, [], `non-validating cases:\n  ${offenders.join('\n  ')}`);
+    });
+  }
+});
+
+describe('runner load gate, the enforcement the sweep audits', () => {
+  it('fails a malformed case with case-invalid before anything runs', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sm-case-invalid-'));
+    try {
+      const casePath = join(dir, 'bad.json');
+      // `assertions` missing entirely: the emptiest possible violation.
+      writeFileSync(casePath, JSON.stringify({ id: 'bad', description: 'malformed', invoke: { verb: 'version' } }));
+      const result = await runConformanceCase({ binary: BIN, specRoot: SPEC_ROOT, casePath });
+      assert.equal(result.passed, false);
+      assert.equal(result.assertions[0]?.type, 'case-invalid');
+      assert.match(
+        (result.assertions[0] as { reason: string }).reason,
+        /conformance-case\.schema\.json/,
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

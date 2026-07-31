@@ -55,6 +55,9 @@ describe('conformance runner, fixture path containment (audit M4)', () => {
   it('rejects when case.fixture escapes fixturesRoot via ..', async () => {
     const { casePath, fixturesRoot } = writeCase('fixture-escape', {
       id: 'fixture-escape',
+      // Schema-valid on purpose: the load gate now validates every case,
+      // and these tests are about the CONTAINMENT layer behind it.
+      description: 'Hostile case whose fixture escapes the fixtures root.',
       fixture: '../../etc',
       invoke: { verb: 'version' },
       assertions: [{ type: 'exit-code', value: 0 }],
@@ -74,6 +77,7 @@ describe('conformance runner, fixture path containment (audit M4)', () => {
   it('rejects when case.fixture is absolute', async () => {
     const { casePath, fixturesRoot } = writeCase('fixture-abs', {
       id: 'fixture-abs',
+      description: 'Hostile case whose fixture is an absolute path.',
       fixture: '/etc',
       invoke: { verb: 'version' },
       assertions: [{ type: 'exit-code', value: 0 }],
@@ -95,6 +99,7 @@ describe('conformance runner, assertion path containment (audit M4)', () => {
   it('file-exists with an escaping path returns ok:false instead of leaking existence', async () => {
     const { casePath, fixturesRoot } = writeCase('assertion-escape', {
       id: 'assertion-escape',
+      description: 'Case whose file-exists assertion path escapes the scope.',
       fixture: 'ok',
       invoke: { verb: 'version' },
       assertions: [

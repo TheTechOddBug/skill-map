@@ -223,6 +223,13 @@ function disableEnv(setup: IConformanceCase['setup']): NodeJS.ProcessEnv {
  * via the prefix matcher so the kill-switches and feature flags reach
  * the child unchanged.
  */
+/**
+ * Schema every case document is validated against before it runs. The
+ * relative form matches what `checkAgainstSchema` resolves under the
+ * spec root.
+ */
+const CONFORMANCE_CASE_SCHEMA_REL = 'conformance-case.schema.json';
+
 const SAFE_CONFORMANCE_ENV_KEYS: ReadonlyArray<string> = [
   'PATH',
   'HOME',
@@ -362,6 +369,34 @@ function checkParallelPairing(c: IConformanceCase): TAssertionResult | null {
 export async function runConformanceCase(options: IRunCaseOptions): Promise<IRunCaseResult> {
   const raw = readFileSync(options.casePath, 'utf8');
   const c: IConformanceCase = JSON.parse(raw);
+
+  // The case document itself is validated against
+  // `conformance-case.schema.json` before anything runs. This is the
+  // closure of the schema's own coverage row: a CASE can never assert
+  // it (the documents live outside the provisioned scope, and a case
+  // invoking the suite would recurse), so the contract is enforced at
+  // the only place every case necessarily passes through. A malformed
+  // case therefore fails with a named reason instead of whatever
+  // downstream behaviour its missing or misspelled fields happened to
+  // produce, which is also what makes third-party-authored cases safe
+  // to run.
+  const caseShape = checkAgainstSchema(c, CONFORMANCE_CASE_SCHEMA_REL, options.specRoot);
+  if (!caseShape.ok) {
+    return {
+      caseId: typeof c.id === 'string' ? c.id : options.casePath,
+      passed: false,
+      exitCode: 0,
+      stdout: '',
+      stderr: '',
+      assertions: [
+        {
+          ok: false,
+          type: 'case-invalid',
+          reason: tx(CONFORMANCE_RUNNER_TEXTS.caseInvalid, { reason: caseShape.reason }),
+        },
+      ],
+    };
+  }
 
   const fixturesRoot = options.fixturesRoot ?? join(options.specRoot, 'conformance', 'fixtures');
 
