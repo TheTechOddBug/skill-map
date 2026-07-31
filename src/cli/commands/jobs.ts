@@ -76,6 +76,7 @@ interface IPruneOutput {
 
 export class JobPruneCommand extends SmCommand {
   static override paths = [['jobs', 'prune']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Jobs',
     description: 'Retention GC for completed / failed / cancelled jobs (per config policy), plus orphaned job-content collection.',

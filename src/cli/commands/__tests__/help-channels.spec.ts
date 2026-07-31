@@ -24,11 +24,9 @@
 
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
-import { Cli } from 'clipanion';
 import type { BaseContext } from 'clipanion';
 
-import { HelpCommand } from '../help.js';
-import { ScanCommand } from '../scan.js';
+import { createSmCli } from '../../command-registry.js';
 import { ExitCode } from '../../util/exit-codes.js';
 
 interface ICapture {
@@ -52,11 +50,14 @@ function captureContext(): ICapture {
   };
 }
 
-function buildCli(): Cli {
-  const cli = new Cli({ binaryName: 'sm', binaryLabel: 'skill-map', binaryVersion: '0.0.0' });
-  cli.register(HelpCommand);
-  cli.register(ScanCommand);
-  return cli;
+/**
+ * The real composed CLI (`cli/command-registry.ts`), not an ad-hoc
+ * two-command `Cli`: `sm help` renders whatever the registry holds, and
+ * only `SmCli` produces the complete `definitions()` the JSON format
+ * depends on (see `help-introspection.spec.ts`).
+ */
+function buildCli(): ReturnType<typeof createSmCli> {
+  return createSmCli();
 }
 
 describe('sm help, channel discipline', () => {

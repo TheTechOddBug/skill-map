@@ -20,6 +20,7 @@ import { SmCommand } from '../../util/sm-command.js';
 
 export class DbBackupCommand extends SmCommand {
   static override paths = [['db', 'backup']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Database',
     description: 'WAL checkpoint + copy the DB file to a backup.',

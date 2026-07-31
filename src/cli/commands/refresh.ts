@@ -153,6 +153,7 @@ type TRefreshJsonErrorCode = 'not-found' | 'db-missing' | 'internal';
  */
 export class RefreshCommand extends SmCommand {
   static override paths = [['refresh']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
 
   static override usage = Command.Usage({
     category: 'Scan',

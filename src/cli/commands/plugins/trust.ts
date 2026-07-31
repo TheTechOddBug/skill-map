@@ -271,6 +271,7 @@ function isBuiltInOrLocked(id: string): boolean {
 
 export class PluginsTrustCommand extends TrustPluginsBase {
   static override paths = [['plugins', 'trust']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Plugins',
     description: 'Grant LOCAL import trust to one or more project-local plugins (or --all). Persists in the scope lock, per checkout.',
@@ -297,6 +298,7 @@ export class PluginsTrustCommand extends TrustPluginsBase {
 
 export class PluginsUntrustCommand extends TrustPluginsBase {
   static override paths = [['plugins', 'untrust']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Plugins',
     description: 'Revoke LOCAL import trust from one or more project-local plugins (or --all). Does not delete files or change enable state.',

@@ -25,6 +25,7 @@ import { assertSafeIdentifier } from './shared.js';
 
 export class DbResetCommand extends SmCommand {
   static override paths = [['db', 'reset']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Database',
     description: 'Drop scan_* (default), optionally state_*, or delete the DB entirely.',

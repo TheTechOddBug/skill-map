@@ -105,6 +105,7 @@ function parseStatuses(
 
 export class HistoryCommand extends SmCommand {
   static override paths = [['history']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'History',
     description:
@@ -197,6 +198,7 @@ export class HistoryCommand extends SmCommand {
 
 export class HistoryStatsCommand extends SmCommand {
   static override paths = [['history', 'stats']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'History',
     description:

@@ -122,6 +122,7 @@ interface ISidecarWriteConsent {
  */
 export class BumpCommand extends SmCommand {
   static override paths = [['bump']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Issues, ExitCode.Error, ExitCode.NotFound];
 
   static override usage = Command.Usage({
     category: 'Actions',

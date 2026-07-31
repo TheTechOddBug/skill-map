@@ -25,6 +25,11 @@ import { INTENTIONAL_FAIL_TEXTS } from '../i18n/intentional-fail.texts.js';
 
 export class IntentionalFailCommand extends SmCommand {
   static override paths = [['intentional-fail']];
+  // Never publishes (no `static usage`, see below) and never succeeds:
+  // the deferred throw normally kills the process through Node's
+  // uncaught-exception path; `Issues` is the swallowed-throw fallback
+  // and `Error` the SmCommand boundary.
+  static override exitCodes = [ExitCode.Issues, ExitCode.Error];
 
   // No `static usage` on purpose: that is what keeps the verb out of every
   // help / reference surface Clipanion drives from command definitions.

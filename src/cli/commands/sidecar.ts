@@ -126,6 +126,7 @@ async function runWithSidecarConsent(
 
 export class SidecarRefreshCommand extends SmCommand {
   static override paths = [['sidecars', 'refresh']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Actions',
     description:
@@ -294,6 +295,7 @@ export class SidecarRefreshCommand extends SmCommand {
 
 export class SidecarPruneCommand extends SmCommand {
   static override paths = [['sidecars', 'prune']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Issues, ExitCode.Error];
   static override usage = Command.Usage({
     category: 'Actions',
     description:
@@ -470,6 +472,7 @@ export class SidecarPruneCommand extends SmCommand {
 
 export class SidecarAnnotateCommand extends SmCommand {
   static override paths = [['sidecars', 'annotate']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Actions',
     description:

@@ -214,6 +214,7 @@ const DEFAULT_CLAIM_WAIT_SECONDS = 2;
 
 export class JobSubmitCommand extends SmCommand {
   static override paths = [['jobs', 'submit']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.Duplicate, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Jobs',
     description: 'Enqueue a probabilistic extension against one node (-n) or every matching node (--all).',
@@ -784,6 +785,7 @@ export class JobSubmitCommand extends SmCommand {
 
 export class JobListCommand extends SmCommand {
   static override paths = [['jobs', 'list']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Jobs',
     description: 'List jobs, optionally filtered by status / extension / node.',
@@ -856,6 +858,7 @@ export class JobListCommand extends SmCommand {
 
 export class JobShowCommand extends SmCommand {
   static override paths = [['jobs', 'show']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Jobs',
     description: 'Job detail: state, claim time, TTL, priority, runner, content hash.',
@@ -923,6 +926,7 @@ export class JobShowCommand extends SmCommand {
 
 export class JobPreviewCommand extends SmCommand {
   static override paths = [['jobs', 'preview']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Jobs',
     description: 'Print the rendered content of a job without executing it (reads from state_job_contents; no on-disk artifact).',
@@ -1001,6 +1005,7 @@ export class JobPreviewCommand extends SmCommand {
 
 export class JobClaimCommand extends SmCommand {
   static override paths = [['jobs', 'claim']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Issues, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Jobs',
     description: 'Atomic claim: transition the next queued job to running and return its id (the external-agent handover primitive).',
@@ -1255,6 +1260,7 @@ export class JobClaimCommand extends SmCommand {
 
 export class JobStatusCommand extends SmCommand {
   static override paths = [['jobs', 'status']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Jobs',
     description: 'Counts per status (no id) or a single job\'s status.',
@@ -1324,6 +1330,7 @@ export class JobStatusCommand extends SmCommand {
 
 export class JobCancelCommand extends SmCommand {
   static override paths = [['jobs', 'cancel']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Jobs',
     description: 'Move a queued / running job to the terminal cancelled state (or --all).',
@@ -1440,6 +1447,7 @@ export class JobCancelCommand extends SmCommand {
 
 export class JobFailCommand extends SmCommand {
   static override paths = [['jobs', 'fail']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Jobs',
     description: 'Force a queued / running job to failed with reason user-failed (or --all).',

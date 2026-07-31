@@ -48,7 +48,7 @@ import {
 } from '../../core/sqlite/db-version-check.js';
 import { UTIL_TEXTS } from '../i18n/util.texts.js';
 import { ansiFor, type IAnsi } from './ansi.js';
-import { ExitCode } from './exit-codes.js';
+import { DEFAULT_EXIT_CODES, ExitCode, type TExitCode } from './exit-codes.js';
 import { Logger } from './logger.js';
 import { emitDoneStderr, startElapsed, type IElapsed } from './elapsed.js';
 import { createPrinter, type IPrinter } from '../../core/runtime/printer.js';
@@ -64,20 +64,65 @@ function isEnvSet(value: string | undefined): boolean {
   return value !== undefined && value !== '';
 }
 
+/**
+ * One entry of the `globalFlags[]` catalog published by
+ * `sm help --format json` (`spec/cli-contract.md` §Help). Deliberately
+ * narrower than a per-verb flag entry: no `aliases`, no `required`,
+ * because the JSON envelope is consumed by third parties and its shape
+ * is normative. The short forms (`-q`, `-v`) still travel per verb,
+ * inside `verbs[].flags[].aliases`.
+ */
+export interface IGlobalFlag {
+  name: string;
+  type: 'boolean' | 'string';
+  description: string;
+}
+
+/**
+ * The flags EVERY verb accepts because `SmCommand` declares them.
+ *
+ * Hand-written on purpose, and pinned by a test: the option objects
+ * themselves live in class-field initialisers on an abstract class, so
+ * there is no honest way to enumerate them without instantiating a
+ * concrete verb. Keeping the catalog next to the declarations (and
+ * sharing one description string with each `Option.*` below) is the
+ * cheapest arrangement that cannot drift silently.
+ *
+ * `-h` / `--help` is NOT here: Clipanion owns it (it is not an
+ * `Option.*` on any command class), so `cli/commands/help.ts` appends
+ * it to the published catalog with its own description.
+ */
+export const GLOBAL_FLAGS: readonly IGlobalFlag[] = [
+  { name: '--json', type: 'boolean', description: UTIL_TEXTS.globalFlagJson },
+  { name: '--quiet', type: 'boolean', description: UTIL_TEXTS.globalFlagQuiet },
+  { name: '--no-color', type: 'boolean', description: UTIL_TEXTS.globalFlagNoColor },
+  { name: '--verbose', type: 'boolean', description: UTIL_TEXTS.globalFlagVerbose },
+  { name: '--db', type: 'string', description: UTIL_TEXTS.globalFlagDb },
+];
+
 export abstract class SmCommand extends Command {
+  /**
+   * Every exit code this verb can return, published per verb by
+   * `sm help --format json` (`spec/cli-contract.md` §Introspection,
+   * NORMATIVE). Subclasses that can return more than the default
+   * `[0, 2]` declare the full set with `static override exitCodes`;
+   * values come from `spec/cli-contract.md` §Exit codes.
+   */
+  static exitCodes: readonly TExitCode[] = DEFAULT_EXIT_CODES;
+
   json = Option.Boolean('--json', false, {
-    description: 'Emit machine-readable output on stdout. Suppresses pretty printing.',
+    description: UTIL_TEXTS.globalFlagJson,
   });
   quiet = Option.Boolean('-q,--quiet', false, {
-    description: 'Suppress non-error stderr output (including "done in <…>").',
+    description: UTIL_TEXTS.globalFlagQuiet,
   });
   noColor = Option.Boolean('--no-color', false, {
-    description: 'Disable ANSI color codes.',
+    description: UTIL_TEXTS.globalFlagNoColor,
   });
   verbose = Option.Counter('-v,--verbose', 0, {
-    description: 'Increase log level (-v=info, -vv=debug, -vvv=trace).',
+    description: UTIL_TEXTS.globalFlagVerbose,
   });
-  db = Option.String('--db', { required: false, description: 'Override the database file location (escape hatch).' });
+  db = Option.String('--db', { required: false, description: UTIL_TEXTS.globalFlagDb });
 
   /**
    * Subclasses set this to `false` to opt out of the trailing

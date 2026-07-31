@@ -65,6 +65,7 @@ type TWriteTarget = 'project' | 'project-local';
 
 export class PluginsConfigCommand extends SmCommand {
   static override paths = [['plugins', 'config']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Plugins',
     description: 'Read or write an extension\'s declared settings.',

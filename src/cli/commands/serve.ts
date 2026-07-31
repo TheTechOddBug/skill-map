@@ -67,6 +67,7 @@ import { VERSION } from '../../version.js';
 
 export class ServeCommand extends SmCommand {
   static override paths = [['serve']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
 
   static override usage = Command.Usage({
     category: 'Setup',

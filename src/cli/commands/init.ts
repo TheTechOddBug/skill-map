@@ -53,6 +53,7 @@ import { withSqlite } from '../../core/sqlite/with-sqlite.js';
 
 export class InitCommand extends SmCommand {
   static override paths = [['init']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Issues, ExitCode.Error];
   static override usage = Command.Usage({
     category: 'Setup',
     description: 'Bootstrap the current project: scaffold .skill-map/, provision DB, run first scan.',

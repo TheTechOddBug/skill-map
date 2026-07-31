@@ -102,6 +102,7 @@ export class ActionsListCommand extends SmCommand {
 
 export class ActionsShowCommand extends SmCommand {
   static override paths = [['actions', 'show']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Jobs',
     description: 'Full action manifest: preconditions, expected duration, report schema ref.',

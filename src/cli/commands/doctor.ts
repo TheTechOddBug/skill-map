@@ -54,6 +54,7 @@ interface ICheckRow {
 
 export class DoctorCommand extends SmCommand {
   static override paths = [['doctor']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Issues, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Setup',
     description:

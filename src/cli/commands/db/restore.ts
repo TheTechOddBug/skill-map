@@ -29,6 +29,7 @@ import { SmCommand } from '../../util/sm-command.js';
 
 export class DbRestoreCommand extends SmCommand {
   static override paths = [['db', 'restore']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Database',
     description: 'Replace the active DB file with a backup.',

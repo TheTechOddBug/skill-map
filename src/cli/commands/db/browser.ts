@@ -18,6 +18,7 @@ import { SmCommand } from '../../util/sm-command.js';
 
 export class DbBrowserCommand extends SmCommand {
   static override paths = [['db', 'browser']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Database',
     description: 'Open the DB in DB Browser for SQLite (sqlitebrowser GUI).',

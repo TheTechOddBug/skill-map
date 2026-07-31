@@ -37,3 +37,20 @@ export const ExitCode = {
 } as const;
 
 export type TExitCode = (typeof ExitCode)[keyof typeof ExitCode];
+
+/**
+ * The exit-code set every verb carries unless it declares its own.
+ *
+ * `Ok` because a verb that can never succeed would not exist, and
+ * `Error` because `SmCommand.execute()` funnels every exception
+ * escaping `run()` into `ExitCode.Error` (see its `renderUnhandledError`
+ * boundary), so exit `2` is reachable from ANY verb regardless of what
+ * its own body returns.
+ *
+ * Verbs that can also produce `Issues` / `Duplicate` / `NonceMismatch` /
+ * `NotFound` declare the full set via `static override exitCodes`; the
+ * declaration is what `sm help --format json` publishes per verb
+ * (`spec/cli-contract.md` §Introspection, NORMATIVE), so it must match
+ * what the verb's `run()` can actually return.
+ */
+export const DEFAULT_EXIT_CODES: readonly TExitCode[] = [ExitCode.Ok, ExitCode.Error];

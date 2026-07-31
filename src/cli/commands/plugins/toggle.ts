@@ -469,6 +469,7 @@ async function purgeContributionsFor(
 
 export class PluginsEnableCommand extends TogglePluginsBase {
   static override paths = [['plugins', 'enable']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Plugins',
     description: 'Enable one or more extensions (or --all). Persists the per-extension enabled in the config layers.',
@@ -505,6 +506,7 @@ export class PluginsEnableCommand extends TogglePluginsBase {
 
 export class PluginsDisableCommand extends TogglePluginsBase {
   static override paths = [['plugins', 'disable']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Plugins',
     description: 'Disable one or more extensions (or --all). Persists the per-extension enabled in the config layers; does not delete files.',

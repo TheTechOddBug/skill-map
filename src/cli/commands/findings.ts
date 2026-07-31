@@ -110,6 +110,7 @@ import { withSqlite } from '../../core/sqlite/with-sqlite.js';
 
 export class FindingsCommand extends SmCommand {
   static override paths = [['findings']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Browse',
     description: 'Print stored probabilistic findings (finder judgments + kernel safety rows).',
@@ -384,6 +385,7 @@ export class FindingsCommand extends SmCommand {
  */
 export class FindingsPruneCommand extends SmCommand {
   static override paths = [['findings', 'prune']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Browse',
     description: 'Delete stale findings (body changed since the judgment, or the node left the scan).',
@@ -522,6 +524,7 @@ export class FindingsPruneCommand extends SmCommand {
  */
 export class FindingsResolveCommand extends SmCommand {
   static override paths = [['findings', 'resolve']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Browse',
     description: 'Mark a finding fixed by you (a human decision, not a verification).',
@@ -677,6 +680,7 @@ export class FindingsResolveCommand extends SmCommand {
  */
 export class FindingsReopenCommand extends SmCommand {
   static override paths = [['findings', 'reopen']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Browse',
     description: 'Clear a finding resolution back to open (undo dismiss / fixed / needs-decision).',
@@ -762,6 +766,7 @@ export class FindingsReopenCommand extends SmCommand {
 
 export class FindingsDismissCommand extends SmCommand {
   static override paths = [['findings', 'dismiss']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Browse',
     description: 'Dismiss one finding (row state), or silence its whole class with --class.',
@@ -1062,6 +1067,7 @@ export class FindingsDismissCommand extends SmCommand {
  */
 export class FindingsClearCommand extends SmCommand {
   static override paths = [['findings', 'clear']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Browse',
     description: 'Delete findings wholesale (one node or the whole project), fresh included.',
@@ -1227,6 +1233,7 @@ export class FindingsClearCommand extends SmCommand {
  */
 export class FindingsSuppressionsCommand extends SmCommand {
   static override paths = [['findings', 'suppressions']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Browse',
     description: 'List active finding suppressions (judgment classes silenced by dismiss).',
@@ -1329,6 +1336,7 @@ export class FindingsSuppressionsCommand extends SmCommand {
  */
 export class FindingsUndismissCommand extends SmCommand {
   static override paths = [['findings', 'undismiss']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Browse',
     description: 'Remove a suppression written by dismiss; the judgment class shows again instantly.',

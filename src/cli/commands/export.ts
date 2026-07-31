@@ -86,6 +86,7 @@ function resolveMermaidFormatter(): IFormatter {
 
 export class ExportCommand extends SmCommand {
   static override paths = [['export']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Browse',
     description: 'Filtered export. Query syntax is implementation-defined pre-1.0.',

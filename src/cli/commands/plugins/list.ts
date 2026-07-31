@@ -49,6 +49,7 @@ import {
 
 export class PluginsListCommand extends SmCommand {
   static override paths = [['plugins', 'list']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Plugins',
     description: 'List discovered plugins, or one plugin\'s extensions.',

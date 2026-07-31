@@ -68,6 +68,7 @@ function isStringArray(v: unknown): v is string[] {
 
 export class OrphansCommand extends SmCommand {
   static override paths = [['orphans']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Browse',
     description:
@@ -145,6 +146,7 @@ export class OrphansCommand extends SmCommand {
 
 export class OrphansReconcileCommand extends SmCommand {
   static override paths = [['orphans', 'reconcile']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Browse',
     description:
@@ -303,6 +305,7 @@ export class OrphansReconcileCommand extends SmCommand {
 
 export class OrphansUndoRenameCommand extends SmCommand {
   static override paths = [['orphans', 'undo-rename']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Browse',
     description:

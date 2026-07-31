@@ -102,6 +102,7 @@ function parseNonNegIntFlag(flag: string, raw: string | undefined): number | und
 
 export class RecordCommand extends SmCommand {
   static override paths = [['record']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NonceMismatch, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Jobs',
     description: 'Close a running job with success or failure. Nonce is the sole credential.',

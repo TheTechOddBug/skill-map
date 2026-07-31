@@ -85,6 +85,7 @@ import { withSqlite } from '../../core/sqlite/with-sqlite.js';
  */
 export class IssuesDismissCommand extends SmCommand {
   static override paths = [['issues', 'dismiss']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Browse',
     description: 'Dismiss a deterministic analyzer issue (analyzer + exact value) on one node, durably.',
@@ -322,6 +323,7 @@ export class IssuesDismissCommand extends SmCommand {
  */
 export class IssuesUndismissCommand extends SmCommand {
   static override paths = [['issues', 'undismiss']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Browse',
     description: 'Remove an issue suppression written by dismiss; the issue returns at the next scan.',
@@ -505,6 +507,7 @@ export class IssuesUndismissCommand extends SmCommand {
  */
 export class IssuesSuppressionsCommand extends SmCommand {
   static override paths = [['issues', 'suppressions']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Browse',
     description: 'List active issue suppressions (analyzer values silenced by dismiss).',

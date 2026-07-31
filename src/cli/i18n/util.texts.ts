@@ -20,6 +20,19 @@ export const UTIL_TEXTS = {
   unhandledError: '{{glyph}}  {{message}}\n   {{hint}}\n',
   unhandledErrorHint: 'Unexpected error (likely a bug in skill-map). Re-run with -v for the stack trace.',
 
+  // sm-command.ts (global flag descriptions)
+  // Single source for the five flags `SmCommand` declares: each string
+  // feeds BOTH the Clipanion `Option.*` `description` (per-verb `--help`
+  // and the per-verb `flags[]` of `sm help --format json`) and the
+  // `globalFlags[]` catalog of that same JSON document, so the two can
+  // never drift apart. Wording tracks the spec table
+  // (`spec/cli-contract.md` §Global flags).
+  globalFlagJson: 'Emit machine-readable output on stdout. Suppresses pretty printing.',
+  globalFlagQuiet: 'Suppress non-error stderr output (including "done in <…>").',
+  globalFlagNoColor: 'Disable ANSI color codes.',
+  globalFlagVerbose: 'Increase log level (-v=info, -vv=debug, -vvv=trace).',
+  globalFlagDb: 'Override the database file location (escape hatch).',
+
   // elapsed.ts
   // Leading \n separates the elapsed line from the verb's body output.
   // Every verb's body is expected to end on a content line (with or

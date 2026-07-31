@@ -19,6 +19,7 @@ import { SAFE_SQL_IDENTIFIER_RE } from './shared.js';
 
 export class DbDumpCommand extends SmCommand {
   static override paths = [['db', 'dump']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Database',
     description: 'SQL dump to stdout.',

@@ -46,6 +46,8 @@ export const HELP_TEXTS = {
   mdCategoryHeading: '## {{category}}',
   mdVerbHeading: '### `sm {{name}}`',
   mdLabelFlags: '**Flags:**',
+  /** Per-verb exit-code line; `{{codes}}` arrives pre-formatted as `` `0`, `2`, `5` ``. */
+  mdLabelExitCodes: '**Exit codes:** {{codes}}',
   mdLabelExamples: '**Examples:**',
   mdFlagBullet: '- {{names}} `{{type}}`{{required}}{{description}}',
   /** Trailing fragment for `mdFlagBullet`'s `{{required}}` slot. */

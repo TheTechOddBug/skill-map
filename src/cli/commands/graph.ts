@@ -41,6 +41,7 @@ const DEFAULT_FORMAT = 'ascii';
 
 export class GraphCommand extends SmCommand {
   static override paths = [['graph']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Browse',
     description: 'Render the full graph via the named formatter.',

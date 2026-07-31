@@ -51,6 +51,7 @@ import { withSqlite } from '../../core/sqlite/with-sqlite.js';
 
 export class CheckCommand extends SmCommand {
   static override paths = [['check']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Issues, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Browse',
     description: 'Print all current issues (reads from DB, faster than sm scan --json | jq).',

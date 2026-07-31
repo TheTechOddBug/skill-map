@@ -1,6 +1,9 @@
 /**
- * CLI entry, composed by `bin/sm.js`. Registers every command and hands off
- * to Clipanion. Exit codes are defined once in `src/cli/util/exit-codes.ts`
+ * CLI entry, composed by `bin/sm.js`. Builds the CLI through
+ * `cli/command-registry.ts` (which owns the command list and the `SmCli`
+ * construction) and drives one invocation: log level, bare-argv routing,
+ * telemetry, boot / shutdown hooks, parse-error rendering, exit.
+ * Exit codes are defined once in `src/cli/util/exit-codes.ts`
  * (the `ExitCode` object) and follow `spec/cli-contract.md`:
  *
  *   0  ok               , `ExitCode.Ok`
@@ -12,8 +15,6 @@
  */
 
 import { existsSync } from 'node:fs';
-
-import { Builtins, Cli } from 'clipanion';
 
 import { InMemoryProgressEmitter } from '../kernel/adapters/in-memory-progress.js';
 import { makeEvent, makeHookDispatcher } from '../kernel/extensions/hook-dispatcher.js';
@@ -49,112 +50,13 @@ import {
 } from './telemetry/sentry-init.js';
 import { captureCliInvocation, flushUsageCli, initUsageCli } from './telemetry/posthog-init.js';
 import { extractFlagNames } from './telemetry/usage-collector.js';
-import { ActionsListCommand, ActionsShowCommand } from './commands/actions.js';
-import { AGENT_COMMANDS } from './commands/agent.js';
-import { DoctorCommand } from './commands/doctor.js';
-import { BUMP_COMMANDS } from './commands/bump.js';
-import { CheckCommand } from './commands/check.js';
-import { CONFIG_COMMANDS } from './commands/config.js';
-import { CONFORMANCE_COMMANDS } from './commands/conformance.js';
-import { DB_COMMANDS } from './commands/db.js';
-import { ExampleCommand } from './commands/example.js';
-import { ExportCommand } from './commands/export.js';
-import {
-  FindingsClearCommand,
-  FindingsCommand,
-  FindingsDismissCommand,
-  FindingsPruneCommand,
-  FindingsReopenCommand,
-  FindingsResolveCommand,
-  FindingsSuppressionsCommand,
-  FindingsUndismissCommand,
-} from './commands/findings.js';
-import { GraphCommand } from './commands/graph.js';
-import {
-  IssuesDismissCommand,
-  IssuesSuppressionsCommand,
-  IssuesUndismissCommand,
-} from './commands/issues.js';
-import { HelpCommand, RootHelpCommand, registeredVerbPaths, routeHelpArgs } from './commands/help.js';
-import { ACTIVITY_COMMANDS } from './commands/activity.js';
-import { HOOKS_COMMANDS } from './commands/hooks.js';
-import { InitCommand } from './commands/init.js';
-import { HistoryCommand, HistoryStatsCommand } from './commands/history.js';
-import { JobPruneCommand } from './commands/jobs.js';
-import { JOB_QUEUE_COMMANDS } from './commands/job-queue.js';
-import { ListCommand } from './commands/list.js';
-import { RecordCommand } from './commands/record.js';
-import { ORPHANS_COMMANDS } from './commands/orphans.js';
-import { PLUGIN_COMMANDS } from './commands/plugins.js';
-import { REFRESH_COMMANDS } from './commands/refresh.js';
-import { IntentionalFailCommand } from './commands/intentional-fail.js';
-import { ScanCommand } from './commands/scan.js';
-import { ScanCompareCommand } from './commands/scan-compare.js';
-import { ServeCommand } from './commands/serve.js';
-import { ShowCommand } from './commands/show.js';
-import { SIDECAR_COMMANDS } from './commands/sidecar.js';
-import { TutorialCommand } from './commands/tutorial.js';
-import { VersionCommand } from './commands/version.js';
-import { WatchCommand } from './commands/watch.js';
-import { BINARY_LABEL, BINARY_NAME, VERSION } from '../version.js';
+import { createSmCli } from './command-registry.js';
+import { registeredVerbPaths, routeHelpArgs } from './commands/help.js';
+import { VERSION } from '../version.js';
 
-const cli = new Cli({
-  binaryLabel: BINARY_LABEL,
-  binaryName: BINARY_NAME,
-  binaryVersion: VERSION,
-  enableCapture: false,
-});
-
-cli.register(Builtins.VersionCommand);
-cli.register(RootHelpCommand);
-cli.register(HelpCommand);
-cli.register(InitCommand);
-cli.register(TutorialCommand);
-cli.register(ExampleCommand);
-// Hidden Sentry self-test verb. Registered so it runs, but invisible in
-// every help / reference surface (it declares no `static usage`). See
-// commands/intentional-fail.ts.
-cli.register(IntentionalFailCommand);
-cli.register(ScanCommand);
-cli.register(ScanCompareCommand);
-cli.register(ServeCommand);
-cli.register(WatchCommand);
-cli.register(VersionCommand);
-cli.register(ListCommand);
-cli.register(ShowCommand);
-cli.register(CheckCommand);
-cli.register(FindingsCommand);
-cli.register(FindingsPruneCommand);
-cli.register(FindingsClearCommand);
-cli.register(FindingsResolveCommand);
-cli.register(FindingsReopenCommand);
-cli.register(FindingsDismissCommand);
-cli.register(FindingsSuppressionsCommand);
-cli.register(FindingsUndismissCommand);
-cli.register(IssuesDismissCommand);
-cli.register(IssuesUndismissCommand);
-cli.register(IssuesSuppressionsCommand);
-cli.register(GraphCommand);
-cli.register(ExportCommand);
-cli.register(HistoryCommand);
-cli.register(HistoryStatsCommand);
-cli.register(JobPruneCommand);
-cli.register(RecordCommand);
-cli.register(ActionsListCommand);
-cli.register(ActionsShowCommand);
-cli.register(DoctorCommand);
-for (const cmd of JOB_QUEUE_COMMANDS) cli.register(cmd);
-for (const cmd of AGENT_COMMANDS) cli.register(cmd);
-for (const cmd of CONFIG_COMMANDS) cli.register(cmd);
-for (const cmd of CONFORMANCE_COMMANDS) cli.register(cmd);
-for (const cmd of DB_COMMANDS) cli.register(cmd);
-for (const cmd of PLUGIN_COMMANDS) cli.register(cmd);
-for (const cmd of ORPHANS_COMMANDS) cli.register(cmd);
-for (const cmd of REFRESH_COMMANDS) cli.register(cmd);
-for (const cmd of BUMP_COMMANDS) cli.register(cmd);
-for (const cmd of SIDECAR_COMMANDS) cli.register(cmd);
-for (const cmd of HOOKS_COMMANDS) cli.register(cmd);
-for (const cmd of ACTIVITY_COMMANDS) cli.register(cmd);
+// Composition root lives in `cli/command-registry.ts` so tests and
+// tooling can build the exact same CLI without booting this driver.
+const cli = createSmCli();
 
 const { value: logLevelFlag, rest: args } = extractLogLevelFlag(process.argv.slice(2));
 const logLevel = resolveLogLevel({

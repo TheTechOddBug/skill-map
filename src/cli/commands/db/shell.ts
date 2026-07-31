@@ -17,6 +17,12 @@ import { SmCommand } from '../../util/sm-command.js';
 
 export class DbShellCommand extends SmCommand {
   static override paths = [['db', 'shell']];
+  // The verb's own codes. It ALSO passes through `sqlite3`'s exit status
+  // verbatim (`result.status`), so a caller scripting around it can see
+  // any code the shell itself returns; only skill-map's own outcomes are
+  // published, since the passthrough set is the system binary's contract,
+  // not this CLI's.
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Database',
     description: 'Open an interactive sqlite3 shell on the DB file.',

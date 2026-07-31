@@ -50,6 +50,7 @@ import { parseWatchBackend, runWatchLoop } from './watch.js';
  */
 export class ScanCommand extends SmCommand {
   static override paths = [['scan']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Issues, ExitCode.Error];
 
   static override usage = Command.Usage({
     category: 'Scan',

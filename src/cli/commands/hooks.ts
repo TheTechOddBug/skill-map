@@ -71,6 +71,7 @@ const FRESH_HOOK_BODY = HOOK_SHEBANG + SKILL_MAP_BLOCK;
  */
 export class HooksInstallCommand extends SmCommand {
   static override paths = [['hooks', 'install']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Actions',
     description:

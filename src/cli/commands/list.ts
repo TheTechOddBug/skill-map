@@ -63,6 +63,7 @@ type IParsedFlags = IValidFlags | { ok: false; exit: number };
 
 export class ListCommand extends SmCommand {
   static override paths = [['list']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Browse',
     description: 'Tabular listing of nodes. --json emits an array conforming to node.schema.json.',

@@ -147,6 +147,7 @@ const STATUS_ORDER: ReadonlyArray<IDiscoveredPlugin['status']> = [
 
 export class PluginsDoctorCommand extends SmCommand {
   static override paths = [['plugins', 'doctor']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Issues, ExitCode.Error];
   static override usage = Command.Usage({
     category: 'Plugins',
     description: 'Run the full load pass and summarise by failure mode.',

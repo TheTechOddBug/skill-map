@@ -391,7 +391,7 @@ Diagnostic report:
 - Plugin trust grants that exist but do not verify against this checkout, and the case where the filesystem cannot anchor a grant at all (`trust-scope`). Warn-level: the grant is ignored either way, and the two are reported separately because a foreign grant is re-granted per plugin while an unusable anchor cannot be fixed by re-granting. Never renders the anchor or a grant value (a disclosed grant is replayable against that checkout).
 - Detected Providers that matched nothing (non-blocking warning).
 
-Exit: 0 if all green, 1 if warnings, 2 if any `error`-level problem. Error-level: DB corruption (`quick_check`) and jobs whose rendered-content row is missing; every other finding is a warning carrying its actionable verb in the message. `--json` emits `{ ok, kind: 'doctor', checks[] }`, one `{ id, status: 'ok'|'warn'|'error', message }` entry per check (`db-integrity`, `migrations`, `orphan-history`, `job-contents`, `job-gc`, `jobs-overdue`, `plugins`, `trust-scope`, `providers`; the `providers` check MAY repeat, one row per empty detected Provider). `jobs-overdue` warns per `running` job whose elapsed time exceeds its extension's advisory `probExpectedDurationSeconds` (extension resolved from the loaded registry; unresolvable extensions are skipped), naming `sm jobs fail <id>` / `sm jobs cancel <id>` as the actionable verbs; purely advisory, never mutates state (the operator escape hatch for TTL-less zombies, see `job-lifecycle.md` §Reap procedure). There is deliberately NO runner-availability check: skill-map never invokes an agent, so there is no binary of ours to probe.
+Exit: 0 if all green, 1 if warnings, 2 if any `error`-level problem, 5 when the project DB is absent (nothing to diagnose, run `sm scan` first). Error-level: DB corruption (`quick_check`) and jobs whose rendered-content row is missing; every other finding is a warning carrying its actionable verb in the message. `--json` emits `{ ok, kind: 'doctor', checks[] }`, one `{ id, status: 'ok'|'warn'|'error', message }` entry per check (`db-integrity`, `migrations`, `orphan-history`, `job-contents`, `job-gc`, `jobs-overdue`, `plugins`, `trust-scope`, `providers`; the `providers` check MAY repeat, one row per empty detected Provider). `jobs-overdue` warns per `running` job whose elapsed time exceeds its extension's advisory `probExpectedDurationSeconds` (extension resolved from the loaded registry; unresolvable extensions are skipped), naming `sm jobs fail <id>` / `sm jobs cancel <id>` as the actionable verbs; purely advisory, never mutates state (the operator escape hatch for TTL-less zombies, see `job-lifecycle.md` §Reap procedure). There is deliberately NO runner-availability check: skill-map never invokes an agent, so there is no binary of ours to probe.
 
 #### `sm help [<verb>] [--format human|md|json]`
 
@@ -408,13 +408,24 @@ Self-describing introspection.
   "globalFlags": [ { "name": "--json", "type": "boolean", "description": "..." } ],
   "verbs": [ {
     "name": "scan",
+    "category": "Scan",
     "description": "...",
-    "flags": [ ... ],
-    "subcommands": [ ... ],
+    "details": "...",
+    "positionals": " [roots...]",
+    "examples": [ { "title": "...", "command": "sm scan" } ],
+    "flags": [
+      { "name": "--strict", "aliases": [], "type": "boolean", "description": "...", "required": false }
+    ],
     "exitCodes": [ 0, 1, 2 ]
   } ]
 }
 ```
+
+Field analyzers, normative:
+
+- **`verbs` is FLAT.** A subcommand is its own entry whose `name` carries the whole path (`jobs submit`, `plugins slots list`); there is no nested `subcommands` array. A namespace that is not itself runnable (`jobs`, `db`) has no entry of its own, consumers group by name prefix.
+- **`flags` is COMPLETE.** It MUST list every option the verb accepts, the global flags it inherits included, whether or not the option carries a `description` (an undescribed option publishes `"description": ""`, never disappears). Options the implementation marks hidden are the single exception and MUST be omitted, they are absent from every user-facing surface. `name` is the long form, `aliases` the remaining spellings (`["-q"]`), and `type` is the two-value vocabulary `"boolean"` (the option takes no argument, counters included) or `"string"` (it takes one or more).
+- **`exitCodes` is exhaustive and ascending**, every code the verb can return, drawn from §Exit codes. Because implementations are expected to funnel unhandled exceptions into `2`, effectively every verb lists it.
 
 Consumers: docs generator, shell completion, Web UI form generation, IDE extensions, test harness, agent-skill integrations (`sm-cli` skill).
 

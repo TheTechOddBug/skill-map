@@ -132,6 +132,7 @@ function resolveBinary(): string {
 
 export class ConformanceRunCommand extends SmCommand {
   static override paths = [['conformance', 'run']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Issues, ExitCode.Error];
 
   static override usage = Command.Usage({
     category: 'Introspection',

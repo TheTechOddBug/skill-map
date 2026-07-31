@@ -424,6 +424,7 @@ function resolveConfigGetValue(
 
 export class ConfigGetCommand extends SmCommand {
   static override paths = [['config', 'get']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Config',
     description: 'Read a single config value by dot-path key.',
@@ -467,6 +468,7 @@ export class ConfigGetCommand extends SmCommand {
 
 export class ConfigShowCommand extends SmCommand {
   static override paths = [['config', 'show']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Config',
     description: 'Show a config value with the layer that set it (--source).',

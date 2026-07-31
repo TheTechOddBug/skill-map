@@ -11,6 +11,13 @@
  * formatting exactly. `md` emits canonical markdown grouped by category
  * (generated on demand for documentation). `json` emits the structured
  * surface dump.
+ *
+ * The catalog is only as complete as `this.cli.definitions()` is. Plain
+ * Clipanion drops every option that declares no `description` and knows
+ * nothing about exit codes, so the binary composes an `SmCli`
+ * (`cli/sm-cli.ts`) that fills both gaps before the data ever reaches
+ * this renderer; `cli/commands/__tests__/help-introspection.spec.ts`
+ * guards the result against regression.
  */
 
 import { readFileSync } from 'node:fs';
@@ -20,7 +27,8 @@ import { resolve } from 'node:path';
 import { Cli, Command, Option } from 'clipanion';
 
 import { ansiFor, type IAnsi } from '../util/ansi.js';
-import { ExitCode } from '../util/exit-codes.js';
+import { DEFAULT_EXIT_CODES, ExitCode, type TExitCode } from '../util/exit-codes.js';
+import { GLOBAL_FLAGS, type IGlobalFlag } from '../util/sm-command.js';
 import { BINARY_LABEL, VERSION } from '../../version.js';
 import { tx } from '../../kernel/util/tx.js';
 import { HELP_TEXTS, HELP_GROUPS } from '../i18n/help.texts.js';
@@ -47,6 +55,12 @@ interface ICliDefinition {
     description?: string;
     required?: boolean;
   }>;
+  /**
+   * Stamped by `SmCli` (`cli/sm-cli.ts`) from the command's
+   * `static exitCodes`. Optional because a bare Clipanion `Cli` does not
+   * produce it; the normaliser then falls back to the default set.
+   */
+  exitCodes?: readonly TExitCode[];
 }
 
 interface IHelpVerb {
@@ -64,12 +78,14 @@ interface IHelpVerb {
     description: string;
     required: boolean;
   }>;
+  /** Every exit code this verb can return, ascending. See `spec/cli-contract.md` §Exit codes. */
+  exitCodes: readonly TExitCode[];
 }
 
 interface IHelpDocument {
   cliVersion: string;
   specVersion: string;
-  globalFlags: Array<{ name: string; type: 'boolean'; description: string }>;
+  globalFlags: readonly IGlobalFlag[];
   verbs: IHelpVerb[];
 }
 
@@ -89,6 +105,7 @@ interface IHelpDocument {
  */
 export class HelpCommand extends Command {
   static override paths = [['help']];
+  static exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Introspection',
     description: 'Self-describing introspection. --format human|md|json.',
@@ -173,9 +190,7 @@ export class HelpCommand extends Command {
     const doc: IHelpDocument = {
       cliVersion: VERSION,
       specVersion: resolveSpecVersion(),
-      globalFlags: [
-        { name: '--help', type: 'boolean', description: HELP_TEXTS.globalFlagHelpDescription },
-      ],
+      globalFlags: globalFlagCatalog(),
       verbs,
     };
 
@@ -190,6 +205,20 @@ export class HelpCommand extends Command {
 }
 
 // --- normalisation --------------------------------------------------------
+
+/**
+ * The `globalFlags[]` catalog of the JSON / md documents: the five flags
+ * `SmCommand` declares for every verb, plus Clipanion's own `-h,--help`,
+ * which is not an `Option.*` on any command class (the parser handles it
+ * before a command is ever hydrated) and therefore has to be named here.
+ * Matches the table in `spec/cli-contract.md` §Global flags.
+ */
+function globalFlagCatalog(): readonly IGlobalFlag[] {
+  return [
+    ...GLOBAL_FLAGS,
+    { name: '--help', type: 'boolean', description: HELP_TEXTS.globalFlagHelpDescription },
+  ];
+}
 
 function normalizeFormat(raw: string): THelpFormat | null {
   if (raw === 'human' || raw === 'md' || raw === 'json') return raw;
@@ -237,27 +266,40 @@ function normalizeDefinition(def: ICliDefinition): IHelpVerb {
   const detailedUsage = (def.usage ?? rawPath).trim();
   const path = rawPath.replace(/^sm\s+/, '').replace(/\s*\.\.\.$/, '').trim();
   const verbName = stripPositionals(path);
-  const options = def.options ?? [];
-  const flags = options.map((opt) => ({
-    name: opt.preferredName,
-    aliases: opt.nameSet.filter((n) => n !== opt.preferredName),
-    type: inferOptionType(opt.definition),
-    description: (opt.description ?? '').trim(),
-    required: opt.required === true,
-  }));
-  const examples = (def.examples ?? []).map(([title, command]) => ({
-    title: title.trim(),
-    command: command.trim(),
-  }));
   return {
     name: verbName,
     category: (def.category ?? 'Other').trim(),
     description: (def.description ?? '').trim(),
     details: (def.details ?? '').trim(),
     positionals: extractPositionals(detailedUsage, verbName),
-    examples,
-    flags,
+    examples: normalizeExamples(def.examples),
+    flags: normalizeFlags(def.options),
+    exitCodes: def.exitCodes ?? DEFAULT_EXIT_CODES,
   };
+}
+
+/**
+ * Project Clipanion's option entries onto the published `flags[]` shape.
+ * Every non-hidden option a verb declares is present, `SmCli` recomputes
+ * the source array so the description-less ones are no longer dropped
+ * (see `cli/sm-cli.ts`); an option that never declared a description
+ * simply publishes an empty one.
+ */
+function normalizeFlags(options: ICliDefinition['options']): IHelpVerb['flags'] {
+  return (options ?? []).map((opt) => ({
+    name: opt.preferredName,
+    aliases: opt.nameSet.filter((n) => n !== opt.preferredName),
+    type: inferOptionType(opt.definition),
+    description: (opt.description ?? '').trim(),
+    required: opt.required === true,
+  }));
+}
+
+function normalizeExamples(examples: ICliDefinition['examples']): IHelpVerb['examples'] {
+  return (examples ?? []).map(([title, command]) => ({
+    title: title.trim(),
+    command: command.trim(),
+  }));
 }
 
 /**
@@ -384,6 +426,14 @@ function renderVerbBlock(verb: IHelpVerb): string[] {
   if (verb.description) out.push(verb.description, '');
   if (verb.details) out.push(verb.details, '');
   if (verb.flags.length > 0) out.push(...renderVerbFlags(verb.flags));
+  if (verb.exitCodes.length > 0) {
+    out.push(
+      tx(HELP_TEXTS.mdLabelExitCodes, {
+        codes: verb.exitCodes.map((code) => `\`${code}\``).join(', '),
+      }),
+      '',
+    );
+  }
   if (verb.examples.length > 0) out.push(...renderVerbExamples(verb.examples));
   return out;
 }
@@ -531,7 +581,10 @@ function renderHumanFlags(flags: IHelpVerb['flags']): string[] {
       description: firstSentence(flag.description),
       required,
     });
-    out.push(truncate(row, COMPACT_ROW_MAX));
+    // `trimEnd` because a flag that declares no description (most of the
+    // verb-specific ones) would otherwise emit the alignment padding as
+    // trailing whitespace.
+    out.push(truncate(row.trimEnd(), COMPACT_ROW_MAX));
   }
   return out;
 }

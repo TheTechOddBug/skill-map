@@ -41,6 +41,7 @@ import {
 
 export class PluginsShowCommand extends SmCommand {
   static override paths = [['plugins', 'show']];
+  static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Plugins',
     description: 'Show a single extension\'s detail.',
