@@ -647,7 +647,7 @@
       "schemas/job.schema.json": "a54c4018bcb1618ec6588edd0f7f42b18dcc382270c0b74856d08bfda8f0f309",
       "schemas/link.schema.json": "4c21bc44cfda04154881e72997c289ed15dd7c6aa7a9205ea83f4f58f1fae853",
       "schemas/node.schema.json": "c711987991f71cedbf3848817a7acd3a8b06fcc5bbe45c2b536e422a86f0ada3",
-      "schemas/plugins-doctor.schema.json": "328d50d094976df86730787990a49c530ffd8eced0e7ebe7e654ba7c68167fb6",
+      "schemas/plugins-doctor.schema.json": "8f96661ad5fbe6405620ba87f17fe5dda491079d52bc556cdf0421186c0ffbb4",
       "schemas/plugins-registry.schema.json": "dd24d46087f209e480063b0e66e4c11becc1c2b1ea250b244f99f30c1f43e821",
       "schemas/project-config.schema.json": "c172b87fd068a0ed9361360c2212f09728385c6c4babb33626da1cdf1b3daf9b",
       "schemas/refresh-report.schema.json": "f22d09e0a18deb2de15f9876ed9fdd521e92de98b000baa5e57325e0acac0443",

@@ -65,7 +65,7 @@
     },
     "warnings": {
       "type": "array",
-      "description": "Informational warnings that do NOT gate the exit code: `precondition-kind-unknown` (an extractor declares a `applicableKinds` referencing a kind no Provider emits), `unknown-slot` (a view contribution targets a slot id absent from the closed catalog), and `recommended-action-missing` (an action's `precondition.analyzerIds` names an analyzer no loaded plugin declares). Iteration order matches the human renderer.",
+      "description": "Informational warnings that do NOT gate the exit code: `precondition-kind-unknown` (an extractor declares a `precondition.kind` no installed Provider emits), `unknown-slot` (a view contribution targets a slot id absent from the closed catalog), and `recommended-action-missing` (an action's `precondition.analyzerIds` names an analyzer no loaded plugin declares). Iteration order matches the human renderer.",
       "items": {
         "type": "object",
         "required": ["id", "kind", "message"],

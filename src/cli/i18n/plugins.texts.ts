@@ -58,7 +58,7 @@ export const PLUGINS_TEXTS = {
   // The id is rendered as the entry header (`⚠  <id>`); the body skips
   // re-stating it so the message reads cleanly under the entry.
   doctorPreconditionKindUnknown:
-    "Declares applicableKinds including '{{unknownKind}}', but no installed Provider declares that kind. " +
+    "Declares precondition.kind '{{unknownKind}}', but no installed Provider declares that kind. " +
     'The extractor is loaded but will never fire on that kind.',
   // Phase 7 / View contribution system, defence-in-depth slot drift
   // check. AJV at manifest load already rejects unknown slots as
