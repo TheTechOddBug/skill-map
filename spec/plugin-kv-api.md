@@ -189,7 +189,7 @@ Mode A is isolated at the row level: the accessor physically cannot see another 
 
 Mode B is **isolated against accidents, not hostile code**. The namespace is enforced when migrations run, so a plugin cannot create tables outside its own prefix; in v1 there is no runtime accessor left to scope (see §Runtime accessor), and a malicious plugin in the same JavaScript process can reach any table regardless by importing raw engine bindings directly. Plugins are user-placed code; the kernel trusts the user's judgement at install time.
 
-Post-v1.0 work: signed manifest, sandboxed worker-thread isolation, per-plugin DB file. None land before `v0.5.0`.
+Hardening that would change this posture (signed manifests, sandboxed worker-thread isolation, a per-plugin database file) is out of scope for v1 and not scheduled here. Each is additive, so none of them needs a major bump to land.
 
 ---
 
