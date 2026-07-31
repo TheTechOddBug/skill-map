@@ -63,6 +63,46 @@ describe('node-drag.controller', () => {
     expect(onCommit).not.toHaveBeenCalled();
   });
 
+  it('a real drag notifies onDragEnd once, after the flush', async () => {
+    const positions = signal<TNodePositions>(new Map());
+    const onDragEnd = vi.fn();
+    const { ref } = makeDestroyRef();
+    const handle = setupNodeDrag({
+      destroyRef: ref,
+      nodePositions: positions,
+      onCommit: () => undefined,
+      onDragEnd,
+    });
+
+    handle.onNodePointerDown(new PointerEvent('pointerdown', { clientX: 0, clientY: 0 }));
+    handle.onNodePositionChange('a', { x: 10, y: 20 });
+    document.dispatchEvent(new MouseEvent('mouseup'));
+    await flushMicrotasks();
+
+    expect(onDragEnd).toHaveBeenCalledTimes(1);
+    // Fires after the buffer landed, so the view re-asserts selection
+    // against settled positions.
+    expect(positions().get('a')).toEqual({ x: 10, y: 20, manual: true });
+  });
+
+  it('a click that never moved does NOT notify onDragEnd', async () => {
+    const positions = signal<TNodePositions>(new Map());
+    const onDragEnd = vi.fn();
+    const { ref } = makeDestroyRef();
+    const handle = setupNodeDrag({
+      destroyRef: ref,
+      nodePositions: positions,
+      onCommit: () => undefined,
+      onDragEnd,
+    });
+
+    handle.onNodePointerDown(new PointerEvent('pointerdown', { clientX: 0, clientY: 0 }));
+    document.dispatchEvent(new MouseEvent('mouseup'));
+    await flushMicrotasks();
+
+    expect(onDragEnd).not.toHaveBeenCalled();
+  });
+
   it('pointerdown without position change: isClickWithoutDrag === true', () => {
     const positions = signal<TNodePositions>(new Map());
     const { ref } = makeDestroyRef();

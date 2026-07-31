@@ -3,6 +3,7 @@ import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { Component, Injectable, signal } from '@angular/core';
 import { Router, provideRouter } from '@angular/router';
 import { EMPTY } from 'rxjs';
+import { FSelectionChangeEvent } from '@foblex/flow';
 import { DagreLayoutEngine } from '@foblex/flow-dagre-layout';
 
 import { GraphView } from '../graph-view';
@@ -413,6 +414,17 @@ async function flushEffects(fixture: ComponentFixture<GraphView>): Promise<void>
   await Promise.resolve();
 }
 
+/**
+ * Fire the `(fSelectionChange)` bridge the way `<f-flow fDraggable>`
+ * does. The handler is `protected` (template-only surface), so the cast
+ * is how the spec reaches it without widening the component API.
+ */
+function flowSelectionChange(cmp: GraphView, ...nodeIds: string[]): void {
+  (cmp as unknown as { onFlowSelectionChange(event: FSelectionChangeEvent): void }).onFlowSelectionChange(
+    new FSelectionChangeEvent(nodeIds, [], []),
+  );
+}
+
 describe('GraphView, selection and URL sync', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
@@ -455,6 +467,46 @@ describe('GraphView, selection and URL sync', () => {
     await flushEffects(fixture);
 
     expect(cmp.selectedNodeId()).toBe(node.path);
+  });
+
+  it('mirrors a Foblex single-node selection into the app state', async () => {
+    const node = makeNode('agents/architect.md', 'architect');
+    const { fixture, cmp } = await bootstrap([node]);
+    await flushEffects(fixture);
+
+    flowSelectionChange(cmp, node.path);
+    await flushEffects(fixture);
+
+    expect(cmp.selectedNodeId()).toBe(node.path);
+  });
+
+  it('ignores the selection Foblex reports while a node is being dragged', async () => {
+    const first = makeNode('agents/architect.md', 'architect');
+    const second = makeNode('agents/reviewer.md', 'reviewer');
+    const { fixture, cmp } = await bootstrap([first, second]);
+    await flushEffects(fixture);
+
+    flowSelectionChange(cmp, first.path);
+    await flushEffects(fixture);
+
+    // Grabbing `second` to move it: Foblex selects it on pointerdown and
+    // reports that as soon as the drag threshold is crossed, with
+    // `f-dragging` already stamped on its host. The inspector must stay
+    // on `first` instead of following the grabbed node.
+    const host = fixture.nativeElement.querySelector('f-flow') as HTMLElement;
+    host.classList.add('f-dragging');
+    flowSelectionChange(cmp, second.path);
+    await flushEffects(fixture);
+
+    expect(cmp.selectedNodeId()).toBe(first.path);
+
+    // Same gesture released: the class is gone and a plain click selects
+    // again, so the suppression is scoped to the drag.
+    host.classList.remove('f-dragging');
+    flowSelectionChange(cmp, second.path);
+    await flushEffects(fixture);
+
+    expect(cmp.selectedNodeId()).toBe(second.path);
   });
 
   it('writes the selected path into the URL `?path=` query param', async () => {

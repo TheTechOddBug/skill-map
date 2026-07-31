@@ -90,7 +90,7 @@ import {
 import { setupEdgeResize } from '../../core/edge-resize.controller';
 import { setupTagSelection } from './tag-selection.controller';
 import { setupViewportStore, ZOOM_MIN, ZOOM_MAX } from './viewport-store';
-import { isAnyPrimengOverlayOpen } from './graph-view.utils';
+import { isAnyPrimengOverlayOpen, isFlowDragging } from './graph-view.utils';
 import {
   createSelectionState,
   type IEdgeSelectionView,
@@ -299,6 +299,11 @@ export class GraphView implements OnInit {
   private readonly nodeDrag = setupNodeDrag({
     destroyRef: this.destroyRef,
     nodePositions: this.nodePositions,
+    // A drag repositions a node, it does not inspect it. Foblex selected
+    // the grabbed node on pointerdown and `onFlowSelectionChange` refused
+    // to mirror that (see there); re-asserting the app's own selection
+    // here realigns both sides, so the drag leaves selection untouched.
+    onDragEnd: () => this.applySelection(this.selectedNodeId()),
   });
 
   // Card-expansion state, owns `expandedNodeIds`, the persistence
@@ -884,6 +889,17 @@ export class GraphView implements OnInit {
    * a single click selected.
    */
   protected onFlowSelectionChange(event: FSelectionChangeEvent): void {
+    // Grabbing a node to MOVE it is not a request to inspect it. Foblex
+    // selects whatever sits under the pointer on pointerdown and reports
+    // that selection the moment the drag threshold is crossed, which
+    // would pop the inspector open mid-drag. Drag-induced changes are
+    // dropped here (the `f-dragging` host class is the only signal
+    // available this early, see `isFlowDragging`); the node-drag
+    // controller's `onDragEnd` re-asserts the app selection into Foblex
+    // once the gesture settles, so the two sides never stay divergent.
+    // A click that never moved is unaffected: the class is never
+    // stamped, the event arrives on pointerup, and the inspector opens.
+    if (isFlowDragging(this.flow()?.hostElement)) return;
     const ids = event.nodeIds;
     if (ids.length === 1) {
       this.selectedNodeId.set(ids[0] ?? null);

@@ -31,6 +31,17 @@ export interface INodeDragConfig {
    * to avoid the storage dep.
    */
   onCommit?: (positions: TNodePositions) => void;
+  /**
+   * Fired once a REAL drag settles (never on a click that never moved),
+   * right after the buffer flush. The view uses it to re-assert its own
+   * selection into Foblex: Foblex selects the node under the pointer on
+   * pointerdown, so a drag would otherwise leave the dragged node
+   * painted `.f-selected` while the app still inspects another one.
+   * Safe to mutate Foblex state here: the library finalizes its drag on
+   * `pointerup`, which the browser fires before the `mouseup` this
+   * flush rides on.
+   */
+  onDragEnd?: () => void;
 }
 
 export interface INodeDragHandle {
@@ -62,6 +73,7 @@ export function setupNodeDrag(config: INodeDragConfig): INodeDragHandle {
         dragBuffer = null;
       }
       onCommit(config.nodePositions());
+      config.onDragEnd?.();
     });
   };
 

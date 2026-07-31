@@ -296,6 +296,8 @@ If you catch yourself typing any of these, stop and re-read the rule in parenthe
 - Adding `<f-background>` and seeing the grid only at the edges (centre is solid colour) — `<f-canvas>` paints `--ff-canvas-background-color` opaque on top of the background layer. Override it to `transparent` at your wrapper (see "Background grid" canonical pattern)
 - Painting an `:hover` / `:focus` outline using `border-color` change on `[fNode]` cards while a sibling-class state (`.sm-gnode--selected` / `.sm-gnode--highlighted`) sets the same property — the cascade fights between user gestures and selection state. Keep gesture state on a different property (`box-shadow`) so the two layers compose instead of conflict
 - `document.addEventListener('pointerup', …)` to detect the end of a `[fNode]` drag — `fDragHandle` consumes pointerup; the listener never fires. Use `mouseup` instead (rule 9)
+- Mirroring every `(fSelectionChange)` into app state unconditionally: `SelectByPointer` selects on **pointerdown**, so grabbing a node to move it reports a selection at drag start and pops the inspector open mid-drag. Reject the event while `f-dragging` is on the flow host, and re-assert the app selection at the `mouseup` flush (see "Drag is not a click")
+- Guarding only the app's `(click)` handler with a drag-distance check and assuming drags can no longer select, the library's own `fSelectionChange` never passes through that handler
 - Writing to a signal that feeds the `graph` computed (typically `nodePositions`) on every `(fNodePositionChange)` — invalidates the @for over nodes/edges 60–120×/sec. Buffer the position in a non-signal field and flush once at `mouseup` (rule 9)
 - Calling `localStorage.setItem` (or any sync I/O) from inside `(fNodePositionChange)` — sync writes during drag stall the main thread per frame and produce visible jank even when rAF reads 120 fps. Defer to the `mouseup` flush (rule 9)
 
@@ -430,6 +432,7 @@ private applySelection(id: string | null): void {
 // highlight state; empty and multi-node selections (Shift+area
 // rectangle, Ctrl/Cmd+A) both map to "no inspected node".
 protected onFlowSelectionChange(event: FSelectionChangeEvent): void {
+  if (isFlowDragging(this.flow()?.hostElement)) return;   // see "Drag is not a click" below
   const ids = event.fNodeIds;
   this.selectedNodeId.set(ids.length === 1 ? (ids[0] ?? null) : null);
 }
@@ -472,6 +475,22 @@ Notes:
 - **Deselect** by listening for `(click)` on a wrapper around the canvas and ignoring clicks whose `event.target.closest('.sm-gnode')` (or any other interactive overlay) is non-null. Foblex's `<f-flow>` does not expose a "background-only click" event. The deselect itself is `applySelection(null)`, never a bare signal write.
 - **Single click selects, double click navigates** to the inspector. Same gesture as Finder / file managers; descoverable. Maintain a small drag-distance guard in the click handler so a node-drag doesn't fire `selectNode`.
 - **Selection guard via effect**: when filters change and the selected node is no longer visible, clear the selection (`effect(() => { if (!this.graph().nodes.some(n => n.id === id)) this.applySelection(null); })`). Avoids dangling highlight state on both sides of the bridge.
+
+**Drag is not a click: the bridge must reject drag-induced selections.**
+
+`SelectByPointer` runs in Foblex's `_pointerDownClaimants`, so **grabbing a node to MOVE it already selects it**, on pointerdown, before anyone knows a drag is coming. The selection is then reported the instant the drag threshold is crossed (`EmitStartDragSequenceEvent` → `EmitSelectionChangeEventRequest`). A bridge that mirrors every `fSelectionChange` therefore pops the inspector open **mid-drag**, on a gesture that never meant "inspect this". A drag-distance guard on the `(click)` handler does NOT save you: the guard only covers the app's own handler, the library's event bypasses it entirely.
+
+The only order-safe discriminator is the **`f-dragging` host class** (`F_CSS_CLASS.DRAG_AND_DROP.DRAGGING`, the same class Foblex's `:host(.f-dragging)` styles read). `EmitStartDragSequenceEvent` stamps it one statement BEFORE emitting the selection change, so it is already on the `<f-flow>` host when the handler runs. Everything else is too late: `(fDragStarted)` is emitted AFTER the selection event, and the position stream (`fNodePositionChange`) only starts on the following `onPointerMove`.
+
+```ts
+export function isFlowDragging(host: HTMLElement | null | undefined): boolean {
+  return host?.classList.contains(F_CSS_CLASS.DRAG_AND_DROP.DRAGGING) === true;
+}
+```
+
+Suppressing the mirror is only half the fix: Foblex's internal selection now holds the dragged node (painted `.f-selected`) while the app still inspects another one. **Re-assert the app's selection when the drag settles**, `applySelection(this.selectedNodeId())`, from the rule 9 `mouseup` flush. That moment is safe to mutate library state from: Foblex finalizes its drag on `pointerup`, which the browser fires *before* `mouseup`, so the whole finalize + `reset()` pipeline has already run. Do NOT hang the re-assert on `(fDragEnded)` instead: it fires for every drag kind, and a Shift+area marquee applies its selection in `SelectionAreaFinalize` *before* that event, so a blanket re-assert would wipe the marquee.
+
+A plain click is untouched by all of this: the class is never stamped, the single emit arrives on pointerup via `finalizeDragSequence`, and the inspector opens as it always did.
 
 ### Keyboard a11y layer (v19, opt-in via `provideFFlow(withA11y(...))`)
 
@@ -620,4 +639,5 @@ In order of likelihood:
 13. **Drag a node, release, refresh — the node is back at its previous position; pointerup-based persistence "just doesn't fire"** → `fDragHandle` consumes `pointerup` (rule 9). Switch the document listener to `mouseup`. Same fix applies to any one-off post-drag side effect (analytics, undo snapshot, etc.).
 14. **Drag feels choppy even though the perf HUD reads 120 fps** → state is being written on every `(fNodePositionChange)`. Two compounding causes: (a) signal write invalidates the `graph` computed → @for diff over all nodes/edges 60–120×/sec; (b) sync `localStorage.setItem` per move adds 1–5 ms stalls per frame. Buffer the position in a non-signal field, flush at `mouseup` (rule 9).
 15. **Pan / zoom snaps back to the boot position on every WS update / filter change / any host re-render — but a full F5 "fixes" it** → `[position]` / `[scale]` are bound to constants (field-init literals). Foblex re-evaluates the inputs on every CD pass and reconciles against its internal viewport, undoing the user's pan. F5 masks it because the field initializer re-runs and reads the panned position from localStorage. Bind to signals that `(fCanvasChange)` writes (see "Persisted viewport" canonical pattern).
-16. **Anything else** → open the matching file under [`references/examples/`](references/examples/) and diff our shape against the canonical one. If our code does not match, align it before inventing a workaround.
+16. **Dragging a node opens the inspector / changes the app's selection, even though the click handler has a drag-distance guard** → `SelectByPointer` selects the grabbed node on pointerdown and Foblex reports it via `fSelectionChange` the moment the drag threshold is crossed, bypassing the app's `(click)` handler entirely. Reject the event while the `<f-flow>` host carries `f-dragging`, then re-assert the app selection at the `mouseup` drag-end flush (see "Drag is not a click" under the selection contract).
+17. **Anything else** → open the matching file under [`references/examples/`](references/examples/) and diff our shape against the canonical one. If our code does not match, align it before inventing a workaround.

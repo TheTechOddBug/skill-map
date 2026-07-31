@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   isAnyPrimengOverlayOpen,
+  isFlowDragging,
   isPoint,
   isStoredViewport,
   nodeHasTag,
@@ -82,5 +83,22 @@ describe('graph-view.utils, shape guards', () => {
     expect(isStoredViewport({ x: 0, y: 0, scale: 1 })).toBe(true);
     expect(isStoredViewport({ x: 0, y: 0, scale: 0 })).toBe(false);
     expect(isStoredViewport({ x: 0, y: 0, scale: -1 })).toBe(false);
+  });
+});
+
+describe('graph-view.utils, isFlowDragging', () => {
+  it('is true while Foblex has stamped `f-dragging` on the flow host', () => {
+    const host = document.createElement('f-flow');
+    host.classList.add('f-dragging');
+    expect(isFlowDragging(host)).toBe(true);
+  });
+
+  it('is false on an idle host (click that never moved)', () => {
+    expect(isFlowDragging(document.createElement('f-flow'))).toBe(false);
+  });
+
+  it('is false when the flow has not mounted yet', () => {
+    expect(isFlowDragging(null)).toBe(false);
+    expect(isFlowDragging(undefined)).toBe(false);
   });
 });
