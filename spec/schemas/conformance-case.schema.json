@@ -43,6 +43,10 @@
           "type": "boolean",
           "description": "When true, the runner injects `SKILL_MAP_DISABLE_ALL_ANALYZERS=1` into the child process environment, dropping every Analyzer extension before scan composition."
         },
+        "serve": {
+          "type": "boolean",
+          "description": "When true, the runner starts the implementation's server (the `sm serve` equivalent) on an EPHEMERAL port inside the scope, after the top-level fixture copy and plugin trust and BEFORE `setup.priorInvokes`. Readiness is observed via `.skill-map/serve.json` (the discovery file the serve contract already mandates), and the server stays up through the main `invoke` AND assertion evaluation, then is torn down. Keeping it up through assertions is the point: it lets `file-matches-schema` observe files that exist only while the server runs, and it is what the `http-matches-schema` assertion depends on."
+        },
         "priorScans": {
           "type": "array",
           "description": "Ordered staging scans, each running before the next. For step N, the runner first replaces the scope's Provider content with `priorScans[N].fixture`, then invokes `sm scan` with the supplied flags. After the last step, the runner copies the top-level `fixture` (overwriting again) and runs the main `invoke`. The DB persists across all steps because `.skill-map/` is preserved between fixture swaps.",
@@ -141,6 +145,8 @@
         { "$ref": "#/$defs/StdoutContainsVerbatim" },
         { "$ref": "#/$defs/FileMatchesSchema" },
         { "$ref": "#/$defs/StdoutMatchesSchema" },
+        { "$ref": "#/$defs/HttpMatchesSchema" },
+        { "$ref": "#/$defs/NdjsonLineMatches" },
         { "$ref": "#/$defs/StderrMatches" }
       ]
     },
@@ -260,6 +266,76 @@
         },
         "schemaPointer": { "$ref": "#/$defs/SchemaPointer" },
         "each": { "$ref": "#/$defs/EachElement" }
+      }
+    },
+    "HttpMatchesSchema": {
+      "type": "object",
+      "required": ["type", "request", "schema"],
+      "additionalProperties": false,
+      "description": "The HTTP twin of `stdout-matches-schema`: a request issued against the server `setup.serve` started, on loopback, with the port resolved from the scope's `.skill-map/serve.json`. Declaring it in a case without `setup.serve: true` is a case authoring error the runner MUST fail loudly (a failed assertion naming the error), never skip. The response body MUST parse as JSON and validate against the named schema. Exists because REST envelope contracts are HTTP response shapes: no CLI invocation ever emits them, so no stdout or file assertion can observe them.",
+      "properties": {
+        "type": { "const": "http-matches-schema" },
+        "request": {
+          "type": "object",
+          "required": ["path"],
+          "additionalProperties": false,
+          "properties": {
+            "path": {
+              "type": "string",
+              "pattern": "^/",
+              "description": "Absolute URL path (leading slash) requested on the served port, e.g. `/api/nodes`. Query strings are carried verbatim."
+            },
+            "method": {
+              "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"],
+              "default": "GET",
+              "description": "HTTP method. Defaults to `GET`."
+            }
+          }
+        },
+        "status": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 599,
+          "default": 200,
+          "description": "Status code the response MUST return. Defaults to `200`. A mismatch fails the assertion naming both codes, before the body is validated."
+        },
+        "schema": {
+          "type": "string",
+          "description": "Path under `schemas/` that the response body MUST validate against, with or without the `schemas/` prefix. MUST stay inside the spec root. The body MUST parse as JSON; a non-JSON body fails the assertion rather than being skipped."
+        },
+        "schemaPointer": { "$ref": "#/$defs/SchemaPointer" },
+        "each": { "$ref": "#/$defs/EachElement" }
+      }
+    },
+    "NdjsonLineMatches": {
+      "type": "object",
+      "required": ["type", "match"],
+      "additionalProperties": false,
+      "description": "Line-oriented stdout assertion for event-stream surfaces (`sm record --json` emits one envelope per line), which a whole-document assertion cannot parse at all. Stdout is parsed as NDJSON and EVERY non-empty line MUST parse as JSON (a non-JSON line fails the assertion, since surfaces contracted as ndjson emit nothing else on stdout). The assertion selects the FIRST line whose document deep-equals every key/value in `match` (top-level keys only); no matching line fails. When `path` plus a comparator are given they are evaluated against the matched line's document.",
+      "properties": {
+        "type": { "const": "ndjson-line" },
+        "match": {
+          "type": "object",
+          "minProperties": 1,
+          "description": "Top-level key/value selector. Each value is a JSON literal the matched line's document MUST deep-equal at that key. Keys are author-chosen, so this object is deliberately not closed."
+        },
+        "path": {
+          "type": "string",
+          "description": "Optional JSONPath expression (RFC 9535 subset) evaluated against the MATCHED line's document, paired with one of the comparators below."
+        },
+        "equals": {
+          "description": "Any JSON value. The extracted value MUST deep-equal this."
+        },
+        "greaterThan": {
+          "type": "number"
+        },
+        "lessThan": {
+          "type": "number"
+        },
+        "matches": {
+          "type": "string",
+          "description": "ECMAScript regex. The extracted value (coerced to string) MUST match."
+        }
       }
     },
     "SchemaPointer": {

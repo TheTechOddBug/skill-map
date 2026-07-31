@@ -1,0 +1,41 @@
+{
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
+  "id": "record-run-envelope",
+  "description": "`sm record --json` MUST emit the synthetic run envelope as NDJSON on stdout: `run.started` -> `job.claimed` -> `job.callback.received` -> `job.completed` -> `run.summary`, one JSON object per line and nothing else. The run envelope is a STDOUT ndjson contract; the coverage row had mis-diagnosed it as websocket-blocked, but `run.*` deliberately never travels the server push leg (`job-events.md` names the synthetic envelope as the record surface), so what was missing was only an ndjson-aware assertion.",
+  "fixture": "job-record-chain",
+  "setup": {
+    "priorScans": [{ "fixture": "job-record-chain" }],
+    "priorInvokes": [
+      { "verb": "agent", "sub": "install", "flags": ["--for", "claude"] },
+      {
+        "verb": "jobs",
+        "sub": "submit",
+        "args": ["ai-summarizer-action"],
+        "flags": ["-n", "notes.md"]
+      },
+      {
+        "verb": "jobs",
+        "sub": "claim",
+        "flags": ["--json"],
+        "capture": { "jobId": "$.id", "jobNonce": "$.nonce" }
+      }
+    ]
+  },
+  "invoke": {
+    "verb": "record",
+    "flags": [
+      "--id", "{{jobId}}",
+      "--nonce", "{{jobNonce}}",
+      "--status", "completed",
+      "--report", "report.json",
+      "--json"
+    ]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "ndjson-line", "match": { "type": "run.started" }, "path": "$.runId", "matches": ".+" },
+    { "type": "ndjson-line", "match": { "type": "job.claimed" } },
+    { "type": "ndjson-line", "match": { "type": "job.completed" }, "path": "$.jobId", "matches": ".+" },
+    { "type": "ndjson-line", "match": { "type": "run.summary" } }
+  ]
+}

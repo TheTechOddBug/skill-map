@@ -146,13 +146,11 @@ export class ConformanceRunCommand extends SmCommand {
 
       Scope selection:
 
-        --scope spec               only spec-owned, kernel-agnostic cases
-                                    (default fixture: \`preamble-v2.txt\`,
-                                    case: \`kernel-empty-boot\`).
-        --scope provider:<id>      only the named built-in Provider's
-                                    cases. Today: \`provider:claude\`
-                                    (\`basic-scan\`, \`rename-high\`,
-                                    \`orphan-detection\`).
+        --scope spec               only spec-owned, kernel-agnostic cases.
+        --scope provider:<id>      only the named Provider's own cases.
+                                    Scopes are discovered by walking each
+                                    Provider for a \`conformance/\` dir,
+                                    never enumerated here.
         --scope all (default)      every scope, in registry order.
 
       \`--case <id>\` narrows the run to a single case, searched across
@@ -267,7 +265,7 @@ export class ConformanceRunCommand extends SmCommand {
       for (const casePath of cases) {
         const caseId = readCaseId(casePath);
         try {
-          const result = runConformanceCase({
+          const result = await runConformanceCase({
             binary,
             specRoot: scope.specRoot,
             casePath,

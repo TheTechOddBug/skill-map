@@ -1,0 +1,20 @@
+{
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
+  "id": "rest-envelope-schema",
+  "description": "REST responses under `/api/*` MUST ride the envelope shape of `api/rest-envelope.schema.json`. The case starts the server via `setup.serve` and issues `GET /api/nodes` against the ephemeral port resolved from `serve.json`: a 200 response whose body validates against the envelope (the list variant with `items` + `counts` + `filters` + the three registries). The `version` invoke is benign on purpose; the contract under test is the HTTP surface, which no CLI invocation can emit.",
+  "fixture": "job-record-chain",
+  "setup": {
+    "priorScans": [{ "fixture": "job-record-chain" }],
+    "serve": true
+  },
+  "invoke": { "verb": "version" },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    {
+      "type": "http-matches-schema",
+      "request": { "path": "/api/nodes", "method": "GET" },
+      "status": 200,
+      "schema": "api/rest-envelope.schema.json"
+    }
+  ]
+}

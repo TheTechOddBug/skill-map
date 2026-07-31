@@ -78,6 +78,27 @@ export const CONFORMANCE_RUNNER_TEXTS = {
   jsonPathNoComparator:
     'no comparator on json-path assertion',
 
+  serveExitedBeforeReady:
+    'setup.serve: the server exited with {{exit}} before publishing {{file}}: {{stderr}}',
+
+  serveNotReady:
+    'setup.serve: the server did not publish a valid {{file}} within {{timeout}}ms: {{stderr}}',
+
+  httpWithoutServe:
+    'http-matches-schema: {{method}} {{path}} declared without setup.serve: true, a case authoring error (no server was started, so no request was attempted)',
+
+  httpRequestFailed:
+    'http-matches-schema: {{method}} {{path}} failed: {{message}}',
+
+  httpStatusMismatch:
+    'http-matches-schema: {{method}} {{path}} returned status {{actual}}, expected {{expected}}',
+
+  ndjsonLineNotJson:
+    'ndjson-line: stdout line {{line}} is not parseable JSON: {{message}}',
+
+  ndjsonNoLineMatched:
+    'ndjson-line: no stdout line deep-equals {{match}} on its top-level keys',
+
   specRootMissingIndex:
     'spec root missing index.json at {{specRoot}}',
 } as const;

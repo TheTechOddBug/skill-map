@@ -90,9 +90,9 @@ function jsonValue(stdout: string, dottedPath: string): unknown {
 }
 
 describe('conformance runner, disableAll* env-var pipeline', () => {
-  it('baseline (no toggles) on minimal-claude → populated ScanResult', () => {
+  it('baseline (no toggles) on minimal-claude → populated ScanResult', async () => {
     const casePath = writeCase({});
-    const result = runConformanceCase({
+    const result = await runConformanceCase({
       binary: BIN,
       specRoot: SPEC_ROOT,
       casePath,
@@ -106,9 +106,9 @@ describe('conformance runner, disableAll* env-var pipeline', () => {
     assert.ok(linksCount > 0, `baseline must have links; saw ${linksCount}`);
   });
 
-  it('(a) disableAllProviders=true on populated fixture → 0 nodes', () => {
+  it('(a) disableAllProviders=true on populated fixture → 0 nodes', async () => {
     const casePath = writeCase({ disableAllProviders: true });
-    const result = runConformanceCase({
+    const result = await runConformanceCase({
       binary: BIN,
       specRoot: SPEC_ROOT,
       casePath,
@@ -120,9 +120,9 @@ describe('conformance runner, disableAll* env-var pipeline', () => {
     assert.equal(jsonValue(result.stdout, 'stats.linksCount'), 0);
   });
 
-  it('(b) disableAllExtractors=true on populated fixture → nodes > 0, 0 links', () => {
+  it('(b) disableAllExtractors=true on populated fixture → nodes > 0, 0 links', async () => {
     const casePath = writeCase({ disableAllExtractors: true });
-    const result = runConformanceCase({
+    const result = await runConformanceCase({
       binary: BIN,
       specRoot: SPEC_ROOT,
       casePath,
@@ -135,9 +135,9 @@ describe('conformance runner, disableAll* env-var pipeline', () => {
     assert.equal(jsonValue(result.stdout, 'stats.linksCount'), 0, 'no extractor → no links');
   });
 
-  it('(c) disableAllAnalyzers=true on populated fixture → nodes > 0, 0 issues', () => {
+  it('(c) disableAllAnalyzers=true on populated fixture → nodes > 0, 0 issues', async () => {
     const casePath = writeCase({ disableAllAnalyzers: true });
-    const result = runConformanceCase({
+    const result = await runConformanceCase({
       binary: BIN,
       specRoot: SPEC_ROOT,
       casePath,

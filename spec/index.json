@@ -393,6 +393,10 @@
         "file": "conformance/cases/record-report-schema-gate.json"
       },
       {
+        "id": "record-run-envelope",
+        "file": "conformance/cases/record-run-envelope.json"
+      },
+      {
         "id": "record-tags-report",
         "file": "conformance/cases/record-tags-report.json"
       },
@@ -405,12 +409,20 @@
         "file": "conformance/cases/refresh-report-schema.json"
       },
       {
+        "id": "rest-envelope-schema",
+        "file": "conformance/cases/rest-envelope-schema.json"
+      },
+      {
         "id": "scan-result-schema",
         "file": "conformance/cases/scan-result-schema.json"
       },
       {
         "id": "score-phase-confidence",
         "file": "conformance/cases/score-phase-confidence.json"
+      },
+      {
+        "id": "serve-info-schema",
+        "file": "conformance/cases/serve-info-schema.json"
       },
       {
         "id": "sidecar-end-to-end",
@@ -438,7 +450,7 @@
       "README.md": "aa10b6ccfc36b40ed52f2e4932c6dfdb046b7fa726871c80e8d8958614ecd33b",
       "architecture.md": "3f428b6a51f65dce2edebd0c04688f4d298107be5e52ab5fec7585ff2a2c773f",
       "cli-contract.md": "b6355838b1321b1444f72f46b24eed8b9a44651ba2ccc9d07971da550bf307fc",
-      "conformance/README.md": "5a99ddad71c51f4d0918ca4ef6faf6b0b19355aaeb6bb58cd9c5f3b205656cc2",
+      "conformance/README.md": "6259a7ea8877718901ba0a47ac3ad45041c2bffe5eff85dcae5b43bb0c2033ff",
       "conformance/cases/backtick-path-extraction.json": "4112b5724156c4d6ad5cf90a762e43741d25d68735f91d453ac580a77b3764da",
       "conformance/cases/bump-report-schema.json": "f9f1b9f1143e5750bea045001aff60d0f5f6b15e41597d9bd983c4159540fb22",
       "conformance/cases/catalog-slots-input-types.json": "ba63224f8e679618ae5b240b96acdf950b65031a50403c4ca0f026b1801813bf",
@@ -474,16 +486,19 @@
       "conformance/cases/record-findings-report.json": "6bcd3323bc5f6e0a63b4070e420b45c278f0f533ea9831b865b2d70a5f100c49",
       "conformance/cases/record-nonce-mismatch.json": "28854e4015a2910881afd0b764073007ca550058e5299054dee3c3cb08bcee64",
       "conformance/cases/record-report-schema-gate.json": "be98e746449e02833f7667dbf823b770a453cf8898e5f54dfdc2eca1e149b2ac",
+      "conformance/cases/record-run-envelope.json": "d26396580a43c57f79c6efa9f487d5c1b33dfe1d4c9918c0b9536136d65e2576",
       "conformance/cases/record-tags-report.json": "a84d1774312ee172e1db5a18c462c53c09aa63e0031c1d984d2f6b777438b572",
       "conformance/cases/reference-broken-existence.json": "956f79ca512910d9c45aa8e3fef742c30478753b3ad0dc9e933424081a3de79f",
       "conformance/cases/refresh-report-schema.json": "72e4897cb744a6827239292398cff708b2f80ea7aadf9713c2d91399f599dcf3",
+      "conformance/cases/rest-envelope-schema.json": "845979b2113a931038df144ff8fa7d441f396c1908dfbbece7fe906fb6c8de9a",
       "conformance/cases/scan-result-schema.json": "36017b5d27d834709b61eae78b50e14ec5ce2513eeef6c89c47680411e4be6ac",
       "conformance/cases/score-phase-confidence.json": "118dedfc76f7219a907bc3f020092eb2e2380dc5c9b982c5d659fe6dbaa8b574",
+      "conformance/cases/serve-info-schema.json": "2329a8e190bd9b094d130691df319e0d58e32eff0b5051c2f6e1610b7a631b76",
       "conformance/cases/sidecar-end-to-end.json": "034324999d5f4b5b1a514dd49bd4759bf2c94db0e17f990c3d458c7339290d7d",
       "conformance/cases/view-action-button.json": "bb1377a737117c3d274a4f5a216adb1b94dae534658fa8dcc784c39fcfb15e1b",
       "conformance/cases/view-contribution-payloads.json": "ca02992c269e7c1724df024b138abf0c97f50f003c300c404cb6034743ad7ca7",
       "conformance/cases/view-slots-all.json": "0e3294ada16eb6695760e3067cf05e7ea233720f83b26531432ca95cc24ef4f9",
-      "conformance/coverage.md": "70898f4a76e74299d17370e67cc179ce7fffc0f4dba2acfe450d4f6b42a49b6e",
+      "conformance/coverage.md": "5f68cba27c8c02f0981523744af25bb9cb360b5c2dfbd4c7cc4a7b6081c3c5d5",
       "conformance/fixtures/backtick-path/docs/target.md": "a09ae2cb4c96358a2e0692215f172b0f8c48028b6b123e4e83424b28302e644c",
       "conformance/fixtures/backtick-path/source.md": "217f78b12b3ff47a938a5cc9c1ff7d6989d6a1db82bd1ddf3656787f31efb902",
       "conformance/fixtures/extension-enable-gate/.skill-map/plugins/gated/analyzers/boom/extension.json": "bc8a8a24a068fa4a03d096790fa52b8c3f8c7ecb1e7ac9d3fbe83ea0babafe6f",
@@ -592,7 +607,7 @@
       "schemas/annotations.schema.json": "2020dc285288653eb775bbc80c72a85191bd0411bc11bd752b487a1ad5ec6f98",
       "schemas/api/rest-envelope.schema.json": "5384e61068750390f577d05e97177885c7a6ab5de3a0709543b0e17e35ce99fb",
       "schemas/bump-report.schema.json": "dea9390aa706955e2a47f6254310943d96ceb74a2f51539be86f0d389e33fa86",
-      "schemas/conformance-case.schema.json": "653c5f63f0b0a74485f31325d1ac8cefb2d4b0eff41c1484cfc7697945b9951d",
+      "schemas/conformance-case.schema.json": "d08b18af654c25da6bfe13eebb855aa8a574971d89997c9d18c37fcaa956f5e6",
       "schemas/conformance-result.schema.json": "05b0f1e2dd029f08ba67472b82cb85c2b6d72ab4a7291bf65c5bed499a59c1d9",
       "schemas/enrichments/github.schema.json": "2ffee9e3795faf8b75d21ce5ee7471742d2f26b72a3536680badda899ff50a5b",
       "schemas/execution-record.schema.json": "d85751b87fdd451ff20c89c52967919324c6fd8e754129e054a248d7c257a87c",

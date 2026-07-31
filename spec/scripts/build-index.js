@@ -11,7 +11,7 @@
  * used to be: the generator refreshed only `specPackageVersion` and
  * `integrity` and carried everything else forward, so the published
  * manifest froze at whatever the catalog looked like when someone last
- * hand-edited it (13 of 23 top-level schemas, 1 of 45 conformance
+ * hand-edited it (13 of 23 top-level schemas, 1 of 44 conformance
  * cases). A manifest whose own inventory lies is worse than none.
  * Only `indexPayloadVersion`, `dialect` and `canonicalUrlPrefix` remain
  * hand-maintained, they are policy, not inventory.

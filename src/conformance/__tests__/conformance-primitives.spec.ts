@@ -1,24 +1,28 @@
 /**
- * The four case-format fields that make previously inexpressible
- * contracts testable: `each` and `schemaPointer` on the schema
- * assertions, `expectExit` and `capture` on staged invocations.
+ * The case-format fields that make previously inexpressible contracts
+ * testable: `each` and `schemaPointer` on the schema assertions,
+ * `expectExit` and `capture` on staged invocations, and the
+ * server-capable family (`setup.serve`, `http-matches-schema`,
+ * `ndjson-line`).
  *
  * Every test here asserts the NEGATIVE direction, because that is the
  * direction these fields exist for. The positive direction is already
  * covered by the shipped cases in `conformance.spec.ts`, and a primitive
  * that only ever passes is indistinguishable from one that never checks
  * anything, which is precisely the failure mode `file-matches-schema`
- * lived in for its whole life before this work.
+ * lived in for its whole life before this work. The one exception is the
+ * `setup.serve` lifecycle test at the bottom, whose subject is the
+ * TEARDOWN guarantee rather than an assertion outcome.
  */
 
 import { strict as assert } from 'node:assert';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readlinkSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, describe, it } from 'node:test';
 
-import { runConformanceCase } from '../index.js';
+import { runConformanceCase, type IRunCaseResult } from '../index.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WORKSPACE = resolve(HERE, '..', '..');
@@ -67,7 +71,7 @@ function run(name: string, body: unknown) {
 }
 
 /** The single failure reason, for a case expected to have exactly one. */
-function soleFailure(result: ReturnType<typeof runConformanceCase>): string {
+function soleFailure(result: IRunCaseResult): string {
   const failures = result.assertions.filter(
     (a): a is Extract<typeof a, { ok: false }> => !a.ok,
   );
@@ -76,8 +80,8 @@ function soleFailure(result: ReturnType<typeof runConformanceCase>): string {
 }
 
 describe('conformance runner, each', () => {
-  it('fails an empty array rather than passing vacuously', () => {
-    const result = run('each-empty', {
+  it('fails an empty array rather than passing vacuously', async () => {
+    const result = await run('each-empty', {
       id: 'each-empty',
       description: 'history over a scope with no executions yields [].',
       fixture: 'corpus',
@@ -91,8 +95,8 @@ describe('conformance runner, each', () => {
     assert.match(soleFailure(result), /array is empty/);
   });
 
-  it('fails when the payload is not an array at all', () => {
-    const result = run('each-not-array', {
+  it('fails when the payload is not an array at all', async () => {
+    const result = await run('each-not-array', {
       id: 'each-not-array',
       description: 'A single-object surface cannot satisfy an element-wise assertion.',
       fixture: 'corpus',
@@ -108,12 +112,12 @@ describe('conformance runner, each', () => {
 });
 
 describe('conformance runner, schemaPointer', () => {
-  it('discriminates where the permissive root would pass', () => {
+  it('discriminates where the permissive root would pass', async () => {
     // The control: no pointer, and the manifest sails through the
     // registry root, which declares no `required`. This is the vacuous
     // pass the pointer exists to prevent, so it is asserted rather than
     // assumed.
-    const control = run('pointer-control', {
+    const control = await run('pointer-control', {
       id: 'pointer-control',
       description: 'Manifest against the aggregate root passes without checking anything.',
       fixture: 'corpus',
@@ -128,7 +132,7 @@ describe('conformance runner, schemaPointer', () => {
     });
     assert.ok(control.passed, 'the permissive root accepts the manifest');
 
-    const pointed = run('pointer-wrong-def', {
+    const pointed = await run('pointer-wrong-def', {
       id: 'pointer-wrong-def',
       description: 'The same manifest against a def it does not satisfy must fail.',
       fixture: 'corpus',
@@ -146,8 +150,8 @@ describe('conformance runner, schemaPointer', () => {
     assert.match(soleFailure(pointed), /DiscoveredPlugin/);
   });
 
-  it('fails loudly when the pointer resolves to nothing', () => {
-    const result = run('pointer-missing', {
+  it('fails loudly when the pointer resolves to nothing', async () => {
+    const result = await run('pointer-missing', {
       id: 'pointer-missing',
       description: 'A typo in the pointer must not be silently ignored.',
       fixture: 'corpus',
@@ -167,8 +171,8 @@ describe('conformance runner, schemaPointer', () => {
 });
 
 describe('conformance runner, expectExit', () => {
-  it('accepts a staged step that exits with the declared code', () => {
-    const result = run('expect-exit-ok', {
+  it('accepts a staged step that exits with the declared code', async () => {
+    const result = await run('expect-exit-ok', {
       id: 'expect-exit-ok',
       description: 'A staged failure the case declares is not a case failure.',
       fixture: 'corpus',
@@ -184,8 +188,8 @@ describe('conformance runner, expectExit', () => {
     assert.ok(result.passed, JSON.stringify(result.assertions));
   });
 
-  it('fails when the staged step exits with a different code', () => {
-    const result = run('expect-exit-wrong', {
+  it('fails when the staged step exits with a different code', async () => {
+    const result = await run('expect-exit-wrong', {
       id: 'expect-exit-wrong',
       description: 'A step that succeeds where a refusal was declared is a case failure.',
       fixture: 'corpus',
@@ -202,8 +206,8 @@ describe('conformance runner, expectExit', () => {
 });
 
 describe('conformance runner, capture', () => {
-  it('substitutes a captured value into a later invocation', () => {
-    const result = run('capture-ok', {
+  it('substitutes a captured value into a later invocation', async () => {
+    const result = await run('capture-ok', {
       id: 'capture-ok',
       description: 'A value captured from a prior step reaches the main invoke.',
       fixture: 'corpus',
@@ -220,8 +224,8 @@ describe('conformance runner, capture', () => {
     assert.ok(result.passed, JSON.stringify(result.assertions));
   });
 
-  it('fails a placeholder no capture ever bound', () => {
-    const result = run('capture-unbound', {
+  it('fails a placeholder no capture ever bound', async () => {
+    const result = await run('capture-unbound', {
       id: 'capture-unbound',
       description: 'An unbound placeholder must never reach the CLI verbatim.',
       fixture: 'corpus',
@@ -233,8 +237,8 @@ describe('conformance runner, capture', () => {
     assert.match(soleFailure(result), /"neverBound" is not bound/);
   });
 
-  it('fails a capture whose expression matches nothing', () => {
-    const result = run('capture-nomatch', {
+  it('fails a capture whose expression matches nothing', async () => {
+    const result = await run('capture-nomatch', {
       id: 'capture-nomatch',
       description: 'A capture that matched nothing aborts staging.',
       fixture: 'corpus',
@@ -249,8 +253,8 @@ describe('conformance runner, capture', () => {
     assert.match(soleFailure(result), /capture "ghost".*matched nothing/);
   });
 
-  it('fails a capture resolving to a non-scalar', () => {
-    const result = run('capture-nonscalar', {
+  it('fails a capture resolving to a non-scalar', async () => {
+    const result = await run('capture-nonscalar', {
       id: 'capture-nonscalar',
       description: 'An object spliced into argv would fail far from the mistake.',
       fixture: 'corpus',
@@ -265,11 +269,11 @@ describe('conformance runner, capture', () => {
     assert.match(soleFailure(result), /resolved to object/);
   });
 
-  it('never substitutes into verb or sub', () => {
+  it('never substitutes into verb or sub', async () => {
     // A captured value is CLI output. If it could choose the command,
     // any implementation echoing attacker-controlled content would gain
     // a way to redirect the invocation.
-    const result = run('capture-verb-literal', {
+    const result = await run('capture-verb-literal', {
       id: 'capture-verb-literal',
       description: 'A placeholder in `verb` stays literal and the CLI rejects it.',
       fixture: 'corpus',
@@ -284,5 +288,122 @@ describe('conformance runner, capture', () => {
     // Exit 2 is "unknown verb": the literal `{{v}}` was passed through,
     // never resolved to a runnable command.
     assert.equal(result.exitCode, 2);
+  });
+});
+
+describe('conformance runner, http-matches-schema', () => {
+  it('fails the authoring error of declaring it without setup.serve', async () => {
+    const result = await run('http-no-serve', {
+      id: 'http-no-serve',
+      description: 'An http assertion without a server is an authoring error, never a skip.',
+      fixture: 'corpus',
+      invoke: { verb: 'version' },
+      assertions: [
+        {
+          type: 'http-matches-schema',
+          request: { path: '/api/nodes' },
+          schema: 'api/rest-envelope.schema.json',
+        },
+      ],
+    });
+    assert.ok(!result.passed);
+    const reason = soleFailure(result);
+    assert.match(reason, /setup\.serve/);
+    // The reason names the missing server, not a network error: no fetch
+    // was attempted (the runner checks for the port before any request).
+    assert.match(reason, /no request was attempted/);
+  });
+});
+
+describe('conformance runner, ndjson-line', () => {
+  it('fails when no line matches the selector', async () => {
+    const result = await run('ndjson-no-match', {
+      id: 'ndjson-no-match',
+      description: 'A selector that hits no line must fail, not pass vacuously.',
+      fixture: 'corpus',
+      setup: { priorScans: [{ fixture: 'corpus' }] },
+      // `scan --json` emits one compact JSON line: a valid ndjson stream
+      // in which nothing carries `type: run.started`.
+      invoke: { verb: 'scan', flags: ['--json'] },
+      assertions: [{ type: 'ndjson-line', match: { type: 'run.started' } }],
+    });
+    assert.ok(!result.passed);
+    assert.match(soleFailure(result), /no stdout line deep-equals/);
+  });
+
+  it('fails a non-JSON stdout line naming its line number', async () => {
+    const result = await run('ndjson-not-json', {
+      id: 'ndjson-not-json',
+      description: 'Human-mode stdout is not an ndjson stream; the stray line fails the parse.',
+      fixture: 'corpus',
+      invoke: { verb: 'version' },
+      assertions: [{ type: 'ndjson-line', match: { type: 'run.started' } }],
+    });
+    assert.ok(!result.passed);
+    assert.match(soleFailure(result), /line 1 is not parseable JSON/);
+  });
+
+  it('fails a comparator that misses on the matched line', async () => {
+    const result = await run('ndjson-comparator-miss', {
+      id: 'ndjson-comparator-miss',
+      description: 'A matched line whose path comparator misses fails on that line.',
+      fixture: 'corpus',
+      setup: { priorScans: [{ fixture: 'corpus' }] },
+      invoke: { verb: 'scan', flags: ['--json'] },
+      assertions: [
+        {
+          type: 'ndjson-line',
+          // Matches the single scan-result line on its top-level const...
+          match: { schemaVersion: 1 },
+          // ...then applies an impossible comparator against it.
+          path: '$.stats.nodesCount',
+          lessThan: 0,
+        },
+      ],
+    });
+    assert.ok(!result.passed);
+    assert.match(soleFailure(result), /not < 0/);
+  });
+});
+
+describe('conformance runner, setup.serve lifecycle', () => {
+  it('boots the server, asserts against it, and tears the child down', async () => {
+    const result = await run('serve-teardown', {
+      id: 'serve-teardown',
+      description: 'A serve case passes and the serve child is gone once the runner returns.',
+      fixture: 'corpus',
+      setup: { priorScans: [{ fixture: 'corpus' }], serve: true },
+      invoke: { verb: 'version' },
+      assertions: [
+        { type: 'exit-code', value: 0 },
+        // Observable only through the ordering guarantee: the file exists
+        // solely while the server runs, and assertions evaluate before
+        // teardown.
+        {
+          type: 'file-matches-schema',
+          path: '.skill-map/serve.json',
+          schema: 'serve-info.schema.json',
+        },
+      ],
+    });
+    assert.ok(result.passed, JSON.stringify(result.assertions));
+
+    // The runner returning at all is already teardown evidence: it awaits
+    // the child's exit (SIGTERM, SIGKILL fallback) before removing the
+    // scope, so a live child would have held this await. On Linux,
+    // double-check via /proc that no process still has its cwd inside the
+    // scope this case ran in (the scope prefix embeds the case id).
+    if (process.platform === 'linux') {
+      const leaked = readdirSync('/proc')
+        .filter((entry) => /^\d+$/.test(entry))
+        .filter((pid) => {
+          try {
+            return readlinkSync(`/proc/${pid}/cwd`).includes('sm-conformance-serve-teardown');
+          } catch {
+            return false;
+          }
+        });
+      assert.deepEqual(leaked, [], `serve child leaked: pids ${leaked.join(', ')}`);
+    }
   });
 });

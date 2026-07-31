@@ -1,0 +1,15 @@
+{
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
+  "id": "serve-info-schema",
+  "description": "The discovery file `sm serve` writes at `.skill-map/serve.json` MUST validate against `serve-info.schema.json` while the server is up. The case is expressible only because of the runner's ordering guarantee: `setup.serve` keeps the server alive through the main `invoke` AND assertion evaluation before tearing it down, so `file-matches-schema` observes a file that exists only while the server runs. The `version` invoke is benign on purpose; the case's subject is the server, not the verb.",
+  "fixture": "job-record-chain",
+  "setup": {
+    "priorScans": [{ "fixture": "job-record-chain" }],
+    "serve": true
+  },
+  "invoke": { "verb": "version" },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "file-matches-schema", "path": ".skill-map/serve.json", "schema": "serve-info.schema.json" }
+  ]
+}

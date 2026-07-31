@@ -101,6 +101,17 @@ const SPEC_CASES = [
   'plugin-storage-prefix-enforced',
   'plugin-storage-namespace-rejected',
   'conformance-result-schema',
+  // The server-capable trio (rows 25 / 36 / H). `serve-info-schema` and
+  // `rest-envelope-schema` exercise `setup.serve` + `http-matches-schema`
+  // (a server booted on an ephemeral port, torn down after assertions);
+  // `record-run-envelope` exercises `ndjson-line` over `sm record --json`'s
+  // stdout event stream. Same reasoning as the families above: these
+  // primitives exist to make contracts expressible, so a runner
+  // regression would not fail any OTHER case, it would silently shrink
+  // what the suite can say.
+  'serve-info-schema',
+  'rest-envelope-schema',
+  'record-run-envelope',
 ] as const;
 const PROVIDER_CLAUDE_CASES = ['rename-high', 'orphan-detection'] as const;
 const PROVIDER_OPENAI_CASES = ['basic-scan', 'body-links'] as const;
@@ -108,8 +119,8 @@ const PROVIDER_ANTIGRAVITY_CASES = ['basic-scan', 'workflow-links', 'reserved-na
 
 describe('conformance suite (Step 0b subset)', () => {
   for (const caseId of SPEC_CASES) {
-    it(`spec case ${caseId} passes`, () => {
-      const result = runConformanceCase({
+    it(`spec case ${caseId} passes`, async () => {
+      const result = await runConformanceCase({
         binary: BIN,
         specRoot: SPEC_ROOT,
         casePath: resolve(SPEC_CASES_DIR, `${caseId}.json`),
@@ -129,8 +140,8 @@ describe('conformance suite (Step 0b subset)', () => {
   }
 
   for (const caseId of PROVIDER_CLAUDE_CASES) {
-    it(`provider:claude case ${caseId} passes`, () => {
-      const result = runConformanceCase({
+    it(`provider:claude case ${caseId} passes`, async () => {
+      const result = await runConformanceCase({
         binary: BIN,
         specRoot: SPEC_ROOT,
         casePath: resolve(CLAUDE_CASES_DIR, `${caseId}.json`),
@@ -150,8 +161,8 @@ describe('conformance suite (Step 0b subset)', () => {
   }
 
   for (const caseId of PROVIDER_OPENAI_CASES) {
-    it(`provider:codex case ${caseId} passes`, () => {
-      const result = runConformanceCase({
+    it(`provider:codex case ${caseId} passes`, async () => {
+      const result = await runConformanceCase({
         binary: BIN,
         specRoot: SPEC_ROOT,
         casePath: resolve(OPENAI_CASES_DIR, `${caseId}.json`),
@@ -171,8 +182,8 @@ describe('conformance suite (Step 0b subset)', () => {
   }
 
   for (const caseId of PROVIDER_ANTIGRAVITY_CASES) {
-    it(`provider:antigravity case ${caseId} passes`, () => {
-      const result = runConformanceCase({
+    it(`provider:antigravity case ${caseId} passes`, async () => {
+      const result = await runConformanceCase({
         binary: BIN,
         specRoot: SPEC_ROOT,
         casePath: resolve(ANTIGRAVITY_CASES_DIR, `${caseId}.json`),
@@ -214,7 +225,7 @@ describe('runConformanceCase, path-traversal guard (audit follow-up 6.4)', () =>
     rmSync(tmpRoot, { recursive: true, force: true });
   });
 
-  it('rejects a case whose `fixture` escapes the fixtures root', () => {
+  it('rejects a case whose `fixture` escapes the fixtures root', async () => {
     const casesDir = join(tmpRoot, 'cases');
     const fixturesDir = join(tmpRoot, 'fixtures');
     mkdirSync(casesDir, { recursive: true });
@@ -232,7 +243,7 @@ describe('runConformanceCase, path-traversal guard (audit follow-up 6.4)', () =>
       }),
     );
 
-    assert.throws(
+    await assert.rejects(
       () =>
         runConformanceCase({
           binary: BIN,
@@ -241,7 +252,7 @@ describe('runConformanceCase, path-traversal guard (audit follow-up 6.4)', () =>
           fixturesRoot: fixturesDir,
         }),
       (err: unknown) => {
-        // The guard throws before the child `sm` process is spawned,
+        // The guard rejects before the child `sm` process is spawned,
         // catching here proves the runner refused the case JSON
         // without any I/O against the hostile path.
         assert.ok(err instanceof Error, `expected Error, got ${typeof err}`);
@@ -252,7 +263,7 @@ describe('runConformanceCase, path-traversal guard (audit follow-up 6.4)', () =>
     );
   });
 
-  it('refuses a schema assertion whose `path` or `schema` escapes its anchor', () => {
+  it('refuses a schema assertion whose `path` or `schema` escapes its anchor', async () => {
     // The schema assertions were added long after this guard suite and
     // arrived without it, because the assertion they implement had been
     // a permanently-failing stub since Step 0: an assertion nobody could
@@ -285,7 +296,7 @@ describe('runConformanceCase, path-traversal guard (audit follow-up 6.4)', () =>
       }),
     );
 
-    const result = runConformanceCase({
+    const result = await runConformanceCase({
       binary: BIN,
       specRoot: SPEC_ROOT,
       casePath,
@@ -302,7 +313,7 @@ describe('runConformanceCase, path-traversal guard (audit follow-up 6.4)', () =>
     }
   });
 
-  it('rejects a case whose `fixture` is absolute', () => {
+  it('rejects a case whose `fixture` is absolute', async () => {
     const casesDir = join(tmpRoot, 'cases-absolute');
     const fixturesDir = join(tmpRoot, 'fixtures-absolute');
     mkdirSync(casesDir, { recursive: true });
@@ -320,7 +331,7 @@ describe('runConformanceCase, path-traversal guard (audit follow-up 6.4)', () =>
       }),
     );
 
-    assert.throws(
+    await assert.rejects(
       () =>
         runConformanceCase({
           binary: BIN,

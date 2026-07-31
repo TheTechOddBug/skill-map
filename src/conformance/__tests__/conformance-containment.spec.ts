@@ -3,8 +3,8 @@
  * escape their anchored root. Two surfaces:
  *
  *   1. `case.fixture` flows through `replaceFixture(scope, fixturesRoot,
- *      ...)`. An escape (`../`, absolute) must throw before the malicious
- *      `cpSync` runs.
+ *      ...)`. An escape (`../`, absolute) must reject (the runner is
+ *      async) before the malicious `cpSync` runs.
  *   2. Assertion `path` (file-exists, file-contains-verbatim) and
  *      `fixture` (file-contains-verbatim) flow through `assertContained`
  *      inside the per-assertion evaluator. An escape produces `ok:false`,
@@ -52,14 +52,14 @@ function writeCase(name: string, body: unknown): { casePath: string; fixturesRoo
 }
 
 describe('conformance runner, fixture path containment (audit M4)', () => {
-  it('throws when case.fixture escapes fixturesRoot via ..', () => {
+  it('rejects when case.fixture escapes fixturesRoot via ..', async () => {
     const { casePath, fixturesRoot } = writeCase('fixture-escape', {
       id: 'fixture-escape',
       fixture: '../../etc',
       invoke: { verb: 'version' },
       assertions: [{ type: 'exit-code', value: 0 }],
     });
-    assert.throws(
+    await assert.rejects(
       () =>
         runConformanceCase({
           binary: BIN,
@@ -71,14 +71,14 @@ describe('conformance runner, fixture path containment (audit M4)', () => {
     );
   });
 
-  it('throws when case.fixture is absolute', () => {
+  it('rejects when case.fixture is absolute', async () => {
     const { casePath, fixturesRoot } = writeCase('fixture-abs', {
       id: 'fixture-abs',
       fixture: '/etc',
       invoke: { verb: 'version' },
       assertions: [{ type: 'exit-code', value: 0 }],
     });
-    assert.throws(
+    await assert.rejects(
       () =>
         runConformanceCase({
           binary: BIN,
@@ -92,7 +92,7 @@ describe('conformance runner, fixture path containment (audit M4)', () => {
 });
 
 describe('conformance runner, assertion path containment (audit M4)', () => {
-  it('file-exists with an escaping path returns ok:false instead of leaking existence', () => {
+  it('file-exists with an escaping path returns ok:false instead of leaking existence', async () => {
     const { casePath, fixturesRoot } = writeCase('assertion-escape', {
       id: 'assertion-escape',
       fixture: 'ok',
@@ -102,7 +102,7 @@ describe('conformance runner, assertion path containment (audit M4)', () => {
         { type: 'file-exists', path: '../../etc/passwd' },
       ],
     });
-    const result = runConformanceCase({
+    const result = await runConformanceCase({
       binary: BIN,
       specRoot: SPEC_ROOT,
       casePath,
