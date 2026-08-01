@@ -1,5 +1,131 @@
 # skill-map
 
+## 1.0.0
+
+### Major Changes
+
+- Plugin storage Mode B is gone: the dedicated-table wrapper, the plugin migration runner and its SQL namespace validator (793 lines) are removed, along with `sm db migrate`'s plugin pass and its `--plugin` / `--kernel-only` flags. The kernel migration half of that verb is untouched. A plugin manifest declaring `storage.mode: "dedicated"` is no longer valid; `mode: "kv"` is unaffected and keeps its four-method accessor.
+
+- First stable release of the reference implementation, published alongside spec 1.0.0. The CLI implements the full v1 contract (scan, watch, serve, jobs, findings, plugins behind the pre-import enable gate, and the conformance runner) and follows semver against the frozen v1 standard from here on, ending the pre-1.0 breaking-changes-as-minors policy.
+
+  ## User-facing
+
+  skill-map 1.0, the first stable release. Everything you use daily (scans, the map, jobs, plugins) now sits on a frozen contract: future updates stay backward-compatible until a 2.0.
+
+### Minor Changes
+
+- Hardening pass from a security audit of `src/`. Terminal sanitisation now covers the 8-bit C1 controls, the Unicode line separators and the bidi overrides, closing a clipboard write and a filename spoof that carried no ESC byte. `allowNetworkActions` moves to the project-local config layer, the chokidar watcher refuses symlinks escaping the scan roots, a malformed `.skillmapignore` line warns instead of aborting the scan, and `--plugin-dir` announces that it loads code untrusted.
+
+  ## User-facing
+
+  Hostile filenames can no longer repaint your terminal or disguise what a file is called. A broken line in `.skillmapignore` warns instead of killing the scan. `allowNetworkActions` is now per-machine: re-enable it with `sm config set allowNetworkActions true`.
+
+- The conformance runner validates every case document against `conformance-case.schema.json` at load, before any scope is provisioned or child spawned; a malformed case fails with `case-invalid` naming the violation instead of surfacing as confusing downstream behaviour. A sweep test audits every bundled case in all six scopes, and the gate immediately caught three synthesized test cases missing a required field.
+
+- `sm conformance run` gained `--case <id>`, narrowing a run to a single case searched across the selected scopes. An id matching nothing exits 2 rather than reporting a clean sweep of zero cases, so a typo in CI cannot go green forever. The summary now counts the scopes that actually ran instead of the ones selected, which keeps `totals.scopes` in agreement with the `scopes` array beside it.
+
+  ## User-facing
+
+  `sm conformance run --case <id>` runs a single case instead of the whole suite, so you can iterate on one without waiting for the rest.
+
+- The conformance runner implements `parallel` and `sleepAfterMs`. Parallel children are spawned asynchronously in a plain loop with no await between them, so every process exists before any is collected, which is what makes the race real. Mixing per-result assertions with `parallel` (or a `parallel-*` assertion without it) fails at the top of the run with zero side effects, before any scope is provisioned or child spawned.
+
+- The conformance runner implements the four new case-format fields: `schemaPointer` resolves a subschema through AJV's registered `$id` so a `$def`'s relative `$ref`s still resolve, `each` validates array elements and rejects an empty array rather than passing vacuously, `expectExit` lets a staging step declare a non-zero exit, and `capture` binds JSONPath values from a step's stdout into `{{name}}` placeholders in later arguments and flags.
+
+- The conformance runner implements `setup.serve`, `http-matches-schema` and `ndjson-line`. The serve child is spawned with `--no-watcher` on port 0, readiness is polled on `serve.json`, and teardown is an awaited SIGTERM with a SIGKILL fallback inside the same finally that removes the scope, so the child can never outlive the case. HTTP assertions carry a 10s abort timeout, and declaring one without `setup.serve` fails the case loudly as an authoring error instead of skipping.
+
+- Thirteen contract violations fixed and gated: five verbs missing the `elapsedMs` their contract requires, and eight writing human receipts to stdout under `--json` (human mode is byte-identical). Separately, `process.exit()` fired with bytes still queued on stdout, so over a PIPE any payload above 64 KB was silently truncated mid-document; `sm scan --json | jq` and `sm help --format json | jq` were losing data while redirecting to a file hid it.
+
+  ## User-facing
+
+  Piping a large `--json` output into another tool no longer truncates it at 64 KB. `sm scan --json | jq` used to cut off mid-document while writing the same output to a file worked fine.
+
+- `sm plugins doctor` gained the `recommended-action-missing` warning the spec already promised: an action whose `precondition.analyzerIds` names an analyzer no loaded plugin declares now surfaces a non-blocking diagnostic instead of failing silently. Resolution spans the whole registry, so a cross-plugin reference is fine. The `applicable-kind-unknown` warning is renamed `precondition-kind-unknown` after the field it actually reads, and gained the tests it never had.
+
+- The `sm refresh` verb is now `sm enrich` (command, texts catalog, report schema, envelope kind and operations-log slug all follow); the old name is removed, not aliased. Separately, `sm scan <some-file.md>` used to fail with "does not exist or is not a directory" about a file that plainly exists; a path that exists but is a file now gets its own message explaining that roots are directories and naming the two verbs that do narrow (`sm enrich`, `sm scan --changed`).
+
+  ## User-facing
+
+  `sm refresh` is now `sm enrich`. And pointing `sm scan` at a single file no longer claims the file does not exist: it explains that scan roots are directories and tells you which command to use for one node.
+
+- `github/enrichment` gained `apiBaseUrl` and `rawBaseUrl` settings, honoured ONLY from the gitignored `settings.local.json`: the operator's token rides the Authorization header to whatever the API base says, so a committed override in a cloned repo would exfiltrate it on the first refresh. The conformance runner also serves `setup.staticServe` fixtures and spawns every staged child asynchronously, fixing a latent deadlock.
+
+- Extensions get a diagnostic channel: the kernel binds `ctx.log` onto every Extractor, Analyzer, Action and Hook context. It routes to the kernel logger (stderr, so a chatty extension can never corrupt a `--json` payload the way `console.log` does), strips ANSI escapes and control bytes from extension-authored text, and prefixes every line with the qualified extension id so no extension can emit a line that reads as kernel output.
+
+- Clipanion's built-in version command claimed `-v` as well as `--version`, so `sm -v` printed the version and `sm -v <verb>` died with "unknown command", and any global flag typed before the verb was swallowed into `sm serve`. `-v` is the verbose counter everywhere now. The UI's bump chain listened for a WS event the server no longer emits, so an inspector bump refreshed nothing; it consumes `action.applied` now. `sm history --extension` also takes a bare id again.
+
+  ## User-facing
+
+  `sm -v scan` and `sm --json version` now work: `-v` used to print the version instead of raising the log level, and a flag typed before the verb failed with a confusing "serve" error. Bumping a node from the inspector also refreshes the view again.
+
+- `sm help --format json` now describes the CLI it actually is. Clipanion's `definitions()` silently drops any option that declares no `description`, folding it into the usage string, so 78 real flags were invisible to the surface the contract calls normative (`jobs submit` published none of its seven). Exit codes were missing on all 79 verbs and `globalFlags` listed one of six. Human `--help` and `--format md` were lying identically and are fixed with it.
+
+- The `job.spawning` hook trigger is gone. It named the pre-spawn of a runner subprocess that the pull-only decision removed in July, and it outlived that removal in the runtime trigger list without ever being dispatched: a plugin could declare it, pass load-time validation, and never fire. The spec schema always listed the other nine, so this aligns the implementation with the published contract rather than changing it.
+
+- Raising the log level opened an almost empty room: one `debug` call in the whole codebase and no `trace` at all. The four paths an operator needs when something looks wrong now speak: plugin discovery and per-plugin skip reasons at `debug`, and at `trace` the per-node Provider/kind claim, the extractor cache hit-or-rerun count, and which drop reason `core/reference-broken` applied to a broken edge. Hot loops guard on a level check so silenced lines build no strings.
+
+- Dismissing an issue with an analyzer id that does not exist is now refused on all three faces (CLI exit 2, HTTP 400, MCP invalid-params) before anything is written. It used to succeed silently and plant a permanent, never-matching `issueSuppressions` entry in the node's committed `.sm` sidecar, so a typo became repo state. Undismiss deliberately does NOT validate: a stale suppression whose plugin was uninstalled must stay removable.
+
+  ## User-facing
+
+  Dismissing an issue with a misspelled analyzer name is now refused instead of silently recorded. Before, the typo was written into the node's committed `.sm` file and never matched anything.
+
+- The plugin KV store now enforces a hard 4 MiB budget per plugin per scan, rejecting the write that would cross it with `KvBudgetExceededError` and persisting nothing. The per-value 1 MiB ceiling bounded nothing on its own, since an Extractor runs once per node and a plugin on a large tree could stay under it on every call while growing the project database without limit. A rejected write does not consume budget, so the plugin is throttled rather than bricked, and the scan continues.
+
+- `sm graph --format mermaid` and `--format dot` now work, as does `sm export --format mermaid`. The CLI contract had documented all three since before any existed, so they failed with exit 2 and "No formatter registered". Output is deterministic and escaped against each language's real rules: Mermaid ids are synthetic because `-` and `.` are edge-token characters, and DOT escapes the backslash before the quote so a path cannot render as the node name.
+
+  ## User-facing
+
+  `sm graph --format mermaid` and `--format dot` render the map as a diagram you can paste into a GitHub markdown file or feed to Graphviz. `sm export --format mermaid` does the same for a filtered subset.
+
+- Error reporting moves to per-incident consent: when a verb crashes on an interactive terminal, or an unhandled error hits the UI, skill-map now asks whether to send that one report (with a scrubbed-payload preview), defaulting to Yes; an explicit no always wins and nothing is remembered between crashes. Auto-capturing Sentry integrations are gone on both surfaces, making verb-boundary errors reportable at last; non-interactive runs auto-send only with the persisted opt-in.
+
+  ## User-facing
+
+  When something crashes, skill-map now asks right there whether to send that one anonymous error report, and can show exactly what would be sent. Enter (or 60s of silence) sends; saying no always wins, applies to that report only, and is never remembered against a future crash.
+
+- The Mode A plugin KV store now exists and is wired. `ctx.store` exposes the four methods `plugin-kv-api.md` has always required (`get` / `set` / `delete` / `list`) over `state_plugin_kvs`, scoped per plugin and optionally per node, behind a new `pluginKvs` storage port. Until now only `set` existed and nothing populated `ctx.store`, so it was `undefined` on every real scan; a regression test drives an extractor through `runScan` to pin the wiring itself.
+
+- Usage events now name the extensions involved beyond the scan: `cli.enrich` carries the ids its deterministic pass refreshed, and `cli.jobs` (submit / claim) plus `cli.record` carry the job's extension id, deduped with third-party ids collapsed to `external_plugin`. Both telemetry scrubbers (CLI/BFF and UI) also mask the values of the `path` / `search` URL query parameters as `<masked>`, so a `$current_url` like `/?kinds=skill&path=...` no longer leaks the node path.
+
+  ## User-facing
+
+  Usage analytics (if you turned them on) now report which extensions ran on enrich and queue operations, still names only. URLs in telemetry no longer include your node paths or search text; those query values are replaced with a mask before anything leaves the machine.
+
+- The log level can now be set once per machine, as `logLevel` in `~/.skill-map/settings.json`, instead of retyping `--log-level` or exporting an env var. It sits at the bottom of the precedence chain (`-v` counter, then `--log-level`, then `SKILL_MAP_LOG_LEVEL`, then this, then the `warn` default), so a standing preference never fights a one-off invocation, and `sm serve` inherits it like every other verb.
+
+  ## User-facing
+
+  Tired of typing `--log-level debug`? Put `"logLevel": "debug"` in `~/.skill-map/settings.json` and every `sm` command on this machine picks it up. Any flag or env var on a single run still wins.
+
+- `-v` goes back to being the `--version` alias it is in every other CLI. A `-v` / `-vv` / `-vvv` verbosity counter had claimed it, which both broke that universal expectation and left `sm -v` with no verb to run, so it fell into the bare `sm serve` fan-out and hung. Verbosity is now only the named parameter, and `--log debug` is accepted as a short form of `--log-level debug`. An argv of nothing but global flags no longer launches a server either.
+
+  ## User-facing
+
+  `sm -v` prints the version again, instantly, instead of quietly starting a server and hanging. To raise the log level use `--log debug` (or `--log-level debug`); the `-v` / `-vv` / `-vvv` counter is gone.
+
+### Patch Changes
+
+- `sm help` (json / md) now publishes the boot-level `--log` / `--log-level` global flag, closing an introspection gap; `sm check` renders unknown `--analyzers` ids as the standard error-plus-hint block; `sm scan --help` describes the active-provider-lens pipeline instead of the retired fixed extension set; stale `-v` verbosity mentions in docstrings now say `--log`; and the unused `typanion` dependency is gone.
+
+  ## User-facing
+
+  `sm help` now lists the `--log` / `--log-level` flag, `sm scan --help` describes the current scan pipeline, and mistyping an analyzer id on `sm check --analyzers` shows the usual error style with the valid ids right below.
+
+- Dragging a node on the map no longer opens the inspector. Foblex selects the node under the pointer on pointerdown and reports it once the drag threshold is crossed, bypassing the click handler's drag guard. The graph now rejects selections reported while the flow host carries `f-dragging` and re-asserts its own selection when the drag settles, so moving a node leaves selection untouched and a plain click still opens the panel.
+
+  ## User-facing
+
+  Dragging a node around the map no longer opens the inspector panel. Moving a node just moves it; a plain click still opens it.
+
+- Terminal sanitisation moves from the log call sites into `Logger` itself, so ANSI escapes and control bytes are stripped from every message and every context value on the way to stderr instead of wherever an author remembered to wrap the interpolation. Eleven sites had grown their own wrapper and two interpolating ones had been missed. Measured at ~136 ns per line, which is nothing against a stream write.
+
+- The telemetry allow-list was missing `github`, a built-in that ships with the CLI, so its extension ids collapsed to `external_plugin` and its usage was misreported as third-party. Two guard tests now pin both directions: no id may be in the list unless the CLI actually ships it (the direction that would leak), and every shipped built-in must be in it (the direction that only costs signal).
+
+- An architecture review pass over the bundled UI: the graph camera's deferred fits now key on a reconciled-layout tick instead of sibling-effect creation order, the topbar update chip surfaces the literal install command when a clipboard write is blocked instead of failing silently, branch-scoped live refreshes queued behind an in-flight fetch no longer escalate to a full reload, and the Queue tab loads as its own lazy chunk.
+
+- Hardens the bundled UI per a security audit: provider manifest colors are validated at the CSS sink that binds them (degrading to the neutral fallback), the markdown renderer binds a dedicated DOMPurify instance instead of configuring the process-wide singleton, `track` and `form` join the sanitizer's forbidden tags, and the `ng serve`-only `demo` Angular configuration is renamed `dev-demo` so the deployed demo can never be pointed at it.
+
 ## 0.99.1
 
 ## 0.99.0
