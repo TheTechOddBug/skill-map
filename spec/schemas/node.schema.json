@@ -96,6 +96,43 @@
       "type": "boolean",
       "description": "Per-node favorite flag set by the local user from the UI. Sourced from `state_node_favorites` (zone `state_`, persistent across scans). Decorated by the BFF on every `/api/nodes` response via in-memory Set lookup against the favorites table, no SQL JOIN against `scan_nodes`. Absent on emissions that don't carry per-user state (e.g. `sm export --json`); consumers that don't recognise the field MUST ignore it."
     },
+    "contributions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["pluginId", "extensionId", "nodePath", "contributionId", "slot", "payload", "emittedAt"],
+        "additionalProperties": false,
+        "properties": {
+          "pluginId": { "type": "string", "minLength": 1 },
+          "extensionId": { "type": "string", "minLength": 1 },
+          "nodePath": { "type": "string", "minLength": 1 },
+          "contributionId": { "type": "string", "minLength": 1 },
+          "slot": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Slot the payload targets; the slot fixes both the renderer and the payload shape. Deliberately NOT `$ref`-ed to `view-slots.schema.json#/$defs/SlotName`: this is the kernel's core Node schema, and pointing it at the view catalog would make every consumer that compiles a ScanResult (which embeds Node) drag the UI slot catalog in too. The closed enum is enforced where it belongs, on the envelope's `contributionsRegistry` and at extension load time."
+          },
+          "payload": {
+            "description": "Shape declared by `slot`, open at this layer. The renderer narrows it."
+          },
+          "emittedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Unix ms at which the scan that produced this contribution emitted it."
+          }
+        }
+      },
+      "description": "BFF decoration, the node's view contributions as a LIST of rows (mirror of the kernel's `IPersistedContribution`), NOT a map: the keyed catalog is the envelope's separate `contributionsRegistry`, which carries the label / icon per slot. Delivered on the single-node envelope (`item.contributions`) and, up to `bff.maxBulkContributions`, on list envelopes. Same decoration posture as `isFavorite`: absent on emissions that carry no view state (`sm export --json`, a plain `sm scan` ScanResult), and consumers that don't recognise the field MUST ignore it."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "BFF decoration, the node's curated tags lifted from its `.sm` sidecar (`annotations.tags`) and surfaced flat so the UI renders chips without re-walking the overlay. Human curation, so the sidecar stays the source of truth (see `architecture.md` §Storage rule) and this copy is a read projection. Absent on emissions that carry no sidecar projection; consumers that don't recognise the field MUST ignore it."
+    },
+    "body": {
+      "type": ["string", "null"],
+      "description": "BFF decoration, present ONLY on `GET /api/nodes/:pathB64?include=body`. The post-frontmatter file content as UTF-8, read from disk on demand because the kernel persists `bodyHash` only; `null` when the file is missing or unreadable. Never present without the opt-in flag, and never on a list envelope."
+    },
     "virtual": {
       "type": "boolean",
       "description": "When `true`, this node is synthetic / derived: it does not correspond to a single file on disk. Reconstructed on every scan from the file(s) listed in `derivedFrom`. Use a synthetic `path` scheme (e.g. `mcp://github`) so the identifier is stable and visibly non-filesystem. Examples: MCP server nodes derived from `settings.json` / `mcp.json` / `config.toml`. When absent or `false`, the node is a normal filesystem-backed entity. Stability: experimental."

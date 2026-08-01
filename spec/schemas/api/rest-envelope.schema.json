@@ -43,7 +43,30 @@
     },
     "item": {
       "type": "object",
-      "description": "Present when `kind` is `'node'`. Single-resource envelope payload."
+      "description": "Present when `kind` is `'node'` or `'node.prob-extensions'`. Single-resource envelope payload; each variant below constrains the shape (the `node` variant `$ref`s `node.schema.json`, so the decorated node validates in full rather than as a bare object)."
+    },
+    "links": {
+      "type": "object",
+      "required": ["incoming", "outgoing"],
+      "additionalProperties": false,
+      "properties": {
+        "incoming": {
+          "type": "array",
+          "items": { "$ref": "../link.schema.json" },
+          "description": "Links whose `target` resolves to this node."
+        },
+        "outgoing": {
+          "type": "array",
+          "items": { "$ref": "../link.schema.json" },
+          "description": "Links whose `source` is this node."
+        }
+      },
+      "description": "Present ONLY when `kind` is `'node'`, a sibling of `item` rather than a field inside it. The split is deliberate: `item` IS the node and validates against `node.schema.json`, so folding the relations in would turn it into a bundle and forfeit that validation. Both arrays are always present; empty means the node has no link in that direction."
+    },
+    "issues": {
+      "type": "array",
+      "items": { "$ref": "../issue.schema.json" },
+      "description": "Present ONLY when `kind` is `'node'`, sibling of `item` for the same reason as `links`. Every persisted issue whose `nodeIds` include this node. Empty array is valid and means the node is clean."
     },
     "value": {
       "type": "object",
@@ -770,9 +793,11 @@
       }
     },
     {
-      "description": "Single-resource envelope, `item` payload + `kindRegistry` + `providerRegistry` + `contributionsRegistry`, no `counts` / `filters`. Used by `/api/nodes/:pathB64`.",
+      "description": "Single-resource envelope, `item` payload + its `links` / `issues` siblings + the three registries, no `counts` / `filters`. Used by `/api/nodes/:pathB64`. The relations ride BESIDE `item`, not inside it, so `item` stays a Node and validates against `node.schema.json` (the shape was flipped to this at Step 14.5.a; the schema caught up later).",
       "required": [
         "item",
+        "links",
+        "issues",
         "kindRegistry",
         "providerRegistry",
         "contributionsRegistry"
@@ -780,6 +805,9 @@
       "properties": {
         "kind": {
           "const": "node"
+        },
+        "item": {
+          "$ref": "../node.schema.json"
         }
       },
       "not": {
@@ -1200,6 +1228,25 @@
             ]
           }
         ]
+      }
+    }
+  ],
+  "allOf": [
+    {
+      "description": "`links` / `issues` are exclusive to the single-node envelope. Expressed as ONE conditional rather than ten repetitions of `not: { anyOf: [...] }` (the idiom the sibling payload fields use per variant), because the same negation copied into every other variant is exactly the shape that goes stale when a variant is added: a new `kind` would silently be allowed to carry relations. The `if` matches the node envelope and adds nothing; every other kind takes the `else` and must omit both.",
+      "if": {
+        "required": ["kind"],
+        "properties": {
+          "kind": { "const": "node" }
+        }
+      },
+      "else": {
+        "not": {
+          "anyOf": [
+            { "required": ["links"] },
+            { "required": ["issues"] }
+          ]
+        }
       }
     }
   ],

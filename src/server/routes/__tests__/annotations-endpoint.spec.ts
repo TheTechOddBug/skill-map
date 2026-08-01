@@ -47,6 +47,7 @@ import {
   type IServerHandle,
 } from '../../index.js';
 import { withSqlite } from '../../../core/sqlite/with-sqlite.js';
+import { compileEnvelopeValidator } from './helpers/envelope-validator.js';
 
 interface IRegisteredAnnotationKeyWire {
   pluginId: string;
@@ -333,21 +334,4 @@ describe('GET /api/annotations/registered', () => {
   });
 });
 
-/**
- * Resolve and AJV-compile `spec/schemas/api/rest-envelope.schema.json`.
- * Mirrors the require.resolve dance used by the unknown-field rule
- * (`plugins/core/analyzers/annotation-field-unknown/index.ts:getKnownAnnotationKeys`).
- */
-function compileEnvelopeValidator(): ReturnType<Ajv2020['compile']> {
-  const require = createRequire(import.meta.url);
-  const indexPath = require.resolve('@skill-map/spec/index.json');
-  const specRoot = dirname(indexPath);
-  const schemaPath = resolve(specRoot, 'schemas/api/rest-envelope.schema.json');
-  const schema = JSON.parse(readFileSync(schemaPath, 'utf8')) as Record<string, unknown>;
-  const ajv = new Ajv2020({ strict: false, allErrors: true });
-  // Envelope's `contributionsRegistry` references view-slots via $ref;
-  // register the supporting schema before compile (mirror `schema-validators.ts`).
-  const viewSlotsPath = resolve(specRoot, 'schemas/view-slots.schema.json');
-  ajv.addSchema(JSON.parse(readFileSync(viewSlotsPath, 'utf8')) as object);
-  return ajv.compile(schema);
-}
+

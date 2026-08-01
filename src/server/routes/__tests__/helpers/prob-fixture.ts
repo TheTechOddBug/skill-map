@@ -304,18 +304,7 @@ export function makeFakeWsClient(): IFakeWsClient {
   };
 }
 
-/**
- * Resolve and AJV-compile `spec/schemas/api/rest-envelope.schema.json`
- * (same pattern as `actions-endpoint.spec.ts`).
- */
-export function compileEnvelopeValidator(): ReturnType<Ajv2020['compile']> {
-  const require = createRequire(import.meta.url);
-  const indexPath = require.resolve('@skill-map/spec/index.json');
-  const specRoot = dirname(indexPath);
-  const schemaPath = resolve(specRoot, 'schemas/api/rest-envelope.schema.json');
-  const schema = JSON.parse(readFileSync(schemaPath, 'utf8')) as Record<string, unknown>;
-  const ajv = new Ajv2020({ strict: false, allErrors: true });
-  const viewSlotsPath = resolve(specRoot, 'schemas/view-slots.schema.json');
-  ajv.addSchema(JSON.parse(readFileSync(viewSlotsPath, 'utf8')) as object);
-  return ajv.compile(schema);
-}
+// Re-exported so the four spec files importing it from here keep
+// working; the implementation lives in `envelope-validator.ts`, which
+// registers every sibling schema instead of a hand-listed few.
+export { compileEnvelopeValidator } from './envelope-validator.js';
