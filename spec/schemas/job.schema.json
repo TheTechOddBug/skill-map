@@ -4,7 +4,7 @@
   "title": "Job",
   "description": "Row in `state_jobs`. Non-terminal state until it reaches `completed` or `failed`, at which point an `ExecutionRecord` is also written. The queue is kind-agnostic: `extensionId` names a probabilistic Action OR a probabilistic Analyzer (the columns were renamed from `action_id` / `action_version` when Analyzers joined the queue; `state_executions.extension_id` set the naming precedent).",
   "type": "object",
-  "required": ["id", "extensionId", "extensionVersion", "extensionKind", "nodeId", "contentHash", "nonce", "status", "ttlSeconds", "createdAt"],
+  "required": ["id", "extensionId", "extensionVersion", "extensionKind", "nodeId", "contentHash", "status", "ttlSeconds", "createdAt"],
   "additionalProperties": false,
   "properties": {
     "id": {
@@ -36,7 +36,7 @@
     },
     "nonce": {
       "type": "string",
-      "description": "Unique per-job token. `sm record` requires it to close the job, mismatch rejects with exit code 4."
+      "description": "Unique per-job token, the SOLE record credential: `sm record` requires it to close the job, and a mismatch rejects with exit code 4. NOT required by this root schema, because the shape most consumers see is the nonce-less projection (`#/$defs/PublicJob`); only the two credentialed surfaces carry it (`#/$defs/CredentialedJob`). Validate against the `$defs` that matches your surface rather than this root, which is deliberately permissive about the field so both projections can extend it."
     },
     "priority": {
       "type": "integer",
@@ -83,6 +83,20 @@
     "submittedBy": {
       "type": ["string", "null"],
       "description": "Free-form: username, CI job id, or `skill:<skill-id>`. Optional provenance."
+    }
+  },
+  "$defs": {
+    "PublicJob": {
+      "title": "PublicJob",
+      "description": "The nonce-less projection, and the shape EVERY read surface MUST emit: `sm jobs list --json`, `sm jobs show --json`, `GET /api/jobs`, and the MCP job tools (`job-lifecycle.md` §Nonce exposure). The nonce is the sole record credential, so a passive reader of the queue must not be able to forge callbacks for jobs it never claimed. This is the shape those four surfaces already called \"the public-job shape\" in prose before it existed as a definition; the root schema used to REQUIRE the nonce, which made every one of them unsatisfiable. Absence is asserted, not merely permitted: a projection that leaks the credential fails here.",
+      "$ref": "#",
+      "not": { "required": ["nonce"] }
+    },
+    "CredentialedJob": {
+      "title": "CredentialedJob",
+      "description": "The projection that DOES carry the record credential, emitted by exactly two surfaces: `sm jobs submit --json` (the creator's envelope) and the stored `state_jobs` row itself. `sm jobs claim --json` hands the credential over too, but in its own `{ id, nonce, content }` handover shape rather than as a Job. Requiring the nonce here (instead of on the root) keeps the guarantee that a credentialed surface cannot silently drop it while the public projections stay valid.",
+      "$ref": "#",
+      "required": ["nonce"]
     }
   }
 }

@@ -133,8 +133,8 @@ same kernel reads the REST routes use (`applyExportQuery`, `StoragePort.scans.*`
 Registered whenever the server is on (`mcp.server.enabled`). These wrap the SAME shared
 job engines the CLI verbs (`sm jobs *`, `sm record`) and BFF routes use; they
 add no new queue semantics. `Job` is the shape in
-[`job.schema.json`](./schemas/job.schema.json), always projected WITHOUT the
-`nonce` (the public-job shape) except where noted. Every mutating tool appends
+[`job.schema.json#/$defs/PublicJob`](./schemas/job.schema.json), the nonce-less
+public-job projection, except where noted. Every mutating tool appends
 one line to the operations log with `channel: 'mcp'`.
 
 | Tool | Input | Returns |
