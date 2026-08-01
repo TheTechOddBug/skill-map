@@ -61,7 +61,7 @@ export type TActionWrite =
  * provenance verifier `github/enrichment`) declares it here, which
  * (a) relaxes the purity rule for exactly that capability, (b) injects
  * `ctx.fetch` into its invocation context, and (c) subjects execution
- * to the committed project policy `allowNetworkActions` (default
+ * to the project-local policy `allowNetworkActions` (default
  * `false`). Declared-network Actions execute only via `sm enrich`,
  * never inside `sm scan` and never as queued jobs.
  */
@@ -233,7 +233,7 @@ export interface IAction extends IExtensionBase {
    * Declared IO capability (mirrors `TActionIoKind`). Absent = fully
    * pure `invoke()`. `['network']` = the Action's `invoke()` reaches
    * the network through the injected `ctx.fetch` (never a global) and
-   * is refused at execution while the committed project policy
+   * is refused at execution while the project-local policy
    * `allowNetworkActions` (default `false`) is off. The manifest
    * declaration is what dispatchers gate on WITHOUT invoking the
    * action, the same posture as `writes`.

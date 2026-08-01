@@ -40,7 +40,7 @@
  * (`spec/architecture.md` §Extension purity). Every remote call routes
  * through the injected `ctx.fetch`, never a global, so the dispatcher
  * (`sm enrich`, the only execution surface, never `sm scan`, never a
- * queued job) enforces the committed `allowNetworkActions` project
+ * queued job) enforces the project-local `allowNetworkActions`
  * policy (default off) and tests substitute a fake transport. A missing
  * `ctx.fetch` is a programmer error (a dispatcher that skipped the
  * injection) and throws; every REMOTE failure (network error, non-OK
@@ -104,7 +104,7 @@ export const enrichmentAction: IBuiltInManifest<IAction> = {
   pluginId: PLUGIN_ID,
   kind: 'action',
   description:
-    'Verifies a node against its declared GitHub upstream: fetches the file pinned by the `source` / `sourceVersion` annotations and reports whether the local body still matches it. Runs via `sm enrich` and requires the `allowNetworkActions` project policy. The `apiBaseUrl` / `rawBaseUrl` settings redirect the two fetch hosts (GitHub Enterprise, recorded fixtures) and are honoured from the project-local config layer only, because the `token` setting is sent to the host `apiBaseUrl` names.',
+    'Verifies a node against its declared GitHub upstream: fetches the file pinned by the `source` / `sourceVersion` annotations and reports whether the local body still matches it. Runs via `sm enrich` and requires the project-local `allowNetworkActions` policy (`sm config set allowNetworkActions true`, never committed). The `apiBaseUrl` / `rawBaseUrl` settings redirect the two fetch hosts (GitHub Enterprise, recorded fixtures) and are honoured from the project-local config layer only, because the `token` setting is sent to the host `apiBaseUrl` names.',
   // Ships disabled (experimental): a network-reaching action must be a
   // double opt-in, the extension toggle AND the allowNetworkActions
   // project policy. Same ships-disabled mechanism as core/node-bump.
@@ -306,7 +306,8 @@ async function resolveVerificationSha(
   }
 
   const apiBase = settingBaseUrl(ctx, 'apiBaseUrl', DEFAULT_API_BASE_URL);
-  const apiUrl = `${apiBase}/repos/${ref.owner}/${ref.repo}/commits/${encodeURIComponent(version)}`;
+  const apiUrl = `${apiBase}/repos/${encodeSegment(ref.owner)}/${encodeSegment(ref.repo)}`
+    + `/commits/${encodeSegment(version)}`;
   const headers: Record<string, string> = { accept: 'application/vnd.github+json' };
   const token = ctx.settings['token'];
   if (typeof token === 'string' && token.length > 0) {
@@ -385,7 +386,33 @@ async function fetchRawBody(
 
 /** The immutable raw-content URL for `(base, owner, repo, sha, path)`. */
 function rawContentUrl(base: string, ref: IGithubSourceRef, sha: string): string {
-  return `${base}/${ref.owner}/${ref.repo}/${sha}/${ref.path}`;
+  return `${base}/${encodeSegment(ref.owner)}/${encodeSegment(ref.repo)}`
+    + `/${encodeSegment(sha)}/${encodePathSegments(ref.path)}`;
+}
+
+/**
+ * Percent-encode ONE path segment of a composed URL.
+ *
+ * `owner`, `repo` and `path` come off a node's `source` annotation,
+ * which is disk content and therefore attacker-authored under
+ * clone-and-scan. `version` was already encoded here; the rest were
+ * not (audit finding, 2026-08-01). The host allowlist in
+ * `parseGithubSource` prevents a host pivot and the `/`-split prevents
+ * authority injection, so the residual was same-origin path traversal:
+ * an `owner` of `..` normalises the request onto a different
+ * `api.github.com` path while still carrying the operator's `token`.
+ */
+function encodeSegment(segment: string): string {
+  return encodeURIComponent(segment);
+}
+
+/**
+ * Encode a multi-segment path, preserving the separators. The whole
+ * string cannot go through `encodeURIComponent`, that would turn every
+ * `/` into `%2F` and break the legitimate `docs/skills/foo.md` shape.
+ */
+function encodePathSegments(path: string): string {
+  return path.split('/').map(encodeSegment).join('/');
 }
 
 /**

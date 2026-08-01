@@ -106,6 +106,28 @@ describe('buildIgnoreFilter, configIgnore layer', () => {
   });
 });
 
+describe('buildIgnoreFilter, malformed patterns (audit finding, 2026-08-01)', () => {
+  it('drops one uncompilable line instead of failing the whole scan', () => {
+    // The `ignore` package compiles LAZILY, at the first `ignores()`
+    // call rather than at `add()`, so an unbalanced `[` in a committed
+    // `.skillmapignore` used to surface as a raw
+    // `SyntaxError: Invalid regular expression` from inside the walk
+    // and kill `sm scan` on that clone entirely.
+    const filter = buildIgnoreFilter({ ignoreFileText: 'bad[pattern/\ngood.md' });
+    assert.equal(filter.ignores('anything/at/all.md'), false, 'the scan still runs');
+    assert.equal(filter.ignores('good.md'), true, 'the valid sibling line still applies');
+  });
+
+  it('keeps the surviving layers when another layer carries the bad line', () => {
+    const filter = buildIgnoreFilter({
+      configIgnore: ['*.draft.md'],
+      ignoreFileText: 'oops[/',
+    });
+    assert.equal(filter.ignores('skills/wip.draft.md'), true);
+    assert.equal(filter.ignores('skills/final.md'), false);
+  });
+});
+
 describe('buildIgnoreFilter, ignoreFileText layer', () => {
   it('parses a real .skillmapignore body with comments + blank lines', () => {
     // Real `.skillmapignore` files have no leading indent; gitignore

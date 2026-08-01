@@ -9,7 +9,7 @@
  * executes every enabled enrichment Action (Model A, e.g. the
  * provenance verifier `github/enrichment`) against the node, upserting
  * validated reports into `state_enrichments`. Network-declaring
- * Actions are gated by the committed `allowNetworkActions` project
+ * Actions are gated by the project-local `allowNetworkActions`
  * policy (default off → skipped with a directed advisory).
  *
  * Convention: flat string templates with `{{name}}` placeholders. The
@@ -67,15 +67,21 @@ export const ENRICH_TEXTS = {
   // --- enrichment Actions (Model A) -----------------------------------------
   /**
    * §3.1b two-line advisory (exit stays 0): an enabled Action declares
-   * `io: ['network']` but the committed `allowNetworkActions` project
+   * `io: ['network']` but the project-local `allowNetworkActions`
    * policy is off, so the execution is refused. Emitted once per
    * skipped action, naming the config key in the hint.
+   *
+   * The hint points at `sm config set` rather than at a file on
+   * purpose: the key is project-local only, so the verb writes it to
+   * the gitignored `settings.local.json` and mints the scope-lock
+   * grant it needs. An operator who edits the committed
+   * `settings.json` by hand gets the value stripped with a warning.
    */
   networkActionsPolicySkip:
     '{{glyph}}  Skipped {{actionId}}: network actions are disabled in this project.\n' +
     '   {{hint}}\n',
   networkActionsPolicySkipHint:
-    'Set `allowNetworkActions` to true in .skill-map/settings.json (committed project policy) to let it run.',
+    'Run `sm config set allowNetworkActions true` (your machine only, never committed) to let it run.',
 
   /**
    * Warn advisory: an enrichment Action's `invoke()` threw. Remote

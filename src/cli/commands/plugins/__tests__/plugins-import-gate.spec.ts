@@ -166,4 +166,31 @@ describe('sm plugins family, the gate opens exactly where consent exists', () =>
     const dir = join('.skill-map', 'plugins');
     assert.equal(ran(scope, ['plugins', 'list', '--plugin-dir', dir]), true);
   });
+
+  it('ANNOUNCES the --plugin-dir bypass on stderr (audit finding, 2026-08-01)', () => {
+    // The exemption above is deliberate, but it used to be silent, and
+    // silence is what made it exploitable: a hostile project's README
+    // saying "inspect our plugins with
+    // `sm plugins list --plugin-dir ./tools/sm-plugins`" restored the
+    // execute-on-inspect path the gate exists to close, with nothing on
+    // screen to say code had run. Typing the flag is consent to load
+    // that directory; it is not evidence the operator knows a LISTING
+    // evaluates module bodies.
+    const scope = hostileProject('announced');
+    const dir = join('.skill-map', 'plugins');
+    const r = sm(['plugins', 'list', '--plugin-dir', dir], scope);
+    assert.match(
+      r.stderr,
+      /--plugin-dir loads code without the import-trust gate/,
+      `the bypass must be stated every time; stderr was:\n${r.stderr}`,
+    );
+  });
+
+  it('stays quiet about the bypass when --plugin-dir is absent', () => {
+    // Negative control: a warning that fires unconditionally would
+    // train the operator to ignore it.
+    const scope = hostileProject('unannounced');
+    const r = sm(['plugins', 'list'], scope);
+    assert.doesNotMatch(r.stderr, /--plugin-dir loads code/, r.stderr);
+  });
 });

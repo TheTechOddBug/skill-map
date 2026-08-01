@@ -287,10 +287,10 @@ function warnOversizedFiles(result: ScanResult): void {
   const oversized = result.oversizedFiles ?? [];
   if ((result.stats.filesOversized ?? oversized.length) <= 0) return;
   const files = oversized
-    // Sanitise the disk-sourced path before it reaches the log line, then
-    // hand it to the shared `path (size)` formatter so serve renders the
-    // same atom as `sm scan` / `sm watch`.
-    .map((f) => formatOversizedFilePair({ path: sanitizeForTerminal(f.path), bytes: f.bytes }))
+    // The shared `path (size)` formatter sanitises the disk-sourced
+    // path itself, so serve renders the same atom as `sm scan` /
+    // `sm watch` and no surface can forget the escape strip.
+    .map((f) => formatOversizedFilePair({ path: f.path, bytes: f.bytes }))
     .join(', ');
   log.warn(
     tx(SERVER_TEXTS.watcherFilesOversized, {

@@ -903,6 +903,13 @@ export function createWatcherRuntime(
         // subscription, so a live flip only fully applies to parcel
         // after a watcher restart (the BFF PATCH path restarts anyway).
         respectGitignore: cfg.scan.respectGitignore,
+        // Only the chokidar backend consumes this: it dereferences
+        // symlinks, so without the containment gate a committed
+        // `docs/x -> ~/` armed inotify watches across the operator's
+        // home (audit 2026-08-01). Same key the walker's realpath gate
+        // reads, so watch scope and read scope agree. Parcel does not
+        // follow symlinks and ignores it.
+        followExternalSymlinks: cfg.scan.followExternalSymlinks,
         onBatch: async ({ events: batchEvents }) => {
           if (!handleBatch) return;
           // Thread chokidar's exact changed-path list into the scoped

@@ -32,6 +32,17 @@ describe('formatOversizedFilePair', () => {
       'docs/a.md (512 B)',
     );
   });
+
+  it('sanitises the disk-sourced path (audit finding, 2026-08-01)', () => {
+    // Under clone-and-scan the filename is attacker-authored, and all
+    // three surfaces write this atom to a terminal. The screen-clear
+    // below reached the operator on `sm scan` and on every `sm watch`
+    // batch while sanitisation was a caller obligation.
+    assert.equal(
+      formatOversizedFilePair({ path: 'evil\x1B[2J\x1B[1;31mPWNED\x1B[0m.md', bytes: 4096 }),
+      'evilPWNED.md (4 KiB)',
+    );
+  });
 });
 
 describe('formatOversizedFileRows', () => {

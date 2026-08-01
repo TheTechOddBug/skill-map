@@ -17,7 +17,7 @@
  *      upserting it into `state_enrichments` keyed
  *      `(node_id, <qualified action id>)`. An Action declaring
  *      `io: ['network']` receives the injected `ctx.fetch` and is
- *      gated by the committed `allowNetworkActions` project policy
+ *      gated by the project-local `allowNetworkActions` policy
  *      (default off → skipped with a §3.1b advisory naming the key,
  *      exit stays 0). A node without the `source` + `sourceVersion`
  *      annotations an enricher consumes is a SILENT no-op skip, not a
@@ -166,7 +166,7 @@ export class EnrichCommand extends SmCommand {
       every enabled enrichment Action (e.g. the provenance verifier
       \`github/enrichment\`) in-process, upserting its validated report
       into \`state_enrichments\`. Actions that declare network IO are
-      gated by the committed \`allowNetworkActions\` project policy
+      gated by the project-local \`allowNetworkActions\` policy
       (default off: skipped with an advisory). Nodes without the
       \`source\` / \`sourceVersion\` annotations an enricher needs are
       skipped silently.

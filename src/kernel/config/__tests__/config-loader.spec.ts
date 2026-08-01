@@ -322,6 +322,36 @@ describe('config loader, project-local-only locality', () => {
     );
   });
 
+  it('strips allowNetworkActions from the project layer + warns', () => {
+    // Audit finding 2026-08-01. The key shipped as a committed
+    // team-shared policy while promising that a cloned repo could not
+    // make skill-map fetch without consent, which the committed layer
+    // cannot deliver: that file IS the cloned repo's. A hostile
+    // project shipped `true` beside an enabled network action and the
+    // victim's first `sm enrich` reached out unasked.
+    const { cwd } = freshScope('plonly-network-actions');
+    writeSettings(cwd, 'settings', { allowNetworkActions: true });
+    const { effective, sources, warnings } = loadConfig({ cwd });
+    strictEqual(effective.allowNetworkActions, false, 'the committed opt-in is ignored');
+    strictEqual(sources.get('allowNetworkActions'), 'defaults');
+    ok(
+      warnings.some(
+        (w) => /allowNetworkActions/.test(w) && /project-local only/.test(w),
+      ),
+      warnings.join(' | '),
+    );
+  });
+
+  it('preserves a GRANTED allowNetworkActions in the project-local layer', () => {
+    const { cwd } = freshScope('plonly-network-actions-local');
+    writeSettings(cwd, 'settings.local', { allowNetworkActions: true });
+    mkdirSync(join(cwd, '.skill-map'), { recursive: true });
+    ok(grantLocalKey(cwd, 'allowNetworkActions', true));
+    const { effective, sources } = loadConfig({ cwd });
+    strictEqual(effective.allowNetworkActions, true);
+    strictEqual(sources.get('allowNetworkActions'), 'project-local');
+  });
+
   it('preserves tutorialReminderStep in the project-local layer', () => {
     const { cwd } = freshScope('plonly-tutorial-reminder-local');
     writeSettings(cwd, 'settings.local', { tutorialReminderStep: 1 });

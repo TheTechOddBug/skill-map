@@ -15,26 +15,35 @@
  * Two layers:
  *
  *   - `formatOversizedFilePair(file)`, the bare `path (size)` atom shared
- *     by every surface. Callers that need to sanitise the path for a TTY
- *     (the serve log line) pass a pre-sanitised path in `file.path`.
+ *     by every surface, with the path sanitised for terminal output.
  *   - `formatOversizedFileRows(files)`, the CLI WARN-block rows
  *     (`     - path (size)\n`), one string per file, byte-for-byte the
  *     shape `sm scan` and `sm watch` emit. Returns `[]` for an empty list.
  *
- * Pure: no I/O, no side effects, no colour. Sanitisation and stream
- * writes stay at the call site.
+ * Pure: no I/O, no side effects, no colour. Stream writes stay at the
+ * call site.
  */
 
 import type { OversizedFile } from '../types.js';
 import { formatBytes } from './format-bytes.js';
+import { sanitizeForTerminal } from './safe-text.js';
 
 /**
- * The shared `path (humanSize)` atom for one skipped file. The path is
- * used verbatim, callers that flow it to a TTY are responsible for
- * sanitising it first (the serve surface does).
+ * The shared `path (humanSize)` atom for one skipped file.
+ *
+ * The path is sanitised HERE rather than by the caller (audit finding,
+ * 2026-08-01). It used to be a documented caller obligation, which the
+ * serve surface honoured and both CLI surfaces did not: a committed
+ * file named `evil<ESC>[2Jname.md` just over `scan.maxFileSizeBytes`
+ * cleared the operator's screen on `sm scan` of a fresh clone, and
+ * again on every `sm watch` batch. The filename is attacker-authored
+ * under clone-and-scan, and every one of the three surfaces writes it
+ * to a terminal, so there is no caller for whom the raw string is the
+ * right answer. Making it structural means the next surface cannot
+ * forget.
  */
 export function formatOversizedFilePair(file: OversizedFile): string {
-  return `${file.path} (${formatBytes(file.bytes)})`;
+  return `${sanitizeForTerminal(file.path)} (${formatBytes(file.bytes)})`;
 }
 
 /**

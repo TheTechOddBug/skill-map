@@ -49,6 +49,7 @@ import { loadTrust } from '../../../kernel/config/plugin-trust-store.js';
 import { lockedBuiltInIds } from '../../../plugins/locked-built-ins.js';
 import { qualifiedExtensionId } from '../../../kernel/registry.js';
 import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
+import { log } from '../../../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
@@ -113,7 +114,14 @@ export async function buildResolver(): Promise<TEnabledResolver> {
  * the module, go missing until trust is granted.
  *
  * `--plugin-dir <path>` stays exempt, matching the runtime: the
- * operator pointed the loader at that code on purpose.
+ * operator pointed the loader at that code on purpose. It is
+ * ANNOUNCED, though (audit finding, 2026-08-01). The exemption was
+ * silent, so a hostile project's README saying "inspect our plugins
+ * with `sm plugins list --plugin-dir ./tools/sm-plugins`" restored the
+ * execute-on-inspect path verbatim, with nothing on screen to say code
+ * had run. Typing the flag is consent to load that directory; it is
+ * not evidence the operator knows a listing evaluates module bodies,
+ * so the warning states it every time.
  */
 export async function loadAll(opts: IPluginDirOption): Promise<IDiscoveredPlugin[]> {
   const ctx = defaultRuntimeContext();
@@ -124,7 +132,13 @@ export async function loadAll(opts: IPluginDirOption): Promise<IDiscoveredPlugin
     specVersion: installedSpecVersion(),
     resolveEnabled: await buildResolver(),
   };
-  if (!opts.pluginDir) {
+  if (opts.pluginDir) {
+    log.warn(
+      tx(PLUGINS_TEXTS.pluginDirTrustBypass, {
+        dir: sanitizeForTerminal(opts.pluginDir),
+      }),
+    );
+  } else {
     // Fails closed: a scope lock that cannot be read grants nothing.
     const { trusted } = loadTrust(ctx.cwd);
     const trustMap = new Map([...trusted].map((id) => [id, true] as const));

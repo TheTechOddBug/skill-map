@@ -304,7 +304,7 @@ function parseSegment(value: string, name: string): string {
  * the action ships no deterministic `invoke()` (a probabilistic action
  * that this synchronous route cannot dispatch) OR the action declares
  * `io: ['network']` (declared-network actions execute exclusively via
- * `sm enrich`, behind the `allowNetworkActions` policy; this route
+ * `sm enrich`, behind the project-local `allowNetworkActions` policy; this route
  * never injects `ctx.fetch`, so they are not dispatchable here by
  * contract). The id is sanitised before interpolation into the 404
  * envelope.

@@ -36,6 +36,7 @@
  */
 
 import type { Stats } from 'node:fs';
+import { realpathSync } from 'node:fs';
 import { resolve, relative, sep } from 'node:path';
 
 import chokidar from 'chokidar';
@@ -44,6 +45,7 @@ import parcelWatcher from '@parcel/watcher';
 
 import type { IIgnoreFilter } from './ignore.js';
 import { readGitignoreText, readIgnoreFileText } from './ignore.js';
+import { isPathContained } from '../util/path-containment.js';
 import { SKILL_MAP_DIR } from '../util/skill-map-paths.js';
 
 // -----------------------------------------------------------------------------
@@ -127,6 +129,28 @@ export interface ICreateFsWatcherOptions {
    * filter is the live `ignoreFilter` getter. Only meaningful on parcel.
    */
   respectGitignore?: boolean | undefined;
+  /**
+   * Mirrors `scan.followExternalSymlinks` (default `false`). When off,
+   * the CHOKIDAR backend refuses to arm a watch on any path whose
+   * realpath escapes every root, the same realpath-containment gate
+   * the walker applies (audit M1, and this backend's own finding on
+   * 2026-08-01).
+   *
+   * chokidar dereferences symlinks by default, so before this existed
+   * a committed `docs/x -> ~/` made `sm watch --watch-backend chokidar`
+   * arm inotify watches across the operator's entire home directory:
+   * no content leaked (the walker's read-side gate still refused it)
+   * but the watch itself escaped containment, which exhausts inotify
+   * and turns out-of-tree edits into an activity oracle.
+   *
+   * Expressed as a containment gate rather than chokidar's own
+   * `followSymlinks: false` on purpose. The blunt flag would also stop
+   * following symlinks whose target stays INSIDE the tree, and live
+   * updates behind an internal symlinked directory are the entire
+   * reason this backend is selectable over parcel. Parcel does not
+   * follow symlinks at all, so it needs no gate.
+   */
+  followExternalSymlinks?: boolean | undefined;
   /** Called once per debounced batch. Awaited; concurrent batches are serialised. */
   onBatch: (batch: IWatchBatch) => void | Promise<void>;
   /**
@@ -153,22 +177,95 @@ function buildIgnoredPredicate(
   getFilter: (() => IIgnoreFilter | undefined) | undefined,
   watchedExts: readonly string[],
   absRoots: string[],
+  escapesRoots: ((path: string) => boolean) | undefined,
 ): ((path: string, stats?: Stats) => boolean) | undefined {
-  const hasExtGate = watchedExts.length > 0;
-  if (!getFilter && !hasExtGate) return undefined;
-  return (path: string, stats?: Stats): boolean => {
-    if (
-      hasExtGate &&
-      stats?.isFile() === true &&
-      !watchedExts.some((ext) => path.endsWith(ext))
-    ) {
-      return true;
+  if (!getFilter && watchedExts.length === 0 && !escapesRoots) return undefined;
+  // Containment first: a path resolving out of the tree is refused
+  // whatever the extension gate or the ignore filter say.
+  return (path: string, stats?: Stats): boolean =>
+    escapesRoots?.(path) === true
+    || failsExtensionGate(path, stats, watchedExts)
+    || matchesIgnoreFilter(path, getFilter, absRoots);
+}
+
+/**
+ * True when the extension gate is configured and this path is a FILE
+ * that does not carry one of the watched suffixes. Directories always
+ * pass so the tree is still traversed to reach matching files.
+ */
+function failsExtensionGate(
+  path: string,
+  stats: Stats | undefined,
+  watchedExts: readonly string[],
+): boolean {
+  if (watchedExts.length === 0) return false;
+  if (stats?.isFile() !== true) return false;
+  return !watchedExts.some((ext) => path.endsWith(ext));
+}
+
+/** True when the live ignore filter claims this path. */
+function matchesIgnoreFilter(
+  path: string,
+  getFilter: (() => IIgnoreFilter | undefined) | undefined,
+  absRoots: string[],
+): boolean {
+  const filter = getFilter?.();
+  if (!filter) return false;
+  const rel = relativePathFromRoots(path, absRoots);
+  if (rel === null) return false;
+  return filter.ignores(rel);
+}
+
+/**
+ * The chokidar-side twin of the walker's `isScopedPathContained`
+ * (`scan/walk-content.ts`): true when `path` resolves OUTSIDE every
+ * root, i.e. when arming a watch on it would escape the scan scope.
+ * Returns `undefined` (no gate at all) when the operator opted into
+ * following escaping symlinks.
+ *
+ * Sync because chokidar's `ignored` predicate is sync, and memoised per
+ * PATH because chokidar re-asks about the same entries on every event.
+ * Roots are resolved once up front so a project reached THROUGH a
+ * symlink (`/tmp/x -> /home/u/proj`) does not read as if every one of
+ * its own files escaped.
+ *
+ * The verdict comes from the realpath of the path ITSELF, never its
+ * parent's. Resolving the path resolves the whole chain, so an
+ * escaping component anywhere in it (`docs/link/x.md` where `link`
+ * leaves the tree) is already caught, and judging by the parent would
+ * be actively wrong at the top: the parent of a scan root is by
+ * definition outside every root, so a parent-first gate ignores the
+ * root directory and the watcher goes deaf.
+ *
+ * An unresolvable path (broken link, deleted between the event and
+ * this call) counts as escaping: there is nothing there to watch, and
+ * failing closed is the posture the rest of the gate takes.
+ */
+function buildEscapeGate(
+  absRoots: string[],
+  followExternalSymlinks: boolean,
+): ((path: string) => boolean) | undefined {
+  if (followExternalSymlinks) return undefined;
+  const rootReals: string[] = [];
+  for (const root of absRoots) {
+    try {
+      rootReals.push(realpathSync(root));
+    } catch {
+      rootReals.push(root); // not yet created; lexical value still anchors it
     }
-    const filter = getFilter?.();
-    if (!filter) return false;
-    const rel = relativePathFromRoots(path, absRoots);
-    if (rel === null) return false;
-    return filter.ignores(rel);
+  }
+  const cache = new Map<string, boolean>();
+  return (path: string): boolean => {
+    const cached = cache.get(path);
+    if (cached !== undefined) return cached;
+    let escapes: boolean;
+    try {
+      escapes = !isPathContained(realpathSync(path), rootReals);
+    } catch {
+      escapes = true;
+    }
+    cache.set(path, escapes);
+    return escapes;
   };
 }
 
@@ -289,9 +386,16 @@ function createDebouncedBatcher(opts: {
 export function createChokidarWatcher(opts: ICreateFsWatcherOptions): IFsWatcher {
   const absRoots = opts.roots.map((r) => resolve(opts.cwd, r));
   const getFilter = normalizeIgnoreFilter(opts.ignoreFilter);
-  // Combine the optional extension gate + ignore filter into chokidar's
-  // `ignored` predicate (see `buildIgnoredPredicate`).
-  const ignored = buildIgnoredPredicate(getFilter, opts.watchedExtensions ?? [], absRoots);
+  // Combine the realpath-containment gate + extension gate + ignore
+  // filter into chokidar's `ignored` predicate (see
+  // `buildIgnoredPredicate` / `buildEscapeGate`).
+  const escapesRoots = buildEscapeGate(absRoots, opts.followExternalSymlinks === true);
+  const ignored = buildIgnoredPredicate(
+    getFilter,
+    opts.watchedExtensions ?? [],
+    absRoots,
+    escapesRoots,
+  );
 
   const watcher: FSWatcher = chokidar.watch(absRoots, {
     ignoreInitial: true,
@@ -351,8 +455,11 @@ export function createChokidarWatcher(opts: ICreateFsWatcherOptions): IFsWatcher
  *
  * NOTE: parcel's symlink support is weak/undocumented, so live updates
  * behind a symlinked directory may not fire on this backend; a full scan
- * still indexes them (the walker always follows symlinks). Selecting
- * chokidar via `--watch-backend chokidar` restores live symlink watching.
+ * still indexes them (the walker follows a symlink whose real target
+ * stays inside a scan root, and refuses one that escapes unless
+ * `scan.followExternalSymlinks` is set). Selecting chokidar via
+ * `--watch-backend chokidar` restores live symlink watching under the
+ * same containment rule.
  */
 export function createParcelWatcher(opts: ICreateFsWatcherOptions): IFsWatcher {
   const absRoots = opts.roots.map((r) => resolve(opts.cwd, r));

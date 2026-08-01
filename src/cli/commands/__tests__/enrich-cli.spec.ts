@@ -32,6 +32,7 @@ import { EnrichCommand, _setRefreshFetchForTests } from '../enrich.js';
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
 import { upsertStateEnrichment } from '../../../kernel/adapters/sqlite/enrichments.js';
 import { sha256 } from '../../../kernel/orchestrator/node-build.js';
+import { grantLocalKey } from '../../../kernel/config/local-key-grants.js';
 
 const NODE_PATH = 'agents/architect.md';
 const NODE_BODY = 'Body of agents/architect.md\n';
@@ -101,7 +102,22 @@ async function setupProject(opts: ISetupOptions = {}): Promise<IProject> {
   const dbPath = join(root, '.skill-map', 'skill-map.db');
   mkdirSync(join(root, '.skill-map'), { recursive: true });
   if (opts.settings !== null && opts.settings !== undefined) {
-    writeFileSync(join(root, '.skill-map', 'settings.json'), JSON.stringify(opts.settings));
+    // `allowNetworkActions` is a member of `PROJECT_LOCAL_ONLY_KEYS`
+    // (2026-08-01 audit): the loader strips it from the committed
+    // layer, and honours it from `settings.local.json` only behind a
+    // scope-lock grant. Route it here exactly as `sm config set` does,
+    // so the call sites keep expressing intent ("the policy is on")
+    // instead of restating the storage rule.
+    const { allowNetworkActions, ...committed } = opts.settings;
+    writeFileSync(join(root, '.skill-map', 'settings.json'), JSON.stringify(committed));
+    if (allowNetworkActions !== undefined) {
+      writeFileSync(
+        join(root, '.skill-map', 'settings.local.json'),
+        JSON.stringify({ allowNetworkActions }),
+      );
+      const granted = grantLocalKey(root, 'allowNetworkActions', allowNetworkActions);
+      strictEqual(granted, true, 'the scope anchor must back the local-config grant');
+    }
   }
 
   const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });

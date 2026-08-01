@@ -23,6 +23,7 @@
 
 import { InMemoryProgressEmitter } from '../../kernel/adapters/in-memory-progress.js';
 import type { ProgressEmitterPort, ProgressEvent } from '../../kernel/ports/progress-emitter.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { PROGRESS_EMITTER_TEXTS } from './i18n/progress-emitter.texts.js';
 
@@ -61,7 +62,15 @@ export function createStderrProgressEmitter(
     emit(event: ProgressEvent): void {
       if (event.type === EXTENSION_ERROR) {
         const data = event.data as IExtensionErrorData | undefined;
-        const message = data?.message ?? PROGRESS_EMITTER_TEXTS.extensionErrorNoDetail;
+        // Sanitise at this choke point, the single place every
+        // `extension.error` payload becomes terminal bytes (audit
+        // finding, 2026-08-01). The message is plugin-authored, and
+        // several built-in emissions interpolate extractor-supplied
+        // virtual-node paths, which are derived from scanned content
+        // and therefore attacker-authored under clone-and-scan.
+        const message = sanitizeForTerminal(
+          data?.message ?? PROGRESS_EMITTER_TEXTS.extensionErrorNoDetail,
+        );
         stderr.write(tx(PROGRESS_EMITTER_TEXTS.extensionError, { glyph, message }));
       }
       inner.emit(event);

@@ -219,16 +219,23 @@ export interface IEffectiveConfig {
    */
   allowEditSmFiles: boolean;
   /**
-   * **Project policy, team-shared** (committed in the `project` layer,
-   * NOT project-local). Default `false`. When `false`, every Action
-   * whose manifest declares `io: ['network']` (the built-in
-   * `github/enrichment`, plus any external action) is refused at
-   * execution time: `sm enrich` reports it skipped with a directed
-   * advisory naming this key, while the manifest still loads (visible
-   * in listings, never executed). Opt-in by design: a cloned repo must
-   * not be able to make skill-map fetch remote content without the
-   * operator's explicit consent. Mirrors the `allowSidecarWriters`
-   * posture (hard gate, travels with the repo).
+   * **Project-local only** (per `PROJECT_LOCAL_ONLY_KEYS`). Default
+   * `false`. When `false`, every Action whose manifest declares
+   * `io: ['network']` (the built-in `github/enrichment`, plus any
+   * external action) is refused at execution time: `sm enrich` reports
+   * it skipped with a directed advisory naming this key, while the
+   * manifest still loads (visible in listings, never executed).
+   *
+   * Moved out of the committed `project` layer on 2026-08-01 (audit
+   * finding). It shipped as "team-shared, committed" while its own
+   * contract read "a cloned repo must not be able to make skill-map
+   * fetch remote content without the operator's explicit consent",
+   * which the committed layer is precisely unable to guarantee: the
+   * committed file IS the cloned repo's file, so a hostile project
+   * shipped `allowNetworkActions: true` next to an enabled network
+   * action and the victim's first `sm enrich` reached out without ever
+   * being asked. Now honoured from `settings.local.json` only, behind
+   * a scope-lock grant like every other member of the class.
    */
   allowNetworkActions: boolean;
   /**
@@ -241,6 +248,17 @@ export interface IEffectiveConfig {
    * per-machine `allowEditSmFiles` consent and is not bypassable with
    * `--yes`. Reads of existing `.sm` sidecars are unaffected, the policy
    * governs writes / generation only.
+   *
+   * Deliberately NOT moved alongside `allowNetworkActions` in the
+   * 2026-08-01 sweep, and the asymmetry is the whole rule: a committed
+   * policy key is safe exactly when its committed value can only be
+   * MORE restrictive than its default. This one defaults to `true`, so
+   * the only thing a hostile repo can express is `false`, which
+   * disables its own extensions and grants the attacker nothing. A
+   * key that defaults to `false` (network, symlink escape, `.sm`
+   * writes) has the dangerous direction available to the committed
+   * file and belongs in `PROJECT_LOCAL_ONLY_KEYS`. Apply that test
+   * before adding any future policy key here.
    */
   allowSidecarWriters: boolean;
   /**
@@ -364,6 +382,11 @@ export interface IUiPreferencesConfig {
  */
 export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
   'allowEditSmFiles',
+  // Reaching the network is the operator's call on their own machine,
+  // never the scanned repo's. Committed, a hostile project shipped
+  // `true` next to an enabled `io: ['network']` action and the first
+  // `sm enrich` fetched without asking (audit finding 2026-08-01).
+  'allowNetworkActions',
   // Whoever is debugging right now wants the noise; their team does
   // not. Committed, one person's `trace` becomes everybody's console.
   'logLevel',

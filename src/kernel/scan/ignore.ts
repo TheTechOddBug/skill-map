@@ -23,6 +23,9 @@ import { fileURLToPath } from 'node:url';
 
 import ignoreFactory from 'ignore';
 
+import { log } from '../util/logger.js';
+import { sanitizeForTerminal } from '../util/safe-text.js';
+
 export interface IIgnoreFilter {
   /**
    * Returns `true` when `relativePath` should be skipped. The caller
@@ -73,14 +76,23 @@ export interface IBuildIgnoreFilterOptions {
  */
 export function buildIgnoreFilter(opts: IBuildIgnoreFilterOptions = {}): IIgnoreFilter {
   const ig = ignoreFactory();
-  const addLayer = (layer: string | string[] | undefined): void => {
+  const addLayer = (layer: string | string[] | undefined, source: string): void => {
     if (layer === undefined) return;
-    if (layer.length > 0) ig.add(layer);
+    if (layer.length === 0) return;
+    for (const line of Array.isArray(layer) ? layer : layer.split(/\r?\n/)) {
+      if (isCompilablePattern(line)) {
+        ig.add(line);
+        continue;
+      }
+      log.warn(
+        `ignore: dropped an invalid pattern from ${source}: ${sanitizeForTerminal(line.trim())}`,
+      );
+    }
   };
   if (opts.includeDefaults !== false) ig.add(loadDefaultsText());
-  addLayer(opts.gitignoreText);
-  addLayer(opts.configIgnore);
-  addLayer(opts.ignoreFileText);
+  addLayer(opts.gitignoreText, '.gitignore');
+  addLayer(opts.configIgnore, 'the `ignore` config key');
+  addLayer(opts.ignoreFileText, '.skillmapignore');
   return {
     ignores(relativePath: string): boolean {
       // `ignore` requires a non-empty relative path; the empty string
@@ -90,9 +102,44 @@ export function buildIgnoreFilter(opts: IBuildIgnoreFilterOptions = {}): IIgnore
       }
       const normalised = relativePath.replace(/^\.\//, '').replace(/\\/g, '/').replace(/^\//, '');
       if (normalised === '') return false;
-      return ig.ignores(normalised);
+      try {
+        return ig.ignores(normalised);
+      } catch {
+        // Belt and braces behind the build-time validation above: an
+        // ignore rule is an optimisation, never a correctness gate, so
+        // a pattern that somehow still fails to compile must not take
+        // the scan down with it. Not ignoring is the safe direction
+        // (the file gets indexed rather than silently disappearing).
+        return false;
+      }
     },
   };
+}
+
+/**
+ * True when `line` can be compiled into a matcher without throwing.
+ *
+ * The `ignore` package builds its regex LAZILY, on the first
+ * `ignores()` call rather than at `add()`, so an unbalanced `[` in one
+ * committed `.skillmapignore` line used to surface as
+ * `SyntaxError: Invalid regular expression` from deep inside the walk
+ * and take the whole `sm scan` down (audit finding, 2026-08-01). One
+ * hostile or fat-fingered line should cost that line, not the verb.
+ *
+ * Validating means compiling, and compiling means asking: the probe
+ * instance below is thrown away, so a bad pattern cannot pollute the
+ * real filter. Blank and comment lines produce no rule and pass
+ * trivially.
+ */
+function isCompilablePattern(line: string): boolean {
+  try {
+    const probe = ignoreFactory();
+    probe.add(line);
+    probe.ignores('probe/path.md');
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Options for `composeScopeIgnoreFilter` (disk-read composer). */

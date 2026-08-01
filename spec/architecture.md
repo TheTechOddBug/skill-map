@@ -269,7 +269,7 @@ Six kinds, all first-class, all loaded through the same registry. Each has a JSO
 
 ### IO discipline, extensions never write to the filesystem
 
-Extensions (Provider / Extractor / Analyzer / Action / Formatter / Hook) are **pure**: they consume kernel-supplied context and emit data through return values or `ctx.*` callbacks. They MUST NOT perform filesystem writes directly, not via `fs.writeFile`, not via shell, not via a third-party library. Implementations MUST NOT expose any port that hands an extension a writable filesystem handle. The same posture covers the NETWORK: no extension reaches it, with ONE declared carve-out: an Action whose manifest declares `io: ['network']` receives an injected `ctx.fetch` inside `invoke()` (implementations MUST route remote calls through it, never a global), executes only via `sm enrich` (never inside `sm scan`, never as a queued job), and is refused at execution time while the committed project policy `allowNetworkActions` (default `false`) is off.
+Extensions (Provider / Extractor / Analyzer / Action / Formatter / Hook) are **pure**: they consume kernel-supplied context and emit data through return values or `ctx.*` callbacks. They MUST NOT perform filesystem writes directly, not via `fs.writeFile`, not via shell, not via a third-party library. Implementations MUST NOT expose any port that hands an extension a writable filesystem handle. The same posture covers the NETWORK: no extension reaches it, with ONE declared carve-out: an Action whose manifest declares `io: ['network']` receives an injected `ctx.fetch` inside `invoke()` (implementations MUST route remote calls through it, never a global), executes only via `sm enrich` (never inside `sm scan`, never as a queued job), and is refused at execution time while the project-local policy `allowNetworkActions` (default `false`, see §Per-key locality) is off.
 
 Materialising any kernel-managed artefact (the SQLite DB at `.skill-map/skill-map.db`, the `.sm` sidecars, the `scan_extractor_runs` cache, the enrichment overlay rows) is the **kernel's** responsibility, gated through the relevant Port:
 
@@ -760,6 +760,7 @@ One locality class constrains which layers a given key MAY live in. Enforced in 
 
   Members (keep in lock-step with `PROJECT_LOCAL_ONLY_KEYS` in the reference impl, `kernel/config/loader.ts`):
   - `allowEditSmFiles`, per-project consent to create / modify `.sm` sidecars.
+  - `allowNetworkActions`, per-project consent for Actions declaring `io: ['network']` to execute. Reclassified 2026-08-01 (audit): it shipped as a committed team-shared policy while promising that "a cloned repo must not be able to make skill-map fetch remote content without the operator's explicit consent", a promise the committed layer cannot keep, since that file is the cloned repo's own. A hostile project shipped `true` beside an enabled network action and the victim's first `sm enrich` reached out unasked.
   - `scan.referencePaths`, additional link-validation paths.
   - `scan.followExternalSymlinks`, opt-in to follow symlinks whose real target escapes every scan root (the realpath-containment gate's escape hatch).
   - `activity.captureConversations`, the consent gate for retaining inter-agent conversation content in the serve process (`provider-activity.md` §Conversation capture).

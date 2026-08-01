@@ -94,13 +94,51 @@ describe('createChokidarWatcher', () => {
     }
   });
 
-  it('follows a symlinked directory (live events behind the link)', async () => {
-    // chokidar follows symlinks by default, so it observes changes behind a
-    // symlinked directory live, which is why `--watch-backend chokidar` is
-    // the way to keep live symlink watching (parcel does not). The target
-    // lives OUTSIDE the watched root so the only way an event arrives is by
-    // following the link.
-    const dir = freshScope('symlink');
+  it('follows a symlinked directory INSIDE the root (live events behind the link)', async () => {
+    // Live updates behind an internal symlinked directory are the whole
+    // reason `--watch-backend chokidar` is selectable over parcel, so
+    // the containment gate below must not cost us this. The link target
+    // stays inside the watched root, so the walker indexes it and the
+    // watcher watches it.
+    const dir = freshScope('symlink-internal');
+    const inside = join(dir, 'real-target');
+    mkdirSync(inside, { recursive: true });
+    let linked = true;
+    try {
+      symlinkSync(inside, join(dir, 'skills'));
+    } catch {
+      linked = false;
+    }
+    if (!linked) return; // sandbox without symlink support
+    const { collector, onBatch } = makeCollector();
+    const watcher: IFsWatcher = createChokidarWatcher({
+      cwd: dir,
+      roots: [dir],
+      debounceMs: 60,
+      onBatch,
+    });
+    try {
+      await watcher.ready;
+      writeFileSync(join(inside, 'x.md'), '# x');
+      const batch = await collector.next();
+      assert.ok(
+        batch.paths.some((p) => p.endsWith('x.md')),
+        'a change behind the internal symlink reaches onBatch',
+      );
+    } finally {
+      await watcher.close();
+    }
+  });
+
+  it('refuses a symlink ESCAPING the root (audit finding, 2026-08-01)', async () => {
+    // chokidar dereferences symlinks by default, so a committed
+    // `docs/x -> ~/` armed inotify watches across the operator's whole
+    // home directory: no content leaked (the walker's read gate still
+    // refused it) but the WATCH escaped containment, which exhausts
+    // inotify and turns out-of-tree edits into an activity oracle.
+    // This test previously asserted the opposite, that the escaping
+    // link WAS followed; the assertion was the vulnerability.
+    const dir = freshScope('symlink-escape');
     const outside = mkdtempSync(join(root, 'symlink-target-'));
     let linked = true;
     try {
@@ -119,10 +157,50 @@ describe('createChokidarWatcher', () => {
     try {
       await watcher.ready;
       writeFileSync(join(outside, 'x.md'), '# x'); // reachable only via dir/skills
+      // A same-root write proves the watcher is alive: without it, a
+      // silently dead watcher would pass this test for the wrong reason.
+      writeFileSync(join(dir, 'inside.md'), '# inside');
+      const batch = await collector.next();
+      assert.ok(
+        batch.paths.some((p) => p.endsWith('inside.md')),
+        'the watcher is alive and still reports in-root changes',
+      );
+      assert.ok(
+        !batch.paths.some((p) => p.endsWith('x.md')),
+        'the escaping symlink produced no event',
+      );
+    } finally {
+      await watcher.close();
+    }
+  });
+
+  it('follows an escaping symlink once followExternalSymlinks opts in', async () => {
+    // The escape hatch is the same key the walker reads, so watch scope
+    // and read scope agree in both directions.
+    const dir = freshScope('symlink-optin');
+    const outside = mkdtempSync(join(root, 'symlink-target-'));
+    let linked = true;
+    try {
+      symlinkSync(outside, join(dir, 'skills'));
+    } catch {
+      linked = false;
+    }
+    if (!linked) return; // sandbox without symlink support
+    const { collector, onBatch } = makeCollector();
+    const watcher: IFsWatcher = createChokidarWatcher({
+      cwd: dir,
+      roots: [dir],
+      debounceMs: 60,
+      followExternalSymlinks: true,
+      onBatch,
+    });
+    try {
+      await watcher.ready;
+      writeFileSync(join(outside, 'x.md'), '# x');
       const batch = await collector.next();
       assert.ok(
         batch.paths.some((p) => p.endsWith('x.md')),
-        'a change behind the followed symlink reaches onBatch',
+        'the opt-in restores the pre-gate behaviour',
       );
     } finally {
       await watcher.close();

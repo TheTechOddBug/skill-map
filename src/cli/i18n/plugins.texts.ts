@@ -187,6 +187,23 @@ export const PLUGINS_TEXTS = {
     '   {{hint}}\n',
   trustBuiltInRejectedHint:
     'Import trust applies only to project-local drop-in plugins under .skill-map/plugins/.',
+  /**
+   * Warn advisory emitted on EVERY `--plugin-dir` load, including from
+   * the read-sounding verbs (`list` / `show` / `doctor` / `config`).
+   * The flag disables the import-trust gate, so the code in that
+   * directory is imported and evaluated; before this line existed, a
+   * hostile project's README could say "inspect our plugins with
+   * `sm plugins list --plugin-dir ./tools/sm-plugins`" and restore
+   * exactly the execute-on-inspect path the trust gate was built to
+   * close, with nothing on screen to say code had run (audit finding,
+   * 2026-08-01). Rendered through `log.warn`, so it carries the
+   * logger's own yellow `⚠ WARN` and cannot be quiet at the default
+   * level.
+   */
+  pluginDirTrustBypass:
+    '--plugin-dir loads code without the import-trust gate: '
+    + 'extensions under {{dir}} are imported and their module bodies run. '
+    + 'Only pass a directory whose contents you have reviewed.',
   /** `--all` found no project-local drop-in plugins to act on. */
   trustNoPlugins: 'No project-local plugins discovered to {{verb}}.\n',
 
