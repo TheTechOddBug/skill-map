@@ -40,7 +40,6 @@ function applySmDefaults(cmd: SmCommand): void {
   cmd.json = false;
   cmd.quiet = true;
   cmd.noColor = true;
-  cmd.verbose = 0;
 }
 
 function listColumns(dbPath: string, table: string): string[] {

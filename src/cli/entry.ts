@@ -19,7 +19,7 @@ import { existsSync } from 'node:fs';
 import { InMemoryProgressEmitter } from '../kernel/adapters/in-memory-progress.js';
 import { makeEvent, makeHookDispatcher } from '../kernel/extensions/hook-dispatcher.js';
 import { configureLogger } from '../kernel/util/logger.js';
-import { userLogLevel } from './util/user-settings-store.js';
+import { projectLocalLogLevel } from './util/local-log-level.js';
 import { tx } from '../kernel/util/tx.js';
 import { builtIns } from '../plugins/built-ins.js';
 import { builtInEnabledResolverFor } from '../core/runtime/built-in-enabled.js';
@@ -69,7 +69,7 @@ const { value: logLevelFlag, rest: args } = extractLogLevelFlag(process.argv.sli
 const logLevel = resolveLogLevel({
   flag: logLevelFlag,
   env: process.env[LOGGER_ENV_VAR] ?? null,
-  userSetting: userLogLevel(),
+  userSetting: projectLocalLogLevel(process.cwd()),
   fallback: 'warn',
   errStream: process.stderr,
 });
@@ -238,6 +238,7 @@ process.exit(exitCode);
  */
 async function resolveBareInvocation(rawArgs: string[]): Promise<string[] | null> {
   if (rawArgs.length === 0) return resolveNoArgsBare();
+  if (isVerblessGlobalOnly(rawArgs)) return reportVerblessGlobals(rawArgs);
   if (!isFlagFirstBare(rawArgs)) return null;
   if (existsSync(defaultProjectDbPath(defaultRuntimeContext()))) {
     return ['serve', ...rawArgs];
@@ -261,7 +262,7 @@ function isFlagFirstBare(rawArgs: string[]): boolean {
   // initialiser (`bareArgs` is computed before this function body
   // runs, but module-top `const`s declared below this point are
   // uninitialised at that moment).
-  const passthrough = new Set(['--help', '-h', '--version']);
+  const passthrough = new Set(['--help', '-h', '--version', '-v']);
   if (passthrough.has(first)) return false;
   // Single-dash long form (`-version`, `-help`, `-foo`, length > 2,
   // no `--`) is always a typo: never a real flag, no value passing,
@@ -269,11 +270,8 @@ function isFlagFirstBare(rawArgs: string[]): boolean {
   // parse-error handler surfaces the proper "Did you mean '--foo'?"
   // diagnostic consistently regardless of project state (otherwise
   // the same typo would print the no-project hint when run outside
-  // a project, masking the real fix). `-vv` / `-vvv` are the ONE
-  // legitimate single-dash-long form: the verbose counter stacks.
-  if (!first.startsWith('--') && first.length > 2 && !/^-v+$/.test(first)) {
-    return false;
-  }
+  // a project, masking the real fix).
+  if (!first.startsWith('--') && first.length > 2) return false;
   // A documented global flag placed BEFORE the verb (`sm --json version`,
   // `sm -q scan`) is NOT a bare invocation. `spec/cli-contract.md`
   // §Global flags binds no position, so hijacking it into `serve` would
@@ -281,7 +279,61 @@ function isFlagFirstBare(rawArgs: string[]): boolean {
   // argument". Any token naming a registered verb hands the whole argv
   // back to Clipanion, which parses the flags against that verb.
   const verbs = topLevelVerbNames();
-  return !rawArgs.some((token) => verbs.has(token));
+  if (rawArgs.some((token) => verbs.has(token))) return false;
+  // ...and an argv made of NOTHING BUT global flags is not one either.
+  // The fan-out exists so server flags work without typing the verb
+  // (`sm --max-nodes 5`); a bare `-q` or `--json` expresses no such
+  // intent, it is a modifier missing its verb, and routing it to
+  // `serve` would start a long-running process for what reads like a
+  // question.
+  return !isVerblessGlobalOnly(rawArgs);
+}
+
+/**
+ * True when every token is a valueless GLOBAL flag, i.e. the argv is a
+ * modifier with no verb to modify (`sm -q`, `sm -q --json`).
+ *
+ * These must not fan out to `sm serve`. That fan-out exists so server
+ * flags work without typing the verb (`sm --max-nodes 5`); a bare `-q`
+ * expresses no such intent, and routing it there starts a long-running
+ * process for what reads like a question. `-v` is NOT in this set: it
+ * is the `--version` alias and short-circuits in `passthrough` above.
+ *
+ * Value-taking globals (`--db`, `--log-level`) are deliberately absent:
+ * their value is a separate token, and treating the pair as verbless
+ * would need arity tracking for no real gain.
+ *
+ * The set is inlined for the same reason as `passthrough` above: this
+ * runs before the module's top-level `const`s are initialised, and the
+ * bundler lowers them to an `undefined` read rather than a loud TDZ
+ * throw.
+ */
+function isVerblessGlobalOnly(rawArgs: string[]): boolean {
+  const verblessGlobals = new Set(['-q', '--quiet', '--json', '--no-color']);
+  return rawArgs.length > 0 && rawArgs.every((token) => verblessGlobals.has(token));
+}
+
+/**
+ * Answer a verb-less global flag with a directed hint. Clipanion's own
+ * parse error would say "unknown option '-v'", which is false: it is a
+ * documented global flag (`spec/cli-contract.md` §Global flags) that
+ * simply needs a verb.
+ */
+function reportVerblessGlobals(rawArgs: string[]): never {
+  const stderr = process.stderr as NodeJS.WriteStream;
+  const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: false });
+  const plural = rawArgs.length > 1;
+  stderr.write(
+    tx(ENTRY_TEXTS.bareGlobalFlagOnly, {
+      glyph: ansi.red('✕'),
+      flags: rawArgs.map((f) => `\`${f}\``).join(' and '),
+      subject: plural ? 'are global flags' : 'is a global flag',
+      object: plural ? 'commands' : 'a command',
+      pronoun: plural ? 'them' : 'it',
+      example: rawArgs[0] ?? '-q',
+    }),
+  );
+  process.exit(ExitCode.Error);
 }
 
 /**

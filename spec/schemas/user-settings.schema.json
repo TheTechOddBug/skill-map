@@ -35,10 +35,6 @@
         }
       }
     },
-    "logLevel": {
-      "type": "string",
-      "description": "Standing log-level preference for this machine. One of `trace` / `debug` / `info` / `warn` / `error` / `silent`. Deliberately NOT an `enum` here: this file is validated as a whole, so an enum would let a single typo in the log level invalidate the ENTIRE document and silently discard the operator's unrelated update-check and telemetry-consent preferences with it. Validation belongs to the consumer, which checks this one value, warns on stderr, and leaves every other key intact. LOWEST precedence above the built-in `warn` default: a per-invocation `--log-level`, `SKILL_MAP_LOG_LEVEL`, or `-v` counter always wins, so the preference never fights a one-off. Lives here rather than in project config for two reasons: wanting verbose output is a property of the OPERATOR, not of the repo (a committed value would push one person's debugging onto the whole team), and the level is resolved at process boot, before any project config exists, so reading it costs one file read and works outside a project. An unrecognised value warns on stderr and falls through to the default rather than silently disabling logging."
-    },
     "telemetry": {
       "type": "object",
       "additionalProperties": false,

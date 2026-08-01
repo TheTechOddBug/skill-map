@@ -14,7 +14,8 @@ import type { BaseContext } from 'clipanion';
 
 import { SmCommand } from '../sm-command.js';
 import { ExitCode } from '../exit-codes.js';
-import { resetLogger } from '../../../kernel/util/logger.js';
+import { configureLogger, resetLogger } from '../../../kernel/util/logger.js';
+import { Logger } from '../logger.js';
 
 const CRASH_MESSAGE = 'boundary-probe-crash';
 
@@ -69,13 +70,22 @@ describe('SmCommand unhandled-error boundary', () => {
     assert.equal(cap.stdout(), '');
   });
 
-  it('hides the stack by default, surfaces it with -v', async () => {
+  it('hides the stack by default, surfaces it at debug level', async () => {
+    // Keyed on the RESOLVED log level, not a `-v` counter: `-v` is the
+    // `--version` alias, and verbosity is the named `--log` /
+    // `--log-level` parameter resolved at process boot. The level is
+    // installed directly here because `run()` bypasses that boot step.
     const quiet = captureContext();
     await buildCli().run(['crash'], quiet.context);
     assert.ok(!quiet.stderr().includes('at '), quiet.stderr());
 
-    const verbose = captureContext();
-    await buildCli().run(['crash', '-v'], verbose.context);
-    assert.ok(verbose.stderr().includes('at '), verbose.stderr());
+    configureLogger(new Logger({ level: 'debug', stream: captureContext().context.stderr }));
+    try {
+      const verbose = captureContext();
+      await buildCli().run(['crash'], verbose.context);
+      assert.ok(verbose.stderr().includes('at '), verbose.stderr());
+    } finally {
+      resetLogger();
+    }
   });
 });

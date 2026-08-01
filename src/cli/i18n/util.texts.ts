@@ -30,7 +30,6 @@ export const UTIL_TEXTS = {
   globalFlagJson: 'Emit machine-readable output on stdout. Suppresses pretty printing.',
   globalFlagQuiet: 'Suppress non-error stderr output (including "done in <…>").',
   globalFlagNoColor: 'Disable ANSI color codes.',
-  globalFlagVerbose: 'Increase log level (-v=info, -vv=debug, -vvv=trace).',
   globalFlagDb: 'Override the database file location (escape hatch).',
 
   // elapsed.ts

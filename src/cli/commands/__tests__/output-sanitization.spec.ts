@@ -84,13 +84,11 @@ function baseFlags(cmd: {
   json: boolean;
   quiet: boolean;
   noColor: boolean;
-  verbose: number;
   db: string | undefined;
 }): void {
   cmd.json = false;
   cmd.quiet = false;
   cmd.noColor = true;
-  cmd.verbose = 0;
   cmd.db = undefined;
 }
 

@@ -64,7 +64,6 @@ function makeCmd(provider?: string): ActivityStatusCommand {
   cmd.json = false;
   cmd.quiet = false;
   cmd.noColor = true;
-  cmd.verbose = 0;
   cmd.provider = provider;
   return cmd;
 }

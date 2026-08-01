@@ -161,7 +161,6 @@ function buildRefresh(opts: { node?: string; stale?: boolean; json?: boolean } =
   cmd.json = opts.json ?? false;
   cmd.quiet = false;
   cmd.noColor = true;
-  cmd.verbose = 0;
   cmd.db = undefined;
   return cmd;
 }

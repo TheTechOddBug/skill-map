@@ -24,8 +24,7 @@
  *
  * Level semantics are the port's (`kernel/ports/logger.ts`): the CLI
  * boots at `warn`, so extension `info` / `debug` / `trace` stay silent
- * until the operator asks for them with `-v` / `-vv` / `-vvv` or
- * `--log-level`. A chatty extension costs nothing in normal runs.
+ * until the operator asks for them with `--log` / `--log-level`. A chatty extension costs nothing in normal runs.
  *
  * Deliberately NARROWER than `LoggerPort`: no `context` bag (its values
  * would need the same sanitisation and buy an extension nothing a

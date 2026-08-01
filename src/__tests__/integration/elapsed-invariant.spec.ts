@@ -89,7 +89,6 @@ function applySmDefaults(cmd: SmCommand): void {
   cmd.json = false;
   cmd.quiet = false;
   cmd.noColor = false;
-  cmd.verbose = 0;
   cmd.db = dbPath;
 }
 

@@ -165,7 +165,6 @@ function makeBump(): BumpCommand {
   cmd.json = false;
   cmd.quiet = true;
   cmd.noColor = true;
-  cmd.verbose = 0;
   cmd.pending = false;
   cmd.staged = false;
   cmd.force = false;

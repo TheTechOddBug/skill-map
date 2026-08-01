@@ -364,6 +364,9 @@ export interface IUiPreferencesConfig {
  */
 export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
   'allowEditSmFiles',
+  // Whoever is debugging right now wants the noise; their team does
+  // not. Committed, one person's `trace` becomes everybody's console.
+  'logLevel',
   'tutorialReminderStep',
   'scan.referencePaths',
   'scan.followExternalSymlinks',

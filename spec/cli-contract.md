@@ -23,12 +23,11 @@ These flags apply to every verb unless marked otherwise.
 | Flag | Shape | Purpose |
 |---|---|---|
 | `--json` | boolean | Emit machine-readable output on stdout. Suppresses pretty printing. Human progress goes to stderr. |
-| `-v` / `--verbose` | count | Raise the log level above the `warn` default (`-v` = info, `-vv` = debug, `-vvv` = trace). Logs to stderr. Stacks as one token (`-vv`), never as repeats (`-v -v`). |
-| `--log-level <level>` | string | Set the log level absolutely, one of `trace` / `debug` / `info` / `warn` / `error` / `silent`. Accepts `--log-level=<level>` and `--log-level <level>`. An unrecognised value warns on stderr and falls back to `warn` rather than failing the verb. Applied at process boot, so it also covers what runs before the verb's own parsing; a `-v` counter on the same invocation is applied afterwards and therefore WINS. |
+| `--log <level>` / `--log-level <level>` | string | Set the log level, one of `trace` / `debug` / `info` / `warn` / `error` / `silent`. Both spellings and both forms (`--log=debug`, `--log debug`) are equivalent. An unrecognised value warns on stderr and falls back rather than failing the verb. Applied at process boot, so it also covers what runs before the verb's own parsing. Verbosity is deliberately a NAMED parameter and NOT a `-v` counter: `-v` is the near-universal `--version` alias, and taking it for verbosity both surprises everyone and leaves `sm -v` with no verb to run. |
 | `-q` / `--quiet` | boolean | Suppress all non-error stderr output. Does not affect stdout. |
 | `--no-color` | boolean | Disable ANSI color codes. Implementations MUST also auto-disable color when stdout is not a TTY. |
 | `-h` / `--help` | boolean | Print verb-specific or top-level help, exit 0. |
-| `--version` | boolean | Print the CLI version as a single line, exit 0. The multi-line matrix is the `sm version` verb. There is deliberately NO `-V` alias, and `-v` is the verbose counter above, never a version alias. |
+| `-v` / `--version` | boolean | Print the CLI version as a single line, exit 0. The multi-line matrix is the `sm version` verb. `-v` is the alias every other CLI uses for this; there is deliberately no `-V`. |
 | `--db <path>` | string | Override the database file location (escape hatch; primarily for debugging). |
 
 Global flags bind no position: `sm --json version` and `sm version --json` are the same invocation. An implementation that fans a bare `sm <flags>` out to a default verb MUST NOT do so when the argv also names a real verb.
@@ -40,16 +39,16 @@ Env-var equivalents are normative:
 | `SKILL_MAP_JSON=1` | `--json` |
 | `NO_COLOR=1` | `--no-color` (also honored per the NO_COLOR standard) |
 | `SKILL_MAP_DB=<path>` | `--db <path>` |
-| `SKILL_MAP_LOG_LEVEL=<level>` | `--log-level <level>` |
+| `SKILL_MAP_LOG_LEVEL=<level>` | `--log <level>` / `--log-level <level>` |
 
 CLI flag wins over env var. Env var wins over config file.
 
-**Standing preference.** `logLevel` in `~/.skill-map/settings.json` (§User-settings file) sets the level when no flag and no env var do, making the full precedence: `-v` counter → `--log-level` → `SKILL_MAP_LOG_LEVEL` → user setting → the `warn` default. It belongs to the user file rather than project config on both counts that matter: wanting verbose output is a property of the OPERATOR, not of the repo, so a committed value would push one person's debugging onto their whole team; and the level is resolved at process boot, before any project config exists, so an implementation reading it there pays one file read instead of running the layer loader on every invocation, including those outside a project. An unrecognised value warns and falls through rather than silently disabling logging.
+**Standing preference.** `logLevel` in `<cwd>/.skill-map/settings.local.json` sets the level when no flag and no env var do, making the full precedence: `--log` / `--log-level` → `SKILL_MAP_LOG_LEVEL` → this → the `warn` default. It is a member of §Project-local-only config: whoever is debugging wants the noise and their team does not, so a value found in the committed `settings.json` is stripped with a warning. It is read DIRECTLY at process boot, before the layer system runs, because resolving one string must not cost a full config load on every invocation; the consequence is that it applies only to invocations made inside that project, and repeating it per project is the intended shape. An unrecognised value warns and falls through rather than silently disabling logging.
 
 **What the levels surface.** The default `warn` carries degraded state the operator cannot infer otherwise. Above it, the levels are a debugging ladder, and an implementation SHOULD populate them in this spirit:
 
-- `debug` (`-vv`), one-shot decisions per phase. Notably plugin discovery: how many plugin directories were found, and per plugin whether it loaded, was skipped, and why. Without it "found nothing" and "found it and skipped it" look identical from the outside, and they are very different problems.
-- `trace` (`-vvv`), per-item detail. Per node: which Provider claimed it as which kind, and how many extractors re-ran versus reused their cached result, which is what explains both a surprising classification and a slow scan. Per link: for a broken reference, WHICH of the drop reasons applied (resolved via `scan.referencePaths`, dismissed by the operator, or genuinely unresolved), since all of them look identical in the output.
+- `debug` (`--log debug`), one-shot decisions per phase. Notably plugin discovery: how many plugin directories were found, and per plugin whether it loaded, was skipped, and why. Without it "found nothing" and "found it and skipped it" look identical from the outside, and they are very different problems.
+- `trace` (`--log trace`), per-item detail. Per node: which Provider claimed it as which kind, and how many extractors re-ran versus reused their cached result, which is what explains both a surprising classification and a slow scan. Per link: for a broken reference, WHICH of the drop reasons applied (resolved via `scan.referencePaths`, dismissed by the operator, or genuinely unresolved), since all of them look identical in the output.
 
 Diagnostics contributed by extensions ride the same ladder through `ctx.log` (see [`plugin-author-guide.md` §Logging](./plugin-author-guide.md)), prefixed with the qualified extension id so every line names its author.
 
@@ -134,8 +133,8 @@ Genuinely per-user, per-machine preferences live in a **single file**
 at `~/.skill-map/settings.json`, validated against
 [`user-settings.schema.json`](./schemas/user-settings.schema.json).
 It holds preferences with no project meaning (today: the update-check
-toggle + its throttle bookkeeping, the telemetry consent flag, and the
-standing `logLevel`; future locale, theme). Constraints:
+toggle + its throttle bookkeeping, and the telemetry consent flag;
+future locale, theme). Constraints:
 
 - **One file, no `.local` partner**: values here are already
   per-machine, so the project / project-local split has no meaning.
@@ -471,7 +470,7 @@ The Settings UI's Project section enforces the same analyzer via a confirm dialo
 
 #### Project-local-only config
 
-The privacy-sensitive keys above PLUS `allowEditSmFiles` are members of `PROJECT_LOCAL_ONLY_KEYS` (see [`architecture.md` §Config layering · Per-key locality](./architecture.md#per-key-locality)). The `github/enrichment` base-URL overrides (`plugins.github.extensions.enrichment.settings.apiBaseUrl` / `.rawBaseUrl`) are members of the same class: the extension's `token` setting rides the Authorization header to whatever host `apiBaseUrl` names, so a committed override in a cloned repo would exfiltrate the operator's token to an attacker host on the first `sm enrich`. The values are per-user-per-project and MUST NOT travel via the committed repo:
+The privacy-sensitive keys above PLUS `allowEditSmFiles` and `logLevel` are members of `PROJECT_LOCAL_ONLY_KEYS` (see [`architecture.md` §Config layering · Per-key locality](./architecture.md#per-key-locality)). The `github/enrichment` base-URL overrides (`plugins.github.extensions.enrichment.settings.apiBaseUrl` / `.rawBaseUrl`) are members of the same class: the extension's `token` setting rides the Authorization header to whatever host `apiBaseUrl` names, so a committed override in a cloned repo would exfiltrate the operator's token to an attacker host on the first `sm enrich`. The values are per-user-per-project and MUST NOT travel via the committed repo:
 
 - `sm config set` writes them to `<cwd>/.skill-map/settings.local.json` (gitignored).
 - The loader strips them (with a warning) when found in the committed `project` layer (`settings.json`). An older install that wrote one to `settings.json` keeps validating against the schema, but the value is ignored at read time and `sm config show --source` surfaces the warning.

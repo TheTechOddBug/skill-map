@@ -85,16 +85,6 @@ export interface IUserSettings {
   schemaVersion: 1;
   updateCheck?: IUserSettingsUpdateCheck;
   telemetry?: IUserSettingsTelemetry;
-  /**
-   * Standing log-level preference, one of the `TLogLevel` names. A
-   * per-invocation `--log-level` / `SKILL_MAP_LOG_LEVEL` / `-v` always
-   * wins; absent or unrecognised falls back to `warn`.
-   *
-   * Per-machine on purpose: wanting verbose output is a property of the
-   * operator, not of the repo, and a committed one would push one
-   * person's debugging onto the whole team.
-   */
-  logLevel?: string;
 }
 
 /** Absolute path to `~/.skill-map/settings.json`. */
@@ -220,20 +210,6 @@ export function writeUserSettings(patch: Partial<IUserSettings>): void {
 export function isUpdateCheckEnabled(): boolean {
   const settings = readUserSettings();
   return settings.updateCheck?.enabled !== false;
-}
-
-/**
- * The operator's standing log-level preference, or `null` when unset.
- *
- * Read at process boot, BEFORE any project config exists, which is why
- * the preference lives here and not in the project layers: this costs
- * one file read and works outside a project, while the layer loader
- * would have to run on every invocation. Returns the RAW string;
- * `resolveLogLevel` validates it and warns on a typo rather than
- * silently disabling logging.
- */
-export function userLogLevel(): string | null {
-  return readUserSettings().logLevel ?? null;
 }
 
 /**

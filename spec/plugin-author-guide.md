@@ -453,7 +453,7 @@ ctx.log.warn('token missing, skipping remote verification');
 
 Three properties the kernel guarantees at this boundary:
 
-- **Level.** The CLI boots at `warn`, so `info` / `debug` / `trace` stay silent until the operator asks (`-v` / `-vv` / `-vvv`, or `--log-level`). Log freely at the low levels; a chatty extension costs a normal run nothing.
+- **Level.** The CLI boots at `warn`, so `info` / `debug` / `trace` stay silent until the operator asks (`--log debug`, `--log trace`, or `--log-level`). Log freely at the low levels; a chatty extension costs a normal run nothing.
 - **Sanitisation.** Messages are stripped of ANSI escapes and control bytes before they reach the terminal. Do not bother colouring your own output, the escapes will not survive.
 - **Attribution.** Every line is prefixed with your qualified extension id (`[<plugin>/<extension>]`), including the lines of a multi-line message. An extension cannot emit a line that reads as kernel output.
 

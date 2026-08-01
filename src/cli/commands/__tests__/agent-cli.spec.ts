@@ -94,7 +94,6 @@ function assignGlobals(
   cmd.json = opts.json ?? false;
   cmd.quiet = false;
   cmd.noColor = true;
-  cmd.verbose = 0;
   cmd.db = undefined;
   cmd.forProvider = opts.forProvider;
 }

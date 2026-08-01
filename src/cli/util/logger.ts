@@ -53,7 +53,12 @@ export interface ILoggerOptions {
 }
 
 const ENV_VAR = 'SKILL_MAP_LOG_LEVEL';
-const FLAG_NAME = '--log-level';
+/**
+ * Accepted spellings of the log-level flag, longest first so
+ * `--log-level=x` is never mis-sliced by the `--log=` prefix test.
+ * `--log` is the short form; both take the same values.
+ */
+const FLAG_NAMES = ['--log-level', '--log'] as const;
 
 /**
  * Default human-readable format: `HH:MM:SS  <glyph> LEVEL  message
@@ -309,13 +314,15 @@ export function extractLogLevelFlag(argv: readonly string[]): {
   let value: string | null = null;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]!;
-    if (arg === FLAG_NAME) {
+    const spaced = FLAG_NAMES.find((name) => arg === name);
+    if (spaced !== undefined) {
       value = argv[i + 1] ?? null;
       i += 1;
       continue;
     }
-    if (arg.startsWith(`${FLAG_NAME}=`)) {
-      value = arg.slice(FLAG_NAME.length + 1);
+    const inlined = FLAG_NAMES.find((name) => arg.startsWith(`${name}=`));
+    if (inlined !== undefined) {
+      value = arg.slice(inlined.length + 1);
       continue;
     }
     rest.push(arg);

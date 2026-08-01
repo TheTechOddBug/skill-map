@@ -73,7 +73,6 @@ function buildList(json: boolean): ActionsListCommand {
   cmd.json = json;
   cmd.quiet = false;
   cmd.noColor = true;
-  cmd.verbose = 0;
   cmd.db = undefined;
   return cmd;
 }
@@ -84,7 +83,6 @@ function buildShow(id: string, json: boolean): ActionsShowCommand {
   cmd.json = json;
   cmd.quiet = false;
   cmd.noColor = true;
-  cmd.verbose = 0;
   cmd.db = undefined;
   return cmd;
 }

@@ -11,8 +11,8 @@
  *   - unknown flag on a known verb → message scoped to the verb
  *   - incomplete namespace (`sm db`) → list of subcommands
  *   - happy paths (`--version`, `help`) still work
- *   - `-v` is the verbose counter, NOT a `--version` alias, and a global
- *     flag placed before the verb is not swallowed into `sm serve`
+ *   - `-v` IS the `--version` alias, and a global flag placed before the
+ *     verb is not swallowed into `sm serve`
  */
 
 import { strict as assert } from 'node:assert';
@@ -37,18 +37,34 @@ interface IRun {
 // stays dormant), so running this spec never emits a PostHog event.
 let homeDir: string;
 
+// Isolate the CWD too, and for a sharper reason: several cases here
+// assert what a VERB-LESS argv does, and `sm` with no verb fans out to
+// `sm serve` when the current directory holds a project. Inheriting the
+// runner's cwd made that a coin flip on whether a stray `.skill-map/`
+// existed, and when it did the spawned process became a SERVER that
+// never exits, hanging the whole file instead of failing. An empty temp
+// directory makes "no project here" a property of the test rather than
+// of the machine it runs on.
+let cwdDir: string;
+
 before(() => {
   homeDir = mkdtempSync(join(tmpdir(), 'skill-map-parse-errors-home-'));
+  cwdDir = mkdtempSync(join(tmpdir(), 'skill-map-parse-errors-cwd-'));
 });
 
 after(() => {
   rmSync(homeDir, { recursive: true, force: true });
+  rmSync(cwdDir, { recursive: true, force: true });
 });
 
 function sm(args: string[]): IRun {
   const r = spawnSync(process.execPath, [BIN, ...args], {
     encoding: 'utf8',
+    cwd: cwdDir,
     env: { ...process.env, HOME: homeDir, USERPROFILE: homeDir, NO_COLOR: '1' },
+    // Belt and braces: if a future case ever does spawn something
+    // long-running, fail the assertion instead of hanging the suite.
+    timeout: 30_000,
   });
   return { status: r.status ?? 0, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
@@ -147,24 +163,30 @@ describe('CLI parse-error handler', () => {
     assert.match(r.stdout.trim(), /^\d+\.\d+\.\d+/);
   });
 
-  // `-v` is the VERBOSE counter (`spec/cli-contract.md` §Global flags),
-  // never a `--version` alias. Clipanion's `Builtins.VersionCommand`
-  // claims both `--version` and `-v`, and that second path used to win:
-  // `sm -v` printed the version and `sm -v <verb>` died with "unknown
-  // command '-v'" while `sm -vv <verb>` worked. `RootVersionCommand`
-  // claims `--version` alone, so `-v` now behaves like any other global
-  // flag: with no verb in argv it is a bare invocation (→ `sm serve`,
-  // which here refuses because the cwd holds no project DB).
-  it('treats a bare -v as the verbose flag, not a version alias', () => {
+  // `-v` is the `--version` alias, the meaning every other CLI gives it.
+  // A verbosity counter briefly took the path; it cost `sm -v` its
+  // universal behaviour and, with no verb to run, sent it into the bare
+  // `sm serve` fan-out where it HUNG. Verbosity is `--log` / `--log-level`.
+  it('serves -v as the version alias', () => {
     const r = sm(['-v']);
-    assert.equal(r.status, 2);
-    assert.doesNotMatch(r.stdout.trim(), /^\d+\.\d+\.\d+/);
+    assert.equal(r.status, 0);
+    assert.match(r.stdout.trim(), /^\d+\.\d+\.\d+/);
   });
 
   it('accepts a global flag placed BEFORE the verb', () => {
-    const r = sm(['-v', 'version']);
+    const r = sm(['--no-color', 'version']);
     assert.equal(r.status, 0);
     assert.match(r.stdout, /^\s*sm\s+\d+\.\d+\.\d+/m);
+  });
+
+  it('answers a verb-less global flag instead of launching serve', () => {
+    // The bare-`sm <flags>` fan-out exists for server flags
+    // (`sm --max-nodes 5`). A lone `-q` carries no such intent, and
+    // routing it to `serve` would start a long-running process for what
+    // reads like a question.
+    const r = sm(['-q']);
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /is a global flag, not a command/);
   });
 
   it('does not swallow --json into serve when a verb follows', () => {

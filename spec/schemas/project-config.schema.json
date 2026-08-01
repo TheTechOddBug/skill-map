@@ -215,6 +215,11 @@
         }
       }
     },
+    "logLevel": {
+      "type": "string",
+      "description": "**Project-local only** (per `PROJECT_LOCAL_ONLY_KEYS`). Standing log level for this checkout, one of `trace` / `debug` / `info` / `warn` / `error` / `silent`. LOWEST precedence above the built-in `warn` default: `-v` / `-vv` / `-vvv`, `--log-level`, and `SKILL_MAP_LOG_LEVEL` all win, so a standing preference never fights a one-off invocation. **Stripped with a warning when found in the committed `project` layer**: whoever is debugging wants the noise, their team does not, and a committed `trace` would become everybody's console. Deliberately NOT constrained by an `enum` here: an unrecognised value warns on stderr and falls through to the default, which keeps a typo from disabling logging or invalidating the surrounding file. Read directly at process boot (before the layer system runs), so it only takes effect for invocations made inside this project.",
+      "default": "warn"
+    },
     "allowEditSmFiles": {
       "type": "boolean",
       "description": "**Project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`). Grants this project permission to create / modify `.sm` annotation sidecars next to source files. Default `false`. The first time a verb or BFF route attempts a `.sm` write while this is `false`, the kernel raises `EConsentRequiredError`. The CLI surfaces it as an interactive `confirm()` prompt (or `--yes` bypass); the BFF returns 412 `confirm-required` so the UI can open a `ConfirmationService` dialog. On accept the flag is persisted to `<cwd>/.skill-map/settings.local.json` (gitignored, per-checkout) and never asked again. On decline the operation aborts WITHOUT persisting the rejection, the next attempt re-asks. **Stripped with a warning when found in the committed `project` layer** (`<cwd>/.skill-map/settings.json`), each developer consents independently."

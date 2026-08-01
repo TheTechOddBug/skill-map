@@ -44,13 +44,16 @@ import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 /**
  * `sm --version`, the single-line form.
  *
- * Replaces `Builtins.VersionCommand`, which claims BOTH `--version` and
- * `-v`. That second path collides with the `-v` / `-vv` / `-vvv` verbose
- * counter every verb inherits from `SmCommand`, and the collision won:
- * `sm -v` printed the version and `sm -v <verb>` died with "unknown
- * command '-v'" while `sm -vv <verb>` worked. `-v` belongs to the
- * documented global flag (`spec/cli-contract.md` §Global flags), so this
- * command claims `--version` alone.
+ * Replaces `Builtins.VersionCommand` to keep the version surface ours
+ * (`sm version` owns the multi-line matrix; this owns the one-liner),
+ * claiming the same two paths it did: `--version` and `-v`.
+ *
+ * `-v` is the version alias here and nothing else. A `-v` / `-vv` /
+ * `-vvv` verbosity counter briefly took it, which cost `sm -v` its
+ * universal meaning and, with no verb to run, sent it into the bare
+ * `sm serve` fan-out where it hung. Verbosity is a NAMED parameter
+ * (`--log` / `--log-level`); a single-letter flag that every other CLI
+ * on the planet reads as "version" was never ours to repurpose.
  *
  * `help.ts`'s `isBuiltin` filter already drops the `sm --version` path
  * from every catalog, so the verb list is unchanged.
@@ -61,7 +64,7 @@ import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
  * result, not on a hand-rolled `context.stdout.write`.
  */
 export class RootVersionCommand extends SmCommand {
-  static override paths = [['--version']];
+  static override paths = [['--version'], ['-v']];
 
   // Informational: the version line is the entire output, no `done in
   // <…>` trailer (same posture as the `sm version` verb below).
@@ -165,10 +168,9 @@ async function resolveDbSchemaVersion(): Promise<string> {
   } catch (error) {
     // The human + JSON contract pins the field to `-` on any read
     // failure (informational verb, MUST NOT crash). Surface the
-    // swallowed error under `log.debug` so `sm -vv version` reveals
-    // the underlying cause (corrupt DB, permissions, pragma drift).
-    // `-vv`, not `-v`: `-v` raises the level to `info`, which sits
-    // ABOVE `debug` in the port's ordering (§Global flags).
+    // swallowed error under `log.debug` so `sm --log debug version`
+    // reveals the underlying cause (corrupt DB, permissions, pragma
+    // drift).
     log.debug(`sm version: dbSchema read failed: ${error instanceof Error ? error.message : String(error)}`);
     return '-';
   }

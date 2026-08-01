@@ -2,7 +2,7 @@
  * `SmCommand`, abstract Clipanion command base for every `sm` verb.
  *
  * Single-source the global flags from `spec/cli-contract.md` §Global flags
- * (`--json`, `-q/--quiet`, `--no-color`, `-v/--verbose`, `--db`) and the
+ * (`--json`, `-q/--quiet`, `--no-color`, `--db`) and the
  * §Elapsed time emission so individual verbs no longer declare them
  * ad-hoc, they extend `SmCommand`, implement `run()`, and inherit:
  *
@@ -18,8 +18,6 @@
  *     `--quiet`. Verbs that should NOT emit elapsed (interactive
  *     spawns, long-running processes, meta verbs that report a
  *     version) opt out via `protected emitElapsed = false`.
- *   - `-v` / `-vv` / `-vvv` reconfigures the kernel logger to
- *     `info` / `debug` / `trace` respectively.
  *
  * Subclasses implement `run()` and never override `execute()`.
  *
@@ -37,8 +35,7 @@
 
 import { Command, Option } from 'clipanion';
 
-import { configureLogger } from '../../kernel/util/logger.js';
-import type { TLogLevel } from '../../kernel/ports/logger.js';
+import { logEnabled } from '../../kernel/util/logger.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -49,7 +46,6 @@ import {
 import { UTIL_TEXTS } from '../i18n/util.texts.js';
 import { ansiFor, type IAnsi } from './ansi.js';
 import { DEFAULT_EXIT_CODES, ExitCode, type TExitCode } from './exit-codes.js';
-import { Logger } from './logger.js';
 import { emitDoneStderr, startElapsed, type IElapsed } from './elapsed.js';
 import { createPrinter, type IPrinter } from '../../core/runtime/printer.js';
 
@@ -96,7 +92,6 @@ export const GLOBAL_FLAGS: readonly IGlobalFlag[] = [
   { name: '--json', type: 'boolean', description: UTIL_TEXTS.globalFlagJson },
   { name: '--quiet', type: 'boolean', description: UTIL_TEXTS.globalFlagQuiet },
   { name: '--no-color', type: 'boolean', description: UTIL_TEXTS.globalFlagNoColor },
-  { name: '--verbose', type: 'boolean', description: UTIL_TEXTS.globalFlagVerbose },
   { name: '--db', type: 'string', description: UTIL_TEXTS.globalFlagDb },
 ];
 
@@ -118,9 +113,6 @@ export abstract class SmCommand extends Command {
   });
   noColor = Option.Boolean('--no-color', false, {
     description: UTIL_TEXTS.globalFlagNoColor,
-  });
-  verbose = Option.Counter('-v,--verbose', 0, {
-    description: UTIL_TEXTS.globalFlagVerbose,
   });
   db = Option.String('--db', { required: false, description: UTIL_TEXTS.globalFlagDb });
 
@@ -156,7 +148,6 @@ export abstract class SmCommand extends Command {
 
   async execute(): Promise<number> {
     this.applyEnvOverrides();
-    this.applyVerboseLogger();
     this.elapsed = startElapsed();
     this.printer = createPrinter({
       stdout: this.context.stdout,
@@ -218,7 +209,11 @@ export abstract class SmCommand extends Command {
         hint: ansi.dim(UTIL_TEXTS.unhandledErrorHint),
       }),
     );
-    if (this.verbose > 0 && err instanceof Error && err.stack !== undefined) {
+    // Stack traces belong to whoever asked for debug output. Keyed on
+    // the RESOLVED level (`--log-level debug`, `SKILL_MAP_LOG_LEVEL`, or
+    // the project-local preference) now that the `-v` counter is gone:
+    // `-v` is the universal `--version` alias and was never ours to take.
+    if (logEnabled('debug') && err instanceof Error && err.stack !== undefined) {
       this.context.stderr.write(`${sanitizeForTerminal(err.stack)}\n`);
     }
   }
@@ -243,17 +238,6 @@ export abstract class SmCommand extends Command {
     if (this.db === undefined && isEnvSet(env['SKILL_MAP_DB'])) {
       this.db = env['SKILL_MAP_DB'];
     }
-  }
-
-  /**
-   * `-v` / `-vv` / `-vvv` reconfigures the kernel logger. Skipped
-   * when `verbose === 0` so the level configured at `entry.ts` boot
-   * (from `--log-level` / `SKILL_MAP_LOG_LEVEL`) stays in effect.
-   */
-  private applyVerboseLogger(): void {
-    if (this.verbose <= 0) return;
-    const level: TLogLevel = this.verbose >= 3 ? 'trace' : this.verbose === 2 ? 'debug' : 'info';
-    configureLogger(new Logger({ level, stream: this.context.stderr }));
   }
 
   /**

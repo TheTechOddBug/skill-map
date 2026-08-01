@@ -21,6 +21,15 @@ export const ENTRY_TEXTS = {
   bareNoProject:
     '{{glyph}}  No skill-map project found in {{cwd}}.\n' +
     '   {{hint}}\n',
+  /**
+   * `sm -v` / `sm -q` / `sm --json` with no verb. These are documented
+   * GLOBAL flags, so "unknown option" (Clipanion's parse error) would be
+   * a lie, and routing them to `sm serve` starts a long-running process
+   * for what reads like a question.
+   */
+  bareGlobalFlagOnly:
+    '{{glyph}}  {{flags}} {{subject}}, not {{object}}.\n' +
+    '   Pass {{pronoun}} alongside a verb (`sm {{example}} scan`), or run `sm help` for the command list.\n',
   bareNoProjectHint:
     'Run `sm init` to bootstrap one, or `sm --help` to see all commands.',
   /**

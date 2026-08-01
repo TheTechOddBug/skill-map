@@ -139,11 +139,10 @@ async function runScanAndPersist(
   }
 }
 
-function commonFlags<T extends { json: boolean; quiet: boolean; noColor: boolean; verbose: number; db?: string | undefined; yes?: boolean }>(cmd: T): T {
+function commonFlags<T extends { json: boolean; quiet: boolean; noColor: boolean; db?: string | undefined; yes?: boolean }>(cmd: T): T {
   cmd.json = false;
   cmd.quiet = true;
   cmd.noColor = true;
-  cmd.verbose = 0;
   // SidecarEnrichCommand / SidecarAnnotateCommand have the new --yes
   // flag; SidecarPruneCommand uses --yes for its own destructive
   // prompt. Each test's fixture pre-grants `.sm` consent via

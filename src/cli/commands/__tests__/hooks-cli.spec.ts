@@ -69,7 +69,6 @@ function makeCmd(): HooksInstallCommand {
   cmd.json = false;
   cmd.quiet = true;
   cmd.noColor = true;
-  cmd.verbose = 0;
   cmd.flavour = 'pre-commit-bump';
   cmd.dryRun = false;
   return cmd;

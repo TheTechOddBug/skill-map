@@ -213,7 +213,11 @@ describe('sm help --format json, global flags', () => {
   it('publishes the spec §Global flags table', async () => {
     const doc = await helpDocument();
     const names = doc.globalFlags.map((flag) => flag.name).sort();
-    assert.deepEqual(names, ['--db', '--help', '--json', '--no-color', '--quiet', '--verbose']);
+    // `--verbose` is deliberately absent: verbosity is the named
+    // `--log` / `--log-level` parameter, resolved at process boot rather
+    // than as a per-verb Clipanion option, and `-v` is the `--version`
+    // alias every other CLI uses.
+    assert.deepEqual(names, ['--db', '--help', '--json', '--no-color', '--quiet']);
     for (const flag of doc.globalFlags) {
       assert.ok(flag.description.length > 0, `${flag.name} carries a description`);
     }

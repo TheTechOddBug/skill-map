@@ -80,7 +80,6 @@ function makeScanCmd(cap: ICapture): ScanCommand {
   cmd.json = false;
   cmd.quiet = false;
   cmd.noColor = true;
-  cmd.verbose = 0;
   return cmd;
 }
 

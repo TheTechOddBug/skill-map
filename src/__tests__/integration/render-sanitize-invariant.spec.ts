@@ -128,7 +128,6 @@ function applySmDefaults(cmd: SmCommand): void {
   // some `node --test` reporters / CI runners) cannot poison the
   // output with legitimate ANSI escapes the assertion would flag.
   cmd.noColor = true;
-  cmd.verbose = 0;
   cmd.db = dbPath;
 }
 
