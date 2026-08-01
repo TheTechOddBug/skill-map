@@ -21,6 +21,32 @@ import { OPTION_VALIDATORS_TEXTS } from '../i18n/option-validators.texts.js';
 import { ansiFor } from './ansi.js';
 
 /**
+ * Pure parse: trim + strict integer, sign allowed. Returns `null` on
+ * any rejection, the parsed value otherwise. Base of the integer
+ * ladder ({@link tryParseNonNegativeInt}, {@link tryParsePositiveInt});
+ * the direct consumer is `sm jobs submit --priority`, whose contract
+ * legitimately accepts negative values.
+ *
+ * Accepts: `'-3'`, `'0'`, `'1'`, `'42'`, `'  100  '`.
+ * Rejects: `''`, `'1.5'`, `'12abc'`, `'007'`, `'1e3'`, `'NaN'`, `'inf'`.
+ */
+export function tryParseInt(raw: string): number | null {
+  const trimmed = raw.trim();
+  const parsed = Number.parseInt(trimmed, 10);
+  // Every leg below is one of the failure modes the inline validators
+  // across the CLI were already catching:
+  //   - `Number.isInteger`     rejects NaN / Infinity / floats.
+  //   - `String(parsed) !== trimmed`  rejects `'12abc'`-style trailing
+  //                            garbage that `parseInt` happily eats,
+  //                            plus non-canonical spellings (`'007'`,
+  //                            `'+5'`, `'1e3'`).
+  if (!Number.isInteger(parsed) || String(parsed) !== trimmed) {
+    return null;
+  }
+  return parsed;
+}
+
+/**
  * Pure parse: trim + strict integer + sign check. Returns `null` on
  * any rejection, the parsed value otherwise.
  *
@@ -35,18 +61,8 @@ import { ansiFor } from './ansi.js';
  * Rejects: `''`, `'-3'`, `'1.5'`, `'12abc'`, `'NaN'`, `'inf'`.
  */
 export function tryParseNonNegativeInt(raw: string): number | null {
-  const trimmed = raw.trim();
-  const parsed = Number.parseInt(trimmed, 10);
-  // Every leg below is one of the failure modes the inline validators
-  // across the CLI were already catching:
-  //   - `Number.isInteger`     rejects NaN / Infinity / floats.
-  //   - `parsed < 0`           rejects negatives.
-  //   - `String(parsed) !== trimmed`  rejects `'12abc'`-style trailing
-  //                            garbage that `parseInt` happily eats.
-  if (!Number.isInteger(parsed) || parsed < 0 || String(parsed) !== trimmed) {
-    return null;
-  }
-  return parsed;
+  const parsed = tryParseInt(raw);
+  return parsed === null || parsed < 0 ? null : parsed;
 }
 
 /**

@@ -27,7 +27,7 @@ These flags apply to every verb unless marked otherwise.
 | `-q` / `--quiet` | boolean | Suppress all non-error stderr output. Does not affect stdout. |
 | `--no-color` | boolean | Disable ANSI color codes. Implementations MUST also auto-disable color when stdout is not a TTY. |
 | `-h` / `--help` | boolean | Print verb-specific or top-level help, exit 0. |
-| `-v` / `--version` | boolean | Print the CLI version as a single line, exit 0. The multi-line matrix is the `sm version` verb. `-v` is the alias every other CLI uses for this; there is deliberately no `-V`. |
+| `-v` / `--version` | boolean | Print the CLI version as a single line, exit 0. The multi-line matrix is the `sm version` verb. `-v` is the alias every other CLI uses for this; there is deliberately no `-V`. **Bare invocation only**: this row is an invocation path (`sm -v`, `sm --version`), not a per-verb option, so a verb followed by `-v` is an unknown-option error. |
 | `--db <path>` | string | Override the database file location (escape hatch; primarily for debugging). |
 
 Global flags bind no position: `sm --json version` and `sm version --json` are the same invocation. An implementation that fans a bare `sm <flags>` out to a default verb MUST NOT do so when the argv also names a real verb.
@@ -438,6 +438,7 @@ Field analyzers, normative:
 
 - **`verbs` is FLAT.** A subcommand is its own entry whose `name` carries the whole path (`jobs submit`, `plugins slots list`); there is no nested `subcommands` array. A namespace that is not itself runnable (`jobs`, `db`) has no entry of its own, consumers group by name prefix.
 - **`flags` is COMPLETE.** It MUST list every option the verb accepts, the global flags it inherits included, whether or not the option carries a `description` (an undescribed option publishes `"description": ""`, never disappears). Options the implementation marks hidden are the single exception and MUST be omitted, they are absent from every user-facing surface. `name` is the long form, `aliases` the remaining spellings (`["-q"]`), and `type` is the two-value vocabulary `"boolean"` (the option takes no argument, counters included) or `"string"` (it takes one or more).
+- **`globalFlags` mirrors §Global flags.** Entries the implementation resolves at the parser or process-boot layer rather than as per-verb options (`-h` / `--help`, `--log` / `--log-level`) appear ONLY here, never inside `verbs[].flags[]`, even though every verb accepts them; consumers compose a verb's full surface as `verbs[].flags[]` plus `globalFlags[]`. The bare-invocation `-v` / `--version` path is not a per-verb flag (see its §Global flags row) and has no entry in either list.
 - **`exitCodes` is exhaustive and ascending**, every code the verb can return, drawn from §Exit codes. Because implementations are expected to funnel unhandled exceptions into `2`, effectively every verb lists it.
 
 Consumers: docs generator, shell completion, Web UI form generation, IDE extensions, test harness, agent-skill integrations (`sm-cli` skill).

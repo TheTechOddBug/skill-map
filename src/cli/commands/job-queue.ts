@@ -91,6 +91,7 @@ import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
 import { claimJob } from '../../core/jobs/claim-engine.js';
 import { processingSkillPresence } from '../../core/agent-skill/targets.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
+import { tryParseInt } from '../util/option-validators.js';
 import { JOBS_QUEUE_TEXTS as T } from '../i18n/jobs-queue.texts.js';
 import { appendOperation } from '../../core/operations-log.js';
 import { pushJobEvent } from '../util/job-event-push.js';
@@ -192,13 +193,17 @@ function safeJobView(job: Job): {
   };
 }
 
-/** Parse an integer flag; returns `undefined` when absent, throws on garbage. */
-function parseIntFlag(raw: string | undefined): number | undefined {
+/**
+ * Parse an optional integer flag through the shared strict-integer
+ * rules (`option-validators.ts`). `undefined` when the flag is absent,
+ * `null` on garbage (the caller renders its own verb-specific §3.1b
+ * error). Sign stays legal at this layer: `--priority` accepts
+ * negatives, and the submit engine owns `--ttl`'s non-negative policy
+ * (`invalid-ttl`).
+ */
+function parseIntFlag(raw: string | undefined): number | undefined | null {
   if (raw === undefined) return undefined;
-  if (!/^-?\d+$/.test(raw.trim())) {
-    throw new Error(raw);
-  }
-  return Number.parseInt(raw.trim(), 10);
+  return tryParseInt(raw);
 }
 
 /**
@@ -375,17 +380,13 @@ export class JobSubmitCommand extends SmCommand {
   private parseSubmitFlags():
     | { ttl: number | undefined; priority: number | undefined; findingIds: readonly number[] | undefined }
     | TExitCode {
-    let ttl: number | undefined;
-    let priority: number | undefined;
-    try {
-      ttl = parseIntFlag(this.ttl);
-    } catch (err) {
-      return this.fail(tx(T.submitErrBadTtl, { value: (err as Error).message }));
+    const ttl = parseIntFlag(this.ttl);
+    if (ttl === null) {
+      return this.fail(tx(T.submitErrBadTtl, { value: this.ttl as string }));
     }
-    try {
-      priority = parseIntFlag(this.priority);
-    } catch (err) {
-      return this.fail(tx(T.submitErrBadPriority, { value: (err as Error).message }));
+    const priority = parseIntFlag(this.priority);
+    if (priority === null) {
+      return this.fail(tx(T.submitErrBadPriority, { value: this.priority as string }));
     }
     const findingIds = this.parseFindingFlags();
     if (typeof findingIds === 'number') return findingIds;
@@ -1137,13 +1138,8 @@ export class JobClaimCommand extends SmCommand {
     raw: string | undefined,
     badText: string,
   ): { ok: true; value: number | undefined } | { ok: false; code: TExitCode } {
-    let value: number | undefined;
-    try {
-      value = parseIntFlag(raw);
-    } catch (err) {
-      return { ok: false, code: this.failClaim(tx(badText, { value: (err as Error).message })) };
-    }
-    if (value !== undefined && value < 1) {
+    const value = parseIntFlag(raw);
+    if (value === null || (value !== undefined && value < 1)) {
       return { ok: false, code: this.failClaim(tx(badText, { value: raw as string })) };
     }
     return { ok: true, value };

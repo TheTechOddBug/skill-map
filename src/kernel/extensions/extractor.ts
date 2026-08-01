@@ -136,7 +136,7 @@ export interface IExtractorContext extends IExtractorCallbacks {
   /**
    * Diagnostic channel, stderr-bound, sanitised and prefixed with the
    * qualified extension id. Silent below `warn` until the operator
-   * raises the level (`-v` / `--log-level`). NEVER write to stdout from
+   * raises the level (`--log` / `--log-level`). NEVER write to stdout from
    * an extension: it corrupts every `--json` payload. See
    * `kernel/util/extension-logger.ts`.
    */

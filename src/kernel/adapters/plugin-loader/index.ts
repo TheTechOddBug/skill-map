@@ -221,7 +221,7 @@ export class PluginLoader implements PluginLoaderPort {
    */
   async discoverAndLoadAll(): Promise<IDiscoveredPlugin[]> {
     const paths = this.discoverPaths();
-    // `-vv`: the discovery answer to "why is my plugin not there?".
+    // `--log debug`: the discovery answer to "why is my plugin not there?".
     // Only the failures speak at the default level, so without this the
     // operator sees silence for both "found nothing" and "found it and
     // skipped it", which are very different problems.

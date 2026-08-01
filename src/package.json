@@ -90,7 +90,6 @@
     "posthog-node": "5.45.2",
     "semver": "7.8.5",
     "smol-toml": "1.7.0",
-    "typanion": "3.14.0",
     "ws": "8.21.1",
     "zod": "4.4.3"
   },

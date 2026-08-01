@@ -65,8 +65,8 @@ function isEnvSet(value: string | undefined): boolean {
  * `sm help --format json` (`spec/cli-contract.md` §Help). Deliberately
  * narrower than a per-verb flag entry: no `aliases`, no `required`,
  * because the JSON envelope is consumed by third parties and its shape
- * is normative. The short forms (`-q`, `-v`) still travel per verb,
- * inside `verbs[].flags[].aliases`.
+ * is normative. The short forms (`-q`) still travel per verb, inside
+ * `verbs[].flags[].aliases`.
  */
 export interface IGlobalFlag {
   name: string;
@@ -84,9 +84,11 @@ export interface IGlobalFlag {
  * sharing one description string with each `Option.*` below) is the
  * cheapest arrangement that cannot drift silently.
  *
- * `-h` / `--help` is NOT here: Clipanion owns it (it is not an
- * `Option.*` on any command class), so `cli/commands/help.ts` appends
- * it to the published catalog with its own description.
+ * `-h` / `--help` and `--log` / `--log-level` are NOT here: neither is
+ * an `Option.*` on any command class (Clipanion owns the former; the
+ * latter is extracted from argv at process boot in `entry.ts`), so
+ * `cli/commands/help.ts` appends both to the published catalog with
+ * their own descriptions.
  */
 export const GLOBAL_FLAGS: readonly IGlobalFlag[] = [
   { name: '--json', type: 'boolean', description: UTIL_TEXTS.globalFlagJson },
@@ -197,8 +199,8 @@ export abstract class SmCommand extends Command {
    * the public `1 = issues found` contract, and dumps the class name +
    * stack trace instead of the §3.1b error block the spec promises
    * ("unhandled exception. Accompanied by an error message on stderr",
-   * §Exit codes). Renders the block on stderr; `-v` keeps the stack
-   * reachable for debugging. The caller returns `ExitCode.Error`.
+   * §Exit codes). Renders the block on stderr; `--log debug` keeps the
+   * stack reachable for debugging. The caller returns `ExitCode.Error`.
    */
   private renderUnhandledError(err: unknown): void {
     const ansi = this.ansiFor('stderr');

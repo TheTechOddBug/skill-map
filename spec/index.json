@@ -457,7 +457,7 @@
       "CHANGELOG.md": "b591fab6361c2daf42ee9f384ffd8725d31ebeebdef383cd840ae37d8a2497c3",
       "README.md": "35ac6cc3ce8379c5087f739a528d3b80a140aef5cdeeba9c49b59c5dd5df4c54",
       "architecture.md": "16b1abe6e5718c2535e2b03481abda4497e800c2d215c5dc70b2531cb718f6c2",
-      "cli-contract.md": "25647b21a54dc1eb957f51719a9342361db6db1c7f3e6f8a191486f0704cc85b",
+      "cli-contract.md": "060b9ee9806bf8c755dc71669cdd244984aa188bbce219dd411a46ed83f60f3e",
       "conformance/README.md": "1cf7a020d4a7517e9f2b5fa2e6912be812322dfffa388de5eb47ef44d9277e8f",
       "conformance/cases/backtick-path-extraction.json": "4112b5724156c4d6ad5cf90a762e43741d25d68735f91d453ac580a77b3764da",
       "conformance/cases/bump-report-schema.json": "f9f1b9f1143e5750bea045001aff60d0f5f6b15e41597d9bd983c4159540fb22",

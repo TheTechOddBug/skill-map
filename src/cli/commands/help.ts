@@ -207,15 +207,20 @@ export class HelpCommand extends Command {
 // --- normalisation --------------------------------------------------------
 
 /**
- * The `globalFlags[]` catalog of the JSON / md documents: the five flags
- * `SmCommand` declares for every verb, plus Clipanion's own `-h,--help`,
- * which is not an `Option.*` on any command class (the parser handles it
- * before a command is ever hydrated) and therefore has to be named here.
- * Matches the table in `spec/cli-contract.md` §Global flags.
+ * The `globalFlags[]` catalog of the JSON / md documents: the four flags
+ * `SmCommand` declares for every verb, plus the two entries every verb
+ * accepts without an `Option.*` on any command class, which therefore
+ * have to be named here: the boot-level `--log` / `--log-level`
+ * (extracted from argv in `entry.ts` before Clipanion parses) and
+ * Clipanion's own `-h,--help` (the parser handles it before a command
+ * is ever hydrated). Matches the table in `spec/cli-contract.md`
+ * §Global flags; the bare-invocation `-v` / `--version` path is
+ * deliberately absent, it is not a per-verb flag (spec §Introspection).
  */
 function globalFlagCatalog(): readonly IGlobalFlag[] {
   return [
     ...GLOBAL_FLAGS,
+    { name: '--log', type: 'string', description: HELP_TEXTS.globalFlagLogDescription },
     { name: '--help', type: 'boolean', description: HELP_TEXTS.globalFlagHelpDescription },
   ];
 }

@@ -22,9 +22,10 @@ import { parseWatchBackend, runWatchLoop } from './watch.js';
 /**
  * `sm scan [roots...] [--json] [--no-built-ins] [--no-plugins] [-n|--dry-run] [--changed]`
  *
- * Scans the given roots using the built-in extension set (claude Provider,
- * 4 extractors, 3 analyzers) plus any drop-in plugin extensions discovered
- * under `<cwd>/.skill-map/plugins/` (Step 9.1).
+ * Scans the given roots under the active provider lens (spec
+ * `cli-contract.md` §Active provider lens) with the built-in extension
+ * set plus any drop-in plugin extensions discovered under
+ * `<cwd>/.skill-map/plugins/` (Step 9.1).
  * The registry is populated with manifest rows so introspection
  * (`sm help`, `sm plugins list`) sees what's active; the orchestrator
  * consumes the callable instances separately.
@@ -56,11 +57,11 @@ export class ScanCommand extends SmCommand {
     category: 'Scan',
     description: 'Scan roots for markdown nodes, run extractors and analyzers.',
     details: `
-      Walks the given roots with the built-in claude Provider, runs the
-      frontmatter / slash / at-directive / external-url-counter
-      extractors per node, then the name-collision / broken-ref
-      analyzers over the full graph. Emits a ScanResult
-      conforming to scan-result.schema.json.
+      Walks the given roots under the active provider lens, runs the
+      enabled extractors per node, then the analyzer set over the full
+      graph. Emits a ScanResult conforming to scan-result.schema.json.
+      Run "sm plugins list" to see the extensions active in this
+      project.
 
       The result is persisted into <cwd>/.skill-map/skill-map.db
       (replace-all over scan_nodes/links/issues). Pass --no-built-ins
@@ -129,10 +130,9 @@ export class ScanCommand extends SmCommand {
     description: 'Only with --watch: per-invocation override of scan.watch.backend, the primary watcher backend (chokidar or parcel). Ignored on a non-watching scan.',
   });
 
-  // Each branch in the orchestrator maps to one validation gate
-  // (--watch alias / --changed mutex / dispatch).
-  // Splitting per branch scatters the gate from the value it gates.
-   
+  // Each branch below maps to one validation gate (--watch alias /
+  // --changed mutex / dispatch); splitting per branch would scatter
+  // the gate from the value it gates.
   protected async run(): Promise<number> {
     const caps = this.parseCapFlags();
     if (caps.kind === 'error') return caps.exit;

@@ -213,15 +213,18 @@ describe('sm help --format json, global flags', () => {
   it('publishes the spec §Global flags table', async () => {
     const doc = await helpDocument();
     const names = doc.globalFlags.map((flag) => flag.name).sort();
-    // `--verbose` is deliberately absent: verbosity is the named
-    // `--log` / `--log-level` parameter, resolved at process boot rather
-    // than as a per-verb Clipanion option, and `-v` is the `--version`
-    // alias every other CLI uses.
-    assert.deepEqual(names, ['--db', '--help', '--json', '--no-color', '--quiet']);
+    // `--log` is published here and ONLY here: verbosity is resolved at
+    // process boot rather than as a per-verb Clipanion option, so it has
+    // no `verbs[].flags[]` entry (spec §Introspection, boot-level
+    // carve-out, same as `--help`). `-v` / `--version` is deliberately
+    // absent from the catalog: it is a bare invocation path, not a
+    // per-verb flag (`sm scan -v` is an unknown-option error).
+    assert.deepEqual(names, ['--db', '--help', '--json', '--log', '--no-color', '--quiet']);
     for (const flag of doc.globalFlags) {
       assert.ok(flag.description.length > 0, `${flag.name} carries a description`);
     }
     assert.equal(doc.globalFlags.find((flag) => flag.name === '--db')?.type, 'string');
+    assert.equal(doc.globalFlags.find((flag) => flag.name === '--log')?.type, 'string');
   });
 
   it('describes each global flag identically per verb and in the catalog', async () => {

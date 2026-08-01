@@ -155,10 +155,13 @@ export class CheckCommand extends SmCommand {
 
     const validation = validateAnalyzerFilter(analyzerFilter, analyzers);
     if (validation !== null) {
+      const ansi = this.ansiFor('stderr');
       this.printer!.error(
         tx(CHECK_TEXTS.unknownAnalyzerIds, {
+          glyph: ansi.red('✕'),
           unknown: validation.unknown.join(', '),
-          known: formatKnownAnalyzerIds(validation.known),
+          hint: ansi.dim(CHECK_TEXTS.unknownAnalyzerIdsHint),
+          known: formatKnownAnalyzerIds(validation.known, '   '),
         }),
       );
       return { exit: ExitCode.Error };
@@ -255,12 +258,12 @@ function renderHuman(issues: Issue[], ansi: IAnsi): string {
  * landed in (deterministic because `adapter.issues.listAll` returns a
  * stable ordering).
  */
-type IRenderRow = {
+interface IRenderRow {
   severity: Severity;
   analyzerId: string;
   message: string;
   primary: string;
-};
+}
 const SEVERITY_RANK: Record<Severity, number> = { error: 0, warn: 1, info: 2 };
 function groupRowsByFile(rows: IRenderRow[]): Map<string, IRenderRow[]> {
   const byFile = new Map<string, IRenderRow[]>();

@@ -37,14 +37,16 @@ export const CHECK_TEXTS = {
     '\nTip: `sm enrich <node>` to revalidate a file after fixes.\n',
 
   /**
-   * Emitted on stderr when `--analyzers` lists one or more ids the
-   * loaded analyzer registry does not know. The user almost always
-   * mistyped (e.g. `broken-ref` instead of `reference-broken`); listing
-   * the valid ids inline lets them fix the call without a second round
-   * trip through `sm plugins list`. Exit code is `ExitCode.Error` (2):
-   * bad usage, not "no issues found".
+   * §3.1b error block emitted on stderr when `--analyzers` lists one or
+   * more ids the loaded analyzer registry does not know. The user
+   * almost always mistyped (e.g. `broken-ref` instead of
+   * `reference-broken`); listing the valid ids inline (rendered by the
+   * caller at hint indent, under `{{known}}`) lets them fix the call
+   * without a second round trip through `sm plugins list`. Exit code is
+   * `ExitCode.Error` (2): bad usage, not "no issues found".
    */
   unknownAnalyzerIds:
-    'sm check: unknown analyzer id(s) in --analyzers: {{unknown}}.\n' +
-    'Valid ids (qualified or short form accepted):\n{{known}}\n',
+    '{{glyph}}  sm check: unknown analyzer id(s) in --analyzers: {{unknown}}\n' +
+    '   {{hint}}\n{{known}}\n',
+  unknownAnalyzerIdsHint: 'Valid ids (qualified or short form accepted):',
 } as const;

@@ -104,7 +104,7 @@ export interface IActionContext {
   /**
    * Diagnostic channel, stderr-bound, sanitised and prefixed with the
    * qualified action id. Silent below `warn` until the operator raises
-   * the level (`-v` / `--log-level`). NEVER write to stdout from an
+   * the level (`--log` / `--log-level`). NEVER write to stdout from an
    * extension: it corrupts every `--json` payload. See
    * `kernel/util/extension-logger.ts`.
    */

@@ -41,6 +41,15 @@ export const HELP_TEXTS = {
   mdGlobalFlagBullet: '- `{{name}}`: {{description}}',
   /** Description copy for the `--help` global flag in the JSON / md output. */
   globalFlagHelpDescription: 'Print usage and exit.',
+  /**
+   * Description copy for the boot-level `--log` global flag in the
+   * JSON / md output. Named here (not in `util.texts.ts` next to the
+   * `SmCommand` four) because the flag is not an `Option.*` on any
+   * command class; `entry.ts` extracts it from argv before Clipanion
+   * parses, so only the published catalog ever renders this string.
+   */
+  globalFlagLogDescription:
+    'Set the log level (trace / debug / info / warn / error / silent). Equivalent spelling: --log-level. Resolved at process boot.',
 
   // --- per-category / per-verb (md) ----------------------------------------
   mdCategoryHeading: '## {{category}}',

@@ -4,7 +4,7 @@
  * escaping a verb's `run()` must exit `Error` (2) with a §3.1b block on
  * stderr, never Clipanion's generic exit 1, which would collide with
  * the public `1 = issues found` contract (spec/cli-contract.md §Exit
- * codes). `-v` additionally surfaces the stack trace.
+ * codes). `--log debug` additionally surfaces the stack trace.
  */
 
 import { strict as assert } from 'node:assert';
@@ -52,8 +52,9 @@ function buildCli(): Cli {
 }
 
 describe('SmCommand unhandled-error boundary', () => {
-  // `-v` reconfigures the process-global kernel logger onto the captured
-  // stream; restore the default so no other spec inherits it.
+  // The debug-level spec reconfigures the process-global kernel logger
+  // onto the captured stream; restore the default so no other spec
+  // inherits it.
   afterEach(() => resetLogger());
 
   it('a throw escaping run() exits Error (2), not Clipanion generic 1', async () => {

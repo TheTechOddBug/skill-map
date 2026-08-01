@@ -1148,7 +1148,7 @@ async function dispatchNode(
     priorExtractorRuns: wctx.opts.priorExtractorRuns,
   });
 
-  // `-vvv`: the two questions a slow or surprising scan raises, per
+  // `--log trace`: the two questions a slow or surprising scan raises, per
   // node. WHAT claimed it (which Provider, as which kind) answers "why
   // is my file not the kind I expected"; WHICH extractors re-ran
   // answers "why did this take so long" and "why did my extractor not

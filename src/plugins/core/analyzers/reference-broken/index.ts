@@ -136,7 +136,7 @@ function classifyBrokenLink(
 }
 
 /**
- * `-vvv`: the answer to the commonest "this is a false positive" report.
+ * `--log trace`: the answer to the commonest "this is a false positive" report.
  * A broken edge is dropped for three DIFFERENT reasons and from the
  * outside all three look identical (no issue). Naming which one fired is
  * the difference between the operator debugging their corpus and
