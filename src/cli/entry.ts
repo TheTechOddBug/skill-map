@@ -236,35 +236,69 @@ process.exit(exitCode);
  */
 async function resolveBareInvocation(rawArgs: string[]): Promise<string[] | null> {
   if (rawArgs.length === 0) return resolveNoArgsBare();
+  if (!isFlagFirstBare(rawArgs)) return null;
+  if (existsSync(defaultProjectDbPath(defaultRuntimeContext()))) {
+    return ['serve', ...rawArgs];
+  }
+  // No DB in cwd, same "no project" failure as the no-args bare
+  // case. resolveBareDefault prints the hint + exits.
+  return resolveBareDefault();
+}
+
+/**
+ * True when `rawArgs` is a flag-first argv that carries NO verb, the
+ * only shape that fans out to `sm serve`. Split out of
+ * `resolveBareInvocation` so each rejection reason stays one readable
+ * guard (and the caller stays under the complexity cap).
+ */
+function isFlagFirstBare(rawArgs: string[]): boolean {
   const first = rawArgs[0];
+  if (first === undefined || !first.startsWith('-')) return false;
   // Inline the passthrough set: keeps the lookup local + avoids a
   // top-level `const` whose temporal-dead-zone would trip the module
   // initialiser (`bareArgs` is computed before this function body
   // runs, but module-top `const`s declared below this point are
   // uninitialised at that moment).
-  const passthrough = new Set(['--help', '-h', '--version', '-V', '-v']);
-  if (
-    first !== undefined &&
-    first.startsWith('-') &&
-    !passthrough.has(first)
-  ) {
-    // Single-dash long form (`-version`, `-help`, `-foo`, length > 2,
-    // no `--`) is always a typo: never a real flag, no value passing,
-    // no chance Clipanion will accept it. Bypass routing so the
-    // parse-error handler surfaces the proper "Did you mean '--foo'?"
-    // diagnostic consistently regardless of project state (otherwise
-    // the same typo would print the no-project hint when run outside
-    // a project, masking the real fix).
-    const isSingleDashLong = !first.startsWith('--') && first.length > 2;
-    if (isSingleDashLong) return null;
-    if (existsSync(defaultProjectDbPath(defaultRuntimeContext()))) {
-      return ['serve', ...rawArgs];
-    }
-    // No DB in cwd, same "no project" failure as the no-args bare
-    // case. resolveBareDefault prints the hint + exits.
-    return resolveBareDefault();
+  const passthrough = new Set(['--help', '-h', '--version']);
+  if (passthrough.has(first)) return false;
+  // Single-dash long form (`-version`, `-help`, `-foo`, length > 2,
+  // no `--`) is always a typo: never a real flag, no value passing,
+  // no chance Clipanion will accept it. Bypass routing so the
+  // parse-error handler surfaces the proper "Did you mean '--foo'?"
+  // diagnostic consistently regardless of project state (otherwise
+  // the same typo would print the no-project hint when run outside
+  // a project, masking the real fix). `-vv` / `-vvv` are the ONE
+  // legitimate single-dash-long form: the verbose counter stacks.
+  if (!first.startsWith('--') && first.length > 2 && !/^-v+$/.test(first)) {
+    return false;
   }
-  return null;
+  // A documented global flag placed BEFORE the verb (`sm --json version`,
+  // `sm -q scan`) is NOT a bare invocation. `spec/cli-contract.md`
+  // §Global flags binds no position, so hijacking it into `serve` would
+  // answer a legal invocation with "serve: Extraneous positional
+  // argument". Any token naming a registered verb hands the whole argv
+  // back to Clipanion, which parses the flags against that verb.
+  const verbs = topLevelVerbNames();
+  return !rawArgs.some((token) => verbs.has(token));
+}
+
+/**
+ * First segment of every registered verb path (`scan`, `plugins`,
+ * `db`, ...). Used to tell a global flag placed before a real verb from
+ * a genuine bare invocation that should fan out to `sm serve`.
+ *
+ * Deliberately NOT memoised in a module-level binding: this module's
+ * top-level `const`s are still uninitialised when `bareArgs` runs (the
+ * same hazard the passthrough set is inlined for), and the bundler
+ * lowers a `let` cache to an `undefined` read rather than a loud TDZ
+ * throw. One call per process, so recomputing costs nothing.
+ */
+function topLevelVerbNames(): Set<string> {
+  return new Set(
+    registeredVerbPaths(cli)
+      .map((path) => path[0])
+      .filter((name): name is string => name !== undefined),
+  );
 }
 
 /**

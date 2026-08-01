@@ -7,7 +7,7 @@ import { CollectionLoaderService } from '../collection-loader';
 import { DATA_SOURCE, type IDataSourcePort } from '../data-source/data-source.port';
 import { MapVisibilityService } from '../map-visibility';
 import { WsEventStreamService, type TWsConnectionState } from '../ws-event-stream';
-import type { IWsEvent, IWsScanCompletedEvent, IWsSidecarBumpedEvent } from '../../models/ws-event';
+import type { IWsActionAppliedEvent, IWsEvent, IWsScanCompletedEvent } from '../../models/ws-event';
 import type {
   IBranchResponseApi,
   IFolderNodeLite,
@@ -92,7 +92,7 @@ function makeStub(): IStubDataSource {
 
 function makeWsStub(
   scanCompleted$: Subject<IWsScanCompletedEvent>,
-  sidecarBumped$: Subject<IWsSidecarBumpedEvent> | null = null,
+  actionApplied$: Subject<IWsActionAppliedEvent> | null = null,
   connectionState: WritableSignal<TWsConnectionState> = signal('connecting'),
   stableConnected: WritableSignal<boolean> = signal(false),
   jobEvents$: Subject<IWsEvent> | null = null,
@@ -100,7 +100,7 @@ function makeWsStub(
   return {
     events$: EMPTY,
     scanCompleted$: scanCompleted$.asObservable(),
-    sidecarBumped$: sidecarBumped$ ? sidecarBumped$.asObservable() : EMPTY,
+    actionApplied$: actionApplied$ ? actionApplied$.asObservable() : EMPTY,
     // Consumed by the job-completed corpus refresh (fold freshness).
     jobEvents$: jobEvents$ ? jobEvents$.asObservable() : EMPTY,
     connectionState,
@@ -558,15 +558,15 @@ describe('CollectionLoaderService, favorites', () => {
   });
 });
 
-describe('CollectionLoaderService, sidecar.bumped subscription', () => {
+describe('CollectionLoaderService, action.applied subscription', () => {
   let stub: IStubDataSource;
   let scanCompleted$: Subject<IWsScanCompletedEvent>;
-  let sidecarBumped$: Subject<IWsSidecarBumpedEvent>;
+  let actionApplied$: Subject<IWsActionAppliedEvent>;
   let ws: WsEventStreamService;
 
   beforeEach(() => {
     scanCompleted$ = new Subject<IWsScanCompletedEvent>();
-    sidecarBumped$ = new Subject<IWsSidecarBumpedEvent>();
+    actionApplied$ = new Subject<IWsActionAppliedEvent>();
     stub = makeStub();
     stub.loadBranch.mockResolvedValue(
       branch([
@@ -578,25 +578,46 @@ describe('CollectionLoaderService, sidecar.bumped subscription', () => {
         },
       ] as unknown as INodeApi[]),
     );
-    ws = makeWsStub(scanCompleted$, sidecarBumped$);
+    ws = makeWsStub(scanCompleted$, actionApplied$);
   });
 
   afterEach(() => {
     scanCompleted$.complete();
-    sidecarBumped$.complete();
+    actionApplied$.complete();
   });
 
-  it('patches the in-memory branch store when a sidecar.bumped event arrives', async () => {
+  it('patches the in-memory branch store when a bump action.applied arrives', async () => {
     const svc = bootstrap(stub, ws);
     await svc.load();
-    sidecarBumped$.next({
-      type: 'sidecar.bumped',
+    actionApplied$.next({
+      type: 'action.applied',
       timestamp: '2026-05-07T00:00:00.000Z',
-      data: { nodePath: 'agents/architect.md', version: 2, status: 'fresh' },
-    } as unknown as IWsSidecarBumpedEvent);
+      data: {
+        actionId: 'core/node-bump',
+        nodePath: 'agents/architect.md',
+        report: { ok: true, version: 2 },
+      },
+    } as unknown as IWsActionAppliedEvent);
     const node = svc.nodes().find((n) => n.path === 'agents/architect.md');
     expect(node?.sidecar?.status).toBe('fresh');
     expect(node?.sidecar?.annotations?.['version']).toBe(2);
+  });
+
+  it('ignores an action.applied from any other action id', async () => {
+    const svc = bootstrap(stub, ws);
+    await svc.load();
+    actionApplied$.next({
+      type: 'action.applied',
+      timestamp: '2026-05-07T00:00:00.000Z',
+      data: {
+        actionId: 'core/node-set-stability',
+        nodePath: 'agents/architect.md',
+        report: { ok: true, version: 99 },
+      },
+    } as unknown as IWsActionAppliedEvent);
+    const node = svc.nodes().find((n) => n.path === 'agents/architect.md');
+    expect(node?.sidecar?.status).toBe('stale-body');
+    expect(node?.sidecar?.annotations?.['version']).toBe(1);
   });
 });
 

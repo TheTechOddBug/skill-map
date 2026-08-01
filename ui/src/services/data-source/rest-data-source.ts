@@ -66,7 +66,6 @@ import type {
   IRegisteredAnnotationKeyApi,
   IRegisteredAnnotationsEnvelopeApi,
   IScanResultApi,
-  ISidecarBumpedEnvelopeApi,
   IActionAppliedEnvelopeApi,
   IUpdateStatusResponseApi,
   IValueEnvelopeApi,
@@ -86,7 +85,6 @@ import {
   type ILinksQuery,
   type INodesQuery,
   type IPluginChange,
-  type ISidecarBumpOpts,
   type TGraphFormat,
   type TPluginItem,
 } from './data-source.port';
@@ -583,16 +581,6 @@ export class RestDataSource implements IDataSourcePort {
     }
   }
 
-  async bumpSidecar(
-    nodePath: string,
-    opts: ISidecarBumpOpts = {},
-  ): Promise<ISidecarBumpedEnvelopeApi> {
-    const body: Record<string, unknown> = { nodePath };
-    if (opts.force !== undefined) body['force'] = opts.force;
-    if (opts.confirm !== undefined) body['confirm'] = opts.confirm;
-    return this.patchJson<ISidecarBumpedEnvelopeApi>(`${BASE}/sidecar/bump`, body, 'POST');
-  }
-
   async dispatchAction(
     actionId: string,
     nodePath: string,
@@ -845,7 +833,7 @@ export class RestDataSource implements IDataSourcePort {
    * contributions registry from any payload-bearing envelope. Mirror
    * of `ingestRegistry` for the parallel `contributionsRegistry`
    * field. Sentinel envelopes (`health`, `scan`, `graph`) and
-   * action-result envelopes (`sidecar.bumped`) carry `undefined`,
+   * action-result envelopes (`action.applied`) carry `undefined`,
    * which the service treats as a no-op.
    */
   private ingestContributionsRegistry(

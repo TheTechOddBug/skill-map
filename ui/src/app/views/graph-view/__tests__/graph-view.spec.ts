@@ -321,7 +321,6 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   getActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
   setActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
   lookupContribution: vi.fn().mockResolvedValue(null),
-  bumpSidecar: vi.fn(),
   dispatchAction: vi.fn(),
   getUpdateStatus: vi.fn().mockResolvedValue({
     current: '0.0.0',

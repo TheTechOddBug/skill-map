@@ -76,7 +76,6 @@ import type {
   IProjectPreferencesPatchApi,
   IRegisteredAnnotationKeyApi,
   IScanResultApi,
-  ISidecarBumpedEnvelopeApi,
   IActionAppliedEnvelopeApi,
   IUpdateStatusResponseApi,
   IValueEnvelopeApi,
@@ -95,7 +94,6 @@ import {
   type ILinksQuery,
   type INodesQuery,
   type IPluginChange,
-  type ISidecarBumpOpts,
   type TGraphFormat,
   type TPluginItem,
 } from './data-source.port';
@@ -868,16 +866,6 @@ export class StaticDataSource implements IDataSourcePort {
    */
   async lookupContribution(): Promise<null> {
     return null;
-  }
-
-  async bumpSidecar(
-    _nodePath: string,
-    _opts: ISidecarBumpOpts = {},
-  ): Promise<ISidecarBumpedEnvelopeApi> {
-    throw new DataSourceError(
-      'demo-readonly',
-      'Sidecar bump is not available in demo mode (static bundle is immutable).',
-    );
   }
 
   async dispatchAction(

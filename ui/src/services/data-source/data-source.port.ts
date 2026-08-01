@@ -56,7 +56,6 @@ export type { IActivityPort } from './ports/activity.port';
 export type { IAgentPort } from './ports/agent.port';
 export type {
   IActionsPort,
-  ISidecarBumpOpts,
   IActionDispatchOpts,
 } from './ports/actions.port';
 

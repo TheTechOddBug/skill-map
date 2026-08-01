@@ -10,7 +10,9 @@
  *   - typo on a known verb → edit-distance suggestion (`sacn` → `scan`)
  *   - unknown flag on a known verb → message scoped to the verb
  *   - incomplete namespace (`sm db`) → list of subcommands
- *   - happy paths (`--version`, `-v`, `help`) still work
+ *   - happy paths (`--version`, `help`) still work
+ *   - `-v` is the verbose counter, NOT a `--version` alias, and a global
+ *     flag placed before the verb is not swallowed into `sm serve`
  */
 
 import { strict as assert } from 'node:assert';
@@ -145,9 +147,30 @@ describe('CLI parse-error handler', () => {
     assert.match(r.stdout.trim(), /^\d+\.\d+\.\d+/);
   });
 
-  it('still serves -v (Clipanion built-in short form)', () => {
+  // `-v` is the VERBOSE counter (`spec/cli-contract.md` §Global flags),
+  // never a `--version` alias. Clipanion's `Builtins.VersionCommand`
+  // claims both `--version` and `-v`, and that second path used to win:
+  // `sm -v` printed the version and `sm -v <verb>` died with "unknown
+  // command '-v'" while `sm -vv <verb>` worked. `RootVersionCommand`
+  // claims `--version` alone, so `-v` now behaves like any other global
+  // flag: with no verb in argv it is a bare invocation (→ `sm serve`,
+  // which here refuses because the cwd holds no project DB).
+  it('treats a bare -v as the verbose flag, not a version alias', () => {
     const r = sm(['-v']);
+    assert.equal(r.status, 2);
+    assert.doesNotMatch(r.stdout.trim(), /^\d+\.\d+\.\d+/);
+  });
+
+  it('accepts a global flag placed BEFORE the verb', () => {
+    const r = sm(['-v', 'version']);
     assert.equal(r.status, 0);
-    assert.match(r.stdout.trim(), /^\d+\.\d+\.\d+/);
+    assert.match(r.stdout, /^\s*sm\s+\d+\.\d+\.\d+/m);
+  });
+
+  it('does not swallow --json into serve when a verb follows', () => {
+    const r = sm(['--json', 'version']);
+    assert.equal(r.status, 0);
+    assert.doesNotMatch(r.stderr, /Extraneous positional argument/);
+    assert.match(r.stdout.trim(), /^\{/);
   });
 });

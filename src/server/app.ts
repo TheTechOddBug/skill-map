@@ -41,7 +41,7 @@
  *
  *   - `HTTPException(404)`    → `code: 'not-found'`.
  *   - `HTTPException(400)`    → `code: 'bad-query'`.
- *   - `ConflictError(409)`    → `code: 'scan-busy' | 'sidecar-fresh'`
+ *   - `ConflictError(409)`    → `code: 'scan-busy' | 'job-terminal' | ...`
  *                               (typed subclass, dispatched by `code`).
  *   - `ActionRefusedError(409)` → `code: <report.reason> | 'action-refused'`
  *                               (generic action refusal, open-ended code).
@@ -149,7 +149,6 @@ export type TErrorCode =
   | 'bad-query'
   | 'db-missing'
   | 'db-drift'
-  | 'sidecar-fresh'
   | 'scan-busy'
   | 'action-refused'
   | 'locked'
@@ -318,11 +317,6 @@ export class ActivityTokenError extends OpaqueForbiddenError {
  * apart). Mirrors `LoopbackGateError`'s one-class-N-codes shape:
  *
  *   - `scan-busy`     (`POST /api/scan`): another scan is in flight.
- *   - `sidecar-fresh` (legacy bump path): node is fresh and `force` was
- *     not passed. Retained for `POST /api/scan` parity; the generic
- *     `POST /api/actions/:id` route emits its refusals via the
- *     open-ended `ActionRefusedError` instead (the bump refusal now
- *     surfaces as `code: 'fresh'`, the report's own reason).
  *   - `job-terminal`  (`POST /api/jobs/:jobId/cancel`): the job already
  *     reached a terminal state, nothing left to cancel (the HTTP face
  *     of the CLI's "already terminal" exit-2 refusal).
@@ -334,7 +328,6 @@ export class ActivityTokenError extends OpaqueForbiddenError {
 export class ConflictError extends HTTPException {
   readonly code:
     | 'scan-busy'
-    | 'sidecar-fresh'
     | 'job-terminal'
     | 'finding-not-dismissible'
     | 'finding-already-fixed'
@@ -354,7 +347,7 @@ export class ConflictError extends HTTPException {
  * `POST /api/actions/:id` route when an Action's report comes back
  * `ok: false`. Distinct from `ConflictError` because the refusal
  * `code` is open-ended: a plugin Action names its own refusal reason
- * (e.g. `sidecar-fresh`, `cycle-detected`), so the code can't be a
+ * (e.g. `fresh`, `cycle-detected`), so the code can't be a
  * closed host union. The reason travels on the envelope
  * `code` (sanitised); the full report ships under `details.report` so
  * the SPA can render the action-specific copy. When the report refuses
@@ -906,7 +899,8 @@ export function createApp(deps: IAppDeps): Hono {
   return app;
 }
 
-// The two `409` codes (`scan-busy` / `sidecar-fresh`) are NOT resolved
+// The `409` codes (`scan-busy`, `job-terminal`, the finding / issue
+// lifecycle refusals) are NOT resolved
 // here: they share the HTTP status, so a status-only mapping cannot tell
 // them apart. They flow through the dedicated `ConflictError` subclass,
 // which carries the typed `code` and is dispatched by `instanceof` in
@@ -1103,8 +1097,8 @@ function formatSidecarConsentError(err: unknown, c: Context): Response | null {
  * budget (the two `instanceof` checks + the details ternary would
  * otherwise push it over).
  *
- *   - `ConflictError`      (`scan-busy` / `sidecar-fresh` /
- *     `job-terminal`): closed `code`, no `details`.
+ *   - `ConflictError`      (`scan-busy` / `job-terminal` / the
+ *     finding + issue lifecycle refusals): closed `code`, no `details`.
  *   - `ActionRefusedError` (`POST /api/actions/:id`): open-ended `code`
  *     (the report's `reason`, sanitised at the throw site, widened past
  *     the closed `TErrorCode` union, the UI's `TErrorCodeApi` accepts

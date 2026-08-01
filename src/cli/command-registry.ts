@@ -19,7 +19,6 @@
  * index, and `sm help` sorts its own catalog by verb path anyway.
  */
 
-import { Builtins } from 'clipanion';
 import type { BaseContext, CommandClass } from 'clipanion';
 
 import { BINARY_LABEL, BINARY_NAME, VERSION } from '../version.js';
@@ -69,7 +68,7 @@ import { ServeCommand } from './commands/serve.js';
 import { ShowCommand } from './commands/show.js';
 import { SIDECAR_COMMANDS } from './commands/sidecar.js';
 import { TutorialCommand } from './commands/tutorial.js';
-import { VersionCommand } from './commands/version.js';
+import { RootVersionCommand, VersionCommand } from './commands/version.js';
 import { WatchCommand } from './commands/watch.js';
 
 /**
@@ -78,11 +77,11 @@ import { WatchCommand } from './commands/watch.js';
  * `IntentionalFailCommand` is the hidden Sentry self-test verb: it runs,
  * but declares no `static usage`, so Clipanion (and therefore
  * `sm help`) leaves it out of every catalog. `RootHelpCommand` and
- * `Builtins.VersionCommand` claim bare flag paths (`-h` / `--help` /
+ * `RootVersionCommand` claim bare flag paths (`-h` / `--help` /
  * `--version`) that `sm help` filters out for the same reason.
  */
 export const SM_COMMANDS: readonly CommandClass<BaseContext>[] = [
-  Builtins.VersionCommand,
+  RootVersionCommand,
   RootHelpCommand,
   HelpCommand,
   InitCommand,

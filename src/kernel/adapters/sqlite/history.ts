@@ -152,7 +152,30 @@ function applyExecutionFilters<Q extends SelectQueryBuilder<IDatabase, 'state_ex
   filter: IListExecutionsFilter,
 ): Q {
   let q = query;
-  if (filter.extensionId !== undefined) q = q.where('extensionId', '=', filter.extensionId) as Q;
+  if (filter.extensionId !== undefined) {
+    // Qualified-or-bare, the same grammar `sm check --analyzers` and
+    // `sm findings --extension` use (`kernel/util/analyzer-filter.ts`):
+    // rows persist the QUALIFIED id, so an exact `=` made a legitimate
+    // bare id (`reference-broken` for `core/reference-broken`) return
+    // an empty list with exit 0, i.e. a silent wrong answer.
+    //
+    // The second branch compares the segment after the FIRST `/`.
+    // `instr` returns 0 when the id carries no slash, and
+    // `substr(x, 0 + 1)` is then the whole string, so an unqualified
+    // stored id still matches itself. Deliberately NOT `LIKE '%/' || ?`:
+    // extension ids may contain `_`, which LIKE reads as a wildcard.
+    const wanted = filter.extensionId;
+    q = q.where((eb) =>
+      eb.or([
+        eb('extensionId', '=', wanted),
+        eb(
+          sql<string>`substr(state_executions.extension_id, instr(state_executions.extension_id, '/') + 1)`,
+          '=',
+          wanted,
+        ),
+      ]),
+    ) as Q;
+  }
   if (filter.statuses && filter.statuses.length > 0) q = q.where('status', 'in', filter.statuses) as Q;
   if (filter.sinceMs !== undefined) q = q.where('startedAt', '>=', filter.sinceMs) as Q;
   if (filter.untilMs !== undefined) q = q.where('startedAt', '<', filter.untilMs) as Q;

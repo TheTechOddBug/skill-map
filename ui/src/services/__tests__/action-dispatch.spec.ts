@@ -153,9 +153,11 @@ describe('ActionDispatchService, consent gate', () => {
 });
 
 describe('ActionDispatchService, error surfacing', () => {
-  it('formats a sidecar-fresh error', async () => {
+  it('formats a fresh-node refusal', async () => {
     const stub = makeStub();
-    stub.dispatchAction.mockRejectedValueOnce(new DataSourceError('sidecar-fresh', 'fresh'));
+    // `core/node-bump` refuses a fresh node with its own report reason,
+    // which the BFF widens into the envelope `code` (`ActionRefusedError`).
+    stub.dispatchAction.mockRejectedValueOnce(new DataSourceError('fresh', 'fresh'));
     const svc = setup(stub);
     await svc.dispatch('core/node-bump', NODE);
     expect(svc.error()).toMatch(/fresh/i);

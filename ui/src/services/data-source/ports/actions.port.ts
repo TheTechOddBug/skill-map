@@ -1,8 +1,7 @@
 /**
- * `IActionsPort`, the sidecar-writing action surface: the legacy bump
- * endpoint and the generic action dispatch, both gated by the `.sm`
- * write-consent handshake. Mirrors `POST /api/sidecar/bump` and
- * `POST /api/actions/:qualifiedId`.
+ * `IActionsPort`, the sidecar-writing action surface: the generic action
+ * dispatch and the job-queue mutations, gated by the `.sm` write-consent
+ * handshake. Mirrors `POST /api/actions/:qualifiedId`.
  *
  * One of the domain ports composed into `IDataSourcePort`
  * (`../data-source.port.ts`).
@@ -11,27 +10,7 @@
 import type {
   IActionAppliedEnvelopeApi,
   IJobSubmittedEnvelopeApi,
-  ISidecarBumpedEnvelopeApi,
 } from '../../../models/api';
-
-/**
- * Options for `bumpSidecar`. Mirrors `POST /api/sidecar/bump` body.
- */
-export interface ISidecarBumpOpts {
-  /**
-   * Force the bump on a fresh node (silent no-op per the Action spec).
-   * UI default is `false`, the bump button is disabled when the
-   * overlay reports `fresh`.
-   */
-  force?: boolean;
-  /**
-   * Consent for `.sm` sidecar writes in this project. The BFF gates the
-   * first `.sm` write behind `allowEditSmFiles` (default `false`); when
-   * the flag is still `false` and `confirm` is omitted / `false`, the
-   * server answers 412 with `code: 'confirm-required'`.
-   */
-  confirm?: boolean;
-}
 
 /**
  * Options for `dispatchAction`. Mirrors the `POST /api/actions/:qualifiedId`
@@ -60,19 +39,6 @@ export interface IActionDispatchOpts {
 }
 
 export interface IActionsPort {
-  /**
-   * `POST /api/sidecar/bump`. Returns the success envelope on 200;
-   * throws `DataSourceError` on any 4xx/5xx (the caller branches on
-   * `code`). Demo mode rejects with `'demo-readonly'`.
-   *
-   * The success path does NOT update the in-memory node store directly
-   *, the `sidecar.bumped` WS event broadcast by the BFF feeds the
-   * `SidecarService` subscription that owns the patch, so the card
-   * and inspector re-render via the same path the CLI / pre-commit
-   * hook would trigger.
-   */
-  bumpSidecar(nodePath: string, opts?: ISidecarBumpOpts): Promise<ISidecarBumpedEnvelopeApi>;
-
   /**
    * `POST /api/actions/:qualifiedId`, the generic action-dispatch
    * endpoint. Resolves the kernel Action by qualified id (`core/node-bump`,

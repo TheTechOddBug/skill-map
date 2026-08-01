@@ -8,9 +8,9 @@
  * Lifecycle of `dispatch(actionId, nodePath, input?)`:
  *   1. POST `/api/actions/:qualifiedId` via the data-source port.
  *   2. On success, resolve. The in-memory node store updates through the
- *      BFF's WS broadcast (`action.applied` / `sidecar.bumped`), not a
- *      manual patch here, so the card and inspector re-render via the
- *      same path the CLI / pre-commit hook would.
+ *      BFF's `action.applied` WS broadcast, not a manual patch here, so
+ *      the card and inspector re-render via the same path the CLI /
+ *      pre-commit hook would.
  *   3. On a 412 `confirm-required` whose `details.key === 'allowEditSmFiles'`,
  *      open the consent dialog (`consentOpen()` flips true). The pending
  *      dispatch is parked until the user answers via `resolveConsent()`:
@@ -149,7 +149,7 @@ export class ActionDispatchService {
   private formatError(err: unknown): string {
     if (err instanceof DataSourceError) {
       switch (err.code) {
-        case 'sidecar-fresh':
+        case 'fresh':
           return `${this.texts.errorPrefix} ${this.texts.errorFresh}`;
         case 'not-found':
           return `${this.texts.errorPrefix} ${this.texts.errorNotFound}`;

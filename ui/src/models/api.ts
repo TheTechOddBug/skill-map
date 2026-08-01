@@ -1562,27 +1562,12 @@ export interface IActiveProviderPutEnvelopeApi extends IActiveProviderApi {
  * BFF error envelope shape returned on any 4xx/5xx.
  */
 /**
- * Successful 200 envelope returned by `POST /api/sidecar/bump`.
- * Mirrors `src/server/routes/sidecar.ts:ISidecarBumpedEnvelope`.
- */
-export interface ISidecarBumpedEnvelopeApi {
-  schemaVersion: '1';
-  kind: 'sidecar.bumped';
-  value: {
-    nodePath: string;
-    version: number | null;
-    status: 'fresh';
-  };
-  elapsedMs: number;
-}
-
-/**
- * Successful 200 envelope returned by `POST /api/actions/:qualifiedId`
- * (the generic action-dispatch endpoint that generalised the dedicated
- * `/api/sidecar/bump`). Mirrors the BFF's `action.applied` envelope.
- * The matching WS event (`type: 'action.applied'`) carries the same
- * `value` so the in-memory node store updates via the loader's
- * subscription rather than a manual patch here.
+ * Successful 200 envelope returned by `POST /api/actions/:qualifiedId`,
+ * the generic action-dispatch endpoint (`core/node-bump` included).
+ * Mirrors the BFF's `action.applied` envelope. The matching WS event
+ * (`type: 'action.applied'`) carries the same `value` so the in-memory
+ * node store updates via the loader's subscription rather than a manual
+ * patch here.
  */
 export interface IActionAppliedEnvelopeApi {
   schemaVersion: '1';
@@ -1781,7 +1766,7 @@ export interface INodeProbExtensionsEnvelopeApi {
 
 /**
  * Successful 200 envelope returned by `POST /api/nodes/:pathB64/jobs`
- * (kind `job.submitted`, action-result shape like `sidecar.bumped`).
+ * (kind `job.submitted`, action-result shape like `action.applied`).
  * NO nonce ever travels here: the record credential belongs to the
  * processing agent (`sm jobs claim --json`).
  */

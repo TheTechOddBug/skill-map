@@ -68,7 +68,7 @@ function makeWsStub(scanCompleted$: Subject<IWsScanCompletedEvent>): WsEventStre
   return {
     events$: EMPTY,
     scanCompleted$: scanCompleted$.asObservable(),
-    sidecarBumped$: EMPTY,
+    actionApplied$: EMPTY,
   } as unknown as WsEventStreamService;
 }
 

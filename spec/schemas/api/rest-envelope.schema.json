@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.ai/spec/v1/api/rest-envelope.schema.json",
   "title": "RestEnvelope",
-  "description": "Wrapper shape for REST responses under `/api/*` (Step 14.2). Five variants distinguished by the `kind` discriminator and which payload field is present (`items` for list kinds AND `'annotations.registered'`, `item` for single-resource kinds, `value` for `kind: 'config'` and `'sidecar.bumped'`). The `/api/scan` and `/api/health` responses are exempt, they carry the underlying `ScanResult` / `IHealthResponse` shape directly. The `/api/graph` response is also exempt, it returns the formatter's native textual output (text/plain or text/markdown). Step 14.5.d adds the required `kindRegistry` field on every payload-bearing list / single / config variant so the UI can render Provider-declared kinds (label, color, icon) without hardcoding visuals; the sibling `providerRegistry` field carries the registered Providers' own identity (label, color, chip visibility) so the UI renders the active-lens dropdown and the per-node provider chip from the real Provider set instead of a hardcoded list. Sentinel kinds (`health`, `scan`, `graph`) stay exempt because they don't carry an envelope payload. Step 9.6 closes the `'sidecar.bumped'` (R7) and `'annotations.registered'` (R7) gaps, both are payload-bearing but carry their own variant shapes (sidecar.bumped: `value` + `elapsedMs`, no `filters`/`counts`/`kindRegistry`; annotations.registered: `items` + `counts.total`, no `filters`/`kindRegistry`) because they project read-only kernel surfaces orthogonal to the kindRegistry. Step 16 piece 1 (the findings workbench, inspector half) adds three kinds: `findings` rides the list shape with a REQUIRED `counts.dismissedExcluded` / `counts.fixedExcluded` honesty pair (stale rows ride `items` inline with their derived `stale` flag) and a locked per-item finding-row shape, `node.prob-extensions` rides the single shape (`item` = the finders / fixers / standalone launcher catalog), and `job.submitted` rides the action-result shape (`value` + `elapsedMs`, no registries). The change keeps `schemaVersion` at `'1'`, the BFF is greenfield (no released consumers depend on the prior shape), so a versioned migration buys nothing.",
+  "description": "Wrapper shape for REST responses under `/api/*` (Step 14.2). Five variants distinguished by the `kind` discriminator and which payload field is present (`items` for list kinds AND `'annotations.registered'`, `item` for single-resource kinds, `value` for `kind: 'config'` and the action-result kinds). The `/api/scan` and `/api/health` responses are exempt, they carry the underlying `ScanResult` / `IHealthResponse` shape directly. The `/api/graph` response is also exempt, it returns the formatter's native textual output (text/plain or text/markdown). Step 14.5.d adds the required `kindRegistry` field on every payload-bearing list / single / config variant so the UI can render Provider-declared kinds (label, color, icon) without hardcoding visuals; the sibling `providerRegistry` field carries the registered Providers' own identity (label, color, chip visibility) so the UI renders the active-lens dropdown and the per-node provider chip from the real Provider set instead of a hardcoded list. Sentinel kinds (`health`, `scan`, `graph`) stay exempt because they don't carry an envelope payload. Step 9.6 closes the action-result (R7) and `'annotations.registered'` (R7) gaps, both are payload-bearing but carry their own variant shapes (action-result: `value` + `elapsedMs`, no `filters`/`counts`/`kindRegistry`; annotations.registered: `items` + `counts.total`, no `filters`/`kindRegistry`) because they project read-only kernel surfaces orthogonal to the kindRegistry. Step 16 piece 1 (the findings workbench, inspector half) adds three kinds: `findings` rides the list shape with a REQUIRED `counts.dismissedExcluded` / `counts.fixedExcluded` honesty pair (stale rows ride `items` inline with their derived `stale` flag) and a locked per-item finding-row shape, `node.prob-extensions` rides the single shape (`item` = the finders / fixers / standalone launcher catalog), and `job.submitted` rides the action-result shape (`value` + `elapsedMs`, no registries). The change keeps `schemaVersion` at `'1'`, the BFF is greenfield (no released consumers depend on the prior shape), so a versioned migration buys nothing.",
   "type": "object",
   "required": [
     "schemaVersion",
@@ -27,7 +27,6 @@
         "node",
         "health",
         "scan",
-        "sidecar.bumped",
         "action.applied",
         "annotations.registered",
         "contributions.registered",
@@ -36,7 +35,7 @@
         "job.submitted",
         "jobs"
       ],
-      "description": "Discriminator. List kinds (`nodes`, `links`, `issues`, `plugins`) carry `items` + `filters` + `counts` + `kindRegistry`. The `node` kind carries `item` + `kindRegistry`. The `config` kind carries `value` + `kindRegistry`. The `sidecar.bumped` kind (Step 9.6.5, BFF half) carries `value` + `elapsedMs` (no `filters` / `counts` / `kindRegistry`, it's an action-result projection orthogonal to the kindRegistry surface). The `annotations.registered` kind (Step 9.6.6, BFF half) carries `items` + `counts.total` (no `filters` / `kindRegistry`, pure read-only catalog projection). Step 16 piece 1 kinds: `findings` (list shape, `GET /api/nodes/:pathB64/findings`, `counts` additionally requires `dismissedExcluded` / `fixedExcluded`), `node.prob-extensions` (single shape, `GET /api/nodes/:pathB64/prob-extensions`), `job.submitted` (action-result shape, `POST /api/nodes/:pathB64/jobs`). The `jobs` kind (`GET /api/jobs`, the cross-corpus job list) rides a registry-less list shape (`items` + `filters` + `counts`, no `kindRegistry` / `providerRegistry` / `contributionsRegistry`). The `health` / `scan` / `graph` values are reserved for documentation parity with the routes that DON'T use this envelope."
+      "description": "Discriminator. List kinds (`nodes`, `links`, `issues`, `plugins`) carry `items` + `filters` + `counts` + `kindRegistry`. The `node` kind carries `item` + `kindRegistry`. The `config` kind carries `value` + `kindRegistry`. The `action.applied` kind (Step 17, `POST /api/actions/:pluginId/:actionId`) carries `value` + `elapsedMs` (no `filters` / `counts` / `kindRegistry`, it's an action-result projection orthogonal to the kindRegistry surface). The `annotations.registered` kind (Step 9.6.6, BFF half) carries `items` + `counts.total` (no `filters` / `kindRegistry`, pure read-only catalog projection). Step 16 piece 1 kinds: `findings` (list shape, `GET /api/nodes/:pathB64/findings`, `counts` additionally requires `dismissedExcluded` / `fixedExcluded`), `node.prob-extensions` (single shape, `GET /api/nodes/:pathB64/prob-extensions`), `job.submitted` (action-result shape, `POST /api/nodes/:pathB64/jobs`). The `jobs` kind (`GET /api/jobs`, the cross-corpus job list) rides a registry-less list shape (`items` + `filters` + `counts`, no `kindRegistry` / `providerRegistry` / `contributionsRegistry`). The `health` / `scan` / `graph` values are reserved for documentation parity with the routes that DON'T use this envelope."
     },
     "items": {
       "type": "array",
@@ -48,12 +47,12 @@
     },
     "value": {
       "type": "object",
-      "description": "Present when `kind` is `'config'`, `'sidecar.bumped'`, `'action.applied'`, or `'job.submitted'`. For `'config'`, carries the merged effective config object. For `'sidecar.bumped'`, carries `{ nodePath, version, status }` (the bump report from `POST /api/sidecar/bump`). For `'action.applied'`, carries `{ actionId, nodePath, report }` (the generic Action-result payload from `POST /api/actions/:id`). For `'job.submitted'`, carries `{ jobId, nodePath, extensionId, supersededIds }` (the submit result from `POST /api/nodes/:pathB64/jobs`)."
+      "description": "Present when `kind` is `'config'`, `'action.applied'`, or `'job.submitted'`. For `'config'`, carries the merged effective config object. For `'action.applied'`, carries `{ actionId, nodePath, report }` (the generic Action-result payload from `POST /api/actions/:pluginId/:actionId`, `core/node-bump` included). For `'job.submitted'`, carries `{ jobId, nodePath, extensionId, supersededIds }` (the submit result from `POST /api/nodes/:pathB64/jobs`)."
     },
     "elapsedMs": {
       "type": "integer",
       "minimum": 0,
-      "description": "Wall-clock milliseconds the BFF spent serving the request. Present on action-result envelopes (`kind: 'sidecar.bumped'`, `'action.applied'`, `'job.submitted'`); absent elsewhere."
+      "description": "Wall-clock milliseconds the BFF spent serving the request. Present on action-result envelopes (`kind: 'action.applied'`, `'job.submitted'`); absent elsewhere."
     },
     "filters": {
       "type": "object",
@@ -150,7 +149,7 @@
     },
     "contributionsRegistry": {
       "type": "object",
-      "description": "Catalog of registered view contributions active in the current scope, keyed by qualified contribution id `<pluginId>/<extensionId>/<contributionId>`. Built once per server boot from every enabled extension's `viewContributions` map and embedded into every payload-bearing envelope so the UI can fetch the catalog without a separate request. Sentinel envelopes (`health`, `scan`, `graph`), action-result envelopes (`sidecar.bumped`), and the catalog envelopes themselves (`annotations.registered`, `contributions.registered`) are exempt. Mirror of `kindRegistry`, parallel surface. Each entry references a slot by name from the closed catalog at `view-slots.schema.json#/$defs/SlotName`; the slot fixes both the renderer and the payload shape. Per-node payloads are delivered separately on `node` envelopes (single via `item.contributions`) or list envelopes (`items[].contributions`, only when `limit \u2264 bff.maxBulkContributions`, default 200).",
+      "description": "Catalog of registered view contributions active in the current scope, keyed by qualified contribution id `<pluginId>/<extensionId>/<contributionId>`. Built once per server boot from every enabled extension's `viewContributions` map and embedded into every payload-bearing envelope so the UI can fetch the catalog without a separate request. Sentinel envelopes (`health`, `scan`, `graph`), action-result envelopes (`action.applied`, `job.submitted`), and the catalog envelopes themselves (`annotations.registered`, `contributions.registered`) are exempt. Mirror of `kindRegistry`, parallel surface. Each entry references a slot by name from the closed catalog at `view-slots.schema.json#/$defs/SlotName`; the slot fixes both the renderer and the payload shape. Per-node payloads are delivered separately on `node` envelopes (single via `item.contributions`) or list envelopes (`items[].contributions`, only when `limit \u2264 bff.maxBulkContributions`, default 200).",
       "additionalProperties": {
         "type": "object",
         "required": [
@@ -213,7 +212,7 @@
     },
     "providerRegistry": {
       "type": "object",
-      "description": "Catalog of Providers registered in the current scope, keyed by Provider id. Built once per server boot from every registered Provider's `ui` block and embedded into every payload-bearing envelope so the UI renders the active-lens dropdown, the topbar lens chip, and the per-node provider chip from the real Provider set instead of a hardcoded list. Sentinel envelopes (`health`, `scan`, `graph`), action-result envelopes (`sidecar.bumped`), and the catalog envelopes (`annotations.registered`, `contributions.registered`) are exempt. Mirror of `kindRegistry`, parallel surface. The active lens itself (current value + filesystem-detected candidates + the enabled `selectable` set) is NOT here; it is served by `GET /api/active-provider`, a per-project dynamic surface orthogonal to this static boot catalog.",
+      "description": "Catalog of Providers registered in the current scope, keyed by Provider id. Built once per server boot from every registered Provider's `ui` block and embedded into every payload-bearing envelope so the UI renders the active-lens dropdown, the topbar lens chip, and the per-node provider chip from the real Provider set instead of a hardcoded list. Sentinel envelopes (`health`, `scan`, `graph`), action-result envelopes (`action.applied`, `job.submitted`), and the catalog envelopes (`annotations.registered`, `contributions.registered`) are exempt. Mirror of `kindRegistry`, parallel surface. The active lens itself (current value + filesystem-detected candidates + the enabled `selectable` set) is NOT here; it is served by `GET /api/active-provider`, a per-project dynamic surface orthogonal to this static boot catalog.",
       "additionalProperties": {
         "type": "object",
         "required": [
@@ -901,7 +900,7 @@
       }
     },
     {
-      "description": "Action-result envelope, `value` + `elapsedMs` siblings, no `filters` / `counts` / `kindRegistry` / `providerRegistry` / `contributionsRegistry`. Used by `POST /api/actions/:id` (`action.applied`, carries `{ actionId, nodePath, report }`) and the legacy `POST /api/sidecar/bump` (`sidecar.bumped`, Step 9.6.5, carries `{ nodePath, version, status }`), in both cases plus the wall-clock duration. The registries are intentionally absent, the action result is orthogonal to every catalog and the SPA already has them cached from a prior list call.",
+      "description": "Action-result envelope, `value` + `elapsedMs` siblings, no `filters` / `counts` / `kindRegistry` / `providerRegistry` / `contributionsRegistry`. Used by `POST /api/actions/:pluginId/:actionId` (`action.applied`, carries `{ actionId, nodePath, report }` plus the wall-clock duration). The registries are intentionally absent, the action result is orthogonal to every catalog and the SPA already has them cached from a prior list call.",
       "required": [
         "value",
         "elapsedMs"
@@ -909,7 +908,6 @@
       "properties": {
         "kind": {
           "enum": [
-            "sidecar.bumped",
             "action.applied"
           ]
         }
@@ -955,7 +953,7 @@
       }
     },
     {
-      "description": "Job-submitted action-result envelope from `POST /api/nodes/:pathB64/jobs` (Step 16 piece 1), shaped like the `sidecar.bumped` variant: `value` + `elapsedMs`, no `filters` / `counts` / registries. `value` locks to `{ jobId, nodePath, extensionId, supersededIds }`; a non-empty `supersededIds` reports the fixer-supersede cancellations applied in the same transaction. The `nonce` record credential NEVER travels here, the processing agent claims it via `sm jobs claim --json` (`job-lifecycle.md` \u00a7Atomic claim \u00b7 Nonce exposure).",
+      "description": "Job-submitted action-result envelope from `POST /api/nodes/:pathB64/jobs` (Step 16 piece 1), shaped like the `action.applied` variant: `value` + `elapsedMs`, no `filters` / `counts` / registries. `value` locks to `{ jobId, nodePath, extensionId, supersededIds }`; a non-empty `supersededIds` reports the fixer-supersede cancellations applied in the same transaction. The `nonce` record credential NEVER travels here, the processing agent claims it via `sm jobs claim --json` (`job-lifecycle.md` \u00a7Atomic claim \u00b7 Nonce exposure).",
       "required": [
         "value",
         "elapsedMs"

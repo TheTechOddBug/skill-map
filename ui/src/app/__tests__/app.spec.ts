@@ -334,13 +334,6 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       stats: { totalNodes: 0, totalLinks: 0, totalIssues: 0 },
     } as unknown as Awaited<ReturnType<IDataSourcePort['runScan']>>),
   lookupContribution: () => Promise.resolve(null),
-  bumpSidecar: () =>
-    Promise.resolve({
-      schemaVersion: '1',
-      kind: 'sidecar.bumped',
-      value: { nodePath: '', version: null, status: 'fresh' },
-      elapsedMs: 0,
-    }),
   dispatchAction: () =>
     Promise.resolve({
       schemaVersion: '1',

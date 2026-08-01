@@ -92,7 +92,7 @@ import { loadNode } from './node-loader.js';
 /**
  * REST envelope `kind` discriminator. Listed in the canonical
  * `rest-envelope.schema.json#/properties/kind/enum` (shares the
- * action-result `oneOf` variant with `sidecar.bumped`).
+ * action-result `oneOf` variant with `job.submitted`).
  */
 const ENVELOPE_KIND = 'action.applied' as const;
 

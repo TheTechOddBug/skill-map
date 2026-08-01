@@ -245,7 +245,6 @@ function makeStubDataSource(): IStubDataSource {
     dismissIssue: vi.fn().mockResolvedValue(undefined),
     getNodeSummary: vi.fn().mockResolvedValue([]),
     deleteNodeSummary: vi.fn().mockResolvedValue(undefined),
-    bumpSidecar: vi.fn(),
     dispatchAction: vi.fn().mockResolvedValue({
       schemaVersion: '1',
       kind: 'action.applied',
@@ -352,7 +351,7 @@ function bootstrap(opts: IBootstrapOpts = {}): {
         useValue: {
           scanCompleted$: scanCompleted$.asObservable(),
           events$: EMPTY,
-          sidecarBumped$: EMPTY,
+          actionApplied$: EMPTY,
           // The Activity section's live re-fetch merges these two streams;
           // Subjects let tests drive `node.activity` and `agent.spawn` frames.
           nodeActivity$: nodeActivity$.asObservable(),

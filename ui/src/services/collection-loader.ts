@@ -81,6 +81,25 @@ const SELECTION_FETCH_DEBOUNCE_MS = 150;
  */
 const JOB_COMPLETED_REFRESH_DEBOUNCE_MS = 500;
 
+/**
+ * Qualified id of the built-in bump Action. The only `action.applied`
+ * broadcast whose report the branch store can patch in place.
+ */
+const BUMP_ACTION_ID = 'core/node-bump';
+
+/**
+ * Read `annotations.version` off a `core/node-bump` report. Returns
+ * `undefined` when the report does not carry a usable version, which
+ * tells the caller to leave the branch untouched rather than stamping a
+ * guess (the report shape is Action-defined and travels as `unknown`).
+ */
+function bumpedVersionOf(report: unknown): number | null | undefined {
+  if (typeof report !== 'object' || report === null) return undefined;
+  const version = (report as Record<string, unknown>)['version'];
+  if (version === null) return null;
+  return typeof version === 'number' ? version : undefined;
+}
+
 @Injectable({ providedIn: 'root' })
 export class CollectionLoaderService {
   private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
@@ -242,15 +261,21 @@ export class CollectionLoaderService {
         void this.load();
       });
 
-    // `sidecar.bumped` stream applied directly to the in-memory branch
-    // store (the loader owns the node list).
-    this.wsEvents.sidecarBumped$
+    // `action.applied` stream applied directly to the in-memory branch
+    // store (the loader owns the node list). Only `core/node-bump`
+    // carries a sidecar version the branch can patch in place; every
+    // other Action's report is opaque here, so it is ignored rather
+    // than guessed at.
+    this.wsEvents.actionApplied$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((event) => {
+        if (event.data.actionId !== BUMP_ACTION_ID) return;
+        const version = bumpedVersionOf(event.data.report);
+        if (version === undefined) return;
         this.patchSidecarFromBump({
           nodePath: event.data.nodePath,
-          version: event.data.version,
-          status: event.data.status,
+          version,
+          status: 'fresh',
         });
       });
 

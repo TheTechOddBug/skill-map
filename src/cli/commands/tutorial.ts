@@ -72,7 +72,11 @@ import { Command, Option } from 'clipanion';
 import { tx } from '../../kernel/util/tx.js';
 import { TUTORIAL_TEXTS } from '../i18n/tutorial.texts.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
-import { listScaffoldDestinations, type IScaffoldTarget } from '../../core/agent-skill/targets.js';
+import {
+  listScaffoldDestinations,
+  listScaffoldTargets,
+  type IScaffoldTarget,
+} from '../../core/agent-skill/targets.js';
 import { type IAnsi } from '../util/ansi.js';
 import { displayCwd, isDirEmpty, listCwdEntries } from '../util/empty-cwd.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -289,10 +293,17 @@ export class TutorialCommand extends SmCommand {
 
     const requested = this.forProvider;
     if (requested !== undefined) {
-      // `--for` matches a listed destination id. An experimental id only
-      // appears in `targets` when `--experimental` was passed; otherwise
-      // it falls through to the unknown-provider error.
-      const found = targets.find((t) => t.id === requested);
+      // `--for` resolves against the FULL scaffold catalog, not the
+      // destination subset the PROMPT lists. The two differ by design:
+      // a lens sharing another's territory (`sharedWith`, e.g.
+      // `antigravity` over the open `.agents/skills`) is collapsed out
+      // of the prompt so one territory yields one row, but naming it
+      // explicitly is unambiguous and `sm agent install --for` already
+      // honours it (`spec/cli-contract.md` §Tutorial + §Agent). Refusing
+      // it here reported a REAL provider as "unknown".
+      const found =
+        targets.find((t) => t.id === requested) ??
+        listScaffoldTargets(this.experimental).find((t) => t.id === requested);
       if (found === undefined) {
         this.printer!.error(
           tx(TUTORIAL_TEXTS.forUnknown, {

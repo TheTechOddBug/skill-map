@@ -184,29 +184,29 @@ export function isWsEvent(value: unknown): value is IWsEvent {
 }
 
 /**
- * `sidecar.bumped` event payload, broadcast by `POST /api/sidecar/bump`.
- * Wrapped in the canonical `{ type, timestamp, data }` envelope (Step
- * 9.6.7, wire-shape cleanup). Consumers narrow on
- * `event.type === 'sidecar.bumped'` and read `event.data.{nodePath,
- * version, status}`.
+ * `action.applied` event payload, broadcast by
+ * `POST /api/actions/:pluginId/:actionId` after a dispatched Action
+ * materialises at least one write (a `noop: true` report broadcasts
+ * nothing). Wrapped in the canonical `{ type, timestamp, data }`
+ * envelope. Consumers narrow on `event.type === 'action.applied'` and
+ * branch on `event.data.actionId`; `report` is action-defined, so each
+ * consumer validates the slice it reads.
  */
-export interface IWsSidecarBumpedData {
+export interface IWsActionAppliedData {
+  actionId: string;
   nodePath: string;
-  version: number | null;
-  status: 'fresh';
+  report: unknown;
 }
 
-export type IWsSidecarBumpedEvent = IWsEvent<IWsSidecarBumpedData> & { type: 'sidecar.bumped' };
+export type IWsActionAppliedEvent = IWsEvent<IWsActionAppliedData> & { type: 'action.applied' };
 
-export function isSidecarBumpedEvent(value: unknown): value is IWsSidecarBumpedEvent {
+export function isActionAppliedEvent(value: unknown): value is IWsActionAppliedEvent {
   if (!isWsEvent(value)) return false;
-  if (value.type !== 'sidecar.bumped') return false;
+  if (value.type !== 'action.applied') return false;
   const data = value.data as Record<string, unknown> | undefined;
   if (typeof data !== 'object' || data === null) return false;
+  if (typeof data['actionId'] !== 'string' || data['actionId'].length === 0) return false;
   if (typeof data['nodePath'] !== 'string' || data['nodePath'].length === 0) return false;
-  const version = data['version'];
-  if (version !== null && typeof version !== 'number') return false;
-  if (data['status'] !== 'fresh') return false;
   return true;
 }
 

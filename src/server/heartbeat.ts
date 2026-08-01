@@ -5,7 +5,7 @@
  * Why this exists
  * ---------------
  *   The `WsBroadcaster` only writes to a socket when the kernel emits a
- *   `scan.*` / `sidecar.bumped` event. An idle workspace (no file
+ *   `scan.*` / `action.applied` event. An idle workspace (no file
  *   changes) produces no frames for minutes at a time. Any proxy or load
  *   balancer between the SPA and the BFF (the Angular dev-server proxy in
  *   `pnpm dev`, a hosted nginx / ALB idle timeout) silently drops a

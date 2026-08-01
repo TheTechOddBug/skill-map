@@ -10,7 +10,7 @@
  *     "kind": "annotations.registered",   // canonical, listed in
  *                                         // rest-envelope.schema.json's
  *                                         // enum (R7 closed at 9.6.7,
- *                                         // alongside `sidecar.bumped`).
+ *                                         // alongside `action.applied`).
  *     "items": IRegisteredAnnotationKey[],
  *     "counts": { "total": <int> }
  *   }
@@ -41,7 +41,7 @@ import type { IRegisteredAnnotationKey } from '../../kernel/types/annotation-cat
 /**
  * REST envelope `kind` discriminator. Listed in the canonical
  * `rest-envelope.schema.json#/properties/kind/enum` since 9.6.7 (R7
- * closed alongside `sidecar.bumped`).
+ * closed alongside `action.applied`).
  */
 const ENVELOPE_KIND = 'annotations.registered' as const;
 

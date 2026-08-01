@@ -27,7 +27,7 @@ import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
  * and stays out of the machine surface to keep the spec contract
  * literal. Promoting it would require a spec PR + a changeset.
  *
- * The Clipanion built-in `--version` flag remains for the single-line form.
+ * `RootVersionCommand` below keeps the single-line `sm --version` form.
  *
  * `db-schema` resolution:
  *   - When the project DB file exists, the command opens it through
@@ -40,6 +40,39 @@ import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
  *     error: `sm version` is informational and MUST NOT crash on a bad
  *     DB file.
  */
+
+/**
+ * `sm --version`, the single-line form.
+ *
+ * Replaces `Builtins.VersionCommand`, which claims BOTH `--version` and
+ * `-v`. That second path collides with the `-v` / `-vv` / `-vvv` verbose
+ * counter every verb inherits from `SmCommand`, and the collision won:
+ * `sm -v` printed the version and `sm -v <verb>` died with "unknown
+ * command '-v'" while `sm -vv <verb>` worked. `-v` belongs to the
+ * documented global flag (`spec/cli-contract.md` §Global flags), so this
+ * command claims `--version` alone.
+ *
+ * `help.ts`'s `isBuiltin` filter already drops the `sm --version` path
+ * from every catalog, so the verb list is unchanged.
+ *
+ * Extends `SmCommand` rather than Clipanion's `Command` (the shape
+ * `RootHelpCommand` uses): the single-line version IS machine-consumable
+ * output, so it belongs on the printer's `data` channel like any other
+ * result, not on a hand-rolled `context.stdout.write`.
+ */
+export class RootVersionCommand extends SmCommand {
+  static override paths = [['--version']];
+
+  // Informational: the version line is the entire output, no `done in
+  // <…>` trailer (same posture as the `sm version` verb below).
+  protected override emitElapsed = false;
+
+  protected async run(): Promise<number> {
+    this.printer!.data(`${this.cli.binaryVersion ?? '<unknown>'}\n`);
+    return ExitCode.Ok;
+  }
+}
+
 export class VersionCommand extends SmCommand {
   static override paths = [['version']];
 
@@ -132,8 +165,10 @@ async function resolveDbSchemaVersion(): Promise<string> {
   } catch (error) {
     // The human + JSON contract pins the field to `-` on any read
     // failure (informational verb, MUST NOT crash). Surface the
-    // swallowed error under `log.debug` so `sm -v version` reveals
+    // swallowed error under `log.debug` so `sm -vv version` reveals
     // the underlying cause (corrupt DB, permissions, pragma drift).
+    // `-vv`, not `-v`: `-v` raises the level to `info`, which sits
+    // ABOVE `debug` in the port's ordering (§Global flags).
     log.debug(`sm version: dbSchema read failed: ${error instanceof Error ? error.message : String(error)}`);
     return '-';
   }

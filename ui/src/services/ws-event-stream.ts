@@ -86,17 +86,17 @@ import { EMPTY, Observable, Subject, share } from 'rxjs';
 import { filter } from 'rxjs/operators';
 
 import {
+  isActionAppliedEvent,
   isAgentSpawnEvent,
   isJobSubmittedEvent,
   isNodeActivityEvent,
-  isSidecarBumpedEvent,
   isWsEvent,
+  type IWsActionAppliedEvent,
   type IWsAgentSpawnEvent,
   type IWsEvent,
   type IWsJobSubmittedEvent,
   type IWsNodeActivityEvent,
   type IWsScanCompletedEvent,
-  type IWsSidecarBumpedEvent,
 } from '../models/ws-event';
 import { SKILL_MAP_MODE } from './data-source/runtime-mode';
 import { LivePreferencesService } from './live-preferences';
@@ -278,10 +278,12 @@ export class WsEventStreamService implements OnDestroy {
   readonly scanCompleted$: Observable<IWsScanCompletedEvent>;
 
   /**
-   * Pre-filtered stream of `sidecar.bumped` envelopes, with full
-   * payload-shape validation via `isSidecarBumpedEvent`.
+   * Pre-filtered stream of `action.applied` envelopes, with full
+   * payload-shape validation via `isActionAppliedEvent`. Carries EVERY
+   * dispatched Action that materialised a write, so consumers branch on
+   * `data.actionId` for the one they care about.
    */
-  readonly sidecarBumped$: Observable<IWsSidecarBumpedEvent>;
+  readonly actionApplied$: Observable<IWsActionAppliedEvent>;
 
   /**
    * Pre-filtered stream of `node.activity` envelopes (live node
@@ -351,8 +353,8 @@ export class WsEventStreamService implements OnDestroy {
     this.scanCompleted$ = this.events$.pipe(
       filter((event): event is IWsScanCompletedEvent => event.type === 'scan.completed'),
     );
-    this.sidecarBumped$ = this.events$.pipe(
-      filter(isSidecarBumpedEvent),
+    this.actionApplied$ = this.events$.pipe(
+      filter(isActionAppliedEvent),
     );
     this.nodeActivity$ = this.events$.pipe(
       filter(isNodeActivityEvent),
