@@ -2,6 +2,103 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.100.0",
+      "date": "2026-08-01",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "`sm help` now lists the `--log` / `--log-level` flag, `sm scan --help` describes the current scan pipeline, and mistyping an analyzer id on `sm check --analyzers` shows the usual error style with the valid ids right below.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Hostile filenames can no longer repaint your terminal or disguise what a file is called. A broken line in `.skillmapignore` warns instead of killing the scan. `allowNetworkActions` is now per-machine: re-enable it with `sm config set allowNetworkActions true`.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm conformance run --case <id>` runs a single case instead of the whole suite, so you can iterate on one without waiting for the rest.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Piping a large `--json` output into another tool no longer truncates it at 64 KB. `sm scan --json | jq` used to cut off mid-document while writing the same output to a file worked fine.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm refresh` is now `sm enrich`. And pointing `sm scan` at a single file no longer claims the file does not exist: it explains that scan roots are directories and tells you which command to use for one node.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm -v scan` and `sm --json version` now work: `-v` used to print the version instead of raising the log level, and a flag typed before the verb failed with a confusing \"serve\" error. Bumping a node from the inspector also refreshes the view again.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Dragging a node around the map no longer opens the inspector panel. Moving a node just moves it; a plain click still opens it.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Dismissing an issue with a misspelled analyzer name is now refused instead of silently recorded. Before, the typo was written into the node's committed `.sm` file and never matched anything.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm graph --format mermaid` and `--format dot` render the map as a diagram you can paste into a GitHub markdown file or feed to Graphviz. `sm export --format mermaid` does the same for a filtered subset.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "When something crashes, skill-map now asks right there whether to send that one anonymous error report, and can show exactly what would be sent. Enter (or 60s of silence) sends; saying no always wins, applies to that report only, and is never remembered against a future crash.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "skill-map 1.0, the first stable release. Everything you use daily (scans, the map, jobs, plugins) now sits on a frozen contract: future updates stay backward-compatible until a 2.0.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm refresh` is now `sm enrich`, a name that says what it does: refresh the enrichment layer of an already-scanned node. The old name is gone, not deprecated.",
+          "packages": [
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Usage analytics (if you turned them on) now report which extensions ran on enrich and queue operations, still names only. URLs in telemetry no longer include your node paths or search text; those query values are replaced with a mask before anything leaves the machine.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Tired of typing `--log-level debug`? Put `\"logLevel\": \"debug\"` in `~/.skill-map/settings.json` and every `sm` command on this machine picks it up. Any flag or env var on a single run still wins.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm -v` prints the version again, instantly, instead of quietly starting a server and hanging. To raise the log level use `--log debug` (or `--log-level debug`); the `-v` / `-vv` / `-vvv` counter is gone.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.99.1",
       "date": "2026-07-30",
       "kind": "internal",

@@ -1,5 +1,83 @@
 # Spec changelog
 
+## 1.0.0
+
+### Major Changes
+
+- `plugins-doctor.schema.json` gains the `recommended-action-missing` warning kind, which `action.schema.json` has always promised but the doctor schema's closed enum forbade. The `applicable-kind-unknown` member is renamed `precondition-kind-unknown`, matching the two prose contracts that already used that name and the `precondition.kind` field it reads; `applicableKinds` was retired with the structure-as-truth refactor.
+
+- Plugin storage Mode B (dedicated tables) is removed. Its runtime accessor was always fiction (a scoped `Database` wrapper with a per-query validator and transactions, specified but never built), so a plugin could get tables created and then had no way to read or write them: a dead end with no users. `storage` is now the KV shape only. Mode A is untouched and is the mode with a working `ctx.store`.
+
+- First stable release of the standard: the 38 schemas, the prose contracts and the conformance suite freeze at 1.0.0, so from here any breaking change to a normative surface is a major bump instead of a pre-1.0 minor. Canonical schema URLs move from `https://skill-map.ai/spec/v0/` to `/spec/v1/` per `versioning.md` §Canonical URLs, and the v1.0 coverage gate closes with every row either exercised end-to-end by a conformance case or deferred to v1.1 with a linked issue.
+
+- Eighteen cross-document contradictions resolved before the freeze, each verified against the reference implementation: the config layer count (four, not six), the execution `kind` enum, `catalogCompat` requiredness, what `config_preferences` and `sm db backup` actually hold, the slot and input-type catalog counts, the sidecar identity block, `sm init` exit codes, retired Action manifest fields, and telemetry described as one surface when there are two.
+
+### Minor Changes
+
+- Runners MUST validate every case document against `conformance-case.schema.json` before executing it, reporting a non-validating case as a named failure rather than proceeding into whatever its missing fields happen to produce. This is how the schema's own coverage row closes: a case can never assert it (the documents live outside the provisioned scope, and a case invoking the suite would recurse), so the load gate every case necessarily passes through is the enforcement point.
+
+- `cli-contract.md` documents `sm conformance run --case <id>`, and implementations MUST offer it: without a single-case selector a conformance case that invokes the suite would run the whole suite including itself, so the report shape declared by `conformance-result.schema.json` could not be exercised end-to-end. An id matching no case in the selected scopes is a `bad-query` error rather than an empty run.
+
+- The conformance case format gained its last two primitives: `parallel` on the main invocation spawns N identical invocations concurrently (with set-level assertions `parallel-exit-codes` and `parallel-json-path-count`, since "the" result is ambiguous across a race), and `sleepAfterMs` on staged steps makes TTL expiry observable. The atomic-claim race and the reap are now conformance cases: one handover and one refusal in either order, and an expired running job surfacing as `failed / abandoned`.
+
+- The conformance case format gained the server-capable primitives: `setup.serve` boots the implementation's server on an ephemeral port (readiness via `serve.json`, held up through assertion evaluation), `http-matches-schema` validates a REST response, and `ndjson-line` asserts one line of an ndjson stdout stream. Three more coverage rows closed, including one whose deferral note had the blocker exactly backwards.
+
+- The conformance case format gained four optional fields that make previously inexpressible contracts testable: `schemaPointer` and `each` on both schema assertions, targeting a `$def` inside a schema and validating every element of a list surface, plus `expectExit` and `capture` on `setup.priorInvokes`, staging a step that must be refused and binding a runtime-minted value into later invocations. Ten coverage rows closed as a result.
+
+- Nine `cli-contract.md` verb rows document the `--json` envelope they now emit, replacing the human receipt they used to print on stdout in violation of the machine-readable output rules the same document sets.
+
+- The conformance case format gained `setup.staticServe`: the runner serves a fixture directory of RECORDED responses over loopback on an ephemeral port, bound as `{{staticServeUrl}}`, so an extension whose contract involves a network fetch exercises its real fetch path against deterministic bytes with the scope still offline. The GitHub enrichment row closed with it, and the project-local-only key class gained the two enrichment base-URL overrides.
+
+- Every extension context (Extractor, Analyzer, Action, Hook) now carries `ctx.log`, a stderr-bound diagnostic channel with one method per level. The guide documents why an extension must never reach for `console.log` (stdout carries the `--json` payload), what the kernel guarantees at the boundary (level gating, ANSI/control-byte stripping, per-line attribution to the qualified extension id), and that secrets are still the author's responsibility.
+
+- Two more coverage rows closed with the primitives already in place. The findings envelope now has conformance cases on both sides: a recorded finder report writes its rows through with `type` / `severity` / `confidence` intact, and a sibling differing only in an out-of-enum `severity` is rejected with exit 2 and writes nothing. That record-side write-through previously lived only in implementation integration tests because it needs the claim-issued nonce.
+
+- `cli-contract.md` §Introspection documents the real shape of the `sm help --format json` envelope: the example carried a `subcommands` field no version ever emitted, and the field set is now stated normatively (flat `verbs`, complete `flags` with the hidden-option exception, exhaustive ascending `exitCodes`). The `sm doctor` row also gains exit 5, which it returns when the project database is absent.
+
+- `cli-contract.md` and `mcp-server.md` document the rejection an unknown analyzer id now gets on every dismiss surface, and the deliberate asymmetry with undismiss, which keeps accepting one so a suppression left behind by an uninstalled plugin stays removable. The contract already required "the same matching as `sm check --analyzers`"; only the exit code and the asymmetry were unstated.
+
+- `plugin-kv-api.md` gains an aggregate storage budget alongside the per-value ceiling, with `KvBudgetExceededError` for the write that crosses it. The two are deliberately distinct: the per-value limit is about one value being too big, while the budget catches many individually-legal writes adding up, which is the shape a plugin looping over every node produces.
+
+- `ctx.log` gains `enabled(level)`, so an extension can skip building a message the level is about to discard: the argument to `trace(...)` is evaluated before any adapter can drop it, which makes an unguarded template inside a loop over the graph cost something on every scan. The guide documents the guarded shape and when it is unnecessary, and the CLI contract now states what each level is expected to surface.
+
+- `spec/telemetry.md` gains §Per-incident crash-report consent: on every promptable crash the CLI and UI ask whether to send that one report, defaulting to Yes (an explicit no always wins; the CLI's announced bounded wait resolves Yes). `telemetry.errorsEnabled` is re-scoped to the non-interactive fallback only. Nothing is persisted per incident, the kill switch and DSN dormancy stay hard gates, the BFF keeps the toggle-only model, and the prompt must offer a scrubbed-payload preview.
+
+- `plugin-kv-api.md` gains `KvNodePathInvalidError`: an empty `nodePath` is now rejected rather than routed to global scope, because the empty string is the internal sentinel for global and accepting it would make a write that said "node-scoped" read back as global, collapsing every per-node row into one.
+
+- `job.schema.json` required the `nonce` while four normative surfaces (`sm jobs list --json`, `sm jobs show --json`, `GET /api/jobs`, the MCP job tools) are required to omit it, so the shape they all call "the public-job shape" was unsatisfiable. It is now a real definition, `#/$defs/PublicJob`, which asserts the credential's ABSENCE rather than permitting it, alongside `#/$defs/CredentialedJob` for the surfaces that carry it.
+
+- Renames `sm refresh` to `sm enrich`: every other name in that subsystem already said "enrichment" (`node_enrichments`, `state_enrichments`, the `enrichments/` schema folder), and `refresh` collided with the unrelated `sm sidecars refresh`. `refresh-report.schema.json` becomes `enrich-report.schema.json` and its envelope kind `refresh.report` becomes `enrich.report`. The Scan section now states the scan-vs-enrich layer split and why no single-node scan exists.
+
+  ## User-facing
+
+  `sm refresh` is now `sm enrich`, a name that says what it does: refresh the enrichment layer of an already-scanned node. The old name is gone, not deprecated.
+
+- `rest-envelope.schema.json` could not validate what `GET /api/nodes/:pathB64` actually returns: the route ships `links` and `issues` as siblings of `item`, and `additionalProperties: false` rejected both. They are now declared and typed, required on the `node` variant and forbidden elsewhere, and that variant's `item` `$ref`s `node.schema.json` instead of passing as a bare object. `node.schema.json` gains the BFF decorations it always carried but never declared: `contributions`, `tags`, `body`.
+
+- Retires `POST /api/sidecar/bump`, which the server stopped serving when the generic Action dispatch replaced it, and documents `POST /api/actions/:pluginId/:actionId` in the endpoint table for the first time; the `sidecar.bumped` envelope kind and the `sidecar-fresh` 409 code go with it. The global-flag table gains `--version`, `--log-level` and `SKILL_MAP_LOG_LEVEL`, and states that global flags bind no position.
+
+- An accuracy pass over the prose contracts before they freeze, correcting facts rather than requirements: dead `src/extensions/` paths, the Claude kind catalog (four, not the five it listed, one of which never existed), conformance inventories understated roughly fivefold, a missing MCP tool family that mutates `.sm` sidecars, and prose promising work as upcoming that shipped months ago. Rotted counts were replaced with pointers to the authoritative source.
+
+- Three normative prose contracts were missing from the published package: `input-types.md`, `view-slots.md` and `mcp-server.md` were absent from `files`, so they never reached the npm tarball or the integrity block, despite being linked from the plugin author guide. They now ship and are hashed with the rest.
+
+- Security-audit hardening of the contract. `allowNetworkActions` is reclassified into `PROJECT_LOCAL_ONLY_KEYS`, so a value in the committed `settings.json` is now stripped with a warning and each operator re-opts in with `sm config set allowNetworkActions true`. The live watcher must observe the same realpath-containment gate as the walk, and `--plugin-dir` must warn that it loads code without the import-trust gate.
+
+- `spec/telemetry.md` widens the `cli.<verb>` usage event's `extensions` property beyond the scan: the verbs that execute or queue extensions (`enrich`, the `jobs` submit / claim lifecycle, `record`) now carry the involved built-in extension ids (presence only, third-party collapsed). §Scrubbing rules gains a masked-query-parameter rule: values of path- or text-bearing URL parameters (`path`, `search`) are replaced with `<masked>` wherever a URL appears in an event.
+
+- `user-settings.schema.json` gains `logLevel`, the standing per-machine log-level preference, and the CLI contract records the full precedence chain plus why the key belongs to the user file rather than project config: a committed value would push one operator's debugging onto the whole team, and the level is resolved at process boot before any project config exists. The field is deliberately not an `enum`, so a typo cannot invalidate the whole document and discard unrelated preferences.
+
+- §Global flags drops the `-v` / `-vv` / `-vvv` verbosity counter and restores `-v` as the `--version` alias, recording why: a single-letter flag that nearly every CLI reads as "version" is not available to repurpose, and a counter leaves a bare `-v` with no verb to run. Verbosity is the named parameter only, and `--log <level>` joins `--log-level <level>` as an equivalent spelling.
+
+- The versioning policy no longer contradicts itself about conformance cases: three rules disagreed, and the strictest reading made every new case a major bump, freezing the suite at whatever size it had the day v1 shipped. Resolved from the principle the spec already stated (the suite VERIFIES the contract, it does not define it) in a new §Conformance suite changes table. `spec/index.json` also derives its whole catalog from the tree now, replacing hand-maintained blocks that had rotted.
+
+### Patch Changes
+
+- The nonce-omission rule of `job-lifecycle.md` §Nonce exposure is a security invariant with no conformance case: an implementation could leak the record credential on `sm jobs list --json` and pass the whole suite. The new `jobs-list-omits-nonce` case validates every listed row against `job.schema.json#/$defs/PublicJob`, which asserts the credential's absence, and `job-document-schema` now targets `#/$defs/CredentialedJob` so the submit direction cannot silently drop it either.
+
+- Clarify the CLI contract's global-flags surface: the `-v` / `--version` row is now marked bare-invocation-only (it is an invocation path, not a per-verb option, so `sm scan -v` is an unknown-option error), and §Introspection states that parser- and boot-level entries (`--help`, `--log` / `--log-level`) publish in `globalFlags[]` only, never inside `verbs[].flags[]`.
+
+- The last non-green conformance coverage row (`user-settings.schema.json`) becomes a decided permanent exemption instead of a standing deferral: a home-scope runner primitive is feasible but would impose that machinery on every conforming implementation for one schema, while `no-global-scope` already asserts the stronger property that skill-map never reads `$HOME`. The matrix gains an `⚪ exempt` status whose rows must record what was weighed and rejected.
+
 ## 0.91.1
 
 ### Patch Changes
