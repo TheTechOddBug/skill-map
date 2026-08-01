@@ -508,7 +508,7 @@
       "conformance/cases/view-action-button.json": "bb1377a737117c3d274a4f5a216adb1b94dae534658fa8dcc784c39fcfb15e1b",
       "conformance/cases/view-contribution-payloads.json": "ca02992c269e7c1724df024b138abf0c97f50f003c300c404cb6034743ad7ca7",
       "conformance/cases/view-slots-all.json": "0e3294ada16eb6695760e3067cf05e7ea233720f83b26531432ca95cc24ef4f9",
-      "conformance/coverage.md": "fd2708f2620142a471f8bf019b606ef4b55749f666db5d120462613c46018796",
+      "conformance/coverage.md": "247885a766434487fd09933fc40d25f2577c5867785942996e2cf120ce24b654",
       "conformance/fixtures/backtick-path/docs/target.md": "a09ae2cb4c96358a2e0692215f172b0f8c48028b6b123e4e83424b28302e644c",
       "conformance/fixtures/backtick-path/source.md": "217f78b12b3ff47a938a5cc9c1ff7d6989d6a1db82bd1ddf3656787f31efb902",
       "conformance/fixtures/extension-enable-gate/.skill-map/plugins/gated/analyzers/boom/extension.json": "bc8a8a24a068fa4a03d096790fa52b8c3f8c7ecb1e7ac9d3fbe83ea0babafe6f",
