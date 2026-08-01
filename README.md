@@ -138,6 +138,74 @@ Also standing on the shoulders of [Angular](https://angular.dev), [PrimeNG](http
  </picture>
 </a>
 
+## Stats for nerds
+
+What building this tool actually took (measured at `1.0.0`)
+
+**Lines of text**
+
+| Kind | Lines | Files | Share |
+|---|---:|---:|---:|
+| Code | 221,963 | 1,144 | 54% |
+| Tests | 147,200 | 843 | 36% |
+| Documentation | 39,595 | 292 | 10% |
+| **Total** | **408,758** | **2,307** | |
+
+Tests-to-code ratio: **0.66**.
+
+**Tests**
+
+| | |
+|---|---:|
+| Unit and integration | 5,723 |
+| Conformance cases | 49 |
+| **Total** | **5,772** |
+
+**Product surface**
+
+| | |
+|---|---:|
+| CLI verbs | 79 |
+| Flags | 499 |
+| BFF endpoints | 63 |
+| JSON schemas | 38 |
+
+**Built-in extensions**
+
+| Kind | Count |
+|---|---:|
+| Analyzers | 26 |
+| Actions | 18 |
+| Extractors | 13 |
+| Providers | 6 |
+| Formatters | 4 |
+| Hooks | 1 |
+| **Total** | **68** across 7 plugins |
+
+**Effort**
+
+| | |
+|---|---:|
+| Commits | 1,763 |
+| Work sessions | 247 |
+| Estimated hours | ~480 |
+| Full-time equivalent | 12 to 14 weeks |
+| Calendar days | 104 |
+| Days with activity | 100 |
+
+Hours are the one estimate here: commits clustered into sessions with a 90 minute cutoff, which cannot see the reading, designing and debugging that never reached a commit.
+
+**Rhythm**
+
+| | |
+|---|---:|
+| Commits per active day | 15.9 |
+| Busiest day | 71 commits |
+| Commits between 22:00 and 06:00 | 38% |
+| Commits on weekends | 33% |
+| Peak hour | 01:00 |
+| Busiest weekday | Saturday |
+
 ---
 
 Made with ❤️&nbsp; by [Crystian](https://github.com/crystian/) · [LinkedIn](https://www.linkedin.com/in/crystian/)

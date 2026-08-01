@@ -138,6 +138,74 @@ También sobre los hombros de [Angular](https://angular.dev), [PrimeNG](https://
  </picture>
 </a>
 
+## Estadísticas para nerds
+
+Lo que realmente costó construir esta herramienta (medido en `1.0.0`)
+
+**Líneas de texto**
+
+| Tipo | Líneas | Archivos | Proporción |
+|---|---:|---:|---:|
+| Código | 221.963 | 1.144 | 54% |
+| Tests | 147.200 | 843 | 36% |
+| Documentación | 39.595 | 292 | 10% |
+| **Total** | **408.758** | **2.307** | |
+
+Ratio tests/código: **0,66**.
+
+**Tests**
+
+| | |
+|---|---:|
+| Unitarios e integración | 5.723 |
+| Casos de conformance | 49 |
+| **Total** | **5.772** |
+
+**Superficie del producto**
+
+| | |
+|---|---:|
+| Verbos CLI | 79 |
+| Flags | 499 |
+| Endpoints BFF | 63 |
+| Schemas JSON | 38 |
+
+**Extensiones built-in**
+
+| Tipo | Cantidad |
+|---|---:|
+| Analyzers | 26 |
+| Actions | 18 |
+| Extractors | 13 |
+| Providers | 6 |
+| Formatters | 4 |
+| Hooks | 1 |
+| **Total** | **68** en 7 plugins |
+
+**Esfuerzo**
+
+| | |
+|---|---:|
+| Commits | 1.763 |
+| Sesiones de trabajo | 247 |
+| Horas estimadas | ~480 |
+| Equivalente a jornada completa | 12 a 14 semanas |
+| Días de calendario | 104 |
+| Días con actividad | 100 |
+
+Las horas son el único dato estimado: commits agrupados en sesiones con un corte de 90 minutos, que no ve el tiempo de leer, diseñar y debuggear que nunca llegó a un commit.
+
+**Ritmo**
+
+| | |
+|---|---:|
+| Commits por día activo | 15,9 |
+| Día más cargado | 71 commits |
+| Commits entre 22:00 y 06:00 | 38% |
+| Commits en fin de semana | 33% |
+| Hora pico | 01:00 |
+| Día más activo | sábado |
+
 ---
 
 Hecho con ❤️&nbsp; por [Crystian](https://github.com/crystian/) · [LinkedIn](https://www.linkedin.com/in/crystian/)
