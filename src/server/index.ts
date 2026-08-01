@@ -484,7 +484,7 @@ async function assemblePluginRuntime(
   // this is the sole surfacing point.
   if (options.noWatcher) {
     for (const warn of pluginRuntime.warnings) {
-      log.warn(sanitizeForTerminal(warn));
+      log.warn(warn);
     }
   }
   // The kindRegistry embeds in every envelope and is CACHED at boot.

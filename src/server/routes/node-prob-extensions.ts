@@ -217,7 +217,7 @@ export function registerNodeProbExtensionsRoute(app: Hono, deps: IRouteDeps): vo
  * recomposed fresh, the warnings are not.
  */
 function emitPluginRuntimeWarnings(pluginRuntime: IPluginRuntime): void {
-  for (const line of pluginRuntime.warnings) log.warn(sanitizeForTerminal(line));
+  for (const line of pluginRuntime.warnings) log.warn(line);
 }
 
 /**

@@ -23,7 +23,6 @@
 import type { IPrinter } from '../../core/runtime/printer.js';
 import type { TWithSqliteVersionCheck } from '../../core/sqlite/with-sqlite.js';
 import { log } from '../../kernel/util/logger.js';
-import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { VERSION } from '../../version.js';
 
 /**
@@ -36,9 +35,9 @@ import { VERSION } from '../../version.js';
  */
 const bffVersionCheckPrinter: IPrinter = {
   data: () => { /* unused on the version-check path */ },
-  info: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
-  warn: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
-  error: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
+  info: (text) => log.warn(text.trimEnd()),
+  warn: (text) => log.warn(text.trimEnd()),
+  error: (text) => log.warn(text.trimEnd()),
 };
 
 /** The `versionCheck` opts bag every BFF read open threads into the seam. */

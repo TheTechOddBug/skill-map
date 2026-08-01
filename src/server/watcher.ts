@@ -213,7 +213,7 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
           // Surface plugin-load warnings on the `log.warn` channel
           // verbatim. Boot-time, too early for any client to be
           // listening; no advisory broadcast.
-          log.warn(sanitizeForTerminal(message));
+          log.warn(message);
         },
         onDriftReset: (info) => {
           // Pre-1.0 schema-drift rebuild ran on watcher boot. Surface

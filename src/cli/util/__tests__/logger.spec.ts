@@ -294,3 +294,77 @@ describe('defaultFormat (pure call, no Logger ceremony)', () => {
     assert.equal(out, `${FIXED_TIME}  ⚠ WARN   msg\n`);
   });
 });
+
+/**
+ * Sink-level sanitisation. The property used to depend on every call
+ * site remembering to wrap its interpolated value; two interpolating
+ * sites had already been missed when it moved here. These cases are the
+ * guard that it stays at the sink, so deleting the `#emit` sanitisation
+ * fails loudly instead of quietly reopening the class.
+ */
+describe('Logger, terminal sanitisation at the sink', () => {
+  const ESC = '\u001b';
+  const BEL = '\u0007';
+
+  it('strips ANSI escapes from the message without touching the paint', () => {
+    const cap = captureStream({ isTTY: false });
+    new Logger({ level: 'trace', stream: cap.stream, noColorFlag: true })
+      .warn(`${ESC}[31mhostile${ESC}[0m`);
+    const out = cap.read();
+    assert.ok(!out.includes(ESC), 'no escape byte reaches the stream');
+    assert.match(out, /hostile/);
+    // The formatter's own decoration still renders: sanitisation runs
+    // BEFORE the paint, so the logger's glyph is unaffected.
+    assert.match(out, /⚠ WARN/);
+  });
+
+  it('leaves the logger own colour intact on a TTY', () => {
+    const cap = captureStream({ isTTY: true });
+    new Logger({ level: 'trace', stream: cap.stream }).error('plain');
+    const out = cap.read();
+    assert.ok(out.includes(ESC), 'the formatter still paints its own glyph');
+    assert.match(out, /plain/);
+  });
+
+  it('strips bare CR and C0 controls', () => {
+    const cap = captureStream({ isTTY: false });
+    new Logger({ level: 'trace', stream: cap.stream, noColorFlag: true })
+      .info(`before\rafter${BEL}`);
+    const out = cap.read();
+    assert.ok(!out.includes('\r'), 'no bare CR survives');
+    assert.ok(!out.includes(BEL), 'no BEL survives');
+    assert.match(out, /beforeafter/);
+  });
+
+  it('sanitises the context bag, which the formatter inlines too', () => {
+    const cap = captureStream({ isTTY: false });
+    new Logger({ level: 'trace', stream: cap.stream, noColorFlag: true })
+      .warn('msg', { [`k${ESC}[31m`]: `v${ESC}[0m`, nested: { deep: `x${ESC}[1m` } });
+    const out = cap.read();
+    assert.ok(!out.includes(ESC), 'no escape byte survives via the context');
+    assert.match(out, /"k":"v"/);
+    assert.match(out, /"deep":"x"/);
+  });
+
+  it('preserves non-string context values verbatim', () => {
+    const cap = captureStream({ isTTY: false });
+    new Logger({ level: 'trace', stream: cap.stream, noColorFlag: true })
+      .warn('msg', { count: 7, ok: true, missing: null, list: [1, 2] });
+    assert.match(cap.read(), /\{"count":7,"ok":true,"missing":null,"list":\[1,2\]\}/);
+  });
+
+  it('caps a pathologically nested context instead of overflowing', () => {
+    const cap = captureStream({ isTTY: false });
+    let deep: Record<string, unknown> = { end: 'leaf' };
+    for (let i = 0; i < 40; i += 1) deep = { down: deep };
+    new Logger({ level: 'trace', stream: cap.stream, noColorFlag: true }).warn('msg', deep);
+    assert.match(cap.read(), /depth-capped/);
+  });
+
+  it('survives a non-string message from an untyped caller', () => {
+    const cap = captureStream({ isTTY: false });
+    const logger = new Logger({ level: 'trace', stream: cap.stream, noColorFlag: true });
+    (logger as unknown as { warn(message: unknown): void }).warn({ a: 1 });
+    assert.match(cap.read(), /\[object Object\]/);
+  });
+});

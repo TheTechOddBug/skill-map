@@ -25,7 +25,6 @@ import { HTTPException } from 'hono/http-exception';
 import type { ILoadedConfig, TConfigLayer } from '../../kernel/config/loader.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { log } from '../../kernel/util/logger.js';
-import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { builtIns } from '../../plugins/built-ins.js';
 import { buildValueEnvelope } from '../envelope.js';
 import type { IRouteDeps } from './deps.js';
@@ -88,7 +87,7 @@ function loadOr500(deps: IRouteDeps): ILoadedConfig {
     throw new HTTPException(500, { message: formatErrorMessage(err) });
   }
   for (const warn of loaded.warnings) {
-    log.warn(sanitizeForTerminal(warn));
+    log.warn(warn);
   }
   return loaded;
 }

@@ -50,7 +50,6 @@ import { appendOperation } from '../../core/operations-log.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { bffReadVersionCheck } from '../util/db-read-check.js';
 import { log } from '../../kernel/util/logger.js';
-import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { ConflictError, DbMissingError } from '../app.js';
 import type { WsBroadcaster } from '../broadcaster.js';
@@ -360,9 +359,9 @@ async function runFreshScan(deps: IRouteDeps): Promise<ScanResult> {
  */
 const bffScanRunnerPrinter: IPrinter = {
   data: () => { /* discard, fresh-scan response body is the ScanResult */ },
-  info: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
-  warn: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
-  error: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
+  info: (text) => log.warn(text.trimEnd()),
+  warn: (text) => log.warn(text.trimEnd()),
+  error: (text) => log.warn(text.trimEnd()),
 };
 
 // The read-side drift-advisory printer moved to `../util/db-read-check.ts`
