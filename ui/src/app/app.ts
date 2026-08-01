@@ -14,7 +14,8 @@ import { UPDATE_CHECK_TEXTS } from '../i18n/update-check.texts';
 import { CollectionLoaderService } from '../services/collection-loader';
 import { NodeActivityService } from '../services/node-activity';
 import { WsEventStreamService } from '../services/ws-event-stream';
-import { analyzeLinks } from './views/graph-view/graph-layout';
+import { analyzeLinks } from '../services/link-analysis';
+import { A11yAnnouncerService } from './services/a11y-announcer';
 import { ActivityReadinessService } from './services/activity-readiness';
 import { ProcessingAgentReadinessService } from './services/processing-agent-readiness';
 import { ProjectInfoService } from './services/project-info';
@@ -51,6 +52,7 @@ export class App {
   private readonly usageTracker = inject(UsageTrackerService);
   private readonly nodeActivity = inject(NodeActivityService);
   private readonly activityReadiness = inject(ActivityReadinessService);
+  private readonly announcer = inject(A11yAnnouncerService);
   private readonly processingAgentReadiness = inject(ProcessingAgentReadinessService);
   // `FilterUrlSyncService` and `DebugSlotsService` are eagerly
   // instantiated via `provideAppInitializer` in `app.config.ts`. They
@@ -218,19 +220,31 @@ export class App {
    * unambiguous feedback. Reverts ~2s later.
    */
   protected readonly updateChipCopied = signal(false);
+  /**
+   * `true` after a clipboard write was blocked (insecure context or
+   * denied permission). Swaps the tooltip / aria-label to carry the
+   * literal install command so the click stays recoverable by hand;
+   * cleared by the next successful copy.
+   */
+  protected readonly updateChipCopyFailed = signal(false);
+  /** Handle of the pending "Copied!" revert, cleared before re-arming so
+   *  a second click inside the 2s window restarts the full window. */
+  private updateChipResetTimer: ReturnType<typeof setTimeout> | null = null;
   protected readonly updateChipText = computed(() =>
     this.updateChipCopied() ? UPDATE_CHECK_TEXTS.copiedLabel : UPDATE_CHECK_TEXTS.available,
   );
   protected readonly updateChipIcon = computed(() =>
     this.updateChipCopied() ? 'pi pi-check' : 'pi pi-download',
   );
-  protected readonly updateChipTooltip = computed(() =>
-    this.updateChipCopied()
-      ? UPDATE_CHECK_TEXTS.copiedTooltip
-      : UPDATE_CHECK_TEXTS.tooltip(this.updateCheck.latest() ?? ''),
-  );
+  protected readonly updateChipTooltip = computed(() => {
+    if (this.updateChipCopied()) return UPDATE_CHECK_TEXTS.copiedTooltip;
+    if (this.updateChipCopyFailed()) return UPDATE_CHECK_TEXTS.copyFailedTooltip;
+    return UPDATE_CHECK_TEXTS.tooltip(this.updateCheck.latest() ?? '');
+  });
   protected readonly updateChipA11y = computed(() =>
-    UPDATE_CHECK_TEXTS.a11yLabel(this.updateCheck.latest() ?? ''),
+    this.updateChipCopyFailed()
+      ? UPDATE_CHECK_TEXTS.copyFailedA11y
+      : UPDATE_CHECK_TEXTS.a11yLabel(this.updateCheck.latest() ?? ''),
   );
   protected readonly npmLinkUrl = UPDATE_CHECK_TEXTS.npmLinkUrl;
   protected readonly npmLinkTooltip = UPDATE_CHECK_TEXTS.npmLinkTooltip;
@@ -239,17 +253,23 @@ export class App {
   /**
    * Writes the npm install command (`npm i -g @skill-map/cli@latest`) to
    * the clipboard and toggles the chip into its "Copied!" tooltip state
-   * for a couple of seconds. Errors are swallowed: the Clipboard API
-   * needs a secure context (https / localhost), so a failure here is
-   * non-actionable from the user's perspective.
+   * for a couple of seconds. The revert timer is cleared before
+   * re-arming so a second click restarts the full 2s window instead of
+   * inheriting the first click's deadline. When the Clipboard API is
+   * blocked (insecure context or denied permission) the failure is NOT
+   * silent: the tooltip / aria-label swap to the literal command and
+   * the live region announces it, so the click stays recoverable.
    */
   protected async copyUpdateCommand(): Promise<void> {
     try {
       await navigator.clipboard.writeText(UPDATE_CHECK_TEXTS.copyCommand);
+      this.updateChipCopyFailed.set(false);
       this.updateChipCopied.set(true);
-      setTimeout(() => this.updateChipCopied.set(false), 2000);
+      if (this.updateChipResetTimer !== null) clearTimeout(this.updateChipResetTimer);
+      this.updateChipResetTimer = setTimeout(() => this.updateChipCopied.set(false), 2000);
     } catch {
-      // Clipboard write blocked (insecure context or denied permission). No-op.
+      this.updateChipCopyFailed.set(true);
+      this.announcer.announce(UPDATE_CHECK_TEXTS.copyFailedA11y);
     }
   }
   protected readonly versionLabel = computed(() =>

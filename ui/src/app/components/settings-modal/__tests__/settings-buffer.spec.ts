@@ -5,7 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import {
   SettingsBufferService,
   type IBufferOwner,
-} from '../settings-buffer.service';
+} from '../settings-buffer';
 import { ScanTriggerService } from '../../../services/scan-trigger';
 import {
   DATA_SOURCE,

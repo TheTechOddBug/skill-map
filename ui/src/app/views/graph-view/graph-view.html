@@ -293,6 +293,14 @@
           -->
           @if (perf.virtualization) {
             <ng-container ngProjectAs="[fNodes]" *fVirtualFor="let node of graph().nodes">
+              <!-- Per-node lookups hoisted into @let (mirrors the edge
+                   loop above) so each O(1) map/set read runs once per
+                   node per pass instead of once per binding. -->
+              @let sel = selectionFor(node.id);
+              @let executing = isExecuting(node.id);
+              @let activity = activityStatsFor(node.id);
+              @let expanded = isExpanded(node.id);
+              @let hostLabel = nodeHostLabel(node);
               <div
                 fNode
                 fDragHandle
@@ -306,7 +314,7 @@
                 data-canvas-click-shield
                 tabindex="0"
                 role="group"
-                [attr.aria-label]="nodeHostLabel(node)"
+                [attr.aria-label]="hostLabel"
                 (pointerdown)="onNodePointerDown($event)"
                 (click)="selectNode(node, $event)"
                 (dblclick)="openNode(node)"
@@ -315,17 +323,17 @@
                 (keydown.shift.enter)="selectNodeByKeyboard(node, $event); openNode(node)"
                 [attr.data-testid]="'graph-node-' + node.id"
               >
-                @if (isExecuting(node.id)) {
+                @if (executing) {
                   <div class="sm-gnode__halo" aria-hidden="true"></div>
                 }
                 <sm-node-card
                   [node]="node.view"
                   [stats]="node.stats"
                   [summary]="node.summary"
-                  [selection]="selectionFor(node.id)"
-                  [executing]="isExecuting(node.id)"
-                  [activity]="activityStatsFor(node.id)"
-                  [expanded]="isExpanded(node.id)"
+                  [selection]="sel"
+                  [executing]="executing"
+                  [activity]="activity"
+                  [expanded]="expanded"
                   [isFavorite]="node.view.isFavorite === true"
                   (expandedChange)="setExpanded(node.id, $event)"
                   (favoriteToggle)="onFavoriteToggle($event)"
@@ -341,6 +349,12 @@
           } @else {
             <ng-container ngProjectAs="[fNodes]">
               @for (node of graph().nodes; track node.id) {
+                <!-- Same @let hoists as the virtualized branch above. -->
+                @let sel = selectionFor(node.id);
+                @let executing = isExecuting(node.id);
+                @let activity = activityStatsFor(node.id);
+                @let expanded = isExpanded(node.id);
+                @let hostLabel = nodeHostLabel(node);
                 <div
                   fNode
                   fDragHandle
@@ -354,7 +368,7 @@
                   data-canvas-click-shield
                   tabindex="0"
                   role="group"
-                  [attr.aria-label]="nodeHostLabel(node)"
+                  [attr.aria-label]="hostLabel"
                   (pointerdown)="onNodePointerDown($event)"
                   (click)="selectNode(node, $event)"
                   (dblclick)="openNode(node)"
@@ -363,17 +377,17 @@
                   (keydown.shift.enter)="selectNodeByKeyboard(node, $event); openNode(node)"
                   [attr.data-testid]="'graph-node-' + node.id"
                 >
-                  @if (isExecuting(node.id)) {
+                  @if (executing) {
                     <div class="sm-gnode__halo" aria-hidden="true"></div>
                   }
                   <sm-node-card
                     [node]="node.view"
                     [stats]="node.stats"
                     [summary]="node.summary"
-                    [selection]="selectionFor(node.id)"
-                    [executing]="isExecuting(node.id)"
-                    [activity]="activityStatsFor(node.id)"
-                    [expanded]="isExpanded(node.id)"
+                    [selection]="sel"
+                    [executing]="executing"
+                    [activity]="activity"
+                    [expanded]="expanded"
                     [isFavorite]="node.view.isFavorite === true"
                     (expandedChange)="setExpanded(node.id, $event)"
                     (favoriteToggle)="onFavoriteToggle($event)"

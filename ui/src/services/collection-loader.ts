@@ -135,11 +135,14 @@ export class CollectionLoaderService {
   private lastFetchedSelectionKey: string | null = null;
 
   /**
-   * Coalesce flag: set to `true` when a refresh arrives mid-flight. The
-   * in-flight `load()` checks the flag in its `finally` and fires
-   * exactly one follow-up regardless of how many events came in.
+   * Coalesce state for refreshes that arrive mid-flight. The in-flight
+   * fetch checks it in its `finally` and fires exactly one follow-up
+   * regardless of how many events came in. Scoped so a branch-only
+   * request queued behind a fetch drains as a branch fetch (against the
+   * LATEST selection) instead of escalating to the full three-fetch
+   * `load()`; a queued full refresh always wins over a branch one.
    */
-  private pendingRefresh = false;
+  private pendingRefresh: 'none' | 'branch' | 'full' = 'none';
 
   /**
    * `true` once the WS has opened at least once. Gates the reconnect
@@ -382,7 +385,7 @@ export class CollectionLoaderService {
    */
   async load(): Promise<void> {
     if (this._loading()) {
-      this.pendingRefresh = true;
+      this.pendingRefresh = 'full';
       return;
     }
     this._loading.set(true);
@@ -403,12 +406,7 @@ export class CollectionLoaderService {
       this._error.set(msg);
     } finally {
       this._loading.set(false);
-      if (this.pendingRefresh) {
-        this.pendingRefresh = false;
-        queueMicrotask(() => {
-          void this.load();
-        });
-      }
+      this.drainPendingRefresh();
     }
   }
 
@@ -420,7 +418,9 @@ export class CollectionLoaderService {
    */
   private async loadBranch(overrides: TOverrideMap): Promise<void> {
     if (this._loading()) {
-      this.pendingRefresh = true;
+      // Never downgrade: a queued FULL refresh (WS scan / job / reconnect)
+      // must survive a branch request landing on top of it.
+      this.pendingRefresh = this.pendingRefresh === 'full' ? 'full' : 'branch';
       return;
     }
     this._loading.set(true);
@@ -434,13 +434,32 @@ export class CollectionLoaderService {
       this._error.set(msg);
     } finally {
       this._loading.set(false);
-      if (this.pendingRefresh) {
-        this.pendingRefresh = false;
-        queueMicrotask(() => {
-          void this.load();
-        });
-      }
+      this.drainPendingRefresh();
     }
+  }
+
+  /**
+   * Fire the single coalesced follow-up (see `pendingRefresh`). A
+   * queued branch fetch re-reads the CURRENT selection (the scope the
+   * queued caller wanted may have changed again while waiting) and is
+   * skipped entirely when the fetch that just finished already covered
+   * that scope, so a burst of checkbox toggles never double-fetches.
+   */
+  private drainPendingRefresh(): void {
+    if (this.pendingRefresh === 'none') return;
+    const kind = this.pendingRefresh;
+    this.pendingRefresh = 'none';
+    if (kind === 'branch') {
+      const overrides = this.selection.overrides();
+      if (overridesKey(overrides) === this.lastFetchedSelectionKey) return;
+      queueMicrotask(() => {
+        void this.loadBranch(overrides);
+      });
+      return;
+    }
+    queueMicrotask(() => {
+      void this.load();
+    });
   }
 
   /** Set the branch payload + its projected node views in one write. */

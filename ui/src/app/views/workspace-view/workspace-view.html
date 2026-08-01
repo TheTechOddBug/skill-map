@@ -209,7 +209,15 @@
         @if (activeSection() === 'files') {
           <sm-files-view />
         } @else {
-          <sm-queue-view />
+          <!-- Deferred: the queue chunk loads on the tab's first
+               activation (the branch only renders while Queue is
+               active), keeping it out of the eager workspace bundle.
+               Same pattern as the app shell's Settings / Quick Start
+               modals. QueueView has its own loading state, so no
+               @placeholder is needed for the one-time chunk fetch. -->
+          @defer (when activeSection() === 'queue') {
+            <sm-queue-view />
+          }
         }
       </div>
       <div

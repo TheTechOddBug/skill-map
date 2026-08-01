@@ -13,6 +13,7 @@
 
 import { computed, type Signal } from '@angular/core';
 
+import type { IEdgeSelectionView, ISelectionView } from '../../../models/selection';
 import type { IGraphData, IGraphEdge } from './graph-layout';
 
 /**
@@ -41,29 +42,10 @@ export interface ISelectionStateConfig {
   readonly activeTagSelection: Signal<unknown>;
 }
 
-/**
- * Per-node selection state. Three booleans rolled into one record so a
- * Map lookup in the template hands the card host its full selection
- * picture in one shot (instead of N × 3 function calls per CD pass).
- */
-export interface ISelectionView {
-  readonly selected: boolean;
-  readonly highlighted: boolean;
-  readonly dimmed: boolean;
-}
-
-/**
- * Per-edge selection state. Same shape rationale as `ISelectionView`:
- * one Map lookup hands the `<f-connection>` its full picture per CD
- * pass. `opacity` folds the confidence gradient and the dim override
- * into a single value, so the template binds it directly (inline styles
- * win over the `.f-conn--dimmed` class rule, this is the source of truth).
- */
-export interface IEdgeSelectionView {
-  readonly highlighted: boolean;
-  readonly dimmed: boolean;
-  readonly opacity: number;
-}
+// `ISelectionView` / `IEdgeSelectionView` live in `models/selection.ts`:
+// `<sm-node-card>` (a shared component also mounted outside the graph)
+// binds the node bundle, and shared components must not import from a
+// feature view's internals.
 
 export interface ISelectionStateHandle {
   isSelected(id: string): boolean;

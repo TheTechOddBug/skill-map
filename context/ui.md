@@ -174,7 +174,7 @@ When adding a new sink that renders scanned content, ask what it would fetch if 
 The workspace ships TWO `services/` folders. The split is intentional, do not collapse them:
 
 - **`ui/src/services/`** , **domain / data-layer services**. Stateless wrappers over the BFF (`DATA_SOURCE` consumers, `WsEventStreamService`), in-memory stores keyed off the loaded model (`CollectionLoaderService`, `FilterStoreService`, `KindRegistryService`), and pure presentation helpers tied to data (`ProviderUiService`, `KindTintsService`, `ExtensionKindTintsService`, `MarkdownRenderer`, `ThemeService`). The `data-source/` sub-folder lives here for the same reason: the port + adapters belong in the domain layer. Tests under `ui/src/services/__tests__/`.
-- **`ui/src/app/services/`** , **app-shell / UI orchestration services**. Coordinators that depend on domain services AND react to Angular router / DOM lifecycle (`ScanTriggerService`, `UpdateCheckService`, `ProjectInfoService`, `TitleStrategyService`, `ContributionsRegistryService`, `DebugPerfService`, `DebugSlotsService`). These live next to `ui/src/app/components/` / `ui/src/app/views/` because their natural call-site is the chrome of the SPA, not a feature module's data flow.
+- **`ui/src/app/services/`** , **app-shell / UI orchestration services**. Coordinators that depend on domain services AND react to Angular router / DOM lifecycle (`ScanTriggerService`, `UpdateCheckService`, `ProjectInfoService`, `TitleStrategyService`, `ContributionsRegistryService`, `DebugPerfService`, `DebugSlotsService`, `FilterUrlSyncService`). These live next to `ui/src/app/components/` / `ui/src/app/views/` because their natural call-site is the chrome of the SPA, not a feature module's data flow.
 
 **Decision rule when adding a service**:
 
@@ -193,6 +193,14 @@ Several unrelated escape-hatches also live under `::ng-deep`, none targets a Pri
 - **Shared `.sm-block` section vocabulary**: no longer a `::ng-deep` case. The `.sm-block*` family (rail, toggle row, chevron, dense `dt`/`dd` grid) was promoted from `inspector-view.css` to `ui/src/styles.css` as plain global rules when the inspector split made the vocabulary cross-component; the emitters (`<sm-collapsible-section>`, `<sm-vendor-frontmatter>`, `<sm-annotations-panel>`) now inherit the chrome wherever they mount. Recorded here so future audits do not re-file the global block as a `::ng-deep` candidate; the block comment in `styles.css` documents the `--accent` inheritance contract.
 - **Custom-element children** in `kind-palette.css` (the `<sm-kind-icon>` tints and PrimeIcon `.pi` rules), styling a project-owned custom element from its parent, again outside Angular encapsulation.
 - **Custom-child label suppression** in `node-tags.css` (1 block, `.node-tags__control ::ng-deep .itc__label`), hides the `<sm-input-type-control>` child's own "Tags" label inside the inline tag editor where it is redundant (the label survives as the autocomplete's `aria-label`). Project-owned class on a project-owned child component, never a PrimeNG internal.
+
+## localStorage keys
+
+Four naming families accumulated historically: dot-hierarchical `sm.*` (the majority), the older `skill-map.ui.*` (theme + inspector preferences), kebab `sm-debug-*` (debug overlays), plus casing outliers (`sm.demoBannerDismissed`). Do NOT migrate existing keys, orphaning a user's stored preferences is worse than the drift. The rule applies to **new keys only**:
+
+- **Namespace**: `sm.<area>.<leaf>`, dot-hierarchical with kebab-case leaves. Real examples: `sm.graph.viewport`, `sm.workspace.rail-width`, `sm.settings.plugins.kind-filter`, `sm.live.follow-activity`.
+- **Ownership**: reads and writes go through a `*.storage.ts` module next to the owning view / component (guarded reads, quota-safe writes, keys owned by the storage module) or through the owning service; do not inline raw `localStorage` calls in components.
+- **Exceptions that stay**: the debug overlays keep `sm-debug-*` (kept dev tools) and the theme service keeps `skill-map.ui.theme` / `skill-map.ui.extra-theme` (persisted user preferences, see the no-migration rule above).
 
 ## Type scale (`--sm-fs-*`)
 

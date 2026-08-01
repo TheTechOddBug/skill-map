@@ -3,7 +3,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
 import { SettingsPlugins } from '../settings-plugins';
-import { SettingsBufferService } from '../settings-buffer.service';
+import { SettingsBufferService } from '../settings-buffer';
 import { ScanTriggerService } from '../../../services/scan-trigger';
 import {
   DATA_SOURCE,

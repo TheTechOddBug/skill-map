@@ -33,10 +33,10 @@ import { DestroyRef, Injectable, effect, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 
-import type { TNodeKind } from '../models/node';
-import type { TLinkKindApi } from '../models/api';
-import { ALL_LINK_KINDS, FilterStoreService, type TSeverityFilter } from './filter-store';
-import { KindRegistryService } from './kind-registry';
+import type { TNodeKind } from '../../models/node';
+import type { TLinkKindApi } from '../../models/api';
+import { ALL_LINK_KINDS, FilterStoreService, type TSeverityFilter } from '../../services/filter-store';
+import { KindRegistryService } from '../../services/kind-registry';
 
 const PARAM_SEARCH = 'search';
 const PARAM_KINDS = 'kinds';

@@ -83,7 +83,7 @@ import {
 import { setupPluginCollapse } from './plugin-collapse.controller';
 import { setupPluginFilter } from './plugin-filter.controller';
 import { setupPluginState } from './plugin-state.controller';
-import { SettingsBufferService, type IBufferOwner } from './settings-buffer.service';
+import { SettingsBufferService, type IBufferOwner } from './settings-buffer';
 
 @Component({
   selector: 'sm-settings-plugins',

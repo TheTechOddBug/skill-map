@@ -40,7 +40,7 @@ import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import type { IPluginItemApi } from '../../../models/api';
 import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
 import { SettingsAbout } from './settings-about';
-import { SettingsBufferService } from './settings-buffer.service';
+import { SettingsBufferService } from './settings-buffer';
 import { SettingsChangelog } from './settings-changelog';
 import { SettingsGeneral } from './settings-general';
 import { SettingsPlugins } from './settings-plugins';

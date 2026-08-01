@@ -46,7 +46,7 @@ import {
   type IPluginSectionHandle,
   type ISettingsExtension,
 } from './settings-plugin-section.controller';
-import { SettingsBufferService, type IBufferOwner } from './settings-buffer.service';
+import { SettingsBufferService, type IBufferOwner } from './settings-buffer';
 
 @Component({
   selector: 'sm-settings-plugin-section',

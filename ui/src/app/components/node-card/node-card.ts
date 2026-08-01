@@ -25,7 +25,7 @@ import type { INodeActivityStatsApi } from '../../../models/api';
 import { pathBasenameForLink } from '../../../services/path-basename';
 import { cssColorOrNull, cssKindNameOrFallback } from '../../../services/css-guard';
 import { KindRegistryService } from '../../../services/kind-registry';
-import type { ISelectionView } from '../../views/graph-view/selection-state';
+import type { ISelectionView } from '../../../models/selection';
 import { KindIcon } from '../kind-icon/kind-icon';
 import { ViewContributionsHost } from '../view-contributions-host/view-contributions-host';
 

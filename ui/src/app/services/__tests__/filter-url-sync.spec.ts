@@ -3,9 +3,9 @@ import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { Component } from '@angular/core';
 
-import { FilterStoreService } from '../filter-store';
+import { FilterStoreService } from '../../../services/filter-store';
 import { FilterUrlSyncService } from '../filter-url-sync';
-import { KindRegistryService } from '../kind-registry';
+import { KindRegistryService } from '../../../services/kind-registry';
 
 @Component({ template: '' })
 class BlankPage {}

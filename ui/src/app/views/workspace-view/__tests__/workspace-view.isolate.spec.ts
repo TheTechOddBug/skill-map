@@ -154,6 +154,10 @@ async function bootstrap(nodes: INodeView[], links: ILinkApi[], corpusSize = nod
   localStorage.setItem('sm.workspace.rail-section', 'files');
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
+    // Registered explicitly (standalone components usually need no
+    // registration) so `compileComponents()` below can resolve the
+    // async metadata its `@defer` block (the queue panel) introduces.
+    imports: [WorkspaceView],
     providers: [
       provideRouter([{ path: '', component: BlankPage }]),
       { provide: CollectionLoaderService, useValue: makeLoaderStub(nodes, links, corpusSize) },
@@ -174,6 +178,10 @@ async function bootstrap(nodes: INodeView[], links: ILinkApi[], corpusSize = nod
       ],
     },
   });
+  // The workspace template carries a `@defer` block (the queue panel),
+  // which makes the component's metadata resolve asynchronously; without
+  // this await, `createComponent` throws "unresolved metadata".
+  await TestBed.compileComponents();
   TestBed.inject(KindRegistryService).ingest({
     agent: { primaryProviderId: 'claude', providers: { claude: { label: 'Agents', color: '#3b82f6' } } },
   });
@@ -410,7 +418,16 @@ describe('WorkspaceView activity sections', () => {
     } catch {
       /* ignore Foblex-internal render glitches in jsdom */
     }
-    await Promise.resolve();
+    // The queue panel sits behind `@defer` (Playthrough behavior in
+    // TestBed): its chunk resolves through a dynamic import, i.e. at
+    // least one macrotask, so a bare microtask flush would assert
+    // before the deferred content renders.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    try {
+      fixture.detectChanges();
+    } catch {
+      /* same Foblex guard as above */
+    }
 
     expect(railEl(fixture).classList.contains('is-collapsed')).toBe(false);
     // Open: the chevron now exists, the Queue tab is active, and the queue

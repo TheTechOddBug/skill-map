@@ -91,11 +91,8 @@ import { setupEdgeResize } from '../../core/edge-resize.controller';
 import { setupTagSelection } from './tag-selection.controller';
 import { setupViewportStore, ZOOM_MIN, ZOOM_MAX } from './viewport-store';
 import { isAnyPrimengOverlayOpen, isFlowDragging } from './graph-view.utils';
-import {
-  createSelectionState,
-  type IEdgeSelectionView,
-  type ISelectionView,
-} from './selection-state';
+import type { IEdgeSelectionView, ISelectionView } from '../../../models/selection';
+import { createSelectionState } from './selection-state';
 import { setupNodeDrag } from './node-drag.controller';
 import { setupExpansion } from './expansion.controller';
 import { setupFollowActivity } from './follow-activity.controller';
@@ -501,15 +498,25 @@ export class GraphView implements OnInit {
   // see `selection-url-sync.ts` for the loop-guard contract. Called
   // from the constructor below.
 
+  /**
+   * Tick stamped by the reconcile effect once it has processed a dagre
+   * pass (dirty or not): its value is that pass's `computedAt`, so one
+   * stamp maps to exactly one layout run and the echo re-run the
+   * `nodePositions` write triggers re-stamps the same value (no
+   * propagation). The camera's deferred fits key on THIS instead of the
+   * raw `layoutComputedAt` tick: "positions are reconciled" is a data
+   * dependency, not an effect creation-order coincidence (Angular does
+   * not guarantee sibling-effect execution order, only the
+   * `afterRender*` family documents ordering).
+   */
+  private readonly layoutReconciledAt = signal(0);
 
   // Camera controller handle (fit / center / tween orchestration).
-  // Assigned in the constructor AFTER the reconcile effect is declared:
-  // its auto-fit runner reacts to the same `layoutComputedAt` tick and
-  // relies on effect creation order so reconcile mirrors fresh positions
-  // into `nodePositions` first (see `camera.controller.ts`). Closures
-  // created before the assignment (layout-fit's `fit`, follow's
-  // `animateToTransform`) only dereference it at call time, safely
-  // after construction.
+  // Assigned in the constructor; closures created before the assignment
+  // (layout-fit's `fit`, follow's `animateToTransform`) only
+  // dereference it at call time, safely after construction. Its
+  // deferred fits react to `layoutReconciledAt` (stamped by the
+  // reconcile effect), so no ordering contract between the two exists.
   private camera!: ICameraHandle;
 
   // Initial fit-to-screen + auto-fit on topology change. Owns the
@@ -576,11 +583,13 @@ export class GraphView implements OnInit {
     // during the boot loading phase. Pure reconcile in
     // `graph-view.reconcile.ts`.
     //
-    // Must run BEFORE the auto-fit runner below: both effects react to
-    // the same `layoutComputedAt` tick (reconcile via `fullLayout()`,
-    // auto-fit directly), and `runAnimatedFit` reads `nodePositions` to
-    // compute the bbox. Reconcile-then-fit guarantees the camera tweens
-    // toward the rendered geometry, not the pre-reconcile snapshot.
+    // The camera's deferred fits (`runAnimatedFit` reads `nodePositions`
+    // for the bbox) must see post-reconcile geometry, so this effect
+    // stamps `layoutReconciledAt` AFTER the positions write and the
+    // camera keys on that stamp, never on the raw layout tick. The
+    // stamp value is the pass's own `computedAt`, so the echo re-run
+    // this effect's `nodePositions` write triggers re-stamps the same
+    // number and propagates nothing.
     effect(() => {
       const nodes = this.loader.nodes();
       if (nodes.length === 0) return;
@@ -591,17 +600,20 @@ export class GraphView implements OnInit {
         current: this.nodePositions(),
         layout,
       });
-      if (!result.dirty) return;
-      this.nodePositions.set(result.next);
-      writeStoredNodePositions(result.next);
+      if (result.dirty) {
+        this.nodePositions.set(result.next);
+        writeStoredNodePositions(result.next);
+      }
+      this.layoutReconciledAt.set(layout.computedAt);
     });
 
     // Fit / center / tween orchestration, owned by `setupCamera`
     // (auto-fit runner, deep-link center pan, curation re-fit debounce;
-    // see `camera.controller.ts` for each effect's rationale). Created
-    // HERE, between the reconcile effect above and the GC effect below,
-    // so effect creation order (and therefore same-tick execution
-    // order) matches the pre-extraction component exactly.
+    // see `camera.controller.ts` for each effect's rationale). Its
+    // deferred fits key on `layoutReconciledAt` (stamped by the
+    // reconcile effect above), so creation order between the two is
+    // irrelevant: the camera only wakes once reconciled positions are
+    // in `nodePositions`.
     this.camera = setupCamera({
       injector: this.injector,
       destroyRef: this.destroyRef,
@@ -616,7 +628,7 @@ export class GraphView implements OnInit {
       topology: this.topology,
       fullLayout: this.fullLayout,
       mapVisiblePaths: this.mapVisiblePaths,
-      layoutComputedAt: this.layoutComputedAt,
+      layoutSettledAt: this.layoutReconciledAt,
       nodePositions: this.nodePositions,
       reservedPanelWidth: () => this.reservedPanelWidth(),
       hasCompletedInitialLayout: () => this.layoutFit.hasCompletedInitialLayout(),

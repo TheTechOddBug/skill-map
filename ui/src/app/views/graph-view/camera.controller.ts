@@ -22,13 +22,12 @@
  *     `layout-fit.controller.ts`): the deep-link center effect gates on
  *     it reactively so the camera pan waits for the boot fit.
  *
- * Creation-order contract: `setupCamera` MUST be called from the
- * component constructor AFTER the reconcile effect is declared. The
- * auto-fit runner below reacts to the same `layoutComputedAt` tick as
- * reconcile, and Angular runs same-tick effects in creation order:
- * reconcile-then-fit guarantees the camera tweens toward the rendered
- * geometry (reconciled `nodePositions`), not the pre-reconcile
- * snapshot.
+ * Reconcile-then-fit is a DATA dependency: the deferred fits key on
+ * `layoutSettledAt`, a tick the host's reconcile effect stamps only
+ * AFTER it has mirrored a dagre pass into `nodePositions`. The camera
+ * therefore always tweens toward the rendered (reconciled) geometry,
+ * regardless of effect creation order, which Angular does not
+ * guarantee for sibling effects.
  */
 
 import {
@@ -96,8 +95,13 @@ export interface ICameraConfig {
   topology: Signal<ITopology>;
   fullLayout: Signal<IFullLayout>;
   mapVisiblePaths: Signal<Set<string>>;
-  /** Dagre tick; the deferred fits re-fire on it (see each effect). */
-  layoutComputedAt: Signal<number>;
+  /**
+   * Reconciled-layout tick: the host's reconcile effect stamps it after
+   * mirroring a dagre pass into `nodePositions`. The deferred fits
+   * re-fire on it (see each effect), so they always read post-reconcile
+   * geometry (the data dependency described in the module doc).
+   */
+  layoutSettledAt: Signal<number>;
   /** User-pinned drag positions; effective position resolution + reset. */
   nodePositions: WritableSignal<TNodePositions>;
   /** Width the open inspector panel reserves over the canvas. */
@@ -142,7 +146,7 @@ export interface ICameraHandle {
    * once the boot fit and dagre positions are ready. Signal-backed so a
    * repeated deep-link re-fires the effect: in the fused workspace the
    * graph stays mounted, so clicking a second file would set this
-   * without changing `layoutComputedAt` / `hasCompletedInitialLayout`,
+   * without changing `layoutSettledAt` / `hasCompletedInitialLayout`,
    * and a plain field would leave the effect dormant (camera never
    * re-centers). As a signal, each set invalidates the effect and the
    * camera glides to the new node.
@@ -178,7 +182,7 @@ export function setupCamera(config: ICameraConfig): ICameraHandle {
   /**
    * Set to `true` when `setupLayoutFit` fires its animated callback on
    * a topology change; the actual tween is deferred to the next
-   * `layoutComputedAt` tick (see the auto-fit runner effect below).
+   * `layoutSettledAt` tick (see the auto-fit runner effect below).
    * The deferral is load-bearing: `pathsFingerprint` changes BEFORE
    * dagre re-layouts, so reading `layoutPositions` during the callback
    * would tween toward a stale bbox, the symptom the user reported
@@ -492,14 +496,13 @@ export function setupCamera(config: ICameraConfig): ICameraHandle {
   // moment, the positions are still the pre-change snapshot, so a
   // deletion tweens toward the bbox of the surviving nodes' OLD
   // positions and lands wrong once dagre relayouts. Deferring to the
-  // next `layoutComputedAt` tick guarantees fresh positions are in
-  // place before `runAnimatedFit` reads them, AND the reconcile
-  // effect (declared in the host constructor BEFORE this controller)
-  // has already mirrored those positions into `nodePositions` (the
-  // source `runAnimatedFit` actually consults for the bbox, mirroring
-  // `projectVisible`).
+  // next `layoutSettledAt` tick guarantees fresh positions are in
+  // place before `runAnimatedFit` reads them: the stamp only lands
+  // after the host's reconcile effect has mirrored the pass into
+  // `nodePositions` (the source `runAnimatedFit` actually consults
+  // for the bbox, mirroring `projectVisible`).
   effect(() => {
-    config.layoutComputedAt();
+    config.layoutSettledAt();
     if (!autoFitPending) return;
     autoFitPending = false;
     runAnimatedFit();
@@ -509,13 +512,13 @@ export function setupCamera(config: ICameraConfig): ICameraHandle {
   // the target node id in `pendingCenterNodeId`; this effect runs the
   // camera glide once BOTH gates are satisfied: the boot fit has fixed
   // the zoom (`hasCompletedInitialLayout`, signal-backed so this
-  // re-fires when it flips) AND dagre has produced positions (the
-  // `layoutComputedAt` tick). The pan itself is deferred to
+  // re-fires when it flips) AND dagre has produced reconciled positions
+  // (the `layoutSettledAt` tick). The pan itself is deferred to
   // `afterNextRender` so Foblex's snap fit + clamp have already
   // applied and the scale `centerOnNode` reads is the settled one,
   // the pan keeps that zoom and only moves the position.
   effect(() => {
-    config.layoutComputedAt();
+    config.layoutSettledAt();
     const bootFitDone = config.hasCompletedInitialLayout();
     const id = pendingCenterNodeId();
     if (id === null || !bootFitDone) return;
@@ -536,7 +539,7 @@ export function setupCamera(config: ICameraConfig): ICameraHandle {
   // because of the tag and we skip the refit; when it held steady the
   // paths moved for a non-tag reason and we frame the result. Debounced
   // so a burst of checkbox toggles coalesces into one glide. Topology is
-  // unchanged on a pure visibility edit, so `layoutComputedAt` does NOT
+  // unchanged on a pure visibility edit, so `layoutSettledAt` does NOT
   // tick; positions are already settled post-boot, so we drive
   // `runAnimatedFit` via `afterNextRender` directly (which lets
   // `projectVisible` render the new node set first).
