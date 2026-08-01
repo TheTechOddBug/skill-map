@@ -337,6 +337,10 @@
         "file": "conformance/cases/job-document-schema.json"
       },
       {
+        "id": "jobs-list-omits-nonce",
+        "file": "conformance/cases/jobs-list-omits-nonce.json"
+      },
+      {
         "id": "jobs-submit-agent-gate",
         "file": "conformance/cases/jobs-submit-agent-gate.json"
       },
@@ -475,7 +479,8 @@
       "conformance/cases/github-enrichment-recorded.json": "9e265d88710506626a9bf42a5a519648aa2bcdf1ba3d33cbc313b8bdea63746d",
       "conformance/cases/history-record-schema.json": "8b040e7fa6647e176ef2a6b63032f2548bdaa57c5fb247d1818918bdedd9ed09",
       "conformance/cases/history-stats-schema.json": "f42844b78d6ca2ec8ace827540e8f0272398b4b1fb7baa409635a239ee96644e",
-      "conformance/cases/job-document-schema.json": "2626edec7c7675adf12bb4cde550b822e6758e5c76e789d8dad07392dae458bf",
+      "conformance/cases/job-document-schema.json": "fd50346ffa56b213ea733c2b8dfc5e01375cc78414abe2576cf42dfa59efc67a",
+      "conformance/cases/jobs-list-omits-nonce.json": "95d01ceab4c9480309b63e3ad5a5e6d6aec903cce5eefaf79478f58007cbaf02",
       "conformance/cases/jobs-submit-agent-gate.json": "18df2b64ce4a41d8bf4d60503bb595c2ccb32ccd9eb85aa58adbd6d5b8e97117",
       "conformance/cases/kernel-empty-boot.json": "5c798565a7f2f95f0d40c42c4499417b4a0de5b4aaa4fc59198f5488e37c148e",
       "conformance/cases/markdown-link-rooted.json": "dc6f2c20fb7a4547fd0846d1a2a594055588b3d471a9b62a06387ca73590389e",
@@ -503,7 +508,7 @@
       "conformance/cases/view-action-button.json": "bb1377a737117c3d274a4f5a216adb1b94dae534658fa8dcc784c39fcfb15e1b",
       "conformance/cases/view-contribution-payloads.json": "ca02992c269e7c1724df024b138abf0c97f50f003c300c404cb6034743ad7ca7",
       "conformance/cases/view-slots-all.json": "0e3294ada16eb6695760e3067cf05e7ea233720f83b26531432ca95cc24ef4f9",
-      "conformance/coverage.md": "147e58f9323b221d5a500451e14d65ca1406d334224257a2593e1129bdb6b23d",
+      "conformance/coverage.md": "fd2708f2620142a471f8bf019b606ef4b55749f666db5d120462613c46018796",
       "conformance/fixtures/backtick-path/docs/target.md": "a09ae2cb4c96358a2e0692215f172b0f8c48028b6b123e4e83424b28302e644c",
       "conformance/fixtures/backtick-path/source.md": "217f78b12b3ff47a938a5cc9c1ff7d6989d6a1db82bd1ddf3656787f31efb902",
       "conformance/fixtures/extension-enable-gate/.skill-map/plugins/gated/analyzers/boom/extension.json": "bc8a8a24a068fa4a03d096790fa52b8c3f8c7ecb1e7ac9d3fbe83ea0babafe6f",

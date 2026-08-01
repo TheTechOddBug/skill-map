@@ -1,7 +1,7 @@
 {
   "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
   "id": "job-document-schema",
-  "description": "`sm jobs submit --json` MUST emit the queued Job as a document validating against `job.schema.json`. Submit is the surface asserted here, and deliberately so: `job.schema.json` lists `nonce` in `required`, and every READ surface (`sm jobs list`, `sm jobs show`) projects through the nonce-stripping `PublicJob` view per `job-lifecycle.md`, so none of them can ever validate against it. Submit and claim are the only two surfaces the spec permits to emit the nonce, which makes submit the one place the full Job contract is observable.",
+  "description": "`sm jobs submit --json` MUST emit the queued Job as a document validating against `job.schema.json#/$defs/CredentialedJob`, the projection that CARRIES the record credential. Submit and claim are the only two surfaces the spec permits to emit the nonce, which makes submit the one place the full Job contract is observable. Asserted against the `$defs` rather than the root on purpose: the root leaves `nonce` optional so the nonce-less read projection can also extend it, so validating there would pass a submit that silently dropped the credential. The sibling `jobs-list-omits-nonce` covers the other direction.",
   "fixture": "job-record-chain",
   "setup": {
     "priorScans": [{ "fixture": "job-record-chain" }],
@@ -15,7 +15,7 @@
   },
   "assertions": [
     { "type": "exit-code", "value": 0 },
-    { "type": "stdout-matches-schema", "schema": "job.schema.json" },
+    { "type": "stdout-matches-schema", "schema": "job.schema.json", "schemaPointer": "/$defs/CredentialedJob" },
     { "type": "json-path", "path": "$.status", "equals": "queued" },
     { "type": "json-path", "path": "$.nodeId", "equals": "notes.md" },
     { "type": "json-path", "path": "$.nonce", "matches": "^[0-9a-f]{32}$" }

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
+  "id": "jobs-list-omits-nonce",
+  "description": "Every job READ surface MUST project the nonce-less shape (`job.schema.json#/$defs/PublicJob`, see `job-lifecycle.md` §Nonce exposure). This is a SECURITY invariant, not a formatting one: the nonce is the sole record credential, so a passive reader of the queue must not be able to forge callbacks for jobs it never claimed. `PublicJob` asserts the credential's ABSENCE rather than merely permitting it, so `each` over the listing is what turns the rule into something an implementation can fail. Before that definition existed the suite could only check the fields a read surface DOES carry, which a leaking implementation would have passed. The sibling `job-document-schema` covers the other direction (submit, the credentialed projection).",
+  "fixture": "extension-mode-routing",
+  "setup": {
+    "priorScans": [{ "fixture": "extension-mode-routing" }],
+    "priorInvokes": [
+      {
+        "verb": "agent",
+        "sub": "install",
+        "flags": ["--for", "claude"]
+      },
+      {
+        "verb": "jobs",
+        "sub": "submit",
+        "args": ["ai-summarizer-action"],
+        "flags": ["-n", "notes.md"]
+      }
+    ]
+  },
+  "invoke": {
+    "verb": "jobs",
+    "sub": "list",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    {
+      "type": "stdout-matches-schema",
+      "schema": "job.schema.json",
+      "schemaPointer": "/$defs/PublicJob",
+      "each": true
+    },
+    { "type": "json-path", "path": "$.length", "equals": 1 },
+    { "type": "json-path", "path": "$[0].status", "equals": "queued" }
+  ]
+}
