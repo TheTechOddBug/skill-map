@@ -18,6 +18,14 @@
  * absent, so it builds once. If you edit UI source and rebuild ONLY the site,
  * rebuild the UI yourself first (`pnpm --filter ui build`) so the copy is not
  * stale; the production Docker build starts clean, so it always rebuilds.
+ *
+ * DELIBERATE: the deployed demo uses the `production` Angular configuration
+ * (the bare `pnpm --filter ui build` below; `demo:build` only patches the
+ * mode meta + base href on the copy). The `dev-demo` configuration in
+ * `ui/angular.json` is `ng serve`-only chrome for local demo hacking, it
+ * ships source maps, no minification, and a Google Fonts fetch, none of
+ * which may reach the public demo (audit F-4; the no-outbound-requests
+ * policy in `context/ui.md` applies to the deployed surface).
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';

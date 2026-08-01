@@ -247,22 +247,29 @@ async function importRenderer(): Promise<IRenderer> {
     // colours live in `themes/highlight.css`. See `highlightCode`.
     highlight: (str: string, lang: string): string => highlightCode(hljs, str, lang),
   });
-  // DOMPurify's default export IS the singleton DOMPurify instance,
-  // calling `.sanitize()` on it directly uses the current `window`
-  // (browser default) or jsdom's `window` in unit tests.
+  // DOMPurify's default export doubles as a factory: calling it with a
+  // window binds a FRESH instance, so the hook + config below are
+  // scoped to this renderer instead of mutating the process-wide
+  // singleton (where a second root injector in one document, or a test
+  // rig, would stack the `uponSanitizeElement` hook on every re-entry;
+  // audit F-3).
   //
-  // `setConfig` applies a process-wide default to every subsequent
-  // `sanitize()` call. The renderer never relies on per-call configs
-  // that would clash with this baseline; if a future caller needs a
-  // looser policy it MUST pass an explicit `sanitize(html, {...})`
-  // override rather than mutating the default.
-  const purify = (purifyMod as unknown as {
-    default: {
+  // `setConfig` pins this instance's baseline for every subsequent
+  // `sanitize()` call. Verified against dompurify@3.4.12: once
+  // `setConfig` has run, a per-call `sanitize(html, {...})` config is
+  // IGNORED, the instance restores the `setConfig` baseline instead
+  // (`SET_CONFIG` short-circuit in `purify.js`). Do NOT attempt a
+  // per-call override; a caller that genuinely needs a different
+  // policy must bind its own `DOMPurify(window)` instance so this
+  // hardened baseline stays untouched.
+  const createDOMPurify = (purifyMod as unknown as {
+    default: (win: Window & typeof globalThis) => {
       sanitize: (html: string) => string;
       setConfig: (cfg: Record<string, unknown>) => void;
       addHook: (name: string, cb: (node: Element, data: { tagName: string }) => void) => void;
     };
   }).default;
+  const purify = createDOMPurify(window);
   purify.addHook('uponSanitizeElement', imageHook);
   purify.setConfig({
     ALLOWED_URI_REGEXP,
@@ -283,9 +290,17 @@ async function importRenderer(): Promise<IRenderer> {
     //   - `source`: feeds `<video>` / `<audio>` a `src` (its `srcset`
     //     for `<picture>` is separately killed by FORBID_ATTR).
     //   - `input`: `type="image"` has a fetching `src`.
+    //   - `track`: fetch-capable (it is in DOMPurify's data-URI tag
+    //     set) and only inert today because its `<audio>` / `<video>`
+    //     parents are banned; listed on its own so its safety never
+    //     depends on a sibling tag's ban (audit F-2).
+    //   - `form`: cannot fetch on render and its fields are gone with
+    //     `input` banned; banned anyway as a free backstop against
+    //     phishing chrome, same reasoning as the BFF CSP's
+    //     `object-src 'none'`.
     // Rationale for the whole policy, `context/ui.md` §No outbound
     // requests from author-controlled content.
-    FORBID_TAGS: ['style', 'img', 'video', 'audio', 'source', 'input'],
+    FORBID_TAGS: ['style', 'img', 'video', 'audio', 'source', 'input', 'track', 'form'],
     FORBID_ATTR: ['style', 'srcset'],
   });
   return { md, purify, hljs };

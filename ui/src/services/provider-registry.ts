@@ -22,6 +22,7 @@
 import { Injectable, computed, signal } from '@angular/core';
 
 import type { IProviderRegistryApi, IProviderRegistryEntryApi } from '../models/api';
+import { cssColorOrNull } from './css-guard';
 
 /**
  * Render shape consumed by the chip templates (topbar lens chip,
@@ -64,12 +65,29 @@ export class ProviderRegistryService {
    * Replace the registry with the catalog from the latest envelope.
    * Insertion order is preserved (V8 keeps own-string-key order). No-op
    * when the new payload is structurally equal to the current one.
+   *
+   * Colors are re-validated HERE, at the layer that owns the CSS sink
+   * (the chips bind them into `[style.--provider-color]` custom
+   * properties), rather than trusting the kernel's AJV manifest gate
+   * upstream, mirroring `KindRegistryService`. An invalid value degrades
+   * to the neutral fallback instead of dropping the entry, so a broken
+   * manifest still renders a readable chip and can never smuggle a
+   * `url(...)` beacon into the CSSOM (`context/ui.md` §No outbound
+   * requests from author-controlled content).
    */
   ingest(payload: IProviderRegistryApi | null | undefined): void {
     if (!payload) return;
     const entries: IProviderRegistryEntry[] = [];
     for (const [id, raw] of Object.entries(payload)) {
-      entries.push({ id, ...raw });
+      const entry: IProviderRegistryEntry = {
+        ...raw,
+        id,
+        color: cssColorOrNull(raw.color) ?? FALLBACK_COLOR,
+      };
+      if (raw.colorDark !== undefined) {
+        entry.colorDark = cssColorOrNull(raw.colorDark) ?? FALLBACK_COLOR_DARK;
+      }
+      entries.push(entry);
     }
     if (sameRegistry(this._entries(), entries)) return;
     this._entries.set(entries);

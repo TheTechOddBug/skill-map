@@ -5,7 +5,7 @@
     "ng": "ng",
     "start": "ng serve",
     "dev": "ng serve --configuration=local",
-    "dev:demo": "ng serve --configuration=demo",
+    "dev:demo": "ng serve --configuration=dev-demo",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",

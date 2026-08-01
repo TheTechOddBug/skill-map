@@ -103,7 +103,7 @@
               "extractLicenses": false,
               "sourceMap": true
             },
-            "demo": {
+            "dev-demo": {
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true,
@@ -132,8 +132,8 @@
             "development": {
               "buildTarget": "ui:build:development"
             },
-            "demo": {
-              "buildTarget": "ui:build:demo"
+            "dev-demo": {
+              "buildTarget": "ui:build:dev-demo"
             },
             "local": {
               "buildTarget": "ui:build:development",
