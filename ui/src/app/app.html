@@ -262,4 +262,12 @@
       (visibleChange)="onQuickStartVisibleChange($event)"
     />
   }
+
+  @defer (when crashReportOpen()) {
+    <sm-crash-report-dialog
+      [open]="crashReportOpen()"
+      [preview]="crashReportPreview()"
+      (decision)="onCrashReportDecision($event)"
+    />
+  }
 </div>

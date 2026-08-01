@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   HOME_PLACEHOLDER,
   PROJECT_PLACEHOLDER,
+  QUERY_VALUE_PLACEHOLDER,
   scrubEvent,
   scrubString,
 } from '../scrub.js';
@@ -154,6 +155,38 @@ describe('scrubEvent', () => {
  * Sentry verbatim and disclosed the project (often the client) name in
  * every frame. The driver supplies its own root; the scrubber stays pure.
  */
+describe('scrubString, masked URL query parameters', () => {
+  it('masks a percent-encoded node path in a full URL, keeps closed-enum params', () => {
+    const out = scrubString(
+      'http://127.0.0.1:4242/?kinds=skill&path=.claude%2Fskills%2Fformularios-partes%2FSKILL.md',
+    );
+    assert.equal(out, `http://127.0.0.1:4242/?kinds=skill&path=${QUERY_VALUE_PLACEHOLDER}`);
+  });
+
+  it('masks the operator-typed search text', () => {
+    const out = scrubString('http://localhost:4242/?search=my%20secret%20notes&severities=error');
+    assert.equal(
+      out,
+      `http://localhost:4242/?search=${QUERY_VALUE_PLACEHOLDER}&severities=error`,
+    );
+  });
+
+  it('masks when the param leads the query string and stops at a fragment', () => {
+    assert.equal(
+      scrubString('/x?path=a%2Fb.md#section'),
+      `/x?path=${QUERY_VALUE_PLACEHOLDER}#section`,
+    );
+  });
+
+  it('never touches a lookalike parameter name', () => {
+    assert.equal(scrubString('/x?depath=keep&pathway=keep'), '/x?depath=keep&pathway=keep');
+  });
+
+  it('masks case-insensitively', () => {
+    assert.equal(scrubString('/x?Path=Secret.md'), `/x?Path=${QUERY_VALUE_PLACEHOLDER}`);
+  });
+});
+
 describe('scrubString, caller-supplied project roots', () => {
   it('redacts a project root the home patterns cannot see', () => {
     const out = scrubString('at load (/srv/work/client-acme/src/x.ts:12)', [

@@ -32,12 +32,14 @@ import { SkippedFilesBanner } from './components/skipped-files-banner/skipped-fi
 import { ConnectionBanner } from './components/connection-banner/connection-banner';
 import { SettingsModal, type TSettingsSection } from './components/settings-modal/settings-modal';
 import { QuickStartModal } from './components/quick-start-modal/quick-start-modal';
+import { CrashReportDialog } from './components/crash-report-dialog/crash-report-dialog';
+import { CrashReportConsentService } from './core/telemetry/crash-report-consent';
 /* ViewContributionsHost: real topbar.nav.start slot mount (also ringed by the kept debug-slots overlay; see context/ui.md). */
 import { ViewContributionsHost } from './components/view-contributions-host/view-contributions-host';
 
 @Component({
   selector: 'sm-root',
-  imports: [RouterOutlet, ButtonModule, InputTextModule, TooltipModule, FormsModule, NgOptimizedImage, DemoBanner, TutorialReminderBanner, ProviderMarkerDriftBanner, OversizedBanner, SkippedFilesBanner, ConnectionBanner, SettingsModal, QuickStartModal, /* DEBUG-SLOTS */ ViewContributionsHost],
+  imports: [RouterOutlet, ButtonModule, InputTextModule, TooltipModule, FormsModule, NgOptimizedImage, DemoBanner, TutorialReminderBanner, ProviderMarkerDriftBanner, OversizedBanner, SkippedFilesBanner, ConnectionBanner, SettingsModal, QuickStartModal, CrashReportDialog, /* DEBUG-SLOTS */ ViewContributionsHost],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -99,6 +101,19 @@ export class App {
 
   protected onQuickStartVisibleChange(open: boolean): void {
     this.quickStartOpen.set(open);
+  }
+
+  /**
+   * Per-incident crash-report consent (spec/telemetry.md §Per-incident
+   * crash-report consent). The dialog is `@defer`-wrapped like the other
+   * global modals; the service owns the state, the shell only mirrors it.
+   */
+  private readonly crashConsent = inject(CrashReportConsentService);
+  protected readonly crashReportOpen = this.crashConsent.open;
+  protected readonly crashReportPreview = this.crashConsent.preview;
+
+  protected onCrashReportDecision(send: boolean): void {
+    void this.crashConsent.resolve(send);
   }
 
   /**

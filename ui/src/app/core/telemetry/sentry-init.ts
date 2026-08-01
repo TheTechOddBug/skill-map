@@ -37,11 +37,14 @@
  *
  * Errors only (Level 1). No tracing (`tracesSampleRate: 0`), no session
  * replay, no user-feedback widget, no performance, no PII
- * (`sendDefaultPii: false`). Capture is limited to the Angular
- * `ErrorHandler` plus the SDK's default browser global-error /
- * unhandled-rejection listeners. Every event is run through the pure
- * `scrubEvent` scrubber in `beforeSend` before it leaves the browser,
- * per `spec/telemetry.md` §Scrubbing rules.
+ * (`sendDefaultPii: false`). Under per-incident consent
+ * (`spec/telemetry.md` §Per-incident crash-report consent) capture
+ * happens exclusively through `captureUiException`, called by
+ * `CrashReportConsentService` after the operator accepted the consent
+ * dialog; the SDK's own auto-capturing listeners are dropped in
+ * `buildUiIntegrations`. Every event is run through the pure `scrubEvent`
+ * scrubber in `beforeSend` before it leaves the browser, per
+ * `spec/telemetry.md` §Scrubbing rules.
  *
  * The `skill-map-ui` Sentry project is additionally hardened server-side
  * per `spec/telemetry.md` §Server-side guarantees (IP storage off, a
@@ -163,8 +166,14 @@ export type UiIntegration = ReturnType<
  *
  *   - Drops `BrowserSession` so NO release-health session beacon is sent
  *     on page load / route change: the error surface MUST stay silent
- *     until a real error (`spec/telemetry.md` §Surface: Errors). The
- *     global error + unhandled-rejection handlers stay.
+ *     until a real error (`spec/telemetry.md` §Surface: Errors).
+ *   - Drops `GlobalHandlers` (the SDK's own window `error` /
+ *     `unhandledrejection` listeners): under per-incident consent
+ *     (`spec/telemetry.md` §Per-incident crash-report consent) capture
+ *     happens exclusively through `captureUiException` AFTER the operator
+ *     answered the dialog; an auto-capturing listener would send before
+ *     the dialog could open. Window errors still reach the flow via
+ *     Angular's `provideBrowserGlobalErrorListeners` → `ErrorHandler`.
  *   - Re-configures `Breadcrumbs` to stop auto-recording the sources that
  *     carry free-form strings the home-only scrubber cannot fully redact:
  *     console log text, fetch / xhr request URLs (with `?path=` / `?node=`
@@ -180,7 +189,10 @@ export function buildUiIntegrations(
   defaults: UiIntegration[],
 ): UiIntegration[] {
   return defaults
-    .filter((integration) => integration.name !== 'BrowserSession')
+    .filter(
+      (integration) =>
+        integration.name !== 'BrowserSession' && integration.name !== 'GlobalHandlers',
+    )
     .map((integration) =>
       integration.name === 'Breadcrumbs'
         ? breadcrumbsIntegration({ console: false, fetch: false, xhr: false, dom: false })

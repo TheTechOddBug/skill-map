@@ -25,6 +25,8 @@ import { join } from 'node:path';
 import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 
 import {
+  addInvocationExtensions,
+  captureCliInvocation,
   captureUsage,
   initUsageCli,
   isUsageCliTelemetryActive,
@@ -127,6 +129,55 @@ describe('initUsageCli (dormant unless opted in)', () => {
 describe('captureUsage', () => {
   it('is a safe no-op when the surface is dormant', () => {
     assert.doesNotThrow(() => captureUsage('cli.scan', { flags: [] }));
+  });
+});
+
+describe('captureCliInvocation (extensions stash, fake client)', () => {
+  /** A fake `posthog-node` namespace so the active path never loads the SDK. */
+  function makeFakePosthog(): {
+    ns: typeof import('posthog-node');
+    captured: Array<{ event: string; properties: Record<string, unknown> }>;
+  } {
+    const captured: Array<{ event: string; properties: Record<string, unknown> }> = [];
+    class PostHog {
+      capture(msg: { event: string; properties: Record<string, unknown> }): void {
+        captured.push(msg);
+      }
+      shutdown(): Promise<void> {
+        return Promise.resolve();
+      }
+    }
+    return { ns: { PostHog } as unknown as typeof import('posthog-node'), captured };
+  }
+
+  it('folds accumulated ids in deduped, collapsed, and sorted, then clears', async () => {
+    seedUsage(true);
+    const { ns, captured } = makeFakePosthog();
+    await initUsageCli(() => Promise.resolve(ns));
+    // Two stash calls (the enrich shape: extractors then actions), with a
+    // duplicate and a third-party id.
+    addInvocationExtensions(['core/markdown-link', 'acme/custom-thing']);
+    addInvocationExtensions(['core/markdown-link', 'github/enrichment']);
+    captureCliInvocation('enrich', ['stale'], new Set(['enrich']));
+    assert.equal(captured.length, 1);
+    assert.equal(captured[0]?.event, 'cli.enrich');
+    assert.deepEqual(captured[0]?.properties['extensions'], [
+      'core/markdown-link',
+      'external_plugin',
+      'github/enrichment',
+    ]);
+    // The stash is cleared: the next invocation carries no extensions key.
+    captureCliInvocation('list', [], new Set(['list']));
+    assert.equal(captured.length, 2);
+    assert.equal('extensions' in (captured[1]?.properties ?? {}), false);
+  });
+
+  it('a verb with no stashed ids never grows an extensions property', async () => {
+    seedUsage(true);
+    const { ns, captured } = makeFakePosthog();
+    await initUsageCli(() => Promise.resolve(ns));
+    captureCliInvocation('check', ['json'], new Set(['check']));
+    assert.equal('extensions' in (captured[0]?.properties ?? {}), false);
   });
 });
 

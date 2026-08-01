@@ -71,6 +71,28 @@ const HOME_PATTERNS: readonly RegExp[] = [
 ];
 
 /**
+ * Query parameters whose VALUES are masked wherever a URL or query string
+ * appears in an event (`spec/telemetry.md` §Scrubbing rules): they carry
+ * node paths (`path`) or operator-typed text (`search`). Closed-enum
+ * parameters (`kinds`, `severities`, ...) pass through. Any future
+ * parameter carrying a path, a file name, or free text joins this list.
+ */
+export const MASKED_QUERY_PARAMS: readonly string[] = ['path', 'search'];
+
+/** Literal that replaces a masked query-parameter value. */
+export const QUERY_VALUE_PLACEHOLDER = '<masked>';
+
+/**
+ * One pattern per masked parameter: the value runs from `<param>=` to the
+ * next `&`, `#`, whitespace, or end, so percent-encoded payloads
+ * (`path=.claude%2Fskills%2F...`) are swallowed whole. The leading `?` / `&`
+ * anchor keeps `depath=` untouched.
+ */
+const MASKED_QUERY_PATTERNS: readonly RegExp[] = MASKED_QUERY_PARAMS.map(
+  (param) => new RegExp(`([?&]${param}=)[^&#\\s]*`, 'gi'),
+);
+
+/**
  * Redact caller-supplied roots and home-directory prefixes out of a
  * single string. Returns the input unchanged when it carries neither.
  * Pure.
@@ -89,6 +111,9 @@ export function scrubString(value: string, extraRoots: readonly string[] = []): 
   }
   for (const pattern of HOME_PATTERNS) {
     out = out.replace(pattern, HOME_PLACEHOLDER);
+  }
+  for (const pattern of MASKED_QUERY_PATTERNS) {
+    out = out.replace(pattern, `$1${QUERY_VALUE_PLACEHOLDER}`);
   }
   return out;
 }

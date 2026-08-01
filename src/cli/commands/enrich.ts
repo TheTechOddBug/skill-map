@@ -86,6 +86,7 @@ import {
 } from '../../core/runtime/plugin-runtime.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import { appendOperation } from '../../core/operations-log.js';
+import { addInvocationExtensions } from '../telemetry/posthog-init.js';
 import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
 import { tryWithSqlite, withSqlite } from '../../core/sqlite/with-sqlite.js';
@@ -375,6 +376,13 @@ export class EnrichCommand extends SmCommand {
     }
     const totalRefreshed =
       freshEnrichments.length + [...stateUpsertsByNode.values()].reduce((a, b) => a + b, 0);
+
+    // Usage analytics (opt-in, default OFF): stash the extractor +
+    // enrichment-action ids the deterministic pass refreshed so the single
+    // `cli.<verb>` event carries them as `extensions` (third-party ids
+    // collapse at emit). See spec/telemetry.md §Usage event taxonomy.
+    addInvocationExtensions(freshEnrichments.map((e) => e.extractorId));
+    addInvocationExtensions(stateWrites.map((w) => w.execution.extensionId));
 
     // §Operations log: enrich mutates `node_enrichments` /
     // `state_enrichments`, same machine-output surface as a scan pass.

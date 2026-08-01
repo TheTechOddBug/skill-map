@@ -45,16 +45,15 @@ import { formatParseError, isClipanionParseError } from './util/parse-error.js';
 import { defaultRuntimeContext } from '../core/runtime/runtime-context.js';
 import { maybeRunUpdateCheck } from './util/update-check-banner.js';
 import { maybeRunFirstRunPrompt } from './telemetry/first-run-prompt.js';
+import { closeSentryCli } from './telemetry/sentry-init.js';
 import {
-  closeSentryCli,
-  initSentryCli,
-  setTelemetryVerbTag,
-} from './telemetry/sentry-init.js';
+  installFatalCrashHandlers,
+  isHandlingFatalCrash,
+} from './telemetry/fatal-crash-handler.js';
 import { captureCliInvocation, flushUsageCli, initUsageCli } from './telemetry/posthog-init.js';
 import { extractFlagNames } from './telemetry/usage-collector.js';
 import { createSmCli } from './command-registry.js';
 import { registeredVerbPaths, routeHelpArgs } from './commands/help.js';
-import { VERSION } from '../version.js';
 
 // Piped output whose consumer stops reading (`sm ... | head`) must end
 // the pipeline quietly, not with an unhandled EPIPE stack trace. Armed
@@ -89,18 +88,21 @@ configureLogger(new Logger({ level: logLevel, stream: process.stderr }));
 const bareArgs = await resolveBareInvocation(args);
 const routedArgs = routeHelpArgs(bareArgs ?? args, cli);
 
-// Telemetry (opt-in, default OFF; each surface dormant until its carrier
-// key is configured, see spec/telemetry.md). The one shared consent prompt
-// runs first so the persisted choice is in place before init reads it.
-// `sm serve` is skipped here on purpose: the BFF owns that process's Sentry
-// client (initSentryBff in src/server/index.ts) and MUST NOT emit usage
-// events, so neither the Sentry nor the PostHog CLI client is armed for it.
-// All of this is a no-op while the carrier placeholders are empty.
+// Telemetry (see spec/telemetry.md). The shared consent prompt runs first
+// so the persisted choice is in place before anything reads it. Error
+// reporting is per-incident consented: no Sentry client is armed at boot,
+// the fatal handlers below (and the SmCommand boundary for per-verb
+// throws) run the crash-consent flow when something actually crashes.
+// Crashes BEFORE this point (bare-invocation routing above) fall through
+// to Node's default handler, the pre-existing behaviour. `sm serve` is
+// skipped on purpose: the BFF owns that process's Sentry client
+// (initSentryBff in src/server/index.ts) and MUST NOT emit usage events,
+// so neither the fatal handlers nor the PostHog CLI client are armed for
+// it. All of this is a no-op while the carrier placeholders are empty.
 const telemetryVerb = routedArgs[0];
 await maybeRunFirstRunPrompt();
 if (telemetryVerb !== 'serve') {
-  await initSentryCli(VERSION);
-  setTelemetryVerbTag(telemetryVerb);
+  installFatalCrashHandlers({ argv: routedArgs, verb: telemetryVerb ?? '' });
   await initUsageCli();
 }
 
@@ -175,9 +177,10 @@ const exitCode = await cli.run(parsedCommand, cliRunContext);
 // active, see spec/telemetry.md §Usage event taxonomy). One event per
 // invocation, named `cli.<verb>` (guarded against the registered closed set
 // so a typo cannot mint a junk event), carrying the NAMES of the flags it was
-// given (never their values) and, on a scan, the executed-extractor set the
-// scan verb stashed via `setScanExtensions`. `sm serve` never armed a usage
-// client, so this is a no-op for it.
+// given (never their values) and, when the verb involved extensions (scan's
+// extractor walk, enrich's deterministic pass, the jobs lifecycle), the id
+// set the verb stashed via `addInvocationExtensions`. `sm serve` never armed
+// a usage client, so this is a no-op for it.
 if (telemetryVerb !== undefined && telemetryVerb !== '') {
   const knownVerbs = new Set(
     registeredVerbPaths(cli)
@@ -214,7 +217,16 @@ await flushUsageCli();
 // See `cli/util/flush-stdio.ts`.
 await flushStdio();
 
-process.exit(exitCode);
+// The fatal crash handler owns the exit once it fired: a verb whose
+// `run()` promise still RESOLVES after a detached crash (the
+// `intentional-fail` bounded fallback timer is the canonical case) lets
+// this tail run while the crash-consent prompt is still waiting on the
+// operator; exiting here would kill the process mid-question. The handler
+// always exits (its prompt wait is bounded), so skipping the exit can
+// never hang the process.
+if (!isHandlingFatalCrash()) {
+  process.exit(exitCode);
+}
 
 /**
  * Decide whether `args` is a bare `sm` invocation that should fan out

@@ -68,7 +68,14 @@ describe('buildUiIntegrations (privacy posture)', () => {
       [make('BrowserSession'), make('Breadcrumbs'), make('GlobalHandlers')],
     );
     expect(out.some((i) => i.name === 'BrowserSession')).toBe(false);
-    expect(out.some((i) => i.name === 'GlobalHandlers')).toBe(true);
+  });
+
+  it('drops GlobalHandlers: capture happens only after the per-incident consent', () => {
+    const out = buildUiIntegrations(
+      () => makeBreadcrumbs(),
+      [make('GlobalHandlers'), make('Breadcrumbs')],
+    );
+    expect(out.some((i) => i.name === 'GlobalHandlers')).toBe(false);
   });
 
   it('reconfigures Breadcrumbs to disable console/fetch/xhr/dom (the path/url-bearing sources)', () => {
@@ -88,8 +95,8 @@ describe('buildUiIntegrations (privacy posture)', () => {
   it('passes every other default integration through untouched', () => {
     const out = buildUiIntegrations(
       () => makeBreadcrumbs(),
-      [make('GlobalHandlers'), make('LinkedErrors'), make('HttpContext')],
+      [make('LinkedErrors'), make('HttpContext'), make('Dedupe')],
     );
-    expect(out.map((i) => i.name)).toEqual(['GlobalHandlers', 'LinkedErrors', 'HttpContext']);
+    expect(out.map((i) => i.name)).toEqual(['LinkedErrors', 'HttpContext', 'Dedupe']);
   });
 });

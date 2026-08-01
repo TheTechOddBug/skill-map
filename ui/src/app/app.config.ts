@@ -23,6 +23,7 @@ import { SmTitleStrategy } from './services/title-strategy';
 import { UpdateCheckService } from './services/update-check';
 import { initUiSentry } from './core/telemetry/sentry-init';
 import { initUiUsage, registerUsageSuperProps } from './core/telemetry/posthog-init';
+import { CrashReportConsentService } from './core/telemetry/crash-report-consent';
 import { SentryUiErrorHandler } from './core/telemetry/sentry-error-handler';
 import { UsageTrackerService } from './services/usage-tracker';
 
@@ -83,6 +84,9 @@ export const appConfig: ApplicationConfig = {
     // bundle (dynamic-imported only on the active path in
     // `sentry-init.ts`). Capture starts working the moment a real DSN
     // lands and the operator opts in, with no provider changes.
+    // Under per-incident consent the wrapper never captures directly: it
+    // hands the error to CrashReportConsentService (dedupe + consent
+    // dialog + capture-on-accept), see the handler's doc block.
     { provide: ErrorHandler, useClass: SentryUiErrorHandler },
     provideRouter(routes, withComponentInputBinding()),
     { provide: TitleStrategy, useClass: SmTitleStrategy },
@@ -176,11 +180,19 @@ export const appConfig: ApplicationConfig = {
       // the tracker (router + theme wiring) and lets us register the initial
       // theme super-property once the SDK activates below.
       const usageTracker = inject(UsageTrackerService);
+      const crashConsent = inject(CrashReportConsentService);
       try {
         const [preferences, health] = await Promise.all([
           dataSource.getPreferences(),
           dataSource.health(),
         ]);
+        // Per-incident crash-report consent: the service needs the
+        // release / environment facts for a late (accept-time) SDK arm.
+        // A fetch failure leaves the defaults (no release, prod).
+        crashConsent.configure({
+          release: health.implVersion ? `skill-map-cli@${health.implVersion}` : null,
+          environment: preferences.telemetry.environment,
+        });
         await Promise.all([
           initUiSentry({
             consentEnabled: preferences.telemetry.errorsEnabled,

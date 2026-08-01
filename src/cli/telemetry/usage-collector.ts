@@ -46,14 +46,16 @@ export function qualifyExtensionForUsage(qualifiedId: string): string {
 }
 
 /**
- * Build the `extensions` property the `cli.<verb>` event carries on a scan:
- * every executed extension id mapped through {@link qualifyExtensionForUsage},
+ * Build the `extensions` property the `cli.<verb>` event carries on the
+ * verbs that execute or queue extensions (scan's extractor walk, enrich's
+ * deterministic pass, the jobs submit / claim / record lifecycle): every
+ * involved extension id mapped through {@link qualifyExtensionForUsage},
  * deduped and sorted into a stable set. Presence only; the result never
  * encodes how many times an extension ran or how large the project is.
  */
-export function buildScanExtensionSet(executedExtensionIds: Iterable<string>): string[] {
+export function buildUsageExtensionSet(extensionIds: Iterable<string>): string[] {
   const out = new Set<string>();
-  for (const id of executedExtensionIds) {
+  for (const id of extensionIds) {
     out.add(qualifyExtensionForUsage(id));
   }
   return [...out].sort();

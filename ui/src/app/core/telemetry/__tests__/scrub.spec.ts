@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { HOME_PLACEHOLDER, scrubEvent, scrubString } from '../scrub';
+import {
+  HOME_PLACEHOLDER,
+  QUERY_VALUE_PLACEHOLDER,
+  scrubEvent,
+  scrubString,
+} from '../scrub';
 
 /**
  * Hostile-input coverage for the UI scrubber. Mirrors the CLI suite at
@@ -67,6 +72,37 @@ describe('scrubString', () => {
   it('leaves a string with no path untouched', () => {
     expect(scrubString('TypeError: cannot read property')).toBe(
       'TypeError: cannot read property',
+    );
+  });
+});
+
+describe('scrubString, masked URL query parameters', () => {
+  it('masks the percent-encoded node path in $current_url, keeps closed-enum params', () => {
+    expect(
+      scrubString(
+        'http://127.0.0.1:4242/?kinds=skill&path=.claude%2Fskills%2Fformularios-partes%2FSKILL.md',
+      ),
+    ).toBe(`http://127.0.0.1:4242/?kinds=skill&path=${QUERY_VALUE_PLACEHOLDER}`);
+  });
+
+  it('masks the operator-typed search text, stops at the next param', () => {
+    expect(scrubString('/?search=budget%20plan&favoritesOnly=true')).toBe(
+      `/?search=${QUERY_VALUE_PLACEHOLDER}&favoritesOnly=true`,
+    );
+  });
+
+  it('never touches a lookalike parameter name', () => {
+    expect(scrubString('/x?depath=keep&pathway=keep')).toBe('/x?depath=keep&pathway=keep');
+  });
+
+  it('masks $current_url through the scrubEvent walk', () => {
+    const event = {
+      event: 'ui.view.workspace',
+      properties: { $current_url: 'http://localhost:4242/?path=agents%2Fmain.md' },
+    };
+    const out = scrubEvent(event);
+    expect(out.properties.$current_url).toBe(
+      `http://localhost:4242/?path=${QUERY_VALUE_PLACEHOLDER}`,
     );
   });
 });

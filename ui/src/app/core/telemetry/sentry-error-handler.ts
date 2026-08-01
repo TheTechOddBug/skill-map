@@ -1,32 +1,31 @@
 /**
- * Angular `ErrorHandler` that forwards uncaught errors to the UI Sentry
- * client (`spec/telemetry.md`, surface `skill-map-ui`).
+ * Angular `ErrorHandler` feeding the per-incident crash-report consent
+ * flow (`spec/telemetry.md` §Per-incident crash-report consent).
  *
  * This wrapper exists instead of `Sentry.createErrorHandler()` so the
- * `@sentry/angular` SDK stays OUT of the eager bundle: it imports only
- * `captureUiException` from `sentry-init.ts`, which dynamic-imports the
- * SDK and is a no-op until telemetry actually activates (real DSN +
- * operator consent). While the feature is dormant (always, today) this
- * handler behaves exactly like Angular's default: it logs to the console
- * and nothing leaves the browser.
- *
- * The forward is unconditional and harmless: `captureUiException` short
- * -circuits to nothing until the SDK is loaded and initialised, and when
- * it is, scrubbing still runs in the SDK `beforeSend` hook so no raw
- * error escapes un-scrubbed.
+ * `@sentry/angular` SDK stays OUT of the eager bundle, and, under the
+ * per-incident model, so nothing is ever captured before the operator
+ * answered: the handler never calls `captureUiException` itself. It logs
+ * to the console (Angular's default behaviour) and hands the error to
+ * `CrashReportConsentService`, which dedupes, opens the consent dialog,
+ * and captures only on an accept. While the surface is dormant (empty
+ * DSN, demo mode) the hand-off is a no-op and this handler behaves
+ * exactly like Angular's default.
  */
 
-import { ErrorHandler, Injectable } from '@angular/core';
+import { ErrorHandler, Injectable, inject } from '@angular/core';
 
-import { captureUiException } from './sentry-init';
+import { CrashReportConsentService } from './crash-report-consent';
 
 @Injectable()
 export class SentryUiErrorHandler implements ErrorHandler {
+  private readonly crashConsent = inject(CrashReportConsentService);
+
   handleError(error: unknown): void {
     // Preserve Angular's default behaviour: surface the error in the
     // console for local debugging regardless of telemetry state.
     console.error(error);
-    // No-op until telemetry is active (dormant by default).
-    captureUiException(error);
+    // Per-incident consent: dedupe + dialog + capture-on-accept.
+    this.crashConsent.offer(error);
   }
 }

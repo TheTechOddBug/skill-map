@@ -43,6 +43,7 @@ import {
   DbSchemaDriftError,
   DbVersionMismatchError,
 } from '../../core/sqlite/db-version-check.js';
+import { maybeOfferCrashReport } from '../telemetry/crash-consent.js';
 import { UTIL_TEXTS } from '../i18n/util.texts.js';
 import { ansiFor, type IAnsi } from './ansi.js';
 import { DEFAULT_EXIT_CODES, ExitCode, type TExitCode } from './exit-codes.js';
@@ -181,6 +182,7 @@ export abstract class SmCommand extends Command {
         return ExitCode.Error;
       }
       this.renderUnhandledError(err);
+      await this.offerCrashReport(err);
       return ExitCode.Error;
     } finally {
       // `run()` may opt out by setting `this.emitElapsed = false`
@@ -202,6 +204,30 @@ export abstract class SmCommand extends Command {
    * §Exit codes). Renders the block on stderr; `--log debug` keeps the
    * stack reachable for debugging. The caller returns `ExitCode.Error`.
    */
+  /**
+   * Per-incident crash-report consent (spec/telemetry.md §Per-incident
+   * crash-report consent), offered ONLY on the unhandled branch: the typed
+   * advisories are operator errors, not crashes. Emits the elapsed line
+   * first (and disarms the `finally`) so the measurement excludes operator
+   * think-time and the prompt is the last thing on the terminal. The flow
+   * can never throw or alter the exit code.
+   */
+  private async offerCrashReport(err: unknown): Promise<void> {
+    if (this.emitElapsed && this.elapsed !== null) {
+      emitDoneStderr(this.context.stderr, this.elapsed, this.quiet);
+      this.emitElapsed = false;
+    }
+    await maybeOfferCrashReport(err, {
+      stdin: this.context.stdin,
+      stderr: this.context.stderr as NodeJS.WritableStream & { isTTY?: boolean },
+      json: this.json,
+      quiet: this.quiet,
+      noColor: this.noColor,
+      verb: this.path?.join(' ') ?? '',
+      level: 'error',
+    });
+  }
+
   private renderUnhandledError(err: unknown): void {
     const ansi = this.ansiFor('stderr');
     this.context.stderr.write(

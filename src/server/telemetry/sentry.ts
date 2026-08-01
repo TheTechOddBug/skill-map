@@ -6,14 +6,19 @@
  * constant to `''` to force it dormant), and the operator has opted in. The
  * gate is shared with the CLI via `isTelemetryActive`.
  *
- * `sm serve` MUST init only the BFF, not the CLI, so the two never register
- * on one global client; the entry point enforces that by skipping
- * `initSentryCli` for the `serve` verb. `@sentry/node` is dynamic-imported
- * (lazy) so a server with telemetry off never loads it (it drags in
- * OpenTelemetry instrumentation with a `module.register()` side effect).
+ * `sm serve` MUST arm only the BFF client, never the CLI's, so the two
+ * never register on one global client; the entry point enforces that by
+ * skipping the CLI fatal crash handlers for the `serve` verb (and the
+ * crash-consent gate returns `silent` for it). The BFF also stays on the
+ * toggle-only model: it has no interactive operator to ask, so the
+ * per-incident consent prompt (spec/telemetry.md §Per-incident
+ * crash-report consent) explicitly excludes it. `@sentry/node` is
+ * dynamic-imported (lazy) so a server with telemetry off never loads it
+ * (it drags in OpenTelemetry instrumentation with a `module.register()`
+ * side effect).
  *
- * Unlike the CLI, the BFF registers no uncaught/unhandled integrations: a
- * long-running server should not capture-and-exit on every stray rejection.
+ * The BFF registers no uncaught/unhandled integrations: a long-running
+ * server should not capture-and-exit on every stray rejection.
  * Request-path errors are captured by the middleware below, which wraps
  * `next()`, tags the route + method, reports, and re-throws so the global
  * `app.onError` still formats the HTTP response.

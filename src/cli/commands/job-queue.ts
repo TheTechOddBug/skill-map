@@ -94,6 +94,7 @@ import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { tryParseInt } from '../util/option-validators.js';
 import { JOBS_QUEUE_TEXTS as T } from '../i18n/jobs-queue.texts.js';
 import { appendOperation } from '../../core/operations-log.js';
+import { addInvocationExtensions } from '../telemetry/posthog-init.js';
 import { pushJobEvent } from '../util/job-event-push.js';
 import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { readActiveSuppressions } from '../util/sidecar-suppressions.js';
@@ -643,6 +644,11 @@ export class JobSubmitCommand extends SmCommand {
     const refused = outcomes.filter(
       (o): o is Exclude<TSubmitOutcome, { kind: 'created' }> => o.kind !== 'created',
     );
+    // Usage analytics (opt-in, default OFF): the queued extension rides the
+    // `cli.<verb>` event as `extensions` (third-party ids collapse and the
+    // set dedupes at emit). One entry per created job, so a fully refused
+    // submit contributes nothing. See spec/telemetry.md.
+    addInvocationExtensions(submitted.map(() => prepared.extensionId));
     // Live-transition push per created job (spec/job-events.md §Transport /
     // §job.submitted): one queue-mode runId spans the whole fan-out (one
     // invocation = one run). After every submit committed; cannot throw.
@@ -1187,6 +1193,9 @@ export class JobClaimCommand extends SmCommand {
     claim: { id: string; nonce: string; content: string; job: Job },
     cwd: string,
   ): Promise<TExitCode> {
+    // Usage analytics (opt-in, default OFF): the claimed job's extension
+    // rides the `cli.<verb>` event as `extensions`. See spec/telemetry.md.
+    addInvocationExtensions([claim.job.extensionId]);
     // Live-transition push (spec/job-events.md §Transport / §job.claimed):
     // the event data is read from the freshly claimed row the engine
     // returned. Runs after the claim committed; cannot throw, never touches

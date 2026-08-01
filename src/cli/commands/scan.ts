@@ -15,8 +15,7 @@ import { relativeIfBelow } from '../util/path-display.js';
 import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { appendOperation } from '../../core/operations-log.js';
 import { runScanForCommand } from '../../core/runtime/scan-runner.js';
-import { setScanExtensions } from '../telemetry/posthog-init.js';
-import { buildScanExtensionSet } from '../telemetry/usage-collector.js';
+import { addInvocationExtensions } from '../telemetry/posthog-init.js';
 import { parseWatchBackend, runWatchLoop } from './watch.js';
 
 /**
@@ -187,11 +186,11 @@ export class ScanCommand extends SmCommand {
     });
 
     if (outcome.kind === 'ok') {
-      // Usage analytics (opt-in, default OFF). Stash the set of built-in
-      // extractors that ran (third-party ids collapsed to `external_plugin`,
-      // presence only) so the single `cli.<verb>` event emitted at exit carries
-      // it as `extensions`. See spec/telemetry.md.
-      setScanExtensions(buildScanExtensionSet(outcome.executedExtensionIds));
+      // Usage analytics (opt-in, default OFF). Stash the set of extractors
+      // that ran (third-party ids collapse to `external_plugin` at emit,
+      // presence only) so the single `cli.<verb>` event emitted at exit
+      // carries it as `extensions`. See spec/telemetry.md.
+      addInvocationExtensions(outcome.executedExtensionIds);
       if (!this.dryRun) {
         appendOperation(defaultRuntimeContext().cwd, {
           op: 'scan',

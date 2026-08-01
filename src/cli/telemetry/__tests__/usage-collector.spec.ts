@@ -13,7 +13,7 @@ import { listBuiltIns } from '../../../plugins/built-ins.js';
 import {
   BUILT_IN_PLUGIN_IDS,
   buildCliVerbProperties,
-  buildScanExtensionSet,
+  buildUsageExtensionSet,
   cliVerbEventName,
   envUsageProps,
   extractFlagNames,
@@ -41,9 +41,9 @@ describe('qualifyExtensionForUsage', () => {
   });
 });
 
-describe('buildScanExtensionSet', () => {
+describe('buildUsageExtensionSet', () => {
   it('dedupes, sorts, and collapses third-party ids', () => {
-    const out = buildScanExtensionSet([
+    const out = buildUsageExtensionSet([
       'core/markdown-link',
       'core/markdown-link',
       'claude/at-directive',
@@ -58,7 +58,7 @@ describe('buildScanExtensionSet', () => {
   });
 
   it('returns an empty array for no executions', () => {
-    assert.deepEqual(buildScanExtensionSet([]), []);
+    assert.deepEqual(buildUsageExtensionSet([]), []);
   });
 });
 

@@ -15,10 +15,10 @@
  *      (`telemetry.usageCliEnabled === true` in `~/.skill-map/settings.json`).
  *
  * When active, only the allow-listed `cli.<verb>` event (one per invocation,
- * carrying the executed-extractor set on a scan) is sent, keyed by the shared
- * anonymous `distinct_id`. Every event is run
- * through the pure `scrubEvent` scrubber in `before_send` before it leaves
- * the machine, and client IP / geo enrichment is disabled.
+ * carrying the involved extension-id set on the verbs that execute or queue
+ * extensions) is sent, keyed by the shared anonymous `distinct_id`. Every
+ * event is run through the pure `scrubEvent` scrubber in `before_send`
+ * before it leaves the machine, and client IP / geo enrichment is disabled.
  */
 
 import type { EventMessage } from 'posthog-node';
@@ -32,6 +32,7 @@ import {
 } from '../util/user-settings-store.js';
 import {
   buildCliVerbProperties,
+  buildUsageExtensionSet,
   cliVerbEventName,
   envUsageProps,
 } from './usage-collector.js';
@@ -121,37 +122,46 @@ export function captureUsage(event: string, properties: Record<string, unknown>)
 }
 
 /**
- * The executed built-in extractor set from the in-flight scan, stashed so the
- * single per-invocation `cli.<verb>` event can carry it. `null` for any verb
- * that is not a scan. Module state because the scan verb (which has the set)
- * and the entry point (which emits the one event after the verb returns) are
- * different call sites.
+ * The RAW extension ids involved in the in-flight invocation (executed
+ * extractors on a scan, the deterministic pass on an enrich, the job's
+ * extension on the queue lifecycle), stashed so the single per-invocation
+ * `cli.<verb>` event can carry them. Module state because the verbs (which
+ * have the ids) and the entry point (which emits the one event after the
+ * verb returns) are different call sites. Third-party collapse + dedupe +
+ * sort happen at emit time through `buildUsageExtensionSet`, one choke
+ * point for the whole surface.
  */
-let pendingScanExtensions: readonly string[] | null = null;
+let pendingInvocationExtensions: string[] = [];
 
 /**
- * Record the executed-extractor set for the current scan so the `cli.<verb>`
- * event folds it in as `extensions`. Called from the scan verb; the entry
- * point reads and clears it when it emits.
+ * Record extension ids involved in the current invocation so the
+ * `cli.<verb>` event folds them in as `extensions`. Accumulates across
+ * calls (an enrich adds extractor ids and action ids from different
+ * spots); the entry point reads and clears the set when it emits. Raw
+ * qualified ids go in; the collapse to `external_plugin` happens at emit.
  */
-export function setScanExtensions(extensions: readonly string[]): void {
-  pendingScanExtensions = extensions;
+export function addInvocationExtensions(extensionIds: Iterable<string>): void {
+  pendingInvocationExtensions.push(...extensionIds);
 }
 
 /**
  * Emit the single usage event for this invocation: the event name is
  * `cli.<verb>` (guarded against the registered closed set, unknown collapses
- * to `cli.unknown`), and the properties carry the flag names plus, on a scan,
- * the executed-extractor set (read + cleared here so it never bleeds into a
- * later verb). No-op while the surface is dormant.
+ * to `cli.unknown`), and the properties carry the flag names plus, when the
+ * verb involved extensions, the deduped / collapsed / sorted id set (read +
+ * cleared here so it never bleeds into a later verb). No-op while the
+ * surface is dormant.
  */
 export function captureCliInvocation(
   verb: string,
   flagNames: Iterable<string>,
   knownVerbs: ReadonlySet<string>,
 ): void {
-  const extensions = pendingScanExtensions;
-  pendingScanExtensions = null;
+  const extensions =
+    pendingInvocationExtensions.length > 0
+      ? buildUsageExtensionSet(pendingInvocationExtensions)
+      : null;
+  pendingInvocationExtensions = [];
   captureUsage(cliVerbEventName(verb, knownVerbs), buildCliVerbProperties(flagNames, extensions));
 }
 
@@ -175,5 +185,5 @@ export async function flushUsageCli(timeoutMs = 2000): Promise<void> {
  */
 export function resetUsageTelemetryForTests(): void {
   client = null;
-  pendingScanExtensions = null;
+  pendingInvocationExtensions = [];
 }

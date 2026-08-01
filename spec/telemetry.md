@@ -65,8 +65,14 @@ narrow `$HOME` exception in [`cli-contract.md`](./cli-contract.md) §User-settin
 Rules:
 
 1. **Default OFF.** When a toggle is absent or `false`, the matching SDK is
-   not initialised, no endpoint is contacted, and there is zero added latency.
-   MUST hold on every surface (CLI, BFF, UI).
+   not initialised at boot, no endpoint is contacted proactively, and there is
+   zero added latency. On the usage surface this is absolute. On the errors
+   surface a caught crash MAY still ask the operator per incident (see
+   §Per-incident crash-report consent below); in a non-interactive context
+   nothing is ever sent without the persisted opt-in, and an interactive crash
+   always shows the consent question, with its default and bounded wait
+   announced, before anything is sent. MUST hold on every surface (CLI, BFF,
+   UI).
 2. **One shared consent prompt, TTY only, deferred to the second eligible
    run.** A run is "eligible" when the prompt could appear: an interactive
    terminal (`process.stdout.isTTY` true), at least one carrier configured
@@ -103,6 +109,47 @@ Rules:
    exposes it read-only (see below) so the browser uses the same id; it MUST
    NOT be writable over the wire.
 
+### Per-incident crash-report consent (errors surface)
+
+The errors surface carries a second consent path, scoped to a single event:
+when a crash is caught on an interactive surface, the implementation asks the
+operator whether to send THAT report, even when `errorsEnabled` is `false` or
+absent. Under this contract `errorsEnabled` is not a master switch for the
+errors surface; it governs only the **non-interactive fallback**:
+
+1. **The prompt appears on every promptable crash.** CLI: a crash is
+   promptable when stdin and stderr are both interactive TTYs, the run is not
+   CI, and the invocation did not pass `--json` or `-q` (a machine consumer
+   must never block on a consent question). UI: every unhandled runtime error
+   is promptable (a browser session is interactive by definition), but
+   implementations MUST bound repetition: duplicate errors are deduplicated
+   per session and at most one consent dialog is open at a time.
+2. **The default answer is Yes.** An empty answer sends the report; an
+   explicit no always wins and is honoured unconditionally. The CLI prompt
+   MAY bound the wait and resolve to Yes, so an unattended terminal still
+   reports the crash; the bound and its Yes resolution MUST be announced on
+   the prompt itself (the operator is told what silence does).
+3. **Nothing is persisted per incident.** A yes sends exactly one report and
+   MUST NOT flip `errorsEnabled`; a no sends nothing and is not remembered.
+   The next crash asks again.
+4. **Non-promptable contexts fall back to the toggle.** With `errorsEnabled`
+   `true` the report is sent automatically; otherwise nothing is sent. This
+   preserves the pre-incident-consent semantics for CI, pipes, `--json`, and
+   `-q`.
+5. **Dormancy gates are unchanged and take precedence.** The
+   `SKILL_MAP_TELEMETRY=0` kill switch or an empty DSN mean no prompt and no
+   send, ever.
+6. **Covered error classes.** CLI: process-fatal errors (uncaught exceptions
+   and unhandled rejections; the process exits `1` after the flow) and
+   per-verb errors caught by the command boundary (the documented exit code
+   `2` is unchanged). UI: unhandled runtime errors reaching the Angular
+   `ErrorHandler`. The BFF (`sm serve`) is excluded: it has no interactive
+   operator to ask and keeps the toggle-only model.
+7. **Scrubbed preview.** The prompt MUST offer a details view rendering the
+   would-be payload after the same pure scrubber that runs in the pre-send
+   hook, so the operator can inspect what would leave the machine before
+   answering.
+
 ## Surface: Errors (Sentry)
 
 Three surfaces report independently so a crash is attributed to the right
@@ -125,8 +172,10 @@ emit usage events; it reports only unhandled errors in the request path.
 
 The error surfaces send **no proactive beacons**: no release-health sessions,
 no transactions, no performance traces. An event leaves the machine ONLY when
-an error is captured. The browser SDK MUST drop the default session
-integration so no session is sent on page load or route change.
+an error is captured, and capture itself is consent-gated: the persisted
+opt-in in non-interactive contexts, or the per-incident answer (§Per-incident
+crash-report consent) everywhere else. The browser SDK MUST drop the default
+session integration so no session is sent on page load or route change.
 
 ### Error wire format
 
@@ -191,7 +240,7 @@ native `environment` field on error events.
 
 | Event | Surface | Properties |
 |---|---|---|
-| `cli.<verb>` | CLI | `flags` (array of flag NAMES that were set), and on a scan, `extensions` (deduped, sorted set of built-in extractor ids that ran in the walk). One event per invocation; the event NAME is the verb (`cli.scan`, `cli.check`, ...), restricted to the registered closed verb set so an unknown command collapses to `cli.unknown` (a typo never mints a junk event name). |
+| `cli.<verb>` | CLI | `flags` (array of flag NAMES that were set), and, on the verbs that execute or queue extensions, `extensions` (deduped, sorted set of the built-in extension ids involved): the executed extractor set on `cli.scan`, the extractor and enrichment-action ids the deterministic pass refreshed on `cli.enrich`, and the job's extension id on the probabilistic queue lifecycle (`cli.jobs` submit / claim, `cli.record`). One event per invocation; the event NAME is the verb (`cli.scan`, `cli.check`, ...), restricted to the registered closed verb set so an unknown command collapses to `cli.unknown` (a typo never mints a junk event name). |
 | `ui.view.<view>` | UI | the opened view is the event name (`ui.view.map`, `ui.view.files`), from a closed route set. No properties beyond the common env facts. One per route change. |
 | `ui.feature.<feature>` | UI | the opened feature is the event name (`ui.feature.inspector`, `ui.feature.settings`), from a closed set. |
 | `plugin.apply` | CLI + UI | `enabled` / `disabled`: deduped, sorted sets of the plugin / extension ids toggled (built-in ids pass through, third-party collapse to `external_plugin`). Emitted on `sm plugins enable` / `disable` and on the Settings plugins Apply. |
@@ -200,11 +249,12 @@ Rules:
 
 - **Flag names only, never values.** `--max-nodes 500` reports the name
   `max-nodes`, never `500`.
-- **Extractor ids are presence, not counts.** `extensions` is a set; it never
-  carries how many nodes an extractor processed or project size. Only
-  extractors that ran in the walk appear (cached extractors on an incremental
-  scan do not), so the signal is "which extractors this project exercises",
-  aggregated across runs.
+- **Extension ids are presence, not counts.** `extensions` is a set; it never
+  carries how many nodes an extension processed or project size. Only
+  extensions that actually ran (or, on a submit, were queued) in that
+  invocation appear (cached extractors on an incremental scan do not), so the
+  signal is "which extensions this project exercises", aggregated across
+  runs.
 - **Third-party ids collapse.** Any extension id whose plugin is not a
   built-in MUST be replaced with `external_plugin` before the event leaves the
   machine. The allow-list is the set of plugin ids the implementation itself
@@ -227,6 +277,13 @@ payload is still walked). An event MUST have the following removed or replaced:
   `filename`, inside the error message, breadcrumb messages, any nested event
   or property field). The home directory is replaced with `<HOME>` and the OS
   username with `<USER>`.
+- **Path- or content-bearing URL query parameters.** Wherever a URL or query
+  string appears in an event (the SDK-attached `$current_url`, navigation
+  breadcrumbs, messages, any nested field), the VALUES of parameters that
+  carry node paths or operator-typed text (`path`, `search`) MUST be replaced
+  with a mask (`<masked>`). Closed-enum parameters (`kinds`, `linkKinds`,
+  `severities`, `favoritesOnly`) may pass through; any future parameter that
+  carries a path, a file name, or free text joins the masked list.
 - **File names of user content** (scanned markdown files).
 - **Markdown bodies, frontmatter values, annotation contents.** None of these
   are ever attached to an event.
@@ -261,8 +318,10 @@ As a second line of defense behind the client-side scrubber:
 The **consent model** (default OFF on every surface, the `telemetry` toggles
 and bookkeeping in `user-settings.schema.json`, the `SKILL_MAP_TELEMETRY=0`
 kill switch, prompt-once semantics) is stable as of the spec minor in which it
-lands. Loosening any default (anything other than OFF), removing the kill
-switch, or removing the consent gate is a major bump.
+lands. The per-incident crash-report path is part of that model: the stable
+invariant is that no error event leaves the machine without operator consent,
+persisted or per-incident. Loosening any default (anything other than OFF),
+removing the kill switch, or removing either consent gate is a major bump.
 
 The **two surfaces are independent.** Error and usage scope each evolve on
 their own minor bump. Adding a new usage event or property, or a new error tag

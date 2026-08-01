@@ -1,9 +1,13 @@
 /**
- * Unit tests for the CLI telemetry gate (`cli/telemetry/sentry-init.ts`).
- * Only the pure `isTelemetryActive` decision is exercised: it is the gate
- * `initSentryCli` consults, and it must stay OFF unless every condition
- * (no kill switch, real DSN, explicit consent) holds. No SDK is started
- * and no network is touched.
+ * Unit tests for the CLI Sentry gate + one-shot sender
+ * (`cli/telemetry/sentry-init.ts`).
+ *
+ * The pure gates (`isTelemetryActive`, `telemetryInactiveReason`) and the
+ * consent-resolved sender (`sendCrashReportOnce`) are exercised with an
+ * injected fake SDK loader, so no real SDK is loaded and no network is
+ * touched. The key semantic pinned here: `sendCrashReportOnce` does NOT
+ * re-check consent (the per-incident prompt IS the consent); only the two
+ * hard gates (kill switch, dormant DSN) block it.
  *
  * Consent is controlled by redirecting HOME to a tempdir (the user-settings
  * store is the only legitimate `os.homedir()` reader) and writing the file.
@@ -16,21 +20,25 @@ import { join } from 'node:path';
 import { after, afterEach, before, beforeEach, describe, it, mock } from 'node:test';
 
 import {
-  initSentryCli,
   isTelemetryActive,
   resetCliTelemetryForTests,
+  sendCrashReportOnce,
+  telemetryInactiveReason,
 } from '../sentry-init.js';
+import { VERSION } from '../../../version.js';
 
 /**
  * A stand-in for the `@sentry/node` namespace with spy functions, plus a
- * loader that hands it to `initSentryCli` so the init path is asserted
- * without loading the real SDK or touching the network.
+ * loader that hands it to `sendCrashReportOnce` so the arm/capture path is
+ * asserted without loading the real SDK or touching the network.
  */
-function makeFakeSentry() {
+function makeFakeSentry(flushResult = true) {
   return {
     init: mock.fn(),
-    onUncaughtExceptionIntegration: mock.fn(() => ({ name: 'onUncaughtException' })),
-    onUnhandledRejectionIntegration: mock.fn(() => ({ name: 'onUnhandledRejection' })),
+    setTag: mock.fn(),
+    captureException: mock.fn(),
+    flush: mock.fn(() => Promise.resolve(flushResult)),
+    close: mock.fn(() => Promise.resolve(true)),
   };
 }
 
@@ -131,44 +139,73 @@ describe('isTelemetryActive', () => {
   });
 });
 
-describe('initSentryCli (SDK spy, no network)', () => {
-  it('does not load or init the SDK when consent is off', async () => {
-    const fake = makeFakeSentry();
-    const l = loaderFor(fake);
-    await initSentryCli('1.0.0', l.load);
-    assert.equal(l.loaded(), 0, 'the SDK loader must not run when inactive');
-    assert.equal(fake.init.mock.callCount(), 0);
+describe('telemetryInactiveReason', () => {
+  it('is null when every gate is open', () => {
+    optIn();
+    assert.equal(telemetryInactiveReason(FAKE_DSN), null);
   });
 
-  it('does not load or init the SDK when the kill switch forces off', async () => {
+  it('names the consent gate when nothing was recorded', () => {
+    assert.equal(telemetryInactiveReason(FAKE_DSN), 'no-consent');
+  });
+
+  it('names the dormant DSN even after opt-in', () => {
+    optIn();
+    assert.equal(telemetryInactiveReason(''), 'dsn-dormant');
+  });
+
+  it('names the kill switch first, it overrides the other gates', () => {
+    optIn();
+    process.env['SKILL_MAP_TELEMETRY'] = '0';
+    assert.equal(telemetryInactiveReason(FAKE_DSN), 'kill-switch');
+    // Precedence: the switch wins over a dormant DSN too.
+    assert.equal(telemetryInactiveReason(''), 'kill-switch');
+  });
+});
+
+describe('sendCrashReportOnce (SDK spy, no network)', () => {
+  const boom = new Error('boom');
+
+  it('sends WITHOUT persisted consent: the per-incident answer is the consent', async () => {
+    // No settings file at all: under the old model this refused; under
+    // per-incident consent the caller already resolved the yes.
+    const fake = makeFakeSentry();
+    const l = loaderFor(fake);
+    const ok = await sendCrashReportOnce(boom, { verb: 'scan', level: 'error', loadSdk: l.load });
+    assert.equal(ok, true);
+    assert.equal(l.loaded(), 1);
+    assert.equal(fake.captureException.mock.callCount(), 1);
+  });
+
+  it('refuses under the kill switch without loading the SDK', async () => {
     optIn();
     process.env['SKILL_MAP_TELEMETRY'] = '0';
     const fake = makeFakeSentry();
     const l = loaderFor(fake);
-    await initSentryCli('1.0.0', l.load);
+    const ok = await sendCrashReportOnce(boom, { verb: 'scan', level: 'error', loadSdk: l.load });
+    assert.equal(ok, false);
     assert.equal(l.loaded(), 0);
-    assert.equal(fake.init.mock.callCount(), 0);
   });
 
-  it('inits with the errors-only config + cli surface tag when active', async () => {
-    optIn();
+  it('arms with the errors-only, no-auto-capture config', async () => {
     const fake = makeFakeSentry();
-    await initSentryCli('9.9.9', loaderFor(fake).load);
+    await sendCrashReportOnce(boom, { verb: 'scan', level: 'error', loadSdk: loaderFor(fake).load });
     assert.equal(fake.init.mock.callCount(), 1);
     const opts = fake.init.mock.calls[0]?.arguments[0];
     assert.ok(opts);
-    assert.equal(opts.release, 'skill-map-cli@9.9.9');
+    assert.equal(opts.release, `skill-map-cli@${VERSION}`);
     assert.equal(opts.tracesSampleRate, 0);
     assert.equal(opts.sendDefaultPii, false);
     assert.equal(opts.registerEsmLoaderHooks, false);
     assert.equal(opts.defaultIntegrations, false);
+    // The consent prompt owns capture; the SDK must never auto-capture.
+    assert.deepEqual(opts.integrations, []);
     assert.equal(opts.initialScope.tags.surface, 'cli');
   });
 
   it('wires beforeSend to the path scrubber', async () => {
-    optIn();
     const fake = makeFakeSentry();
-    await initSentryCli('1.0.0', loaderFor(fake).load);
+    await sendCrashReportOnce(boom, { verb: '', level: 'error', loadSdk: loaderFor(fake).load });
     const opts = fake.init.mock.calls[0]?.arguments[0];
     assert.ok(opts);
     const scrubbed = opts.beforeSend({ message: 'boom at /home/alice/secret/notes.md' });
@@ -176,13 +213,35 @@ describe('initSentryCli (SDK spy, no network)', () => {
     assert.doesNotMatch(scrubbed.message, /alice/);
   });
 
-  it('is idempotent: a second call does not reload or re-init', async () => {
-    optIn();
+  it('tags the verb, captures with the level, and flushes bounded', async () => {
+    const fake = makeFakeSentry();
+    await sendCrashReportOnce(boom, { verb: 'db dump', level: 'fatal', loadSdk: loaderFor(fake).load });
+    assert.deepEqual(fake.setTag.mock.calls[0]?.arguments, ['verb', 'db dump']);
+    const [captured, ctx] = fake.captureException.mock.calls[0]?.arguments ?? [];
+    assert.equal(captured, boom);
+    assert.deepEqual(ctx, { level: 'fatal' });
+    assert.deepEqual(fake.flush.mock.calls[0]?.arguments, [3_000]);
+  });
+
+  it('skips the verb tag when the verb is unknown', async () => {
+    const fake = makeFakeSentry();
+    await sendCrashReportOnce(boom, { verb: '', level: 'error', loadSdk: loaderFor(fake).load });
+    assert.equal(fake.setTag.mock.callCount(), 0);
+  });
+
+  it('arms once across two sends (cached client, loader runs once)', async () => {
     const fake = makeFakeSentry();
     const l = loaderFor(fake);
-    await initSentryCli('1.0.0', l.load);
-    await initSentryCli('1.0.0', l.load);
-    assert.equal(fake.init.mock.callCount(), 1);
+    await sendCrashReportOnce(boom, { verb: 'scan', level: 'error', loadSdk: l.load });
+    await sendCrashReportOnce(boom, { verb: 'scan', level: 'fatal', loadSdk: l.load });
     assert.equal(l.loaded(), 1);
+    assert.equal(fake.init.mock.callCount(), 1);
+    assert.equal(fake.captureException.mock.callCount(), 2);
+  });
+
+  it('reports false when the transport flush times out', async () => {
+    const fake = makeFakeSentry(false);
+    const ok = await sendCrashReportOnce(boom, { verb: 'scan', level: 'error', loadSdk: loaderFor(fake).load });
+    assert.equal(ok, false);
   });
 });

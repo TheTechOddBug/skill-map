@@ -24,9 +24,10 @@ export const TELEMETRY_PROMPT_TEXTS = {
   answerDetails: '[d]etails',
 
   // Disclosure shown on `[d]etails`, then the question is re-asked.
-  detailsSentTitle: 'Sent, only if you turn this on',
+  detailsSentTitle: 'Sent, only with your consent',
   detailsSent: [
-    'crashes: error name, code, message, and a path-stripped stack trace',
+    'crashes: error name, code, message, and a path-stripped stack trace;',
+    'sm asks on each crash, this choice governs non-interactive runs only',
     'usage: the command you ran and its flag names (never their values)',
     'usage: which built-in extractors ran, and which UI views you opened',
     'cli version, node major, os, arch, and a random anonymous id',
@@ -41,5 +42,5 @@ export const TELEMETRY_PROMPT_TEXTS = {
 
   // Confirmation lines (glyph added by the renderer).
   enabled: 'Telemetry on. Thanks. Turn error reports, CLI usage, and UI usage off independently in Settings.',
-  disabled: 'Telemetry off. You can turn any of it on later in Settings.',
+  disabled: 'Telemetry off. If something crashes, sm still asks before sending that one report (you can always say no). Turn any of it on later in Settings.',
 } as const;
