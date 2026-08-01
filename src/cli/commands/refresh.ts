@@ -67,6 +67,7 @@ import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js
 import { loadConfig } from '../../kernel/config/loader.js';
 import { enrichmentKindOfReportSchema } from '../../kernel/enrichments/enrichment-schema.js';
 import { generateExecutionId } from '../../kernel/jobs/index.js';
+import { makeExtensionLogger } from '../../kernel/util/extension-logger.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { buildSettingsResolver } from '../../core/config/plugin-settings.js';
@@ -689,6 +690,7 @@ export class RefreshCommand extends SmCommand {
       invoker: 'cli',
       now: () => new Date(),
       settings: resolveSettings(action),
+      log: makeExtensionLogger(qualifiedExtensionId(action.pluginId, action.id)),
     };
     if (action.io?.includes('network') === true) ctx.fetch = refreshFetch;
 

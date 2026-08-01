@@ -18,6 +18,7 @@ import { describe, it } from 'node:test';
 import { linkSelfLoopAnalyzer } from '../index.js';
 import type { IAnalyzerContext } from '../../../../../kernel/extensions/index.js';
 import type { Link, Node } from '../../../../../kernel/types.js';
+import { SILENT_EXTENSION_LOGGER } from '../../../../../kernel/adapters/silent-logger.js';
 
 function mockNode(over: Partial<Node>): Node {
   return {
@@ -51,6 +52,7 @@ function ctxWith(over: Partial<IAnalyzerContext>): IAnalyzerContext {
     nodes: [],
     links: [],
     settings: {},
+    log: SILENT_EXTENSION_LOGGER,
     emitContribution: () => {
       /* unused */
     },

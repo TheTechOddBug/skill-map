@@ -221,8 +221,10 @@ export {
   logLevelRank,
   parseLogLevel,
 } from './ports/logger.js';
-export { SilentLogger } from './adapters/silent-logger.js';
+export { SilentLogger, SILENT_EXTENSION_LOGGER } from './adapters/silent-logger.js';
 export { log, configureLogger, resetLogger, getActiveLogger } from './util/logger.js';
+export type { IExtensionLogger } from './util/extension-logger.js';
+export { makeExtensionLogger } from './util/extension-logger.js';
 
 // --- extension kinds (./extensions/...) --------------------------------
 export type {

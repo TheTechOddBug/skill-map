@@ -18,6 +18,7 @@
  */
 
 import type { IExtensionBase } from './base.js';
+import type { IExtensionLogger } from '../util/extension-logger.js';
 import type { Link, Node, Signal } from '../types.js';
 import type { IViewContribution, SlotPayload } from '../types/view-catalog.js';
 
@@ -132,6 +133,14 @@ export interface IExtractorContext extends IExtractorCallbacks {
    * a `storage.mode` in `plugin.json`. See `spec/plugin-kv-api.md`.
    */
   store?: unknown;
+  /**
+   * Diagnostic channel, stderr-bound, sanitised and prefixed with the
+   * qualified extension id. Silent below `warn` until the operator
+   * raises the level (`-v` / `--log-level`). NEVER write to stdout from
+   * an extension: it corrupts every `--json` payload. See
+   * `kernel/util/extension-logger.ts`.
+   */
+  log: IExtensionLogger;
 }
 
 /**

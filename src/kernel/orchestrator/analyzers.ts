@@ -30,6 +30,7 @@ import type { Issue, Link, Node, Severity, Signal, TConfidenceOp } from '../type
 import { applyConfidenceAdjustments, type IConfidenceAdjustment } from './confidence-score.js';
 import type { IRegisteredAnnotationKey } from '../types/annotation-catalog.js';
 import type { IRegisteredViewContribution, IViewContribution } from '../types/view-catalog.js';
+import { makeExtensionLogger } from '../util/extension-logger.js';
 import { tx } from '../util/tx.js';
 import { emitExtensionError, readDeclaredContributionRefs } from './extractors.js';
 
@@ -234,6 +235,7 @@ export async function runAnalyzers(
       // (`core/issue-counter`) read it to compute cross-analyzer
       // aggregates. Treat as read-only on the analyzer side.
       accumulatedIssues: issues,
+      log: makeExtensionLogger(qualifiedId),
       ...(referenceablePaths ? { referenceablePaths } : {}),
       ...(cwd ? { cwd } : {}),
       ...(reservedNodePaths ? { reservedNodePaths } : {}),

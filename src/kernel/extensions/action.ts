@@ -43,6 +43,7 @@
 
 import type { IExtensionBase } from './base.js';
 import type { TExecutionMode, Link, Node } from '../types.js';
+import type { IExtensionLogger } from '../util/extension-logger.js';
 import type { IViewContribution } from '../types/view-catalog.js';
 
 export type TActionWrite =
@@ -100,6 +101,14 @@ export interface IActionContext {
    * a fake transport. Absent on every other Action's context.
    */
   fetch?: typeof globalThis.fetch;
+  /**
+   * Diagnostic channel, stderr-bound, sanitised and prefixed with the
+   * qualified action id. Silent below `warn` until the operator raises
+   * the level (`-v` / `--log-level`). NEVER write to stdout from an
+   * extension: it corrupts every `--json` payload. See
+   * `kernel/util/extension-logger.ts`.
+   */
+  log: IExtensionLogger;
 }
 
 /**

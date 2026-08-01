@@ -25,6 +25,7 @@ import { enrichmentAction, parseGithubSource, type IGithubEnrichmentReport } fro
 import type { IActionContext } from '../../../../../kernel/extensions/index.js';
 import { sha256 } from '../../../../../kernel/orchestrator/node-build.js';
 import type { Node } from '../../../../../kernel/types.js';
+import { SILENT_EXTENSION_LOGGER } from '../../../../../kernel/adapters/silent-logger.js';
 
 const LOCAL_BODY = 'Body of the agent.\n';
 const LOCAL_BODY_HASH = sha256(LOCAL_BODY);
@@ -69,6 +70,7 @@ function makeCtx(
   settings: Record<string, unknown> = {},
 ): IActionContext {
   const ctx: IActionContext = {
+    log: SILENT_EXTENSION_LOGGER,
     node,
     nodeAbsolutePath: `/repo/${node.path}`,
     invoker: 'cli',

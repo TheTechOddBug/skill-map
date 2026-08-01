@@ -75,6 +75,7 @@ import { EConsentRequiredError, ESidecarWritersForbiddenError, ensureSidecarWrit
 import type { IAction, IActionContext, IActionResult, TActionWrite } from '../../kernel/extensions/index.js';
 import type { Kernel } from '../../kernel/index.js';
 import { installedDefaultEnabled } from '../../kernel/config/plugin-resolver.js';
+import { makeExtensionLogger } from '../../kernel/util/extension-logger.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
 import type { Node } from '../../kernel/types.js';
@@ -373,6 +374,7 @@ async function invokeAction(
     invoker: resolveGitAuthorName(cwd) ?? INVOKER_FALLBACK,
     now: () => new Date(),
     settings: {},
+    log: makeExtensionLogger(qualifiedExtensionId(action.pluginId, action.id)),
   };
   return await invoke<Record<string, unknown>, unknown>(body.input ?? {}, ctx);
 }

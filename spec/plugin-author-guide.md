@@ -249,6 +249,7 @@ Pure single-node analysis. **Never** read another node, the graph, or the databa
 - **`ctx.enrichNode(partial)`**, merge kernel-curated properties onto the node's enrichment layer (persisted into `node_enrichments`). **Strictly separate from the author frontmatter**, which is immutable from any Extractor. Use it for inferred facts (computed titles, summaries) the author did not write.
 - **`ctx.emitContribution(id, payload)`**, view contributions (see [View contributions](#view-contributions)).
 - **`ctx.store`**, plugin-scoped persistence, present only when `plugin.json` declares `storage`. See [`plugin-kv-api.md`](./plugin-kv-api.md).
+- **`ctx.log`**, the diagnostic channel (see [Logging](#logging)). Present on every extension context, not just the Extractor's.
 
 You can read `ctx.node.sidecar.*` freely: the per-`(node, extractor)` cache hashes the sidecar `annotations` block alongside the body, so a `.sm`-only edit invalidates the cached run automatically.
 
@@ -438,6 +439,25 @@ A plugin that persists state declares `storage` in its manifest:
 Backed by the kernel-owned `state_plugin_kvs` table. `ctx.store` exposes `get` / `set` / `list` / `delete`, scoped to your plugin and optionally to a node. No migrations, ready immediately. Documented in full at [`plugin-kv-api.md`](./plugin-kv-api.md).
 
 `kv` is the only mode: a plugin never owns tables in the project database. Data that needs relational shape (indexes, joins, a cache with TTL) lives outside skill-map's database, under your own control.
+
+## Logging
+
+Every extension context carries `ctx.log`, with one method per level: `trace`, `debug`, `info`, `warn`, `error`. Each takes a single message string.
+
+```javascript
+ctx.log.debug(`matched ${hits.length} refs in ${ctx.node.path}`);
+ctx.log.warn('token missing, skipping remote verification');
+```
+
+**Never write to stdout from an extension.** `console.log` lands on stdout, which carries the machine-readable payload of every `--json` invocation (`cli-contract.md` §Machine-readable output rules), so one stray line corrupts the output an operator is piping into `jq`. `ctx.log` is stderr-bound by construction, which is the whole reason to prefer it.
+
+Three properties the kernel guarantees at this boundary:
+
+- **Level.** The CLI boots at `warn`, so `info` / `debug` / `trace` stay silent until the operator asks (`-v` / `-vv` / `-vvv`, or `--log-level`). Log freely at the low levels; a chatty extension costs a normal run nothing.
+- **Sanitisation.** Messages are stripped of ANSI escapes and control bytes before they reach the terminal. Do not bother colouring your own output, the escapes will not survive.
+- **Attribution.** Every line is prefixed with your qualified extension id (`[<plugin>/<extension>]`), including the lines of a multi-line message. An extension cannot emit a line that reads as kernel output.
+
+`ctx.log` grants no capability an extension did not already have (a loaded extension runs in-process), so it is not a privilege boundary. What it is NOT auditing for you: **secrets**. A message you log is a message the operator sees and may paste into an issue. Never log a resolved `secret` setting, an Authorization header, or a raw remote response that might embed one.
 
 ### Opt-in write validation
 

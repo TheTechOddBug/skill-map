@@ -31,6 +31,7 @@ import type { IHook, IHookActionInfo, IHookContext, THookTrigger } from './hook.
 import type { Node } from '../types.js';
 import type { ProgressEmitterPort, ProgressEvent } from '../ports/progress-emitter.js';
 import { qualifiedExtensionId } from '../registry.js';
+import { makeExtensionLogger } from '../util/extension-logger.js';
 import { formatErrorMessage } from '../util/format-error.js';
 import { log } from '../util/logger.js';
 
@@ -151,6 +152,7 @@ function buildHookContext(
     // `ctx.settings.<id>` without a presence check. The composer
     // populated `resolvedSettings` on each composed hook.
     settings: _hook.resolvedSettings ?? {},
+    log: makeExtensionLogger(qualifiedExtensionId(_hook.pluginId, _hook.id)),
     event: {
       type: trigger,
       // Hook events carry ISO-8601 strings (`IHookEvent.timestamp`);

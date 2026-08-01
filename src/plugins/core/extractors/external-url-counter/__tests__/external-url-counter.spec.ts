@@ -4,6 +4,7 @@ import { deepStrictEqual, strictEqual } from 'node:assert';
 import { externalUrlCounterExtractor } from '../index.js';
 import type { IExtractorContext, IEmittedNode } from '../../../../../kernel/extensions/index.js';
 import type { Node, Signal } from '../../../../../kernel/types.js';
+import { SILENT_EXTENSION_LOGGER } from '../../../../../kernel/adapters/silent-logger.js';
 
 function mockNode(path: string): Node {
   return {
@@ -29,6 +30,7 @@ function makeContext(node: Node, body: string, settings: Record<string, unknown>
   const contributions: Array<{ payload: unknown }> = [];
   const virtualNodes: IEmittedNode[] = [];
   const ctx: IExtractorContext = {
+    log: SILENT_EXTENSION_LOGGER,
     node,
     body,
     frontmatter: node.frontmatter ?? {},

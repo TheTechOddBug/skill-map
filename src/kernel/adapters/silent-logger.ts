@@ -12,6 +12,7 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
 
 import type { LoggerPort } from '../ports/logger.js';
+import type { IExtensionLogger } from '../util/extension-logger.js';
 
 export class SilentLogger implements LoggerPort {
   trace(): void {}
@@ -20,3 +21,19 @@ export class SilentLogger implements LoggerPort {
   warn(): void {}
   error(): void {}
 }
+
+/**
+ * The `ctx.log` counterpart: an extension logger that discards
+ * everything. For callers that compose an extension context with no
+ * operator watching (unit tests, in-memory harnesses), so the required
+ * `log` field never has to be faked inline. Lives here rather than
+ * beside `makeExtensionLogger` to reuse this file's documented
+ * `no-empty-function` exemption instead of opening a second one.
+ */
+export const SILENT_EXTENSION_LOGGER: IExtensionLogger = {
+  trace(): void {},
+  debug(): void {},
+  info(): void {},
+  warn(): void {},
+  error(): void {},
+};

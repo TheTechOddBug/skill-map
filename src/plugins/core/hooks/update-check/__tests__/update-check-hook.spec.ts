@@ -20,9 +20,11 @@ import { describe, it } from 'node:test';
 
 import { updateCheckHook } from '../index.js';
 import type { IHookContext } from '../../../../../kernel/extensions/index.js';
+import { SILENT_EXTENSION_LOGGER } from '../../../../../kernel/adapters/silent-logger.js';
 
 function bootCtx(data: unknown): IHookContext {
   return {
+    log: SILENT_EXTENSION_LOGGER,
     settings: {},
     event: {
       type: 'boot',

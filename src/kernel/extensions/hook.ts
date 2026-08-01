@@ -51,6 +51,7 @@
  */
 
 import type { IExtensionBase } from './base.js';
+import type { IExtensionLogger } from '../util/extension-logger.js';
 import type { Node } from '../types.js';
 
 /**
@@ -124,6 +125,14 @@ export interface IHookContext {
    * scan-scoped events.
    */
   node?: Node;
+  /**
+   * Diagnostic channel, stderr-bound, sanitised and prefixed with the
+   * qualified hook id. Silent below `warn` until the operator raises the
+   * level (`-v` / `--log-level`). NEVER write to stdout from an
+   * extension: it corrupts every `--json` payload. See
+   * `kernel/util/extension-logger.ts`.
+   */
+  log: IExtensionLogger;
   /**
    * Set on `extractor.completed` events. Qualified extension id of the
    * Extractor whose work the event aggregates.

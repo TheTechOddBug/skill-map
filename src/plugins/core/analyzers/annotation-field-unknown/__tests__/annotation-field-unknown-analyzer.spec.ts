@@ -21,6 +21,7 @@ import { strictEqual } from 'node:assert';
 import { annotationFieldUnknownAnalyzer } from '../index.js';
 import type { Issue, Node } from '../../../../../kernel/index.js';
 import type { IRegisteredAnnotationKey } from '../../../../../kernel/types/annotation-catalog.js';
+import { SILENT_EXTENSION_LOGGER } from '../../../../../kernel/adapters/silent-logger.js';
 
 function fakeNode(path: string): Node {
   return {
@@ -42,6 +43,7 @@ function evaluate(
     [node.path, sidecarRoot],
   ]);
   const out = annotationFieldUnknownAnalyzer.evaluate!({
+    log: SILENT_EXTENSION_LOGGER,
     nodes: [node],
     links: [],
     settings: {},
@@ -144,7 +146,7 @@ describe('core/annotation-field-unknown rule (Step 9.6.6)', () => {
   });
 
   it('absent sidecarRoots map → empty issue list (no false positives)', () => {
-    const out = annotationFieldUnknownAnalyzer.evaluate!({ nodes: [fakeNode('a.md')], links: [], settings: {}, emitContribution: () => undefined });
+    const out = annotationFieldUnknownAnalyzer.evaluate!({ nodes: [fakeNode('a.md')], links: [], settings: {}, log: SILENT_EXTENSION_LOGGER, emitContribution: () => undefined });
     const issues = Array.isArray(out) ? out : [];
     strictEqual(issues.length, 0);
   });

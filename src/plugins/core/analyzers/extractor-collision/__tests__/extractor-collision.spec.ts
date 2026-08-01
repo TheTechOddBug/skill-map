@@ -13,6 +13,7 @@ import { strictEqual, deepStrictEqual, ok } from 'node:assert';
 
 import { extractorCollisionAnalyzer } from '../index.js';
 import type { Issue, Signal } from '../../../../../kernel/types.js';
+import { SILENT_EXTENSION_LOGGER } from '../../../../../kernel/adapters/silent-logger.js';
 
 function makeSignal(opts: Partial<Signal> & { source: string; candidates: Signal['candidates'] }): Signal {
   return {
@@ -29,6 +30,7 @@ function makeSignal(opts: Partial<Signal> & { source: string; candidates: Signal
 
 function runAnalyzer(signals: readonly Signal[]): Issue[] {
   const result = extractorCollisionAnalyzer.evaluate!({
+    log: SILENT_EXTENSION_LOGGER,
     nodes: [],
     links: [],
     settings: {},

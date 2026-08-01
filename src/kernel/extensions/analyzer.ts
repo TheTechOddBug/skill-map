@@ -13,6 +13,7 @@ import type { IExtensionBase } from './base.js';
 import type { IExtensionPrecondition } from './extractor.js';
 import type { TIdentifierSource } from './provider.js';
 import type { Issue, Link, Node, Signal, TConfidenceOp, TExecutionMode } from '../types.js';
+import type { IExtensionLogger } from '../util/extension-logger.js';
 import type { IRegisteredAnnotationKey } from '../types/annotation-catalog.js';
 import type { IRegisteredViewContribution, IViewContribution, SlotPayload } from '../types/view-catalog.js';
 
@@ -122,6 +123,14 @@ export interface IAnalyzerContext {
    * scan. Absent (or empty) on legacy callers that never wired it.
    */
   accumulatedIssues?: readonly Issue[];
+  /**
+   * Diagnostic channel, stderr-bound, sanitised and prefixed with the
+   * qualified analyzer id. Silent below `warn` until the operator
+   * raises the level (`-v` / `--log-level`). NEVER write to stdout from
+   * an extension: it corrupts every `--json` payload. See
+   * `kernel/util/extension-logger.ts`.
+   */
+  log: IExtensionLogger;
   /**
    * Set of absolute file paths the operator has opted into for
    * link-validation purposes via `scan.referencePaths`. The driving

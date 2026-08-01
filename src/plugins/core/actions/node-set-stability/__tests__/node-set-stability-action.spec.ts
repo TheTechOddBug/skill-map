@@ -32,6 +32,7 @@ import {
 import type { IActionContext, IActionResult } from '../../../../../kernel/extensions/index.js';
 import type { Node } from '../../../../../kernel/types.js';
 import { ensureSidecarWritesAllowed } from '../../../../../core/config/sidecar-consent.js';
+import { SILENT_EXTENSION_LOGGER } from '../../../../../kernel/adapters/silent-logger.js';
 
 const HASH_A = 'a'.repeat(64);
 const HASH_B = 'b'.repeat(64);
@@ -83,6 +84,7 @@ function makeNode(overrides: Partial<Node> = {}): Node {
 
 function makeCtx(node: Node, mdAbsPath: string, invoker = 'cli'): IActionContext {
   return {
+    log: SILENT_EXTENSION_LOGGER,
     node,
     nodeAbsolutePath: mdAbsPath,
     invoker,

@@ -4,6 +4,7 @@ import { strictEqual, deepStrictEqual } from 'node:assert';
 import { toolsCounterExtractor } from '../index.js';
 import type { IExtractorContext } from '../../../../../kernel/extensions/index.js';
 import type { Node } from '../../../../../kernel/types.js';
+import { SILENT_EXTENSION_LOGGER } from '../../../../../kernel/adapters/silent-logger.js';
 
 function mockNode(path: string): Node {
   return {
@@ -26,6 +27,7 @@ function ctx(frontmatter: Record<string, unknown>): {
   const contributions: { ref: unknown; payload: unknown }[] = [];
   return {
     ctx: {
+      log: SILENT_EXTENSION_LOGGER,
       node: mockNode('agents/x.md'),
       body: '',
       frontmatter,

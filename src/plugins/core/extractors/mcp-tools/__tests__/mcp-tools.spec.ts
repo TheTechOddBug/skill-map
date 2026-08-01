@@ -6,6 +6,7 @@ import type { IExtractorContext } from '../../../../../kernel/extensions/index.j
 import { resolveSignals } from '../../../../../kernel/orchestrator/resolver.js';
 import type { Link, Node, Signal } from '../../../../../kernel/types.js';
 import type { IEmittedNode } from '../../../../../kernel/extensions/index.js';
+import { SILENT_EXTENSION_LOGGER } from '../../../../../kernel/adapters/silent-logger.js';
 
 function mockNode(path: string, frontmatter: Record<string, unknown> = {}): Node {
   return {
@@ -32,6 +33,7 @@ function makeContext(node: Node): {
   const signals: Signal[] = [];
   const virtualNodes: IEmittedNode[] = [];
   const ctx: IExtractorContext = {
+    log: SILENT_EXTENSION_LOGGER,
     node,
     body: '',
     frontmatter: node.frontmatter ?? {},

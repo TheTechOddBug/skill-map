@@ -37,6 +37,7 @@ import type {
   Signal,
 } from '../types.js';
 import { ConfidenceTier } from '../types.js';
+import { makeExtensionLogger } from '../util/extension-logger.js';
 import { tx } from '../util/tx.js';
 
 /**
@@ -386,6 +387,7 @@ function buildExtractorContext(
     emitContribution,
     emitSignal,
     emitNode,
+    log: makeExtensionLogger(qualifiedExtensionId(extractor.pluginId, extractor.id)),
     ...(store !== undefined ? { store } : {}),
   };
 }

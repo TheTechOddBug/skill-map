@@ -55,6 +55,7 @@ export function resolveBumpAction(): IAction {
 import { assertContained } from '../../core/paths/path-guard.js';
 import type { TActionWrite } from '../../kernel/extensions/index.js';
 import type { Node } from '../../kernel/types.js';
+import { makeExtensionLogger } from '../../kernel/util/extension-logger.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { resolveGitAuthorName } from '../util/git.js';
 
@@ -213,5 +214,8 @@ export async function invokeBumpFor(
     invoker,
     now: () => new Date(),
     settings: {},
+    log: makeExtensionLogger(
+      qualifiedExtensionId(nodeBumpAction.pluginId, nodeBumpAction.id),
+    ),
   });
 }

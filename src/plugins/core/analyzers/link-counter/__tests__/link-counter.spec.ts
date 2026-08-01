@@ -8,6 +8,7 @@ import { strictEqual, deepStrictEqual } from 'node:assert';
 
 import { linkCounterAnalyzer } from '../index.js';
 import type { Confidence, Issue, Link, LinkKind, Node } from '../../../../../kernel/types.js';
+import { SILENT_EXTENSION_LOGGER } from '../../../../../kernel/adapters/silent-logger.js';
 
 function mockNode(path: string): Node {
   return {
@@ -43,6 +44,7 @@ function run(nodes: Node[], links: Link[]): { issues: Issue[]; captured: ICaptur
   // `evaluate` is synchronous in this analyzer; cast away the
   // `| Promise<Issue[]>` half of the kernel's return-type union.
   const issues = linkCounterAnalyzer.evaluate!({
+    log: SILENT_EXTENSION_LOGGER,
     nodes,
     links,
     settings: {},

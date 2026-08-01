@@ -9,6 +9,7 @@ import { markdownLinkExtractor } from '../markdown-link/index.js';
 import type { IExtractorContext, IExtractor, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import { resolveSignals } from '../../../../kernel/orchestrator/resolver.js';
 import type { ISidecarOverlay, Link, Node, Signal } from '../../../../kernel/types.js';
+import { SILENT_EXTENSION_LOGGER } from '../../../../kernel/adapters/silent-logger.js';
 
 function mockNode(path: string, sidecar?: ISidecarOverlay | null): Node {
   return {
@@ -41,6 +42,7 @@ function ctx(
   const signals: Signal[] = [];
   const enrichments: Partial<Node>[] = [];
   const context: IExtractorContext = {
+    log: SILENT_EXTENSION_LOGGER,
     node: mockNode(path, sidecar),
     body,
     frontmatter,
@@ -323,6 +325,7 @@ describe('cross-provider invariance (claude / codex / agent-skills)', () => {
       };
       const links: Link[] = [];
       const baseCtx: IExtractorContext = {
+        log: SILENT_EXTENSION_LOGGER,
         node,
         body: BODY,
         frontmatter: {},

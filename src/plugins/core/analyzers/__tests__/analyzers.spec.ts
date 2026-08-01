@@ -5,11 +5,12 @@ import { nameCollisionAnalyzer } from '../name-collision/index.js';
 import { nameMismatchAnalyzer } from '../name-mismatch/index.js';
 import { linkKindConflictAnalyzer } from '../link-kind-conflict/index.js';
 import type { Confidence, Issue, Link, LinkKind, Node } from '../../../../kernel/types.js';
+import { SILENT_EXTENSION_LOGGER } from '../../../../kernel/adapters/silent-logger.js';
 
 // Rules' evaluate() returns Issue[] | Promise<Issue[]>. Await resolves both
 // shapes uniformly and keeps each test's assertions typed as Issue[].
 async function run(rule: typeof nameCollisionAnalyzer, ctx: { nodes: Node[]; links: Link[] }): Promise<Issue[]> {
-  return await rule.evaluate!({ ...ctx, settings: {}, emitContribution: noopEmitContribution });
+  return await rule.evaluate!({ ...ctx, settings: {}, log: SILENT_EXTENSION_LOGGER, emitContribution: noopEmitContribution });
 }
 
 /** Stub for tests that don't exercise the contribution emit channel. */

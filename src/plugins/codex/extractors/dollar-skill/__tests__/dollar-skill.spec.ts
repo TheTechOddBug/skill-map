@@ -5,6 +5,7 @@ import { dollarSkillExtractor } from '../index.js';
 import type { IExtractorContext, IEmittedNode } from '../../../../../kernel/extensions/index.js';
 import { resolveSignals } from '../../../../../kernel/orchestrator/resolver.js';
 import type { Link, Node, Signal } from '../../../../../kernel/types.js';
+import { SILENT_EXTENSION_LOGGER } from '../../../../../kernel/adapters/silent-logger.js';
 
 function mockNode(path: string): Node {
   return {
@@ -31,6 +32,7 @@ function makeContext(node: Node, body: string): {
   const signals: Signal[] = [];
   const virtualNodes: IEmittedNode[] = [];
   const ctx: IExtractorContext = {
+    log: SILENT_EXTENSION_LOGGER,
     node,
     body,
     frontmatter: node.frontmatter ?? {},
