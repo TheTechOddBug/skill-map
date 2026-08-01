@@ -189,7 +189,7 @@ export interface IScanRunOpts {
   };
   /**
    * Per-invocation override of `scan.maxScan` (from the `--max-scan
-   * <N>` flag on `sm scan` / `sm refresh` / `sm watch`). This is the
+   * <N>` flag on `sm scan` / `sm enrich` / `sm watch`). This is the
    * WALK-INTAKE ceiling: the scan walks, parses, analyzes, and
    * reference-validates the full corpus up to this number, dropping
    * extra files in stable order past it. Bidirectional: any positive
@@ -201,7 +201,7 @@ export interface IScanRunOpts {
   maxScan?: number;
   /**
    * Per-invocation override of `scan.maxNodes` (from the `--max-nodes
-   * <N>` flag on `sm scan` / `sm refresh` / `sm watch`). This is the MAP
+   * <N>` flag on `sm scan` / `sm enrich` / `sm watch`). This is the MAP
    * RENDER cap, pure metadata that does NOT bound the walk. Bidirectional:
    * any positive integer replaces the setting for this scan. Omit /
    * `undefined` means "no override", `scan.maxNodes` from settings

@@ -1,13 +1,13 @@
 {
   "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
   "id": "elapsed-time-reporting",
-  "description": "Every in-scope verb MUST end stderr with `done in <formatted>` (`<N>ms` under a second, `<N.N>s` under a minute, `<M>m <S>s` beyond), and when its `--json` output is a top-level OBJECT that document MUST also carry a top-level `elapsedMs` integer. `sm refresh` is chosen because it exercises both halves at once: the stderr line and the in-document field. Verbs whose schema already expresses wall-clock under a nested field (`scan-result.schema.json` → `stats.durationMs`) are exempt from the top-level field by contract, and informational verbs (`sm version`, `sm config list`) are exempt from the line entirely.",
+  "description": "Every in-scope verb MUST end stderr with `done in <formatted>` (`<N>ms` under a second, `<N.N>s` under a minute, `<M>m <S>s` beyond), and when its `--json` output is a top-level OBJECT that document MUST also carry a top-level `elapsedMs` integer. `sm enrich` is chosen because it exercises both halves at once: the stderr line and the in-document field. Verbs whose schema already expresses wall-clock under a nested field (`scan-result.schema.json` → `stats.durationMs`) are exempt from the top-level field by contract, and informational verbs (`sm version`, `sm config list`) are exempt from the line entirely.",
   "fixture": "orphan-markdown",
   "setup": {
     "priorInvokes": [{ "verb": "scan" }]
   },
   "invoke": {
-    "verb": "refresh",
+    "verb": "enrich",
     "args": ["ARCHITECTURE.md"],
     "flags": ["--json"]
   },

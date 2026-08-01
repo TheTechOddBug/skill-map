@@ -1,9 +1,9 @@
 /**
  * Storage helpers for `state_enrichments`, the per-node enrichment
- * write-through populated by `sm refresh` (`spec/db-schema.md`
+ * write-through populated by `sm enrich` (`spec/db-schema.md`
  * §state_enrichments), Model A of the enrichment split.
  *
- * A row lands when `sm refresh` executes an enabled enricher Action
+ * A row lands when `sm enrich` executes an enabled enricher Action
  * (one whose report schema extends a canonical `enrichments/<kind>`
  * schema, see `kernel/enrichments/enrichment-schema.ts`): the validated
  * report is upserted here keyed `(node_id, provider_id)` where
@@ -81,7 +81,7 @@ export async function upsertStateEnrichment(
 /**
  * Every stored enrichment state row for a single node, ordered by
  * `provider_id` ASC for stable rendering. Backs read-side consumers
- * (`sm refresh`'s post-write reporting, future `sm show` surfaces).
+ * (`sm enrich`'s post-write reporting, future `sm show` surfaces).
  */
 export async function listStateEnrichmentsForNode(
   db: TDbOrTx,
@@ -97,7 +97,7 @@ export async function listStateEnrichmentsForNode(
 }
 
 /**
- * The stale candidate set for `sm refresh --stale` (v1 staleness rule,
+ * The stale candidate set for `sm enrich --stale` (v1 staleness rule,
  * see the module header): rows whose recorded `data_json.localBodyHash`
  * differs from the node's live `scan_nodes.body_hash` (the node body
  * was edited and rescanned since the verification), or whose non-null

@@ -21,6 +21,10 @@
         "path": "schemas/conformance-result.schema.json"
       },
       {
+        "id": "enrich-report",
+        "path": "schemas/enrich-report.schema.json"
+      },
+      {
         "id": "execution-record",
         "path": "schemas/execution-record.schema.json"
       },
@@ -59,10 +63,6 @@
       {
         "id": "project-config",
         "path": "schemas/project-config.schema.json"
-      },
-      {
-        "id": "refresh-report",
-        "path": "schemas/refresh-report.schema.json"
       },
       {
         "id": "report-base-deterministic",
@@ -281,6 +281,10 @@
         "file": "conformance/cases/elapsed-time-reporting.json"
       },
       {
+        "id": "enrich-report-schema",
+        "file": "conformance/cases/enrich-report-schema.json"
+      },
+      {
         "id": "extension-kind-manifests",
         "file": "conformance/cases/extension-kind-manifests.json"
       },
@@ -405,10 +409,6 @@
         "file": "conformance/cases/reference-broken-existence.json"
       },
       {
-        "id": "refresh-report-schema",
-        "file": "conformance/cases/refresh-report-schema.json"
-      },
-      {
         "id": "rest-envelope-schema",
         "file": "conformance/cases/rest-envelope-schema.json"
       },
@@ -452,8 +452,8 @@
     "files": {
       "CHANGELOG.md": "b591fab6361c2daf42ee9f384ffd8725d31ebeebdef383cd840ae37d8a2497c3",
       "README.md": "35ac6cc3ce8379c5087f739a528d3b80a140aef5cdeeba9c49b59c5dd5df4c54",
-      "architecture.md": "55049a9edb7917aea2df9bafd65c856a6771067680490f83760f3cdd36418c37",
-      "cli-contract.md": "3e8fe5483f19ad57f69149d9bef60fbe91b15b93c64f1bb69b0b2ec65fdb1bd9",
+      "architecture.md": "16b1abe6e5718c2535e2b03481abda4497e800c2d215c5dc70b2531cb718f6c2",
+      "cli-contract.md": "25f84f475e5a7bcb7b1d465a3d7f3a39982ab93b6df9677149195350ab6fcf9b",
       "conformance/README.md": "1cf7a020d4a7517e9f2b5fa2e6912be812322dfffa388de5eb47ef44d9277e8f",
       "conformance/cases/backtick-path-extraction.json": "4112b5724156c4d6ad5cf90a762e43741d25d68735f91d453ac580a77b3764da",
       "conformance/cases/bump-report-schema.json": "f9f1b9f1143e5750bea045001aff60d0f5f6b15e41597d9bd983c4159540fb22",
@@ -461,7 +461,8 @@
       "conformance/cases/claim-race-atomicity.json": "27750ae852809826991f8ebd076bd2a9d284916f32a01b100292d05a09037f75",
       "conformance/cases/conformance-result-schema.json": "866321b36c082c7aefc7fb7e5b3342bdff5fe0f9d7b8feadf930045125ff05c0",
       "conformance/cases/duplicate-submit-rejected.json": "6eaeaf7bc8bda46c98932fcad444a164e1bb433359bed090fbd299898d6e26e1",
-      "conformance/cases/elapsed-time-reporting.json": "4c30804361eaf336b372221e4a5a1dc6dc52d72c620b57dc2415cff97cfe8d75",
+      "conformance/cases/elapsed-time-reporting.json": "c1c525430f71fefbdc209fae3ea4640d86ffb1383f267df982832f59f5463d8e",
+      "conformance/cases/enrich-report-schema.json": "203b5a7574eaf10fa16b97385b2f37d11f67ed3b7c9c262a333d804130867129",
       "conformance/cases/extension-kind-manifests.json": "87e3bba61fd5b6eaf3f9cd965faec5e8b757bef6504fe613b9863c83831b90ad",
       "conformance/cases/extension-manifest-enable-gate.json": "d5c09cf4a5633c4f5a71c22d0c0430f1ff70d4c53cba17861948f69c8eb1dc0b",
       "conformance/cases/extension-mode-routing-deterministic.json": "ddf2ca9049d4dae9660c45e17c1026f93106104d0a8442e8bb5feaeabe79ce62",
@@ -471,7 +472,7 @@
       "conformance/cases/findings-contract-kind.json": "f122e15f762bb2300bccfea1c433a1fe7fa0ef1d565799635d25a6e9cce0f664",
       "conformance/cases/findings-contract.json": "ea93ddcaa13643951ff99f93defa887fcf0e082950a1ebe06c16af2c189b7214",
       "conformance/cases/force-does-not-duplicate-live-job.json": "c7c193fe16c89c199e9da9a22b7fcfdaf5dd32d3f6fe723dfa5e831e3075f60e",
-      "conformance/cases/github-enrichment-recorded.json": "b87366799a81ca6442781cc6ade4c69fc788cd743408b9ed5182862385804235",
+      "conformance/cases/github-enrichment-recorded.json": "9e265d88710506626a9bf42a5a519648aa2bcdf1ba3d33cbc313b8bdea63746d",
       "conformance/cases/history-record-schema.json": "8b040e7fa6647e176ef2a6b63032f2548bdaa57c5fb247d1818918bdedd9ed09",
       "conformance/cases/history-stats-schema.json": "f42844b78d6ca2ec8ace827540e8f0272398b4b1fb7baa409635a239ee96644e",
       "conformance/cases/job-document-schema.json": "2626edec7c7675adf12bb4cde550b822e6758e5c76e789d8dad07392dae458bf",
@@ -493,7 +494,6 @@
       "conformance/cases/record-run-envelope.json": "d26396580a43c57f79c6efa9f487d5c1b33dfe1d4c9918c0b9536136d65e2576",
       "conformance/cases/record-tags-report.json": "a84d1774312ee172e1db5a18c462c53c09aa63e0031c1d984d2f6b777438b572",
       "conformance/cases/reference-broken-existence.json": "956f79ca512910d9c45aa8e3fef742c30478753b3ad0dc9e933424081a3de79f",
-      "conformance/cases/refresh-report-schema.json": "72e4897cb744a6827239292398cff708b2f80ea7aadf9713c2d91399f599dcf3",
       "conformance/cases/rest-envelope-schema.json": "845979b2113a931038df144ff8fa7d441f396c1908dfbbece7fe906fb6c8de9a",
       "conformance/cases/scan-result-schema.json": "36017b5d27d834709b61eae78b50e14ec5ce2513eeef6c89c47680411e4be6ac",
       "conformance/cases/score-phase-confidence.json": "118dedfc76f7219a907bc3f020092eb2e2380dc5c9b982c5d659fe6dbaa8b574",
@@ -503,7 +503,7 @@
       "conformance/cases/view-action-button.json": "bb1377a737117c3d274a4f5a216adb1b94dae534658fa8dcc784c39fcfb15e1b",
       "conformance/cases/view-contribution-payloads.json": "ca02992c269e7c1724df024b138abf0c97f50f003c300c404cb6034743ad7ca7",
       "conformance/cases/view-slots-all.json": "0e3294ada16eb6695760e3067cf05e7ea233720f83b26531432ca95cc24ef4f9",
-      "conformance/coverage.md": "0d75d23be52fe818431d565a432b219d6eaa393464c9048051a58bd8df5e3384",
+      "conformance/coverage.md": "147e58f9323b221d5a500451e14d65ca1406d334224257a2593e1129bdb6b23d",
       "conformance/fixtures/backtick-path/docs/target.md": "a09ae2cb4c96358a2e0692215f172b0f8c48028b6b123e4e83424b28302e644c",
       "conformance/fixtures/backtick-path/source.md": "217f78b12b3ff47a938a5cc9c1ff7d6989d6a1db82bd1ddf3656787f31efb902",
       "conformance/fixtures/extension-enable-gate/.skill-map/plugins/gated/analyzers/boom/extension.json": "bc8a8a24a068fa4a03d096790fa52b8c3f8c7ecb1e7ac9d3fbe83ea0babafe6f",
@@ -595,9 +595,9 @@
       "conformance/fixtures/view-slots-all/.skill-map/plugins/all-slots/analyzers/everything/extension.json": "8f13f91539ced01f332246f90e1957efeedfeb249c647e21a6b4ffda67d312c5",
       "conformance/fixtures/view-slots-all/.skill-map/plugins/all-slots/analyzers/everything/index.js": "3aea0f750e4ff3495210ec6306e3bff7130d87c9d970a02feb31a28860fe227d",
       "conformance/fixtures/view-slots-all/.skill-map/plugins/all-slots/plugin.json": "c48e8a0574947ade0b4eb189d6bc27a48e24f92f616aacdc177f2d22d472a599",
-      "db-schema.md": "f16f8e8746e86f07554c585c8f02791d0b9574c57eee3b313a4589f678afcf4a",
+      "db-schema.md": "41c2c1253d4ba675730497fbe2c5114cf6d10863c535431bba6d1f5219a01a61",
       "input-types.md": "024f44c28db288f6d69851bc35c2aa880edd89f2c2bba6376e0674b821d7a33d",
-      "interfaces/security-scanner.md": "ae0574e5b6e95aa95a5edc920773c4a866a0ef51836d3490edfd6579fc6c3cc4",
+      "interfaces/security-scanner.md": "1e90d23254c4962989a56f64a625b5b7bcc469a2064adcdd07950fd0a6ddbfc9",
       "job-events.md": "cb9a21d4602e23141f5658b6a8335dec941f5a058e5ac106c38cc559c0d304ef",
       "job-lifecycle.md": "3123bafda531b0f7567c628ada23fbb24512044093fa5ce0b6a94c3a5cca537c",
       "mcp-server.md": "0759c022a9cca24d222d89c3fe9651e3e208feb169439221a126d0845b8a5af6",
@@ -611,9 +611,10 @@
       "schemas/bump-report.schema.json": "dea9390aa706955e2a47f6254310943d96ceb74a2f51539be86f0d389e33fa86",
       "schemas/conformance-case.schema.json": "0987ec6aa36aabe12a01ce5dbf992991bd20e425c1b6c4d4a9025b1559041d22",
       "schemas/conformance-result.schema.json": "05b0f1e2dd029f08ba67472b82cb85c2b6d72ab4a7291bf65c5bed499a59c1d9",
-      "schemas/enrichments/github.schema.json": "2ffee9e3795faf8b75d21ce5ee7471742d2f26b72a3536680badda899ff50a5b",
+      "schemas/enrich-report.schema.json": "10144985178ff481c90c49694cdc1c7e65348a24e633122c729a2beb6d6a311f",
+      "schemas/enrichments/github.schema.json": "e45139e5522812a1369c9ec3ff250f950322824c4c86da99e23879aa21ab6f6c",
       "schemas/execution-record.schema.json": "5801ea742c6c61c011419eb80d9426d03a157abfe9ccce28aa2c942bfd5e4020",
-      "schemas/extensions/action.schema.json": "365032e411cc4b2b0f476a69b952730ed8b6ffe63984b327e291fd348b89a93a",
+      "schemas/extensions/action.schema.json": "6412325f231c842410fe5ff687ada04e93dee158d5ffda9b3f4efd4643a54bf5",
       "schemas/extensions/analyzer.schema.json": "da12c7db9bf1e209308c673de2899706155876b248e97f292c094e11096ea6f8",
       "schemas/extensions/base.schema.json": "e0e54799abcda59c6c4b54c99f958cba9499cdc54d84d12b5990cff080d666e4",
       "schemas/extensions/extension-manifest.schema.json": "e25e677db0f99653ddf6d8b6a9ee20d5c1b0613df2cfec0e0d9341361fc0b32e",
@@ -632,13 +633,12 @@
       "schemas/node.schema.json": "c711987991f71cedbf3848817a7acd3a8b06fcc5bbe45c2b536e422a86f0ada3",
       "schemas/plugins-doctor.schema.json": "8f96661ad5fbe6405620ba87f17fe5dda491079d52bc556cdf0421186c0ffbb4",
       "schemas/plugins-registry.schema.json": "fcb2c911a5d746ec14c153afb5c3255d95322a4ddb1500a17f5b7353df9c0d63",
-      "schemas/project-config.schema.json": "c172b87fd068a0ed9361360c2212f09728385c6c4babb33626da1cdf1b3daf9b",
-      "schemas/refresh-report.schema.json": "f22d09e0a18deb2de15f9876ed9fdd521e92de98b000baa5e57325e0acac0443",
+      "schemas/project-config.schema.json": "e6a2cb4a39bf3a5489265cc4e9c71557bc6e2f97e68cbc4a6deead3508d46e80",
       "schemas/report-base-deterministic.schema.json": "a72f80f48e3e784ad2d6a632f07a59f28848bf49884ad401d625a4d65d9fb1dd",
       "schemas/report-base.schema.json": "991907323b51c3d55107d5f3e52a904fbdbe598d481bc81ff1d50cde36a2f35c",
       "schemas/scan-result.schema.json": "9c379dbbd854bdcc46d7d5d9f8af46a639e1b92063d8987e9ca2727b8cb83d88",
       "schemas/serve-info.schema.json": "1ad0c0c0b63e4b401d67902f9acfef234eaaea61fe03e3b1e04d1b9cb44924ba",
-      "schemas/sidecar.schema.json": "445e19deec8675c6a0560a1fdabfd20f78c0a011708edef39f007a3a2133ceb8",
+      "schemas/sidecar.schema.json": "9e304a1f2677d275d8abb7d8b8cb61c35ea3d7d7d7c660d839422c34ce8cf1cb",
       "schemas/signal.schema.json": "3126ec4ebd8b6764d738e5e7a1050be45a0114fd427983c153cda6993e5fc16f",
       "schemas/summaries/markdown.schema.json": "bf052cafd54e79bb79f3fd98ed79a56849e08703602a2e01820af598dc1de708",
       "schemas/tags/markdown.schema.json": "9fcbaf7942da80705d5da4fb5e195bfd97ec53ca17914e69a80fd15c865d6723",

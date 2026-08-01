@@ -12,7 +12,7 @@
  * The threat model: a manually-tampered `.skill-map/skill-map.db` (or a
  * future plugin migration that writes raw rows) could land an absolute
  * path or a `../../`-laden relative path into `scan_nodes.path`. Verbs
- * that resolve the path against `cwd` and read the result (`sm refresh`,
+ * that resolve the path against `cwd` and read the result (`sm enrich`,
  * future enrichment / export verbs) would then read files anywhere on
  * the disk.
  *

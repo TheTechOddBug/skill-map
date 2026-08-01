@@ -1147,8 +1147,16 @@ function validateRoots(roots: string[]): void {
     throw new Error(ORCHESTRATOR_TEXTS.runScanRootEmptyArray);
   }
   for (const root of roots) {
-    if (!existsSync(root) || !statSync(root).isDirectory()) {
+    if (!existsSync(root)) {
       throw new Error(tx(ORCHESTRATOR_TEXTS.runScanRootMissing, { root }));
+    }
+    if (!statSync(root).isDirectory()) {
+      // A path that EXISTS but is a file is the single most likely
+      // mistake here: the operator meant one node, not a root. The
+      // generic "does not exist or is not a directory" read as a lie
+      // about a file sitting right there, so this case gets its own
+      // message naming the verb that does operate on one node.
+      throw new Error(tx(ORCHESTRATOR_TEXTS.runScanRootIsFile, { root }));
     }
   }
 }

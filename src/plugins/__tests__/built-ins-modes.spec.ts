@@ -322,7 +322,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `codex/backtick-dollar` (the `$skill` sibling completing the per-provider code-region trigger family, codex-only like the prose dollar) brings it to 39.
     // `core/name-mismatch` (analyzer that flags a declared `frontmatter.name` diverging from the node's path-derived handle, severity from the per-kind `identifierMismatch` knob) brings it to 40.
     // `core/ai-summarizer-action` (the first probabilistic built-in Action; the universal node summarizer, carrying its `prompt.md` + `report.schema.json` inlined by the built-ins codegen) brings it to 41.
-    // `github/enrichment` (the first declared-network deterministic Action; Model A provenance verification against a node's `source` / `sourceVersion` annotations, executed via `sm refresh` behind the `allowNetworkActions` policy) brings it to 42.
+    // `github/enrichment` (the first declared-network deterministic Action; Model A provenance verification against a node's `source` / `sourceVersion` annotations, executed via `sm enrich` behind the `allowNetworkActions` policy) brings it to 42.
     // `core/ai-redundancy-analyzer` (the first probabilistic built-in Analyzer, the internal-redundancy finder; experimental, ships disabled, prompt user-approved 2026-07-14) brings it to 43.
     // `core/ai-contradiction-analyzer` + `core/ai-incoherence-analyzer` (the rest of the wave-1 finder roster, same experimental/disabled mold; finders judge independently, no cross-sibling deferrals) bring it to 45.
     // `core/ai-redundancy-action` (the FIRST fixer: a probabilistic Action declaring `precondition.analyzerIds: ['core/ai-redundancy-analyzer']`; experimental, ships disabled; resolves redundancy findings via a template-mandated file edit) brings it to 46.
@@ -484,7 +484,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     assert.equal(action.promptTemplate, undefined, 'deterministic: no prompt');
     // The inlined report schema extends the canonical enrichments/github
     // shape by its absolute $id; that $ref is ALSO the enricher signal
-    // `sm refresh` detects (the mirror of the summarizer convention).
+    // `sm enrich` detects (the mirror of the summarizer convention).
     const schema = action.reportSchema as { allOf?: Array<{ $ref?: string }> };
     assert.ok(
       (schema.allOf ?? []).some(

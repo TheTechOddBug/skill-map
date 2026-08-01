@@ -11,7 +11,7 @@
  *   - `sm sidecars annotate <node-path> [--force]`, pure scaffolding:
  *     create an empty `.sm` next to the `.md` ready for editing.
  *
- * `sm sidecars refresh` is intentionally distinct from `sm refresh` (the
+ * `sm sidecars refresh` is intentionally distinct from `sm enrich` (the
  * Step A.8 enrichment-layer verb), different storage, different
  * concept; the sub-namespace prefix keeps the two from colliding.
  *

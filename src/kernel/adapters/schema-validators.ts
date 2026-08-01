@@ -104,7 +104,7 @@ const SCHEMA_FILES: Record<TSchemaName, string> = {
  * compile through `validateActionReport`. `enrichments/github.schema.json`
  * plays the same role for the mirror convention: an Action's report
  * schema `$ref`ing it is the enricher signal
- * (`kernel/enrichments/enrichment-schema.ts`) and `sm refresh` validates
+ * (`kernel/enrichments/enrichment-schema.ts`) and `sm enrich` validates
  * the report through `validateActionReport` against it.
  * `tags/markdown.schema.json` mirrors summaries for the TAGGER signal
  * (`kernel/jobs/tags-schema.ts`, the sidecar tags write-through).

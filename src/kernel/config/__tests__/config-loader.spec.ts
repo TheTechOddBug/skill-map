@@ -362,7 +362,7 @@ describe('config loader, project-local-only locality', () => {
   it('strips the github/enrichment base-URL overrides from the COMMITTED layer + warns', () => {
     // The token setting rides the Authorization header to whatever host
     // apiBaseUrl names, so a committed override in a cloned repo would
-    // exfiltrate it on the first `sm refresh`. Both keys must be ignored
+    // exfiltrate it on the first `sm enrich`. Both keys must be ignored
     // with a warning, never honoured.
     const { cwd } = freshScope('plonly-github-baseurl');
     writeSettings(cwd, 'settings', {

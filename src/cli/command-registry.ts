@@ -61,7 +61,7 @@ import { ListCommand } from './commands/list.js';
 import { ORPHANS_COMMANDS } from './commands/orphans.js';
 import { PLUGIN_COMMANDS } from './commands/plugins.js';
 import { RecordCommand } from './commands/record.js';
-import { REFRESH_COMMANDS } from './commands/refresh.js';
+import { ENRICH_COMMANDS } from './commands/enrich.js';
 import { ScanCommand } from './commands/scan.js';
 import { ScanCompareCommand } from './commands/scan-compare.js';
 import { ServeCommand } from './commands/serve.js';
@@ -123,7 +123,7 @@ export const SM_COMMANDS: readonly CommandClass<BaseContext>[] = [
   ...DB_COMMANDS,
   ...PLUGIN_COMMANDS,
   ...ORPHANS_COMMANDS,
-  ...REFRESH_COMMANDS,
+  ...ENRICH_COMMANDS,
   ...BUMP_COMMANDS,
   ...SIDECAR_COMMANDS,
   ...HOOKS_COMMANDS,

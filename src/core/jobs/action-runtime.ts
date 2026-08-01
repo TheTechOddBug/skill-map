@@ -130,7 +130,7 @@ export function buildExtensionDirMap(
 
 /**
  * Action-only projection of `buildExtensionDirMap`. Exported so
- * `sm refresh` can resolve on-disk `report.schema.json` files for the
+ * `sm enrich` can resolve on-disk `report.schema.json` files for the
  * enricher detection against the plugin runtime it already loaded,
  * without a second discovery pass through `loadActionRuntime`.
  */

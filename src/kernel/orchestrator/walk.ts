@@ -334,7 +334,7 @@ interface IWalkAccumulators {
    * `node_enrichments`. Attribution survives across scans, which
    * lets:
    *   - the stale flag query single-table on (extractor_id, body_hash);
-   *   - `sm refresh` re-run only the Extractor whose row is stale;
+   *   - `sm enrich` re-run only the Extractor whose row is stale;
    *   - the read-time merge sort by `enriched_at` for last-write-wins.
    * Within a single `extract()` invocation, multiple enrichNode calls
    * fold into the same record's `value` (last-write-wins per field).

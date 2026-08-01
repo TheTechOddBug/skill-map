@@ -1,0 +1,20 @@
+{
+  "$schema": "https://skill-map.ai/spec/v0/conformance-case.schema.json",
+  "id": "enrich-report-schema",
+  "description": "`sm enrich <node> --json` MUST emit a report validating against `enrich-report.schema.json`. The case refreshes a node with no network-declaring Action installed, so it exercises the report's ZERO case: an implementation must emit a conforming envelope even when nothing was enriched, rather than shortcutting to an empty or absent payload. That is the shape external tooling parses to decide whether a refresh did anything.",
+  "fixture": "orphan-markdown",
+  "setup": {
+    "priorInvokes": [{ "verb": "scan" }]
+  },
+  "invoke": {
+    "verb": "enrich",
+    "args": ["ARCHITECTURE.md"],
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "stdout-matches-schema", "schema": "enrich-report.schema.json" },
+    { "type": "json-path", "path": "$.kind", "equals": "enrich.report" },
+    { "type": "json-path", "path": "$.refreshed", "equals": 0 }
+  ]
+}

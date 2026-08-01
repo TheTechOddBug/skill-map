@@ -220,8 +220,8 @@ Stale row visibility is opt-in via `mergeNodeWithEnrichments(node, enrichments, 
 
 **Refresh verbs** (see [`cli-contract.md` §Scan](./cli-contract.md#scan)):
 
-- `sm refresh <node.path>` re-runs Extractors against a single node and upserts their enrichment rows. Deterministic-only, they always run for real and persist.
-- `sm refresh --stale` batches the granular form across every node carrying at least one stale row; in this revision the stale set is always empty so the verb prints a "nothing to do" advisory and exits `0`.
+- `sm enrich <node.path>` re-runs Extractors against a single node and upserts their enrichment rows. Deterministic-only, they always run for real and persist.
+- `sm enrich --stale` batches the granular form across every node carrying at least one stale row; in this revision the stale set is always empty so the verb prints a "nothing to do" advisory and exits `0`.
 
 ### `scan_contributions`
 
@@ -450,7 +450,7 @@ The states:
 
 One row per `(node_id, provider_id)`; `provider_id` carries the enriching Action's qualified id (e.g. `github/enrichment`).
 
-**Writer.** `sm refresh` populates this table through the enrichments write-through convention (the mirror of the summaries one): an enabled deterministic Action whose report schema extends a schema under [`schemas/enrichments/`](./schemas/enrichments/) has its validated report upserted here (`data_json`), with `verified` lifted from the report when present, `fetched_at` stamped, and `stale_after` computed from the action's declared refresh policy (null = only body-hash drift marks it stale). Execution is gated by the `allowNetworkActions` project policy when the Action declares `io: ['network']`.
+**Writer.** `sm enrich` populates this table through the enrichments write-through convention (the mirror of the summaries one): an enabled deterministic Action whose report schema extends a schema under [`schemas/enrichments/`](./schemas/enrichments/) has its validated report upserted here (`data_json`), with `verified` lifted from the report when present, `fetched_at` stamped, and `stale_after` computed from the action's declared refresh policy (null = only body-hash drift marks it stale). Execution is gated by the `allowNetworkActions` project policy when the Action declares `io: ['network']`.
 
 | Column | Type | Constraint |
 |---|---|---|

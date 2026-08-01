@@ -118,7 +118,7 @@ export interface ITransactionalStorage {
     upsertMany(records: IEnrichmentRecord[]): Promise<void>;
     /**
      * Upsert one `state_enrichments` row (Model A, the enrichment
-     * write-through `sm refresh` lands for an enricher Action).
+     * write-through `sm enrich` lands for an enricher Action).
      * Composite PK is `(nodeId, providerId)`; conflict → replace.
      * Transactional variant so the state row and its `state_executions`
      * sibling land atomically (mirror of the summaries fold inside
@@ -137,7 +137,7 @@ export interface ITransactionalStorage {
     migrateNodeFks(from: string, to: string): Promise<IMigrateNodeFksReport>;
     /**
      * Append a single `state_executions` row inside the transaction.
-     * `sm refresh` pairs it with `enrichments.upsertState` so an
+     * `sm enrich` pairs it with `enrichments.upsertState` so an
      * in-process enricher execution and its state row commit together.
      */
     insertExecution(record: ExecutionRecord): Promise<void>;
@@ -378,7 +378,7 @@ export interface StoragePort {
   // --- enrichments namespace ---------------------------------------------
   /**
    * Read access to `state_enrichments` (Model A, the per-node
-   * enrichment write-through an enricher Action lands via `sm refresh`,
+   * enrichment write-through an enricher Action lands via `sm enrich`,
    * `spec/db-schema.md` §state_enrichments). The mutation surfaces stay
    * transactional-only on `ITransactionalStorage`: the Model B batch
    * (`upsertMany`, `node_enrichments`) rides inside the refresh
@@ -394,7 +394,7 @@ export interface StoragePort {
      */
     listStateForNode(nodeId: string): Promise<IStateEnrichmentRecord[]>;
     /**
-     * The stale candidate set for `sm refresh --stale` (v1 staleness:
+     * The stale candidate set for `sm enrich --stale` (v1 staleness:
      * `data_json.localBodyHash` differs from the node's current
      * `scan_nodes.body_hash`, or a non-null `stale_after` has passed;
      * rows whose node vanished from the scan are excluded). Computed
@@ -895,7 +895,7 @@ export interface StoragePort {
   /**
    * Open a transaction. The callback receives a transactional subset
    * of the port; the adapter commits on resolution and rolls back on
-   * rejection. `sm orphans reconcile / undo-rename` and `sm refresh`
+   * rejection. `sm orphans reconcile / undo-rename` and `sm enrich`
    * are the canonical consumers.
    */
   transaction<T>(fn: (tx: ITransactionalStorage) => Promise<T>): Promise<T>;

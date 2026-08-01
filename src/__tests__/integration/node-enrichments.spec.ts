@@ -28,7 +28,7 @@
  *       drive this test, the merge contract is preserved for the
  *       future Action-prob revision even though no Extractor write
  *       lands a stale row today.
- *   (f) `sm refresh <node>` re-runs Extractors and persists rows; exit 0.
+ *   (f) `sm enrich <node>` re-runs Extractors and persists rows; exit 0.
  *
  * Uses temp file-based SQLite DBs (not `:memory:`, per
  * `feedback_sqlite_in_memory_workaround.md`).
@@ -476,7 +476,7 @@ describe('node_enrichments, universal enrichment layer (A.8)', () => {
   });
 });
 
-// --- (f) sm refresh stub ---------------------------------------------------
+// --- (f) sm enrich stub ---------------------------------------------------
 
 const REPO_ROOT = process.cwd();
 const SM_BIN = join(REPO_ROOT, 'bin', 'sm.js');
@@ -500,8 +500,8 @@ function runCli(cwd: string, args: string[]): ICliResult {
   };
 }
 
-describe('sm refresh (A.8)', () => {
-  it('Test (f), `sm refresh <node>` re-runs extractors, persists rows, exit 0', async () => {
+describe('sm enrich (A.8)', () => {
+  it('Test (f), `sm enrich <node>` re-runs extractors, persists rows, exit 0', async () => {
     const fixture = freshFixture('refresh-stub');
     fullFixture(fixture);
 
@@ -510,7 +510,7 @@ describe('sm refresh (A.8)', () => {
     strictEqual(scanResult.status, 0, `scan failed: ${scanResult.stderr}`);
 
     // Run refresh against an existing node.
-    const refreshResult = runCli(fixture, ['refresh', '.claude/agents/architect.md']);
+    const refreshResult = runCli(fixture, ['enrich', '.claude/agents/architect.md']);
     strictEqual(
       refreshResult.status,
       0,
@@ -530,13 +530,13 @@ describe('sm refresh (A.8)', () => {
     );
   });
 
-  it('Test (f.2), `sm refresh <missing-node>` exits 5 (not-found)', async () => {
+  it('Test (f.2), `sm enrich <missing-node>` exits 5 (not-found)', async () => {
     const fixture = freshFixture('refresh-missing');
     fullFixture(fixture);
     const scanResult = runCli(fixture, ['scan']);
     strictEqual(scanResult.status, 0);
 
-    const refreshResult = runCli(fixture, ['refresh', 'does/not/exist.md']);
+    const refreshResult = runCli(fixture, ['enrich', 'does/not/exist.md']);
     strictEqual(refreshResult.status, 5, `expected NotFound; stderr=${refreshResult.stderr}`);
     // New layout: ✕ glyph + headline + dim hint. Match case-insensitive
     // to stay tolerant of future copy tweaks while still catching the
@@ -547,13 +547,13 @@ describe('sm refresh (A.8)', () => {
     );
   });
 
-  it('Test (f.3), `sm refresh --stale` with no stale rows exits 0 with a clear "nothing to do" message', async () => {
+  it('Test (f.3), `sm enrich --stale` with no stale rows exits 0 with a clear "nothing to do" message', async () => {
     const fixture = freshFixture('refresh-stale-empty');
     fullFixture(fixture);
     const scanResult = runCli(fixture, ['scan']);
     strictEqual(scanResult.status, 0);
 
-    const refreshResult = runCli(fixture, ['refresh', '--stale']);
+    const refreshResult = runCli(fixture, ['enrich', '--stale']);
     strictEqual(
       refreshResult.status,
       0,
@@ -571,7 +571,7 @@ describe('sm refresh (A.8)', () => {
     const scanResult = runCli(fixture, ['scan']);
     strictEqual(scanResult.status, 0);
 
-    const refreshResult = runCli(fixture, ['refresh', '--stale', 'foo.md']);
+    const refreshResult = runCli(fixture, ['enrich', '--stale', 'foo.md']);
     strictEqual(refreshResult.status, 2, `expected Error; stderr=${refreshResult.stderr}`);
     ok(
       refreshResult.stderr.includes('cannot be combined'),
@@ -579,7 +579,7 @@ describe('sm refresh (A.8)', () => {
     );
   });
 
-  it('Test (f.5), `sm refresh` accepts external-Provider kinds (open kind contract)', async () => {
+  it('Test (f.5), `sm enrich` accepts external-Provider kinds (open kind contract)', async () => {
     // Defensive guard for the open-kind refactor: refresh loads the
     // node via `loadScanResult` (which now returns `kind: string`), then
     // walks `applicable = extractors.filter(...applicableKinds...)`. No
@@ -634,7 +634,7 @@ describe('sm refresh (A.8)', () => {
       await dbAdapter.close();
     }
 
-    const refreshResult = runCli(fixture, ['refresh', '.cursor/rules/strict-mode.md']);
+    const refreshResult = runCli(fixture, ['enrich', '.cursor/rules/strict-mode.md']);
     strictEqual(
       refreshResult.status,
       0,

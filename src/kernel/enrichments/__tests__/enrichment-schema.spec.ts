@@ -3,7 +3,7 @@
  * enricher signal (`spec/db-schema.md` §state_enrichments): an Action is
  * an enricher iff its report schema `$ref`s a canonical
  * `enrichments/<kind>.schema.json`. There is no manifest flag; this
- * helper is the single detection point the `sm refresh` dispatcher gates
+ * helper is the single detection point the `sm enrich` dispatcher gates
  * the `state_enrichments` write-through on. Mirrors the summarizer
  * detection suite (`kernel/jobs/__tests__/summary-schema.spec.ts`).
  */

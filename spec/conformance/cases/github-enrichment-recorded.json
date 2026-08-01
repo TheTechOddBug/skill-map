@@ -25,7 +25,7 @@
       },
       { "verb": "config", "sub": "set", "args": ["allowNetworkActions", "true"] },
       { "verb": "plugins", "sub": "enable", "args": ["github/enrichment"] },
-      { "verb": "refresh", "args": ["notes.md"], "flags": ["--json"] }
+      { "verb": "enrich", "args": ["notes.md"], "flags": ["--json"] }
     ]
   },
   "invoke": {

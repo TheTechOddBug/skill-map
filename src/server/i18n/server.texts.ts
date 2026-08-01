@@ -314,7 +314,7 @@ export const SERVER_TEXTS = {
   // action with an `invoke()`. Covers "no such action", "action exists
   // but ships no deterministic entry point" (a probabilistic action that
   // cannot be dispatched over this synchronous route), and "action
-  // declares io:['network']" (executes exclusively via `sm refresh`).
+  // declares io:['network']" (executes exclusively via `sm enrich`).
   // The id is sanitised before interpolation.
   actionUnknown:
     'No invokable action with id "{{actionId}}".',

@@ -221,7 +221,7 @@
     },
     "allowNetworkActions": {
       "type": "boolean",
-      "description": "**Project policy, team-shared** (committed in `<cwd>/.skill-map/settings.json`, NOT project-local). Default `false`. When `false`, every Action whose manifest declares `io: ['network']` (the built-in `github/enrichment`, plus any external action) is refused at execution time (`sm refresh` reports it skipped with a directed advisory) and its manifest still loads (visible in `sm actions list`, never executed). Opt-in by design: a cloned repo must not be able to make skill-map fetch remote content without the operator's explicit consent. Mirrors the `allowSidecarWriters` posture (hard gate, travels with the repo).",
+      "description": "**Project policy, team-shared** (committed in `<cwd>/.skill-map/settings.json`, NOT project-local). Default `false`. When `false`, every Action whose manifest declares `io: ['network']` (the built-in `github/enrichment`, plus any external action) is refused at execution time (`sm enrich` reports it skipped with a directed advisory) and its manifest still loads (visible in `sm actions list`, never executed). Opt-in by design: a cloned repo must not be able to make skill-map fetch remote content without the operator's explicit consent. Mirrors the `allowSidecarWriters` posture (hard gate, travels with the repo).",
       "default": false
     },
     "allowSidecarWriters": {

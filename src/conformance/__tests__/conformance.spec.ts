@@ -78,7 +78,7 @@ const SPEC_CASES = [
   'project-config-schema',
   'plugins-doctor-schema',
   'extension-manifest-enable-gate',
-  'refresh-report-schema',
+  'enrich-report-schema',
   'catalog-slots-input-types',
   'bump-report-schema',
   'extension-kind-manifests',
@@ -125,7 +125,7 @@ const SPEC_CASES = [
   // `{{staticServeUrl}}` binding spliced into staged `config set` steps
   // (project-LOCAL base-URL settings), and the double opt-in
   // (`plugins enable` + `allowNetworkActions`) before a real
-  // `sm refresh` fetch chain. Same reasoning as the families above: the
+  // `sm enrich` fetch chain. Same reasoning as the families above: the
   // primitive exists to make a contract expressible, so a runner
   // regression would not fail any OTHER case.
   'github-enrichment-recorded',

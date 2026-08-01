@@ -17,7 +17,7 @@
  *     the `.md` ready for editing. Per Decision A4 the
  *     `--from-frontmatter` migration helper is OUT of 9.6.4.
  *
- * `sm sidecars refresh` is intentionally distinct from `sm refresh`
+ * `sm sidecars refresh` is intentionally distinct from `sm enrich`
  * (the Step A.8 enrichment-layer verb that re-runs Extractors), same
  * verb stem, different concept; the sub-namespace prefix keeps the
  * two from colliding.
@@ -60,7 +60,7 @@ import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 /**
  * Bag the consent wrapper needs to surface the prompt. Exposed as a
  * struct instead of `this`-passing because two sibling commands
- * (`SidecarRefreshCommand`, `SidecarAnnotateCommand`) share the same
+ * (`SidecarEnrichCommand`, `SidecarAnnotateCommand`) share the same
  * gate without a common subclass, and `protected printer` would not
  * be reachable from a free function. Each command's own method
  * forwards the live values.
@@ -124,7 +124,7 @@ async function runWithSidecarConsent(
 
 // --- sm sidecars refresh ---------------------------------------------------
 
-export class SidecarRefreshCommand extends SmCommand {
+export class SidecarEnrichCommand extends SmCommand {
   static override paths = [['sidecars', 'refresh']];
   static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
   static override usage = Command.Usage({
@@ -134,7 +134,7 @@ export class SidecarRefreshCommand extends SmCommand {
     details: `
       Useful when the user knows a body change is editorial-only and
       doesn't want to spend a \`annotations.version\` increment.
-      Distinct from \`sm refresh\` (the enrichment-layer verb at Step
+      Distinct from \`sm enrich\` (the enrichment-layer verb at Step
       A.8); different storage, different concept.
 
       Refuses if the node has no sidecar (run \`sm sidecars annotate\`
@@ -667,7 +667,7 @@ function scaffoldSidecarObject(node: Node): Record<string, unknown> {
 }
 
 export const SIDECAR_COMMANDS = [
-  SidecarRefreshCommand,
+  SidecarEnrichCommand,
   SidecarPruneCommand,
   SidecarAnnotateCommand,
 ];

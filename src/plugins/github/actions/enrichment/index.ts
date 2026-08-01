@@ -39,7 +39,7 @@
  * ONE sanctioned carve-out from extension purity
  * (`spec/architecture.md` §Extension purity). Every remote call routes
  * through the injected `ctx.fetch`, never a global, so the dispatcher
- * (`sm refresh`, the only execution surface, never `sm scan`, never a
+ * (`sm enrich`, the only execution surface, never `sm scan`, never a
  * queued job) enforces the committed `allowNetworkActions` project
  * policy (default off) and tests substitute a fake transport. A missing
  * `ctx.fetch` is a programmer error (a dispatcher that skipped the
@@ -104,7 +104,7 @@ export const enrichmentAction: IBuiltInManifest<IAction> = {
   pluginId: PLUGIN_ID,
   kind: 'action',
   description:
-    'Verifies a node against its declared GitHub upstream: fetches the file pinned by the `source` / `sourceVersion` annotations and reports whether the local body still matches it. Runs via `sm refresh` and requires the `allowNetworkActions` project policy. The `apiBaseUrl` / `rawBaseUrl` settings redirect the two fetch hosts (GitHub Enterprise, recorded fixtures) and are honoured from the project-local config layer only, because the `token` setting is sent to the host `apiBaseUrl` names.',
+    'Verifies a node against its declared GitHub upstream: fetches the file pinned by the `source` / `sourceVersion` annotations and reports whether the local body still matches it. Runs via `sm enrich` and requires the `allowNetworkActions` project policy. The `apiBaseUrl` / `rawBaseUrl` settings redirect the two fetch hosts (GitHub Enterprise, recorded fixtures) and are honoured from the project-local config layer only, because the `token` setting is sent to the host `apiBaseUrl` names.',
   // Ships disabled (experimental): a network-reaching action must be a
   // double opt-in, the extension toggle AND the allowNetworkActions
   // project policy. Same ships-disabled mechanism as core/node-bump.
@@ -124,7 +124,7 @@ export const enrichmentAction: IBuiltInManifest<IAction> = {
     // (`PROJECT_LOCAL_ONLY_KEYS`, kernel/config/loader.ts). The token
     // above rides the Authorization header to whatever host apiBaseUrl
     // names, so a committed override in a cloned repo would exfiltrate
-    // it on the first `sm refresh`; the config loader strips the keys
+    // it on the first `sm enrich`; the config loader strips the keys
     // from the committed layer with a warning.
     apiBaseUrl: {
       type: 'single-string',
@@ -217,7 +217,7 @@ type TProvenance =
 
 /**
  * Read the `source` / `sourceVersion` sidecar annotations off the node.
- * The missing-annotation branch is defensive: the `sm refresh`
+ * The missing-annotation branch is defensive: the `sm enrich`
  * dispatcher already no-op-skips nodes without both annotations, so it
  * only fires on a direct out-of-contract invocation.
  */

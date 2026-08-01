@@ -79,7 +79,7 @@ const COVERED: ReadonlyArray<readonly [string, string[]]> = [
   ['sidecars prune --dry-run', ['sidecars', 'prune', '--dry-run', '--yes', '--json']],
   ['hooks install --dry-run', ['hooks', 'install', 'pre-commit-bump', '--dry-run', '--json']],
   ['jobs prune', ['jobs', 'prune', '--json']],
-  ['refresh --stale', ['refresh', '--stale', '--json']],
+  ['enrich --stale', ['enrich', '--stale', '--json']],
   ['scan', ['scan', '--yes', '--json']],
   ['db backup', ['db', 'backup', '--json']],
   ['db migrate', ['db', 'migrate', '--no-backup', '--json']],

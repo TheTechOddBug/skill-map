@@ -36,7 +36,7 @@
  *
  * Why a tiny abstraction at all: every CLI verb hand-rolls the
  * `this.context.stdout.write(...)` / `this.context.stderr.write(...)`
- * pair today. Drift is silent, `sm refresh` was emitting "Refreshing
+ * pair today. Drift is silent, `sm enrich` was emitting "Refreshing
  * node X" on stdout while every other channel for that command went to
  * stderr. A single typed surface keeps that from happening once new
  * verbs land. The shape is deliberately small; expand it only when a

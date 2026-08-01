@@ -806,7 +806,7 @@ export async function loadExtractorRuns(
  * `includeStale` for the rare UI case that wants to display them).
  *
  * Pass `nodePath` to filter to a single node's enrichments, used by
- * `sm refresh <node>` to read only the rows it intends to refresh, and
+ * `sm enrich <node>` to read only the rows it intends to refresh, and
  * by `sm show` to render a single node's overlay.
  */
 export async function loadNodeEnrichments(

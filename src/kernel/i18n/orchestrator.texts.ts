@@ -77,4 +77,9 @@ export const ORCHESTRATOR_TEXTS = {
     'runScan: roots must contain at least one path (spec requires minItems: 1)',
 
   runScanRootMissing: "runScan: root path '{{root}}' does not exist or is not a directory",
+  runScanRootIsFile:
+    "runScan: '{{root}}' is a file, and scan roots are directories. " +
+    'A scan walks the corpus and re-derives the whole graph; ' +
+    'to operate on one node use `sm enrich <node.path>` (its enrichment layer) ' +
+    'or `sm scan --changed` (an incremental pass that re-extracts only what moved).',
 } as const;

@@ -1,8 +1,8 @@
 /**
- * CLI strings emitted by `sm refresh` and `sm refresh --stale`
+ * CLI strings emitted by `sm enrich` and `sm enrich --stale`
  * (`cli/commands/refresh.ts`).
  *
- * `sm refresh` is the granular companion to the enrichment layer
+ * `sm enrich` is the granular companion to the enrichment layer
  * (spec § A.8). It re-runs Extractors against a single node (or the
  * set of nodes carrying at least one stale enrichment row) so the
  * kernel-curated overlay refreshes against the current body, THEN
@@ -16,7 +16,7 @@
  * `tx` helper at `kernel/util/tx.ts` does the interpolation.
  */
 
-export const REFRESH_TEXTS = {
+export const ENRICH_TEXTS = {
   // --- argument validation --------------------------------------------------
   /**
    * §3.1b two-line block. Mutex between the positional <node.path> and
@@ -26,7 +26,7 @@ export const REFRESH_TEXTS = {
     '{{glyph}}  --stale cannot be combined with a positional <node.path>.\n' +
     '   {{hint}}\n',
   nodeAndStaleMutexHint:
-    'Run `sm refresh <node.path>` for a single refresh, or `sm refresh --stale` to refresh every node with a stale row.',
+    'Run `sm enrich <node.path>` for a single refresh, or `sm enrich --stale` to refresh every node with a stale row.',
 
   /**
    * §3.1b two-line block. Headline names the missing input on one
@@ -36,7 +36,7 @@ export const REFRESH_TEXTS = {
     '{{glyph}}  Pass <node.path> for a single-node refresh, or --stale for batch mode.\n' +
     '   {{hint}}\n',
   noTargetSpecifiedHint:
-    'Examples: `sm refresh path/to/node.md` (single), `sm refresh --stale` (every stale enrichment row).',
+    'Examples: `sm enrich path/to/node.md` (single), `sm enrich --stale` (every stale enrichment row).',
 
   // --- node lookup ----------------------------------------------------------
   /**
@@ -50,13 +50,13 @@ export const REFRESH_TEXTS = {
     'Run `sm scan` first, then retry with the path as it appears in `sm list`.',
 
   // --- happy path -----------------------------------------------------------
-  /** Success line for `sm refresh <node.path>`. */
+  /** Success line for `sm enrich <node.path>`. */
   refreshSuccessSingle:
     '{{glyph}}  {{count}} enrichment {{noun}} from {{nodePath}}\n',
-  /** Success line for `sm refresh --stale` over a non-empty stale set. */
+  /** Success line for `sm enrich --stale` over a non-empty stale set. */
   refreshSuccessStale:
     '{{glyph}}  {{count}} enrichment {{noun}} across {{nodeCount}} {{nodeNoun}}\n',
-  /** Success line for `sm refresh --stale` when no row is stale. */
+  /** Success line for `sm enrich --stale` when no row is stale. */
   refreshSuccessNoStale: '{{glyph}}  No stale enrichment rows.\n',
 
   refreshNounSingular: 'row',
@@ -94,7 +94,7 @@ export const REFRESH_TEXTS = {
     '{{glyph}}  {{actionId}} report rejected for {{nodePath}}: {{errors}}\n',
 
   // --- failures -------------------------------------------------------------
-  refreshFailed: '{{glyph}}  sm refresh: {{message}}\n',
+  refreshFailed: '{{glyph}}  sm enrich: {{message}}\n',
 
   /**
    * Error-envelope `message` body for `--json` failures. Used as the
@@ -102,7 +102,7 @@ export const REFRESH_TEXTS = {
    * (the `--json` consumer cannot rely on the human glyph + hint).
    */
   jsonErrorDbMissing:
-    'Project database not found. Run `sm init` before `sm refresh`.',
+    'Project database not found. Run `sm init` before `sm enrich`.',
   jsonErrorNodeNotFound: 'Node not found: {{nodePath}}',
 
   /**

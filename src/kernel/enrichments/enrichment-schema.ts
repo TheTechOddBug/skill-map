@@ -7,7 +7,7 @@
  * namespace (`spec/schemas/enrichments/`, today the single
  * `github.schema.json` provenance shape) via `$ref`, typically inside
  * `allOf`. There is NO manifest flag; an enricher-specific field has no
- * place on the universal `IAction` contract, so the `sm refresh`
+ * place on the universal `IAction` contract, so the `sm enrich`
  * dispatcher infers the opt-in from the schema the kernel already loads.
  *
  * The scan is purely structural: walk the report-schema JSON for any
@@ -31,7 +31,7 @@ const SCHEMA_FILE_SUFFIX = '.schema.json';
  * Return the enrichment-schema stem (`'github'`, the only canonical
  * shape today) when the report schema references an
  * `enrichments/*.schema.json`, else `null`. Non-null means the Action
- * is an enricher: `sm refresh` upserts its validated report into
+ * is an enricher: `sm enrich` upserts its validated report into
  * `state_enrichments` keyed `(node_id, <qualified action id>)`. Works
  * on both report-schema sources: a plugin's on-disk `report.schema.json`
  * and a built-in's codegen-inlined `reportSchema` object.

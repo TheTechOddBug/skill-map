@@ -200,7 +200,7 @@ function parseAnalyzersFlag(raw: string | undefined): readonly string[] | undefi
  *     bar.md
  *       ⚠  analyzer-id   Warning message …
  *
- *   Tip: `sm refresh <node>` to revalidate a file after fixes.
+ *   Tip: `sm enrich <node>` to revalidate a file after fixes.
  *
  * Issues group by their primary `nodeIds[0]` (multi-node issues attach
  * to the first path; the message itself names any cross-file context).

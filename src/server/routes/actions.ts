@@ -304,7 +304,7 @@ function parseSegment(value: string, name: string): string {
  * the action ships no deterministic `invoke()` (a probabilistic action
  * that this synchronous route cannot dispatch) OR the action declares
  * `io: ['network']` (declared-network actions execute exclusively via
- * `sm refresh`, behind the `allowNetworkActions` policy; this route
+ * `sm enrich`, behind the `allowNetworkActions` policy; this route
  * never injects `ctx.fetch`, so they are not dispatchable here by
  * contract). The id is sanitised before interpolation into the 404
  * envelope.
@@ -354,7 +354,7 @@ function resolveInvokableAction(kernel: Kernel, actionId: string): IAction {
  * Invoke the resolved Action against the loaded node. Builds the
  * `IActionContext` exactly like the CLI / bump route (invoker channel
  * fallback, `now`, empty `settings`, no `ctx.fetch`: declared-network
- * actions execute via `sm refresh` only, never this route). The Action
+ * actions execute via `sm enrich` only, never this route). The Action
  * stays pure; its returned writes are materialised afterwards by
  * `materializeWrites`. Async because the widened `invoke` contract MAY
  * return a Promise (sync actions await to themselves).

@@ -531,7 +531,7 @@ function assignSafe(target: Record<string, unknown>, source: Record<string, unkn
  * but with `value` already deserialised from JSON and `stale` /
  * `isProbabilistic` already decoded from `0 | 1`. Surfaced via
  * `loadNodeEnrichments` (driven adapter) and consumed by
- * `mergeNodeWithEnrichments` and the `sm refresh` command.
+ * `mergeNodeWithEnrichments` and the `sm enrich` command.
  */
 export interface IPersistedEnrichment {
   nodePath: string;

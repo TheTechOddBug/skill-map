@@ -1,8 +1,8 @@
 /**
  * `--json` envelope tests for the four verbs upgraded in this slice:
  *
- *   - `sm refresh <node.path> --json` and `sm refresh --stale --json`
- *     (schema: `spec/schemas/refresh-report.schema.json`).
+ *   - `sm enrich <node.path> --json` and `sm enrich --stale --json`
+ *     (schema: `spec/schemas/enrich-report.schema.json`).
  *   - `sm plugins doctor --json`
  *     (schema: `spec/schemas/plugins-doctor.schema.json`).
  *   - `sm graph --format json`
@@ -109,21 +109,21 @@ after(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-// --- sm refresh ----------------------------------------------------------
+// --- sm enrich ----------------------------------------------------------
 
-describe('sm refresh --json', () => {
-  it('happy path: validates against refresh-report.schema.json with refreshed>=0', () => {
+describe('sm enrich --json', () => {
+  it('happy path: validates against enrich-report.schema.json with refreshed>=0', () => {
     const scope = freshScope('refresh-happy');
     plantClaudeFixture(scope);
 
     const init = sm(['init'], scope);
     assert.equal(init.status, 0, `init failed: ${init.stderr}`);
 
-    const r = sm(['refresh', '.claude/agents/architect.md', '--json'], scope);
+    const r = sm(['enrich', '.claude/agents/architect.md', '--json'], scope);
     assert.equal(r.status, 0, `unexpected exit ${r.status}; stderr=${r.stderr}`);
     const payload = JSON.parse(r.stdout) as Record<string, unknown>;
     assert.equal(payload['ok'], true);
-    assert.equal(payload['kind'], 'refresh.report');
+    assert.equal(payload['kind'], 'enrich.report');
     assert.ok(typeof payload['refreshed'] === 'number');
     assert.ok((payload['refreshed'] as number) >= 0);
     assert.ok(Array.isArray(payload['nodes']));
@@ -133,7 +133,7 @@ describe('sm refresh --json', () => {
     assert.ok(typeof firstNode['enrichments'] === 'number');
     assert.ok(typeof payload['elapsedMs'] === 'number');
 
-    const validate = compileSchema('refresh-report.schema.json');
+    const validate = compileSchema('enrich-report.schema.json');
     assert.ok(validate(payload), `schema errors: ${JSON.stringify(validate.errors)}`);
   });
 
@@ -144,15 +144,15 @@ describe('sm refresh --json', () => {
     const init = sm(['init'], scope);
     assert.equal(init.status, 0, `init failed: ${init.stderr}`);
 
-    const r = sm(['refresh', '--stale', '--json'], scope);
+    const r = sm(['enrich', '--stale', '--json'], scope);
     assert.equal(r.status, 0, `unexpected exit ${r.status}; stderr=${r.stderr}`);
     const payload = JSON.parse(r.stdout) as Record<string, unknown>;
     assert.equal(payload['ok'], true);
-    assert.equal(payload['kind'], 'refresh.report');
+    assert.equal(payload['kind'], 'enrich.report');
     assert.equal(payload['refreshed'], 0);
     assert.deepEqual(payload['nodes'], []);
 
-    const validate = compileSchema('refresh-report.schema.json');
+    const validate = compileSchema('enrich-report.schema.json');
     assert.ok(validate(payload), `schema errors: ${JSON.stringify(validate.errors)}`);
   });
 
@@ -163,7 +163,7 @@ describe('sm refresh --json', () => {
     const init = sm(['init'], scope);
     assert.equal(init.status, 0, `init failed: ${init.stderr}`);
 
-    const r = sm(['refresh', 'does/not/exist.md', '--json'], scope);
+    const r = sm(['enrich', 'does/not/exist.md', '--json'], scope);
     assert.equal(r.status, 5, `unexpected exit ${r.status}; stderr=${r.stderr}`);
     const payload = JSON.parse(r.stdout) as Record<string, unknown>;
     assert.equal(payload['ok'], false);
@@ -180,7 +180,7 @@ describe('sm refresh --json', () => {
     const scope = freshScope('refresh-db-missing');
     plantClaudeFixture(scope);
 
-    const r = sm(['refresh', '.claude/agents/architect.md', '--json'], scope);
+    const r = sm(['enrich', '.claude/agents/architect.md', '--json'], scope);
     assert.equal(r.status, 5, `unexpected exit ${r.status}; stderr=${r.stderr}`);
     const payload = JSON.parse(r.stdout) as Record<string, unknown>;
     assert.equal(payload['ok'], false);

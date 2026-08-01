@@ -15,7 +15,7 @@
  * cheap early-validation gates that need no DB / FS fixture:
  *
  *   - `sm serve --port abc` (portInvalid, ExitCode.Error)
- *   - `sm refresh <node> --stale` / bare `sm refresh` (argument
+ *   - `sm enrich <node> --stale` / bare `sm enrich` (argument
  *     gates, ExitCode.Error)
  */
 
@@ -25,7 +25,7 @@ import { Builtins, Cli } from 'clipanion';
 import type { BaseContext } from 'clipanion';
 
 import { ServeCommand } from '../serve.js';
-import { RefreshCommand } from '../refresh.js';
+import { EnrichCommand } from '../enrich.js';
 import { ExitCode } from '../../util/exit-codes.js';
 
 interface ICapture {
@@ -53,7 +53,7 @@ function buildCli(): Cli {
   const cli = new Cli({ binaryName: 'sm', binaryLabel: 'skill-map', binaryVersion: '0.0.0' });
   cli.register(Builtins.HelpCommand);
   cli.register(ServeCommand);
-  cli.register(RefreshCommand);
+  cli.register(EnrichCommand);
   return cli;
 }
 
@@ -73,17 +73,17 @@ describe('fatal-path channel discipline (--json / -q keep errors visible)', () =
     assert.match(cap.stderr(), /--port must be a non-negative integer/, cap.stderr());
   });
 
-  it('sm refresh <node> --stale --json: exit 2, mutex error on stderr, stdout untouched', async () => {
+  it('sm enrich <node> --stale --json: exit 2, mutex error on stderr, stdout untouched', async () => {
     const cap = captureContext();
-    const exit = await buildCli().run(['refresh', 'a.md', '--stale', '--json'], cap.context);
+    const exit = await buildCli().run(['enrich', 'a.md', '--stale', '--json'], cap.context);
     assert.equal(exit, ExitCode.Error);
     assert.match(cap.stderr(), /--stale cannot be combined with a positional/, cap.stderr());
     assert.equal(cap.stdout(), '', 'stdout must stay clean for the JSON contract');
   });
 
-  it('sm refresh (no target) -q: exit 2, error still on stderr', async () => {
+  it('sm enrich (no target) -q: exit 2, error still on stderr', async () => {
     const cap = captureContext();
-    const exit = await buildCli().run(['refresh', '-q'], cap.context);
+    const exit = await buildCli().run(['enrich', '-q'], cap.context);
     assert.equal(exit, ExitCode.Error);
     assert.match(cap.stderr(), /Pass <node\.path> for a single-node refresh/, cap.stderr());
   });

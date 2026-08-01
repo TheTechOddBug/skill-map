@@ -1,5 +1,5 @@
 /**
- * `sm refresh <node.path>` and `sm refresh --stale`, kernel-side CLI
+ * `sm enrich <node.path>` and `sm enrich --stale`, kernel-side CLI
  * verbs for the enrichment layer (spec § A.8 + `spec/db-schema.md`
  * §state_enrichments).
  *
@@ -72,7 +72,7 @@ import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { buildSettingsResolver } from '../../core/config/plugin-settings.js';
 import { tx } from '../../kernel/util/tx.js';
-import { REFRESH_TEXTS } from '../i18n/refresh.texts.js';
+import { ENRICH_TEXTS } from '../i18n/enrich.texts.js';
 import type { IAnsi } from '../util/ansi.js';
 import { resolveDbPath } from '../util/db-path.js';
 import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
@@ -131,13 +131,13 @@ interface IStateEnrichmentWrite {
 }
 
 /**
- * `--json` envelope per `spec/schemas/refresh-report.schema.json`.
+ * `--json` envelope per `spec/schemas/enrich-report.schema.json`.
  * Reported on stdout when `--json` is set; the human glyph + path
  * advisory is suppressed in that mode.
  */
 interface IRefreshJsonEnvelope {
   ok: true;
-  kind: 'refresh.report';
+  kind: 'enrich.report';
   refreshed: number;
   nodes: Array<{ path: string; enrichments: number }>;
   elapsedMs: number;
@@ -147,13 +147,13 @@ interface IRefreshJsonEnvelope {
 type TRefreshJsonErrorCode = 'not-found' | 'db-missing' | 'internal';
 
 /**
- * `sm refresh [<node.path>] [--stale]`
+ * `sm enrich [<node.path>] [--stale]`
  *
  * Mutex: `--stale` and the positional `<node.path>` are mutually
  * exclusive. Exactly one MUST be supplied.
  */
-export class RefreshCommand extends SmCommand {
-  static override paths = [['refresh']];
+export class EnrichCommand extends SmCommand {
+  static override paths = [['enrich']];
   static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.NotFound];
 
   static override usage = Command.Usage({
@@ -205,18 +205,18 @@ export class RefreshCommand extends SmCommand {
     // --- argument validation ------------------------------------------------
     if (this.stale && this.nodePath !== undefined) {
       this.printer!.error(
-        tx(REFRESH_TEXTS.nodeAndStaleMutex, {
+        tx(ENRICH_TEXTS.nodeAndStaleMutex, {
           glyph: errGlyph,
-          hint: ansiEarly.dim(REFRESH_TEXTS.nodeAndStaleMutexHint),
+          hint: ansiEarly.dim(ENRICH_TEXTS.nodeAndStaleMutexHint),
         }),
       );
       return ExitCode.Error;
     }
     if (!this.stale && this.nodePath === undefined) {
       this.printer!.error(
-        tx(REFRESH_TEXTS.noTargetSpecified, {
+        tx(ENRICH_TEXTS.noTargetSpecified, {
           glyph: errGlyph,
-          hint: ansiEarly.dim(REFRESH_TEXTS.noTargetSpecifiedHint),
+          hint: ansiEarly.dim(ENRICH_TEXTS.noTargetSpecifiedHint),
         }),
       );
       return ExitCode.Error;
@@ -282,14 +282,14 @@ export class RefreshCommand extends SmCommand {
       // since the user sees the same advisory regardless of whether
       // the DB is missing or the node is.
       if (this.json) {
-        this.#emitJsonError('db-missing', tx(REFRESH_TEXTS.jsonErrorDbMissing));
+        this.#emitJsonError('db-missing', tx(ENRICH_TEXTS.jsonErrorDbMissing));
         return ExitCode.NotFound;
       }
       this.printer!.error(
-        tx(REFRESH_TEXTS.nodeNotFound, {
+        tx(ENRICH_TEXTS.nodeNotFound, {
           glyph: ansi.red('✕'),
           nodePath: this.nodePath ?? '<stale>',
-          hint: ansi.dim(REFRESH_TEXTS.nodeNotFoundHint),
+          hint: ansi.dim(ENRICH_TEXTS.nodeNotFoundHint),
         }),
       );
       return ExitCode.NotFound;
@@ -310,7 +310,7 @@ export class RefreshCommand extends SmCommand {
         this.#emitJsonError('internal', message);
         return ExitCode.Error;
       }
-      this.printer!.error(tx(REFRESH_TEXTS.refreshFailed, { glyph: errGlyph, message }));
+      this.printer!.error(tx(ENRICH_TEXTS.refreshFailed, { glyph: errGlyph, message }));
       return ExitCode.Error;
     }
 
@@ -357,7 +357,7 @@ export class RefreshCommand extends SmCommand {
           return ExitCode.Error;
         }
         this.printer!.error(
-          tx(REFRESH_TEXTS.refreshFailed, { glyph: errGlyph, message }),
+          tx(ENRICH_TEXTS.refreshFailed, { glyph: errGlyph, message }),
         );
         return ExitCode.Error;
       }
@@ -365,7 +365,7 @@ export class RefreshCommand extends SmCommand {
 
     // --- final result line --------------------------------------------------
     // State rows fold into `refreshed` + the per-node counts (the
-    // refresh-report envelope keeps its shape, `spec/cli-contract.md`
+    // enrich-report envelope keeps its shape, `spec/cli-contract.md`
     // §Refresh); only VALIDATED reports count (a report-invalid
     // execution persists nothing user-visible here).
     const stateUpsertsByNode = new Map<string, number>();
@@ -376,10 +376,10 @@ export class RefreshCommand extends SmCommand {
     const totalRefreshed =
       freshEnrichments.length + [...stateUpsertsByNode.values()].reduce((a, b) => a + b, 0);
 
-    // §Operations log: refresh mutates `node_enrichments` /
+    // §Operations log: enrich mutates `node_enrichments` /
     // `state_enrichments`, same machine-output surface as a scan pass.
     appendOperation(defaultRuntimeContext().cwd, {
-      op: 'refresh',
+      op: 'enrich',
       target: this.nodePath ?? '*',
       channel: 'cli',
       outcome: 'ok',
@@ -389,7 +389,7 @@ export class RefreshCommand extends SmCommand {
     if (this.json) {
       const envelope: IRefreshJsonEnvelope = {
         ok: true,
-        kind: 'refresh.report',
+        kind: 'enrich.report',
         refreshed: totalRefreshed,
         nodes: freshEnrichmentsByNode.map((n) => ({
           path: n.path,
@@ -404,21 +404,21 @@ export class RefreshCommand extends SmCommand {
     const glyph = ansi.green('✓');
     const count = totalRefreshed;
     const noun = count === 1
-      ? REFRESH_TEXTS.refreshNounSingular
-      : REFRESH_TEXTS.refreshNounPlural;
+      ? ENRICH_TEXTS.refreshNounSingular
+      : ENRICH_TEXTS.refreshNounPlural;
     if (this.stale) {
       const nodeCount = targetNodes.length;
       const nodeNoun = nodeCount === 1
-        ? REFRESH_TEXTS.refreshNodeNounSingular
-        : REFRESH_TEXTS.refreshNodeNounPlural;
+        ? ENRICH_TEXTS.refreshNodeNounSingular
+        : ENRICH_TEXTS.refreshNodeNounPlural;
       this.printer!.data(
-        tx(REFRESH_TEXTS.refreshSuccessStale, {
+        tx(ENRICH_TEXTS.refreshSuccessStale, {
           glyph, count, noun, nodeCount, nodeNoun,
         }),
       );
     } else {
       this.printer!.data(
-        tx(REFRESH_TEXTS.refreshSuccessSingle, {
+        tx(ENRICH_TEXTS.refreshSuccessSingle, {
           glyph, count, noun, nodePath: this.nodePath!,
         }),
       );
@@ -471,7 +471,7 @@ export class RefreshCommand extends SmCommand {
         if (this.json) {
           const envelope: IRefreshJsonEnvelope = {
             ok: true,
-            kind: 'refresh.report',
+            kind: 'enrich.report',
             refreshed: 0,
             nodes: [],
             elapsedMs: this.elapsed!.ms(),
@@ -482,7 +482,7 @@ export class RefreshCommand extends SmCommand {
         // Terminal "nothing to do" message, the answer to the user's
         // request, stays on stdout.
         this.printer!.data(
-          tx(REFRESH_TEXTS.refreshSuccessNoStale, { glyph: ansi.green('✓') }),
+          tx(ENRICH_TEXTS.refreshSuccessNoStale, { glyph: ansi.green('✓') }),
         );
         return { ok: false, exitCode: ExitCode.Ok };
       }
@@ -501,15 +501,15 @@ export class RefreshCommand extends SmCommand {
       if (this.json) {
         this.#emitJsonError(
           'not-found',
-          tx(REFRESH_TEXTS.jsonErrorNodeNotFound, { nodePath: this.nodePath! }),
+          tx(ENRICH_TEXTS.jsonErrorNodeNotFound, { nodePath: this.nodePath! }),
         );
         return { ok: false, exitCode: ExitCode.NotFound };
       }
       this.printer!.error(
-        tx(REFRESH_TEXTS.nodeNotFound, {
+        tx(ENRICH_TEXTS.nodeNotFound, {
           glyph: ansi.red('✕'),
           nodePath: this.nodePath!,
-          hint: ansi.dim(REFRESH_TEXTS.nodeNotFoundHint),
+          hint: ansi.dim(ENRICH_TEXTS.nodeNotFoundHint),
         }),
       );
       return { ok: false, exitCode: ExitCode.NotFound };
@@ -553,9 +553,9 @@ export class RefreshCommand extends SmCommand {
         if (!this.json) {
           const ansi = this.ansiFor('stderr');
           this.printer!.info(
-            tx(REFRESH_TEXTS.refreshFailed, {
+            tx(ENRICH_TEXTS.refreshFailed, {
               glyph: ansi.red('✕'),
-              message: tx(REFRESH_TEXTS.readFailedDetail, {
+              message: tx(ENRICH_TEXTS.readFailedDetail, {
                 path: node.path,
                 message: formatErrorMessage(err),
               }),
@@ -603,10 +603,10 @@ export class RefreshCommand extends SmCommand {
       const needsNetwork = enricher.action.io?.includes('network') === true;
       if (needsNetwork && !allowNetworkActions) {
         this.printer!.info(
-          tx(REFRESH_TEXTS.networkActionsPolicySkip, {
+          tx(ENRICH_TEXTS.networkActionsPolicySkip, {
             glyph: ansi.yellow('•'),
             actionId: sanitizeForTerminal(enricher.qualifiedId),
-            hint: ansi.dim(REFRESH_TEXTS.networkActionsPolicySkipHint),
+            hint: ansi.dim(ENRICH_TEXTS.networkActionsPolicySkipHint),
           }),
         );
         continue;
@@ -699,7 +699,7 @@ export class RefreshCommand extends SmCommand {
       const result = await action.invoke({}, ctx);
       report = result.report;
     } catch (err) {
-      this.#warnEnricher(REFRESH_TEXTS.enricherInvokeFailed, {
+      this.#warnEnricher(ENRICH_TEXTS.enricherInvokeFailed, {
         actionId: sanitizeForTerminal(qualifiedId),
         nodePath: sanitizeForTerminal(node.path),
         message: sanitizeForTerminal(formatErrorMessage(err)),
@@ -710,7 +710,7 @@ export class RefreshCommand extends SmCommand {
 
     const validation = validators.validateActionReport(schema, report);
     if (!validation.ok) {
-      this.#warnEnricher(REFRESH_TEXTS.enricherReportInvalid, {
+      this.#warnEnricher(ENRICH_TEXTS.enricherReportInvalid, {
         actionId: sanitizeForTerminal(qualifiedId),
         nodePath: sanitizeForTerminal(node.path),
         errors: sanitizeForTerminal(validation.errors),
@@ -943,4 +943,4 @@ function stripFrontmatterFence(text: string): string {
 }
 
 /** Aggregate export so `entry.ts` can register the refresh verb in one line. */
-export const REFRESH_COMMANDS = [RefreshCommand];
+export const ENRICH_COMMANDS = [EnrichCommand];

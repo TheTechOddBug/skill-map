@@ -223,7 +223,7 @@ export interface IEffectiveConfig {
    * NOT project-local). Default `false`. When `false`, every Action
    * whose manifest declares `io: ['network']` (the built-in
    * `github/enrichment`, plus any external action) is refused at
-   * execution time: `sm refresh` reports it skipped with a directed
+   * execution time: `sm enrich` reports it skipped with a directed
    * advisory naming this key, while the manifest still loads (visible
    * in listings, never executed). Opt-in by design: a cloned repo must
    * not be able to make skill-map fetch remote content without the
@@ -375,7 +375,7 @@ export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
   // The `github/enrichment` base-URL overrides. The extension's `token`
   // setting rides the Authorization header to whatever host `apiBaseUrl`
   // names, so a committed override in a cloned repo would exfiltrate the
-  // operator's token to an attacker host on the first `sm refresh`.
+  // operator's token to an attacker host on the first `sm enrich`.
   // Same treatment as `scan.followExternalSymlinks`: honoured from
   // `settings.local.json` only (grant-gated), stripped with a warning
   // everywhere else. See `spec/cli-contract.md` §Project-local-only

@@ -62,7 +62,7 @@ export type TActionWrite =
  * (a) relaxes the purity rule for exactly that capability, (b) injects
  * `ctx.fetch` into its invocation context, and (c) subjects execution
  * to the committed project policy `allowNetworkActions` (default
- * `false`). Declared-network Actions execute only via `sm refresh`,
+ * `false`). Declared-network Actions execute only via `sm enrich`,
  * never inside `sm scan` and never as queued jobs.
  */
 export type TActionIoKind = 'network';
@@ -96,7 +96,7 @@ export interface IActionContext {
    * carve-out from the extension-purity rule, see
    * `spec/architecture.md` §Extension purity). Implementations MUST
    * route every remote call through it and never touch a global
-   * `fetch`: the injection is what lets the dispatcher (`sm refresh`)
+   * `fetch`: the injection is what lets the dispatcher (`sm enrich`)
    * enforce the `allowNetworkActions` policy and lets tests substitute
    * a fake transport. Absent on every other Action's context.
    */

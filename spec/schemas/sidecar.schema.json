@@ -60,7 +60,7 @@
         "path": {
           "type": "string",
           "minLength": 1,
-          "description": "Relative path from the scope root to the `.md` file this sidecar annotates. Matches the canonical Node identifier (see `node.schema.json` #/properties/path). Survives content edits; breaks on file moves, `sm refresh` re-points the sidecar after a move."
+          "description": "Relative path from the scope root to the `.md` file this sidecar annotates. Matches the canonical Node identifier (see `node.schema.json` #/properties/path). Survives content edits; breaks on file moves, `sm enrich` re-points the sidecar after a move."
         },
         "bodyHash": {
           "type": "string",

@@ -1,5 +1,5 @@
 /**
- * End-to-end tests for the `sm refresh` Model A enrichment pass wired
+ * End-to-end tests for the `sm enrich` Model A enrichment pass wired
  * through the real CLI verb against a real project DB (never
  * `:memory:`, see feedback_sqlite_in_memory_workaround) and the
  * module-level fetch seam (`_setRefreshFetchForTests`), no real network
@@ -28,7 +28,7 @@ import { after, afterEach, before, describe, it } from 'node:test';
 
 import type { BaseContext } from 'clipanion';
 
-import { RefreshCommand, _setRefreshFetchForTests } from '../refresh.js';
+import { EnrichCommand, _setRefreshFetchForTests } from '../enrich.js';
 import { SqliteStorageAdapter } from '../../../kernel/adapters/sqlite/index.js';
 import { upsertStateEnrichment } from '../../../kernel/adapters/sqlite/enrichments.js';
 import { sha256 } from '../../../kernel/orchestrator/node-build.js';
@@ -153,8 +153,8 @@ async function openDb(dbPath: string): Promise<SqliteStorageAdapter> {
   return adapter;
 }
 
-function buildRefresh(opts: { node?: string; stale?: boolean; json?: boolean } = {}): RefreshCommand {
-  const cmd = new RefreshCommand();
+function buildRefresh(opts: { node?: string; stale?: boolean; json?: boolean } = {}): EnrichCommand {
+  const cmd = new EnrichCommand();
   cmd.nodePath = opts.node;
   cmd.stale = opts.stale ?? false;
   cmd.noPlugins = false;
@@ -195,7 +195,7 @@ afterEach(() => {
   _setRefreshFetchForTests(null);
 });
 
-describe('sm refresh, allowNetworkActions policy gate', () => {
+describe('sm enrich, allowNetworkActions policy gate', () => {
   it('policy off: skip advisory names the key, exit 0, no state row, no fetch', async () => {
     const proj = await setupProject({
       // Extension enabled, but the committed policy stays at its
@@ -221,7 +221,7 @@ describe('sm refresh, allowNetworkActions policy gate', () => {
   });
 });
 
-describe('sm refresh, Model A write-through (policy on)', () => {
+describe('sm enrich, Model A write-through (policy on)', () => {
   it('persists the state row (verified lifted) + an in-process execution row', async () => {
     const proj = await setupProject({ settings: enabledSettings() });
     const calls: string[] = [];
@@ -271,7 +271,7 @@ describe('sm refresh, Model A write-through (policy on)', () => {
       nodes: Array<{ path: string; enrichments: number }>;
     };
     strictEqual(envelope.ok, true);
-    strictEqual(envelope.kind, 'refresh.report');
+    strictEqual(envelope.kind, 'enrich.report');
     ok(envelope.refreshed >= 1, 'the state row counts toward refreshed');
     const nodeEntry = envelope.nodes.find((n) => n.path === NODE_PATH);
     ok(nodeEntry, 'per-node breakdown carries the target');
@@ -315,7 +315,7 @@ describe('sm refresh, Model A write-through (policy on)', () => {
   });
 });
 
-describe('sm refresh --stale, state-row candidates', () => {
+describe('sm enrich --stale, state-row candidates', () => {
   it('picks up a body-drifted row and re-verifies it in place', async () => {
     const proj = await setupProject({ settings: enabledSettings() });
     // Seed a verification recorded against an OLDER body: its

@@ -82,7 +82,7 @@ the boundary lint, so the CLI resolves and forwards.
 Examples:
 
 - `✓  No issues.` (`sm check` empty)
-- `✓  No stale enrichment rows.` (`sm refresh --stale` empty)
+- `✓  No stale enrichment rows.` (`sm enrich --stale` empty)
 - `✓  Backup written: .skill-map/backups/<timestamp>.db`
 
 ### 3.1b. Error with hint, two-line block (preferred over single-line for actionable failures)
@@ -251,10 +251,10 @@ Caller composes the two:
 
 ```ts
 this.printer!.error(
-  tx(REFRESH_TEXTS.nodeNotFound, {
+  tx(ENRICH_TEXTS.nodeNotFound, {
     glyph: ansi.red('✕'),
     nodePath: this.nodePath,
-    hint: ansi.dim(REFRESH_TEXTS.nodeNotFoundHint),
+    hint: ansi.dim(ENRICH_TEXTS.nodeNotFoundHint),
   }),
 );
 ```

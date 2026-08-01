@@ -61,7 +61,7 @@ The old draft required stable finding ids (`<scannerId>:<vendorFindingId>`) for 
 A scanner backed by a vendor HTTP API (dependency lookup, advisory feed) is deterministic in spirit, but has no findings-lane home yet:
 
 - Deterministic **Analyzers** run on the synchronous scan path, which MUST stay fast, free, and offline (no network); their output is scan-time issues (`sm check`), not findings.
-- Deterministic network **Actions** run via `sm refresh` into the enrichment layer, which does not feed `state_findings`.
+- Deterministic network **Actions** run via `sm enrich` into the enrichment layer, which does not feed `state_findings`.
 
 Routing vendor-API results into the findings surface (a deterministic findings lane at record? an enrichment-to-findings projection?) is an explicit OPEN design question, deferred until a real vendor implementation ships. Until then, API-backed scanners are best modeled as probabilistic Analyzers whose processing agent performs the vendor call and reports through the findings envelope.
 

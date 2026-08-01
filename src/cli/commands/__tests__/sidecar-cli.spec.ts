@@ -26,7 +26,7 @@ import type { BaseContext } from 'clipanion';
 import {
   SidecarAnnotateCommand,
   SidecarPruneCommand,
-  SidecarRefreshCommand,
+  SidecarEnrichCommand,
 } from '../sidecar.js';
 import { BumpCommand } from '../bump.js';
 import { builtIns, listBuiltIns } from '../../../plugins/built-ins.js';
@@ -144,7 +144,7 @@ function commonFlags<T extends { json: boolean; quiet: boolean; noColor: boolean
   cmd.quiet = true;
   cmd.noColor = true;
   cmd.verbose = 0;
-  // SidecarRefreshCommand / SidecarAnnotateCommand have the new --yes
+  // SidecarEnrichCommand / SidecarAnnotateCommand have the new --yes
   // flag; SidecarPruneCommand uses --yes for its own destructive
   // prompt. Each test's fixture pre-grants `.sm` consent via
   // `preGrantConsent`, so leaving --yes false is fine.
@@ -183,7 +183,7 @@ describe('sm sidecars refresh', () => {
     await runScanAndPersist(fixture, dbPath);
 
     const cap = captureContext();
-    const cmd = new SidecarRefreshCommand();
+    const cmd = new SidecarEnrichCommand();
     commonFlags(cmd);
     cmd.db = dbPath; cmd.nodePath = 'notes/skill.md';
     cmd.context = cap.context;
@@ -208,7 +208,7 @@ describe('sm sidecars refresh', () => {
     await runScanAndPersist(fixture, dbPath);
 
     const cap = captureContext();
-    const cmd = new SidecarRefreshCommand();
+    const cmd = new SidecarEnrichCommand();
     commonFlags(cmd);
     cmd.db = dbPath; cmd.nodePath = 'notes/skill.md';
     cmd.context = cap.context;

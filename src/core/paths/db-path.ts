@@ -124,7 +124,7 @@ export function resolveDbPath(options: IDbLocationOptions): string {
  * Default project DB path (`<cwd>/.skill-map/skill-map.db`). Same
  * effect as `resolveDbPath({ db: undefined, ...ctx })`; this helper
  * is the cheaper and more explicit route for call sites that have no
- * `--db` flag to honour (`sm scan`, `sm refresh`, `sm watch`).
+ * `--db` flag to honour (`sm scan`, `sm enrich`, `sm watch`).
  */
 export function defaultProjectDbPath(ctx: IRuntimeContext): string {
   return resolve(ctx.cwd, DEFAULT_DB_REL);

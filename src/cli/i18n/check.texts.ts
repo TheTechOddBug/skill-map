@@ -34,7 +34,7 @@ export const CHECK_TEXTS = {
   issueRow: '    {{glyph}}  {{analyzerId}}   {{message}}\n',
   /** Footer hint, separated from the body by a blank line. */
   tipLine:
-    '\nTip: `sm refresh <node>` to revalidate a file after fixes.\n',
+    '\nTip: `sm enrich <node>` to revalidate a file after fixes.\n',
 
   /**
    * Emitted on stderr when `--analyzers` lists one or more ids the

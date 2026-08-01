@@ -158,10 +158,13 @@ describe('runScan', () => {
     );
   });
 
-  it('throws on a root that is a file, not a directory', async () => {
-    // The validator must distinguish "exists but not a directory" from
-    // "missing entirely", both share the same error wording, but the
-    // path that gets named must be the file we created.
+  it('throws on a root that is a file, and points at the per-node verbs', async () => {
+    // "exists but is a file" gets its OWN message: it is the likely
+    // operator mistake (meant one node, typed it as a root), and the
+    // shared "does not exist or is not a directory" wording read as a
+    // lie about a file sitting right there. The message must name the
+    // path AND the verbs that do narrow, so the reader is not left
+    // guessing which one replaces the scan they attempted.
     const filePath = join(runScanTmpRoot, 'i-am-a-file.txt');
     writeFileSync(filePath, 'not a directory\n');
     await assert.rejects(
@@ -169,7 +172,23 @@ describe('runScan', () => {
       (err: Error) =>
         err instanceof Error &&
         err.message.includes(filePath) &&
-        /does not exist or is not a directory/.test(err.message),
+        /is a file, and scan roots are directories/.test(err.message) &&
+        /sm enrich/.test(err.message) &&
+        /sm scan --changed/.test(err.message),
+    );
+  });
+
+  it('keeps the missing-path message distinct from the is-a-file one', async () => {
+    // Negative control for the split above: a genuinely absent root
+    // must NOT get the per-node advisory, or the new message would be
+    // pure noise on the most common failure (a typo'd directory).
+    const missing = join(runScanTmpRoot, 'no-such-dir');
+    await assert.rejects(
+      () => runScan(createKernel(), { roots: [missing] }),
+      (err: Error) =>
+        err instanceof Error &&
+        /does not exist or is not a directory/.test(err.message) &&
+        !/sm enrich/.test(err.message),
     );
   });
 
