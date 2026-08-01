@@ -44,6 +44,8 @@ Env-var equivalents are normative:
 
 CLI flag wins over env var. Env var wins over config file.
 
+**Standing preference.** `logLevel` in `~/.skill-map/settings.json` (§User-settings file) sets the level when no flag and no env var do, making the full precedence: `-v` counter → `--log-level` → `SKILL_MAP_LOG_LEVEL` → user setting → the `warn` default. It belongs to the user file rather than project config on both counts that matter: wanting verbose output is a property of the OPERATOR, not of the repo, so a committed value would push one person's debugging onto their whole team; and the level is resolved at process boot, before any project config exists, so an implementation reading it there pays one file read instead of running the layer loader on every invocation, including those outside a project. An unrecognised value warns and falls through rather than silently disabling logging.
+
 **What the levels surface.** The default `warn` carries degraded state the operator cannot infer otherwise. Above it, the levels are a debugging ladder, and an implementation SHOULD populate them in this spirit:
 
 - `debug` (`-vv`), one-shot decisions per phase. Notably plugin discovery: how many plugin directories were found, and per plugin whether it loaded, was skipped, and why. Without it "found nothing" and "found it and skipped it" look identical from the outside, and they are very different problems.
@@ -132,8 +134,8 @@ Genuinely per-user, per-machine preferences live in a **single file**
 at `~/.skill-map/settings.json`, validated against
 [`user-settings.schema.json`](./schemas/user-settings.schema.json).
 It holds preferences with no project meaning (today: the update-check
-toggle + its throttle bookkeeping, and the telemetry consent flag;
-future locale, theme). Constraints:
+toggle + its throttle bookkeeping, the telemetry consent flag, and the
+standing `logLevel`; future locale, theme). Constraints:
 
 - **One file, no `.local` partner**: values here are already
   per-machine, so the project / project-local split has no meaning.

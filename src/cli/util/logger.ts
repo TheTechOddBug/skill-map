@@ -234,6 +234,22 @@ function sanitizeValue(value: unknown, depth: number): unknown {
 export interface IResolveLogLevelOptions {
   flag?: string | null;
   env?: string | null;
+  /**
+   * `logLevel` from `~/.skill-map/settings.json`, the per-machine
+   * preference. Lowest priority above the fallback: a per-invocation
+   * flag or env var always wins, so the standing preference never
+   * fights a one-off.
+   *
+   * It lives in the user-settings file rather than project config for
+   * two reasons. It is a preference of the HUMAN, not of the repo (an
+   * operator who wants verbose output wants it everywhere), and a
+   * committed one would push one person's debugging onto the whole
+   * team. And the level is resolved at process boot, before any project
+   * config exists: reading it here costs one file read, while the
+   * project layers would need the whole loader running on every
+   * invocation, including those outside a project.
+   */
+  userSetting?: string | null;
   fallback: TLogLevel;
   /** Where to write the warning when an invalid level is passed. Defaults to `process.stderr`. */
   errStream?: NodeJS.WritableStream;
@@ -241,9 +257,10 @@ export interface IResolveLogLevelOptions {
 
 /**
  * Resolve the active log level from CLI flag (highest priority), env
- * var (`SKILL_MAP_LOG_LEVEL`), then a fallback default. Invalid values
- * write a one-line warning to `errStream` and fall through to the next
- * source so a typo doesn't silently disable logging.
+ * var (`SKILL_MAP_LOG_LEVEL`), the `~/.skill-map/settings.json`
+ * preference, then a fallback default. Invalid values write a one-line
+ * warning to `errStream` and fall through to the next source so a typo
+ * doesn't silently disable logging.
  */
 export function resolveLogLevel(opts: IResolveLogLevelOptions): TLogLevel {
   const allowed = LOG_LEVELS.join(', ');
@@ -256,7 +273,7 @@ export function resolveLogLevel(opts: IResolveLogLevelOptions): TLogLevel {
   const errStreamTty = errStream as NodeJS.WriteStream & { isTTY?: boolean };
   const ansi = ansiFor({ isTTY: errStreamTty.isTTY === true, noColorFlag: false });
 
-  const sources: ReadonlyArray<string | null | undefined> = [opts.flag, opts.env];
+  const sources: ReadonlyArray<string | null | undefined> = [opts.flag, opts.env, opts.userSetting];
   for (const raw of sources) {
     if (raw === undefined || raw === null || raw === '') continue;
     const parsed = parseLogLevel(raw);

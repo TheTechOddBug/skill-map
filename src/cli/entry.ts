@@ -19,6 +19,7 @@ import { existsSync } from 'node:fs';
 import { InMemoryProgressEmitter } from '../kernel/adapters/in-memory-progress.js';
 import { makeEvent, makeHookDispatcher } from '../kernel/extensions/hook-dispatcher.js';
 import { configureLogger } from '../kernel/util/logger.js';
+import { userLogLevel } from './util/user-settings-store.js';
 import { tx } from '../kernel/util/tx.js';
 import { builtIns } from '../plugins/built-ins.js';
 import { builtInEnabledResolverFor } from '../core/runtime/built-in-enabled.js';
@@ -68,6 +69,7 @@ const { value: logLevelFlag, rest: args } = extractLogLevelFlag(process.argv.sli
 const logLevel = resolveLogLevel({
   flag: logLevelFlag,
   env: process.env[LOGGER_ENV_VAR] ?? null,
+  userSetting: userLogLevel(),
   fallback: 'warn',
   errStream: process.stderr,
 });
