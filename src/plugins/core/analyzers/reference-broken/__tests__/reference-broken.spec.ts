@@ -25,6 +25,7 @@ import { REFERENCE_BROKEN_TEXTS } from '../reference-broken.texts.js';
 import { BROKEN_PENALTY } from '../../../../../kernel/orchestrator/confidence-constants.js';
 import type { IAnalyzerContext } from '../../../../../kernel/extensions/index.js';
 import type { Link, Node, TConfidenceOp } from '../../../../../kernel/types.js';
+import { SILENT_EXTENSION_LOGGER } from '../../../../../kernel/adapters/silent-logger.js';
 
 function fakeNode(path: string, name?: string): Node {
   return {
@@ -112,6 +113,10 @@ function run(
           },
         }
       : {}),
+    // The kernel always binds `ctx.log`; the double cast below
+    // silences the required field, so supply it explicitly or the
+    // helper drifts from the real context shape.
+    log: SILENT_EXTENSION_LOGGER,
     ...ctxOver,
   } as unknown as IAnalyzerContext;
   const result = referenceBrokenAnalyzer.evaluate!(ctx);

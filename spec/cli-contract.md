@@ -44,6 +44,13 @@ Env-var equivalents are normative:
 
 CLI flag wins over env var. Env var wins over config file.
 
+**What the levels surface.** The default `warn` carries degraded state the operator cannot infer otherwise. Above it, the levels are a debugging ladder, and an implementation SHOULD populate them in this spirit:
+
+- `debug` (`-vv`), one-shot decisions per phase. Notably plugin discovery: how many plugin directories were found, and per plugin whether it loaded, was skipped, and why. Without it "found nothing" and "found it and skipped it" look identical from the outside, and they are very different problems.
+- `trace` (`-vvv`), per-item detail. Per node: which Provider claimed it as which kind, and how many extractors re-ran versus reused their cached result, which is what explains both a surprising classification and a slow scan. Per link: for a broken reference, WHICH of the drop reasons applied (resolved via `scan.referencePaths`, dismissed by the operator, or genuinely unresolved), since all of them look identical in the output.
+
+Diagnostics contributed by extensions ride the same ladder through `ctx.log` (see [`plugin-author-guide.md` §Logging](./plugin-author-guide.md)), prefixed with the qualified extension id so every line names its author.
+
 ### Scope is always project-local
 
 Every `sm` verb operates on the **project scope** (`<cwd>/.skill-map/`).

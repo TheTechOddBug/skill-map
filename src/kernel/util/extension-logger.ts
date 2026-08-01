@@ -37,7 +37,8 @@
  * channel existed. `spec/plugin-author-guide.md` carries the warning.
  */
 
-import { log } from './logger.js';
+import { log, logEnabled } from './logger.js';
+import type { TLogMethodLevel } from '../ports/logger.js';
 import { sanitizeForTerminal } from './safe-text.js';
 
 /**
@@ -50,6 +51,18 @@ export interface IExtensionLogger {
   info(message: string): void;
   warn(message: string): void;
   error(message: string): void;
+  /**
+   * True when a message at `level` would actually be emitted. For HOT
+   * LOOPS only (per node, per link): the argument to `log.trace(...)` is
+   * evaluated before anything can drop it, so an unguarded template
+   * inside a loop over the graph is built on every scan even at the
+   * default level. Guard those:
+   *
+   *     if (ctx.log.enabled('trace')) ctx.log.trace(`…${x}…`);
+   *
+   * A one-shot line never needs this.
+   */
+  enabled(level: 'trace' | 'debug' | 'info' | 'warn' | 'error'): boolean;
 }
 
 /**
@@ -62,7 +75,7 @@ export interface IExtensionLogger {
 export function makeExtensionLogger(qualifiedId: string): IExtensionLogger {
   const prefix = `[${sanitizeForTerminal(qualifiedId)}]`;
   const emit = (
-    level: keyof IExtensionLogger,
+    level: TLogMethodLevel,
     message: string,
   ): void => {
     // `message` is extension-authored: coerce before sanitising so a
@@ -88,5 +101,6 @@ export function makeExtensionLogger(qualifiedId: string): IExtensionLogger {
     info: (message: string): void => emit('info', message),
     warn: (message: string): void => emit('warn', message),
     error: (message: string): void => emit('error', message),
+    enabled: (level): boolean => logEnabled(level),
   };
 }

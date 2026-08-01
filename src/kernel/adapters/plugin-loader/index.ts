@@ -86,6 +86,7 @@ import {
 } from './validation.js';
 import type { IDiscoveredProviderKind } from './validation.js';
 import { loadStorageSchemas } from './storage-schemas.js';
+import { log } from '../../util/logger.js';
 
 /**
  * Default per-extension dynamic-import timeout. Generous on purpose,
@@ -220,11 +221,23 @@ export class PluginLoader implements PluginLoaderPort {
    */
   async discoverAndLoadAll(): Promise<IDiscoveredPlugin[]> {
     const paths = this.discoverPaths();
+    // `-vv`: the discovery answer to "why is my plugin not there?".
+    // Only the failures speak at the default level, so without this the
+    // operator sees silence for both "found nothing" and "found it and
+    // skipped it", which are very different problems.
+    log.debug(`plugin-loader: discovered ${paths.length} plugin dir(s)`);
     const out: IDiscoveredPlugin[] = [];
     for (const path of paths) {
       out.push(await this.loadOne(path));
     }
-    return applyIdCollisions(applyBuiltInIdShadowing(out));
+    const resolved = applyIdCollisions(applyBuiltInIdShadowing(out));
+    for (const plugin of resolved) {
+      const detail = plugin.status === 'enabled'
+        ? `${plugin.extensions?.length ?? 0} extension(s)`
+        : (plugin.reason ?? 'no reason recorded');
+      log.debug(`plugin-loader: ${plugin.id} -> ${plugin.status} (${detail})`);
+    }
+    return resolved;
   }
 
   /**

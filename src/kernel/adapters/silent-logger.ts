@@ -11,7 +11,7 @@
 
 /* eslint-disable @typescript-eslint/no-empty-function */
 
-import type { LoggerPort } from '../ports/logger.js';
+import type { LoggerPort, TLogLevel } from '../ports/logger.js';
 import type { IExtensionLogger } from '../util/extension-logger.js';
 
 export class SilentLogger implements LoggerPort {
@@ -20,6 +20,12 @@ export class SilentLogger implements LoggerPort {
   info(): void {}
   warn(): void {}
   error(): void {}
+  /** Nothing is ever emitted, so `logEnabled()` short-circuits every
+   *  hot-path diagnostic instead of building strings for a sink that
+   *  discards them. */
+  level(): TLogLevel {
+    return 'silent';
+  }
 }
 
 /**
@@ -36,4 +42,7 @@ export const SILENT_EXTENSION_LOGGER: IExtensionLogger = {
   info(): void {},
   warn(): void {},
   error(): void {},
+  enabled(): boolean {
+    return false;
+  },
 };

@@ -20,7 +20,8 @@
  */
 
 import { SilentLogger } from '../adapters/silent-logger.js';
-import type { LoggerPort } from '../ports/logger.js';
+import { logLevelRank } from '../ports/logger.js';
+import type { LoggerPort, TLogMethodLevel } from '../ports/logger.js';
 
 let active: LoggerPort = new SilentLogger();
 
@@ -46,4 +47,27 @@ export function resetLogger(): void {
 /** Inspect the active logger. Test-only, production code uses `log`. */
 export function getActiveLogger(): LoggerPort {
   return active;
+}
+
+/**
+ * True when a message at `level` would actually be emitted.
+ *
+ * For HOT PATHS only: a per-node or per-link `log.trace(...)` evaluates
+ * its template argument before the adapter gets to drop it, so on a
+ * 5k-node corpus the silenced call still builds 5k strings per phase.
+ * Guarding turns that into one integer comparison:
+ *
+ *     if (logEnabled('trace')) log.trace(`node ${path} -> ${kind}`);
+ *
+ * One-shot lines (a phase summary, an error path) do NOT need this;
+ * the guard would cost more reading than it saves running.
+ *
+ * An adapter that does not implement the optional `level()` answers
+ * `false`: it opts out of hot-path diagnostics rather than paying for
+ * strings that may go nowhere. `SilentLogger` reports `'silent'`, which
+ * lands on the same answer for the right reason.
+ */
+export function logEnabled(level: TLogMethodLevel): boolean {
+  if (typeof active.level !== 'function') return false;
+  return logLevelRank(level) >= logLevelRank(active.level());
 }

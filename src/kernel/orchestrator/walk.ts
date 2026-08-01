@@ -41,6 +41,7 @@ import {
   type IOrphanSidecar,
 } from '../sidecar/index.js';
 import type { Issue, Link, Node, OversizedFile, ScanResult, Signal } from '../types.js';
+import { log, logEnabled } from '../util/logger.js';
 import {
   cloneNodeAndReshapeLinks,
   computeCacheDecision,
@@ -1146,6 +1147,23 @@ async function dispatchNode(
     nodeHashCacheEligible: args.nodeHashCacheEligible,
     priorExtractorRuns: wctx.opts.priorExtractorRuns,
   });
+
+  // `-vvv`: the two questions a slow or surprising scan raises, per
+  // node. WHAT claimed it (which Provider, as which kind) answers "why
+  // is my file not the kind I expected"; WHICH extractors re-ran
+  // answers "why did this take so long" and "why did my extractor not
+  // fire". Guarded because this is the hottest loop in the codebase:
+  // unguarded, the templates below would be built once per file on
+  // every scan, at every level.
+  if (logEnabled('trace')) {
+    log.trace(
+      `walk: ${args.raw.path} -> ${args.provider.id}/${args.kind}` +
+        (cacheDecision.fullCacheHit
+          ? ' (cache: full hit, extractors skipped)'
+          : ` (cache: ${cacheDecision.cachedQualifiedIds.size} reused, ` +
+            `${cacheDecision.missingExtractors.length} re-run)`),
+    );
+  }
 
   const ctx: IProcessNodeContext = {
     raw: args.raw,

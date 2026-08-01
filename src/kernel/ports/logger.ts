@@ -72,4 +72,19 @@ export interface LoggerPort {
   info(message: string, context?: Record<string, unknown>): void;
   warn(message: string, context?: Record<string, unknown>): void;
   error(message: string, context?: Record<string, unknown>): void;
+  /**
+   * Current threshold, so a caller can SKIP building a message it is
+   * about to throw away. The level check inside an adapter happens
+   * after the argument is evaluated, so a `log.trace(\`…\${x}…\`)` in a
+   * per-node loop pays for its template on every scan even at the
+   * default `warn`. Hot paths guard with `logEnabled()`
+   * (`kernel/util/logger.ts`), which reads this.
+   *
+   * OPTIONAL so an existing adapter stays valid. An adapter that omits
+   * it is treated as "cannot tell" and `logEnabled()` answers `false`,
+   * i.e. it opts out of hot-path diagnostics rather than paying for
+   * strings nobody may read. One-shot lines never need the guard and
+   * are unaffected.
+   */
+  level?(): TLogLevel;
 }

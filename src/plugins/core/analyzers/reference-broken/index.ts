@@ -103,8 +103,9 @@ export const referenceBrokenAnalyzer: IBuiltInManifest<IAnalyzer> = {
     const issues: Issue[] = [];
     for (const link of ctx.links) {
       if (!broken.has(link)) continue;
-      if (refIndex && resolvesViaReferencePaths(link, refIndex)) continue;
-      if (isDismissedByOperator(link, suppressions)) continue;
+      const verdict = classifyBrokenLink(link, refIndex, suppressions);
+      traceVerdict(ctx, link, verdict);
+      if (verdict !== 'report') continue;
       // Score side: penalize a genuinely-broken edge (delta -0.75 → 0.25).
       // The penalty follows the issue (all three guards above skip both),
       // so detection and scoring stay one decision.
@@ -114,6 +115,46 @@ export const referenceBrokenAnalyzer: IBuiltInManifest<IAnalyzer> = {
     return issues;
   },
 };
+
+/**
+ * Why a broken edge was, or was not, reported. Extracted so `evaluate`
+ * stays a flat loop: the three outcomes are one decision, and naming
+ * them lets the trace line below say WHICH one fired.
+ */
+type TBrokenVerdict = 'report' | 'resolved-via-reference-paths' | 'dismissed-by-operator';
+
+function classifyBrokenLink(
+  link: Link,
+  refIndex: ReturnType<typeof buildReferenceIndex>,
+  suppressions: ReturnType<typeof buildIssueSuppressionIndex>,
+): TBrokenVerdict {
+  if (refIndex && resolvesViaReferencePaths(link, refIndex)) {
+    return 'resolved-via-reference-paths';
+  }
+  if (isDismissedByOperator(link, suppressions)) return 'dismissed-by-operator';
+  return 'report';
+}
+
+/**
+ * `-vvv`: the answer to the commonest "this is a false positive" report.
+ * A broken edge is dropped for three DIFFERENT reasons and from the
+ * outside all three look identical (no issue). Naming which one fired is
+ * the difference between the operator debugging their corpus and
+ * debugging us.
+ *
+ * Guarded: this runs once per link in the whole graph, and the argument
+ * would be built even when the level discards it.
+ */
+function traceVerdict(ctx: IAnalyzerContext, link: Link, verdict: TBrokenVerdict): void {
+  if (!ctx.log.enabled('trace')) return;
+  const why =
+    verdict === 'report'
+      ? `unresolved (${link.kind}), reporting`
+      : verdict === 'resolved-via-reference-paths'
+        ? 'broken, but resolved via scan.referencePaths'
+        : 'broken, but dismissed by the operator (.sm issueSuppressions)';
+  ctx.log.trace(`${link.source} -> ${link.target}: ${why}`);
+}
 
 /**
  * Per-evaluate index of the operators' issue suppressions, keyed by

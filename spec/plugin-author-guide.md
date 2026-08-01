@@ -457,6 +457,17 @@ Three properties the kernel guarantees at this boundary:
 - **Sanitisation.** Messages are stripped of ANSI escapes and control bytes before they reach the terminal. Do not bother colouring your own output, the escapes will not survive.
 - **Attribution.** Every line is prefixed with your qualified extension id (`[<plugin>/<extension>]`), including the lines of a multi-line message. An extension cannot emit a line that reads as kernel output.
 
+**In a hot loop, guard first.** The argument to `ctx.log.trace(...)` is evaluated before anything can drop it, so an unguarded template inside a loop over the graph is built on every scan even at the default level. `ctx.log.enabled(level)` answers whether the line would actually be emitted:
+
+```javascript
+const tracing = ctx.log.enabled('trace');
+for (const link of ctx.links) {
+  if (tracing) ctx.log.trace(`${link.source} -> ${link.target}: ${verdict}`);
+}
+```
+
+A one-shot line (a summary, an error path) never needs the guard; reading it costs more than running it. The built-in `core/reference-broken` uses exactly this shape to say WHICH of its three drop reasons fired for a broken edge, which is the answer to nearly every "this is a false positive" report.
+
 `ctx.log` grants no capability an extension did not already have (a loaded extension runs in-process), so it is not a privilege boundary. What it is NOT auditing for you: **secrets**. A message you log is a message the operator sees and may paste into an issue. Never log a resolved `secret` setting, an Authorization header, or a raw remote response that might embed one.
 
 ### Opt-in write validation
