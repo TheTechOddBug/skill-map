@@ -80,7 +80,8 @@ export type TInputTypeName =
   | 'path-glob'
   | 'regex'
   | 'secret'
-  | 'key-value-list';
+  | 'key-value-list'
+  | 'match-list';
 
 /** Runtime mirror of `TInputTypeName`. */
 export const ALL_INPUT_TYPE_NAMES: ReadonlyArray<TInputTypeName> = [
@@ -95,6 +96,7 @@ export const ALL_INPUT_TYPE_NAMES: ReadonlyArray<TInputTypeName> = [
   'regex',
   'secret',
   'key-value-list',
+  'match-list',
 ];
 
 // ---------------------------------------------------------------------------
@@ -228,6 +230,7 @@ export interface ActionPrompt {
     | 'regex'
     | 'secret'
     | 'key-value-list'
+    | 'match-list'
   ) &
     string;
   /**
@@ -295,6 +298,7 @@ export interface ActionPrompt1 {
     | 'regex'
     | 'secret'
     | 'key-value-list'
+    | 'match-list'
   ) &
     string;
   /**

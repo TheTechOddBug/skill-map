@@ -25,6 +25,7 @@ The `settings` field lives on the extension manifest base, [`schemas/extensions/
 | [`regex`](#regex) | `string` | ECMAScript regex body |
 | [`secret`](#secret) | `string` | tokens, passwords, API keys |
 | [`key-value-list`](#key-value-list) | `Array<{ key, value }>` | custom maps, alias dictionaries |
+| [`match-list`](#match-list) | `Array<{ type, value }>` | ignore lists, suppression rules mixing exact values, regexes, and globs |
 
 ## Common conventions
 
@@ -34,7 +35,7 @@ The `settings` field lives on the extension manifest base, [`schemas/extensions/
 
 **Validation**: the kernel's settings resolver takes the manifest `default`, overlays the operator's merged config value, and validates the result against the per-type value rules while composing the enabled extensions. A value that fails **falls back to the declared default and emits a warning**; it never aborts the scan and never changes the plugin's load status (there is no `invalid-settings` status). The CLI writer rejects a bad value earlier, at write time, so the fallback is the last line of defence for a hand-edited settings file.
 
-**CLI coercion**: `sm plugins config <plugin>/<ext> <settingId> <value>` receives the value as a shell string and coerces it to the declared type before validating and writing (`integer` / `number` parsed numerically, `boolean-flag` from `true` / `false`, `string-list` / `enum-multipick` / `key-value-list` parsed as JSON). A value that cannot be coerced or fails validation is rejected at write time with a typed error, not deferred to the next scan.
+**CLI coercion**: `sm plugins config <plugin>/<ext> <settingId> <value>` receives the value as a shell string and coerces it to the declared type before validating and writing (`integer` / `number` parsed numerically, `boolean-flag` from `true` / `false`, `string-list` / `enum-multipick` / `key-value-list` / `match-list` parsed as JSON). A value that cannot be coerced or fails validation is rejected at write time with a typed error, not deferred to the next scan.
 
 **English-only labels**: per [`AGENTS.md`](../AGENTS.md), externalized texts, not internationalized. Use English `label` and `description` strings.
 
@@ -307,9 +308,36 @@ The `settings` field lives on the extension manifest base, [`schemas/extensions/
 
 ---
 
+## `match-list`
+
+**Use for**: ignore lists and suppression rules where one list mixes exact values, regex patterns, and gitignore-style globs (e.g. reference targets an analyzer must skip).
+
+**Declaration**:
+```jsonc
+{
+  "type": "match-list",
+  "label": "Ignored references",
+  "description": "Reference targets never reported as broken.",
+  "default": []
+}
+```
+
+**Parameters**: `label` (required), `description?`, `default?: Array<{ type, value }>`.
+
+**Value type**: `Array<{ type: 'literal' | 'regex' | 'glob', value: string }>`. Each entry's `value` is a single line of at most 256 characters with no ASCII control or DEL characters.
+
+**Matching semantics** (against the candidate string the consuming extension tests, verbatim):
+- `literal`: exact equality, case-sensitive.
+- `regex`: ECMAScript pattern body (no `/` delimiters, no flags), unanchored `RegExp.test`; anchor with `^` / `$` when exactness is wanted. Compiled at form submit and again at extension invocation, like [`regex`](#regex).
+- `glob`: gitignore-style pattern matched by the implementation's ignore engine, the same semantics as `.skillmapignore` (`docs/x/` matches the whole subtree, `*.draft.md` matches at any depth). No compile concept, like [`path-glob`](#path-glob).
+
+**UI**: list editor. Per-entry kind selector (`literal` default) plus value input to add; existing entries render as removable rows with a kind chip. An uncompilable regex entry is rejected inline at the input, before any write.
+
+---
+
 ## Stability
 
-- The catalog of 11 input-types is the v1 surface.
+- The catalog of 12 input-types is the v1 surface (`match-list` added post-1.0 as a catalog-minor).
 - Adding a new input-type is a **catalog-minor bump**; renaming or removing one is a **catalog-major bump** and triggers `sm plugins upgrade` migration.
 - The `ISettingDeclaration` discriminated-union shape is stable. Adding a new optional parameter to an existing type is a minor bump; making a parameter required or removing one is a catalog-major bump.
 - Value-type promises (the "Value type" entry per type above) are stable. Changing the runtime value type for an existing input-type is a catalog-major bump.

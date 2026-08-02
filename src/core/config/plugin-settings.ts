@@ -213,6 +213,8 @@ function validateSettingValue(
       return typeof value === 'string' ? OK : fail('expected a string');
     case 'key-value-list':
       return validateKeyValueList(value, declaration.min, declaration.max);
+    case 'match-list':
+      return validateMatchList(value);
     default: {
       const _exhaustive: never = declaration;
       return fail(`unknown input-type: ${String((_exhaustive as { type?: string }).type)}`);
@@ -329,5 +331,47 @@ function validateKeyValueList(value: unknown, min: number | undefined, max: numb
   if (!wellShaped) return fail('every entry must be { key: string, value: string }');
   if (min !== undefined && value.length < min) return fail(`expected at least ${min} entr(y/ies)`);
   if (max !== undefined && value.length > max) return fail(`expected at most ${max} entr(y/ies)`);
+  return OK;
+}
+
+const MATCH_ENTRY_KINDS = new Set(['literal', 'regex', 'glob']);
+const MATCH_ENTRY_VALUE_CAP = 256;
+/** Single line, no ASCII control / DEL characters (bans ANSI escapes). */
+// eslint-disable-next-line no-control-regex
+const MATCH_ENTRY_CONTROL_RX = /[\n\r\x00-\x1F\x7F]/;
+
+function validateMatchList(value: unknown): IValueCheck {
+  if (!Array.isArray(value)) return fail('expected an array of { type, value } entries');
+  for (const entry of value) {
+    const check = validateMatchEntry(entry);
+    if (!check.ok) return check;
+  }
+  return OK;
+}
+
+/** One `match-list` entry: shape, kind, value bounds, regex compile. */
+function validateMatchEntry(entry: unknown): IValueCheck {
+  if (!isMatchEntryShaped(entry)) return fail('every entry must be { type: string, value: string }');
+  const { type, value: expr } = entry;
+  if (!MATCH_ENTRY_KINDS.has(type)) return fail(`entry type must be one of: literal, regex, glob (got ${type})`);
+  const bounds = validateMatchEntryValue(expr);
+  if (!bounds.ok) return bounds;
+  return type === 'regex' ? validateRegex(expr, undefined) : OK;
+}
+
+function isMatchEntryShaped(entry: unknown): entry is { type: string; value: string } {
+  return (
+    entry !== null &&
+    typeof entry === 'object' &&
+    typeof (entry as { type?: unknown }).type === 'string' &&
+    typeof (entry as { value?: unknown }).value === 'string'
+  );
+}
+
+/** Bounds shared by every entry kind: non-empty, capped, single line. */
+function validateMatchEntryValue(expr: string): IValueCheck {
+  if (expr.length === 0) return fail('entry value must not be empty');
+  if (expr.length > MATCH_ENTRY_VALUE_CAP) return fail(`entry value exceeds ${MATCH_ENTRY_VALUE_CAP} characters`);
+  if (MATCH_ENTRY_CONTROL_RX.test(expr)) return fail('entry value must be a single line without control characters');
   return OK;
 }

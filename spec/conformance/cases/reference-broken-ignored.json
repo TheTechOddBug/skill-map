@@ -1,0 +1,23 @@
+{
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
+  "id": "reference-broken-ignored",
+  "description": "Operator ignore list for broken references, end-to-end. The fixture's `.skill-map/settings.json` configures `plugins.core.extensions.reference-broken.settings.ignored-references` (a `match-list`) with one entry per kind: a `literal` equal to the first target, a `regex` (`^legacy/`) covering the second, and a `glob` (`drafts/x/`) covering the third. All three targets exist neither in the graph nor on disk, so each is genuinely broken; a matched entry MUST suppress both the `reference-broken` issue and the confidence penalty (architecture.md §Provider · resolution rules, rule 3: the penalty follows the issue). With every broken link matched, the scan MUST emit zero issues, keep every link at the 1.0 baseline, and exit 0.",
+  "fixture": "reference-broken-ignored",
+  "invoke": {
+    "verb": "scan",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.schemaVersion", "equals": 1 },
+    { "type": "json-path", "path": "$.stats.nodesCount", "equals": 1 },
+    { "type": "json-path", "path": "$.stats.linksCount", "equals": 3 },
+    { "type": "json-path", "path": "$.links[0].target", "equals": "missing-one.json" },
+    { "type": "json-path", "path": "$.links[0].confidence", "equals": 1.0 },
+    { "type": "json-path", "path": "$.links[1].target", "equals": "legacy/missing-two.md" },
+    { "type": "json-path", "path": "$.links[1].confidence", "equals": 1.0 },
+    { "type": "json-path", "path": "$.links[2].target", "equals": "drafts/x/missing-three.md" },
+    { "type": "json-path", "path": "$.links[2].confidence", "equals": 1.0 },
+    { "type": "json-path", "path": "$.stats.issuesCount", "equals": 0 }
+  ]
+}

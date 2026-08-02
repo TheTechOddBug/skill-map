@@ -146,6 +146,78 @@
   text-decoration: underline;
 }
 
+/* Match-list editor. Visual family: the Settings > Project "Ignored
+ * patterns" row (pill list items with a mono value + outlined Remove,
+ * then input + primary Add), so the two ignore editors read as one
+ * vocabulary. The kind chip and kind select are the only additions. */
+.itc__match {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.itc__match-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.itc__match-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--sm-radius-md);
+  background: var(--p-content-hover-background);
+}
+
+.itc__match-kind {
+  flex: 0 0 auto;
+  font-size: var(--sm-fs-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--sm-radius-md);
+  border: 1px solid color-mix(in oklab, var(--p-primary-color) 35%, transparent);
+  color: var(--p-primary-color);
+  background: color-mix(in oklab, var(--p-primary-color) 10%, transparent);
+}
+
+.itc__match-value {
+  flex: 1 1 auto;
+  font-family: var(--sm-font-mono);
+  font-size: var(--sm-fs-sm);
+  word-break: break-all;
+}
+
+.itc__match-add {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.itc__match-input {
+  flex: 1 1 auto;
+  font-family: var(--sm-font-mono);
+  font-size: var(--sm-fs-sm);
+}
+
+.itc__match-error {
+  font-size: var(--sm-fs-xs);
+  color: var(--sm-severity-error);
+}
+
+/* Host-seeded label badge (the Settings panels' 👥 shared marker).
+ * Same shape as `.settings-project__shared-badge`. */
+.itc__badge {
+  margin-left: 0.3rem;
+  font-size: var(--sm-fs-sm);
+  cursor: help;
+}
+
 .itc__unsupported {
   font-size: var(--sm-fs-md);
   color: var(--p-text-muted-color);

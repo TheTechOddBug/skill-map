@@ -250,6 +250,23 @@ export interface ISetting_KeyValueList extends ISettingCommon {
   max?: number;
 }
 
+export interface ISetting_MatchListEntry {
+  /**
+   * Match kind: `literal` (exact equality with the candidate string,
+   * case-sensitive), `regex` (ECMAScript body, no flags, unanchored
+   * test), or `glob` (gitignore-style, matched with the same engine
+   * as `.skillmapignore`).
+   */
+  type: 'literal' | 'regex' | 'glob';
+  /** Single line, 1-256 chars, no ASCII control or DEL characters. */
+  value: string;
+}
+
+export interface ISetting_MatchList extends ISettingCommon {
+  type: 'match-list';
+  default?: ISetting_MatchListEntry[];
+}
+
 /**
  * Discriminated union of every setting declaration shape. The plugin
  * author NEVER writes JSON Schema for settings, they pick one of
@@ -268,7 +285,8 @@ export type TSettingDeclaration =
   | ISetting_PathGlob
   | ISetting_Regex
   | ISetting_Secret
-  | ISetting_KeyValueList;
+  | ISetting_KeyValueList
+  | ISetting_MatchList;
 
 /**
  * Runtime value type for a setting, derived from its declaration. The
@@ -281,4 +299,5 @@ export type TSettingValue =
   | string[]
   | boolean
   | number
-  | ISetting_KeyValueListEntry[];
+  | ISetting_KeyValueListEntry[]
+  | ISetting_MatchListEntry[];

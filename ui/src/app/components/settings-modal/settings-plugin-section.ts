@@ -152,6 +152,12 @@ export class SettingsPluginSection implements OnInit {
     if ('valueLabel' in decl && decl.valueLabel !== undefined) descriptor.valueLabel = decl.valueLabel;
     if (decl.type === 'secret') {
       descriptor.secretIsSet = ext.secretSettingsSet?.includes(decl.id) ?? false;
+    } else {
+      // Every non-secret setting persists in the COMMITTED project layer
+      // (secrets route to the gitignored local file), so it carries the
+      // same 👥 shared marker the Settings > Project rows use.
+      descriptor.badge = this.texts.project.sharedBadge;
+      descriptor.badgeTooltip = this.texts.project.sharedBadgeTooltip;
     }
     return descriptor;
   }

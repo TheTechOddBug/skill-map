@@ -11,7 +11,7 @@ import {
 /**
  * InputTypeControl, the reusable widget that renders the PrimeNG control
  * matching an input-type descriptor and reports the collected value via
- * the two-way `value` model. Coverage: every one of the eleven catalog
+ * the two-way `value` model. Coverage: every one of the twelve catalog
  * types mounts its own `data-testid`, and the value model reflects what
  * the protected change handlers write.
  */
@@ -49,6 +49,13 @@ interface IControlInternals {
   addSuggestion(tag: string): void;
   hasSuggestions(): boolean;
   unselectedSuggestions(): string[];
+  pendingMatchType: { set(v: string): void };
+  pendingMatchValue: { set(v: string): void };
+  pendingMatchError(): string | null;
+  canAddMatch(): boolean;
+  addMatchEntry(): void;
+  removeMatchEntry(index: number): void;
+  onPendingMatchTypeChange(v: string): void;
 }
 
 function asAny(fixture: ComponentFixture<InputTypeControl>): IControlInternals {
@@ -61,6 +68,20 @@ describe('InputTypeControl, rendering', () => {
     const root = el(fixture, 'input-type-control-single-string');
     expect(root).not.toBeNull();
     expect(root!.querySelector('.itc__label')!.textContent!.trim()).toBe('New path');
+  });
+
+  it('renders the host-seeded badge next to the label and omits it otherwise', () => {
+    const withBadge = bootstrap({
+      inputType: 'single-string',
+      label: 'X',
+      badge: '👥',
+      badgeTooltip: 'Shared with your team through the repository.',
+    });
+    const badge = el(withBadge, 'input-type-control-badge');
+    expect(badge).not.toBeNull();
+    expect(badge!.getAttribute('title')).toContain('Shared');
+    const without = bootstrap({ inputType: 'single-string', label: 'X' });
+    expect(el(without, 'input-type-control-badge')).toBeNull();
   });
 
   it('renders a text input for single-string', () => {
@@ -160,6 +181,23 @@ describe('InputTypeControl, rendering', () => {
     expect(el(fixture, 'input-type-control-key-value-add')).not.toBeNull();
   });
 
+  it('renders the match-list editor: rows with kind chips + the pending composer', () => {
+    const fixture = bootstrap(
+      { inputType: 'match-list', label: 'Ignored references' },
+      [
+        { type: 'literal', value: 'docs/x/spec.md' },
+        { type: 'glob', value: 'drafts/**' },
+      ],
+    );
+    expect(el(fixture, 'input-type-control-match-list')).not.toBeNull();
+    expect(el(fixture, 'input-type-control-match-row-0')!.textContent).toContain('docs/x/spec.md');
+    expect(el(fixture, 'input-type-control-match-row-1')!.textContent).toContain('drafts/**');
+    expect(el(fixture, 'input-type-control-match-type')).not.toBeNull();
+    expect(el(fixture, 'input-type-control-match-value')).not.toBeNull();
+    expect(el(fixture, 'input-type-control-match-add')).not.toBeNull();
+    expect(el(fixture, 'input-type-control-match-error')).toBeNull();
+  });
+
   it('renders the unsupported notice for a not-yet-built input-type', () => {
     const fixture = bootstrap({ inputType: 'future-type', label: 'Count' });
     const note = el(fixture, 'input-type-control-unsupported');
@@ -245,6 +283,90 @@ describe('InputTypeControl, value model', () => {
     expect(fixture.componentInstance.value()).toEqual([{ key: 'Header', value: 'Value' }]);
     ctl.removeRow(0);
     expect(fixture.componentInstance.value()).toEqual([]);
+  });
+});
+
+describe('InputTypeControl, match-list editor', () => {
+  it('adds a literal entry and clears the pending value, keeping the kind', () => {
+    const fixture = bootstrap({ inputType: 'match-list', label: 'Ignored' }, []);
+    const ctl = asAny(fixture);
+    ctl.pendingMatchValue.set('docs/x/spec.md');
+    expect(ctl.canAddMatch()).toBe(true);
+    ctl.addMatchEntry();
+    expect(fixture.componentInstance.value()).toEqual([{ type: 'literal', value: 'docs/x/spec.md' }]);
+    // The value cleared, the kind stayed for the next entry.
+    expect(ctl.canAddMatch()).toBe(false);
+    ctl.pendingMatchValue.set('other.md');
+    ctl.addMatchEntry();
+    expect(fixture.componentInstance.value()).toEqual([
+      { type: 'literal', value: 'docs/x/spec.md' },
+      { type: 'literal', value: 'other.md' },
+    ]);
+  });
+
+  it('adds regex and glob entries with their declared kind', () => {
+    const fixture = bootstrap({ inputType: 'match-list', label: 'Ignored' }, []);
+    const ctl = asAny(fixture);
+    ctl.onPendingMatchTypeChange('regex');
+    ctl.pendingMatchValue.set('^docs/x/');
+    ctl.addMatchEntry();
+    ctl.onPendingMatchTypeChange('glob');
+    ctl.pendingMatchValue.set('drafts/**');
+    ctl.addMatchEntry();
+    expect(fixture.componentInstance.value()).toEqual([
+      { type: 'regex', value: '^docs/x/' },
+      { type: 'glob', value: 'drafts/**' },
+    ]);
+  });
+
+  it('blocks an uncompilable regex before it ever reaches the value', () => {
+    const fixture = bootstrap({ inputType: 'match-list', label: 'Ignored' }, []);
+    const ctl = asAny(fixture);
+    ctl.onPendingMatchTypeChange('regex');
+    ctl.pendingMatchValue.set('[unclosed');
+    fixture.detectChanges();
+    expect(ctl.pendingMatchError()).not.toBeNull();
+    expect(ctl.canAddMatch()).toBe(false);
+    ctl.addMatchEntry();
+    expect(fixture.componentInstance.value()).toEqual([]);
+    expect(el(fixture, 'input-type-control-match-error')).not.toBeNull();
+    // The same body is valid as a glob: the error is kind-scoped.
+    ctl.onPendingMatchTypeChange('glob');
+    expect(ctl.pendingMatchError()).toBeNull();
+    expect(ctl.canAddMatch()).toBe(true);
+  });
+
+  it('blocks control characters in any kind', () => {
+    const fixture = bootstrap({ inputType: 'match-list', label: 'Ignored' }, []);
+    const ctl = asAny(fixture);
+    ctl.pendingMatchValue.set('two\nlines');
+    expect(ctl.pendingMatchError()).not.toBeNull();
+    expect(ctl.canAddMatch()).toBe(false);
+  });
+
+  it('removes an entry by index and filters malformed seeded entries', () => {
+    const fixture = bootstrap(
+      { inputType: 'match-list', label: 'Ignored' },
+      [
+        { type: 'literal', value: 'a.md' },
+        { type: 'substring', value: 'bad-kind' } as never,
+        { type: 'glob', value: 'b/' },
+      ],
+    );
+    const ctl = asAny(fixture);
+    // The malformed entry never renders (defensive projection).
+    expect(el(fixture, 'input-type-control-match-row-2')).toBeNull();
+    ctl.removeMatchEntry(0);
+    expect(fixture.componentInstance.value()).toEqual([{ type: 'glob', value: 'b/' }]);
+  });
+
+  it('an unknown pending kind falls back to literal', () => {
+    const fixture = bootstrap({ inputType: 'match-list', label: 'Ignored' }, []);
+    const ctl = asAny(fixture);
+    ctl.onPendingMatchTypeChange('substring');
+    ctl.pendingMatchValue.set('x');
+    ctl.addMatchEntry();
+    expect(fixture.componentInstance.value()).toEqual([{ type: 'literal', value: 'x' }]);
   });
 });
 

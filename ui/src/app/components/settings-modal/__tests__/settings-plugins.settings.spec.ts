@@ -4,6 +4,7 @@ import type {
   IPluginExtensionApi,
   IPluginExtensionSettingApi,
   IPluginItemApi,
+  TSettingValueApi,
 } from '../../../../models/api';
 import {
   buildSettingsFromPlugins,
@@ -71,6 +72,26 @@ describe('coerceToDeclared', () => {
     expect(
       coerceToDeclared({ id: 'g', type: 'path-glob', label: 'G', multiple: true }, ['a', 'b']),
     ).toEqual(['a', 'b']);
+  });
+
+  it('keeps well-shaped match-list entries and drops malformed ones', () => {
+    // Without the dedicated case, the default branch would coerce the
+    // array to '' and silently empty the editor.
+    expect(
+      coerceToDeclared({ id: 'm', type: 'match-list', label: 'M' }, [
+        { type: 'literal', value: 'docs/x/spec.md' },
+        { type: 'regex', value: '^docs/x/' },
+        { type: 'glob', value: 'drafts/**' },
+        { type: 'substring', value: 'bad-kind' },
+        { value: 'no-kind' },
+        'not-an-object',
+      ]),
+    ).toEqual([
+      { type: 'literal', value: 'docs/x/spec.md' },
+      { type: 'regex', value: '^docs/x/' },
+      { type: 'glob', value: 'drafts/**' },
+    ]);
+    expect(coerceToDeclared({ id: 'm', type: 'match-list', label: 'M' }, 'nope')).toEqual([]);
   });
 });
 
@@ -170,5 +191,43 @@ describe('settingValuesEqual', () => {
     expect(
       settingValuesEqual([{ key: 'k', value: 'v' }], [{ key: 'k', value: 'x' }]),
     ).toBe(false);
+  });
+
+  it('compares match-list entries by (type, value), pinning the dirty-state regression', () => {
+    // Two equal entries MUST compare equal; before the dedicated branch
+    // they fell through to `false` and the extension read permanently
+    // dirty, shipping the patch on every apply.
+    expect(
+      settingValuesEqual(
+        [{ type: 'literal', value: 'docs/x/spec.md' }],
+        [{ type: 'literal', value: 'docs/x/spec.md' }],
+      ),
+    ).toBe(true);
+    expect(
+      settingValuesEqual(
+        [{ type: 'literal', value: 'docs/x/spec.md' }],
+        [{ type: 'regex', value: 'docs/x/spec.md' }],
+      ),
+    ).toBe(false);
+    expect(
+      settingValuesEqual(
+        [{ type: 'glob', value: 'a/' }],
+        [{ type: 'glob', value: 'b/' }],
+      ),
+    ).toBe(false);
+  });
+
+  it('seeds and dirty-diffs a match-list setting end to end', () => {
+    const decls: IPluginExtensionSettingApi[] = [
+      { id: 'ignored-references', type: 'match-list', label: 'Ignored references', default: [] },
+    ];
+    const seeded = { 'ignored-references': [] as TSettingValueApi };
+    const same = { 'ignored-references': [] as TSettingValueApi };
+    expect(extensionSettingsDirty(decls, seeded, same)).toBe(false);
+    const changed = {
+      'ignored-references': [{ type: 'literal', value: 'docs/x/spec.md' }] as TSettingValueApi,
+    };
+    expect(extensionSettingsDirty(decls, seeded, changed)).toBe(true);
+    expect(changedSettings(decls, seeded, changed)).toEqual(changed);
   });
 });

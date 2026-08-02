@@ -1,5 +1,12 @@
 <div class="itc" [attr.data-testid]="'input-type-control-' + inputType()">
-  <label class="itc__label" [attr.for]="fieldId()">{{ label() }}</label>
+  <label class="itc__label" [attr.for]="fieldId()"
+    >{{ label()
+    }}@if (badge()) {
+      <span class="itc__badge" [title]="badgeTooltip()" data-testid="input-type-control-badge"
+        >{{ badge() }}<span class="sr-only"> {{ badgeTooltip() }}</span></span
+      >
+    }</label
+  >
 
   @switch (inputType()) {
     @case ('single-string') {
@@ -262,6 +269,74 @@
           <i class="fa-solid fa-plus" aria-hidden="true"></i>
           {{ texts.keyValueAdd }}
         </button>
+      </div>
+    }
+    @case ('match-list') {
+      <!--
+        Visual family: the Settings > Project "Ignored patterns" row
+        (pill list items + outlined Remove, input + primary Add), so the
+        two ignore editors read as one vocabulary. The per-entry kind
+        chip and the kind select are this control's only additions.
+      -->
+      <div class="itc__match" data-testid="input-type-control-match-list">
+        @if (matchRows().length > 0) {
+          <ul class="itc__match-list" role="list">
+            @for (row of matchRows(); track $index) {
+              <li class="itc__match-item" [attr.data-testid]="'input-type-control-match-row-' + $index">
+                <span class="itc__match-kind" [attr.data-kind]="row.type">{{ row.type }}</span>
+                <span class="itc__match-value">{{ row.value }}</span>
+                <p-button
+                  [label]="texts.matchRemove"
+                  severity="secondary"
+                  [size]="pngSize()"
+                  [outlined]="true"
+                  (onClick)="removeMatchEntry($index)"
+                  [attr.data-testid]="'input-type-control-match-remove-' + $index"
+                />
+              </li>
+            }
+          </ul>
+        }
+        <div class="itc__match-add">
+          <p-select
+            class="itc__match-type"
+            [size]="pngSize()"
+            [options]="matchKindOptions"
+            optionLabel="label"
+            optionValue="value"
+            [ngModel]="pendingMatchType()"
+            (ngModelChange)="onPendingMatchTypeChange($event)"
+            appendTo="body"
+            [attr.aria-label]="texts.matchKindAriaLabel"
+            data-testid="input-type-control-match-type"
+          />
+          <input
+            type="text"
+            pInputText
+            [pSize]="pngSize()"
+            class="itc__string itc__match-input"
+            [id]="fieldId()"
+            [ngModel]="pendingMatchValue()"
+            (ngModelChange)="pendingMatchValue.set($event)"
+            (keydown.enter)="addMatchEntry()"
+            [placeholder]="texts.matchValuePlaceholder"
+            [attr.aria-label]="label()"
+            data-testid="input-type-control-match-value"
+          />
+          <p-button
+            [label]="texts.matchAdd"
+            severity="primary"
+            [size]="pngSize()"
+            (onClick)="addMatchEntry()"
+            [disabled]="!canAddMatch()"
+            data-testid="input-type-control-match-add"
+          />
+        </div>
+        @if (pendingMatchError(); as err) {
+          <span class="itc__match-error" role="alert" data-testid="input-type-control-match-error">
+            {{ err }}
+          </span>
+        }
       </div>
     }
     @default {

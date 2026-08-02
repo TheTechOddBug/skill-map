@@ -314,6 +314,50 @@ describe('PATCH /api/plugins, settings writes', () => {
     });
   });
 
+  it('writes a match-list value on the reference-broken analyzer and round-trips', async () => {
+    // First settings-declaring built-in ANALYZER; the entries mix the
+    // three match kinds so the whole shape round-trips through the
+    // resolver-backed validation.
+    const scope = freshScope('patch-match-list');
+    await primeDb(scope.dbPath);
+    const entries = [
+      { type: 'literal', value: 'docs/x/spec.md' },
+      { type: 'regex', value: '^docs/x/' },
+      { type: 'glob', value: 'drafts/**' },
+    ];
+    await bootAndUse(scope, {}, async (handle) => {
+      const res = await patch(handle, {
+        changes: [{ id: 'core/reference-broken', settings: { 'ignored-references': entries } }],
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { items: IPluginListItem[] };
+      const ext = findExt(body.items, 'core', 'reference-broken');
+      assert.deepEqual(ext.settingValues?.['ignored-references'], entries);
+    });
+    const committed = readSettingsFile(scope, 'settings') as {
+      plugins?: { core?: { extensions?: { 'reference-broken'?: { settings?: Record<string, unknown> } } } };
+    };
+    assert.deepEqual(committed.plugins?.core?.extensions?.['reference-broken']?.settings?.['ignored-references'], entries);
+    assert.deepEqual(readSettingsFile(scope, 'settings.local'), {});
+  });
+
+  it('rejects a match-list batch carrying an uncompilable regex entry', async () => {
+    const scope = freshScope('patch-match-list-bad');
+    await primeDb(scope.dbPath);
+    await bootAndUse(scope, {}, async (handle) => {
+      const res = await patch(handle, {
+        changes: [
+          { id: 'core/reference-broken', settings: { 'ignored-references': [{ type: 'regex', value: '[unclosed' }] } },
+        ],
+      });
+      assert.equal(res.status, 400);
+      const body = (await res.json()) as { ok: boolean; error: { code: string; details: { id: string } } };
+      assert.equal(body.ok, false);
+      assert.equal(body.error.details.id, 'core/reference-broken');
+    });
+    assert.deepEqual(readSettingsFile(scope, 'settings'), {});
+  });
+
   it('rejects the whole batch on an invalid value and writes nothing', async () => {
     const scope = freshScope('patch-invalid');
     await primeDb(scope.dbPath);

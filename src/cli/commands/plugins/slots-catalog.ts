@@ -40,4 +40,5 @@ export const INPUT_TYPES_CATALOG = [
   { id: 'regex', summary: 'ECMAScript regex pattern body.' },
   { id: 'secret', summary: 'Sensitive string, forced into project-local storage (gitignored), not encrypted.' },
   { id: 'key-value-list', summary: 'Editable mapping of strings to strings.' },
+  { id: 'match-list', summary: 'List of match entries, each literal (exact equality), regex (unanchored test), or glob (gitignore-style).' },
 ] as const;

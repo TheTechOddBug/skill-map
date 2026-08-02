@@ -202,6 +202,83 @@ describe('sm plugins config, get / set / reset (non-secret)', () => {
   });
 });
 
+describe('sm plugins config, match-list (core/reference-broken)', () => {
+  // The first BUILT-IN ANALYZER with declared settings; this block
+  // doubles as the smoke test that the analyzer path renders in the
+  // config table like the extractor path does.
+  const EXT = 'core/reference-broken';
+  const LIST =
+    '[{"type":"literal","value":"docs/x/spec.md"},{"type":"regex","value":"^docs/x/"},{"type":"glob","value":"drafts/**"}]';
+
+  it('table shows the manifest default before any override', () => {
+    const scope = freshScope('ml-default');
+    const r = sm(['plugins', 'config', EXT, '--json'], scope);
+    assert.equal(r.status, 0);
+    const obj = JSON.parse(r.stdout) as Record<string, unknown>;
+    assert.deepEqual(obj['ignored-references'], []);
+  });
+
+  it('set writes the coerced entry array to settings.json (committed layer)', () => {
+    const scope = freshScope('ml-set');
+    const r = sm(['plugins', 'config', EXT, 'ignored-references', LIST], scope);
+    assert.equal(r.status, 0);
+    assert.match(r.stdout, /Set ignored-references/);
+    const settings = readSettings(scope, 'settings') as {
+      plugins?: { core?: { extensions?: { 'reference-broken'?: { settings?: Record<string, unknown> } } } };
+    };
+    assert.deepEqual(settings.plugins?.core?.extensions?.['reference-broken']?.settings?.['ignored-references'], [
+      { type: 'literal', value: 'docs/x/spec.md' },
+      { type: 'regex', value: '^docs/x/' },
+      { type: 'glob', value: 'drafts/**' },
+    ]);
+    assert.deepEqual(readSettings(scope, 'settings.local'), {});
+  });
+
+  it('rejects a non-JSON value at coerce time', () => {
+    const scope = freshScope('ml-not-json');
+    const r = sm(['plugins', 'config', EXT, 'ignored-references', 'docs/x/spec.md'], scope);
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /parse/i);
+    assert.deepEqual(readSettings(scope, 'settings'), {});
+  });
+
+  it('rejects an uncompilable regex entry at write time (not at scan)', () => {
+    const scope = freshScope('ml-bad-regex');
+    const r = sm(['plugins', 'config', EXT, 'ignored-references', '[{"type":"regex","value":"[unclosed"}]'], scope);
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /compilable/);
+    assert.deepEqual(readSettings(scope, 'settings'), {});
+  });
+
+  it('rejects an unknown entry kind at write time', () => {
+    const scope = freshScope('ml-bad-kind');
+    const r = sm(['plugins', 'config', EXT, 'ignored-references', '[{"type":"substring","value":"x"}]'], scope);
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /literal, regex, glob/);
+  });
+
+  it('reset removes the override key', () => {
+    const scope = freshScope('ml-reset');
+    sm(['plugins', 'config', EXT, 'ignored-references', LIST], scope);
+    const r = sm(['plugins', 'config', EXT, 'ignored-references', '--reset'], scope);
+    assert.equal(r.status, 0);
+    assert.match(r.stdout, /Cleared ignored-references/);
+    const settings = readSettings(scope, 'settings') as {
+      plugins?: { core?: { extensions?: { 'reference-broken'?: { settings?: Record<string, unknown> } } } };
+    };
+    assert.equal(settings.plugins?.core?.extensions?.['reference-broken']?.settings?.['ignored-references'], undefined);
+  });
+
+  it('human table renders the analyzer setting with its source layer', () => {
+    const scope = freshScope('ml-table');
+    sm(['plugins', 'config', EXT, 'ignored-references', LIST], scope);
+    const r = sm(['plugins', 'config', EXT], scope);
+    assert.equal(r.status, 0);
+    assert.match(r.stdout, /ignored-references/);
+    assert.match(r.stdout, /settings\.json/);
+  });
+});
+
 describe('sm plugins config, secret routing', () => {
   it('writes a secret-typed value to settings.local.json, never settings.json', () => {
     const scope = freshScope('secret-write');

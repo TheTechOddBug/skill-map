@@ -592,7 +592,7 @@ export type TExtensionStabilityApi = 'experimental' | 'beta' | 'stable' | 'depre
 /**
  * Closed catalog of input-type names for an extension setting. Mirrors
  * the kernel's `TInputTypeName` (generated from
- * `spec/schemas/input-types.schema.json`). The 11-member set is the v1
+ * `spec/schemas/input-types.schema.json`). The 12-member set is the v1
  * surface; the UI's `<sm-input-type-control>` renders one PrimeNG widget
  * per member.
  */
@@ -607,7 +607,8 @@ export type TSettingTypeApi =
   | 'path-glob'
   | 'regex'
   | 'secret'
-  | 'key-value-list';
+  | 'key-value-list'
+  | 'match-list';
 
 /** A single `{ value, label }` choice for the enum input-types. */
 export interface ISettingEnumOptionApi {
@@ -618,6 +619,16 @@ export interface ISettingEnumOptionApi {
 /** A single `{ key, value }` row for the `key-value-list` input-type. */
 export interface ISettingKeyValueEntryApi {
   key: string;
+  value: string;
+}
+
+/**
+ * A single `{ type, value }` entry for the `match-list` input-type:
+ * `literal` matches by exact equality, `regex` by unanchored
+ * case-sensitive test, `glob` by gitignore-style semantics.
+ */
+export interface ISettingMatchEntryApi {
+  type: 'literal' | 'regex' | 'glob';
   value: string;
 }
 
@@ -713,6 +724,11 @@ export interface ISettingKeyValueListApi extends ISettingCommonApi {
   max?: number;
 }
 
+export interface ISettingMatchListApi extends ISettingCommonApi {
+  type: 'match-list';
+  default?: ISettingMatchEntryApi[];
+}
+
 /**
  * Discriminated union of every setting declaration shape, mirror of the
  * kernel's `TSettingDeclaration` (`view-catalog.ts`). The author picks a
@@ -729,7 +745,8 @@ export type TSettingDeclarationApi =
   | ISettingPathGlobApi
   | ISettingRegexApi
   | ISettingSecretApi
-  | ISettingKeyValueListApi;
+  | ISettingKeyValueListApi
+  | ISettingMatchListApi;
 
 /**
  * One declared setting on the `GET /api/plugins` extension projection:
@@ -748,7 +765,8 @@ export type TSettingValueApi =
   | string[]
   | boolean
   | number
-  | ISettingKeyValueEntryApi[];
+  | ISettingKeyValueEntryApi[]
+  | ISettingMatchEntryApi[];
 
 export interface IPluginExtensionApi {
   id: string;

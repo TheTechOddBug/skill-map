@@ -113,10 +113,11 @@ function run(
           },
         }
       : {}),
-    // The kernel always binds `ctx.log`; the double cast below
-    // silences the required field, so supply it explicitly or the
-    // helper drifts from the real context shape.
+    // The kernel always binds `ctx.log` and `ctx.settings`; the double
+    // cast below silences the required fields, so supply them
+    // explicitly or the helper drifts from the real context shape.
     log: SILENT_EXTENSION_LOGGER,
+    settings: {},
     ...ctxOver,
   } as unknown as IAnalyzerContext;
   const result = referenceBrokenAnalyzer.evaluate!(ctx);
@@ -332,6 +333,140 @@ describe('broken-ref analyzer, operator issue suppressions', () => {
       ]),
     });
     strictEqual(issues.length, 1, 'suppressions are per node');
+  });
+});
+
+describe('broken-ref analyzer, ignored-references setting', () => {
+  function withEntries(entries: { type: string; value: string }[]): Partial<IAnalyzerContext> {
+    return { settings: { 'ignored-references': entries } } as Partial<IAnalyzerContext>;
+  }
+
+  it('a literal entry suppresses the issue AND the penalty on an exact target match', () => {
+    const a = fakeNode('a.md');
+    const link = fakeLink('a.md', 'docs/x/spec.md');
+    const { issues, ops } = run(
+      [a],
+      [link],
+      new Set([link]),
+      withEntries([{ type: 'literal', value: 'docs/x/spec.md' }]),
+    );
+    strictEqual(issues.length, 0, 'the ignored target emits nothing');
+    strictEqual(ops.length, 0, 'the penalty skips with the issue: one decision');
+  });
+
+  it('a regex entry matches unanchored, mid-string', () => {
+    const a = fakeNode('a.md');
+    const link = fakeLink('a.md', 'docs/x/deep/nested.md');
+    const { issues, ops } = run([a], [link], new Set([link]), withEntries([{ type: 'regex', value: 'x/deep' }]));
+    strictEqual(issues.length, 0);
+    strictEqual(ops.length, 0);
+  });
+
+  it('a glob entry uses gitignore semantics: a folder pattern covers the subtree', () => {
+    const a = fakeNode('a.md');
+    const inSubtree = fakeLink('a.md', 'drafts/x/missing.md');
+    const atDepth = fakeLink('a.md', 'notes/deep/plan.draft.md');
+    const { issues, ops } = run(
+      [a],
+      [inSubtree, atDepth],
+      new Set([inSubtree, atDepth]),
+      withEntries([
+        { type: 'glob', value: 'drafts/x/' },
+        { type: 'glob', value: '*.draft.md' },
+      ]),
+    );
+    strictEqual(issues.length, 0, 'both glob shapes suppress');
+    strictEqual(ops.length, 0);
+  });
+
+  it('a ./-prefixed target still matches a glob entry (root-relative shave)', () => {
+    const a = fakeNode('a.md');
+    const link = fakeLink('a.md', './drafts/x/missing.md');
+    const { issues } = run([a], [link], new Set([link]), withEntries([{ type: 'glob', value: 'drafts/x/' }]));
+    strictEqual(issues.length, 0, 'the glob probe shaves the leading ./');
+  });
+
+  it('matching is case-sensitive: a case-mismatched literal still reports', () => {
+    const a = fakeNode('a.md');
+    const link = fakeLink('a.md', 'Docs/X/spec.md');
+    const { issues, ops } = run(
+      [a],
+      [link],
+      new Set([link]),
+      withEntries([{ type: 'literal', value: 'docs/x/spec.md' }]),
+    );
+    strictEqual(issues.length, 1, 'literal equality is case-sensitive');
+    strictEqual(ops.length, 1, 'the unmatched link keeps the penalty');
+  });
+
+  it('a non-matching entry list still reports (issue + penalty)', () => {
+    const a = fakeNode('a.md');
+    const link = fakeLink('a.md', 'missing.md');
+    const { issues, ops } = run([a], [link], new Set([link]), withEntries([{ type: 'literal', value: 'other.md' }]));
+    strictEqual(issues.length, 1);
+    strictEqual(ops.length, 1);
+  });
+
+  it('an empty or absent setting is a no-op', () => {
+    const a = fakeNode('a.md');
+    const link = fakeLink('a.md', 'missing.md');
+    strictEqual(run([a], [link], new Set([link]), withEntries([])).issues.length, 1);
+    strictEqual(run([a], [link], new Set([link])).issues.length, 1);
+  });
+
+  it('matches the verbatim link.target of a trigger link, not its normalized trigger', () => {
+    // The mention's `normalizedTrigger` is lowercased; the entry list is
+    // matched against the verbatim `link.target` only.
+    const a = fakeNode('a.md');
+    const link = fakeMention('a.md', '@MyAgent');
+    const suppressed = run([a], [link], new Set([link]), withEntries([{ type: 'literal', value: '@MyAgent' }]));
+    strictEqual(suppressed.issues.length, 0, 'verbatim target matches');
+    const normalized = run([a], [link], new Set([link]), withEntries([{ type: 'literal', value: '@myagent' }]));
+    strictEqual(normalized.issues.length, 1, 'the lowercased trigger form is NOT the match key');
+  });
+
+  it('an uncompilable regex entry is skipped without throwing (defense in depth)', () => {
+    // The resolver already rejects these; a racey hand-edit that slips
+    // through degrades to "this entry never matches", never a crash.
+    const a = fakeNode('a.md');
+    const link = fakeLink('a.md', 'missing.md');
+    const { issues } = run(
+      [a],
+      [link],
+      new Set([link]),
+      withEntries([
+        { type: 'regex', value: '[unclosed' },
+        { type: 'literal', value: 'missing.md' },
+      ]),
+    );
+    strictEqual(issues.length, 0, 'the bad entry is skipped, the literal still fires');
+  });
+
+  it('malformed entries are ignored defensively', () => {
+    const a = fakeNode('a.md');
+    const link = fakeLink('a.md', 'missing.md');
+    const entries = [null, 42, { type: 'literal' }, { value: 'missing.md' }, { type: 'unknown', value: 'missing.md' }];
+    const { issues } = run([a], [link], new Set([link]), {
+      settings: { 'ignored-references': entries },
+    } as Partial<IAnalyzerContext>);
+    strictEqual(issues.length, 1, 'no well-formed entry, so the link still reports');
+  });
+
+  it('wins over a per-node dismissal in the trace order but both suppress identically', () => {
+    // When a setting entry AND a `.sm` suppression both cover the same
+    // target, classification lands on the standing project-wide rule
+    // (`ignored-by-setting`); the observable outcome (no issue, no op)
+    // is identical either way.
+    const a = fakeNode('a.md');
+    const link = fakeMention('a.md', '@ApiSecurity');
+    const { issues, ops } = run([a], [link], new Set([link]), {
+      ...withEntries([{ type: 'literal', value: '@ApiSecurity' }]),
+      sidecarRoots: new Map([
+        ['a.md', { annotations: { issueSuppressions: [{ analyzer: 'core/reference-broken', value: '@ApiSecurity' }] } }],
+      ]),
+    });
+    strictEqual(issues.length, 0);
+    strictEqual(ops.length, 0);
   });
 });
 

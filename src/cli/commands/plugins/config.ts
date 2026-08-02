@@ -435,9 +435,9 @@ interface ICoerceErr {
 /**
  * Coerce a shell-string `<value>` to the declared input-type. Numeric
  * types parse numerically; boolean-flag accepts `true` / `false`;
- * array / list types (string-list, enum-multipick, key-value-list) and
- * the multiple path-glob parse as JSON; everything else is taken as the
- * literal string. The result is then validated by the caller against
+ * array / list types (string-list, enum-multipick, key-value-list,
+ * match-list) and the multiple path-glob parse as JSON; everything else
+ * is taken as the literal string. The result is then validated by the caller against
  * the per-type value rules; this step only owns the string → JS-value
  * transformation.
  */
@@ -458,6 +458,7 @@ function coerceCliValue(declaration: TSettingDeclaration, raw: string): ICoerceO
     case 'string-list':
     case 'enum-multipick':
     case 'key-value-list':
+    case 'match-list':
       return parseJsonValue(raw);
     case 'path-glob':
       // `multiple: true` accepts a JSON array; the single form is a

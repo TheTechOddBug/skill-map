@@ -184,6 +184,64 @@ describe('resolveExtensionSettings', () => {
         { key: 'd', value: 'd' },
       ]);
     });
+
+    it('match-list accepts a mixed literal / regex / glob list', () => {
+      const decl: TSettingDeclaration = { type: 'match-list', label: 'L', default: [] };
+      const mixed = [
+        { type: 'literal', value: 'docs/x/spec.md' },
+        { type: 'regex', value: '^docs/x/' },
+        { type: 'glob', value: 'docs/x/' },
+      ];
+      const out = resolveOne(decl, mixed);
+      assert.deepEqual(out.resolved, mixed);
+      assert.equal(out.warnings.length, 0);
+    });
+
+    it('match-list rejects non-arrays, bad shapes, and unknown kinds', () => {
+      const decl: TSettingDeclaration = {
+        type: 'match-list',
+        label: 'L',
+        default: [{ type: 'literal', value: 'd' }],
+      };
+      const fallback = [{ type: 'literal', value: 'd' }];
+      for (const bad of [
+        'not-an-array',
+        [{ type: 'literal' }],
+        [{ value: 'x' }],
+        [{ type: 'substring', value: 'x' }],
+        [null],
+      ]) {
+        const out = resolveOne(decl, bad);
+        assert.deepEqual(out.resolved, fallback);
+        assert.equal(out.warnings.length, 1);
+      }
+    });
+
+    it('match-list rejects empty, oversize, and control-character values', () => {
+      const decl: TSettingDeclaration = { type: 'match-list', label: 'L', default: [] };
+      for (const bad of [
+        [{ type: 'literal', value: '' }],
+        [{ type: 'literal', value: 'x'.repeat(257) }],
+        [{ type: 'literal', value: 'a\u001B[2Jb' }],
+        [{ type: 'glob', value: 'two\nlines' }],
+      ]) {
+        const out = resolveOne(decl, bad);
+        assert.deepEqual(out.resolved, []);
+        assert.equal(out.warnings.length, 1);
+      }
+    });
+
+    it('match-list rejects an uncompilable regex entry but never a glob', () => {
+      const decl: TSettingDeclaration = { type: 'match-list', label: 'L', default: [] };
+      const bad = resolveOne(decl, [{ type: 'regex', value: '[unclosed' }]);
+      assert.deepEqual(bad.resolved, []);
+      assert.equal(bad.warnings.length, 1);
+      assert.match(bad.warnings[0]!, /compilable/);
+      // The same body as a glob entry is fine: globs have no compile concept.
+      const asGlob = resolveOne(decl, [{ type: 'glob', value: '[unclosed' }]);
+      assert.deepEqual(asGlob.resolved, [{ type: 'glob', value: '[unclosed' }]);
+      assert.equal(asGlob.warnings.length, 0);
+    });
   });
 
   it('emits exactly one warning per invalid value and never throws', () => {

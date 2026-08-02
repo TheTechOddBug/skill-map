@@ -25,6 +25,15 @@
  * graph" and suppressed. Trigger-style links don't participate (a `/foo`
  * invocation has no filesystem target).
  *
+ * **Operator ignore list** (`ignored-references`, this analyzer's own
+ * `match-list` setting, committed project layer): a broken link whose
+ * verbatim `link.target` matches any entry (literal exact / regex
+ * unanchored / glob via the `.skillmapignore` engine) skips BOTH the
+ * issue and the confidence penalty. The standing, project-wide escape
+ * hatch for targets that are known-dead by design (`docs/x/spec.md`
+ * will never exist); travels with the repo, unlike the per-machine
+ * `scan.referencePaths` and unlike the per-node dismissal below.
+ *
  * **Operator dismissals** (`annotations.issueSuppressions`, the value
  * grain): a `.sm` entry matching this analyzer and the link's verbatim
  * target skips BOTH the issue and the confidence penalty, at emission
@@ -53,7 +62,10 @@
 
 import { resolve } from 'node:path';
 
+import ignoreFactory, { type Ignore } from 'ignore';
+
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
+import type { TSettingDeclaration } from '../../../../kernel/types/view-catalog.js';
 import type { Issue, Link, Node } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { linkLines } from '../../../../kernel/util/link-lines.js';
@@ -73,6 +85,18 @@ const ID = 'reference-broken';
 /** Qualified id issue-suppression entries are matched against. */
 const QUALIFIED_ID = `${CORE_PLUGIN_ID}/${ID}`;
 
+const SETTING_IGNORED_REFERENCES = 'ignored-references';
+
+const settings = {
+  [SETTING_IGNORED_REFERENCES]: {
+    type: 'match-list',
+    label: 'Ignored references',
+    description:
+      'Reference targets never reported as broken. Literal entries match the target exactly; regex entries are unanchored and case-sensitive; glob entries use .skillmapignore semantics.',
+    default: [],
+  },
+} satisfies Record<string, TSettingDeclaration>;
+
 export const referenceBrokenAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
@@ -80,6 +104,18 @@ export const referenceBrokenAnalyzer: IBuiltInManifest<IAnalyzer> = {
   description: 'Flags arrows pointing at a node not part of the current scan.',
   mode: 'deterministic',
   phase: 'score',
+
+  /**
+   * Operator-configurable ignore list for targets that are known-dead
+   * by design (a path that will never exist, prose that looks like a
+   * reference). A broken link whose verbatim `link.target` matches any
+   * entry skips BOTH the issue and the confidence penalty, the
+   * project-level sibling of the per-node `.sm` issueSuppressions
+   * grain (`spec/db-schema.md` §scan_issues). Set via
+   * `sm plugins config core/reference-broken ignored-references <json>`
+   * or the Ignored references editor in Settings.
+   */
+  settings,
 
   // No `ui` declaration: this analyzer used to emit a per-finding
   // counter chip on `card.footer.right`, but that chip duplicated the
@@ -97,13 +133,14 @@ export const referenceBrokenAnalyzer: IBuiltInManifest<IAnalyzer> = {
     const broken = ctx.brokenLinks;
     if (!broken || broken.size === 0) return [];
     const refIndex = buildReferenceIndex(ctx);
+    const ignoredRefs = buildIgnoredReferencesIndex(ctx);
     const suppressions = buildIssueSuppressionIndex(ctx);
     const adjust = ctx.adjustConfidence; // present only in the score phase
 
     const issues: Issue[] = [];
     for (const link of ctx.links) {
       if (!broken.has(link)) continue;
-      const verdict = classifyBrokenLink(link, refIndex, suppressions);
+      const verdict = classifyBrokenLink(link, refIndex, ignoredRefs, suppressions);
       traceVerdict(ctx, link, verdict);
       if (verdict !== 'report') continue;
       // Score side: penalize a genuinely-broken edge (delta -0.75 → 0.25).
@@ -118,27 +155,49 @@ export const referenceBrokenAnalyzer: IBuiltInManifest<IAnalyzer> = {
 
 /**
  * Why a broken edge was, or was not, reported. Extracted so `evaluate`
- * stays a flat loop: the three outcomes are one decision, and naming
+ * stays a flat loop: the four outcomes are one decision, and naming
  * them lets the trace line below say WHICH one fired.
  */
-type TBrokenVerdict = 'report' | 'resolved-via-reference-paths' | 'dismissed-by-operator';
+type TBrokenVerdict =
+  | 'report'
+  | 'resolved-via-reference-paths'
+  | 'ignored-by-setting'
+  | 'dismissed-by-operator';
 
+/**
+ * Verdict order runs from "actually resolves outside the graph" (a
+ * filesystem fact, not a suppression) through the broadest standing
+ * operator policy (the committed project-wide setting) down to the
+ * narrowest last-resort per-node dismissal. When a setting entry and a
+ * `.sm` suppression both match, the trace names the standing rule,
+ * which is the actionable one for a false-positive report.
+ */
 function classifyBrokenLink(
   link: Link,
   refIndex: ReturnType<typeof buildReferenceIndex>,
+  ignoredRefs: ReturnType<typeof buildIgnoredReferencesIndex>,
   suppressions: ReturnType<typeof buildIssueSuppressionIndex>,
 ): TBrokenVerdict {
   if (refIndex && resolvesViaReferencePaths(link, refIndex)) {
     return 'resolved-via-reference-paths';
   }
+  if (ignoredRefs && matchesIgnoredReference(link.target, ignoredRefs)) {
+    return 'ignored-by-setting';
+  }
   if (isDismissedByOperator(link, suppressions)) return 'dismissed-by-operator';
   return 'report';
 }
 
+const VERDICT_TRACE: Record<Exclude<TBrokenVerdict, 'report'>, string> = {
+  'resolved-via-reference-paths': 'broken, but resolved via scan.referencePaths',
+  'ignored-by-setting': 'broken, but ignored via the ignored-references setting',
+  'dismissed-by-operator': 'broken, but dismissed by the operator (.sm issueSuppressions)',
+};
+
 /**
  * `--log trace`: the answer to the commonest "this is a false positive" report.
- * A broken edge is dropped for three DIFFERENT reasons and from the
- * outside all three look identical (no issue). Naming which one fired is
+ * A broken edge is dropped for four DIFFERENT reasons and from the
+ * outside all four look identical (no issue). Naming which one fired is
  * the difference between the operator debugging their corpus and
  * debugging us.
  *
@@ -147,12 +206,7 @@ function classifyBrokenLink(
  */
 function traceVerdict(ctx: IAnalyzerContext, link: Link, verdict: TBrokenVerdict): void {
   if (!ctx.log.enabled('trace')) return;
-  const why =
-    verdict === 'report'
-      ? `unresolved (${link.kind}), reporting`
-      : verdict === 'resolved-via-reference-paths'
-        ? 'broken, but resolved via scan.referencePaths'
-        : 'broken, but dismissed by the operator (.sm issueSuppressions)';
+  const why = verdict === 'report' ? `unresolved (${link.kind}), reporting` : VERDICT_TRACE[verdict];
   ctx.log.trace(`${link.source} -> ${link.target}: ${why}`);
 }
 
@@ -210,6 +264,105 @@ function buildReferenceIndex(
 ): { paths: ReadonlySet<string>; cwd: string } | null {
   if (!ctx.referenceablePaths || ctx.referenceablePaths.size === 0 || !ctx.cwd) return null;
   return { paths: ctx.referenceablePaths, cwd: ctx.cwd };
+}
+
+interface IIgnoredReferencesIndex {
+  literals: ReadonlySet<string>;
+  regexes: readonly RegExp[];
+  globs: Ignore | null;
+}
+
+/**
+ * Compile the `ignored-references` setting ONCE per evaluate. The
+ * kernel resolver already validated the shape and compiled each regex
+ * entry (falling back to the default on any invalid value), so this
+ * stays a defensive re-filter, the same posture as
+ * `readIgnoredDomains` on `core/external-url-counter`: a malformed
+ * hand-edited config that slipped through degrades to "ignore
+ * nothing", never a throw. Glob entries fold into ONE `ignore()`
+ * instance (the `.skillmapignore` engine), so N globs cost one match
+ * walk per link. Returns `null` when the list is empty so the
+ * per-link guard is a cheap null check.
+ */
+function buildIgnoredReferencesIndex(ctx: IAnalyzerContext): IIgnoredReferencesIndex | null {
+  const raw = ctx.settings[SETTING_IGNORED_REFERENCES];
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+
+  const acc = {
+    literals: new Set<string>(),
+    regexes: [] as RegExp[],
+    globs: null as Ignore | null,
+  };
+  for (const entry of raw) foldIgnoredEntry(acc, entry);
+  if (acc.literals.size === 0 && acc.regexes.length === 0 && !acc.globs) return null;
+  return acc;
+}
+
+/**
+ * Fold one raw setting entry into the compiled index. Malformed shapes
+ * and uncompilable regexes are skipped, never fatal (defense in depth:
+ * the resolver already rejected them; a racey hand-edit degrades to
+ * "this entry never matches").
+ */
+function foldIgnoredEntry(
+  acc: { literals: Set<string>; regexes: RegExp[]; globs: Ignore | null },
+  entry: unknown,
+): void {
+  const shaped = readIgnoredEntry(entry);
+  if (!shaped) return;
+  if (shaped.type === 'literal') {
+    acc.literals.add(shaped.value);
+  } else if (shaped.type === 'regex') {
+    const compiled = compileIgnoredRegex(shaped.value);
+    if (compiled) acc.regexes.push(compiled);
+  } else if (shaped.type === 'glob') {
+    acc.globs = (acc.globs ?? ignoreFactory()).add(shaped.value);
+  }
+}
+
+/** Shape guard: a non-empty string `value` plus whatever `type` says. */
+function readIgnoredEntry(entry: unknown): { type: unknown; value: string } | null {
+  if (entry === null || typeof entry !== 'object') return null;
+  const { type, value } = entry as { type?: unknown; value?: unknown };
+  if (typeof value !== 'string' || value.length === 0) return null;
+  return { type, value };
+}
+
+function compileIgnoredRegex(value: string): RegExp | null {
+  try {
+    return new RegExp(value);
+  } catch {
+    return null; // skipped: see the fold contract above
+  }
+}
+
+/**
+ * The `ignored-references` guard, against the verbatim `link.target`:
+ * literal = exact equality; regex = unanchored test; glob = gitignore
+ * semantics (root-relative, so a leading `./` is shaved off for the
+ * glob probe only; literal and regex see the target untouched).
+ */
+function matchesIgnoredReference(target: string, index: IIgnoredReferencesIndex): boolean {
+  if (index.literals.has(target)) return true;
+  if (index.regexes.some((re) => re.test(target))) return true;
+  return matchesIgnoredGlob(target, index.globs);
+}
+
+/**
+ * The glob half of the guard: gitignore semantics expect root-relative
+ * paths, so a leading `./` is shaved off for the probe only. `ignores`
+ * throws on absolute / empty paths; a target shaped like that simply
+ * never matches a gitignore-style pattern.
+ */
+function matchesIgnoredGlob(target: string, globs: Ignore | null): boolean {
+  if (!globs) return false;
+  const globTarget = target.startsWith('./') ? target.slice(2) : target;
+  if (globTarget.length === 0 || globTarget.startsWith('/')) return false;
+  try {
+    return globs.ignores(globTarget);
+  } catch {
+    return false; // non-relative target: glob entries cannot match it
+  }
 }
 
 /**

@@ -18,7 +18,8 @@
         { "const": "path-glob", "description": "Glob pattern (single or multiple)." },
         { "const": "regex", "description": "ECMAScript regex pattern body." },
         { "const": "secret", "description": "Sensitive string, forced into project-local storage (gitignored), not encrypted." },
-        { "const": "key-value-list", "description": "Editable mapping of strings to strings." }
+        { "const": "key-value-list", "description": "Editable mapping of strings to strings." },
+        { "const": "match-list", "description": "List of match entries, each literal (exact equality), regex (unanchored test), or glob (gitignore-style)." }
       ],
       "description": "Closed enum of input-type identifiers. Adding an entry requires the full spec/UI/CLI/tests round-trip. Removing or renaming an entry is a catalog-major-bump and triggers `sm plugins upgrade` migration. Each member's `description` is the catalog summary surfaced by `sm plugins slots list` and is the single source of truth for the generated kernel + CLI mirrors (see `scripts/generate-view-catalog.js`)."
     },
@@ -35,7 +36,8 @@
         { "$ref": "#/$defs/Setting_PathGlob" },
         { "$ref": "#/$defs/Setting_Regex" },
         { "$ref": "#/$defs/Setting_Secret" },
-        { "$ref": "#/$defs/Setting_KeyValueList" }
+        { "$ref": "#/$defs/Setting_KeyValueList" },
+        { "$ref": "#/$defs/Setting_MatchList" }
       ]
     },
     "_Common": {
@@ -273,6 +275,36 @@
         "max": { "type": "integer", "minimum": 1 }
       },
       "description": "Editable mapping of strings to strings. Renders as a small editable table. Use for custom translations, alias maps, header overrides. Value type at runtime: `Array<{ key: string, value: string }>`."
+    },
+    "Setting_MatchList": {
+      "allOf": [{ "$ref": "#/$defs/_Common" }],
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "label"],
+      "properties": {
+        "type": { "const": "match-list" },
+        "label": true,
+        "description": true,
+        "default": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type", "value"],
+            "properties": {
+              "type": { "enum": ["literal", "regex", "glob"] },
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256,
+                "pattern": "^[^\\n\\r\\u0000-\\u001F\\u007F]+$",
+                "description": "The match expression. Single line, no ASCII control or DEL characters (bans ANSI escape injection at the source)."
+              }
+            }
+          }
+        }
+      },
+      "description": "List of match entries tested against a candidate string, each entry one of three kinds: `literal` (exact equality with the candidate, case-sensitive), `regex` (ECMAScript pattern body, no `/` delimiters, no flags; unanchored `RegExp.test`, so the author anchors with `^` / `$` when exactness is wanted; compiled at form submit and again at extension invocation, like `regex`), or `glob` (gitignore-style pattern matched by the implementation's ignore engine, the same semantics as `.skillmapignore`: `docs/x/` matches the whole subtree, `*.draft.md` matches at any depth; no compile concept, like `path-glob`). Renders as a list editor: per-entry kind selector plus value input to add, removable rows to prune. An invalid stored value (wrong shape, oversize, uncompilable regex entry) makes the resolver fall back to the declared `default` with a warning, it never aborts the scan. Value type at runtime: `Array<{ type: 'literal' | 'regex' | 'glob', value: string }>`."
     }
   }
 }

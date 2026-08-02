@@ -466,7 +466,7 @@ for (const link of ctx.links) {
 }
 ```
 
-A one-shot line (a summary, an error path) never needs the guard; reading it costs more than running it. The built-in `core/reference-broken` uses exactly this shape to say WHICH of its three drop reasons fired for a broken edge, which is the answer to nearly every "this is a false positive" report.
+A one-shot line (a summary, an error path) never needs the guard; reading it costs more than running it. The built-in `core/reference-broken` uses exactly this shape to say WHICH of its four drop reasons fired for a broken edge, which is the answer to nearly every "this is a false positive" report.
 
 `ctx.log` grants no capability an extension did not already have (a loaded extension runs in-process), so it is not a privilege boundary. What it is NOT auditing for you: **secrets**. A message you log is a message the operator sees and may paste into an issue. Never log a resolved `secret` setting, an Authorization header, or a raw remote response that might embed one.
 
@@ -732,7 +732,7 @@ User-configurable settings live on each extension's manifest in `settings: Recor
 }
 ```
 
-The eleven input-types: `string-list`, `single-string`, `boolean-flag`, `integer`, `number`, `enum-pick`, `enum-multipick`, `path-glob`, `regex`, `secret`, `key-value-list`. The per-type parameters and runtime value shapes are the canonical reference in [`input-types.md`](./input-types.md) (schema at [`schemas/input-types.schema.json`](./schemas/input-types.schema.json) at `$defs/Setting_<TypeName>`).
+The twelve input-types: `string-list`, `single-string`, `boolean-flag`, `integer`, `number`, `enum-pick`, `enum-multipick`, `path-glob`, `regex`, `secret`, `key-value-list`, `match-list`. The per-type parameters and runtime value shapes are the canonical reference in [`input-types.md`](./input-types.md) (schema at [`schemas/input-types.schema.json`](./schemas/input-types.schema.json) at `$defs/Setting_<TypeName>`).
 
 The kernel exposes resolved settings via `ctx.settings.<settingId>`. Settings are read once at extension invocation; **changing a setting requires `sm scan` to re-emit** affected contributions (the UI surfaces a "settings changed, rescan needed" indicator).
 

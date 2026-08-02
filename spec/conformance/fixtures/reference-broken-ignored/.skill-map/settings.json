@@ -1,0 +1,17 @@
+{
+  "plugins": {
+    "core": {
+      "extensions": {
+        "reference-broken": {
+          "settings": {
+            "ignored-references": [
+              { "type": "literal", "value": "missing-one.json" },
+              { "type": "regex", "value": "^legacy/" },
+              { "type": "glob", "value": "drafts/x/" }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

@@ -10,7 +10,7 @@
  *   - the Settings → Plugins per-extension settings form: one control
  *     per declared setting, seeded from the resolved effective value.
  *
- * Catalog coverage (closed catalog in `spec/input-types.md`): all ELEVEN
+ * Catalog coverage (closed catalog in `spec/input-types.md`): all TWELVE
  * types render a real control, no read-only fallback.
  *
  *   - `single-string`   -> `<input pInputText>`               value: string
@@ -24,6 +24,13 @@
  *   - `regex`           -> `<input pInputText>` + flags suffix value: string
  *   - `secret`          -> `<p-password>` + set/empty hint     value: string
  *   - `key-value-list`  -> small editable rows table           value: { key, value }[]
+ *   - `match-list`      -> kind select + input + removable rows value: { type, value }[]
+ *
+ * On `match-list`: the pending entry validates INLINE before it can be
+ * added (an uncompilable regex or a control character never reaches the
+ * two-way `value`, and therefore never reaches the network), mirroring
+ * the write-time gate the resolver applies server-side. Rows are
+ * removal-only; editing an entry is remove + re-add.
  *
  * On the tag inputs (`string-list`, multiple `path-glob`):
  * `spec/input-types.md` names `<p-chips>` as the canonical tag input, but
@@ -52,9 +59,11 @@ import {
   computed,
   input,
   model,
+  signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AutoCompleteModule } from 'primeng/autocomplete';
+import { ButtonModule } from 'primeng/button';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { MultiSelectModule } from 'primeng/multiselect';
@@ -65,6 +74,7 @@ import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import type {
   ISettingEnumOptionApi,
   ISettingKeyValueEntryApi,
+  ISettingMatchEntryApi,
 } from '../../../models/api';
 import { INPUT_TYPE_CONTROL_TEXTS } from '../../../i18n/input-type-control.texts';
 
@@ -73,6 +83,21 @@ export type IInputTypeOption = ISettingEnumOptionApi;
 
 /** A single `{ key, value }` row for the `key-value-list` widget. */
 export type IInputTypeKeyValueEntry = ISettingKeyValueEntryApi;
+
+/** A single `{ type, value }` entry for the `match-list` widget. */
+export type IInputTypeMatchEntry = ISettingMatchEntryApi;
+
+/** The three match kinds a `match-list` entry can declare. */
+const MATCH_KINDS: ReadonlySet<string> = new Set(['literal', 'regex', 'glob']);
+
+/**
+ * Single line, no ASCII control / DEL characters. Mirrors the kernel
+ * resolver's `validateMatchList` gate so a value that would be rejected
+ * at write time is surfaced in the input instead, before any network
+ * round-trip (same pattern as the `.skillmapignore` row).
+ */
+// eslint-disable-next-line no-control-regex
+const MATCH_CONTROL_CHAR_RX = /[\n\r\x00-\x1F\x7F]/;
 
 /**
  * The subset of a setting declaration this control needs to render: the
@@ -112,15 +137,26 @@ export interface IInputTypeDescriptor {
    * and runtime-only, like `defaultValue`; not a manifest-declared field.
    */
   suggestions?: string[];
+  /**
+   * Optional badge rendered after the label (e.g. the Settings panels'
+   * 👥 "shared with your team" marker on values persisted in the
+   * committed project layer). Host-seeded presentation data, like
+   * `suggestions`; the control carries no storage semantics of its own.
+   * `badgeTooltip` doubles as the hover title and the screen-reader
+   * text.
+   */
+  badge?: string;
+  badgeTooltip?: string;
 }
 
-/** Value shapes the control can hold across the eleven input-types. */
+/** Value shapes the control can hold across the twelve input-types. */
 export type TInputTypeValue =
   | string
   | string[]
   | boolean
   | number
-  | IInputTypeKeyValueEntry[];
+  | IInputTypeKeyValueEntry[]
+  | IInputTypeMatchEntry[];
 
 /**
  * Density of the rendered PrimeNG widgets. `'normal'` (default) leaves
@@ -139,6 +175,7 @@ type TPrimeNgSize = 'small' | undefined;
   selector: 'sm-input-type-control',
   imports: [
     FormsModule,
+    ButtonModule,
     InputTextModule,
     InputNumberModule,
     SelectModule,
@@ -175,6 +212,8 @@ export class InputTypeControl {
 
   protected readonly inputType = computed(() => this.descriptor().inputType);
   protected readonly label = computed(() => this.descriptor().label);
+  protected readonly badge = computed(() => this.descriptor().badge ?? '');
+  protected readonly badgeTooltip = computed(() => this.descriptor().badgeTooltip ?? '');
   protected readonly options = computed<IInputTypeOption[]>(
     () => this.descriptor().options ?? [],
   );
@@ -257,6 +296,80 @@ export class InputTypeControl {
         typeof e === 'object' && e !== null && 'key' in e && 'value' in e,
     );
   });
+
+  /** Match entries projection for the `match-list` editor. */
+  protected readonly matchRows = computed<IInputTypeMatchEntry[]>(() => {
+    const v = this.value();
+    if (!Array.isArray(v)) return [];
+    return v.filter(
+      (e): e is IInputTypeMatchEntry =>
+        typeof e === 'object' &&
+        e !== null &&
+        'value' in e &&
+        typeof (e as { value?: unknown }).value === 'string' &&
+        MATCH_KINDS.has(String((e as { type?: unknown }).type)),
+    );
+  });
+
+  /** `match-list`: choices for the pending entry's kind select. */
+  protected readonly matchKindOptions: IInputTypeOption[] = [
+    { value: 'literal', label: INPUT_TYPE_CONTROL_TEXTS.matchKindLiteral },
+    { value: 'regex', label: INPUT_TYPE_CONTROL_TEXTS.matchKindRegex },
+    { value: 'glob', label: INPUT_TYPE_CONTROL_TEXTS.matchKindGlob },
+  ];
+
+  /** `match-list`: the pending entry's kind (kept across adds). */
+  protected readonly pendingMatchType = signal<IInputTypeMatchEntry['type']>('literal');
+  /** `match-list`: the pending entry's value input. */
+  protected readonly pendingMatchValue = signal('');
+
+  /**
+   * `match-list`: inline validation error for the PENDING entry, or
+   * `null` when it may be added. An uncompilable regex (or a control
+   * character in any kind) blocks the Add button and never reaches the
+   * two-way `value`, so the invalid entry cannot travel to the host or
+   * the network. Empty input is not an error, just not addable yet.
+   */
+  protected readonly pendingMatchError = computed<string | null>(() => {
+    const raw = this.pendingMatchValue().trim();
+    if (raw.length === 0) return null;
+    if (MATCH_CONTROL_CHAR_RX.test(raw)) return this.texts.matchHasControlChar;
+    if (this.pendingMatchType() === 'regex') {
+      try {
+        new RegExp(raw);
+      } catch {
+        return this.texts.matchInvalidRegex;
+      }
+    }
+    return null;
+  });
+
+  /** `match-list`: whether the pending entry may be committed. */
+  protected readonly canAddMatch = computed<boolean>(
+    () => this.pendingMatchValue().trim().length > 0 && this.pendingMatchError() === null,
+  );
+
+  protected addMatchEntry(): void {
+    if (!this.canAddMatch()) return;
+    const entry: IInputTypeMatchEntry = {
+      type: this.pendingMatchType(),
+      value: this.pendingMatchValue().trim(),
+    };
+    this.value.set([...this.matchRows(), entry]);
+    // Keep the kind selection: adding several entries of one kind in a
+    // row is the common gesture; only the value clears.
+    this.pendingMatchValue.set('');
+  }
+
+  protected removeMatchEntry(index: number): void {
+    const rows = this.matchRows().slice();
+    rows.splice(index, 1);
+    this.value.set(rows);
+  }
+
+  protected onPendingMatchTypeChange(next: string): void {
+    this.pendingMatchType.set(MATCH_KINDS.has(next) ? (next as IInputTypeMatchEntry['type']) : 'literal');
+  }
 
   protected onStringChange(next: string): void {
     this.value.set(next ?? '');

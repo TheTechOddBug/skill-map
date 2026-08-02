@@ -27,9 +27,25 @@ export const INPUT_TYPE_CONTROL_TEXTS = {
   /** Key-value editor: default key / value column headers. */
   keyValueKeyDefault: 'Key',
   keyValueValueDefault: 'Value',
+  /** Match-list editor: per-kind option labels for the type select. */
+  matchKindLiteral: 'literal',
+  matchKindRegex: 'regex',
+  matchKindGlob: 'glob',
+  /** Match-list editor: aria label for the pending entry's kind select. */
+  matchKindAriaLabel: 'Match kind',
+  /** Match-list editor: placeholder for the pending entry's value input. */
+  matchValuePlaceholder: 'Value to match',
+  /** Match-list editor: add-entry button label. */
+  matchAdd: 'Add',
+  /** Match-list editor: remove-entry button label. */
+  matchRemove: 'Remove',
+  /** Match-list editor: inline error for an uncompilable regex entry. */
+  matchInvalidRegex: 'This pattern is not a valid regular expression.',
+  /** Match-list editor: inline error for control characters in the value. */
+  matchHasControlChar: 'Value must be a single line without control characters.',
   /**
    * Fallback rendered for an input-type the control does not implement.
-   * The control now ships all eleven catalog types; this only fires for
+   * The control now ships all twelve catalog types; this only fires for
    * a future, not-yet-built type so the form degrades gracefully rather
    * than throwing.
    */

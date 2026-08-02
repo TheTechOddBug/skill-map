@@ -170,6 +170,7 @@ function blankForType(decl: IPluginExtensionSettingApi): TSettingValueApi {
     case 'enum-multipick':
       return [];
     case 'key-value-list':
+    case 'match-list':
       return [];
     case 'path-glob':
       return decl.multiple ? [] : '';
@@ -215,6 +216,21 @@ export function coerceToDeclared(
                 typeof e === 'object' && e !== null && 'key' in e && 'value' in e,
             )
             .map((e) => ({ key: String(e.key ?? ''), value: String(e.value ?? '') }))
+        : [];
+    case 'match-list':
+      // Well-shaped entries only; a malformed wire entry drops rather
+      // than degrading the whole list (the default branch would coerce
+      // the array to '' and silently empty the editor).
+      return Array.isArray(raw)
+        ? raw.filter(
+            (e): e is { type: 'literal' | 'regex' | 'glob'; value: string } =>
+              typeof e === 'object' &&
+              e !== null &&
+              typeof (e as { value?: unknown }).value === 'string' &&
+              ((e as { type?: unknown }).type === 'literal' ||
+                (e as { type?: unknown }).type === 'regex' ||
+                (e as { type?: unknown }).type === 'glob'),
+          )
         : [];
     default:
       // single-string / enum-pick / regex / secret
@@ -295,8 +311,11 @@ export function extensionSettingsDirty(
 /**
  * Structural equality for two setting values. Arrays compare element-wise
  * (order-sensitive, matching how the UI presents them); key-value rows
- * compare by `(key, value)` pairs; scalars compare by `===`. Used by the
- * dirty diff so a no-op edit (typing then deleting) clears the marker.
+ * compare by `(key, value)` pairs and match-list entries by
+ * `(type, value)` pairs (without the branch, two equal entries would
+ * compare UNEQUAL and leave the extension permanently dirty); scalars
+ * compare by `===`. Used by the dirty diff so a no-op edit (typing then
+ * deleting) clears the marker.
  */
 export function settingValuesEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
@@ -312,6 +331,15 @@ export function settingValuesEqual(a: unknown, b: unknown): boolean {
     const ra = a as { key: unknown; value: unknown };
     const rb = b as { key: unknown; value: unknown };
     return ra.key === rb.key && ra.value === rb.value;
+  }
+  if (
+    typeof a === 'object' && a !== null &&
+    typeof b === 'object' && b !== null &&
+    'type' in a && 'value' in a && 'type' in b && 'value' in b
+  ) {
+    const ra = a as { type: unknown; value: unknown };
+    const rb = b as { type: unknown; value: unknown };
+    return ra.type === rb.type && ra.value === rb.value;
   }
   return false;
 }
