@@ -69,15 +69,25 @@ export type TSettingsWarn = (message: string) => void;
 const defaultWarn: TSettingsWarn = (message) => log.warn(message);
 
 /**
+ * The process environment as the caller sees it, threaded in explicitly
+ * (`spec/architecture.md` §Extension settings resolution): the resolver
+ * itself never reads process state, so it stays pure and the env
+ * override is unit-testable. Defaults to empty (no env influence).
+ */
+export type TSettingsEnv = Record<string, string | undefined>;
+
+/**
  * Resolve the runtime `ctx.settings` object for a single extension.
  * Returns `{}` when the extension declares no settings. Never throws:
  * a value that fails its per-type validation falls back to the manifest
- * default and emits one warning.
+ * default and emits one warning. A `secret` declaring `envVar` resolves
+ * from a NON-EMPTY `env[envVar]` first, before any stored value.
  */
 export function resolveExtensionSettings(
   manifest: ISettingsManifestRef,
   config: ISettingsConfigRef,
   onWarn: TSettingsWarn = defaultWarn,
+  env: TSettingsEnv = {},
 ): Record<string, unknown> {
   const declarations = manifest.settings;
   if (!declarations || Object.keys(declarations).length === 0) return {};
@@ -86,7 +96,7 @@ export function resolveExtensionSettings(
   const resolved: Record<string, unknown> = {};
 
   for (const [settingId, declaration] of Object.entries(declarations)) {
-    const outcome = resolveOneSetting(manifest, settingId, declaration, overrides, onWarn);
+    const outcome = resolveOneSetting(manifest, settingId, declaration, overrides, onWarn, env);
     // Omit the key entirely when there is no value (no override and no
     // declared default) so `ctx.settings.<id>` reads `undefined` rather
     // than a stray entry.
@@ -97,10 +107,11 @@ export function resolveExtensionSettings(
 }
 
 /**
- * Resolve a single setting: prefer a valid override, else the manifest
- * default. An invalid override degrades to the default and emits one
- * warning, never throwing. Returns `hasValue: false` when neither an
- * override nor a default exists (`secret` with no stored value).
+ * Resolve a single setting: a `secret`'s non-empty `envVar` value wins,
+ * then a valid override, else the manifest default. An invalid override
+ * degrades to the default and emits one warning, never throwing. Returns
+ * `hasValue: false` when neither an override nor a default exists
+ * (`secret` with no stored value and no env).
  */
 function resolveOneSetting(
   manifest: ISettingsManifestRef,
@@ -108,7 +119,16 @@ function resolveOneSetting(
   declaration: TSettingDeclaration,
   overrides: Record<string, unknown>,
   onWarn: TSettingsWarn,
+  env: TSettingsEnv,
 ): { hasValue: boolean; value?: unknown } {
+  // Env override (`spec/input-types.md` §secret): a NON-EMPTY process
+  // env value under the declared name wins over any stored value; empty
+  // or unset falls through.
+  if (declaration.type === 'secret' && declaration.envVar !== undefined) {
+    const fromEnv = env[declaration.envVar];
+    if (fromEnv !== undefined && fromEnv !== '') return { hasValue: true, value: fromEnv };
+  }
+
   const fallback = declarationDefault(declaration);
   const toFallback = (): { hasValue: boolean; value?: unknown } =>
     fallback !== undefined ? { hasValue: true, value: fallback } : { hasValue: false };
@@ -135,8 +155,9 @@ function resolveOneSetting(
 export function buildSettingsResolver(
   config: ISettingsConfigRef,
   onWarn: TSettingsWarn = defaultWarn,
+  env: TSettingsEnv = {},
 ): (ext: ISettingsManifestRef) => Record<string, unknown> {
-  return (ext) => resolveExtensionSettings(ext, config, onWarn);
+  return (ext) => resolveExtensionSettings(ext, config, onWarn, env);
 }
 
 // ---------------------------------------------------------------------------

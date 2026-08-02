@@ -167,6 +167,7 @@ export class ScanCommand extends SmCommand {
       dim: stderrAnsi.dim,
     };
     const outcome = await runScanForCommand({
+      settingsEnv: process.env,
       roots,
       noBuiltIns: this.noBuiltIns,
       noPlugins: this.noPlugins,

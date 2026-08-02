@@ -163,7 +163,7 @@ export class ScanCompareCommand extends SmCommand {
     const composedExtensions = composeScanExtensions({
       noBuiltIns: false,
       pluginRuntime,
-      resolveSettings: buildSettingsResolver(cfg),
+      resolveSettings: buildSettingsResolver(cfg, undefined, process.env),
       forbidSidecarWriters: cfg.allowSidecarWriters === false,
       killSwitches: readConformanceKillSwitches(),
     });

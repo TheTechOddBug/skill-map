@@ -192,6 +192,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   const runtimeOpts: ICreateWatcherRuntimeOpts = {
     dbPath,
     roots: opts.roots,
+    settingsEnv: process.env,
     runtimeContext: runtimeCtx,
     noBuiltIns: false,
     noPlugins: opts.noPlugins ?? false,

@@ -46,7 +46,7 @@ import type {
   ILoadedExtension,
 } from '../../../kernel/types/plugin.js';
 import { qualifiedExtensionId } from '../../../kernel/registry.js';
-import { KNOWN_SLOT_NAMES } from '../../../kernel/types/view-catalog.js';
+import { ALL_INPUT_TYPE_NAMES, KNOWN_SLOT_NAMES } from '../../../kernel/types/view-catalog.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
@@ -104,7 +104,11 @@ interface IPluginsDoctorJsonEnvelope {
   issues: Array<{ id: string; status: string; reason: string }>;
   warnings: Array<{
     id: string;
-    kind: 'precondition-kind-unknown' | 'unknown-slot' | 'recommended-action-missing';
+    kind:
+      | 'precondition-kind-unknown'
+      | 'unknown-slot'
+      | 'unknown-input-type'
+      | 'recommended-action-missing';
     message: string;
   }>;
   contributionErrors: Array<{
@@ -165,6 +169,7 @@ export class PluginsDoctorCommand extends SmCommand {
     const knownKinds = collectKnownKinds(plugins);
     const preconditionKindWarnings = collectPreconditionKindWarnings(plugins, knownKinds);
     const unknownSlotWarnings = collectUnknownSlotWarnings(plugins, KNOWN_SLOT_NAMES);
+    const unknownInputTypeWarnings = collectUnknownInputTypeWarnings(plugins);
     const knownAnalyzerIds = collectKnownAnalyzerIds(plugins);
     const recommendedActionWarnings = collectRecommendedActionWarnings(plugins, knownAnalyzerIds);
     // "off-shape visible" follow-up. Read the last scan's persisted
@@ -177,6 +182,7 @@ export class PluginsDoctorCommand extends SmCommand {
     const totalWarnings =
       preconditionKindWarnings.length
       + unknownSlotWarnings.length
+      + unknownInputTypeWarnings.length
       + recommendedActionWarnings.length;
 
     if (this.json) {
@@ -185,6 +191,7 @@ export class PluginsDoctorCommand extends SmCommand {
         bad,
         preconditionKindWarnings,
         unknownSlotWarnings,
+        unknownInputTypeWarnings,
         recommendedActionWarnings,
         totalWarnings,
         contribErrors,
@@ -200,6 +207,7 @@ export class PluginsDoctorCommand extends SmCommand {
       userCount: plugins.length,
       preconditionKindWarnings,
       unknownSlotWarnings,
+      unknownInputTypeWarnings,
       recommendedActionWarnings,
       totalWarnings,
       bad,
@@ -224,6 +232,7 @@ export class PluginsDoctorCommand extends SmCommand {
     userCount: number;
     preconditionKindWarnings: IPreconditionKindWarning[];
     unknownSlotWarnings: IUnknownSlotWarning[];
+    unknownInputTypeWarnings: IUnknownInputTypeWarning[];
     recommendedActionWarnings: IRecommendedActionWarning[];
     totalWarnings: number;
     bad: IDiscoveredPlugin[];
@@ -238,6 +247,7 @@ export class PluginsDoctorCommand extends SmCommand {
       this.#renderWarnings(
         args.preconditionKindWarnings,
         args.unknownSlotWarnings,
+        args.unknownInputTypeWarnings,
         args.recommendedActionWarnings,
         args.totalWarnings,
         ansi,
@@ -308,6 +318,7 @@ export class PluginsDoctorCommand extends SmCommand {
   #renderWarnings(
     preconditionKindWarnings: IPreconditionKindWarning[],
     unknownSlotWarnings: IUnknownSlotWarning[],
+    unknownInputTypeWarnings: IUnknownInputTypeWarning[],
     recommendedActionWarnings: IRecommendedActionWarning[],
     totalWarnings: number,
     ansi: IAnsi,
@@ -335,6 +346,20 @@ export class PluginsDoctorCommand extends SmCommand {
         tx(PLUGINS_TEXTS.doctorUnknownSlot, {
           contributionId: sanitizeForTerminal(w.contributionId),
           slot: sanitizeForTerminal(w.slot),
+          pluginId: sanitizeForTerminal(pluginId),
+        }),
+        ansi,
+      );
+    }
+    for (const w of unknownInputTypeWarnings) {
+      const slash = w.extensionQualifiedId.indexOf('/');
+      const pluginId = slash >= 0 ? w.extensionQualifiedId.slice(0, slash) : w.extensionQualifiedId;
+      this.#emitWarningEntry(
+        warnGlyph,
+        sanitizeForTerminal(`${w.extensionQualifiedId}/${w.settingId}`),
+        tx(PLUGINS_TEXTS.doctorUnknownInputType, {
+          settingId: sanitizeForTerminal(w.settingId),
+          type: sanitizeForTerminal(w.type),
           pluginId: sanitizeForTerminal(pluginId),
         }),
         ansi,
@@ -733,6 +758,81 @@ function appendUnknownSlotWarnings(
   }
 }
 
+// --- unknown-input-type collection ---------------------------------------
+
+/** One declared setting whose input-type id is outside the closed catalog. */
+interface IUnknownInputTypeWarning {
+  extensionQualifiedId: string;
+  settingId: string;
+  type: string;
+}
+
+/** The generated input-type catalog as a membership set. */
+const KNOWN_INPUT_TYPE_NAMES: ReadonlySet<string> = new Set<string>(ALL_INPUT_TYPE_NAMES);
+
+/**
+ * Walk every loaded extension (built-in + user plugin, any kind) and
+ * produce one warning per declared setting whose `type` does not appear
+ * in the closed input-type catalog. AJV at manifest load already rejects
+ * unknown input-types as `invalid-manifest`; this pass is the
+ * defence-in-depth path for catalog-drift scenarios, mirroring
+ * `collectUnknownSlotWarnings` above. Exported for the unit spec (a
+ * live drop-in with a bad type never loads as `enabled`, so the spec
+ * feeds a synthetic discovery row).
+ */
+export function collectUnknownInputTypeWarnings(
+  plugins: IDiscoveredPlugin[],
+): IUnknownInputTypeWarning[] {
+  const out: IUnknownInputTypeWarning[] = [];
+  collectBuiltInUnknownInputTypeWarnings(out);
+  collectUserUnknownInputTypeWarnings(out, plugins);
+  return out;
+}
+
+function collectBuiltInUnknownInputTypeWarnings(out: IUnknownInputTypeWarning[]): void {
+  for (const plugin of builtInPlugins) {
+    for (const ext of plugin.extensions) {
+      const settings = (ext as { settings?: Record<string, unknown> }).settings;
+      if (!settings) continue;
+      appendUnknownInputTypeWarnings(out, qualifiedExtensionId(plugin.id, ext.id), settings);
+    }
+  }
+}
+
+function collectUserUnknownInputTypeWarnings(
+  out: IUnknownInputTypeWarning[],
+  plugins: IDiscoveredPlugin[],
+): void {
+  for (const p of plugins) {
+    if (p.status !== 'enabled' || !p.extensions) continue;
+    for (const ext of p.extensions) {
+      const inst = extensionInstance(ext);
+      if (!inst) continue;
+      const settings = inst['settings'];
+      if (settings === null || typeof settings !== 'object') continue;
+      appendUnknownInputTypeWarnings(
+        out,
+        qualifiedExtensionId(ext.pluginId, ext.id),
+        settings as Record<string, unknown>,
+      );
+    }
+  }
+}
+
+function appendUnknownInputTypeWarnings(
+  out: IUnknownInputTypeWarning[],
+  extensionQualifiedId: string,
+  settings: Record<string, unknown>,
+): void {
+  for (const [settingId, raw] of Object.entries(settings)) {
+    if (raw === null || typeof raw !== 'object') continue;
+    const type = (raw as { type?: unknown }).type;
+    if (typeof type !== 'string') continue;
+    if (KNOWN_INPUT_TYPE_NAMES.has(type)) continue;
+    out.push({ extensionQualifiedId, settingId, type });
+  }
+}
+
 // --- recommended-action collection --------------------------------------
 
 /**
@@ -887,6 +987,7 @@ function buildDoctorJsonEnvelope(args: {
   bad: IDiscoveredPlugin[];
   preconditionKindWarnings: IPreconditionKindWarning[];
   unknownSlotWarnings: IUnknownSlotWarning[];
+  unknownInputTypeWarnings: IUnknownInputTypeWarning[];
   recommendedActionWarnings: IRecommendedActionWarning[];
   totalWarnings: number;
   contribErrors: IContributionErrorRecord[];
@@ -916,6 +1017,19 @@ function buildDoctorJsonEnvelope(args: {
       message: tx(PLUGINS_TEXTS.doctorUnknownSlot, {
         contributionId: sanitizeForTerminal(w.contributionId),
         slot: sanitizeForTerminal(w.slot),
+        pluginId: sanitizeForTerminal(pluginId),
+      }),
+    });
+  }
+  for (const w of args.unknownInputTypeWarnings) {
+    const slash = w.extensionQualifiedId.indexOf('/');
+    const pluginId = slash >= 0 ? w.extensionQualifiedId.slice(0, slash) : w.extensionQualifiedId;
+    warnings.push({
+      id: sanitizeForTerminal(`${w.extensionQualifiedId}/${w.settingId}`),
+      kind: 'unknown-input-type',
+      message: tx(PLUGINS_TEXTS.doctorUnknownInputType, {
+        settingId: sanitizeForTerminal(w.settingId),
+        type: sanitizeForTerminal(w.type),
         pluginId: sanitizeForTerminal(pluginId),
       }),
     });

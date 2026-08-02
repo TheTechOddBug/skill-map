@@ -67,6 +67,57 @@ describe('resolveExtensionSettings', () => {
     assert.deepEqual(resolveExtensionSettings(m, cfg), { 'ignored-domains': ['example.com'] });
   });
 
+  describe('secret envVar resolution (spec/input-types.md §secret)', () => {
+    const m = manifest({
+      token: { type: 'secret', label: 'Token', envVar: 'DEMO_TOKEN' },
+    });
+
+    it('a non-empty env value wins over the stored one', () => {
+      const cfg = configWith('core', 'demo', { token: 'stored-value' });
+      assert.deepEqual(
+        resolveExtensionSettings(m, cfg, undefined, { DEMO_TOKEN: 'from-env' }),
+        { token: 'from-env' },
+      );
+    });
+
+    it('an empty or unset env value falls through to the stored one', () => {
+      const cfg = configWith('core', 'demo', { token: 'stored-value' });
+      assert.deepEqual(
+        resolveExtensionSettings(m, cfg, undefined, { DEMO_TOKEN: '' }),
+        { token: 'stored-value' },
+      );
+      assert.deepEqual(resolveExtensionSettings(m, cfg, undefined, {}), { token: 'stored-value' });
+    });
+
+    it('env alone resolves the setting (no stored value needed)', () => {
+      assert.deepEqual(
+        resolveExtensionSettings(m, {}, undefined, { DEMO_TOKEN: 'ci-injected' }),
+        { token: 'ci-injected' },
+      );
+    });
+
+    it('a secret WITHOUT envVar ignores the environment', () => {
+      const bare = manifest({ token: { type: 'secret', label: 'Token' } });
+      assert.deepEqual(
+        resolveExtensionSettings(bare, {}, undefined, { DEMO_TOKEN: 'from-env' }),
+        {},
+      );
+    });
+
+    it('non-secret types never read the environment', () => {
+      const str = manifest({ note: { type: 'single-string', label: 'Note' } });
+      assert.deepEqual(
+        resolveExtensionSettings(str, {}, undefined, { NOTE: 'from-env' }),
+        {},
+      );
+    });
+
+    it('buildSettingsResolver threads the env through', () => {
+      const resolve = buildSettingsResolver({}, undefined, { DEMO_TOKEN: 'via-closure' });
+      assert.deepEqual(resolve(m), { token: 'via-closure' });
+    });
+  });
+
   describe('per-type value validation', () => {
     function resolveOne(declaration: TSettingDeclaration, value: unknown): { resolved: unknown; warnings: string[] } {
       const warnings: string[] = [];

@@ -288,6 +288,9 @@ describe('plugin-runtime, branch coverage', () => {
       // `slash-command` + `at-file`) PLUS codex's OWN `dollar-skill`, all
       // composed by default like any built-in.
       const extractorIds = composed.extractors.map((d) => d.id).sort();
+      // `showcase` (test-plugin) joins under this branch's force-enable
+      // resolver; by DEFAULT it ships `defaultEnabled: false` (see the
+      // (c) default case, which it stays out of).
       assert.deepEqual(extractorIds, [
         'at-file',
         'backtick-dollar',
@@ -297,6 +300,7 @@ describe('plugin-runtime, branch coverage', () => {
         'external-url-counter',
         'markdown-link',
         'mcp-tools',
+        'showcase',
         'slash-command',
       ]);
       // core/* rules unaffected.
@@ -360,7 +364,11 @@ describe('plugin-runtime, branch coverage', () => {
       // claude / antigravity / codex / agent-skills / core-markdown providers
       // untouched; core extractors unaffected.
       assert.equal(composed.providers.length, 6);
-      assert.equal(composed.extractors.length, 12, 'all 12 extractors stay');
+      assert.equal(
+        composed.extractors.length,
+        13,
+        'all 13 extractors stay (12 defaults + test-plugin/showcase under this branch\'s force-enable resolver)',
+      );
       // Formatter composer also respects the filter.
       const formatters = composeFormatters({ pluginRuntime: runtime });
       // ascii + json formatters; name-collision toggle is unrelated to either.

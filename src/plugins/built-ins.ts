@@ -81,6 +81,7 @@ import { nodeBumpAction as _nodeBumpAction } from './core/actions/node-bump/inde
 import { nodeSetStabilityAction as _nodeSetStabilityAction } from './core/actions/node-set-stability/index.js';
 import { nodeSetTagsAction as _nodeSetTagsAction } from './core/actions/node-set-tags/index.js';
 import { updateCheckHook as _updateCheckHook } from './core/hooks/update-check/index.js';
+import { showcaseExtractor as _showcaseExtractor } from './test-plugin/extractors/showcase/index.js';
 
 const claudeProvider = { ..._claudeProvider, pluginId: 'claude', version: VERSION };
 const atDirectiveExtractor = { ..._atDirectiveExtractor, pluginId: 'claude', version: VERSION };
@@ -1202,6 +1203,7 @@ const nodeBumpAction = { ..._nodeBumpAction, pluginId: 'core', version: VERSION,
 const nodeSetStabilityAction = { ..._nodeSetStabilityAction, pluginId: 'core', version: VERSION, reportSchema: JSON.parse('{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"urn:skill-map:core/node-set-stability/report","title":"SetStabilityReport","description":"Report shape returned by `core/node-set-stability`. Deterministic Action; carries the lifecycle stage written to the sidecar.","type":"object","required":["confidence","safety","stability"],"additionalProperties":false,"properties":{"confidence":{"type":"number","minimum":0,"maximum":1},"safety":{"type":"object","required":["injectionDetected","contentQuality"],"additionalProperties":false,"properties":{"injectionDetected":{"type":"boolean"},"contentQuality":{"type":"string","enum":["high","medium","low","unknown"]}}},"stability":{"type":"string","enum":["experimental","stable","deprecated"]}}}') };
 const nodeSetTagsAction = { ..._nodeSetTagsAction, pluginId: 'core', version: VERSION, reportSchema: JSON.parse('{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"urn:skill-map:core/node-set-tags/report","title":"SetTagsReport","description":"Report shape returned by `core/node-set-tags`. Deterministic Action; lists the taxonomy tags written to the sidecar.","type":"object","required":["confidence","safety","tags"],"additionalProperties":false,"properties":{"confidence":{"type":"number","minimum":0,"maximum":1},"safety":{"type":"object","required":["injectionDetected","contentQuality"],"additionalProperties":false,"properties":{"injectionDetected":{"type":"boolean"},"contentQuality":{"type":"string","enum":["high","medium","low","unknown"]}}},"tags":{"type":"array","items":{"type":"string"}}}}') };
 const updateCheckHook = { ..._updateCheckHook, pluginId: 'core', version: VERSION };
+const showcaseExtractor = { ..._showcaseExtractor, pluginId: 'test-plugin', version: VERSION };
 
 export interface IBuiltIns {
   providers: IProvider[];
@@ -1327,6 +1329,13 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       nodeSetStabilityAction,
       nodeSetTagsAction,
       updateCheckHook,
+    ],
+  },
+  {
+    id: 'test-plugin',
+    description: 'Settings showcase for testing: one extension declaring every input-type in the closed catalog, so each control can be exercised end to end (Settings form, CLI writes, resolver, storage routing). Ships disabled; enable it only to poke at the controls.',
+    extensions: [
+      showcaseExtractor,
     ],
   },
 ];

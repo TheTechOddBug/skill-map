@@ -43,7 +43,8 @@ import {
   writeConfigValue,
 } from '../../../core/config/helper.js';
 import { resolveExtensionSettings } from '../../../core/config/plugin-settings.js';
-import { loadConfig, type TConfigLayer } from '../../../kernel/config/loader.js';
+import { isProjectLocalOnlyKey, loadConfig, type TConfigLayer } from '../../../kernel/config/loader.js';
+import type { IAnsi } from '../../util/ansi.js';
 import type { ILoadedExtension } from '../../../kernel/types/plugin.js';
 import type { TSettingDeclaration } from '../../../kernel/types/view-catalog.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
@@ -192,9 +193,14 @@ export class PluginsConfigCommand extends SmCommand {
     cwd: string,
   ): number {
     const { effective } = loadConfig({ cwd });
-    const resolved = resolveExtensionSettings({ pluginId, id: extId, settings: declarations }, effective, () => {
-      /* swallow resolver warnings here; the table shows the fallback value */
-    });
+    const resolved = resolveExtensionSettings(
+      { pluginId, id: extId, settings: declarations },
+      effective,
+      () => {
+        /* swallow resolver warnings here; the table shows the fallback value */
+      },
+      process.env,
+    );
 
     if (this.json) {
       const payload: Record<string, unknown> = {};
@@ -215,10 +221,7 @@ export class PluginsConfigCommand extends SmCommand {
         ? PLUGINS_CONFIG_TEXTS.redacted
         : formatValue(resolved[settingId]);
       const dotKey = settingDotKey(pluginId, extId, settingId);
-      const source = getValueSource(dotKey, { cwd });
-      const sourceTag = source
-        ? ansi.dim(tx(PLUGINS_CONFIG_TEXTS.tableSourceTag, { source: layerLabel(source) }))
-        : '';
+      const sourceTag = this.sourceTagFor(declaration, dotKey, cwd, ansi);
       lines.push(
         tx(PLUGINS_CONFIG_TEXTS.tableRow, {
           settingId: settingId.padEnd(idWidth),
@@ -229,6 +232,34 @@ export class PluginsConfigCommand extends SmCommand {
     }
     this.printer!.data(lines.join(''));
     return ExitCode.Ok;
+  }
+
+  /**
+   * The dim `[<source>]` suffix of a table row. A secret's non-empty
+   * `envVar` value wins over every stored layer (`spec/input-types.md`
+   * §secret), so the source column reports `env` while the override is
+   * active; otherwise the config layer that supplied the value, or
+   * nothing when only the manifest default applies.
+   */
+  private sourceTagFor(
+    declaration: TSettingDeclaration,
+    dotKey: string,
+    cwd: string,
+    ansi: IAnsi,
+  ): string {
+    const envActive =
+      declaration.type === 'secret' &&
+      declaration.envVar !== undefined &&
+      (process.env[declaration.envVar] ?? '') !== '';
+    if (envActive) {
+      return ansi.dim(
+        tx(PLUGINS_CONFIG_TEXTS.tableSourceTag, { source: PLUGINS_CONFIG_TEXTS.sourceEnv }),
+      );
+    }
+    const source = getValueSource(dotKey, { cwd });
+    return source
+      ? ansi.dim(tx(PLUGINS_CONFIG_TEXTS.tableSourceTag, { source: layerLabel(source) }))
+      : '';
   }
 
   private writeSetting(
@@ -281,9 +312,12 @@ export class PluginsConfigCommand extends SmCommand {
 
     // `secret`-typed settings route to the project-local layer
     // (gitignored), never the committed file, regardless of the absence
-    // of an explicit local flag.
-    const target: TWriteTarget = declaration.type === 'secret' ? 'project-local' : 'project';
+    // of an explicit local flag; so does any `PROJECT_LOCAL_ONLY_KEYS`
+    // member (e.g. the github base-URL overrides), whose committed-layer
+    // write `writeConfigValue` would refuse outright.
     const dotKey = settingDotKey(pluginId, extId, settingId);
+    const target: TWriteTarget =
+      declaration.type === 'secret' || isProjectLocalOnlyKey(dotKey) ? 'project-local' : 'project';
     try {
       writeConfigValue(dotKey, coerced.value, { target, cwd });
     } catch (err) {

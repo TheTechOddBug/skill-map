@@ -324,6 +324,7 @@ async function runFirstScan(
   printer.info(INIT_TEXTS.runningFirstScan);
 
   const outcome = await runScanForCommand({
+    settingsEnv: process.env,
     roots: [scopeRoot],
     noBuiltIns: false,
     noPlugins: true,

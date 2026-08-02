@@ -105,6 +105,7 @@ async function runPersistedScan(c: Context, deps: IScanRouteDeps): Promise<Respo
       // `core/runtime/fresh-resolver.ts` for the shared helper.
       const resolveEnabledOverride = await buildBffResolverOverride(deps);
       const outcome = await runScanForCommand({
+        settingsEnv: process.env,
         roots: [deps.runtimeContext.cwd],
         noBuiltIns: deps.options.noBuiltIns,
         noPlugins: deps.options.noPlugins,
@@ -302,6 +303,7 @@ async function runFreshScan(deps: IRouteDeps): Promise<ScanResult> {
   // boot-time resolver is overridden for the duration of this call).
   const resolveEnabledOverride = await buildBffResolverOverride(deps);
   const outcome = await runScanForCommand({
+    settingsEnv: process.env,
     roots: [deps.runtimeContext.cwd],
     noBuiltIns: deps.options.noBuiltIns,
     noPlugins: deps.options.noPlugins,

@@ -176,7 +176,7 @@ describe('built-in extensions, execution modes', () => {
 });
 
 describe('built-in extensions, qualified ids (spec § A.6)', () => {
-  it('every built-in declares a recognised pluginId (`core`, `claude`, `antigravity`, `codex`, `opencode`, `agent-skills`, `github`)', () => {
+  it('every built-in declares a recognised pluginId (`core`, `claude`, `antigravity`, `codex`, `opencode`, `agent-skills`, `github`, `test-plugin`)', () => {
     const set = builtIns();
     const all = [
       ...set.providers,
@@ -185,7 +185,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
       ...set.formatters,
       ...set.actions,
     ];
-    const valid = new Set(['core', 'claude', 'antigravity', 'codex', 'opencode', 'agent-skills', 'github']);
+    const valid = new Set(['core', 'claude', 'antigravity', 'codex', 'opencode', 'agent-skills', 'github', 'test-plugin']);
     for (const ext of all) {
       assert.ok(
         valid.has(ext.pluginId),
@@ -284,7 +284,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
 
   it('listBuiltIns() rows carry pluginId verbatim', () => {
     const rows = listBuiltIns();
-    const valid = new Set(['core', 'claude', 'antigravity', 'codex', 'opencode', 'agent-skills', 'github']);
+    const valid = new Set(['core', 'claude', 'antigravity', 'codex', 'opencode', 'agent-skills', 'github', 'test-plugin']);
     for (const row of rows) {
       assert.ok(
         valid.has(row.pluginId),
@@ -344,7 +344,9 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // from every discovery surface) brings it to 64.
     // `core/mermaid` + `core/dot` (the two graph formatters `cli-contract.md`
     // had documented since before they existed) bring it to 66.
-    assert.equal(rows.length, 66);
+    // `test-plugin/showcase` (the settings showcase, 2026-08-02: one
+    // declaration per input-type, `defaultEnabled: false`) brings it to 67.
+    assert.equal(rows.length, 67);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a

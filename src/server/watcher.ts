@@ -153,6 +153,7 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
     const runtimeOpts: ICreateWatcherRuntimeOpts = {
       dbPath: opts.options.dbPath,
       roots: ['.'],
+      settingsEnv: process.env,
       runtimeContext: opts.runtimeContext,
       noBuiltIns: opts.options.noBuiltIns,
       noPlugins: opts.options.noPlugins,

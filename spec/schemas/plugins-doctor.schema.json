@@ -65,7 +65,7 @@
     },
     "warnings": {
       "type": "array",
-      "description": "Informational warnings that do NOT gate the exit code: `precondition-kind-unknown` (an extractor declares a `precondition.kind` no installed Provider emits), `unknown-slot` (a view contribution targets a slot id absent from the closed catalog), and `recommended-action-missing` (an action's `precondition.analyzerIds` names an analyzer no loaded plugin declares). Iteration order matches the human renderer.",
+      "description": "Informational warnings that do NOT gate the exit code: `precondition-kind-unknown` (an extractor declares a `precondition.kind` no installed Provider emits), `unknown-slot` (a view contribution targets a slot id absent from the closed catalog), `unknown-input-type` (a declared setting picks an input-type id absent from the closed catalog; AJV rejects it at load for drop-ins, this is the catalog-drift defence-in-depth path mirroring `unknown-slot`), and `recommended-action-missing` (an action's `precondition.analyzerIds` names an analyzer no loaded plugin declares). Iteration order matches the human renderer.",
       "items": {
         "type": "object",
         "required": ["id", "kind", "message"],
@@ -74,11 +74,11 @@
           "id": {
             "type": "string",
             "minLength": 1,
-            "description": "Qualified extension id (`<plugin>/<ext>`) for `precondition-kind-unknown` and `recommended-action-missing`, or `<plugin>/<ext>/<contributionId>` for `unknown-slot`."
+            "description": "Qualified extension id (`<plugin>/<ext>`) for `precondition-kind-unknown` and `recommended-action-missing`, `<plugin>/<ext>/<contributionId>` for `unknown-slot`, or `<plugin>/<ext>/<settingId>` for `unknown-input-type`."
           },
           "kind": {
             "type": "string",
-            "enum": ["precondition-kind-unknown", "unknown-slot", "recommended-action-missing"],
+            "enum": ["precondition-kind-unknown", "unknown-slot", "unknown-input-type", "recommended-action-missing"],
             "description": "Warning discriminator."
           },
           "message": {

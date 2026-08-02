@@ -91,6 +91,7 @@ export const BUILT_IN_PLUGIN_IDS: ReadonlySet<string> = new Set([
   'core',
   'github',
   'opencode',
+  'test-plugin',
 ]);
 
 /**

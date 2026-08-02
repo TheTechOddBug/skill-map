@@ -19,3 +19,4 @@ export const ANTIGRAVITY_PLUGIN_ID = 'antigravity';
 export const AGENT_SKILLS_PLUGIN_ID = 'agent-skills';
 export const OPENCODE_PLUGIN_ID = 'opencode';
 export const GITHUB_PLUGIN_ID = 'github';
+export const TEST_PLUGIN_PLUGIN_ID = 'test-plugin';

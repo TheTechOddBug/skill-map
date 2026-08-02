@@ -30,8 +30,11 @@ import {
   resolveExtensionSettings,
   type ISettingsManifestRef,
 } from '../../core/config/plugin-settings.js';
-import { writeConfigValue } from '../../core/config/helper.js';
-import type { IEffectiveConfig } from '../../kernel/config/loader.js';
+// eslint-disable-next-line import-x/extensions
+import { HTTPException } from 'hono/http-exception';
+
+import { ProjectLocalOnlyKeyError, writeConfigValue } from '../../core/config/helper.js';
+import { isProjectLocalOnlyKey, type IEffectiveConfig } from '../../kernel/config/loader.js';
 import type { TSettingDeclaration } from '../../kernel/types/view-catalog.js';
 
 /**
@@ -108,10 +111,17 @@ export function projectExtensionSettings(
 
   // Effective values via the kernel resolver (swallow warnings, a bad
   // operator value degrades to the default the same as at scan time).
+  // The process env rides along so a secret provided via `envVar` shows
+  // as "Set" in the UI (`secretSettingsSet`), same as at scan time.
   const ref: ISettingsManifestRef = { pluginId, id: extId, settings: declarations };
-  const resolved = resolveExtensionSettings(ref, config, () => {
-    /* swallow resolver warnings; the projection shows the fallback */
-  });
+  const resolved = resolveExtensionSettings(
+    ref,
+    config,
+    () => {
+      /* swallow resolver warnings; the projection shows the fallback */
+    },
+    process.env,
+  );
 
   // Split secret-typed values out: never emit the real value, instead
   // record the id in `secretSettingsSet` when a value resolved.
@@ -206,9 +216,25 @@ export function persistSettingsPatch(
 ): void {
   for (const [settingId, value] of Object.entries(patch)) {
     const declaration = declarations?.[settingId];
-    const target: 'project' | 'project-local' =
-      declaration?.type === 'secret' ? 'project-local' : 'project';
     const dotKey = `plugins.${pluginId}.extensions.${extId}.settings.${settingId}`;
-    writeConfigValue(dotKey, value, { target, cwd });
+    // Secrets and `PROJECT_LOCAL_ONLY_KEYS` members (the github base-URL
+    // overrides) both live in the gitignored local layer; the committed
+    // layer would be refused by `writeConfigValue`.
+    const target: 'project' | 'project-local' =
+      declaration?.type === 'secret' || isProjectLocalOnlyKey(dotKey)
+        ? 'project-local'
+        : 'project';
+    try {
+      writeConfigValue(dotKey, value, { target, cwd });
+    } catch (err) {
+      // Backstop for a future local-only key this target pick misses:
+      // surface a structured 422 instead of the generic 500.
+      if (err instanceof ProjectLocalOnlyKeyError) {
+        throw new HTTPException(422, {
+          message: `setting '${settingId}' is project-local only and cannot be written to the shared config`,
+        });
+      }
+      throw err;
+    }
   }
 }

@@ -73,6 +73,11 @@ export const PLUGINS_TEXTS = {
   doctorUnknownSlot:
     "Contribution '{{contributionId}}' targets unknown slot '{{slot}}'. " +
     'Run `sm plugins upgrade {{pluginId}}` or update the plugin to a slot in the current catalog (`sm plugins slots list`).',
+  // Sibling of `doctorUnknownSlot` for the settings block: a declared
+  // setting picked an input-type id outside the closed catalog.
+  doctorUnknownInputType:
+    "Setting '{{settingId}}' declares unknown input type '{{type}}'. " +
+    'Run `sm plugins upgrade {{pluginId}}` or update the plugin to a type in the current catalog (`sm plugins slots list`).',
   // Modelo B (`spec/schemas/extensions/action.schema.json`,
   // `precondition.analyzerIds`), dangling-reference check. An Action
   // declares which analyzers' findings it resolves; an entry naming an

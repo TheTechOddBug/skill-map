@@ -50,11 +50,15 @@ function freshScope(label: string): IScope {
   return { cwd, home };
 }
 
-function sm(args: string[], scope: IScope): { status: number; stdout: string; stderr: string } {
+function sm(
+  args: string[],
+  scope: IScope,
+  extraEnv: Record<string, string> = {},
+): { status: number; stdout: string; stderr: string } {
   const r = spawnSync(process.execPath, [BIN, ...args], {
     encoding: 'utf8',
     cwd: scope.cwd,
-    env: { ...process.env, HOME: scope.home, USERPROFILE: scope.home, NO_COLOR: '1' },
+    env: { ...process.env, HOME: scope.home, USERPROFILE: scope.home, NO_COLOR: '1', ...extraEnv },
   });
   return { status: r.status ?? 0, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
@@ -93,7 +97,7 @@ function dropSecretPlugin(scope: IScope, pluginId: string, extId: string): void 
     join(extDir, 'index.js'),
     `export default {
        settings: {
-         'api-token': { type: 'secret', label: 'API token' },
+         'api-token': { type: 'secret', label: 'API token', envVar: 'VAULT_API_TOKEN' },
          'base-url': { type: 'single-string', label: 'Base URL', default: 'https://api.example.com' },
        },
        extract() {},
@@ -324,5 +328,40 @@ describe('sm plugins config, secret routing', () => {
     const obj = JSON.parse(r.stdout) as Record<string, unknown>;
     assert.equal(obj['api-token'], '<redacted>');
     assert.doesNotMatch(r.stdout, /sk-secret/);
+  });
+
+  it('shows [env] as the source while the envVar override is active', () => {
+    const scope = freshScope('secret-env-source');
+    dropSecretPlugin(scope, 'vault', 'fetcher');
+    // A stored value exists, but the env override wins and the table
+    // says so (spec/input-types.md §secret). Still redacted either way.
+    sm(['plugins', 'config', 'vault/fetcher', 'api-token', 'sk-stored'], scope);
+    const r = sm(['plugins', 'config', 'vault/fetcher'], scope, {
+      VAULT_API_TOKEN: 'sk-from-env',
+    });
+    assert.equal(r.status, 0);
+    assert.match(r.stdout, /\[env\]/);
+    assert.doesNotMatch(r.stdout, /sk-from-env/);
+  });
+});
+
+describe('sm plugins config, project-local-only key routing', () => {
+  it('writes the github base-URL override to settings.local.json (was refused outright)', () => {
+    const scope = freshScope('local-only-github');
+    const r = sm(
+      ['plugins', 'config', 'github/enrichment', 'apiBaseUrl', 'https://ghe.corp.test/api/v3'],
+      scope,
+    );
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+
+    const local = readSettings(scope, 'settings.local') as {
+      plugins?: { github?: { extensions?: { enrichment?: { settings?: Record<string, unknown> } } } };
+    };
+    assert.equal(
+      local.plugins?.github?.extensions?.enrichment?.settings?.['apiBaseUrl'],
+      'https://ghe.corp.test/api/v3',
+    );
+    // The committed file must never carry a PROJECT_LOCAL_ONLY key.
+    assert.deepEqual(readSettings(scope, 'settings'), {});
   });
 });

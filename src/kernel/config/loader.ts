@@ -410,6 +410,19 @@ export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
   'plugins.github.extensions.enrichment.settings.rawBaseUrl',
 ]);
 
+/**
+ * `true` when `dotKey` is honoured only from `settings.local.json`.
+ * Every WRITER of a config value must consult this when picking its
+ * target layer: a member key written to the committed `project` layer is
+ * refused by `writeConfigValue` (`ProjectLocalOnlyKeyError`), so the
+ * only writable target for these is `project-local`. Surfaced as a
+ * predicate because the settings writers (CLI `sm plugins config`, the
+ * BFF bulk PATCH) pick their target dynamically per key.
+ */
+export function isProjectLocalOnlyKey(dotKey: string): boolean {
+  return PROJECT_LOCAL_ONLY_KEYS.has(dotKey);
+}
+
 export type TConfigLayer =
   | 'defaults'
   | 'project'

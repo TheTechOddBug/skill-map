@@ -67,7 +67,7 @@ import { loadConfig } from '../../kernel/config/loader.js';
 import { resolveActiveProvider } from '../config/active-provider.js';
 import { appendOperation } from '../operations-log.js';
 import { ensureScopeGitignore } from '../scope-gitignore.js';
-import { buildSettingsResolver } from '../config/plugin-settings.js';
+import { buildSettingsResolver, type TSettingsEnv } from '../config/plugin-settings.js';
 import { walkReferencePaths } from '../runtime/reference-paths-walker.js';
 import {
   buildIgnoreFilter,
@@ -283,6 +283,12 @@ export interface ICreateWatcherRuntimeOpts {
    * field is plumbed through `composeScanExtensions` per batch.
    */
   killSwitches?: IConformanceKillSwitches;
+  /**
+   * Process environment for the settings resolver's `secret` `envVar`
+   * override, threaded from the CLI / BFF adapter (core/ never reads
+   * `process.env` itself, per the kernel boundary lint).
+   */
+  settingsEnv?: TSettingsEnv;
   /**
    * Per-invocation override of `scan.maxScan` (from the `--max-scan
    * <N>` flag on `sm watch` / `sm scan --watch`). This is the
@@ -714,7 +720,7 @@ export function createWatcherRuntime(
         noBuiltIns: opts.noBuiltIns,
         pluginRuntime,
         resolveEnabled: resolveEnabledOverride,
-        resolveSettings: buildSettingsResolver(cfg),
+        resolveSettings: buildSettingsResolver(cfg, undefined, opts.settingsEnv ?? {}),
         forbidSidecarWriters: cfg.allowSidecarWriters === false,
       };
       if (opts.killSwitches) composeOpts.killSwitches = opts.killSwitches;

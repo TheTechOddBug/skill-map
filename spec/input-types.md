@@ -64,7 +64,7 @@ The `settings` field lives on the extension manifest base, [`schemas/extensions/
 
 **Value type**: `string[]`.
 
-**UI**: tag input (PrimeNG `<p-chips>` or equivalent).
+**UI**: tag input (a multi-value chips control; the reference UI uses PrimeNG AutoComplete in multiple/no-typeahead mode, since PrimeNG retired its Chips component, any equivalent `string[]` tag input conforms).
 
 ---
 
@@ -271,7 +271,7 @@ The `settings` field lives on the extension manifest base, [`schemas/extensions/
 }
 ```
 
-**Parameters**: `label` (required), `description?`, `envVar?` (uppercase ASCII identifier, kernel reads process env first if set, lets CI inject without writing to disk).
+**Parameters**: `label` (required), `description?`, `envVar?` (uppercase ASCII identifier). Resolution order when `envVar` is declared: a NON-EMPTY process-environment value under that name wins over any stored value; empty or unset falls through to the stored project-local value; neither present leaves the setting unset (`ctx.settings` omits the key). Lets CI inject a token without writing it to disk.
 
 **Value type**: `string`.
 

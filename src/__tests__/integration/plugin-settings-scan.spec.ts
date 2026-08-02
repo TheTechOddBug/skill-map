@@ -23,6 +23,9 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, describe, it } from 'node:test';
 
+import { grantTrust } from '../../kernel/config/plugin-trust-store.js';
+import { installedSpecVersion } from '../../kernel/adapters/plugin-loader.js';
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = resolve(HERE, '..', '..', 'bin', 'sm.js');
 
@@ -44,11 +47,15 @@ function freshScope(label: string): IScope {
   return { cwd, home };
 }
 
-function sm(args: string[], scope: IScope): { status: number; stdout: string; stderr: string } {
+function sm(
+  args: string[],
+  scope: IScope,
+  extraEnv: Record<string, string> = {},
+): { status: number; stdout: string; stderr: string } {
   const r = spawnSync(process.execPath, [BIN, ...args], {
     encoding: 'utf8',
     cwd: scope.cwd,
-    env: { ...process.env, HOME: scope.home, USERPROFILE: scope.home, NO_COLOR: '1' },
+    env: { ...process.env, HOME: scope.home, USERPROFILE: scope.home, NO_COLOR: '1', ...extraEnv },
   });
   return { status: r.status ?? 0, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
@@ -123,5 +130,85 @@ describe('extension settings reach the scan pipeline', () => {
     const r = sm(['scan', '--json'], scope);
     assert.equal(r.status, 0, r.stderr);
     assert.equal(externalRefsCount(r.stdout, 'links.md'), 3);
+  });
+});
+
+describe('secret envVar override reaches ctx.settings at scan time', () => {
+  /**
+   * A drop-in probe plugin whose extractor ECHOES the resolved secret to
+   * stderr, the minimal observable that proves the env value traversed
+   * the whole chain in the real binary: CLI adapter (`settingsEnv:
+   * process.env`) → scan runner → settings resolver → composer →
+   * `ctx.settings` inside the extractor. Fenced marker so the assertion
+   * never collides with scan progress output.
+   */
+  function dropProbePlugin(scope: IScope): void {
+    const pluginDir = join(scope.cwd, '.skill-map', 'plugins', 'probe');
+    mkdirSync(pluginDir, { recursive: true });
+    grantTrust(scope.cwd, 'probe');
+    writeFileSync(
+      join(pluginDir, 'plugin.json'),
+      JSON.stringify({
+        version: '0.1.0',
+        description: 'settings-echo probe plugin',
+        specCompat: `^${installedSpecVersion()}`,
+        catalogCompat: '*',
+      }),
+    );
+    const extDir = join(pluginDir, 'extractors', 'echo');
+    mkdirSync(extDir, { recursive: true });
+    writeFileSync(
+      join(extDir, 'extension.json'),
+      JSON.stringify({ version: '0.1.0', description: 'echoes ctx.settings.token' }),
+    );
+    writeFileSync(
+      join(extDir, 'index.js'),
+      `export default {
+         settings: {
+           token: { type: 'secret', label: 'Probe token', envVar: 'PROBE_TOKEN' },
+         },
+         extract(ctx) {
+           const token = ctx.settings ? ctx.settings.token : undefined;
+           process.stderr.write('PROBE-TOKEN[' + String(token) + ']\\n');
+           return [];
+         },
+       };\n`,
+    );
+  }
+
+  function seedNode(scope: IScope): void {
+    const file = join(scope.cwd, '.claude', 'agents', 'probe.md');
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, ['---', 'name: probe', 'description: probe node', '---', '', 'Body.'].join('\n'));
+  }
+
+  it('delivers the env-provided secret to the extractor', () => {
+    const scope = freshScope('env-e2e');
+    seedNode(scope);
+    dropProbePlugin(scope);
+
+    const withEnv = sm(['scan', '--json'], scope, { PROBE_TOKEN: 'sk-e2e-env' });
+    assert.equal(withEnv.status, 0, withEnv.stderr);
+    assert.match(withEnv.stderr, /PROBE-TOKEN\[sk-e2e-env\]/);
+
+    // Without the env var the secret has no value at all (no default,
+    // nothing stored): the key is omitted from ctx.settings.
+    const without = sm(['scan', '--json'], scope);
+    assert.equal(without.status, 0, without.stderr);
+    assert.match(without.stderr, /PROBE-TOKEN\[undefined\]/);
+  });
+
+  it('env wins over a stored value, and falls back to it when unset', () => {
+    const scope = freshScope('env-precedence');
+    seedNode(scope);
+    dropProbePlugin(scope);
+    const write = sm(['plugins', 'config', 'probe/echo', 'token', 'sk-stored'], scope);
+    assert.equal(write.status, 0, write.stderr);
+
+    const withEnv = sm(['scan', '--json'], scope, { PROBE_TOKEN: 'sk-e2e-env' });
+    assert.match(withEnv.stderr, /PROBE-TOKEN\[sk-e2e-env\]/);
+
+    const without = sm(['scan', '--json'], scope);
+    assert.match(without.stderr, /PROBE-TOKEN\[sk-stored\]/);
   });
 });

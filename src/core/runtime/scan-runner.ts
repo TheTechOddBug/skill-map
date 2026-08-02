@@ -29,7 +29,7 @@ import type { IPriorExtractorRun } from '../../kernel/adapters/sqlite/scan-load.
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
 import { loadConfig } from '../../kernel/config/loader.js';
-import { buildSettingsResolver } from '../config/plugin-settings.js';
+import { buildSettingsResolver, type TSettingsEnv } from '../config/plugin-settings.js';
 import { buildIgnoreFilter, composeScopeIgnoreFilter } from '../../kernel/scan/ignore.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -109,6 +109,13 @@ export interface IScanRunOpts {
    * of the chosen kind.
    */
   killSwitches?: IConformanceKillSwitches;
+  /**
+   * Process environment for the settings resolver's `secret` `envVar`
+   * override, threaded from the CLI / BFF adapter (core/ never reads
+   * `process.env` itself, per the kernel boundary lint). Omitted = no
+   * env influence.
+   */
+  settingsEnv?: TSettingsEnv;
   /**
    * Pre-loaded plugin runtime (audit M3). When set, the runner
    * skips its own `loadPluginRuntime` call and consumes this runtime
@@ -482,7 +489,7 @@ function registerExtensions(
   const composeOpts: Parameters<typeof composeScanExtensions>[0] = {
     noBuiltIns: opts.noBuiltIns,
     pluginRuntime,
-    resolveSettings: buildSettingsResolver(cfg),
+    resolveSettings: buildSettingsResolver(cfg, undefined, opts.settingsEnv ?? {}),
     forbidSidecarWriters: cfg.allowSidecarWriters === false,
   };
   if (opts.killSwitches) composeOpts.killSwitches = opts.killSwitches;

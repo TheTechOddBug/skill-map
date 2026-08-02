@@ -48,6 +48,8 @@ export const PLUGINS_CONFIG_TEXTS = {
   tableRow: '  {{settingId}}  {{value}}{{sourceTag}}\n',
   /** Dim suffix showing which layer set the effective value. */
   tableSourceTag: ' [{{source}}]',
+  /** Source label when a secret's `envVar` override is active. */
+  sourceEnv: 'env',
   /** Redaction placeholder for `secret`-typed values in any output. */
   redacted: '<redacted>',
 

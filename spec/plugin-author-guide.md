@@ -740,7 +740,7 @@ The kernel exposes resolved settings via `ctx.settings.<settingId>`. Settings ar
 
 The manifest declares the *shape* (label, type, default); the **operator** supplies the *values*. Non-`secret` values live in the project config under `plugins.<pluginId>.extensions.<extId>.settings.<settingId>` (the extension id is the leaf folder name, not the qualified `<plugin>/<ext>` id, the plugin is already the parent key), so a team can commit them in `settings.json` or keep a per-checkout override in `settings.local.json`. The settings resolver builds the runtime `ctx.settings` object from each declared setting's `default`, overlaying the merged config value, validating against the input-type's value schema; a value failing validation drops back to the default with a warning (the scan never crashes on bad settings). `project-config.schema.json` keeps the `settings` object permissive (`additionalProperties: true`); per-type validation is the resolver's job, since the static schema cannot know which type a given `settingId` picked.
 
-`secret` settings are the exception on WHERE they land: the kernel forces them into project-local `settings.local.json` (gitignored), never the committed `settings.json`, so a token never travels via the shared repo. There is **no encryption** (the value is plain text on the local machine); the only protection is "does not leave the checkout". An optional `envVar` lets CI inject the value without writing it to disk. See `input-types.schema.json#/$defs/Setting_Secret`.
+`secret` settings are the exception on WHERE they land: the kernel forces them into project-local `settings.local.json` (gitignored), never the committed `settings.json`, so a token never travels via the shared repo. There is **no encryption** (the value is plain text on the local machine); the only protection is "does not leave the checkout". An optional `envVar` lets CI inject the value without writing it to disk: a NON-EMPTY process-environment value under that name wins over any stored value at resolution time (an empty or unset variable falls through to the stored one), and the `sm plugins config` table reports the source as `env` while the override is active. See `input-types.schema.json#/$defs/Setting_Secret`.
 
 The operator reads and writes values through the CLI (UI form is the parallel surface):
 
@@ -750,7 +750,7 @@ sm plugins config <plugin>/<ext> <settingId> <value>  # validate against the inp
 sm plugins config <plugin>/<ext> <settingId> --reset  # remove the override (falls back to the manifest default)
 ```
 
-A write lands in `settings.json` by default (or `settings.local.json` when the layering routes it per-checkout); the command prints a "re-scan to apply" footer because settings are read once per scan.
+A write lands in `settings.json` by default; `secret`-typed settings and project-local-only keys route to `settings.local.json` automatically. The command prints a "re-scan to apply" footer because settings are read once per scan. On the CLI, scalar types take the raw shell string (`boolean-flag` takes the literals `true` / `false`, `integer` / `number` take a numeric string), while the list-shaped types (`string-list`, `enum-multipick`, `key-value-list`, `match-list`, and `path-glob` with `multiple: true`) take a JSON argument, e.g. `sm plugins config core/external-url-counter ignored-domains '["shortener.io"]'`.
 
 ### Catalog version
 

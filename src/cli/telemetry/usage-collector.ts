@@ -27,6 +27,7 @@ export const BUILT_IN_PLUGIN_IDS: ReadonlySet<string> = new Set([
   'agent-skills',
   'core',
   'github',
+  'test-plugin',
 ]);
 
 /** The literal that replaces every non-built-in extension id. */

@@ -45,7 +45,7 @@ const OUTPUT = join(PLUGINS_ROOT, 'built-ins.ts');
  * presentational only). The matching directories under
  * `src/plugins/<id>/` must all exist.
  */
-const PLUGIN_ORDER = ['claude', 'antigravity', 'codex', 'opencode', 'agent-skills', 'github', 'core'];
+const PLUGIN_ORDER = ['claude', 'antigravity', 'codex', 'opencode', 'agent-skills', 'github', 'core', 'test-plugin'];
 
 /**
  * Within a plugin, kinds register in this order so the resulting list

@@ -1,0 +1,6 @@
+{
+  "version": "1.0.0",
+  "specCompat": "^1.0.0",
+  "catalogCompat": "^1.0.0",
+  "description": "Settings showcase for testing: one extension declaring every input-type in the closed catalog, so each control can be exercised end to end (Settings form, CLI writes, resolver, storage routing). Ships disabled; enable it only to poke at the controls."
+}

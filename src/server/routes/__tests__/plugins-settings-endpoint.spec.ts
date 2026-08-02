@@ -112,7 +112,7 @@ function dropSecretPlugin(scope: IScope, pluginId: string, extId: string): void 
     join(extDir, 'index.js'),
     `export default {
        settings: {
-         'api-token': { type: 'secret', label: 'API token' },
+         'api-token': { type: 'secret', label: 'API token', envVar: 'VAULT_API_TOKEN' },
          'base-url': { type: 'single-string', label: 'Base URL', default: 'https://api.example.com' },
        },
        extract() {},
@@ -483,5 +483,51 @@ describe('PATCH /api/plugins, settings writes', () => {
       assert.equal(ext.enabled, false);
       assert.deepEqual(ext.settingValues?.['ignored-domains'], ['a.com']);
     });
+  });
+});
+
+describe('PATCH /api/plugins, project-local-only key routing', () => {
+  it('writes the github base-URL override to settings.local.json (was a 500)', async () => {
+    const scope = freshScope('patch-local-only');
+    await primeDb(scope.dbPath);
+    await bootAndUse(scope, {}, async (handle) => {
+      const res = await patch(handle, {
+        changes: [
+          { id: 'github/enrichment', settings: { apiBaseUrl: 'https://ghe.corp.test/api/v3' } },
+        ],
+      });
+      assert.equal(res.status, 200);
+    });
+    const local = readSettingsFile(scope, 'settings.local') as {
+      plugins?: { github?: { extensions?: { enrichment?: { settings?: Record<string, unknown> } } } };
+    };
+    assert.equal(
+      local.plugins?.github?.extensions?.enrichment?.settings?.['apiBaseUrl'],
+      'https://ghe.corp.test/api/v3',
+    );
+    // A PROJECT_LOCAL_ONLY key must never reach the committed file.
+    assert.deepEqual(readSettingsFile(scope, 'settings'), {});
+  });
+});
+
+describe('GET /api/plugins, secret envVar projection', () => {
+  it('counts an env-provided secret in secretSettingsSet without any stored value', async () => {
+    const scope = freshScope('env-secret');
+    await primeDb(scope.dbPath);
+    dropSecretPlugin(scope, 'vault', 'fetcher');
+    trustProjectPlugin(scope, 'vault');
+    process.env['VAULT_API_TOKEN'] = 'sk-from-env';
+    try {
+      await bootAndUse(scope, { noPlugins: false }, async (handle) => {
+        const items = await getItems(handle);
+        const ext = findExt(items, 'vault', 'fetcher');
+        assert.deepEqual(ext.secretSettingsSet, ['api-token']);
+        assert.equal(ext.settingValues?.['api-token'], undefined);
+      });
+    } finally {
+      delete process.env['VAULT_API_TOKEN'];
+    }
+    // Nothing was ever written to disk for it.
+    assert.deepEqual(readSettingsFile(scope, 'settings.local'), {});
   });
 });

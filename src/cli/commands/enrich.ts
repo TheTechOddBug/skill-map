@@ -247,7 +247,7 @@ export class EnrichCommand extends SmCommand {
     // settings resolver into the composer (a tolerant load: a malformed
     // layer degrades to defaults rather than aborting the refresh).
     const refreshCfg = loadConfig({ cwd: ctx.cwd }).effective;
-    const resolveSettings = buildSettingsResolver(refreshCfg);
+    const resolveSettings = buildSettingsResolver(refreshCfg, undefined, process.env);
     const composed = composeScanExtensions({
       noBuiltIns: false,
       pluginRuntime,
