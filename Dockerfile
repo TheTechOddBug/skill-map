@@ -68,6 +68,11 @@ RUN node web/scripts/build-site.js
 
 # ------------ serve stage ------------
 FROM caddy:2-alpine
+# Upgrade OS packages at build time: the caddy:2-alpine tag lags behind
+# Alpine security releases (Snyk flagged curl/libcurl 8.19.0-r0 and
+# c-ares 1.34.6-r0 in the shipped layer; fixes live in the 3.23 repos),
+# so pull the patched versions instead of waiting for a base rebuild.
+RUN apk upgrade --no-cache
 COPY --from=build /app/.tmp/site /usr/share/caddy
 # Mount the Angular bundle under /demo/. The browser/ subdir is the
 # default output of @angular/build:application; we promote it so the
