@@ -107,13 +107,15 @@ export interface IPluginToggleChange {
 /**
  * Build the `plugin.apply` event properties from a committed bulk PATCH:
  * ids toggled on ride `enabled`, ids toggled off ride `disabled`, both
- * through {@link buildPluginUsageSet}. Entries with no `enabled` delta
+ * through {@link buildPluginUsageSet}, and `$screen_name` mirrors the set
+ * with the state suffixed (`<id>:true|false`) so PostHog's URL / Screen
+ * column reads the whole apply. Entries with no `enabled` delta
  * (settings-only edits) are excluded; a batch with no toggle at all
  * returns `null`, meaning nothing to emit.
  */
 export function buildPluginApplyProperties(
   changes: ReadonlyArray<IPluginToggleChange>,
-): { enabled: string[]; disabled: string[] } | null {
+): Record<string, unknown> | null {
   const enabled = buildPluginUsageSet(
     changes.filter((c) => c.enabled === true).map((c) => c.id),
   );
@@ -121,5 +123,106 @@ export function buildPluginApplyProperties(
     changes.filter((c) => c.enabled === false).map((c) => c.id),
   );
   if (enabled.length === 0 && disabled.length === 0) return null;
-  return { enabled, disabled };
+  return {
+    enabled,
+    disabled,
+    $screen_name: [
+      ...enabled.map((id) => `${id}:true`),
+      ...disabled.map((id) => `${id}:false`),
+    ].join(' '),
+  };
+}
+
+/**
+ * Pure event-property builders for the tracker's emit methods
+ * (`UsageTrackerService` stays a one-line shell over each). Extracted here
+ * because the Angular unit-test system blocks `vi.mock` on relative
+ * imports, so the `$screen_name` / property composition is tested through
+ * these instead of through the SDK boundary. Params are plain strings; the
+ * closed unions live on the tracker's public API.
+ */
+
+/** `ui.feature.<surface>`: `<surface>[:<value>][@<source>]`. */
+export function buildFeatureEventProperties(
+  surface: string,
+  value?: boolean | string,
+  source?: string,
+): Record<string, unknown> {
+  const props: Record<string, unknown> = {};
+  let screen = surface;
+  if (value !== undefined) {
+    props['value'] = value;
+    screen = `${screen}:${value}`;
+  }
+  if (source !== undefined) {
+    props['source'] = source;
+    screen = `${screen}@${source}`;
+  }
+  props['$screen_name'] = screen;
+  return props;
+}
+
+/** `ui.filter`: `group` + collapsed `value` (kind only), screen `group[:value]`. */
+export function buildFilterEventProperties(
+  group: string,
+  value?: string,
+): Record<string, unknown> {
+  const props: Record<string, unknown> = { group };
+  let screen = group;
+  if (value !== undefined) {
+    const safe = group === 'kind' ? qualifyKindForUsage(value) : value;
+    props['value'] = safe;
+    screen = `${group}:${safe}`;
+  }
+  props['$screen_name'] = screen;
+  return props;
+}
+
+/** `ui.feature.lens-select`: the collapsed lens rides BOTH as `value` and `lens`. */
+export function buildLensSelectEventProperties(
+  lens: string,
+  source: string,
+): Record<string, unknown> {
+  const collapsed = qualifyPluginForUsage(lens);
+  return {
+    value: collapsed,
+    lens: collapsed,
+    source,
+    $screen_name: `lens-select:${collapsed}@${source}`,
+  };
+}
+
+/** `ui.feature.ai-action`: collapsed extension id + `auto_fix`, `:autofix` suffix. */
+export function buildAiActionEventProperties(
+  extensionId: string,
+  autoFix: boolean,
+): Record<string, unknown> {
+  const collapsed = qualifyPluginForUsage(extensionId);
+  return {
+    value: collapsed,
+    auto_fix: autoFix,
+    $screen_name: autoFix ? `ai-action:${collapsed}:autofix` : `ai-action:${collapsed}`,
+  };
+}
+
+/** `ui.feature.node-action`: collapsed action id as `value`. */
+export function buildNodeActionEventProperties(actionId: string): Record<string, unknown> {
+  const collapsed = qualifyPluginForUsage(actionId);
+  return { value: collapsed, $screen_name: `node-action:${collapsed}` };
+}
+
+/**
+ * `ui.feature.sidecar-consent`: the resolution as `value`, plus `action`
+ * naming what parked behind the gate ({@link qualifyMaybePluginValue};
+ * omitted when unknown).
+ */
+export function buildSidecarConsentEventProperties(
+  value: string,
+  context: string | null,
+): Record<string, unknown> {
+  return {
+    value,
+    ...(context !== null ? { action: qualifyMaybePluginValue(context) } : {}),
+    $screen_name: `sidecar-consent:${value}`,
+  };
 }

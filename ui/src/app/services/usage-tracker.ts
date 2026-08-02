@@ -24,10 +24,13 @@ import { Injectable, effect, inject } from '@angular/core';
 
 import { captureUiUsage, registerUsageSuperProps } from '../core/telemetry/posthog-init';
 import {
+  buildAiActionEventProperties,
+  buildFeatureEventProperties,
+  buildFilterEventProperties,
+  buildLensSelectEventProperties,
+  buildNodeActionEventProperties,
   buildPluginApplyProperties,
-  qualifyKindForUsage,
-  qualifyMaybePluginValue,
-  qualifyPluginForUsage,
+  buildSidecarConsentEventProperties,
   type IPluginToggleChange,
 } from '../core/telemetry/usage-collector';
 import { ThemeService } from '../../services/theme';
@@ -134,18 +137,7 @@ export class UsageTrackerService {
     value?: boolean | string,
     source?: TUsageFeatureSource,
   ): void {
-    const props: Record<string, unknown> = {};
-    let screen: string = surface;
-    if (value !== undefined) {
-      props['value'] = value;
-      screen = `${screen}:${value}`;
-    }
-    if (source !== undefined) {
-      props['source'] = source;
-      screen = `${screen}@${source}`;
-    }
-    props['$screen_name'] = screen;
-    captureUiUsage(`ui.feature.${surface}`, props);
+    captureUiUsage(`ui.feature.${surface}`, buildFeatureEventProperties(surface, value, source));
   }
 
   /**
@@ -157,12 +149,7 @@ export class UsageTrackerService {
    * per queued entry). No-op while dormant.
    */
   trackAiAction(extensionId: string, autoFix: boolean): void {
-    const collapsed = qualifyPluginForUsage(extensionId);
-    captureUiUsage('ui.feature.ai-action', {
-      value: collapsed,
-      auto_fix: autoFix,
-      $screen_name: autoFix ? `ai-action:${collapsed}:autofix` : `ai-action:${collapsed}`,
-    });
+    captureUiUsage('ui.feature.ai-action', buildAiActionEventProperties(extensionId, autoFix));
   }
 
   /**
@@ -174,11 +161,7 @@ export class UsageTrackerService {
    * literal (slash-free, ours, passes verbatim). Rides as `action`.
    */
   trackSidecarConsent(value: 'always' | 'once' | 'declined', context: string | null): void {
-    captureUiUsage('ui.feature.sidecar-consent', {
-      value,
-      ...(context !== null ? { action: qualifyMaybePluginValue(context) } : {}),
-      $screen_name: `sidecar-consent:${value}`,
-    });
+    captureUiUsage('ui.feature.sidecar-consent', buildSidecarConsentEventProperties(value, context));
   }
 
   /**
@@ -190,11 +173,7 @@ export class UsageTrackerService {
    * dormant.
    */
   trackNodeAction(actionId: string): void {
-    const collapsed = qualifyPluginForUsage(actionId);
-    captureUiUsage('ui.feature.node-action', {
-      value: collapsed,
-      $screen_name: `node-action:${collapsed}`,
-    });
+    captureUiUsage('ui.feature.node-action', buildNodeActionEventProperties(actionId));
   }
 
   /**
@@ -205,13 +184,7 @@ export class UsageTrackerService {
    * covers every lens signal. Third-party provider ids collapse here.
    */
   trackLensSelect(lens: string, source: TUsageFeatureSource): void {
-    const collapsed = qualifyPluginForUsage(lens);
-    captureUiUsage('ui.feature.lens-select', {
-      value: collapsed,
-      lens: collapsed,
-      source,
-      $screen_name: `lens-select:${collapsed}@${source}`,
-    });
+    captureUiUsage('ui.feature.lens-select', buildLensSelectEventProperties(lens, source));
   }
 
   /**
@@ -223,17 +196,7 @@ export class UsageTrackerService {
    * emit on the USER gesture only, never on an auto-clear or URL restore.
    */
   trackFilter(group: TUsageFilterGroup, value?: string): void {
-    const props: Record<string, unknown> = { group };
-    let screen: string = group;
-    if (value !== undefined) {
-      const safe = group === 'kind' ? qualifyKindForUsage(value) : value;
-      props['value'] = safe;
-      screen = `${group}:${safe}`;
-    }
-    // `$screen_name` mirrors group:value so PostHog's URL / Screen column
-    // reads the gesture at a glance (spec/telemetry.md §Usage event taxonomy).
-    props['$screen_name'] = screen;
-    captureUiUsage('ui.filter', props);
+    captureUiUsage('ui.filter', buildFilterEventProperties(group, value));
   }
 
   /**
@@ -245,17 +208,7 @@ export class UsageTrackerService {
    */
   trackPluginApply(changes: ReadonlyArray<IPluginToggleChange>): void {
     const props = buildPluginApplyProperties(changes);
-    if (props === null) return;
-    // The collapsed toggled ids double as `$screen_name`, each suffixed
-    // with the state the apply SET (`<id>:true|false`), so the URL /
-    // Screen column reads the whole apply (already third-party-safe).
-    captureUiUsage('plugin.apply', {
-      ...props,
-      $screen_name: [
-        ...props.enabled.map((id) => `${id}:true`),
-        ...props.disabled.map((id) => `${id}:false`),
-      ].join(' '),
-    });
+    if (props !== null) captureUiUsage('plugin.apply', props);
   }
 
   /**

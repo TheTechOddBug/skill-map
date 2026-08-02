@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildAiActionEventProperties,
+  buildFeatureEventProperties,
+  buildFilterEventProperties,
+  buildLensSelectEventProperties,
+  buildNodeActionEventProperties,
   buildPluginApplyProperties,
   buildPluginUsageSet,
+  buildSidecarConsentEventProperties,
   qualifyFindingTypeForUsage,
   qualifyKindForUsage,
   qualifyMaybePluginValue,
@@ -85,18 +91,153 @@ describe('qualifyFindingTypeForUsage', () => {
 });
 
 describe('buildPluginApplyProperties', () => {
-  it('splits toggle deltas into collapsed enabled / disabled sets', () => {
+  it('splits toggle deltas into collapsed sets and a stateful screen name', () => {
     expect(
       buildPluginApplyProperties([
         { id: 'core/link-counter', enabled: true },
         { id: 'acme/private-fixer', enabled: false },
         { id: 'b/y' },
       ]),
-    ).toEqual({ enabled: ['core/link-counter'], disabled: ['external_plugin'] });
+    ).toEqual({
+      enabled: ['core/link-counter'],
+      disabled: ['external_plugin'],
+      $screen_name: 'core/link-counter:true external_plugin:false',
+    });
   });
 
   it('returns null for a settings-only batch (no toggle happened)', () => {
     expect(buildPluginApplyProperties([{ id: 'b/y' }])).toBeNull();
     expect(buildPluginApplyProperties([])).toBeNull();
+  });
+});
+
+describe('buildFeatureEventProperties ($screen_name folding)', () => {
+  it('bare gesture: the surface alone', () => {
+    expect(buildFeatureEventProperties('scan')).toEqual({ $screen_name: 'scan' });
+  });
+
+  it('toggle value folds as :value (boolean and enum string)', () => {
+    expect(buildFeatureEventProperties('live-toggle', true)).toEqual({
+      value: true,
+      $screen_name: 'live-toggle:true',
+    });
+    expect(buildFeatureEventProperties('theme-toggle', 'dark')).toEqual({
+      value: 'dark',
+      $screen_name: 'theme-toggle:dark',
+    });
+  });
+
+  it('shared-surface source folds as @source, after the value', () => {
+    expect(buildFeatureEventProperties('hook-install', undefined, 'quick-start')).toEqual({
+      source: 'quick-start',
+      $screen_name: 'hook-install@quick-start',
+    });
+    expect(buildFeatureEventProperties('mcp-server', true, 'settings')).toEqual({
+      value: true,
+      source: 'settings',
+      $screen_name: 'mcp-server:true@settings',
+    });
+  });
+});
+
+describe('buildFilterEventProperties', () => {
+  it('valueless group (favorites) carries the group alone', () => {
+    expect(buildFilterEventProperties('favorites')).toEqual({
+      group: 'favorites',
+      $screen_name: 'favorites',
+    });
+  });
+
+  it('severity / link values pass verbatim (closed unions)', () => {
+    expect(buildFilterEventProperties('severity', 'error')).toEqual({
+      group: 'severity',
+      value: 'error',
+      $screen_name: 'severity:error',
+    });
+  });
+
+  it('kind values collapse when plugin-declared', () => {
+    expect(buildFilterEventProperties('kind', 'skill')).toEqual({
+      group: 'kind',
+      value: 'skill',
+      $screen_name: 'kind:skill',
+    });
+    expect(buildFilterEventProperties('kind', 'runbook')).toEqual({
+      group: 'kind',
+      value: 'external_plugin',
+      $screen_name: 'kind:external_plugin',
+    });
+  });
+});
+
+describe('buildLensSelectEventProperties', () => {
+  it('the collapsed lens rides BOTH as value and as the cross-event lens', () => {
+    expect(buildLensSelectEventProperties('codex', 'settings')).toEqual({
+      value: 'codex',
+      lens: 'codex',
+      source: 'settings',
+      $screen_name: 'lens-select:codex@settings',
+    });
+    expect(buildLensSelectEventProperties('acme-provider', 'settings')).toEqual({
+      value: 'external_plugin',
+      lens: 'external_plugin',
+      source: 'settings',
+      $screen_name: 'lens-select:external_plugin@settings',
+    });
+  });
+});
+
+describe('buildAiActionEventProperties', () => {
+  it('collapses the extension id and suffixes :autofix only when chained', () => {
+    expect(buildAiActionEventProperties('core/ai-security', false)).toEqual({
+      value: 'core/ai-security',
+      auto_fix: false,
+      $screen_name: 'ai-action:core/ai-security',
+    });
+    expect(buildAiActionEventProperties('acme/finder', true)).toEqual({
+      value: 'external_plugin',
+      auto_fix: true,
+      $screen_name: 'ai-action:external_plugin:autofix',
+    });
+  });
+});
+
+describe('buildNodeActionEventProperties', () => {
+  it('collapses the action id', () => {
+    expect(buildNodeActionEventProperties('core/node-bump')).toEqual({
+      value: 'core/node-bump',
+      $screen_name: 'node-action:core/node-bump',
+    });
+    expect(buildNodeActionEventProperties('acme/private')).toEqual({
+      value: 'external_plugin',
+      $screen_name: 'node-action:external_plugin',
+    });
+  });
+});
+
+describe('buildSidecarConsentEventProperties', () => {
+  it('carries the resolution and the parked action (collapsed or literal)', () => {
+    expect(buildSidecarConsentEventProperties('always', 'core/node-set-tags')).toEqual({
+      value: 'always',
+      action: 'core/node-set-tags',
+      $screen_name: 'sidecar-consent:always',
+    });
+    expect(buildSidecarConsentEventProperties('once', 'acme/private-action')).toEqual({
+      value: 'once',
+      action: 'external_plugin',
+      $screen_name: 'sidecar-consent:once',
+    });
+    expect(buildSidecarConsentEventProperties('declined', 'findings-restore')).toEqual({
+      value: 'declined',
+      action: 'findings-restore',
+      $screen_name: 'sidecar-consent:declined',
+    });
+  });
+
+  it('omits the action when the park context is unknown', () => {
+    expect(buildSidecarConsentEventProperties('declined', null)).toEqual({
+      value: 'declined',
+      $screen_name: 'sidecar-consent:declined',
+    });
   });
 });
