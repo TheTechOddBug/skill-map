@@ -148,6 +148,7 @@ function options(scope: IScope, over: Partial<IServerOptions> = {}): IServerOpti
     devCors: false,
     noWatcher: true,
     mcpServer: false,
+    settingsEnv: {},
     ...over,
   };
 }
@@ -440,6 +441,14 @@ describe('PATCH /api/plugins, settings writes', () => {
     assert.equal(local.plugins?.vault?.extensions?.fetcher?.settings?.['api-token'], 'sk-from-http');
     // ...and NEVER in the committed file.
     assert.deepEqual(readSettingsFile(scope, 'settings'), {});
+    // §Operations log: the write appended a ui-channel config.set line
+    // carrying the settingId, NEVER the value.
+    const opsLog = readFileSync(join(scope.cwd, '.skill-map', 'operations.log'), 'utf8');
+    assert.match(opsLog, /"op":"config\.set"/);
+    assert.match(opsLog, /"channel":"ui"/);
+    assert.match(opsLog, /"extension":"vault\/fetcher"/);
+    assert.match(opsLog, /keys=api-token/);
+    assert.doesNotMatch(opsLog, /sk-from-http/);
   });
 
   it('writes a non-secret sibling to settings.json on the same secret-bearing extension', async () => {
@@ -516,17 +525,18 @@ describe('GET /api/plugins, secret envVar projection', () => {
     await primeDb(scope.dbPath);
     dropSecretPlugin(scope, 'vault', 'fetcher');
     trustProjectPlugin(scope, 'vault');
-    process.env['VAULT_API_TOKEN'] = 'sk-from-env';
-    try {
-      await bootAndUse(scope, { noPlugins: false }, async (handle) => {
+    // Synthetic env via the options knob: the server never reads
+    // `process.env` itself (`IServerOptions.settingsEnv`).
+    await bootAndUse(
+      scope,
+      { noPlugins: false, settingsEnv: { VAULT_API_TOKEN: 'sk-from-env' } },
+      async (handle) => {
         const items = await getItems(handle);
         const ext = findExt(items, 'vault', 'fetcher');
         assert.deepEqual(ext.secretSettingsSet, ['api-token']);
         assert.equal(ext.settingValues?.['api-token'], undefined);
-      });
-    } finally {
-      delete process.env['VAULT_API_TOKEN'];
-    }
+      },
+    );
     // Nothing was ever written to disk for it.
     assert.deepEqual(readSettingsFile(scope, 'settings.local'), {});
   });

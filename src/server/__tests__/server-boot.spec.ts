@@ -51,6 +51,7 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
     // the watcher live in `server-ws-integration.test.ts`.
     noWatcher: true,
     mcpServer: false,
+    settingsEnv: {},
     ...overrides,
   };
 }

@@ -321,6 +321,31 @@ export default tseslint.config(
   },
 
   // -------------------------------------------------------------------------
+  // Server (BFF) invariant: env is resolved at the composition root only
+  // -------------------------------------------------------------------------
+  // `server/**` never reads `process.env` directly: the CLI verb
+  // (`cli/commands/serve.ts`) snapshots it once into
+  // `IServerOptions.settingsEnv` and the BFF consumes the knob. This
+  // keeps a direct programmatic boot (tests, future harnesses) hermetic,
+  // a synthetic options bag fully controls what environment the server
+  // sees. `process.cwd()` is NOT banned here (the Sentry scrubber in
+  // `server/telemetry/sentry.ts` legitimately reads it); cwd otherwise
+  // flows through `runtimeContext`.
+  {
+    files: ['server/**/*.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "MemberExpression[object.name='process'][property.name='env']",
+          message:
+            'server/ must not read process.env. The composition root (cli/commands/serve.ts) snapshots it into IServerOptions.settingsEnv; thread that knob instead.',
+        },
+      ],
+    },
+  },
+
+  // -------------------------------------------------------------------------
   // plugins/ layering: built-ins must not pull CLI code into the runtime
   // -------------------------------------------------------------------------
   // The generated `plugins/built-ins.ts` registry is imported by the core

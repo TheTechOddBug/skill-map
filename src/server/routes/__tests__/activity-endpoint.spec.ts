@@ -153,6 +153,7 @@ function defaultOptions(): IServerOptions {
     devCors: false,
     noWatcher: true,
     mcpServer: false,
+    settingsEnv: {},
   };
 }
 

@@ -264,6 +264,7 @@ export function probServerOptions(project: IProbProject): IServerOptions {
     devCors: false,
     noWatcher: true,
     mcpServer: false,
+    settingsEnv: {},
   };
 }
 

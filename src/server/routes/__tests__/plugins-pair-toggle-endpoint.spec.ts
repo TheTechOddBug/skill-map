@@ -92,6 +92,7 @@ function options(scope: IScope): IServerOptions {
     devCors: false,
     noWatcher: true,
     mcpServer: false,
+    settingsEnv: {},
   };
 }
 

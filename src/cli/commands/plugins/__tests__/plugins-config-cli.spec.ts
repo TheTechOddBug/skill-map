@@ -163,6 +163,11 @@ describe('sm plugins config, get / set / reset (non-secret)', () => {
     );
     // Nothing leaked into the local file.
     assert.deepEqual(readSettings(scope, 'settings.local'), {});
+    // §Operations log: one config.set line, key only.
+    const opsLog = readFileSync(join(scope.cwd, '.skill-map', 'operations.log'), 'utf8');
+    assert.match(opsLog, /"op":"config\.set"/);
+    assert.match(opsLog, /"channel":"cli"/);
+    assert.match(opsLog, /key=plugins\.core\.extensions\.external-url-counter\.settings\.ignored-domains/);
   });
 
   it('get reflects the override and its source layer', () => {
@@ -196,6 +201,9 @@ describe('sm plugins config, get / set / reset (non-secret)', () => {
     };
     const leftover = settings.plugins?.core?.extensions?.['external-url-counter']?.settings?.['ignored-domains'];
     assert.equal(leftover, undefined);
+    // §Operations log: the removal appended its own config.reset line.
+    const opsLog = readFileSync(join(scope.cwd, '.skill-map', 'operations.log'), 'utf8');
+    assert.match(opsLog, /"op":"config\.reset"/);
   });
 
   it('errors on an unknown settingId', () => {
@@ -302,6 +310,10 @@ describe('sm plugins config, secret routing', () => {
     );
     // The committed file must NOT carry the secret.
     assert.deepEqual(readSettings(scope, 'settings'), {});
+    // The operations log carries the key, NEVER the value.
+    const opsLog = readFileSync(join(scope.cwd, '.skill-map', 'operations.log'), 'utf8');
+    assert.match(opsLog, /"op":"config\.set"/);
+    assert.doesNotMatch(opsLog, /sk-super-secret/);
   });
 
   it('writes a normal setting on the same extension to settings.json', () => {
@@ -363,5 +375,19 @@ describe('sm plugins config, project-local-only key routing', () => {
     );
     // The committed file must never carry a PROJECT_LOCAL_ONLY key.
     assert.deepEqual(readSettings(scope, 'settings'), {});
+  });
+
+  it('reset removes the override from settings.local.json (mirror of the write routing)', () => {
+    const scope = freshScope('local-only-reset');
+    sm(
+      ['plugins', 'config', 'github/enrichment', 'apiBaseUrl', 'https://ghe.corp.test/api/v3'],
+      scope,
+    );
+    const r = sm(['plugins', 'config', 'github/enrichment', 'apiBaseUrl', '--reset'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    const local = readSettings(scope, 'settings.local') as {
+      plugins?: { github?: { extensions?: { enrichment?: { settings?: Record<string, unknown> } } } };
+    };
+    assert.equal(local.plugins?.github?.extensions?.enrichment?.settings?.['apiBaseUrl'], undefined);
   });
 });

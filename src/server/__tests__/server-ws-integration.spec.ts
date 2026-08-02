@@ -76,6 +76,7 @@ function defaultOptions(fx: IFixture, overrides: Partial<IServerOptions> = {}): 
     devCors: false,
     noWatcher: false,
     mcpServer: false,
+    settingsEnv: {},
     // Tighten the debounce so the test doesn't wait the default
     // 250ms+ on every assertion. 25ms is short enough to keep tests
     // snappy and long enough that chokidar's internal coalescing
@@ -317,6 +318,7 @@ describe('server `/ws`, broadcaster integration', () => {
       noBuiltIns: true,
       noWatcher: false,
       mcpServer: false,
+      settingsEnv: {},
     });
     assert.equal(result.ok, false);
     if (!result.ok) {

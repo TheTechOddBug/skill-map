@@ -56,6 +56,7 @@ import {
 import { builtInPlugins, type IBuiltInPlugin } from '../../plugins/built-ins.js';
 import { sortPluginsForPresentation } from '../../plugins/presentation-order.js';
 import { writeConfigValue } from '../../core/config/helper.js';
+import type { TSettingsEnv } from '../../core/config/plugin-settings.js';
 import {
   buildPairEnabledProbe,
   collectPairEdges,
@@ -549,8 +550,9 @@ function listItems(
   // that mutate the config call `configService.reload()` before
   // re-projecting, so this view is always current for the response.
   const config = deps.configService.effective();
+  const env = deps.options.settingsEnv;
   const items = [
-    ...(deps.options.noBuiltIns ? [] : buildBuiltInItems(resolveEnabled, config)),
+    ...(deps.options.noBuiltIns ? [] : buildBuiltInItems(resolveEnabled, config, env)),
     ...buildDiscoveredItems(deps.pluginRuntimeHolder.current.discovered, deps, resolveEnabled, config, trust),
   ];
   // Presentation `order` = position in this canonical listing (built-ins
@@ -577,6 +579,7 @@ function loadTrustState(deps: IRouteDeps): ITrustState {
 function buildBuiltInItems(
   resolveEnabled: TEnabledResolver,
   config: IEffectiveConfig,
+  env: TSettingsEnv,
 ): TPluginListItemDraft[] {
   // Presentation order: `core` first, then vendor plugins. Mirrors
   // `sm plugins list`; the SPA sorts by the stamped wire `order` (no
@@ -595,6 +598,7 @@ function buildBuiltInItems(
         ext.id,
         readManifestSettings(ext),
         config,
+        env,
       );
       return {
         id: ext.id,
@@ -643,7 +647,13 @@ function buildDiscoveredItem(
   trust: ITrustState,
 ): TPluginListItemDraft {
   const pluginLocked = isLockedBuiltIn(plugin.id);
-  const extensions = projectExtensionRows(plugin, resolveEnabled, pluginLocked, config);
+  const extensions = projectExtensionRows(
+    plugin,
+    resolveEnabled,
+    pluginLocked,
+    config,
+    deps.options.settingsEnv,
+  );
   const optional = optionalDiscoveredFields(plugin, extensions);
   return {
     id: plugin.id,
@@ -711,6 +721,7 @@ function projectExtensionRows(
   resolveEnabled: TEnabledResolver,
   pluginLocked: boolean,
   config: IEffectiveConfig,
+  env: TSettingsEnv,
 ): IPluginExtensionItem[] | undefined {
   if (!plugin.extensions || plugin.extensions.length === 0) return undefined;
   return plugin.extensions.map((ext) => {
@@ -725,6 +736,7 @@ function projectExtensionRows(
       ext.id,
       readManifestSettings(ext.instance),
       config,
+      env,
     );
     return {
       id: ext.id,
@@ -1364,7 +1376,21 @@ function persistBulkSettings(deps: IRouteDeps, changes: readonly IBulkChange[]):
         }),
       });
     }
-    if (Object.keys(change.settings).length > 0) touched = true;
+    const settingIds = Object.keys(change.settings);
+    if (settingIds.length > 0) {
+      touched = true;
+      // §Operations log: config writes are named in the invariant
+      // (mirror of `sm plugins config set`). Keys only, never a value,
+      // secret settings flow through this path.
+      appendOperation(cwd, {
+        op: 'config.set',
+        target: '*',
+        channel: 'ui',
+        outcome: 'ok',
+        extension: change.id,
+        detail: `keys=${settingIds.join(',')}`,
+      });
+    }
   }
   return touched;
 }

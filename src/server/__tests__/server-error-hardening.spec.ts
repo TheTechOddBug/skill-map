@@ -222,6 +222,7 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
     devCors: false,
     noWatcher: true,
     mcpServer: false,
+    settingsEnv: {},
     ...overrides,
   };
 }

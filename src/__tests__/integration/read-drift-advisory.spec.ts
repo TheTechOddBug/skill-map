@@ -219,6 +219,7 @@ describe('read-side drift posture (verb level)', () => {
       devCors: false,
       noWatcher: true,
       mcpServer: false,
+      settingsEnv: {},
     };
     const handle = await createServer(options);
     try {

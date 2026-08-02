@@ -63,6 +63,7 @@ function defaultOptions(dbPath: string): IServerOptions {
     devCors: false,
     noWatcher: true,
     mcpServer: false,
+    settingsEnv: {},
   };
 }
 

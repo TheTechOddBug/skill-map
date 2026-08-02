@@ -43,6 +43,7 @@ import {
   writeConfigValue,
 } from '../../../core/config/helper.js';
 import { resolveExtensionSettings } from '../../../core/config/plugin-settings.js';
+import { appendOperation } from '../../../core/operations-log.js';
 import { isProjectLocalOnlyKey, loadConfig, type TConfigLayer } from '../../../kernel/config/loader.js';
 import type { IAnsi } from '../../util/ansi.js';
 import type { ILoadedExtension } from '../../../kernel/types/plugin.js';
@@ -324,6 +325,17 @@ export class PluginsConfigCommand extends SmCommand {
       return this.renderWriteError(err, settingId);
     }
 
+    // §Operations log: config writes are named in the invariant. Key
+    // only, never the value (a secret's value must not land in the log).
+    appendOperation(cwd, {
+      op: 'config.set',
+      target: '*',
+      channel: 'cli',
+      outcome: 'ok',
+      extension: `${pluginId}/${extId}`,
+      detail: `key=${dotKey}`,
+    });
+
     const ansi = this.ansiFor('stdout');
     const display = declaration.type === 'secret'
       ? PLUGINS_CONFIG_TEXTS.redacted
@@ -349,10 +361,15 @@ export class PluginsConfigCommand extends SmCommand {
     declaration: TSettingDeclaration,
     cwd: string,
   ): number {
-    // Mirror the write routing: a secret override lives in
-    // project-local, so the reset targets the same file.
-    const target: TWriteTarget = declaration.type === 'secret' ? 'project-local' : 'project';
+    // Mirror the write routing exactly: a secret override AND any
+    // `PROJECT_LOCAL_ONLY_KEYS` member live in project-local, so the
+    // reset targets the same file the write landed in. Without the
+    // local-only leg the reset aims at the committed layer, which
+    // `removeConfigValue` refuses outright, leaving the override
+    // stuck in `settings.local.json`.
     const dotKey = settingDotKey(pluginId, extId, settingId);
+    const target: TWriteTarget =
+      declaration.type === 'secret' || isProjectLocalOnlyKey(dotKey) ? 'project-local' : 'project';
     const ansi = this.ansiFor('stdout');
     let removed: boolean;
     try {
@@ -370,6 +387,16 @@ export class PluginsConfigCommand extends SmCommand {
       );
       return ExitCode.Ok;
     }
+    // §Operations log: only when a stored override was actually removed,
+    // the no-override branch above mutated nothing and is never logged.
+    appendOperation(cwd, {
+      op: 'config.reset',
+      target: '*',
+      channel: 'cli',
+      outcome: 'ok',
+      extension: `${pluginId}/${extId}`,
+      detail: `key=${dotKey}`,
+    });
     const path = target === 'project-local' ? defaultLocalSettingsPath(cwd) : defaultSettingsPath(cwd);
     this.printer!.data(
       tx(PLUGINS_CONFIG_TEXTS.resetRemoved, {

@@ -340,6 +340,10 @@ export class ServeCommand extends SmCommand {
       // `undefined` when neither flag was passed. See `spec/mcp-server.md`
       // §Enablement.
       mcpServer: this.mcp ?? projectCfg?.mcp?.server?.enabled ?? false,
+      // The single place the server's environment is read: the BFF never
+      // touches `process.env` itself (enforced by lint on `server/**`);
+      // secret settings declaring `envVar` resolve from this snapshot.
+      settingsEnv: process.env,
     };
     const boundPort = portResult.port ?? projectCfg?.server.port;
     const boundHost = this.host ?? projectCfg?.server.host;

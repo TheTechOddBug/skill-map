@@ -121,6 +121,7 @@ function options(overrides: Partial<IServerOptions> = {}): IServerOptions {
     devCors: false,
     noWatcher: true,
     mcpServer: true,
+    settingsEnv: {},
     ...overrides,
   };
 }
@@ -386,6 +387,7 @@ describe('mcp write tools (opt-in) transport round-trip', () => {
       devCors: false,
       noWatcher: true,
       mcpServer: true,
+      settingsEnv: {},
     };
     const handle = await createServer(opts, { runtimeContext: { cwd: project.root } });
     try {
@@ -460,6 +462,7 @@ describe('mcp write tools (opt-in) transport round-trip', () => {
       devCors: false,
       noWatcher: true,
       mcpServer: true,
+      settingsEnv: {},
     };
     const handle = await createServer(opts, { runtimeContext: { cwd: project.root } });
     try {

@@ -38,6 +38,8 @@
  * caller's own DB-existence check).
  */
 
+import type { TSettingsEnv } from '../core/config/plugin-settings.js';
+
 export interface IServerOptions {
   /** Listening port. `0` = OS-assigned. Default `4242`. */
   port: number;
@@ -147,6 +149,17 @@ export interface IServerOptions {
    * Experimental, off by default.
    */
   mcpServer: boolean;
+
+  /**
+   * Process environment snapshot for plugin-settings resolution: a
+   * `secret` setting declaring `envVar` resolves from here (scan runs,
+   * watcher batches, the `/api/plugins` projection). The composition
+   * root (`cli/commands/serve.ts`) passes `process.env`; tests inject a
+   * synthetic map. Default `{}` (no environment), keeping direct
+   * programmatic boots hermetic, the server itself never reads
+   * `process.env`.
+   */
+  settingsEnv: TSettingsEnv;
 }
 
 export interface IServerOptionsInput {
@@ -165,6 +178,7 @@ export interface IServerOptionsInput {
   maxNodes?: number | undefined;
   watchBackend?: 'chokidar' | 'parcel' | undefined;
   mcpServer?: boolean | undefined;
+  settingsEnv?: TSettingsEnv | undefined;
 }
 
 export type TServerOptionsErrorCode =
@@ -243,6 +257,7 @@ export function validateServerOptions(input: IServerOptionsInput): TServerOption
     devCors: filled.devCors,
     noWatcher: filled.noWatcher,
     mcpServer: filled.mcpServer,
+    settingsEnv: filled.settingsEnv,
   };
   if (input.watcherDebounceMs !== undefined) {
     options.watcherDebounceMs = input.watcherDebounceMs;
@@ -270,6 +285,7 @@ interface IFilledInput {
   devCors: boolean;
   noWatcher: boolean;
   mcpServer: boolean;
+  settingsEnv: TSettingsEnv;
 }
 
 /**
@@ -291,6 +307,7 @@ function applyDefaults(input: IServerOptionsInput): IFilledInput {
     devCors: input.devCors ?? false,
     noWatcher: input.noWatcher ?? false,
     mcpServer: input.mcpServer ?? false,
+    settingsEnv: input.settingsEnv ?? {},
   };
 }
 

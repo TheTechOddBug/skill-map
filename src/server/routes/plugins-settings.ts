@@ -29,11 +29,9 @@
 import {
   resolveExtensionSettings,
   type ISettingsManifestRef,
+  type TSettingsEnv,
 } from '../../core/config/plugin-settings.js';
-// eslint-disable-next-line import-x/extensions
-import { HTTPException } from 'hono/http-exception';
-
-import { ProjectLocalOnlyKeyError, writeConfigValue } from '../../core/config/helper.js';
+import { writeConfigValue } from '../../core/config/helper.js';
 import { isProjectLocalOnlyKey, type IEffectiveConfig } from '../../kernel/config/loader.js';
 import type { TSettingDeclaration } from '../../kernel/types/view-catalog.js';
 
@@ -94,13 +92,15 @@ export function readManifestSettings(
  *
  * `pluginId` / `extId` are the owning plugin id and the extension's leaf
  * id; `declarations` is the manifest-declared settings map; `config` is
- * the merged effective config (from `configService.effective()`).
+ * the merged effective config (from `configService.effective()`); `env`
+ * is the server's environment snapshot (`IServerOptions.settingsEnv`).
  */
 export function projectExtensionSettings(
   pluginId: string,
   extId: string,
   declarations: Record<string, TSettingDeclaration> | undefined,
   config: { plugins?: IEffectiveConfig['plugins'] },
+  env: TSettingsEnv,
 ): IExtensionSettingsProjection {
   if (!declarations || Object.keys(declarations).length === 0) return {};
 
@@ -111,7 +111,7 @@ export function projectExtensionSettings(
 
   // Effective values via the kernel resolver (swallow warnings, a bad
   // operator value degrades to the default the same as at scan time).
-  // The process env rides along so a secret provided via `envVar` shows
+  // The env snapshot rides along so a secret provided via `envVar` shows
   // as "Set" in the UI (`secretSettingsSet`), same as at scan time.
   const ref: ISettingsManifestRef = { pluginId, id: extId, settings: declarations };
   const resolved = resolveExtensionSettings(
@@ -120,7 +120,7 @@ export function projectExtensionSettings(
     () => {
       /* swallow resolver warnings; the projection shows the fallback */
     },
-    process.env,
+    env,
   );
 
   // Split secret-typed values out: never emit the real value, instead
@@ -224,17 +224,6 @@ export function persistSettingsPatch(
       declaration?.type === 'secret' || isProjectLocalOnlyKey(dotKey)
         ? 'project-local'
         : 'project';
-    try {
-      writeConfigValue(dotKey, value, { target, cwd });
-    } catch (err) {
-      // Backstop for a future local-only key this target pick misses:
-      // surface a structured 422 instead of the generic 500.
-      if (err instanceof ProjectLocalOnlyKeyError) {
-        throw new HTTPException(422, {
-          message: `setting '${settingId}' is project-local only and cannot be written to the shared config`,
-        });
-      }
-      throw err;
-    }
+    writeConfigValue(dotKey, value, { target, cwd });
   }
 }
