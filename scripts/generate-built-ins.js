@@ -43,7 +43,10 @@ const OUTPUT = join(PLUGINS_ROOT, 'built-ins.ts');
  * composer encounters them before the markdown fallback in `core`
  * (`github` ships no provider, so its slot before `core` is
  * presentational only). The matching directories under
- * `src/plugins/<id>/` must all exist.
+ * `src/plugins/<id>/` must all exist, and the inverse holds too:
+ * every `src/plugins/<dir>/plugin.json` must be listed here
+ * (checked by `assertOrderCoversDirectories`), so a new plugin
+ * directory cannot be silently omitted from the generated registry.
  */
 const PLUGIN_ORDER = ['claude', 'antigravity', 'codex', 'opencode', 'agent-skills', 'github', 'core', 'test-plugin'];
 
@@ -484,7 +487,30 @@ function render(plugins) {
   return lines.join('\n');
 }
 
+/**
+ * A plugin directory that ships a `plugin.json` but is missing from
+ * `PLUGIN_ORDER` would be dropped from the generated registry with no
+ * diagnostic: the downstream drift guards (loader reservation list,
+ * telemetry allow-list) compare against the GENERATED output, so they
+ * would agree with the omission instead of catching it. Fail loudly
+ * here, in both write and `--check` mode.
+ */
+function assertOrderCoversDirectories() {
+  const listed = new Set(PLUGIN_ORDER);
+  const unlisted = readdirSync(PLUGINS_ROOT)
+    .filter((entry) => statSync(join(PLUGINS_ROOT, entry)).isDirectory())
+    .filter((dir) => existsSync(join(PLUGINS_ROOT, dir, 'plugin.json')))
+    .filter((dir) => !listed.has(dir));
+  if (unlisted.length > 0) {
+    throw new Error(
+      `Plugin directories with a plugin.json missing from PLUGIN_ORDER: ${unlisted.join(', ')}. ` +
+        'Add them to PLUGIN_ORDER in scripts/generate-built-ins.js, otherwise the built-ins registry omits them.',
+    );
+  }
+}
+
 function main() {
+  assertOrderCoversDirectories();
   const plugins = PLUGIN_ORDER.map((pluginId) => {
     const { manifest, extensions } = discoverPlugin(pluginId);
     return { pluginId, manifest, extensions };
