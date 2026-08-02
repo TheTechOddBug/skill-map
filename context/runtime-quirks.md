@@ -223,3 +223,32 @@ silently pruned by the resolution gate, no feedback. The remaining gap
 is therefore URL tokens (fully discarded) and unresolved / typo'd
 triggers (pruned without a warning); the post-strip discard-feedback
 analyzer stays the deferred fix for both.
+
+---
+
+## 8. Token grammars are widened as a SET, never one at a time
+
+Rescued from `ROADMAP.md` on 2026-08-02, where it was the closing lesson of
+the extractor narrative; it is operating knowledge, not roadmap material.
+
+The relative-prefix grammar was capped at ONE level for a long time, so a
+token like `` `../../ui/context/theme.md` ``, exactly the shape a file under
+`.claude/agents/` or `.claude/skills/<name>/` needs in order to reach anywhere
+else in the repo, matched at no start position at all. It produced neither a
+link nor a `reference-broken` issue.
+
+**Emitting nothing is the worst available failure.** A broken link is visible
+and actionable; an unparsed one is indistinguishable from a reference the
+author never wrote, so the defect hides until someone reports it from the
+field (which is how this one surfaced, 2026-07-30).
+
+The fix was not novel, it was a missed sweep: `AT_TOKEN_RE` had ALREADY been
+widened to a multi-level prefix for this very reason, and `backtick-path` was
+the last holdout. Both grammars are now pinned to the same prefix construct
+(`(?:\.{1,2}\/)*`) on purpose.
+
+**The generalizable rule: when you widen one token grammar, sweep every token
+grammar in the same change.** Divergence is how one gets fixed and the other
+does not. The grammars in scope today are the `@` tokens (`kernel/util/at-token.ts`),
+the backtick path / trigger extractors (§5), and the slash / dollar invocation
+grammars.
