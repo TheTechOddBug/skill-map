@@ -67,7 +67,7 @@ after(() => {
 const SKIP_BUDGET = process.env['SKILL_MAP_SKIP_BENCHMARK'] === '1';
 
 describe('scan benchmark (500 MDs)', () => {
-  // Budget: 500 MDs in <= 7000ms.
+  // Budget: 500 MDs in <= BUDGET_MS below.
   // History:
   //   - Step 4.6 set the original 2000ms target with ~1037ms baseline
   //     on native macOS dev hardware.
@@ -85,13 +85,19 @@ describe('scan benchmark (500 MDs)', () => {
   //     contended-suite case (typical contended baseline ~2-3s, 3x =
   //     6-9s). Genuine regressions still surface; flaky CI noise from
   //     suite-level contention does not.
+  //   - 2026-08-02 raised 10000 -> 20000 after a 10.48s trip on WSL2
+  //     with heavy parallel load (ng test workers + builds + the
+  //     conformance suite running alongside). Isolated the scan
+  //     measures ~1.4s on the same machine, so 20000ms still flags
+  //     any order-of-magnitude regression while absorbing worst-case
+  //     suite/host contention.
   // If this trips on native hardware (not WSL2), FIRST profile
   // (cold-start of the cl100k_base encoder is ~150-200ms; AJV
   // cold-compile of every spec schema is ~80-120ms), then either bump
   // threshold with a comment explaining why, or split the assertion:
   // warm-up scan (skip token cost) + cold scan (full). Don't disable
   // the test.
-  const BUDGET_MS = 10000;
+  const BUDGET_MS = 20000;
 
   it(`completes within ${BUDGET_MS}ms with full pipeline + tokenization`, async () => {
     const kernel = createKernel();
