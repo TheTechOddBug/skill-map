@@ -10,8 +10,8 @@ import { captureUiUsage, initUiUsage, isUiUsageKeyConfigured } from '../posthog-
  *   - `initUiUsage` is a hard no-op when consent is OFF: it returns without
  *     throwing and never dynamic-imports `posthog-js` (the chunk stays out of
  *     the dormant runtime).
- *   - `captureUiUsage` is a no-op while the SDK was never initialised, so the
- *     view tracker can fire unconditionally.
+ *   - `captureUiUsage` is a no-op while the SDK was never initialised, so
+ *     every emit point can fire unconditionally.
  *
  * We deliberately do NOT exercise the consent-ON path here: it would load the
  * real `posthog-js` SDK and call `posthog.init` inside jsdom. The active path
@@ -29,6 +29,6 @@ describe('UI usage surface (dormant unless consent)', () => {
   });
 
   it('captureUiUsage never throws while dormant', () => {
-    expect(() => captureUiUsage('ui.view.map')).not.toThrow();
+    expect(() => captureUiUsage('ui.app.start')).not.toThrow();
   });
 });

@@ -82,7 +82,8 @@ import { A11yAnnouncerService } from '../../services/a11y-announcer';
       color: var(--p-text-muted-color); }
     .crash__preview-text { font-size: var(--sm-fs-md); line-height: 1.4;
       color: var(--p-text-color); background: var(--p-content-hover-background);
-      border-radius: 6px; padding: 0.5rem 0.65rem; overflow-wrap: anywhere; }
+      border-radius: var(--sm-radius-lg); padding: 0.5rem 0.65rem;
+      overflow-wrap: anywhere; }
     .crash__actions { display: flex; justify-content: flex-end;
       gap: 0.5rem; }
   `],

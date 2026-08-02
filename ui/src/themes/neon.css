@@ -1,7 +1,8 @@
 /* skill-map neon theme. Activated by `ThemeService` when
- * `extraTheme === 'neon'` (the service toggles `.app-neon` on
- * `<html>`, alongside `.app-dark` + `.dark` so PrimeNG / Foblex run
- * their dark base). Self-contained: removing this file from
+ * `extraTheme === 'neon-blue'` (the service toggles `.app-neon` on
+ * `<html>`, the DOM class deliberately keeps the historical name, see
+ * the theme registry; alongside `.app-dark` + `.dark` so PrimeNG /
+ * Foblex run their dark base). Self-contained: removing this file from
  * `angular.json`'s `styles` array fully disables the theme.
  *
  * Visual target: deep-navy "sci-fi console" with electric-cyan glow

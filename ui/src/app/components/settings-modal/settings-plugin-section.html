@@ -29,7 +29,7 @@
             >
               <sm-input-type-control
                 size="small"
-                [descriptor]="settingDescriptor(entry.ext, decl)"
+                [descriptor]="settingDescriptor(entry.key, entry.ext, decl)"
                 [value]="settingValue(entry.key, decl.id)"
                 (valueChange)="onSettingChange(entry.key, decl.id, $event)"
               />

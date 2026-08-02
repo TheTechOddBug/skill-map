@@ -23,7 +23,7 @@ import { SmTitleStrategy } from './services/title-strategy';
 import { UpdateCheckService } from './services/update-check';
 import { initUiSentry } from './core/telemetry/sentry-init';
 import { captureUiUsage, initUiUsage, registerUsageSuperProps } from './core/telemetry/posthog-init';
-import { qualifyPluginForUsage } from './core/telemetry/usage-collector';
+import { buildAppStartEventProperties } from './core/telemetry/usage-collector';
 import { CrashReportConsentService } from './core/telemetry/crash-report-consent';
 import { SentryUiErrorHandler } from './core/telemetry/sentry-error-handler';
 import { UsageTrackerService } from './services/usage-tracker';
@@ -169,17 +169,17 @@ export const appConfig: ApplicationConfig = {
     // fetches the per-machine consent flag (`/api/preferences` →
     // `telemetry.errorsEnabled`) and the running impl version
     // (`/api/health` → `implVersion`, the base of the `skill-map-cli@<version>`
-    // Sentry release tag), then calls
-    // `initUiSentry`. The init is a hard no-op while the UI DSN
-    // placeholder is empty (dormant by default) AND while consent is OFF,
-    // so today this never touches the Sentry network. The whole fetch is
-    // wrapped so ANY failure leaves telemetry OFF and the app boots
-    // normally: a broken /api call must never block the shell.
+    // Sentry release tag), then calls `initUiSentry`. A real DSN ships in
+    // `public-config.ts`, so consent is the live gate: the init is a hard
+    // no-op while consent is OFF (the default), and the per-crash dialog
+    // gates every send after it. The whole fetch is wrapped so ANY
+    // failure leaves telemetry OFF and the app boots normally: a broken
+    // /api call must never block the shell.
     provideAppInitializer(async () => {
       const dataSource = inject(DATA_SOURCE);
       // Synchronous inject (before any await) per the NG0203 rule. Constructs
-      // the tracker (router + theme wiring) and lets us register the initial
-      // theme super-property once the SDK activates below.
+      // the tracker (theme super-property wiring, see its BOOT CONTRACT) and
+      // lets us re-register the initial theme once the SDK activates below.
       const usageTracker = inject(UsageTrackerService);
       const crashConsent = inject(CrashReportConsentService);
       try {
@@ -219,12 +219,13 @@ export const appConfig: ApplicationConfig = {
         usageTracker.syncTheme();
         // Session-presence signal (`spec/telemetry.md` §Usage event
         // taxonomy): one `ui.app.start` per boot, no-op while dormant,
-        // carrying the active lens (third-party provider ids collapse).
-        // There is deliberately no per-view / per-route event.
-        captureUiUsage('ui.app.start', {
-          $screen_name: 'app-start',
-          ...(lens !== null ? { lens: qualifyPluginForUsage(lens.activeProvider) } : {}),
-        });
+        // carrying the active lens (third-party provider ids collapse
+        // inside the builder). There is deliberately no per-view /
+        // per-route event.
+        captureUiUsage(
+          'ui.app.start',
+          buildAppStartEventProperties(lens !== null ? lens.activeProvider : null),
+        );
       } catch {
         // Consent / version probe is best-effort. A failure means
         // telemetry stays OFF; the app must still boot.
@@ -252,9 +253,10 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(() => {
       inject(FilterUrlSyncService);
       inject(DebugSlotsService);
-      // Maps route changes to `ui.view` usage events (no-op until UI usage
-      // consent activates the PostHog surface). Self-wires on construct.
-      inject(UsageTrackerService);
+      // UsageTrackerService is deliberately NOT injected here: the
+      // telemetry initializer above already constructs it at boot, and
+      // there is no per-view / per-route usage event to wire (see the
+      // tracker's class doc).
     }),
   ],
 };

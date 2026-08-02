@@ -143,7 +143,16 @@ export function buildPluginApplyProperties(
  * closed unions live on the tracker's public API.
  */
 
-/** `ui.feature.<surface>`: `<surface>[:<value>][@<source>]`. */
+/**
+ * `ui.feature.<surface>`: `<surface>[:<value>][@<source>]`. String values
+ * run through {@link qualifyMaybePluginValue} HERE, in the builder, not
+ * at the call sites: the generic feature channel is the one
+ * open-vocabulary path left after the reshape, so enforcing the collapse
+ * centrally means a future `trackFeature('x', qualifiedId)` can never
+ * leak a third-party plugin id. Idempotent for callers that already
+ * collapsed (a built-in qualified id passes through unchanged and
+ * `external_plugin` is slash-free).
+ */
 export function buildFeatureEventProperties(
   surface: string,
   value?: boolean | string,
@@ -152,8 +161,9 @@ export function buildFeatureEventProperties(
   const props: Record<string, unknown> = {};
   let screen = surface;
   if (value !== undefined) {
-    props['value'] = value;
-    screen = `${screen}:${value}`;
+    const safe = typeof value === 'string' ? qualifyMaybePluginValue(value) : value;
+    props['value'] = safe;
+    screen = `${screen}:${safe}`;
   }
   if (source !== undefined) {
     props['source'] = source;
@@ -161,6 +171,19 @@ export function buildFeatureEventProperties(
   }
   props['$screen_name'] = screen;
   return props;
+}
+
+/**
+ * `ui.app.start`: the one session-presence signal per boot
+ * (`spec/telemetry.md` §Usage event taxonomy). Carries the collapsed
+ * active lens when the boot probe resolved one; `null` (probe failed or
+ * no active provider) omits the property.
+ */
+export function buildAppStartEventProperties(lens: string | null): Record<string, unknown> {
+  return {
+    $screen_name: 'app-start',
+    ...(lens !== null ? { lens: qualifyPluginForUsage(lens) } : {}),
+  };
 }
 
 /** `ui.filter`: `group` + collapsed `value` (kind only), screen `group[:value]`. */

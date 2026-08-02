@@ -344,6 +344,42 @@ describe('InputTypeControl, match-list editor', () => {
     expect(ctl.canAddMatch()).toBe(false);
   });
 
+  it('blocks a value over the kernel 256-char cap at Add time', () => {
+    // Mirrors MATCH_ENTRY_VALUE_CAP in src/core/config/plugin-settings.ts:
+    // an oversize entry must fail inline here, never on the all-or-nothing
+    // Apply batch.
+    const fixture = bootstrap({ inputType: 'match-list', label: 'Ignored' }, []);
+    const ctl = asAny(fixture);
+    ctl.pendingMatchValue.set('a'.repeat(257));
+    expect(ctl.pendingMatchError()).not.toBeNull();
+    expect(ctl.canAddMatch()).toBe(false);
+    ctl.addMatchEntry();
+    expect(fixture.componentInstance.value()).toEqual([]);
+    // Exactly at the cap is legal, same boundary as the kernel gate.
+    ctl.pendingMatchValue.set('a'.repeat(256));
+    expect(ctl.pendingMatchError()).toBeNull();
+    expect(ctl.canAddMatch()).toBe(true);
+  });
+
+  it('blocks a duplicate (type, value) entry, but allows the same value under another kind', () => {
+    const fixture = bootstrap(
+      { inputType: 'match-list', label: 'Ignored' },
+      [{ type: 'literal', value: 'docs/x/spec.md' }],
+    );
+    const ctl = asAny(fixture);
+    ctl.pendingMatchValue.set('docs/x/spec.md');
+    expect(ctl.pendingMatchError()).not.toBeNull();
+    expect(ctl.canAddMatch()).toBe(false);
+    // Same value under a different kind is a distinct entry.
+    ctl.onPendingMatchTypeChange('glob');
+    expect(ctl.pendingMatchError()).toBeNull();
+    ctl.addMatchEntry();
+    expect(fixture.componentInstance.value()).toEqual([
+      { type: 'literal', value: 'docs/x/spec.md' },
+      { type: 'glob', value: 'docs/x/spec.md' },
+    ]);
+  });
+
   it('removes an entry by index and filters malformed seeded entries', () => {
     const fixture = bootstrap(
       { inputType: 'match-list', label: 'Ignored' },

@@ -126,7 +126,6 @@ export class SettingsProjectCapture {
   }
 
   protected onCaptureToggle(next: boolean): void {
-    this.usageTracker.trackFeature('capture-conversations', next, 'settings');
     if (next === this.captureEnabled()) return;
     this.captureEnabledView.set(next);
     const t = this.texts.project.activityCapture;
@@ -138,6 +137,10 @@ export class SettingsProjectCapture {
       acceptButtonProps: { severity: 'primary' },
       rejectButtonProps: { severity: 'secondary' },
       accept: () => {
+        // Usage analytics only on the CONFIRMED switch, matching the
+        // queue's bulk ops and lens-select: a dismissed dialog (and a
+        // no-op gesture) emits nothing, so the surfaces stay comparable.
+        this.usageTracker.trackFeature('capture-conversations', next, 'settings');
         void this.runCaptureWrite(next);
       },
       reject: () => {

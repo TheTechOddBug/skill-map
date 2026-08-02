@@ -42,6 +42,12 @@ import { ThemeService } from '../../services/theme';
  * inspector header). The node inspector open is deliberately absent: a
  * per-selection event was interaction-level noise (`spec/telemetry.md`
  * §Usage event taxonomy).
+ *
+ * Surfaces owned by a dedicated tracker method (`ai-action`,
+ * `node-action`, `lens-select`, `sidecar-consent`) are deliberately NOT
+ * in this union: those events carry collapse / dedupe logic of their own,
+ * and keeping them out makes `trackFeature('ai-action', ...)` a compile
+ * error instead of a silent uncollapsed variant of the same event name.
  */
 export type TUsageFeatureSurface =
   | 'settings'
@@ -61,7 +67,6 @@ export type TUsageFeatureSurface =
   | 'settings-resolution'
   | 'settings-changelog'
   | 'settings-about'
-  | 'lens-select'
   | 'favorite-toggle'
   | 'live-updates'
   | 'realtime-activity'
@@ -84,16 +89,13 @@ export type TUsageFeatureSurface =
   | 'mcp-check'
   | 'agent-jobs-check'
   | 'auto-fixer'
-  | 'ai-action'
   | 'ai-action-all'
-  | 'node-action'
   | 'summarize'
   | 'finding-fix'
   | 'finding-dismiss'
   | 'finding-resolve'
   | 'finding-restore'
   | 'finding-delete'
-  | 'sidecar-consent'
   | 'auto-tag'
   | 'tags-edit'
   | 'tags-save'
@@ -129,8 +131,10 @@ export class UsageTrackerService {
    * feature passes `value`, the state the gesture SET (a boolean, or a
    * closed-enum string like the theme mode); a gesture shared between
    * surfaces passes `source`. Both ride as properties and fold into
-   * `$screen_name` (`<feature>[:<value>][@<source>]`). No-op while the
-   * usage surface is dormant.
+   * `$screen_name` (`<feature>[:<value>][@<source>]`). String values are
+   * collapsed inside the builder (`qualifyMaybePluginValue`), so a
+   * plugin-qualified id is safe to pass raw. No-op while the usage
+   * surface is dormant.
    */
   trackFeature(
     surface: TUsageFeatureSurface,

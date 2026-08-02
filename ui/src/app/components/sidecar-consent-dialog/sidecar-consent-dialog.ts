@@ -18,7 +18,6 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  computed,
   effect,
   inject,
   input,
@@ -132,9 +131,6 @@ export class SidecarConsentDialog {
 
   /** Two-way bound to the "always allow" checkbox. */
   protected readonly always = signal<boolean>(false);
-
-  /** Convenience for tests / template. */
-  protected readonly alwaysChecked = computed(() => this.always());
 
   /**
    * Usage-telemetry guard: one `sidecar-consent` event per dialog

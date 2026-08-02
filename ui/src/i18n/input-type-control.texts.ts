@@ -43,6 +43,10 @@ export const INPUT_TYPE_CONTROL_TEXTS = {
   matchInvalidRegex: 'This pattern is not a valid regular expression.',
   /** Match-list editor: inline error for control characters in the value. */
   matchHasControlChar: 'Value must be a single line without control characters.',
+  /** Match-list editor: inline error for a value over the 256-char cap. */
+  matchTooLong: 'Value must be 256 characters or fewer.',
+  /** Match-list editor: inline error for an entry already in the list. */
+  matchDuplicate: 'This entry is already in the list.',
   /**
    * Fallback rendered for an input-type the control does not implement.
    * The control now ships all twelve catalog types; this only fires for

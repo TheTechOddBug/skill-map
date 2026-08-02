@@ -201,8 +201,11 @@ export class SettingsBufferService {
     this.applyErrorSig.set(null);
   }
 
-  /** Merge every owner's dirty change entries into one list (keyed by id
-   *  on the BFF side; owners never share an id so no merge collision). */
+  /** Merge every owner's dirty change entries into one list. Two owners
+   *  CAN ship entries for the same id (toggling an extension and editing
+   *  its settings in one session); that is fine because the BFF applies
+   *  enable deltas and settings edits in separate passes, so the entries
+   *  compose instead of colliding. */
   private collectAllChanges(): IPluginChange[] {
     const merged: IPluginChange[] = [];
     for (const owner of this.owners()) merged.push(...owner.collectChanges());

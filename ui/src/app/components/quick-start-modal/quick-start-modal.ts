@@ -360,8 +360,11 @@ export class QuickStartModal {
   // Usage analytics (opt-in, default OFF): every action row emits on the
   // USER gesture, stamped `@quick-start` when Settings exposes the same
   // action so the two paths stay comparable (spec/telemetry.md §Usage
-  // event taxonomy). The wrapper methods exist because the template used
-  // to call the row handles directly.
+  // event taxonomy). Gestures that park behind a consent / confirm gate
+  // (capture, follow-symlinks) emit only once the gate resolves in favor
+  // of the change, a dismissed dialog emits nothing, matching the
+  // queue's bulk ops and lens-select. The wrapper methods exist because
+  // the template used to call the row handles directly.
 
   protected onLiveRowToggle(): void {
     this.usageTracker.trackFeature('live-updates', !this.liveRow.enabled(), 'quick-start');
@@ -395,14 +398,18 @@ export class QuickStartModal {
 
   protected onFollowSymlinksToggle(): void {
     const next = !this.followSymlinks();
-    this.usageTracker.trackFeature('follow-symlinks', next, 'quick-start');
     // Enabling EXPANDS the scan surface, so the BFF answers 412 and we
-    // surface the consent dialog; disabling narrows it and persists directly.
+    // surface the consent dialog; disabling narrows it and persists
+    // directly. The usage event fires only when the write actually
+    // persisted, so a dismissed consent dialog (or a failed patch)
+    // never counts as a toggle.
     void this.runPreferencePatch(
       'follow',
       { scan: { followExternalSymlinks: next } },
       next ? () => this.confirmFollowSymlinks() : undefined,
-    );
+    ).then((ok) => {
+      if (ok) this.usageTracker.trackFeature('follow-symlinks', next, 'quick-start');
+    });
   }
 
   private confirmFollowSymlinks(): Promise<boolean> {
@@ -545,7 +552,6 @@ export class QuickStartModal {
 
   protected onCaptureToggle(): void {
     const next = !this.captureEnabled();
-    this.usageTracker.trackFeature('capture-conversations', next, 'quick-start');
     const t = this.texts.rows.capture;
     this.confirmation.confirm({
       header: next ? t.enableConfirmHeader : t.disableConfirmHeader,
@@ -555,6 +561,9 @@ export class QuickStartModal {
       acceptButtonProps: { severity: 'primary' },
       rejectButtonProps: { severity: 'secondary' },
       accept: () => {
+        // Emit only on the CONFIRMED switch (see the analytics note
+        // above `onLiveRowToggle`): a dismissed dialog emits nothing.
+        this.usageTracker.trackFeature('capture-conversations', next, 'quick-start');
         void this.runCaptureWrite(next);
       },
     });

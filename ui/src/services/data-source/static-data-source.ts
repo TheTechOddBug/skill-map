@@ -663,8 +663,11 @@ export class StaticDataSource implements IDataSourcePort {
     // Settings UI renders the toggles in their happy state. Writes still
     // reject with `demo-readonly` so the UI surfaces a clear note.
     // Telemetry stays OFF in the demo (matching the default-OFF contract
-    // in spec/telemetry.md), and the demo never initialises the SDK
-    // because the UI DSN placeholder is empty.
+    // in spec/telemetry.md): the SDKs never initialise because the
+    // consent flags below are all false, and the per-crash dialog is
+    // additionally suppressed by the `SKILL_MAP_MODE === 'demo'` check
+    // in `crash-report-consent.ts` (a real DSN / key ships in
+    // `public-config.ts`, so the flags are the live gate).
     return {
       updateCheck: { enabled: true },
       telemetry: {

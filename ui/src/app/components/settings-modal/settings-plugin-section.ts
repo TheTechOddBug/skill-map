@@ -132,15 +132,20 @@ export class SettingsPluginSection implements OnInit {
    * Build the `IInputTypeDescriptor` for one declared setting: maps the
    * declaration's per-type params onto the control's flat descriptor
    * shape and threads the secret "is set" flag (from `secretSettingsSet`)
-   * so the secret control shows the right "Set" / "Empty" hint.
+   * so the secret control shows the right "Set" / "Empty" hint. The
+   * `idSeed` (extension key + declaration id, same pair as the row's
+   * test id) keeps the control's DOM id unique across extensions that
+   * declare same-type, same-label settings in one section.
    */
   protected settingDescriptor(
+    key: string,
     ext: IPluginExtensionApi,
     decl: IPluginExtensionSettingApi,
   ): IInputTypeDescriptor {
     const descriptor: IInputTypeDescriptor = {
       inputType: decl.type,
       label: decl.label,
+      idSeed: `${key}-${decl.id}`,
     };
     if ('options' in decl) descriptor.options = decl.options;
     if ('min' in decl && decl.min !== undefined) descriptor.min = decl.min;

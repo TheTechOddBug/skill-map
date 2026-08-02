@@ -100,6 +100,16 @@ const MATCH_KINDS: ReadonlySet<string> = new Set(['literal', 'regex', 'glob']);
 const MATCH_CONTROL_CHAR_RX = /[\n\r\x00-\x1F\x7F]/;
 
 /**
+ * Mirror of the kernel resolver's `MATCH_ENTRY_VALUE_CAP`
+ * (`src/core/config/plugin-settings.ts`) and the schema's
+ * `maxLength: 256`. Enforced inline like the other entry gates: the
+ * settings Apply is an all-or-nothing bulk PATCH, so an oversize entry
+ * that slipped past Add would reject the operator's ENTIRE batch with a
+ * kernel-voice footer error instead of this field-level message.
+ */
+const MATCH_VALUE_CAP = 256;
+
+/**
  * The subset of a setting declaration this control needs to render: the
  * input-type id, the field label, and the per-type parameters
  * (`options`, numeric bounds, `multiple`, regex `flags`, key/value
@@ -147,6 +157,14 @@ export interface IInputTypeDescriptor {
    */
   badge?: string;
   badgeTooltip?: string;
+  /**
+   * Optional host-provided uniqueness seed for the control's DOM id
+   * (e.g. the Settings plugin section passes `<extensionKey>-<declId>`).
+   * Without it the id falls back to type+label, which is only safe when
+   * the host renders a single control (the action-prompt dialog) or can
+   * guarantee label uniqueness.
+   */
+  idSeed?: string;
 }
 
 /** Value shapes the control can hold across the twelve input-types. */
@@ -241,10 +259,18 @@ export class InputTypeControl {
     this.size() === 'small' ? 'small' : undefined,
   );
 
-  /** Stable id linking the `<label>` to the rendered widget. */
-  protected readonly fieldId = computed(
-    () => `itc-${this.inputType()}-${this.label().replace(/\s+/g, '-').toLowerCase()}`,
-  );
+  /**
+   * Stable id linking the `<label>` to the rendered widget. Prefers the
+   * host-provided `idSeed` (unique per setting): two extensions in one
+   * settings section can legally declare same-type, same-label settings,
+   * and a type+label id would then collide (label clicks and AT target
+   * the first widget). The type+label fallback covers hosts that pass no
+   * seed (the action-prompt dialog renders one control at a time).
+   */
+  protected readonly fieldId = computed(() => {
+    const seed = this.descriptor().idSeed ?? `${this.inputType()}-${this.label()}`;
+    return `itc-${seed.replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase()}`;
+  });
 
   /** Scalar projection of the value for the string / select / password widgets. */
   protected readonly stringValue = computed<string>(() => {
@@ -325,14 +351,18 @@ export class InputTypeControl {
 
   /**
    * `match-list`: inline validation error for the PENDING entry, or
-   * `null` when it may be added. An uncompilable regex (or a control
-   * character in any kind) blocks the Add button and never reaches the
-   * two-way `value`, so the invalid entry cannot travel to the host or
-   * the network. Empty input is not an error, just not addable yet.
+   * `null` when it may be added. An uncompilable regex, a control
+   * character, an over-cap value or a duplicate `(type, value)` entry
+   * blocks the Add button and never reaches the two-way `value`, so the
+   * invalid entry cannot travel to the host or the network (the length /
+   * control-char / regex gates mirror the kernel's `validateMatchEntry`;
+   * the dedupe matches the tag inputs' `[unique]` posture). Empty input
+   * is not an error, just not addable yet.
    */
   protected readonly pendingMatchError = computed<string | null>(() => {
     const raw = this.pendingMatchValue().trim();
     if (raw.length === 0) return null;
+    if (raw.length > MATCH_VALUE_CAP) return this.texts.matchTooLong;
     if (MATCH_CONTROL_CHAR_RX.test(raw)) return this.texts.matchHasControlChar;
     if (this.pendingMatchType() === 'regex') {
       try {
@@ -340,6 +370,10 @@ export class InputTypeControl {
       } catch {
         return this.texts.matchInvalidRegex;
       }
+    }
+    const type = this.pendingMatchType();
+    if (this.matchRows().some((r) => r.type === type && r.value === raw)) {
+      return this.texts.matchDuplicate;
     }
     return null;
   });

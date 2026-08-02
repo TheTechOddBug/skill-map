@@ -26,10 +26,7 @@ import {
 } from '../../../../services/data-source/data-source.port';
 import { ProcessingAgentReadinessService } from '../../../services/processing-agent-readiness';
 import { UsageTrackerService } from '../../../services/usage-tracker';
-import {
-  qualifyFindingTypeForUsage,
-  qualifyMaybePluginValue,
-} from '../../../core/telemetry/usage-collector';
+import { qualifyFindingTypeForUsage } from '../../../core/telemetry/usage-collector';
 import { CollapsibleSection } from '../../../components/collapsible-section/collapsible-section';
 import {
   issueDismissValue,
@@ -238,9 +235,9 @@ export class InspectorFindingsSection {
 
   protected fixIssue(fixer: IIssueFixerEntryApi, analyzerId: string): void {
     // Usage analytics (opt-in, default OFF): the fix gesture carries WHAT
-    // it fixes (the analyzer id, plugin-qualified ids collapse); never the
-    // node or the issue content.
-    this.usageTracker.trackFeature('finding-fix', qualifyMaybePluginValue(analyzerId));
+    // it fixes (the analyzer id; plugin-qualified ids collapse inside the
+    // feature builder); never the node or the issue content.
+    this.usageTracker.trackFeature('finding-fix', analyzerId);
     void this.aiActions().submit(fixer.id);
   }
 
@@ -251,9 +248,10 @@ export class InspectorFindingsSection {
    */
   protected readonly issueDismissValue = issueDismissValue;
 
-  /** Dismiss a deterministic issue for its exact (analyzer, value) key. */
+  /** Dismiss a deterministic issue for its exact (analyzer, value) key.
+   *  The analyzer id collapses inside the feature builder. */
   protected dismissIssue(issue: IIssueApi): void {
-    this.usageTracker.trackFeature('finding-dismiss', qualifyMaybePluginValue(issue.analyzerId));
+    this.usageTracker.trackFeature('finding-dismiss', issue.analyzerId);
     void this.aiActions().dismissIssue(issue);
   }
 

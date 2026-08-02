@@ -1405,4 +1405,3 @@ describe('SettingsProjectRealtime, real-time-activity row', () => {
     expect(readinessRefresh).toHaveBeenCalled();
   });
 });
-

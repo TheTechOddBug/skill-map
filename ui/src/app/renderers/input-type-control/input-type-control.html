@@ -281,7 +281,11 @@
       <div class="itc__match" data-testid="input-type-control-match-list">
         @if (matchRows().length > 0) {
           <ul class="itc__match-list" role="list">
-            @for (row of matchRows(); track $index) {
+            <!-- Track by the entry identity, not $index: rows are removable
+                 and index tracking rebuilds every trailing row's DOM on a
+                 mid-list removal. Safe as a key because the pending-entry
+                 gate dedupes (type, value) pairs before they can be added. -->
+            @for (row of matchRows(); track row.type + ':' + row.value) {
               <li class="itc__match-item" [attr.data-testid]="'input-type-control-match-row-' + $index">
                 <span class="itc__match-kind" [attr.data-kind]="row.type">{{ row.type }}</span>
                 <span class="itc__match-value">{{ row.value }}</span>

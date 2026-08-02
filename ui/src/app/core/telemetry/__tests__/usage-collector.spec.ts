@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildAiActionEventProperties,
+  buildAppStartEventProperties,
   buildFeatureEventProperties,
   buildFilterEventProperties,
   buildLensSelectEventProperties,
@@ -25,6 +26,28 @@ describe('qualifyPluginForUsage', () => {
     // not misreport as external_plugin.
     expect(qualifyPluginForUsage('github')).toBe('github');
     expect(qualifyPluginForUsage('github/enrichment')).toBe('github/enrichment');
+  });
+
+  it('pins EVERY member of the built-in allow-list (lockstep with the CLI copy)', () => {
+    // The authoritative list lives in src/cli/telemetry/usage-collector.ts
+    // (spec-asserted against the shipped built-ins there). The UI copy is a
+    // hand-mirror; this pin makes a drifted member a visible test failure
+    // instead of an invisible external_plugin misreport. Update BOTH copies
+    // and BOTH specs together when a built-in lands or leaves.
+    const builtIns = [
+      'claude',
+      'antigravity',
+      'codex',
+      'opencode',
+      'agent-skills',
+      'core',
+      'github',
+      'test-plugin',
+    ];
+    for (const id of builtIns) {
+      expect(qualifyPluginForUsage(id)).toBe(id);
+      expect(qualifyPluginForUsage(`${id}/some-extension`)).toBe(`${id}/some-extension`);
+    }
   });
 
   it('collapses third-party ids to external_plugin (bare or qualified)', () => {
@@ -137,6 +160,43 @@ describe('buildFeatureEventProperties ($screen_name folding)', () => {
       source: 'settings',
       $screen_name: 'mcp-server:true@settings',
     });
+  });
+
+  it('collapses plugin-qualified string values inside the builder', () => {
+    // The generic feature channel is the one open-vocabulary path left, so
+    // the collapse is enforced HERE: a call site can pass a raw qualified id
+    // and a third-party plugin id still never leaves the browser.
+    expect(buildFeatureEventProperties('finding-fix', 'core/reference-broken')).toEqual({
+      value: 'core/reference-broken',
+      $screen_name: 'finding-fix:core/reference-broken',
+    });
+    expect(buildFeatureEventProperties('finding-dismiss', 'acme/private-finder')).toEqual({
+      value: 'external_plugin',
+      $screen_name: 'finding-dismiss:external_plugin',
+    });
+    // Slash-free values (closed unions, our own flow literals) pass verbatim,
+    // and pre-collapsed call sites stay idempotent.
+    expect(buildFeatureEventProperties('finding-restore', 'external_plugin')).toEqual({
+      value: 'external_plugin',
+      $screen_name: 'finding-restore:external_plugin',
+    });
+  });
+});
+
+describe('buildAppStartEventProperties', () => {
+  it('carries the collapsed lens when the boot probe resolved one', () => {
+    expect(buildAppStartEventProperties('claude')).toEqual({
+      $screen_name: 'app-start',
+      lens: 'claude',
+    });
+    expect(buildAppStartEventProperties('acme-provider')).toEqual({
+      $screen_name: 'app-start',
+      lens: 'external_plugin',
+    });
+  });
+
+  it('omits the lens when unknown', () => {
+    expect(buildAppStartEventProperties(null)).toEqual({ $screen_name: 'app-start' });
   });
 });
 

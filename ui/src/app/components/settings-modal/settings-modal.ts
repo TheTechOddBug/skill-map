@@ -349,9 +349,13 @@ export class SettingsModal {
   protected selectSection(id: TSettingsSection): void {
     // Usage analytics (opt-in, default OFF): of the tab strip only the
     // Changelog / About entries are tracked (user decision; the working
-    // tabs' usage is already visible through their own gestures).
-    if (id === 'changelog') this.usageTracker.trackFeature('settings-changelog');
-    if (id === 'about') this.usageTracker.trackFeature('settings-about');
+    // tabs' usage is already visible through their own gestures). Only
+    // an actual section CHANGE counts: re-clicking the active tab is a
+    // no-op gesture and would only inflate the count.
+    if (id !== this.activeSection()) {
+      if (id === 'changelog') this.usageTracker.trackFeature('settings-changelog');
+      if (id === 'about') this.usageTracker.trackFeature('settings-about');
+    }
     this.activeSection.set(id);
     storeSection(id);
   }
