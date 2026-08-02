@@ -97,7 +97,7 @@ The repo root `CHANGELOG.md` is the **generated consolidated release changelog**
 
 ### Bump policy
 
-While a workspace is pre-1.0 (`0.Y.Z`) the semver roles shift one position down, per [`spec/versioning.md`](./spec/versioning.md) § Pre-1.0: minor is reserved for incompatibility, everything backward-compatible is a patch.
+Both public workspaces shipped `1.0.0` in 2026-08, so the post-1.0 rows below are the live ones; classify strictly, always the smallest bump the diff honestly requires. While a workspace is pre-1.0 (`0.Y.Z`) the semver roles shift one position down, per [`spec/versioning.md`](./spec/versioning.md) § Pre-1.0: minor is reserved for incompatibility, everything backward-compatible is a patch.
 
 - **Breaking change**:
   - Post-1.0: `major`.

@@ -391,7 +391,7 @@ skill-map/
 - Publish schemas to JSON Schema Store (unblocked by the 1.0.0 release: the stable `v1` URL scheme it waited on is now the shipped one).
 - Canonical URLs: `https://skill-map.ai/spec/v1/<path>.schema.json` (Railway-deployed Caddy; DNS at Vercel). The scheme bumped from the pre-stable `v0` at the 1.0.0 release, as `versioning.md` §Canonical URLs prescribed; the `v0` path is no longer emitted by the site build.
 - npm package `@skill-map/spec`, schemas + conformance tests.
-- Spec semver separate from CLI semver; the current reference roadmap stabilizes both tracks at `v1.0.0`, but future versions can diverge.
+- Spec semver separate from CLI semver; both tracks stabilized at `v1.0.0` (2026-08) and future versions can diverge. Post-1.0 bumps follow strict SemVer classified critically (user decision 2026-08-02: smallest honest bump, majors are deliberate and user-confirmed); the shifted pre-1.0 convention (minor = breaking, patch = everything compatible) stays documented in [`versioning.md`](./spec/versioning.md) §Pre-1.0 for any future `0.Y.Z` track.
 
 ---
 

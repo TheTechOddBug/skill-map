@@ -89,7 +89,7 @@ Also while pre-1.0:
 - Conformance is advisory; failing a conformance case is a bug report, not a spec violation.
 - `specCompat` in plugins should pin a minor range (`"^0.3.0"` means `>=0.3.0 <0.4.0`), not a major range: the minor position is the breaking boundary, so a minor pin pre-1.0 is exactly as safe as a `^1.x` major pin post-1.0.
 
-The first stable commitment is `spec-v1.0.0`. In the current reference roadmap, that tag ships with `cli-v1.0.0`. Post-1.0 the standard roles resume: breaking is major, backward-compatible addition is minor, fix or editorial work is patch, per the tables above.
+The first stable commitment was `spec-v1.0.0`, shipped alongside `cli-v1.0.0` in 2026-08; both tracks are now past it, so the standard roles above are the live regime: breaking is major, backward-compatible addition is minor, fix or editorial work is patch.
 
 ## Independence in practice
 
