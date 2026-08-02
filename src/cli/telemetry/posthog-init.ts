@@ -35,6 +35,7 @@ import {
   buildUsageExtensionSet,
   cliVerbEventName,
   envUsageProps,
+  qualifyExtensionForUsage,
 } from './usage-collector.js';
 import { isTelemetryForcedOff } from './sentry-init.js';
 
@@ -145,6 +146,27 @@ export function addInvocationExtensions(extensionIds: Iterable<string>): void {
 }
 
 /**
+ * The RAW extension id that NAMES the in-flight queue-lifecycle invocation
+ * (the job's extension on `cli.jobs` submit / claim and `cli.record`, where
+ * exactly one is involved), stashed so the `cli.<verb>` event can carry it
+ * as `$screen_name` and PostHog's URL / Screen column shows the finder /
+ * fixer at a glance. Same module-state shape as the extensions stash, and
+ * the same choke point: third-party collapse happens at emit.
+ */
+let pendingScreenName: string | null = null;
+
+/**
+ * Stash the extension id that names the current queue-lifecycle invocation
+ * so the `cli.<verb>` event attaches it as `$screen_name`. Last call wins
+ * (the lifecycle verbs involve exactly one extension); the entry point
+ * reads and clears it when it emits. The raw qualified id goes in; the
+ * collapse to `external_plugin` happens at emit.
+ */
+export function setInvocationScreenName(extensionId: string): void {
+  pendingScreenName = extensionId;
+}
+
+/**
  * Emit the single usage event for this invocation: the event name is
  * `cli.<verb>` (guarded against the registered closed set, unknown collapses
  * to `cli.unknown`), and the properties carry the flag names plus, when the
@@ -162,7 +184,13 @@ export function captureCliInvocation(
       ? buildUsageExtensionSet(pendingInvocationExtensions)
       : null;
   pendingInvocationExtensions = [];
-  captureUsage(cliVerbEventName(verb, knownVerbs), buildCliVerbProperties(flagNames, extensions));
+  const screenName =
+    pendingScreenName === null ? null : qualifyExtensionForUsage(pendingScreenName);
+  pendingScreenName = null;
+  captureUsage(
+    cliVerbEventName(verb, knownVerbs),
+    buildCliVerbProperties(flagNames, extensions, screenName),
+  );
 }
 
 /**
@@ -186,4 +214,5 @@ export async function flushUsageCli(timeoutMs = 2000): Promise<void> {
 export function resetUsageTelemetryForTests(): void {
   client = null;
   pendingInvocationExtensions = [];
+  pendingScreenName = null;
 }

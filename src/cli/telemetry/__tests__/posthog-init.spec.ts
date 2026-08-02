@@ -33,6 +33,7 @@ import {
   isUsageKeyConfigured,
   resetUsageTelemetryForTests,
   scrubUsageEvent,
+  setInvocationScreenName,
 } from '../posthog-init.js';
 
 let homeRoot: string;
@@ -178,6 +179,32 @@ describe('captureCliInvocation (extensions stash, fake client)', () => {
     await initUsageCli(() => Promise.resolve(ns));
     captureCliInvocation('check', ['json'], new Set(['check']));
     assert.equal('extensions' in (captured[0]?.properties ?? {}), false);
+    assert.equal('$screen_name' in (captured[0]?.properties ?? {}), false);
+  });
+
+  it('attaches the stashed $screen_name collapsed, then clears it', async () => {
+    seedUsage(true);
+    const { ns, captured } = makeFakePosthog();
+    await initUsageCli(() => Promise.resolve(ns));
+    // The queue-lifecycle shape: one job, its extension stashed for both
+    // the extensions set and the screen name.
+    addInvocationExtensions(['core/ai-name-action']);
+    setInvocationScreenName('core/ai-name-action');
+    captureCliInvocation('record', [], new Set(['record']));
+    assert.equal(captured[0]?.properties['$screen_name'], 'core/ai-name-action');
+    // The stash is cleared: the next invocation carries no screen name.
+    captureCliInvocation('list', [], new Set(['list']));
+    assert.equal('$screen_name' in (captured[1]?.properties ?? {}), false);
+  });
+
+  it('collapses a third-party $screen_name to external_plugin', async () => {
+    seedUsage(true);
+    const { ns, captured } = makeFakePosthog();
+    await initUsageCli(() => Promise.resolve(ns));
+    addInvocationExtensions(['acme/custom-fixer']);
+    setInvocationScreenName('acme/custom-fixer');
+    captureCliInvocation('record', [], new Set(['record']));
+    assert.equal(captured[0]?.properties['$screen_name'], 'external_plugin');
   });
 });
 

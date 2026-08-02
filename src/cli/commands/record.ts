@@ -67,7 +67,7 @@ import { RECORD_TEXTS as T } from '../i18n/record.texts.js';
 
 import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
-import { addInvocationExtensions } from '../telemetry/posthog-init.js';
+import { addInvocationExtensions, setInvocationScreenName } from '../telemetry/posthog-init.js';
 import { withSqlite } from '../../core/sqlite/with-sqlite.js';
 import type { IActionRuntime } from '../../core/jobs/action-runtime.js';
 import {
@@ -284,10 +284,12 @@ export class RecordCommand extends SmCommand {
         return ExitCode.Error;
       case 'completed':
         // Usage analytics (opt-in, default OFF): the recorded job's
-        // extension rides the `cli.<verb>` event as `extensions`; covers
-        // both `--status completed` and `--status failed` records, either
-        // way the extension executed. See spec/telemetry.md.
+        // extension rides the `cli.<verb>` event as `extensions` and as
+        // `$screen_name`; covers both `--status completed` and
+        // `--status failed` records, either way the extension executed.
+        // See spec/telemetry.md.
         addInvocationExtensions([job.extensionId]);
+        setInvocationScreenName(job.extensionId);
         return this.reportSuccess(outcome.execution, job, runId);
     }
   }

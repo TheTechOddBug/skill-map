@@ -90,6 +90,19 @@ describe('buildCliVerbProperties', () => {
       { flags: ['changed'], extensions: ['claude/at-directive', 'core/markdown-link'] },
     );
   });
+
+  it('attaches $screen_name on a queue-lifecycle invocation, omits it otherwise', () => {
+    assert.deepEqual(
+      buildCliVerbProperties(['json'], ['core/ai-name-action'], 'core/ai-name-action'),
+      {
+        flags: ['json'],
+        extensions: ['core/ai-name-action'],
+        $screen_name: 'core/ai-name-action',
+      },
+    );
+    assert.deepEqual(buildCliVerbProperties(['json'], null), { flags: ['json'] });
+    assert.deepEqual(buildCliVerbProperties(['json'], null, null), { flags: ['json'] });
+  });
 });
 
 describe('extractFlagNames', () => {

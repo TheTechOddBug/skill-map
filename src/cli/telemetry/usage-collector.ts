@@ -94,13 +94,23 @@ export function cliVerbEventName(verb: string, knownVerbs: ReadonlySet<string>):
  * the flags that were set (never their values), plus the executed-extractor
  * set folded in ONLY when the invocation was a scan (`extensions` is omitted
  * otherwise). The verb itself lives in the event name, not a property.
+ *
+ * `screenName` is the single extension id that names a queue-lifecycle
+ * invocation (`cli.jobs` submit / claim, `cli.record`), already collapsed
+ * through {@link qualifyExtensionForUsage}; it rides as PostHog's
+ * `$screen_name` so the URL / Screen column names the finder / fixer at a
+ * glance (spec/telemetry.md §Usage event taxonomy). It duplicates a value
+ * already allowed in `extensions`, never new data.
  */
 export function buildCliVerbProperties(
   flagNames: Iterable<string>,
   extensions: readonly string[] | null,
+  screenName: string | null = null,
 ): Record<string, unknown> {
   const flags = [...new Set(flagNames)].sort();
-  return extensions ? { flags, extensions } : { flags };
+  const props: Record<string, unknown> = extensions ? { flags, extensions } : { flags };
+  if (screenName !== null) props['$screen_name'] = screenName;
+  return props;
 }
 
 /** Environment facts attached to every usage event. */
