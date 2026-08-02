@@ -101,4 +101,14 @@ export const TUTORIAL_TEXTS = {
     '{{glyph}}  sm tutorial: could not read the bundled skill payload for {{target}} from the install.\n' +
     '   {{hint}}\n',
   sourceMissingHint: 'Reinstall @skill-map/cli or report the bug.',
+
+  // Completion ping (`--completed <part-id|book>`, run by the shipped
+  // skill at part closes / the final wrap-up). The confirmation prints
+  // the COLLAPSED id, never raw input.
+  completionRecorded: '{{glyph}} Tutorial progress noted: {{id}}.',
+  completedFlagsConflict:
+    '{{glyph}}  sm tutorial: --completed cannot be combined with --for, --force, or --experimental.\n' +
+    '   {{hint}}\n',
+  completedFlagsConflictHint:
+    'The completion ping performs no scaffolding; run it bare: `sm tutorial --completed <part-id>`.',
 } as const;

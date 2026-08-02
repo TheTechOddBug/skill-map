@@ -359,3 +359,46 @@ describe('sm tutorial, default provider (no --for, non-interactive)', () => {
     assert.ok(existsSync(join(scope.cwd, '.claude', 'skills', 'sm-tutorial', 'SKILL.md')));
   });
 });
+
+describe('sm tutorial --completed (the milestone ping)', () => {
+  it('succeeds in a NON-empty cwd, writes nothing, names the part', () => {
+    const scope = freshScope('completed-part');
+    // The ping runs mid-book: the cwd is full by then, and the ping must
+    // never require --force nor touch the filesystem.
+    writeFileSync(join(scope.cwd, 'notes.md'), 'not empty\n');
+
+    const r = sm(['tutorial', '--completed', 'fundamentals'], scope);
+
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stdout, /Tutorial progress noted: fundamentals\./);
+    assert.deepEqual(
+      readdirSync(scope.cwd).sort(),
+      ['notes.md'],
+      'the ping performs no scaffolding and no writes',
+    );
+  });
+
+  it('accepts the whole-book milestone', () => {
+    const scope = freshScope('completed-book');
+    const r = sm(['tutorial', '--completed', 'book'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stdout, /Tutorial progress noted: book\./);
+  });
+
+  it('collapses an out-of-catalog id to unknown and STILL exits 0', () => {
+    const scope = freshScope('completed-garbage');
+    const r = sm(['tutorial', '--completed', 'definitely-not-a-part'], scope);
+    // The ping must never stall a tutorial session over a typo or a
+    // forked skill; the collapse keeps junk values off the wire.
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stdout, /Tutorial progress noted: unknown\./);
+  });
+
+  it('refuses to combine with the scaffolding flags', () => {
+    const scope = freshScope('completed-conflict');
+    const r = sm(['tutorial', '--completed', 'fundamentals', '--for', 'claude'], scope);
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /--completed cannot be combined/);
+    assert.equal(readdirSync(scope.cwd).length, 0, 'nothing written on the error path');
+  });
+});

@@ -200,6 +200,20 @@ export function setInvocationLens(id: string, source: 'autodetect' | 'set'): voi
 }
 
 /**
+ * The tutorial milestone the in-flight invocation reported
+ * (`sm tutorial --completed`, `spec/telemetry.md` §Usage event taxonomy).
+ * ALREADY collapsed by the command layer (shipped-manifest part id,
+ * `book`, or the literal `unknown`); rides as `tutorial_part` and, when
+ * nothing else claimed the URL / Screen column, as `tutorial:<id>`.
+ */
+let pendingTutorialPart: string | null = null;
+
+/** Stash the collapsed tutorial milestone for the current invocation. */
+export function setInvocationTutorialPart(id: string): void {
+  pendingTutorialPart = id;
+}
+
+/**
  * `true` when the in-flight invocation must emit NO usage event. Set by a
  * successful `sm jobs claim` (`spec/telemetry.md` §Usage event taxonomy):
  * its execution is fully represented by the paired `cli.record`, and
@@ -237,26 +251,56 @@ export function captureCliInvocation(
   pendingInvocationExtensions = [];
   const lens = pendingLens;
   pendingLens = null;
+  const tutorialPart = pendingTutorialPart;
+  pendingTutorialPart = null;
   const collapsedLens = lens === null ? null : qualifyPluginIdForUsage(lens.id);
-  // The lens rides the URL / Screen column when no queue extension claimed
-  // it (`<lens>@<source>`, e.g. `claude@autodetect`).
-  const screenName =
-    pendingScreenName !== null
-      ? qualifyExtensionForUsage(pendingScreenName)
-      : lens !== null
-        ? `${collapsedLens}@${lens.source}`
-        : null;
+  const lensSource = lens === null ? null : lens.source;
+  const screenName = resolveInvocationScreenName(
+    pendingScreenName,
+    collapsedLens,
+    lensSource,
+    tutorialPart,
+  );
   pendingScreenName = null;
   if (pendingSuppress) {
     pendingSuppress = false;
     return;
   }
   const properties = buildCliVerbProperties(flagNames, extensions, screenName);
-  if (lens !== null && collapsedLens !== null) {
-    properties['lens'] = collapsedLens;
-    properties['lens_source'] = lens.source;
-  }
+  foldInvocationExtras(properties, collapsedLens, lensSource, tutorialPart);
   captureUsage(cliVerbEventName(verb, knownVerbs), properties);
+}
+
+/** Fold the lens pair and the tutorial milestone into the event properties. */
+function foldInvocationExtras(
+  properties: Record<string, unknown>,
+  collapsedLens: string | null,
+  lensSource: string | null,
+  tutorialPart: string | null,
+): void {
+  if (collapsedLens !== null && lensSource !== null) {
+    properties['lens'] = collapsedLens;
+    properties['lens_source'] = lensSource;
+  }
+  if (tutorialPart !== null) properties['tutorial_part'] = tutorialPart;
+}
+
+/**
+ * The URL / Screen value for a `cli.<verb>` event: an explicit queue
+ * extension wins, then the lens pair (`claude@autodetect`), then the
+ * tutorial milestone (`tutorial:<id>`); the stashes never co-occur in
+ * practice. `null` leaves the column empty.
+ */
+function resolveInvocationScreenName(
+  explicit: string | null,
+  collapsedLens: string | null,
+  lensSource: string | null,
+  tutorialPart: string | null,
+): string | null {
+  if (explicit !== null) return qualifyExtensionForUsage(explicit);
+  if (collapsedLens !== null && lensSource !== null) return `${collapsedLens}@${lensSource}`;
+  if (tutorialPart !== null) return `tutorial:${tutorialPart}`;
+  return null;
 }
 
 /**
@@ -283,4 +327,5 @@ export function resetUsageTelemetryForTests(): void {
   pendingScreenName = null;
   pendingSuppress = false;
   pendingLens = null;
+  pendingTutorialPart = null;
 }

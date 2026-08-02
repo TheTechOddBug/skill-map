@@ -35,6 +35,7 @@ import {
   scrubUsageEvent,
   setInvocationLens,
   setInvocationScreenName,
+  setInvocationTutorialPart,
   suppressInvocationUsage,
 } from '../posthog-init.js';
 
@@ -245,6 +246,20 @@ describe('captureCliInvocation (extensions stash, fake client)', () => {
     assert.equal(captured[0]?.properties['lens'], 'external_plugin');
     assert.equal(captured[0]?.properties['lens_source'], 'set');
     assert.equal(captured[0]?.properties['$screen_name'], 'core/ai-name-action');
+  });
+
+  it('a tutorial milestone rides as tutorial_part and the screen column', async () => {
+    seedUsage(true);
+    const { ns, captured } = makeFakePosthog();
+    await initUsageCli(() => Promise.resolve(ns));
+    setInvocationTutorialPart('ai-layer');
+    captureCliInvocation('tutorial', ['completed'], new Set(['tutorial']));
+    assert.equal(captured[0]?.properties['tutorial_part'], 'ai-layer');
+    assert.equal(captured[0]?.properties['$screen_name'], 'tutorial:ai-layer');
+    // Cleared: the next invocation carries neither key.
+    captureCliInvocation('list', [], new Set(['list']));
+    assert.equal('tutorial_part' in (captured[1]?.properties ?? {}), false);
+    assert.equal('$screen_name' in (captured[1]?.properties ?? {}), false);
   });
 
   it('a suppressed invocation emits nothing and clears every stash', async () => {

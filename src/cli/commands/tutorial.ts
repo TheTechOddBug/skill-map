@@ -62,7 +62,7 @@
  * by `loadBundledIgnoreText` in `kernel/scan/ignore.ts`.
  */
 
-import { cpSync, existsSync, mkdirSync, rmSync, statSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
@@ -71,6 +71,7 @@ import { Command, Option } from 'clipanion';
 
 import { tx } from '../../kernel/util/tx.js';
 import { TUTORIAL_TEXTS } from '../i18n/tutorial.texts.js';
+import { setInvocationTutorialPart } from '../telemetry/posthog-init.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import {
   listScaffoldDestinations,
@@ -155,25 +156,25 @@ export class TutorialCommand extends SmCommand {
       'They ship disabled; enable the chosen one with `sm plugins enable <id>`.',
   });
 
+  // Silent completion ping (spec/cli-contract.md #sm-tutorial): the shipped
+  // skill runs `sm tutorial --completed <part-id>` at each part close and
+  // `--completed book` at the final wrap-up, so the opt-in usage event can
+  // report which tutorial part finished. No scaffolding, no cwd guard.
+  completed = Option.String('--completed', {
+    required: false,
+    description:
+      'Report a tutorial milestone (a part id from the shipped manifest, or `book`). ' +
+      'Used by the sm-tutorial skill; performs no scaffolding.',
+  });
+
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const stderr = this.context.stderr as NodeJS.WriteStream;
     const stderrAnsi = this.ansiFor('stderr');
     const errGlyph = stderrAnsi.red('✕');
 
-    // Legacy guard: the verb no longer takes a positional argument. A
-    // stale `sm tutorial master` (or any positional) is a usage error
-    // and must not touch the filesystem.
-    if (this.legacyPositional !== undefined) {
-      this.printer!.error(
-        tx(TUTORIAL_TEXTS.legacyPositional, {
-          glyph: errGlyph,
-          arg: this.legacyPositional,
-          hint: stderrAnsi.dim(TUTORIAL_TEXTS.legacyPositionalHint),
-        }),
-      );
-      return ExitCode.Error;
-    }
+    const early = this.dispatchEarlyModes(errGlyph, stderrAnsi);
+    if (early !== null) return early;
 
     // The tutorial seeds a self-contained scenario into the cwd, and the
     // skill later lays its fixtures + `.skill-map/` there directly, so
@@ -279,6 +280,58 @@ export class TutorialCommand extends SmCommand {
    * default is always the first scaffold-capable Provider (Claude).
    * Returns `null` after printing an error (caller exits non-zero).
    */
+  /**
+   * The two non-scaffolding modes, checked BEFORE any filesystem access:
+   * the legacy-positional usage error, and the `--completed` milestone
+   * ping. Returns the exit code to bubble, or `null` to proceed with the
+   * scaffolding flow.
+   */
+  private dispatchEarlyModes(errGlyph: string, stderrAnsi: IAnsi): number | null {
+    // Legacy guard: the verb no longer takes a positional argument. A
+    // stale `sm tutorial master` (or any positional) is a usage error
+    // and must not touch the filesystem.
+    if (this.legacyPositional !== undefined) {
+      this.printer!.error(
+        tx(TUTORIAL_TEXTS.legacyPositional, {
+          glyph: errGlyph,
+          arg: this.legacyPositional,
+          hint: stderrAnsi.dim(TUTORIAL_TEXTS.legacyPositionalHint),
+        }),
+      );
+      return ExitCode.Error;
+    }
+    if (this.completed !== undefined) {
+      return this.runCompletionPing(this.completed, errGlyph, stderrAnsi);
+    }
+    return null;
+  }
+
+  /**
+   * The `--completed` branch: report a tutorial milestone for the opt-in
+   * usage event (`spec/telemetry.md` §Usage event taxonomy) and exit.
+   * Combining it with any scaffolding flag is a usage error; an
+   * out-of-catalog id still succeeds (collapsed to `unknown`), the ping
+   * must never stall a tutorial session.
+   */
+  private runCompletionPing(rawId: string, errGlyph: string, stderrAnsi: IAnsi): number {
+    if (this.forProvider !== undefined || this.force || this.experimental) {
+      this.printer!.error(
+        tx(TUTORIAL_TEXTS.completedFlagsConflict, {
+          glyph: errGlyph,
+          hint: stderrAnsi.dim(TUTORIAL_TEXTS.completedFlagsConflictHint),
+        }),
+      );
+      return ExitCode.Error;
+    }
+    const id = qualifyTutorialMilestone(rawId);
+    setInvocationTutorialPart(id);
+    const ansi = this.ansiFor('stdout');
+    this.printer!.data(
+      tx(TUTORIAL_TEXTS.completionRecorded, { glyph: ansi.green('✓'), id }),
+    );
+    return ExitCode.Ok;
+  }
+
   private async resolveScaffoldTarget(
     targets: readonly IScaffoldTarget[],
     stderrAnsi: IAnsi,
@@ -511,4 +564,34 @@ function resolveSkillSourceDir(): string {
 /** Test-only, drop the cache so a unit test can simulate a missing dir. */
 export function _resetTutorialCacheForTests(): void {
   cachedSourceDir = undefined;
+}
+
+/**
+ * Collapse a `--completed` milestone id to what may leave the machine
+ * (`spec/telemetry.md` §Usage event taxonomy): a part id present in the
+ * SHIPPED tutorial manifest passes, the literal `book` passes (the
+ * whole-book milestone), anything else (typo, forked skill, arbitrary
+ * input) collapses to `unknown`. Best-effort: an unreadable manifest
+ * collapses everything but `book`, it never throws (the ping must never
+ * stall a tutorial session). Exported for the unit spec.
+ */
+export function qualifyTutorialMilestone(rawId: string): string {
+  if (rawId === 'book') return 'book';
+  return readManifestPartIds().has(rawId) ? rawId : 'unknown';
+}
+
+/** Part ids of the shipped tutorial manifest, empty on any read failure. */
+function readManifestPartIds(): Set<string> {
+  try {
+    const manifestPath = join(resolveSkillSourceDir(), 'references', '_manifest.json');
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+      parts?: Array<{ id?: unknown }>;
+    };
+    const ids = (manifest.parts ?? [])
+      .map((p) => p.id)
+      .filter((id): id is string => typeof id === 'string');
+    return new Set(ids);
+  } catch {
+    return new Set();
+  }
 }

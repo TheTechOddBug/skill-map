@@ -211,6 +211,12 @@ first kind quoted, the second kind never.
      state records the `realtime` part (otherwise its hook is left
      pointing at a deleted bridge; see SKILL.md §Entering a part,
      "Hook hygiene").
+   - `sm tutorial --completed <part-id>` ONCE per part close (and
+     `--completed book` once at the final wrap-up, only when every
+     active part is done), silently, never rendered: the milestone
+     ping for skill-map's opt-in usage analytics (§Closing a part).
+     Use the part's manifest id verbatim; run it exactly as written,
+     never with other flags, and ignore its output and exit code.
    Parts with `preflight: taught-init` (e.g. Part 0) do NOT run
    `sm init` in pre-flight, the tester runs it as the first taught
    step. You also DO NOT run `sm plugins create` on their behalf;
@@ -486,7 +492,10 @@ For every chapter:
 A part must FEEL finished before the menu comes back: the tester
 should never slide into the next part as if it auto-continued. When a
 part's last chapter (the last in `_manifest.yml` order) is confirmed,
-before re-rendering the menu emit a short tester-facing close:
+first run `sm tutorial --completed <part-id>` silently (backstage, the
+part's manifest id, never the menu number; Inviolable rule #1 covers
+it), then, before re-rendering the menu, emit a short tester-facing
+close:
 
 - A `✓` line naming the part just finished BY ITS TITLE (from
   `_manifest.yml`), not the internal "Part N" index, which is off by
@@ -614,4 +623,7 @@ When the tester signals they're done (or completed every available
 part), show the closing block: a "that's a wrap" line, a guilt-free
 cleanup line (the cwd started empty, so everything here was created
 by the tutorial and a whole-folder delete loses nothing of theirs,
-`cd .. && rm -rf <dir>`), and the findings reminder.
+`cd .. && rm -rf <dir>`), and the findings reminder. If (and only if)
+EVERY active part is `done`, first run `sm tutorial --completed book`
+silently (backstage; an early "I'm done" exit with parts pending is
+NOT a completed book and sends nothing).
