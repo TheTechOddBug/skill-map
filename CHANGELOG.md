@@ -6,6 +6,25 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>1.1.0</b> · 2026-08-02</summary>
+
+### CLI Minor
+- Usage telemetry reshaped after dogfooding: a successful `sm jobs claim` emits no event (its `cli.record` carries the signal), `--help` / `--version` report as `cli.help` / `cli.version`, and the UI catalog was rebuilt: `ui.view.*` and the inspector event are gone in favor of `ui.app.start`, gesture-level `ui.feature.*`, `ui.filter`, and `plugin.apply`. UI events stamp `$screen_name` and drop the localhost URL props, so the URL / Screen column reads the gesture. Taxonomy in `spec/telemetry.md`.
+- Opt-in usage telemetry now attaches the job's extension id as PostHog's `$screen_name` on the queue-lifecycle events (`cli.jobs` submit / claim, `cli.record`), so the events report names the involved finder / fixer in the URL / Screen column at a glance. Third-party ids still collapse to `external_plugin`, and the value duplicates what `extensions` already carried, so nothing new leaves the machine. Taxonomy documented in `spec/telemetry.md` §Usage event taxonomy.
+
+### CLI Patch
+- The interactive cache-rebuild prompt on DB drift (`sm scan` / `sm serve` on a version-skewed or schema-changed cache) now defaults to Yes: the suffix reads `[Y/n]`, a bare Enter rebuilds, and only an explicit `n` / `no` declines. The rebuild is safe (the cache is derived from `.sm` files) and declining dead-ends the verb, so Yes is the right default. Documented in `spec/db-schema.md` §Schema drift.
+
+### Spec Minor (1.1.0)
+- Usage telemetry reshaped after dogfooding: a successful `sm jobs claim` emits no event (its `cli.record` carries the signal), `--help` / `--version` report as `cli.help` / `cli.version`, and the UI catalog was rebuilt: `ui.view.*` and the inspector event are gone in favor of `ui.app.start`, gesture-level `ui.feature.*`, `ui.filter`, and `plugin.apply`. UI events stamp `$screen_name` and drop the localhost URL props, so the URL / Screen column reads the gesture. Taxonomy in `spec/telemetry.md`.
+- Opt-in usage telemetry now attaches the job's extension id as PostHog's `$screen_name` on the queue-lifecycle events (`cli.jobs` submit / claim, `cli.record`), so the events report names the involved finder / fixer in the URL / Screen column at a glance. Third-party ids still collapse to `external_plugin`, and the value duplicates what `extensions` already carried, so nothing new leaves the machine. Taxonomy documented in `spec/telemetry.md` §Usage event taxonomy.
+
+### Spec Patch (1.1.0)
+- The interactive cache-rebuild prompt on DB drift (`sm scan` / `sm serve` on a version-skewed or schema-changed cache) now defaults to Yes: the suffix reads `[Y/n]`, a bare Enter rebuilds, and only an explicit `n` / `no` declines. The rebuild is safe (the cache is derived from `.sm` files) and declining dead-ends the verb, so Yes is the right default. Documented in `spec/db-schema.md` §Schema drift.
+
+</details>
+
+<details>
 <summary><b>1.0.1</b> · 2026-08-01</summary>
 
 ### CLI Patch

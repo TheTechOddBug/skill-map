@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.1.0",
+      "date": "2026-08-02",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "When skill-map warns that your local cache is from an older version, just press Enter to rebuild it, the prompt now defaults to Yes. Nothing of yours is touched; the cache is rebuilt from your files.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.0.1",
       "date": "2026-08-01",
       "kind": "user-facing",

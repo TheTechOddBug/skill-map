@@ -450,11 +450,11 @@
       }
     ]
   },
-  "specPackageVersion": "1.0.1",
+  "specPackageVersion": "1.1.0",
   "integrity": {
     "algorithm": "sha256",
     "files": {
-      "CHANGELOG.md": "0f02dd6da19551865497d3317fbbdca0f980da29f0c431a49a8304eb0a356bf4",
+      "CHANGELOG.md": "3648a37ae4b59db744a2f6cc15bf589f1467f1243826a4fbbe65a9bf4b7785f2",
       "README.md": "35ac6cc3ce8379c5087f739a528d3b80a140aef5cdeeba9c49b59c5dd5df4c54",
       "architecture.md": "0f937076611d8ea8172324bdcb239c1610f62db4a3087b95edf8360a53925a10",
       "cli-contract.md": "5151beb4fa779c4bbf7307fba8627dc6ffc5e53d6aa3ef880ceb06322b6b2b30",
