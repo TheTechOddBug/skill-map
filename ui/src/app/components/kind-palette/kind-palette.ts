@@ -8,6 +8,7 @@ import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
 import { IssuePathsService } from '../../../services/issue-paths';
 import { KindRegistryService } from '../../../services/kind-registry';
+import { UsageTrackerService } from '../../services/usage-tracker';
 import type { TNodeKind } from '../../../models/node';
 import { KindIcon } from '../kind-icon/kind-icon';
 
@@ -46,6 +47,7 @@ export class KindPalette {
   protected readonly filters = inject(FilterStoreService);
   private readonly kindRegistry = inject(KindRegistryService);
   private readonly issuePaths = inject(IssuePathsService);
+  private readonly usageTracker = inject(UsageTrackerService);
 
   protected readonly texts = KIND_PALETTE_TEXTS;
 
@@ -115,10 +117,14 @@ export class KindPalette {
     // would survive in the whitelist after the user toggled off every
     // visible kind, filtering down to zero matches.
     const universe = this.entries().map((e) => e.kind);
+    // Usage analytics (opt-in, default OFF): the gesture rides `ui.filter`
+    // with the kind name (third-party kinds collapse in the tracker).
+    this.usageTracker.trackFilter('kind', kind);
     this.filters.toggleKind(kind, universe);
   }
 
   toggleFavoritesOnly(): void {
+    this.usageTracker.trackFilter('favorites');
     this.filters.setFavoritesOnly(!this.filters.favoritesOnly());
   }
 }

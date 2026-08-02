@@ -17,7 +17,9 @@ import {
   cliVerbEventName,
   envUsageProps,
   extractFlagNames,
+  normalizeTelemetryVerb,
   qualifyExtensionForUsage,
+  qualifyPluginIdForUsage,
 } from '../usage-collector.js';
 
 describe('qualifyExtensionForUsage', () => {
@@ -38,6 +40,15 @@ describe('qualifyExtensionForUsage', () => {
     assert.equal(qualifyExtensionForUsage('nope'), 'external_plugin');
     assert.equal(qualifyExtensionForUsage('/leading-slash'), 'external_plugin');
     assert.equal(qualifyExtensionForUsage(''), 'external_plugin');
+  });
+});
+
+describe('qualifyPluginIdForUsage (bare lens / provider ids)', () => {
+  it('passes built-in plugin ids through and collapses the rest', () => {
+    assert.equal(qualifyPluginIdForUsage('claude'), 'claude');
+    assert.equal(qualifyPluginIdForUsage('agent-skills'), 'agent-skills');
+    assert.equal(qualifyPluginIdForUsage('acme-provider'), 'external_plugin');
+    assert.equal(qualifyPluginIdForUsage(''), 'external_plugin');
   });
 });
 
@@ -74,6 +85,21 @@ describe('cliVerbEventName', () => {
   it('collapses an unknown verb / typo to cli.unknown (bounded catalog)', () => {
     assert.equal(cliVerbEventName('asdfgh', known), 'cli.unknown');
     assert.equal(cliVerbEventName('', known), 'cli.unknown');
+  });
+});
+
+describe('normalizeTelemetryVerb', () => {
+  it('folds the root help / version flag spellings onto their verb twins', () => {
+    assert.equal(normalizeTelemetryVerb('--help'), 'help');
+    assert.equal(normalizeTelemetryVerb('-h'), 'help');
+    assert.equal(normalizeTelemetryVerb('--version'), 'version');
+    assert.equal(normalizeTelemetryVerb('-v'), 'version');
+  });
+
+  it('passes any other token through untouched', () => {
+    assert.equal(normalizeTelemetryVerb('scan'), 'scan');
+    assert.equal(normalizeTelemetryVerb('--json'), '--json');
+    assert.equal(normalizeTelemetryVerb(''), '');
   });
 });
 

@@ -25,6 +25,7 @@ import type { INodeActivityStatsApi } from '../../../models/api';
 import { pathBasenameForLink } from '../../../services/path-basename';
 import { cssColorOrNull, cssKindNameOrFallback } from '../../../services/css-guard';
 import { KindRegistryService } from '../../../services/kind-registry';
+import { UsageTrackerService } from '../../services/usage-tracker';
 import type { ISelectionView } from '../../../models/selection';
 import { KindIcon } from '../kind-icon/kind-icon';
 import { ViewContributionsHost } from '../view-contributions-host/view-contributions-host';
@@ -134,6 +135,7 @@ export class NodeCard {
   protected readonly texts = NODE_CARD_TEXTS;
 
   private readonly kindRegistry = inject(KindRegistryService);
+  private readonly usageTracker = inject(UsageTrackerService);
 
   /**
    * Human-readable kind name for the icon-box hover tooltip. Reuses the
@@ -385,6 +387,9 @@ export class NodeCard {
 
   protected toggleFavorite(event: MouseEvent): void {
     event.stopPropagation();
+    // Usage analytics (opt-in, default OFF): the star GESTURE counts; no
+    // node path or state rides the event.
+    this.usageTracker.trackFeature('favorite-toggle');
     const next = !this.isFavorite();
     this.favoriteToggle.emit({ path: this.node().path, value: next });
   }

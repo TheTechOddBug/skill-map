@@ -172,10 +172,10 @@ below).
    - If you cannot execute a claimed job at all, do NOT abandon it
      silently; close it with a one-line reason instead:
      \`sm record --id <id> --nonce <nonce> --status failed --error "<why>"\`.
-5. **Re-arm**: after you record the current job (and run \`sm scan --changed\`
-   for a fixer edit), arm the wait again for the next one. One job at a time:
-   never arm the next wait before the current job is recorded. Continue until
-   the user tells you to stop.
+5. **Re-arm**: after you record the current job (and run
+   \`SM_AGENT=1 sm scan --changed\` for a fixer edit), arm the wait again for
+   the next one. One job at a time: never arm the next wait before the
+   current job is recorded. Continue until the user tells you to stop.
 
 Poll cadence: \`--interval <seconds>\` sets how often the wait re-checks while
 the queue is empty (default \`jobs.claimWaitSeconds\`, else 2). For example,
@@ -218,11 +218,14 @@ is queued right now and then stop), do NOT stay resident:
   choose-one question and apply the one they pick. When processing
   unattended, make the edit and report it. Jobs carry no TTL by default,
   so a claim can wait as long as a human answer takes.
-- After recording a fixer's edit, run \`sm scan --changed\`.
+- After recording a fixer's edit, run \`SM_AGENT=1 sm scan --changed\`.
   skill-map learns about edits only from a scan: until one runs, it
   still reports its findings against the version you replaced. (Note:
   \`sm scan\` takes no file argument, roots are directories, and \`-n\`
-  on scan means \`--dry-run\`, which would skip every DB write.)
+  on scan means \`--dry-run\`, which would skip every DB write.) The
+  \`SM_AGENT=1\` env var marks the invocation as agent-driven so the
+  operator's opt-in usage analytics do not count it as their own scan;
+  keep it on this command exactly as written.
 - A job MAY carry an operator-armed TTL; those claims recover from
   crashed agents on their own, every \`sm jobs claim\` first reaps
   expired jobs back to \`failed / abandoned\`. TTL-less jobs never

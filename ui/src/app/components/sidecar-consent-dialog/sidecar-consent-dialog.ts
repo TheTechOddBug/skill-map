@@ -20,6 +20,7 @@ import {
   Component,
   computed,
   effect,
+  inject,
   input,
   output,
   signal,
@@ -30,6 +31,7 @@ import { CheckboxModule } from 'primeng/checkbox';
 import { DialogModule } from 'primeng/dialog';
 
 import { SIDECAR_CONSENT_DIALOG_TEXTS } from '../../../i18n/sidecar-consent-dialog.texts';
+import { UsageTrackerService } from '../../services/usage-tracker';
 
 /** The user's answer to the consent prompt. */
 export interface ISidecarConsentDecision {
@@ -113,10 +115,17 @@ export interface ISidecarConsentDecision {
   `],
 })
 export class SidecarConsentDialog {
+  private readonly usageTracker = inject(UsageTrackerService);
   protected readonly texts = SIDECAR_CONSENT_DIALOG_TEXTS;
 
   /** Drives the dialog visibility. Flipped by the dispatch service. */
   readonly open = input<boolean>(false);
+  /**
+   * WHAT parked behind this consent showing (the dispatch service's
+   * `consentContext`): a qualified action id, a findings-flow literal, or
+   * `null`. Telemetry-only; the copy never renders it.
+   */
+  readonly context = input<string | null>(null);
 
   /** Fired once per resolution with the user's choice. */
   readonly decision = output<ISidecarConsentDecision>();
@@ -127,18 +136,38 @@ export class SidecarConsentDialog {
   /** Convenience for tests / template. */
   protected readonly alwaysChecked = computed(() => this.always());
 
+  /**
+   * Usage-telemetry guard: one `sidecar-consent` event per dialog
+   * showing. The decline path can fire twice (explicit button, then the
+   * close-driven `visibleChange(false)`), and the `decision` output must
+   * keep that behaviour for its consumers; only the telemetry dedupes.
+   */
+  private decided = false;
+
   // Reset the checkbox every time the dialog (re)opens so a prior tick
   // does not leak into the next, unrelated, consent prompt.
   private readonly resetOnOpen = effect(() => {
-    if (this.open()) this.always.set(false);
+    if (this.open()) {
+      this.always.set(false);
+      this.decided = false;
+    }
   });
 
   protected accept(): void {
+    this.trackDecision(this.always() ? 'always' : 'once');
     this.decision.emit({ accepted: true, always: this.always() });
   }
 
   protected decline(): void {
+    this.trackDecision('declined');
     this.decision.emit({ accepted: false, always: false });
+  }
+
+  /** Emit the consent resolution once per open (opt-in, default OFF). */
+  private trackDecision(value: 'always' | 'once' | 'declined'): void {
+    if (this.decided) return;
+    this.decided = true;
+    this.usageTracker.trackSidecarConsent(value, this.context());
   }
 
   /**

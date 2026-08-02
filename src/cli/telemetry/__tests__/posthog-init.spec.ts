@@ -33,7 +33,9 @@ import {
   isUsageKeyConfigured,
   resetUsageTelemetryForTests,
   scrubUsageEvent,
+  setInvocationLens,
   setInvocationScreenName,
+  suppressInvocationUsage,
 } from '../posthog-init.js';
 
 let homeRoot: string;
@@ -96,6 +98,17 @@ describe('isUsageCliTelemetryActive', () => {
   it('is false with a real key but no opt-in', () => {
     seedUsage(false);
     assert.equal(isUsageCliTelemetryActive('phc_real'), false);
+  });
+
+  it('is false for an agent-driven invocation (SM_AGENT set)', () => {
+    seedUsage(true);
+    process.env['SM_AGENT'] = '1';
+    try {
+      assert.equal(isUsageCliTelemetryActive('phc_real'), false);
+    } finally {
+      delete process.env['SM_AGENT'];
+    }
+    assert.equal(isUsageCliTelemetryActive('phc_real'), true, 'unset re-activates');
   });
 
   it('is true only with a real key, kill switch unset, and opt-in', () => {
@@ -205,6 +218,52 @@ describe('captureCliInvocation (extensions stash, fake client)', () => {
     setInvocationScreenName('acme/custom-fixer');
     captureCliInvocation('record', [], new Set(['record']));
     assert.equal(captured[0]?.properties['$screen_name'], 'external_plugin');
+  });
+
+  it('a fresh lens resolution rides as lens + lens_source and the screen column', async () => {
+    seedUsage(true);
+    const { ns, captured } = makeFakePosthog();
+    await initUsageCli(() => Promise.resolve(ns));
+    setInvocationLens('claude', 'autodetect');
+    captureCliInvocation('scan', [], new Set(['scan']));
+    assert.equal(captured[0]?.properties['lens'], 'claude');
+    assert.equal(captured[0]?.properties['lens_source'], 'autodetect');
+    assert.equal(captured[0]?.properties['$screen_name'], 'claude@autodetect');
+    // Cleared: the next invocation carries no lens keys.
+    captureCliInvocation('list', [], new Set(['list']));
+    assert.equal('lens' in (captured[1]?.properties ?? {}), false);
+    assert.equal('$screen_name' in (captured[1]?.properties ?? {}), false);
+  });
+
+  it('collapses a third-party lens id and lets an explicit $screen_name win', async () => {
+    seedUsage(true);
+    const { ns, captured } = makeFakePosthog();
+    await initUsageCli(() => Promise.resolve(ns));
+    setInvocationLens('acme-provider', 'set');
+    setInvocationScreenName('core/ai-name-action');
+    captureCliInvocation('config', [], new Set(['config']));
+    assert.equal(captured[0]?.properties['lens'], 'external_plugin');
+    assert.equal(captured[0]?.properties['lens_source'], 'set');
+    assert.equal(captured[0]?.properties['$screen_name'], 'core/ai-name-action');
+  });
+
+  it('a suppressed invocation emits nothing and clears every stash', async () => {
+    seedUsage(true);
+    const { ns, captured } = makeFakePosthog();
+    await initUsageCli(() => Promise.resolve(ns));
+    // The successful-claim shape: stashes may exist, suppression wins.
+    addInvocationExtensions(['core/ai-name-action']);
+    setInvocationScreenName('core/ai-name-action');
+    suppressInvocationUsage();
+    captureCliInvocation('jobs', ['wait'], new Set(['jobs']));
+    assert.equal(captured.length, 0, 'the suppressed invocation sends no event');
+    // Everything cleared: the next invocation emits normally, with no
+    // bleed-through of the suppressed invocation's stashes.
+    captureCliInvocation('list', [], new Set(['list']));
+    assert.equal(captured.length, 1);
+    assert.equal(captured[0]?.event, 'cli.list');
+    assert.equal('extensions' in (captured[0]?.properties ?? {}), false);
+    assert.equal('$screen_name' in (captured[0]?.properties ?? {}), false);
   });
 });
 

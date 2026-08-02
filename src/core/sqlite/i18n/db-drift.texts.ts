@@ -28,7 +28,7 @@ export const DB_DRIFT_TEXTS = {
     '   {{hint}}\n',
   driftPromptHint:
     'It will be rebuilt from your .sm files on this scan; nothing of yours is touched.',
-  driftPromptQuestion: 'Rebuild the local cache now? [y/N] ',
+  driftPromptQuestion: 'Rebuild the local cache now? [Y/n] ',
 
   // Receipt after the rebuild (printed by the scan / refresh path).
   driftReset:

@@ -11,7 +11,8 @@
  *   - Same version but mismatched / absent fingerprint → drift
  *     (reason `schema`).
  *   - `assumeYes` and a non-TTY stdin auto-rebuild (delete the file).
- *   - A TTY stdin answering `y` rebuilds; answering `n` aborts and
+ *   - A TTY stdin answering `y` (or a bare Enter, the prompt defaults
+ *     to Yes) rebuilds; answering `n` aborts and
  *     keeps the file.
  */
 
@@ -174,6 +175,18 @@ describe('maybeResetOnDrift', () => {
       currentVersion: '0.42.0',
       assumeYes: false,
       stdin: ttyStdin('y'),
+      stderr: sinkStderr(),
+    });
+    assert.equal(outcome.kind, 'reset');
+    assert.ok(!existsSync(p));
+  });
+
+  it('rebuilds on a bare Enter (the prompt defaults to Yes)', async () => {
+    const p = makeDbWithVersion('0.41.0');
+    const outcome = await maybeResetOnDrift(p, {
+      currentVersion: '0.42.0',
+      assumeYes: false,
+      stdin: ttyStdin(''),
       stderr: sinkStderr(),
     });
     assert.equal(outcome.kind, 'reset');

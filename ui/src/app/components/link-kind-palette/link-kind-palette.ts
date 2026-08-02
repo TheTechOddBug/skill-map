@@ -8,6 +8,7 @@ import { CollectionLoaderService } from '../../../services/collection-loader';
 import { ALL_LINK_KINDS, FilterStoreService } from '../../../services/filter-store';
 import { ProviderRegistryService } from '../../../services/provider-registry';
 import { ProjectInfoService } from '../../services/project-info';
+import { UsageTrackerService } from '../../services/usage-tracker';
 import type { TLinkKindApi } from '../../../models/api';
 
 /**
@@ -111,6 +112,7 @@ export class LinkKindPalette {
   private readonly filters = inject(FilterStoreService);
   private readonly providerRegistry = inject(ProviderRegistryService);
   private readonly projectInfo = inject(ProjectInfoService);
+  private readonly usageTracker = inject(UsageTrackerService);
 
   protected readonly texts = LINK_KIND_PALETTE_TEXTS;
 
@@ -198,6 +200,9 @@ export class LinkKindPalette {
     // reached the "all off" state and the filter bounced back to "every
     // kind visible" on the click that should have hidden the last one.
     const universe = this.entries().map((e) => e.kind);
+    // Usage analytics (opt-in, default OFF): the edge-filter gesture rides
+    // `ui.filter` with the closed-union link kind.
+    this.usageTracker.trackFilter('link', kind);
     this.filters.toggleLinkKind(kind, universe);
   }
 }

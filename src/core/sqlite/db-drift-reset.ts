@@ -167,8 +167,13 @@ function shouldPromptForReset(policy: IDriftResetPolicy): boolean {
 }
 
 /**
- * Write the §3.1b block to stderr and read a `y/N` answer. Only called
+ * Write the §3.1b block to stderr and read a `Y/n` answer. Only called
  * when `shouldPromptForReset` confirmed both streams are present.
+ * Default-YES semantics (mirrors `cli/util/confirm.ts` with
+ * `defaultAnswer: 'yes'`, not imported to keep `core/sqlite/` off the
+ * CLI layer): the rebuild is safe (the DB is derived; `.sm` files are
+ * the source of truth) and declining dead-ends the scan, so Enter and
+ * gibberish proceed and only an explicit `n` / `no` declines.
  */
 async function askDriftReset(
   dbVersion: string,
@@ -191,7 +196,7 @@ async function askDriftReset(
     const answer = await new Promise<string>((resolveP) =>
       rl.question(DB_DRIFT_TEXTS.driftPromptQuestion, resolveP),
     );
-    return /^y(es)?$/i.test(answer.trim());
+    return !/^no?$/i.test(answer.trim());
   } finally {
     rl.close();
   }

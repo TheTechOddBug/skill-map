@@ -35,6 +35,7 @@ import { ActionDispatchService } from '../../../services/action-dispatch';
 import { cssKindNameOrFallback } from '../../../services/css-guard';
 import { ProviderRegistryService } from '../../../services/provider-registry';
 import { ProcessingAgentReadinessService } from '../../services/processing-agent-readiness';
+import { UsageTrackerService } from '../../services/usage-tracker';
 import {
   AnnotationsPanel,
   overlayHasAnnotationsContent,
@@ -120,6 +121,7 @@ export class InspectorView implements OnInit {
   private readonly actionDispatch = inject(ActionDispatchService);
   private readonly providerRegistry = inject(ProviderRegistryService);
   private readonly processingAgent = inject(ProcessingAgentReadinessService);
+  private readonly usageTracker = inject(UsageTrackerService);
   private readonly announcer = inject(A11yAnnouncerService);
 
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
@@ -422,7 +424,8 @@ export class InspectorView implements OnInit {
     skillMissing: this.processingAgent.skillMissing,
     // The dismiss / restore flows park their consent retries behind the
     // SAME dialog the action buttons use (one instance, one service).
-    requestSmConsent: (retry) => this.actionDispatch.requestSmConsent(retry),
+    requestSmConsent: (retry, context) =>
+      this.actionDispatch.requestSmConsent(retry, context ?? null),
     // A successful per-issue dismiss deleted the matching rows
     // server-side; relay the (analyzer, value) pair to the findings
     // section (the issues owner) so it prunes its local list without a
@@ -543,7 +546,12 @@ export class InspectorView implements OnInit {
     if (state !== 'idle') return;
     this.summaryAwaiting = true;
     const id = this.surfaceActionId('inspector.surface.summary');
-    if (id !== null) void this.aiActions.submit(id, false);
+    if (id !== null) {
+      // Usage analytics (opt-in, default OFF): only the QUEUEING click
+      // counts; the ready-state expand toggle is not an enqueue.
+      this.usageTracker.trackFeature('summarize');
+      void this.aiActions.submit(id, false);
+    }
   }
 
   /** Delete one stored summary; the refetch collapses the empty block. */
@@ -564,7 +572,12 @@ export class InspectorView implements OnInit {
     if (entry === null || this.aiActions.entryState(entry) !== 'idle') return;
     this.summaryAwaiting = true;
     const id = this.surfaceActionId('inspector.surface.summary');
-    if (id !== null) void this.aiActions.submit(id, false);
+    if (id !== null) {
+      // Usage analytics (opt-in, default OFF): the re-analyze QUEUEING
+      // click, distinct from the first-run `summarize` sparkles.
+      this.usageTracker.trackFeature('reanalyze');
+      void this.aiActions.submit(id, false);
+    }
   }
 
   // --- auto-tag (tag-row affordance, user request 2026-07-21) -------------
@@ -603,6 +616,9 @@ export class InspectorView implements OnInit {
     if (this.autoTagState() !== 'idle') return;
     const id = this.surfaceActionId('inspector.surface.auto-tag');
     if (id === null) return;
+    // Usage analytics (opt-in, default OFF): the QUEUEING click only,
+    // mirroring the summarize affordance.
+    this.usageTracker.trackFeature('auto-tag');
     this.clearAutoTagProposal();
     void this.aiActions.submit(id, false);
   }
@@ -733,6 +749,9 @@ export class InspectorView implements OnInit {
   protected onHeaderFavoriteToggle(path: string): void {
     const n = this.node();
     if (!n || n.path !== path) return;
+    // Usage analytics (opt-in, default OFF): the star GESTURE counts; no
+    // node path or state rides the event.
+    this.usageTracker.trackFeature('favorite-toggle');
     void this.loader.toggleFavorite(path, !n.isFavorite);
   }
 
@@ -743,6 +762,7 @@ export class InspectorView implements OnInit {
   // dialog state; dispatch errors are rendered inline by each dispatcher
   // (the tag editor + each action button), not by a panel-level banner.
   protected readonly consentOpen = this.actionDispatch.consentOpen;
+  protected readonly consentContext = this.actionDispatch.consentContext;
 
   /**
    * Forwarded from `<sm-sidecar-consent-dialog (decision)>`. Hands the

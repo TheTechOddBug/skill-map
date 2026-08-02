@@ -6,6 +6,7 @@ import {
   SettingsBufferService,
   type IBufferOwner,
 } from '../settings-buffer';
+import { UsageTrackerService } from '../../../services/usage-tracker';
 import { ScanTriggerService } from '../../../services/scan-trigger';
 import {
   DATA_SOURCE,
@@ -70,6 +71,7 @@ interface ISetup {
   service: SettingsBufferService;
   applyPluginChanges: ReturnType<typeof vi.fn>;
   scanRun: ReturnType<typeof vi.fn>;
+  trackPluginApply: ReturnType<typeof vi.fn>;
 }
 
 function setup(
@@ -78,14 +80,21 @@ function setup(
   TestBed.resetTestingModule();
   const applyPluginChanges = vi.fn(applyImpl);
   const scanRun = vi.fn().mockResolvedValue(undefined);
+  const trackPluginApply = vi.fn();
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(),
       { provide: DATA_SOURCE, useValue: { applyPluginChanges } as Partial<IDataSourcePort> },
       { provide: ScanTriggerService, useValue: { run: scanRun } },
+      { provide: UsageTrackerService, useValue: { trackPluginApply } },
     ],
   });
-  return { service: TestBed.inject(SettingsBufferService), applyPluginChanges, scanRun };
+  return {
+    service: TestBed.inject(SettingsBufferService),
+    applyPluginChanges,
+    scanRun,
+    trackPluginApply,
+  };
 }
 
 describe('SettingsBufferService, dirtyCount', () => {
@@ -195,6 +204,37 @@ describe('SettingsBufferService, applyChanges merges into ONE PATCH', () => {
     expect(scanRun).not.toHaveBeenCalled();
     // Buffer stays dirty so the user can retry or discard.
     expect(service.dirtyCount()).toBe(1);
+  });
+});
+
+describe('SettingsBufferService, plugin.apply usage event', () => {
+  it('a committed apply hands the merged toggle deltas to the usage tracker', async () => {
+    const { service, trackPluginApply } = setup(async () => pluginsEnvelope([]));
+    const changes: IPluginChange[] = [
+      { id: 'core/link-counter', enabled: true },
+      { id: 'acme/private-fixer', enabled: false },
+      { id: 'b/y', settings: { tok: 'secret' } },
+    ];
+    service.register(makeOwner(changes));
+
+    await service.applyChanges();
+
+    // The tracker owns the shaping (settings-only exclusion, third-party
+    // collapse, dormant no-op); the buffer's contract is one call per
+    // committed apply with the full merged batch.
+    expect(trackPluginApply).toHaveBeenCalledTimes(1);
+    expect(trackPluginApply).toHaveBeenCalledWith(changes);
+  });
+
+  it('a failed apply reports nothing', async () => {
+    const { service, trackPluginApply } = setup(async () => {
+      throw new Error('apply boom');
+    });
+    service.register(makeOwner([{ id: 'core/link-counter', enabled: true }]));
+
+    await service.applyChanges();
+
+    expect(trackPluginApply).not.toHaveBeenCalled();
   });
 });
 

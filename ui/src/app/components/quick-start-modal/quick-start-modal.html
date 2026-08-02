@@ -112,7 +112,7 @@
                   [severity]="liveRow.enabled() ? 'secondary' : 'primary'"
                   [outlined]="liveRow.enabled()"
                   size="small"
-                  (onClick)="liveRow.toggle()"
+                  (onClick)="onLiveRowToggle()"
                   data-testid="quick-start-row-live-updates-action"
                 />
               </sm-quick-start-row>
@@ -159,7 +159,7 @@
                   [outlined]="hookRow.status()?.installed === true"
                   [disabled]="hookActionDisabled()"
                   size="small"
-                  (onClick)="hookRow.run()"
+                  (onClick)="onHookRowRun()"
                   data-testid="quick-start-row-hook-action"
                 />
               </sm-quick-start-row>
@@ -178,7 +178,7 @@
                   [outlined]="realtimeRow.enabled()"
                   [disabled]="realtimeRow.actionDisabled()"
                   size="small"
-                  (onClick)="realtimeRow.toggle()"
+                  (onClick)="onRealtimeRowToggle()"
                   data-testid="quick-start-row-realtime-action"
                 />
               </sm-quick-start-row>
@@ -225,7 +225,7 @@
                     severity="primary"
                     [disabled]="skillActionDisabled()"
                     size="small"
-                    (onClick)="skillRow.run()"
+                    (onClick)="onSkillRowRun()"
                     data-testid="quick-start-row-agent-skill-action"
                   />
                 }

@@ -103,7 +103,7 @@ export interface IAiActionsSetupDeps {
    * flows hit the same gate the action buttons do, and reuse the same
    * dialog instance.
    */
-  requestSmConsent(retry: (grant: ISmConsentGrant) => void): void;
+  requestSmConsent(retry: (grant: ISmConsentGrant) => void, context?: string): void;
   /**
    * Success sink for the per-issue dismiss: the deterministic issues
    * list lives in `<sm-inspector-findings-section>` (its `issues`
@@ -689,7 +689,7 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
       deps.announce?.(INSPECTOR_VIEW_TEXTS.announce.findingRestored);
     } catch (err) {
       if (!('confirm' in consent) && isSmConsentRequired(err)) {
-        deps.requestSmConsent((grant) => void restoreFinding(finding, grant));
+        deps.requestSmConsent((grant) => void restoreFinding(finding, grant), 'findings-restore');
         return;
       }
       recordSubmitError(err);
@@ -736,7 +736,7 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
       await deps.dataSource.deleteFinding(path, finding.id, consent);
     } catch (err) {
       if (!('confirm' in consent) && isSmConsentRequired(err)) {
-        deps.requestSmConsent((grant) => void deleteFinding(finding, grant));
+        deps.requestSmConsent((grant) => void deleteFinding(finding, grant), 'findings-delete');
         return;
       }
       recordSubmitError(err);
@@ -785,7 +785,7 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
       deps.announce?.(INSPECTOR_VIEW_TEXTS.announce.issueDismissed);
     } catch (err) {
       if (!('confirm' in consent) && isSmConsentRequired(err)) {
-        deps.requestSmConsent((grant) => void dismissIssue(issue, grant));
+        deps.requestSmConsent((grant) => void dismissIssue(issue, grant), 'issue-dismiss');
         return;
       }
       recordSubmitError(err);

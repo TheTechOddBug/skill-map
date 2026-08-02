@@ -303,6 +303,7 @@
     -->
     <sm-sidecar-consent-dialog
       [open]="consentOpen()"
+      [context]="consentContext()"
       (decision)="onConsentDecision($event)"
     />
   </section>

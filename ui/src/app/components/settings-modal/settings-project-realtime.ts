@@ -29,6 +29,7 @@ import { FormsModule } from '@angular/forms';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
+import { UsageTrackerService } from '../../services/usage-tracker';
 import { LivePreferencesService } from '../../../services/live-preferences';
 import { NodeActivityService } from '../../../services/node-activity';
 import { WsEventStreamService } from '../../../services/ws-event-stream';
@@ -43,6 +44,7 @@ import { ToggleRowDirective } from './toggle-row.directive';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SettingsProjectRealtime {
+  private readonly usageTracker = inject(UsageTrackerService);
   private readonly wsStream = inject(WsEventStreamService);
   private readonly nodeActivity = inject(NodeActivityService);
   private readonly activityReadiness = inject(ActivityReadinessService);
@@ -71,6 +73,7 @@ export class SettingsProjectRealtime {
   }
 
   protected onLiveActivityToggle(next: boolean): void {
+    this.usageTracker.trackFeature('realtime-activity', next, 'settings');
     this.nodeActivity.setEnabled(next);
   }
 
@@ -83,6 +86,7 @@ export class SettingsProjectRealtime {
   protected readonly showRuntimeAgents = this.livePrefs.showRuntimeAgents;
 
   protected onShowRuntimeAgentsToggle(next: boolean): void {
+    this.usageTracker.trackFeature('runtime-agents', next);
     this.livePrefs.setShowRuntimeAgents(next);
   }
 }

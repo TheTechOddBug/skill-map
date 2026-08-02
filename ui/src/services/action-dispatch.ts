@@ -54,6 +54,14 @@ export class ActionDispatchService {
   private readonly inFlightSig = signal<boolean>(false);
   private readonly errorSig = signal<string | null>(null);
   private readonly consentOpenSig = signal<boolean>(false);
+  /**
+   * WHAT parked behind the open consent dialog: the qualified action id
+   * for a dispatch-originated park, a flow literal (e.g.
+   * `findings-restore`) for the findings routes, `null` when unknown.
+   * Read by the dialog host so the usage event can name the trigger;
+   * cleared on resolve.
+   */
+  private readonly consentContextSig = signal<string | null>(null);
 
   /** A dispatch round-trip is in flight (button shows a spinner). */
   readonly inFlight = this.inFlightSig.asReadonly();
@@ -61,6 +69,7 @@ export class ActionDispatchService {
   readonly error = this.errorSig.asReadonly();
   /** Drives the `<sm-sidecar-consent-dialog>` `open` input. */
   readonly consentOpen = this.consentOpenSig.asReadonly();
+  readonly consentContext = this.consentContextSig.asReadonly();
   /** True when an action is dispatchable (idle). Convenience for callers. */
   readonly idle = computed(() => !this.inFlightSig());
 
@@ -92,8 +101,9 @@ export class ActionDispatchService {
    * callback fires with the granted flags when the user accepts, and is
    * silently dropped on decline.
    */
-  requestSmConsent(retry: (consent: ISmConsentGrant) => void): void {
+  requestSmConsent(retry: (consent: ISmConsentGrant) => void, context: string | null = null): void {
     this.pending = retry;
+    this.consentContextSig.set(context);
     this.consentOpenSig.set(true);
   }
 
@@ -105,6 +115,7 @@ export class ActionDispatchService {
    */
   resolveConsent(decision: { accepted: boolean; always: boolean }): void {
     this.consentOpenSig.set(false);
+    this.consentContextSig.set(null);
     const pending = this.pending;
     this.pending = null;
     if (!pending) return;
@@ -137,7 +148,7 @@ export class ActionDispatchService {
       // FIRST attempt can hit this (the retry already carries consent),
       // so there is no risk of re-opening the dialog in a loop.
       if (consent.confirm !== true && isSmConsentRequired(err)) {
-        this.requestSmConsent((grant) => void this.run(actionId, nodePath, input, grant));
+        this.requestSmConsent((grant) => void this.run(actionId, nodePath, input, grant), actionId);
         return;
       }
       this.errorSig.set(this.formatError(err));

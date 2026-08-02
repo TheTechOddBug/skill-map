@@ -201,7 +201,9 @@ export class App {
 
   protected toggleLiveActivity(): void {
     if (this.liveActivityBlocked()) return;
-    this.nodeActivity.setEnabled(!this.liveActivityOn());
+    const next = !this.liveActivityOn();
+    this.usageTracker.trackFeature('live-toggle', next);
+    this.nodeActivity.setEnabled(next);
   }
 
   /**
@@ -226,6 +228,7 @@ export class App {
   protected readonly scanError = this.scanTrigger.scanError;
 
   protected triggerScan(): Promise<void> {
+    this.usageTracker.trackFeature('scan');
     return this.scanTrigger.run();
   }
   /**
@@ -398,5 +401,8 @@ export class App {
 
   protected toggleTheme(): void {
     this.theme.toggle();
+    // Emit AFTER the flip so `value` is the mode the gesture SET
+    // (`auto` / `light` / `dark`, the service owns the cycle).
+    this.usageTracker.trackFeature('theme-toggle', this.theme.mode());
   }
 }

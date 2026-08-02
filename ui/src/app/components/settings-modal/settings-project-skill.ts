@@ -40,6 +40,7 @@ import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { MessageModule } from 'primeng/message';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
+import { UsageTrackerService } from '../../services/usage-tracker';
 import type { IAgentSkillInstallStatusApi } from '../../../models/api';
 import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
 import { runConfirmGated } from '../confirm-gated';
@@ -63,6 +64,7 @@ const PROCESS_JOBS_SKILL_FILE = 'SKILL.md';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SettingsProjectSkill {
+  private readonly usageTracker = inject(UsageTrackerService);
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly confirmation = inject(ConfirmationService);
 
@@ -148,12 +150,21 @@ export class SettingsProjectSkill {
   protected onSkillInstallClick(): void {
     const status = this.skillStatus();
     if (status === null || !status.supported) return;
+    // Usage analytics (opt-in, default OFF): the constructive button is
+    // Install when absent and Update when installed-but-stale; stamped
+    // with the surface since Quick Start exposes the same install.
+    this.usageTracker.trackFeature(
+      status.installed ? 'skill-update' : 'skill-install',
+      undefined,
+      'settings',
+    );
     void this.runSkillMutation('install');
   }
 
   protected onSkillUninstallClick(): void {
     const status = this.skillStatus();
     if (status === null || !status.supported || !status.installed) return;
+    this.usageTracker.trackFeature('skill-uninstall', undefined, 'settings');
     void this.runSkillMutation('uninstall');
   }
 

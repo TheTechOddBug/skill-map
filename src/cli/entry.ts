@@ -51,7 +51,7 @@ import {
   isHandlingFatalCrash,
 } from './telemetry/fatal-crash-handler.js';
 import { captureCliInvocation, flushUsageCli, initUsageCli } from './telemetry/posthog-init.js';
-import { extractFlagNames } from './telemetry/usage-collector.js';
+import { extractFlagNames, normalizeTelemetryVerb } from './telemetry/usage-collector.js';
 import { createSmCli } from './command-registry.js';
 import { registeredVerbPaths, routeHelpArgs } from './commands/help.js';
 
@@ -187,7 +187,11 @@ if (telemetryVerb !== undefined && telemetryVerb !== '') {
       .map((path) => path[0])
       .filter((token): token is string => token !== undefined),
   );
-  captureCliInvocation(telemetryVerb, extractFlagNames(routedArgs.slice(1)), knownVerbs);
+  captureCliInvocation(
+    normalizeTelemetryVerb(telemetryVerb),
+    extractFlagNames(routedArgs.slice(1)),
+    knownVerbs,
+  );
 }
 
 // Spec § A.11, `shutdown` Hook dispatch. Awaits subscribed hooks so

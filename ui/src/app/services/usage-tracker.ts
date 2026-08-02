@@ -2,43 +2,117 @@
  * `UsageTrackerService`, the single UI emit point for opt-in usage analytics
  * (`spec/telemetry.md` §Usage event taxonomy).
  *
- * BOOT CONTRACT: `providedIn: 'root'` and self-wires in its constructor (a
- * router `NavigationEnd` subscription). `app.config.ts` calls
- * `inject(UsageTrackerService)` once at boot solely to fire that constructor,
- * alongside `FilterUrlSyncService`. Do NOT add a lazy `init()`.
+ * BOOT CONTRACT: `providedIn: 'root'` and self-wires in its constructor (the
+ * theme super-property effect). `app.config.ts` calls
+ * `inject(UsageTrackerService)` once at boot solely to fire that constructor.
+ * Do NOT add a lazy `init()`.
  *
  * Every emit funnels through `captureUiUsage`, which is a hard no-op until the
  * PostHog surface is active (key configured + UI usage consent on). So this
  * service is safe to wire unconditionally: while dormant it does nothing and
  * the SDK is never even fetched.
  *
- * Only allow-listed view / feature names and the active theme leave the
- * browser, never a node path, title, query string, or any content.
+ * There is deliberately NO per-view / per-route event: the app has a single
+ * fused workspace view, so a navigation-driven event only counted
+ * interactions (filter / selection sync rewrites the URL constantly). The
+ * session-presence signal is `ui.app.start`, emitted by the boot initializer.
+ * Only allow-listed feature names and the active theme leave the browser,
+ * never a node path, title, query string, or any content.
  */
 
-import { DestroyRef, Injectable, effect, inject } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { NavigationEnd, Router } from '@angular/router';
+import { Injectable, effect, inject } from '@angular/core';
 
 import { captureUiUsage, registerUsageSuperProps } from '../core/telemetry/posthog-init';
+import {
+  buildPluginApplyProperties,
+  qualifyKindForUsage,
+  qualifyMaybePluginValue,
+  qualifyPluginForUsage,
+  type IPluginToggleChange,
+} from '../core/telemetry/usage-collector';
 import { ThemeService } from '../../services/theme';
 
-/** Feature surfaces tracked on explicit open (not route-driven). */
-export type TUsageFeatureSurface = 'inspector' | 'settings' | 'quick-start';
+/**
+ * Feature surfaces tracked on explicit user gesture: modal opens, the
+ * workspace rail's tabs, the files rail's coupling toggles, the topbar
+ * buttons, the queue's per-job cancel, and the node favorite star (cards +
+ * inspector header). The node inspector open is deliberately absent: a
+ * per-selection event was interaction-level noise (`spec/telemetry.md`
+ * §Usage event taxonomy).
+ */
+export type TUsageFeatureSurface =
+  | 'settings'
+  | 'quick-start'
+  | 'files'
+  | 'queue'
+  | 'files-search-map'
+  | 'files-follow-selection'
+  | 'job-cancel'
+  | 'job-cancel-all'
+  | 'job-clear-failed'
+  | 'job-clear-finished'
+  | 'live-toggle'
+  | 'scan'
+  | 'theme-toggle'
+  | 'theme-extra'
+  | 'settings-resolution'
+  | 'settings-changelog'
+  | 'settings-about'
+  | 'lens-select'
+  | 'favorite-toggle'
+  | 'live-updates'
+  | 'realtime-activity'
+  | 'runtime-agents'
+  | 'capture-conversations'
+  | 'hook-install'
+  | 'hook-uninstall'
+  | 'skill-install'
+  | 'skill-uninstall'
+  | 'skill-update'
+  | 'follow-symlinks'
+  | 'mcp-server'
+  | 'allow-sidecar'
+  | 'use-gitignore'
+  | 'reference-paths-add'
+  | 'reference-paths-remove'
+  | 'ignore-patterns-add'
+  | 'ignore-patterns-remove'
+  | 'mcp-copy'
+  | 'mcp-check'
+  | 'agent-jobs-check'
+  | 'auto-fixer'
+  | 'ai-action'
+  | 'ai-action-all'
+  | 'node-action'
+  | 'summarize'
+  | 'finding-fix'
+  | 'finding-dismiss'
+  | 'finding-resolve'
+  | 'finding-restore'
+  | 'finding-delete'
+  | 'sidecar-consent'
+  | 'auto-tag'
+  | 'tags-edit'
+  | 'tags-save'
+  | 'findings-reveal'
+  | 'reanalyze';
+
+/**
+ * Where a shared gesture was performed. A feature reachable from more than
+ * one surface (Settings, Quick Start and the inspector expose some of the
+ * same actions) stamps `source` from EVERY call site, so adoption of each
+ * path is comparable in PostHog; single-surface features omit it.
+ */
+export type TUsageFeatureSource = 'settings' | 'quick-start' | 'inspector';
+
+/** The map toolbox's filter families, the `group` property of `ui.filter`. */
+export type TUsageFilterGroup = 'kind' | 'severity' | 'link' | 'favorites';
 
 @Injectable({ providedIn: 'root' })
 export class UsageTrackerService {
-  private readonly router = inject(Router);
   private readonly theme = inject(ThemeService);
-  private readonly destroyRef = inject(DestroyRef);
 
   constructor() {
-    this.router.events.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((event) => {
-      if (event instanceof NavigationEnd) {
-        const view = viewNameFor(event.urlAfterRedirects);
-        if (view !== null) captureUiUsage(`ui.view.${view}`);
-      }
-    });
     // Keep the active theme as a PostHog super-property so any metric can be
     // broken down by it. Re-fires on every theme change; a no-op while
     // dormant (the boot value is re-registered after init, see app.config).
@@ -46,12 +120,142 @@ export class UsageTrackerService {
   }
 
   /**
-   * Record opening a feature surface that is not a route (the node inspector,
-   * the settings modal) as `ui.feature.<feature>`. No-op while the usage
-   * surface is dormant.
+   * Record opening a feature surface (the settings modal, the workspace
+   * rail's files / queue tabs) as `ui.feature.<feature>`. Callers emit on
+   * the USER gesture only, never on an auto-open. A toggle-flavored
+   * feature passes `value`, the state the gesture SET (a boolean, or a
+   * closed-enum string like the theme mode); a gesture shared between
+   * surfaces passes `source`. Both ride as properties and fold into
+   * `$screen_name` (`<feature>[:<value>][@<source>]`). No-op while the
+   * usage surface is dormant.
    */
-  trackFeature(surface: TUsageFeatureSurface): void {
-    captureUiUsage(`ui.feature.${surface}`);
+  trackFeature(
+    surface: TUsageFeatureSurface,
+    value?: boolean | string,
+    source?: TUsageFeatureSource,
+  ): void {
+    const props: Record<string, unknown> = {};
+    let screen: string = surface;
+    if (value !== undefined) {
+      props['value'] = value;
+      screen = `${screen}:${value}`;
+    }
+    if (source !== undefined) {
+      props['source'] = source;
+      screen = `${screen}@${source}`;
+    }
+    props['$screen_name'] = screen;
+    captureUiUsage(`ui.feature.${surface}`, props);
+  }
+
+  /**
+   * Record launching one AI action from the inspector's launcher as
+   * `ui.feature.ai-action`: the extension id rides as `value` (collapsed,
+   * so a third-party finder / fixer never leaves by name) plus `auto_fix`,
+   * whether the launch chained the fixers. The group-ALL button emits its
+   * own `ai-action-all` gesture instead (one event per click, never one
+   * per queued entry). No-op while dormant.
+   */
+  trackAiAction(extensionId: string, autoFix: boolean): void {
+    const collapsed = qualifyPluginForUsage(extensionId);
+    captureUiUsage('ui.feature.ai-action', {
+      value: collapsed,
+      auto_fix: autoFix,
+      $screen_name: autoFix ? `ai-action:${collapsed}:autofix` : `ai-action:${collapsed}`,
+    });
+  }
+
+  /**
+   * Record the `.sm` write-consent dialog resolution as
+   * `ui.feature.sidecar-consent` (`value` = `always` / `once` /
+   * `declined`, one per showing, deduped by the dialog). `context` names
+   * WHAT parked behind the gate: a qualified action id (collapsed here,
+   * a third-party action never leaves by name) or a findings-flow
+   * literal (slash-free, ours, passes verbatim). Rides as `action`.
+   */
+  trackSidecarConsent(value: 'always' | 'once' | 'declined', context: string | null): void {
+    captureUiUsage('ui.feature.sidecar-consent', {
+      value,
+      ...(context !== null ? { action: qualifyMaybePluginValue(context) } : {}),
+      $screen_name: `sidecar-consent:${value}`,
+    });
+  }
+
+  /**
+   * Record dispatching a plugin-contributed inspector action button
+   * (Bump, Set stability, Edit tags, any `inspector.action.button`
+   * contribution) as `ui.feature.node-action`, the action id collapsed as
+   * `value`. Emitted once per REAL dispatch (a cancelled parameter prompt
+   * never counts); the prompt value itself never rides. No-op while
+   * dormant.
+   */
+  trackNodeAction(actionId: string): void {
+    const collapsed = qualifyPluginForUsage(actionId);
+    captureUiUsage('ui.feature.node-action', {
+      value: collapsed,
+      $screen_name: `node-action:${collapsed}`,
+    });
+  }
+
+  /**
+   * Record the CONFIRMED lens switch as `ui.feature.lens-select`. The
+   * collapsed target rides BOTH as `value` (the generic feature-value
+   * convention) and as `lens`, the cross-event lens property `ui.app.start`
+   * and the CLI's `cli.scan` / `cli.config` share, so one PostHog breakdown
+   * covers every lens signal. Third-party provider ids collapse here.
+   */
+  trackLensSelect(lens: string, source: TUsageFeatureSource): void {
+    const collapsed = qualifyPluginForUsage(lens);
+    captureUiUsage('ui.feature.lens-select', {
+      value: collapsed,
+      lens: collapsed,
+      source,
+      $screen_name: `lens-select:${collapsed}@${source}`,
+    });
+  }
+
+  /**
+   * Record a map-toolbox filter gesture as ONE `ui.filter` event carrying
+   * `group` (the filter family) and, for the valued families, `value`
+   * (`spec/telemetry.md` §Usage event taxonomy). Kind values collapse
+   * through {@link qualifyKindForUsage} (the registry is plugin-extensible);
+   * severity / link values are closed unions and pass verbatim. Callers
+   * emit on the USER gesture only, never on an auto-clear or URL restore.
+   */
+  trackFilter(group: TUsageFilterGroup, value?: string): void {
+    const props: Record<string, unknown> = { group };
+    let screen: string = group;
+    if (value !== undefined) {
+      const safe = group === 'kind' ? qualifyKindForUsage(value) : value;
+      props['value'] = safe;
+      screen = `${group}:${safe}`;
+    }
+    // `$screen_name` mirrors group:value so PostHog's URL / Screen column
+    // reads the gesture at a glance (spec/telemetry.md §Usage event taxonomy).
+    props['$screen_name'] = screen;
+    captureUiUsage('ui.filter', props);
+  }
+
+  /**
+   * Record a committed Settings plugins Apply as `plugin.apply`, the same
+   * event the CLI's `sm plugins enable / disable` emits (spec/telemetry.md
+   * §Usage event taxonomy). The toggle deltas collapse through the pure
+   * collector (`buildPluginApplyProperties`); a batch with no toggle
+   * (settings-only edits) emits nothing. No-op while dormant.
+   */
+  trackPluginApply(changes: ReadonlyArray<IPluginToggleChange>): void {
+    const props = buildPluginApplyProperties(changes);
+    if (props === null) return;
+    // The collapsed toggled ids double as `$screen_name`, each suffixed
+    // with the state the apply SET (`<id>:true|false`), so the URL /
+    // Screen column reads the whole apply (already third-party-safe).
+    captureUiUsage('plugin.apply', {
+      ...props,
+      $screen_name: [
+        ...props.enabled.map((id) => `${id}:true`),
+        ...props.disabled.map((id) => `${id}:false`),
+      ].join(' '),
+    });
   }
 
   /**
@@ -66,16 +270,4 @@ export class UsageTrackerService {
       theme_extra: this.theme.extraTheme() ?? 'none',
     });
   }
-}
-
-/**
- * Map a router URL to its `ui.view.<view>` name suffix (`workspace`), or
- * `null` when the route is not tracked. The suffix is a closed set from the
- * route table, never user input, so the PostHog event catalog stays bounded.
- * Path prefix only; the query string is never read so no filter state leaks.
- */
-export function viewNameFor(url: string): 'workspace' | null {
-  const path = url.split('?')[0] ?? '';
-  if (path === '/') return 'workspace';
-  return null;
 }

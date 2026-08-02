@@ -13,6 +13,7 @@ import { MapVisibilityService } from '../../../services/map-visibility';
 import { setupEdgeResize } from '../../core/edge-resize.controller';
 import { handleRovingTablistKeydown } from '../../core/roving-tablist';
 import { MAP_ISOLATE_INTENT, type IMapIsolateIntent } from '../../slots/map-isolate-intent';
+import { UsageTrackerService } from '../../services/usage-tracker';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import { FilesView } from '../files-view/files-view';
 import { GraphView } from '../graph-view/graph-view';
@@ -92,6 +93,7 @@ export class WorkspaceView implements IMapIsolateIntent {
   private readonly loader = inject(CollectionLoaderService);
   private readonly mapVisibility = inject(MapVisibilityService);
   private readonly followSelection = inject(FilesFollowSelectionService);
+  private readonly usageTracker = inject(UsageTrackerService);
 
   protected readonly texts = WORKSPACE_VIEW_TEXTS;
 
@@ -232,6 +234,13 @@ export class WorkspaceView implements IMapIsolateIntent {
    */
   protected openSection(section: TWorkspaceSection): void {
     this.userToggledRail = true;
+    // Usage analytics (opt-in, default OFF): only a gesture that actually
+    // opens the rail or switches the panel counts; re-clicking the already
+    // open tab is a no-op and the corpus-size auto-open never routes here.
+    // See spec/telemetry.md §Usage event taxonomy.
+    if (this.railCollapsed() || this.activeSection() !== section) {
+      this.usageTracker.trackFeature(section);
+    }
     this.setActiveSection(section);
     if (this.railCollapsed()) {
       this.railCollapsed.set(false);
@@ -305,10 +314,12 @@ export class WorkspaceView implements IMapIsolateIntent {
   }
 
   protected onToggleSearchMap(): void {
+    this.usageTracker.trackFeature('files-search-map');
     this.store.toggleSearchAffectsMap();
   }
 
   protected onToggleFilesFollow(): void {
+    this.usageTracker.trackFeature('files-follow-selection');
     this.followSelection.toggle();
   }
 

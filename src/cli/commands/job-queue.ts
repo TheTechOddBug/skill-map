@@ -94,7 +94,11 @@ import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { tryParseInt } from '../util/option-validators.js';
 import { JOBS_QUEUE_TEXTS as T } from '../i18n/jobs-queue.texts.js';
 import { appendOperation } from '../../core/operations-log.js';
-import { addInvocationExtensions, setInvocationScreenName } from '../telemetry/posthog-init.js';
+import {
+  addInvocationExtensions,
+  setInvocationScreenName,
+  suppressInvocationUsage,
+} from '../telemetry/posthog-init.js';
 import { pushJobEvent } from '../util/job-event-push.js';
 import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { readActiveSuppressions } from '../util/sidecar-suppressions.js';
@@ -1201,11 +1205,12 @@ export class JobClaimCommand extends SmCommand {
     claim: { id: string; nonce: string; content: string; job: Job },
     cwd: string,
   ): Promise<TExitCode> {
-    // Usage analytics (opt-in, default OFF): the claimed job's extension
-    // rides the `cli.<verb>` event as `extensions` and as `$screen_name`.
-    // See spec/telemetry.md.
-    addInvocationExtensions([claim.job.extensionId]);
-    setInvocationScreenName(claim.job.extensionId);
+    // Usage analytics (opt-in, default OFF): a SUCCESSFUL claim emits NO
+    // usage event, the paired `cli.record` carries the extension +
+    // `$screen_name` and every claimed job ends in a record (or a reap).
+    // An empty-handed claim still emits a plain `cli.jobs`. See
+    // spec/telemetry.md §Usage event taxonomy.
+    suppressInvocationUsage();
     // Live-transition push (spec/job-events.md §Transport / §job.claimed):
     // the event data is read from the freshly claimed row the engine
     // returned. Runs after the claim committed; cannot throw, never touches

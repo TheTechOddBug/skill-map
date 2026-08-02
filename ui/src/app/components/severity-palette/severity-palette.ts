@@ -7,6 +7,7 @@ import { SEVERITY_PALETTE_TEXTS } from '../../../i18n/severity-palette.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService, type TSeverityFilter } from '../../../services/filter-store';
 import { IssuePathsService } from '../../../services/issue-paths';
+import { UsageTrackerService } from '../../services/usage-tracker';
 
 /**
  * Floating palette for filtering graph nodes by audit severity tier.
@@ -42,6 +43,7 @@ export class SeverityPalette {
   private readonly loader = inject(CollectionLoaderService);
   private readonly filters = inject(FilterStoreService);
   private readonly issuePaths = inject(IssuePathsService);
+  private readonly usageTracker = inject(UsageTrackerService);
 
   protected readonly texts = SEVERITY_PALETTE_TEXTS;
 
@@ -111,6 +113,9 @@ export class SeverityPalette {
   }
 
   toggle(tier: TSeverityFilter): void {
+    // Usage analytics (opt-in, default OFF): gesture-only, the auto-clear
+    // effect above bypasses this method on purpose.
+    this.usageTracker.trackFilter('severity', tier);
     this.filters.toggleSeverity(tier);
   }
 }

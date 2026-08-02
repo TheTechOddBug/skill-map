@@ -60,6 +60,7 @@ import {
   type TQuickStartStatus,
   mcpRegisterSnippet,
 } from '../../../i18n/quick-start.texts';
+import { UsageTrackerService } from '../../services/usage-tracker';
 import type {
   IActivityCaptureStatusApi,
   IActivityInstallStatusApi,
@@ -126,6 +127,7 @@ export class QuickStartModal {
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly confirmation = inject(ConfirmationService);
   private readonly projectInfo = inject(ProjectInfoService);
+  private readonly usageTracker = inject(UsageTrackerService);
   private readonly providerRegistry = inject(ProviderRegistryService);
   private readonly document = inject(DOCUMENT);
   private readonly activityReadiness = inject(ActivityReadinessService);
@@ -355,8 +357,45 @@ export class QuickStartModal {
     () => this.preferencesProbe.value() === null || this.isPending('follow'),
   );
 
+  // Usage analytics (opt-in, default OFF): every action row emits on the
+  // USER gesture, stamped `@quick-start` when Settings exposes the same
+  // action so the two paths stay comparable (spec/telemetry.md §Usage
+  // event taxonomy). The wrapper methods exist because the template used
+  // to call the row handles directly.
+
+  protected onLiveRowToggle(): void {
+    this.usageTracker.trackFeature('live-updates', !this.liveRow.enabled(), 'quick-start');
+    this.liveRow.toggle();
+  }
+
+  protected onRealtimeRowToggle(): void {
+    this.usageTracker.trackFeature('realtime-activity', !this.realtimeRow.enabled(), 'quick-start');
+    this.realtimeRow.toggle();
+  }
+
+  protected onHookRowRun(): void {
+    const installed = this.hookRow.status()?.installed === true;
+    this.usageTracker.trackFeature(
+      installed ? 'hook-uninstall' : 'hook-install',
+      undefined,
+      'quick-start',
+    );
+    this.hookRow.run();
+  }
+
+  protected onSkillRowRun(): void {
+    const installed = this.skillRow.status()?.installed === true;
+    this.usageTracker.trackFeature(
+      installed ? 'skill-update' : 'skill-install',
+      undefined,
+      'quick-start',
+    );
+    this.skillRow.run();
+  }
+
   protected onFollowSymlinksToggle(): void {
     const next = !this.followSymlinks();
+    this.usageTracker.trackFeature('follow-symlinks', next, 'quick-start');
     // Enabling EXPANDS the scan surface, so the BFF answers 412 and we
     // surface the consent dialog; disabling narrows it and persists directly.
     void this.runPreferencePatch(
@@ -506,6 +545,7 @@ export class QuickStartModal {
 
   protected onCaptureToggle(): void {
     const next = !this.captureEnabled();
+    this.usageTracker.trackFeature('capture-conversations', next, 'quick-start');
     const t = this.texts.rows.capture;
     this.confirmation.confirm({
       header: next ? t.enableConfirmHeader : t.disableConfirmHeader,
@@ -568,6 +608,7 @@ export class QuickStartModal {
   );
 
   protected onMcpServerEnable(): void {
+    this.usageTracker.trackFeature('mcp-server', true, 'quick-start');
     void this.runPreferencePatch('mcp-pref', { mcpServerEnabled: true }).then((ok) => {
       if (ok) this.mcpRestartPending.set(true);
     });
@@ -663,6 +704,7 @@ export class QuickStartModal {
 
   /** Run the live MCP-connection probe and land its verdict on the row. */
   protected async onCheckMcpConnection(): Promise<void> {
+    this.usageTracker.trackFeature('mcp-check');
     this.mcpChecking.set(true);
     try {
       const res = await this.dataSource.mcpStatus();
@@ -678,6 +720,7 @@ export class QuickStartModal {
   }
 
   protected async onCopyMcpSnippet(): Promise<void> {
+    this.usageTracker.trackFeature('mcp-copy');
     try {
       await navigator.clipboard.writeText(this.mcpSnippet().payload);
       this.mcpCopied.set(true);
@@ -822,6 +865,7 @@ export class QuickStartModal {
   });
 
   protected onAgentJobsCheck(): void {
+    this.usageTracker.trackFeature('agent-jobs-check', undefined, 'quick-start');
     void this.runPingCheck();
   }
 

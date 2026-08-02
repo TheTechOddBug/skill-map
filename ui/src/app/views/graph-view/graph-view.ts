@@ -64,7 +64,6 @@ import { PerfHud } from '../../components/perf-hud/perf-hud';
 /* ViewContributionsHost: real graph.node.alert slot mount (also ringed by the kept debug-slots overlay; see context/ui.md). */
 import { ViewContributionsHost } from '../../components/view-contributions-host/view-contributions-host';
 import { DebugPerfService } from '../../services/debug-perf';
-import { UsageTrackerService } from '../../services/usage-tracker';
 import { A11yAnnouncerService } from '../../services/a11y-announcer';
 import { pathBasenameForLink } from '../../../services/path-basename';
 import { InspectorView } from '../inspector-view/inspector-view';
@@ -198,7 +197,6 @@ export class GraphView implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly dagreLayout = inject(DagreLayoutEngine);
   private readonly injector = inject(Injector);
-  private readonly usageTracker = inject(UsageTrackerService);
   protected readonly nodeActivity = inject(NodeActivityService);
   private readonly activityStats = inject(NodeActivityStatsService);
   private readonly agentSpawns = inject(AgentSpawnService);
@@ -871,9 +869,6 @@ export class GraphView implements OnInit {
   selectNode(node: IGraphNode, event: MouseEvent): void {
     if (!this.nodeDrag.isClickWithoutDrag(event)) return;
     this.applySelection(node.id);
-    // Opening the node inspector is a tracked feature usage (no node id,
-    // path, or title is ever sent, only the `inspector` surface enum).
-    this.usageTracker.trackFeature('inspector');
   }
 
   /**
@@ -1004,7 +999,6 @@ export class GraphView implements OnInit {
   selectNodeByKeyboard(node: IGraphNode, event: Event): void {
     event.preventDefault();
     this.applySelection(node.id);
-    this.usageTracker.trackFeature('inspector');
   }
 
   /** Display name for a node host (frontmatter name, else a friendly basename). */

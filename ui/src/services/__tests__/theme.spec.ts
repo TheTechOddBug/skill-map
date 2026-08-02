@@ -153,7 +153,7 @@ describe('ThemeService', () => {
 
     it('serves the retinted mark of every extra theme, and falls back on clear', () => {
       const svc = TestBed.inject(ThemeService);
-      for (const id of ['matrix', 'neon', 'neon-green', 'neon-red'] as const) {
+      for (const id of ['matrix', 'neon-blue', 'neon-green', 'neon-red'] as const) {
         svc.setExtraTheme(id);
         expect(svc.markSrc()).toBe(`skill-map-mark-${id}.svg`);
       }
@@ -183,6 +183,14 @@ describe('ThemeService', () => {
       localStorage.setItem(EXTRA_STORAGE_KEY, 'synthwave');
       const svc = TestBed.inject(ThemeService);
       expect(svc.extraTheme()).toBe(null);
+    });
+
+    it('remaps the legacy bare neon id to neon-blue', () => {
+      localStorage.setItem(EXTRA_STORAGE_KEY, 'neon');
+      const svc = TestBed.inject(ThemeService);
+      expect(svc.extraTheme()).toBe('neon-blue');
+      TestBed.tick();
+      expect(doc.documentElement.classList.contains('app-neon')).toBe(true);
     });
 
     it('setExtraTheme(matrix) forces the dark classes even when mode is light', () => {
@@ -225,7 +233,7 @@ describe('ThemeService', () => {
 
     it('every extra theme declares and swaps to its own favicon', () => {
       const svc = TestBed.inject(ThemeService);
-      for (const id of ['neon', 'neon-green', 'neon-red', 'matrix'] as const) {
+      for (const id of ['neon-blue', 'neon-green', 'neon-red', 'matrix'] as const) {
         svc.setExtraTheme(id);
         TestBed.tick();
         expect(faviconLink.getAttribute('href')).toBe(`favicon-${id}.svg`);

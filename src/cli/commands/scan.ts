@@ -15,7 +15,7 @@ import { relativeIfBelow } from '../util/path-display.js';
 import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { appendOperation } from '../../core/operations-log.js';
 import { runScanForCommand } from '../../core/runtime/scan-runner.js';
-import { addInvocationExtensions } from '../telemetry/posthog-init.js';
+import { addInvocationExtensions, setInvocationLens } from '../telemetry/posthog-init.js';
 import { parseWatchBackend, runWatchLoop } from './watch.js';
 
 /**
@@ -186,11 +186,7 @@ export class ScanCommand extends SmCommand {
     });
 
     if (outcome.kind === 'ok') {
-      // Usage analytics (opt-in, default OFF). Stash the set of extractors
-      // that ran (third-party ids collapse to `external_plugin` at emit,
-      // presence only) so the single `cli.<verb>` event emitted at exit
-      // carries it as `extensions`. See spec/telemetry.md.
-      addInvocationExtensions(outcome.executedExtensionIds);
+      stashScanUsage(outcome.executedExtensionIds, outcome.lensAutoDetected);
       if (!this.dryRun) {
         appendOperation(defaultRuntimeContext().cwd, {
           op: 'scan',
@@ -663,5 +659,23 @@ function capOverrides(
   if (caps.maxScan !== undefined) out.maxScan = caps.maxScan;
   if (caps.maxNodes !== undefined) out.maxNodes = caps.maxNodes;
   return out;
+}
+
+/**
+ * Usage analytics (opt-in, default OFF). Stash the set of extractors that
+ * ran (third-party ids collapse to `external_plugin` at emit, presence
+ * only) so the single `cli.<verb>` event emitted at exit carries it as
+ * `extensions`. A FRESH lens resolution (markers autodetect, or the
+ * ambiguity prompt's pick; never a config read) additionally rides as
+ * `lens` + `lens_source`. See spec/telemetry.md §Usage event taxonomy.
+ */
+function stashScanUsage(
+  executedExtensionIds: readonly string[],
+  freshLens: string | null | undefined,
+): void {
+  addInvocationExtensions(executedExtensionIds);
+  if (freshLens !== null && freshLens !== undefined) {
+    setInvocationLens(freshLens, 'autodetect');
+  }
 }
 

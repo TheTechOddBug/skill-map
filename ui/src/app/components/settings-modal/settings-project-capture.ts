@@ -41,6 +41,7 @@ import { MessageModule } from 'primeng/message';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
+import { UsageTrackerService } from '../../services/usage-tracker';
 import type { IActivityCaptureStatusApi } from '../../../models/api';
 import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
 import { ActivityReadinessService } from '../../services/activity-readiness';
@@ -56,6 +57,7 @@ import { formatErr } from './settings-project.utils';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SettingsProjectCapture {
+  private readonly usageTracker = inject(UsageTrackerService);
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly confirmation = inject(ConfirmationService);
   private readonly activityReadiness = inject(ActivityReadinessService);
@@ -124,6 +126,7 @@ export class SettingsProjectCapture {
   }
 
   protected onCaptureToggle(next: boolean): void {
+    this.usageTracker.trackFeature('capture-conversations', next, 'settings');
     if (next === this.captureEnabled()) return;
     this.captureEnabledView.set(next);
     const t = this.texts.project.activityCapture;

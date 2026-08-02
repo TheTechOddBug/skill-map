@@ -143,9 +143,14 @@ abstract class TogglePluginsBase extends SmCommand {
     await this.#persistKeys(keys, enabled);
     // Usage analytics (opt-in, default OFF; no-op unless active): record which
     // plugins were enabled / disabled. Built-in qualified ids pass through,
-    // third-party collapse to `external_plugin`. See spec/telemetry.md.
+    // third-party collapse to `external_plugin`; `$screen_name` mirrors the
+    // set with the state suffixed (`<id>:true|false`) so PostHog's URL /
+    // Screen column reads the whole apply. See spec/telemetry.md.
     const set = buildUsageExtensionSet(keys);
-    captureUsage('plugin.apply', enabled ? { enabled: set, disabled: [] } : { enabled: [], disabled: set });
+    captureUsage('plugin.apply', {
+      ...(enabled ? { enabled: set, disabled: [] } : { enabled: [], disabled: set }),
+      $screen_name: set.map((id) => `${id}:${enabled}`).join(' '),
+    });
     this.#renderSuccess(keys, enabled);
     return ExitCode.Ok;
   }

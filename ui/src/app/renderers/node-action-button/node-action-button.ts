@@ -12,6 +12,7 @@ import { TooltipModule } from 'primeng/tooltip';
 import type { IRendererInputs } from '../../slots/slot-renderer-map';
 import { resolveIcon } from '../../slots/icon';
 import { ActionDispatchService } from '../../../services/action-dispatch';
+import { UsageTrackerService } from '../../services/usage-tracker';
 import { ActionPromptDialog } from './action-prompt-dialog';
 import type { IInputTypeDescriptor } from '../input-type-control/input-type-control';
 import type { TInputTypeValue } from '../input-type-control/input-type-control';
@@ -158,6 +159,7 @@ export class NodeActionButton {
   protected readonly texts = NODE_ACTION_BUTTON_TEXTS;
 
   private readonly dispatcher = inject(ActionDispatchService);
+  private readonly usageTracker = inject(UsageTrackerService);
 
   private readonly inFlightSig = signal<boolean>(false);
   private readonly errorSig = signal<string | null>(null);
@@ -293,6 +295,9 @@ export class NodeActionButton {
     const actionId = this.actionId();
     const nodePath = this.inputs().nodePath;
     if (!actionId || !nodePath) return;
+    // Usage analytics (opt-in, default OFF): one event per real dispatch,
+    // action id collapsed in the tracker; the prompt value never rides.
+    this.usageTracker.trackNodeAction(actionId);
     this.errorSig.set(null);
     this.inFlightSig.set(true);
     try {

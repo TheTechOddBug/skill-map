@@ -39,6 +39,7 @@ import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { MessageModule } from 'primeng/message';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
+import { UsageTrackerService } from '../../services/usage-tracker';
 import type { IActivityInstallStatusApi } from '../../../models/api';
 import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
 import { ProviderRegistryService } from '../../../services/provider-registry';
@@ -55,6 +56,7 @@ import { formatErr } from './settings-project.utils';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SettingsProjectHook {
+  private readonly usageTracker = inject(UsageTrackerService);
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly confirmation = inject(ConfirmationService);
   private readonly providerRegistry = inject(ProviderRegistryService);
@@ -141,6 +143,13 @@ export class SettingsProjectHook {
   protected onActivityHookToggle(): void {
     const status = this.activityStatus();
     if (status === null || !status.supported) return;
+    // Usage analytics (opt-in, default OFF): gesture-level, stamped with
+    // the surface since Quick Start exposes the same install.
+    this.usageTracker.trackFeature(
+      status.installed ? 'hook-uninstall' : 'hook-install',
+      undefined,
+      'settings',
+    );
     void this.runActivityMutation(status.installed ? 'uninstall' : 'install');
   }
 

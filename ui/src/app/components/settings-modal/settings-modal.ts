@@ -37,6 +37,7 @@ import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { DialogModule } from 'primeng/dialog';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
+import { UsageTrackerService } from '../../services/usage-tracker';
 import type { IPluginItemApi } from '../../../models/api';
 import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
 import { SettingsAbout } from './settings-about';
@@ -170,6 +171,7 @@ export class SettingsModal {
 
   private readonly confirmation = inject(ConfirmationService);
   private readonly dataSource = inject(DATA_SOURCE);
+  private readonly usageTracker = inject(UsageTrackerService);
   /**
    * Coordination point for buffered sub-surfaces. The Plugins panel and
    * every plugin section register their dirty-state contract on
@@ -345,6 +347,11 @@ export class SettingsModal {
   }
 
   protected selectSection(id: TSettingsSection): void {
+    // Usage analytics (opt-in, default OFF): of the tab strip only the
+    // Changelog / About entries are tracked (user decision; the working
+    // tabs' usage is already visible through their own gestures).
+    if (id === 'changelog') this.usageTracker.trackFeature('settings-changelog');
+    if (id === 'about') this.usageTracker.trackFeature('settings-about');
     this.activeSection.set(id);
     storeSection(id);
   }

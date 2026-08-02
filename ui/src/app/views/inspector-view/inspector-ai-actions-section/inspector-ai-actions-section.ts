@@ -20,6 +20,7 @@ import { shortExtensionLabel } from '../../../../models/extension-label';
 import { ProviderRegistryService } from '../../../../services/provider-registry';
 import { A11yAnnouncerService } from '../../../services/a11y-announcer';
 import { AgentPingService } from '../../../services/agent-ping';
+import { UsageTrackerService } from '../../../services/usage-tracker';
 import { ProcessingAgentReadinessService } from '../../../services/processing-agent-readiness';
 import { ProjectInfoService } from '../../../services/project-info';
 import { CollapsibleSection } from '../../../components/collapsible-section/collapsible-section';
@@ -61,6 +62,7 @@ export class InspectorAiActionsSection {
   private readonly projectInfo = inject(ProjectInfoService);
   private readonly agentPing = inject(AgentPingService);
   private readonly announcer = inject(A11yAnnouncerService);
+  private readonly usageTracker = inject(UsageTrackerService);
 
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
 
@@ -139,6 +141,9 @@ export class InspectorAiActionsSection {
 
   protected onCheckAgentConnection(): void {
     if (this.agentCheckState() !== 'idle') return;
+    // Usage analytics (opt-in, default OFF): same full-circuit probe the
+    // Quick Start row runs, so the same event, this surface stamped.
+    this.usageTracker.trackFeature('agent-jobs-check', undefined, 'inspector');
     this.agentCheckState.set('checking');
     // The skill probe rides along so a stale read refreshes too, but
     // the VERDICT is the ping's: the full circuit, submit through an
@@ -226,6 +231,7 @@ export class InspectorAiActionsSection {
     // with nothing able to drain the queue there is no next click, so
     // flipping it would be setting up work that cannot run.
     if (this.submitGateClosed()) return;
+    this.usageTracker.trackFeature('auto-fixer', value);
     this.autoFixState.set(value);
   }
 
@@ -358,6 +364,13 @@ export class InspectorAiActionsSection {
    * already-open finding lives on the finding row, not here.
    */
   protected onLauncherClick(entry: IProbExtensionEntryApi, isFinder: boolean): void {
+    // Usage analytics (opt-in, default OFF): the per-action launch gesture,
+    // with the extension id collapsed in the tracker. The ALL buttons emit
+    // their own single gesture in `onLauncherAllGroup`, never one per entry.
+    this.usageTracker.trackAiAction(
+      entry.id,
+      isFinder && this.finderActionMode(entry) === 'detectAndFix',
+    );
     void this.launcherSubmit(entry, isFinder);
   }
 
@@ -387,6 +400,7 @@ export class InspectorAiActionsSection {
    * between two finders of the same batch.
    */
   protected onLauncherAllGroup(groupId: 'finders' | 'standalone'): void {
+    this.usageTracker.trackFeature('ai-action-all', groupId);
     void (async (): Promise<void> => {
       const group = this.aiActionLauncherGroups().find((g) => g.id === groupId);
       if (group === undefined) return;

@@ -616,8 +616,8 @@ describe('the canonical sm-process-jobs skill, fixer-edit guidance', () => {
     // roots are directories, so a file path errors out. The working
     // instruction is the incremental full scan.
     ok(
-      PROCESS_JOBS_SKILL_CONTENT.includes('run `sm scan --changed`'),
-      'names the incremental scan, never the dry-run -n flag',
+      PROCESS_JOBS_SKILL_CONTENT.includes('run `SM_AGENT=1 sm scan --changed`'),
+      'names the incremental scan, agent-marked for telemetry, never the dry-run -n flag',
     );
     ok(
       !PROCESS_JOBS_SKILL_CONTENT.includes('sm scan -n'),

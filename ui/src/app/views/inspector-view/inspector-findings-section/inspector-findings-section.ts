@@ -25,6 +25,11 @@ import {
   type IDataSourcePort,
 } from '../../../../services/data-source/data-source.port';
 import { ProcessingAgentReadinessService } from '../../../services/processing-agent-readiness';
+import { UsageTrackerService } from '../../../services/usage-tracker';
+import {
+  qualifyFindingTypeForUsage,
+  qualifyMaybePluginValue,
+} from '../../../core/telemetry/usage-collector';
 import { CollapsibleSection } from '../../../components/collapsible-section/collapsible-section';
 import {
   issueDismissValue,
@@ -53,6 +58,7 @@ import {
 export class InspectorFindingsSection {
   private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
   private readonly processingAgent = inject(ProcessingAgentReadinessService);
+  private readonly usageTracker = inject(UsageTrackerService);
 
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
 
@@ -230,7 +236,11 @@ export class InspectorFindingsSection {
     return this.issueFixBusy(fixer) || this.submitGateClosed();
   }
 
-  protected fixIssue(fixer: IIssueFixerEntryApi): void {
+  protected fixIssue(fixer: IIssueFixerEntryApi, analyzerId: string): void {
+    // Usage analytics (opt-in, default OFF): the fix gesture carries WHAT
+    // it fixes (the analyzer id, plugin-qualified ids collapse); never the
+    // node or the issue content.
+    this.usageTracker.trackFeature('finding-fix', qualifyMaybePluginValue(analyzerId));
     void this.aiActions().submit(fixer.id);
   }
 
@@ -243,6 +253,7 @@ export class InspectorFindingsSection {
 
   /** Dismiss a deterministic issue for its exact (analyzer, value) key. */
   protected dismissIssue(issue: IIssueApi): void {
+    this.usageTracker.trackFeature('finding-dismiss', qualifyMaybePluginValue(issue.analyzerId));
     void this.aiActions().dismissIssue(issue);
   }
 
@@ -253,19 +264,29 @@ export class InspectorFindingsSection {
 
   /** Direct dismiss (no prompt): one click hides the class, reversible. */
   protected dismissAiActionFinding(finding: IFindingApi): void {
+    this.usageTracker.trackFeature('finding-dismiss', this.findingTypeForUsage(finding));
     void this.aiActions().dismissFinding(finding);
   }
 
   protected resolveAiActionFinding(finding: IFindingApi): void {
+    this.usageTracker.trackFeature('finding-resolve', this.findingTypeForUsage(finding));
     void this.aiActions().resolveFinding(finding);
   }
 
+  /** The finding TYPE a lifecycle gesture may report (collapse rules in
+   *  the collector); never the node, id, or content. */
+  private findingTypeForUsage(finding: IFindingApi): string {
+    return qualifyFindingTypeForUsage(finding.type, finding.extensionId, finding.origin);
+  }
+
   protected restoreAiActionFinding(finding: IFindingApi): void {
+    this.usageTracker.trackFeature('finding-restore');
     void this.aiActions().restoreFinding(finding);
   }
 
   /** Hard-delete a revealed dismissed / fixed row from the DB. */
   protected deleteAiActionFinding(finding: IFindingApi): void {
+    this.usageTracker.trackFeature('finding-delete');
     void this.aiActions().deleteFinding(finding);
   }
 
@@ -304,6 +325,9 @@ export class InspectorFindingsSection {
   protected fixAiActionFinding(finding: IFindingApi): void {
     const entry = this.findingFinderEntry(finding);
     if (entry === null) return;
+    // The finding TYPE it fixes rides as value (e.g. `incoherence`); a
+    // third-party finder's vocabulary collapses with its plugin.
+    this.usageTracker.trackFeature('finding-fix', this.findingTypeForUsage(finding));
     void this.aiActions().submitFixers(entry.id, entry.fixerIds, [finding.id]);
   }
 
@@ -361,6 +385,12 @@ export class InspectorFindingsSection {
   }
 
   protected toggleAiActionBucket(bucket: TFindingsBucket): void {
+    // Usage analytics (opt-in, default OFF): only the REVEAL counts (the
+    // operator looking at what already happened); re-clicking to hide,
+    // or the implicit close when another bucket opens, never emits.
+    if (this.aiActions().revealedBucket() !== bucket) {
+      this.usageTracker.trackFeature('findings-reveal', bucket);
+    }
     void this.aiActions().toggleBucket(bucket);
   }
 

@@ -49,6 +49,7 @@ import { effectiveUserTags } from '../../../models/node-derived';
 import { ProcessingAgentReadinessService } from '../../services/processing-agent-readiness';
 import { DebugSurface } from '../../slots/debug-surface.directive';
 import { ActionDispatchService } from '../../../services/action-dispatch';
+import { UsageTrackerService } from '../../services/usage-tracker';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import {
   InputTypeControl,
@@ -138,6 +139,7 @@ export class NodeTags {
 
   private readonly dispatcher = inject(ActionDispatchService);
   private readonly loader = inject(CollectionLoaderService);
+  private readonly usageTracker = inject(UsageTrackerService);
   private readonly processingAgent = inject(ProcessingAgentReadinessService);
 
   /**
@@ -292,6 +294,9 @@ export class NodeTags {
 
   /** Enter edit mode, seeding the draft with the current tags. */
   protected startEdit(): void {
+    // Usage analytics (opt-in, default OFF): the PENCIL gesture only;
+    // the auto-tag proposal's programmatic open never emits.
+    this.usageTracker.trackFeature('tags-edit');
     this.openEditor([...this.tags()]);
   }
 
@@ -326,6 +331,9 @@ export class NodeTags {
   protected async save(): Promise<void> {
     const path = this.nodePath();
     if (!path || this.inFlightSig()) return;
+    // Usage analytics (opt-in, default OFF): the committed edit; tag
+    // VALUES never ride, only the gesture.
+    this.usageTracker.trackFeature('tags-save');
     this.errorSig.set(null);
     this.inFlightSig.set(true);
     try {

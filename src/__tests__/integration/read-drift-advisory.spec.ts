@@ -33,6 +33,8 @@ import { HistoryCommand } from '../../cli/commands/history.js';
 import { FindingsCommand, FindingsPruneCommand } from '../../cli/commands/findings.js';
 import { JobClaimCommand, JobFailCommand, JobSubmitCommand } from '../../cli/commands/job-queue.js';
 import { RecordCommand } from '../../cli/commands/record.js';
+import { DbSchemaDriftError } from '../../core/sqlite/db-version-check.js';
+import { assertNoDriftForWrite } from '../../core/sqlite/db-version-runner.js';
 import { PluginsTrustCommand } from '../../cli/commands/plugins/trust.js';
 import { PluginsEnableCommand } from '../../cli/commands/plugins/toggle.js';
 import { ExitCode } from '../../cli/util/exit-codes.js';
@@ -113,25 +115,18 @@ function dropFindingsModelColumn(dbPath: string): void {
 }
 
 /**
- * Persist a scan stamped by an OLDER minor of the CLI (fingerprint left
- * CURRENT, so the VERSION axis is the sole drift source). Exercises the
- * write-gate's version leg.
+ * Persist a genuinely CURRENT scan (version stamp + fingerprint both
+ * current, no tampering). The version-axis write-gate case pairs it
+ * with a gate run AS a newer CLI, making this stamp the older minor.
  */
-async function seedOlderMinorDb(dbPath: string): Promise<string> {
-  const parsed = /^(\d+)\.(\d+)\.(\d+)/.exec(VERSION);
-  const major = Number(parsed![1]);
-  const minor = Number(parsed![2]);
-  const olderVersion = `${major}.${Math.max(0, minor - 1)}.0`;
-  const result = makeScanResult();
-  result.scannedBy = { name: 'skill-map', version: olderVersion, specVersion: '1.0.0' };
+async function seedCurrentDb(dbPath: string): Promise<void> {
   const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
   await adapter.init();
   try {
-    await adapter.scans.persist(result);
+    await adapter.scans.persist(makeScanResult());
   } finally {
     await adapter.close();
   }
-  return olderVersion;
 }
 
 /** Persist a scan (stamps version + fingerprint), then tamper the fingerprint. */
@@ -443,24 +438,28 @@ describe('drift hygiene: reads convert failures, writes refuse early', () => {
 
   it('the VERSION axis alone (older-minor DB, current fingerprint) refuses writes too', async () => {
     const dbPath = freshDbPath('submit-version-drift');
-    const olderVersion = await seedOlderMinorDb(dbPath);
+    await seedCurrentDb(dbPath);
+    // An older minor BELOW the running version cannot be constructed when
+    // the checkout sits on a x.0.z (the 1.0.x stable line detonated the
+    // old downward `minor - 1` seeding: the clamp produced a same-minor
+    // patch skew, which classifies `ok`). So the skew is built UPWARD:
+    // the DB keeps its genuine current stamp + fingerprint, and the gate
+    // runs as the NEXT minor of the CLI, to whom that stamp is one minor
+    // older. Gate-level on purpose; the verb wiring (submit refuses with
+    // exit 2 and the advisory BEFORE resolution) is covered by the
+    // fingerprint-axis cases above.
+    const parsed = /^(\d+)\.(\d+)\./.exec(VERSION);
+    const nextMinorCli = `${parsed![1]}.${Number(parsed![2]) + 1}.0`;
 
-    const cmd = new JobSubmitCommand();
-    cmd.db = dbPath;
-    cmd.extension = 'anything';
-    cmd.node = 'a.md';
-    cmd.all = false;
-    cmd.force = false;
-    cmd.ttl = undefined;
-    cmd.priority = undefined;
-    cmd.json = false;
-    const cap = captureContext();
-    cmd.context = cap.context;
-    const code = await cmd.execute();
-
-    assert.equal(code, 2, 'a minor difference is drift for writes (reads only warn)');
-    assert.match(cap.stderr(), /cannot be written safely/);
-    assert.ok(cap.stderr().includes(olderVersion), 'advisory names the writing version');
+    assert.throws(
+      () => assertNoDriftForWrite(dbPath, nextMinorCli),
+      (err: unknown) => {
+        assert.ok(err instanceof DbSchemaDriftError, 'a minor difference is drift for writes (reads only warn)');
+        assert.match(err.humanMessage, /cannot be written safely/);
+        assert.ok(err.humanMessage.includes(VERSION), 'advisory names the writing version');
+        return true;
+      },
+    );
   });
 });
 

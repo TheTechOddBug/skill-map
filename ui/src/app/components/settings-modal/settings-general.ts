@@ -40,6 +40,7 @@ import {
   DataSourceError,
 } from '../../../services/data-source/data-source.port';
 import { ThemeService, type TExtraTheme } from '../../../services/theme';
+import { UsageTrackerService } from '../../services/usage-tracker';
 import { EXTRA_THEMES } from '../../../themes/registry';
 import { ToggleRowDirective } from './toggle-row.directive';
 
@@ -121,6 +122,7 @@ function fromExtraThemeWire(value: TExtraThemeWire): TExtraTheme {
 export class SettingsGeneral {
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly themeService = inject(ThemeService);
+  private readonly usageTracker = inject(UsageTrackerService);
 
   /**
    * Section visibility. The chassis flips it true when the General
@@ -229,6 +231,10 @@ export class SettingsGeneral {
    * into `TExtraTheme`.
    */
   protected onExtraThemeChange(next: TExtraThemeWire | null): void {
+    // Usage analytics (opt-in, default OFF): the selected id comes from
+    // the shipped registry (closed set) or the `none` sentinel, safe to
+    // send verbatim. See spec/telemetry.md §Usage event taxonomy.
+    this.usageTracker.trackFeature('theme-extra', next ?? EXTRA_THEME_NONE);
     this.themeService.setExtraTheme(fromExtraThemeWire(next ?? EXTRA_THEME_NONE));
   }
 
@@ -280,6 +286,7 @@ export class SettingsGeneral {
   protected readonly resolutionError = signal<string | null>(null);
 
   protected openResolution(): void {
+    this.usageTracker.trackFeature('settings-resolution');
     this.resolutionOpen.set(true);
     if (this.resolutionRows() === null) void this.loadResolution();
   }

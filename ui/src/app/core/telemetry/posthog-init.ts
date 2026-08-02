@@ -68,6 +68,12 @@ export async function initUiUsage(opts: {
     disable_session_recording: true,
     person_profiles: 'identified_only',
     bootstrap: { distinctID: opts.distinctId },
+    // A local tool's URL is always localhost noise; dropping the SDK's URL
+    // trio frees PostHog's URL / Screen column for the `$screen_name` every
+    // event attaches instead (spec/telemetry.md §Usage event taxonomy). The
+    // scrubber still masks path / search values in the URL-bearing fields
+    // that remain (e.g. $session_entry_url).
+    property_denylist: ['$current_url', '$pathname', '$host'],
     before_send: (event) => (event === null ? null : scrubEvent(event)),
   });
   client = posthog;
@@ -76,8 +82,8 @@ export async function initUiUsage(opts: {
 
 /**
  * Send an allow-listed usage event. A NO-OP until `initUiUsage` has loaded and
- * initialised the SDK (i.e. always, while dormant), so view-tracking callers
- * can fire unconditionally without importing the SDK themselves.
+ * initialised the SDK (i.e. always, while dormant), so tracking callers can
+ * fire unconditionally without importing the SDK themselves.
  */
 export function captureUiUsage(event: string, properties: Record<string, unknown> = {}): void {
   if (client === null) return;

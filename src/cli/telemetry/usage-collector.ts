@@ -46,6 +46,16 @@ export function qualifyExtensionForUsage(qualifiedId: string): string {
 }
 
 /**
+ * Map a BARE plugin id (a Provider / lens id like `claude`, no `/`) to the
+ * value that may leave the machine: unchanged when built-in, the literal
+ * `external_plugin` otherwise. Sibling of {@link qualifyExtensionForUsage},
+ * which expects the qualified `<pluginId>/<id>` shape.
+ */
+export function qualifyPluginIdForUsage(pluginId: string): string {
+  return BUILT_IN_PLUGIN_IDS.has(pluginId) ? pluginId : EXTERNAL_PLUGIN_PLACEHOLDER;
+}
+
+/**
  * Build the `extensions` property the `cli.<verb>` event carries on the
  * verbs that execute or queue extensions (scan's extractor walk, enrich's
  * deterministic pass, the jobs submit / claim / record lifecycle): every
@@ -87,6 +97,20 @@ export function extractFlagNames(args: Iterable<string>): string[] {
  */
 export function cliVerbEventName(verb: string, knownVerbs: ReadonlySet<string>): string {
   return `cli.${knownVerbs.has(verb) ? verb : 'unknown'}`;
+}
+
+/**
+ * Fold the root help / version FLAG spellings onto their verb twins so
+ * `sm --help` reports as `cli.help` and `sm --version` as `cli.version`
+ * (`spec/telemetry.md` §Usage event taxonomy). Their clipanion built-ins
+ * carry no `static usage`, so they sit outside the registered closed set
+ * and were collapsing into `cli.unknown`, polluting the bucket meant for
+ * typos. Any other token passes through untouched.
+ */
+export function normalizeTelemetryVerb(verb: string): string {
+  if (verb === '--help' || verb === '-h') return 'help';
+  if (verb === '--version' || verb === '-v') return 'version';
+  return verb;
 }
 
 /**

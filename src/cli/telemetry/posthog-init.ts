@@ -36,6 +36,7 @@ import {
   cliVerbEventName,
   envUsageProps,
   qualifyExtensionForUsage,
+  qualifyPluginIdForUsage,
 } from './usage-collector.js';
 import { isTelemetryForcedOff } from './sentry-init.js';
 
@@ -64,13 +65,29 @@ export function isUsageKeyConfigured(): boolean {
 }
 
 /**
+ * `true` when the invocation is marked agent-driven (`SM_AGENT` set to any
+ * non-empty value other than `0`). The shipped processing-agent skill marks
+ * its protocol-mandated `sm scan --changed` with it: an agent following the
+ * queue protocol is not operator usage, so the whole usage surface stays
+ * dormant for that invocation (`spec/telemetry.md` §Surface: Usage). The
+ * agent's `sm record` is deliberately NOT marked; the queue lifecycle
+ * signal survives.
+ */
+export function isAgentInvocation(): boolean {
+  const raw = process.env['SM_AGENT'];
+  return raw !== undefined && raw !== '' && raw !== '0';
+}
+
+/**
  * Pure-ish gate (reads env + persisted consent, no side effects). The CLI
  * usage surface is active only when the kill switch is unset, a real key is
- * present, and the operator opted in to CLI usage. Exposed so the decision
- * can be unit-tested without standing up the SDK or the network.
+ * present, the invocation is not agent-driven, and the operator opted in to
+ * CLI usage. Exposed so the decision can be unit-tested without standing up
+ * the SDK or the network.
  */
 export function isUsageCliTelemetryActive(key: string): boolean {
   if (isTelemetryForcedOff()) return false;
+  if (isAgentInvocation()) return false;
   if (key === '') return false;
   return isUsageCliTelemetryEnabled();
 }
@@ -167,6 +184,40 @@ export function setInvocationScreenName(extensionId: string): void {
 }
 
 /**
+ * The lens (active-provider) resolution the in-flight invocation performed,
+ * stashed so the `cli.<verb>` event carries it as `lens` + `lens_source`
+ * (`spec/telemetry.md` §Usage event taxonomy): `autodetect` when a scan
+ * freshly resolved the lens from markers (including the ambiguity prompt's
+ * pick), `set` on an explicit `sm config set activeProvider`. A scan that
+ * merely READ the persisted lens stashes nothing. Third-party collapse
+ * happens at emit.
+ */
+let pendingLens: { id: string; source: 'autodetect' | 'set' } | null = null;
+
+/** Stash the lens resolution for the current invocation (last call wins). */
+export function setInvocationLens(id: string, source: 'autodetect' | 'set'): void {
+  pendingLens = { id, source };
+}
+
+/**
+ * `true` when the in-flight invocation must emit NO usage event. Set by a
+ * successful `sm jobs claim` (`spec/telemetry.md` §Usage event taxonomy):
+ * its execution is fully represented by the paired `cli.record`, and
+ * emitting both doubled the volume of the busiest lifecycle. Read and
+ * cleared at emit, like the stashes.
+ */
+let pendingSuppress = false;
+
+/**
+ * Suppress the usage event for the current invocation. The entry point
+ * still runs its emit path; `captureCliInvocation` clears every pending
+ * stash and returns without capturing.
+ */
+export function suppressInvocationUsage(): void {
+  pendingSuppress = true;
+}
+
+/**
  * Emit the single usage event for this invocation: the event name is
  * `cli.<verb>` (guarded against the registered closed set, unknown collapses
  * to `cli.unknown`), and the properties carry the flag names plus, when the
@@ -184,13 +235,28 @@ export function captureCliInvocation(
       ? buildUsageExtensionSet(pendingInvocationExtensions)
       : null;
   pendingInvocationExtensions = [];
+  const lens = pendingLens;
+  pendingLens = null;
+  const collapsedLens = lens === null ? null : qualifyPluginIdForUsage(lens.id);
+  // The lens rides the URL / Screen column when no queue extension claimed
+  // it (`<lens>@<source>`, e.g. `claude@autodetect`).
   const screenName =
-    pendingScreenName === null ? null : qualifyExtensionForUsage(pendingScreenName);
+    pendingScreenName !== null
+      ? qualifyExtensionForUsage(pendingScreenName)
+      : lens !== null
+        ? `${collapsedLens}@${lens.source}`
+        : null;
   pendingScreenName = null;
-  captureUsage(
-    cliVerbEventName(verb, knownVerbs),
-    buildCliVerbProperties(flagNames, extensions, screenName),
-  );
+  if (pendingSuppress) {
+    pendingSuppress = false;
+    return;
+  }
+  const properties = buildCliVerbProperties(flagNames, extensions, screenName);
+  if (lens !== null && collapsedLens !== null) {
+    properties['lens'] = collapsedLens;
+    properties['lens_source'] = lens.source;
+  }
+  captureUsage(cliVerbEventName(verb, knownVerbs), properties);
 }
 
 /**
@@ -215,4 +281,6 @@ export function resetUsageTelemetryForTests(): void {
   client = null;
   pendingInvocationExtensions = [];
   pendingScreenName = null;
+  pendingSuppress = false;
+  pendingLens = null;
 }

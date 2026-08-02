@@ -22,7 +22,8 @@ import { ProjectInfoService } from './services/project-info';
 import { SmTitleStrategy } from './services/title-strategy';
 import { UpdateCheckService } from './services/update-check';
 import { initUiSentry } from './core/telemetry/sentry-init';
-import { initUiUsage, registerUsageSuperProps } from './core/telemetry/posthog-init';
+import { captureUiUsage, initUiUsage, registerUsageSuperProps } from './core/telemetry/posthog-init';
+import { qualifyPluginForUsage } from './core/telemetry/usage-collector';
 import { CrashReportConsentService } from './core/telemetry/crash-report-consent';
 import { SentryUiErrorHandler } from './core/telemetry/sentry-error-handler';
 import { UsageTrackerService } from './services/usage-tracker';
@@ -182,9 +183,12 @@ export const appConfig: ApplicationConfig = {
       const usageTracker = inject(UsageTrackerService);
       const crashConsent = inject(CrashReportConsentService);
       try {
-        const [preferences, health] = await Promise.all([
+        const [preferences, health, lens] = await Promise.all([
           dataSource.getPreferences(),
           dataSource.health(),
+          // Best-effort lens probe for the `ui.app.start` property; its
+          // own catch so a failure never blocks the consent bootstrap.
+          dataSource.getActiveProvider().catch(() => null),
         ]);
         // Per-incident crash-report consent: the service needs the
         // release / environment facts for a late (accept-time) SDK arm.
@@ -213,6 +217,14 @@ export const appConfig: ApplicationConfig = {
         // (dev / production, from the BFF) and the boot theme.
         registerUsageSuperProps({ environment: preferences.telemetry.environment });
         usageTracker.syncTheme();
+        // Session-presence signal (`spec/telemetry.md` §Usage event
+        // taxonomy): one `ui.app.start` per boot, no-op while dormant,
+        // carrying the active lens (third-party provider ids collapse).
+        // There is deliberately no per-view / per-route event.
+        captureUiUsage('ui.app.start', {
+          $screen_name: 'app-start',
+          ...(lens !== null ? { lens: qualifyPluginForUsage(lens.activeProvider) } : {}),
+        });
       } catch {
         // Consent / version probe is best-effort. A failure means
         // telemetry stays OFF; the app must still boot.

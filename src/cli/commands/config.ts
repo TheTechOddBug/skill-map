@@ -58,6 +58,7 @@ import {
 } from '../../core/config/helper.js';
 import { resolveActiveProvider } from '../../core/config/active-provider.js';
 import { builtIns } from '../../plugins/built-ins.js';
+import { setInvocationLens } from '../telemetry/posthog-init.js';
 import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { closestMatches } from '../util/edit-distance.js';
 import { defaultLocalSettingsPath, defaultSettingsPath, resolveDbPath } from '../util/db-path.js';
@@ -737,6 +738,10 @@ export class ConfigSetCommand extends SmCommand {
     );
 
     if (this.key === 'activeProvider') {
+      // Usage analytics (opt-in, default OFF): the explicit lens switch
+      // rides the `cli.config` event as `lens` + `lens_source: set`
+      // (third-party ids collapse at emit). See spec/telemetry.md.
+      if (typeof value === 'string') setInvocationLens(value, 'set');
       this.announceLensSwitch(ctx.cwd, ansi);
     }
 

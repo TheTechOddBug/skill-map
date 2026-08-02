@@ -46,6 +46,7 @@ import {
 } from '../../../services/data-source/data-source.port';
 import { WsEventStreamService } from '../../../services/ws-event-stream';
 import { A11yAnnouncerService } from '../../services/a11y-announcer';
+import { UsageTrackerService, type TUsageFeatureSurface } from '../../services/usage-tracker';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import { QUEUE_VIEW_TEXTS } from '../../../i18n/queue-view.texts';
 
@@ -144,6 +145,7 @@ export class QueueView {
   private readonly nodeOpenIntent = inject(NODE_OPEN_INTENT);
   private readonly confirmation = inject(ConfirmationService);
   private readonly announcer = inject(A11yAnnouncerService);
+  private readonly usageTracker = inject(UsageTrackerService);
   protected readonly texts = QUEUE_VIEW_TEXTS;
 
   /** Fixed page size for the bottom paginator (the queue pages by 100). */
@@ -494,6 +496,10 @@ export class QueueView {
    */
   protected async cancel(row: IQueueRow): Promise<void> {
     if (this.cancelling().has(row.id)) return;
+    // Usage analytics (opt-in, default OFF): the cancel GESTURE counts,
+    // regardless of the race with the job finishing server-side. No job
+    // id, node, or extension rides the event.
+    this.usageTracker.trackFeature('job-cancel');
     this.cancelling.update((s) => withAdded(s, row.id));
     this.optimisticCancelled.update((s) => withAdded(s, row.id));
     try {
@@ -542,21 +548,21 @@ export class QueueView {
 
   /** Confirm + cancel every active job (`sm jobs cancel --all`). */
   protected confirmCancelAll(): void {
-    this.confirmBulk(this.texts.bulk.cancelAll, this.activeCount(), () =>
+    this.confirmBulk(this.texts.bulk.cancelAll, this.activeCount(), 'job-cancel-all', () =>
       this.dataSource.cancelAllJobs(),
     );
   }
 
   /** Confirm + clear every FAILED job (delete now). */
   protected confirmClearFailed(): void {
-    this.confirmBulk(this.texts.bulk.clearFailedConfirm, this.failedCount(), () =>
+    this.confirmBulk(this.texts.bulk.clearFailedConfirm, this.failedCount(), 'job-clear-failed', () =>
       this.dataSource.pruneJobs('failed'),
     );
   }
 
   /** Confirm + clear every terminal job (completed + failed + cancelled). */
   protected confirmClearFinished(): void {
-    this.confirmBulk(this.texts.bulk.clearFinishedConfirm, this.terminalCount(), () =>
+    this.confirmBulk(this.texts.bulk.clearFinishedConfirm, this.terminalCount(), 'job-clear-finished', () =>
       this.dataSource.pruneJobs(),
     );
   }
@@ -565,10 +571,13 @@ export class QueueView {
    * Open the shared confirm dialog for a bulk mutation; on accept run the
    * port op and re-fetch (bulk routes broadcast per id, but prune is silent,
    * so the direct re-fetch is what refreshes THIS client either way).
+   * `feature` is the usage-event name for the CONFIRMED gesture (a dismissed
+   * dialog emits nothing); see spec/telemetry.md §Usage event taxonomy.
    */
   private confirmBulk(
     copy: { header: string; accept: string; message: (count: number) => string },
     count: number,
+    feature: TUsageFeatureSurface,
     op: () => Promise<void>,
   ): void {
     this.confirmation.confirm({
@@ -577,7 +586,10 @@ export class QueueView {
       icon: 'pi pi-exclamation-triangle',
       acceptButtonProps: { label: copy.accept, severity: 'danger' },
       rejectButtonProps: { label: this.texts.bulk.reject, severity: 'secondary', outlined: true },
-      accept: () => void this.runBulk(op),
+      accept: () => {
+        this.usageTracker.trackFeature(feature);
+        void this.runBulk(op);
+      },
     });
   }
 

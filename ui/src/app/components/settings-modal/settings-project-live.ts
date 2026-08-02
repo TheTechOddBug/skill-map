@@ -22,6 +22,7 @@ import { FormsModule } from '@angular/forms';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
+import { UsageTrackerService } from '../../services/usage-tracker';
 import { WsEventStreamService } from '../../../services/ws-event-stream';
 import { ToggleRowDirective } from './toggle-row.directive';
 
@@ -33,6 +34,7 @@ import { ToggleRowDirective } from './toggle-row.directive';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SettingsProjectLive {
+  private readonly usageTracker = inject(UsageTrackerService);
   private readonly wsStream = inject(WsEventStreamService);
 
   readonly visible = input.required<boolean>();
@@ -42,6 +44,7 @@ export class SettingsProjectLive {
   protected readonly liveWsEnabled = this.wsStream.enabled;
 
   protected onLiveWsToggle(next: boolean): void {
+    this.usageTracker.trackFeature('live-updates', next, 'settings');
     this.wsStream.setEnabled(next);
   }
 }

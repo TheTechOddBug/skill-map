@@ -35,6 +35,7 @@ import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import type { IActiveProviderApi } from '../../../models/api';
 import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
 import { ProviderRegistryService } from '../../../services/provider-registry';
+import { UsageTrackerService } from '../../services/usage-tracker';
 import { formatErr } from './settings-project.utils';
 
 @Component({
@@ -49,6 +50,7 @@ export class SettingsProjectLens {
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly confirmation = inject(ConfirmationService);
   private readonly providerRegistry = inject(ProviderRegistryService);
+  private readonly usageTracker = inject(UsageTrackerService);
 
   readonly visible = input.required<boolean>();
 
@@ -199,6 +201,10 @@ export class SettingsProjectLens {
    * action did not take effect).
    */
   private async runActiveProviderSwitch(newValue: string): Promise<void> {
+    // Usage analytics (opt-in, default OFF): the CONFIRMED switch counts
+    // (this method only runs on the dialog accept); the tracker collapses
+    // third-party ids and attaches the cross-event `lens` property.
+    this.usageTracker.trackLensSelect(newValue, 'settings');
     this.activeProviderSaveError.set(null);
     this.activeProviderSwitchAnnouncement.set(null);
     try {

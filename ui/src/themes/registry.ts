@@ -61,10 +61,14 @@ export const EXTRA_THEMES: readonly IExtraThemeDescriptor[] = [
     description: 'Electric-green glow on a deep console.',
   },
   {
-    id: 'neon',
+    // Renamed from the bare `neon` (it predates the R/G variants); the
+    // legacy stored id is remapped on read in `ThemeService`, and the
+    // favicon / mark assets follow the id convention. Only the DOM class
+    // keeps the historical `app-neon` name (the themes CSS keys on it).
+    id: 'neon-blue',
     htmlClass: 'app-neon',
     forcesDark: true,
-    favicon: 'favicon-neon.svg',
+    favicon: 'favicon-neon-blue.svg',
     label: 'Neon B',
     description: 'Electric-cyan glow on a deep-navy console.',
   },

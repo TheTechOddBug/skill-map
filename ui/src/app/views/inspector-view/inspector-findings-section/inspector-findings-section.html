@@ -58,7 +58,7 @@
                       tooltipPosition="left"
                       appendTo="body"
                       [ariaLabel]="texts.issueFixAriaLabel(fixer.id)"
-                      (onClick)="fixIssue(fixer)"
+                      (onClick)="fixIssue(fixer, issue.analyzerId)"
                       [attr.data-testid]="'inspector-issue-fix-' + issue.analyzerId"
                     />
                   }

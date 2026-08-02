@@ -40,6 +40,7 @@ import { MessageModule } from 'primeng/message';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
+import { UsageTrackerService } from '../../services/usage-tracker';
 import type {
   IProjectPreferencesApi,
   IProjectPreferencesPatchApi,
@@ -68,6 +69,7 @@ import { formatErr } from './settings-project.utils';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SettingsProjectPreferences {
+  private readonly usageTracker = inject(UsageTrackerService);
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly confirmation = inject(ConfirmationService);
 
@@ -187,6 +189,9 @@ export class SettingsProjectPreferences {
   // -----------------------------------------------------------------
 
   protected onReferencePathAdd(): void {
+    // Usage analytics (opt-in, default OFF): the gesture only, NEVER the
+    // path. See spec/telemetry.md §Usage event taxonomy.
+    this.usageTracker.trackFeature('reference-paths-add');
     const raw = this.newReferencePath().trim();
     if (raw.length === 0) return;
     if (raw.includes(',')) {
@@ -210,6 +215,7 @@ export class SettingsProjectPreferences {
   }
 
   protected onReferencePathRemove(path: string): void {
+    this.usageTracker.trackFeature('reference-paths-remove');
     const next = this.referencePaths().filter((p) => p !== path);
     void this.runPatch('scan.referencePaths', { scan: { referencePaths: [...next] } });
   }
@@ -219,6 +225,7 @@ export class SettingsProjectPreferences {
   // -----------------------------------------------------------------
 
   protected onSidecarWritersToggle(next: boolean): void {
+    this.usageTracker.trackFeature('allow-sidecar', next);
     this.allowSidecarWritersView.set(next);
     void this.runPatch('allowSidecarWriters', { allowSidecarWriters: next }).then(
       (ok) => {
@@ -232,6 +239,7 @@ export class SettingsProjectPreferences {
   // -----------------------------------------------------------------
 
   protected onRespectGitignoreToggle(next: boolean): void {
+    this.usageTracker.trackFeature('use-gitignore', next);
     this.respectGitignoreView.set(next);
     void this.runPatch('scan.respectGitignore', { scan: { respectGitignore: next } }).then(
       (ok) => {
@@ -253,6 +261,7 @@ export class SettingsProjectPreferences {
    * back to the committed value and the hint is left untouched.
    */
   protected onMcpServerToggle(next: boolean): void {
+    this.usageTracker.trackFeature('mcp-server', next, 'settings');
     this.mcpServerEnabledView.set(next);
     void this.runPatch('mcpServerEnabled', { mcpServerEnabled: next }).then((ok) => {
       if (ok) this.mcpServerRestartPending.set(true);
@@ -275,6 +284,7 @@ export class SettingsProjectPreferences {
    * reset to the committed value so the switch rolls back.
    */
   protected onFollowExternalSymlinksToggle(next: boolean): void {
+    this.usageTracker.trackFeature('follow-symlinks', next, 'settings');
     this.followExternalSymlinksView.set(next);
     void this.runPatch(
       'scan.followExternalSymlinks',

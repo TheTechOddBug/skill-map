@@ -26,6 +26,7 @@ import { InputTextModule } from 'primeng/inputtext';
 import { MessageModule } from 'primeng/message';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
+import { UsageTrackerService } from '../../services/usage-tracker';
 import type { IProjectIgnoreApi, IProjectIgnorePatchApi } from '../../../models/api';
 import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
 import { formatErr } from './settings-project.utils';
@@ -47,6 +48,7 @@ const CONTROL_CHAR_RX = /[\n\r\x00-\x1F\x7F]/;
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SettingsProjectIgnore {
+  private readonly usageTracker = inject(UsageTrackerService);
   private readonly dataSource = inject(DATA_SOURCE);
 
   readonly visible = input.required<boolean>();
@@ -75,6 +77,9 @@ export class SettingsProjectIgnore {
   }
 
   protected onIgnorePatternAdd(): void {
+    // Usage analytics (opt-in, default OFF): the gesture only, NEVER the
+    // pattern text. See spec/telemetry.md §Usage event taxonomy.
+    this.usageTracker.trackFeature('ignore-patterns-add');
     const raw = this.newIgnorePattern().trim();
     if (raw.length === 0) {
       this.ignoreSaveError.set(this.texts.project.ignorePatternEmpty);
@@ -96,6 +101,7 @@ export class SettingsProjectIgnore {
   }
 
   protected onIgnorePatternRemove(pattern: string): void {
+    this.usageTracker.trackFeature('ignore-patterns-remove');
     const next = this.ignorePatterns().filter((p) => p !== pattern);
     void this.runIgnorePatch({ patterns: [...next] });
   }

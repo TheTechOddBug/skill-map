@@ -44,6 +44,7 @@ import {
   type TPluginItem,
 } from '../../../services/data-source/data-source.port';
 import { ScanTriggerService } from '../../services/scan-trigger';
+import { UsageTrackerService } from '../../services/usage-tracker';
 
 /**
  * Contract every buffered sub-surface implements to participate in the
@@ -83,6 +84,7 @@ export interface IBufferOwner {
 export class SettingsBufferService {
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly scanTrigger = inject(ScanTriggerService);
+  private readonly usageTracker = inject(UsageTrackerService);
 
   /**
    * Registered owners. A `Set` so re-registration is idempotent and
@@ -176,6 +178,13 @@ export class SettingsBufferService {
       return { ok: false };
     }
     this.applyingSig.set(false);
+
+    // Usage analytics (opt-in, default OFF): the committed toggle deltas
+    // ride `plugin.apply` as deduped, collapsed id sets, same event the
+    // CLI's `sm plugins enable / disable` emits (spec/telemetry.md §Usage
+    // event taxonomy). The tracker excludes settings-only entries and
+    // no-ops while the surface is dormant.
+    this.usageTracker.trackPluginApply(merged);
 
     // Reseed every owner from the post-write list so dirty markers clear
     // (applied toggles + values become the new snapshot, secrets re-blank).

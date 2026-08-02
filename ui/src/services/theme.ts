@@ -166,7 +166,11 @@ export class ThemeService {
   private readInitialExtra(): TExtraThemeId {
     try {
       const stored = this.doc.defaultView?.localStorage.getItem(EXTRA_STORAGE_KEY);
-      return findExtraTheme(stored)?.id ?? null;
+      // Legacy remap: the cyan variant shipped as the bare `neon` id
+      // before the R/G siblings existed; a pref stored back then keeps
+      // working (the next write persists the new id).
+      const migrated = stored === 'neon' ? 'neon-blue' : stored;
+      return findExtraTheme(migrated)?.id ?? null;
     } catch {
       return null;
     }
