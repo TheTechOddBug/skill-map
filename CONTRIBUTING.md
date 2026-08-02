@@ -97,10 +97,14 @@ The repo root `CHANGELOG.md` is the **generated consolidated release changelog**
 
 ### Bump policy
 
+While a workspace is pre-1.0 (`0.Y.Z`) the semver roles shift one position down, per [`spec/versioning.md`](./spec/versioning.md) § Pre-1.0: minor is reserved for incompatibility, everything backward-compatible is a patch.
+
 - **Breaking change**:
   - Post-1.0: `major`.
-  - **Pre-1.0** (workspace still in `0.Y.Z`): `minor`. Per [`spec/versioning.md`](./spec/versioning.md) § Pre-1.0, breakings are allowed inside minor bumps pre-1; the first `1.0.0` is a deliberate stabilization moment, not a side-effect of a normal PR. If a changeset proposes `major` while the workspace is pre-1, downgrade it to `minor` and document the breaking change in the workspace `CHANGELOG.md`.
-- **Additive change** → `minor`.
+  - Pre-1.0: `minor`. If a changeset proposes `major` while the workspace is pre-1, downgrade it to `minor` and document the breaking change in the workspace `CHANGELOG.md`. The first `1.0.0` is a deliberate stabilization moment, not a side-effect of a normal PR.
+- **Additive change**:
+  - Post-1.0: `minor`.
+  - Pre-1.0: `patch`. A release made only of additions and fixes must not bump minor: a patch is always safe to take, a minor means something breaks.
 - **Fix / internal** → `patch`.
 
 ### What happens on merge

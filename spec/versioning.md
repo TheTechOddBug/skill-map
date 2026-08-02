@@ -76,13 +76,20 @@ Tags live inline in schema `description` fields and in prose via a leading `**St
 
 ## Pre-1.0
 
-While the spec is `0.Y.Z`:
+While a track (spec or reference CLI) is `0.Y.Z`, the semver roles shift one position down: `Y` carries the incompatibility signal that `major` carries post-1.0, and `Z` absorbs everything backward-compatible. This is the strict reading of SemVer's "major version zero" clause, adopted as policy, and it binds in both directions:
 
-- Minor bumps may contain breaking changes (documented as such in `CHANGELOG.md`).
+- **Minor (`0.Y.Z → 0.Y+1.0`) is reserved for incompatibility.** A minor bump MUST contain at least one change that would be major post-1.0 (something a conforming implementation, a plugin, or an operator has to adapt to). Each breaking change is documented as such in `CHANGELOG.md`.
+- **Everything backward-compatible is a patch (`0.Y.Z → 0.Y.Z+1`)**: additive normative changes (new optional field, new optional schema, new verb or flag, new opt-in capability), fixes, and editorial work. A release made only of additions and fixes MUST NOT bump minor.
+- **Never `1.0.0` as a side-effect.** The first `1.0.0` is a deliberate stabilization moment, not the mechanical consequence of a normal PR.
+
+The payoff is that the version number alone is the compatibility signal: taking `0.Y.Z+1` is always safe; moving to `0.Y+1.0` means reading the changelog first. An earlier wording said minor bumps "may" contain breaking changes, which made the minor position meaningless as a signal (a consumer could not tell a risky minor from a routine one); the strict rule replaces it.
+
+Also while pre-1.0:
+
 - Conformance is advisory; failing a conformance case is a bug report, not a spec violation.
-- `specCompat` in plugins should pin a minor range (`"^0.3.0"` means `>=0.3.0 <0.4.0`), not a major range.
+- `specCompat` in plugins should pin a minor range (`"^0.3.0"` means `>=0.3.0 <0.4.0`), not a major range: the minor position is the breaking boundary, so a minor pin pre-1.0 is exactly as safe as a `^1.x` major pin post-1.0.
 
-The first stable commitment is `spec-v1.0.0`. In the current reference roadmap, that tag ships with `cli-v1.0.0`.
+The first stable commitment is `spec-v1.0.0`. In the current reference roadmap, that tag ships with `cli-v1.0.0`. Post-1.0 the standard roles resume: breaking is major, backward-compatible addition is minor, fix or editorial work is patch, per the tables above.
 
 ## Independence in practice
 

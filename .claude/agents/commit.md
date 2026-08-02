@@ -169,20 +169,32 @@ The two surviving placeholders eventually became dead weight — once
 
 ### 4. Decide the bump (only if a changeset is required)
 
+Both packages are pre-1.0 (`0.Y.Z`), where the semver roles shift one
+position down per `spec/versioning.md` § Pre-1.0 (strict since
+2026-08-02): **minor is RESERVED for incompatibility; everything
+backward-compatible, including new features, is a patch.** Be critical:
+if nothing breaks, it is a patch, no matter how big the addition.
+
 For `@skill-map/spec` use `spec/versioning.md` strictly:
 
-- **Patch** — editorial only. Typo fixes, clarified wording, examples,
-  conformance test improvements that do NOT add normative requirements.
-- **Minor** — backward-compatible additive normative changes (new optional
-  field, new optional schema, new conformance case for a new optional
-  feature). **Pre-1.0 breaking changes ALSO go here** (see versioning.md).
-- **Major** — post-1.0 breaking changes only.
+- **Patch** (pre-1.0): editorial fixes AND backward-compatible additive
+  normative changes (new optional field, new optional schema, new
+  conformance case for a new optional feature).
+- **Minor** (pre-1.0): breaking changes only (removed / renamed field,
+  tightened enum, changed exit-code meaning, anything a conforming
+  implementation must adapt to).
+- **Major**: post-1.0 breaking changes only. Never pre-1.0.
 
 For `@skill-map/cli`:
-- **Patch** — fix / internal refactor / no behaviour change visible to
-  users.
-- **Minor** — new feature / additive flag.
-- **Major** — breaking change in CLI surface.
+- **Patch** (pre-1.0): fix / internal refactor / new feature / additive
+  flag, anything an existing user upgrades to without adapting.
+- **Minor** (pre-1.0): breaking change in the CLI surface (verb removed
+  or renamed, flag semantics changed, exit code changed, output
+  contract changed).
+- **Major**: post-1.0 only.
+
+Post-1.0 both packages resume standard semver roles: breaking = major,
+additive = minor, fix = patch.
 
 For `alias/*` packages: N/A — the workspaces are retired. If a diff
 re-introduces one, STOP and ask before classifying.
@@ -444,16 +456,19 @@ the user.
 ```
 diff includes spec/ ?
 ├── only typos / clarifications              → @skill-map/spec: patch
-├── new optional field / additive            → @skill-map/spec: minor
-├── breaks v1.0 implementations              → @skill-map/spec: major
-                                                (pre-1.0: still minor)
+├── new optional field / additive            → @skill-map/spec: patch
+│                                               (post-1.0: minor)
+├── breaks conforming implementations        → @skill-map/spec: minor
+│                                               (post-1.0: major)
 └── prompt-preamble.md prose                 → regenerate fixtures, then
                                                 classify normality
 
 diff includes src/ ?
 ├── pure refactor / internal fix             → @skill-map/cli: patch
-├── new CLI verb / new flag                  → @skill-map/cli: minor
-├── verb removed / exit code changed         → @skill-map/cli: major
+├── new CLI verb / new flag                  → @skill-map/cli: patch
+│                                               (post-1.0: minor)
+├── verb removed / exit code changed         → @skill-map/cli: minor
+                                                (post-1.0: major)
 
 diff includes alias/<name>/ ?
 └── retired                                  → STOP, ask Arquitecto
