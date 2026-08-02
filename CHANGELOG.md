@@ -6,6 +6,17 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>1.0.1</b> · 2026-08-01</summary>
+
+### CLI Patch
+- Republish the stable line as 1.0.1, the first installable stable pair: 1.0.0 is burned on both packages (`@skill-map/spec@1.0.0` was squatted by a premature 2026-04 publish that npm refuses to overwrite, and `@skill-map/cli@1.0.0` shipped pinning it, failing at boot with ENOENT; that version is deprecated on the registry and `latest` was rolled back to 0.99.1 during the incident). No code changes ride this bump.
+
+### Spec Patch (1.0.1)
+- Republish the stable line as 1.0.1, the first installable stable pair: 1.0.0 is burned on both packages (`@skill-map/spec@1.0.0` was squatted by a premature 2026-04 publish that npm refuses to overwrite, and `@skill-map/cli@1.0.0` shipped pinning it, failing at boot with ENOENT; that version is deprecated on the registry and `latest` was rolled back to 0.99.1 during the incident). No code changes ride this bump.
+
+</details>
+
+<details>
 <summary><b>0.100.0</b> · 2026-08-01</summary>
 
 ### CLI Minor
