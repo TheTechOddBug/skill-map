@@ -51,6 +51,58 @@ export function qualifyKindForUsage(kind: string): string {
 }
 
 /**
+ * The closed set of SHORT analyzer ids shipped by built-in plugins (the
+ * extension directories under `src/plugins/core/analyzers/`; today core
+ * is the only built-in plugin shipping analyzers). Deterministic scan
+ * issues carry the SHORT id (`scan_issues.analyzer_id`, no plugin
+ * prefix), so the qualified-id collapse cannot classify them; this set
+ * is the deny-by-default gate for that vocabulary. Hand-mirror like
+ * `BUILT_IN_KIND_NAMES`: update it when an analyzer lands or leaves. A
+ * missing member misreports real usage as `external_plugin` (the
+ * privacy-safe direction).
+ */
+const BUILT_IN_ANALYZER_IDS: ReadonlySet<string> = new Set([
+  'ai-contradiction-analyzer',
+  'ai-incoherence-analyzer',
+  'ai-redundancy-analyzer',
+  'ai-scope-analyzer',
+  'ai-security-analyzer',
+  'ai-structure-analyzer',
+  'ai-suspicion-analyzer',
+  'ai-trigger-analyzer',
+  'ai-vagueness-analyzer',
+  'ai-verbosity-analyzer',
+  'annotation-field-unknown',
+  'annotation-orphan',
+  'annotation-stale',
+  'extractor-collision',
+  'issue-counter',
+  'link-counter',
+  'link-kind-conflict',
+  'link-self-loop',
+  'name-collision',
+  'name-mismatch',
+  'name-reserved',
+  'node-stability',
+  'reference-broken',
+  'reference-redundant',
+  'schema-violation',
+]);
+
+/**
+ * Map a SHORT analyzer id (as carried by deterministic scan issues) to
+ * the value that may leave the machine: unchanged when a built-in plugin
+ * ships the analyzer, `external_plugin` otherwise. Short ids are
+ * slash-free, so {@link qualifyMaybePluginValue}'s heuristic would pass
+ * a third-party analyzer's vocabulary verbatim; this closed-set check is
+ * the correct gate for that channel (`spec/telemetry.md` §Scrubbing
+ * rules: third-party plugin ids MUST collapse).
+ */
+export function qualifyAnalyzerForUsage(analyzerId: string): string {
+  return BUILT_IN_ANALYZER_IDS.has(analyzerId) ? analyzerId : EXTERNAL_PLUGIN_PLACEHOLDER;
+}
+
+/**
  * Map a plugin id (a bare plugin id like `claude`, or a qualified extension id
  * like `core/markdown-link`) to the value that may leave the machine: the id
  * unchanged when its plugin is built-in, the literal `external_plugin`

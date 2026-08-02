@@ -199,12 +199,16 @@
     }
     @case ('secret') {
       <div class="itc__secret">
+        <!-- autocomplete="new-password": plugin secrets are not login
+             credentials; keep browsers / password managers from offering
+             to store what the operator types here. -->
         <p-password
           class="itc__secret-input"
           [size]="pngSize()"
           [inputId]="fieldId()"
           [feedback]="false"
           [toggleMask]="true"
+          autocomplete="new-password"
           [ngModel]="stringValue()"
           (ngModelChange)="onStringChange($event)"
           [placeholder]="secretIsSet() ? texts.secretSetPlaceholder : texts.secretEmptyPlaceholder"

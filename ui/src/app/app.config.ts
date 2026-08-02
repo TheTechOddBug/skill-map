@@ -191,17 +191,20 @@ export const appConfig: ApplicationConfig = {
           dataSource.getActiveProvider().catch(() => null),
         ]);
         // Per-incident crash-report consent: the service needs the
-        // release / environment facts for a late (accept-time) SDK arm.
-        // A fetch failure leaves the defaults (no release, prod).
+        // release / environment / project-root facts for a late
+        // (accept-time) SDK arm. A fetch failure leaves the defaults
+        // (no release, prod, home-only scrubbing).
         crashConsent.configure({
           release: health.implVersion ? `skill-map-cli@${health.implVersion}` : null,
           environment: preferences.telemetry.environment,
+          projectRoot: health.cwd ?? null,
         });
         await Promise.all([
           initUiSentry({
             consentEnabled: preferences.telemetry.errorsEnabled,
             release: health.implVersion ? `skill-map-cli@${health.implVersion}` : null,
             environment: preferences.telemetry.environment,
+            projectRoot: health.cwd ?? null,
           }),
           // Usage analytics (PostHog) shares the same consent probe. The CLI
           // and UI reuse one anonymous id (`telemetry.anonymousId`) so they

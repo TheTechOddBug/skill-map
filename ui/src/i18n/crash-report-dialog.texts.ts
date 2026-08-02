@@ -6,11 +6,12 @@
 export const CRASH_REPORT_DIALOG_TEXTS = {
   header: 'Something crashed. Send an anonymous report?',
   body:
-    'The report carries the error name, message, and a path-stripped stack ' +
-    'trace, plus browser and version facts. Never your files, paths, ' +
-    'settings, or any identifier. Your answer applies to this report only; ' +
-    'nothing is remembered.',
-  previewLabel: 'What would be sent:',
+    'The report carries the error name, message, and stack trace, plus ' +
+    'browser and version facts. Your home directory and this project\'s ' +
+    'folder are redacted before sending, and no file contents, settings ' +
+    'values, or identifiers ride along. Your answer applies to this ' +
+    'report only; nothing is remembered.',
+  previewLabel: 'Summary of what would be sent:',
   send: 'Send report',
   dismiss: 'Not now',
   ariaLabel: 'Crash report consent',

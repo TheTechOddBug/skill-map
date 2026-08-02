@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   HOME_PLACEHOLDER,
+  PROJECT_PLACEHOLDER,
   QUERY_VALUE_PLACEHOLDER,
   scrubEvent,
   scrubString,
@@ -73,6 +74,39 @@ describe('scrubString', () => {
     expect(scrubString('TypeError: cannot read property')).toBe(
       'TypeError: cannot read property',
     );
+  });
+});
+
+describe('scrubString, extraRoots (project-root collapse)', () => {
+  it('collapses the project root BEFORE the home patterns, hiding the project name', () => {
+    expect(
+      scrubString('/home/alice/work/acme-client/docs/x.md', ['/home/alice/work/acme-client']),
+    ).toBe(`${PROJECT_PLACEHOLDER}/docs/x.md`);
+  });
+
+  it('matches roots literally, so regex metacharacters need no escaping', () => {
+    expect(scrubString('/srv/repo (v2)/a.md', ['/srv/repo (v2)'])).toBe(
+      `${PROJECT_PLACEHOLDER}/a.md`,
+    );
+  });
+
+  it('applies roots longest-first so a nested root is not shadowed by its parent', () => {
+    expect(scrubString('/srv/repo/nested/file', ['/srv/repo', '/srv/repo/nested'])).toBe(
+      `${PROJECT_PLACEHOLDER}/file`,
+    );
+  });
+
+  it('empty / absent roots leave the home-only behavior unchanged', () => {
+    expect(scrubString('/home/alice/x', [])).toBe(`${HOME_PLACEHOLDER}/x`);
+    expect(scrubString('/home/alice/x', [''])).toBe(`${HOME_PLACEHOLDER}/x`);
+  });
+
+  it('threads roots through the scrubEvent walk', () => {
+    const scrubbed = scrubEvent(
+      { message: 'boom at /home/a/proj/file.md' },
+      ['/home/a/proj'],
+    );
+    expect(scrubbed.message).toBe(`boom at ${PROJECT_PLACEHOLDER}/file.md`);
   });
 });
 

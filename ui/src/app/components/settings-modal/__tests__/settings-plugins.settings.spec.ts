@@ -93,6 +93,22 @@ describe('coerceToDeclared', () => {
     ]);
     expect(coerceToDeclared({ id: 'm', type: 'match-list', label: 'M' }, 'nope')).toEqual([]);
   });
+
+  it('dedupes seeded duplicate match-list entries (committed settings are wire input)', () => {
+    // The kernel does not reject duplicate (type, value) pairs and the
+    // setting arrives with a cloned repo; the editor tracks rows by that
+    // pair, so a seeded duplicate would be an NG0955 repeater error.
+    expect(
+      coerceToDeclared({ id: 'm', type: 'match-list', label: 'M' }, [
+        { type: 'literal', value: 'a.md' },
+        { type: 'literal', value: 'a.md' },
+        { type: 'glob', value: 'a.md' },
+      ]),
+    ).toEqual([
+      { type: 'literal', value: 'a.md' },
+      { type: 'glob', value: 'a.md' },
+    ]);
+  });
 });
 
 describe('seedExtensionSettings', () => {

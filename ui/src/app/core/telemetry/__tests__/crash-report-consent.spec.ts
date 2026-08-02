@@ -41,6 +41,28 @@ describe('CrashReportConsentService', () => {
     expect(svc.preview()).toContain('Error: explode');
   });
 
+  it('collapses the configured project root out of the preview', () => {
+    const svc = bootstrap();
+    svc.configure({ release: null, environment: 'prod', projectRoot: '/home/a/acme-secret' });
+    svc.offer(boom('failed reading /home/a/acme-secret/docs/x.md'));
+    expect(svc.preview()).toContain('<PROJECT>/docs/x.md');
+    expect(svc.preview()).not.toContain('acme-secret');
+  });
+
+  it('previews a truncated JSON projection for a non-Error rejection, never [object Object]', () => {
+    const svc = bootstrap();
+    svc.offer({ status: 500, url: 'http://localhost/api/x', message: 'Http failure' });
+    expect(svc.preview()).not.toContain('[object Object]');
+    expect(svc.preview()).toContain('"status":500');
+  });
+
+  it('caps the non-Error preview length (the summary stays one readable line)', () => {
+    const svc = bootstrap();
+    svc.offer({ big: 'y'.repeat(1000) });
+    expect(svc.preview().length).toBeLessThanOrEqual(403);
+    expect(svc.preview().endsWith('...')).toBe(true);
+  });
+
   it('dedupes per session: the same error identity asks once', () => {
     const svc = bootstrap();
     const err = boom('same');

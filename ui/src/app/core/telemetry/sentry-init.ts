@@ -98,6 +98,14 @@ export async function initUiSentry(opts: {
   consentEnabled: boolean;
   release: string | null;
   environment: 'dev' | 'prod';
+  /**
+   * Absolute project root (`/api/health` `cwd`), collapsed to
+   * `<PROJECT>` by the scrubber so the project directory name never
+   * rides an event (the CLI passes `process.cwd()` the same way).
+   * `null` (health failed / not loaded) falls back to home-only
+   * scrubbing.
+   */
+  projectRoot?: string | null;
 }): Promise<void> {
   if (initialised) return;
   // DSN gate first: keeps the whole surface a no-op while the
@@ -105,6 +113,7 @@ export async function initUiSentry(opts: {
   // No dynamic import happens on this path, so the SDK chunk is never
   // fetched while dormant.
   if (SENTRY_DSN_UI === '' || !opts.consentEnabled) return;
+  const scrubRoots = typeof opts.projectRoot === 'string' ? [opts.projectRoot] : [];
   const Sentry = await import('@sentry/angular');
   Sentry.init({
     dsn: SENTRY_DSN_UI,
@@ -122,7 +131,7 @@ export async function initUiSentry(opts: {
     // server-side "Allowed Domains" project setting (see spec/telemetry.md
     // §Server-side guarantees).
     allowUrls: [/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//],
-    beforeSend: (event) => scrubEvent(event),
+    beforeSend: (event) => scrubEvent(event, scrubRoots),
   });
   sdk = Sentry;
   initialised = true;

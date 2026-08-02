@@ -32,6 +32,13 @@ import { captureUiException, initUiSentry, isUiDsnConfigured } from './sentry-in
 export interface ICrashConsentConfig {
   release: string | null;
   environment: 'dev' | 'prod';
+  /**
+   * Absolute project root (`/api/health` `cwd`): collapsed to
+   * `<PROJECT>` in the dialog preview AND threaded into the SDK
+   * `beforeSend`, so the project directory name never rides a report.
+   * `null` (health failed) falls back to home-only scrubbing.
+   */
+  projectRoot: string | null;
 }
 
 /** Session dedupe key: enough to collapse a re-thrown CD-loop error. */
@@ -63,15 +70,22 @@ export class CrashReportConsentService {
 
   private release: string | null = null;
   private environment: 'dev' | 'prod' = 'prod';
+  private projectRoot: string | null = null;
 
   /**
    * Boot wiring (app initializer): the facts a late `initUiSentry` needs.
    * Never opens anything by itself; a fetch failure simply leaves the
-   * defaults (no release, prod).
+   * defaults (no release, prod, no project root).
    */
   configure(config: ICrashConsentConfig): void {
     this.release = config.release;
     this.environment = config.environment;
+    this.projectRoot = config.projectRoot;
+  }
+
+  /** Roots handed to the scrubber; empty while the cwd never resolved. */
+  private scrubRoots(): readonly string[] {
+    return this.projectRoot === null ? [] : [this.projectRoot];
   }
 
   /**
@@ -85,7 +99,7 @@ export class CrashReportConsentService {
     if (this.seen.has(key) || this.openSig()) return;
     this.seen.add(key);
     this.pendingError = error;
-    this.previewSig.set(scrubString(summarize(error)));
+    this.previewSig.set(scrubString(summarize(error), this.scrubRoots()));
     this.openSig.set(true);
   }
 
@@ -105,6 +119,7 @@ export class CrashReportConsentService {
         consentEnabled: true,
         release: this.release,
         environment: this.environment,
+        projectRoot: this.projectRoot,
       });
       captureUiException(error);
     } catch {
@@ -113,8 +128,27 @@ export class CrashReportConsentService {
   }
 }
 
-/** One-line human summary shown (scrubbed) inside the dialog. */
+/** Cap on the preview summary; the sent event is not truncated. */
+const PREVIEW_CAP = 400;
+
+/**
+ * One-line human summary shown (scrubbed) inside the dialog. For a
+ * non-`Error` rejection (e.g. an `HttpErrorResponse`), `String(error)`
+ * would read `[object Object]` while the SENT event carries the fully
+ * serialized object; previewing a truncated JSON projection instead
+ * keeps the consent honest, the operator sees a representative slice of
+ * what actually rides.
+ */
 function summarize(error: unknown): string {
   if (error instanceof Error) return `${error.name}: ${error.message}`;
+  if (typeof error === 'string') return error;
+  try {
+    const json = JSON.stringify(error);
+    if (typeof json === 'string') {
+      return json.length > PREVIEW_CAP ? `${json.slice(0, PREVIEW_CAP)}...` : json;
+    }
+  } catch {
+    // Circular / non-serializable: fall through to String().
+  }
   return String(error);
 }

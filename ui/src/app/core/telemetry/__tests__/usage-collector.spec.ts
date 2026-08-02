@@ -10,6 +10,7 @@ import {
   buildPluginApplyProperties,
   buildPluginUsageSet,
   buildSidecarConsentEventProperties,
+  qualifyAnalyzerForUsage,
   qualifyFindingTypeForUsage,
   qualifyKindForUsage,
   qualifyMaybePluginValue,
@@ -84,6 +85,19 @@ describe('qualifyKindForUsage', () => {
   it('collapses plugin-declared kinds to external_plugin', () => {
     expect(qualifyKindForUsage('runbook')).toBe('external_plugin');
     expect(qualifyKindForUsage('')).toBe('external_plugin');
+  });
+});
+
+describe('qualifyAnalyzerForUsage', () => {
+  it('passes built-in SHORT analyzer ids through', () => {
+    expect(qualifyAnalyzerForUsage('reference-broken')).toBe('reference-broken');
+    expect(qualifyAnalyzerForUsage('schema-violation')).toBe('schema-violation');
+    expect(qualifyAnalyzerForUsage('ai-security-analyzer')).toBe('ai-security-analyzer');
+  });
+
+  it('collapses a third-party analyzer vocabulary (slash-free, so the maybe-plugin heuristic cannot)', () => {
+    expect(qualifyAnalyzerForUsage('acme-secret-analyzer')).toBe('external_plugin');
+    expect(qualifyAnalyzerForUsage('')).toBe('external_plugin');
   });
 });
 

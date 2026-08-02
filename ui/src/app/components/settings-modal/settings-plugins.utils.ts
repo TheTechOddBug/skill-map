@@ -217,21 +217,34 @@ export function coerceToDeclared(
             )
             .map((e) => ({ key: String(e.key ?? ''), value: String(e.value ?? '') }))
         : [];
-    case 'match-list':
+    case 'match-list': {
       // Well-shaped entries only; a malformed wire entry drops rather
       // than degrading the whole list (the default branch would coerce
-      // the array to '' and silently empty the editor).
-      return Array.isArray(raw)
-        ? raw.filter(
-            (e): e is { type: 'literal' | 'regex' | 'glob'; value: string } =>
-              typeof e === 'object' &&
-              e !== null &&
-              typeof (e as { value?: unknown }).value === 'string' &&
-              ((e as { type?: unknown }).type === 'literal' ||
-                (e as { type?: unknown }).type === 'regex' ||
-                (e as { type?: unknown }).type === 'glob'),
-          )
-        : [];
+      // the array to '' and silently empty the editor). Duplicates are
+      // dropped too: the kernel does not reject duplicate (type, value)
+      // pairs and the setting persists in the COMMITTED project layer,
+      // so a cloned settings.json can seed them; the editor's @for
+      // tracks rows by that pair, and duplicate track keys are an
+      // NG0955 repeater error.
+      if (!Array.isArray(raw)) return [];
+      const seen = new Set<string>();
+      return raw
+        .filter(
+          (e): e is { type: 'literal' | 'regex' | 'glob'; value: string } =>
+            typeof e === 'object' &&
+            e !== null &&
+            typeof (e as { value?: unknown }).value === 'string' &&
+            ((e as { type?: unknown }).type === 'literal' ||
+              (e as { type?: unknown }).type === 'regex' ||
+              (e as { type?: unknown }).type === 'glob'),
+        )
+        .filter((e) => {
+          const key = `${e.type}:${e.value}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+    }
     default:
       // single-string / enum-pick / regex / secret
       return typeof raw === 'string' ? raw : '';
