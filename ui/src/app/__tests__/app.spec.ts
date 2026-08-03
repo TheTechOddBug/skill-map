@@ -838,6 +838,7 @@ describe('App, GitHub star affordance', () => {
     expect(link).not.toBeNull();
     expect(link?.textContent).toContain('27');
     expect(link?.getAttribute('href')).toBe(PROJECT_LINKS.github);
+    expect(link?.getAttribute('href')).toBe(PROJECT_LINKS.github);
     expect(link?.getAttribute('target')).toBe('_blank');
     expect(link?.getAttribute('rel')).toContain('noopener');
   });
@@ -853,6 +854,24 @@ describe('App, GitHub star affordance', () => {
     expect(root.textContent).not.toContain(APP_TEXTS.starsTooltip);
   });
 
+  it('shortens a big count but keeps the exact figure reachable', async () => {
+    // User call 2026-08-03: compact in the chip, since the row already
+    // scrolls on narrow windows. Compact loses precision, so the
+    // accessible name carries the full number instead of hiding it.
+    const root = await shellWithStars(123_456);
+
+    const link = root.querySelector('[data-testid="shell-stars"]');
+    expect(link?.textContent).toContain('123.5K');
+    expect(link?.textContent).not.toContain('123456');
+    expect(link?.getAttribute('aria-label')).toContain('123,456');
+  });
+
+  it('leaves a count under a thousand literal', async () => {
+    const root = await shellWithStars(999);
+
+    expect(root.querySelector('[data-testid="shell-stars"]')?.textContent).toContain('999');
+  });
+
   it('names the link with the count for screen readers', async () => {
     const root = await shellWithStars(1);
 
@@ -860,6 +879,6 @@ describe('App, GitHub star affordance', () => {
     // Singular at 1: the label is read aloud, not just scanned.
     expect(link?.getAttribute('aria-label')).toBe(APP_TEXTS.starsA11y(1));
     expect(link?.getAttribute('aria-label')).toContain('1 star so far');
-    expect(APP_TEXTS.starsA11y(27)).toContain('27 stars so far');
+    expect(APP_TEXTS.starsA11y(123_456)).toContain('123,456 stars so far');
   });
 });

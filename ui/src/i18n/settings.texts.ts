@@ -6,6 +6,7 @@
  * texts, not internationalized".
  */
 import { PROJECT_LINKS } from './project-links';
+import { formatExactCount } from '../services/format-count';
 
 export const SETTINGS_TEXTS = {
   /** Topbar trigger. */
@@ -452,6 +453,9 @@ export const SETTINGS_TEXTS = {
     'and keeps the project alive.',
   aboutStarCta: 'Star on GitHub',
   aboutStarA11y: 'Open the skill-map repository on GitHub to give it a star',
+  /** Exact figure behind the compact badge (`1.2K`) on the CTA. */
+  aboutStarCountTitle: (count: number): string =>
+    `${formatExactCount(count)} ${count === 1 ? 'star' : 'stars'}`,
 
   /** Section heading + intro. */
   pluginsHeading: 'Plugins',

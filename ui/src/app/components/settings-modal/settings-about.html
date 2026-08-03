@@ -47,9 +47,11 @@
         test for whether a decoration earns its place.
       -->
       @if (stars.count(); as starCount) {
-        <span class="settings-about__star-count" data-testid="settings-about-star-count">
-          {{ starCount }}
-        </span>
+        <span
+          class="settings-about__star-count"
+          [attr.title]="texts.aboutStarCountTitle(starCount)"
+          data-testid="settings-about-star-count"
+        >{{ stars.countLabel() }}</span>
       }
     </span>
   </a>

@@ -7,6 +7,8 @@
  * are used for parameterised strings, Transloco-ready when we eventually
  * migrate to a real i18n library.
  */
+import { formatExactCount } from '../services/format-count';
+
 const BRAND_NAME = 'skill-map';
 
 export const APP_TEXTS = {
@@ -27,9 +29,15 @@ export const APP_TEXTS = {
    * point of the element is the invitation, not the metric.
    */
   starsLabel: 'Star',
-  starsTooltip: 'Star skill-map on GitHub',
+  /**
+   * The visible count is compact (`1.2K`), so the tooltip and the
+   * accessible name carry the EXACT number: the short form is a space
+   * decision, not a decision to withhold the figure.
+   */
+  starsTooltip: (count: number): string =>
+    `Star skill-map on GitHub (${formatExactCount(count)} ${count === 1 ? 'star' : 'stars'})`,
   starsA11y: (count: number): string =>
-    `Star skill-map on GitHub in a new tab. ${count} ${count === 1 ? 'star' : 'stars'} so far.`,
+    `Star skill-map on GitHub in a new tab. ${formatExactCount(count)} ${count === 1 ? 'star' : 'stars'} so far.`,
   beta: 'BETA',
   /**
    * Topbar chip rendered next to the version when `/api/health.dev` is

@@ -195,8 +195,27 @@ describe('SettingsAbout star count', () => {
     const root = fixture.nativeElement as HTMLElement;
     const badge = root.querySelector('[data-testid="settings-about-star-count"]');
     expect(badge?.textContent?.trim()).toBe('27');
+    // Same compact rule as the topbar, with the exact figure on hover.
+    expect(badge?.getAttribute('title')).toBe('27 stars');
     // Inside the CTA, not floating next to it.
     expect(badge?.closest('.settings-about__star-cta')).not.toBeNull();
+  });
+
+  it('shortens a big count, exact figure on the title', async () => {
+    const fixture = bootstrap({
+      health: vi.fn().mockResolvedValue(health()),
+      getGithubStars: vi.fn().mockResolvedValue({ count: 123_456, checkedAt: 1 }),
+    } as Partial<IDataSourcePort>);
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+    fixture.detectChanges();
+
+    const badge = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="settings-about-star-count"]',
+    );
+    expect(badge?.textContent?.trim()).toBe('123.5K');
+    expect(badge?.getAttribute('title')).toBe('123,456 stars');
   });
 
   it('leaves the CTA whole when the count is unknown', async () => {

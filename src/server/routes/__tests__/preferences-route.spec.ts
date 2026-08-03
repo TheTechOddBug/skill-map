@@ -32,6 +32,7 @@ import {
 
 interface IPreferencesEnvelopeWire {
   updateCheck: { enabled: boolean };
+  githubStars: { enabled: boolean };
   telemetry: {
     errorsEnabled: boolean;
     usageCliEnabled: boolean;
@@ -145,6 +146,7 @@ describe('GET /api/preferences', () => {
       const env = (await res.json()) as IPreferencesEnvelopeWire;
       assert.deepEqual(env, {
         updateCheck: { enabled: true },
+        githubStars: { enabled: true },
         telemetry: { ...TELEMETRY_DEFAULT },
       });
     });
@@ -163,6 +165,7 @@ describe('PATCH /api/preferences', () => {
       const env = (await res.json()) as IPreferencesEnvelopeWire;
       assert.deepEqual(env, {
         updateCheck: { enabled: false },
+        githubStars: { enabled: true },
         telemetry: { ...TELEMETRY_DEFAULT },
       });
 
@@ -185,8 +188,37 @@ describe('PATCH /api/preferences', () => {
       const reEnv = (await re.json()) as IPreferencesEnvelopeWire;
       assert.deepEqual(reEnv, {
         updateCheck: { enabled: false },
+        githubStars: { enabled: true },
         telemetry: { ...TELEMETRY_DEFAULT },
       });
+    });
+  });
+
+  it('persists githubStars.enabled=false and round-trips it', async () => {
+    // Regression: the store's merge enumerated its sub-objects by hand,
+    // so this key was dropped between the PATCH and the file. The route
+    // answered 200 with the OLD value and the toggle sprang back, which
+    // is invisible from any test that only checks the status code.
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ githubStars: { enabled: false } }),
+      });
+      assert.equal(res.status, 200);
+      const env = (await res.json()) as IPreferencesEnvelopeWire;
+      assert.equal(env.githubStars.enabled, false);
+      // Untouched neighbours keep their defaults.
+      assert.equal(env.updateCheck.enabled, true);
+
+      const persisted = JSON.parse(
+        readFileSync(join(homedir, '.skill-map/settings.json'), 'utf8'),
+      );
+      assert.equal(persisted.githubStars.enabled, false);
+
+      const re = await fetch(url(handle, '/api/preferences'));
+      const reEnv = (await re.json()) as IPreferencesEnvelopeWire;
+      assert.equal(reEnv.githubStars.enabled, false);
     });
   });
 

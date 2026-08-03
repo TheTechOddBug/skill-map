@@ -22,6 +22,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 
 import { DATA_SOURCE } from '../../services/data-source/data-source.port';
+import { formatCompactCount } from '../../services/format-count';
 
 @Injectable({ providedIn: 'root' })
 export class GithubStarsService {
@@ -31,6 +32,17 @@ export class GithubStarsService {
 
   /** Star count, or `null` when unknown. Consumers render nothing on null. */
   readonly count = this._count.asReadonly();
+
+  /**
+   * Display form, compact (`1.2K`), or `null` when unknown. The chip
+   * lives in a row that already scrolls on narrow windows, so the exact
+   * digits lose to the horizontal room; the accessible name and the
+   * tooltip carry the full number, so nothing is actually hidden.
+   */
+  readonly countLabel = computed<string | null>(() => {
+    const value = this._count();
+    return value === null ? null : formatCompactCount(value);
+  });
 
   /** Convenience for `@if` blocks: there is a number worth showing. */
   readonly hasCount = computed<boolean>(() => this._count() !== null);

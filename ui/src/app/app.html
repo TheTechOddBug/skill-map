@@ -195,13 +195,13 @@
           target="_blank"
           rel="noopener noreferrer"
           [attr.aria-label]="texts.starsA11y(starCount)"
-          [pTooltip]="texts.starsTooltip"
+          [pTooltip]="texts.starsTooltip(starCount)"
           tooltipPosition="bottom"
           data-testid="shell-stars"
         >
           <i class="pi pi-star-fill shell__stars-glyph" aria-hidden="true"></i>
           <span class="shell__stars-label">{{ texts.starsLabel }}</span>
-          <span class="shell__stars-count">{{ starCount }}</span>
+          <span class="shell__stars-count">{{ stars.countLabel() }}</span>
         </a>
       }
       <!-- Real Time toggle. Wrapper span carries the tooltip because
