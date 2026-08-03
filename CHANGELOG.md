@@ -6,6 +6,21 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>1.2.3</b> · 2026-08-03</summary>
+
+### CLI Patch
+- Materialised skill folders no longer land in commits. `sm agent install` and `sm tutorial` drop a `.gitignore` (a bare `*`, which hides the file itself too) inside the folder they create, same doctrine as `.skill-map/.gitignore`: the rule lives in the directory it describes, the project-root `.gitignore` is never touched. Creation only, never over an existing file, and out of the staleness comparison so deleting it stays an opt-out. The default scan ignore also gained `sm-tutorial/`.
+- The plugin enable toggle no longer restates the defaults in `settings.json`. `sm plugins enable / disable` and the `PATCH /api/plugins...` routes skip a per-extension `enabled` key whose state the id already resolves to without it, drop one that turned redundant, and sweep the layer they write for keys left by the previous always-write behaviour. A `--local` re-enable over a committed `false` still persists. Spec: `architecture.md` §Locality.
+- An outdated agent process skill now announces itself in Settings instead of waiting to be found. The chassis reads `ProcessingAgentReadinessService.skillUpdateAvailable` and marks the Project sidebar row with an attention dot; the row itself takes a stripe, an "Update available" chip and a warn-toned action. New `--sm-attention` token, orange rather than the amber severity-warn: an older skill is a pending action, not a finding.
+- The Settings resolution dialog had two nested scrollbars: the table sat in its own `max-height: 60vh` scroll box inside PrimeNG's already-scrollable dialog content. The wrapper is gone, so the dialog content is the single scrollport and the sticky column header sticks against it. The layer chip also renders `project-local` as `LOCAL`, which reads at chip size where the raw id did not.
+
+### Spec Minor (1.3.0)
+- Materialised skill folders no longer land in commits. `sm agent install` and `sm tutorial` drop a `.gitignore` (a bare `*`, which hides the file itself too) inside the folder they create, same doctrine as `.skill-map/.gitignore`: the rule lives in the directory it describes, the project-root `.gitignore` is never touched. Creation only, never over an existing file, and out of the staleness comparison so deleting it stays an opt-out. The default scan ignore also gained `sm-tutorial/`.
+- The plugin enable toggle no longer restates the defaults in `settings.json`. `sm plugins enable / disable` and the `PATCH /api/plugins...` routes skip a per-extension `enabled` key whose state the id already resolves to without it, drop one that turned redundant, and sweep the layer they write for keys left by the previous always-write behaviour. A `--local` re-enable over a committed `false` still persists. Spec: `architecture.md` §Locality.
+
+</details>
+
+<details>
 <summary><b>1.2.2</b> · 2026-08-03</summary>
 
 ### CLI Patch
