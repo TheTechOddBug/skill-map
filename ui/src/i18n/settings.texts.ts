@@ -403,6 +403,18 @@ export const SETTINGS_TEXTS = {
     layerColumn: 'Layer',
     empty: 'No settings rows to show.',
     errorPrefix: 'Could not read the settings resolution:',
+    /**
+     * Chip label per config layer. Short on purpose: the chip is
+     * uppercased and letter-spaced, so the raw `project-local` id reads
+     * as a wall of caps. `local` is the one that needed shortening, the
+     * rest already read fine.
+     */
+    layerLabels: {
+      defaults: 'defaults',
+      project: 'project',
+      'project-local': 'local',
+      override: 'override',
+    },
   },
   aboutLinksHeading: 'Links',
   aboutWebsiteLabel: 'Website',

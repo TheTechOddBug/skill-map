@@ -304,6 +304,11 @@ export class SettingsGeneral {
   protected resolutionValue(row: IConfigResolutionRowApi): string {
     return typeof row.value === 'string' ? row.value : JSON.stringify(row.value);
   }
+
+  /** Layer chip label; the raw layer id stays on `data-layer` for styling. */
+  protected resolutionLayer(row: IConfigResolutionRowApi): string {
+    return SETTINGS_TEXTS.settingsResolution.layerLabels[row.layer] ?? row.layer;
+  }
 }
 
 function formatErr(err: unknown): string {

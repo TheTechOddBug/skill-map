@@ -110,12 +110,12 @@
 }
 
 /* Settings-hierarchy viewer (nested dialog): compact mono table, the
-   layer column as an outlined chip so the winning layer pops. */
-
-.settings-config-resolution__scroll {
-  max-height: 60vh;
-  overflow: auto;
-}
+   layer column as an outlined chip so the winning layer pops.
+   The table is a direct child of `.p-dialog-content`, which is
+   PrimeNG's own scrollport (dialog capped at 90vh), so the header
+   sticks against it and there is exactly ONE scrollbar. Do not wrap
+   the table in another `overflow: auto` box, that reintroduces the
+   nested double scroll. */
 
 .settings-config-resolution__table {
   width: 100%;
