@@ -101,7 +101,30 @@ jobs:
   cli:
     name: build + test (cli)
     runs-on: ubuntu-latest
-    if: github.head_ref != 'changeset-release/main'
+    # Skipped on the release commit itself, for two independent reasons.
+    #
+    # It cannot gate anything: `release.yml` has no `needs:` on this workflow.
+    # It builds both packages, runs `spec:check` and publishes on the SAME push,
+    # so npm has the tarball long before these lanes finish. A red X here is
+    # therefore unactionable, nothing un-publishes and the remedy would be a new
+    # patch release, not a fix on main.
+    #
+    # And it is near-vacuous: a version commit changes versions, changelogs,
+    # `spec/index.json` and `ui/src/data/user-changelog.json`, never source, so
+    # the code is byte-identical to the commit CI validated one push earlier.
+    # The cheap `validate` job above still runs and keeps the JSON parse-check
+    # honest on the regenerated `spec/index.json`.
+    #
+    # Two shapes reach `main`: the changesets PR lands as a merge commit naming
+    # `changeset-release/main`, and a local `pnpm release:version` push (the RC
+    # runbook's path) lands as `chore: version packages`. On a `pull_request`
+    # event `head_commit` is null, so `contains` is false and PRs always run.
+    # If changesets ever renames its branch or message this stops matching and
+    # CI merely runs redundantly again, which is the safe direction to fail.
+    if: >-
+      github.head_ref != 'changeset-release/main'
+      && !contains(github.event.head_commit.message, 'changeset-release/main')
+      && !startsWith(github.event.head_commit.message, 'chore: version packages')
     # Hang backstop, not a budget. Back to 20 now that the split moved ui and
     # e2e out of this job: the 30 was sized for a job that carried everything.
     #
@@ -139,7 +162,13 @@ jobs:
   ui:
     name: build + test (ui + e2e)
     runs-on: ubuntu-latest
-    if: github.head_ref != 'changeset-release/main'
+    # Same release-commit skip as the `cli` job above; see its comment for why.
+    # GitHub Actions does not support YAML anchors in workflows, so the
+    # condition is repeated rather than shared.
+    if: >-
+      github.head_ref != 'changeset-release/main'
+      && !contains(github.event.head_commit.message, 'changeset-release/main')
+      && !startsWith(github.event.head_commit.message, 'chore: version packages')
     # Run inside the official Playwright image: Chromium + the headless
     # shell ship preinstalled at /ms-playwright (the image exports
     # PLAYWRIGHT_BROWSERS_PATH), so the e2e smoke never touches the flaky
