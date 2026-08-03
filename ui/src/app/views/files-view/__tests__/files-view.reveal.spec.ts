@@ -70,11 +70,23 @@ async function boot(options: { follow: boolean; path?: string; reduceMotion?: bo
     error: signal<string | null>(null),
   };
 
-  // `matchMedia` is absent in jsdom; the reveal reads it for the
-  // reduced-motion decision, so provide exactly what it asks for.
-  (window as unknown as { matchMedia: (q: string) => { matches: boolean } }).matchMedia = (
-    query: string,
-  ) => ({ matches: !!options.reduceMotion && query.includes('reduce') });
+  // The reveal reads `matchMedia` for the reduced-motion decision. `test-setup`
+  // already installs a full `MediaQueryList` stub, so override only the value
+  // this spec cares about and KEEP the rest of the shape: a `{ matches }`-only
+  // replacement leaks a booby-trapped global into whichever specs Vitest
+  // schedules later in the same worker (`ThemeService` passes the
+  // `typeof matchMedia === 'function'` guard and then dies on
+  // `mq.addEventListener`). That leak is what broke CI on 2026-08-03, on a file
+  // that has nothing to do with this one.
+  const baseMatchMedia = window.matchMedia.bind(window);
+  window.matchMedia = (query: string): MediaQueryList => {
+    const mql = baseMatchMedia(query);
+    Object.defineProperty(mql, 'matches', {
+      configurable: true,
+      value: !!options.reduceMotion && query.includes('reduce'),
+    });
+    return mql;
+  };
 
   localStorage.clear();
   TestBed.resetTestingModule();

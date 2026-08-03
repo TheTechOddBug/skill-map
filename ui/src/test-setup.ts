@@ -253,8 +253,67 @@ function installScrollToStub(target: unknown): void {
   proto['scrollTo'] = stub;
 }
 
+/**
+ * Install a COMPLETE `matchMedia` on a target.
+ *
+ * jsdom ships none, and `ThemeService.subscribeToSystemPref` guards on
+ * `typeof win.matchMedia !== 'function'`, so its absence is safe. What is NOT
+ * safe is a PARTIAL one: a stub that returns just `{ matches }` passes the
+ * guard and then dies on `mq.addEventListener is not a function`, taking down
+ * every spec that constructs the service through DI.
+ *
+ * That is not hypothetical, it is the CI failure of 2026-08-03. A spec assigned
+ * a `{ matches }`-only `window.matchMedia` and never restored it, so whichever
+ * files Vitest happened to schedule LATER IN THE SAME WORKER inherited a
+ * booby-trapped global. Worker assignment varies by machine, so the suite was
+ * green locally and failed intermittently in CI on an unrelated file.
+ *
+ * Installing a full `MediaQueryList` here means no spec has to know about this,
+ * and a spec that needs specific `matches` semantics overrides the value
+ * without having to reconstruct the shape (see `files-view.reveal.spec.ts`).
+ */
+function installMatchMediaStub(target: unknown): void {
+  if (target === null || typeof target !== 'object') return;
+  const holder = target as Record<string, unknown>;
+  // Never clobber a real implementation, only fill the jsdom gap (and refresh
+  // our own stub). Mirrors the `__smStub` guard the geometry / scrollTo stubs
+  // above use.
+  const current = holder['matchMedia'] as { __smStub?: boolean } | undefined;
+  if (current !== undefined && current.__smStub !== true) return;
+
+  const stub = (query: string): MediaQueryList => {
+    const listeners = new Set<(event: MediaQueryListEvent) => void>();
+    const mql = {
+      media: query,
+      matches: false,
+      onchange: null,
+      addEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void): void => {
+        listeners.add(listener);
+      },
+      removeEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void): void => {
+        listeners.delete(listener);
+      },
+      // Deprecated pair, still what some libraries reach for first.
+      addListener: (listener: (event: MediaQueryListEvent) => void): void => {
+        listeners.add(listener);
+      },
+      removeListener: (listener: (event: MediaQueryListEvent) => void): void => {
+        listeners.delete(listener);
+      },
+      dispatchEvent: (event: Event): boolean => {
+        for (const listener of listeners) listener(event as MediaQueryListEvent);
+        return true;
+      },
+    };
+    return mql as unknown as MediaQueryList;
+  };
+  (stub as { __smStub?: boolean }).__smStub = true;
+  holder['matchMedia'] = stub;
+}
+
 for (const t of targets) {
   installGeometryStub(t, 'HTMLElement');
   installGeometryStub(t, 'Element');
   installScrollToStub(t);
+  installMatchMediaStub(t);
 }
