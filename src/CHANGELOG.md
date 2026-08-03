@@ -1,5 +1,43 @@
 # skill-map
 
+## 1.2.0
+
+### Minor Changes
+
+- Adds the `match-list` input-type (twelfth in the settings catalog: literal, regex, and gitignore-style glob entries) and gives `core/reference-broken` an `ignored-references` setting: matched targets skip both the issue and the confidence penalty. Editable from the Settings plugins panel or `sm plugins config core/reference-broken`, stored in the committed project settings, covered by the new `reference-broken-ignored` conformance case.
+
+  ## User-facing
+
+  **Ignore known-dead references.** You can now tell the broken-reference check to skip targets you know are fine: add exact values, patterns, or wildcards under Settings, Plugins, reference-broken. Matching links stop being flagged, and the list is saved with your project.
+
+- Plugin settings debt pass: the `secret` `envVar` override is now real (a non-empty env value wins over the stored one, the config table reports `[env]`, the UI shows the secret as set), the `github/enrichment` base-URL overrides became writable (project-local-only keys now route to `settings.local.json` from both the CLI and the UI), `sm plugins doctor` gained an `unknown-input-type` warning, and the spec stopped describing secrets as encrypted. Details in `spec/input-types.md`.
+
+  ## User-facing
+
+  Plugin secrets (like the GitHub token) can now come from an environment variable, handy for CI, and the GitHub Enterprise URL overrides can finally be saved from Settings or the CLI (they land in your local, uncommitted config).
+
+- New built-in plugin `test-plugin` with one extension, `showcase`: a settings showcase declaring one setting per input-type in the closed catalog, so every control can be exercised end to end (Settings form, CLI writes, resolver validation, storage routing). Ships disabled by default (deliberate opt-in, no experimental badge); enable with `sm plugins enable test-plugin/showcase`. A companion spec pins the showcase to the full catalog, so a future input-type cannot ship without joining it.
+
+- `sm tutorial --completed <part-id|book>` is a new silent milestone ping the bundled sm-tutorial skill runs at each part close and at the final wrap-up: no scaffolding, no empty-cwd requirement, exit 0 always, out-of-catalog ids collapse to `unknown`. The opt-in `cli.tutorial` usage event carries the milestone as `tutorial_part` (and as the URL / Screen value `tutorial:<id>`), so tutorial completion becomes observable by part name. Contract in `spec/cli-contract.md` and `spec/telemetry.md`.
+
+### Patch Changes
+
+- The BFF no longer reads `process.env` directly: `sm serve` snapshots it once into the required `IServerOptions.settingsEnv` knob (lint-enforced under `server/**`). Plugin-settings writes now append operations-log lines (`config.set` / `config.reset`, key only, CLI and UI channels), and `sm plugins config <id> <setting> --reset` correctly removes a project-local-only override (e.g. the github `apiBaseUrl`) instead of failing with exit 2.
+
+- The scan benchmark's perf budget (`BUDGET_MS` in `src/__tests__/integration/scan-benchmark.spec.ts`) doubles from 10s to 20s after a 10.48s trip on WSL2 under heavy parallel suite load; the isolated baseline on the same machine is ~1.4s, so the budget still catches order-of-magnitude regressions while absorbing worst-case host contention. Test-only change, no runtime behaviour affected.
+
+- UI review-pass fixes: string values on the generic `ui.feature` channel now collapse inside the event builder (a third-party plugin id can no longer leak through a call site), consent-gated toggles (capture, follow-symlinks) emit usage events only once the confirm dialog or write resolves, re-clicking the active Changelog / About tab no longer re-emits, and the match-list editor gains inline over-256-char and duplicate-entry errors plus collision-free DOM ids for same-label settings.
+
+  ## User-facing
+
+  **Stricter ignore-list editing.** When adding entries to a plugin's match list in Settings (like reference-broken's ignored references), a value over 256 characters or an entry already in the list is now flagged right at Add time instead of failing the whole Apply later.
+
+- Security-audit hardening of the UI telemetry surface: the UI scrubber regains the CLI's project-root collapse (the /api/health cwd threads into the Sentry beforeSend and the crash-dialog preview), short deterministic analyzer ids collapse through a closed built-in set before riding usage events, the crash dialog previews an honest truncated JSON summary for non-Error rejections, plugin secret inputs stop password-manager save offers, and the match-list editor dedupes seeded duplicates.
+
+  ## User-facing
+
+  **More private crash reports.** The crash-report dialog now redacts your project folder's name from anything it sends, shows a real summary even for non-standard errors, and plugin secret fields in Settings no longer trigger your password manager's save prompt.
+
 ## 1.1.0
 
 ### Minor Changes
