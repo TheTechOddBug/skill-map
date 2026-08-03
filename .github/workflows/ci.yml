@@ -67,41 +67,80 @@ jobs:
           done < <(find spec/schemas -name '*.schema.json')
           exit $fail
 
-      # Spec integrity (index hashes + coverage matrix) and the public-site
-      # build (schema $id alignment) are now covered by `pnpm validate`
-      # in the build-test job — the spec and web workspaces validate
-      # themselves end-to-end. Only the JSON parse-check stays here as a
-      # cheap, install-script-free guard so a malformed schema fails the
-      # validate job before the heavier orchestrator runs.
+      # Spec integrity (index hashes + coverage matrix) is covered by the
+      # `cli` job and the public-site build (schema $id alignment) by
+      # the `ui` job, the spec and web workspaces validate themselves end-to-end.
+      # Only the JSON parse-check stays here as a cheap, install-script-free
+      # guard so a malformed schema fails this job before the heavier lanes
+      # run.
 
-  build-test:
-    name: build + test
+  # ---------------------------------------------------------------------------
+  # The validate suite runs as TWO PARALLEL LANES, not one serial job.
+  #
+  # It used to be a single `pnpm validate`, and that job kept dying for reasons
+  # that were all the same reason. The `@skill-map/cli` leg alone is ~70% of the
+  # wall clock and swings hard with runner luck (596s / 805s / 828s measured on
+  # the same suite), so on a slow runner it spent the entire budget before e2e
+  # started, and its `node --test` fan-out over 401 files starved unrelated
+  # async waits badly enough to expire a 4s timeout on work that takes 40ms.
+  #
+  # Splitting fixes both: wall clock drops to the slower lane instead of the
+  # sum, and each lane gets an event loop that is not fighting the other. Raising
+  # timeouts treated the symptom; this treats the cause.
+  #
+  # The cut follows the real dependency graph, not an even split:
+  #   - the cli job needs no browser, so it skips the Playwright image entirely
+  #     (only `e2e/` depends on playwright) and saves the image pull too.
+  #   - the ui job is self-sufficient WITHOUT the cli build: `demo:build` prefers
+  #     `src/dist/cli.js` but falls back to the source entry through tsx
+  #     (`web/scripts/build-demo-dataset.js` §runScan), and `ensure-ui-build.js`
+  #     reuses the `ui/dist` this lane just produced.
+  # Each lane's composition lives in a root package script so it stays
+  # reproducible locally (`pnpm ci:cli`), not buried in YAML.
+  # ---------------------------------------------------------------------------
+  cli:
+    name: build + test (cli)
+    runs-on: ubuntu-latest
+    if: github.head_ref != 'changeset-release/main'
+    # Hang backstop, not a budget. The measured worst case is ~14 min of tests
+    # plus ~3 min of conformance; if this fires, suspect a hang.
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: 'pnpm'
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate spec + cli (typecheck + lint + build + tests + conformance)
+        run: pnpm ci:cli
+
+  ui:
+    name: build + test (ui + e2e)
     runs-on: ubuntu-latest
     if: github.head_ref != 'changeset-release/main'
     # Run inside the official Playwright image: Chromium + the headless
     # shell ship preinstalled at /ms-playwright (the image exports
     # PLAYWRIGHT_BROWSERS_PATH), so the e2e smoke never touches the flaky
     # cdn.playwright.dev, which kept SIGTERM-ing mid-download. The tag MUST
-    # track @playwright/test in e2e/package.json (1.59.1) so the bundled
-    # browser revision matches; on a mismatch the `prevalidate:test` hook
-    # would fall back to a CDN download. Bump both together.
+    # track @playwright/test in e2e/package.json so the bundled browser
+    # revision matches; on a mismatch the `prevalidate:test` hook would fall
+    # back to a CDN download. Bump both together.
     container: mcr.microsoft.com/playwright:v1.61.1-noble
-    # Bound for image pull + install + full validate. No browser download left
-    # to stall on, so this is a backstop against a hang, NOT a performance
-    # budget.
-    #
-    # Raised 20 -> 30 on 2026-08-03 after a run died 40 seconds into the e2e
-    # smoke with everything before it green. The driver is variance in the
-    # `@skill-map/cli` test leg, which alone is ~70% of the wall clock and was
-    # measured at 596s and 828s on two runs of the same suite; a slow runner
-    # spends the entire old budget before e2e starts. Conformance (~3 min), ui
-    # (~35 s) and the demo build are minor by comparison.
-    #
-    # If this bound is ever hit again, the fix is to SPLIT the job (cli +
-    # conformance in one, ui + e2e in the other, running in parallel) rather
-    # than to raise it further: past ~30 minutes a serial job stops being worth
-    # waiting on, and a rising timeout hides a suite that needs attention.
-    timeout-minutes: 30
+    # Hang backstop. This lane measured ~6 min end to end; the headroom is for
+    # the image pull and a contended runner.
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -127,13 +166,14 @@ jobs:
       # /ms-playwright. The e2e `prevalidate:test` hook still runs
       # `playwright install chromium-headless-shell`, but it finds the
       # matching revision present and skips the download.
-      - name: Validate (typecheck + lint + build + test for every workspace)
-        run: pnpm validate
+      - name: Validate ui + web + e2e (build + tests + smoke)
+        run: pnpm ci:ui
 
   smoke-install:
     name: smoke install (tarball)
     runs-on: ubuntu-latest
-    needs: build-test
+    # Only the cli lane gates this: it packs and installs the CLI tarball.
+    needs: cli
     if: github.head_ref != 'changeset-release/main'
     steps:
       - name: Checkout

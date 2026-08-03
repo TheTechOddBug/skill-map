@@ -8,7 +8,7 @@ ESLint v10 flat config lives at `src/eslint.config.js`. Run from any cwd:
 - `pnpm lint:fix`, same with `--fix`.
 - `pnpm validate`, semantic alias for "all static checks". Currently delegates to lint across workspaces; expand here when more static checks land (typecheck-all, doctest, etc.).
 
-CI (`.github/workflows/ci.yml` → `build-test` job) runs `pnpm validate` after typecheck, before build. Both errors AND warnings block CI, there are no `'warn'` rules in the config.
+CI (`.github/workflows/ci.yml` → `cli` job, via `pnpm ci:cli`) runs lint after typecheck, before build. Both errors AND warnings block CI, there are no `'warn'` rules in the config.
 
 **Rule severity policy**: every quality rule is `'error'` (post-complexity-sweep). The categories below cover what's enforced; new rules should land at `'error'` from day one or come with a justified disable plan.
 

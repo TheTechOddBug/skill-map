@@ -63,7 +63,7 @@ Most reports land at one to three short files. Paste the file tree plus each fil
 - TypeScript strict mode, Node ESM, Node ≥ 24.0.
 - Every extension ships a sibling `*.test.ts`. Missing test → contract check fails → tool does not boot.
 - No feature is added without updating `spec/` first (when normative). Spec > ROADMAP > AGENTS, in that authority order.
-- Lint clean: `pnpm lint` (CI runs it via `pnpm validate`). Both errors AND warnings block CI, there are no `warn` rules in the config.
+- Lint clean: `pnpm lint` (CI runs it inside the `cli` job via `pnpm ci:cli`). Both errors AND warnings block CI, there are no `warn` rules in the config.
 - All artifacts in English (code, commits, PRs, docs). Conversation language follows the activation rule in AGENTS.md.
 
 ## Versioning, changesets + integrity hashes
@@ -139,7 +139,7 @@ pnpm --filter @skill-map/spec spec          # regenerate
 pnpm --filter @skill-map/spec spec:check    # verify (used by CI via root validate)
 ```
 
-The orchestrator (`pnpm validate`) runs `spec:check` for every PR through the spec workspace's `validate`. Drift → red build. A pre-commit hook (`.githooks/pre-commit`, wired automatically by `pnpm install` via the root `prepare` script that sets `core.hooksPath`) also runs the spec workspace's `validate` whenever a commit touches `spec/`, so an out-of-sync `index.json` fails locally before reaching CI.
+The orchestrator runs `spec:check` for every PR through the spec workspace's `validate` (locally via `pnpm validate`, in CI inside the `cli` job). Drift → red build. A pre-commit hook (`.githooks/pre-commit`, wired automatically by `pnpm install` via the root `prepare` script that sets `core.hooksPath`) also runs the spec workspace's `validate` whenever a commit touches `spec/`, so an out-of-sync `index.json` fails locally before reaching CI.
 
 CLI documentation is not a committed artifact: `sm help --format md` emits canonical markdown for the full command surface on demand, so there is nothing to keep in sync.
 

@@ -39,7 +39,20 @@ Root scripts:
 "validate:test": "pnpm --filter @skill-map/cli validate:test && pnpm --filter ui validate:test && pnpm --filter skill-map-e2e validate:test"
 ```
 
-CI runs `pnpm validate`, same composition.
+Locally, `pnpm validate` is still the one command to run: same composition, fast-fail across every workspace.
+
+**CI does not run it.** It runs the same work as TWO PARALLEL LANES, one job each:
+
+```json
+"ci:cli": "pnpm --filter @skill-map/spec validate:compile && pnpm --filter @skill-map/cli validate:compile && pnpm --filter @skill-map/cli validate:test",
+"ci:ui": "pnpm --filter ui validate:compile && pnpm --filter @skill-map/web validate:compile && pnpm --filter ui validate:test && pnpm --filter skill-map-e2e validate:test"
+```
+
+These are the allowed cross-workspace-combo exception to the "no root script per workspace" anti-pattern below (two and three workspaces respectively), and they exist as scripts rather than inline YAML so a lane stays reproducible locally: `pnpm ci:ui` runs exactly what the CI job runs.
+
+Why lanes at all: the `@skill-map/cli` leg is ~70% of the wall clock and swings with runner luck (596s / 805s / 828s measured on the same suite). Serially that starved everything downstream, both on the clock (a run died 40s into the e2e smoke with all preceding stages green) and on the event loop (its `node --test` fan-out over 401 files expired a 4s wait on work that takes 40ms). Splitting drops wall clock to the slower lane and gives each an uncontended event loop.
+
+The cut follows the dependency graph, not an even split. The cli lane needs no browser (only `e2e/` depends on playwright), so it runs outside the Playwright image. The ui lane is self-sufficient without the CLI build: `demo:build` prefers `src/dist/cli.js` but falls back to the source entry through tsx, and `ensure-ui-build.js` reuses the `ui/dist` the lane just built. If a future change makes one lane genuinely need the other's output, prefer an artifact upload over merging them back.
 
 ### Consumer workspaces and `prevalidate:test`
 
