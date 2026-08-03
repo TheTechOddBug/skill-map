@@ -264,7 +264,17 @@ describe('mcp server integration', () => {
           data: {},
         });
 
-        await withTimeout(gotUpdate, 4000, 'notifications/resources/updated for skillmap://graph');
+        // A HANG BACKSTOP, not a latency assertion. The delivery path is
+        // synchronous (`scan.completed` -> `notifyResourceUpdated` ->
+        // `sendResourceUpdated`, no debounce) and this test measures 40-180ms
+        // locally, yet the old 4s budget still expired in CI on 2026-08-03.
+        // The mechanism is event-loop starvation, not slowness: `node --test`
+        // runs 401 files concurrently and the same run took 805s against a
+        // 596s baseline, so a contended runner can starve this round-trip well
+        // past a margin that looks like 20x. Sized to match the sibling
+        // `server-ws-integration` waits (8s) with room to spare; if it ever
+        // fires, suspect a real hang rather than raising it again.
+        await withTimeout(gotUpdate, 15000, 'notifications/resources/updated for skillmap://graph');
         assert.ok(updated.includes('skillmap://graph'));
       }),
     );
