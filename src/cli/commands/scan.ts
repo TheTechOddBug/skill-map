@@ -12,6 +12,7 @@ import { ExitCode } from '../util/exit-codes.js';
 import { tryParsePositiveInt } from '../util/option-validators.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import { relativeIfBelow } from '../util/path-display.js';
+import { renderScanSummaryLines } from '../util/scan-summary.js';
 import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { appendOperation } from '../../core/operations-log.js';
 import { runScanForCommand } from '../../core/runtime/scan-runner.js';
@@ -373,42 +374,16 @@ export class ScanCommand extends SmCommand {
     const ansi = this.ansiFor('stdout');
     this.#announceAutoDetectedLens(lensAutoDetected);
     const cwd = defaultRuntimeContext().cwd;
-    const hasErrors = exitCode === ExitCode.Issues;
-    const severityCounts = countBySeverity(result.issues);
 
-    // Success keeps the green ✓ as a positive signal. Errors drop the
-    // glyph entirely (a bare space holds the column so the counts row
-    // still aligns with the success path), the per-tier `4 errors` in
-    // red is signal enough; doubling it with a leading red ✕ reads as
-    // visual noise without adding actionable information.
-    const glyph = hasErrors ? ' ' : ansi.green('✓');
-    const counts = formatScanCounts({
-      nodes: result.stats.nodesCount,
-      links: result.stats.linksCount,
-      severities: severityCounts,
+    // Same block `sm init`'s first scan prints (`util/scan-summary.ts`).
+    const lines = renderScanSummaryLines({
+      result,
+      persistedTo,
+      ...(this.dryRun && !this.noBuiltIns ? { dbPathIfNotPersisted: dbPath } : {}),
+      cwd,
       ansi,
     });
-    const duration = ansi.dim(`in ${result.stats.durationMs}ms`);
-    const rootsSuffix = result.roots.length > 1
-      ? ansi.dim(`  (${result.roots.length} roots)`)
-      : '';
-
-    this.printer!.data(
-      tx(SCAN_TEXTS.scannedSummary, { glyph, counts, duration, rootsSuffix }),
-    );
-    if (persistedTo) {
-      this.printer!.data(
-        tx(SCAN_TEXTS.persistedTo, {
-          dbPath: ansi.dim(relativeIfBelow(persistedTo, cwd)),
-        }),
-      );
-    } else if (this.dryRun && !this.noBuiltIns) {
-      this.printer!.data(
-        tx(SCAN_TEXTS.wouldPersist, {
-          dbPath: ansi.dim(relativeIfBelow(dbPath, cwd)),
-        }),
-      );
-    }
+    for (const line of lines) this.printer!.data(line);
     this.maybePrintCapNotice(result, ansi);
     this.maybePrintSkippedFilesNotice(result, ansi);
     this.maybePrintRenderCapNotice(result, ansi);
@@ -549,101 +524,6 @@ export class ScanCommand extends SmCommand {
     this.printer!.data(JSON.stringify(result) + '\n');
     return exitCode;
   }
-}
-
-interface ISeverityCounts {
-  readonly errors: number;
-  readonly warns: number;
-  readonly info: number;
-}
-
-/**
- * Count DISTINCT nodes affected per severity tier. Same semantics as
- * the UI severity palette: an issue with `nodeIds: [a, b]` contributes
- * `a` and `b` to its tier set, but a tier that already saw `a` from a
- * sibling issue does not double-count. Operators reading both the CLI
- * row and the UI badge therefore see matching numbers (otherwise the
- * UI's "nodes affected" total reads as wrong against the CLI's raw
- * issue-record total).
- */
-function countBySeverity(
-  issues: readonly { severity: string; nodeIds?: readonly string[] }[],
-): ISeverityCounts {
-  const buckets: Record<'error' | 'warn' | 'info', Set<string>> = {
-    error: new Set(),
-    warn: new Set(),
-    info: new Set(),
-  };
-  for (const i of issues) {
-    const tier = i.severity as 'error' | 'warn' | 'info';
-    const bucket = buckets[tier];
-    if (!bucket) continue;
-    fillSeverityBucket(bucket, i.nodeIds);
-  }
-  return { errors: buckets.error.size, warns: buckets.warn.size, info: buckets.info.size };
-}
-
-function fillSeverityBucket(bucket: Set<string>, nodeIds: readonly string[] | undefined): void {
-  const ids = nodeIds ?? [];
-  // Issues with no `nodeIds` (project-level findings, would be rare
-  // but the schema allows it) count once against the tier under a
-  // synthetic key so the row still surfaces them.
-  if (ids.length === 0) {
-    bucket.add('');
-    return;
-  }
-  for (const id of ids) bucket.add(id);
-}
-
-/**
- * Format the dot-separated `N nodes · M links · <severity breakdown>`
- * counts block. The breakdown splits issues per severity (`errors`,
- * `warns`, `info`), each coloured to its tier (red / yellow / dim) so
- * the operator can read at a glance "how many are blocking vs noise".
- * Tiers with zero count collapse out, an all-clean scan renders the
- * collapsed `0 issues` placeholder dimmed. Nodes and links stay plain,
- * they're routine output, not signals.
- */
-function formatScanCounts(opts: {
-  nodes: number;
-  links: number;
-  severities: ISeverityCounts;
-  ansi: IAnsi;
-}): string {
-  const { nodes, links, severities, ansi } = opts;
-  const parts: string[] = [
-    `${nodes} ${countNoun(nodes, SCAN_TEXTS.countNodeNounSingular, SCAN_TEXTS.countNodeNounPlural)}`,
-    `${links} ${countNoun(links, SCAN_TEXTS.countLinkNounSingular, SCAN_TEXTS.countLinkNounPlural)}`,
-  ];
-  const total = severities.errors + severities.warns + severities.info;
-  if (total === 0) {
-    parts.push(ansi.dim(SCAN_TEXTS.countNoIssues));
-  } else {
-    if (severities.errors > 0) {
-      const noun = countNoun(severities.errors, SCAN_TEXTS.countErrorNounSingular, SCAN_TEXTS.countErrorNounPlural);
-      parts.push(ansi.red(`${severities.errors} ${noun}`));
-    }
-    if (severities.warns > 0) {
-      const noun = countNoun(severities.warns, SCAN_TEXTS.countWarningNounSingular, SCAN_TEXTS.countWarningNounPlural);
-      parts.push(ansi.yellow(`${severities.warns} ${noun}`));
-    }
-    if (severities.info > 0) {
-      // `info` is an uncountable noun in English (no `infos`), keep it
-      // bare so the row reads naturally even at higher counts.
-      parts.push(ansi.dim(`${severities.info} ${SCAN_TEXTS.countInfoNoun}`));
-    }
-  }
-  return parts.join(' · ');
-}
-
-/**
- * Pick the singular or plural catalog noun for `count` (English plural
- * rule). Extracted so the per-count ternary lives outside
- * `formatScanCounts` (keeps its cyclomatic complexity inside budget),
- * replacing the former `${word}s` hand-suffix helper.
- */
-function countNoun(count: number, singular: string, plural: string): string {
-  return count === 1 ? singular : plural;
 }
 
 /**

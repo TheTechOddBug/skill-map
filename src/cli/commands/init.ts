@@ -48,6 +48,7 @@ import { ExitCode } from '../util/exit-codes.js';
 import { pathExists } from '../util/fs.js';
 import { createPrinter, type IPrinter } from '../../core/runtime/printer.js';
 import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
+import { renderScanSummaryLines } from '../util/scan-summary.js';
 import { SmCommand } from '../util/sm-command.js';
 import { withSqlite } from '../../core/sqlite/with-sqlite.js';
 
@@ -304,15 +305,13 @@ function writeDryRunScopeGitignorePlan(printer: IPrinter, scopeRoot: string): vo
  *   - The runtime context's `cwd` is overridden to the scope root so
  *     `loadConfig` and `defaultProjectDbPath` resolve under the
  *     correct directory.
- *   - Init-specific render templates (`firstScanSummary`,
- *     `configLoadFailure`, `scanFailed`), the runner returns a
- *     discriminated outcome, this adapter maps the kinds to
- *     `INIT_TEXTS.*` strings.
+ *   - Init-specific render templates for the FAILURE kinds
+ *     (`configLoadFailure`, `scanFailed`), the runner returns a
+ *     discriminated outcome and this adapter maps the kinds to
+ *     `INIT_TEXTS.*` strings. The SUCCESS path prints the shared
+ *     summary block (`util/scan-summary.ts`), byte-identical to what
+ *     `sm scan` renders.
  */
-// First-scan path: validates four `outcome.kind` branches before
-// rendering the summary. Each branch routes to a distinct exit code,
-// so the cyclomatic count is intrinsic to the contract.
-// eslint-disable-next-line complexity
 async function runFirstScan(
   scopeRoot: string,
   strict: boolean,
@@ -405,19 +404,19 @@ async function runFirstScan(
       tx(SCAN_RUNNER_TEXTS.activeProviderAutodetected, { id: outcome.lensAutoDetected }),
     );
   }
-  const hasErrors = result.issues.some((i) => i.severity === 'error');
-  printer.info(
-    tx(INIT_TEXTS.firstScanSummary, {
-      glyph: hasErrors ? ansi.red('✕') : ansi.green('✓'),
-      nodes: result.nodes.length,
-      nodesPlural: result.nodes.length === 1 ? '' : 's',
-      links: result.links.length,
-      linksPlural: result.links.length === 1 ? '' : 's',
-      issues: result.issues.length,
-      issuesPlural: result.issues.length === 1 ? '' : 's',
-    }),
-  );
+  // The SAME summary block `sm scan` prints (`util/scan-summary.ts`).
+  // The operator's first scan is their first read of a scan result, so
+  // it must teach the shape they will see from then on; init used to
+  // print a one-off line of its own, in a format that appeared exactly
+  // once in the product.
+  const lines = renderScanSummaryLines({
+    result,
+    persistedTo: defaultDbPath(scopeRoot),
+    cwd: scopeRoot,
+    ansi,
+  });
+  for (const line of lines) printer.info(line);
   // Issues with severity=error gate the exit code, mirroring `sm scan`.
-  return hasErrors ? ExitCode.Issues : ExitCode.Ok;
+  return result.issues.some((i) => i.severity === 'error') ? ExitCode.Issues : ExitCode.Ok;
 }
 

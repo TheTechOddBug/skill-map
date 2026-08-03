@@ -185,8 +185,13 @@ describe('sm init, project scope', () => {
     // M1 wiring: status banners route through `printer.info` → stderr,
     // so stdout stays empty until a `--json` payload lands.
     assert.match(r.stderr, /Running first scan/);
-    // New layout: pluralised noun (`1 node` / `N nodes`), no `(s)`.
-    assert.match(r.stderr, /First scan: 1 node\b/);
+    // The first scan renders the SAME block `sm scan` does
+    // (`util/scan-summary.ts`): dot-separated counts, dim elapsed, then
+    // the database path. It used to print a one-off `First scan: …`
+    // line, a format that appeared exactly once in the product.
+    assert.match(r.stderr, /1 node · 0 links · .*\bin \d+ms/);
+    assert.match(r.stderr, /\.skill-map\/skill-map\.db/);
+    assert.equal(/First scan:/.test(r.stderr), false);
   });
 });
 

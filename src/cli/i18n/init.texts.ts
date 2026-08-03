@@ -40,7 +40,6 @@ export const INIT_TEXTS = {
 
   scanFailed: '{{glyph}}  sm init: scan failed: {{message}}\n',
 
-  firstScanSummary: '{{glyph}}  First scan: {{nodes}} node{{nodesPlural}}, {{links}} link{{linksPlural}}, {{issues}} issue{{issuesPlural}}.\n',
 
   // --- dry-run previews --------------------------------------------------
   dryRunHeader: '(dry-run, no files written, no DB provisioned)\n',
