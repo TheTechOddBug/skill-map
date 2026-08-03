@@ -2,6 +2,39 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.2.3",
+      "date": "2026-08-03",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The skill folders `sm agent install` and `sm tutorial` create are generated copies, so they now ship a `.gitignore` that keeps them out of your commits, and the tutorial folder no longer shows up in your map. Delete that file if you would rather commit it.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Turning a plugin off and back on used to leave a line behind in `.skill-map/settings.json` for every flip. Now the file only keeps the settings that actually differ from the defaults, and it cleans up the leftovers the next time you toggle anything.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Settings now shows an orange dot next to Project when your agent process skill is older than the one shipping with this version, and the row explains why. The dot clears as soon as you update.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The \"Settings resolution\" panel now has a single scrollbar instead of two, and the config layer column shows LOCAL instead of the harder-to-read PROJECT-LOCAL.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.2.2",
       "date": "2026-08-03",
       "kind": "internal",
