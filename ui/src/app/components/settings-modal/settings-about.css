@@ -166,6 +166,18 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
+/* Count badge inside the gold CTA. Punched out of the CTA's own fill
+   rather than given a colour of its own: the pill already carries the
+   accent, and a second tint inside it would read as two controls. */
+.settings-about__star-count {
+  font-family: var(--sm-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--sm-fs-xs);
+  padding: 0 0.3rem;
+  border-radius: var(--sm-radius-sm);
+  background: rgba(0, 0, 0, 0.18);
+}
+
 .settings-about__star:hover .settings-about__star-cta,
 .settings-about__star:focus-visible .settings-about__star-cta {
   background: color-mix(in oklab, var(--star-accent) 88%, white);

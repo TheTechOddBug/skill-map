@@ -3,6 +3,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
 import { SettingsGeneral } from '../settings-general';
+import { GithubStarsService } from '../../../services/github-stars';
 import {
   DATA_SOURCE,
   DataSourceError,
@@ -40,6 +41,7 @@ import type { IPreferencesApi, IPreferencesPatchApi } from '../../../../models/a
 function prefs(updateCheck: boolean, telemetryOn: boolean): IPreferencesApi {
   return {
     updateCheck: { enabled: updateCheck },
+    githubStars: { enabled: true },
     telemetry: {
       errorsEnabled: telemetryOn,
       usageCliEnabled: telemetryOn,
@@ -50,7 +52,7 @@ function prefs(updateCheck: boolean, telemetryOn: boolean): IPreferencesApi {
   };
 }
 
-type TToggleKey = 'updateCheck.enabled' | 'telemetry';
+type TToggleKey = 'updateCheck.enabled' | 'githubStars.enabled' | 'telemetry';
 
 interface IGeneralToggleDefLike {
   key: TToggleKey;
@@ -59,7 +61,11 @@ interface IGeneralToggleDefLike {
 }
 
 interface IGeneralProto {
-  toggles: ReadonlyArray<IGeneralToggleDefLike>;
+  // Two groups since the theme selector became a divider (the star
+  // count renders below it, user call 2026-08-03). Tests look a def up
+  // by key across both, so the split never breaks them again.
+  togglesBeforeTheme: ReadonlyArray<IGeneralToggleDefLike>;
+  togglesAfterTheme: ReadonlyArray<IGeneralToggleDefLike>;
   valueOf(def: IGeneralToggleDefLike): boolean;
   onToggle(def: IGeneralToggleDefLike, next: boolean): void;
   loadError(): string | null;
@@ -89,7 +95,9 @@ function bootstrap(stub: Partial<IDataSourcePort>): IBootstrapResult {
 }
 
 function defByKey(proto: IGeneralProto, key: TToggleKey): IGeneralToggleDefLike {
-  const def = proto.toggles.find((d) => d.key === key);
+  const def = [...proto.togglesBeforeTheme, ...proto.togglesAfterTheme].find(
+    (d) => d.key === key,
+  );
   if (!def) throw new Error(`SettingsGeneral has no toggle def for "${key}"`);
   return def;
 }
@@ -228,4 +236,119 @@ describe('SettingsGeneral', () => {
     expect(row!.querySelector('[data-layer="project"]')).not.toBeNull();
   });
 
+});
+
+describe('SettingsGeneral row order', () => {
+  it('renders the star-count toggle BELOW the theme selector', async () => {
+    // User call 2026-08-03. The order is a real decision, not an
+    // accident of array position: the rows above the theme change what
+    // skill-map DOES, the ones below change what you SEE.
+    const { fixture } = bootstrap({
+      getPreferences: vi.fn().mockResolvedValue(prefs(true, false)),
+    } as Partial<IDataSourcePort>);
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const rows = [...root.querySelectorAll('[data-testid^="settings-general-row-"]')].map((el) =>
+      el.getAttribute('data-testid'),
+    );
+    const theme = rows.indexOf('settings-general-row-extra-theme');
+    const stars = rows.indexOf('settings-general-row-githubStars.enabled');
+    const updates = rows.indexOf('settings-general-row-updateCheck.enabled');
+
+    expect(theme).toBeGreaterThan(-1);
+    expect(stars).toBeGreaterThan(theme);
+    expect(updates).toBeLessThan(theme);
+  });
+
+  it('gives both groups the same row treatment', async () => {
+    // The two groups share one template; this catches a future copy of
+    // the markup drifting (a missing label association, a row that
+    // stops flipping on click).
+    const { fixture } = bootstrap({
+      getPreferences: vi.fn().mockResolvedValue(prefs(true, false)),
+    } as Partial<IDataSourcePort>);
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const starsRow = root.querySelector('[data-testid="settings-general-row-githubStars.enabled"]');
+    const label = starsRow?.querySelector('label');
+    const switchEl = starsRow?.querySelector('[data-testid="settings-general-toggle-githubStars.enabled"]');
+    expect(label?.getAttribute('for')).toBeTruthy();
+    expect(switchEl).not.toBeNull();
+  });
+});
+
+describe('SettingsGeneral star-count toggle', () => {
+  /**
+   * Regression: flipping the switch persisted, but the topbar kept
+   * showing the count until a reload, because the shell reads it once at
+   * boot and nothing told it to look again. A preference that governs
+   * another surface has to poke that surface.
+   */
+  it('re-reads the star count after its toggle flips', async () => {
+    TestBed.resetTestingModule();
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(),
+        {
+          provide: DATA_SOURCE,
+          useValue: {
+            getPreferences: vi.fn().mockResolvedValue(prefs(true, false)),
+            setPreferences: vi.fn().mockResolvedValue(prefs(true, false)),
+          } as Partial<IDataSourcePort>,
+        },
+        { provide: GithubStarsService, useValue: { refresh } as unknown as GithubStarsService },
+      ],
+    });
+    const fixture = TestBed.createComponent(SettingsGeneral);
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+
+    const proto = fixture.componentInstance as unknown as IGeneralProto;
+    const def = [...proto.togglesBeforeTheme, ...proto.togglesAfterTheme].find(
+      (d) => d.key === 'githubStars.enabled',
+    )!;
+    proto.onToggle(def, false);
+    await flushAsync();
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT re-read it when an unrelated toggle flips', async () => {
+    TestBed.resetTestingModule();
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(),
+        {
+          provide: DATA_SOURCE,
+          useValue: {
+            getPreferences: vi.fn().mockResolvedValue(prefs(true, false)),
+            setPreferences: vi.fn().mockResolvedValue(prefs(false, false)),
+          } as Partial<IDataSourcePort>,
+        },
+        { provide: GithubStarsService, useValue: { refresh } as unknown as GithubStarsService },
+      ],
+    });
+    const fixture = TestBed.createComponent(SettingsGeneral);
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+
+    const proto = fixture.componentInstance as unknown as IGeneralProto;
+    const def = proto.togglesBeforeTheme.find((d) => d.key === 'updateCheck.enabled')!;
+    proto.onToggle(def, false);
+    await flushAsync();
+
+    expect(refresh).not.toHaveBeenCalled();
+  });
 });

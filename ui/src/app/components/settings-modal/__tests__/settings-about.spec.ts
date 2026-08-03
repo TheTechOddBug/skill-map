@@ -174,3 +174,44 @@ describe('SettingsAbout, lazy health load', () => {
     expect(errorRow?.textContent).toContain('no health here');
   });
 });
+
+/**
+ * Star count inside the existing "Enjoying skill-map?" CTA (user
+ * decision 2026-08-03, placement 4). It is social proof ON the ask, not
+ * an ask of its own, which is why it renders inside the button and why
+ * its absence leaves the card intact.
+ */
+describe('SettingsAbout star count', () => {
+  it('renders the count inside the CTA when one is known', async () => {
+    const fixture = bootstrap({
+      health: vi.fn().mockResolvedValue(health()),
+      getGithubStars: vi.fn().mockResolvedValue({ count: 27, checkedAt: 1 }),
+    } as Partial<IDataSourcePort>);
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const badge = root.querySelector('[data-testid="settings-about-star-count"]');
+    expect(badge?.textContent?.trim()).toBe('27');
+    // Inside the CTA, not floating next to it.
+    expect(badge?.closest('.settings-about__star-cta')).not.toBeNull();
+  });
+
+  it('leaves the CTA whole when the count is unknown', async () => {
+    const fixture = bootstrap({
+      health: vi.fn().mockResolvedValue(health()),
+      getGithubStars: vi.fn().mockResolvedValue({ count: null, checkedAt: null }),
+    } as Partial<IDataSourcePort>);
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-testid="settings-about-star-count"]')).toBeNull();
+    // The card still asks for the star; only the number is missing.
+    expect(root.querySelector('[data-testid="settings-about-star"]')).not.toBeNull();
+  });
+});

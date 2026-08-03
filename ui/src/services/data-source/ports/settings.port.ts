@@ -19,6 +19,7 @@ import type {
   IProjectPreferencesApi,
   IProjectPreferencesPatchApi,
   IUpdateStatusResponseApi,
+  IGithubStarsApi,
 } from '../../../models/api';
 
 export interface ISettingsPort {
@@ -120,4 +121,12 @@ export interface ISettingsPort {
    * cleanly without an `/api/*` round-trip.
    */
   getUpdateStatus(): Promise<IUpdateStatusResponseApi>;
+
+  /**
+   * `GET /api/github-stars`. Always 200; `count: null` is the universal
+   * degraded answer (toggle off, offline, rate-limited) and renders
+   * nothing. Demo mode answers `null` too: the demo bundle is a static
+   * export with no server to do the read.
+   */
+  getGithubStars(): Promise<IGithubStarsApi>;
 }

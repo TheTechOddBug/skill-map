@@ -26,15 +26,33 @@
   <sm-connection-banner />
   <header class="shell__topbar" data-testid="shell-topbar">
     <div class="shell__brand">
-      <img
-        class="shell__brand-mark"
-        [ngSrc]="markSrc()"
-        width="32"
-        height="32"
-        priority
-        alt=""
-        aria-hidden="true"
-      />
+      <!--
+        The mark opens the project site, the wordmark below opens the
+        repository. Two adjacent links with different destinations, so
+        each states its own: the image stays decorative (`alt=""`), which
+        would otherwise leave its link with no accessible name at all,
+        and the anchor carries the name instead.
+      -->
+      <a
+        class="shell__brand-link"
+        [href]="links.website"
+        target="_blank"
+        rel="noopener noreferrer"
+        [attr.aria-label]="texts.brandMarkLinkA11y"
+        [pTooltip]="texts.brandMarkLinkTooltip"
+        tooltipPosition="bottom"
+        data-testid="shell-brand-mark-link"
+      >
+        <img
+          class="shell__brand-mark"
+          [ngSrc]="markSrc()"
+          width="32"
+          height="32"
+          priority
+          alt=""
+          aria-hidden="true"
+        />
+      </a>
       <div>
         <!--
           Brand line: the `<h1>` holds the wordmark and NOTHING else, the
@@ -61,8 +79,16 @@
             Written this way the heading keeps that single trailing space
             and the row paints exactly as it did with the chips nested in.
           -->
-          <h1>
-            {{ texts.brand }}
+          <h1><a
+              class="shell__brand-link"
+              [href]="links.github"
+              target="_blank"
+              rel="noopener noreferrer"
+              [attr.aria-label]="texts.brandWordmarkLinkA11y"
+              [pTooltip]="texts.brandWordmarkLinkTooltip"
+              tooltipPosition="bottom"
+              data-testid="shell-brand-wordmark-link"
+            >{{ texts.brand }}</a>
           </h1><span class="shell__brand-chips" data-testid="shell-brand-chips">
             @if (isDevBuild()) {
               <!--
@@ -154,6 +180,30 @@
     </nav>
 
     <div class="shell__actions">
+      <!--
+        Star count. Renders ONLY once a number arrived: `null` covers the
+        toggle being off, an offline machine and a rate-limited IP alike,
+        and skill-map is expected to work with no network, so a zero or
+        an error here would make a healthy install look broken. Leads the
+        action cluster (a link out, not a control over the project) and
+        says "Star" rather than hoping a bare number reads as an ask.
+      -->
+      @if (stars.count(); as starCount) {
+        <a
+          class="shell__stars"
+          [href]="links.github"
+          target="_blank"
+          rel="noopener noreferrer"
+          [attr.aria-label]="texts.starsA11y(starCount)"
+          [pTooltip]="texts.starsTooltip"
+          tooltipPosition="bottom"
+          data-testid="shell-stars"
+        >
+          <i class="pi pi-star-fill shell__stars-glyph" aria-hidden="true"></i>
+          <span class="shell__stars-label">{{ texts.starsLabel }}</span>
+          <span class="shell__stars-count">{{ starCount }}</span>
+        </a>
+      }
       <!-- Real Time toggle. Wrapper span carries the tooltip because
            PrimeNG tooltips do not fire on a disabled button, and the
            blocked states are exactly when the copy matters most. -->

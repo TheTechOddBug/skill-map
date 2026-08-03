@@ -78,6 +78,7 @@ import type {
   IScanResultApi,
   IActionAppliedEnvelopeApi,
   IUpdateStatusResponseApi,
+  IGithubStarsApi,
   IValueEnvelopeApi,
 } from '../../models/api';
 import type { IWsEvent } from '../../models/ws-event';
@@ -670,6 +671,7 @@ export class StaticDataSource implements IDataSourcePort {
     // `public-config.ts`, so the flags are the live gate).
     return {
       updateCheck: { enabled: true },
+      githubStars: { enabled: true },
       telemetry: {
         errorsEnabled: false,
         usageCliEnabled: false,
@@ -982,6 +984,16 @@ export class StaticDataSource implements IDataSourcePort {
       checkedAt: null,
       shownAt: null,
     };
+  }
+
+  /**
+   * The demo is a static export with no server, so there is nobody to
+   * perform the GitHub read. `null` renders nothing, which is the right
+   * answer here: the demo should not spend the visitor's IP budget on
+   * an unauthenticated API call, and a hardcoded number would rot.
+   */
+  async getGithubStars(): Promise<IGithubStarsApi> {
+    return { count: null, checkedAt: null };
   }
 
   /**

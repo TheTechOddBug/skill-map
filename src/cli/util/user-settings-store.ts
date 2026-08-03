@@ -77,6 +77,17 @@ export interface IUserSettingsTelemetry {
 }
 
 /**
+ * Repository star-count sub-object. Mirrors
+ * `user-settings.schema.json#/properties/githubStars`. Toggle only: the
+ * count itself is machine output with no human judgment in it, so the
+ * server caches it in memory rather than persisting it here.
+ */
+export interface IUserSettingsGithubStars {
+  /** Operator opt-out toggle. Default `true` when absent. */
+  enabled?: boolean;
+}
+
+/**
  * Whole-file envelope. Mirrors `user-settings.schema.json`. Future
  * user-scope features (locale, theme) extend the root, not
  * `updateCheck`.
@@ -84,6 +95,7 @@ export interface IUserSettingsTelemetry {
 export interface IUserSettings {
   schemaVersion: 1;
   updateCheck?: IUserSettingsUpdateCheck;
+  githubStars?: IUserSettingsGithubStars;
   telemetry?: IUserSettingsTelemetry;
 }
 
@@ -98,7 +110,7 @@ export function userSettingsFilePath(): string {
  * about without try / catch boilerplate.
  */
 function defaultSettings(): IUserSettings {
-  return { schemaVersion: SCHEMA_VERSION, updateCheck: {}, telemetry: {} };
+  return { schemaVersion: SCHEMA_VERSION, updateCheck: {}, githubStars: {}, telemetry: {} };
 }
 
 /**
@@ -147,16 +159,21 @@ function validateOrDefault(parsed: Record<string, unknown>): IUserSettings {
 }
 
 /**
- * Backfill the optional sub-objects (`updateCheck: {}`, `telemetry: {}`)
- * so callers can dereference without an existence check. AJV will not
- * have added them because the schema makes each one optional.
+ * Backfill the optional sub-objects so callers can dereference without
+ * an existence check. AJV will not have added them because the schema
+ * makes each one optional.
+ *
+ * Derived from `defaultSettings()` rather than listing the keys again:
+ * the same hand-written enumeration in `mergeSettings` is what silently
+ * dropped a newly added preference, and a second copy of the list is a
+ * second chance to forget.
  */
 function backfillSubObjects(settings: IUserSettings): IUserSettings {
-  return {
-    ...settings,
-    updateCheck: settings.updateCheck ?? {},
-    telemetry: settings.telemetry ?? {},
-  };
+  const out = { ...settings } as Record<string, unknown>;
+  for (const [key, value] of Object.entries(defaultSettings())) {
+    if (isPlainObject(value) && out[key] === undefined) out[key] = {};
+  }
+  return out as unknown as IUserSettings;
 }
 
 /**
@@ -210,6 +227,18 @@ export function writeUserSettings(patch: Partial<IUserSettings>): void {
 export function isUpdateCheckEnabled(): boolean {
   const settings = readUserSettings();
   return settings.updateCheck?.enabled !== false;
+}
+
+/**
+ * `true` when the operator has not opted out of the repository star
+ * count (`githubStars.enabled` absent or `true`). Same default-on
+ * posture as the update check, and for the same reason: it is a read of
+ * a public number, not a report of anything about the operator. When it
+ * is `false`, `GET /api/github-stars` performs no request at all.
+ */
+export function isGithubStarsEnabled(): boolean {
+  const settings = readUserSettings();
+  return settings.githubStars?.enabled !== false;
 }
 
 /**
@@ -311,18 +340,28 @@ function mergeSettings(
   current: IUserSettings,
   patch: Partial<IUserSettings>,
 ): IUserSettings {
-  const merged: IUserSettings = {
-    schemaVersion: SCHEMA_VERSION,
-    updateCheck: { ...(current.updateCheck ?? {}) },
-    telemetry: { ...(current.telemetry ?? {}) },
-  };
-  if (patch.updateCheck) {
-    merged.updateCheck = { ...merged.updateCheck, ...patch.updateCheck };
+  // Generic over the patch's own keys, NOT a hand-written list of them.
+  // This used to enumerate `updateCheck` / `telemetry` explicitly, which
+  // meant a newly added preference was dropped on the floor by a
+  // function nobody thinks to open when adding one: the write reported
+  // success, the file never grew the key, and the toggle silently
+  // sprang back on next read (that is exactly how `githubStars` shipped
+  // broken). One level deep, because every sub-object here is a flat
+  // record of scalars; a nested value replaces rather than merges.
+  const merged = { ...current, schemaVersion: SCHEMA_VERSION } as Record<string, unknown>;
+  for (const [key, value] of Object.entries(patch)) {
+    // The shape version is ours to stamp, never the caller's to move.
+    if (key === 'schemaVersion') continue;
+    const existing = merged[key];
+    merged[key] =
+      isPlainObject(value) && isPlainObject(existing) ? { ...existing, ...value } : value;
   }
-  if (patch.telemetry) {
-    merged.telemetry = { ...merged.telemetry, ...patch.telemetry };
-  }
-  return merged;
+  return merged as unknown as IUserSettings;
+}
+
+/** A JSON object (not null, not an array), i.e. something to merge INTO. */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**

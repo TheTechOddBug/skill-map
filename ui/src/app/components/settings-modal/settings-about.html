@@ -39,6 +39,18 @@
     <span class="settings-about__star-cta">
       <i class="fa-solid fa-star" aria-hidden="true"></i>
       {{ texts.aboutStarCta }}
+      <!--
+        Count rides INSIDE the existing CTA rather than as a separate
+        element: the card is already the ask, the number is just social
+        proof on it. Absent when unknown (offline, rate-limited, toggle
+        off), and the CTA still reads correctly without it, which is the
+        test for whether a decoration earns its place.
+      -->
+      @if (stars.count(); as starCount) {
+        <span class="settings-about__star-count" data-testid="settings-about-star-count">
+          {{ starCount }}
+        </span>
+      }
     </span>
   </a>
 

@@ -7,6 +7,8 @@ import { InputTextModule } from 'primeng/inputtext';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { APP_TEXTS } from '../i18n/app.texts';
+import { PROJECT_LINKS } from '../i18n/project-links';
+import { GithubStarsService } from './services/github-stars';
 import { SETTINGS_TEXTS } from '../i18n/settings.texts';
 import { QUICK_START_TEXTS } from '../i18n/quick-start.texts';
 import { THEME_TEXTS } from '../i18n/theme.texts';
@@ -63,6 +65,10 @@ export class App {
   protected readonly updateCheck = inject(UpdateCheckService);
 
   protected readonly texts = APP_TEXTS;
+  /** Canonical outbound URLs behind the brand mark + wordmark. */
+  protected readonly links = PROJECT_LINKS;
+  /** Star count behind the action-cluster affordance; null renders nothing. */
+  protected readonly stars = inject(GithubStarsService);
   protected readonly settingsTexts = SETTINGS_TEXTS;
   protected readonly quickStartTexts = QUICK_START_TEXTS;
   /**

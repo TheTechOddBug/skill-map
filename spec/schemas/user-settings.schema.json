@@ -35,6 +35,17 @@
         }
       }
     },
+    "githubStars": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "User toggle for the repository star count the UI surfaces (topbar + Settings → About). Lives here rather than in the project config because it is a preference of the operator, not of the project, and because it governs an outbound network read, the same reasoning that put `updateCheck` here. No bookkeeping fields: the count is machine output with no human judgment in it, so it is cached in the running server's memory and re-read on demand rather than persisted (see `cli-contract.md` §`GET /api/github-stars`).",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Operator opt-out toggle. Default `true` when absent. When `false`, the server performs no request to api.github.com and the endpoint answers with a null count, which renders nothing at all. Persisted through `PATCH /api/preferences`."
+        }
+      }
+    },
     "telemetry": {
       "type": "object",
       "additionalProperties": false,

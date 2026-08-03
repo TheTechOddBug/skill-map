@@ -23,6 +23,7 @@ import {
   hasSeenFirstRun,
   hasTelemetryPromptBeenShown,
   isErrorTelemetryEnabled,
+  isGithubStarsEnabled,
   isUpdateCheckEnabled,
   isUsageCliTelemetryEnabled,
   isUsageUiTelemetryEnabled,
@@ -64,7 +65,7 @@ afterEach(() => {
 describe('readUserSettings', () => {
   it('returns the defaulted envelope when the file is missing', () => {
     const got = readUserSettings();
-    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {}, telemetry: {} });
+    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {}, githubStars: {}, telemetry: {} });
   });
 
   it('returns the defaulted envelope when the file is unparseable JSON', () => {
@@ -72,7 +73,7 @@ describe('readUserSettings', () => {
     mkdirSync(settingsDir, { recursive: true });
     writeFileSync(join(settingsDir, 'settings.json'), '{not json');
     const got = readUserSettings();
-    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {}, telemetry: {} });
+    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {}, githubStars: {}, telemetry: {} });
   });
 
   it('round-trips a valid envelope', () => {
@@ -89,9 +90,10 @@ describe('readUserSettings', () => {
     };
     writeFileSync(join(settingsDir, 'settings.json'), JSON.stringify(onDisk));
     const got = readUserSettings();
-    // `telemetry: {}` is backfilled on read so callers can dereference
-    // both sub-objects without an existence check.
-    assert.deepEqual(got, { ...onDisk, telemetry: {} });
+    // The optional sub-objects are backfilled on read (derived from the
+    // default envelope) so callers dereference without an existence
+    // check; a preference added later rides along automatically.
+    assert.deepEqual(got, { ...onDisk, githubStars: {}, telemetry: {} });
   });
 
   it('silently defaults a payload whose schemaVersion is wrong', () => {
@@ -102,7 +104,7 @@ describe('readUserSettings', () => {
       JSON.stringify({ schemaVersion: 2, updateCheck: { enabled: true } }),
     );
     const got = readUserSettings();
-    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {}, telemetry: {} });
+    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {}, githubStars: {}, telemetry: {} });
   });
 
   it('silently defaults a payload whose updateCheck.enabled is the wrong type', () => {
@@ -113,7 +115,7 @@ describe('readUserSettings', () => {
       JSON.stringify({ schemaVersion: 1, updateCheck: { enabled: 'yes' } }),
     );
     const got = readUserSettings();
-    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {}, telemetry: {} });
+    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {}, githubStars: {}, telemetry: {} });
   });
 
   it('silently defaults a payload that carries an unknown top-level key', () => {
@@ -124,7 +126,7 @@ describe('readUserSettings', () => {
       JSON.stringify({ schemaVersion: 1, locale: 'es' }),
     );
     const got = readUserSettings();
-    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {}, telemetry: {} });
+    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {}, githubStars: {}, telemetry: {} });
   });
 
   it('returns the defaulted envelope when the JSON root is not an object', () => {
@@ -132,7 +134,87 @@ describe('readUserSettings', () => {
     mkdirSync(settingsDir, { recursive: true });
     writeFileSync(join(settingsDir, 'settings.json'), JSON.stringify(['array']));
     const got = readUserSettings();
-    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {}, telemetry: {} });
+    assert.deepEqual(got, { schemaVersion: 1, updateCheck: {}, githubStars: {}, telemetry: {} });
+  });
+});
+
+describe('writeUserSettings merge', () => {
+  /**
+   * Regression: the merge used to enumerate the sub-objects by hand
+   * (`updateCheck`, `telemetry`), so a NEW preference was dropped on the
+   * floor. The write reported success, the key never reached disk, and
+   * the toggle sprang back to its default on the next read, which is
+   * exactly how the star-count switch shipped broken. These tests treat
+   * "a key the merge was not told about" as the thing under test.
+   */
+  it('persists a sub-object the merge was never taught about', () => {
+    writeUserSettings({ githubStars: { enabled: false } });
+
+    assert.equal(readUserSettings().githubStars?.enabled, false);
+    assert.equal(isGithubStarsEnabled(), false);
+  });
+
+  it('round-trips a flip back on', () => {
+    writeUserSettings({ githubStars: { enabled: false } });
+    writeUserSettings({ githubStars: { enabled: true } });
+
+    assert.equal(isGithubStarsEnabled(), true);
+  });
+
+  it('leaves the other sub-objects untouched', () => {
+    writeUserSettings({ updateCheck: { enabled: false, latestVersion: '9.9.9' } });
+    writeUserSettings({ githubStars: { enabled: false } });
+
+    const got = readUserSettings();
+    assert.equal(got.updateCheck?.enabled, false);
+    assert.equal(got.updateCheck?.latestVersion, '9.9.9');
+    assert.equal(got.githubStars?.enabled, false);
+  });
+
+  it('merges INTO a sub-object rather than replacing it', () => {
+    writeUserSettings({ updateCheck: { latestVersion: '1.0.0', checkedAt: 42 } });
+    writeUserSettings({ updateCheck: { enabled: false } });
+
+    const got = readUserSettings();
+    // The partial patch must not wipe the sibling bookkeeping.
+    assert.equal(got.updateCheck?.latestVersion, '1.0.0');
+    assert.equal(got.updateCheck?.checkedAt, 42);
+    assert.equal(got.updateCheck?.enabled, false);
+  });
+
+  it('never lets a caller move the shape version', () => {
+    writeUserSettings({ schemaVersion: 99 as 1, githubStars: { enabled: false } });
+
+    assert.equal(readUserSettings().schemaVersion, 1);
+  });
+});
+
+describe('isGithubStarsEnabled', () => {
+  /** Same default-ON posture as the update check: it reads a public
+   *  number, it does not report anything about the operator. */
+  it('returns true when the file is missing', () => {
+    assert.equal(isGithubStarsEnabled(), true);
+  });
+
+  it('returns false only when the file explicitly opts out', () => {
+    const settingsDir = join(homeRoot, '.skill-map');
+    mkdirSync(settingsDir, { recursive: true });
+    writeFileSync(
+      join(settingsDir, 'settings.json'),
+      JSON.stringify({ schemaVersion: 1, githubStars: { enabled: false } }),
+    );
+    assert.equal(isGithubStarsEnabled(), false);
+  });
+
+  it('is independent of the update-check toggle', () => {
+    const settingsDir = join(homeRoot, '.skill-map');
+    mkdirSync(settingsDir, { recursive: true });
+    writeFileSync(
+      join(settingsDir, 'settings.json'),
+      JSON.stringify({ schemaVersion: 1, updateCheck: { enabled: false } }),
+    );
+    assert.equal(isGithubStarsEnabled(), true);
+    assert.equal(isUpdateCheckEnabled(), false);
   });
 });
 
@@ -251,6 +333,9 @@ describe('writeUserSettings', () => {
         checkedAt: 1_700_000_000_000,
         enabled: false,
       },
+      // Backfilled by the reader (derived from the default envelope),
+      // so an empty sub-object rides along even when untouched.
+      githubStars: {},
       telemetry: {},
     });
   });
@@ -275,6 +360,7 @@ describe('writeUserSettings', () => {
     assert.deepEqual(onDisk, {
       schemaVersion: 1,
       updateCheck: { enabled: false },
+      githubStars: {},
       telemetry: { errorsEnabled: true, promptedAt: 1_700_000_000_000 },
     });
   });

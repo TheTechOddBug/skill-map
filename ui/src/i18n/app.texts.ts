@@ -11,6 +11,25 @@ const BRAND_NAME = 'skill-map';
 
 export const APP_TEXTS = {
   brand: BRAND_NAME,
+  /**
+   * The two brand links (mark → project site, wordmark → repository).
+   * Both open in a new tab, so each name says where it goes: the mark's
+   * image is decorative, which would leave its link unnamed, and two
+   * adjacent links to different places must not read alike.
+   */
+  brandMarkLinkA11y: `Open the ${BRAND_NAME} website in a new tab`,
+  brandMarkLinkTooltip: 'skill-map.ai',
+  brandWordmarkLinkA11y: `Open the ${BRAND_NAME} repository on GitHub in a new tab`,
+  brandWordmarkLinkTooltip: 'GitHub repository',
+  /**
+   * Star affordance in the action cluster. The label spells the ask out:
+   * a bare number next to a star glyph reads as a statistic, and the
+   * point of the element is the invitation, not the metric.
+   */
+  starsLabel: 'Star',
+  starsTooltip: 'Star skill-map on GitHub',
+  starsA11y: (count: number): string =>
+    `Star skill-map on GitHub in a new tab. ${count} ${count === 1 ? 'star' : 'stars'} so far.`,
   beta: 'BETA',
   /**
    * Topbar chip rendered next to the version when `/api/health.dev` is

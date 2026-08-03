@@ -127,6 +127,7 @@ import { registerJobCancelRoute } from './routes/job-cancel.js';
 import { registerJobEventsRoute } from './routes/job-events.js';
 import { registerJobsRoute } from './routes/jobs.js';
 import { registerScanRoute } from './routes/scan.js';
+import { registerGithubStarsRoute } from './routes/github-stars.js';
 import { registerUpdateStatusRoute } from './routes/update-status.js';
 import { createSpaFallback, createStaticHandler } from './static.js';
 import type { McpSessionManager } from './mcp/index.js';
@@ -818,6 +819,9 @@ export function createApp(deps: IAppDeps): Hono {
   // post-run hook writes (`config_preferences/_kernel.update-check`).
   // Never triggers a registry probe.
   registerUpdateStatusRoute(app, routeDeps);
+  // Non-essential decoration, no deps: the probe + its memory cache are
+  // owned by the route module itself.
+  registerGithubStarsRoute(app);
   // Per-machine preferences, `GET / PATCH /api/preferences`. Today
   // exposes a single sub-key (`updateCheck.enabled`); shape extends
   // additively as more per-machine settings (locale, theme) land.

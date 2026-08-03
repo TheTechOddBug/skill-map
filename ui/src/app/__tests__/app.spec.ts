@@ -6,6 +6,8 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 
 import { App } from '../app';
+import { APP_TEXTS } from '../../i18n/app.texts';
+import { PROJECT_LINKS } from '../../i18n/project-links';
 import { ActivityReadinessService } from '../services/activity-readiness';
 import { ScanTriggerService } from '../services/scan-trigger';
 import { DATA_SOURCE, type IDataSourcePort } from '../../services/data-source/data-source.port';
@@ -179,11 +181,13 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   getPreferences: () =>
     Promise.resolve({
       updateCheck: { enabled: true },
+      githubStars: { enabled: true },
       telemetry: { errorsEnabled: false, usageCliEnabled: false, usageUiEnabled: false, anonymousId: null, environment: 'prod' },
     }),
   setPreferences: () =>
     Promise.resolve({
       updateCheck: { enabled: true },
+      githubStars: { enabled: true },
       telemetry: { errorsEnabled: false, usageCliEnabled: false, usageUiEnabled: false, anonymousId: null, environment: 'prod' },
     }),
   getProjectPreferences: () =>
@@ -350,6 +354,9 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       shownAt: null,
     }),
   getRegisteredAnnotations: () => Promise.resolve([]),
+  // Default stub answers "unknown", which renders no star affordance;
+  // the tests that assert the affordance override it.
+  getGithubStars: () => Promise.resolve({ count: null, checkedAt: null }),
   events: () => EMPTY,
 };
 
@@ -744,5 +751,115 @@ describe('App, beta chip', () => {
 
     const chip = (fixture.nativeElement as HTMLElement).querySelector('.shell__beta');
     expect(chip?.textContent?.trim()).toBe('BETA');
+  });
+});
+
+describe('App, brand links', () => {
+  /**
+   * The mark and the wordmark point at DIFFERENT places (site vs
+   * repository) and both open a new tab. The pairing is easy to swap by
+   * accident, and `target="_blank"` without `rel="noopener"` hands the
+   * opened page a handle on this one, so both are pinned here.
+   */
+  async function brandLinks(): Promise<{ mark: HTMLAnchorElement; wordmark: HTMLAnchorElement }> {
+    TestBed.resetTestingModule();
+    await configure(makeUpdateCheckStub().service);
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    return {
+      mark: root.querySelector('[data-testid="shell-brand-mark-link"]') as HTMLAnchorElement,
+      wordmark: root.querySelector(
+        '[data-testid="shell-brand-wordmark-link"]',
+      ) as HTMLAnchorElement,
+    };
+  }
+
+  it('sends the mark to the project site and the wordmark to the repository', async () => {
+    const { mark, wordmark } = await brandLinks();
+
+    expect(mark.getAttribute('href')).toBe(PROJECT_LINKS.website);
+    expect(wordmark.getAttribute('href')).toBe(PROJECT_LINKS.github);
+    expect(wordmark.textContent?.trim()).toBe(APP_TEXTS.brand);
+  });
+
+  it('opens both in a new tab without leaking a window handle', async () => {
+    const { mark, wordmark } = await brandLinks();
+
+    for (const link of [mark, wordmark]) {
+      expect(link.getAttribute('target')).toBe('_blank');
+      expect(link.getAttribute('rel')).toContain('noopener');
+    }
+  });
+
+  it('names both links, since the mark image is decorative', async () => {
+    const { mark, wordmark } = await brandLinks();
+
+    // Without this the mark's link has no accessible name at all: its
+    // <img> is aria-hidden with an empty alt.
+    expect(mark.getAttribute('aria-label')).toBe(APP_TEXTS.brandMarkLinkA11y);
+    expect(wordmark.getAttribute('aria-label')).toBe(APP_TEXTS.brandWordmarkLinkA11y);
+    // Two adjacent links to different destinations must not read alike.
+    expect(mark.getAttribute('aria-label')).not.toBe(wordmark.getAttribute('aria-label'));
+  });
+
+  it('keeps the wordmark inside the heading', async () => {
+    const { wordmark } = await brandLinks();
+    expect(wordmark.closest('h1')).not.toBeNull();
+  });
+});
+
+/**
+ * Star affordance in the action cluster (user decision 2026-08-03:
+ * placement 3 + the About card). It renders ONLY when a count arrived:
+ * skill-map is expected to work with no network, so a zero or an error
+ * in the chrome would make a healthy offline install look broken. The
+ * service collapses toggle-off / offline / rate-limited into one `null`
+ * precisely so the template has a single condition.
+ */
+describe('App, GitHub star affordance', () => {
+  async function shellWithStars(count: number | null): Promise<HTMLElement> {
+    TestBed.resetTestingModule();
+    await configure(makeUpdateCheckStub().service, {
+      ...STUB_DATA_SOURCE,
+      getGithubStars: () => Promise.resolve({ count, checkedAt: count === null ? null : 1 }),
+    });
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  it('shows the count and links to the repository in a new tab', async () => {
+    const root = await shellWithStars(27);
+
+    const link = root.querySelector('[data-testid="shell-stars"]') as HTMLAnchorElement | null;
+    expect(link).not.toBeNull();
+    expect(link?.textContent).toContain('27');
+    expect(link?.getAttribute('href')).toBe(PROJECT_LINKS.github);
+    expect(link?.getAttribute('target')).toBe('_blank');
+    expect(link?.getAttribute('rel')).toContain('noopener');
+  });
+
+  it('renders NOTHING when the count is unknown', async () => {
+    // Offline, rate-limited, or opted out: all arrive as null, and none
+    // of them may leave a zero, an error or a placeholder on screen.
+    const root = await shellWithStars(null);
+
+    expect(root.querySelector('[data-testid="shell-stars"]')).toBeNull();
+    // No placeholder either: not a dash, not a zero, not a spinner.
+    expect(root.querySelector('.shell__stars')).toBeNull();
+    expect(root.textContent).not.toContain(APP_TEXTS.starsTooltip);
+  });
+
+  it('names the link with the count for screen readers', async () => {
+    const root = await shellWithStars(1);
+
+    const link = root.querySelector('[data-testid="shell-stars"]');
+    // Singular at 1: the label is read aloud, not just scanned.
+    expect(link?.getAttribute('aria-label')).toBe(APP_TEXTS.starsA11y(1));
+    expect(link?.getAttribute('aria-label')).toContain('1 star so far');
+    expect(APP_TEXTS.starsA11y(27)).toContain('27 stars so far');
   });
 });

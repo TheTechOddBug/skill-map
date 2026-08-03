@@ -21,10 +21,21 @@
   }
 
   <ul class="settings-general__list" role="list">
-    @for (def of toggles; track def.key) {
-      <!-- `smToggleRow`: the whole row flips the switch. Only on the
-           boolean rows, the theme row below is a multi-option control
-           where "click anywhere" has no single meaning. -->
+    @for (def of togglesBeforeTheme; track def.key) {
+      <ng-container *ngTemplateOutlet="toggleRow; context: { $implicit: def }" />
+    }
+    <!--
+      One row definition, instantiated on both sides of the theme
+      selector (`togglesBeforeTheme` / `togglesAfterTheme`). Kept as a
+      template rather than copied so a change to the row shape, the
+      label wiring, the disabled rule, cannot drift between the two
+      groups.
+
+      `smToggleRow`: the whole row flips the switch. Only on the boolean
+      rows, the theme row is a multi-option control where "click
+      anywhere" has no single meaning.
+    -->
+    <ng-template #toggleRow let-def>
       <li
         smToggleRow
         class="settings-general__row"
@@ -56,7 +67,7 @@
           [attr.data-testid]="'settings-general-toggle-' + def.key"
         />
       </li>
-    }
+    </ng-template>
 
     <li
       class="settings-general__row"
@@ -94,6 +105,10 @@
         </ng-template>
       </p-selectbutton>
     </li>
+
+    @for (def of togglesAfterTheme; track def.key) {
+      <ng-container *ngTemplateOutlet="toggleRow; context: { $implicit: def }" />
+    }
 
   </ul>
 

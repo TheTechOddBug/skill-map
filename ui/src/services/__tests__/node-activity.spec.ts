@@ -55,6 +55,27 @@ function flushed(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 50));
 }
 
+/**
+ * Wait out a short TTL (the 40ms usage TTL, or the 60ms invocation one)
+ * for the assertions that a claim DECAYED.
+ *
+ * Deliberately far past the TTL rather than just past it. The decay is
+ * published by a `setTimeout` the service re-arms at each claim's
+ * expiry, and both that timer and this wait are real wall-clock: on a
+ * loaded machine (122 spec files across workers, often alongside a
+ * build) a margin of a few tens of ms is a coin flip, and `claims decay
+ * when the TTL lapses` was seen failing exactly that way. This is a
+ * "the timer had every chance to fire" backstop, not a latency
+ * assertion, so being generous costs nothing.
+ *
+ * NOT for the survival cases. The heartbeat test needs its waits to land
+ * INSIDE the claim's window, and stretching those would invert what it
+ * proves; they keep their own literals.
+ */
+function afterTtlDecay(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 500));
+}
+
 describe('NodeActivityService', () => {
   it('a start signal lights the node after the coalesced flush', async () => {
     const { service, events$ } = bootstrap();
@@ -103,7 +124,7 @@ describe('NodeActivityService', () => {
     await flushed();
     expect(service.activePaths().has(SKILL)).toBe(true);
 
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await afterTtlDecay();
     expect(service.activePaths().has(SKILL)).toBe(false);
   });
 
@@ -588,7 +609,7 @@ describe('NodeActivityService.activeInvocations (tool-invocation edges)', () => 
     // and is pruned before the invocation lands.
     events$.next(makeEvent(SKILL, 'start', 'agent-1'));
     await flushed();
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await afterTtlDecay();
     expect(service.activePaths().has(SKILL)).toBe(false);
 
     events$.next(startWithDetail(MCP, 'agent-1', 'notion-create-pages'));
@@ -628,7 +649,7 @@ describe('NodeActivityService.activeInvocations (tool-invocation edges)', () => 
     expect(service.activePaths().has(MCP)).toBe(true);
     expect(service.activeInvocations()).toHaveLength(1);
 
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await afterTtlDecay();
     expect(service.activePaths().has(MCP)).toBe(false);
     const inv = only(service.activeInvocations());
     expect(inv.caller).toBe(AGENT);
@@ -644,7 +665,7 @@ describe('NodeActivityService.activeInvocations (tool-invocation edges)', () => 
     await flushed();
     expect(service.activeInvocations()).toHaveLength(1);
 
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await afterTtlDecay();
     // The edge cleared on its own schedule while the node still glows.
     expect(service.activeInvocations()).toHaveLength(0);
     expect(service.activePaths().has(MCP)).toBe(true);

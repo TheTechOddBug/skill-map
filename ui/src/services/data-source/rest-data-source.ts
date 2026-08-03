@@ -68,6 +68,7 @@ import type {
   IScanResultApi,
   IActionAppliedEnvelopeApi,
   IUpdateStatusResponseApi,
+  IGithubStarsApi,
   IValueEnvelopeApi,
 } from '../../models/api';
 import type { IWsEvent } from '../../models/ws-event';
@@ -803,6 +804,10 @@ export class RestDataSource implements IDataSourcePort {
 
   async getUpdateStatus(): Promise<IUpdateStatusResponseApi> {
     return this.getJson<IUpdateStatusResponseApi>(`${BASE}/update-status`);
+  }
+
+  async getGithubStars(): Promise<IGithubStarsApi> {
+    return this.getJson<IGithubStarsApi>(`${BASE}/github-stars`);
   }
 
   async getRegisteredAnnotations(): Promise<readonly IRegisteredAnnotationKeyApi[]> {

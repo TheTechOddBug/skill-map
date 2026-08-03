@@ -5,6 +5,8 @@
  * `src/i18n/`. Strings are English-only, see AGENTS.md §"Externalized
  * texts, not internationalized".
  */
+import { PROJECT_LINKS } from './project-links';
+
 export const SETTINGS_TEXTS = {
   /** Topbar trigger. */
   triggerLabel: 'Settings',
@@ -48,6 +50,10 @@ export const SETTINGS_TEXTS = {
       'updateCheck.enabled': {
         label: 'Check for updates',
         description: 'Check npm for newer @skill-map/cli releases.',
+      },
+      'githubStars.enabled': {
+        label: 'Show the GitHub star count',
+        description: "Read skill-map's star count from GitHub and show it in the top bar.",
       },
       telemetry: {
         label: 'Send anonymous error & usage reports',
@@ -433,11 +439,11 @@ export const SETTINGS_TEXTS = {
   aboutLinksHeading: 'Links',
   aboutWebsiteLabel: 'Website',
   aboutGithubLabel: 'GitHub',
-  /** Canonical project URLs, surfaced in About and used as the
-   *  authoritative externals (e.g. CLI's update-check banner already
-   *  points to npm; these are the human-readable surfaces). */
-  aboutWebsiteUrl: 'https://skill-map.ai/',
-  aboutGithubUrl: 'https://github.com/crystian/skill-map',
+  /** Canonical project URLs, surfaced in About. Single source in
+   *  `project-links.ts`: the topbar brand links to the same two, and a
+   *  second literal is how one of them goes stale. */
+  aboutWebsiteUrl: PROJECT_LINKS.website,
+  aboutGithubUrl: PROJECT_LINKS.github,
 
   /** GitHub-star callout, friendly nudge under the version list. */
   aboutStarHeading: 'Enjoying skill-map?',

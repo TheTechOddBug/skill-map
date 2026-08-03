@@ -330,6 +330,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     shownAt: null,
   }),
   getRegisteredAnnotations: vi.fn().mockResolvedValue([]),
+  getGithubStars: vi.fn().mockResolvedValue({ count: null, checkedAt: null }),
   events: vi.fn().mockReturnValue(EMPTY),
 };
 

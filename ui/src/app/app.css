@@ -76,6 +76,30 @@
   display: block;
 }
 
+/* The mark and the wordmark are links now (site / repository). They must
+   keep looking exactly like the brand, not like body links: colour comes
+   from the parent and there is no underline, on hover included. Hover
+   dims instead, one rule for both, so the wordmark never shifts the
+   topbar's baseline the way an underline would and the mark (an image,
+   which an underline does nothing for) gets the same affordance.
+   Keyboard focus is the exception that must stay loud, so the ring is
+   drawn explicitly rather than inherited from a reset. */
+.shell__brand-link {
+  color: inherit;
+  text-decoration: none;
+  display: inline-flex;
+  border-radius: var(--sm-radius-sm);
+}
+
+.shell__brand-link:hover {
+  opacity: 0.82;
+}
+
+.shell__brand-link:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 2px;
+}
+
 /* Brand line: the wordmark `<h1>` and the status-chip cluster share one
    inline row, but only the wordmark is inside the heading.
    The chips (version / dev / lens / Beta) plus two REAL controls (the
@@ -455,6 +479,49 @@
 
 .shell__search-clear i {
   font-size: var(--sm-fs-xs);
+}
+
+/* Star affordance, first in the action cluster. Deliberately NOT in the
+   brand chip row: those chips describe the operator's own project
+   (version, lens, update available) and this one is a link out. Quiet by
+   default (muted border, the glyph carries the only colour) so a
+   permanent CTA in daily chrome does not shout; it warms up on hover.
+   Renders only when a count arrived, see `app.html`. */
+.shell__stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: var(--sm-radius-pill);
+  color: var(--p-text-muted-color);
+  font-size: var(--sm-fs-xs);
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.shell__stars:hover {
+  color: var(--p-text-color);
+  background: var(--p-content-hover-background);
+}
+
+.shell__stars:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 2px;
+}
+
+/* The one saturated element: a star is a star. */
+.shell__stars-glyph {
+  color: var(--sm-severity-warn);
+  font-size: var(--sm-fs-xs);
+}
+
+.shell__stars-count {
+  font-family: var(--sm-font-mono);
+  font-weight: 600;
+  color: var(--p-text-color);
+  font-variant-numeric: tabular-nums;
 }
 
 .shell__actions {

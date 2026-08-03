@@ -25,6 +25,7 @@ import {
   input,
   signal,
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
@@ -40,6 +41,7 @@ import {
   DataSourceError,
 } from '../../../services/data-source/data-source.port';
 import { ThemeService, type TExtraTheme } from '../../../services/theme';
+import { GithubStarsService } from '../../services/github-stars';
 import { UsageTrackerService } from '../../services/usage-tracker';
 import { EXTRA_THEMES } from '../../../themes/registry';
 import { ToggleRowDirective } from './toggle-row.directive';
@@ -59,14 +61,18 @@ import { ToggleRowDirective } from './toggle-row.directive';
  */
 interface IGeneralToggleDef {
   /** Stable dot-path; doubles as the i18n catalog key. */
-  key: 'updateCheck.enabled' | 'telemetry';
+  key: 'updateCheck.enabled' | 'githubStars.enabled' | 'telemetry';
   /** Read the current value from a fetched envelope. */
   read(envelope: IPreferencesApi): boolean;
   /** Build the patch body for the new value. */
   patch(value: boolean): IPreferencesPatchApi;
 }
 
-const GENERAL_TOGGLES: ReadonlyArray<IGeneralToggleDef> = [
+/**
+ * Toggles rendered ABOVE the theme selector: the two that govern what
+ * the CLI and the app do on their own (probe npm, report telemetry).
+ */
+const TOGGLES_BEFORE_THEME: ReadonlyArray<IGeneralToggleDef> = [
   {
     key: 'updateCheck.enabled',
     read: (envelope) => envelope.updateCheck.enabled,
@@ -84,6 +90,22 @@ const GENERAL_TOGGLES: ReadonlyArray<IGeneralToggleDef> = [
     patch: (value) => ({
       telemetry: { errorsEnabled: value, usageCliEnabled: value, usageUiEnabled: value },
     }),
+  },
+];
+
+/**
+ * Toggles rendered BELOW the theme selector (user call 2026-08-03).
+ * The split is deliberate rather than cosmetic: everything above the
+ * theme row changes what skill-map DOES (probes npm, sends telemetry),
+ * while the star count, like the theme itself, only changes what the
+ * operator SEES. Grouping them past that divider keeps the two kinds of
+ * preference from reading as one list.
+ */
+const TOGGLES_AFTER_THEME: ReadonlyArray<IGeneralToggleDef> = [
+  {
+    key: 'githubStars.enabled',
+    read: (envelope) => envelope.githubStars.enabled,
+    patch: (value) => ({ githubStars: { enabled: value } }),
   },
 ];
 
@@ -114,7 +136,7 @@ function fromExtraThemeWire(value: TExtraThemeWire): TExtraTheme {
 
 @Component({
   selector: 'sm-settings-general',
-  imports: [ButtonModule, DialogModule, FormsModule, MessageModule, SelectButtonModule, ToggleRowDirective, ToggleSwitchModule, TooltipModule],
+  imports: [ButtonModule, DialogModule, FormsModule, MessageModule, NgTemplateOutlet, SelectButtonModule, ToggleRowDirective, ToggleSwitchModule, TooltipModule],
   templateUrl: './settings-general.html',
   styleUrl: './settings-general.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -123,6 +145,8 @@ export class SettingsGeneral {
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly themeService = inject(ThemeService);
   private readonly usageTracker = inject(UsageTrackerService);
+  /** Re-read after its toggle flips, see `runToggle`. */
+  private readonly githubStars = inject(GithubStarsService);
 
   /**
    * Section visibility. The chassis flips it true when the General
@@ -134,7 +158,8 @@ export class SettingsGeneral {
   readonly visible = input.required<boolean>();
 
   protected readonly texts = SETTINGS_TEXTS;
-  protected readonly toggles = GENERAL_TOGGLES;
+  protected readonly togglesBeforeTheme = TOGGLES_BEFORE_THEME;
+  protected readonly togglesAfterTheme = TOGGLES_AFTER_THEME;
   /**
    * Extra-theme select options. The `none` entry comes from the i18n
    * catalog (sentinel, not a theme); the rest map straight from the
@@ -263,6 +288,12 @@ export class SettingsGeneral {
     try {
       const envelope = await this.dataSource.setPreferences(def.patch(nextValue));
       this.preferences.set(envelope);
+      // Preferences that OTHER surfaces render have to be re-read there
+      // too, otherwise the switch says off while the thing it governs is
+      // still on screen until a reload. The star count is the only one
+      // today: the shell reads it once at boot, so nothing would notice
+      // the flip on its own.
+      if (def.key === 'githubStars.enabled') void this.githubStars.refresh();
     } catch (err) {
       this.saveError.set(formatErr(err));
     } finally {

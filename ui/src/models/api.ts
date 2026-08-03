@@ -1067,8 +1067,22 @@ export interface IUpdateStatusResponseApi {
  *   - `telemetry.anonymousId`: read-only PostHog `distinct_id` shared by CLI
  *     and UI usage. `null` until usage is first enabled; never patchable.
  */
+/**
+ * `GET /api/github-stars`: the repository's star count for the topbar
+ * affordance and the About card. `count: null` means UNKNOWN for any
+ * reason (toggle off, offline, rate-limited, unparseable) and renders
+ * nothing at all, never a zero and never an error.
+ */
+export interface IGithubStarsApi {
+  count: number | null;
+  checkedAt: number | null;
+}
+
 export interface IPreferencesApi {
   updateCheck: {
+    enabled: boolean;
+  };
+  githubStars: {
     enabled: boolean;
   };
   telemetry: {
@@ -1089,6 +1103,9 @@ export interface IPreferencesApi {
  */
 export interface IPreferencesPatchApi {
   updateCheck?: {
+    enabled?: boolean;
+  };
+  githubStars?: {
     enabled?: boolean;
   };
   telemetry?: {

@@ -24,6 +24,7 @@ import {
   DataSourceError,
 } from '../../../services/data-source/data-source.port';
 import { ThemeService } from '../../../services/theme';
+import { GithubStarsService } from '../../services/github-stars';
 import { UpdateCheckService } from '../../services/update-check';
 
 @Component({
@@ -39,6 +40,9 @@ export class SettingsAbout {
   private readonly theme = inject(ThemeService);
 
   readonly visible = input.required<boolean>();
+
+  /** Star count for the CTA badge; absent when unknown (renders nothing). */
+  protected readonly stars = inject(GithubStarsService);
 
   protected readonly texts = SETTINGS_TEXTS;
   protected readonly health = signal<IHealthResponseApi | null>(null);

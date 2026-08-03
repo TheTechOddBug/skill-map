@@ -32,6 +32,7 @@ import { HTTPException } from 'hono/http-exception';
 import {
   ensureAnonymousId,
   isErrorTelemetryEnabled,
+  isGithubStarsEnabled,
   isUpdateCheckEnabled,
   isUsageCliTelemetryEnabled,
   isUsageUiTelemetryEnabled,
@@ -47,6 +48,9 @@ import type { IRouteDeps } from './deps.js';
 
 export interface IPreferencesEnvelope {
   updateCheck: {
+    enabled: boolean;
+  };
+  githubStars: {
     enabled: boolean;
   };
   telemetry: {
@@ -67,6 +71,9 @@ export interface IPreferencesEnvelope {
 
 interface IPatchBody {
   updateCheck?: {
+    enabled?: boolean;
+  };
+  githubStars?: {
     enabled?: boolean;
   };
   telemetry?: {
@@ -97,6 +104,7 @@ export function registerPreferencesRoute(app: Hono, _deps: IRouteDeps): void {
 function buildEnvelope(): IPreferencesEnvelope {
   return {
     updateCheck: { enabled: isUpdateCheckEnabled() },
+    githubStars: { enabled: isGithubStarsEnabled() },
     telemetry: {
       errorsEnabled: isErrorTelemetryEnabled(),
       usageCliEnabled: isUsageCliTelemetryEnabled(),
@@ -116,6 +124,9 @@ function applyPatch(body: IPatchBody): void {
   try {
     if (body.updateCheck && typeof body.updateCheck.enabled === 'boolean') {
       writeUserSettings({ updateCheck: { enabled: body.updateCheck.enabled } });
+    }
+    if (body.githubStars && typeof body.githubStars.enabled === 'boolean') {
+      writeUserSettings({ githubStars: { enabled: body.githubStars.enabled } });
     }
     if (body.telemetry) {
       applyTelemetryPatch(body.telemetry);
@@ -168,6 +179,13 @@ const PATCH_BODY_SCHEMA = {
         enabled: { type: 'boolean' },
       },
     },
+    githubStars: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        enabled: { type: 'boolean' },
+      },
+    },
     telemetry: {
       type: 'object',
       additionalProperties: false,
@@ -188,6 +206,8 @@ const parsePatchBody = makeBodyValidator<IPatchBody>(PATCH_BODY_SCHEMA, {
     ':minProperties': SERVER_TEXTS.preferencesBodyEmpty,
     '/updateCheck:type:object': SERVER_TEXTS.preferencesUpdateCheckNotObject,
     '/updateCheck/enabled:type:boolean': SERVER_TEXTS.preferencesUpdateCheckEnabledNotBoolean,
+    '/githubStars:type:object': SERVER_TEXTS.preferencesGithubStarsNotObject,
+    '/githubStars/enabled:type:boolean': SERVER_TEXTS.preferencesGithubStarsEnabledNotBoolean,
     '/telemetry:type:object': SERVER_TEXTS.preferencesTelemetryNotObject,
     '/telemetry/errorsEnabled:type:boolean': SERVER_TEXTS.preferencesTelemetryErrorsEnabledNotBoolean,
     '/telemetry/usageCliEnabled:type:boolean': SERVER_TEXTS.preferencesTelemetryUsageCliEnabledNotBoolean,
