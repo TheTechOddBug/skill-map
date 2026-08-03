@@ -86,9 +86,22 @@ jobs:
     # browser revision matches; on a mismatch the `prevalidate:test` hook
     # would fall back to a CDN download. Bump both together.
     container: mcr.microsoft.com/playwright:v1.61.1-noble
-    # Generous bound: image pull + install + full validate. No browser
-    # download left to stall on.
-    timeout-minutes: 20
+    # Bound for image pull + install + full validate. No browser download left
+    # to stall on, so this is a backstop against a hang, NOT a performance
+    # budget.
+    #
+    # Raised 20 -> 30 on 2026-08-03 after a run died 40 seconds into the e2e
+    # smoke with everything before it green. The driver is variance in the
+    # `@skill-map/cli` test leg, which alone is ~70% of the wall clock and was
+    # measured at 596s and 828s on two runs of the same suite; a slow runner
+    # spends the entire old budget before e2e starts. Conformance (~3 min), ui
+    # (~35 s) and the demo build are minor by comparison.
+    #
+    # If this bound is ever hit again, the fix is to SPLIT the job (cli +
+    # conformance in one, ui + e2e in the other, running in parallel) rather
+    # than to raise it further: past ~30 minutes a serial job stops being worth
+    # waiting on, and a rising timeout hides a suite that needs attention.
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v5
