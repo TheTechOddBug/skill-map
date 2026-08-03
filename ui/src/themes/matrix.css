@@ -116,6 +116,11 @@ html.app-matrix body {
   --sm-severity-error-bg: color-mix(in srgb, var(--sm-matrix-accent) 18%, transparent);
   --sm-severity-warn: var(--sm-matrix-accent-dim);
   --sm-severity-warn-bg: color-mix(in srgb, var(--sm-matrix-accent-dim) 16%, transparent);
+  /* Attention (see dark.css): the phosphor world admits no orange, so
+     the pending-action marker rides the bright accent, one stop apart
+     from the dimmed warn green. */
+  --sm-attention: var(--sm-matrix-accent);
+  --sm-attention-bg: color-mix(in srgb, var(--sm-matrix-accent) 14%, transparent);
   --p-message-error-color: var(--sm-matrix-accent);
   --p-message-error-background: color-mix(in srgb, var(--sm-matrix-accent) 14%, transparent);
   --p-message-error-border-color: color-mix(in srgb, var(--sm-matrix-accent) 35%, transparent);

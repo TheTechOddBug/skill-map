@@ -67,6 +67,16 @@
   --sm-severity-warn-bg: rgba(120, 53, 15, 0.2);
   --sm-severity-error-bg: rgba(127, 29, 29, 0.2);
 
+  /* === Attention (something the operator should act on) ===
+     Distinct from `--sm-severity-warn`: that one labels a problem the
+     scan FOUND (a broken reference, a truncated corpus), this one marks
+     a pending maintenance action that is not an error, today the "your
+     agent process skill is outdated" dot in Settings. A true orange
+     rather than the amber warn stop so the two never read as the same
+     signal on the same screen. */
+  --sm-attention: #fb923c;
+  --sm-attention-bg: rgba(154, 52, 18, 0.22);
+
   /* === Physical-stat chip tints === */
   --sm-stat-tokens-bg: rgba(96, 165, 250, 0.24);
   --sm-stat-bytes-bg: rgba(251, 191, 36, 0.24);

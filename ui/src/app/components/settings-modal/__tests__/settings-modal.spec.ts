@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 
 import { SettingsModal, type TSettingsSection } from '../settings-modal';
 import { SettingsBufferService } from '../settings-buffer';
+import { ProcessingAgentReadinessService } from '../../../services/processing-agent-readiness';
 import { ScanTriggerService } from '../../../services/scan-trigger';
 import { SKILL_MAP_MODE } from '../../../../services/data-source/runtime-mode';
 import {
@@ -80,7 +81,10 @@ interface ISetup {
   buffer: SettingsBufferService;
 }
 
-function bootstrap(stub: Partial<IDataSourcePort>): ISetup {
+function bootstrap(
+  stub: Partial<IDataSourcePort>,
+  opts: { skillUpdateAvailable?: boolean } = {},
+): ISetup {
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [
@@ -90,6 +94,15 @@ function bootstrap(stub: Partial<IDataSourcePort>): ISetup {
       // `<sm-settings-general>` (rendered by the chassis) injects the
       // live-channel services; demo mode keeps them socket-free.
       { provide: SKILL_MAP_MODE, useValue: 'demo' },
+      // Source of the attention dot. Stubbed to a plain getter so the
+      // chassis spec never boots the real probe (WS stream + fetch).
+      {
+        provide: ProcessingAgentReadinessService,
+        useValue: {
+          skillUpdateAvailable: () => opts.skillUpdateAvailable === true,
+          noteSkillStatus: vi.fn(),
+        } as unknown as ProcessingAgentReadinessService,
+      },
     ],
   });
   const buffer = TestBed.inject(SettingsBufferService);
@@ -293,5 +306,62 @@ describe('SettingsModal, last-visited section memory', () => {
     const { cmp } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
     expect((cmp as unknown as IChassisProbe).activeSection()).toBe('plugins');
     localStorage.removeItem(KEY);
+  });
+});
+
+/**
+ * The attention dot (user spec 2026-08-03): an outdated agent process
+ * skill has to be visible from ANY section of the modal, otherwise it is
+ * only discoverable by the operator who already went looking. The
+ * chassis reads the app-level readiness service, so the mark is live
+ * without the Project section ever having mounted. It rides the sidebar
+ * row alone: the modal title carried one too at first, which put the
+ * same signal twice on one screen.
+ */
+describe('SettingsModal attention dot', () => {
+  interface IAttentionProbe {
+    sections(): readonly { id: TSettingsSection; attention?: boolean }[];
+  }
+
+  it('marks the project section when a skill update is pending', () => {
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope([]));
+    const { cmp } = bootstrap({ listPlugins } as Partial<IDataSourcePort>, {
+      skillUpdateAvailable: true,
+    });
+
+    const probe = cmp as unknown as IAttentionProbe;
+    const project = probe.sections().find((s) => s.id === 'project');
+    expect(project?.attention).toBe(true);
+    // Exactly one section is marked: the dot must point somewhere.
+    expect(probe.sections().filter((s) => s.attention === true)).toHaveLength(1);
+  });
+
+  it('marks nothing while the skill is current', () => {
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope([]));
+    const { cmp } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
+
+    const probe = cmp as unknown as IAttentionProbe;
+    expect(probe.sections().some((s) => s.attention === true)).toBe(false);
+  });
+
+  it('renders the dot on the project row and nowhere else', async () => {
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope([]));
+    const { fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>, {
+      skillUpdateAvailable: true,
+    });
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+    fixture.detectChanges();
+
+    // PrimeNG renders the dialog into a portal at <body>.
+    const dots = document.querySelectorAll('[data-testid="settings-nav-attention-dot"]');
+    expect(dots).toHaveLength(1);
+    // The title mark was dropped on purpose; nothing re-adds it.
+    expect(document.querySelector('[data-testid="settings-modal-attention-dot"]')).toBeNull();
+    const projectRow = document.querySelector('[data-testid="settings-nav-project"]');
+    expect(projectRow?.querySelector('[data-testid="settings-nav-attention-dot"]')).not.toBeNull();
+    // Colour is never the only carrier of the signal.
+    expect(dots[0]?.getAttribute('aria-label')).toBeTruthy();
   });
 });

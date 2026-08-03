@@ -12,6 +12,7 @@ import { SettingsProjectPreferences } from '../settings-project-preferences';
 import { SettingsProjectRealtime } from '../settings-project-realtime';
 import { SettingsProjectSkill } from '../settings-project-skill';
 import { ActivityReadinessService } from '../../../services/activity-readiness';
+import { ProcessingAgentReadinessService } from '../../../services/processing-agent-readiness';
 import { SETTINGS_TEXTS } from '../../../../i18n/settings.texts';
 import {
   DATA_SOURCE,
@@ -779,12 +780,26 @@ function skillStatusOf(
 function bootstrapSkill(stub: Partial<IDataSourcePort>): {
   fixture: ReturnType<typeof TestBed.createComponent<SettingsProjectSkill>>;
   proto: ISkillProto;
+  notedStatuses: IAgentSkillInstallStatusApi[];
 } {
   TestBed.resetTestingModule();
+  // The row hands every status it sees to the app-level readiness
+  // service (which owns the Settings attention dot). Stubbed rather than
+  // real: the live service pulls in the WS stream and the whole boot
+  // probe, none of which this row's contract depends on.
+  const notedStatuses: IAgentSkillInstallStatusApi[] = [];
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(),
       { provide: DATA_SOURCE, useValue: stub },
+      {
+        provide: ProcessingAgentReadinessService,
+        useValue: {
+          noteSkillStatus: (status: IAgentSkillInstallStatusApi) => {
+            notedStatuses.push(status);
+          },
+        } as unknown as ProcessingAgentReadinessService,
+      },
     ],
   });
   const fixture = TestBed.createComponent(SettingsProjectSkill);
@@ -792,7 +807,7 @@ function bootstrapSkill(stub: Partial<IDataSourcePort>): {
   fixture.componentRef.setInput('lensId', 'claude');
   fixture.detectChanges();
   const proto = fixture.componentInstance as unknown as ISkillProto;
-  return { fixture, proto };
+  return { fixture, proto, notedStatuses };
 }
 
 describe('SettingsProjectSkill agent process-skill row', () => {
@@ -846,6 +861,60 @@ describe('SettingsProjectSkill agent process-skill row', () => {
     expect(
       el.querySelector('[data-testid="settings-project-agent-skill-uptodate"]'),
     ).toBeNull();
+  });
+
+  it('marks the stale row with the attention stripe, chip and warn-toned action', () => {
+    // The payoff of the Settings attention dot: the operator arrives at
+    // a row that says WHY it was flagged, not just a differently
+    // labelled button.
+    const { fixture, proto } = bootstrapSkill({});
+    proto.skillStatus.set(skillStatusOf({ installed: true, stale: true }));
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    const row = el.querySelector('[data-testid="settings-project-agent-skill-row"]');
+    expect(row?.classList.contains('is-stale')).toBe(true);
+    const chip = el.querySelector('[data-testid="settings-project-agent-skill-stale-chip"]');
+    expect(chip?.textContent?.trim()).toBe(
+      SETTINGS_TEXTS.project.agentSkill.updateAvailableChip,
+    );
+    expect(row?.textContent).toContain(SETTINGS_TEXTS.project.agentSkill.staleDescription);
+    expect(row?.textContent).not.toContain(SETTINGS_TEXTS.project.agentSkill.description);
+  });
+
+  it('leaves the row plain when the skill is merely absent', () => {
+    // Not installed is NOT an update (user decision 2026-08-03): no
+    // stripe, no chip, and the default description stands.
+    const { fixture, proto } = bootstrapSkill({});
+    proto.skillStatus.set(skillStatusOf({ installed: false, stale: false }));
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    const row = el.querySelector('[data-testid="settings-project-agent-skill-row"]');
+    expect(row?.classList.contains('is-stale')).toBe(false);
+    expect(
+      el.querySelector('[data-testid="settings-project-agent-skill-stale-chip"]'),
+    ).toBeNull();
+    expect(row?.textContent).toContain(SETTINGS_TEXTS.project.agentSkill.description);
+  });
+
+  it('hands every status it sees to the readiness service that owns the dot', async () => {
+    // Without this the dot would survive its own fix: the service only
+    // re-probes on scan / lens change, so an update performed here would
+    // leave the sidebar lit until the next scan.
+    const getAgentSkillInstallStatus = vi
+      .fn()
+      .mockResolvedValue(skillStatusOf({ installed: true, stale: true }));
+    const { fixture, notedStatuses } = bootstrapSkill({
+      getAgentSkillInstallStatus,
+    } as Partial<IDataSourcePort>);
+
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flush();
+
+    expect(notedStatuses).toHaveLength(1);
+    expect(notedStatuses[0]?.stale).toBe(true);
   });
 
   it('renders the check indicator plus Uninstall when installed and current', () => {

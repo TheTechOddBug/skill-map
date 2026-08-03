@@ -37,6 +37,7 @@ import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { DialogModule } from 'primeng/dialog';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
+import { ProcessingAgentReadinessService } from '../../services/processing-agent-readiness';
 import { UsageTrackerService } from '../../services/usage-tracker';
 import type { IPluginItemApi } from '../../../models/api';
 import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
@@ -84,6 +85,16 @@ interface ISettingsSection {
    * never set it, no stray rule appears.
    */
   dividerBefore?: boolean;
+  /**
+   * When true, the sidebar row carries the attention dot: something in
+   * that section is waiting for the operator. Today only `project`
+   * raises it, for an outdated agent process skill
+   * (`ProcessingAgentReadinessService.skillUpdateAvailable`), and it is
+   * modelled as a section property rather than a special case in the
+   * template so a second source can light a different row without
+   * touching the markup.
+   */
+  attention?: boolean;
 }
 
 const SETTINGS_SECTIONS: readonly ISettingsSection[] = [
@@ -173,6 +184,12 @@ export class SettingsModal {
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly usageTracker = inject(UsageTrackerService);
   /**
+   * Source of the attention dot. App-level and already probed on boot /
+   * scan / lens switch, so the chassis reads it without owning a probe
+   * of its own (and without waiting for the Project section to mount).
+   */
+  private readonly readiness = inject(ProcessingAgentReadinessService);
+  /**
    * Coordination point for buffered sub-surfaces. The Plugins panel and
    * every plugin section register their dirty-state contract on
    * construction; the chassis reads `buffer.dirtyCount()` reactively to
@@ -215,16 +232,31 @@ export class SettingsModal {
       icon: PLUGIN_SECTION_ICON,
       dividerBefore: index === 0,
     }));
+    const attentionOn = this.attentionSections();
     const result: ISettingsSection[] = [];
     for (const section of SETTINGS_SECTIONS) {
+      const attention = attentionOn.has(section.id) ? { attention: true } : {};
       if (section.id === 'changelog' && dynamic.length > 0) {
-        result.push({ ...section, dividerBefore: true });
+        result.push({ ...section, ...attention, dividerBefore: true });
       } else {
-        result.push({ ...section });
+        result.push({ ...section, ...attention });
       }
       if (section.id === 'plugins') result.push(...dynamic);
     }
     return result;
+  });
+
+  /**
+   * Section ids currently raising the attention dot. One entry today:
+   * `project`, while the agent process skill installed for the active
+   * lens is older than the copy this CLI ships. The readiness service
+   * owns the probe (boot, every scan, every lens switch), so the dot is
+   * live without the Project section ever having been opened.
+   */
+  private readonly attentionSections = computed<ReadonlySet<TSettingsSection>>(() => {
+    const ids = new Set<TSettingsSection>();
+    if (this.readiness.skillUpdateAvailable()) ids.add('project');
+    return ids;
   });
 
   /** The plugin item backing the active `plugin:<id>` section, or null

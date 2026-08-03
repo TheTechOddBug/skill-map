@@ -40,6 +40,7 @@ import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { MessageModule } from 'primeng/message';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
+import { ProcessingAgentReadinessService } from '../../services/processing-agent-readiness';
 import { UsageTrackerService } from '../../services/usage-tracker';
 import type { IAgentSkillInstallStatusApi } from '../../../models/api';
 import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
@@ -67,6 +68,8 @@ export class SettingsProjectSkill {
   private readonly usageTracker = inject(UsageTrackerService);
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly confirmation = inject(ConfirmationService);
+  /** App-level owner of the Settings attention dot; fed by `adoptStatus`. */
+  private readonly readiness = inject(ProcessingAgentReadinessService);
 
   readonly visible = input.required<boolean>();
   /**
@@ -107,6 +110,17 @@ export class SettingsProjectSkill {
   protected readonly skillUpToDate = computed<boolean>(() => {
     const status = this.skillStatus();
     return status !== null && status.installed && !status.stale;
+  });
+
+  /**
+   * Installed but outdated: the state the Settings attention dot points
+   * at. Drives the row's stripe, the chip and the warning-toned button.
+   * Not the same as `stale` alone, which is `false` on a status that is
+   * not installed at all.
+   */
+  protected readonly skillStale = computed<boolean>(() => {
+    const status = this.skillStatus();
+    return status !== null && status.installed && status.stale;
   });
 
   /**
@@ -226,7 +240,7 @@ export class SettingsProjectSkill {
     const t = this.texts.project.agentSkill;
     if (op === 'install') {
       const envelope = await this.dataSource.installAgentSkill(providerId, opts);
-      this.skillStatus.set(envelope);
+      this.adoptStatus(envelope);
       this.skillAnnouncement.set(
         envelope.outcome === 'installed'
           ? t.installed
@@ -236,7 +250,7 @@ export class SettingsProjectSkill {
       );
     } else {
       const envelope = await this.dataSource.uninstallAgentSkill(providerId, opts);
-      this.skillStatus.set(envelope);
+      this.adoptStatus(envelope);
       this.skillAnnouncement.set(envelope.removed ? t.uninstalled : t.nothingToUninstall);
     }
   }
@@ -290,10 +304,22 @@ export class SettingsProjectSkill {
       return;
     }
     try {
-      this.skillStatus.set(await this.dataSource.getAgentSkillInstallStatus(providerId));
+      this.adoptStatus(await this.dataSource.getAgentSkillInstallStatus(providerId));
     } catch (err) {
       this.skillError.set(formatErr(err));
       this.skillStatus.set(null);
     }
+  }
+
+  /**
+   * Adopt a status envelope locally AND hand it to the app-level
+   * readiness service, which owns the Settings attention dot. Without
+   * this the dot would survive its own fix: the service re-probes on
+   * scan / lens change, so a skill updated from this row would keep the
+   * sidebar lit until the next scan.
+   */
+  private adoptStatus(status: IAgentSkillInstallStatusApi): void {
+    this.skillStatus.set(status);
+    this.readiness.noteSkillStatus(status);
   }
 }

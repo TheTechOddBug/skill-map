@@ -63,6 +63,32 @@
   color: var(--p-text-color);
 }
 
+/* Attention state of a row (today: the agent process skill is installed
+   but outdated). The stripe + tint make the row findable at a glance
+   once the sidebar dot brings the operator to the section, and the chip
+   says in words what the dot could only imply. Same `--sm-attention`
+   family as `settings-modal.css`, deliberately NOT the severity-warn
+   amber: nothing is broken here, an older skill still drains the queue. */
+.settings-project__row.is-stale {
+  border-left: 3px solid var(--sm-attention);
+  padding-left: calc(1rem - 2px);
+  background: var(--sm-attention-bg);
+}
+
+.settings-project__attention-chip {
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--sm-attention);
+  border-radius: var(--sm-radius-sm);
+  color: var(--sm-attention);
+  font-size: var(--sm-fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
 .settings-project__row-description {
   font-size: var(--sm-fs-sm);
   color: var(--sm-text-muted);

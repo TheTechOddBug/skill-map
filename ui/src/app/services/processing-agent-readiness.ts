@@ -50,6 +50,7 @@
 
 import { DestroyRef, Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 
+import type { IAgentSkillInstallStatusApi } from '../../models/api';
 import { DATA_SOURCE } from '../../services/data-source/data-source.port';
 import { WsEventStreamService } from '../../services/ws-event-stream';
 import { ProjectInfoService } from './project-info';
@@ -85,6 +86,26 @@ export class ProcessingAgentReadinessService {
    * (gate OPEN); `null` = unknown, consumers fail open.
    */
   readonly skillMissing = this._skillMissing.asReadonly();
+
+  /**
+   * `true` = the skill IS installed but this CLI ships a newer canonical
+   * copy, so `sm agent install` (or the Settings button) would rewrite
+   * it; `false` = installed and current, or nothing installed at all;
+   * `null` = unknown.
+   *
+   * Deliberately NOT part of the submit gate: an outdated skill still
+   * drains the queue, it just misses whatever the newer copy teaches. It
+   * drives the attention dot in Settings instead (Settings > Project),
+   * which is the whole reason this lives here rather than inside the
+   * settings row component: the dot has to render on a section the
+   * operator has not opened yet.
+   *
+   * "Not installed" is deliberately excluded (user decision 2026-08-03):
+   * on a project that never wanted the skill the dot would be lit
+   * forever, which trains people to ignore it.
+   */
+  private readonly _skillStale = signal<boolean | null>(null);
+  readonly skillUpdateAvailable = computed<boolean>(() => this._skillStale() === true);
 
   /**
    * Live reading of the gate, before the check hold below is applied:
@@ -203,10 +224,22 @@ export class ProcessingAgentReadinessService {
     return probe;
   }
 
+  /**
+   * Adopt a status envelope the caller already holds, so a mutation
+   * performed in the UI (the Settings install / update / uninstall
+   * buttons) settles the dot immediately instead of leaving it lit until
+   * the next scan tick. Same writes as `probe`, no round-trip.
+   */
+  noteSkillStatus(status: IAgentSkillInstallStatusApi): void {
+    this._skillMissing.set(status.supported && !status.installed);
+    this._skillStale.set(status.installed && status.stale);
+  }
+
   private async probe(lens: string | null): Promise<void> {
     if (lens === null) {
       // No lens resolved yet: unknown, so the gate stays open.
       this._skillMissing.set(null);
+      this._skillStale.set(null);
       return;
     }
     try {
@@ -214,11 +247,12 @@ export class ProcessingAgentReadinessService {
       // A lens switch landed while this was in flight: the answer
       // describes the previous lens, its successor owns the write.
       if (untracked(() => this.projectInfo.activeProvider()) !== lens) return;
-      this._skillMissing.set(status.supported && !status.installed);
+      this.noteSkillStatus(status);
     } catch {
       // Unknown, NOT locked: any failure (transport, demo quirks)
       // resolves to null so the gate fails open.
       this._skillMissing.set(null);
+      this._skillStale.set(null);
     }
   }
 }

@@ -12,6 +12,12 @@ export const SETTINGS_TEXTS = {
 
   /** Modal chrome. */
   modalTitle: 'Settings',
+  /**
+   * Accessible name of the attention dot (sidebar row + modal title).
+   * Colour is never the only carrier of the signal, so this is what a
+   * screen reader announces and what a pointer hover reveals.
+   */
+  attentionDotA11y: 'Action needed in this section',
   closeLabel: 'Close',
 
   /** Sidebar, section labels (kebab-case ids match `TSettingsSection`). */
@@ -301,6 +307,14 @@ export const SETTINGS_TEXTS = {
       description: 'Install the skill that will process the queue.',
       installLabel: 'Install skill',
       updateLabel: 'Update skill',
+      /** Chip on the row while an installed copy is outdated. */
+      updateAvailableChip: 'Update available',
+      /**
+       * Replaces `description` while outdated: the operator arrived via
+       * the attention dot, so the row states the reason rather than
+       * repeating what the skill is for.
+       */
+      staleDescription: 'A newer version of the skill ships with this version of skill-map.',
       upToDateLabel: 'Skill up to date',
       uninstallLabel: 'Uninstall skill',
       installConfirmHeader: 'Install the agent process skill?',

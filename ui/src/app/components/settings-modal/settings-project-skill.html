@@ -11,11 +11,34 @@
 }
 
 @if (rowVisible()) {
-  <div class="settings-project__row" data-testid="settings-project-agent-skill-row">
+  <!-- `is-stale`: the installed copy is older than the one this CLI
+       ships. The row takes an attention stripe + tint, the label takes
+       a chip, and the description switches to naming the reason, so the
+       sidebar dot that brought the operator here pays off with an
+       explanation and not just a differently-worded button. -->
+  <div
+    class="settings-project__row"
+    [class.is-stale]="skillStale()"
+    data-testid="settings-project-agent-skill-row"
+  >
     <div class="settings-project__row-text">
-      <div class="settings-project__row-label">{{ texts.project.agentSkill.label }}</div>
+      <div class="settings-project__row-label">
+        {{ texts.project.agentSkill.label }}
+        @if (skillStale()) {
+          <span
+            class="settings-project__attention-chip"
+            data-testid="settings-project-agent-skill-stale-chip"
+          >
+            {{ texts.project.agentSkill.updateAvailableChip }}
+          </span>
+        }
+      </div>
       <div class="settings-project__row-description">
-        {{ texts.project.agentSkill.description }}
+        @if (skillStale()) {
+          {{ texts.project.agentSkill.staleDescription }}
+        } @else {
+          {{ texts.project.agentSkill.description }}
+        }
       </div>
     </div>
     <div class="settings-project__row-actions">
@@ -31,7 +54,7 @@
         <p-button
           [label]="skillActionLabel()"
           [disabled]="skillActionDisabled()"
-          severity="primary"
+          [severity]="skillStale() ? 'warn' : 'primary'"
           size="small"
           (onClick)="onSkillInstallClick()"
           data-testid="settings-project-agent-skill-button"

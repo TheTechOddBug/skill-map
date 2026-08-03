@@ -161,6 +161,27 @@
   text-overflow: ellipsis;
 }
 
+/* Attention dot: this section is holding a pending action, today an
+   outdated agent process skill. Rides `--sm-attention` (a true orange,
+   distinct from the amber `--sm-severity-warn` that labels scan
+   findings) plus a soft halo so it reads at 7px without moving: a pulse
+   would either fight `prefers-reduced-motion` or need a media query to
+   say nothing. Never the only cue, it carries an `aria-label` + `title`,
+   and the row it points at spells the action out.
+
+   Sidebar rows only. The dialog title carried one too for a while (it
+   would have been the mark a future topbar launcher inherits), but with
+   the sidebar row already visible from every section it was the same
+   signal twice on one screen. */
+.settings-modal__attention-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-attention);
+  box-shadow: 0 0 0 3px var(--sm-attention-bg);
+}
+
 .settings-modal__main {
   min-width: 0;
   min-height: 0;

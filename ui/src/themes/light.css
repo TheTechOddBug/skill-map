@@ -117,6 +117,13 @@
   --sm-severity-warn-bg: rgba(254, 243, 199, 0.35);
   --sm-severity-error-bg: rgba(254, 226, 226, 0.35);
 
+  /* === Attention (see dark.css for the token's contract) ===
+     Orange-700 rather than the dark theme's orange-400: `#fb923c`
+     measures ~2.2:1 on white, well under the 3:1 a11y floor a
+     non-text indicator needs, while `#c2410c` clears it at ~5.4:1. */
+  --sm-attention: #c2410c;
+  --sm-attention-bg: rgba(255, 237, 213, 0.55);
+
   /* === Physical-stat chip tints ===
      Used by the card subtitle row to give tokens / bytes / date three
      distinct subtle backgrounds. Intentionally NOT tied to the kind

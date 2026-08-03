@@ -34,13 +34,18 @@ interface IHarness {
   getAgentSkillInstallStatus: ReturnType<typeof vi.fn>;
 }
 
-function status(supported: boolean, installed: boolean, provider = 'claude'): Record<string, unknown> {
+function status(
+  supported: boolean,
+  installed: boolean,
+  provider = 'claude',
+  stale = false,
+): Record<string, unknown> {
   return {
     provider,
     supported,
     skillDir: supported ? '.claude/skills/sm-process-jobs' : null,
     installed,
-    stale: false,
+    stale,
   };
 }
 
@@ -275,6 +280,80 @@ describe('ProcessingAgentReadinessService, the check hold', () => {
 
     service.noteCheckSettled();
     expect(service.submitGateReason()).toBe('agent-silent');
+  });
+
+  /**
+   * `skillUpdateAvailable` drives the Settings attention dot, which is
+   * why it lives here and not in the settings row: the dot must render
+   * on a section the operator has not opened.
+   */
+  describe('skillUpdateAvailable (Settings attention dot)', () => {
+    it('is true only when an INSTALLED copy is stale', async () => {
+      const stale = bootstrap({
+        getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, true, 'claude', true)),
+      });
+      await settled();
+      expect(stale.service.skillUpdateAvailable()).toBe(true);
+
+      const current = bootstrap({
+        getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, true)),
+      });
+      await settled();
+      expect(current.service.skillUpdateAvailable()).toBe(false);
+    });
+
+    it('stays false when nothing is installed (a missing skill is not an update)', async () => {
+      // User decision 2026-08-03: on a project that never wanted the
+      // skill the dot would be lit forever, so absence never raises it.
+      const { service } = bootstrap({
+        getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, false, 'claude', true)),
+      });
+      await settled();
+      expect(service.skillUpdateAvailable()).toBe(false);
+      // ... while the submit gate DOES close: the two are independent.
+      expect(service.skillMissing()).toBe(true);
+    });
+
+    it('is false while unknown, so a transport failure never lights the dot', async () => {
+      const { service } = bootstrap({
+        getAgentSkillInstallStatus: vi.fn().mockRejectedValue(new Error('down')),
+      });
+      await settled();
+      expect(service.skillUpdateAvailable()).toBe(false);
+    });
+
+    it('clears on `noteSkillStatus` so an update performed in the UI settles the dot', async () => {
+      const { service } = bootstrap({
+        getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, true, 'claude', true)),
+      });
+      await settled();
+      expect(service.skillUpdateAvailable()).toBe(true);
+
+      // The envelope `POST /api/agent/install` returns.
+      service.noteSkillStatus({
+        provider: 'claude',
+        supported: true,
+        skillDir: '.claude/skills',
+        installed: true,
+        stale: false,
+      });
+      expect(service.skillUpdateAvailable()).toBe(false);
+      expect(service.skillMissing()).toBe(false);
+    });
+
+    it('re-lights on the next scan when the CLI ships a newer copy', async () => {
+      const probe = vi
+        .fn()
+        .mockResolvedValueOnce(status(true, true))
+        .mockResolvedValueOnce(status(true, true, 'claude', true));
+      const { service, scanCompleted$ } = bootstrap({ getAgentSkillInstallStatus: probe });
+      await settled();
+      expect(service.skillUpdateAvailable()).toBe(false);
+
+      scanCompleted$.next({} as IWsScanCompletedEvent);
+      await settled();
+      expect(service.skillUpdateAvailable()).toBe(true);
+    });
   });
 });
 
