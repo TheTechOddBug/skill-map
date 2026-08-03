@@ -1,5 +1,33 @@
 # skill-map
 
+## 1.2.3
+
+### Patch Changes
+
+- Materialised skill folders no longer land in commits. `sm agent install` and `sm tutorial` drop a `.gitignore` (a bare `*`, which hides the file itself too) inside the folder they create, same doctrine as `.skill-map/.gitignore`: the rule lives in the directory it describes, the project-root `.gitignore` is never touched. Creation only, never over an existing file, and out of the staleness comparison so deleting it stays an opt-out. The default scan ignore also gained `sm-tutorial/`.
+
+  ## User-facing
+
+  The skill folders `sm agent install` and `sm tutorial` create are generated copies, so they now ship a `.gitignore` that keeps them out of your commits, and the tutorial folder no longer shows up in your map. Delete that file if you would rather commit it.
+
+- The plugin enable toggle no longer restates the defaults in `settings.json`. `sm plugins enable / disable` and the `PATCH /api/plugins...` routes skip a per-extension `enabled` key whose state the id already resolves to without it, drop one that turned redundant, and sweep the layer they write for keys left by the previous always-write behaviour. A `--local` re-enable over a committed `false` still persists. Spec: `architecture.md` §Locality.
+
+  ## User-facing
+
+  Turning a plugin off and back on used to leave a line behind in `.skill-map/settings.json` for every flip. Now the file only keeps the settings that actually differ from the defaults, and it cleans up the leftovers the next time you toggle anything.
+
+- An outdated agent process skill now announces itself in Settings instead of waiting to be found. The chassis reads `ProcessingAgentReadinessService.skillUpdateAvailable` and marks the Project sidebar row with an attention dot; the row itself takes a stripe, an "Update available" chip and a warn-toned action. New `--sm-attention` token, orange rather than the amber severity-warn: an older skill is a pending action, not a finding.
+
+  ## User-facing
+
+  Settings now shows an orange dot next to Project when your agent process skill is older than the one shipping with this version, and the row explains why. The dot clears as soon as you update.
+
+- The Settings resolution dialog had two nested scrollbars: the table sat in its own `max-height: 60vh` scroll box inside PrimeNG's already-scrollable dialog content. The wrapper is gone, so the dialog content is the single scrollport and the sticky column header sticks against it. The layer chip also renders `project-local` as `LOCAL`, which reads at chip size where the raw id did not.
+
+  ## User-facing
+
+  The "Settings resolution" panel now has a single scrollbar instead of two, and the config layer column shows LOCAL instead of the harder-to-read PROJECT-LOCAL.
+
 ## 1.2.2
 
 ### Patch Changes

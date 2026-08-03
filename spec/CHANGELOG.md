@@ -1,5 +1,21 @@
 # Spec changelog
 
+## 1.3.0
+
+### Minor Changes
+
+- Materialised skill folders no longer land in commits. `sm agent install` and `sm tutorial` drop a `.gitignore` (a bare `*`, which hides the file itself too) inside the folder they create, same doctrine as `.skill-map/.gitignore`: the rule lives in the directory it describes, the project-root `.gitignore` is never touched. Creation only, never over an existing file, and out of the staleness comparison so deleting it stays an opt-out. The default scan ignore also gained `sm-tutorial/`.
+
+  ## User-facing
+
+  The skill folders `sm agent install` and `sm tutorial` create are generated copies, so they now ship a `.gitignore` that keeps them out of your commits, and the tutorial folder no longer shows up in your map. Delete that file if you would rather commit it.
+
+- The plugin enable toggle no longer restates the defaults in `settings.json`. `sm plugins enable / disable` and the `PATCH /api/plugins...` routes skip a per-extension `enabled` key whose state the id already resolves to without it, drop one that turned redundant, and sweep the layer they write for keys left by the previous always-write behaviour. A `--local` re-enable over a committed `false` still persists. Spec: `architecture.md` §Locality.
+
+  ## User-facing
+
+  Turning a plugin off and back on used to leave a line behind in `.skill-map/settings.json` for every flip. Now the file only keeps the settings that actually differ from the defaults, and it cleans up the leftovers the next time you toggle anything.
+
 ## 1.2.0
 
 ### Minor Changes
