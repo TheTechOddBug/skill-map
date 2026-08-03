@@ -2,6 +2,32 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.2.4",
+      "date": "2026-08-03",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The first scan after setup now reports its results in the same format as every later `sm scan`: nodes, links and issues split by severity, then the database path. No more red mark on a scan that worked.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The top bar now shows how many stars skill-map has on GitHub, and clicking it opens the repository. It disappears by itself when you are offline, and you can turn it off in Settings → General.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The logo and the skill-map title in the top bar are now links: the logo opens the website, the title opens the GitHub repository, both in a new tab.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.2.3",
       "date": "2026-08-03",
       "kind": "user-facing",
