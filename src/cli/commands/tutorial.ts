@@ -69,6 +69,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Command, Option } from 'clipanion';
 
+import { ensureGeneratedFolderGitignore } from '../../core/generated-folder-gitignore.js';
 import { tx } from '../../kernel/util/tx.js';
 import { TUTORIAL_TEXTS } from '../i18n/tutorial.texts.js';
 import { setInvocationTutorialPart } from '../telemetry/posthog-init.js';
@@ -412,6 +413,11 @@ export class TutorialCommand extends SmCommand {
  * clobber guard guarantees we only reach here when the target is absent or
  * `--force` was passed, so wiping is safe (`rmSync({ force: true })` no-ops on a
  * missing path).
+ *
+ * The folder is rebuilt from scratch every time, so the generated-folder
+ * `.gitignore` is written unconditionally here (spec/cli-contract.md §Scope
+ * ignore file → Materialised skill folders): there is never a pre-existing
+ * ignore file to preserve, the `rm` above already took it.
  */
 function materializeSkillFolder(
   sourceDir: string,
@@ -422,6 +428,7 @@ function materializeSkillFolder(
   rmSync(targetDir, { recursive: true, force: true });
   mkdirSync(dirname(targetDir), { recursive: true });
   cpSync(sourceDir, targetDir, { recursive: true });
+  ensureGeneratedFolderGitignore(targetDir);
   if (marker !== undefined) {
     mkdirSync(join(cwd, marker), { recursive: true });
   }

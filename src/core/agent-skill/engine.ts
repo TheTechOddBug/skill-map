@@ -17,6 +17,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { ensureGeneratedFolderGitignore } from '../generated-folder-gitignore.js';
 import {
   PROCESS_JOBS_SKILL_DIR,
   PROCESS_JOBS_SKILL_FILE,
@@ -83,6 +84,13 @@ export function installAgentSkill(
       writeFileSync(join(folder, f.path), f.content);
     }
   }
+  // Fresh install only: keep the generated copy out of commits
+  // (spec/cli-contract.md §Scope ignore file → Materialised skill
+  // folders). Never on an update, the operator may have removed the
+  // ignore file on purpose to commit the folder. Best-effort by
+  // contract, and deliberately outside the canonical file set so
+  // deleting it never reads as a stale install.
+  if (outcome === 'installed') ensureGeneratedFolderGitignore(folder);
   if (marker !== undefined) {
     mkdirSync(join(cwd, marker), { recursive: true });
   }

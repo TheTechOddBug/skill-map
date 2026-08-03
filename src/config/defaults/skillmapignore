@@ -17,10 +17,12 @@ out/
 .tmp/
 .skill-map/
 
-# skill-map's own materialised agent-process skill (`sm agent install`).
-# Infrastructure, not project content: it never appears as a node in the
-# map / server. Re-include with `!sm-process-jobs/` if you want it scanned.
+# skill-map's own materialised skills (`sm agent install`, `sm tutorial`).
+# Infrastructure, not project content: they never appear as nodes in the
+# map / server. Re-include with `!sm-process-jobs/` or `!sm-tutorial/` if
+# you want them scanned.
 sm-process-jobs/
+sm-tutorial/
 
 # OS / editor noise
 .DS_Store

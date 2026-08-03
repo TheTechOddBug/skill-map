@@ -108,7 +108,12 @@ function assertDirsEqual(expectedDir: string, actualDir: string): void {
     return out.sort();
   };
   const expected = walk(expectedDir);
-  const actual = walk(actualDir);
+  // The materialised folder carries one file the source does not: the
+  // generated-folder `.gitignore` the verb drops so the copy stays out
+  // of commits (spec/cli-contract.md §Scope ignore file → Materialised
+  // skill folders). It is asserted on its own in the happy-path suite;
+  // here it is excluded so this stays a check of the PAYLOAD.
+  const actual = walk(actualDir).filter((rel) => rel !== '.gitignore');
   assert.deepEqual(actual, expected, 'file inventory differs');
   for (const rel of expected) {
     const e = readFileSync(join(expectedDir, rel));
@@ -196,6 +201,22 @@ describe('sm tutorial, happy path', () => {
     assert.equal(existsSync(join(scope.cwd, '.sm-tutorial')), false);
     // The skill directory IS created.
     assert.ok(existsSync(join(scope.cwd, '.claude', 'skills', 'sm-tutorial')));
+  });
+
+  it('drops a .gitignore that keeps the materialised copy out of git', () => {
+    // spec/cli-contract.md §Scope ignore file → Materialised skill
+    // folders. The bare `*` also covers the ignore file itself, so the
+    // whole folder is invisible to git rather than leaving a husk.
+    const scope = freshScope('gitignore');
+    const r = sm(['tutorial'], scope);
+    assert.equal(r.status, 0);
+
+    const body = readFileSync(
+      join(scope.cwd, '.claude', 'skills', 'sm-tutorial', '.gitignore'),
+      'utf8',
+    );
+    assert.match(body, /^\*$/m);
+    assert.match(body, /Managed by skill-map/);
   });
 });
 

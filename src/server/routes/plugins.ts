@@ -13,8 +13,9 @@
  * orthogonal LOCAL import-trust grant per drop-in plugin.
  *
  * Write side: enable persists to the CONFIG layers (`settings.json`) via
- * `writeConfigValue`, same path the CLI's `sm plugins enable / disable`
- * uses; trust persists to the scope lock via
+ * `persistEnableToggles`, same path the CLI's `sm plugins enable /
+ * disable` uses (redundant keys are skipped and pruned there, see
+ * `core/plugins/enable-persist.ts`); trust persists to the scope lock via
  * `adapter.trust.set`, same path as `sm plugins trust / untrust`. The
  * loaded plugin runtime is boot-cached; a newly-trusted plugin's
  * handlers load on the next `sm serve` restart. Spec: cli-contract.md
@@ -55,7 +56,6 @@ import {
 
 import { builtInPlugins, type IBuiltInPlugin } from '../../plugins/built-ins.js';
 import { sortPluginsForPresentation } from '../../plugins/presentation-order.js';
-import { writeConfigValue } from '../../core/config/helper.js';
 import type { TSettingsEnv } from '../../core/config/plugin-settings.js';
 import {
   buildPairEnabledProbe,
@@ -63,8 +63,13 @@ import {
   expandPairToggle,
   pairEdgeSourcesFromBuiltIns,
   pairEdgeSourcesFromDiscovered,
-  toEnableConfigKey,
+  type IPairEdgeSource,
 } from '../../core/plugins/pair-toggle.js';
+import {
+  buildInstalledDefaults,
+  persistEnableToggles,
+  unloadedDefaultSources,
+} from '../../core/plugins/enable-persist.js';
 import { defaultProjectPluginsDir } from '../../core/paths/db-path.js';
 import {
   buildFreshResolver as buildFreshResolverFromConfig,
@@ -907,10 +912,12 @@ async function persistManyAndProject(
   keys: readonly string[],
   enabled: boolean,
 ): Promise<Response> {
-  const cwd = deps.runtimeContext.cwd;
-  for (const key of keys) {
-    writeConfigValue(toEnableConfigKey(key), enabled, { target: 'project', cwd });
-  }
+  persistEnableToggles({
+    changes: keys.map((key) => ({ key, enabled })),
+    installedDefaults: installedDefaultsFor(deps),
+    target: 'project',
+    cwd: deps.runtimeContext.cwd,
+  });
   // On disable, purge persisted contributions so the UI stops rendering
   // the plugin's chips before the next scan, and run the disable cascade
   // over the keys' queued jobs. Best-effort: a missing DB (no scan yet)
@@ -967,7 +974,7 @@ async function persistTrustAndProject(
  * already enabled inside the disable refcount, so a mixed batch resolves
  * exactly as stated. The probe reads the cached layered view PRE-write
  * (`composeResolver` posture; the routes call this before any
- * `writeConfigValue`).
+ * `persistEnableToggles`).
  */
 function expandPairKeys(
   deps: IRouteDeps,
@@ -977,10 +984,7 @@ function expandPairKeys(
   batchEnabledOverlay?: ReadonlySet<string>,
 ): string[] {
   if (keys.length === 0) return [...keys];
-  const sources = [
-    ...pairEdgeSourcesFromBuiltIns(builtInPlugins),
-    ...pairEdgeSourcesFromDiscovered(deps.pluginRuntimeHolder.current.discovered),
-  ];
+  const sources = manifestSources(deps);
   const probe = buildPairEnabledProbe(
     sources,
     composeResolverFromConfig(deps.configService.effective()),
@@ -1002,6 +1006,33 @@ function expandPairKeys(
       batchExplicit?.has(a.key) !== true,
   );
   return [...keys, ...kept.map((a) => a.key)];
+}
+
+/**
+ * Project every manifest the server can see (bundled built-ins + the
+ * loaded drop-ins) onto the shared row shape. Feeds both the pair
+ * toggle (edges + enabled probe) and the enable persistence (installed
+ * defaults). A discovered-but-not-loaded plugin exposes no manifest, so
+ * its ids are absent here and the persistence step never prunes them.
+ */
+function manifestSources(deps: IRouteDeps): IPairEdgeSource[] {
+  return [
+    ...pairEdgeSourcesFromBuiltIns(builtInPlugins),
+    ...pairEdgeSourcesFromDiscovered(deps.pluginRuntimeHolder.current.discovered),
+  ];
+}
+
+/**
+ * Installed-default map for the enable writer. Widens `manifestSources`
+ * with the DECLARED-but-unimported extensions: enable is a pre-import
+ * gate, so a disabled extension has no loaded manifest, and those are
+ * exactly the ids a re-enable must be able to prune.
+ */
+function installedDefaultsFor(deps: IRouteDeps): Map<string, boolean> {
+  return buildInstalledDefaults([
+    ...manifestSources(deps),
+    ...unloadedDefaultSources(deps.pluginRuntimeHolder.current.discovered),
+  ]);
 }
 
 /**
@@ -1308,7 +1339,6 @@ function applyBulkEnableWrites(
   deps: IRouteDeps,
   changes: readonly IBulkChange[],
 ): { disabledKeys: string[]; enabledKeys: string[]; toggleTouched: boolean } {
-  const cwd = deps.runtimeContext.cwd;
   // Last-write-wins per key (Map preserves first-seen order per key).
   const desired = new Map<string, boolean>();
   for (const change of changes) {
@@ -1326,12 +1356,17 @@ function applyBulkEnableWrites(
     explicit,
     new Set(enableRequested),
   );
-  for (const key of enableKeys) {
-    writeConfigValue(toEnableConfigKey(key), true, { target: 'project', cwd });
-  }
-  for (const key of disableKeys) {
-    writeConfigValue(toEnableConfigKey(key), false, { target: 'project', cwd });
-  }
+  // One patch for the whole batch: enables and disables land in a single
+  // read-modify-write, with redundant keys skipped and pruned.
+  persistEnableToggles({
+    changes: [
+      ...enableKeys.map((key) => ({ key, enabled: true })),
+      ...disableKeys.map((key) => ({ key, enabled: false })),
+    ],
+    installedDefaults: installedDefaultsFor(deps),
+    target: 'project',
+    cwd: deps.runtimeContext.cwd,
+  });
   return {
     disabledKeys: disableKeys,
     enabledKeys: enableKeys,

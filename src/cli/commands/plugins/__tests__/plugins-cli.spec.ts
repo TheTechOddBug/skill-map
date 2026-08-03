@@ -260,15 +260,47 @@ function enableConfigKey(id: string): string {
 }
 
 /**
- * Read the persisted per-extension `enabled` from the CONFIG layers via
+ * Read the PERSISTED per-extension `enabled` from the CONFIG layers via
  * `sm config get`. Returns `undefined` when no layer set it (the verb
- * exits 5 "Unknown config key"), mirroring the old `getPluginEnabled`
- * "no override" return so the existing assertions read identically.
+ * exits 5 "Unknown config key").
+ *
+ * Persistence is NOT the same question as the effective enable state
+ * since redundant-key pruning landed (spec/architecture.md §Locality): a
+ * toggle whose result the installed default already yields stores
+ * nothing, so re-enabling a default-on extension reads `undefined` here
+ * while `effectiveEnabled` reads `true`. Use this to assert what reached
+ * disk (including that nothing did); use `effectiveEnabled` to assert
+ * what the extension actually does.
  */
 function readEnabled(scope: IScope, id: string): boolean | undefined {
   const r = sm(['config', 'get', enableConfigKey(id), '--json'], scope);
   if (r.status !== 0) return undefined;
   return JSON.parse(r.stdout) as boolean;
+}
+
+/**
+ * Read the EFFECTIVE enable state of a qualified extension id, the
+ * resolver's answer (config layers over the installed default) rather
+ * than the persisted key. `undefined` when the id does not resolve.
+ *
+ * Two sources because the two `--json` projections differ: `sm plugins
+ * show` carries `enabled` for a BUILT-IN extension, while a drop-in
+ * projects the discovered-extension shape (no `enabled` field), so those
+ * fall back to the owning plugin's aggregate `status`. Every drop-in in
+ * this file ships exactly one extension, which makes the aggregate an
+ * exact read of that extension.
+ */
+function effectiveEnabled(scope: IScope, id: string): boolean | undefined {
+  const shown = sm(['plugins', 'show', id, '--json'], scope);
+  if (shown.status === 0) {
+    const parsed = JSON.parse(shown.stdout) as { enabled?: boolean };
+    if (typeof parsed.enabled === 'boolean') return parsed.enabled;
+  }
+  const pluginId = id.slice(0, Math.max(id.indexOf('/'), 0)) || id;
+  const listed = sm(['plugins', 'list', pluginId, '--json'], scope);
+  if (listed.status !== 0) return undefined;
+  const status = (JSON.parse(listed.stdout) as { status?: string }).status;
+  return status === undefined ? undefined : status === 'enabled';
 }
 
 /** Read the per-plugin trust grant. */
@@ -319,7 +351,10 @@ describe('sm plugins enable / disable', () => {
     assert.equal(r.status, 0);
     assert.match(r.stdout, /enabled: mock-b\/mock-b-extractor/);
 
-    assert.equal(readEnabled(scope, 'mock-b/mock-b-extractor'), true);
+    assert.equal(effectiveEnabled(scope, 'mock-b/mock-b-extractor'), true);
+    // The flip landed back on the installed default, so the key is gone
+    // rather than restating it (spec/architecture.md §Locality).
+    assert.equal(readEnabled(scope, 'mock-b/mock-b-extractor'), undefined);
 
     const list = sm(['plugins', 'list'], scope);
     assert.match(list.stdout, /✓\s+mock-b\b/);
@@ -565,8 +600,11 @@ describe('sm plugins enable / disable', () => {
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     assert.match(r.stdout, /enabled: 2 extension\(s\)/);
 
-    assert.equal(readEnabled(scope, 'mock-en-a/mock-en-a-extractor'), true);
-    assert.equal(readEnabled(scope, 'mock-en-b/mock-en-b-extractor'), true);
+    assert.equal(effectiveEnabled(scope, 'mock-en-a/mock-en-a-extractor'), true);
+    assert.equal(effectiveEnabled(scope, 'mock-en-b/mock-en-b-extractor'), true);
+    // Both landed back on their installed default, so both keys are gone.
+    assert.equal(readEnabled(scope, 'mock-en-a/mock-en-a-extractor'), undefined);
+    assert.equal(readEnabled(scope, 'mock-en-b/mock-en-b-extractor'), undefined);
   });
 
   it('batch is all-or-nothing: unknown id aborts before any DB write', async () => {
@@ -605,6 +643,118 @@ describe('sm plugins enable / disable', () => {
   });
 });
 
+// Redundant-key pruning (spec/architecture.md §Locality). These assert
+// what reaches DISK, the sibling suites above already cover the
+// effective-state semantics. Read the file rather than `sm config get`,
+// the point is the shape of settings.json the operator opens.
+describe('sm plugins enable / disable, redundant-key pruning', () => {
+  /** Raw committed layer, `{}` when the verb wrote no file at all. */
+  function committedLayer(scope: IScope): Record<string, unknown> {
+    try {
+      return JSON.parse(
+        readFileSync(join(scope.cwd, '.skill-map', 'settings.json'), 'utf8'),
+      ) as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+  }
+
+  it('a disable → enable round trip leaves the committed layer as it started', () => {
+    const scope = freshScope('prune-round-trip');
+    sm(['init', '--no-scan'], scope);
+    const before = committedLayer(scope);
+
+    sm(['plugins', 'disable', 'core/backtick-path'], scope);
+    // The disable is a real decision, so it persists.
+    assert.equal(
+      readEnabled(scope, 'core/backtick-path'),
+      false,
+      'the disable must reach settings.json',
+    );
+
+    sm(['plugins', 'enable', 'core/backtick-path'], scope);
+
+    assert.deepEqual(committedLayer(scope), before);
+    assert.equal(effectiveEnabled(scope, 'core/backtick-path'), true);
+  });
+
+  it('enabling an already-default-on extension writes nothing', () => {
+    const scope = freshScope('prune-noop-enable');
+    sm(['init', '--no-scan'], scope);
+    const before = committedLayer(scope);
+
+    const r = sm(['plugins', 'enable', 'core/backtick-path'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+
+    assert.deepEqual(committedLayer(scope), before);
+  });
+
+  it('sweeps redundant keys a previous version left behind', () => {
+    const scope = freshScope('prune-sweep');
+    sm(['init', '--no-scan'], scope);
+    // Hand-plant the shape the always-write behaviour produced: two keys
+    // restating the shipped defaults, one real decision.
+    writeFileSync(
+      join(scope.cwd, '.skill-map', 'settings.json'),
+      JSON.stringify({
+        plugins: {
+          core: {
+            extensions: {
+              'markdown-link': { enabled: true },
+              'at-file': { enabled: true },
+              'reference-broken': { enabled: false },
+            },
+          },
+        },
+      }),
+      'utf8',
+    );
+
+    // Toggling anything at all runs the sweep over the whole layer.
+    sm(['plugins', 'disable', 'core/backtick-path'], scope);
+
+    assert.deepEqual(committedLayer(scope), {
+      plugins: {
+        core: {
+          extensions: {
+            'reference-broken': { enabled: false },
+            'backtick-path': { enabled: false },
+          },
+        },
+      },
+    });
+    // The swept ids kept their effective state (they were redundant).
+    assert.equal(effectiveEnabled(scope, 'core/markdown-link'), true);
+    assert.equal(effectiveEnabled(scope, 'core/at-file'), true);
+  });
+
+  it('keeps a --local re-enable that the committed layer would otherwise win', () => {
+    const scope = freshScope('prune-local-wins');
+    sm(['init', '--no-scan'], scope);
+    sm(['plugins', 'disable', 'core/backtick-path'], scope); // settings.json
+    sm(['plugins', 'enable', 'core/backtick-path', '--local'], scope);
+
+    // Equal to the installed default, yet NOT redundant: dropping it
+    // would fall back to the committed `false`.
+    const local = JSON.parse(
+      readFileSync(join(scope.cwd, '.skill-map', 'settings.local.json'), 'utf8'),
+    ) as { plugins: { core: { extensions: Record<string, { enabled: boolean }> } } };
+    assert.equal(local.plugins.core.extensions['backtick-path']?.enabled, true);
+    assert.equal(effectiveEnabled(scope, 'core/backtick-path'), true);
+  });
+
+  it('prunes both sides of a pair-toggle round trip', () => {
+    const scope = freshScope('prune-pair');
+    sm(['init', '--no-scan'], scope);
+    const before = committedLayer(scope);
+
+    sm(['plugins', 'disable', 'core/ai-verbosity-analyzer'], scope); // pulls the fixer too
+    sm(['plugins', 'enable', 'core/ai-verbosity-analyzer'], scope); // and pushes both back
+
+    assert.deepEqual(committedLayer(scope), before);
+  });
+});
+
 // Pair toggle (spec/plugin-author-guide.md §Paired extensions): a fixer
 // Action and the analyzer(s) in its `precondition.analyzerIds` move as a
 // unit. Enable is symmetric and eager; disable is reference-counted over
@@ -637,8 +787,12 @@ describe('sm plugins enable / disable, pair toggle', () => {
     assert.match(r.stderr, /pair toggle: 1 paired extension\(s\) also enabled/);
     assert.match(r.stderr, /core\/ai-verbosity-analyzer \(paired with core\/ai-verbosity-action\)/);
 
-    assert.equal(readEnabled(scope, 'core/ai-verbosity-analyzer'), true);
-    assert.equal(readEnabled(scope, 'core/ai-verbosity-action'), true);
+    assert.equal(effectiveEnabled(scope, 'core/ai-verbosity-analyzer'), true);
+    assert.equal(effectiveEnabled(scope, 'core/ai-verbosity-action'), true);
+    // Both sides are back on their installed default, so the pair leaves
+    // no trace in settings.json (companion writes prune like any other).
+    assert.equal(readEnabled(scope, 'core/ai-verbosity-analyzer'), undefined);
+    assert.equal(readEnabled(scope, 'core/ai-verbosity-action'), undefined);
   });
 
   it('disabling a fixer also disables its finder (mirrored refcount)', () => {

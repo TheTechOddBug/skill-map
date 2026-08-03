@@ -78,6 +78,18 @@ describe('buildIgnoreFilter, defaults', () => {
     assert.equal(reIncluded.ignores('.claude/skills/sm-process-jobs/SKILL.md'), false);
   });
 
+  it('skips the materialised sm-tutorial skill by default, at any skillDir depth', () => {
+    // Same posture as the process skill: `sm tutorial` materialises a
+    // verbatim copy of what the CLI ships, so it is infrastructure, not
+    // content of the project being mapped.
+    const filter = buildIgnoreFilter();
+    assert.equal(filter.ignores('.claude/skills/sm-tutorial/SKILL.md'), true);
+    assert.equal(filter.ignores('.agents/skills/sm-tutorial/references/part-cli.md'), true);
+
+    const reIncluded = buildIgnoreFilter({ ignoreFileText: '!sm-tutorial/' });
+    assert.equal(reIncluded.ignores('.claude/skills/sm-tutorial/SKILL.md'), false);
+  });
+
   it('does NOT skip ordinary files', () => {
     const filter = buildIgnoreFilter();
     assert.equal(filter.ignores('README.md'), false);

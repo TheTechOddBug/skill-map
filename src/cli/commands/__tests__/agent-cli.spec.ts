@@ -171,6 +171,17 @@ describe('sm agent install', () => {
     }
   });
 
+  it('drops a .gitignore so the materialised copy stays out of git', async () => {
+    // spec/cli-contract.md §Scope ignore file → Materialised skill
+    // folders. Fresh install only, and never part of the canonical set.
+    const dir = freshDir();
+    await withCwd(dir, async () => run(buildInstall('claude'), captureContext()));
+
+    const body = readFileSync(join(dir, CLAUDE_SKILL_FOLDER, '.gitignore'), 'utf8');
+    ok(/^\*$/m.test(body), 'ignores every file in the folder, itself included');
+    ok(body.includes('Managed by skill-map'), 'says who wrote it');
+  });
+
   it('a partial copy (a sibling file deleted) reinstalls as "updated"', async () => {
     const dir = freshDir();
     const outcome = await withCwd(dir, async () => {

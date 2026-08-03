@@ -221,6 +221,107 @@ export function removeConfigValue(key: string, opts: TRemoveConfigValueOpts): bo
 }
 
 /**
+ * One entry of an `applyConfigLayerPatch` batch. `value === undefined`
+ * means DELETE the key; any other value is written verbatim.
+ */
+export interface IConfigLayerPatchEntry {
+  key: string;
+  value: unknown;
+}
+
+/**
+ * Read one layer's settings file VERBATIM (no merge, no defaults, no
+ * AJV). Returns `{}` when the file is absent or unreadable.
+ *
+ * Every ordinary read goes through `readConfigValue` (merged view). This
+ * exists for the writers that must reason about what a SPECIFIC layer
+ * stores, e.g. deciding whether a key that layer holds is redundant
+ * against the other layer plus a code-side default (see
+ * `core/plugins/enable-persist.ts`). Merged reads cannot answer that:
+ * they have already collapsed the layers.
+ */
+export function readConfigLayer(
+  target: IWriteConfigValueOpts['target'],
+  cwd: string,
+): Record<string, unknown> {
+  return readJsonObjectOrEmpty(targetSettingsPath(target, cwd));
+}
+
+/**
+ * Apply several writes / deletes to ONE layer in a single
+ * read-modify-validate-write pass, and report which entries actually
+ * changed the file.
+ *
+ * Same guards as the per-key helpers (`ProjectLocalOnlyKeyError` on a
+ * committed-layer write of a project-local-only key, AJV revalidation of
+ * the merged result before the atomic write), but the file is touched
+ * once instead of once per key. Callers flipping a batch of related keys
+ * (the plugin enable toggles: up to ~40 under `--all`) use this so a
+ * crash mid-batch cannot leave a half-applied config.
+ *
+ * A batch whose entries are all no-ops performs no write at all.
+ */
+export function applyConfigLayerPatch(
+  entries: readonly IConfigLayerPatchEntry[],
+  opts: IWriteConfigValueOpts,
+): { changed: string[] } {
+  if (opts.target === 'project') assertNoProjectLocalOnlyKeys(entries);
+
+  const path = targetSettingsPath(opts.target, opts.cwd);
+  const merged = readJsonObjectOrEmpty(path);
+  const changed = applyPatchEntries(merged, entries);
+  if (changed.length === 0) return { changed };
+
+  validateOrThrow(merged);
+  writeJsonAtomic(path, merged);
+  if (opts.target === 'project-local') syncLocalKeyGrants(entries, opts.cwd);
+  return { changed };
+}
+
+/** Batch form of `writeConfigValue`'s committed-layer guard. */
+function assertNoProjectLocalOnlyKeys(entries: readonly IConfigLayerPatchEntry[]): void {
+  for (const entry of entries) {
+    if (PROJECT_LOCAL_ONLY_KEYS.has(entry.key)) throw new ProjectLocalOnlyKeyError(entry.key);
+  }
+}
+
+/** Mutate `merged` in place; return the keys the batch actually changed. */
+function applyPatchEntries(
+  merged: Record<string, unknown>,
+  entries: readonly IConfigLayerPatchEntry[],
+): string[] {
+  const changed: string[] = [];
+  for (const entry of entries) {
+    if (entry.value === undefined) {
+      if (deleteAtPath(merged, entry.key)) changed.push(entry.key);
+      continue;
+    }
+    if (getAtPath(merged, entry.key) === entry.value) continue;
+    setAtPath(merged, entry.key, entry.value);
+    changed.push(entry.key);
+  }
+  return changed;
+}
+
+/**
+ * Consent bookkeeping for the privileged keys, same contract as the
+ * per-key helpers: a grant covers exactly one key + value, so it is
+ * minted / revoked per entry rather than per batch.
+ */
+function syncLocalKeyGrants(entries: readonly IConfigLayerPatchEntry[], cwd: string): void {
+  for (const entry of entries) {
+    if (!PROJECT_LOCAL_ONLY_KEYS.has(entry.key)) continue;
+    if (entry.value === undefined) {
+      revokeLocalKey(cwd, entry.key);
+      continue;
+    }
+    if (!grantLocalKey(cwd, entry.key, entry.value)) {
+      throw new ScopeAnchorUnavailableError(entry.key);
+    }
+  }
+}
+
+/**
  * Return the layer that contributed the effective value for `key`, or
  * `undefined` when no layer set it (the value is the default from
  * `src/config/defaults.json` or absent entirely). Wraps `loadConfig`

@@ -12,7 +12,7 @@
  */
 
 import { strict as assert } from 'node:assert';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
@@ -1122,6 +1122,59 @@ describe('PATCH /api/plugins/:pluginId/extensions/:extensionId', () => {
       assert.equal(out.status, 403);
       assert.equal((out.json as IErrorBody).error.code, 'locked');
     });
+  });
+
+  it('persists only non-redundant keys and prunes the rest', async () => {
+    // Redundant-key pruning (spec/architecture.md §Locality) applies to
+    // the BFF exactly as to the CLI verb: the toggle the SPA posts must
+    // not leave `enabled: true` behind restating a shipped default.
+    // Isolated cwd, the config write must never touch the repo.
+    const cwd = mkdtempSync(join(root.tmp, 'plugins-prune-'));
+    mkdirSync(join(cwd, '.skill-map'), { recursive: true });
+    const settingsPath = join(cwd, '.skill-map', 'settings.json');
+    // Plant one redundant key (restates the default) the batch never
+    // names, so the sweep is what has to remove it.
+    writeFileSync(
+      settingsPath,
+      JSON.stringify({
+        plugins: { core: { extensions: { 'at-file': { enabled: true } } } },
+      }),
+    );
+
+    await bootAndUse(
+      defaultOptions(),
+      async (handle) => {
+        const off = await patchJson(
+          handle,
+          '/api/plugins/core/extensions/name-collision',
+          { enabled: false },
+        );
+        assert.equal(off.status, 200);
+        // A real decision: it persists, and the sweep already fired.
+        assert.deepEqual(JSON.parse(readFileSync(settingsPath, 'utf8')), {
+          plugins: { core: { extensions: { 'name-collision': { enabled: false } } } },
+        });
+
+        const on = await patchJson(
+          handle,
+          '/api/plugins/core/extensions/name-collision',
+          { enabled: true },
+        );
+        assert.equal(on.status, 200);
+        // Back on the installed default: nothing left to record.
+        assert.deepEqual(JSON.parse(readFileSync(settingsPath, 'utf8')), {});
+
+        // The effective state still reads enabled in the projection.
+        const env = on.json as IListEnvelope<{
+          id: string;
+          extensions?: Array<{ id: string; enabled: boolean }>;
+        }>;
+        const core = env.items.find((p) => p.id === 'core');
+        const ext = (core?.extensions ?? []).find((e) => e.id === 'name-collision');
+        assert.equal(ext?.enabled, true);
+      },
+      { runtimeContext: { cwd } },
+    );
   });
 
   it('GET /api/plugins stamps locked: true on host-locked extensions', async () => {

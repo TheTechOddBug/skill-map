@@ -35,7 +35,6 @@
 
 import { Command, Option } from 'clipanion';
 
-import { writeConfigValue } from '../../../core/config/helper.js';
 import { cancelQueuedJobsForKeys } from '../../../core/jobs/cancel-disabled.js';
 import { appendOperation } from '../../../core/operations-log.js';
 import { isLockedBuiltIn } from '../../../plugins/locked-built-ins.js';
@@ -69,10 +68,14 @@ import {
   expandPairToggle,
   pairEdgeSourcesFromBuiltIns,
   pairEdgeSourcesFromDiscovered,
-  toEnableConfigKey,
+  type IPairEdgeSource,
 } from '../../../core/plugins/pair-toggle.js';
+import {
+  buildInstalledDefaults,
+  persistEnableToggles,
+  unloadedDefaultSources,
+} from '../../../core/plugins/enable-persist.js';
 import { builtInPlugins } from '../../../plugins/built-ins.js';
-import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
 
 interface IResolvedTarget {
   /** Origin of the resolution, used by the macro-prompt path. */
@@ -139,8 +142,21 @@ abstract class TogglePluginsBase extends SmCommand {
     // confirm (companions never re-prompt) and re-apply the lock filter
     // to the additions (silently, bulk posture: a companion is never
     // the user's single intended target).
-    const keys = await this.#expandPairs(expandToKeys(targets), enabled, plugins);
-    await this.#persistKeys(keys, enabled);
+    // One manifest projection feeds both the pair expansion (edges +
+    // enabled probe) and the persistence step (installed defaults).
+    const sources = [
+      ...pairEdgeSourcesFromBuiltIns(builtInPlugins),
+      ...pairEdgeSourcesFromDiscovered(plugins),
+    ];
+    const keys = await this.#expandPairs(expandToKeys(targets), enabled, sources);
+    // Defaults also read the DECLARED-but-unimported extensions: a
+    // disabled extension is not imported (pre-import enable gate), and
+    // those are precisely the ids a re-enable has to prune.
+    await this.#persistKeys(
+      keys,
+      enabled,
+      buildInstalledDefaults([...sources, ...unloadedDefaultSources(plugins)]),
+    );
     // Usage analytics (opt-in, default OFF; no-op unless active): record which
     // plugins were enabled / disabled. Built-in qualified ids pass through,
     // third-party collapse to `external_plugin`; `$screen_name` mirrors the
@@ -333,12 +349,8 @@ abstract class TogglePluginsBase extends SmCommand {
   async #expandPairs(
     requestedKeys: string[],
     enabled: boolean,
-    discovered: IDiscoveredPlugin[],
+    sources: IPairEdgeSource[],
   ): Promise<string[]> {
-    const sources = [
-      ...pairEdgeSourcesFromBuiltIns(builtInPlugins),
-      ...pairEdgeSourcesFromDiscovered(discovered),
-    ];
     const { added } = expandPairToggle({
       requestedKeys,
       enabled,
@@ -368,19 +380,29 @@ abstract class TogglePluginsBase extends SmCommand {
    * Persist the per-extension `enabled` toggle for every qualified id in
    * the config layers (`plugins.<plugin>.extensions.<ext>.enabled`),
    * targeting `settings.json` by default or `settings.local.json` with
-   * `--local`. On disable, also purge the plugin's `scan_contributions`
+   * `--local`. Redundant keys are skipped and pruned
+   * (`spec/architecture.md` §Locality), so re-enabling a default-on
+   * extension leaves the file untouched instead of restating the
+   * manifest. On disable, also purge the plugin's `scan_contributions`
    * rows immediately AND cancel each key's `queued` jobs (the disable
    * cascade, `spec/job-lifecycle.md` §Cancellation; matches the BFF
    * route). Every key is `<plugin>/<ext>` shape so both the config
    * dot-path and the contribution purge split into
    * `(pluginId, extensionId)` cleanly.
    */
-  async #persistKeys(keys: string[], enabled: boolean): Promise<void> {
+  async #persistKeys(
+    keys: string[],
+    enabled: boolean,
+    installedDefaults: ReadonlyMap<string, boolean>,
+  ): Promise<void> {
     const ctx = defaultRuntimeContext();
     const target: 'project' | 'project-local' = this.local ? 'project-local' : 'project';
-    for (const id of keys) {
-      writeConfigValue(toEnableConfigKey(id), enabled, { target, cwd: ctx.cwd });
-    }
+    persistEnableToggles({
+      changes: keys.map((key) => ({ key, enabled })),
+      installedDefaults,
+      target,
+      cwd: ctx.cwd,
+    });
     // On disable, purge persisted contributions so the UI stops
     // rendering the plugin's chips before the next scan, and cancel the
     // keys' queued jobs. Open the DB only for that (enable no longer
