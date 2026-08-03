@@ -64,7 +64,7 @@ For development inside the monorepo, two extra scripts are wired:
 pnpm test          # full Node test suite (kernel + CLI + adapters + integration)
 pnpm lint          # ESLint flat config across every workspace that opts in
 pnpm build         # tsup → dist/ (bundles + types)
-pnpm validate      # alias for "all static checks"; CI runs this
+pnpm validate      # every workspace, compile phase then test phase
 ```
 
 Exit codes follow [`spec/cli-contract.md`](../spec/cli-contract.md):
