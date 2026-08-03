@@ -2,6 +2,39 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.2.0",
+      "date": "2026-08-02",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**Ignore known-dead references.** You can now tell the broken-reference check to skip targets you know are fine: add exact values, patterns, or wildcards under Settings, Plugins, reference-broken. Matching links stop being flagged, and the list is saved with your project.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Plugin secrets (like the GitHub token) can now come from an environment variable, handy for CI, and the GitHub Enterprise URL overrides can finally be saved from Settings or the CLI (they land in your local, uncommitted config).",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Stricter ignore-list editing.** When adding entries to a plugin's match list in Settings (like reference-broken's ignored references), a value over 256 characters or an entry already in the list is now flagged right at Add time instead of failing the whole Apply later.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**More private crash reports.** The crash-report dialog now redacts your project folder's name from anything it sends, shows a real summary even for non-standard errors, and plugin secret fields in Settings no longer trigger your password manager's save prompt.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.1.0",
       "date": "2026-08-02",
       "kind": "user-facing",

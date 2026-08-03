@@ -1,5 +1,29 @@
 # Spec changelog
 
+## 1.2.0
+
+### Minor Changes
+
+- Adds the `match-list` input-type (twelfth in the settings catalog: literal, regex, and gitignore-style glob entries) and gives `core/reference-broken` an `ignored-references` setting: matched targets skip both the issue and the confidence penalty. Editable from the Settings plugins panel or `sm plugins config core/reference-broken`, stored in the committed project settings, covered by the new `reference-broken-ignored` conformance case.
+
+  ## User-facing
+
+  **Ignore known-dead references.** You can now tell the broken-reference check to skip targets you know are fine: add exact values, patterns, or wildcards under Settings, Plugins, reference-broken. Matching links stop being flagged, and the list is saved with your project.
+
+- Plugin settings debt pass: the `secret` `envVar` override is now real (a non-empty env value wins over the stored one, the config table reports `[env]`, the UI shows the secret as set), the `github/enrichment` base-URL overrides became writable (project-local-only keys now route to `settings.local.json` from both the CLI and the UI), `sm plugins doctor` gained an `unknown-input-type` warning, and the spec stopped describing secrets as encrypted. Details in `spec/input-types.md`.
+
+  ## User-facing
+
+  Plugin secrets (like the GitHub token) can now come from an environment variable, handy for CI, and the GitHub Enterprise URL overrides can finally be saved from Settings or the CLI (they land in your local, uncommitted config).
+
+- `sm tutorial --completed <part-id|book>` is a new silent milestone ping the bundled sm-tutorial skill runs at each part close and at the final wrap-up: no scaffolding, no empty-cwd requirement, exit 0 always, out-of-catalog ids collapse to `unknown`. The opt-in `cli.tutorial` usage event carries the milestone as `tutorial_part` (and as the URL / Screen value `tutorial:<id>`), so tutorial completion becomes observable by part name. Contract in `spec/cli-contract.md` and `spec/telemetry.md`.
+
+### Patch Changes
+
+- Strict pre-1.0 versioning policy in `versioning.md` §Pre-1.0: while a track is `0.Y.Z`, minor bumps are reserved for breaking changes and every backward-compatible change (additions, fixes, editorial) ships as a patch; previously minor bumps were also used for additive changes. Post-1.0 the standard semver roles resume.
+
+- `versioning.md` records that `spec-v1.0.0` and `cli-v1.0.0` shipped (2026-08) and that post-1.0 standard SemVer roles are the live regime, with the shifted pre-1.0 convention retained for any future `0.Y.Z` track; repo bump guidance aligned.
+
 ## 1.1.0
 
 ### Minor Changes
