@@ -58,13 +58,14 @@ sm plugins list / doctor / ...  # plugin discovery + diagnostics
 sm db migrate / backup / ...    # DB management
 ```
 
-For development inside the monorepo, two extra scripts are wired:
+For development inside the monorepo, these scripts are wired (run from this
+workspace unless noted):
 
 ```bash
 pnpm test          # full Node test suite (kernel + CLI + adapters + integration)
-pnpm lint          # ESLint flat config across every workspace that opts in
 pnpm build         # tsup → dist/ (bundles + types)
-pnpm validate      # every workspace, compile phase then test phase
+pnpm validate      # this workspace: compile phase (typecheck, lint, build) then tests
+pnpm lint          # from the repo root: every workspace that opts in
 ```
 
 Exit codes follow [`spec/cli-contract.md`](../spec/cli-contract.md):

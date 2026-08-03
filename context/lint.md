@@ -6,7 +6,7 @@ ESLint v10 flat config lives at `src/eslint.config.js`. Run from any cwd:
 
 - `pnpm lint`, lints every workspace that declares a `lint` script (today: `src/` only; `ui/` joins later).
 - `pnpm lint:fix`, same with `--fix`.
-- `pnpm validate`, semantic alias for "all static checks". Currently delegates to lint across workspaces; expand here when more static checks land (typecheck-all, doctest, etc.).
+- `pnpm validate`, the full orchestrator: every workspace's `validate:compile` (typecheck, lint, build, spec-check) first, then every workspace's `validate:test`. Lint is one input, not the whole of it. See [`context/scripts.md`](./scripts.md) §The `validate` contract.
 
 CI (`.github/workflows/ci.yml` → `cli` job, via `pnpm ci:cli`) runs lint after typecheck, before build. Both errors AND warnings block CI, there are no `'warn'` rules in the config.
 

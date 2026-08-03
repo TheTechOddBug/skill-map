@@ -102,9 +102,19 @@ jobs:
     name: build + test (cli)
     runs-on: ubuntu-latest
     if: github.head_ref != 'changeset-release/main'
-    # Hang backstop, not a budget. The measured worst case is ~14 min of tests
-    # plus ~3 min of conformance; if this fires, suspect a hang.
-    timeout-minutes: 30
+    # Hang backstop, not a budget. Back to 20 now that the split moved ui and
+    # e2e out of this job: the 30 was sized for a job that carried everything.
+    #
+    # Measured on the first green split run: 727s of tests + 155s of conformance
+    # + ~60s of checkout/install/compile = 15m42s total. The test leg is the
+    # variable part (596s / 727s / 806s / 828s observed across runs), so the
+    # worst case seen so far lands near 17m20s, leaving roughly 2.5 minutes of
+    # headroom. That is deliberately thin: this bound exists to kill a hang
+    # quickly, and a false kill here is cheap to spot (the log ends mid-suite
+    # with everything passing) whereas a hang burning 30 minutes is not.
+    # If it starts firing on healthy runs, the answer is to shard the cli suite,
+    # not to raise this back.
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v5
