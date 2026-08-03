@@ -6,6 +6,19 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>1.2.4</b> · 2026-08-03</summary>
+
+### CLI Patch
+- The first scan (`sm init`, and the bare `sm` bootstrap that delegates to it) now prints the same summary block `sm scan` does, counts row plus database path, instead of its own one-line `First scan: 9 nodes, 9 links, 2 issues.` variant. That line also led with a red `✕` whenever any issue was at error severity, which read as "the scan failed" on a scan that succeeded. The renderer moved to `cli/util/scan-summary.ts` and both verbs call it.
+- New `GET /api/github-stars`: the star count, read by the SERVER (unauthenticated, cached 6h) and not the browser, since the token-free limit is 60/hour per IP and every tab spends the same budget. Shows as a Star link in the topbar and a badge on the About CTA; anything unknown collapses to `count: null` and renders NOTHING, since skill-map must work offline. Opt-out in Settings → General. Also fixes `writeUserSettings`, whose merge listed its sub-objects by hand and dropped new preferences.
+- The topbar brand is clickable: the mark opens skill-map.ai, the wordmark opens the GitHub repository, both in a new tab with `rel="noopener noreferrer"` and each with its own accessible name (the mark's image is decorative, so its link would otherwise be unnamed). The two URLs moved to `i18n/project-links.ts`, shared with About. Also widens the node-activity TTL decay waits to 500ms behind `afterTtlDecay()`; they were a coin flip on a loaded machine.
+
+### Spec Minor (1.4.0)
+- New `GET /api/github-stars`: the star count, read by the SERVER (unauthenticated, cached 6h) and not the browser, since the token-free limit is 60/hour per IP and every tab spends the same budget. Shows as a Star link in the topbar and a badge on the About CTA; anything unknown collapses to `count: null` and renders NOTHING, since skill-map must work offline. Opt-out in Settings → General. Also fixes `writeUserSettings`, whose merge listed its sub-objects by hand and dropped new preferences.
+
+</details>
+
+<details>
 <summary><b>1.2.3</b> · 2026-08-03</summary>
 
 ### CLI Patch
