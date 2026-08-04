@@ -49,6 +49,7 @@ import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
 import { runConfirmGated, type TConfirmFlow } from '../confirm-gated';
 import { ToggleRowDirective } from './toggle-row.directive';
 import { SettingsProjectIgnore } from './settings-project-ignore';
+import { SettingsProjectMcp } from './settings-project-mcp';
 import { formatErr } from './settings-project.utils';
 
 @Component({
@@ -60,6 +61,7 @@ import { formatErr } from './settings-project.utils';
     InputTextModule,
     MessageModule,
     SettingsProjectIgnore,
+    SettingsProjectMcp,
     ToggleRowDirective,
     ToggleSwitchModule,
   ],
@@ -74,6 +76,13 @@ export class SettingsProjectPreferences {
   private readonly confirmation = inject(ConfirmationService);
 
   readonly visible = input.required<boolean>();
+  /**
+   * Active lens id, threaded through from the chassis for the MCP
+   * registration child mounted below the MCP Server row (this component
+   * makes no use of it itself). Same reason the ignore child lives here:
+   * row order, see the mount comments in the template.
+   */
+  readonly lensId = input.required<string | null>();
 
   protected readonly texts = SETTINGS_TEXTS;
 

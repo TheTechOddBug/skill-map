@@ -23,17 +23,24 @@
   </p>
 
   <!-- Row order is the section's UX contract: Active lens, Live
-       updates, the two install affordances (real-time hook, then its
-       sibling the agent drain skill), then the real-time toggle that
-       depends on the live-updates and hook rows above it. The hook and
-       skill children receive the lens child's resolved lens (template
-       reference) because their install status is keyed to the ACTIVE
-       lens. -->
+       updates, the real-time hook install, then the real-time toggle and
+       the capture gate that depend on the live-updates and hook rows
+       above them. The hook, skill and MCP children receive the lens
+       child's resolved lens (template reference) because their status is
+       keyed to the ACTIVE lens.
+
+       The agent trio closes the section, in the order an operator walks
+       it: install the drain skill, turn the MCP Server on, then copy the
+       registration snippet for the endpoint it now serves. The last two
+       live inside the preferences child (first row, and the child
+       mounted right below it) so the three read as one sequence even
+       though the toggle is a project preference and the skill is an
+       install. -->
   <sm-settings-project-lens #lensChild [visible]="visible()" />
   <sm-settings-project-live [visible]="visible()" />
   <sm-settings-project-hook [visible]="visible()" [lensId]="lensChild.activeLensId()" />
-  <sm-settings-project-skill [visible]="visible()" [lensId]="lensChild.activeLensId()" />
   <sm-settings-project-realtime [visible]="visible()" />
   <sm-settings-project-capture [visible]="visible()" />
-  <sm-settings-project-preferences [visible]="visible()" />
+  <sm-settings-project-skill [visible]="visible()" [lensId]="lensChild.activeLensId()" />
+  <sm-settings-project-preferences [visible]="visible()" [lensId]="lensChild.activeLensId()" />
 </section>

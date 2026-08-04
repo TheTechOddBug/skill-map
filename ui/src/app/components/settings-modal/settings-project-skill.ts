@@ -41,6 +41,7 @@ import { MessageModule } from 'primeng/message';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import { ProcessingAgentReadinessService } from '../../services/processing-agent-readiness';
+import { ProviderRegistryService } from '../../../services/provider-registry';
 import { UsageTrackerService } from '../../services/usage-tracker';
 import type { IAgentSkillInstallStatusApi } from '../../../models/api';
 import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
@@ -70,6 +71,8 @@ export class SettingsProjectSkill {
   private readonly confirmation = inject(ConfirmationService);
   /** App-level owner of the Settings attention dot; fed by `adoptStatus`. */
   private readonly readiness = inject(ProcessingAgentReadinessService);
+  /** Resolves the active lens's label for the restart line. */
+  private readonly registry = inject(ProviderRegistryService);
 
   readonly visible = input.required<boolean>();
   /**
@@ -92,6 +95,17 @@ export class SettingsProjectSkill {
   protected readonly skillAnnouncement = signal<string | null>(null);
   /** Pending keys ('agent.skill' only in this child). */
   protected readonly pending = signal<Set<string>>(new Set());
+  /**
+   * Set by an install / update that actually wrote the skill file. The
+   * agent loads its skills at startup, so a copy landing mid-session is
+   * invisible until it restarts, which is the one instruction this row
+   * cannot perform for the operator. Shown only after a write (an
+   * already-current copy changed nothing, and a row the operator is
+   * still reading has nothing to apply yet), and NOT cleared afterwards:
+   * the pending restart outlives the announcement that earned it. The
+   * uninstall path clears it, there is nothing left to load.
+   */
+  protected readonly restartPending = signal(false);
 
   /**
    * The row renders while the status is unknown (button disabled, like
@@ -137,6 +151,19 @@ export class SettingsProjectSkill {
   protected readonly skillActionDisabled = computed<boolean>(() => {
     const status = this.skillStatus();
     return status === null || !status.supported || this.pending().has('agent.skill');
+  });
+
+  /**
+   * Restart line naming the ACTIVE lens through the registry, so the
+   * operator reads their own agent's name and not skill-map's. Worded by
+   * the shared `agentRestartHint`, the same string its MCP sibling
+   * renders. An id the registry does not carry falls back to the generic
+   * wording rather than printing a raw id.
+   */
+  protected readonly restartHint = computed<string>(() => {
+    const id = this.lensId();
+    const label = id ? (this.registry.lookup(id)?.label ?? null) : null;
+    return this.texts.project.agentRestartHint(label);
   });
 
   /** Project-relative path of the skill file the install writes. */
@@ -241,6 +268,11 @@ export class SettingsProjectSkill {
     if (op === 'install') {
       const envelope = await this.dataSource.installAgentSkill(providerId, opts);
       this.adoptStatus(envelope);
+      // Only a real write asks for a restart: `already-up-to-date`
+      // changed nothing on disk, so the running agent is not stale.
+      if (envelope.outcome === 'installed' || envelope.outcome === 'updated') {
+        this.restartPending.set(true);
+      }
       this.skillAnnouncement.set(
         envelope.outcome === 'installed'
           ? t.installed
@@ -251,6 +283,9 @@ export class SettingsProjectSkill {
     } else {
       const envelope = await this.dataSource.uninstallAgentSkill(providerId, opts);
       this.adoptStatus(envelope);
+      // The file is gone: whatever the running agent still holds, there
+      // is nothing for a restart to pick up.
+      this.restartPending.set(false);
       this.skillAnnouncement.set(envelope.removed ? t.uninstalled : t.nothingToUninstall);
     }
   }

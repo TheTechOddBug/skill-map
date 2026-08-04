@@ -11,6 +11,7 @@ import { SettingsProjectLive } from '../settings-project-live';
 import { SettingsProjectPreferences } from '../settings-project-preferences';
 import { SettingsProjectRealtime } from '../settings-project-realtime';
 import { SettingsProjectSkill } from '../settings-project-skill';
+import { SettingsProjectMcp } from '../settings-project-mcp';
 import { ActivityReadinessService } from '../../../services/activity-readiness';
 import { ProcessingAgentReadinessService } from '../../../services/processing-agent-readiness';
 import { SETTINGS_TEXTS } from '../../../../i18n/settings.texts';
@@ -38,7 +39,7 @@ import type {
  * so the empty DATA_SOURCE stub is never called.
  */
 describe('SettingsProject chassis', () => {
-  it('mounts the seven domain children (every project row renders)', () => {
+  it('mounts the eight domain children (every project row renders)', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
@@ -60,6 +61,9 @@ describe('SettingsProject chassis', () => {
       // The process-skill row renders while its probe is dormant (status
       // unknown ≠ unsupported) and hides only on `supported: false`.
       'settings-project-agent-skill-row',
+      // Sibling of the skill row: no probe needed to render, the snippet
+      // falls back to the page origin until `/api/mcp/status` answers.
+      'settings-project-mcp-register-row',
       'settings-project-live-updates-row',
       'settings-project-live-activity-row',
       'settings-project-activity-capture-row',
@@ -311,6 +315,9 @@ function bootstrapTrust(stub: Partial<IDataSourcePort>): {
   });
   const fixture = TestBed.createComponent(SettingsProjectPreferences);
   fixture.componentRef.setInput('visible', false);
+  // Forwarded verbatim to the MCP registration child this component
+  // mounts under its MCP Server row; nothing here reads it.
+  fixture.componentRef.setInput('lensId', 'claude');
   fixture.detectChanges();
   const proto = fixture.componentInstance as unknown as ITrustProto;
   return { fixture, proto };
@@ -693,6 +700,78 @@ describe('SettingsProjectHook activity hook button', () => {
     expect(proto.activityAnnouncement()).toBe('Claude real-time hook installed.');
   });
 
+  it('install: a real write asks the operator to restart THAT agent', async () => {
+    // The agent loads its skills at startup, so a copy landing
+    // mid-session is invisible until it restarts. The line names the
+    // lens, never `sm`.
+    const installAgentSkill = vi.fn().mockResolvedValue({
+      ...skillStatusOf({ installed: true, stale: false }),
+      outcome: 'installed',
+    });
+    const { fixture, proto } = bootstrapSkill({
+      installAgentSkill,
+    } as Partial<IDataSourcePort>);
+    TestBed.inject(ProviderRegistryService).ingest({
+      claude: { label: "Anthropic's Claude", color: '#d97757' },
+    } as unknown as IProviderRegistryApi);
+    proto.skillStatus.set(skillStatusOf({ installed: false }));
+    const el = fixture.nativeElement as HTMLElement;
+    expect(
+      el.querySelector('[data-testid="settings-project-agent-skill-restart-hint"]'),
+    ).toBeNull();
+
+    proto.onSkillInstallClick();
+    await flush();
+    fixture.detectChanges();
+
+    const hint = el.querySelector('[data-testid="settings-project-agent-skill-restart-hint"]');
+    expect(hint?.textContent).toContain("Restart Anthropic's Claude to apply.");
+    expect(hint?.textContent).not.toContain('Restart sm');
+  });
+
+  it('install: an up-to-date outcome asks for no restart (nothing was written)', async () => {
+    const installAgentSkill = vi.fn().mockResolvedValue({
+      ...skillStatusOf({ installed: true, stale: false }),
+      outcome: 'up-to-date',
+    });
+    const { fixture, proto } = bootstrapSkill({
+      installAgentSkill,
+    } as Partial<IDataSourcePort>);
+    proto.skillStatus.set(skillStatusOf({ installed: true, stale: true }));
+
+    proto.onSkillInstallClick();
+    await flush();
+    fixture.detectChanges();
+
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector(
+        '[data-testid="settings-project-agent-skill-restart-hint"]',
+      ),
+    ).toBeNull();
+  });
+
+  it('uninstall: clears a pending restart (nothing is left to load)', async () => {
+    const uninstallAgentSkill = vi
+      .fn()
+      .mockResolvedValue({ ...skillStatusOf({ installed: false }), removed: true });
+    const { fixture, proto } = bootstrapSkill({
+      uninstallAgentSkill,
+    } as Partial<IDataSourcePort>);
+    proto.skillStatus.set(skillStatusOf({ installed: true, stale: false }));
+    proto.restartPending.set(true);
+    fixture.detectChanges();
+
+    proto.onSkillUninstallClick();
+    await flush();
+    fixture.detectChanges();
+
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector(
+        '[data-testid="settings-project-agent-skill-restart-hint"]',
+      ),
+    ).toBeNull();
+  });
+
   it('install: dismissing the consent dialog fires no retry', async () => {
     const installActivityHook = vi
       .fn()
@@ -762,6 +841,7 @@ interface ISkillProto {
   skillUpToDate(): boolean;
   onSkillInstallClick(): void;
   onSkillUninstallClick(): void;
+  restartPending: WritableSignal<boolean>;
 }
 
 function skillStatusOf(
@@ -1472,5 +1552,163 @@ describe('SettingsProjectRealtime, real-time-activity row', () => {
     fixture.componentRef.setInput('visible', true);
     fixture.detectChanges();
     expect(readinessRefresh).toHaveBeenCalled();
+  });
+});
+
+/**
+ * MCP registration row. No mutation, no consent gate: the target is the
+ * operator's own agent config. What the row owes the operator is the
+ * right snippet for the ACTIVE lens, the paste target when the lens has
+ * no `mcp` CLI verb, and the reminder to restart THAT agent (not `sm`).
+ */
+describe('SettingsProjectMcp registration row', () => {
+  function createMcp(
+    lensId: string,
+    stub: Partial<IDataSourcePort> = {},
+  ): ReturnType<typeof TestBed.createComponent<SettingsProjectMcp>> {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(),
+        { provide: DATA_SOURCE, useValue: stub },
+      ],
+    });
+    const registry = TestBed.inject(ProviderRegistryService);
+    registry.ingest({
+      claude: { label: "Anthropic's Claude", color: '#d97757' },
+      antigravity: { label: "Google's Antigravity", color: '#4285f4' },
+    } as unknown as IProviderRegistryApi);
+    const fixture = TestBed.createComponent(SettingsProjectMcp);
+    fixture.componentRef.setInput('visible', false);
+    fixture.componentRef.setInput('lensId', lensId);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  /** Click Copy with a stubbed clipboard and settle the resulting state. */
+  async function copySnippet(
+    fixture: ReturnType<typeof TestBed.createComponent<SettingsProjectMcp>>,
+  ): Promise<void> {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    (
+      fixture.nativeElement as HTMLElement
+    ).querySelector<HTMLButtonElement>(
+      '[data-testid="settings-project-mcp-register-copy"] button',
+    )?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    fixture.detectChanges();
+  }
+
+  it('shows the command snippet for a lens with an mcp CLI verb', () => {
+    const fixture = createMcp('claude');
+    const el: HTMLElement = fixture.nativeElement;
+    const snippet = el.querySelector('[data-testid="settings-project-mcp-register-snippet"]');
+    expect(snippet?.textContent).toContain('claude mcp add --transport http');
+    expect(
+      el.querySelector('[data-testid="settings-project-mcp-register-copy"]')?.textContent,
+    ).toContain('Copy command');
+    // A command needs no paste target, so the hint line stays empty.
+    expect(el.querySelector('[data-testid="settings-project-mcp-register-hint"]')).toBeNull();
+  });
+
+  it('shows the config document plus its paste target for a config-flavour lens', () => {
+    const fixture = createMcp('antigravity');
+    const el: HTMLElement = fixture.nativeElement;
+    const snippet = el.querySelector('[data-testid="settings-project-mcp-register-snippet"]');
+    expect(snippet?.textContent).toContain('"serverUrl"');
+    expect(
+      el.querySelector('[data-testid="settings-project-mcp-register-copy"]')?.textContent,
+    ).toContain('Copy config');
+    expect(
+      el.querySelector('[data-testid="settings-project-mcp-register-hint"]')?.textContent,
+    ).toContain('~/.gemini/config/mcp_config.json');
+  });
+
+  it('holds the restart hint back until the snippet was actually copied', async () => {
+    const fixture = createMcp('claude');
+    const el: HTMLElement = fixture.nativeElement;
+    expect(
+      el.querySelector('[data-testid="settings-project-mcp-register-restart-hint"]'),
+    ).toBeNull();
+    await copySnippet(fixture);
+    expect(
+      el.querySelector('[data-testid="settings-project-mcp-register-restart-hint"]'),
+    ).not.toBeNull();
+  });
+
+  it('keeps the restart hint after the button confirmation expires', async () => {
+    // The hint is an instruction for the step AFTER the paste, so it
+    // outlives the 2-second `Copied` label it appeared with.
+    const fixture = createMcp('claude');
+    const proto = fixture.componentInstance as unknown as { copied: WritableSignal<boolean> };
+    await copySnippet(fixture);
+    proto.copied.set(false);
+    fixture.detectChanges();
+    expect(
+      fixture.nativeElement.querySelector(
+        '[data-testid="settings-project-mcp-register-restart-hint"]',
+      ),
+    ).not.toBeNull();
+  });
+
+  it('names the ACTIVE agent in the restart hint, never skill-map', async () => {
+    const fixture = createMcp('claude');
+    await copySnippet(fixture);
+    const hint = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="settings-project-mcp-register-restart-hint"]',
+    );
+    expect(hint?.textContent).toContain("Restart Anthropic's Claude to apply.");
+    expect(hint?.textContent).not.toContain('Restart sm');
+  });
+
+  it('falls back to the generic wording for a lens the registry does not carry', async () => {
+    const fixture = createMcp('mystery-lens');
+    await copySnippet(fixture);
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector(
+        '[data-testid="settings-project-mcp-register-restart-hint"]',
+      )?.textContent,
+    ).toContain('Restart your agent to apply.');
+  });
+
+  it('adopts the authoritative endpoint from the status probe on section open', async () => {
+    const mcpStatus = vi.fn().mockResolvedValue({
+      enabled: true,
+      connected: false,
+      clients: 0,
+      url: 'http://127.0.0.1:4242/mcp',
+    });
+    const fixture = createMcp('claude', { mcpStatus } as unknown as Partial<IDataSourcePort>);
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await Promise.resolve();
+    fixture.detectChanges();
+    expect(mcpStatus).toHaveBeenCalled();
+    expect(
+      fixture.nativeElement.querySelector(
+        '[data-testid="settings-project-mcp-register-snippet"]',
+      )?.textContent,
+    ).toContain('http://127.0.0.1:4242/mcp');
+  });
+
+  it('points at the toggle while the MCP server is off', async () => {
+    const mcpStatus = vi
+      .fn()
+      .mockResolvedValue({ enabled: false, connected: false, clients: 0, url: 'http://x/mcp' });
+    const fixture = createMcp('claude', { mcpStatus } as unknown as Partial<IDataSourcePort>);
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await Promise.resolve();
+    fixture.detectChanges();
+    expect(
+      fixture.nativeElement.querySelector(
+        '[data-testid="settings-project-mcp-register-server-off"]',
+      ),
+    ).not.toBeNull();
   });
 });

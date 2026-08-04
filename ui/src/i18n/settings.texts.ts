@@ -300,6 +300,18 @@ export const SETTINGS_TEXTS = {
     },
 
     /**
+     * Shared restart line of the two agent-facing rows (skill install,
+     * MCP registration). Named after the ACTIVE lens when the registry
+     * knows its label ("Restart Anthropic's Claude to apply."), generic
+     * otherwise: what restarts here is the AGENT, not skill-map, and
+     * confusing the two with the `mcpServerRestartHint` above is the
+     * whole reason the line is worded this way. One function, both rows,
+     * so the two can never word the same instruction differently.
+     */
+    agentRestartHint: (agent: string | null): string =>
+      `Restart ${agent ?? 'your agent'} to apply.`,
+
+    /**
      * Agent process-skill install row (the second install affordance,
      * sibling of the real-time hook above; `spec/cli-contract.md`
      * §HTTP API, `/api/agent/*`). Three button states driven by the
@@ -341,6 +353,37 @@ export const SETTINGS_TEXTS = {
       alreadyUpToDate: 'The agent process skill is already up to date.',
       uninstalled: 'Agent process skill uninstalled.',
       nothingToUninstall: 'The agent process skill was not installed; nothing to remove.',
+    },
+
+    /**
+     * MCP registration row, sibling of the skill install above (same
+     * area, same lens coupling): the skill teaches the agent what to do,
+     * this hands over what the agent needs to reach skill-map. The
+     * payload comes from the shared per-lens catalog in
+     * `quick-start.texts.ts` (`mcpRegisterSnippet`), so the Quick Start
+     * modal and this row can never drift apart, joined with the live
+     * endpoint from `GET /api/mcp/status`.
+     *
+     * Registration is not a skill-map mutation: skill-map cannot write
+     * the operator's own agent config, so the row's only action is Copy,
+     * and the restart line states the step skill-map cannot perform
+     * either (an agent reads its MCP config at boot). Deliberately
+     * mirrors `mcpServerRestartHint` above, with the AGENT named instead
+     * of `sm`.
+     */
+    mcpRegister: {
+      label: 'MCP on your agent',
+      description:
+        'Copy this and apply it in your own agent config, so it can reach skill-map.',
+      copyCommandLabel: 'Copy command',
+      copyConfigLabel: 'Copy config',
+      copiedLabel: 'Copied',
+      copiedHint: 'Copied to the clipboard.',
+      /** Where a config-flavour snippet goes (the lenses with no `mcp` CLI verb). */
+      pasteHint: (target: string): string =>
+        `Paste it into ${target}. If that file exists, add only the "skill-map" entry.`,
+      /** Shown while the MCP server itself is off: the endpoint would not answer. */
+      serverOffHint: 'Turn the MCP server on above first.',
     },
 
     /**

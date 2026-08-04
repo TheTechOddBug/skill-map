@@ -40,6 +40,19 @@
           {{ texts.project.agentSkill.description }}
         }
       </div>
+      <!-- Shown only after an install / update actually wrote the file:
+           the agent reads its skills at startup, so the fresh copy stays
+           invisible to a session that is already running. Same wording
+           as the MCP row's line, both name the AGENT and not `sm`. -->
+      @if (restartPending()) {
+        <div
+          class="settings-project__row-restart-hint"
+          data-testid="settings-project-agent-skill-restart-hint"
+        >
+          <i class="pi pi-refresh" aria-hidden="true"></i>
+          {{ restartHint() }}
+        </div>
+      }
     </div>
     <div class="settings-project__row-actions">
       @if (skillUpToDate()) {

@@ -1,3 +1,40 @@
+<!-- MCP Server leads this child on purpose: it continues the agent
+     sequence the chassis starts (skill install, then the toggle that
+     serves the endpoint, then the registration snippet mounted right
+     below it), so the three read continuously across the component
+     boundary. The scan / security preferences follow, starting with the
+     symlink opt-in. -->
+<div smToggleRow class="settings-project__row" data-testid="settings-project-mcp-server-row">
+  <div class="settings-project__row-text">
+    <label class="settings-project__row-label" for="settings-project-mcp-server-switch">
+      {{ texts.project.mcpServerLabel }}
+    </label>
+    <div class="settings-project__row-description">
+      {{ texts.project.mcpServerDescription }}
+    </div>
+    @if (mcpServerRestartPending()) {
+      <div class="settings-project__row-restart-hint" data-testid="settings-project-mcp-server-restart-hint">
+        <i class="pi pi-refresh" aria-hidden="true"></i>
+        {{ texts.project.mcpServerRestartHint }}
+      </div>
+    }
+  </div>
+  <p-toggleswitch
+    inputId="settings-project-mcp-server-switch"
+    [ngModel]="mcpServerEnabledView()"
+    (ngModelChange)="onMcpServerToggle($event)"
+    [disabled]="loading() || isPending('mcpServerEnabled') || preferences() === null"
+    data-testid="settings-project-mcp-server-toggle"
+  />
+</div>
+
+<!-- The MCP registration child mounts HERE (not in the chassis) for the
+     same reason as the ignore child at the bottom: row order. It reads
+     as the second half of the row above it, copy what your agent needs
+     to reach the endpoint that toggle serves. It takes the chassis's
+     lens id, threaded through this component untouched. -->
+<sm-settings-project-mcp [visible]="visible()" [lensId]="lensId()" />
+
 <div
   smToggleRow
   class="settings-project__row"
@@ -27,30 +64,6 @@
     (ngModelChange)="onFollowExternalSymlinksToggle($event)"
     [disabled]="loading() || isPending('scan.followExternalSymlinks') || preferences() === null"
     data-testid="settings-project-follow-external-symlinks-toggle"
-  />
-</div>
-
-<div smToggleRow class="settings-project__row" data-testid="settings-project-mcp-server-row">
-  <div class="settings-project__row-text">
-    <label class="settings-project__row-label" for="settings-project-mcp-server-switch">
-      {{ texts.project.mcpServerLabel }}
-    </label>
-    <div class="settings-project__row-description">
-      {{ texts.project.mcpServerDescription }}
-    </div>
-    @if (mcpServerRestartPending()) {
-      <div class="settings-project__row-restart-hint" data-testid="settings-project-mcp-server-restart-hint">
-        <i class="pi pi-refresh" aria-hidden="true"></i>
-        {{ texts.project.mcpServerRestartHint }}
-      </div>
-    }
-  </div>
-  <p-toggleswitch
-    inputId="settings-project-mcp-server-switch"
-    [ngModel]="mcpServerEnabledView()"
-    (ngModelChange)="onMcpServerToggle($event)"
-    [disabled]="loading() || isPending('mcpServerEnabled') || preferences() === null"
-    data-testid="settings-project-mcp-server-toggle"
   />
 </div>
 

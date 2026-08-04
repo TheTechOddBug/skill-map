@@ -1,0 +1,54 @@
+<div class="settings-project__row" data-testid="settings-project-mcp-register-row">
+  <div class="settings-project__row-text">
+    <div class="settings-project__row-label">
+      {{ texts.project.mcpRegister.label }}
+    </div>
+    <div class="settings-project__row-description">
+      {{ texts.project.mcpRegister.description }}
+    </div>
+    <!-- The snippet itself, so the operator sees what Copy hands over
+         before pasting it into their own config. -->
+    <pre
+      class="settings-project__mcp-snippet"
+      data-testid="settings-project-mcp-register-snippet"
+    >{{ snippet().payload }}</pre>
+    @if (hint(); as line) {
+      <div class="settings-project__row-hint" data-testid="settings-project-mcp-register-hint">
+        {{ line }}
+      </div>
+    }
+    <!-- Gated on the copy having happened (sticky, unlike the button's
+         2-second confirmation): before that the operator has nothing to
+         apply yet, so the line would be noise on a row they are still
+         reading. -->
+    @if (copiedOnce()) {
+      <div
+        class="settings-project__row-restart-hint"
+        data-testid="settings-project-mcp-register-restart-hint"
+      >
+        <i class="pi pi-refresh" aria-hidden="true"></i>
+        {{ restartHint() }}
+      </div>
+    }
+    @if (serverOff()) {
+      <div
+        class="settings-project__row-restart-hint"
+        data-testid="settings-project-mcp-register-server-off"
+      >
+        <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+        {{ texts.project.mcpRegister.serverOffHint }}
+      </div>
+    }
+  </div>
+  <div class="settings-project__row-actions">
+    <p-button
+      [label]="copyLabel()"
+      icon="pi pi-copy"
+      severity="secondary"
+      [outlined]="true"
+      size="small"
+      (onClick)="onCopyClick()"
+      data-testid="settings-project-mcp-register-copy"
+    />
+  </div>
+</div>

@@ -235,3 +235,29 @@
   font-style: italic;
   color: var(--sm-severity-warn);
 }
+
+/* Muted per-row hint line (copy confirmation, paste target). Same slot
+   as the restart hint above it but plain information, so it stays in
+   the muted text hue instead of the warn one. */
+.settings-project__row-hint {
+  margin-top: 0.15rem;
+  font-size: var(--sm-fs-xs);
+  color: var(--sm-text-muted);
+}
+
+/* The MCP registration payload, shown verbatim above the Copy button.
+   Wraps rather than scrolls horizontally: a command is one long line and
+   a config document is several, and the settings panel is narrow. */
+.settings-project__mcp-snippet {
+  margin: 0.4rem 0 0;
+  padding: 0.4rem 0.55rem;
+  font-family: var(--sm-font-mono);
+  font-size: var(--sm-fs-xs);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--p-content-background);
+  border: 1px solid var(--p-content-border-color);
+  border-radius: var(--sm-radius-md);
+  color: var(--sm-text-muted);
+}
