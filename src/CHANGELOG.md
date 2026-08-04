@@ -1,5 +1,29 @@
 # skill-map
 
+## 1.3.0
+
+### Minor Changes
+
+- Settings > Project gains an MCP registration row: the ready-to-paste snippet for the active lens (a command, or a config document plus its paste target) and a Copy button, reusing the catalog the Quick Start modal already uses. Both agent-facing rows now show a restart line naming that agent: the MCP one once the snippet is copied, the skill one once an install or update writes the file. Row order regrouped: skill install, MCP Server, MCP registration, symlink opt-in.
+
+  ## User-facing
+
+  Settings now shows the exact line your agent needs to reach skill-map over MCP, with a Copy button, right under the MCP Server switch. Installing the skill or copying that line also reminds you to restart your agent, since agents read both only at startup.
+
+### Patch Changes
+
+- `GET /api/mcp/status` verifies attendance instead of counting tracked sessions. A session ends only on `DELETE /mcp` or shutdown, which the reference SDK client never sends, so every agent that ever attached left one behind and the probe reported it as connected until the next `sm serve` restart. It now pings each session and counts only responders, reaping those that stay unreachable and silent past a grace window. Spec: `mcp-server.md` §Session liveness.
+
+  ## User-facing
+
+  Quick Start's "MCP installed on your agent" check no longer reports a connected agent when none is running. It now asks the agent to answer before saying yes, so closing or killing your agent turns the row red on the next Check instead of staying green until you restart `sm`.
+
+- The node card's expand chevron now stops `mousedown` / `touchstart`, so the graph's pointer-down selection no longer fires when the card is expanded or collapsed; the `click`-time `stopPropagation` ran too late to prevent it.
+
+  ## User-facing
+
+  **Expanding a card no longer opens the inspector.** Clicking the chevron on a card in the map now just expands or collapses it, without selecting the node and popping the inspector panel open.
+
 ## 1.2.4
 
 ### Patch Changes
