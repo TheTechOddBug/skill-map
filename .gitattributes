@@ -1,0 +1,22 @@
+# LF everywhere, no exceptions (AGENTS.md §LF line endings only, never
+# CRLF). This file is the enforcement point: it beats any contributor's
+# `core.autocrlf` / `core.eol` setting, so a checkout on a machine
+# configured for CRLF (a common Windows / WSL default) still materialises
+# LF in the working tree and stores LF in the index.
+* text=auto eol=lf
+
+# Binary assets: never touched, never normalised.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.db binary
