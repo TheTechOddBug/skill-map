@@ -69,6 +69,45 @@ is its own surface. The stdio transport (a standalone `sm mcp` subprocess a
 host spawns) is deferred; today the server is HTTP-only and rides the running
 `sm serve`.
 
+### Session liveness
+
+Sessions are **stateful** (the `resources.subscribe` realtime surface needs the
+persistent server → client SSE stream, which only exists in session mode), and
+the transport ends one on exactly two events: an explicit `DELETE /mcp`, or
+server shutdown. Neither fires when a host simply goes away, and going away is
+the common case: a killed agent, a crashed process, a closed terminal, and even
+an orderly `close()` on the reference SDK client (which aborts its streams
+WITHOUT sending `DELETE`; only an explicit `terminateSession()` sends one). A
+disconnected SSE stream does not end a session either, since the transport
+keeps it resumable. An abandoned session therefore lingers, holding a slot
+against the concurrency cap and, worse, reading as an attached agent.
+
+The server MUST NOT treat a tracked session as evidence that a client is
+attached. It runs a **liveness sweep** instead, on every `GET /api/mcp/status`
+and unattended on a periodic timer:
+
+- Each tracked session is pinged server → client (JSON-RPC `ping`) under a
+  short deadline. The MCP base protocol requires any receiver to answer a
+  `ping` promptly, so a responder is a client that is genuinely there.
+- Sessions that answer are the reported `clients` count; nothing else counts.
+- A session is **reaped** (transport closed, session forgotten) only once it
+  has been BOTH unreachable and silent for a whole grace window: a run of
+  missed pings that long, and no request routed to it in that time.
+- A single missed ping never reaps. The server → client stream is not
+  guaranteed to exist at every instant (a client opens it moments after
+  `initialize`, and may reconnect it later), and the transport drops a frame
+  written while it is absent SILENTLY rather than failing, so one miss is
+  weak evidence. A client that never opens the stream at all cannot answer
+  any ping, and will read as not-connected while it keeps working over POST
+  alone; that is the accepted cost. Reaping is one-way (the client's next
+  request meets `Session not found`, and the reference client surfaces that
+  as an error rather than re-initialising), so reporting a live client as
+  absent is recoverable while cutting its session is not.
+
+The sweep is the reason the status probe is bounded by the ping deadline rather
+than instantaneous. Tuning of the deadline, the grace window and the timer
+cadence is unsupported pre-v1.
+
 ### Security posture
 
 The MCP endpoint inherits the server's loopback posture (loopback-only, no

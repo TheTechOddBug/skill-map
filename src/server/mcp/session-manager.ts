@@ -21,6 +21,14 @@
  * Realtime fan-out (`notifyResourceUpdated` / `notifyResourceListChanged`)
  * is driven by the broadcaster sink (`sink.ts`); per-resource updates only
  * reach sessions that actually subscribed to the URI.
+ *
+ * A tracked session is NOT evidence that a client is attached: `onclose`
+ * fires only on `DELETE /mcp` or shutdown, and a host that just goes away
+ * (killed, crashed, or an orderly SDK-client `close()`, which aborts its
+ * streams without sending `DELETE`) leaves the session behind. Liveness is
+ * therefore VERIFIED by `sweepLiveSessions()`, the ping sweep contracted in
+ * `spec/mcp-server.md` §Session liveness, which the `/api/mcp/status` probe
+ * and the composition root's periodic timer both drive.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -28,7 +36,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
-import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+import { EmptyResultSchema, isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 
 import { log } from '../../kernel/util/logger.js';
 import { MAX_MCP_SESSIONS } from '../limits.js';
@@ -37,9 +45,46 @@ import type { IMcpServerParts } from './mcp-server.js';
 /** Supported HTTP verbs on `/mcp`. */
 export type TMcpMethod = 'POST' | 'GET' | 'DELETE';
 
+/**
+ * How long the server waits for a client to answer the liveness `ping`.
+ * The base protocol requires a prompt answer and the peer is a local
+ * process, so anything slower than this is a peer that is not there. It
+ * doubles as the status probe's worst-case latency.
+ */
+export const MCP_PING_TIMEOUT_MS = 1_500;
+
+/**
+ * How long a session survives unreachability before it is reaped. Two
+ * distinct hazards need this reprieve, and a single missed ping tells them
+ * apart from a dead peer far too eagerly: a client that never opens the
+ * `GET /mcp` stream cannot receive a ping at all, and one that is
+ * reconnecting its stream has no stream to write to for that instant (the
+ * transport drops the frame silently rather than failing). Reaping is
+ * one-way, so a session is only reaped once it has been BOTH unreachable
+ * and silent for this long.
+ */
+export const MCP_SESSION_GRACE_MS = 30_000;
+
+/** Tuning seams for the liveness sweep. Tests shrink both. */
+export interface IMcpSessionManagerOpts {
+  /** Ping deadline (ms). Defaults to `MCP_PING_TIMEOUT_MS`. */
+  pingTimeoutMs?: number;
+  /** Post-activity reprieve (ms). Defaults to `MCP_SESSION_GRACE_MS`. */
+  graceMs?: number;
+}
+
 /** One live session: its transport, server, and subscription set. */
 interface IMcpSession extends IMcpServerParts {
   transport: StreamableHTTPServerTransport;
+  /** Epoch-ms of the last request routed to this session, for the grace window. */
+  lastSeenAt: number;
+  /**
+   * Epoch-ms of the first ping this session missed in the current run of
+   * misses, `undefined` while it is answering. Reaping keys on the RUN,
+   * not on one miss, so a momentary gap in the server → client stream
+   * cannot kill a working session.
+   */
+  unreachableSince: number | undefined;
 }
 
 /** JSON-RPC error codes used for transport-level rejections. */
@@ -49,16 +94,50 @@ const JSONRPC_BAD_REQUEST = -32000;
 export class McpSessionManager {
   readonly #sessions = new Map<string, IMcpSession>();
   #closed = false;
+  readonly #pingTimeoutMs: number;
+  readonly #graceMs: number;
+  /** The sweep in flight, so a Check landing mid-sweep joins it. */
+  #sweep: Promise<number> | undefined;
 
   /**
    * @param factory builds one session's `{ server, subscriptions }`
    *   (a fresh `McpServer` per `initialize`, see `createMcpServer`).
+   * @param opts liveness-sweep tuning (see `IMcpSessionManagerOpts`).
    */
-  constructor(private readonly factory: () => IMcpServerParts) {}
+  constructor(
+    private readonly factory: () => IMcpServerParts,
+    opts: IMcpSessionManagerOpts = {},
+  ) {
+    this.#pingTimeoutMs = opts.pingTimeoutMs ?? MCP_PING_TIMEOUT_MS;
+    this.#graceMs = opts.graceMs ?? MCP_SESSION_GRACE_MS;
+  }
 
-  /** Number of live sessions. Read-only, for tests / diagnostics. */
+  /**
+   * Number of TRACKED sessions, which includes abandoned ones. Diagnostics
+   * and tests only: never report this as "clients attached", that is what
+   * `sweepLiveSessions()` is for.
+   */
   get sessionCount(): number {
     return this.#sessions.size;
+  }
+
+  /**
+   * Liveness sweep (`spec/mcp-server.md` §Session liveness): ping every
+   * tracked session, return how many answered, and reap the ones that
+   * failed with no recent traffic of their own. Concurrent callers (the
+   * status route and the periodic timer) share one in-flight sweep.
+   */
+  async sweepLiveSessions(): Promise<number> {
+    if (this.#closed) return 0;
+    const inFlight = this.#sweep;
+    if (inFlight !== undefined) return inFlight;
+    const started = this.#runSweep();
+    this.#sweep = started;
+    try {
+      return await started;
+    } finally {
+      if (this.#sweep === started) this.#sweep = undefined;
+    }
   }
 
   /**
@@ -82,6 +161,7 @@ export class McpSessionManager {
     if (sessionId !== undefined) {
       const existing = this.#sessions.get(sessionId);
       if (existing) {
+        existing.lastSeenAt = Date.now();
         await existing.transport.handleRequest(incoming, outgoing, parsedBody);
         return;
       }
@@ -147,6 +227,51 @@ export class McpSessionManager {
     }
   }
 
+  /**
+   * One sweep pass. Sessions are probed in parallel: the deadline is the
+   * same for all of them, so a serial walk would multiply the worst case
+   * by the session count.
+   */
+  async #runSweep(): Promise<number> {
+    const now = Date.now();
+    const verdicts = await Promise.all(
+      Array.from(this.#sessions.entries()).map(([id, session]) => this.#verify(id, session, now)),
+    );
+    return verdicts.filter(Boolean).length;
+  }
+
+  /**
+   * Ping one session. A responder is live and clears its miss run; a
+   * silent one never counts, but is only REAPED once it has been both
+   * unreachable and silent for the whole grace window. Reaping is one-way
+   * (the client's next request meets `Session not found`, which the
+   * reference client surfaces as an error rather than re-initialising), so
+   * the cost of holding a dead session one more sweep is nothing next to
+   * the cost of cutting a live one.
+   */
+  async #verify(id: string, session: IMcpSession, now: number): Promise<boolean> {
+    try {
+      await session.server.server.request({ method: 'ping' }, EmptyResultSchema, {
+        timeout: this.#pingTimeoutMs,
+      });
+      session.lastSeenAt = Date.now();
+      session.unreachableSince = undefined;
+      return true;
+    } catch {
+      session.unreachableSince ??= now;
+      const silentFor = now - session.lastSeenAt;
+      const unreachableFor = now - session.unreachableSince;
+      if (silentFor < this.#graceMs || unreachableFor < this.#graceMs) return false;
+      this.#sessions.delete(id);
+      try {
+        await session.transport.close();
+      } catch {
+        /* already closing / closed */
+      }
+      return false;
+    }
+  }
+
   async #createSession(
     incoming: IncomingMessage,
     outgoing: ServerResponse,
@@ -157,7 +282,13 @@ export class McpSessionManager {
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (id) => {
-        this.#sessions.set(id, { transport, server, subscriptions });
+        this.#sessions.set(id, {
+          transport,
+          server,
+          subscriptions,
+          lastSeenAt: Date.now(),
+          unreachableSince: undefined,
+        });
       },
     });
     transport.onclose = () => {

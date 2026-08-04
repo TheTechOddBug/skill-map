@@ -6,8 +6,8 @@
  *
  *   - `createMcpIntegration(deps)` (composition root): builds the session
  *     manager, registers the realtime sink on the ONE `WsBroadcaster`,
- *     and returns a `dispose()` for graceful shutdown. Only called when
- *     the MCP server is enabled.
+ *     arms the unattended liveness sweep, and returns a `dispose()` for
+ *     graceful shutdown. Only called when the MCP server is enabled.
  *   - `registerMcpRoute(app, manager)` (createApp): wires the top-level
  *     `POST/GET/DELETE /mcp` routes to the manager. `/mcp` is a sibling of
  *     `/ws`, OUTSIDE `/api/*`, registered BEFORE the static + SPA
@@ -57,11 +57,22 @@ export interface IMcpIntegration {
   /** The session manager the Hono routes route into. */
   manager: McpSessionManager;
   /**
-   * Graceful shutdown: unregister the broadcaster sink and close every
-   * live MCP session. Idempotent. Called from `createServer`'s `close()`.
+   * Graceful shutdown: stop the liveness sweep, unregister the broadcaster
+   * sink and close every live MCP session. Idempotent. Called from
+   * `createServer`'s `close()`.
    */
   dispose(): Promise<void>;
 }
+
+/**
+ * Cadence of the unattended liveness sweep. The `/api/mcp/status` probe
+ * sweeps on demand, but nothing guarantees anyone opens the panel, and an
+ * abandoned session keeps holding a slot against `MAX_MCP_SESSIONS` and
+ * taking notification fan-out. A minute is far below the pace at which a
+ * long-lived `sm serve` accumulates dead hosts, and the sweep costs one
+ * ping per session. Tuning is unsupported pre-v1.
+ */
+export const MCP_SWEEP_INTERVAL_MS = 60_000;
 
 /**
  * Build the MCP integration: a session manager whose per-session factory
@@ -83,9 +94,19 @@ export function createMcpIntegration(deps: IMcpIntegrationDeps): IMcpIntegration
   const sink = createMcpBroadcasterSink(manager);
   deps.broadcaster.register(sink);
 
+  // Unattended liveness sweep, mirroring how the composition root owns the
+  // `/ws` heartbeat timer while the mechanism lives with the peer's owner.
+  // Failures are swallowed by the sweep itself; nothing here can reject.
+  const sweep = setInterval(() => {
+    void manager.sweepLiveSessions();
+  }, MCP_SWEEP_INTERVAL_MS);
+  // Never let the sweep alone hold the event loop open.
+  sweep.unref?.();
+
   return {
     manager,
     async dispose(): Promise<void> {
+      clearInterval(sweep);
       deps.broadcaster.unregister(sink);
       await manager.closeAll();
     },

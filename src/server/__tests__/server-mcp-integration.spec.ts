@@ -355,6 +355,41 @@ describe('mcp server integration', () => {
       assert.doesNotMatch(body, /"result"\s*:\s*\{[^}]*"protocolVersion"/);
     });
   });
+
+  /**
+   * `GET /api/mcp/status` must report VERIFIED attendance. A client that
+   * goes away without `DELETE /mcp` (what the SDK's own `close()` does,
+   * and what a killed agent leaves behind) keeps its session in the map,
+   * which is how the Quick Start "MCP installed on your agent" row read
+   * "Connected" with nothing running until the next `sm serve` restart.
+   * The reap rule itself is unit-tested in `mcp/__tests__/session-liveness`;
+   * what matters here is that the route's verdict follows the sweep.
+   */
+  it('stops reporting a client that vanished without a DELETE', async () => {
+    await prime([makeNode('a.md', 'skill')]);
+    await bootAndUse(options(), async (handle) => {
+      const status = async (): Promise<{ connected: boolean; clients: number }> => {
+        const res = await fetch(`http://127.0.0.1:${handle.address.port}/api/mcp/status`);
+        return (await res.json()) as { connected: boolean; clients: number };
+      };
+      const url = new URL(`http://127.0.0.1:${handle.address.port}/mcp`);
+      const transport = new StreamableHTTPClientTransport(url);
+      const client = new Client({ name: 'test-client', version: '0.0.0' });
+      await client.connect(transport as unknown as Transport);
+      // The client opens its server → client stream a beat after
+      // `initialized`; a ping fired into that gap is dropped silently.
+      await delay(250);
+
+      const attached = await status();
+      assert.equal(attached.connected, true, 'a live client answers and is reported');
+      assert.equal(attached.clients, 1);
+
+      await client.close();
+      const vanished = await status();
+      assert.equal(vanished.connected, false, 'a tracked session is not attendance');
+      assert.equal(vanished.clients, 0);
+    });
+  });
 });
 
 describe('mcp write tools (opt-in) transport round-trip', () => {
@@ -510,6 +545,7 @@ describe('mcp write tools (opt-in) transport round-trip', () => {
       await handle.close();
     }
   });
+
 });
 
 /** Extract the text of a resource content block (never a blob in our reads). */

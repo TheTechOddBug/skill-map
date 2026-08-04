@@ -5,8 +5,13 @@
  * Reports two facts:
  *   - `enabled`: whether skill-map is exposing `/mcp` at all (the resolved
  *     `mcp.server.enabled`, from `IServerOptions.mcpServer`).
- *   - `connected`: whether at least one client is CURRENTLY connected to
- *     `/mcp`, i.e. the `McpSessionManager` holds a live stateful session.
+ *   - `connected`: whether at least one client ANSWERS on its stateful
+ *     `/mcp` session. Every call runs the manager's liveness sweep rather
+ *     than reading the session map: a session outlives the client that
+ *     opened it (it ends only on `DELETE /mcp` or shutdown, and even an
+ *     orderly SDK-client `close()` sends no `DELETE`), so the raw count
+ *     reported a dead agent as attached until the next `sm serve` restart.
+ *     The sweep pings, counts the responders, and reaps the abandoned.
  *
  * The connection signal is deliberately SCOPE-AGNOSTIC and needs no
  * `$HOME` read: the server sees the live session no matter which Claude
@@ -44,8 +49,8 @@ function mcpEndpointUrl(options: IServerOptions): string {
 }
 
 export function registerMcpStatusRoute(app: Hono, deps: IMcpStatusRouteDeps): void {
-  app.get('/api/mcp/status', (c) => {
-    const clients = deps.mcpManager?.sessionCount ?? 0;
+  app.get('/api/mcp/status', async (c) => {
+    const clients = deps.mcpManager ? await deps.mcpManager.sweepLiveSessions() : 0;
     return c.json({
       schemaVersion: '1',
       kind: 'mcp-status',

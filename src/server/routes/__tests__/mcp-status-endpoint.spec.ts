@@ -4,11 +4,17 @@
  * `spec/cli-contract.md` §Serve route table).
  *
  * The route is a thin read over `IServerOptions.mcpServer` (enabled) and
- * `McpSessionManager.sessionCount` (connected), so a mounted Hono app with
- * a stub manager exercises the whole contract without a full server boot:
+ * `McpSessionManager.sweepLiveSessions()` (connected), so a mounted Hono app
+ * with a stub manager exercises the whole contract without a full server
+ * boot:
  *   - MCP on + a live session -> enabled: true,  connected: true,  clients: n
  *   - MCP on + no sessions     -> enabled: true,  connected: false, clients: 0
  *   - MCP off (null manager)   -> enabled: false, connected: false, clients: 0
+ *
+ * The stub answers with VERIFIED responders, not the raw session count: the
+ * route must never read `sessionCount`, which counts abandoned sessions too
+ * (`spec/mcp-server.md` §Session liveness). The sweep test lives with the
+ * manager (`mcp/__tests__/session-liveness.spec.ts`).
  */
 
 import { strict as assert } from 'node:assert';
@@ -20,9 +26,16 @@ import type { McpSessionManager } from '../../mcp/session-manager.js';
 import type { IServerOptions } from '../../options.js';
 import { registerMcpStatusRoute } from '../mcp-status.js';
 
-/** Minimal stubs: the route only reads `sessionCount` and `mcpServer`. */
-function stubManager(sessionCount: number): McpSessionManager {
-  return { sessionCount } as unknown as McpSessionManager;
+/**
+ * Minimal stubs: the route only sweeps and reads `mcpServer`. The trap
+ * `sessionCount` is deliberately generous, so a route that regressed to
+ * reading it would report a client the sweep never verified.
+ */
+function stubManager(liveSessions: number): McpSessionManager {
+  return {
+    sessionCount: liveSessions + 7,
+    sweepLiveSessions: () => Promise.resolve(liveSessions),
+  } as unknown as McpSessionManager;
 }
 function stubOptions(mcpServer: boolean, port = 4242, host = '127.0.0.1'): IServerOptions {
   return { mcpServer, host, port } as unknown as IServerOptions;
