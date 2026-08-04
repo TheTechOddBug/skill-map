@@ -385,6 +385,18 @@ export class NodeCard {
     this.expanded.update((v) => !v);
   }
 
+  /**
+   * Foblex claims the gesture on `mousedown` / `touchstart` (its
+   * `SelectByPointer` claimant runs from a bubbling listener on the
+   * `<f-flow>` host), so selection happens BEFORE any `click` handler
+   * can stop it: expanding a card would select the node and pop the
+   * inspector open. Swallowing the pointer-down on the chevron keeps
+   * the toggle a pure local control, with no selection side effect.
+   */
+  protected stopPointerDown(event: Event): void {
+    event.stopPropagation();
+  }
+
   protected toggleFavorite(event: MouseEvent): void {
     event.stopPropagation();
     // Usage analytics (opt-in, default OFF): the star GESTURE counts; no
