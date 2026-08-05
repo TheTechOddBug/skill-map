@@ -22,6 +22,13 @@
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" data-i18n-content="meta.og.image.alt" content="skill-map logo on a dark background: the missing map for generative-AI ecosystems">
+  <!-- Intro video, so LinkedIn / X render a player instead of a still image. -->
+  <meta property="og:video" content="https://www.youtube.com/watch?v=ROC0B1HAbEA">
+  <meta property="og:video:url" content="https://www.youtube.com/watch?v=ROC0B1HAbEA">
+  <meta property="og:video:secure_url" content="https://www.youtube.com/watch?v=ROC0B1HAbEA">
+  <meta property="og:video:type" content="text/html">
+  <meta property="og:video:width" content="1280">
+  <meta property="og:video:height" content="720">
   <meta property="og:locale" data-i18n-content="meta.og.locale" content="en_US">
   <meta property="og:locale:alternate" data-i18n-content="meta.og.locale.alternate" content="es_ES">
 
@@ -332,6 +339,64 @@
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
           </svg>
         </button>
+      </div>
+    </section>
+
+    <hr class="section-divider" aria-hidden="true">
+
+    <!-- ============== VIDEO ============== -->
+    <!-- Two YouTube videos behind a click-to-load facade: the markup ships a
+         local poster plus a button, and `modules/video-embed.js` swaps in the
+         youtube-nocookie iframe only after the visitor asks for it. Nothing
+         reaches Google before that click, which is both a performance call
+         (the YouTube player is ~1 MB of third-party JS) and a privacy one
+         (an embedded player sets tracking cookies the consent banner never
+         asked about). The `href` stays a real YouTube link so the card keeps
+         working with JS disabled. -->
+    <section class="section videos" id="video">
+      <header class="section-header section-header--center">
+        <div>
+          <div class="section-badge" data-i18n="vid.eyebrow">Watch</div>
+          <h2 class="section-title" data-i18n="vid.title">See it in action</h2>
+        </div>
+      </header>
+
+      <div class="videos__grid">
+        <figure class="vcard">
+          <a class="vcard__frame js-video" href="https://www.youtube.com/watch?v=ROC0B1HAbEA"
+             data-video-id="ROC0B1HAbEA" target="_blank" rel="noopener"
+             data-i18n-aria-label="vid.intro.aria" aria-label="Play: what skill-map is, in 6 minutes">
+            <img class="vcard__poster" src="/img/video-intro.jpg" width="960" height="540"
+                 loading="lazy" decoding="async" alt=""
+                 data-i18n-alt="vid.intro.alt">
+            <span class="vcard__play" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </span>
+            <span class="vcard__time" aria-hidden="true">6 min</span>
+          </a>
+          <figcaption class="vcard__body">
+            <h3 class="vcard__title" data-i18n="vid.intro.title">What skill-map is, in 6 minutes</h3>
+            <p class="vcard__sub" data-i18n="vid.intro.sub">The problem, what a harness is, and what skill-map does about it.</p>
+          </figcaption>
+        </figure>
+
+        <figure class="vcard">
+          <a class="vcard__frame js-video" href="https://www.youtube.com/watch?v=EoeOS1evKf8"
+             data-video-id="EoeOS1evKf8" target="_blank" rel="noopener"
+             data-i18n-aria-label="vid.master.aria" aria-label="Play: full skill-map masterclass">
+            <img class="vcard__poster" src="/img/video-masterclass.jpg" width="960" height="540"
+                 loading="lazy" decoding="async" alt=""
+                 data-i18n-alt="vid.master.alt">
+            <span class="vcard__play" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </span>
+            <span class="vcard__time" aria-hidden="true">40 min</span>
+          </a>
+          <figcaption class="vcard__body">
+            <h3 class="vcard__title" data-i18n="vid.master.title">Full masterclass</h3>
+            <p class="vcard__sub" data-i18n="vid.master.sub">Install, guided tutorial, every setting, lenses, plugins, inspector and AI actions, end to end.</p>
+          </figcaption>
+        </figure>
       </div>
     </section>
 
