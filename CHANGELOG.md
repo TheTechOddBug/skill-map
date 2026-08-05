@@ -6,6 +6,21 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>1.3.0</b> · 2026-08-04</summary>
+
+### CLI Minor
+- Settings > Project gains an MCP registration row: the ready-to-paste snippet for the active lens (a command, or a config document plus its paste target) and a Copy button, reusing the catalog the Quick Start modal already uses. Both agent-facing rows now show a restart line naming that agent: the MCP one once the snippet is copied, the skill one once an install or update writes the file. Row order regrouped: skill install, MCP Server, MCP registration, symlink opt-in.
+
+### CLI Patch
+- `GET /api/mcp/status` verifies attendance instead of counting tracked sessions. A session ends only on `DELETE /mcp` or shutdown, which the reference SDK client never sends, so every agent that ever attached left one behind and the probe reported it as connected until the next `sm serve` restart. It now pings each session and counts only responders, reaping those that stay unreachable and silent past a grace window. Spec: `mcp-server.md` §Session liveness.
+- The node card's expand chevron now stops `mousedown` / `touchstart`, so the graph's pointer-down selection no longer fires when the card is expanded or collapsed; the `click`-time `stopPropagation` ran too late to prevent it.
+
+### Spec Minor (1.5.0)
+- `GET /api/mcp/status` verifies attendance instead of counting tracked sessions. A session ends only on `DELETE /mcp` or shutdown, which the reference SDK client never sends, so every agent that ever attached left one behind and the probe reported it as connected until the next `sm serve` restart. It now pings each session and counts only responders, reaping those that stay unreachable and silent past a grace window. Spec: `mcp-server.md` §Session liveness.
+
+</details>
+
+<details>
 <summary><b>1.2.4</b> · 2026-08-03</summary>
 
 ### CLI Patch
