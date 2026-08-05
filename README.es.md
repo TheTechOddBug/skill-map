@@ -20,6 +20,12 @@ Un harness de IA (Claude Code, Codex, Antigravity, Copilot y otros) crece por ac
 
 El escáner es determinístico (código puro, offline, apto para CI). Una capa LLM opcional agrega juicio semántico (duplicados, skills obesas, contradicciones) a través de TU agente; skill-map nunca incluye ni exige una API key.
 
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=ROC0B1HAbEA"><img src="https://img.youtube.com/vi/ROC0B1HAbEA/maxresdefault.jpg" alt="Qué es skill-map, en 6 minutos" width="480"></a>
+  <br>
+  <strong><a href="https://www.youtube.com/watch?v=ROC0B1HAbEA">Míralo en 6 minutos</a></strong>: el problema, el harness y qué hace skill-map al respecto.
+</p>
+
 ## Inicio rápido
 
 ```bash
@@ -41,6 +47,14 @@ mkdir prueba-skill-map && cd prueba-skill-map
 sm tutorial
 claude        # o el CLI de tu runtime; y en el prompt: run the tutorial
 ```
+
+### Masterclass completa (40 min)
+
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=EoeOS1evKf8"><img src="https://img.youtube.com/vi/EoeOS1evKf8/maxresdefault.jpg" alt="Masterclass de skill-map" width="480"></a>
+</p>
+
+Instalación, tutorial guiado, todos los settings, lentes, plugins, inspector y AI actions, de punta a punta. Elige el tutorial si quieres ensuciarte las manos, la masterclass si prefieres el recorrido completo primero.
 
 ## Cómo funciona
 
@@ -110,6 +124,8 @@ La lista completa, con el porqué de cada limitación: [`TROUBLESHOOTING.md`](./
 ## Links
 
 - Sitio: [skill-map.ai](https://skill-map.ai/)
+- Qué es skill-map, en 6 minutos: [YouTube](https://www.youtube.com/watch?v=ROC0B1HAbEA)
+- Masterclass completa (40 min): [YouTube](https://www.youtube.com/watch?v=EoeOS1evKf8)
 - Diseño completo y roadmap: [ROADMAP.md](./ROADMAP.md)
 - Guía de contribución: [CONTRIBUTING.md](./CONTRIBUTING.md)
 - Troubleshooting (letra chica por SO y por runtime): [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)
