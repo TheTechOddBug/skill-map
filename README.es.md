@@ -23,7 +23,7 @@ El escáner es determinístico (código puro, offline, apto para CI). Una capa L
 <p align="center">
   <a href="https://www.youtube.com/watch?v=ROC0B1HAbEA"><img src="https://img.youtube.com/vi/ROC0B1HAbEA/maxresdefault.jpg" alt="Qué es skill-map, en 6 minutos" width="480"></a>
   <br>
-  <strong><a href="https://www.youtube.com/watch?v=ROC0B1HAbEA">Míralo en 6 minutos</a></strong>: el problema, el harness y qué hace skill-map al respecto.
+  <strong><a href="https://www.youtube.com/watch?v=ROC0B1HAbEA">Míralo en 6 minutos</a></strong>: el problema, el harness y qué hace skill-map al respecto (español e inglés).
 </p>
 
 ## Inicio rápido
@@ -54,7 +54,7 @@ claude        # o el CLI de tu runtime; y en el prompt: run the tutorial
   <a href="https://www.youtube.com/watch?v=EoeOS1evKf8"><img src="https://img.youtube.com/vi/EoeOS1evKf8/maxresdefault.jpg" alt="Masterclass de skill-map" width="480"></a>
 </p>
 
-Instalación, tutorial guiado, todos los settings, lentes, plugins, inspector y AI actions, de punta a punta. Elige el tutorial si quieres ensuciarte las manos, la masterclass si prefieres el recorrido completo primero.
+Instalación, tutorial guiado, todos los settings, lentes, plugins, inspector y AI actions, de punta a punta (español e inglés). Elige el tutorial si quieres ensuciarte las manos, la masterclass si prefieres el recorrido completo primero.
 
 ## Cómo funciona
 
