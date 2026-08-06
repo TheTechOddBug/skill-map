@@ -22,14 +22,22 @@
         >
       }
     </p>
+    @if (ctaError(); as err) {
+      <span
+        class="skipped-files-banner__error"
+        data-testid="skipped-files-banner-error"
+        >{{ texts.addFailed }} {{ err }}</span
+      >
+    }
     <button
       type="button"
       class="skipped-files-banner__cta"
       [attr.aria-label]="texts.ctaAria"
+      [disabled]="ctaState() !== 'idle'"
       (click)="onCta()"
       data-testid="skipped-files-banner-cta"
     >
-      {{ texts.cta }}
+      {{ ctaLabel() }}
     </button>
   </div>
 }

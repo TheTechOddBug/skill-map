@@ -144,8 +144,18 @@ export const SERVER_TEXTS = {
   // `{{files}}` is the comma-separated `path (size)` list. The SPA
   // raises its own banner from the persisted `oversizedFiles`, so this
   // is log-only (no WS advisory).
+  // `{{files}}` carries the shared `     - path (size)\n` rows from
+  // `kernel/util/format-oversized.ts:formatOversizedFileRows`, the SAME
+  // list `sm scan` / `sm watch` print, so the three consoles render one
+  // shape. It used to be a comma-joined single line here, which is what
+  // the UI banner's "see the full list in the console" pointed a 10-file
+  // skip at: one unreadable wall.
   watcherFilesOversized:
-    'skill-map server: skipped {{count}} file(s) over the size limit (scan.maxFileSizeBytes): {{files}}. Raise the limit or add them to .skillmapignore.\n',
+    'skill-map server: skipped {{count}} {{noun}} over the size limit (scan.maxFileSizeBytes):\n' +
+    '{{files}}' +
+    '     Raise scan.maxFileSizeBytes to include these, or add them to .skillmapignore to skip them on purpose.',
+  watcherFilesOversizedNounSingular: 'file',
+  watcherFilesOversizedNounPlural: 'files',
 
   // Logged once when the pre-1.0 schema-drift check rebuilt the DB on
   // watcher boot (the on-disk cache was written by a different

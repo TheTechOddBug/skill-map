@@ -30,10 +30,26 @@ export const SKIPPED_FILES_BANNER_TEXTS = {
    */
   seeConsole: 'See the full list in the console.',
   /**
-   * Inline CTA. The settings modal opens to Project, where
-   * `scan.maxFileSizeBytes` and `.skillmapignore` live, so the operator
-   * can raise the limit or ignore the file without leaving the SPA.
+   * Inline CTA: one click appends every skipped file to
+   * `.skillmapignore` (root-anchored, exact paths) through
+   * `PATCH /api/project-ignore`. The route restarts the watcher, whose
+   * fresh initial batch drops the files from the walk, so the banner
+   * clears itself on the next `scan.completed`. Replaced the former
+   * "Open Project settings" CTA (user call 2026-08-07): the common
+   * resolution IS ignoring the files, so the banner performs it instead
+   * of navigating to where it could be performed. Raising
+   * `scan.maxFileSizeBytes` stays available in Settings > Project.
    */
-  cta: 'Open Project settings',
-  ctaAria: 'Open Settings to adjust the max file size or ignore patterns',
+  cta: 'Add to ignore',
+  /** Button label while the patch round-trip is in flight. */
+  ctaBusy: 'Adding...',
+  /**
+   * Button label after a successful persist, held (disabled) until the
+   * watcher's rescan clears the banner.
+   */
+  ctaDone: 'Added, rescanning...',
+  ctaAria:
+    'Add the skipped files to .skillmapignore so future scans leave them out on purpose',
+  /** Inline error prefix when the ignore write fails; the message follows. */
+  addFailed: 'Could not update .skillmapignore:',
 } as const;

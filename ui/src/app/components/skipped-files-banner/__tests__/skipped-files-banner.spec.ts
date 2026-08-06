@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { signal } from '@angular/core';
@@ -6,6 +6,10 @@ import { Tooltip } from 'primeng/tooltip';
 
 import { SkippedFilesBanner } from '../skipped-files-banner';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
+import {
+  DATA_SOURCE,
+  type IDataSourcePort,
+} from '../../../../services/data-source/data-source.port';
 import type { IScanResultApi } from '../../../../models/api';
 
 /**
@@ -55,16 +59,35 @@ function emptyScan(over: Partial<IScanResultApi> & {
   };
 }
 
-function makeFixture(scan: IScanResultApi | null) {
+function makeFixture(
+  scan: IScanResultApi | null,
+  dataSource: Partial<IDataSourcePort> = {},
+) {
   TestBed.resetTestingModule();
   const loader = fakeLoader(scan);
   TestBed.configureTestingModule({
     imports: [SkippedFilesBanner],
-    providers: [{ provide: CollectionLoaderService, useValue: loader }],
+    providers: [
+      { provide: CollectionLoaderService, useValue: loader },
+      { provide: DATA_SOURCE, useValue: dataSource },
+    ],
   });
   const fixture = TestBed.createComponent(SkippedFilesBanner);
   fixture.detectChanges();
   return { fixture, loader };
+}
+
+/** Hop the microtasks of one CTA round-trip, then re-render. */
+async function settled(fixture: ReturnType<typeof makeFixture>['fixture']): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  fixture.detectChanges();
+}
+
+function ctaEl(fixture: ReturnType<typeof makeFixture>['fixture']): HTMLButtonElement | null {
+  const root = fixture.nativeElement as HTMLElement;
+  return root.querySelector<HTMLButtonElement>('[data-testid="skipped-files-banner-cta"]');
 }
 
 function bannerEl(fixture: ReturnType<typeof makeFixture>['fixture']): HTMLElement | null {
@@ -144,15 +167,78 @@ describe('SkippedFilesBanner', () => {
     expect(moreEl(fixture)).not.toBeNull();
   });
 
-  it('emits openSettings when the CTA is clicked', () => {
+  it('the CTA appends every skipped file to the ignore list, root-anchored', async () => {
+    const scan = emptyScan({ filesOversized: 2, oversizedFiles: oversizedFiles(2) });
+    const getProjectIgnore = vi.fn().mockResolvedValue({ patterns: ['node_modules/'] });
+    const setProjectIgnore = vi.fn().mockResolvedValue({ patterns: [] });
+    const { fixture } = makeFixture(scan, { getProjectIgnore, setProjectIgnore });
+
+    ctaEl(fixture)!.click();
+    await settled(fixture);
+
+    // Merge, never replace: the operator's existing patterns survive,
+    // the skipped files land after them with the root anchor (a bare
+    // `f1.md` would match every f1.md at any depth).
+    expect(setProjectIgnore).toHaveBeenCalledWith({
+      patterns: ['node_modules/', '/dir/f1.md', '/dir/f2.md'],
+    });
+    // Persisted: the button holds disabled until the rescan clears the
+    // banner (the route restarts the watcher; a fresh scan follows).
+    const cta = ctaEl(fixture)!;
+    expect(cta.disabled).toBe(true);
+    expect(cta.textContent?.trim()).toBe('Added, rescanning...');
+  });
+
+  it('does not duplicate a pattern the ignore list already carries', async () => {
     const scan = emptyScan({ filesOversized: 1, oversizedFiles: oversizedFiles(1) });
-    const { fixture } = makeFixture(scan);
-    let emitted = 0;
-    fixture.componentInstance.openSettings.subscribe(() => { emitted += 1; });
+    const getProjectIgnore = vi.fn().mockResolvedValue({ patterns: ['/dir/f1.md'] });
+    const setProjectIgnore = vi.fn().mockResolvedValue({ patterns: [] });
+    const { fixture } = makeFixture(scan, { getProjectIgnore, setProjectIgnore });
+
+    ctaEl(fixture)!.click();
+    await settled(fixture);
+
+    expect(setProjectIgnore).toHaveBeenCalledWith({ patterns: ['/dir/f1.md'] });
+  });
+
+  it('a failed write surfaces inline and re-arms the button', async () => {
+    const scan = emptyScan({ filesOversized: 1, oversizedFiles: oversizedFiles(1) });
+    const getProjectIgnore = vi.fn().mockRejectedValue(new Error('disk full'));
+    const setProjectIgnore = vi.fn();
+    const { fixture } = makeFixture(scan, { getProjectIgnore, setProjectIgnore });
+
+    ctaEl(fixture)!.click();
+    await settled(fixture);
+
     const root = fixture.nativeElement as HTMLElement;
-    const cta = root.querySelector<HTMLButtonElement>('[data-testid="skipped-files-banner-cta"]');
-    expect(cta).not.toBeNull();
-    cta!.click();
-    expect(emitted).toBe(1);
+    const error = root.querySelector('[data-testid="skipped-files-banner-error"]');
+    expect(error?.textContent).toContain('Could not update .skillmapignore:');
+    expect(error?.textContent).toContain('disk full');
+    // Nothing was written, and the operator can retry.
+    expect(setProjectIgnore).not.toHaveBeenCalled();
+    expect(ctaEl(fixture)!.disabled).toBe(false);
+  });
+
+  it('a new skipped set re-arms a done button', async () => {
+    const scan = emptyScan({ filesOversized: 1, oversizedFiles: oversizedFiles(1) });
+    const getProjectIgnore = vi.fn().mockResolvedValue({ patterns: [] });
+    const setProjectIgnore = vi.fn().mockResolvedValue({ patterns: [] });
+    const { fixture, loader } = makeFixture(scan, { getProjectIgnore, setProjectIgnore });
+
+    ctaEl(fixture)!.click();
+    await settled(fixture);
+    expect(ctaEl(fixture)!.disabled).toBe(true);
+
+    // A later scan skips a DIFFERENT file: the banner reappears armed,
+    // not frozen in the previous batch's done state.
+    loader.scanMeta.set(
+      emptyScan({
+        filesOversized: 1,
+        oversizedFiles: [{ path: 'other/big.md', bytes: 5000 }],
+      }),
+    );
+    await settled(fixture);
+    expect(ctaEl(fixture)!.disabled).toBe(false);
+    expect(ctaEl(fixture)!.textContent?.trim()).toBe('Add to ignore');
   });
 });

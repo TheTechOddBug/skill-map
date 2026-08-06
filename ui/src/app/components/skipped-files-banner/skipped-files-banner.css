@@ -88,3 +88,20 @@
   outline: 2px solid currentColor;
   outline-offset: 2px;
 }
+
+/* Busy / done: the label carries the state, the chrome just mutes. */
+.skipped-files-banner__cta:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/*
+ * Inline failure of the ignore write, rendered next to the CTA so the
+ * cause and the retry affordance sit together. Same warn foreground as
+ * the banner (the banner IS the warning surface; a second red would
+ * fight it), just smaller.
+ */
+.skipped-files-banner__error {
+  flex: 0 1 auto;
+  font-size: var(--sm-fs-sm);
+}

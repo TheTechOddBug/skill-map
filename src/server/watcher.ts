@@ -31,7 +31,7 @@
 
 import type { ProgressEmitterPort } from '../kernel/ports/progress-emitter.js';
 import type { ScanResult } from '../kernel/index.js';
-import { formatOversizedFilePair } from '../kernel/util/format-oversized.js';
+import { formatOversizedFileRows } from '../kernel/util/format-oversized.js';
 import { log } from '../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../kernel/util/safe-text.js';
 import { tx } from '../kernel/util/tx.js';
@@ -284,18 +284,22 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
  * from the persisted `oversizedFiles`, so a duplicate WS advisory would
  * be noise. No-op when nothing was skipped.
  */
-function warnOversizedFiles(result: ScanResult): void {
+export function warnOversizedFiles(result: ScanResult): void {
   const oversized = result.oversizedFiles ?? [];
   if ((result.stats.filesOversized ?? oversized.length) <= 0) return;
-  const files = oversized
-    // The shared `path (size)` formatter sanitises the disk-sourced
-    // path itself, so serve renders the same atom as `sm scan` /
-    // `sm watch` and no surface can forget the escape strip.
-    .map((f) => formatOversizedFilePair({ path: f.path, bytes: f.bytes }))
-    .join(', ');
+  // The shared row formatter (`     - path (size)`, one per line, path
+  // sanitised inside) renders the SAME list `sm scan` / `sm watch`
+  // print. This is the console the UI banner's "see the full list in
+  // the console" points at, so it has to read as a list, not as a
+  // comma-joined wall.
+  const files = formatOversizedFileRows(oversized).join('');
   log.warn(
     tx(SERVER_TEXTS.watcherFilesOversized, {
       count: String(oversized.length),
+      noun:
+        oversized.length === 1
+          ? SERVER_TEXTS.watcherFilesOversizedNounSingular
+          : SERVER_TEXTS.watcherFilesOversizedNounPlural,
       files,
     }),
   );
