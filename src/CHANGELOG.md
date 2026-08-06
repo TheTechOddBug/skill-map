@@ -1,5 +1,53 @@
 # skill-map
 
+## 1.4.0
+
+### Minor Changes
+
+- The liveness probe no longer targets a project file. A probabilistic Action can now declare `probNodeless`: submits skip target resolution and drift verification and enqueue against a synthetic `sm://<extension-id>` id, through the new `POST /api/jobs` or `sm jobs submit <ext>` with no `-n`. `core/ai-ping-action` declares it, so a question about the AGENT stops failing when the file it happened to aim at was deleted since the last scan. The claim / record circle is unchanged.
+
+  ## User-facing
+
+  Checking whether an agent is answering no longer fails with a "cannot be read from disk" error when a file in the map has been deleted, and now works in a project you have not scanned yet.
+
+- The agent-liveness verdict now waits for the ANSWER instead of the claim. A `job.claimed` is a receipt: an agent parked on `sm jobs claim --wait` picks a job up within one poll cycle, so the Check probe and `GET /api/agent/presence` both reported "an agent is answering" before the model had read a line of the prompt. Only `job.completed` / `job.failed` count now; a claim moves the check into a second phase with its own longer window, and a claimed-but-unanswered ping reports that distinctly.
+
+  ## User-facing
+
+  The "Agent waiting for jobs" check no longer turns green the instant your agent picks the ping up. It waits for the agent to actually answer, shows "picked it up, waiting" in between, and tells you when something took the job but never came back.
+
+- Providers can now declare how an operator registers skill-map's MCP server with their runtime, through a new optional `mcpRegister` manifest block (a shell command, or a config document plus its paste target, with `{{url}}` bound to the live endpoint). It travels in the envelope `providerRegistry` and drives the Copy affordance in Quick Start and Settings, replacing a client-side catalog keyed by provider id under which every other lens, drop-in Providers included, copied the bare endpoint URL.
+
+  ## User-facing
+
+  The MCP Copy button now gives the right setup line for whichever agent you are using, including agents that come from a plugin of your own, instead of falling back to just the server address.
+
+### Patch Changes
+
+- Review pass over the answers-not-receipts liveness change, closing the receipt-based signals the first cut missed: the MCP `claim_job` attempt no longer flips `attending` (an agent announcing itself has answered nothing; the hook and its plumbing are removed), the UI submit gate heals on `job.completed` / `job.failed` instead of `job.claimed`, and the nodeless `sm jobs submit <extension>` form is now documented in the CLI contract.
+
+  ## User-facing
+
+  An agent connected over MCP no longer shows as "answering" the moment it asks for work; like everywhere else now, it counts once it actually answers a job.
+
+- Two surfaces that ignored project-local reality. `sm agent` and the processing-agent gate built their scaffold catalog from the built-in Providers alone, so `sm agent install` refused with "the active lens declares no skill directory" under a lens whose plugin declared `scaffold.skillDir`; both read the composed Provider set now. And `sm scan --dry-run` persisted the auto-detected lens, leaving a settings file behind; it writes nothing.
+
+  ## User-facing
+
+  `sm agent install` now works under a lens that comes from one of your own plugins, instead of claiming it has nowhere to install. And `sm scan --dry-run` no longer leaves a settings file behind.
+
+- The `sm serve` console now prints skipped-for-size files as a list, one `path (size)` row per line, the same shape `sm scan` and `sm watch` already print. It used to join them with commas into a single line, which is exactly where the UI banner's "see the full list in the console" sent the operator when more than six files were skipped.
+
+  ## User-facing
+
+  When files are skipped for exceeding the size limit, the server console now lists them one per line instead of cramming them into a single run-on line.
+
+- The skipped-files banner's CTA now performs the fix instead of navigating to it: "Add to ignore" appends every skipped file to `.skillmapignore` in one click (root-anchored exact paths, merged into the existing pattern list through `PATCH /api/project-ignore`), and the watcher restart that write already triggers rescans and clears the banner on its own. The former "Open Project settings" CTA is gone; raising `scan.maxFileSizeBytes` stays available in Settings > Project.
+
+  ## User-facing
+
+  When files are skipped for exceeding the size limit, the banner button now adds them to the ignore file directly, and the map rescans by itself, instead of just opening Settings.
+
 ## 1.3.0
 
 ### Minor Changes
