@@ -59,8 +59,10 @@ export const PING_ANSWER_TIMEOUT_MS = 45_000;
 /**
  * Terminal verdicts of one circuit check:
  *   - `alive`: an agent claimed the ping inside the window.
- *   - `no-agent`: nobody claimed in time (the queued ping was cancelled),
- *     or the submit was refused because the processing skill is missing.
+ *   - `no-agent`: nobody claimed in time (the queued ping was cancelled).
+ *     The nodeless submit route carries no processing-agent gate (it
+ *     would answer the probe's own question), so a missing skill also
+ *     lands here, through the timeout.
  *   - `no-answer`: an agent CLAIMED the ping and never answered inside the
  *     answer window. Different from `no-agent` on purpose: something is
  *     attending the queue, it just did not come back (a wedged agent, a
@@ -152,10 +154,6 @@ export class AgentPingService {
       const envelope = await this.dataSource.submitNodelessJob(PING_EXTENSION_ID);
       return await this.watch(envelope.value.jobId);
     } catch (err) {
-      if (err instanceof DataSourceError && err.code === 'no-processing-agent') {
-        // The skill vanished between the caller's probe and this submit.
-        return { verdict: 'no-agent' };
-      }
       if (
         err instanceof DataSourceError &&
         (err.code === 'duplicate-job' || err.code === 'job-running')

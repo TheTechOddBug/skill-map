@@ -229,7 +229,7 @@ export class JobSubmitCommand extends SmCommand {
   static override exitCodes = [ExitCode.Ok, ExitCode.Error, ExitCode.Duplicate, ExitCode.NotFound];
   static override usage = Command.Usage({
     category: 'Jobs',
-    description: 'Enqueue a probabilistic extension against one node (-n) or every matching node (--all).',
+    description: 'Enqueue a probabilistic extension against one node (-n), every matching node (--all), or no node at all (nodeless extensions).',
     details: `
       Renders the extension's prompt template + the canonical safety
       preamble, stores the content in state_job_contents (deduped by
@@ -239,7 +239,9 @@ export class JobSubmitCommand extends SmCommand {
 
       With -n <node.path>: enqueue one job (missing node -> exit 5). With
       --all: fan out to every non-virtual node matching the extension's
-      precondition. --force skips the duplicate pre-check but never defeats
+      precondition. A NODELESS extension (probNodeless, e.g. the system
+      liveness probe) takes no target: submit it bare, -n / --all are
+      refused. --force skips the duplicate pre-check but never defeats
       the unique index, so it only lands once the prior job is terminal.
 
       Jobs never expire by default: --ttl <seconds> arms an expiry for

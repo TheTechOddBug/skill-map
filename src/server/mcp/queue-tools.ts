@@ -509,10 +509,6 @@ export async function claimJobTool(
   onProgress?: TClaimWaitProgress,
 ): Promise<IClaimJobResult | null> {
   const runner: JobRunner = args.runner === 'in-process' ? 'in-process' : 'agent';
-  // Presence first, outcome-independent: an agent ASKING for work is
-  // attending even when the queue is empty (the parked wait's normal
-  // state), see `IMcpWriteContext.onClaimAttempt`.
-  ctx.onClaimAttempt?.();
   // The engine outcome is mapped OUTSIDE `withWriteDb`: an empty queue must
   // return `null` to the caller, but returning `null` from the DB callback
   // is indistinguishable from a missing-DB short-circuit.

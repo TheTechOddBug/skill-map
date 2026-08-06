@@ -371,10 +371,6 @@ function buildMcpIntegration(
     implVersion: VERSION,
     activityStats,
     broadcaster,
-    // A `claim_job` attempt (empty queue or not) proves an agent is
-    // watching the queue: flip presence the moment it parks, not on the
-    // first job it happens to win (spec/cli-contract.md §agent/presence).
-    onClaimAttempt: () => agentPresence.noteAttempt(),
     // The queue + findings-lifecycle tools ride the SAME endpoint as the
     // read map tools: one opt-in (`mcp.server.enabled`) turns the whole
     // surface on (user decision 2026-07-23). The boot-cached plugin

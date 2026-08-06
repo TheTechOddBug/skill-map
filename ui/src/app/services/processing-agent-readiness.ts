@@ -3,7 +3,7 @@
  * that decide whether an AI job can actually be drained: the processing
  * skill install state for the ACTIVE lens
  * (`GET /api/agent/install?provider=<lens>`) and drainage evidence from
- * the full-circuit check (`AgentPingService`) / observed claims.
+ * the full-circuit check (`AgentPingService`) / observed answers.
  *
  * Nothing that submits an AI job can succeed while no agent is set up to
  * drain the queue, so every affordance that would enqueue one (the
@@ -29,7 +29,7 @@
  * drains the queue while holding no MCP session, so the count reported a
  * healthy setup as blocked, the exact wrong-proxy trap
  * `GET /api/agent/presence` was built to replace server-side. Drainage
- * evidence, a claim observed on the stream or a green full-circuit
+ * evidence, an answer observed on the stream or a green full-circuit
  * check, is the only signal with authority here.
  *
  * `null` = unknown (probe pending, no lens resolved yet, or the read
@@ -71,10 +71,10 @@ export class ProcessingAgentReadinessService {
   /**
    * Full-circuit verdict of the LAST manual Check (either surface's,
    * they share `AgentPingService`): `false` after a ping nobody
-   * claimed, `true` after a claim, `null` while no check ever ran.
+   * claimed, `true` after an answer, `null` while no check ever ran.
    * `null` fails OPEN: nothing depends on running a ping, the check is
    * the operator FORCING the question (user spec 2026-07-26), and only
-   * a failed one closes the gate. Healed by any observed claim or a
+   * a failed one closes the gate. Healed by any observed answer or a
    * later green check.
    */
   private readonly _agentAlive = signal<boolean | null>(null);
@@ -120,7 +120,7 @@ export class ProcessingAgentReadinessService {
   /**
    * Reason latched while a manual full-circuit check runs against a
    * CLOSED gate (user spec 2026-07-27): the reads that land mid-check,
-   * the skill probes riding along with it and the claim heal, must not
+   * the skill probes riding along with it and the answer heal, must not
    * reopen the AI affordances before the verdict does, so the gate
    * holds the reason it started with until the check settles.
    * `null` = no hold: no check in flight, or it started with the gate
@@ -184,13 +184,17 @@ export class ProcessingAgentReadinessService {
       void this.refresh();
     });
     destroyRef.onDestroy(() => sub.unsubscribe());
-    // Any observed claim proves an agent is attending again: a failed
-    // check heals live the moment a parked or woken agent picks
-    // anything up, no manual re-check needed.
-    const claimSub = events.jobEvents$.subscribe((event) => {
-      if (event.type === 'job.claimed') this._agentAlive.set(true);
+    // Any observed ANSWER proves an agent is attending again: a failed
+    // check heals live the moment any job completes or fails, no manual
+    // re-check needed. A claim deliberately does not heal (same regime as
+    // the presence tracker and the Check verdict): it is a receipt, the
+    // agent has the work and has answered nothing yet.
+    const answerSub = events.jobEvents$.subscribe((event) => {
+      if (event.type === 'job.completed' || event.type === 'job.failed') {
+        this._agentAlive.set(true);
+      }
     });
-    destroyRef.onDestroy(() => claimSub.unsubscribe());
+    destroyRef.onDestroy(() => answerSub.unsubscribe());
     // Boot probe: an inspector node can mount before the first scan tick.
     void this.refresh();
     // Lens changes, including the boot resolution of `/api/health` +

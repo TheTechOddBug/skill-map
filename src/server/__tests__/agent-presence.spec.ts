@@ -111,9 +111,9 @@ describe('AgentPresenceTracker', () => {
 });
 
 describe('WsBroadcaster -> AgentPresenceTracker wiring', () => {
-  it('a ping cancelled UNCLAIMED flips attending false; later evidence flips it back', () => {
+  it('a ping cancelled UNCLAIMED flips attending false; a later answer flips it back', () => {
     const tracker = new AgentPresenceTracker();
-    tracker.noteAttempt();
+    tracker.observe(answerEnvelope('d-0'));
     assert.equal(tracker.snapshot().attending, true);
 
     // The manual Check Agent probe: ping submitted, nobody claims, the
@@ -127,8 +127,13 @@ describe('WsBroadcaster -> AgentPresenceTracker wiring', () => {
     tracker.observe({ type: 'job.cancelled', jobId: 'd-ping-1' });
     assert.equal(tracker.snapshot().attending, false);
 
-    // Any LATER positive evidence re-flips it (here: a new MCP attempt).
-    tracker.noteAttempt();
+    // A mere claim after the negative verdict changes nothing: the next
+    // ANSWER is what re-flips it. (The MCP claim-attempt hook that used
+    // to re-flip here was removed with the answers-only regime: an agent
+    // announcing itself has still answered nothing.)
+    tracker.observe(claimEnvelope('d-later'));
+    assert.equal(tracker.snapshot().attending, false);
+    tracker.observe(answerEnvelope('d-later'));
     assert.equal(tracker.snapshot().attending, true);
   });
 
@@ -148,16 +153,6 @@ describe('WsBroadcaster -> AgentPresenceTracker wiring', () => {
     tracker.observe({ type: 'job.submitted', jobId: 'd-normal', data: { extensionId: 'core/ai-summary-action' } });
     tracker.observe({ type: 'job.cancelled', jobId: 'd-normal' });
     assert.equal(tracker.snapshot().attending, true);
-  });
-
-  it('a claim ATTEMPT flips attending without stamping lastClaimAt', () => {
-    const tracker = new AgentPresenceTracker();
-    // The parked `claim_job { wait }` on an empty queue: the agent asks
-    // for work, wins nothing, and is attending all the same.
-    tracker.noteAttempt();
-    const snap = tracker.snapshot();
-    assert.equal(snap.attending, true);
-    assert.equal(snap.lastClaimAt, null, 'attempts never forge a claim timestamp');
   });
 
   it('observes an envelope broadcast through the choke point', () => {

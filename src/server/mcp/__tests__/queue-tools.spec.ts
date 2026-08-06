@@ -275,21 +275,6 @@ describe('mcp claim_job', () => {
     assert.deepEqual(ticks, [], 'first-attempt hit parks nothing');
   });
 
-  it('every claim attempt fires onClaimAttempt (presence), empty queue included', async () => {
-    const project = await makeProject(true);
-    let attempts = 0;
-    const ctx = { ...bareCtx(project), onClaimAttempt: () => { attempts += 1; } };
-    // Empty queue: no claim, still an attending agent.
-    const empty = await claimJobTool(ctx, {});
-    assert.equal(empty, null);
-    assert.equal(attempts, 1);
-    // A real claim counts too (once per tool call, not per poll tick).
-    await seedQueued(project, 'd-20260101-000000-9700');
-    const claimed = await claimJobTool(ctx, {});
-    assert.ok(claimed);
-    assert.equal(attempts, 2);
-  });
-
   it('claimWaitProgressFrom binds the progressToken and swallows transport errors', async () => {
     const sent: unknown[] = [];
     const withToken = {

@@ -67,25 +67,15 @@ const PING_EXTENSION = 'core/ai-ping-action';
 export class AgentPresenceTracker {
   #lastClaimAt: number | null = null;
   /**
-   * Sticky like the claim flag: set by `noteAttempt()` when an agent
-   * ASKS for work through the MCP `claim_job` tool, job or no job. A
-   * parked `claim_job { wait }` on an empty queue claims nothing for
-   * hours, yet that agent is attending by definition, it is literally
-   * waiting for work; without this, the inspector's "no agent has
-   * picked up work" warning outlived the moment the agent arrived.
-   */
-  #attemptSeen = false;
-  /**
    * Sequence number of the last NEGATIVE evidence: a ping cancelled
    * while still unclaimed (see `PING_EXTENSION`). Presence stops being
    * one-way here (2026-07-26, the manual Check Agent probe): a failed
    * check has the AUTHORITY to flip `attending` back to `false`, and
-   * any LATER positive evidence (claim or MCP attempt) flips it true
-   * again. A monotonic sequence, not timestamps, so ordering is exact
-   * even for same-millisecond events.
+   * any LATER answer flips it true again. A monotonic sequence, not
+   * timestamps, so ordering is exact even for same-millisecond events.
    */
   #negativeSeq = 0;
-  /** Sequence number of the last positive evidence (claim or attempt). */
+  /** Sequence number of the last positive evidence (an answer). */
   #positiveSeq = 0;
   /** Monotonic evidence clock. */
   #seq = 0;
@@ -150,24 +140,13 @@ export class AgentPresenceTracker {
     }
   }
 
-  /**
-   * Record a claim ATTEMPT (the MCP `claim_job` tool, empty-queue or
-   * not). An agent asking for work is watching the queue, so this keeps
-   * counting: unlike a claim, an attempt says nothing about a job being
-   * held mid-flight, it is the agent announcing itself with empty hands.
-   */
-  noteAttempt(): void {
-    this.#attemptSeen = true;
-    this.#positiveSeq = ++this.#seq;
-  }
-
   /** Current state, a fresh copy (callers never hold tracker internals). */
   snapshot(): IAgentPresence {
-    const everPositive = this.#attemptSeen || this.#positiveSeq > 0;
     // Ordering decides: negative evidence (a ping nobody answered)
     // outranks OLDER positive evidence, and vice versa; the monotonic
-    // sequence makes "later" exact.
-    const attending = everPositive && this.#positiveSeq > this.#negativeSeq;
+    // sequence makes "later" exact. Both start at 0, so with no evidence
+    // at all this is `false`.
+    const attending = this.#positiveSeq > this.#negativeSeq;
     return { attending, lastClaimAt: this.#lastClaimAt };
   }
 }

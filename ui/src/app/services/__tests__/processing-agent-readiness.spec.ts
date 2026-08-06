@@ -203,7 +203,7 @@ describe('ProcessingAgentReadinessService, the agent-silent half', () => {
     expect(service.submitGateReason()).toBe('skill-missing');
   });
 
-  it('any observed job.claimed heals a failed check live', async () => {
+  it('any observed answer (job.completed) heals a failed check live', async () => {
     const { service, jobEvents$ } = bootstrap({
       getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, true)),
     } as Partial<IDataSourcePort>);
@@ -211,7 +211,7 @@ describe('ProcessingAgentReadinessService, the agent-silent half', () => {
     service.noteAgentAlive(false);
     expect(service.submitGateClosed()).toBe(true);
 
-    jobEvents$.next({ type: 'job.claimed', jobId: 'd-x' });
+    jobEvents$.next({ type: 'job.completed', jobId: 'd-x' });
     expect(service.submitGateClosed()).toBe(false);
     expect(service.agentAlive()).toBe(true);
   });
@@ -255,7 +255,7 @@ describe('ProcessingAgentReadinessService, the check hold', () => {
     expect(service.submitGateReason()).toBe('agent-silent');
 
     service.noteCheckStarted();
-    jobEvents$.next({ type: 'job.claimed', jobId: 'd-x' });
+    jobEvents$.next({ type: 'job.completed', jobId: 'd-x' });
     // Healed underneath, but the gate stays latched until the check
     // settles (in real flow that follows the claim within microtasks).
     expect(service.agentAlive()).toBe(true);
