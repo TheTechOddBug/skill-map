@@ -1,5 +1,35 @@
 # Spec changelog
 
+## 1.6.0
+
+### Minor Changes
+
+- The liveness probe no longer targets a project file. A probabilistic Action can now declare `probNodeless`: submits skip target resolution and drift verification and enqueue against a synthetic `sm://<extension-id>` id, through the new `POST /api/jobs` or `sm jobs submit <ext>` with no `-n`. `core/ai-ping-action` declares it, so a question about the AGENT stops failing when the file it happened to aim at was deleted since the last scan. The claim / record circle is unchanged.
+
+  ## User-facing
+
+  Checking whether an agent is answering no longer fails with a "cannot be read from disk" error when a file in the map has been deleted, and now works in a project you have not scanned yet.
+
+- The agent-liveness verdict now waits for the ANSWER instead of the claim. A `job.claimed` is a receipt: an agent parked on `sm jobs claim --wait` picks a job up within one poll cycle, so the Check probe and `GET /api/agent/presence` both reported "an agent is answering" before the model had read a line of the prompt. Only `job.completed` / `job.failed` count now; a claim moves the check into a second phase with its own longer window, and a claimed-but-unanswered ping reports that distinctly.
+
+  ## User-facing
+
+  The "Agent waiting for jobs" check no longer turns green the instant your agent picks the ping up. It waits for the agent to actually answer, shows "picked it up, waiting" in between, and tells you when something took the job but never came back.
+
+- Providers can now declare how an operator registers skill-map's MCP server with their runtime, through a new optional `mcpRegister` manifest block (a shell command, or a config document plus its paste target, with `{{url}}` bound to the live endpoint). It travels in the envelope `providerRegistry` and drives the Copy affordance in Quick Start and Settings, replacing a client-side catalog keyed by provider id under which every other lens, drop-in Providers included, copied the bare endpoint URL.
+
+  ## User-facing
+
+  The MCP Copy button now gives the right setup line for whichever agent you are using, including agents that come from a plugin of your own, instead of falling back to just the server address.
+
+### Patch Changes
+
+- Review pass over the answers-not-receipts liveness change, closing the receipt-based signals the first cut missed: the MCP `claim_job` attempt no longer flips `attending` (an agent announcing itself has answered nothing; the hook and its plumbing are removed), the UI submit gate heals on `job.completed` / `job.failed` instead of `job.claimed`, and the nodeless `sm jobs submit <extension>` form is now documented in the CLI contract.
+
+  ## User-facing
+
+  An agent connected over MCP no longer shows as "answering" the moment it asks for work; like everywhere else now, it counts once it actually answers a job.
+
 ## 1.5.0
 
 ### Minor Changes

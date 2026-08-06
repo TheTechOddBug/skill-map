@@ -2,6 +2,59 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.4.0",
+      "date": "2026-08-06",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "An agent connected over MCP no longer shows as \"answering\" the moment it asks for work; like everywhere else now, it counts once it actually answers a job.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "`sm agent install` now works under a lens that comes from one of your own plugins, instead of claiming it has nowhere to install. And `sm scan --dry-run` no longer leaves a settings file behind.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Checking whether an agent is answering no longer fails with a \"cannot be read from disk\" error when a file in the map has been deleted, and now works in a project you have not scanned yet.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The \"Agent waiting for jobs\" check no longer turns green the instant your agent picks the ping up. It waits for the agent to actually answer, shows \"picked it up, waiting\" in between, and tells you when something took the job but never came back.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The MCP Copy button now gives the right setup line for whichever agent you are using, including agents that come from a plugin of your own, instead of falling back to just the server address.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "When files are skipped for exceeding the size limit, the server console now lists them one per line instead of cramming them into a single run-on line.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "When files are skipped for exceeding the size limit, the banner button now adds them to the ignore file directly, and the map rescans by itself, instead of just opening Settings.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.3.0",
       "date": "2026-08-04",
       "kind": "user-facing",
