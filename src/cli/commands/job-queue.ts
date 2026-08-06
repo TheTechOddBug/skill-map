@@ -58,6 +58,7 @@ import { Command, Option } from 'clipanion';
 
 import type { Job } from '../../kernel/types.js';
 import type { IJobListFilter } from '../../kernel/types/storage.js';
+import type { IProvider } from '../../kernel/extensions/index.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import type { IJobsConfig } from '../../kernel/config/loader.js';
@@ -332,7 +333,7 @@ export class JobSubmitCommand extends SmCommand {
    * processing-agent gate. Grouped so `run` keeps one seam per phase.
    */
   private preflight(prepared: ISubmitContext, cwd: string): TExitCode | null {
-    return this.validateTarget(prepared) ?? this.checkProcessingAgentGate(cwd);
+    return this.validateTarget(prepared) ?? this.checkProcessingAgentGate(cwd, prepared.providers);
   }
 
   /**
@@ -346,8 +347,11 @@ export class JobSubmitCommand extends SmCommand {
    * because it fires inside `sm record`, where an agent is demonstrably
    * processing the queue.
    */
-  private checkProcessingAgentGate(cwd: string): TExitCode | null {
-    const presence = processingSkillPresence(cwd);
+  private checkProcessingAgentGate(
+    cwd: string,
+    providers: readonly IProvider[],
+  ): TExitCode | null {
+    const presence = processingSkillPresence(cwd, providers);
     if (!presence.installed) return this.fail(T.submitErrNoProcessingAgent);
     if (!presence.fresh && !this.json) {
       this.printer!.info(tx(T.submitStaleSkillLine, { glyph: this.warnGlyph() }));

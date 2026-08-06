@@ -74,6 +74,7 @@ import { tx } from '../../kernel/util/tx.js';
 import { TUTORIAL_TEXTS } from '../i18n/tutorial.texts.js';
 import { setInvocationTutorialPart } from '../telemetry/posthog-init.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
+import { builtIns } from '../../plugins/built-ins.js';
 import {
   listScaffoldDestinations,
   listScaffoldTargets,
@@ -203,7 +204,7 @@ export class TutorialCommand extends SmCommand {
     // the open-standard `agent-skills` → `.agents/skills`); experimental
     // ones join only under `--experimental`. Pre-bootstrap, so this reads
     // the built-in catalog directly and never touches `.skill-map/`.
-    const targets = listScaffoldDestinations(this.experimental);
+    const targets = listScaffoldDestinations(builtIns().providers, this.experimental);
     const target = await this.resolveScaffoldTarget(targets, stderrAnsi, errGlyph);
     if (target === null) return ExitCode.Error;
     // resolveScaffoldTarget only ever returns a selectable row, which
@@ -357,7 +358,7 @@ export class TutorialCommand extends SmCommand {
       // it here reported a REAL provider as "unknown".
       const found =
         targets.find((t) => t.id === requested) ??
-        listScaffoldTargets(this.experimental).find((t) => t.id === requested);
+        listScaffoldTargets(builtIns().providers, this.experimental).find((t) => t.id === requested);
       if (found === undefined) {
         this.printer!.error(
           tx(TUTORIAL_TEXTS.forUnknown, {

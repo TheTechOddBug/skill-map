@@ -117,12 +117,14 @@ export function startBootPing(deps: IBootPingDeps): IBootPingHandle {
  */
 export async function runBootPing(deps: IBootPingDeps): Promise<string | null> {
   try {
-    // Operator gate first: with no processing skill installed nothing can
-    // ever claim the ping, so submitting it is pure litter. This is the
-    // same question the `no-processing-agent` submit refusal answers.
-    if (!processingSkillPresence(deps.cwd).installed) return null;
+    // Operator gate: with no processing skill installed nothing can ever
+    // claim the ping, so submitting it is pure litter. This is the same
+    // question the `no-processing-agent` submit refusal answers. Probed
+    // against the COMPOSED provider set (`prepared.providers`), so a
+    // project-local Provider's own skill territory counts too.
     const prepared = preparePing(deps.cwd, deps.pluginRuntime);
     if (prepared === null) return null;
+    if (!processingSkillPresence(deps.cwd, prepared.providers).installed) return null;
     const submitted = await tryWithSqlite(
       { databasePath: deps.dbPath, autoBackup: false },
       async (adapter) => {

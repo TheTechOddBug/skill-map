@@ -15,7 +15,7 @@
 
 import { strict as assert } from 'node:assert';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -89,6 +89,34 @@ describe('sm scan, active-provider auto-detect stream', () => {
     // And it ends in a newline so the summary lands on its own line
     // (the bug was a missing newline gluing the two together).
     assert.match(r.stdout, /settings\.json\.\n/);
+  });
+
+  /**
+   * A dry run reports what a scan WOULD do and must leave the project
+   * byte-identical. The auto-detect persist ignored `--dry-run`, so a dry
+   * run against a project with no `settings.json` CREATED one, which is a
+   * mutation no dry run is allowed to perform (found while dry-scanning a
+   * fixture for comparison: it came back dirty).
+   */
+  it('--dry-run resolves the lens without writing settings.json', () => {
+    const scope = freshScope('dry');
+    mkdirSync(join(scope.cwd, '.claude', 'agents'), { recursive: true });
+    writeFileSync(
+      join(scope.cwd, '.claude', 'agents', 'a.md'),
+      '---\nname: a\ntools: [Read]\n---\n\n# a\n\nbody\n',
+    );
+    assert.equal(sm(['init', '--no-scan'], scope).status, 0);
+
+    const settings = join(scope.cwd, '.skill-map', 'settings.json');
+    rmSync(settings, { force: true });
+
+    const r = sm(['scan', '--dry-run'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.equal(existsSync(settings), false, 'a dry run must not create settings.json');
+
+    // The real scan still persists it, so nothing is lost, only deferred.
+    assert.equal(sm(['scan'], scope).status, 0);
+    assert.equal(existsSync(settings), true);
   });
 
   it('omits the auto-detect line when the lens is already in config', () => {

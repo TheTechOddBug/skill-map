@@ -38,6 +38,7 @@ import {
 } from './contributions.js';
 import type { IConfidenceAdjustment } from './link-scores.js';
 import { replaceAllScanLinkScores } from './link-scores.js';
+import { isNodelessTargetId } from '../../jobs/nodeless-target.js';
 import { schemaFingerprint } from './schema-fingerprint.js';
 import type { ITagRecord } from './tags.js';
 import { replaceAllScanTags } from './tags.js';
@@ -268,7 +269,8 @@ async function applyRenames(
 /**
  * Sweep `state_*` for stranded rows whose `node_id` is not in the
  * live set and append an `orphan` issue for each path not already
- * carried by an analyzer-emitted `orphan` issue. Mutates
+ * carried by an analyzer-emitted `orphan` issue. Synthetic nodeless-job
+ * targets are skipped: they are infrastructure ids, never nodes. Mutates
  * `result.issues` (and `result.stats.issuesCount`) in-place so the
  * augmented list survives into the wire envelope.
  *
@@ -289,6 +291,12 @@ async function appendStrandedOrphans(
   const stranded = await findStrandedStateOrphans(trx, livePaths);
   for (const path of stranded) {
     if (knownOrphanPaths.has(path)) continue;
+    // A NODELESS job's synthetic target (`sm://<extension-id>`,
+    // `spec/job-lifecycle.md` §Submit · Nodeless submit) is not a node
+    // that went missing: it never was one, and no `sm orphans reconcile`
+    // can ever "fix" it. Reporting it would hand the operator an orphan
+    // they cannot act on, once per scan, forever.
+    if (isNodelessTargetId(path)) continue;
     result.issues.push({
       analyzerId: 'orphan',
       severity: 'info',

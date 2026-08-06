@@ -23,12 +23,13 @@ import {
   listScaffoldDestinations,
   listScaffoldTargets,
 } from '../../../core/agent-skill/targets.js';
+import { builtIns } from '../../../plugins/built-ins.js';
 import { classifyAnswer, labelWithAka } from '../tutorial.js';
 import { TUTORIAL_TEXTS } from '../../i18n/tutorial.texts.js';
 
 describe('sm tutorial destination catalog', () => {
   it('lists the ready scaffold destinations by default (claude, codex, agent-skills)', () => {
-    const targets = listScaffoldDestinations();
+    const targets = listScaffoldDestinations(builtIns().providers);
     // claude (stable, rich), codex (beta, rich) and agent-skills (stable,
     // basic) all declare a `scaffold.skillDir`; beta ships enabled, so all
     // three appear by default, in registration order.
@@ -43,19 +44,19 @@ describe('sm tutorial destination catalog', () => {
   });
 
   it('carries the stable open-standard by default; the markdown base never scaffolds', () => {
-    const ids = listScaffoldDestinations(true).map((t) => t.id);
+    const ids = listScaffoldDestinations(builtIns().providers, true).map((t) => t.id);
     assert.ok(ids.includes('claude'), `got ${JSON.stringify(ids)}`);
     // agent-skills is stable and declares a `scaffold.skillDir`, so it is in
     // the default catalog too (no `--experimental` needed).
     assert.ok(ids.includes('agent-skills'), `got ${JSON.stringify(ids)}`);
-    assert.ok(listScaffoldDestinations().some((t) => t.id === 'agent-skills'));
+    assert.ok(listScaffoldDestinations(builtIns().providers).some((t) => t.id === 'agent-skills'));
     // The universal markdown base declares no scaffold, so it never appears.
     assert.ok(!ids.includes('markdown'));
   });
 });
 
 describe('sm tutorial prompt rendering', () => {
-  const targets = listScaffoldDestinations();
+  const targets = listScaffoldDestinations(builtIns().providers);
   const byId = (id: string) => targets.find((t) => t.id === id)!;
 
   it('renders Claude and Codex by their plain vendor label (no aka)', () => {
@@ -84,7 +85,7 @@ describe('sm tutorial prompt rendering', () => {
 });
 
 describe('sm tutorial classifyAnswer', () => {
-  const targets = listScaffoldDestinations(true);
+  const targets = listScaffoldDestinations(builtIns().providers, true);
   const def = targets[0]!;
 
   it('accepts the default on an empty answer', () => {
@@ -111,7 +112,7 @@ describe('shared-territory lenses (sharedWith)', () => {
    * NOT separate destination choices: one territory stays one prompt row.
    */
   it('per-lens catalog resolves the sharing lenses, marked with their owner', () => {
-    const byId = new Map(listScaffoldTargets(true).map((t) => [t.id, t]));
+    const byId = new Map(listScaffoldTargets(builtIns().providers, true).map((t) => [t.id, t]));
     for (const id of ['antigravity', 'opencode']) {
       const row = byId.get(id);
       assert.ok(row, `${id} must resolve as a per-lens target`);
@@ -121,7 +122,7 @@ describe('shared-territory lenses (sharedWith)', () => {
   });
 
   it('the destination catalog lists owners only (no duplicate territory rows)', () => {
-    const ids = listScaffoldDestinations(true).map((t) => t.id);
+    const ids = listScaffoldDestinations(builtIns().providers, true).map((t) => t.id);
     assert.ok(!ids.includes('antigravity'), `got ${JSON.stringify(ids)}`);
     assert.ok(!ids.includes('opencode'), `got ${JSON.stringify(ids)}`);
     assert.ok(ids.includes('agent-skills'), 'the owner still leads its territory');

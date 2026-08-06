@@ -120,6 +120,15 @@ export interface IBootstrapActiveProviderOpts {
     errorGlyph?: string;
     dim?: (s: string) => string;
   };
+  /**
+   * `false` resolves the lens WITHOUT writing it to
+   * `.skill-map/settings.json`. Set by `sm scan --dry-run`, which must
+   * report what a scan would do and leave the project byte-identical: the
+   * auto-detect persist made a dry run create a settings file in a project
+   * that had none, which is a mutation no dry run is allowed to perform.
+   * Defaults to `true` (every real scan persists its detection).
+   */
+  persist?: boolean;
 }
 
 export type TBootstrapActiveProviderOutcome =
@@ -174,7 +183,7 @@ export async function bootstrapActiveProvider(
   }
   if (detected.length === 1) {
     const picked = detected[0]!;
-    persistActiveProvider(opts.cwd, picked, detected, opts.printer);
+    persistActiveProvider(opts.cwd, picked, detected, opts.printer, opts.persist !== false);
     return { kind: 'ok', activeProvider: picked, source: 'autodetect' };
   }
   // Ambiguous: 2+ detected.
@@ -190,7 +199,7 @@ export async function bootstrapActiveProvider(
   if (picked === null) {
     return { kind: 'ambiguous', detected };
   }
-  persistActiveProvider(opts.cwd, picked, detected, opts.printer);
+  persistActiveProvider(opts.cwd, picked, detected, opts.printer, opts.persist !== false);
   return { kind: 'ok', activeProvider: picked, source: 'autodetect' };
 }
 
@@ -229,7 +238,10 @@ function persistActiveProvider(
   id: string,
   markers: readonly string[],
   printer: IPrinter,
+  persist: boolean,
 ): void {
+  // A dry run resolves the lens in memory and writes nothing.
+  if (!persist) return;
   try {
     writeConfigValue('activeProvider', id, { target: 'project', cwd });
     // Snapshot the detected set alongside the lens so the next scan

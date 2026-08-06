@@ -55,6 +55,7 @@ import { AGENT_TEXTS as T } from '../i18n/agent.texts.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { defaultRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
+import { loadActionRuntime } from './action-runtime.js';
 import {
   listScaffoldTargets,
   type IScaffoldTarget,
@@ -122,8 +123,14 @@ abstract class AgentBaseCommand extends SmCommand {
    * Returns `null` after printing the §3.1b error block (caller exits
    * `ExitCode.Error`).
    */
-  protected resolveTarget(cwd: string): IScaffoldTarget | null {
-    const targets = listScaffoldTargets();
+  protected async resolveTarget(cwd: string): Promise<IScaffoldTarget | null> {
+    // The COMPOSED provider set (built-ins + enabled project-local
+    // plugins), not just the built-ins: a drop-in Provider that declares
+    // `scaffold.skillDir` is a legitimate destination, and reading the
+    // built-in catalog here is what made `sm agent install` refuse under
+    // such a lens with "declares no skill directory".
+    const providers = (await loadActionRuntime(this.printer!)).providers;
+    const targets = listScaffoldTargets(providers);
     const stderrAnsi = this.ansiFor('stderr');
     const errGlyph = stderrAnsi.red('✕');
     const hint = stderrAnsi.dim(
@@ -133,7 +140,7 @@ abstract class AgentBaseCommand extends SmCommand {
     if (this.forProvider !== undefined) {
       const found = targets.find((t) => t.id === this.forProvider);
       if (found !== undefined) return found;
-      const registered = builtIns().providers.some((p) => p.id === this.forProvider);
+      const registered = providers.some((p) => p.id === this.forProvider);
       this.printer!.error(
         tx(registered ? T.noSkillDir : T.forUnknown, {
           glyph: errGlyph,
@@ -144,7 +151,7 @@ abstract class AgentBaseCommand extends SmCommand {
       return null;
     }
 
-    const lens = resolveActiveProvider(cwd, builtIns().providers).resolved;
+    const lens = resolveActiveProvider(cwd, providers).resolved;
     const found = targets.find((t) => t.id === lens);
     if (found !== undefined) return found;
     this.printer!.error(
@@ -186,7 +193,7 @@ export class AgentInstallCommand extends AgentBaseCommand {
 
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
-    const target = this.resolveTarget(ctx.cwd);
+    const target = await this.resolveTarget(ctx.cwd);
     if (target === null) return ExitCode.Error;
 
     const outcome = this.materialise(ctx.cwd, target);
@@ -262,7 +269,7 @@ export class AgentUninstallCommand extends AgentBaseCommand {
 
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
-    const target = this.resolveTarget(ctx.cwd);
+    const target = await this.resolveTarget(ctx.cwd);
     if (target === null) return ExitCode.Error;
 
     let removed: boolean;
@@ -334,7 +341,7 @@ export class AgentStatusCommand extends AgentBaseCommand {
 
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
-    const target = this.resolveTarget(ctx.cwd);
+    const target = await this.resolveTarget(ctx.cwd);
     if (target === null) return ExitCode.Error;
 
     // Engine probe shared with the BFF status endpoint: byte-exact

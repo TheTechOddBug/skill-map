@@ -171,18 +171,6 @@ export function registerNodeJobsRoute(app: Hono, deps: INodeJobsRouteDeps): void
     const nodePath = decodePathB64Or404(c.req.param('pathB64'));
     const body = await parseBody(c.req.raw);
 
-    // Processing-agent gate FIRST (`spec/job-lifecycle.md` §Submit): a
-    // queue nothing ever claims must refuse before any work is staged.
-    // Installed-but-stale passes (the CLI's refresh nudge is a
-    // human-mode stderr advisory with no envelope slot).
-    const presence = processingSkillPresence(deps.runtimeContext.cwd);
-    if (!presence.installed) {
-      throw new JobSubmitConflictError({
-        code: 'no-processing-agent',
-        message: SERVER_TEXTS.jobsNoProcessingAgent,
-      });
-    }
-
     // Build the submit runtime against a fresh resolver from the LIVE
     // layered config so a finder enabled mid-session (PATCH
     // /api/plugins[/...] + configService.reload(), or `sm plugins enable`
@@ -203,6 +191,19 @@ export function registerNodeJobsRoute(app: Hono, deps: INodeJobsRouteDeps): void
       undefined,
       resolveEnabled,
     );
+
+    // Processing-agent gate (`spec/job-lifecycle.md` §Submit): a queue
+    // nothing ever claims must refuse before any work is staged.
+    // Installed-but-stale passes (the CLI's refresh nudge is a human-mode
+    // stderr advisory with no envelope slot). Probed against the COMPOSED
+    // provider set, so a project-local Provider's own skill territory
+    // counts exactly like a built-in's.
+    if (!processingSkillPresence(deps.runtimeContext.cwd, runtime.providers).installed) {
+      throw new JobSubmitConflictError({
+        code: 'no-processing-agent',
+        message: SERVER_TEXTS.jobsNoProcessingAgent,
+      });
+    }
 
     const prep = prepareSubmitContext({
       runtime,

@@ -298,16 +298,17 @@ export async function submitJob(
   ctx: IMcpWriteContext,
   args: ISubmitJobArgs,
 ): Promise<TSubmitJobResult> {
-  // Processing-agent gate FIRST (spec §Submit): consistency with the CLI /
-  // BFF operator surfaces.
-  if (!processingSkillPresence(ctx.cwd).installed) {
+  const runtime = await buildMcpRuntime(ctx);
+  // Processing-agent gate (spec §Submit): consistency with the CLI / BFF
+  // operator surfaces. Probed against the COMPOSED provider set, so a
+  // project-local Provider's own skill territory counts like a built-in's.
+  if (!processingSkillPresence(ctx.cwd, runtime.providers).installed) {
     throw new McpError(
       ErrorCode.InvalidParams,
       'No processing skill is installed in this project (run `sm agent install`); the submitted job would never be claimed.',
     );
   }
 
-  const runtime = await buildMcpRuntime(ctx);
   const prep = prepareSubmitContext({
     runtime,
     jobs: loadConfig({ cwd: ctx.cwd }).effective.jobs,

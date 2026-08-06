@@ -83,21 +83,32 @@ function optionalScaffoldFields(scaffold: IProviderScaffold): Partial<IScaffoldT
 }
 
 /**
- * Catalog rows in built-in order (vendor providers first per the
- * codegen `PLUGIN_ORDER`, so `claude` leads). The consumers are
- * pre-bootstrap helpers (`sm tutorial`, `sm agent`), so this reads the
- * built-in catalog directly rather than project config. The
- * default-offered rows are the book-ready destinations that declare a
- * `scaffold.skillDir` and ship enabled: `claude` (rich track), the
- * beta `codex` (rich track), and the open-standard `agent-skills`
- * (basic track). `beta` ships enabled, so `codex` appears by default;
- * `--experimental` would add any `stability: experimental` scaffolder,
- * of which there is none today (they ship disabled), so the flag is a
- * no-op among current built-ins.
+ * Catalog rows in the order the caller supplies (for the composed
+ * runtime that is built-in order first, vendor providers leading per the
+ * codegen `PLUGIN_ORDER`, then project-local plugins).
+ *
+ * `providers` is a REQUIRED argument on purpose. It used to read
+ * `builtIns()` directly, described as fine because "the consumers are
+ * pre-bootstrap helpers", and that is what made a project-local drop-in
+ * Provider invisible to the whole family: `sm agent install` refused with
+ * "the active lens declares no skill directory" for a lens whose manifest
+ * declared `scaffold.skillDir` perfectly well, simply because it was not
+ * a built-in. Callers that genuinely run before any plugin is loaded
+ * (`sm tutorial`, which materialises into an EMPTY folder) pass
+ * `builtIns().providers` explicitly, which states the limitation instead
+ * of hiding it.
+ *
+ * The default-offered rows are the destinations that declare a
+ * `scaffold.skillDir` and ship enabled. `beta` ships enabled, so `codex`
+ * appears by default; `--experimental` adds any `stability: experimental`
+ * scaffolder.
  */
-export function listScaffoldTargets(includeExperimental = false): IScaffoldTarget[] {
+export function listScaffoldTargets(
+  providers: readonly IProvider[],
+  includeExperimental = false,
+): IScaffoldTarget[] {
   const out: IScaffoldTarget[] = [];
-  for (const provider of builtIns().providers) {
+  for (const provider of providers) {
     const target = toScaffoldTarget(provider, includeExperimental);
     if (target !== null) out.push(target);
   }
@@ -112,8 +123,13 @@ export function listScaffoldTargets(includeExperimental = false): IScaffoldTarge
  * keeps producing one prompt row. `sm tutorial` uses this; `sm agent` and the
  * BFF's per-lens probe keep using the full `listScaffoldTargets` catalog.
  */
-export function listScaffoldDestinations(includeExperimental = false): IScaffoldTarget[] {
-  return listScaffoldTargets(includeExperimental).filter((t) => t.sharedWith === undefined);
+export function listScaffoldDestinations(
+  providers: readonly IProvider[],
+  includeExperimental = false,
+): IScaffoldTarget[] {
+  return listScaffoldTargets(providers, includeExperimental).filter(
+    (t) => t.sharedWith === undefined,
+  );
 }
 
 /**
@@ -133,9 +149,18 @@ export interface IProcessingSkillPresence {
   fresh: boolean;
 }
 
-/** See {@link IProcessingSkillPresence}. */
-export function processingSkillPresence(cwd: string): IProcessingSkillPresence {
-  const dirs = new Set(listScaffoldTargets(true).map((t) => t.skillDir));
+/**
+ * See {@link IProcessingSkillPresence}. `providers` defaults to the
+ * built-ins: this probe only reads DIRECTORIES off disk, and every
+ * project-local Provider's territory is either one a built-in already
+ * declares (the shared `.agents/skills`) or one it owns alone, in which
+ * case the caller passes the composed set to have it probed too.
+ */
+export function processingSkillPresence(
+  cwd: string,
+  providers: readonly IProvider[] = builtIns().providers,
+): IProcessingSkillPresence {
+  const dirs = new Set(listScaffoldTargets(providers, true).map((t) => t.skillDir));
   const statuses = [...dirs].map((dir) => agentSkillStatus(cwd, dir));
   return {
     installed: statuses.some((s) => s.installed),

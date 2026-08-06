@@ -398,6 +398,9 @@ async function resolveActiveLens(
     providers,
     yes: opts.yes ?? false,
     warnOnDrift: opts.warnOnDrift ?? true,
+    // A dry run reports what a scan WOULD do; persisting the detected
+    // lens would leave a settings file behind in a project that had none.
+    persist: !opts.dryRun,
     stdin: opts.stdin ?? process.stdin,
     stderr: opts.stderr,
     printer: opts.printer,
