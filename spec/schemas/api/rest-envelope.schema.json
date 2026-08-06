@@ -318,6 +318,10 @@
             "minLength": 1,
             "maxLength": 1,
             "description": "Single glyph this lens's runtime uses to invoke a skill / command, projected from its `presentation.invocationSigil` (see `provider.schema.json`). The UI joins it against the active lens to paint the `invokes` edge-kind glyph (and tooltip example) in the link-kind palette: `/` for `claude` / `antigravity`, `$` for `codex`. Absent for lenses with no invocation channel (`agent-skills`, `markdown`), under which no `invokes` edge arises."
+          },
+          "mcpRegister": {
+            "type": "object",
+            "description": "How an operator registers skill-map's MCP server with this lens's runtime, projected VERBATIM from the Provider's `mcpRegister` block (see `provider.schema.json` for the two flavours and the `{{url}}` placeholder). Travels on the wire so the Copy affordance is driven by the registered Provider set instead of a client-side catalog, which is what let an external Provider's lens fall back to a bare URL while the built-ins had a real command. Absent for a Provider that declares no recipe; the UI then copies the endpoint URL alone."
           }
         }
       }

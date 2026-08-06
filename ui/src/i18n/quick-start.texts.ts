@@ -10,6 +10,8 @@
  * strings.
  */
 
+import type { TMcpRegisterApi } from '../models/api';
+
 /**
  * What the "MCP installed on your agent" Copy affordance puts on the
  * clipboard for the active lens. Two flavours, because only some runtimes
@@ -24,86 +26,59 @@ export interface IMcpRegisterSnippet {
   target?: string;
 }
 
+/** The placeholder every recipe uses for the live MCP endpoint. */
+const URL_PLACEHOLDER = /\{\{url\}\}/g;
+
 /**
- * A COMPLETE config document declaring the skill-map server, ready to save
- * as a brand-new file. Deliberately not a bare entry: every `config` target
- * is the operator's PERSONAL config (see the per-lens targets below), and
- * the common case is that it does not exist yet, so a fragment would leave
- * a first-time user assembling JSON by hand. The row's paste hint covers
- * the other case in one line (a file that already exists takes only the
- * `skill-map` entry, so the servers already declared there survive).
+ * Substitute `{{url}}` in every string of a config document, at any depth,
+ * and serialise it. The document is COMPLETE by contract (see
+ * `provider.schema.json#/properties/mcpRegister`), never a bare entry: every
+ * `config` target is the operator's PERSONAL config and the common case is
+ * that it does not exist yet, so a fragment would leave a first-time user
+ * assembling JSON by hand. The row's paste hint covers the other case in one
+ * line (a file that already exists takes only the `skill-map` entry, so the
+ * servers already declared there survive).
  */
-function mcpConfigDocument(document: Record<string, unknown>): string {
-  return JSON.stringify(document, null, 2);
+function renderConfigDocument(document: Record<string, unknown>, mcpUrl: string): string {
+  return JSON.stringify(document, null, 2).replace(URL_PLACEHOLDER, mcpUrl);
 }
 
 /**
- * Per-lens register snippet, as a function of the LIVE MCP endpoint. The URL
- * comes from `GET /api/mcp/status` (`url`), built by the server from its own
- * bind: the page origin is NOT a substitute, because under the dev setup the
- * SPA is served by a proxy whose port is not the one `/mcp` listens on.
- * Kept as a plain `Record` (not folded into the `as const` catalog below) so
- * the closed provider list stays trivially editable and an arbitrary lens id
- * can index it without a literal-key cast. Every other lens falls back to
- * `MCP_REGISTER_SNIPPET_DEFAULT`.
- */
-export const MCP_REGISTER_SNIPPETS: Record<
-  string,
-  (mcpUrl: string) => IMcpRegisterSnippet
-> = {
-  claude: (mcpUrl) => ({
-    kind: 'command',
-    payload: `claude mcp add --transport http --scope local skill-map ${mcpUrl}`,
-  }),
-  // Codex supports streamable-HTTP MCP via `codex mcp add <name> --url <url>`
-  // (usage: `codex mcp add [OPTIONS] <NAME> (--url <URL> | -- <COMMAND>...)`,
-  // verified against codex-rs cli/src/mcp_cmd.rs). Writes ~/.codex/config.toml.
-  codex: (mcpUrl) => ({
-    kind: 'command',
-    payload: `codex mcp add skill-map --url ${mcpUrl}`,
-  }),
-  // No command flavour on purpose: the Antigravity CLI (`agy`) exposes no
-  // `mcp` subcommand, and its MCP config is home-global
-  // (`~/.gemini/config/mcp_config.json`, key `serverUrl`), with no
-  // project-local counterpart. Editing that file is the only way in.
-  antigravity: (mcpUrl) => ({
-    kind: 'config',
-    target: '~/.gemini/config/mcp_config.json',
-    payload: mcpConfigDocument({ mcpServers: { 'skill-map': { serverUrl: mcpUrl } } }),
-  }),
-  // Config-file based too (opencode has no `mcp` CLI verb), and aimed at the
-  // operator's GLOBAL config on purpose. OpenCode also reads a project
-  // `opencode.json`, but its docs call that one "safe to commit to Git": it
-  // is the team's file, and skill-map is a per-developer tool, so putting
-  // its server there would push the whole team into an MCP they never asked
-  // for. The global config keeps the registration where the other three
-  // lenses already keep theirs, out of the repository.
-  opencode: (mcpUrl) => ({
-    kind: 'config',
-    target: '~/.config/opencode/opencode.json',
-    payload: mcpConfigDocument({
-      $schema: 'https://opencode.ai/config.json',
-      mcp: { 'skill-map': { type: 'remote', url: mcpUrl, enabled: true } },
-    }),
-  }),
-};
-
-/**
- * Fallback for lenses with no known MCP config shape: the bare endpoint, so
- * Copy still hands the operator the one thing every MCP client asks for.
+ * Fallback for lenses whose Provider declares no `mcpRegister` recipe: the
+ * bare endpoint, so Copy still hands the operator the one thing every MCP
+ * client asks for.
  */
 export const MCP_REGISTER_SNIPPET_DEFAULT = (mcpUrl: string): IMcpRegisterSnippet => ({
   kind: 'config',
   payload: mcpUrl,
 });
 
-/** The register snippet for a lens (given the live MCP URL), or the bare-URL fallback. */
+/**
+ * Render the active lens's register snippet against the LIVE MCP endpoint.
+ * The URL comes from `GET /api/mcp/status` (`url`), built by the server from
+ * its own bind: the page origin is NOT a substitute, because under the dev
+ * setup the SPA is served by a proxy whose port is not the one `/mcp` listens
+ * on.
+ *
+ * The recipe itself is DATA, read off the Provider's `mcpRegister` block as
+ * it arrives in the envelope `providerRegistry`. It used to be a closed
+ * `Record` keyed by provider id right here, which silently downgraded every
+ * lens outside that list (any project-local drop-in Provider) to the bare-URL
+ * fallback, the very hardcoded-provider-list the registry exists to avoid.
+ */
 export function mcpRegisterSnippet(
-  providerId: string | null | undefined,
+  register: TMcpRegisterApi | null | undefined,
   mcpUrl: string,
 ): IMcpRegisterSnippet {
-  if (providerId && providerId in MCP_REGISTER_SNIPPETS) {
-    return MCP_REGISTER_SNIPPETS[providerId](mcpUrl);
+  if (register?.kind === 'command') {
+    return { kind: 'command', payload: register.command.template.replace(URL_PLACEHOLDER, mcpUrl) };
+  }
+  if (register?.kind === 'config') {
+    return {
+      kind: 'config',
+      target: register.config.target,
+      payload: renderConfigDocument(register.config.document, mcpUrl),
+    };
   }
   return MCP_REGISTER_SNIPPET_DEFAULT(mcpUrl);
 }
@@ -141,9 +116,16 @@ export const QUICK_START_TEXTS = {
     notConnected: 'Not connected yet',
     updateAvailable: 'Update available',
     attending: 'An agent is answering',
+    // Second phase of the check: claimed, answer still pending. NOT a
+    // verdict, the agent has only picked the work up. Kept to the length
+    // of `attending` on purpose: the row lays the status out beside the
+    // description, so a long string pushes it and breaks the line.
+    working: 'An agent picked it up',
     noAgent: 'No agent answering',
+    // Claimed and never came back inside the answer window: something IS
+    // attending the queue, it just did not finish.
+    noAnswer: 'An agent never answered',
     needsSkill: 'Install the agent skill first',
-    noNodeToProbe: 'Scan a file first',
   },
 
   /** Shared action-button labels. */

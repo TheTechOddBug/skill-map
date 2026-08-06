@@ -32,6 +32,26 @@ describe('renderJobContent', () => {
     );
   });
 
+  /**
+   * NODELESS render (`spec/job-lifecycle.md` §Submit · Nodeless submit):
+   * no body means no `<user-content>` block at all, not an empty one. The
+   * seam still carries the kernel prelude.
+   */
+  it('emits no user-content block for a nodeless job', () => {
+    const out = renderJobContent({
+      node: { path: 'sm://core/ai-ping-action' },
+      nodeBody: null,
+      promptTemplate: 'Task.\n{{userContent}}\nEnd.',
+      preamble: PREAMBLE,
+      reportContract: '## Report contract',
+    });
+    strictEqual(out, 'PREAMBLE LINE\n\nTask.\n## Report contract\nEnd.');
+    ok(!out.includes('<user-content'));
+    // The synthetic id never leaks into the prompt either: with no block
+    // to attribute, there is nothing to name.
+    ok(!out.includes('sm://core/ai-ping-action'));
+  });
+
   it('defaults to the canonical spec preamble when none is supplied', () => {
     const out = renderJobContent({
       node: { path: 'n.md' },

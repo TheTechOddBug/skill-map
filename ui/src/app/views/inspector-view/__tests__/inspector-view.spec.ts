@@ -89,6 +89,7 @@ type IStubDataSource = IDataSourcePort & {
   agentPresence: ReturnType<typeof vi.fn>;
   getAgentSkillInstallStatus: ReturnType<typeof vi.fn>;
   submitNodeJob: ReturnType<typeof vi.fn>;
+  submitNodelessJob: ReturnType<typeof vi.fn>;
   cancelJob: ReturnType<typeof vi.fn>;
   dismissFinding: ReturnType<typeof vi.fn>;
   reopenFinding: ReturnType<typeof vi.fn>;
@@ -230,6 +231,7 @@ function makeStubDataSource(): IStubDataSource {
       installed: true,
       stale: false,
     }),
+    submitNodelessJob: vi.fn().mockResolvedValue({ value: { jobId: 'j1', nodePath: 'sm://core/ai-ping-action', extensionId: 'core/ai-ping-action', supersededIds: [] } }),
     submitNodeJob: vi.fn().mockResolvedValue({
       schemaVersion: '1',
       kind: 'job.submitted',

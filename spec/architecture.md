@@ -436,6 +436,19 @@ The consumer-side and config-side emit the **same** `mcp://<server>` path, so th
 
 A home-scoped config (the Codex user config `~/.codex/config.toml`) is the one source that reads outside the project: a Provider that declares it extends the documented closed list of `os.homedir()` callers per [`AGENTS.md`](../AGENTS.md), the read is per-invocation and never merged into the config layers. Every other source is project-local. Stability: experimental (the capability shape and the closed dialect set may change as more vendors onboard).
 
+### Provider · MCP registration
+
+The mirror image of the capability above. `mcpConfig` is the READ side (which servers does this project already declare?); the optional `mcpRegister` block is the WRITE side: **how does an operator declare skill-map's own MCP server to this Provider's runtime?** Same posture as every other Provider capability, the Provider owns the vendor knowledge and the kernel owns nothing but the shape. The two blocks stay separate rather than folding into one because they answer different questions about different files: `mcpConfig` names project-local, committable files skill-map PARSES, while registration targets the operator's PERSONAL config (a per-developer tool has no business landing in the team's file), and a Provider may legitimately declare either, both, or neither.
+
+Two flavours, because only some runtimes ship an `mcp` CLI verb:
+
+- `{ kind: 'command', command: { template } }`, one shell line the operator runs (`claude mcp add --transport http --scope local skill-map {{url}}`, `codex mcp add skill-map --url {{url}}`).
+- `{ kind: 'config', config: { target, document } }`, a COMPLETE config document to save at `target` (Antigravity's `~/.gemini/config/mcp_config.json`, OpenCode's `~/.config/opencode/opencode.json`). Complete, not a fragment: the target usually does not exist yet, and a bare entry would leave a first-time operator assembling JSON by hand.
+
+`{{url}}` is the only placeholder, standing in for the live MCP endpoint reported by `GET /api/mcp/status` (in the `config` flavour it may appear in any string value at any depth). The consumer substitutes and hands the result to the clipboard; skill-map NEVER writes the target file, which is also why a `~/` path is legitimate here and leaves the never-read-`$HOME` invariant untouched: the operator applies it by hand, the scanner never opens it.
+
+The block travels VERBATIM in the `providerRegistry` of every payload-bearing envelope ([`api/rest-envelope.schema.json`](./schemas/api/rest-envelope.schema.json)), so the UI's Copy affordance is driven by the registered Provider set. A Provider that declares no recipe falls back to copying the bare endpoint URL, which every MCP client accepts. Declaring it is what lets ANY Provider, including a project-local drop-in the client never heard of, hand the operator a working setup line instead of a URL.
+
 ### Extractor · output callbacks
 
 The `Extractor` runtime contract is `extract(ctx) → void`. The extractor emits its work through three callbacks the kernel binds onto `ctx`:

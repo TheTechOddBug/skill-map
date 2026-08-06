@@ -39,6 +39,15 @@ export const aiPingAction: IBuiltInManifest<IAction> = {
   // discovery surface. See the file header.
   locked: true,
   mode: 'probabilistic',
+  // NO node (`spec/job-lifecycle.md` §Submit · Nodeless submit). What this
+  // probe measures is whether an AGENT is draining the queue, a fact about
+  // the agent and not about any file, so it enqueues against the synthetic
+  // `sm://core/ai-ping-action` target. Aiming it at "the first real node"
+  // used to import that node's failure modes wholesale: the probe died with
+  // a raw "cannot be read from disk" whenever the file had been deleted
+  // since the last scan (a stale graph is normal, it is a cache), and it
+  // could not run at all in a project with nothing scanned yet.
+  probNodeless: true,
   // Advisory only (feeds `sm doctor` jobs-overdue). A ping is a one-line
   // acknowledgement, so a low bound is right; the panel's own liveness
   // timeout is separate and much shorter.

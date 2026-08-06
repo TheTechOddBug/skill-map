@@ -46,6 +46,7 @@ export type {
   TActivityPhase,
   TIdentifierSource,
   TProviderKindIcon,
+  TProviderMcpRegister,
 } from './provider.js';
 export { resolveProviderWalk, collectReadExtensions } from './provider.js';
 export type { IExtractor, IExtractorContext, IExtractorCallbacks, IEmittedNode } from './extractor.js';

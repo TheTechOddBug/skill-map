@@ -211,6 +211,91 @@
         }
       }
     },
+    "mcpRegister": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false,
+      "description": "MCP registration recipe (see architecture.md §Provider · MCP registration): how an operator declares skill-map's OWN MCP server to this Provider's runtime. The write-side counterpart of `mcpConfig` (which is the read side, discovering servers a project already declares), and deliberately separate: `mcpConfig` names project-local files skill-map PARSES, while registration targets the operator's personal config, so a Provider may declare either, both, or neither. The UI renders whatever is declared as a one-click Copy affordance; a Provider that declares nothing falls back to handing over the bare endpoint URL, which every MCP client accepts. Two flavours because only some runtimes ship an `mcp` CLI verb: the rest are configured by editing a config file.",
+      "oneOf": [
+        {
+          "required": [
+            "command"
+          ],
+          "not": {
+            "required": [
+              "config"
+            ]
+          },
+          "properties": {
+            "kind": {
+              "const": "command"
+            }
+          }
+        },
+        {
+          "required": [
+            "config"
+          ],
+          "not": {
+            "required": [
+              "command"
+            ]
+          },
+          "properties": {
+            "kind": {
+              "const": "config"
+            }
+          }
+        }
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "command",
+            "config"
+          ],
+          "description": "`command` = a shell command the operator runs; `config` = a document the operator saves into a config file. Selects which sibling block is required."
+        },
+        "command": {
+          "type": "object",
+          "required": [
+            "template"
+          ],
+          "additionalProperties": false,
+          "description": "The `command` flavour: the runtime ships an `mcp` CLI verb, so registration is one shell line.",
+          "properties": {
+            "template": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Shell command with the `{{url}}` placeholder standing in for skill-map's live MCP endpoint (e.g. `claude mcp add --transport http --scope local skill-map {{url}}`). MUST contain `{{url}}` at least once; the consumer substitutes the endpoint reported by `GET /api/mcp/status` and copies the result verbatim. No other placeholder is defined."
+            }
+          }
+        },
+        "config": {
+          "type": "object",
+          "required": [
+            "target",
+            "document"
+          ],
+          "additionalProperties": false,
+          "description": "The `config` flavour: the runtime has no `mcp` verb, so registration means saving a JSON document.",
+          "properties": {
+            "target": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Where the document goes, shown as the paste hint (e.g. `~/.config/opencode/opencode.json`). Display only: skill-map NEVER writes this file, and a `~/` target is legitimate here precisely because the operator applies it by hand, not the scanner (the never-read-$HOME invariant is untouched)."
+            },
+            "document": {
+              "type": "object",
+              "description": "A COMPLETE config document declaring skill-map's server, ready to save as a brand-new file (the target usually does not exist yet, and a bare fragment would leave a first-time operator assembling JSON by hand). Any string value containing `{{url}}` gets the live endpoint substituted, at any depth."
+            }
+          }
+        }
+      }
+    },
     "activity": {
       "type": "object",
       "required": [

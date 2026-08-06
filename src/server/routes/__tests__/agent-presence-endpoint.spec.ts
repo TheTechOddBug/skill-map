@@ -39,6 +39,15 @@ const CLAIM = {
   data: { extensionId: 'core/ai-ping-action', nodeId: 'playground.md' },
 };
 
+/** The ANSWER: what decides `attending` (a claim is only a receipt). */
+const ANSWER = {
+  type: 'job.completed',
+  timestamp: 1_700_000_001_000,
+  runId: 'r-ext-20260725-101010-abcd',
+  jobId: 'd-20260725-101010-0001',
+  data: { extensionId: 'core/ai-ping-action' },
+};
+
 describe('GET /api/agent/presence', () => {
   it('reports not attending before any claim is observed', async () => {
     const body = await readPresence(mount(new AgentPresenceTracker()));
@@ -48,21 +57,33 @@ describe('GET /api/agent/presence', () => {
     assert.equal(body['lastClaimAt'], null);
   });
 
-  it('reports attending once a claim has been observed', async () => {
+  it('reports attending once an ANSWER has been observed', async () => {
     const presence = new AgentPresenceTracker();
     const app = mount(presence);
     presence.observe(CLAIM);
+    presence.observe(ANSWER);
     const body = await readPresence(app);
     assert.equal(body['attending'], true);
     assert.equal(typeof body['lastClaimAt'], 'number');
   });
 
-  it('keeps reporting attending after a non-claim envelope (sticky)', async () => {
+  it('a claim alone is not enough: the agent has the work, not the answer', async () => {
     const presence = new AgentPresenceTracker();
     const app = mount(presence);
     presence.observe(CLAIM);
+    const body = await readPresence(app);
+    assert.equal(body['attending'], false);
+    // Still reported for display: "when was work last picked up".
+    assert.equal(typeof body['lastClaimAt'], 'number');
+  });
+
+  it('keeps reporting attending on silence (sticky)', async () => {
+    const presence = new AgentPresenceTracker();
+    const app = mount(presence);
+    presence.observe(CLAIM);
+    presence.observe(ANSWER);
     const first = await readPresence(app);
-    presence.observe({ type: 'job.completed', jobId: 'd-1', data: {} });
+    presence.observe({ type: 'scan.completed', data: {} });
     const second = await readPresence(app);
     assert.equal(second['attending'], true);
     assert.equal(second['lastClaimAt'], first['lastClaimAt']);

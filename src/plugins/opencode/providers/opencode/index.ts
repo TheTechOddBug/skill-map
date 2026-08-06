@@ -122,6 +122,23 @@ export const opencodeProvider: IBuiltInManifest<IProvider> = {
   // node `core/mcp-tools` draws from a skill's `tools:` frontmatter.
   mcpConfig: { sources: [{ path: 'opencode.json', dialect: 'json-mcp-servers' }] },
 
+  // Registration side: config-file based too (OpenCode has no `mcp` CLI verb),
+  // and aimed at the operator's GLOBAL config on purpose. OpenCode also reads
+  // the project `opencode.json` the block above parses, but its docs call that
+  // one "safe to commit to Git": it is the team's file, and skill-map is a
+  // per-developer tool, so putting its server there would push the whole team
+  // into an MCP they never asked for.
+  mcpRegister: {
+    kind: 'config',
+    config: {
+      target: '~/.config/opencode/opencode.json',
+      document: {
+        $schema: 'https://opencode.ai/config.json',
+        mcp: { 'skill-map': { type: 'remote', url: '{{url}}', enabled: true } },
+      },
+    },
+  },
+
   // Vendor lens: gated to the active lens. OpenCode only resolves its own
   // territory (plus the Claude-compat / open-standard skill homes it reads).
   // Gating keeps the walker from claiming OpenCode territory under another

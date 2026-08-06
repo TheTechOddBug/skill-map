@@ -5,13 +5,14 @@
  * The contract under test (`spec/cli-contract.md` §Serve route table, the
  * `GET /api/agent/presence` row):
  *   - not attending at boot;
- *   - a `job.claimed` envelope flips `attending` and stamps `lastClaimAt`;
+ *   - an ANSWER (`job.completed` / `job.failed`) flips `attending`; a
+ *     `job.claimed` does NOT (it is a receipt, not an answer) though it
+ *     still stamps `lastClaimAt` for display;
  *   - any other envelope is ignored (including malformed ones: the CLI
  *     push leg rebroadcasts a client-supplied body verbatim);
- *   - STICKY, a second claim refreshes `lastClaimAt` but `attending`
- *     never flips back;
+ *   - STICKY, `attending` never flips back on silence;
  *   - an envelope broadcast through `WsBroadcaster` reaches the tracker,
- *     which is what makes a CLI-pushed claim and an in-process MCP claim
+ *     which is what makes a CLI-pushed frame and an in-process MCP one
  *     count identically.
  */
 
@@ -32,43 +33,71 @@ function claimEnvelope(jobId = 'd-20260725-101010-0001'): Record<string, unknown
   };
 }
 
+/** The ANSWER: what an agent emits through `sm record` when it comes back. */
+function answerEnvelope(jobId = 'd-20260725-101010-0001'): Record<string, unknown> {
+  return {
+    type: 'job.completed',
+    timestamp: Date.now(),
+    runId: 'r-ext-20260725-101010-abcd',
+    jobId,
+    data: { extensionId: 'core/ai-ping-action' },
+  };
+}
+
 describe('AgentPresenceTracker', () => {
   it('starts not attending, with no claim timestamp', () => {
     const tracker = new AgentPresenceTracker();
     assert.deepEqual(tracker.snapshot(), { attending: false, lastClaimAt: null });
   });
 
-  it('flips attending and stamps lastClaimAt on a job.claimed envelope', () => {
+  it('flips attending on an ANSWER envelope', () => {
+    const tracker = new AgentPresenceTracker();
+    tracker.observe(answerEnvelope());
+    assert.equal(tracker.snapshot().attending, true);
+    // A `failed` still required running the job, so it counts too.
+    const other = new AgentPresenceTracker();
+    other.observe({ type: 'job.failed', jobId: 'd-2', data: {} });
+    assert.equal(other.snapshot().attending, true);
+  });
+
+  /**
+   * The regression that made the row lie: an agent parked on
+   * `sm jobs claim --wait` claims within one poll cycle, so counting the
+   * claim reported "an agent is answering" before the model had read a
+   * line of the prompt (and, through the boot ping, before the operator
+   * asked anything at all).
+   */
+  it('does NOT flip attending on a claim, but still stamps lastClaimAt', () => {
     const tracker = new AgentPresenceTracker();
     const before = Date.now();
     tracker.observe(claimEnvelope());
     const snapshot = tracker.snapshot();
-    assert.equal(snapshot.attending, true);
+    assert.equal(snapshot.attending, false, 'a receipt is not an answer');
     assert.ok(snapshot.lastClaimAt !== null && snapshot.lastClaimAt >= before);
   });
 
-  it('ignores every non-claim envelope', () => {
+  it('ignores every envelope that is neither an answer nor a claim', () => {
     const tracker = new AgentPresenceTracker();
     tracker.observe({ type: 'job.submitted', jobId: 'd-1', data: {} });
-    tracker.observe({ type: 'job.completed', jobId: 'd-1', data: {} });
     tracker.observe({ type: 'scan.completed', data: {} });
     tracker.observe({ type: 'node.activity', data: {} });
     assert.deepEqual(tracker.snapshot(), { attending: false, lastClaimAt: null });
   });
 
-  it('narrows defensively: a malformed envelope is not a claim', () => {
+  it('narrows defensively: a malformed envelope is not an answer', () => {
     const tracker = new AgentPresenceTracker();
     tracker.observe(null);
     tracker.observe(undefined);
-    tracker.observe('job.claimed');
+    tracker.observe('job.completed');
     tracker.observe(42);
-    tracker.observe([{ type: 'job.claimed' }]);
+    tracker.observe([{ type: 'job.completed' }]);
     tracker.observe({});
     assert.equal(tracker.snapshot().attending, false);
   });
 
   it('is STICKY: a later claim refreshes lastClaimAt, attending stays true', async () => {
     const tracker = new AgentPresenceTracker();
+    tracker.observe(answerEnvelope('d-1'));
     tracker.observe(claimEnvelope('d-1'));
     const first = tracker.snapshot();
     // One real millisecond so the second stamp is strictly newer.
@@ -111,6 +140,7 @@ describe('WsBroadcaster -> AgentPresenceTracker wiring', () => {
       data: { extensionId: 'core/ai-ping-action' },
     });
     tracker.observe({ type: 'job.claimed', jobId: 'd-ping-2' });
+    tracker.observe(answerEnvelope('d-ping-2'));
     // A claimed ping later cancelled says nothing about absence.
     tracker.observe({ type: 'job.cancelled', jobId: 'd-ping-2' });
     assert.equal(tracker.snapshot().attending, true);
@@ -140,7 +170,7 @@ describe('WsBroadcaster -> AgentPresenceTracker wiring', () => {
     // No client registered on purpose: a CLI-parked agent claiming a job
     // with no browser open must still be observed.
     assert.equal(broadcaster.clientCount, 0);
-    broadcaster.broadcast(claimEnvelope());
+    broadcaster.broadcast(answerEnvelope());
     assert.equal(tracker.snapshot().attending, true);
   });
 
@@ -159,9 +189,9 @@ describe('WsBroadcaster -> AgentPresenceTracker wiring', () => {
       },
     });
     broadcaster.register(client);
-    broadcaster.broadcast(claimEnvelope('d-3'));
+    broadcaster.broadcast(answerEnvelope('d-3'));
     assert.equal(sent.length, 1);
-    assert.ok(sent[0]?.includes('job.claimed'));
+    assert.ok(sent[0]?.includes('job.completed'));
     assert.equal(tracker.snapshot().attending, true);
   });
 
@@ -191,7 +221,7 @@ describe('WsBroadcaster -> AgentPresenceTracker wiring', () => {
       },
     });
     broadcaster.shutdown();
-    broadcaster.broadcast(claimEnvelope());
+    broadcaster.broadcast(answerEnvelope());
     assert.equal(tracker.snapshot().attending, false);
   });
 });

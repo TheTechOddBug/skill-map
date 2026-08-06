@@ -196,6 +196,22 @@ export interface IAction extends IExtensionBase {
    */
   probExpectedDurationSeconds?: number;
   /**
+   * Declares that this probabilistic Action operates on NO node
+   * (`spec/job-lifecycle.md` §Submit · Nodeless submit). Its prompt asks
+   * nothing about project content, so a submit skips target resolution
+   * AND the on-disk read + drift verification, enqueues against the
+   * synthetic id `sm://<qualified-extension-id>`, and renders without a
+   * `<user-content>` block.
+   *
+   * Narrow by design: it exists for SYSTEM probes whose subject is the
+   * agent, not a file (`core/ai-ping-action`, the liveness probe, is the
+   * only declarer). Binding such a probe to "the first real node" made it
+   * fail whenever that node had been deleted since the last scan, and made
+   * it unrunnable against an empty corpus. NOT an escape hatch for Actions
+   * that do read content. Ignored unless `mode=probabilistic`.
+   */
+  probNodeless?: boolean;
+  /**
    * Declared persistent-write capability. Mirrors the `kind`s this
    * Action's `invoke()` may return in `IActionResult.writes`. Today the
    * only kind is `'sidecar'` (the Action creates / modifies a `.sm`

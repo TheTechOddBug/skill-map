@@ -414,6 +414,42 @@ export interface IProviderMcpConfigSource {
 }
 
 /**
+ * Optional MCP REGISTRATION recipe (see `spec/architecture.md` §Provider · MCP
+ * registration), the write-side mirror of `mcpConfig`: how an operator declares
+ * skill-map's OWN MCP server to this Provider's runtime. Travels verbatim in the
+ * BFF `providerRegistry` so the UI's Copy affordance is driven by the registered
+ * Provider set instead of a client-side catalog; a Provider that declares
+ * nothing falls back to the bare endpoint URL. `{{url}}` is the only
+ * placeholder, substituted by the consumer with the live MCP endpoint. Mirrors
+ * `spec/schemas/extensions/provider.schema.json#/properties/mcpRegister`.
+ */
+export type TProviderMcpRegister =
+  | {
+      /** The runtime ships an `mcp` CLI verb: registration is one shell line. */
+      readonly kind: 'command';
+      readonly command: {
+        /** Shell command carrying `{{url}}` at least once. */
+        readonly template: string;
+      };
+      readonly config?: never;
+    }
+  | {
+      /** No `mcp` verb: registration means saving a JSON document. */
+      readonly kind: 'config';
+      readonly config: {
+        /**
+         * Where the document goes, shown as the paste hint. Display only:
+         * skill-map never writes it, which is why a `~/` target is legitimate
+         * here and leaves the never-read-$HOME invariant untouched.
+         */
+        readonly target: string;
+        /** A COMPLETE config document; `{{url}}` substituted at any depth. */
+        readonly document: Readonly<Record<string, unknown>>;
+      };
+      readonly command?: never;
+    };
+
+/**
  * Phase of one live-activity signal. `start` lights the resolved node;
  * `end` is emitted only for units whose provider runtime has a native
  * terminal event (a Claude subagent's matching `SubagentStop`). Units
@@ -855,6 +891,15 @@ export interface IProvider extends IExtensionBase {
    * this Provider surfaces MCP usage only from the consumer side.
    */
   mcpConfig?: IProviderMcpConfig;
+
+  /**
+   * Optional MCP REGISTRATION recipe (see `TProviderMcpRegister` and
+   * `spec/architecture.md` §Provider · MCP registration): how an operator
+   * declares skill-map's own MCP server to this Provider's runtime, either as a
+   * shell command or as a config document to save. Projected verbatim into the
+   * BFF `providerRegistry`; absent means the UI copies the bare endpoint URL.
+   */
+  mcpRegister?: TProviderMcpRegister;
 
   /**
    * Catalog of node kinds this Provider emits. Populated by the loader

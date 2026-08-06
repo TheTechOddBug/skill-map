@@ -362,13 +362,14 @@ async function submitAgainstNode(
     throw new McpError(ErrorCode.InvalidParams, `Node is virtual (not submittable): ${nodePath}`);
   }
   const outcome = await submitOneJob(adapter, bundle.node, prepared);
-  return mapSubmitOutcome(adapter, outcome, nodePath);
+  return mapSubmitOutcome(adapter, outcome, nodePath, prepared);
 }
 
 async function mapSubmitOutcome(
   adapter: StoragePort,
   outcome: TSubmitOutcome,
   nodePath: string,
+  prepared: ISubmitContext,
 ): Promise<TSubmitJobResult> {
   switch (outcome.kind) {
     case 'created':
@@ -381,6 +382,13 @@ async function mapSubmitOutcome(
       return { outcome: 'unreadable', detail: outcome.detail };
     case 'no-findings':
       return { outcome: 'no-findings' };
+    case 'nodeless-mismatch':
+      // Caller bug: this tool always submits against a node, so a nodeless
+      // extension does not belong here.
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `Extension takes no node (submit it without a target): ${prepared.extensionId}`,
+      );
   }
 }
 

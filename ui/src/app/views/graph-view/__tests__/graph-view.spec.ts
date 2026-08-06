@@ -177,6 +177,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     value: { jobId: 'job-1', nodePath: 'a.md', extensionId: 'x/y', supersededIds: [] },
     elapsedMs: 0,
   }),
+  submitNodelessJob: vi.fn().mockResolvedValue({ value: { jobId: 'j1', nodePath: 'sm://core/ai-ping-action', extensionId: 'core/ai-ping-action', supersededIds: [] } }),
   cancelJob: vi.fn().mockResolvedValue(undefined),
   dismissFinding: vi.fn().mockResolvedValue(undefined),
   reopenFinding: vi.fn().mockResolvedValue(undefined),

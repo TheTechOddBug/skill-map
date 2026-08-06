@@ -79,6 +79,7 @@ import { tx } from '../../kernel/util/tx.js';
 import {
   nodeMatchesPrecondition,
   prepareSubmitContext,
+  submitNodelessJob,
   submitOneJob,
   type ISubmitContext,
   type TPrepareError,
@@ -317,12 +318,21 @@ export class JobSubmitCommand extends SmCommand {
     });
     if (!prep.ok) return this.failPrepare(prep.error);
 
-    const gateExit = this.checkProcessingAgentGate(ctx.cwd);
-    if (gateExit !== null) return gateExit;
+    const preflightExit = this.preflight(prep.prepared, ctx.cwd);
+    if (preflightExit !== null) return preflightExit;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, (adapter) =>
       this.dispatch(adapter, prep.extension, prep.prepared),
     );
+  }
+
+  /**
+   * Post-resolution checks, in refusal order: the target shape (which
+   * depends on the resolved extension, see `validateTarget`), then the
+   * processing-agent gate. Grouped so `run` keeps one seam per phase.
+   */
+  private preflight(prepared: ISubmitContext, cwd: string): TExitCode | null {
+    return this.validateTarget(prepared) ?? this.checkProcessingAgentGate(cwd);
   }
 
   /**
@@ -371,9 +381,30 @@ export class JobSubmitCommand extends SmCommand {
     );
   }
 
-  /** Flag-shape validation (mutual exclusion, target presence). */
+  /**
+   * Flag-shape validation (mutual exclusion). The "a target is required"
+   * leg lives in `validateTarget` instead: whether one is required depends
+   * on the extension, which is not resolved yet at this point (a
+   * `probNodeless` Action takes none).
+   */
   private validateFlags(): TExitCode | null {
     if (this.all && this.node !== undefined) return this.fail(T.submitErrTargetConflict);
+    return null;
+  }
+
+  /**
+   * Target presence, once the extension is known. A NODELESS Action
+   * (`spec/job-lifecycle.md` §Submit · Nodeless submit) takes no target, so
+   * `-n` / `--all` are refused for it rather than silently ignored; every
+   * other extension still requires exactly one.
+   */
+  private validateTarget(prepared: ISubmitContext): TExitCode | null {
+    if (prepared.nodeless) {
+      if (this.all || this.node !== undefined) {
+        return this.fail(tx(T.submitErrNodelessTarget, { extension: this.extension }));
+      }
+      return null;
+    }
     if (!this.all && this.node === undefined) return this.fail(T.submitErrNeedTarget);
     return null;
   }
@@ -427,12 +458,15 @@ export class JobSubmitCommand extends SmCommand {
     }
   }
 
-  /** Route to the single-node or fan-out submit path. */
+  /** Route to the nodeless, single-node, or fan-out submit path. */
   private async dispatch(
     adapter: StoragePort,
     extension: TQueueableExtension,
     prepared: ISubmitContext,
   ): Promise<TExitCode> {
+    if (prepared.nodeless) {
+      return this.reportSingle(adapter, await submitNodelessJob(adapter, prepared), prepared);
+    }
     if (this.all) return this.submitAll(adapter, extension, prepared);
     return this.submitOneTarget(adapter, prepared);
   }
@@ -522,6 +556,12 @@ export class JobSubmitCommand extends SmCommand {
           node: sanitizeForTerminal(outcome.nodeId),
         }),
       );
+    }
+    // Caller bug (a nodeless extension routed through the per-node path or
+    // vice versa), never an operator condition: fail loudly instead of
+    // pretending a job was queued.
+    if (outcome.kind === 'nodeless-mismatch') {
+      return this.fail(tx(T.submitErrNodelessTarget, { extension: this.extension }));
     }
     // Live-transition push (spec/job-events.md §Transport / §job.submitted):
     // best-effort hint to the project's running server, AFTER the submit

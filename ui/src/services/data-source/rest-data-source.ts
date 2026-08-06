@@ -629,6 +629,19 @@ export class RestDataSource implements IDataSourcePort {
   }
 
   /**
+   * `POST /api/jobs`, enqueue a nodeless probabilistic Action (one that
+   * declares `probNodeless`, so it takes no target). Same envelope and the
+   * same `DataSourceError` propagation as `submitNodeJob`.
+   */
+  async submitNodelessJob(extensionId: string): Promise<IJobSubmittedEnvelopeApi> {
+    return this.patchJson<IJobSubmittedEnvelopeApi>(
+      `${BASE}/jobs`,
+      { extension: extensionId },
+      'POST',
+    );
+  }
+
+  /**
    * `GET /api/jobs`, the queue projection for the workspace queue
    * inspector. Returns the registry-less `kind: 'jobs'` envelope's
    * `items`; any 4xx/5xx propagates as `DataSourceError` (via

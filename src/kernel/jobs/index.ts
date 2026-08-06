@@ -12,6 +12,11 @@ export {
 } from './content-hash.js';
 export { loadCanonicalPreamble } from './preamble.js';
 export {
+  isNodelessTargetId,
+  nodelessTarget,
+  nodelessTargetId,
+} from './nodeless-target.js';
+export {
   renderJobContent,
   wrapUserContent,
   unescapeUserContentClose,

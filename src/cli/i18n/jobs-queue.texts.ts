@@ -7,6 +7,12 @@
 export const JOBS_QUEUE_TEXTS = {
   // --- submit: operational errors ----------------------------------------
   submitErrPrefix: '{{glyph}}  sm jobs submit: {{message}}\n',
+  /**
+   * `-n` / `--all` passed for a NODELESS extension (`probNodeless`): it
+   * takes no target at all, so the flag is refused rather than ignored.
+   */
+  submitErrNodelessTarget:
+    'extension {{extension}} takes no node; submit it without -n / --all',
   submitErrNeedTarget: 'pass -n <node.path> or --all',
   submitErrTargetConflict: '-n and --all are mutually exclusive',
   submitErrExtensionNotFound: 'extension {{extension}} not found',

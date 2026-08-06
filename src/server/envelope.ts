@@ -28,7 +28,7 @@
  * shape, so a versioned migration buys nothing.
  */
 
-import type { TProviderKindIcon } from '../kernel/extensions/index.js';
+import type { TProviderKindIcon, TProviderMcpRegister } from '../kernel/extensions/index.js';
 
 export const REST_ENVELOPE_SCHEMA_VERSION = '1';
 
@@ -177,6 +177,14 @@ export interface IProviderRegistryEntry {
    * with no invocation channel (`agent-skills`, `markdown`).
    */
   invocationSigil?: string;
+  /**
+   * How an operator registers skill-map's MCP server with this lens's runtime,
+   * projected VERBATIM from the Provider's `mcpRegister` block (a shell command
+   * or a config document, `{{url}}` standing in for the live endpoint). On the
+   * wire so the Copy affordance reads the registered Provider set instead of a
+   * client-side catalog; absent means the UI copies the endpoint URL alone.
+   */
+  mcpRegister?: TProviderMcpRegister;
 }
 
 /**

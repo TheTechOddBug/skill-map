@@ -13,11 +13,13 @@
  * operator either, paste the snippet where it belongs (config-flavour
  * lenses) and restart the agent so it picks the server up at boot.
  *
- * The payload is NOT built here: it comes from the shared per-lens
- * catalog `mcpRegisterSnippet()` in `i18n/quick-start.texts.ts`, the
- * same one the Quick Start modal's MCP row uses, joined with the live
- * endpoint reported by `GET /api/mcp/status`. One catalog, two surfaces,
- * so a lens whose registration flavour changes is edited once.
+ * The payload is NOT built here: the recipe is DATA, declared by the
+ * Provider itself (`mcpRegister`) and delivered in the envelope
+ * `providerRegistry`; the shared renderer `mcpRegisterSnippet()` in
+ * `i18n/quick-start.texts.ts` joins it with the live endpoint reported by
+ * `GET /api/mcp/status`. One renderer, two surfaces (the Quick Start
+ * modal's MCP row uses the same one), and a lens whose registration
+ * flavour changes is edited in its own manifest.
  *
  * Lens coupling mirrors the skill sibling: the chassis feeds `lensId`
  * from the lens child's envelope (threaded through the preferences
@@ -89,9 +91,11 @@ export class SettingsProjectMcp {
   );
 
   /** What Copy hands over for the active lens, joined with the live endpoint. */
-  protected readonly snippet = computed<IMcpRegisterSnippet>(() =>
-    mcpRegisterSnippet(this.lensId(), this.resolvedUrl()),
-  );
+  protected readonly snippet = computed<IMcpRegisterSnippet>(() => {
+    const lens = this.lensId();
+    const register = lens ? this.registry.lookup(lens)?.mcpRegister : undefined;
+    return mcpRegisterSnippet(register, this.resolvedUrl());
+  });
 
   protected readonly copyLabel = computed<string>(() => {
     const t = this.texts.project.mcpRegister;

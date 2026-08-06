@@ -20,15 +20,19 @@
  *   - no project DB on disk (`tryWithSqlite` short-circuits);
  *   - the submit target does not resolve (e.g. `--no-built-ins`-style
  *     composition where the locked system Action is absent);
- *   - no REAL (non-virtual) node to aim at, the submit engine reads the
- *     target's body from disk so an `mcp://` node cannot be a target
- *     (same rule the Quick Start ping applies: first real node wins);
  *   - any thrown error, swallowed.
  *
+ * The probe takes NO node: `core/ai-ping-action` declares `probNodeless`
+ * (`spec/job-lifecycle.md` §Submit · Nodeless submit), so the job runs
+ * against the synthetic `sm://core/ai-ping-action` target. It used to aim
+ * at "the first real node", which made a probe about the AGENT depend on
+ * the state of an arbitrary file: one deleted since the last scan sank the
+ * whole thing, and a corpus with nothing scanned yet had no target at all.
+ *
  * The job is submitted through the SHARED submit engine
- * (`prepareSubmitContext` + `submitOneJob`) exactly like every other
- * submit surface, so it inherits the duplicate / drift / render rules
- * instead of re-implementing them. It is NOT broadcast and it is not
+ * (`prepareSubmitContext` + `submitNodelessJob`) exactly like every other
+ * submit surface, so it inherits the duplicate / render rules instead of
+ * re-implementing them. It is NOT broadcast and it is not
  * visible in the UI queue (`GET /api/jobs` strips host-locked system
  * extensions), so it adds no user-visible noise.
  *
@@ -42,12 +46,11 @@ import { ConfigService } from '../core/config/service.js';
 import { processingSkillPresence } from '../core/agent-skill/targets.js';
 import { buildActionRuntime } from '../core/jobs/action-runtime.js';
 import { appendOperation } from '../core/operations-log.js';
-import { prepareSubmitContext, submitOneJob } from '../core/jobs/submit-engine.js';
+import { prepareSubmitContext, submitNodelessJob } from '../core/jobs/submit-engine.js';
 import type { ISubmitContext } from '../core/jobs/submit-engine.js';
 import type { IPluginRuntime } from '../core/runtime/plugin-runtime.js';
 import { tryWithSqlite } from '../core/sqlite/with-sqlite.js';
 import type { StoragePort } from '../kernel/ports/storage.js';
-import type { Node } from '../kernel/types.js';
 
 /** Qualified id of the hidden system liveness-probe Action. */
 export const PING_EXTENSION_ID = 'core/ai-ping-action';
@@ -59,15 +62,6 @@ export const PING_EXTENSION_ID = 'core/ai-ping-action';
  * nobody drains does not keep a stale row.
  */
 export const BOOT_PING_TIMEOUT_MS = 15_000;
-
-/**
- * Window of path-ordered nodes scanned for a real (non-virtual) target.
- * Bounded on purpose: the ping is best-effort infrastructure and must not
- * hydrate a whole corpus at boot. Virtual nodes carry scheme-ish paths
- * (`mcp://...`) that sort after ordinary project paths, so the first
- * page realistically always contains a real node when one exists.
- */
-const TARGET_WINDOW = 100;
 
 export interface IBootPingDeps {
   /** Absolute project DB path (`IServerOptions.dbPath`). */
@@ -215,39 +209,25 @@ interface IPingSubmission {
 }
 
 /**
- * Run the shared submit engine against the first real node. A
- * `duplicate` outcome adopts the covering job instead of giving up: it is
- * almost always a previous boot's ping that nobody claimed, and adopting
- * it means this boot's cleanup timer clears it (if it is `running`
- * instead, an agent is demonstrably attending and the cleanup leaves it
- * alone). Any other refusal (drift, unreadable, no-findings) yields
+ * Run the shared nodeless submit. A `duplicate` outcome adopts the
+ * covering job instead of giving up: it is almost always a previous boot's
+ * ping that nobody claimed, and adopting it means this boot's cleanup
+ * timer clears it (if it is `running` instead, an agent is demonstrably
+ * attending and the cleanup leaves it alone). Any other refusal yields
  * `null`.
  */
 async function submitPing(
   adapter: StoragePort,
   prepared: ISubmitContext,
 ): Promise<IPingSubmission | null> {
-  const target = await firstRealNode(adapter);
-  if (target === null) return null;
-  const outcome = await submitOneJob(adapter, target, prepared);
+  const outcome = await submitNodelessJob(adapter, prepared);
   if (outcome.kind === 'created') {
-    return { id: outcome.id, nodePath: target.path, created: true };
+    return { id: outcome.id, nodePath: outcome.nodeId, created: true };
   }
   if (outcome.kind === 'duplicate') {
-    return { id: outcome.existingId, nodePath: target.path, created: false };
+    return { id: outcome.existingId, nodePath: outcome.nodeId, created: false };
   }
   return null;
-}
-
-/**
- * The first REAL node of the corpus (path order), the same rule the Quick
- * Start ping applies: the submit engine re-reads the target's body from
- * disk, so a virtual node (`mcp://...`, extractor-derived) can never be a
- * target. `null` when the scanned corpus has none (or is empty).
- */
-async function firstRealNode(adapter: StoragePort): Promise<Node | null> {
-  const nodes = await adapter.scans.findNodes({ limit: TARGET_WINDOW });
-  return nodes.find((node) => node.virtual !== true) ?? null;
 }
 
 /**

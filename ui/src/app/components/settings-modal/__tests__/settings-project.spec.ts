@@ -1574,9 +1574,31 @@ describe('SettingsProjectMcp registration row', () => {
       ],
     });
     const registry = TestBed.inject(ProviderRegistryService);
+    // The registration recipe rides the registry (each Provider declares its
+    // own `mcpRegister`), so the row is exercised through the same wire shape
+    // the BFF sends, not through a catalog the UI keeps.
     registry.ingest({
-      claude: { label: "Anthropic's Claude", color: '#d97757' },
-      antigravity: { label: "Google's Antigravity", color: '#4285f4' },
+      claude: {
+        label: "Anthropic's Claude",
+        color: '#d97757',
+        mcpRegister: {
+          kind: 'command',
+          command: { template: 'claude mcp add --transport http --scope local skill-map {{url}}' },
+        },
+      },
+      antigravity: {
+        label: "Google's Antigravity",
+        color: '#4285f4',
+        mcpRegister: {
+          kind: 'config',
+          config: {
+            target: '~/.gemini/config/mcp_config.json',
+            document: { mcpServers: { 'skill-map': { serverUrl: '{{url}}' } } },
+          },
+        },
+      },
+      // Declares no recipe: the row falls back to the bare endpoint.
+      'agent-skills': { label: 'Agent Skills', color: '#333333' },
     } as unknown as IProviderRegistryApi);
     const fixture = TestBed.createComponent(SettingsProjectMcp);
     fixture.componentRef.setInput('visible', false);
@@ -1627,6 +1649,15 @@ describe('SettingsProjectMcp registration row', () => {
     expect(
       el.querySelector('[data-testid="settings-project-mcp-register-hint"]')?.textContent,
     ).toContain('~/.gemini/config/mcp_config.json');
+  });
+
+  it('falls back to the bare endpoint for a lens that declares no recipe', () => {
+    const fixture = createMcp('agent-skills');
+    const el: HTMLElement = fixture.nativeElement;
+    const snippet = el.querySelector('[data-testid="settings-project-mcp-register-snippet"]');
+    // No command, no document: just the URL every MCP client accepts.
+    expect(snippet?.textContent?.trim()).toBe(`${document.location.origin}/mcp`);
+    expect(el.querySelector('[data-testid="settings-project-mcp-register-hint"]')).toBeNull();
   });
 
   it('holds the restart hint back until the snippet was actually copied', async () => {

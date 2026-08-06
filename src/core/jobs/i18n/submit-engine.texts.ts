@@ -19,4 +19,12 @@ export const SUBMIT_ENGINE_TEXTS = {
    * submit, or no longer parseable as a node).
    */
   submitReadNotOnDisk: 'file missing or not readable as a node',
+  /**
+   * `detail` when the submit path and the target disagree about nodes: a
+   * `probNodeless` Action routed through the per-node submit, or a
+   * node-taking extension through the nodeless one. A caller bug (the two
+   * paths are picked from the prepared context), never an operator state.
+   */
+  submitErrNodelessMismatch:
+    'extension node expectation does not match the submit path used',
 };

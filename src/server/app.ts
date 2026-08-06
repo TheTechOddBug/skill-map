@@ -102,7 +102,7 @@ import { registerNodeFindingActionsRoutes } from './routes/node-finding-actions.
 import { registerNodeIssueActionsRoutes } from './routes/node-issue-actions.js';
 import { registerNodeFindingsRoute } from './routes/node-findings.js';
 import { registerNodeSummaryRoute } from './routes/node-summary.js';
-import { registerNodeJobsRoute } from './routes/node-jobs.js';
+import { registerNodeJobsRoute, registerNodelessJobsRoute } from './routes/node-jobs.js';
 import { registerNodeProbExtensionsRoute } from './routes/node-prob-extensions.js';
 import { registerNodesRoutes } from './routes/nodes.js';
 import { registerPluginsRoute } from './routes/plugins.js';
@@ -711,6 +711,7 @@ export function createApp(deps: IAppDeps): Hono {
   registerNodeIssueActionsRoutes(app, routeDeps);
   registerNodeProbExtensionsRoute(app, routeDeps);
   registerNodeJobsRoute(app, { ...routeDeps, broadcaster: deps.broadcaster });
+  registerNodelessJobsRoute(app, { ...routeDeps, broadcaster: deps.broadcaster });
   registerJobCancelRoute(app, {
     options: routeDeps.options,
     broadcaster: deps.broadcaster,

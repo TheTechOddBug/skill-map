@@ -103,7 +103,7 @@ const TOGGLE_ROW_TEXTS = {
 } as const;
 
 /** Liveness-probe state machine for the "Agent attending jobs" row. */
-type TPingState = 'idle' | 'checking' | 'alive' | 'no-agent' | 'no-node' | 'error';
+type TPingState = 'idle' | 'checking' | 'alive' | 'no-agent' | 'no-answer' | 'error';
 
 /** Left-rail groups (parents) of the two-pane layout. */
 type TQuickStartGroup = 'live' | 'realtime' | 'ai';
@@ -656,10 +656,18 @@ export class QuickStartModal {
     () => this.mcpUrl() ?? `${this.document.location.origin}/mcp`,
   );
 
-  /** What Copy hands over for the active lens, joined with the live endpoint. */
-  protected readonly mcpSnippet = computed<IMcpRegisterSnippet>(() =>
-    mcpRegisterSnippet(this.activeProvider(), this.resolvedMcpUrl()),
-  );
+  /**
+   * What Copy hands over for the active lens, joined with the live endpoint.
+   * The recipe is the Provider's own `mcpRegister` block as it arrives in the
+   * envelope `providerRegistry`, so a lens the UI never heard of (a
+   * project-local drop-in Provider) still yields a real setup line instead of
+   * the bare-URL fallback.
+   */
+  protected readonly mcpSnippet = computed<IMcpRegisterSnippet>(() => {
+    const active = this.activeProvider();
+    const register = active ? this.providerRegistry.lookup(active)?.mcpRegister : undefined;
+    return mcpRegisterSnippet(register, this.resolvedMcpUrl());
+  });
 
   protected readonly mcpInstalledStatus = computed<TQuickStartStatus>(() => {
     if (this.mcpChecking()) return 'unknown';
@@ -829,7 +837,7 @@ export class QuickStartModal {
       case 'alive':
         return 'ready';
       case 'no-agent':
-      case 'no-node':
+      case 'no-answer':
       case 'error':
         return 'not-ready';
       default:
@@ -838,15 +846,19 @@ export class QuickStartModal {
   });
 
   protected readonly agentJobsStatusText = computed<string>(() => {
-    if (this.isPending('ping')) return this.texts.status.checking;
+    // Mid-check: distinguish "still asking" from "somebody took it and is
+    // working on it", instead of calling the claim a verdict.
+    if (this.isPending('ping')) {
+      return this.agentPing.claimed() ? this.texts.status.working : this.texts.status.checking;
+    }
     if (!this.skillInstalled()) return this.texts.status.needsSkill;
     switch (this.pingState()) {
       case 'alive':
         return this.texts.status.attending;
       case 'no-agent':
         return this.texts.status.noAgent;
-      case 'no-node':
-        return this.texts.status.noNodeToProbe;
+      case 'no-answer':
+        return this.texts.status.noAnswer;
       default:
         return this.texts.status.unknown;
     }
@@ -904,7 +916,11 @@ export class QuickStartModal {
       return;
     }
     this.pingState.set(
-      result.verdict === 'alive' ? 'alive' : result.verdict === 'no-node' ? 'no-node' : 'no-agent',
+      result.verdict === 'alive'
+        ? 'alive'
+        : result.verdict === 'no-answer'
+          ? 'no-answer'
+          : 'no-agent',
     );
   }
 

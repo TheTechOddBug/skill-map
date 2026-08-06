@@ -162,6 +162,19 @@ export const antigravityProvider: IBuiltInManifest<IProvider> = {
   // Implementation + per-event rationale in the sibling `activity.ts`.
   activity: antigravityActivity,
 
+  // No command flavour on purpose: the Antigravity CLI (`agy`) exposes no
+  // `mcp` subcommand, and its MCP config is home-global
+  // (`~/.gemini/config/mcp_config.json`, key `serverUrl`) with no project-local
+  // counterpart, which is also why there is no `mcpConfig` read side here.
+  // Editing that file by hand is the only way in.
+  mcpRegister: {
+    kind: 'config',
+    config: {
+      target: '~/.gemini/config/mcp_config.json',
+      document: { mcpServers: { 'skill-map': { serverUrl: '{{url}}' } } },
+    },
+  },
+
   // Vendor provider: Antigravity declares its own `workflow` kind
   // (`.agent/workflows/*.md`) on top of the open-standard skills it adopts.
   // Gating the classifier behind the active lens keeps the walker from

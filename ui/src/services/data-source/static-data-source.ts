@@ -896,6 +896,13 @@ export class StaticDataSource implements IDataSourcePort {
     );
   }
 
+  async submitNodelessJob(_extensionId: string): Promise<IJobSubmittedEnvelopeApi> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Job submission is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
   async cancelJob(_jobId: string): Promise<void> {
     throw new DataSourceError(
       'demo-readonly',

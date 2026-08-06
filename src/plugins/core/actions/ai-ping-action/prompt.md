@@ -1,6 +1,6 @@
 This is an automated liveness check. It only confirms that an agent is
 processing the job queue; it requires NO analysis and NO edits of any kind.
-Ignore the file content below, it is just a placeholder target for this probe.
+This job targets no file and carries no content to read.
 
 {{userContent}}
 

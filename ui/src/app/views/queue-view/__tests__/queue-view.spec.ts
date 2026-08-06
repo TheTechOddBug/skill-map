@@ -47,6 +47,7 @@ interface IStubDataSource {
   listJobs: ReturnType<typeof vi.fn>;
   cancelJob: ReturnType<typeof vi.fn>;
   submitNodeJob: ReturnType<typeof vi.fn>;
+  submitNodelessJob: ReturnType<typeof vi.fn>;
   cancelAllJobs: ReturnType<typeof vi.fn>;
   pruneJobs: ReturnType<typeof vi.fn>;
 }
@@ -56,6 +57,7 @@ function makeDataSource(jobs: IJobApi[] = []): IStubDataSource {
     listJobs: vi.fn().mockResolvedValue(jobs),
     cancelJob: vi.fn().mockResolvedValue(undefined),
     submitNodeJob: vi.fn().mockResolvedValue({ value: {} }),
+    submitNodelessJob: vi.fn().mockResolvedValue({ value: { jobId: 'j1', nodePath: 'sm://core/ai-ping-action', extensionId: 'core/ai-ping-action', supersededIds: [] } }),
     cancelAllJobs: vi.fn().mockResolvedValue(undefined),
     pruneJobs: vi.fn().mockResolvedValue(undefined),
   };

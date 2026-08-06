@@ -90,7 +90,7 @@ describe('boot ping', () => {
     assert.equal(jobId, null);
   });
 
-  it('queues ONE hidden ping job against the first real node', async () => {
+  it('queues ONE hidden ping job against the synthetic target', async () => {
     const project = await pingableProject();
     const jobId = await runBootPing(depsFor(project));
     assert.ok(jobId !== null);
@@ -98,7 +98,11 @@ describe('boot ping', () => {
     assert.equal(jobs.length, 1);
     assert.equal(jobs[0]?.id, jobId);
     assert.equal(jobs[0]?.extensionId, PING_EXTENSION_ID);
-    assert.equal(jobs[0]?.nodeId, SKILL_NODE.path);
+    // NOT a project file: the probe asks whether an agent is draining the
+    // queue, so it takes no node (`probNodeless`) and never touches the
+    // corpus. The scanned skill is left alone.
+    assert.equal(jobs[0]?.nodeId, `sm://${PING_EXTENSION_ID}`);
+    assert.notEqual(jobs[0]?.nodeId, SKILL_NODE.path);
     assert.equal(jobs[0]?.status, 'queued');
   });
 
@@ -125,13 +129,21 @@ describe('boot ping', () => {
     if (first !== second) assert.equal(prior?.status, 'cancelled');
   });
 
-  it('skips a corpus with no real node to aim at', async () => {
+  /**
+   * The regression this rewrite is about. A corpus with nothing real in it
+   * (a fresh project, or one whose only nodes are virtual) used to leave
+   * the probe with nothing to aim at, so it silently did not run and the
+   * presence question could not be answered at all. Nodeless, it runs.
+   */
+  it('pings a corpus with no real node in it', async () => {
     const project = await pingableProject([
       { path: 'mcp://demo', kind: 'mcp', provider: 'claude', virtual: true },
     ]);
-    assert.equal(await runBootPing(depsFor(project)), null);
+    const jobId = await runBootPing(depsFor(project));
+    assert.ok(jobId !== null);
     const jobs = await withProjectDb(project, (adapter) => adapter.jobs.list({}));
-    assert.equal(jobs.length, 0);
+    assert.equal(jobs.length, 1);
+    assert.equal(jobs[0]?.nodeId, `sm://${PING_EXTENSION_ID}`);
   });
 
   it('cancels the ping when it is still queued after the window', async () => {

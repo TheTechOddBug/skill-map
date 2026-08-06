@@ -671,6 +671,10 @@ export const SERVER_TEXTS = {
 
   // Node-side refusals.
   jobsNodeVirtual: 'node {{node}} is virtual (no backing file to render)',
+  jobsNotNodeless:
+    'extension {{extension}} operates on a node; submit it against one (POST /api/nodes/:pathB64/jobs)',
+  jobsIsNodeless:
+    'extension {{extension}} takes no node; submit it without a target (POST /api/jobs)',
   jobsNodeDrifted:
     'node {{node}} changed on disk since the last scan; run sm scan and resubmit',
   jobsNodeUnreadable:

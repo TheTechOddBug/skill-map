@@ -9,6 +9,7 @@ import {
   type TQuickStartStatus,
 } from '../../../../i18n/quick-start.texts';
 import { WsEventStreamService } from '../../../../services/ws-event-stream';
+import { ProviderRegistryService } from '../../../../services/provider-registry';
 import { ActivityReadinessService } from '../../../services/activity-readiness';
 import { ProjectInfoService } from '../../../services/project-info';
 import { SKILL_MAP_MODE } from '../../../../services/data-source/runtime-mode';
@@ -21,6 +22,7 @@ import type {
   IHealthResponseApi,
   IMcpStatusApi,
   IProjectPreferencesApi,
+  IProviderRegistryApi,
 } from '../../../../models/api';
 
 /**
@@ -419,18 +421,39 @@ describe('QuickStartModal, MCP connection check', () => {
   });
 });
 
+/**
+ * The MCP register snippet. The RECIPE is the Provider's own `mcpRegister`
+ * block, delivered in the envelope `providerRegistry` (which built-in
+ * declares which recipe is asserted in `src/`, against the manifests
+ * themselves); what the modal owes is the rendering: `{{url}}` resolved
+ * against the LIVE endpoint, the right Copy affordance per flavour, and a
+ * usable fallback for a lens that declares nothing, including a
+ * project-local drop-in Provider this build never heard of.
+ */
 describe('QuickStartModal, MCP register snippet', () => {
-  function bootstrapLens(providerId: string): ISetup {
-    return bootstrap({
+  function bootstrapLens(providerId: string, register?: unknown): ISetup {
+    const setup = bootstrap({
       getProjectPreferences: vi.fn().mockResolvedValue(prefs()),
       getActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
       mcpStatus: vi.fn().mockResolvedValue(mcpStatus()),
       ...activeProviderStub(providerId),
     } as Partial<IDataSourcePort>);
+    TestBed.inject(ProviderRegistryService).ingest({
+      [providerId]: {
+        label: providerId,
+        color: '#000000',
+        isLens: true,
+        ...(register === undefined ? {} : { mcpRegister: register }),
+      },
+    } as unknown as IProviderRegistryApi);
+    return setup;
   }
 
-  it('builds the claude command from the server URL, never the page origin', async () => {
-    const setup = bootstrapLens('claude');
+  it('renders a command recipe against the server URL, never the page origin', async () => {
+    const setup = bootstrapLens('claude', {
+      kind: 'command',
+      command: { template: 'claude mcp add --transport http --scope local skill-map {{url}}' },
+    });
 
     open(setup);
     await useLens('claude');
@@ -445,21 +468,14 @@ describe('QuickStartModal, MCP register snippet', () => {
     expect(setup.probe.mcpCopyLabel()).toBe(QUICK_START_TEXTS.action.copyCommand);
   });
 
-  it('builds the codex command with --url from the server URL', async () => {
-    const setup = bootstrapLens('codex');
-
-    open(setup);
-    await useLens('codex');
-    await flushAsync();
-
-    const snippet = setup.probe.mcpSnippet();
-    expect(snippet.kind).toBe('command');
-    expect(snippet.payload).toBe(`codex mcp add skill-map --url ${MCP_URL}`);
-    expect(snippet.payload).not.toContain(document.location.origin);
-  });
-
-  it('gives antigravity a full serverUrl document aimed at the home-global file', async () => {
-    const setup = bootstrapLens('antigravity');
+  it('renders a config recipe as a complete document plus its paste target', async () => {
+    const setup = bootstrapLens('antigravity', {
+      kind: 'config',
+      config: {
+        target: '~/.gemini/config/mcp_config.json',
+        document: { mcpServers: { 'skill-map': { serverUrl: '{{url}}' } } },
+      },
+    });
 
     open(setup);
     await useLens('antigravity');
@@ -490,8 +506,17 @@ describe('QuickStartModal, MCP register snippet', () => {
     expect(setup.probe.mcpInstalledMetaTone()).toBe('warn');
   });
 
-  it('gives opencode a full remote-type document for its personal global config', async () => {
-    const setup = bootstrapLens('opencode');
+  it('substitutes the live endpoint everywhere it appears in the document', async () => {
+    const setup = bootstrapLens('opencode', {
+      kind: 'config',
+      config: {
+        target: '~/.config/opencode/opencode.json',
+        document: {
+          $schema: 'https://opencode.ai/config.json',
+          mcp: { 'skill-map': { type: 'remote', url: '{{url}}', enabled: true } },
+        },
+      },
+    });
 
     open(setup);
     await useLens('opencode');
@@ -499,16 +524,31 @@ describe('QuickStartModal, MCP register snippet', () => {
 
     const snippet = setup.probe.mcpSnippet();
     expect(snippet.kind).toBe('config');
-    // The GLOBAL config, not the project `opencode.json`: OpenCode's docs
-    // call that one safe to commit, so it is the team's file and a
-    // per-developer tool has no business writing itself into it.
     expect(snippet.target).toBe('~/.config/opencode/opencode.json');
-    expect(snippet.payload).toContain('"type": "remote"');
+    // The placeholder sits at depth, not at the document root.
+    expect(snippet.payload).not.toContain('{{url}}');
     expect(JSON.parse(snippet.payload)).toEqual({
       $schema: 'https://opencode.ai/config.json',
       mcp: { 'skill-map': { type: 'remote', url: MCP_URL, enabled: true } },
     });
     expect(setup.probe.mcpCopyLabel()).toBe(QUICK_START_TEXTS.action.copyConfig);
+  });
+
+  it('falls back to the bare endpoint for a lens that declares no recipe', async () => {
+    // A project-local drop-in Provider the shipped build never heard of: it
+    // used to hit a closed catalog keyed by provider id and silently get the
+    // URL alone even when its runtime had a perfectly good setup line.
+    const setup = bootstrapLens('some-drop-in-lens');
+
+    open(setup);
+    await useLens('some-drop-in-lens');
+    await flushAsync();
+
+    const snippet = setup.probe.mcpSnippet();
+    expect(snippet.payload).toBe(MCP_URL);
+    expect(snippet.target).toBeUndefined();
+    // No paste target to name, so the row shows no hint line at all.
+    expect(setup.probe.mcpInstalledMeta()).toBeNull();
   });
 
   it('falls back to the bare endpoint (no --mcp flag talk) on an unknown lens', async () => {

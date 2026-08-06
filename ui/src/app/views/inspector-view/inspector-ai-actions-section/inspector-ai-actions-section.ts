@@ -147,7 +147,9 @@ export class InspectorAiActionsSection {
     this.agentCheckState.set('checking');
     // The skill probe rides along so a stale read refreshes too, but
     // the VERDICT is the ping's: the full circuit, submit through an
-    // observed claim, is the only proof an agent is really attending.
+    // observed ANSWER (`job.completed` / `job.failed`), is the only proof
+    // an agent is really attending. A claim alone is a receipt: the agent
+    // has the work, it has not done it.
     void this.processingAgent.refresh();
     void this.agentPing.check().then((result) => {
       if (result.verdict === 'abandoned') {

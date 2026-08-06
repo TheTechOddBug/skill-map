@@ -359,8 +359,9 @@ export const SETTINGS_TEXTS = {
      * MCP registration row, sibling of the skill install above (same
      * area, same lens coupling): the skill teaches the agent what to do,
      * this hands over what the agent needs to reach skill-map. The
-     * payload comes from the shared per-lens catalog in
-     * `quick-start.texts.ts` (`mcpRegisterSnippet`), so the Quick Start
+     * payload comes from the shared renderer in `quick-start.texts.ts`
+     * (`mcpRegisterSnippet`) fed with the active Provider's own
+     * `mcpRegister` recipe off the envelope registry, so the Quick Start
      * modal and this row can never drift apart, joined with the live
      * endpoint from `GET /api/mcp/status`.
      *

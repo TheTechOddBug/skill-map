@@ -7,6 +7,10 @@ import type {
   IProviderReadConfig,
   IProviderUi,
 } from '../../kernel/extensions/index.js';
+import { claudeProvider } from '../../plugins/claude/providers/claude/index.js';
+import { codexProvider } from '../../plugins/codex/providers/codex/index.js';
+import { antigravityProvider } from '../../plugins/antigravity/providers/antigravity/index.js';
+import { opencodeProvider } from '../../plugins/opencode/providers/opencode/index.js';
 
 /**
  * Minimal IProvider shaped for the providerRegistry tests. `gated` drives
@@ -151,7 +155,96 @@ describe('buildProviderRegistry', () => {
     });
   });
 
+  it('projects the mcpRegister recipe verbatim when the provider declares one', () => {
+    const claude = fakeProvider('claude', { label: 'Claude', color: '#cc785c' }, true);
+    const recipe = {
+      kind: 'command' as const,
+      command: { template: 'claude mcp add --transport http --scope local skill-map {{url}}' },
+    };
+    const registry = buildProviderRegistry([{ ...claude, mcpRegister: recipe }]);
+    deepStrictEqual(registry, {
+      claude: { label: 'Claude', color: '#cc785c', isLens: true, mcpRegister: recipe },
+    });
+  });
+
+  it('omits mcpRegister when the provider declares none', () => {
+    const base = fakeProvider('markdown', { label: 'Markdown', color: '#64748b' });
+    const registry = buildProviderRegistry([base]);
+    deepStrictEqual(registry, {
+      markdown: { label: 'Markdown', color: '#64748b', isLens: false },
+    });
+  });
+
   it('returns an empty registry for no providers', () => {
     deepStrictEqual(buildProviderRegistry([]), {});
+  });
+});
+
+/**
+ * The recipes themselves. They used to live in a closed `Record` inside the
+ * UI keyed by provider id, which silently downgraded every lens outside that
+ * list (any project-local drop-in Provider) to the bare-URL fallback. They
+ * are Provider data now, so this is where they are pinned: the exact text an
+ * operator copies, per built-in lens.
+ */
+describe('built-in MCP registration recipes', () => {
+  it('claude registers through its own mcp verb, scoped local', () => {
+    // `--scope local` on purpose: skill-map is a per-developer tool, so the
+    // server stays out of the committed `.mcp.json` the lens READS.
+    deepStrictEqual(claudeProvider.mcpRegister, {
+      kind: 'command',
+      command: { template: 'claude mcp add --transport http --scope local skill-map {{url}}' },
+    });
+  });
+
+  it('codex registers through its mcp verb with --url', () => {
+    deepStrictEqual(codexProvider.mcpRegister, {
+      kind: 'command',
+      command: { template: 'codex mcp add skill-map --url {{url}}' },
+    });
+  });
+
+  it('antigravity hands over a document for its home-global config', () => {
+    // The `agy` CLI has no `mcp` subcommand and the config is home-global,
+    // so hand-editing that file is the only way in.
+    deepStrictEqual(antigravityProvider.mcpRegister, {
+      kind: 'config',
+      config: {
+        target: '~/.gemini/config/mcp_config.json',
+        document: { mcpServers: { 'skill-map': { serverUrl: '{{url}}' } } },
+      },
+    });
+  });
+
+  it('opencode hands over a document for the operator GLOBAL config', () => {
+    // Not the project `opencode.json` the lens reads: OpenCode's docs call
+    // that one safe to commit, so it is the team's file.
+    deepStrictEqual(opencodeProvider.mcpRegister, {
+      kind: 'config',
+      config: {
+        target: '~/.config/opencode/opencode.json',
+        document: {
+          $schema: 'https://opencode.ai/config.json',
+          mcp: { 'skill-map': { type: 'remote', url: '{{url}}', enabled: true } },
+        },
+      },
+    });
+  });
+
+  it('every declared recipe carries the {{url}} placeholder', () => {
+    for (const provider of [
+      claudeProvider,
+      codexProvider,
+      antigravityProvider,
+      opencodeProvider,
+    ]) {
+      const register = provider.mcpRegister;
+      const text =
+        register?.kind === 'command'
+          ? register.command.template
+          : JSON.stringify(register?.config.document ?? {});
+      // A recipe without it would copy a setup line pointing nowhere.
+      deepStrictEqual(text.includes('{{url}}'), true, `${provider.id} has no {{url}}`);
+    }
   });
 });

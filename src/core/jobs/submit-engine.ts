@@ -47,6 +47,7 @@ import {
   InvalidTtlError,
   isTagsReportSchema,
   loadCanonicalPreamble,
+  nodelessTarget,
   buildReportContract,
   renderJobContent,
   resolvePriority,
@@ -261,7 +262,13 @@ export type TSubmitOutcome =
    * stale (exit 2 single-target, per-node non-fatal in `--all`);
    * `spec/job-lifecycle.md` §Findings injection for fixers.
    */
-  | { kind: 'no-findings'; nodeId: string };
+  | { kind: 'no-findings'; nodeId: string }
+  /**
+   * The submit path and the target disagree about nodes: a nodeless Action
+   * submitted through `submitOneJob`, or a node-taking extension through
+   * `submitNodelessJob`. A caller bug, never an operator condition.
+   */
+  | { kind: 'nodeless-mismatch'; nodeId: string };
 
 export interface ISubmitContext {
   extensionId: string;
@@ -337,6 +344,14 @@ export interface ISubmitContext {
   force: boolean;
   /** Composed Providers; the drift verification re-reads bodies through them. */
   providers: readonly IProvider[];
+  /**
+   * The target Action declares `probNodeless` (`spec/job-lifecycle.md`
+   * §Submit · Nodeless submit): it has no node, so the submit runs through
+   * `submitNodelessJob` against a synthetic target instead of taking one.
+   * `submitOneJob` refuses such an extension, and vice versa, so a surface
+   * cannot silently pick the wrong path.
+   */
+  nodeless: boolean;
 }
 
 /**
@@ -615,6 +630,9 @@ export async function submitOneJob(
   node: Node,
   prepared: ISubmitContext,
 ): Promise<TSubmitOutcome> {
+  // A nodeless Action has no target by contract; taking one here would
+  // resurrect exactly the coupling `probNodeless` exists to remove.
+  if (prepared.nodeless) return { kind: 'nodeless-mismatch', nodeId: node.path };
   const inputs = await resolveJobRenderInputs(adapter, node, prepared);
   if (inputs === 'no-findings') return { kind: 'no-findings', nodeId: node.path };
 
@@ -648,6 +666,56 @@ export async function submitOneJob(
   return prepared.analyzerIds !== undefined
     ? insertFixerJobRow(adapter, node, prepared, contentHash, content)
     : insertJobRow(adapter, node, prepared, contentHash, content);
+}
+
+/**
+ * Submit the ONE job a nodeless Action produces (`spec/job-lifecycle.md`
+ * §Submit · Nodeless submit). Same machinery as `submitOneJob` minus the two
+ * steps that presuppose a file: target resolution (the caller has no node to
+ * give, by design) and the on-disk read + drift verification (nothing on disk
+ * to read, nothing to drift). Fixer / tagger injection cannot apply either:
+ * both are per-node concerns.
+ *
+ * The synthetic target's constant hashes make `contentHash` a function of the
+ * extension, its version and its prompt template alone, so the duplicate check
+ * keeps exactly one active job per nodeless extension. For a probe that is the
+ * intended behaviour: a second request adopts the first (`kind: 'duplicate'`
+ * carries its id) instead of queueing a pile nobody drains.
+ */
+export async function submitNodelessJob(
+  adapter: StoragePort,
+  prepared: ISubmitContext,
+): Promise<TSubmitOutcome> {
+  const node = nodelessTarget(prepared.extensionId);
+  if (!prepared.nodeless) return { kind: 'nodeless-mismatch', nodeId: node.path };
+
+  const contentHash = computeContentHash({
+    extensionId: prepared.extensionId,
+    extensionVersion: prepared.extensionVersion,
+    nodePath: node.path,
+    bodyHash: node.bodyHash,
+    frontmatterHash: node.frontmatterHash,
+    promptTemplateHash: prepared.promptTemplateHash,
+  });
+
+  if (!prepared.force) {
+    const existing = await adapter.jobs.findActiveDuplicate(
+      prepared.extensionId,
+      prepared.extensionVersion,
+      node.path,
+      contentHash,
+    );
+    if (existing) return { kind: 'duplicate', nodeId: node.path, existingId: existing };
+  }
+
+  const content = renderJobContent({
+    node,
+    nodeBody: null,
+    promptTemplate: prepared.promptTemplate,
+    preamble: prepared.preamble,
+    reportContract: prepared.reportContract,
+  });
+  return insertJobRow(adapter, node, prepared, contentHash, content);
 }
 
 // ---------------------------------------------------------------------------
@@ -766,8 +834,21 @@ export function prepareSubmitContext(opts: {
     cwd: opts.cwd,
     force: opts.force,
     providers: opts.runtime.providers,
+    nodeless: isNodelessTarget(extensionKind, extension),
   };
   return { ok: true, extension, prepared };
+}
+
+/**
+ * True when the resolved target is a NODELESS Action (`probNodeless`,
+ * `spec/job-lifecycle.md` §Submit · Nodeless submit). Analyzers are always
+ * per-node (a finder judges a node), so only Actions can declare it.
+ */
+function isNodelessTarget(
+  extensionKind: JobExtensionKind,
+  extension: TQueueableExtension,
+): boolean {
+  return extensionKind === 'action' && (extension as IAction).probNodeless === true;
 }
 
 /**
@@ -973,6 +1054,11 @@ function toFixerSubmitResult(outcome: TSubmitOutcome): TFixerSubmitResult {
       return { kind: 'drift' };
     case 'unreadable':
       return { kind: 'unreadable', detail: outcome.detail };
+    case 'nodeless-mismatch':
+      // A fixer is per-node by definition, so a nodeless target here can
+      // only mean a caller wired the wrong extension in: report it as
+      // not-submittable rather than inventing a fixer outcome for it.
+      return { kind: 'not-submittable', detail: T.submitErrNodelessMismatch };
   }
 }
 

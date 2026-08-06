@@ -1,7 +1,11 @@
 /**
- * `POST /api/nodes/:pathB64/jobs`, the UI's job-submit surface
- * (Step 16 piece 1, `spec/cli-contract.md` §BFF endpoint
- * POST /api/nodes/:pathB64/jobs).
+ * The UI's two job-submit surfaces: `POST /api/nodes/:pathB64/jobs` (a job
+ * against one node, Step 16 piece 1) and its nodeless sibling
+ * `POST /api/jobs` (`spec/cli-contract.md` §BFF endpoint POST /api/jobs, for
+ * a probabilistic Action declaring `probNodeless`, which has no target to
+ * name). One module because they share everything but the target: body
+ * validation, the submit-context preparation, the envelope, the refusal
+ * mapping and the WS broadcast.
  *
  * Enqueues a probabilistic extension against one node through the SAME
  * shared submit machinery as `sm jobs submit`
@@ -54,6 +58,7 @@ import { buildActionRuntime } from '../../core/jobs/action-runtime.js';
 import { appendOperation } from '../../core/operations-log.js';
 import {
   prepareSubmitContext,
+  submitNodelessJob,
   submitOneJob,
   type ISubmitContext,
   type TPrepareError,
@@ -61,6 +66,7 @@ import {
 } from '../../core/jobs/submit-engine.js';
 import { buildFreshResolver } from '../../core/runtime/fresh-resolver.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import { nodelessTargetId } from '../../kernel/jobs/index.js';
 import type { JobStatus, Node } from '../../kernel/types.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
 import { log } from '../../kernel/util/logger.js';
@@ -110,6 +116,26 @@ const JOB_BODY_SCHEMA = {
 } as const;
 
 const parseBody = makeBodyValidator<IJobSubmitBody>(JOB_BODY_SCHEMA, {
+  notJson: SERVER_TEXTS.jobsBodyNotJson,
+  notObject: SERVER_TEXTS.jobsBodyNotObject,
+  invalid: SERVER_TEXTS.jobsBodyExtensionRequired,
+});
+
+/**
+ * Body of the NODELESS submit: the extension and nothing else. `autoFix` /
+ * `findingIds` are per-node fixer concerns and have no meaning without a
+ * node, so they are rejected rather than ignored.
+ */
+const NODELESS_BODY_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['extension'],
+  properties: {
+    extension: { type: 'string', minLength: 1 },
+  },
+} as const;
+
+const parseNodelessBody = makeBodyValidator<{ extension: string }>(NODELESS_BODY_SCHEMA, {
   notJson: SERVER_TEXTS.jobsBodyNotJson,
   notObject: SERVER_TEXTS.jobsBodyNotObject,
   invalid: SERVER_TEXTS.jobsBodyExtensionRequired,
@@ -231,6 +257,100 @@ export function registerNodeJobsRoute(app: Hono, deps: INodeJobsRouteDeps): void
   });
 }
 
+/**
+ * `POST /api/jobs`, the NODELESS sibling (`spec/cli-contract.md` §BFF
+ * endpoint POST /api/jobs). Enqueues a probabilistic Action that declares
+ * `probNodeless`, which by contract has no target: the caller names the
+ * extension and nothing else, so no surface is ever in the position of
+ * picking a node for a job that does not want one.
+ *
+ * Two deliberate differences from the node route above:
+ *   - NO processing-agent gate. The only declarer today is the liveness
+ *     probe, whose entire purpose is to find out whether an agent is
+ *     attending; refusing to submit it for lack of a processing skill
+ *     would answer the question with itself.
+ *   - No `node-drifted` path. There is no file, so drift cannot happen,
+ *     which is the whole point of the nodeless submit.
+ */
+export function registerNodelessJobsRoute(app: Hono, deps: INodeJobsRouteDeps): void {
+  app.post('/api/jobs', async (c) => {
+    const startedAt = Date.now();
+    const body = await parseNodelessBody(c.req.raw);
+
+    const resolveEnabled = await buildFreshResolver({
+      effectiveConfig: () => deps.configService.effective(),
+    });
+    const runtime = buildActionRuntime(
+      deps.pluginRuntimeHolder.current,
+      () => {
+        /* discard: warnings emitted once at registration */
+      },
+      undefined,
+      resolveEnabled,
+    );
+
+    const prep = prepareSubmitContext({
+      runtime,
+      jobs: deps.configService.effective().jobs,
+      extensionId: body.extension,
+      cwd: deps.runtimeContext.cwd,
+      force: false,
+      flagTtl: undefined,
+      flagPriority: undefined,
+    });
+    if (!prep.ok) throw prepareErrorToHttp(prep.error, body.extension);
+    // A node-taking extension has a target to name, so it belongs on the
+    // node route; sending it here is a caller bug, not an operator error.
+    if (!prep.prepared.nodeless) {
+      throw new HTTPException(400, {
+        message: tx(SERVER_TEXTS.jobsNotNodeless, {
+          extension: sanitizeForTerminal(body.extension),
+        }),
+      });
+    }
+
+    const submitted = await tryWithSqlite(
+      { databasePath: deps.options.dbPath, autoBackup: false },
+      async (adapter): Promise<ISubmitAttempt> => {
+        const outcome = await submitNodelessJob(adapter, prep.prepared);
+        if (outcome.kind !== 'duplicate') return { outcome, existingStatus: null };
+        const existing = await adapter.jobs.get(outcome.existingId);
+        return { outcome, existingStatus: existing?.status ?? 'queued' };
+      },
+    );
+    if (submitted === null) {
+      throw new HTTPException(404, {
+        message: tx(SERVER_TEXTS.dbMissingHint, { path: deps.options.dbPath }),
+      });
+    }
+
+    const nodePath = nodelessTargetId(prep.prepared.extensionId);
+    const value = toSubmittedValue(submitted, nodePath, prep.prepared);
+    appendOperation(deps.runtimeContext.cwd, {
+      op: 'jobs.submit',
+      target: nodePath,
+      extension: value.extensionId,
+      channel: 'ui',
+      outcome: 'queued',
+      id: value.jobId,
+    });
+    deps.broadcaster.broadcast(
+      buildJobSubmittedEvent(value.jobId, {
+        nodePath: value.nodePath,
+        extensionId: value.extensionId,
+        supersededIds: value.supersededIds,
+      }),
+    );
+    const envelope: IJobSubmittedEnvelope = {
+      schemaVersion: REST_ENVELOPE_SCHEMA_VERSION,
+      kind: 'job.submitted',
+      value,
+      elapsedMs: Date.now() - startedAt,
+    };
+    return c.json(envelope);
+  });
+}
+
 /** Outcome of the DB half: the engine's verdict plus, for a duplicate, the covering job's live status. */
 interface ISubmitAttempt {
   outcome: TSubmitOutcome;
@@ -292,12 +412,21 @@ function toSubmittedValue(
       supersededIds: outcome.supersededIds,
     };
   }
+  // Caller bug (a nodeless extension routed through the per-node path):
+  // a 400 like every other "wrong shape of request", not a 409 conflict.
+  if (outcome.kind === 'nodeless-mismatch') {
+    throw new HTTPException(400, {
+      message: tx(SERVER_TEXTS.jobsIsNodeless, {
+        extension: sanitizeForTerminal(prepared.extensionId),
+      }),
+    });
+  }
   throw submitRefusal(outcome, attempt.existingStatus, nodePath, prepared);
 }
 
 /** Build the 409 for a non-`created` engine outcome. */
 function submitRefusal(
-  outcome: Exclude<TSubmitOutcome, { kind: 'created' }>,
+  outcome: Exclude<TSubmitOutcome, { kind: 'created' } | { kind: 'nodeless-mismatch' }>,
   existingStatus: JobStatus | null,
   nodePath: string,
   prepared: ISubmitContext,

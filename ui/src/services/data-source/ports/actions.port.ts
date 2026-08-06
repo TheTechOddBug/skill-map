@@ -104,6 +104,23 @@ export interface IActionsPort {
   ): Promise<IJobSubmittedEnvelopeApi>;
 
   /**
+   * `POST /api/jobs`, enqueue a NODELESS probabilistic Action: one that
+   * declares `probNodeless` and therefore has no target (today the
+   * `core/ai-ping-action` liveness probe). The caller names the extension
+   * and nothing else, which is the point: a probe about whether an agent
+   * is draining the queue has no business picking a file, and picking one
+   * used to make it fail whenever that file had been deleted since the
+   * last scan.
+   *
+   * Same `job.submitted` envelope as `submitNodeJob` (`value.nodePath`
+   * carries the synthetic `sm://<extension-id>` id). Throws
+   * `DataSourceError` on 4xx/5xx: `duplicate-job` / `job-running` carry
+   * `details.existingId` so the caller can adopt the covering job.
+   * Demo mode rejects with `'demo-readonly'`.
+   */
+  submitNodelessJob(extensionId: string): Promise<IJobSubmittedEnvelopeApi>;
+
+  /**
    * `POST /api/jobs/:jobId/cancel` (Step 16, launcher stop), cancel an
    * active queued/running job by id, the HTTP face of `sm jobs cancel`.
    * Resolves on `204 No Content`; throws `DataSourceError` on any

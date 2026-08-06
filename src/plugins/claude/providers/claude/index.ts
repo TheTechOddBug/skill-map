@@ -134,6 +134,17 @@ export const claudeProvider: IBuiltInManifest<IProvider> = {
   // `core/mcp-tools` emission from `tools:` references.
   mcpConfig: { sources: [{ path: '.mcp.json', dialect: 'json-mcp-servers' }] },
 
+  // Registration side: the `claude` CLI ships an `mcp` verb, so declaring
+  // skill-map's own server is one shell line. `--scope local` keeps it in the
+  // operator's per-project user settings rather than the committed `.mcp.json`
+  // the block above READS: skill-map is a per-developer tool, and pushing its
+  // server into the team's file would enrol everyone in an MCP they never
+  // asked for.
+  mcpRegister: {
+    kind: 'command',
+    command: { template: 'claude mcp add --transport http --scope local skill-map {{url}}' },
+  },
+
   // Vendor provider: Claude Code only reads its own `.claude/` territory
   // and ignores `.codex/` / Antigravity layouts at runtime. Gating the
   // classifier behind the active lens prevents the walker from inventing

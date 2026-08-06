@@ -12,6 +12,11 @@
       "default": "deterministic",
       "description": "`deterministic` (default): the plugin's code computes the report synchronously, no job, no agent. `probabilistic`: the kernel renders `prompt.md` + preamble into a queued job; an external agent processes it via `sm jobs claim` and `sm record` closes it."
     },
+    "probNodeless": {
+      "type": "boolean",
+      "default": false,
+      "description": "Declares that this probabilistic Action operates on NO node: its prompt asks nothing about project content, so a job for it carries no user content and needs no target. Submitting one skips target resolution entirely and enqueues against the synthetic node id `sm://<qualified-extension-id>`, which never resolves to a file; the on-disk read + drift verification (`job-lifecycle.md` §Submit step 8) is skipped along with it, since there is nothing on disk to read or to drift. The `{{userContent}}` seam still marks where the kernel injects its prelude (the report contract), but no `<user-content>` block is emitted. Today the single declarer is the system liveness probe `core/ai-ping-action`, which measures whether an agent is draining the queue, a fact about the AGENT, not about any file: aiming it at a real node made the probe fail whenever that node had been deleted since the last scan, and made it impossible to run at all on an empty corpus. Ignored unless `mode=probabilistic` (a deterministic Action runs in-process against a node it is given, and has no prompt to render)."
+    },
     "probExpectedDurationSeconds": {
       "type": "integer",
       "minimum": 1,

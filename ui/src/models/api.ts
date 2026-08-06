@@ -538,7 +538,31 @@ export interface IProviderRegistryEntryApi {
    * lenses with no invocation channel (`agent-skills`, `markdown`).
    */
   invocationSigil?: string;
+  /**
+   * How an operator registers skill-map's MCP server with this lens's runtime
+   * (projected verbatim from the Provider's `mcpRegister` block). Drives the
+   * MCP Copy affordance in Quick Start + Settings, so the recipe follows the
+   * registered Provider set instead of a catalog hardcoded client-side.
+   * Absent for a Provider that declares none: Copy then hands over the bare
+   * endpoint URL, which every MCP client accepts.
+   */
+  mcpRegister?: TMcpRegisterApi;
 }
+
+/**
+ * Wire shape of a Provider's MCP registration recipe. Two flavours, because
+ * only some runtimes ship an `mcp` CLI verb: the rest are configured by
+ * editing a config file. `{{url}}` stands in for the live MCP endpoint
+ * (`GET /api/mcp/status`) and is substituted before the text hits the
+ * clipboard, at any depth for the `config` document.
+ */
+export type TMcpRegisterApi =
+  | { kind: 'command'; command: { template: string }; config?: never }
+  | {
+      kind: 'config';
+      config: { target: string; document: Record<string, unknown> };
+      command?: never;
+    };
 
 export type IProviderRegistryApi = Record<string, IProviderRegistryEntryApi>;
 

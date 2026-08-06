@@ -4,11 +4,12 @@
  * `buildKindRegistry`).
  *
  * The registry mirrors `spec/schemas/api/rest-envelope.schema.json#/properties/providerRegistry`:
- * provider id → `{ label, color, colorDark?, emoji?, icon?, isLens, hideChip?, bodyField?, invocationSigil? }`,
+ * provider id → `{ label, color, colorDark?, emoji?, icon?, isLens, hideChip?, bodyField?, invocationSigil?, mcpRegister? }`,
  * projected from each Provider's `presentation` block (including the
  * `invocationSigil` the link-kind palette paints for the active lens) plus its
- * `gatedByActiveLens` flag (as `isLens`) and its `read.bodyField` (when set,
- * for structured-frontmatter Providers like Codex).
+ * `gatedByActiveLens` flag (as `isLens`), its `read.bodyField` (when set,
+ * for structured-frontmatter Providers like Codex), and its `mcpRegister`
+ * recipe (when declared, driving the MCP Copy affordance).
  *
  * The UI consumes it to render the active-lens dropdown, the topbar lens
  * chip, and the per-node provider chip from the real registered-Provider
@@ -79,6 +80,10 @@ export function buildProviderRegistry(
     // metadata dump, without hardcoding any Provider id client-side.
     const bodyField = resolveProviderBodyField(provider.read);
     if (bodyField !== undefined) entry.bodyField = bodyField;
+    // Same reasoning for the MCP registration recipe: on the wire, the Copy
+    // affordance follows the registered Provider set, so a project-local
+    // drop-in lens hands over a real setup line instead of a bare URL.
+    if (provider.mcpRegister !== undefined) entry.mcpRegister = provider.mcpRegister;
     registry[provider.id] = entry;
   }
   return registry;

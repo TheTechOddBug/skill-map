@@ -137,8 +137,15 @@ function validateTemplate(template: string): void {
 export interface IRenderJobContentInput {
   /** Target node (only `path` is consumed, for the `<user-content id>`). */
   node: Pick<Node, 'path'>;
-  /** The node's raw body text (frontmatter fence already stripped). */
-  nodeBody: string;
+  /**
+   * The node's raw body text (frontmatter fence already stripped), or
+   * `null` for a NODELESS job (`spec/job-lifecycle.md` §Submit · Nodeless
+   * submit): there is no user content, so no `<user-content>` block is
+   * emitted at all. The `{{userContent}}` seam still marks where the
+   * kernel prelude (the report contract) lands, so every prompt renders
+   * through one path.
+   */
+  nodeBody: string | null;
   /** The action's raw `prompt.md` template (with `{{userContent}}`). */
   promptTemplate: string;
   /**
@@ -189,7 +196,9 @@ export interface IRenderJobContentInput {
 export function renderJobContent(input: IRenderJobContentInput): string {
   validateTemplate(input.promptTemplate);
   const preamble = input.preamble ?? loadCanonicalPreamble();
-  const block = wrapUserContent(input.node.path, input.nodeBody);
+  // Nodeless job: no body, hence no delimiter to wrap it in. The prelude
+  // below still expands at the seam.
+  const block = input.nodeBody === null ? null : wrapUserContent(input.node.path, input.nodeBody);
   // The kernel-authored prelude expands WITH the placeholder so it lands
   // right before the `<user-content>` block (and outside it), per
   // `spec/job-lifecycle.md` §Submit step 9 + §Findings injection for fixers
@@ -200,7 +209,7 @@ export function renderJobContent(input: IRenderJobContentInput): string {
   if (input.findingsSection !== undefined) parts.push(input.findingsSection);
   if (input.currentTagsSection !== undefined) parts.push(input.currentTagsSection);
   if (input.reportContract !== undefined) parts.push(input.reportContract);
-  parts.push(block);
+  if (block !== null) parts.push(block);
   const expansion = parts.join('\n\n');
   const rendered = input.promptTemplate.split(USER_CONTENT_PLACEHOLDER).join(expansion);
   // The preamble fixture already ends with a trailing newline; the extra

@@ -97,6 +97,15 @@ export const codexProvider: IBuiltInManifest<IProvider> = {
   // kernel materialises each as a virtual `mcp://<server>` node.
   mcpConfig: { sources: [{ path: '.codex/config.toml', dialect: 'toml-mcp-servers' }] },
 
+  // Registration side: Codex supports streamable-HTTP MCP through
+  // `codex mcp add <name> --url <url>` (usage verified against codex-rs
+  // `cli/src/mcp_cmd.rs`), which writes the operator's `~/.codex/config.toml`,
+  // NOT the per-project file the block above reads.
+  mcpRegister: {
+    kind: 'command',
+    command: { template: 'codex mcp add skill-map --url {{url}}' },
+  },
+
   // Vendor provider: Codex CLI only reads its own territory (its `.codex/`
   // agents plus the open `.agents/skills/` skills it adopted). Gating the
   // classifier behind the active lens keeps the walker from claiming Codex

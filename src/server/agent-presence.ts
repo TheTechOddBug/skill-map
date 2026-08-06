@@ -8,40 +8,52 @@
  * WHY this exists (and why it is NOT the MCP session count): an agent
  * parked on `sm jobs claim --wait` talks straight to SQLite and holds no
  * MCP session at all, so a live-session probe reports a perfectly healthy
- * setup as disconnected. The honest signal is the CLAIM itself, and every
- * claim reaches this process through one choke point,
+ * setup as disconnected. The honest signal is the ANSWER, and every answer
+ * reaches this process through one choke point,
  * `WsBroadcaster.broadcast()`:
  *
- *   - a CLI claim POSTs its `job.claimed` envelope to `/api/job-events`,
- *     which rebroadcasts it verbatim;
- *   - the MCP `claim_job` tool broadcasts its own `job.claimed`
- *     in-process.
+ *   - a CLI `sm record` POSTs its `job.completed` / `job.failed` envelope
+ *     to `/api/job-events`, which rebroadcasts it verbatim;
+ *   - an MCP agent's record broadcasts the same frames in-process.
  *
  * So the composition root registers `observe` as the broadcaster's
  * envelope observer and both paths are counted identically. The
  * broadcaster itself stays a dumb transport; it knows nothing about
  * presence.
  *
+ * A CLAIM is deliberately NOT evidence. Claiming is a receipt, not an
+ * answer: an agent parked on `sm jobs claim --wait` picks a job up within
+ * one poll cycle, so counting the claim reported "an agent is answering"
+ * while the model had not read a line of the prompt, and (through the boot
+ * ping, which that same parked agent claims unprompted) painted the row
+ * green before the operator asked anything. `lastClaimAt` still records
+ * claims, because "when was work last picked up" is a fair thing to show;
+ * it just does not decide `attending`.
+ *
  * STICKY by design: `attending` starts `false` and flips `true` on the
- * FIRST observed claim, never back. A parked agent claims only when work
- * arrives, so silence proves nothing, and any TTL would manufacture false
- * negatives (the operator's agent sits idle for ten minutes, the panel
- * declares it gone). `lastClaimAt` carries the recency for display.
+ * FIRST observed answer, never back on silence. A parked agent answers
+ * only when work arrives, so silence proves nothing, and any TTL would
+ * manufacture false negatives (the operator's agent sits idle for ten
+ * minutes, the panel declares it gone).
  */
 
 /** Read projection of the tracker, the wire `value` of `GET /api/agent/presence`. */
 export interface IAgentPresence {
   /**
-   * `true` once a `job.claimed` OR an MCP claim attempt has been
-   * observed this boot. Never flips back (see the file header on
-   * stickiness).
+   * `true` once an ANSWER (`job.completed` / `job.failed`) has been
+   * observed this boot. Never flips back on silence (see the file header
+   * on stickiness); a ping cancelled unanswered is the one thing that
+   * flips it false.
    */
   attending: boolean;
   /** Epoch-ms of the most recent observed claim; `null` before the first. */
   lastClaimAt: number | null;
 }
 
-/** The one envelope type that proves an agent is draining the queue. */
+/** The envelope types that PROVE an agent drained a job: it answered. */
+const ANSWER_EVENT_TYPES: ReadonlySet<string> = new Set(['job.completed', 'job.failed']);
+
+/** Recorded for display only (`lastClaimAt`); never decides `attending`. */
 const CLAIM_EVENT_TYPE = 'job.claimed';
 
 /**
@@ -93,14 +105,30 @@ export class AgentPresenceTracker {
   observe(envelope: unknown): void {
     const frame = narrowJobFrame(envelope);
     if (frame === null) return;
-    if (frame.type === CLAIM_EVENT_TYPE) this.#recordClaim(frame.jobId);
-    else if (frame.type === 'job.submitted') this.#recordSubmit(frame);
-    else if (frame.type === 'job.cancelled') this.#recordCancel(frame.jobId);
+    if (typeof frame.type === 'string' && ANSWER_EVENT_TYPES.has(frame.type)) {
+      this.#recordAnswer(frame.jobId);
+    } else if (frame.type === CLAIM_EVENT_TYPE) {
+      this.#recordClaim(frame.jobId);
+    } else if (frame.type === 'job.submitted') {
+      this.#recordSubmit(frame);
+    } else if (frame.type === 'job.cancelled') {
+      this.#recordCancel(frame.jobId);
+    }
   }
 
+  /** An agent came back with a result: the only positive evidence. */
+  #recordAnswer(jobId: string | null): void {
+    this.#positiveSeq = ++this.#seq;
+    if (jobId !== null) this.#pendingPings.delete(jobId);
+  }
+
+  /**
+   * Display recency only. A claim also retires a pending ping from the
+   * negative-evidence set: the probe WAS picked up, so a later cancel of
+   * it is queue housekeeping, not "nobody answered".
+   */
   #recordClaim(jobId: string | null): void {
     this.#lastClaimAt = Date.now();
-    this.#positiveSeq = ++this.#seq;
     if (jobId !== null) this.#pendingPings.delete(jobId);
   }
 
@@ -124,8 +152,9 @@ export class AgentPresenceTracker {
 
   /**
    * Record a claim ATTEMPT (the MCP `claim_job` tool, empty-queue or
-   * not): proof an agent is watching the queue. `lastClaimAt` stays
-   * claim-only, the attempt only flips `attending`.
+   * not). An agent asking for work is watching the queue, so this keeps
+   * counting: unlike a claim, an attempt says nothing about a job being
+   * held mid-flight, it is the agent announcing itself with empty hands.
    */
   noteAttempt(): void {
     this.#attemptSeen = true;
@@ -134,7 +163,7 @@ export class AgentPresenceTracker {
 
   /** Current state, a fresh copy (callers never hold tracker internals). */
   snapshot(): IAgentPresence {
-    const everPositive = this.#attemptSeen || this.#lastClaimAt !== null;
+    const everPositive = this.#attemptSeen || this.#positiveSeq > 0;
     // Ordering decides: negative evidence (a ping nobody answered)
     // outranks OLDER positive evidence, and vice versa; the monotonic
     // sequence makes "later" exact.
