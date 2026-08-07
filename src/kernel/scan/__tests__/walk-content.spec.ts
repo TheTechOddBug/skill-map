@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { walkContent, UnknownParserError } from '../walk-content.js';
+import { walkContent, UnknownParserError, MAX_SYMLINK_DIR_ENTRIES } from '../walk-content.js';
 import { buildIgnoreFilter } from '../ignore.js';
 import type { IRawNode } from '../../extensions/provider.js';
 
@@ -584,6 +584,68 @@ describe('walkContent, symlinks (in-tree followed, escaping contained by default
       if (!link('../a/skills', join(dir, '.claude/skills'))) return;
       const collected = await collect(dir);
       ok(collected.includes('.claude/skills/one.md'), 'the in-tree symlink is still followed');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('follows two sibling symlinked directories to the same target (both surface)', async () => {
+    const dir = mkRoot();
+    try {
+      // The fixtures/claude regression: `.claude` and `otro` both link to
+      // one shared tree. The old walk-global visited set let the first
+      // link claim the target realpath and silently dropped the second;
+      // per-branch cycle detection follows both.
+      write(join(dir, 'shared/agents/one.md'), '---\nname: one\n---\nbody');
+      if (!link('shared', join(dir, '.claude'))) return;
+      if (!link('shared', join(dir, 'otro'))) return;
+      const collected = await collect(dir);
+      ok(collected.includes('shared/agents/one.md'), 'the real target dir is walked as usual');
+      ok(collected.includes('.claude/agents/one.md'), 'the first link is followed');
+      ok(collected.includes('otro/agents/one.md'), 'the SECOND link to the same target is followed too');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('terminates on a mutual two-link cycle (x -> y -> x)', async () => {
+    const dir = mkRoot();
+    try {
+      write(join(dir, 'x/one.md'), '---\nname: one\n---\nbody');
+      write(join(dir, 'y/two.md'), '---\nname: two\n---\nbody');
+      // Neither target is an ancestor of the OTHER's branch until the
+      // walk re-enters it: x/toY -> y, then y/toX -> x closes the loop.
+      // The ancestor chain refuses the re-entry; the walk terminates.
+      if (!link('../y', join(dir, 'x/toY'))) return;
+      if (!link('../x', join(dir, 'y/toX'))) return;
+      const collected = await collect(dir);
+      strictEqual(collected.filter((p) => p === 'x/one.md').length, 1, 'x walked under its own path');
+      strictEqual(collected.filter((p) => p === 'y/two.md').length, 1, 'y walked under its own path');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('caps a diamond-shaped link graph instead of walking it exponentially', async () => {
+    const dir = mkRoot();
+    try {
+      // Levels L0..L10, each with TWO links to the next level: 2^10 = 1024
+      // distinct traversal paths to the leaf without the cap. The
+      // MAX_SYMLINK_DIR_ENTRIES budget bounds total directory entries via
+      // symlink, so the walk terminates promptly with a bounded yield.
+      const levels = 11;
+      for (let i = 0; i < levels; i += 1) mkdirSync(join(dir, `L${i}`), { recursive: true });
+      write(join(dir, `L${levels - 1}/leaf.md`), '---\nname: leaf\n---\nbody');
+      for (let i = 0; i < levels - 1; i += 1) {
+        if (!link(`../L${i + 1}`, join(dir, `L${i}/a`))) return;
+        if (!link(`../L${i + 1}`, join(dir, `L${i}/b`))) return;
+      }
+      const collected = await collect(dir);
+      ok(collected.length > 0, 'the leaf is reached');
+      ok(
+        collected.length <= MAX_SYMLINK_DIR_ENTRIES + 20,
+        `yield is bounded by the cap (got ${collected.length})`,
+      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

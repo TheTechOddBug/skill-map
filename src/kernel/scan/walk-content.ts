@@ -20,12 +20,18 @@
  *     `scan.followExternalSymlinks` config key (project-local only,
  *     default off) restores the old dereference-anywhere behaviour for a
  *     tree whose links the operator authored and trusts. Two defences
- *     remain regardless: **cycle detection** (`ctx.visited`, the realpath
- *     of every directory entered via a symlink is recorded so a loop or a
- *     second link to the same target is skipped and the walk can never
- *     hang), and the yielded path keeps the form seen UNDER the link (so
- *     node identity matches what the user and the watcher see), not the
- *     resolved target.
+ *     remain regardless: **cycle detection** (`ctx.chain`, the realpaths
+ *     of the directories on the CURRENT recursion branch; a link whose
+ *     target is an ancestor of that branch would re-enter itself and is
+ *     skipped, so a loop can never hang the walk, while sibling links to
+ *     the same target each yield their own subtree because each link path
+ *     is its own node; 2026-08-07 fix, the previous walk-global visited
+ *     set silently dropped every link after the first one to reach a
+ *     target), plus a hard cap (`MAX_SYMLINK_DIR_ENTRIES`) on directories
+ *     entered via a symlink so a hostile diamond-shaped link graph cannot
+ *     make the walk exponential. The yielded path keeps the form seen
+ *     UNDER the link (so node identity matches what the user and the
+ *     watcher see), not the resolved target.
  *   - **TOCTOU race (audit M7 / H1)**, `readdir` reports a regular file →
  *     `lstat()` re-verifies before the read. Closes the window where the
  *     entry could be swapped for a symlink between the two calls.
@@ -227,16 +233,28 @@ async function* walkTraversal(
     filter,
     extensions,
     sizeLimit,
-    visited: new Set<string>(),
+    chain: new Set<string>(),
+    symlinkDirEntries: 0,
     rootReals: await resolveRootReals(roots),
     followExternalSymlinks: options.followExternalSymlinks === true,
   };
   for (const root of roots) {
-    for await (const entry of walkRoot(root, root, ctx)) {
+    // Seed the ancestor chain with the root's realpath. A root that fails
+    // to resolve is skipped: `walkRoot`'s `readdir` would fail the same
+    // way, so nothing is lost.
+    let rootReal: string;
+    try {
+      rootReal = await realpath(root);
+    } catch {
+      continue;
+    }
+    ctx.chain.add(rootReal);
+    for await (const entry of walkRoot(root, root, rootReal, ctx)) {
       const relPath = relative(root, entry.full).split(sep).join('/');
       const rec = await traversedEntryToNode(entry, relPath, options.priorMtimes, parser, bodyField);
       if (rec !== null) yield rec;
     }
+    ctx.chain.delete(rootReal);
   }
 }
 
@@ -649,16 +667,40 @@ function buildSizeLimit(options: IWalkContentOptions): IWalkSizeLimit {
 // branching IS the walker; extraction yields helpers that all run
 // once per entry anyway. Per `context/lint.md` category 7 (recursive type-discriminator walkers).
 /**
- * Constant context threaded through `walkRoot`'s recursion. Everything
- * here is invariant across the walk; only `root` / `current` change per
- * call. `visited` backs the symlink cycle-detection guard.
+ * Upper bound on directories entered via a symlink across one walk. With
+ * per-branch cycle detection a hostile diamond-shaped link graph (N levels,
+ * two links each to the next level's directory) yields 2^N distinct
+ * traversal paths; this cap bounds the total work instead (clone-and-scan
+ * threat model). Beyond it further symlinked directories are silently
+ * skipped. Generous on purpose: a legitimate tree carries a handful of
+ * directory links, not hundreds.
+ */
+export const MAX_SYMLINK_DIR_ENTRIES = 1000;
+
+/**
+ * Context threaded through `walkRoot`'s recursion. Only `chain` /
+ * `symlinkDirEntries` mutate during the walk; the rest is invariant.
  */
 interface IWalkRootCtx {
   filter: IIgnoreFilter;
   extensions: readonly string[];
   sizeLimit: IWalkSizeLimit;
-  /** Realpaths of directories already entered via a symlink (cycle / repeat guard). */
-  visited: Set<string>;
+  /**
+   * Realpaths of the directories on the CURRENT recursion branch (the
+   * scan root down to the directory being read). Cycle detection: a
+   * symlink whose target realpath is already in this chain would re-enter
+   * an ancestor of its own branch, so it is refused. Maintained
+   * add-before-recurse / delete-after around every directory entered (the
+   * walk is sequential, so mutate-and-restore is safe). Unlike the
+   * walk-global visited set this replaced (2026-08-07), sibling links to
+   * the same target are NOT deduplicated: each link path is its own node.
+   */
+  chain: Set<string>;
+  /**
+   * Directories entered via a symlink so far, across the whole walk.
+   * Backs the `MAX_SYMLINK_DIR_ENTRIES` cap.
+   */
+  symlinkDirEntries: number;
   /**
    * Realpaths of the scan roots, resolved once at the start of the walk.
    * Backs the symlink-containment gate: a followed link whose target
@@ -674,11 +716,13 @@ interface IWalkRootCtx {
 
 /**
  * Resolve and validate a symbolic-link entry on the follow path. Returns
- * `{ kind: 'dir' }` when the link points at a directory to recurse into
- * (its realpath is recorded in `ctx.visited` first), `{ kind: 'file',
- * entry }` when it points at a size-OK, extension-matching regular file to
- * yield, or `null` when the link is broken, repeats / cycles (already in
- * `ctx.visited`), or its target is neither a matching file nor a directory.
+ * `{ kind: 'dir', real }` when the link points at a directory to recurse
+ * into (the caller pushes `real` onto `ctx.chain` around the recursion),
+ * `{ kind: 'file', entry }` when it points at a size-OK,
+ * extension-matching regular file to yield, or `null` when the link is
+ * broken, cycles (its target realpath is an ancestor on `ctx.chain`),
+ * exceeds the `MAX_SYMLINK_DIR_ENTRIES` cap, or its target is neither a
+ * matching file nor a directory.
  * `stat` (NOT `lstat`) is used deliberately here: the caller followed the
  * link, so the target's real type is what matters. A link whose real
  * target escapes every scan root is refused first (the containment gate,
@@ -689,7 +733,7 @@ async function followSymlink(
   name: string,
   rel: string,
   ctx: IWalkRootCtx,
-): Promise<{ kind: 'dir' } | { kind: 'file'; entry: IWalkEntry } | null> {
+): Promise<{ kind: 'dir'; real: string } | { kind: 'file'; entry: IWalkEntry } | null> {
   let real: string;
   try {
     real = await realpath(full);
@@ -713,9 +757,16 @@ async function followSymlink(
     return null;
   }
   if (s.isDirectory()) {
-    if (ctx.visited.has(real)) return null; // cycle, or a second link to the same target
-    ctx.visited.add(real);
-    return { kind: 'dir' };
+    // Cycle: the target is an ancestor of the CURRENT branch, entering it
+    // would recurse forever. A link to any other target is fine even when
+    // another branch already walked it: sibling links to one target each
+    // yield their own subtree (each link path is its own node).
+    if (ctx.chain.has(real)) return null;
+    // Pathological-tree defence: per-branch cycle detection alone lets a
+    // diamond-shaped link graph multiply traversal paths exponentially.
+    if (ctx.symlinkDirEntries >= MAX_SYMLINK_DIR_ENTRIES) return null;
+    ctx.symlinkDirEntries += 1;
+    return { kind: 'dir', real };
   }
   return symlinkFileEntry(full, name, rel, s, ctx);
 }
@@ -745,6 +796,7 @@ function symlinkFileEntry(
 async function* walkRoot(
   root: string,
   current: string,
+  realCurrent: string,
   ctx: IWalkRootCtx,
 ): AsyncIterable<IWalkEntry> {
   let entries;
@@ -760,13 +812,26 @@ async function* walkRoot(
     if (ctx.filter.ignores(rel)) continue;
     if (entry.isSymbolicLink()) {
       const followed = await followSymlink(full, name, rel, ctx);
-      if (followed === null) continue; // broken, escaping, cyclic, or non-matching
-      if (followed.kind === 'dir') yield* walkRoot(root, full, ctx);
-      else yield followed.entry;
+      if (followed === null) continue; // broken, escaping, cyclic, capped, or non-matching
+      if (followed.kind === 'dir') {
+        ctx.chain.add(followed.real);
+        yield* walkRoot(root, full, followed.real, ctx);
+        ctx.chain.delete(followed.real);
+      } else {
+        yield followed.entry;
+      }
       continue;
     }
     if (entry.isDirectory()) {
-      yield* walkRoot(root, full, ctx);
+      // Not a link, so its realpath is the parent's plus the name (zero
+      // syscalls). The ancestor-re-entry guard fires only when a linked
+      // ancestor made this real directory an ancestor of itself; entering
+      // would loop, so it is skipped like the symlink case.
+      const realChild = join(realCurrent, name);
+      if (ctx.chain.has(realChild)) continue;
+      ctx.chain.add(realChild);
+      yield* walkRoot(root, full, realChild, ctx);
+      ctx.chain.delete(realChild);
     } else if (entry.isFile() && hasMatchingExtension(name, ctx.extensions)) {
       // TOCTOU re-check (audit H1): `readdir` reported a regular file;
       // `statRegularFile`'s `lstat` (NOT `stat`) re-verifies before the
