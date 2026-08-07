@@ -6,6 +6,23 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>1.5.0</b> · 2026-08-07</summary>
+
+### CLI Minor
+- `sm scan` is now incremental by default: with a persisted prior snapshot, unchanged nodes are reused and only changed files re-extract (`--full` forces a complete re-extraction; `--changed` stays as an explicit alias). Startup also sheds fixed costs on every verb: the server import is deferred to `sm serve`, spec validators compile on first use, the tokenizer is built once per process, the serve watcher reuses the boot plugin runtime, and the bundle code-splits.
+
+### CLI Patch
+- The walker's symlink cycle guard was a walk-global visited set, so the first directory link to reach a target claimed its realpath and every later link to the same target was silently dropped, when the contract promises in-tree links are always followed. Cycle detection is now a per-branch ancestor chain (sibling links each yield their own subtree), with a hard cap on symlinked-directory entries so a hostile diamond link graph cannot make the walk exponential. Spec wording clarified to match.
+
+### Spec Minor (1.7.0)
+- `sm scan` is now incremental by default: with a persisted prior snapshot, unchanged nodes are reused and only changed files re-extract (`--full` forces a complete re-extraction; `--changed` stays as an explicit alias). Startup also sheds fixed costs on every verb: the server import is deferred to `sm serve`, spec validators compile on first use, the tokenizer is built once per process, the serve watcher reuses the boot plugin runtime, and the bundle code-splits.
+
+### Spec Patch (1.7.0)
+- The walker's symlink cycle guard was a walk-global visited set, so the first directory link to reach a target claimed its realpath and every later link to the same target was silently dropped, when the contract promises in-tree links are always followed. Cycle detection is now a per-branch ancestor chain (sibling links each yield their own subtree), with a hard cap on symlinked-directory entries so a hostile diamond link graph cannot make the walk exponential. Spec wording clarified to match.
+
+</details>
+
+<details>
 <summary><b>1.4.0</b> · 2026-08-06</summary>
 
 ### CLI Minor
