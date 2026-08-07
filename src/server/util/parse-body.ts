@@ -10,12 +10,17 @@
  * schema-validators) so the new helper takes zero new dependencies
  * while consolidating the pattern.
  *
- * Schemas compile ONCE at module import (the route binds the validator
- * to a module-level constant). The hot path is:
+ * Schemas compile ONCE on the first request that hits the route (the
+ * route binds the validator to a module-level constant, and one shared
+ * AJV instance backs every validator). The hot path is:
  *
  *   req.json() → typeof guard → compiled.validate() → throw or return
  *
- * No per-request AJV instance, no per-request compile.
+ * No per-request AJV instance, no per-request compile. The compile is
+ * deferred (not at module import) because every route module binds its
+ * validators at module scope: with ~21 of them, eager per-import
+ * compiles on fresh AJV instances taxed CLI startup for validators no
+ * request had used yet.
  *
  * **Error envelope discipline.** Each call site supplies the message
  * constants from its own `*.texts.ts` namespace:
@@ -41,7 +46,7 @@
  * sidecar/parse.ts).
  */
 
-import { Ajv2020, type ErrorObject } from 'ajv/dist/2020.js';
+import { Ajv2020, type ErrorObject, type ValidateFunction } from 'ajv/dist/2020.js';
 // eslint-disable-next-line import-x/extensions
 import { HTTPException } from 'hono/http-exception';
 
@@ -77,14 +82,34 @@ export interface IBodyValidatorOptions<T> {
   emptyAs?: T;
 }
 
+// One shared instance behind every body validator. Each fresh `Ajv2020`
+// re-compiles the 2020-12 meta-schema on its first compile (~10ms), so
+// per-validator instances multiplied that cost across the ~21 route
+// validators for zero isolation benefit: body schemas carry no `$id`,
+// so the shared registry cannot collide. Created lazily so importing
+// this module stays free of AJV work.
+let sharedAjv: InstanceType<typeof Ajv2020> | null = null;
+
+function getSharedAjv(): InstanceType<typeof Ajv2020> {
+  sharedAjv ??= new Ajv2020({ strict: false, allErrors: false });
+  return sharedAjv;
+}
+
 export function makeBodyValidator<T>(
   schema: object,
   messages: IBodyValidatorMessages,
   options: IBodyValidatorOptions<T> = {},
 ): TBodyValidator<T> {
-  const ajv = new Ajv2020({ strict: false, allErrors: false });
-  const validate = ajv.compile<T>(schema);
+  // First-use compile, memoized per validator (see the module docstring
+  // for why it is not compiled at module import). Kept outside
+  // `parseBody` so the hot path stays under the complexity cap.
+  let compiled: ValidateFunction<T> | null = null;
+  const ensureCompiled = (): ValidateFunction<T> => {
+    compiled ??= getSharedAjv().compile<T>(schema);
+    return compiled;
+  };
   return async function parseBody(req: Request): Promise<T> {
+    const validate = ensureCompiled();
     const text = await req.text();
     if (options.emptyAs !== undefined && text.trim().length === 0) {
       return options.emptyAs;

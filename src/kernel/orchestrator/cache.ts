@@ -132,6 +132,15 @@ export function computeCacheDecision(opts: {
    * populated by the caller; an absent sidecar canonicalises to `{}`.
    */
   sidecarAnnotationsHash: string;
+  /**
+   * Live per-extractor resolved-settings hashes, keyed by qualified id
+   * (built once per scan by `buildWalkContext`). Third leg of the
+   * cache key: a cached run whose recorded `settingsHash` differs from
+   * the live one re-runs, so `sm plugins config` writes, Settings-UI
+   * edits, and secret `envVar` changes take effect on the next
+   * incremental scan instead of waiting for a body edit or `--full`.
+   */
+  settingsHashByExtractor: ReadonlyMap<string, string>;
   nodeHashCacheEligible: boolean;
   priorExtractorRuns: Map<string, Map<string, IPriorExtractorRun>> | undefined;
 }): {
@@ -278,6 +287,7 @@ function splitFineGrained(
     nodePath: string;
     bodyHash: string;
     sidecarAnnotationsHash: string;
+    settingsHashByExtractor: ReadonlyMap<string, string>;
     nodeHashCacheEligible: boolean;
     priorExtractorRuns: Map<string, Map<string, IPriorExtractorRun>> | undefined;
   },
@@ -289,18 +299,37 @@ function splitFineGrained(
   for (const ex of applicableExtractors) {
     const qualified = qualifiedExtensionId(ex.pluginId, ex.id);
     const prior = priorRunsForNode.get(qualified);
-    if (
-      opts.nodeHashCacheEligible &&
-      prior !== undefined &&
-      prior.bodyHash === opts.bodyHash &&
-      prior.sidecarAnnotationsHash === opts.sidecarAnnotationsHash
-    ) {
+    if (opts.nodeHashCacheEligible && prior !== undefined && priorRunStillApplies(prior, qualified, opts)) {
       cachedQualifiedIds.add(qualified);
     } else {
       missingExtractors.push(ex);
     }
   }
   return { cachedQualifiedIds, missingExtractors };
+}
+
+/**
+ * Whether a prior `scan_extractor_runs` breadcrumb still applies to this
+ * scan's inputs: all three legs of the cache key must match (body hash,
+ * sidecar-annotations hash, resolved-settings hash). The settings map
+ * covers every applicable extractor (both are built from the same
+ * composed list); a miss falls back to `''` so an inconsistent caller
+ * re-runs rather than reuses.
+ */
+function priorRunStillApplies(
+  prior: IPriorExtractorRun,
+  qualified: string,
+  opts: {
+    bodyHash: string;
+    sidecarAnnotationsHash: string;
+    settingsHashByExtractor: ReadonlyMap<string, string>;
+  },
+): boolean {
+  return (
+    prior.bodyHash === opts.bodyHash &&
+    prior.sidecarAnnotationsHash === opts.sidecarAnnotationsHash &&
+    prior.settingsHash === (opts.settingsHashByExtractor.get(qualified) ?? '')
+  );
 }
 
 /**
@@ -366,6 +395,8 @@ export function reusePriorNode(opts: {
   priorNode: Node;
   bodyHash: string;
   sidecarAnnotationsHash: string;
+  /** Live per-extractor settings hashes; see `computeCacheDecision`. */
+  settingsHashByExtractor: ReadonlyMap<string, string>;
   strict: boolean;
   cachedQualifiedIds: Set<string>;
   applicableQualifiedIds: Set<string>;
@@ -394,6 +425,9 @@ export function reusePriorNode(opts: {
       bodyHashAtRun: opts.bodyHash,
       ranAt,
       sidecarAnnotationsHashAtRun: opts.sidecarAnnotationsHash,
+      // A pair only lands in `cachedQualifiedIds` after its settings
+      // hash matched, so re-persisting the LIVE hash is loss-free.
+      settingsHashAtRun: opts.settingsHashByExtractor.get(qualified) ?? '',
     });
   }
 

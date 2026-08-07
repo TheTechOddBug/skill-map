@@ -203,6 +203,26 @@ async function loadTokenizerRanks(name: TTokenizerName): Promise<ConstructorPara
   return (await import('js-tiktoken/ranks/cl100k_base')).default;
 }
 
+/**
+ * Process-wide encoder cache. Constructing a `Tiktoken` walks the whole
+ * BPE rank table (~200ms measured); the instance is immutable after
+ * construction, so one per encoder name serves every scan in the
+ * process. This matters most for the watcher (which used to pay the
+ * construction on every debounced rescan) and for warm incremental
+ * scans whose cache reuse leaves the encoder mostly idle. Never
+ * invalidated on purpose: the table is static data shipped with
+ * `js-tiktoken`.
+ */
+const encoderCache = new Map<TTokenizerName, Tiktoken>();
+
+async function getEncoder(name: TTokenizerName): Promise<Tiktoken> {
+  const cached = encoderCache.get(name);
+  if (cached) return cached;
+  const encoder = new Tiktoken(await loadTokenizerRanks(name));
+  encoderCache.set(name, encoder);
+  return encoder;
+}
+
 export interface IScanExtensions {
   providers: IProvider[];
   extractors: IExtractor[];
@@ -947,7 +967,7 @@ async function buildScanSetup(options: RunScanOptions): Promise<IScanSetup> {
   // scan. `tokenizer` is resolved even when tokenization is off so the
   // persisted `scan_meta.tokenizer` still records the configured intent.
   const tokenizer = resolveTokenizerName(options.tokenizer);
-  const encoder = tokenize ? new Tiktoken(await loadTokenizerRanks(tokenizer)) : null;
+  const encoder = tokenize ? await getEncoder(tokenizer) : null;
   const prior = options.priorSnapshot ?? null;
   const priorIndex = indexPriorSnapshot(prior);
   // Spec 0.8.0: each Provider owns its per-kind frontmatter schemas.

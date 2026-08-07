@@ -35,12 +35,23 @@ export const SCAN_TEXTS = {
     '   {{hint}}\n',
   watchVsAllowEmptyHint:
     'Drop --allow-empty or use --watch alone. The watcher never produces a zero-result wipe.',
+  watchVsFull:
+    '{{glyph}}  --watch cannot be combined with --full.\n' +
+    '   {{hint}}\n',
+  watchVsFullHint:
+    'Drop --full or use --watch alone. The watcher is incremental by definition; run a one-shot `sm scan --full` first if you need a clean rebuild.',
 
   changedWithoutBuiltIns:
     '{{glyph}}  --changed and --no-built-ins cannot be combined.\n' +
     '   {{hint}}\n',
   changedWithoutBuiltInsHint:
     '--no-built-ins yields a zero-filled ScanResult, leaving nothing to merge against.',
+
+  fullWithChanged:
+    '{{glyph}}  --full and --changed cannot be combined.\n' +
+    '   {{hint}}\n',
+  fullWithChangedHint:
+    '--changed is the explicit alias of the incremental default and --full forces a complete re-extraction; pick one.',
 
   scanFailure: '{{glyph}}  sm scan: {{message}}\n',
 

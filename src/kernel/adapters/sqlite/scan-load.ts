@@ -772,6 +772,13 @@ export function rowToIssue(row: Selectable<IScanIssuesTable>): Issue {
 export interface IPriorExtractorRun {
   bodyHash: string;
   sidecarAnnotationsHash: string;
+  /**
+   * SHA-256 of the extractor's canonical-form resolved settings at run
+   * time. Third leg of the cache key: the orchestrator compares it
+   * against the live per-extractor hash, so a settings change re-runs
+   * the pair instead of reusing outputs computed under old settings.
+   */
+  settingsHash: string;
 }
 
 export async function loadExtractorRuns(
@@ -779,7 +786,7 @@ export async function loadExtractorRuns(
 ): Promise<Map<string, Map<string, IPriorExtractorRun>>> {
   const rows = await db
     .selectFrom('scan_extractor_runs')
-    .select(['nodePath', 'extractorId', 'bodyHashAtRun', 'sidecarAnnotationsHashAtRun'])
+    .select(['nodePath', 'extractorId', 'bodyHashAtRun', 'sidecarAnnotationsHashAtRun', 'settingsHashAtRun'])
     .execute();
   const result = new Map<string, Map<string, IPriorExtractorRun>>();
   for (const row of rows) {
@@ -791,6 +798,7 @@ export async function loadExtractorRuns(
     perNode.set(row.extractorId, {
       bodyHash: row.bodyHashAtRun,
       sidecarAnnotationsHash: row.sidecarAnnotationsHashAtRun,
+      settingsHash: row.settingsHashAtRun,
     });
   }
   return result;

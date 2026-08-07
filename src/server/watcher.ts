@@ -35,6 +35,7 @@ import { formatOversizedFileRows } from '../kernel/util/format-oversized.js';
 import { log } from '../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../kernel/util/safe-text.js';
 import { tx } from '../kernel/util/tx.js';
+import type { IPluginRuntime } from '../core/runtime/plugin-runtime.js';
 import type { IRuntimeContext } from '../core/runtime/runtime-context.js';
 import { createScanSpinner, type IScanSpinner } from '../core/runtime/scan-spinner.js';
 import {
@@ -51,6 +52,15 @@ export interface ICreateWatcherServiceOpts {
   options: IServerOptions;
   runtimeContext: IRuntimeContext;
   broadcaster: WsBroadcaster;
+  /**
+   * Boot-cached plugin runtime from the composition root (audit M3).
+   * Threaded into the watcher runtime so `sm serve` loads plugins ONCE
+   * per boot instead of twice (composition root + watcher), and so the
+   * watcher classifies against the same snapshot the routes and
+   * kindRegistry use. Optional so head-less test boots can keep letting
+   * the runtime discover on its own.
+   */
+  pluginRuntime?: IPluginRuntime;
   /** Optional override for the chokidar debounce window (ms). Falls back to `scan.watch.debounceMs` from config. */
   debounceMsOverride?: number | undefined;
   /**
@@ -157,6 +167,9 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
       runtimeContext: opts.runtimeContext,
       noBuiltIns: opts.options.noBuiltIns,
       noPlugins: opts.options.noPlugins,
+      // Boot-cached runtime (when the composition root passed one), so
+      // start()/restart() skip their own plugin discovery.
+      ...(opts.pluginRuntime ? { pluginRuntime: opts.pluginRuntime } : {}),
       emitterFactory: () => buildBroadcasterEmitter(opts.broadcaster),
       runInitialBatch: true,
       // BFF ordering: subscribe first so edits arriving during the

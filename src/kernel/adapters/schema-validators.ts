@@ -13,9 +13,16 @@
  *   that are nevertheless valid Draft 2020-12.
  * - **`ajv-formats`** enabled for `uri`, `date`, `date-time`, all used by
  *   frontmatter base and plugin manifest.
- * - **Lazy compilation** is NOT used: every validator compiles eagerly on
- *   `load()` so the kernel fails fast on a spec corruption instead of
- *   crashing the first time a plugin tries to register.
+ * - **Split eager/lazy load**: every schema file is read and JSON-parsed
+ *   eagerly on `load()`, so a corrupt install (missing file, broken JSON)
+ *   still fails fast at boot; the AJV codegen compiles per schema on
+ *   first use instead. The historical fully-eager compile (~17 validators)
+ *   cost ~150ms on EVERY CLI invocation (the update-check settings read
+ *   triggers this loader), for validators most verbs never call.
+ *   Registration skips AJV's meta-schema validation on purpose: these are
+ *   spec-shipped schemas covered by the `spec/index.json` integrity block
+ *   and the spec workspace's own schema validation in CI, so re-checking
+ *   them against the 2020-12 meta-schema per process bought nothing.
  *
  * **Spec 0.8.0**. Per-kind frontmatter schemas (`skill`, `agent`,
  * `command`, `hook`, `note`) relocated from spec to the Provider that
@@ -94,6 +101,16 @@ const SCHEMA_FILES: Record<TSchemaName, string> = {
   'extension-manifest': 'schemas/extensions/extension-manifest.schema.json',
   'frontmatter-base': 'schemas/frontmatter/base.schema.json',
 };
+
+/**
+ * Canonical list of every logical schema name this loader serves. In
+ * lock-step with `SCHEMA_FILES` by construction; exported so callers
+ * (and the lazy-compile regression suite) can iterate the full catalog
+ * without duplicating the name set.
+ */
+export const SCHEMA_NAMES: readonly TSchemaName[] = Object.freeze(
+  Object.keys(SCHEMA_FILES) as TSchemaName[],
+);
 
 /**
  * Schemas that other schemas reference via $ref but aren't validated
@@ -193,21 +210,44 @@ function buildSchemaValidators(): ISchemaValidators {
   });
   applyAjvFormats(ajv);
 
-  // Add supporting schemas first so $ref targets resolve during compile.
+  // Eager half of the split (see module docstring): read + parse every
+  // schema file NOW so a corrupt install throws at load(), then register
+  // without meta-validation (`_validateSchema: false`). Registration is
+  // cheap; the expensive codegen defers to `getOrCompile` below.
+  // Supporting schemas go first so `$ref` targets resolve at compile time.
   for (const rel of SUPPORTING_SCHEMAS) {
     const file = resolve(specRoot, rel);
     if (!existsSyncSafe(file)) continue;
     const schema = JSON.parse(readFileSync(file, 'utf8'));
-    ajv.addSchema(schema);
+    ajv.addSchema(schema, undefined, undefined, false);
   }
 
-  const validators = new Map<TSchemaName, ValidateFunction>();
+  const namedSchemas = new Map<TSchemaName, { $id?: string }>();
   for (const [name, rel] of Object.entries(SCHEMA_FILES) as Array<[TSchemaName, string]>) {
     const file = resolve(specRoot, rel);
-    const schema = JSON.parse(readFileSync(file, 'utf8'));
-    // Reuse existing compilation if the schema was already added above.
-    const byId = typeof schema.$id === 'string' ? ajv.getSchema(schema.$id) : undefined;
-    validators.set(name, byId ?? ajv.compile(schema));
+    const schema = JSON.parse(readFileSync(file, 'utf8')) as { $id?: string };
+    namedSchemas.set(name, schema);
+    // A named schema can already sit in the registry via
+    // SUPPORTING_SCHEMAS (`frontmatter-base` lives in both lists); AJV
+    // throws on a duplicate `$id`, so only register the new ones.
+    if (typeof schema.$id === 'string' && ajv.getSchema(schema.$id) !== undefined) continue;
+    ajv.addSchema(schema, name, undefined, false);
+  }
+
+  // Lazy half of the split: `ajv.getSchema` runs codegen on demand for a
+  // registered schema; the Map memoizes per name so every later call is
+  // a lookup. Unknown names throw the same error the eager Map produced.
+  const validators = new Map<TSchemaName, ValidateFunction>();
+  function getOrCompile(name: TSchemaName): ValidateFunction {
+    const cached = validators.get(name);
+    if (cached) return cached;
+    const schema = namedSchemas.get(name);
+    if (!schema) throw new Error(`Unknown schema: ${name}`);
+    const compiled =
+      (typeof schema.$id === 'string' ? ajv.getSchema(schema.$id) : undefined) ?? ajv.getSchema(name);
+    if (!compiled) throw new Error(`Unknown schema: ${name}`);
+    validators.set(name, compiled);
+    return compiled;
   }
 
   const extensionByKind: Record<ExtensionKind, TSchemaName> = {
@@ -221,10 +261,15 @@ function buildSchemaValidators(): ISchemaValidators {
 
   // Dedicated validator that targets PluginManifest inside the oneOf of
   // plugins-registry.schema.json, so callers don't have to hand-filter
-  // against the combined schema.
-  const pluginManifestValidator = ajv.compile({
-    $ref: 'https://skill-map.ai/spec/v1/plugins-registry.schema.json#/$defs/PluginManifest',
-  });
+  // against the combined schema. Compiled on first use like the named
+  // validators; verbs that never touch plugins skip the codegen.
+  let pluginManifestValidator: ValidateFunction | null = null;
+  function getPluginManifestValidator(): ValidateFunction {
+    pluginManifestValidator ??= ajv.compile({
+      $ref: 'https://skill-map.ai/spec/v1/plugins-registry.schema.json#/$defs/PluginManifest',
+    });
+    return pluginManifestValidator;
+  }
 
   // Per-slot payload validators for `ctx.emitContribution`. Compiled
   // lazily on first use because not every CLI verb exercises the
@@ -276,23 +321,21 @@ function buildSchemaValidators(): ISchemaValidators {
 
   return {
     getValidator(name) {
-      const v = validators.get(name);
-      if (!v) throw new Error(`Unknown schema: ${name}`);
-      return v;
+      return getOrCompile(name);
     },
     validatorForExtension(kind) {
-      return validators.get(extensionByKind[kind])!;
+      return getOrCompile(extensionByKind[kind]);
     },
     validate<T = unknown>(name: TSchemaName, data: unknown) {
-      const v = validators.get(name);
-      if (!v) throw new Error(`Unknown schema: ${name}`);
+      const v = getOrCompile(name);
       if (v(data)) return { ok: true as const, data: data as T };
       const errors = formatAjvErrors(v.errors);
       return { ok: false as const, errors };
     },
     validatePluginManifest<T = unknown>(data: unknown) {
-      if (pluginManifestValidator(data)) return { ok: true as const, data: data as T };
-      const errors = formatAjvErrors(pluginManifestValidator.errors);
+      const v = getPluginManifestValidator();
+      if (v(data)) return { ok: true as const, data: data as T };
+      const errors = formatAjvErrors(v.errors);
       return { ok: false as const, errors };
     },
     validateContributionPayload(slot: string, payload: unknown) {

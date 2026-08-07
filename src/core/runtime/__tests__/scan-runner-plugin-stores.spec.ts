@@ -108,7 +108,7 @@ function pluginRuntimeWith(
   };
 }
 
-function scanOpts(runtime: IPluginRuntime): IScanRunOpts {
+function scanOpts(runtime: IPluginRuntime, mode: { full?: boolean } = {}): IScanRunOpts {
   return {
     // Explicit root: an empty list defaults to `'.'`, which the walker
     // resolves against the test process cwd (the repo), not the temp
@@ -119,6 +119,7 @@ function scanOpts(runtime: IPluginRuntime): IScanRunOpts {
     noTokens: true,
     dryRun: false,
     changed: false,
+    ...(mode.full !== undefined ? { full: mode.full } : {}),
     allowEmpty: true,
     strict: false,
     stderr: silentStderr,
@@ -198,8 +199,12 @@ describe('sm scan wires ctx.store for plugins that declared KV storage', () => {
     });
 
     // Second scan: the value written by the first one is readable, which
-    // is the whole point of persisting it.
-    const second = await runScanForCommand(scanOpts(runtime));
+    // is the whole point of persisting it. `full: true` because the
+    // incremental default would cache the unchanged (node, extractor)
+    // pair and never invoke `extract()` again; this test needs the
+    // re-run to observe the read-back (the caching itself is pinned by
+    // `scan-runner-incremental-default.spec.ts`).
+    const second = await runScanForCommand(scanOpts(runtime, { full: true }));
     strictEqual(second.kind, 'ok');
     deepStrictEqual(
       readBack[1],

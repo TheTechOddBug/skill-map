@@ -281,7 +281,7 @@ export async function createServer(
   let watcherService: IWatcherServiceHandle | null = null;
   if (!options.noWatcher) {
     const candidate = createWatcherService(
-      buildWatcherServiceOpts(options, runtimeContext, broadcaster, extra),
+      buildWatcherServiceOpts(options, runtimeContext, broadcaster, extra, pluginRuntime),
     );
     try {
       await candidate.start();
@@ -413,11 +413,15 @@ function buildWatcherServiceOpts(
   runtimeContext: IRuntimeContext,
   broadcaster: WsBroadcaster,
   extra: ICreateServerOpts,
+  pluginRuntime: IPluginRuntime,
 ): Parameters<typeof createWatcherService>[0] {
   const svcOpts: Parameters<typeof createWatcherService>[0] = {
     options,
     runtimeContext,
     broadcaster,
+    // Audit M3 extended to the watcher: reuse the boot-cached plugin
+    // runtime instead of a second `.skill-map/plugins/` discovery.
+    pluginRuntime,
   };
   if (options.watcherDebounceMs !== undefined) {
     svcOpts.debounceMsOverride = options.watcherDebounceMs;

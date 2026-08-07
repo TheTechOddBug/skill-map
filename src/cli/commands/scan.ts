@@ -20,7 +20,7 @@ import { addInvocationExtensions, setInvocationLens } from '../telemetry/posthog
 import { parseWatchBackend, runWatchLoop } from './watch.js';
 
 /**
- * `sm scan [roots...] [--json] [--no-built-ins] [--no-plugins] [-n|--dry-run] [--changed]`
+ * `sm scan [roots...] [--json] [--no-built-ins] [--no-plugins] [-n|--dry-run] [--full] [--changed]`
  *
  * Scans the given roots under the active provider lens (spec
  * `cli-contract.md` §Active provider lens) with the built-in extension
@@ -33,6 +33,19 @@ import { parseWatchBackend, runWatchLoop } from './watch.js';
  * Result is persisted into `<cwd>/.skill-map/skill-map.db` (auto-migrated)
  * with replace-all semantics across `scan_nodes / scan_links / scan_issues`.
  *
+ * Incremental by default (spec `cli-contract.md` §Scan): when the DB
+ * holds a prior snapshot, unchanged nodes are reused (matched by path +
+ * body hash + sidecar-annotations hash + per-extractor cache rows) and
+ * only new / modified files re-extract; every Analyzer still runs over
+ * the merged graph. The first scan of a scope runs full automatically.
+ *
+ * - `--full` forces a complete re-extraction, ignoring cached reuse
+ *   (the prior is still read for rename detection). Cannot be combined
+ *   with `--changed`.
+ * - `--changed` is the explicit alias of the incremental default, kept
+ *   for invocations that predate the flip. If the DB doesn't exist or
+ *   the prior snapshot is empty it degrades to a full scan and prints
+ *   a one-liner to stderr (the default stays silent on a first scan).
  * - `--no-built-ins` skips both the pipeline and the persistence step
  *   (kernel-empty-boot parity); cannot be combined with `--changed`.
  * - `--no-plugins` skips drop-in plugin discovery entirely. Only the
@@ -41,13 +54,8 @@ import { parseWatchBackend, runWatchLoop } from './watch.js';
  *   Failed / incompatible plugins are logged to stderr and skipped;
  *   the scan never aborts on a bad plugin.
  * - `-n` / `--dry-run` runs the scan in-memory and skips ALL DB writes.
- *   Combined with `--changed` it still opens the DB read-side to load
- *   the prior snapshot, then exits without writing.
- * - `--changed` performs an incremental scan against the persisted prior
- *   snapshot. Reuses unchanged nodes (matched by path + bodyHash +
- *   frontmatterHash) and reprocesses new / modified files only. If the
- *   DB doesn't exist or the prior snapshot is empty, degrades to a full
- *   scan and prints a one-liner to stderr.
+ *   It still opens the DB read-side to load the prior snapshot, so the
+ *   preview mirrors what the live scan would persist.
  */
 export class ScanCommand extends SmCommand {
   static override paths = [['scan']];
@@ -68,10 +76,12 @@ export class ScanCommand extends SmCommand {
       to skip both the pipeline and the persistence step (kernel-empty-boot
       parity).
 
-      Pass -n / --dry-run to skip every DB operation (the result is
-      computed in memory and emitted to stdout). Pass --changed to load
-      the prior snapshot from the DB, reuse unchanged nodes, and only
-      reprocess new / modified files.
+      Scans are incremental by default: when a prior snapshot exists,
+      unchanged nodes are reused and only new / modified files
+      re-extract (every analyzer still runs over the merged graph).
+      Pass --full to force a complete re-extraction. Pass -n /
+      --dry-run to skip every DB write (the result is computed in
+      memory and emitted to stdout).
 
       Scans honour scan.referencePaths (walk the configured dirs for
       link-validation only; files there are not indexed). The key is
@@ -84,8 +94,8 @@ export class ScanCommand extends SmCommand {
       ['Scan multiple roots and print JSON', '$0 scan ./docs ./skills --json'],
       ['Empty-pipeline conformance', '$0 scan --no-built-ins --json'],
       ['Dry-run, no DB writes', '$0 scan -n --json'],
-      ['Incremental scan against prior snapshot', '$0 scan --changed'],
-      ['What would the next incremental scan persist?', '$0 scan --changed -n --json'],
+      ['Force a complete re-extraction', '$0 scan --full'],
+      ['What would the next scan persist?', '$0 scan -n --json'],
     ],
   });
 
@@ -97,13 +107,16 @@ export class ScanCommand extends SmCommand {
     description: 'Skip drop-in plugin discovery. Only the built-in set runs. Combine with --no-built-ins for a fully empty pipeline.',
   });
   noTokens = Option.Boolean('--no-tokens', false, {
-    description: 'Skip per-node token counts (cl100k_base BPE). Leaves node.tokens undefined; spec-valid since the field is optional.',
+    description: 'Skip COMPUTING per-node token counts (cl100k_base BPE) for re-extracted nodes; cache-reused nodes keep their still-accurate prior counts. Combine with --full for a fully token-free result.',
   });
   dryRun = Option.Boolean('-n,--dry-run', false, {
     description: 'Run the scan in memory and skip every DB write. Combined with --changed, still opens the DB read-side to load the prior snapshot.',
   });
   changed = Option.Boolean('--changed', false, {
-    description: 'Incremental scan: reuse unchanged nodes from the persisted prior snapshot. Degrades to a full scan if no prior snapshot exists.',
+    description: 'Explicit alias of the incremental default: reuse unchanged nodes from the persisted prior snapshot. Degrades to a full scan (with a stderr advisory) if no prior snapshot exists.',
+  });
+  full = Option.Boolean('--full', false, {
+    description: 'Force a complete re-extraction, ignoring cached reuse (the prior snapshot is still read for rename detection). Escape hatch for a hand-edited DB or a plugin change the cache key does not capture.',
   });
   allowEmpty = Option.Boolean('--allow-empty', false, {
     description: 'Allow a zero-result scan to wipe an already-populated DB (replace-all replace by zero rows). Off by default to avoid the typo-trap where an invalid root silently clears your data.',
@@ -131,7 +144,7 @@ export class ScanCommand extends SmCommand {
   });
 
   // Each branch below maps to one validation gate (--watch alias /
-  // --changed mutex / dispatch); splitting per branch would scatter
+  // flag mutexes / dispatch); splitting per branch would scatter
   // the gate from the value it gates.
   protected async run(): Promise<number> {
     const caps = this.parseCapFlags();
@@ -139,14 +152,13 @@ export class ScanCommand extends SmCommand {
 
     if (this.watch) return this.runWatchAlias();
 
-    // `--no-built-ins` zero-fills the pipeline; combining it with
-    // `--changed` (which loads a prior to merge against) is incoherent.
-    if (this.changed && this.noBuiltIns) {
+    const conflict = this.#firstModeConflict();
+    if (conflict !== null) {
       const ansi = this.ansiFor('stderr');
       this.printer!.error(
-        tx(SCAN_TEXTS.changedWithoutBuiltIns, {
+        tx(conflict.template, {
           glyph: ansi.red('✕'),
-          hint: ansi.dim(SCAN_TEXTS.changedWithoutBuiltInsHint),
+          hint: ansi.dim(conflict.hint),
         }),
       );
       return ExitCode.Error;
@@ -175,6 +187,7 @@ export class ScanCommand extends SmCommand {
       noTokens: this.noTokens,
       dryRun: this.dryRun,
       changed: this.changed,
+      full: this.full,
       allowEmpty: this.allowEmpty,
       strict: this.strict,
       stderr: this.context.stderr,
@@ -254,6 +267,29 @@ export class ScanCommand extends SmCommand {
   }
 
   /**
+   * Detect the first one-shot scan-mode conflict in declaration order
+   * and return the catalog entries `run()` renders for it. `null` when
+   * no conflict is active. Mirrors `#firstWatchConflict` so every mutex
+   * renders through one gate instead of one if-block per pair:
+   *   - `--full --changed`: the alias of the incremental default vs the
+   *     flag that forces the opposite, contradictory.
+   *   - `--changed --no-built-ins`: an empty pipeline zero-fills the
+   *     result, leaving nothing to merge a prior against.
+   */
+  #firstModeConflict(): { template: string; hint: string } | null {
+    if (this.full && this.changed) {
+      return { template: SCAN_TEXTS.fullWithChanged, hint: SCAN_TEXTS.fullWithChangedHint };
+    }
+    if (this.changed && this.noBuiltIns) {
+      return {
+        template: SCAN_TEXTS.changedWithoutBuiltIns,
+        hint: SCAN_TEXTS.changedWithoutBuiltInsHint,
+      };
+    }
+    return null;
+  }
+
+  /**
    * `--watch` is a thin alias for the `sm watch` verb. Combining
    * `--watch` with one-shot-only flags is incoherent, the watcher
    * always persists incrementally over the prior snapshot.
@@ -312,6 +348,9 @@ export class ScanCommand extends SmCommand {
     }
     if (this.changed) {
       return { template: SCAN_TEXTS.watchVsChanged, hint: SCAN_TEXTS.watchVsChangedHint };
+    }
+    if (this.full) {
+      return { template: SCAN_TEXTS.watchVsFull, hint: SCAN_TEXTS.watchVsFullHint };
     }
     if (this.allowEmpty) {
       return { template: SCAN_TEXTS.watchVsAllowEmpty, hint: SCAN_TEXTS.watchVsAllowEmptyHint };

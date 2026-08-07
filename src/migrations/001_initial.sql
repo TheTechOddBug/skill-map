@@ -500,6 +500,12 @@ CREATE TABLE scan_extractor_runs (
   extractor_id TEXT NOT NULL,
   body_hash_at_run TEXT NOT NULL,
   sidecar_annotations_hash_at_run TEXT NOT NULL,
+  -- SHA-256 of the extractor's canonical-form resolved settings at run
+  -- time (committed keys + project-local secrets + env overrides). Third
+  -- leg of the cache key: a settings change re-runs the pair on the next
+  -- scan, so the incremental default never serves outputs computed under
+  -- superseded settings.
+  settings_hash_at_run TEXT NOT NULL DEFAULT '',
   ran_at INTEGER NOT NULL,
   PRIMARY KEY (node_path, extractor_id)
 );

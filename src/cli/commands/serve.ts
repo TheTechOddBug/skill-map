@@ -42,16 +42,13 @@ import { maybeResetOnDrift } from '../../core/sqlite/db-drift-reset.js';
 import { DB_DRIFT_TEXTS } from '../../core/sqlite/i18n/db-drift.texts.js';
 import type { IAnsi } from '../util/ansi.js';
 import { validateBrowserUrl } from '../util/browser-launch.js';
-import {
-  createServer,
-  resolveDefaultUiDist,
-  resolveExplicitUiDist,
-  validateServerOptions,
-  isUiBundleDir,
-  type IServerOptionsInput,
-  type IServerHandle,
-} from '../../server/index.js';
-import { initSentryBff } from '../../server/telemetry/sentry.js';
+// Type-only: the server module's VALUES load via `await import()` inside
+// `run()` (see the deferred-import note there). A static value import
+// here would execute the whole BFF subgraph (Hono app, route factories,
+// their AJV body-validator compiles) on every CLI invocation, `sm scan`
+// and `sm version` included, because the command registry imports this
+// class unconditionally.
+import type { IServerOptionsInput, IServerHandle } from '../../server/index.js';
 import { SERVE_TEXTS } from '../i18n/serve.texts.js';
 import { defaultServeInfoPath, resolveDbPath } from '../util/db-path.js';
 import { buildServeInfo, removeServeInfo, writeServeInfo } from '../util/serve-info.js';
@@ -207,6 +204,12 @@ export class ServeCommand extends SmCommand {
       return ExitCode.NotFound;
     }
 
+    // Deferred server import: the BFF subgraph is heavyweight at module
+    // scope (route factories build their body validators on import), so
+    // it loads here, after the cheap flag gates, and only for this verb.
+    // `sm serve` is the single consumer of `src/server/` in the CLI.
+    const serverMod = await import('../../server/index.js');
+
     // 3. UI bundle resolution.
     //    - `--no-ui` + `--ui-dist <path>` is contradictory → exit 2.
     //    - `--no-ui` alone → skip resolution, force uiDist=null, route
@@ -227,7 +230,7 @@ export class ServeCommand extends SmCommand {
     if (this.noUi) {
       resolvedUiDist = null;
     } else {
-      const uiDistResult = resolveUiDist(runtimeCtx, this.uiDist);
+      const uiDistResult = resolveUiDist(runtimeCtx, this.uiDist, serverMod);
       if (!uiDistResult.ok) {
         this.printer!.error(
           tx(SERVE_TEXTS.startupFailed, {
@@ -354,7 +357,7 @@ export class ServeCommand extends SmCommand {
     if (maxNodesResult.value !== undefined) input.maxNodes = maxNodesResult.value;
     if (watchBackendResult.value !== undefined) input.watchBackend = watchBackendResult.value;
 
-    const validation = validateServerOptions(input);
+    const validation = serverMod.validateServerOptions(input);
     if (!validation.ok) {
       this.printer!.error(formatValidationError(validation.error, stderrAnsi));
       return ExitCode.Error;
@@ -388,10 +391,11 @@ export class ServeCommand extends SmCommand {
     // the server stays env-free) and only here: the `serve` verb is skipped
     // by the CLI-side init in entry.ts so the two Sentry clients never
     // clobber each other. No-op while the DSN placeholder is empty.
+    const { initSentryBff } = await import('../../server/telemetry/sentry.js');
     await initSentryBff(VERSION);
     let handle: IServerHandle;
     try {
-      handle = await createServer(validation.options, {
+      handle = await serverMod.createServer(validation.options, {
         scanProgress: { stream: stderr, colorEnabled },
         // Opt in to the boot liveness ping: the daemon is the surface
         // whose panel asks "is an agent attending the queue?"
@@ -582,12 +586,26 @@ function parseWatchBackendFlag(raw: string | undefined): IWatchBackendOk | IWatc
 interface IUiDistOk { ok: true; uiDist: string | null; }
 interface IUiDistErr { ok: false; message: string; }
 
-function resolveUiDist(ctx: IRuntimeContext, raw: string | undefined): IUiDistOk | IUiDistErr {
+/**
+ * The server module's UI-dist helpers arrive as a parameter because the
+ * module itself is loaded dynamically inside `run()` (deferred-import
+ * note at the top of the file); a static import here would defeat it.
+ */
+type TServerUiDistFns = Pick<
+  typeof import('../../server/index.js'),
+  'resolveDefaultUiDist' | 'resolveExplicitUiDist' | 'isUiBundleDir'
+>;
+
+function resolveUiDist(
+  ctx: IRuntimeContext,
+  raw: string | undefined,
+  server: TServerUiDistFns,
+): IUiDistOk | IUiDistErr {
   if (raw === undefined) {
-    return { ok: true, uiDist: resolveDefaultUiDist(ctx) };
+    return { ok: true, uiDist: server.resolveDefaultUiDist(ctx) };
   }
-  const abs = resolveExplicitUiDist(ctx, raw);
-  if (!isUiBundleDir(abs)) {
+  const abs = server.resolveExplicitUiDist(ctx, raw);
+  if (!server.isUiBundleDir(abs)) {
     return {
       ok: false,
       message: tx(SERVE_TEXTS.uiDistInvalid, { path: abs }),

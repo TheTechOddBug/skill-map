@@ -95,6 +95,7 @@ import {
   loadPluginRuntime,
   registerEnabledExtensions,
   type IConformanceKillSwitches,
+  type IPluginRuntime,
 } from '../runtime/plugin-runtime.js';
 import type { IRuntimeContext } from '../runtime/runtime-context.js';
 import { tryWithSqlite, withSqlite } from '../sqlite/with-sqlite.js';
@@ -208,6 +209,19 @@ export interface ICreateWatcherRuntimeOpts {
   noBuiltIns: boolean;
   /** Skip plugin discovery entirely (`--no-plugins` / `IServerOptions.noPlugins`). */
   noPlugins: boolean;
+  /**
+   * Pre-loaded plugin runtime (mirror of `IScanRunOpts.pluginRuntime`,
+   * audit M3). When set, `start()` skips its own `loadPluginRuntime`
+   * call and consumes this runtime directly, and does NOT re-forward
+   * its warnings (the injector already surfaced them at its own boot).
+   * The BFF threads its boot-cached runtime here so `sm serve` stops
+   * walking `.skill-map/plugins/` twice per boot, and so the watcher
+   * classifies against the SAME snapshot the routes and kindRegistry
+   * use. The CLI (`sm watch`) leaves it undefined and keeps loading
+   * its own. Wins over `noPlugins` by construction: the injector
+   * already resolved that flag when it built the runtime.
+   */
+  pluginRuntime?: IPluginRuntime;
   /**
    * Strict-mode override. `true` promotes frontmatter warnings to
    * errors AND validates the prior snapshot before the rename
@@ -506,6 +520,34 @@ export function resolveWatcherBackend(
 }
 
 /**
+ * Resolve the plugin runtime for one watcher boot. An injected
+ * `opts.pluginRuntime` (the BFF's boot-cached one, audit M3) wins over
+ * everything, INCLUDING `noPlugins` (the injector already resolved that
+ * flag when it built the runtime), and its warnings are NOT re-forwarded
+ * (the injector surfaced them at its own boot; mirror of
+ * `scan-runner.ts`'s `preparePluginRuntime`). The self-loading path
+ * threads the runtimeContext through so plugin discovery walks the same
+ * `cwd` the rest of the watcher resolves against; without it,
+ * `loadPluginRuntime` falls back to `defaultRuntimeContext()` which
+ * reads `process.cwd()`, fine in CLI contexts but wrong in tests and
+ * BFF setups where the runtime context was overridden. Extracted to
+ * keep `start()` under the complexity cap.
+ */
+async function resolveBootPluginRuntime(
+  opts: ICreateWatcherRuntimeOpts,
+  events: IWatcherEvents,
+): Promise<IPluginRuntime> {
+  if (opts.pluginRuntime) return opts.pluginRuntime;
+  const pluginRuntime = opts.noPlugins
+    ? emptyPluginRuntime()
+    : await loadPluginRuntime({ runtimeContext: opts.runtimeContext });
+  for (const warn of pluginRuntime.warnings) {
+    events.onPluginWarning?.(warn);
+  }
+  return pluginRuntime;
+}
+
+/**
  * Resolve the active lens for a watcher batch from the persisted config
  * (`settings.json#/activeProvider`), falling back to filesystem
  * auto-detect via the composed providers, then to the universal markdown
@@ -618,21 +660,9 @@ export function createWatcherRuntime(
     // Plugin runtime loaded once at boot, reused across every batch.
     // A hot reload of plugin code requires restarting the watcher
     // (Step 9.1; reload-on-change can land later if it shows up in
-    // real workflows).
-    // Thread the BFF's runtimeContext through so plugin discovery
-    // walks the same `cwd` the rest of the watcher resolves against.
-    // Without this, `loadPluginRuntime` falls back to
-    // `defaultRuntimeContext()` which reads `process.cwd()`, fine in
-    // CLI contexts but wrong in tests and BFF setups where the
-    // runtime context was overridden. Same audit-M3 wiring
-    // `assembleBootBundle` already does for the boot-time
-    // pluginRuntime that feeds the catalog.
-    const pluginRuntime = opts.noPlugins
-      ? emptyPluginRuntime()
-      : await loadPluginRuntime({ runtimeContext: opts.runtimeContext });
-    for (const warn of pluginRuntime.warnings) {
-      events.onPluginWarning?.(warn);
-    }
+    // real workflows). Resolution + warning forwarding live in
+    // `resolveBootPluginRuntime` below.
+    const pluginRuntime = await resolveBootPluginRuntime(opts, events);
 
     // Static union of file types worth watching over ALL registered
     // providers, so chokidar's initial watch set (decided at subscribe

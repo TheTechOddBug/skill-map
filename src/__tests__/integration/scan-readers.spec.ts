@@ -235,6 +235,7 @@ interface IScanOverrides {
   noTokens?: boolean;
   dryRun?: boolean;
   changed?: boolean;
+  full?: boolean;
   allowEmpty?: boolean;
   strict?: boolean;
   watch?: boolean;
@@ -250,6 +251,10 @@ function buildScan(overrides: IScanOverrides = {}): ScanCommand {
   cmd.noTokens = overrides.noTokens ?? false;
   cmd.dryRun = overrides.dryRun ?? false;
   cmd.changed = overrides.changed ?? false;
+  // Same marker-reset rationale as maxScan/maxNodes below: a direct
+  // instantiation leaves Clipanion's Option marker (truthy) on the
+  // field, which would trip the `--full --changed` mutex.
+  cmd.full = overrides.full ?? false;
   cmd.allowEmpty = overrides.allowEmpty ?? false;
   cmd.strict = overrides.strict ?? false;
   cmd.watch = overrides.watch ?? false;
@@ -1014,7 +1019,7 @@ describe('sm scan empty / invalid roots & --allow-empty guard', () => {
 // restored in `finally`.
 
 describe('sm scan --no-tokens (CLI handler)', () => {
-  it('default tokenize → tokens_total populated; --no-tokens → null; default again → repopulated', async () => {
+  it('tokens interact with cached reuse one-way: kept under --no-tokens, wiped by --no-tokens --full, recovered by the next default scan', async () => {
     const fixture = freshFixture('scan-no-tokens');
     await plantClaudeFixture(fixture);
 
@@ -1056,10 +1061,43 @@ describe('sm scan --no-tokens (CLI handler)', () => {
         }
       }
 
-      // Run 2: --no-tokens.
+      // Run 2: --no-tokens over an unchanged fixture. The incremental
+      // default reuses every node, and cached nodes KEEP their prior
+      // counts (spec §Scan: skipping means not computing; the
+      // hash-identical body keeps the carried counts accurate).
       {
         const cap = captureContext();
         const cmd = buildScan({ noTokens: true });
+        cmd.context = cap.context;
+        const code = await cmd.execute();
+        strictEqual(code, 1, `unexpected exit ${code}; stderr=${cap.stderr()}`);
+      }
+      {
+        const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+        await adapter.init();
+        try {
+          const rows = await adapter.db
+            .selectFrom('scan_nodes')
+            .select(['path', 'tokensTotal'])
+            .execute();
+          ok(rows.length > 0);
+          for (const r of rows) {
+            ok(
+              r.tokensTotal !== null,
+              `--no-tokens over cached nodes: ${r.path} keeps its still-accurate prior counts`,
+            );
+          }
+        } finally {
+          await adapter.close();
+        }
+      }
+
+      // Run 2b: --no-tokens --full bypasses the cache, so the
+      // re-extracted nodes land without counts (the fully token-free
+      // shape the flag combination documents).
+      {
+        const cap = captureContext();
+        const cmd = buildScan({ noTokens: true, full: true });
         cmd.context = cap.context;
         const code = await cmd.execute();
         strictEqual(code, 1, `unexpected exit ${code}; stderr=${cap.stderr()}`);
@@ -1077,7 +1115,7 @@ describe('sm scan --no-tokens (CLI handler)', () => {
             strictEqual(
               r.tokensTotal,
               null,
-              `--no-tokens: ${r.path} should have tokens_total null`,
+              `--no-tokens --full: ${r.path} should have tokens_total null`,
             );
             strictEqual(r.tokensFrontmatter, null);
             strictEqual(r.tokensBody, null);
@@ -1087,7 +1125,11 @@ describe('sm scan --no-tokens (CLI handler)', () => {
         }
       }
 
-      // Run 3: default again, tokens repopulate.
+      // Run 3: default again, tokens repopulate. This exercises the
+      // per-node token-state gate (`priorTokenStateCompatible`): the
+      // prior snapshot has NO counts, so under tokenize-on the nodes
+      // are not cache-eligible and re-extract, recovering the counts
+      // without --full.
       {
         const cap = captureContext();
         const cmd = buildScan({});

@@ -75,7 +75,20 @@ export interface IScanRunOpts {
   noPlugins: boolean;
   noTokens: boolean;
   dryRun: boolean;
+  /**
+   * Explicit alias of the incremental default (`sm scan --changed`).
+   * Since incremental became the default (spec §Scan), this flag no
+   * longer drives the cache decision (`full` does, inverted); it only
+   * arms the "changed but no prior" stderr advisory, which fires for
+   * the EXPLICIT flag and stays silent for a first default scan.
+   */
   changed: boolean;
+  /**
+   * Force a complete re-extraction (`sm scan --full`): disables cached
+   * node reuse even when a prior snapshot exists. The prior is still
+   * loaded regardless, it feeds rename detection in every mode.
+   */
+  full?: boolean;
   allowEmpty: boolean;
   strict: boolean;
   /**
@@ -716,9 +729,10 @@ function buildRunScanOptions(args: IBuildRunScanOptionsArgs): Parameters<typeof 
 
 /**
  * Prior-snapshot inputs: composed extensions, the previous `ScanResult`
- * (which also arms the `--changed` cache) and the per-extractor run
- * ledger. Split out of `buildRunScanOptions` to keep each function
- * under the project's cyclomatic-complexity cap.
+ * (which also arms the incremental cache, on by default per spec §Scan
+ * and disabled by `--full`) and the per-extractor run ledger. Split out
+ * of `buildRunScanOptions` to keep each function under the project's
+ * cyclomatic-complexity cap.
  */
 function applyPriorRunScanOptions(
   runOptions: Parameters<typeof runScan>[1],
@@ -728,7 +742,7 @@ function applyPriorRunScanOptions(
   if (args.extensions) runOptions.extensions = args.extensions;
   if (prior) {
     runOptions.priorSnapshot = prior;
-    runOptions.enableCache = opts.changed;
+    runOptions.enableCache = opts.full !== true;
   }
   if (priorExtractorRuns) runOptions.priorExtractorRuns = priorExtractorRuns;
 }
@@ -845,7 +859,7 @@ async function runPersistPath(
     outcome = await withSqlite({ databasePath: dbPath, skipDriftCheck: true }, async (adapter) => {
       const prior = await loadPrior(adapter);
       const priorExtractorRuns =
-        opts.changed && prior ? await adapter.scans.loadExtractorRuns() : undefined;
+        opts.full !== true && prior ? await adapter.scans.loadExtractorRuns() : undefined;
       let scanned;
       try {
         scanned = await runScanWith(prior, priorExtractorRuns, bindPluginStores(adapter));

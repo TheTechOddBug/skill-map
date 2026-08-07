@@ -62,6 +62,15 @@ export interface IExtractorRunRecord {
    * the cached run for every applicable Extractor on that node.
    */
   sidecarAnnotationsHashAtRun: string;
+  /**
+   * sha256 of the canonical-form resolved settings the Extractor saw at
+   * run time (`ctx.settings`: committed keys + project-local secrets +
+   * env overrides; an extension without settings canonicalises to `{}`).
+   * Third leg of the cache key: a settings change re-runs the pair on
+   * the next scan, so the incremental default never serves outputs
+   * computed under superseded settings.
+   */
+  settingsHashAtRun: string;
 }
 
 /**

@@ -56,6 +56,7 @@ import {
 import {
   buildFreshNodeAndValidateFrontmatter,
   canonicalFrontmatter,
+  canonicalResolvedSettings,
   canonicalSidecarAnnotations,
   resolveSidecarOverlay,
   sha256,
@@ -400,6 +401,13 @@ interface IWalkContext {
    * "still cached".
    */
   shortIdToQualified: Map<string, string[]>;
+  /**
+   * Live per-extractor resolved-settings hashes, keyed by qualified id.
+   * Built once per scan from the composed extractors' `resolvedSettings`
+   * (populated by the plugin-runtime composer). Third leg of the cache
+   * key; see `computeCacheDecision`.
+   */
+  settingsHashByExtractor: Map<string, string>;
 }
 
 /**
@@ -935,13 +943,22 @@ function createWalkAccumulators(): IWalkAccumulators {
 function buildWalkContext(opts: IWalkAndExtractOptions): IWalkContext {
   const { priorNodesByPath, priorLinksByOriginating, priorFrontmatterIssuesByNode } = opts.priorIndex;
   const shortIdToQualified = new Map<string, string[]>();
+  const settingsHashByExtractor = new Map<string, string>();
   for (const ex of opts.extractors) {
     const qualified = qualifiedExtensionId(ex.pluginId, ex.id);
     const list = shortIdToQualified.get(ex.id);
     if (list) list.push(qualified);
     else shortIdToQualified.set(ex.id, [qualified]);
+    settingsHashByExtractor.set(qualified, sha256(canonicalResolvedSettings(ex.resolvedSettings)));
   }
-  return { opts, priorNodesByPath, priorLinksByOriginating, priorFrontmatterIssuesByNode, shortIdToQualified };
+  return {
+    opts,
+    priorNodesByPath,
+    priorLinksByOriginating,
+    priorFrontmatterIssuesByNode,
+    shortIdToQualified,
+    settingsHashByExtractor,
+  };
 }
 
 /**
@@ -1019,13 +1036,14 @@ async function processRawNode(
 
 /**
  * Whether a node may reuse its prior snapshot entry (full / partial cache).
- * Gated on the explicit `enableCache` option (a plain `sm scan` always
- * re-walks deterministically; only `sm scan --changed` flips it on, the
- * rename heuristic uses `prior` independently of `enableCache`), with a
- * tokenizer-change invalidation (a tokenizer swap rebuilds every node so
- * `buildNode` re-tokenizes), plus a prior snapshot whose body + frontmatter
- * hashes match. Extracted so the `&&` chain lives outside `processRawNode`
- * and that function clears the complexity cap.
+ * Gated on the `enableCache` option (on for the incremental default and
+ * its `--changed` alias, off under `--full`; the rename heuristic uses
+ * `prior` independently of `enableCache`), with a tokenizer-change
+ * invalidation (a tokenizer swap rebuilds every node so `buildNode`
+ * re-tokenizes), a per-node token-state check (see
+ * `priorTokenStateCompatible`), plus a prior snapshot whose body +
+ * frontmatter hashes match. Extracted so the `&&` chain lives outside
+ * `processRawNode` and that function clears the complexity cap.
  */
 function isNodeHashCacheEligible(
   wctx: IWalkContext,
@@ -1038,9 +1056,26 @@ function isNodeHashCacheEligible(
     !wctx.opts.tokenizerChanged &&
     wctx.opts.prior !== null &&
     priorNode !== undefined &&
+    priorTokenStateCompatible(wctx, priorNode) &&
     priorNode.bodyHash === bodyHash &&
     priorNode.frontmatterHash === frontmatterHash
   );
+}
+
+/**
+ * Token-state compatibility for cache reuse. A cached node keeps its
+ * prior `tokens` verbatim, which is correct while tokenization is OFF
+ * this scan (`--no-tokens` / `scan.tokenize: false` skip COMPUTING
+ * counts, they do not erase valid ones: the body is hash-identical, so
+ * previously computed counts still describe it) and while it stays on.
+ * The one direction that must invalidate is tokenize-on over a prior
+ * node WITHOUT counts (a snapshot produced with tokenization off):
+ * reusing it would pin `tokens` absent forever, so the node re-extracts
+ * and `buildNode` re-tokenizes. Applied by BOTH cache entry points (the
+ * hash gate above and the mtime fast path in `handleUnchangedRawNode`).
+ */
+function priorTokenStateCompatible(wctx: IWalkContext, priorNode: Node): boolean {
+  return wctx.opts.encoder === null || priorNode.tokens !== undefined;
 }
 
 /**
@@ -1076,7 +1111,11 @@ async function handleUnchangedRawNode(
         kind: prior.kind,
         bodyHash: prior.bodyHash,
         frontmatterHash: prior.frontmatterHash,
-        nodeHashCacheEligible: true,
+        // Mtime-unchanged implies hash-unchanged, but the token-state
+        // check still applies: a tokenless prior node under
+        // tokenize-on must re-extract (ensureBody rereads it) so the
+        // counts recover instead of staying pinned absent.
+        nodeHashCacheEligible: priorTokenStateCompatible(wctx, prior),
         priorNode: prior,
         ensureBody: () => rereadInto(raw),
       },
@@ -1144,6 +1183,7 @@ async function dispatchNode(
     nodePath: args.raw.path,
     bodyHash: args.bodyHash,
     sidecarAnnotationsHash,
+    settingsHashByExtractor: wctx.settingsHashByExtractor,
     nodeHashCacheEligible: args.nodeHashCacheEligible,
     priorExtractorRuns: wctx.opts.priorExtractorRuns,
   });
@@ -1261,6 +1301,7 @@ function applyFullCacheHit(
     priorNode: ctx.priorNode!,
     bodyHash: ctx.bodyHash,
     sidecarAnnotationsHash: ctx.sidecarAnnotationsHash,
+    settingsHashByExtractor: wctx.settingsHashByExtractor,
     strict: wctx.opts.strict,
     cachedQualifiedIds: ctx.cacheDecision.cachedQualifiedIds,
     applicableQualifiedIds: ctx.cacheDecision.applicableQualifiedIds,
@@ -1323,7 +1364,7 @@ async function applyExtractPath(
     ...(wctx.opts.pluginStores ? { pluginStores: wctx.opts.pluginStores } : {}),
   });
   mergeExtractResult(extractResult, accum);
-  recordExtractorRuns(node.path, ctx, accum);
+  recordExtractorRuns(node.path, ctx, wctx, accum);
 }
 
 function emitExtractProgress(
@@ -1448,23 +1489,26 @@ function buildOrReuseNode(
  * (both freshly-run AND cached ones whose contribution we reused).
  * Skipping cached entries here would let the replace-all persist
  * forget them, defeating the whole point of the partial-cache path.
- * Always populate `sidecarAnnotationsHashAtRun`; non-sidecar-readers
- * ignore it on the next decision but the column is non-null going
- * forward.
+ * Always populate `sidecarAnnotationsHashAtRun` and `settingsHashAtRun`;
+ * extractors indifferent to either input still record them (the columns
+ * are non-null) and the next cache decision consults both.
  */
 function recordExtractorRuns(
   nodePath: string,
   ctx: IProcessNodeContext,
+  wctx: IWalkContext,
   accum: IWalkAccumulators,
 ): void {
   const ranAt = Date.now();
   for (const ex of ctx.cacheDecision.applicableExtractors) {
+    const qualified = qualifiedExtensionId(ex.pluginId, ex.id);
     accum.extractorRuns.push({
       nodePath,
-      extractorId: qualifiedExtensionId(ex.pluginId, ex.id),
+      extractorId: qualified,
       bodyHashAtRun: ctx.bodyHash,
       ranAt,
       sidecarAnnotationsHashAtRun: ctx.sidecarAnnotationsHash,
+      settingsHashAtRun: wctx.settingsHashByExtractor.get(qualified) ?? '',
     });
   }
 }

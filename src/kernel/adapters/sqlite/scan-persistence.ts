@@ -752,6 +752,7 @@ function extractorRunToRow(
     bodyHashAtRun: record.bodyHashAtRun,
     ranAt: record.ranAt,
     sidecarAnnotationsHashAtRun: record.sidecarAnnotationsHashAtRun,
+    settingsHashAtRun: record.settingsHashAtRun,
   };
 }
 

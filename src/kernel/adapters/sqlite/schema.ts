@@ -301,6 +301,16 @@ export interface IScanExtractorRunsTable {
    * rationale (universal invalidation over an opt-in flag).
    */
   sidecarAnnotationsHashAtRun: string;
+  /**
+   * SHA-256 of the extractor's canonical-form resolved settings at run
+   * time (the merged `ctx.settings` bag: committed keys, project-local
+   * secrets, env-var overrides). Third leg of the cache key alongside
+   * `bodyHashAtRun` and `sidecarAnnotationsHashAtRun`: a settings
+   * change (via `sm plugins config`, the Settings UI, or a secret's
+   * `envVar`) re-runs the pair on the next scan instead of serving
+   * outputs computed under superseded settings.
+   */
+  settingsHashAtRun: string;
 }
 
 /**

@@ -112,6 +112,11 @@ async function runPersistedScan(c: Context, deps: IScanRouteDeps): Promise<Respo
         noTokens: false,
         dryRun: false,
         changed: false,
+        // Pin the pre-incremental-default behavior: the BFF fresh-scan
+        // route re-extracts everything, so its output is byte-stable
+        // regardless of what the CLI default does. Revisit separately
+        // if the UI rescan button should go incremental.
+        full: true,
         allowEmpty: true,
         strict: false,
         stderr: noopWritable(),
@@ -310,6 +315,9 @@ async function runFreshScan(deps: IRouteDeps): Promise<ScanResult> {
     noTokens: false,
     dryRun: true,
     changed: false,
+    // Same pin as the persisted-scan route above: dry-run previews the
+    // full re-extraction shape, not the incremental default.
+    full: true,
     allowEmpty: true,
     strict: false,
     stderr: noopWritable(),

@@ -19,6 +19,8 @@ import { after, before, describe, it } from 'node:test';
 
 import { builtIns, listBuiltIns } from '../../plugins/built-ins.js';
 import { createKernel, runScan } from '../../kernel/index.js';
+import { grantTrust } from '../../kernel/config/plugin-trust-store.js';
+import { installedSpecVersion } from '../../kernel/adapters/plugin-loader.js';
 import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';
 import {
@@ -1061,6 +1063,64 @@ describe('POST /api/scan', () => {
       },
       postScanExtra(),
     );
+  });
+
+  it('stays a full re-extraction on every POST (pinned, never incremental)', async () => {
+    // Regression pin for the route's `full: true`: the CLI default is
+    // incremental (spec §Scan), but the BFF fresh-scan route keeps
+    // re-extracting everything so its output stays byte-stable
+    // regardless of the CLI default. The probe plugin appends one line
+    // per `extract()` invocation; two POSTs over an unchanged fixture
+    // must double the count (incremental creep would freeze it after
+    // the first POST).
+    const pluginDir = join(root.fixtureDir, '.skill-map', 'plugins', 'route-probe');
+    const counterPath = join(root.fixtureDir, '.skill-map', 'route-probe-counter.txt');
+    const extDir = join(pluginDir, 'extractors', 'count');
+    mkdirSync(extDir, { recursive: true });
+    grantTrust(root.fixtureDir, 'route-probe');
+    writeFileSync(
+      join(pluginDir, 'plugin.json'),
+      JSON.stringify({
+        version: '0.1.0',
+        description: 'route full-pin probe',
+        specCompat: `^${installedSpecVersion()}`,
+        catalogCompat: '*',
+      }),
+    );
+    writeFileSync(
+      join(extDir, 'extension.json'),
+      JSON.stringify({ version: '0.1.0', description: 'counts extract() invocations' }),
+    );
+    writeFileSync(
+      join(extDir, 'index.js'),
+      `import { appendFileSync } from 'node:fs';\n` +
+        `export default {\n` +
+        `  extract() { appendFileSync(${JSON.stringify(counterPath)}, 'x\\n'); return []; },\n` +
+        `};\n`,
+    );
+    try {
+      await bootAndUse(
+        postScanOptions(),
+        async (handle) => {
+          const first = await fetch(url(handle, '/api/scan'), { method: 'POST' });
+          assert.equal(first.status, 200);
+          const afterFirst = readFileSync(counterPath, 'utf8').split('\n').filter(Boolean).length;
+          assert.ok(afterFirst > 0, 'probe extractor must run on the first POST');
+          const second = await fetch(url(handle, '/api/scan'), { method: 'POST' });
+          assert.equal(second.status, 200);
+          const afterSecond = readFileSync(counterPath, 'utf8').split('\n').filter(Boolean).length;
+          assert.equal(
+            afterSecond,
+            afterFirst * 2,
+            'the second POST must re-extract everything (route pinned to full)',
+          );
+        },
+        postScanExtra(),
+      );
+    } finally {
+      rmSync(pluginDir, { recursive: true, force: true });
+      rmSync(counterPath, { force: true });
+    }
   });
 });
 

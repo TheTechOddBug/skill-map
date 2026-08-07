@@ -153,9 +153,16 @@ function readParsedFile(): Record<string, unknown> | null {
 function validateOrDefault(parsed: Record<string, unknown>): IUserSettings {
   const validators = tryLoadValidators();
   if (validators === null) return defaultSettings();
-  const result = validators.validate<IUserSettings>('user-settings', parsed);
-  if (!result.ok) return defaultSettings();
-  return result.data;
+  try {
+    const result = validators.validate<IUserSettings>('user-settings', parsed);
+    if (!result.ok) return defaultSettings();
+    return result.data;
+  } catch {
+    // The loader compiles per schema on first use, so a corrupt spec
+    // install can surface here instead of inside `tryLoadValidators`;
+    // the settings store stays non-fatal either way.
+    return defaultSettings();
+  }
 }
 
 /**

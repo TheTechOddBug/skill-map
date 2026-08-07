@@ -54,7 +54,13 @@ export default defineConfig({
   // a runtime import; npm installs the correct prebuilt on the user's
   // machine (it is already in `pnpm-workspace.yaml` allowBuilds).
   external: ['@parcel/watcher'],
-  splitting: false,
+  // Code splitting pairs with the CLI's deferred server import
+  // (`cli/commands/serve.ts`): the BFF subgraph lands in its own chunk
+  // that common verbs never parse or execute, and the kernel code shared
+  // by the four entries dedupes into common chunks instead of being
+  // inlined into each bundle. `restoreNodeSqliteImports` below walks
+  // every emitted `.js` recursively, so chunks are covered.
+  splitting: true,
   sourcemap: true,
   clean: true,
   dts: true,

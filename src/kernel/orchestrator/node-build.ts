@@ -171,6 +171,23 @@ export function canonicalSidecarAnnotations(
 }
 
 /**
+ * Canonical form of an extension's resolved settings bag, the third
+ * contribution to the per-`(node, extractor)` cache key (alongside the
+ * body hash and the sidecar-annotations hash). Same determinism story
+ * as `canonicalSidecarAnnotations` above: absent / empty settings
+ * canonicalise to `{}` (an extension without settings never
+ * invalidates), and keys sort so an equivalent bag always hashes the
+ * same. Settings are JSON scalars/arrays by contract
+ * (`extensions/base.schema.json` §settings), so the YAML dump is
+ * stable.
+ */
+export function canonicalResolvedSettings(
+  settings: Record<string, unknown> | null | undefined,
+): string {
+  return canonicalSidecarAnnotations(settings);
+}
+
+/**
  * Pure overlay-resolution step (Step 9.6.2): tries each scan root in
  * order to find the absolute `.md` path the sidecar should accompany;
  * reads the `.sm`, validates it against the spec schemas, computes
