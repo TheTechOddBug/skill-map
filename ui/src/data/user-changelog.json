@@ -2,6 +2,27 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.5.0",
+      "date": "2026-08-07",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Scans are now incremental by default: repeat scans reuse unchanged files and finish much faster (use --full for a complete rescan). Every sm command also starts noticeably faster.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Two folder symlinks pointing at the same target now both appear on the map; before, only the first one scanned showed up and the other vanished silently.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.4.0",
       "date": "2026-08-06",
       "kind": "user-facing",
