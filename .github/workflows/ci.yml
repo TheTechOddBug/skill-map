@@ -3,8 +3,11 @@ name: ci
 on:
   push:
     branches: [main]
+    # NOTE: `.changeset/*.md` is deliberately NOT ignored here (it still is
+    # on pull_request): the release workflow now fires via workflow_run on
+    # this workflow's completion, so a changeset-only push must still run ci
+    # or the version-PR pass would never trigger.
     paths-ignore:
-      - '.changeset/*.md'
       - '.claude/**'
       - '.githooks/**'
       - 'context/**'

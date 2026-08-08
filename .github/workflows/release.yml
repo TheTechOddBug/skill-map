@@ -1,13 +1,27 @@
 name: release
 
 on:
+  # `main` cuts stable releases to the `latest` npm tag, GATED on the `ci`
+  # workflow: release fires only when ci COMPLETES on a main push, and the
+  # job-level `if` below requires its conclusion to be `success`. A red ci
+  # therefore blocks both the version-PR pass and the publish pass (before
+  # this gate, release ran in parallel with ci and could publish a build
+  # whose tests were failing). workflow_run supports no path filter, so the
+  # "is there release work to do" decision moved into the `Detect release
+  # pass` step (fresh changesets -> version PR; unpublished version ->
+  # publish; both false -> no-op).
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
+  # `release/rc` is the dedicated prerelease channel: while it is in
+  # changesets pre mode it publishes `-rc.N` builds under the `rc` tag, so
+  # `latest` (and every bare `npm i @skill-map/cli`) stays on the last
+  # stable. It keeps the direct push trigger (ci only runs on main pushes,
+  # so a workflow_run gate would never fire there). Runbook + invariants:
+  # CONTRIBUTING.md "Release candidates (prereleases)".
   push:
-    # `main` cuts stable releases to the `latest` npm tag. `release/rc` is the
-    # dedicated prerelease channel: while it is in changesets pre mode it
-    # publishes `-rc.N` builds under the `rc` tag, so `latest` (and every bare
-    # `npm i @skill-map/cli`) stays on the last stable. Runbook + invariants:
-    # CONTRIBUTING.md "Release candidates (prereleases)".
-    branches: [main, release/rc]
+    branches: [release/rc]
     paths:
       - '.changeset/*.md'
       # Entering / exiting pre mode (`changeset pre enter|exit`) only touches
@@ -29,10 +43,19 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # The ci gate: a workflow_run event fires on ANY completion (success,
+    # failure, cancelled), so the success requirement lives here. The push
+    # event (release/rc) has no workflow_run payload and passes through.
+    if: github.event_name == 'push' || github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Checkout
         uses: actions/checkout@v5
         with:
+          # Under workflow_run the default ref is the default branch's LATEST
+          # commit, which can have moved past the push that ran ci; pin to
+          # the exact commit ci validated. Empty (-> github.ref) on the
+          # release/rc push trigger.
+          ref: ${{ github.event.workflow_run.head_sha || '' }}
           fetch-depth: 0
           persist-credentials: true
           # Attribute the "version packages" PR (and its branch push) to a
@@ -123,10 +146,36 @@ jobs:
           done
           if [ "$fresh" = "1" ]; then
             echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "noop=false" >> "$GITHUB_OUTPUT"
             echo "Fresh changeset(s) present -> version-PR pass (skipping build)."
-          else
+            exit 0
+          fi
+          # No fresh changesets. Since the ci-gated workflow_run trigger has
+          # no path filter, this branch is now ALSO reached by ordinary code
+          # pushes with no release work at all; publishing distinguishes
+          # itself by an UNPUBLISHED version in a public package.json. If
+          # every version is already on npm there is nothing to do: no-op,
+          # skip the build and the changesets action entirely. An npm query
+          # failure counts as unpublished (over-trigger is safe: `changeset
+          # publish` no-ops on already-published versions; under-trigger
+          # silently skips a real release).
+          unpublished=0
+          for pkg in @skill-map/cli @skill-map/spec; do
+            dir=$( [ "$pkg" = "@skill-map/cli" ] && echo src || echo spec )
+            version=$(jq -r '.version' "$dir/package.json")
+            if ! npm view "${pkg}@${version}" version >/dev/null 2>&1; then
+              unpublished=1
+              echo "${pkg}@${version} not on npm yet."
+            fi
+          done
+          if [ "$unpublished" = "1" ]; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
-            echo "No fresh changesets -> publish pass (building dist)."
+            echo "noop=false" >> "$GITHUB_OUTPUT"
+            echo "No fresh changesets + unpublished version -> publish pass (building dist)."
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "noop=true" >> "$GITHUB_OUTPUT"
+            echo "No fresh changesets and every version already on npm -> no release work; done."
           fi
 
       - name: Build UI
@@ -234,6 +283,10 @@ jobs:
 
       - name: Changesets (version PR or publish)
         id: changesets
+        # Skipped on the no-op pass (nothing fresh, nothing unpublished):
+        # running it there would be pointless work on every code push now
+        # that the workflow_run trigger carries no path filter.
+        if: steps.pass.outputs.noop != 'true'
         uses: changesets/action@v1
         with:
           version: pnpm release:version

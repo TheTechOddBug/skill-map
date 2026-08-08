@@ -408,6 +408,7 @@ describe('POST /api/activity, ingest', () => {
         owner: 'spawn:toolu_01MEQBSdHNo3B9pMjY8s7ZQK',
         sticky: true,
         keepAlive: true,
+        detail: 'Agent',
       });
 
       assert.equal(frames[1]!['type'], 'agent.spawn');

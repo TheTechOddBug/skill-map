@@ -1062,6 +1062,7 @@ describe('GraphView, follow-the-activity camera', () => {
             enabled: activityEnabled.asReadonly(),
             activePaths: active.asReadonly(),
             activeInvocations: signal<readonly INodeInvocation[]>([]).asReadonly(),
+            executionDetails: signal<ReadonlyMap<string, string>>(new Map()).asReadonly(),
             setEnabled: vi.fn(),
           } as unknown as NodeActivityService,
         },
