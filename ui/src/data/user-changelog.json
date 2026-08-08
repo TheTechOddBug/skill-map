@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.6.3",
+      "date": "2026-08-08",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**No more false self-loop warnings on self-mentions.** A document that names its own file inside backticks (a usage example, like a skill citing its own SKILL.md) no longer gets flagged as a self-reference loop.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.6.2",
       "date": "2026-08-08",
       "kind": "internal",
