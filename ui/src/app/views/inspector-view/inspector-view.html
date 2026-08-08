@@ -195,10 +195,11 @@
             @case ('ready') {
               @let raw = bodyView() === 'raw';
               <!--
-                Raw / Rendered toggle. Lives inside the body content (not the
-                section header, which is itself a button) so it only paints
-                when the section is expanded. The label names the view it
-                switches TO.
+                Raw / Rendered toggle + Expand. Live inside the body content
+                (not the section header, which is itself a button) so they
+                only paint when the section is expanded. The toggle's label
+                names the view it switches TO; Expand opens the same body in
+                a large dialog (see the p-dialog at the end of the template).
               -->
               <div class="inspector__body-view">
                 <button
@@ -216,6 +217,17 @@
                     aria-hidden="true"
                   ></i>
                   <span>{{ raw ? texts.body.view.showRendered : texts.body.view.showRaw }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="inspector__body-view-toggle"
+                  data-testid="inspector-body-expand"
+                  (click)="openBodyDialog()"
+                  [pTooltip]="texts.body.expand.tooltip"
+                  [attr.aria-label]="texts.body.expand.tooltip"
+                >
+                  <i class="pi pi-expand" aria-hidden="true"></i>
+                  <span>{{ texts.body.expand.label }}</span>
                 </button>
               </div>
               @if (raw) {
@@ -306,5 +318,77 @@
       [context]="consentContext()"
       (decision)="onConsentDecision($event)"
     />
+
+    <!--
+      Large-dialog reading mode for the Body section. Opened by the Expand
+      button next to the Raw / Rendered toggle; shows the SAME content
+      (bodyHtml / raw highlighted source) with the same toggle in the
+      header, both flipping the shared `bodyView` signal. `appendTo="body"`
+      is load-bearing: PrimeNG re-parents the mask + dialog root to <body>
+      on show, so the dialog escapes the inspector rail and overlays the
+      whole viewport. That re-parenting is also why the dialog chrome
+      (styleClass / contentStyleClass) and the rendered-markdown prose live
+      as GLOBAL rules in `styles.css`: outside this host's subtree, no
+      `:host ::ng-deep` rule reaches them. Elements authored right here
+      keep working with ordinary scoped CSS (their `_ngcontent` attribute
+      travels with them). The `ariaLabelledBy` header context closes the
+      dialog's `aria-labelledby` reference onto our own title span (same
+      WCAG 4.1.2 contract documented in the Quick Start modal's header
+      template).
+    -->
+    <p-dialog
+      [(visible)]="bodyDialogOpen"
+      [modal]="true"
+      [draggable]="false"
+      [resizable]="false"
+      [closable]="true"
+      [closeOnEscape]="true"
+      [dismissableMask]="true"
+      appendTo="body"
+      styleClass="inspector__body-dialog"
+      contentStyleClass="inspector__body-dialog-content"
+      data-testid="inspector-body-dialog"
+    >
+      <ng-template #header let-ariaLabelledBy="ariaLabelledBy">
+        <div class="inspector__body-dialog-header">
+          <span
+            class="inspector__body-dialog-title"
+            [id]="ariaLabelledBy"
+            data-testid="inspector-body-dialog-title"
+          >{{ bodyDialogTitle() }}</span>
+          @let dialogRaw = bodyView() === 'raw';
+          <button
+            type="button"
+            class="inspector__body-view-toggle"
+            data-testid="inspector-body-dialog-view-toggle"
+            (click)="toggleBodyView()"
+            [pTooltip]="dialogRaw ? texts.body.view.showRenderedTooltip : texts.body.view.showRawTooltip"
+            [attr.aria-label]="dialogRaw ? texts.body.view.showRenderedTooltip : texts.body.view.showRawTooltip"
+          >
+            <i
+              class="pi"
+              [class.pi-code]="!dialogRaw"
+              [class.pi-eye]="dialogRaw"
+              aria-hidden="true"
+            ></i>
+            <span>{{ dialogRaw ? texts.body.view.showRendered : texts.body.view.showRaw }}</span>
+          </button>
+        </div>
+      </ng-template>
+      @if (bodyView() === 'raw') {
+        <div class="inspector__body-raw inspector__body-raw--dialog" data-testid="inspector-body-dialog-raw">
+          <pre class="inspector__body-raw-gutter" aria-hidden="true">{{ rawLineNumbers() }}</pre>
+          <pre class="inspector__body-raw-code"><code class="hljs language-markdown" data-testid="inspector-body-dialog-raw-code" [innerHTML]="rawHighlightedHtml()"></code></pre>
+        </div>
+      } @else {
+        <!-- Same sanitized SafeHtml + click-to-load images contract as the card's rendered view. -->
+        <div
+          smMarkdownImages
+          class="inspector__body-rendered inspector__body-rendered--dialog"
+          data-testid="inspector-body-dialog-rendered"
+          [innerHTML]="bodyHtml()"
+        ></div>
+      }
+    </p-dialog>
   </section>
 }

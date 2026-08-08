@@ -691,6 +691,210 @@ button.sm-md-img:focus-visible {
   border-radius: var(--sm-radius-sm);
 }
 
+/* ---------------------------------------------------------------------------
+ * Inspector rendered-markdown prose (`.inspector__body-rendered`).
+ *
+ * The full node body rendered by `MarkdownRenderer`, shown in the
+ * inspector's Body card AND in its Expand dialog. Global for the same two
+ * reasons as `.sm-md-img` above: the prose children land through
+ * `[innerHTML]` (no `_ngcontent` attribute for scoped CSS to match), and
+ * the dialog copy is re-parented to <body> by PrimeNG (`appendTo="body"`),
+ * outside the inspector host, where the former `:host ::ng-deep` reach
+ * ends. Promoted from `inspector-view.css` when the Expand dialog landed;
+ * only the shared prose vocabulary lives here, the card-vs-dialog LAYOUT
+ * split (height cap vs fill) stays scoped in `inspector-view.css`.
+ * ------------------------------------------------------------------------- */
+.inspector__body-rendered {
+  font-size: var(--sm-fs-md);
+  line-height: 1.6;
+  /* Code chrome: a border one step stronger than the hairline so inline
+     code and code blocks read as clearly "wrapped" against the content
+     surface (`--sm-border` alone is too faint on the white body). */
+  --code-border: color-mix(in srgb, var(--sm-border) 70%, var(--p-text-muted-color));
+}
+
+.inspector__body-rendered :first-child {
+  margin-top: 0;
+}
+
+.inspector__body-rendered :last-child {
+  margin-bottom: 0;
+}
+
+/* Headings: tighten the default scale so an h1 in a note does not dwarf
+   the md-stop body, weight plus a hairline under the top two levels
+   carry the hierarchy instead of size alone. h1 / h2 are display
+   one-offs above the `--sm-fs-*` ramp and stay literal; h3..h6 land on
+   ramp stops. */
+.inspector__body-rendered h1,
+.inspector__body-rendered h2,
+.inspector__body-rendered h3,
+.inspector__body-rendered h4,
+.inspector__body-rendered h5,
+.inspector__body-rendered h6 {
+  margin: 1.2rem 0 0.6rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.inspector__body-rendered h1 { font-size: 1.35rem; }
+.inspector__body-rendered h2 { font-size: 1.18rem; }
+.inspector__body-rendered h3 { font-size: var(--sm-fs-xl); }
+.inspector__body-rendered h4 { font-size: var(--sm-fs-lg); }
+.inspector__body-rendered h5,
+.inspector__body-rendered h6 {
+  font-size: var(--sm-fs-md);
+  color: var(--p-text-muted-color);
+}
+.inspector__body-rendered h1,
+.inspector__body-rendered h2 {
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--sm-border);
+}
+
+.inspector__body-rendered p {
+  margin: 0.6rem 0;
+}
+
+/* Links: primary colour + underline, same affordance as the inspector's
+   description field. */
+.inspector__body-rendered a {
+  color: var(--p-primary-color);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Lists: readable indent (browser default is wider than the body's
+   rhythm) with markers preserved. */
+.inspector__body-rendered ul,
+.inspector__body-rendered ol {
+  margin: 0.6rem 0;
+  padding-left: 1.4rem;
+}
+.inspector__body-rendered li {
+  margin: 0.2rem 0;
+}
+.inspector__body-rendered li > ul,
+.inspector__body-rendered li > ol {
+  margin: 0.2rem 0;
+}
+
+/* Blockquote: matches the vendor frontmatter initial-prompt quote
+   (`.vfm__quote`, the one shown in Definition) value-for-value so quotes
+   read the same everywhere. Full text colour (not muted) is the key: the
+   muted variant read washed out. Only the margin differs (the body needs
+   vertical rhythm; the vfm quote stands alone). */
+.inspector__body-rendered blockquote {
+  margin: 0.75rem 0;
+  padding: 0.7rem 0.95rem;
+  border-left: 2px solid var(--sm-border);
+  background: var(--sm-bg-hover);
+  color: var(--p-text-color);
+  font-size: var(--sm-fs-md);
+  line-height: 1.55;
+  border-radius: 0 var(--sm-radius-sm) var(--sm-radius-sm) 0;
+}
+.inspector__body-rendered blockquote :first-child {
+  margin-top: 0;
+}
+.inspector__body-rendered blockquote :last-child {
+  margin-bottom: 0;
+}
+
+.inspector__body-rendered hr {
+  margin: 1.2rem 0;
+  border: 0;
+  border-top: 1px solid var(--sm-border);
+}
+
+.inspector__body-rendered img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--sm-radius-sm);
+}
+
+/* Tables: hairline grid, tinted header, zebra body so dense tables stay
+   scannable. */
+.inspector__body-rendered table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.75rem 0;
+  font-size: var(--sm-fs-md);
+}
+.inspector__body-rendered th,
+.inspector__body-rendered td {
+  border: 1px solid var(--sm-border);
+  padding: 0.35rem 0.55rem;
+  text-align: left;
+}
+.inspector__body-rendered th {
+  background: var(--sm-bg-hover);
+  font-weight: 600;
+}
+.inspector__body-rendered tbody tr:nth-child(even) {
+  background: var(--sm-bg-hover);
+}
+
+/* Fenced code block: tinted surface + visible border, mono, horizontal
+   scroll for long lines. The `.hljs` token spans inside are coloured by
+   `themes/highlight.css`. */
+.inspector__body-rendered pre {
+  background: var(--sm-bg-hover);
+  border: 1px solid var(--code-border);
+  border-radius: var(--sm-radius-md);
+  padding: 0.75rem 0.85rem;
+  margin: 0.75rem 0;
+  white-space: pre;
+  font-family: var(--sm-font-mono);
+  font-size: var(--sm-fs-sm);
+  line-height: 1.5;
+  overflow-x: auto;
+}
+
+/* Inline code: a bordered mono pill so it reads as code, not prose. The
+   border (`--code-border`) is what makes it stand out, the tinted
+   background alone was too faint on the content surface. Inside a `pre`
+   it strips its own chrome so the block's border + highlight tokens take
+   over (no double border). */
+.inspector__body-rendered code {
+  background: var(--sm-bg-hover);
+  border: 1px solid var(--code-border);
+  padding: 0.05rem 0.34rem;
+  border-radius: var(--sm-radius-sm);
+  font-family: var(--sm-font-mono);
+  font-size: 0.85em;
+}
+.inspector__body-rendered pre code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+
+/* ---------------------------------------------------------------------------
+ * Inspector body dialog chrome. The Expand dialog rides `appendTo="body"`
+ * so it escapes the inspector rail; PrimeNG re-parents mask + dialog root
+ * to <body> on show, outside every host subtree, so the `[styleClass]` /
+ * `[contentStyleClass]` hooks are only reachable globally (same portal
+ * story as the settings select overlay below). Sizing: most of the
+ * viewport, with a hard width cap for very wide monitors.
+ * ------------------------------------------------------------------------- */
+.inspector__body-dialog {
+  width: 90vw;
+  max-width: 1280px;
+  height: 90vh;
+}
+
+/* Non-scrolling flex column: each view below owns its own scroll frame
+   (the raw editor must BE the scroller for its sticky line-number gutter
+   to pin; letting the dialog content scroll instead would double up
+   scrollbars). */
+.inspector__body-dialog-content {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 /* Settings-dialog select overlays. The panel is appended to <body>
    (appendTo="body", so it escapes the dialog's clipping), which also
    puts it OUTSIDE the dialog's scoped font normalization in

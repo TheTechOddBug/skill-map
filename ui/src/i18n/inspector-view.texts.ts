@@ -335,6 +335,15 @@ export const INSPECTOR_VIEW_TEXTS = {
       showRawTooltip: 'Show the raw source',
       showRenderedTooltip: 'Show the rendered Markdown',
     },
+    /**
+     * Expand button next to the Raw / Rendered toggle: opens the full
+     * body in a large modal dialog for comfortable reading, with the
+     * same Raw / Rendered toggle in the dialog header.
+     */
+    expand: {
+      label: 'Expand',
+      tooltip: 'Open the body in a large dialog',
+    },
   },
   /** Findings list, fix hint label rendered before the per-issue summary. */
   findingHintLabel: 'Hint:',

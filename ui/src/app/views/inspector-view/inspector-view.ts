@@ -10,6 +10,7 @@ import {
   viewChild,
 } from '@angular/core';
 import type { OnInit } from '@angular/core';
+import { DialogModule } from 'primeng/dialog';
 import { TooltipModule } from 'primeng/tooltip';
 import { debounceTime, filter, merge } from 'rxjs';
 
@@ -106,6 +107,7 @@ const SUMMARY_LIVE_REFRESH_DEBOUNCE_MS = 400;
     InspectorAiActionsSection,
     InspectorActivitySection,
     MarkdownImagesDirective,
+    DialogModule,
     TooltipModule,
   ],
   templateUrl: './inspector-view.html',
@@ -269,6 +271,30 @@ export class InspectorView implements OnInit {
   protected toggleBodyView(): void {
     this.bodyView.update((v) => (v === 'rendered' ? 'raw' : 'rendered'));
   }
+
+  /**
+   * Large-dialog reading mode for the body. Opened by the Expand button
+   * next to the Raw / Rendered toggle; the dialog header carries the same
+   * toggle, flipping the SAME `bodyView` signal, so the view preference
+   * stays a single session-sticky fact across both surfaces (no state to
+   * reconcile when the dialog closes).
+   */
+  protected readonly bodyDialogOpen = signal(false);
+  protected openBodyDialog(): void {
+    this.bodyDialogOpen.set(true);
+  }
+
+  /**
+   * Dialog title: same recipe as the header hero (`frontmatter.name`,
+   * basename fallback) so the dialog names the node whose body it shows.
+   */
+  protected readonly bodyDialogTitle = computed<string>(() => {
+    const n = this.node();
+    if (!n) return this.texts.sections.body;
+    const name = n.frontmatter.name;
+    if (typeof name === 'string' && name.trim().length > 0) return name;
+    return n.path.split('/').pop() ?? n.path;
+  });
 
   /**
    * Raw source for the editor view, trailing blank lines trimmed so the

@@ -727,6 +727,65 @@ describe('InspectorView, body raw / rendered toggle', () => {
   });
 });
 
+describe('InspectorView, body expand dialog', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  async function renderBody(body: string): Promise<ComponentFixture<InspectorView>> {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    return fixture;
+  }
+
+  /** The p-dialog panel may render behind a portal; query the whole document. */
+  function q(testid: string): HTMLElement | null {
+    return document.querySelector(`[data-testid="${testid}"]`);
+  }
+
+  it('shows the Expand button when the body is ready, with no dialog content yet', async () => {
+    await renderBody('# hello\n\nworld');
+    expect(q('inspector-body-expand')).not.toBeNull();
+    expect(q('inspector-body-dialog-rendered')).toBeNull();
+    expect(q('inspector-body-dialog-raw')).toBeNull();
+  });
+
+  it('opens the dialog on Expand: node-name title + the same rendered body', async () => {
+    const fixture = await renderBody('# hello\n\nworld');
+    (q('inspector-body-expand') as HTMLButtonElement).click();
+    await flush(fixture);
+
+    expect(q('inspector-body-dialog-title')!.textContent).toBe('architect');
+    const rendered = q('inspector-body-dialog-rendered');
+    expect(rendered).not.toBeNull();
+    expect(rendered!.innerHTML).toContain('# hello');
+  });
+
+  it('the dialog toggle flips the SHARED view preference (the card follows)', async () => {
+    const fixture = await renderBody('# hello\n\nworld');
+    (q('inspector-body-expand') as HTMLButtonElement).click();
+    await flush(fixture);
+
+    (q('inspector-body-dialog-view-toggle') as HTMLButtonElement).click();
+    await flush(fixture);
+
+    // Dialog swaps to the raw editor...
+    expect(q('inspector-body-dialog-raw')).not.toBeNull();
+    expect(q('inspector-body-dialog-rendered')).toBeNull();
+    // ...and the card behind it follows (one session-sticky `bodyView`).
+    expect(q('inspector-body-raw')).not.toBeNull();
+    expect(q('inspector-body-rendered')).toBeNull();
+  });
+});
+
 describe('InspectorView, codex / bodyField inline body', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
