@@ -85,6 +85,33 @@ describe('at-file extractor (core, @-file-picker lenses)', () => {
     strictEqual(helper.links[0]!.target, 'docs/guide.md');
   });
 
+  it('emits a references link for a HIDDEN-directory token (`@.claude/minions.md`)', async () => {
+    // Live-reported 2026-08-08 (the backtick-path sibling of the same
+    // gap): the first-segment anchor demanded an alphanumeric, so a
+    // token under a hidden vendor dir matched nowhere, silently.
+    const helper = makeContext(mockNode('AGENTS.md'), 'see @.claude/minions.md for the full list');
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 1);
+    strictEqual(helper.links[0]!.kind, 'references');
+    strictEqual(helper.links[0]!.target, '.claude/minions.md');
+  });
+
+  it('resolves a ./ prefixed hidden-dir token (`@./.claude/x.md`)', async () => {
+    const helper = makeContext(mockNode('docs/index.md'), 'see @./.claude/x.md too');
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 1);
+    strictEqual(helper.links[0]!.target, 'docs/.claude/x.md');
+  });
+
+  it('still skips emails and double-dot typos (`foo@bar.com`, `@..claude/x.md`)', async () => {
+    const helper = makeContext(
+      mockNode('docs/index.md'),
+      'mail foo@bar.com or the broken @..claude/x.md token',
+    );
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 0);
+  });
+
   it('forms NO edge for a bare handle (no path, no extension)', async () => {
     const helper = makeContext(mockNode('.codex/agents/deployer.toml'), 'brief @reviewer before shipping');
     await runAndResolve(helper);

@@ -205,6 +205,49 @@ describe('backtick-path extractor', () => {
     strictEqual(helper.links[0]!.target, 'skills/demo/SKILL.md');
   });
 
+  it('captures a HIDDEN-directory first segment (`.claude/minions.md`), the live-reported gap', async () => {
+    // Live-reported 2026-08-08. The first-segment anchor demanded a word
+    // character, so a path under a hidden vendor dir (`.claude/`,
+    // `.codex/`, `.agents/`), the product's dominant target class,
+    // matched at NO start position: the lookbehind refused the retry at
+    // `claude/…` because the preceding char was the dot itself. Same
+    // silent failure mode as the capped `../` prefix: no link AND no
+    // reference-broken issue.
+    const helper = makeContext(
+      mockNode('AGENTS.md'),
+      'Full instructions to follow in `.claude/minions.md`.',
+    );
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 1);
+    const link = helper.links[0]!;
+    strictEqual(link.target, '.claude/minions.md');
+    strictEqual(link.kind, 'points');
+    strictEqual(link.trigger?.originalTrigger, '.claude/minions.md');
+  });
+
+  it('captures ./ and ../ prefixed hidden-dir paths and a hidden MID-path segment', async () => {
+    const helper = makeContext(
+      mockNode('docs/guide/index.md'),
+      ['Prefixed: `./.claude/a.md` and `../.codex/b.md`', 'Mid-path: `docs/.hidden/c.md`'].join(
+        '\n',
+      ),
+    );
+    await runAndResolve(helper);
+    const targets = helper.links.map((l) => l.target).sort();
+    strictEqual(helper.links.length, 3);
+    // `./` resolves against the FILE's dir (docs/guide), `../` climbs one.
+    strictEqual(targets[0], 'docs/.codex/b.md');
+    strictEqual(targets[1], 'docs/guide/.claude/a.md');
+    strictEqual(targets[2], 'docs/guide/docs/.hidden/c.md');
+  });
+
+  it('captures a bare HIDDEN filename (`.env.md`), same rule as `algo4.md`', async () => {
+    const helper = makeContext(mockNode('skills/demo/SKILL.md'), 'lee `.env.md` primero.');
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 1);
+    strictEqual(helper.links[0]!.target, 'skills/demo/.env.md');
+  });
+
   it('bait suite emits nothing: placeholder, glob, URL, near-miss suffixes, absolute', async () => {
     const body = [
       'Placeholder: `context/tech/{PROJECT}-technical.md`',
@@ -218,6 +261,17 @@ describe('backtick-path extractor', () => {
       // dot runs that are not a chain of `../` segments.
       'Dot run: `....//x.md`',
       'Lone dots: `.../y.md`',
+      // Guards the widened FIRST SEGMENT (exactly one leading dot): a
+      // double-dot typo and an ellipsis fused to the token match
+      // nowhere, because the candidate's own dot is preceded by another
+      // dot and the lookbehind refuses it. (A DOT RUN inside a segment,
+      // `wait...claude.md`, was always a legal segment, same as
+      // `v1.2.md`; that is pre-existing grammar, not this widening.)
+      'Double-dot typo: `..claude/x.md`',
+      'Ellipsis fused: `see ...claude/x.md`',
+      // A hidden dir inside a URL stays out: every viable start sits
+      // after a word char, `/`, `:` or `.`, all refused unchanged.
+      'Hidden in URL: `https://example.com/.claude/x.md`',
     ].join('\n');
     const helper = makeContext(mockNode('skills/demo/SKILL.md'), body);
     await runAndResolve(helper);

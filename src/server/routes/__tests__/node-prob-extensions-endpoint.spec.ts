@@ -274,15 +274,20 @@ describe('GET /api/nodes/:pathB64/prob-extensions', () => {
     }
   });
 
-  it('findingsMaxSeverity: highest stored severity across lifecycle states; null with no rows', async () => {
+  it('findingsMaxSeverity: highest OUTSTANDING severity; resolving the last row flips it to null', async () => {
     try {
-      // A warn + an error; the error then gets resolved. The verdict is
-      // the highest STORED severity regardless of lifecycle state, so a
-      // fixed error still reads `error` (the last run found errors).
+      // A warn + an error outstanding: the verdict is the higher one.
       await seedFindings(project, SKILL_NODE.path, FINDER_ID, [
         { type: 'defect-a', severity: 'warn' },
         { type: 'defect-b', severity: 'error' },
       ]);
+      await bootAndUse(project, async (handle) => {
+        const finder = byId((await fetchCatalog(handle, SKILL_NODE.path)).item.finders, FINDER_ID);
+        assert.ok(finder);
+        assert.equal(finder.findingsMaxSeverity, 'error', 'the highest outstanding severity wins');
+      });
+
+      // Resolve the error: the verdict falls back to the warn still open.
       await withProjectDb(project, async (adapter) => {
         const rows = (await adapter.findings.list({ nodeId: SKILL_NODE.path })).filter(
           (r) => r.extensionId === FINDER_ID,
@@ -295,19 +300,156 @@ describe('GET /api/nodes/:pathB64/prob-extensions', () => {
       await bootAndUse(project, async (handle) => {
         const finder = byId((await fetchCatalog(handle, SKILL_NODE.path)).item.finders, FINDER_ID);
         assert.ok(finder);
-        assert.equal(
-          finder.findingsMaxSeverity,
-          'error',
-          'resolved rows still count for the verdict',
-        );
+        assert.equal(finder.findingsMaxSeverity, 'warn', 'a resolved row stops counting');
       });
 
-      // A clean re-record (zero rows) erases the verdict: null.
+      // Resolve the rest: nothing outstanding, so the verdict goes clean
+      // WITHOUT the rows being deleted (they stay as history).
+      await withProjectDb(project, async (adapter) => {
+        const open = (await adapter.findings.list({ nodeId: SKILL_NODE.path })).filter(
+          (r) => r.extensionId === FINDER_ID && r.resolution === null,
+        );
+        assert.equal(open.length, 1, 'only the warn is still open');
+        const outcome = await adapter.findings.resolveByHuman(open[0]!.id, null, Date.now());
+        assert.equal(outcome.kind, 'resolved');
+      });
+      await bootAndUse(project, async (handle) => {
+        const finder = byId((await fetchCatalog(handle, SKILL_NODE.path)).item.finders, FINDER_ID);
+        assert.ok(finder);
+        assert.equal(finder.findingsMaxSeverity, null, 'all resolved = clean verdict');
+        assert.equal(finder.hasOpenFindings, false, 'and the button leaves its Fix state');
+      });
+
+      // A clean re-record (zero rows) is likewise null.
       await seedFindings(project, SKILL_NODE.path, FINDER_ID, []);
       await bootAndUse(project, async (handle) => {
         const finder = byId((await fetchCatalog(handle, SKILL_NODE.path)).item.finders, FINDER_ID);
         assert.ok(finder);
         assert.equal(finder.findingsMaxSeverity, null, 'no rows = clean verdict');
+      });
+    } finally {
+      await seedFindings(project, SKILL_NODE.path, FINDER_ID, []);
+    }
+  });
+
+  it('findingsMaxSeverity is per EXTENSION: one finder\'s rows never colour another\'s mark', async () => {
+    try {
+      await seedFindings(project, SKILL_NODE.path, FINDER_ID, [
+        { type: 'defect-a', severity: 'error' },
+      ]);
+      await bootAndUse(project, async (handle) => {
+        const env = await fetchCatalog(handle, SKILL_NODE.path);
+        assert.equal(byId(env.item.finders, FINDER_ID)?.findingsMaxSeverity, 'error');
+        // The summarizer shares the node but recorded nothing: clean.
+        assert.equal(byId(env.item.standalone, SUMMARIZER_ID)?.findingsMaxSeverity, null);
+      });
+    } finally {
+      await seedFindings(project, SKILL_NODE.path, FINDER_ID, []);
+    }
+  });
+
+  it('a KERNEL safety row colours its reporting extension\'s mark without opening its button', async () => {
+    // The safety lane stamps the REPORTING extension's id (here the
+    // summarizer whose run read the trapped body), so the row belongs on
+    // that launcher's mark. It is not that extension's own judgment,
+    // which is why the finder-lane-only `hasOpenFindings` ignores it.
+    try {
+      await seedFindings(project, SKILL_NODE.path, SUMMARIZER_ID, [
+        { origin: 'kernel', type: 'injection-detected', severity: 'warn' },
+      ]);
+      await bootAndUse(project, async (handle) => {
+        const standalone = byId(
+          (await fetchCatalog(handle, SKILL_NODE.path)).item.standalone,
+          SUMMARIZER_ID,
+        );
+        assert.ok(standalone);
+        assert.equal(standalone.findingsMaxSeverity, 'warn', 'the safety row drives the mark');
+        assert.equal(standalone.hasOpenFindings, false, 'standalone entries never morph to Fix');
+      });
+    } finally {
+      await seedFindings(project, SKILL_NODE.path, SUMMARIZER_ID, []);
+    }
+  });
+
+  it('a CLASS-SUPPRESSED row drives no mark (it is hidden from the tray)', async () => {
+    try {
+      await seedFindings(project, SKILL_NODE.path, FINDER_ID, [
+        { type: 'defect-a', severity: 'error' },
+      ]);
+      // The read-time lens: the operator silenced this exact class on
+      // this node, so the tray hides the row and the mark must agree.
+      await withProjectDb(project, async (adapter) => {
+        await adapter.db
+          .updateTable('scan_nodes')
+          .set({
+            annotationsJson: JSON.stringify({
+              suppressions: [{ extension: FINDER_ID, type: 'defect-a' }],
+            }),
+          })
+          .where('path', '=', SKILL_NODE.path)
+          .execute();
+      });
+      await bootAndUse(project, async (handle) => {
+        const finder = byId((await fetchCatalog(handle, SKILL_NODE.path)).item.finders, FINDER_ID);
+        assert.ok(finder);
+        assert.equal(finder.findingsMaxSeverity, null, 'a suppressed class shows no mark');
+        assert.equal(finder.hasOpenFindings, false, 'and does not morph the button either');
+      });
+    } finally {
+      await seedFindings(project, SKILL_NODE.path, FINDER_ID, []);
+      await withProjectDb(project, async (adapter) => {
+        await adapter.db
+          .updateTable('scan_nodes')
+          .set({ annotationsJson: null })
+          .where('path', '=', SKILL_NODE.path)
+          .execute();
+      });
+    }
+  });
+
+  it('a human-decision row keeps its mark (it is the author\'s TODO, not a resolution)', async () => {
+    try {
+      await seedFindings(project, SKILL_NODE.path, FINDER_ID, [
+        { type: 'defect-a', severity: 'warn' },
+      ]);
+      await withProjectDb(project, async (adapter) => {
+        const [row] = (await adapter.findings.list({ nodeId: SKILL_NODE.path })).filter(
+          (r) => r.extensionId === FINDER_ID,
+        );
+        assert.ok(row);
+        await adapter.db
+          .updateTable('state_findings')
+          .set({ resolution: 'human-decision' })
+          .where('id', '=', row.id)
+          .execute();
+      });
+      await bootAndUse(project, async (handle) => {
+        const finder = byId((await fetchCatalog(handle, SKILL_NODE.path)).item.finders, FINDER_ID);
+        assert.ok(finder);
+        assert.equal(finder.findingsMaxSeverity, 'warn', 'still listed, still marked');
+      });
+    } finally {
+      await seedFindings(project, SKILL_NODE.path, FINDER_ID, []);
+    }
+  });
+
+  it('findingsMaxSeverity counts STALE rows (they stay listed), unlike hasOpenFindings', async () => {
+    // The live regression: a fixer's edit triggers a re-scan that turns
+    // every surviving row of the node stale at once. The tray still
+    // LISTS them (marked), so a clean check over them was a lie.
+    try {
+      await seedFindings(project, SKILL_NODE.path, FINDER_ID, [
+        { type: 'defect-a', severity: 'error', bodyHashAtGeneration: STALE_HASH },
+      ]);
+      await bootAndUse(project, async (handle) => {
+        const finder = byId((await fetchCatalog(handle, SKILL_NODE.path)).item.finders, FINDER_ID);
+        assert.ok(finder);
+        assert.equal(finder.findingsMaxSeverity, 'error', 'a stale row keeps the verdict mark');
+        assert.equal(
+          finder.hasOpenFindings,
+          false,
+          'but it awaits a re-run, so the button stays out of its Fix state',
+        );
       });
     } finally {
       await seedFindings(project, SKILL_NODE.path, FINDER_ID, []);

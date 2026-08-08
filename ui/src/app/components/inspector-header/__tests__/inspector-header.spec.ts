@@ -545,6 +545,15 @@ describe('InspectorHeader physical-stat chips (T / B pills, 2026-08-08)', () => 
     expect(bytes!.textContent).toContain('3');
   });
 
+  it('shows tokens alone when the node has no backing file (bytes would read a meaningless 0)', async () => {
+    // A virtual node carries no `modifiedAtMs`: its byte size is a hard
+    // zero, but a token count can still be meaningful.
+    const fixture = await bootstrap(makeNode({ tokensTotal: 900, bytesTotal: 0 }));
+    const dom = fixture.nativeElement as HTMLElement;
+    expect(dom.querySelector('[data-testid="inspector-header-tokens"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-header-bytes"]')).toBeNull();
+  });
+
   it('hides the pills when the stats are absent (virtual / derived nodes)', async () => {
     // No tokensTotal and no modifiedAtMs: an mcp:// style virtual node.
     const fixture = await bootstrap(makeNode({ bytesTotal: 0 }));

@@ -110,6 +110,12 @@ describe('backtick-mention extractor', () => {
     strictEqual(helper.links.length, 0);
   });
 
+  it('skips a HIDDEN-directory file token too (`@.claude/x.md`, the widened first segment)', async () => {
+    const helper = makeContext(mockNode('readme.md'), 'open `@.claude/x.md` for details');
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 0);
+  });
+
   it('does not match emails or doubled @ inside code regions', async () => {
     const helper = makeContext(mockNode('readme.md'), 'run `mail foo@bar.com` or `@@x`');
     await runAndResolve(helper);

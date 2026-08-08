@@ -4167,7 +4167,7 @@ describe('findings severity chips + clear all (2026-08-08)', () => {
     expect(dom.querySelector('[data-testid="inspector-ai-action-2"]')).not.toBeNull();
   });
 
-  it('Clear all row-dismisses every VISIBLE AI finding (filter-scoped), never the deterministic issues', async () => {
+  it('Dismiss all row-dismisses every VISIBLE AI finding (filter-scoped), never the deterministic issues', async () => {
     const { fixture, dataSource, node } = await bootAiActions({
       issues: [makeIssue()],
       findings: makeFindingsEnvelope([
@@ -4182,7 +4182,7 @@ describe('findings severity chips + clear all (2026-08-08)', () => {
     (dom.querySelector('[data-testid="inspector-findings-chip-warn"]') as HTMLButtonElement).click();
     await flush(fixture);
 
-    (dom.querySelector('[data-testid="inspector-findings-clear-all"]') as HTMLButtonElement).click();
+    (dom.querySelector('[data-testid="inspector-findings-dismiss-all"]') as HTMLButtonElement).click();
     await flush(fixture);
     await flush(fixture);
 
@@ -4192,6 +4192,182 @@ describe('findings severity chips + clear all (2026-08-08)', () => {
     // The deterministic issue is untouched (its dismissal is the
     // consent-gated sidecar hammer, never part of Clear all).
     expect(dataSource.dismissIssue).not.toHaveBeenCalled();
+  });
+
+  it('Delete all hard-removes every REVEALED row (and only those)', async () => {
+    // A tray with one live row plus two hidden dismissed ones: the
+    // sweep must reach the revealed pair and never the live row.
+    const live = makeFinding({ id: 7, type: 'live-one' });
+    const trayEnvelope = makeFindingsEnvelope([live], { dismissedExcluded: 2 });
+    const { fixture, dataSource, node } = await bootAiActions({ findings: trayEnvelope });
+    const dom: HTMLElement = fixture.nativeElement;
+    dataSource.getNodeFindings.mockImplementation(
+      (_path: string, bucket?: string): Promise<IFindingsEnvelopeApi> =>
+        Promise.resolve(
+          bucket === 'dismissed'
+            ? makeFindingsEnvelope([
+                makeFinding({ id: 21, resolution: 'dismissed' }),
+                makeFinding({ id: 22, resolution: 'dismissed' }),
+              ])
+            : trayEnvelope,
+        ),
+    );
+
+    // No Delete all until a bucket is revealed.
+    expect(dom.querySelector('[data-testid="inspector-ai-revealed-delete-all"]')).toBeNull();
+    (dom.querySelector('[data-testid="inspector-ai-hidden-dismissed"]') as HTMLButtonElement).click();
+    await flush(fixture);
+
+    (dom.querySelector('[data-testid="inspector-ai-revealed-delete-all"]') as HTMLButtonElement).click();
+    await flush(fixture);
+    await flush(fixture);
+
+    expect(dataSource.deleteFinding).toHaveBeenCalledWith(node.path, 21, {});
+    expect(dataSource.deleteFinding).toHaveBeenCalledWith(node.path, 22, {});
+    // The live tray row is not part of the revealed bucket's sweep.
+    expect(dataSource.deleteFinding).not.toHaveBeenCalledWith(node.path, 7, {});
+  });
+
+  /**
+   * Reveal the dismissed bucket holding `ids`. A launcher entry rides
+   * along so the AI actions card (which owns the shared error strip the
+   * sweeps report into) is actually mounted.
+   */
+  async function bootRevealedDismissed(ids: readonly number[]): Promise<{
+    fixture: ComponentFixture<InspectorView>;
+    dataSource: IStubDataSource;
+    node: INodeView;
+  }> {
+    const trayEnvelope = makeFindingsEnvelope([], { dismissedExcluded: ids.length });
+    const { fixture, dataSource, node } = await bootAiActions({
+      findings: trayEnvelope,
+      probs: makeProbExtensions({ standalone: [makeProbEntry()] }),
+    });
+    dataSource.getNodeFindings.mockImplementation(
+      (_path: string, bucket?: string): Promise<IFindingsEnvelopeApi> =>
+        Promise.resolve(
+          bucket === 'dismissed'
+            ? makeFindingsEnvelope(ids.map((id) => makeFinding({ id, resolution: 'dismissed' })))
+            : trayEnvelope,
+        ),
+    );
+    (
+      fixture.nativeElement.querySelector(
+        '[data-testid="inspector-ai-hidden-dismissed"]',
+      ) as HTMLButtonElement
+    ).click();
+    await flush(fixture);
+    return { fixture, dataSource, node };
+  }
+
+  it('Delete all parks the REMAINING rows behind ONE consent dialog and resumes on accept', async () => {
+    const { fixture, dataSource, node } = await bootRevealedDismissed([31, 32, 33]);
+    // Deleting the last row of a dismissed class lifts its `.sm`
+    // suppression, so the gate can fire partway through the sweep. It
+    // fires on the SECOND row here.
+    const consentError = new DataSourceError('confirm-required', 'consent needed', {
+      key: 'allowEditSmFiles',
+    });
+    dataSource.deleteFinding.mockImplementation(
+      (_path: string, id: number, consent: Record<string, unknown>) =>
+        id === 32 && !('confirm' in consent)
+          ? Promise.reject(consentError)
+          : Promise.resolve(undefined),
+    );
+
+    (
+      fixture.nativeElement.querySelector(
+        '[data-testid="inspector-ai-revealed-delete-all"]',
+      ) as HTMLButtonElement
+    ).click();
+    await flush(fixture);
+    await flush(fixture);
+
+    // Row 31 went through; 32 hit the gate and 33 was NOT attempted
+    // (one dialog for the remainder, never one prompt per row).
+    const dispatcher = TestBed.inject(ActionDispatchService);
+    expect(dispatcher.consentOpen()).toBe(true);
+    expect(dataSource.deleteFinding).toHaveBeenCalledWith(node.path, 31, {});
+    expect(dataSource.deleteFinding).not.toHaveBeenCalledWith(node.path, 33, {});
+
+    // Accepting resumes exactly where the sweep stopped, with the grant.
+    dispatcher.resolveConsent({ accepted: true, always: false });
+    await flush(fixture);
+    await flush(fixture);
+    expect(dataSource.deleteFinding).toHaveBeenCalledWith(node.path, 32, { confirm: true });
+    expect(dataSource.deleteFinding).toHaveBeenCalledWith(node.path, 33, { confirm: true });
+  });
+
+  it('Delete all: a failing row does not abort the sweep', async () => {
+    const { fixture, dataSource, node } = await bootRevealedDismissed([41, 42]);
+    dataSource.deleteFinding.mockImplementation((_path: string, id: number) =>
+      id === 41 ? Promise.reject(new DataSourceError('internal', 'boom')) : Promise.resolve(undefined),
+    );
+
+    (
+      fixture.nativeElement.querySelector(
+        '[data-testid="inspector-ai-revealed-delete-all"]',
+      ) as HTMLButtonElement
+    ).click();
+    await flush(fixture);
+    await flush(fixture);
+
+    // The survivor is still deleted, and the failure surfaces on the
+    // shared error strip rather than silently vanishing.
+    expect(dataSource.deleteFinding).toHaveBeenCalledWith(node.path, 42, {});
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-ai-actions-error"]'),
+    ).not.toBeNull();
+  });
+
+  it('Dismiss all: a failing row does not abort the sweep either', async () => {
+    const { fixture, dataSource, node } = await bootAiActions({
+      findings: makeFindingsEnvelope([
+        makeFinding({ id: 51, severity: 'warn' }),
+        makeFinding({ id: 52, severity: 'warn' }),
+      ]),
+      // The error strip lives in the AI actions card; mount it.
+      probs: makeProbExtensions({ standalone: [makeProbEntry()] }),
+    });
+    dataSource.dismissFinding.mockImplementation((_path: string, id: number) =>
+      id === 51 ? Promise.reject(new DataSourceError('internal', 'boom')) : Promise.resolve(undefined),
+    );
+
+    (
+      fixture.nativeElement.querySelector(
+        '[data-testid="inspector-findings-dismiss-all"]',
+      ) as HTMLButtonElement
+    ).click();
+    await flush(fixture);
+    await flush(fixture);
+
+    expect(dataSource.dismissFinding).toHaveBeenCalledWith(node.path, 52, {});
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-ai-actions-error"]'),
+    ).not.toBeNull();
+  });
+
+  it('a per-row resolve refetches the launcher catalog (what keeps the verdict marks live)', async () => {
+    const { fixture, dataSource } = await bootAiActions({
+      findings: makeFindingsEnvelope([makeFinding({ id: 61 })]),
+      probs: makeProbExtensions({
+        finders: [makeProbEntry({ lastJudged: { at: 1, model: null }, findingsMaxSeverity: 'warn' })],
+      }),
+    });
+    const before = dataSource.getNodeProbExtensions.mock.calls.length;
+
+    (
+      fixture.nativeElement.querySelector(
+        '[data-testid="inspector-finding-resolve-61"] button',
+      ) as HTMLButtonElement
+    ).click();
+    await flush(fixture);
+    await flush(fixture);
+
+    // The catalog (and therefore every verdict mark) is re-read after a
+    // findings-panel action; without this the marks would go stale until
+    // the next navigation.
+    expect(dataSource.getNodeProbExtensions.mock.calls.length).toBeGreaterThan(before);
   });
 });
 
@@ -4242,8 +4418,8 @@ describe('AI actions verdict mark (2026-08-08)', () => {
     const dom: HTMLElement = fixture.nativeElement;
     const mark = (id: string) =>
       dom.querySelector(`[data-testid="inspector-ai-action-verdict-${id}"]`);
-    // Open findings do NOT hide the mark: the verdict reports what the
-    // run found; the Fix-state button carries the open story separately.
+    // Open findings are exactly what the mark reports (the severity is
+    // the OUTSTANDING one), so a Fix-state entry still carries it.
     expect(mark('core/error-finder')!.getAttribute('data-severity')).toBe('error');
     expect(mark('core/error-finder')!.classList.contains('pi-times-circle')).toBe(true);
     expect(mark('core/warn-finder')!.getAttribute('data-severity')).toBe('warn');

@@ -22,7 +22,15 @@ import { posix as pathPosix } from 'node:path';
  *   - Optional path prefix: one or more `./` / `../` segments (so a
  *     multi-level `../../x` climbs past one directory), or a single leading
  *     `/`. Matches how the file-picker runtimes resolve a relative `@path`.
- *   - Required first identifier segment: `[a-z0-9][a-z0-9_-]*`.
+ *   - Required first identifier segment: an optional SINGLE leading dot
+ *     (a hidden file or directory: `@.claude/minions.md`; 2026-08-08,
+ *     mirroring the `core/backtick-path` first-segment widening, the two
+ *     path grammars stay pinned to one shape per
+ *     `spec/architecture.md` §code-region file references) followed by
+ *     `[a-z0-9][a-z0-9_-]*`. A bare `@.` never matches (the dot demands a
+ *     following alphanumeric), and `@..claude` matches nowhere (the
+ *     prefix alternative needs its `/`, and a second dot cannot start the
+ *     segment).
  *   - Optional path / namespace tail anchored so the LAST char is
  *     alphanumeric or `_` (excludes a trailing `.` sentence punctuation
  *     `@foo.` or `/` path separator without leaf `@dir/`).
@@ -31,7 +39,7 @@ import { posix as pathPosix } from 'node:path';
  * match). The match is case-insensitive; capture group 1 is the `@`-token.
  */
 export const AT_TOKEN_RE =
-  /(?:^|[^A-Za-z0-9_@])(@(?:(?:\.{1,2}\/)+|\/)?[a-z0-9](?:[a-z0-9_\-./]*[a-z0-9_])?(?::[a-z0-9][a-z0-9_-]*)?)/gi;
+  /(?:^|[^A-Za-z0-9_@])(@(?:(?:\.{1,2}\/)+|\/)?\.?[a-z0-9](?:[a-z0-9_\-./]*[a-z0-9_])?(?::[a-z0-9][a-z0-9_-]*)?)/gi;
 
 /**
  * File extensions skill-map treats as a strong "this is a file reference, not

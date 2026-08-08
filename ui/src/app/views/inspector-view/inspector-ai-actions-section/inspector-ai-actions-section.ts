@@ -364,16 +364,19 @@ export class InspectorAiActionsSection {
   }
 
   /** True while the launcher shows the busy spinner (running or submitting). */
-  /**
-   * The verdict mark (user request 2026-08-08, iterated same day): a
-   * glyph beside an IDLE, already-judged launcher reporting what its
-   * LAST run found, by highest severity: red errors, amber warnings,
-   * blue notes, or a green check when it found nothing
-   * (`findingsMaxSeverity: null` + a `lastJudged`; the BFF counts only
-   * COMPLETED runs, and replace semantics make the stored rows the last
-   * judgment's exact output). Hidden while queued / running and on
-   * never-judged pairs. The earlier "no last-run meta on the rows" call
-   * (2026-07-22) stands: the WHEN lives only in the mark's tooltip.
+   /**
+   * The verdict mark (user request 2026-08-08, iterated twice the same
+   * day): a glyph beside an IDLE, already-judged launcher reporting
+   * what this extension leaves OUTSTANDING on the node, by highest
+   * severity: red errors, amber warnings, blue notes, or a green check
+   * when nothing is pending (`findingsMaxSeverity: null` + a
+   * `lastJudged`). The BFF counts exactly the rows the Findings panel
+   * LISTS (stale ones included), so the mark can never show a clean
+   * check over a tray with visible rows, and resolving the last finding
+   * flips it to the check on the refresh those actions already
+   * trigger. Hidden while queued / running and on never-judged pairs.
+   * The earlier "no last-run meta on the rows" call (2026-07-22)
+   * stands: the WHEN lives only in the mark's tooltip.
    */
   protected aiActionVerdictVisible(entry: IProbExtensionEntryApi): boolean {
     return (

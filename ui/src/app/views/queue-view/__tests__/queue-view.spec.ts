@@ -177,6 +177,24 @@ describe('QueueView', () => {
     ]);
   });
 
+  it('breaks a createdAt tie by id, so a same-millisecond burst still renders deterministically', async () => {
+    const at = Date.now() - 5000;
+    const jobs = [
+      makeJob({ id: 'job-b', nodeId: 'docs/b.md', createdAt: at }),
+      makeJob({ id: 'job-c', nodeId: 'docs/c.md', createdAt: at }),
+      makeJob({ id: 'job-a', nodeId: 'docs/a.md', createdAt: at }),
+    ];
+    const { fixture } = bootstrap({ jobs });
+    await flush(fixture);
+
+    const rows = [...dom(fixture).querySelectorAll('[data-testid^="queue-row-"]')];
+    expect(rows.map((r) => r.getAttribute('data-testid'))).toEqual([
+      'queue-row-job-c',
+      'queue-row-job-b',
+      'queue-row-job-a',
+    ]);
+  });
+
   it('shows the empty state when the queue has no jobs', async () => {
     const { fixture } = bootstrap({ jobs: [] });
     await flush(fixture);

@@ -83,6 +83,17 @@ describe('at-directive extractor', () => {
     strictEqual(helper.signals.length, 0);
   });
 
+  it('defers a HIDDEN-directory file token to at-file (file-shaped, never a mention)', async () => {
+    // The widened first segment (2026-08-08) makes `@.claude/minions.md`
+    // match the shared grammar; the file-shape deferral must then route
+    // it to `core/at-file`, exactly like `@foo.md`, so the same token
+    // never doubles as a mention AND a reference.
+    const helper = makeContext(mockNode('readme.md'), 'see @.claude/minions.md for the roster');
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 0);
+    strictEqual(helper.signals.length, 0);
+  });
+
   it('skips tokens inside code spans and fenced blocks', async () => {
     const helper = makeContext(mockNode('readme.md'), 'inline `@team` and:\n```\n@lead\n```\n');
     await runAndResolve(helper);

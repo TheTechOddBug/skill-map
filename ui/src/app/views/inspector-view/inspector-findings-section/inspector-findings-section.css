@@ -350,3 +350,16 @@
   font-style: italic;
   color: var(--p-text-muted-color);
 }
+
+/* Delete-all row over the revealed bucket: right-aligned above its list,
+   permanently-destructive so it wears the danger tint at rest (unlike the
+   reversible Dismiss all, which only reddens on hover). */
+.inspector__ai-revealed-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.inspector__findings-clear--danger {
+  color: var(--sm-severity-error);
+  border-color: color-mix(in srgb, var(--sm-severity-error) 40%, transparent);
+}

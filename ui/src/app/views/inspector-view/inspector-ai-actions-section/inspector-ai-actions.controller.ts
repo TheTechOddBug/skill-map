@@ -209,6 +209,15 @@ export interface IAiActionsHandle {
   restoreFinding(finding: IFindingApi): Promise<void>;
   /** Hard-delete a revealed dismissed / fixed row from the DB (no consent). */
   deleteFinding(finding: IFindingApi): Promise<void>;
+  /**
+   * Hard-delete every given row in one gesture (the revealed bucket's
+   * Delete all, user request 2026-08-08). Permanent, unlike
+   * `dismissAllFindings`. Consent-aware AS A SWEEP: the `.sm` gate can
+   * fire mid-run (deleting the last row of a dismissed class lifts its
+   * suppression), so the REMAINING rows park behind ONE dialog instead
+   * of prompting per row.
+   */
+  deleteAllFindings(findings: readonly IFindingApi[]): Promise<void>;
   /** True while a per-finding round-trip is in flight for this id. */
   isFindingBusy(findingId: number): boolean;
 
@@ -787,6 +796,58 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     }
   }
 
+  /**
+   * The revealed bucket's Delete all: hard-delete every given row. The
+   * permanent twin of `dismissAllFindings`, and consent-aware AS A
+   * SWEEP: deleting the last row of a dismissed class lifts its `.sm`
+   * suppression, so the gate can fire partway through. When it does,
+   * the rows NOT yet attempted park behind ONE consent dialog (the
+   * per-row `deleteFinding` would raise a dialog per row instead), and
+   * the retry resumes exactly where the sweep stopped.
+   */
+  async function deleteAllFindings(
+    findings: readonly IFindingApi[],
+    consent: ISmConsentGrant | Record<string, never> = {},
+  ): Promise<void> {
+    const path = deps.node()?.path;
+    if (!path) return;
+    const targets = findings.filter((f) => !findingBusy().has(f.id));
+    if (targets.length === 0) return;
+    error.set(null);
+    for (const f of targets) setFindingBusy(f.id, true);
+    let deleted = 0;
+    let pending: readonly IFindingApi[] = [];
+    try {
+      for (const [i, f] of targets.entries()) {
+        try {
+          await deps.dataSource.deleteFinding(path, f.id, consent);
+          deleted += 1;
+        } catch (err) {
+          if (!('confirm' in consent) && isSmConsentRequired(err)) {
+            pending = targets.slice(i);
+            break;
+          }
+          recordSubmitError(err);
+        }
+      }
+      if (deleted > 0) {
+        deps.announce?.(INSPECTOR_VIEW_TEXTS.announce.findingsDeleted(deleted));
+      }
+    } finally {
+      for (const f of targets) setFindingBusy(f.id, false);
+      // Rows deleted BEFORE the gate fired are already gone, so the tray
+      // refreshes either way; the parked remainder resumes on accept.
+      refreshTray();
+      if (pending.length > 0) {
+        const remaining = pending;
+        deps.requestSmConsent(
+          (grant) => void deleteAllFindings(remaining, grant),
+          'findings-delete',
+        );
+      }
+    }
+  }
+
   /** Immutable add / remove for the per-issue dismiss busy set. */
   function setIssueDismissBusy(key: string, busy: boolean): void {
     issueDismissBusy.update((s) => {
@@ -884,6 +945,7 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     dismissError: () => error.set(null),
     dismissFinding: (finding) => dismissFinding(finding),
     dismissAllFindings: (findings) => dismissAllFindings(findings),
+    deleteAllFindings: (findings) => deleteAllFindings(findings),
     resolveFinding,
     restoreFinding: (finding) => restoreFinding(finding),
     deleteFinding: (finding) => deleteFinding(finding),

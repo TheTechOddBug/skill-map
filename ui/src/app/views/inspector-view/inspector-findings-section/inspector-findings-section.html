@@ -47,14 +47,14 @@
                 type="button"
                 class="inspector__findings-clear"
                 [disabled]="clearingAll()"
-                [pTooltip]="texts.findingsClearAll.tooltip"
+                [pTooltip]="texts.findingsDismissAll.tooltip"
                 tooltipPosition="top"
-                [attr.aria-label]="texts.findingsClearAll.ariaLabel(visibleAiFindings().length)"
-                (click)="onClearAll()"
-                data-testid="inspector-findings-clear-all"
+                [attr.aria-label]="texts.findingsDismissAll.ariaLabel(visibleAiFindings().length)"
+                (click)="onDismissAll()"
+                data-testid="inspector-findings-dismiss-all"
               >
                 <i class="pi pi-times" aria-hidden="true"></i>
-                <span>{{ texts.findingsClearAll.label }}</span>
+                <span>{{ texts.findingsDismissAll.label }}</span>
               </button>
             }
           </div>
@@ -303,6 +303,26 @@
             }
           </div>
           @if (aiActionRevealedBucket(); as bucket) {
+            <!-- Delete all over the REVEALED rows: the per-row X for the
+                 whole open bucket at once, permanent. Scoped to what the
+                 operator opened, never to hidden rows. -->
+            @if (aiActionRevealedRows().length > 0) {
+              <div class="inspector__ai-revealed-actions">
+                <button
+                  type="button"
+                  class="inspector__findings-clear inspector__findings-clear--danger"
+                  [disabled]="deletingAll()"
+                  [pTooltip]="texts.aiActions.revealedDeleteAll.tooltip"
+                  tooltipPosition="top"
+                  [attr.aria-label]="texts.aiActions.revealedDeleteAll.ariaLabel(aiActionRevealedRows().length)"
+                  (click)="onDeleteAllRevealed()"
+                  data-testid="inspector-ai-revealed-delete-all"
+                >
+                  <i class="pi pi-trash" aria-hidden="true"></i>
+                  <span>{{ texts.aiActions.revealedDeleteAll.label }}</span>
+                </button>
+              </div>
+            }
             <ul
               class="inspector__findings-list inspector__findings-list--revealed"
               data-testid="inspector-ai-revealed-list"

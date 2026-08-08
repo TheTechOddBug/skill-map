@@ -215,15 +215,18 @@ export const INSPECTOR_VIEW_TEXTS = {
     stopTooltip: 'Stop this job',
     /**
      * Verdict mark beside an idle, already-judged launcher (user
-     * request 2026-08-08): what the LAST run found, by highest
-     * severity, or a clean check. The timestamp lives here in the
-     * tooltip only, honouring the "no last-run meta on the rows" call.
+     * request 2026-08-08): what this extension leaves OUTSTANDING on
+     * the node, by highest severity, or a clean check when nothing is
+     * pending (including "everything was resolved from the Findings
+     * panel", which is what flips the mark to the check). The timestamp
+     * lives here in the tooltip only, honouring the "no last-run meta
+     * on the rows" call.
      */
     verdictMark: {
-      clean: (when: string): string => `Last run completed ${when}; nothing found`,
-      error: (when: string): string => `Last run completed ${when}; found errors`,
-      warn: (when: string): string => `Last run completed ${when}; found warnings`,
-      info: (when: string): string => `Last run completed ${when}; found notes`,
+      clean: (when: string): string => `Last run completed ${when}; nothing pending`,
+      error: (when: string): string => `Last run completed ${when}; errors pending`,
+      warn: (when: string): string => `Last run completed ${when}; warnings pending`,
+      info: (when: string): string => `Last run completed ${when}; notes pending`,
     },
     /** Per-finding actions (the read-time suppression lens). */
     finding: {
@@ -278,6 +281,17 @@ export const INSPECTOR_VIEW_TEXTS = {
       dismissed: (count: number) => `${count} dismissed`,
       fixed: (count: number) => `${count} fixed`,
       chipTooltip: 'Show / hide this bucket',
+    },
+    /**
+     * Bulk hard-delete over the REVEALED bucket (user request
+     * 2026-08-08), the permanent twin of the tray's Clear all: the
+     * per-row X for every listed row at once. Wording says "permanently"
+     * because, unlike a dismiss, nothing restores these rows.
+     */
+    revealedDeleteAll: {
+      label: 'Delete all',
+      tooltip: 'Permanently delete every row listed here (this cannot be undone)',
+      ariaLabel: (n: number): string => `Permanently delete all ${n} listed rows`,
     },
   },
   /**
@@ -393,14 +407,17 @@ export const INSPECTOR_VIEW_TEXTS = {
     empty: 'Nothing to show for this severity filter.',
   },
   /**
-   * Clear-all over the LISTED AI finding rows (user request 2026-08-08):
-   * one gesture row-dismisses every visible finding, same reversible
-   * state as the per-row X (they land in the dismissed bucket).
-   * Deterministic issues are deliberately NOT included: their dismissal
-   * writes per-value suppressions into the committed `.sm` sidecar.
+   * Dismiss-all over the LISTED AI finding rows (user request
+   * 2026-08-08): one gesture row-dismisses every visible finding, same
+   * reversible state as the per-row X (they land in the dismissed
+   * bucket). Named for what it DOES, not "Clear all" (user call the
+   * same day): the revealed bucket's permanent twin is Delete all, and
+   * the two must not read alike. Deterministic issues are deliberately
+   * NOT included: their dismissal writes per-value suppressions into
+   * the committed `.sm` sidecar.
    */
-  findingsClearAll: {
-    label: 'Clear all',
+  findingsDismissAll: {
+    label: 'Dismiss all',
     tooltip:
       'Dismiss every listed AI finding (reversible from the dismissed bucket)',
     ariaLabel: (n: number): string => `Dismiss all ${n} listed AI findings`,
@@ -447,6 +464,8 @@ export const INSPECTOR_VIEW_TEXTS = {
     findingDismissed: 'Finding dismissed.',
     findingsCleared: (n: number): string =>
       n === 1 ? '1 finding dismissed.' : `${n} findings dismissed.`,
+    findingsDeleted: (n: number): string =>
+      n === 1 ? '1 finding deleted.' : `${n} findings deleted.`,
     findingRestored: 'Finding restored.',
     issueDismissed: 'Issue dismissed.',
   },

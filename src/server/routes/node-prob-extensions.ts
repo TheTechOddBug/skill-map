@@ -134,13 +134,15 @@ export interface IProbExtensionEntry {
    */
   hasOpenFindings: boolean;
   /**
-   * Highest severity among the extension's stored `state_findings` rows
-   * for this node, EVERY lifecycle state and both origins, stale rows
-   * included (`rest-envelope.schema.json#/$defs/ProbExtensionEntry`):
-   * replace semantics make the stored rows exactly what the last
-   * judgment left behind, so this is the last run's verdict. `null` =
-   * no rows (a clean last verdict, or a never-judged pair; `lastJudged`
-   * disambiguates client-side). Drives the launcher's verdict mark.
+   * Highest severity among the rows the findings tray LISTS for this
+   * extension, both origins
+   * (`rest-envelope.schema.json#/$defs/ProbExtensionEntry`): unresolved
+   * and not class-suppressed, stale rows INCLUDED (they are listed,
+   * marked). `null` = nothing listed (all resolved, never found
+   * anything, or never judged; `lastJudged` disambiguates
+   * client-side). Drives the launcher's verdict mark, so it always
+   * agrees with the panel: severity while rows are listed, clean check
+   * once the operator resolved them all.
    */
   findingsMaxSeverity: IFindingRecord['severity'] | null;
   /**
@@ -302,7 +304,7 @@ async function buildCatalog(
   const activeJobs = (await adapter.jobs.list({ nodeId: node.path })).filter(
     (j) => j.status === 'queued' || j.status === 'running',
   );
-  const maxSeverity = maxSeverityByExtension(findings);
+  const maxSeverity = listedMaxSeverityByExtension(findings, suppressions);
 
   const finders: IProbExtensionEntry[] = [];
   const standalone: IProbExtensionEntry[] = [];
@@ -351,21 +353,51 @@ async function buildCatalog(
 }
 
 /**
- * Highest stored-finding severity per extension id (the verdict mark's
- * source, spec §prob-extensions `findingsMaxSeverity`): EVERY lifecycle
- * state, both origins, stale rows included. One pass over the findings
- * the catalog already fetched; extensions with no rows stay absent.
+ * Highest severity per extension id among the rows the tray LISTS (the
+ * verdict mark's source, spec §prob-extensions `findingsMaxSeverity`).
+ * The mark's contract is that it agrees with what the operator is
+ * looking at: severity while rows are listed, clean check once they are
+ * all resolved. Both origins count (a run that surfaced a kernel safety
+ * row left that row on the node too). One pass over the findings the
+ * catalog already fetched; extensions with nothing listed stay absent.
  */
-function maxSeverityByExtension(
+function listedMaxSeverityByExtension(
   findings: readonly IFindingRecord[],
+  suppressions: readonly ISuppressionEntry[],
 ): Map<string, IFindingRecord['severity']> {
   const rank: Record<IFindingRecord['severity'], number> = { info: 0, warn: 1, error: 2 };
   const out = new Map<string, IFindingRecord['severity']>();
   for (const f of findings) {
+    if (!isFindingListed(f, suppressions)) continue;
     const prev = out.get(f.extensionId);
     if (prev === undefined || rank[f.severity] > rank[prev]) out.set(f.extensionId, f.severity);
   }
   return out;
+}
+
+/**
+ * Is this row LISTED in the findings tray's default view: not resolved
+ * (`fixed` / `dismissed`, both of which move it to a hidden bucket) and
+ * not hidden by the read-time class-suppression lens. A
+ * `human-decision` row IS listed: the fixer handed the call to the
+ * author, so it stays the node's TODO.
+ *
+ * STALE rows are listed too, marked inline (`db-schema.md`
+ * §state_findings Stale rule: "a per-row annotation, not a hidden
+ * bucket"), so they count here. That is load-bearing for the verdict
+ * mark: a fixer's edit triggers a re-scan that turns every surviving
+ * row of the node stale at once, and excluding them put a clean check
+ * over a tray still full of visible findings.
+ */
+function isFindingListed(
+  finding: IFindingRecord,
+  suppressions: readonly ISuppressionEntry[],
+): boolean {
+  return (
+    finding.resolution !== 'fixed' &&
+    finding.resolution !== 'dismissed' &&
+    !isFindingSuppressed(finding.extensionId, finding.type, suppressions)
+  );
 }
 
 /** Land a classified action in its bucket (`null` = unlisted). */
@@ -485,16 +517,17 @@ function nodeHasOpenFindings(
 ): boolean {
   return findings.some(
     (f) =>
+      // The finder lane only: the button morphs on the finder's OWN
+      // judgment, never on a kernel safety row it merely surfaced.
       f.origin === 'extension' &&
       f.extensionId === finderQualifiedId &&
-      f.resolution !== 'fixed' &&
-      // Row-grain dismissal (2026-07-22): a dismissed row is not open
-      // either, same posture as the class lens below.
-      f.resolution !== 'dismissed' &&
-      f.stale === false &&
-      // The read-time dismissal lens: a suppressed class is hidden from
-      // the tray, so it must not morph the button to Fix either.
-      !isFindingSuppressed(f.extensionId, f.type, suppressions),
+      // Row-grain dismissal (2026-07-22) and the class lens are shared
+      // with the verdict mark; the extra `stale` gate is this button's
+      // alone (a stale row awaits a RE-RUN, not a fix, so the button
+      // must stay in its Detect state), which is exactly why the two
+      // are separate predicates rather than one.
+      isFindingListed(f, suppressions) &&
+      f.stale === false,
   );
 }
 

@@ -263,10 +263,12 @@ export class InspectorFindingsSection {
       this.visibleAiFindings().length === 0,
   );
 
-  // --- Clear all (bulk row-dismiss, user request 2026-08-08) ---------------
+  // --- bulk sweeps (user request 2026-08-08) -------------------------------
 
-  /** In-flight guard for the Clear-all sweep (disables the button). */
+  /** In-flight guard for the Dismiss-all sweep (disables the button). */
   protected readonly clearingAll = signal(false);
+  /** In-flight guard for the revealed bucket's Delete-all sweep. */
+  protected readonly deletingAll = signal(false);
 
   /**
    * Row-dismiss every VISIBLE AI finding (the filtered list, so the
@@ -276,7 +278,7 @@ export class InspectorFindingsSection {
    * dismissal writes per-value suppressions into the committed `.sm`
    * sidecar, a different (consent-gated) hammer.
    */
-  protected async onClearAll(): Promise<void> {
+  protected async onDismissAll(): Promise<void> {
     const targets = this.visibleAiFindings();
     if (targets.length === 0 || this.clearingAll()) return;
     // Deliberately untracked (user call 2026-08-08): the bulk sweep
@@ -286,6 +288,23 @@ export class InspectorFindingsSection {
       await this.aiActions().dismissAllFindings(targets);
     } finally {
       this.clearingAll.set(false);
+    }
+  }
+
+  /**
+   * Hard-delete every row of the REVEALED bucket: the per-row X for the
+   * whole list at once, permanent (nothing restores these). Scoped to
+   * the revealed rows on purpose, so the gesture can only ever reach
+   * what the operator opened and is looking at.
+   */
+  protected async onDeleteAllRevealed(): Promise<void> {
+    const targets = this.aiActionRevealedRows();
+    if (targets.length === 0 || this.deletingAll()) return;
+    this.deletingAll.set(true);
+    try {
+      await this.aiActions().deleteAllFindings(targets);
+    } finally {
+      this.deletingAll.set(false);
     }
   }
 

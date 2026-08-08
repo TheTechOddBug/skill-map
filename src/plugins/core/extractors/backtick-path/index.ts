@@ -26,6 +26,10 @@
  *   - ``Read `references/rules.md` ``            , prose-wrapped span
  *   - ``lee el archivo: `algo4.md` ``            , bare sibling filename (no `/`)
  *   - `` `cat refs/a.md refs/b.md` ``            , several paths in ONE span
+ *   - `` `.claude/minions.md` ``                 , hidden-dir first segment
+ *     (2026-08-08; the word-char anchor silently dropped the product's
+ *     dominant target class, paths under `.claude/` / `.codex/` /
+ *     `.agents/`, while a MID-path hidden segment already matched)
  *   - fenced blocks, every line, same grammar
  *   - `./` and `../` prefixes, the latter repeatable
  *     (`../../ui/context/theme.md`), POSIX-normalised away
@@ -46,6 +50,9 @@
  *     once the `/` separator became optional.
  *   - Near-miss suffixes (`.mdx`, `.md_var`), the `\b` + lookahead pair.
  *   - Absolute paths (`/abs/x.md`), the leading `/` fails the lookbehind.
+ *   - Double-dot / ellipsis interiors (`..claude/x.md`, `...x.md`): the
+ *     grammar takes exactly ONE leading dot, and the candidate's own dot
+ *     is then preceded by another dot, which the lookbehind refuses.
  *
  * Path resolution is dual-base (`spec/architecture.md` §Extractor ·
  * code-region file references): the emitted target is POSIX-normalised
@@ -122,7 +129,7 @@ const ID = 'backtick-path';
 //                           the class.
 //   - `\.md\b(?![\w/])`   , a real `.md` suffix: `.mdx`, `.md_var` and
 //                           `x.md/y` tails are refused.
-const PATH_RE = /(?<![\w/:.-])(?:\.{1,2}\/)*[\w][\w.-]*(?:\/[\w.-]+)*\.md\b(?![\w/])/g;
+const PATH_RE = /(?<![\w/:.-])(?:\.{1,2}\/)*\.?[\w][\w.-]*(?:\/[\w.-]+)*\.md\b(?![\w/])/g;
 
 export const backtickPathExtractor: IBuiltInManifest<IExtractor> = {
   id: ID,

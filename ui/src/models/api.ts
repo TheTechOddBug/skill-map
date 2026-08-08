@@ -1755,13 +1755,14 @@ export interface IProbExtensionEntryApi {
    * → Fix state (submit the `fixerIds`). Always `false` for `standalone`.
    */
   hasOpenFindings: boolean;
-  /**
-   * Highest severity among the extension's stored findings for this
-   * node, every lifecycle state and both origins, stale rows included
-   * (replace semantics make the rows the last judgment's output, so
-   * this is the last run's verdict). `null` = no rows: a clean last
-   * verdict, or a never-judged pair (`lastJudged` disambiguates).
-   * Drives the launcher's verdict mark.
+   /**
+   * Highest severity among the findings the tray LISTS for this
+   * extension, both origins: unresolved and not class-suppressed, with
+   * STALE rows counted (they are listed, marked). `null` = nothing
+   * listed: all resolved, nothing found, or never judged (`lastJudged`
+   * disambiguates). Drives the launcher's verdict mark, so it always
+   * agrees with the panel and resolving the last row flips it to the
+   * clean check.
    *
    * OPTIONAL on the wire (`rest-envelope.schema.json`): absent means the
    * server does not report the verdict, which is NOT `null` (a server
