@@ -403,7 +403,9 @@ Broadcast over `/ws` in the common envelope of
   carry the literal invoking tool name on UNIT and resource `start` frames (the
   raw name from the hook payload, unnormalized: Claude `Skill` / `Read` /
   `Agent`, Codex `spawn_agent`, Antigravity `view_file`, opencode `skill` /
-  `read` / `task`), so clients can label WHICH tool lit a node. Because
+  `read`; opencode's `task` spawn emits the relation-only form, which lights
+  no node and so carries no detail), so clients can label WHICH tool lit a
+  node. Because
   `detail` presence no longer implies an MCP invocation, clients MUST gate
   invocation-edge rendering on the target node path's `mcp://` prefix (or the
   `access: "mcp"` classifier where available), never on `detail` presence

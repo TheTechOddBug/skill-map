@@ -110,10 +110,10 @@ Both public workspaces shipped `1.0.0` in 2026-08, so the post-1.0 rows below ar
 ### What happens on merge
 
 1. PR to `main` → CI checks changeset presence + `spec/index.json` integrity + lint + build + tests.
-2. Merge to `main` → `release` workflow opens (or updates) a **"Version Packages"** PR that bumps `package.json` files, consumes the changesets, and updates CHANGELOGs.
-3. Merge the Version Packages PR → publishes to npm and creates a git tag.
+2. Merge to `main` → the `ci` workflow runs first; only when it finishes GREEN does the `release` workflow fire (a `workflow_run` gate) and open (or update) a **"Version Packages"** PR that bumps `package.json` files, consumes the changesets, and updates CHANGELOGs.
+3. Merge the Version Packages PR → its own `ci` run goes green → `release` publishes to npm and creates a git tag.
 
-Nothing ships to npm without an explicit merge of the Version Packages PR.
+Nothing ships to npm without an explicit merge of the Version Packages PR, and a red `ci` on `main` blocks both the version PR and the publish (`release/rc` keeps its direct push trigger, ungated: `ci` does not run on that branch).
 
 ### Publish provenance
 
