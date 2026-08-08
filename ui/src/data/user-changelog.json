@@ -2,6 +2,12 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.6.1",
+      "date": "2026-08-08",
+      "kind": "internal",
+      "highlights": []
+    },
+    {
       "version": "1.6.0",
       "date": "2026-08-08",
       "kind": "user-facing",
