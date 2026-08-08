@@ -48,7 +48,7 @@ if (auditExitCode !== 0) {
     parsed = null;
   }
 
-  if (parsed && parsed.metadata && parsed.metadata.vulnerabilities) {
+  if (parsed?.metadata?.vulnerabilities) {
     const counts = parsed.metadata.vulnerabilities;
     sections.push('| Severity | Count |', '| --- | --- |');
     for (const [severity, count] of Object.entries(counts)) {
@@ -88,5 +88,9 @@ if (peersExitCode !== 0) {
   sections.push('### `pnpm peers check`', '', '```', readSafe(peersTxtPath) || '(empty)', '```', '');
 }
 
-appendFileSync(summaryPath, sections.join('\n') + '\n');
+if (summaryPath) {
+  appendFileSync(summaryPath, sections.join('\n') + '\n');
+} else {
+  process.stdout.write(sections.join('\n') + '\n');
+}
 console.log('Dependency issues detected; report appended to the job summary.');
