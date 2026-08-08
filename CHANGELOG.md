@@ -6,6 +6,17 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>1.6.3</b> · 2026-08-08</summary>
+
+### CLI Patch
+- `core/backtick-path` now stamps its signals with the code-region `context` (`inline-code` / `code-block`) like the trigger siblings do, so `core/link-self-loop`'s usage-example exemption finally applies to backticked paths: a file naming itself in a code span (a `SKILL.md` or `AGENTS.md` self-mention) no longer warns as a self-loop. The trigger resolution gate stays kind-gated, so unresolved `points` paths keep flagging `reference-broken`; the spec's Emission contract documents the stamp.
+
+### Spec Patch (1.8.2)
+- `core/backtick-path` now stamps its signals with the code-region `context` (`inline-code` / `code-block`) like the trigger siblings do, so `core/link-self-loop`'s usage-example exemption finally applies to backticked paths: a file naming itself in a code span (a `SKILL.md` or `AGENTS.md` self-mention) no longer warns as a self-loop. The trigger resolution gate stays kind-gated, so unresolved `points` paths keep flagging `reference-broken`; the spec's Emission contract documents the stamp.
+
+</details>
+
+<details>
 <summary><b>1.6.2</b> · 2026-08-08</summary>
 
 ### CLI Patch
