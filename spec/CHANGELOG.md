@@ -1,5 +1,35 @@
 # Spec changelog
 
+## 1.8.0
+
+### Minor Changes
+
+- The activity contract adds `DELETE /api/activity/node/<pathB64>`: one call clears a node's persistent AI-run history, its runtime stats and pair counters, and its retained spawn conversations, logging `activity.clear` to the operations log. The CLI ships it end to end: the storage port's targeted `history.deleteForNode`, the BFF route (no consent, regenerable machine data), and a Clear all button in the inspector's Activity section. The GET row's documented runs cap is corrected to 15.
+
+  ## User-facing
+
+  **Clear a node's activity in one click.** The inspector's Activity section adds a Clear all button that deletes everything recorded for that node: run history, live counters and captured agent conversations. The section empties right away and refills as new activity arrives.
+
+- While a node glows in the live map, a small badge on the card now names the literal tool that lit it (Claude `Skill` / `Read` / `Agent`, Codex `spawn_agent`, Antigravity `view_file`, opencode `skill` / `read`, plus MCP tool names). The existing `detail` field carries it end to end; `spec/provider-activity.md` §detail blesses unit-frame detail and moves the invocation-edge gate to the `mcp://` node path.
+
+  ## User-facing
+
+  **See which tool lit a card.** While a node glows during a live session, a small badge on the card names the exact call that triggered it: a skill invocation, a file read, a subagent spawn, or the MCP tool. It fades with the glow.
+
+### Patch Changes
+
+- Both path grammars accept a hidden first segment now: a backticked `.claude/minions.md` and an `@.claude/minions.md` token emit their links instead of silently matching nowhere (the word-character anchor rejected the leading dot, so paths under `.claude/`, `.codex/` or `.agents/` produced neither a link nor a reference-broken issue). The pinned grammar in `architecture.md` documents the widening; URLs, placeholders and double-dot typos stay rejected.
+
+  ## User-facing
+
+  References to files under hidden folders like `.claude/` now draw their arrows on the map, both as backticked paths and as @-mentions. Before, they were silently ignored.
+
+- The `node.prob-extensions` entry gains an optional `findingsMaxSeverity` (highest OUTSTANDING severity for the pair, `null` when nothing is pending). The inspector renders it as a per-launcher verdict mark, the Findings card gains severity filter chips, a Dismiss-all over the visible AI findings and a Delete-all over a revealed bucket, its rows sort error before warn before info, the header shows the node's tokens and bytes, and the queue lists jobs in strict enqueue order.
+
+  ## User-facing
+
+  Findings filter by severity and dismiss (or permanently delete) in one click, and each AI action shows what it still has pending, turning into a green check once everything is resolved. The queue lists newest jobs first, and the inspector header shows the file's tokens and bytes.
+
 ## 1.7.0
 
 ### Minor Changes

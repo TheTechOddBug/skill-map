@@ -6,6 +6,28 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>1.6.0</b> · 2026-08-08</summary>
+
+### CLI Minor
+- The activity contract adds `DELETE /api/activity/node/<pathB64>`: one call clears a node's persistent AI-run history, its runtime stats and pair counters, and its retained spawn conversations, logging `activity.clear` to the operations log. The CLI ships it end to end: the storage port's targeted `history.deleteForNode`, the BFF route (no consent, regenerable machine data), and a Clear all button in the inspector's Activity section. The GET row's documented runs cap is corrected to 15.
+- While a node glows in the live map, a small badge on the card now names the literal tool that lit it (Claude `Skill` / `Read` / `Agent`, Codex `spawn_agent`, Antigravity `view_file`, opencode `skill` / `read`, plus MCP tool names). The existing `detail` field carries it end to end; `spec/provider-activity.md` §detail blesses unit-frame detail and moves the invocation-edge gate to the `mcp://` node path.
+- New finder/fixer pair `core/ai-prose-to-rules-analyzer` + `core/ai-prose-to-rules-action` (stable, enabled): the finder flags spans where two or more normative directives hide inside narrative paragraphs and its finding detail carries the extracted checklist ready to paste; the fixer applies the conversion in place. `ai-structure-analyzer` ceded the prose-should-be-a-list territory in the same change, narrowing its axis to placement, ordering and hierarchy.
+
+### CLI Patch
+- Both path grammars accept a hidden first segment now: a backticked `.claude/minions.md` and an `@.claude/minions.md` token emit their links instead of silently matching nowhere (the word-character anchor rejected the leading dot, so paths under `.claude/`, `.codex/` or `.agents/` produced neither a link nor a reference-broken issue). The pinned grammar in `architecture.md` documents the widening; URLs, placeholders and double-dot typos stay rejected.
+- The `node.prob-extensions` entry gains an optional `findingsMaxSeverity` (highest OUTSTANDING severity for the pair, `null` when nothing is pending). The inspector renders it as a per-launcher verdict mark, the Findings card gains severity filter chips, a Dismiss-all over the visible AI findings and a Delete-all over a revealed bucket, its rows sort error before warn before info, the header shows the node's tokens and bytes, and the queue lists jobs in strict enqueue order.
+
+### Spec Minor (1.8.0)
+- The activity contract adds `DELETE /api/activity/node/<pathB64>`: one call clears a node's persistent AI-run history, its runtime stats and pair counters, and its retained spawn conversations, logging `activity.clear` to the operations log. The CLI ships it end to end: the storage port's targeted `history.deleteForNode`, the BFF route (no consent, regenerable machine data), and a Clear all button in the inspector's Activity section. The GET row's documented runs cap is corrected to 15.
+- While a node glows in the live map, a small badge on the card now names the literal tool that lit it (Claude `Skill` / `Read` / `Agent`, Codex `spawn_agent`, Antigravity `view_file`, opencode `skill` / `read`, plus MCP tool names). The existing `detail` field carries it end to end; `spec/provider-activity.md` §detail blesses unit-frame detail and moves the invocation-edge gate to the `mcp://` node path.
+
+### Spec Patch (1.8.0)
+- Both path grammars accept a hidden first segment now: a backticked `.claude/minions.md` and an `@.claude/minions.md` token emit their links instead of silently matching nowhere (the word-character anchor rejected the leading dot, so paths under `.claude/`, `.codex/` or `.agents/` produced neither a link nor a reference-broken issue). The pinned grammar in `architecture.md` documents the widening; URLs, placeholders and double-dot typos stay rejected.
+- The `node.prob-extensions` entry gains an optional `findingsMaxSeverity` (highest OUTSTANDING severity for the pair, `null` when nothing is pending). The inspector renders it as a per-launcher verdict mark, the Findings card gains severity filter chips, a Dismiss-all over the visible AI findings and a Delete-all over a revealed bucket, its rows sort error before warn before info, the header shows the node's tokens and bytes, and the queue lists jobs in strict enqueue order.
+
+</details>
+
+<details>
 <summary><b>1.5.1</b> · 2026-08-08</summary>
 
 ### CLI Patch
