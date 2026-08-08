@@ -8,15 +8,16 @@ packages:
 # Dependency version overrides. pnpm v11 reads these from here, not from
 # the root package.json `pnpm.overrides` block (which it silently ignores).
 overrides:
-  # Pin a transitive `fast-uri` (latest is 4.x) to the 3.x line. 3.1.4 is
-  # the PATCHED 3.x: GHSA-v2hh-gcrm-f6hx / GHSA-4c8g-83qw-93j6 (host
-  # confusion via a backslash authority delimiter, failed IDN
-  # canonicalization) hit `>=3.0.0 <=3.1.3`. Reached through
-  # `@modelcontextprotocol/sdk > ajv`, which AJV-validates plugin
-  # manifests and job reports, so a `format: "uri"` check on an
-  # attacker-authored string is in scope. ajv wants `^3.0.1`, so the
-  # patched release stays inside the range it already accepts.
-  fast-uri: 3.1.4
+  # Pin a transitive `fast-uri` (latest is 4.x) to the 3.x line. Two advisories
+  # hit the 3.x line so far: GHSA-v2hh-gcrm-f6hx / GHSA-4c8g-83qw-93j6 (host
+  # confusion via a backslash authority delimiter, failed IDN canonicalization,
+  # hit `>=3.0.0 <=3.1.3`) and GHSA-7p8r-x3mc-p8w7 (host confusion via backslash
+  # authority introducer, hit `>=3.0.0 <3.1.5`). Reached through
+  # `@modelcontextprotocol/sdk > ajv`, which AJV-validates plugin manifests and
+  # job reports, so a `format: "uri"` check on an attacker-authored string is in
+  # scope. ajv wants `^3.0.1`, so the patched release stays inside the range it
+  # already accepts.
+  fast-uri: 3.1.5
   # Same tree, same reason: `@modelcontextprotocol/sdk` still bundles a
   # vulnerable express subtree at 1.30.0 (bumping the SDK does not clear
   # these). Both are the patched release on the major the dependent
@@ -25,10 +26,93 @@ overrides:
   #   body-parser GHSA-v422-hmwv-36x6, DoS, hit >=2.0.0 <2.3.0
   qs: 6.15.3
   body-parser: 2.3.0
-  # `posthog-js` bundles an old `dompurify` (3.4.5) that trips several
-  # low/moderate advisories. Force it to the patched 3.4.12 the UI already
-  # depends on directly, so the shipped bundle carries one clean copy.
-  dompurify: 3.4.12
+  # `posthog-js` bundles an old `dompurify` that trips several advisories, most
+  # recently GHSA-55q2-fjhq-7xh7 (`IN_PLACE` hook removal leaves a detached
+  # subtree executable, XSS), hit `<=3.4.12`. Force it to the patched 3.4.13
+  # release so the shipped bundle carries one clean copy.
+  dompurify: 3.4.13
+  # `@typescript-eslint/typescript-estree` (via `minimatch@10.2.6`) resolves a
+  # vulnerable `brace-expansion@5.0.6`, hit by three cumulative DoS advisories:
+  # GHSA-3jxr-9vmj-r5cp, GHSA-mh99-v99m-4gvg, GHSA-rgw5-rvv9-x895 (exponential /
+  # unbounded expansion, all fixed by 5.0.9). Scope the override to that
+  # vulnerable resolution only. The older `brace-expansion` resolutions
+  # (1.1.18, 2.1.4, reached via `source-map-explorer`'s old minimatch chain)
+  # retain their compatible APIs, while the 5.x consumer gets the patched
+  # release.
+  "brace-expansion@5.0.6": 5.0.9
+  # `sass`/`vite` (under `@angular/build`) resolve `immutable@5.1.5`, hit by
+  # GHSA-v56q-mh7h-f735 (32-bit trie overflow, unrecoverable DoS) and
+  # GHSA-xvcm-6775-5m9r (hash-collision algorithmic complexity DoS), both
+  # `>=5.0.0-beta.1 <5.1.8`. Bump to the latest patched release.
+  immutable: 5.1.9
+  # Angular 21.2.17 exposes three advisories fixed in 21.2.19:
+  # GHSA-jhpw-976m-542j (common cache-key ambiguity), and
+  # GHSA-jj27-h5hq-8x99 (core/compiler event-handler XSS). The direct
+  # manifest pins stay at the committed 21.2.17 values; force the vulnerable
+  # transitive and direct Angular resolutions onto the patched patch release.
+  "@angular/common": 21.2.19
+  "@angular/core": 21.2.19
+  "@angular/compiler": 21.2.19
+  # `@angular/build` resolves `undici@7.24.4`, affected by the current
+  # TLS, WebSocket, cache, header, cookie, and desynchronization advisories
+  # through <7.29.0. Scope the override to Angular build tooling so the
+  # unrelated `node-gyp` chain keeps its compatible undici 6.x line.
+  "@angular/build>undici": 7.29.0
+  # `@angular/compiler-cli` resolves `@babel/core@7.29.0`, affected by
+  # GHSA-4x5r-pxfx-6jf8 (arbitrary file read via sourceMappingURL). The
+  # patched 7.29.7 release is already present elsewhere in the build graph.
+  "@babel/core": 7.29.7
+  # `@angular/cli`'s bundled `@modelcontextprotocol/sdk@1.26.0` still resolves
+  # `@hono/node-server@1.x` / `hono@4.x` below the patched line. `@skill-map/cli`'s own
+  # newer `@modelcontextprotocol/sdk@1.30.0` already resolves the patched
+  # `@hono/node-server@2.1.0` / `hono@4.13.1` elsewhere in the graph; force the old
+  # chain onto those so the tree carries one clean copy of each (same dedupe pattern
+  # as the `dompurify` entry above).
+  #   hono              GHSA-8j4g-w8fx-2239 (ReDoS in CORS middleware),
+  #                      GHSA-f23p-vx2j-j53r (memo() cross-user SSR leak),
+  #                      GHSA-54fx-42gc-7vw4 (Language middleware DoS),
+  #                      GHSA-79qm-7rj5-m7r9 (Proxy Helper header leak);
+  #                      all fixed >=4.12.34.
+  #   @hono/node-server  GHSA-frvp-7c67-39w9 (Windows path traversal via
+  #                      encoded backslash), fixed only >=2.0.5 (no 1.x
+  #                      backport exists, so this must cross the 1.x-2.x
+  #                      major). Both @modelcontextprotocol/sdk@1.26.0 and
+  #                      @1.30.0 declare `hono: ^4.11.4` (4.13.1 satisfies
+  #                      both); @hono/node-server 1.x and 2.x both declare
+  #                      peer `hono: ^4`. sdk@1.26.0 declares
+  #                      `@hono/node-server: ^1.19.9` (does not cover 2.x) so
+  #                      this override does exceed that one chain's declared
+  #                      range; accepted because no 1.x patch exists, the only
+  #                      v2.0.0 breaking changes are dropped Node 18 support
+  #                      (repo requires >=24) and removal of the unused
+  #                      `/vercel` adapter. `@angular/cli` itself IS invoked by this
+  #                      repo's `ui`/`web` build scripts (`ng build`), but the only
+  #                      code path in its dependency tree that pulls in
+  #                      `@modelcontextprotocol/sdk` (and therefore hono/@hono-node-server,
+  #                      declared as its direct `dependencies`) is the `ng mcp`
+  #                      subcommand, never invoked by any script in this repo. Even
+  #                      `ng mcp` itself never loads either package: its entry point
+  #                      wires `@modelcontextprotocol/sdk/server/stdio.js` +
+  #                      `server/mcp.js`, neither of which requires hono anywhere in
+  #                      their module graph — only the SDK's own unused
+  #                      `examples/server/honoWebStandardStreamableHttp.js` does.
+  hono: 4.13.1
+  "@hono/node-server": 2.1.0
+  # `tsup`/`bundle-require` resolve a vulnerable `esbuild@0.27.7`, hit by
+  # GHSA-g7r4-m6w7-qqqr (arbitrary file read via the Windows dev server),
+  # `>=0.27.3 <0.28.1`. `@angular/build`/`tsx`/`vite` already resolve the
+  # patched `esbuild@0.28.1` elsewhere in the graph; force the old chain onto
+  # it (same dedupe pattern as `dompurify`/`hono` above). Already allowlisted
+  # for native postinstall builds below (`allowBuilds.esbuild: true`).
+  esbuild: 0.28.1
+
+# The committed manifests use TypeScript 6.0.3, while Angular build 21.2.17
+# advertises a stale upper peer bound of <6.0. The build is exercised against
+# the committed compiler, so allow this exact parent/peer pairing without
+# relaxing peer checks elsewhere.
+peerDependencyRules:
+  allowedVersions:
+    "@angular/build>typescript": 6.0.3
 
 # Allowlist of dependencies whose install scripts are permitted to run.
 # strict-dep-builds=true (in .npmrc) blocks every postinstall by default,
