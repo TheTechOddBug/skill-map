@@ -88,7 +88,7 @@
 import { posix as pathPosix } from 'node:path';
 
 import type { IBuiltInManifest, IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
-import { extractCodeRegions } from '../../../../kernel/util/strip-code-blocks.js';
+import { extractCodeRegions, extractFencedRegions } from '../../../../kernel/util/strip-code-blocks.js';
 import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
@@ -147,6 +147,11 @@ export const backtickPathExtractor: IBuiltInManifest<IExtractor> = {
     // doc-comment for the two resurrect artifacts (backtick / fence
     // glyphs and fence info-strings), both rejected by PATH_RE anyway.
     const body = extractCodeRegions(ctx.body);
+    // The fenced-only mask classifies each match: fence hit =
+    // 'code-block', otherwise the match sits in an inline span. Same
+    // construction as the trigger siblings (`core/backtick-slash`,
+    // `codex/backtick-dollar`, `claude/backtick-mention`).
+    const fenced = extractFencedRegions(ctx.body);
     const lineStarts = computeLineStarts(body);
     const sourceDir = pathPosix.dirname(ctx.node.path);
 
@@ -164,6 +169,14 @@ export const backtickPathExtractor: IBuiltInManifest<IExtractor> = {
         scope: 'body',
         range: { start: offset, end: offset + original.length, line },
         raw: original,
+        // Code-region provenance. Every match of this extractor sits in
+        // a code region by construction, but downstream consumers see
+        // only what the occurrence RECORDS: without this stamp,
+        // `core/link-self-loop`'s usage-example exemption (spec
+        // `architecture.md` §code-region triggers, second consumer)
+        // could never apply to a backticked self-reference like a
+        // `SKILL.md` naming its own sibling.
+        context: fenced[offset] === ' ' ? 'inline-code' : 'code-block',
         candidates: [
           {
             extractorId: ID,

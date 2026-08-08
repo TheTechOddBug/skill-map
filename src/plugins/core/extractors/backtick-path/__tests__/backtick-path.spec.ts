@@ -2,7 +2,8 @@ import { describe, it } from 'node:test';
 import { strictEqual, ok } from 'node:assert';
 
 import { backtickPathExtractor } from '../index.js';
-import type { IExtractorContext, IEmittedNode } from '../../../../../kernel/extensions/index.js';
+import { linkSelfLoopAnalyzer } from '../../../analyzers/link-self-loop/index.js';
+import type { IAnalyzerContext, IExtractorContext, IEmittedNode } from '../../../../../kernel/extensions/index.js';
 import { resolveSignals } from '../../../../../kernel/orchestrator/resolver.js';
 import type { Link, Node, Signal } from '../../../../../kernel/types.js';
 import { SILENT_EXTENSION_LOGGER } from '../../../../../kernel/adapters/silent-logger.js';
@@ -317,5 +318,45 @@ describe('backtick-path extractor', () => {
     await runAndResolve(helper);
     strictEqual(helper.links.length, 0);
     strictEqual(helper.signals.length, 0);
+  });
+
+  it('stamps inline-code context on span matches and code-block on fenced ones (occurrence provenance)', async () => {
+    // Regression (2026-08-09): the extractor emitted no `context`, so its
+    // occurrences carried null provenance and `core/link-self-loop`'s
+    // usage-example exemption could never apply to a backticked path.
+    const body = ['Read `refs/a.md` now.', '```bash', 'cat refs/b.md', '```'].join('\n');
+    const helper = makeContext(mockNode('skills/demo/SKILL.md'), body);
+    await runAndResolve(helper);
+    strictEqual(helper.signals.length, 2);
+    strictEqual(helper.signals[0]!.context, 'inline-code');
+    strictEqual(helper.signals[1]!.context, 'code-block');
+    // The resolver copies the stamp onto the materialised occurrences.
+    const byTarget = new Map(helper.links.map((l) => [l.target, l]));
+    strictEqual(byTarget.get('skills/demo/refs/a.md')!.occurrences![0]!.context, 'inline-code');
+    strictEqual(byTarget.get('skills/demo/refs/b.md')!.occurrences![0]!.context, 'code-block');
+  });
+
+  it('full-chain regression: a backticked self-mention never warns link-self-loop', async () => {
+    // The live false positive (2026-08-09): `AGENTS.md` naming itself in
+    // a backticked span tripped the warn because the missing context
+    // stamp hid the code-region provenance from the analyzer's
+    // usage-example exemption. Chain the real pieces: extractor ->
+    // resolver -> analyzer.
+    const node = mockNode('AGENTS.md');
+    const helper = makeContext(
+      node,
+      'Some preferences. First case: the pointer style in `AGENTS.md`, which we keep.',
+    );
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 1);
+    strictEqual(helper.links[0]!.target, 'AGENTS.md');
+    const issues = await linkSelfLoopAnalyzer.evaluate!({
+      nodes: [node],
+      links: helper.links,
+      settings: {},
+      log: SILENT_EXTENSION_LOGGER,
+      emitContribution: () => undefined,
+    } as IAnalyzerContext);
+    strictEqual(issues.length, 0);
   });
 });

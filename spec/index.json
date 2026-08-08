@@ -460,7 +460,7 @@
     "files": {
       "CHANGELOG.md": "26e0e76372ddd6e30d31187a771873d960873871a12109eb32d9b2870a00f0b4",
       "README.md": "35ac6cc3ce8379c5087f739a528d3b80a140aef5cdeeba9c49b59c5dd5df4c54",
-      "architecture.md": "11de761cb946be0d82252b1c7f697d4a2d2c521623f290a28d50c004b61847e0",
+      "architecture.md": "086596d7fc864166bcb466cd1126be725cd593e01d782383ec964f39c56e22c8",
       "cli-contract.md": "d274133941a7f7fd7b42bef74269131792109b49d55893d08b91b55fc2f4e330",
       "conformance/README.md": "1cf7a020d4a7517e9f2b5fa2e6912be812322dfffa388de5eb47ef44d9277e8f",
       "conformance/cases/backtick-path-extraction.json": "4112b5724156c4d6ad5cf90a762e43741d25d68735f91d453ac580a77b3764da",
