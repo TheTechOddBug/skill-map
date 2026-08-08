@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.5.1",
+      "date": "2026-08-08",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**Read the whole document comfortably.** The inspector's Body section has a new Expand button that opens the full document in a large dialog, with the same Raw / Rendered switch in its header. The view you pick sticks for the session, in and out of the dialog.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.5.0",
       "date": "2026-08-07",
       "kind": "user-facing",
