@@ -515,3 +515,33 @@ describe('NodeCard, execution counter pill (spec/provider-activity.md §Executio
     expect(absent.querySelector('[data-testid="node-card-activity-count"]')).toBeNull();
   });
 });
+
+describe('NodeCard, executing tool badge (spec/provider-activity.md §detail)', () => {
+  function bootstrapExec(executing: boolean, detail: string | null): HTMLElement {
+    TestBed.configureTestingModule({});
+    const fixture = TestBed.createComponent(NodeCard);
+    fixture.componentRef.setInput('node', makeNode());
+    fixture.componentRef.setInput('executing', executing);
+    fixture.componentRef.setInput('executingDetail', detail);
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  it('renders the literal tool name only while executing with a detail', () => {
+    const dom = bootstrapExec(true, 'Skill');
+    const badge = dom.querySelector('[data-testid="node-card-exec-detail"]');
+    expect(badge).not.toBeNull();
+    expect(badge!.textContent).toBe('Skill');
+    expect(badge!.getAttribute('aria-label')).toContain('Skill');
+  });
+
+  it('hides the badge when not executing, even with a detail bound', () => {
+    const dom = bootstrapExec(false, 'Skill');
+    expect(dom.querySelector('[data-testid="node-card-exec-detail"]')).toBeNull();
+  });
+
+  it('hides the badge while executing without a detail', () => {
+    const dom = bootstrapExec(true, null);
+    expect(dom.querySelector('[data-testid="node-card-exec-detail"]')).toBeNull();
+  });
+});

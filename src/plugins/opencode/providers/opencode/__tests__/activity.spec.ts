@@ -59,7 +59,7 @@ describe('opencodeActivity.mapEvent', () => {
       output: { args: { name: 'demo-skill-two' } },
     });
     assert.deepEqual(signals, [
-      { kind: 'skill', name: 'demo-skill-two', phase: 'start', owner: SESSION },
+      { kind: 'skill', name: 'demo-skill-two', phase: 'start', owner: SESSION, detail: 'skill' },
     ]);
   });
 
@@ -77,6 +77,7 @@ describe('opencodeActivity.mapEvent', () => {
         path: '.agents/skills/demo-skill-two/references/valor.md',
         phase: 'start',
         owner: SESSION,
+        detail: 'read',
       },
     ]);
   });

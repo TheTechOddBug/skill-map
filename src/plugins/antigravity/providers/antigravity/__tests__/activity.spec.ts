@@ -81,6 +81,7 @@ describe('antigravityActivity.mapEvent', () => {
         path: 'notes/demo.md',
         phase: 'start',
         owner: '10975125-a914-4b97-8f7c-871ec06e4dfc',
+        detail: 'view_file',
       },
     ]);
   });
@@ -100,6 +101,7 @@ describe('antigravityActivity.mapEvent', () => {
         path: '.agent/workflows/probe-flow.md',
         phase: 'start',
         owner: 'd7f704d7-1111-2222-3333-444455556666',
+        detail: 'view_file',
       },
     ]);
   });

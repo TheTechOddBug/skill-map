@@ -83,6 +83,7 @@ describe('claudeActivity.mapEvent', () => {
         name: 'probe-skill',
         phase: 'start',
         owner: 'main:6cfe5636-2e56-4271-91a6-87fc3d4355be',
+        detail: 'Skill',
       },
     ]);
   });
@@ -95,7 +96,7 @@ describe('claudeActivity.mapEvent', () => {
       tool_use_id: 'toolu_015y8G9WHeDyRfLabuUTSoeL',
     });
     assert.deepEqual(signals, [
-      { kind: 'skill', name: 'probe-skill', phase: 'start', owner: 'main' },
+      { kind: 'skill', name: 'probe-skill', phase: 'start', owner: 'main', detail: 'Skill' },
     ]);
   });
 
@@ -138,7 +139,7 @@ describe('claudeActivity.mapEvent', () => {
       tool_use_id: 'toolu_0158hBapyGGoYs9rFRJgKh5g',
     });
     assert.deepEqual(signals, [
-      { kind: 'skill', name: 'probe-skill', phase: 'start', owner: 'ad21876e2d1c4e17b' },
+      { kind: 'skill', name: 'probe-skill', phase: 'start', owner: 'ad21876e2d1c4e17b', detail: 'Skill' },
     ]);
   });
 
@@ -220,6 +221,7 @@ describe('claudeActivity.mapEvent', () => {
         owner: 'spawn:toolu_01MEQBSdHNo3B9pMjY8s7ZQK',
         sticky: true,
         keepAlive: true,
+        detail: 'Agent',
         spawn: {
           spawnId: 'toolu_01MEQBSdHNo3B9pMjY8s7ZQK',
           phase: 'start',
@@ -351,6 +353,7 @@ describe('claudeActivity.mapEvent', () => {
         path: 'notes/todo.md',
         phase: 'start',
         owner: 'main:6cfe5636-2e56-4271-91a6-87fc3d4355be',
+        detail: 'Read',
       },
     ]);
   });
@@ -365,7 +368,7 @@ describe('claudeActivity.mapEvent', () => {
       tool_input: { file_path: '/home/user/project/docs/playbook.md' },
     });
     assert.deepEqual(signals, [
-      { path: 'docs/playbook.md', phase: 'start', owner: 'afa6d56495644b2db' },
+      { path: 'docs/playbook.md', phase: 'start', owner: 'afa6d56495644b2db', detail: 'Read' },
     ]);
   });
 

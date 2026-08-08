@@ -204,20 +204,27 @@ function mapSpawnRelation(
     spawn.childKind = 'agent';
     spawn.childName = childName;
   }
+  const signal: IActivitySignal = { phase: 'start', owner, spawn };
   if (phase === 'start') {
     const prompt = nonEmptyString(input['message']);
     if (prompt) spawn.prompt = prompt;
+    // The spawn START badges the parent card with the literal invoking
+    // tool name (spec/provider-activity.md §detail); the handoff is
+    // not a fresh invocation.
+    signal.detail = 'spawn_agent';
   } else {
     const childId = spawnedChildId(event['tool_response']);
     if (childId) spawn.childOwner = childId;
   }
   const parentName = nonEmptyString(event['agent_type']);
   if (!parentName) {
-    return [{ phase: 'start', owner, spawn }];
+    delete signal.detail;
+    return [signal];
   }
-  return [
-    { kind: 'agent', name: parentName, phase: 'start', owner, keepAlive: true, spawn },
-  ];
+  signal.kind = 'agent';
+  signal.name = parentName;
+  signal.keepAlive = true;
+  return [signal];
 }
 
 /** The spawned child's id, from the JSON-string spawn response. */

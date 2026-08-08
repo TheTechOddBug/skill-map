@@ -85,6 +85,24 @@ describe('ActivityStatsService.record', () => {
     assert.equal(d.recent[0]?.target, undefined);
   });
 
+  it('a detail-bearing UNIT start stays untyped: detail rides the recent entry, no caller', () => {
+    // spec/provider-activity.md §detail: unit frames may carry the
+    // literal invoking tool name (e.g. `Skill`); without `access` the
+    // frame is still a unit execution, never an invocation.
+    const stats = new ActivityStatsService();
+    stats.record({
+      nodePath: '.claude/skills/demo/SKILL.md',
+      phase: 'start',
+      owner: 'main:s1',
+      detail: 'Skill',
+    });
+    const d = stats.nodeDetail('.claude/skills/demo/SKILL.md');
+    assert.equal(d.recent[0]?.detail, 'Skill');
+    assert.equal(d.recent[0]?.kind, undefined);
+    assert.equal(d.recent[0]?.caller, undefined);
+    assert.equal(d.recent[0]?.target, undefined);
+  });
+
   it('attributes no caller for a bare access with nothing lit under the owner', () => {
     const stats = new ActivityStatsService();
     stats.record({

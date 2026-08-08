@@ -114,6 +114,50 @@
 }
 :host(.sm-gnode--executing.sm-gnode--dimmed) { opacity: 1; }
 
+/*
+ * Transient tool badge (spec/provider-activity.md §detail): names the
+ * literal tool that lit the card. Rendered only while executing (the
+ * @if gate couples it to the glow), inline in the actions cluster
+ * right before the chevron; capped + ellipsized so the title row
+ * keeps the remaining width.
+ */
+.sm-gnode__exec-detail {
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-family: var(--sm-font-mono);
+  font-size: 9px;
+  line-height: 14px;
+  color: var(--p-text-color);
+  background: color-mix(in srgb, var(--accent) 18%, var(--sm-bg-content));
+  border: 1px solid var(--accent);
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/*
+ * Badge pulse: breathes between faint and fully present while the
+ * tool runs, same PRM gate as every exec animation (reduced-motion
+ * users keep the static badge, state stays visible without movement).
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .sm-gnode__exec-detail {
+    animation: sm-exec-detail-pulse 1.6s ease-in-out infinite;
+  }
+
+  @keyframes sm-exec-detail-pulse {
+    0%,
+    100% {
+      opacity: 0.35;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+}
+
 /* The top bar becomes a sliding rainbow ribbon while running. */
 :host(.sm-gnode--executing)::before {
   height: 5px;

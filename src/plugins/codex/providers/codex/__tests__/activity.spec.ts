@@ -219,6 +219,7 @@ describe('codexActivity.mapEvent', () => {
         phase: 'start',
         owner: '019f324c-58fe-7400-8d49-8e47959e34ef',
         keepAlive: true,
+        detail: 'spawn_agent',
         session: '0d3f7a10-51c2-4f5e-9b1a-2f6d8c4e7a90',
         spawn: {
           spawnId: 'call_SpawnDemo000000000002',

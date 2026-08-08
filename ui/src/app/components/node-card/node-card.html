@@ -21,6 +21,18 @@
     </div>
 
     <div class="sm-gnode__actions">
+      <!-- Transient tool badge: names the literal tool that lit the
+           card (spec/provider-activity.md §detail). Sits right before
+           the chevron so the title row keeps all remaining width; the
+           text is raw provider data, so only the aria-label is
+           catalogued. -->
+      @if (executing() && executingDetail(); as detail) {
+        <span
+          class="sm-gnode__exec-detail"
+          [attr.aria-label]="texts.executingDetailA11y(detail)"
+          data-testid="node-card-exec-detail"
+        >{{ detail }}</span>
+      }
       @if (version(); as v) {
         <span class="sm-gnode__name-version" data-testid="node-card-version">{{ v }}</span>
       }

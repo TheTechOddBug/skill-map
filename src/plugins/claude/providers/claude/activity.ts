@@ -153,7 +153,9 @@ function mapPreToolUse(event: Record<string, unknown>): IActivitySignal[] | null
   if (event['tool_name'] === 'Skill') {
     const name = nonEmptyString(input['skill']);
     if (!name) return null;
-    return [{ kind: 'skill', name, phase: 'start', owner: sessionizedOwner(event) }];
+    // `detail` carries the literal invoking tool name so the UI can
+    // badge the lit card (spec/provider-activity.md §detail).
+    return [{ kind: 'skill', name, phase: 'start', owner: sessionizedOwner(event), detail: 'Skill' }];
   }
   if (event['tool_name'] === 'Read') {
     return mapMarkdownRead(event, input);
@@ -203,6 +205,9 @@ function mapSpawnCustodyStart(event: Record<string, unknown>): IActivitySignal[]
       owner: `spawn:${toolUseId}`,
       sticky: true,
       keepAlive: true,
+      // Literal invoking tool name for the card badge
+      // (spec/provider-activity.md §detail).
+      detail: 'Agent',
       spawn,
     },
   ];
@@ -326,7 +331,8 @@ function mapMarkdownRead(
 ): IActivitySignal[] | null {
   const relative = relativizeMarkdownPath(input['file_path'], [event['cwd']]);
   if (relative === null) return null;
-  return [{ path: relative, phase: 'start', owner: sessionizedOwner(event) }];
+  // `detail` = literal invoking tool name (spec/provider-activity.md §detail).
+  return [{ path: relative, phase: 'start', owner: sessionizedOwner(event), detail: 'Read' }];
 }
 
 /**

@@ -79,6 +79,20 @@ describe('resolveSignalsAgainstNodes', () => {
     assert.deepEqual(resolved.spawns, []);
   });
 
+  it('forwards `detail` on a non-mcp UNIT signal (literal invoking tool name)', () => {
+    // spec/provider-activity.md §detail: unit frames may carry the raw
+    // tool name (e.g. Claude's `Skill`); the resolver forwards it
+    // verbatim WITHOUT tagging `access` (that stays shape-derived).
+    const resolved = resolveSignalsAgainstNodes(
+      [{ kind: 'skill', name: 'deploy', phase: 'start', owner: 'main', detail: 'Skill' }],
+      provider,
+      NODES,
+    );
+    assert.deepEqual(resolved.activity, [
+      { nodePath: '.claude/skills/deploy/SKILL.md', phase: 'start', owner: 'main', detail: 'Skill' },
+    ]);
+  });
+
   it('resolves an agent by frontmatter.name over the filename', () => {
     const resolved = resolveSignalsAgainstNodes(
       [{ kind: 'agent', name: 'code-reviewer', phase: 'end', owner: 'a1b2' }],

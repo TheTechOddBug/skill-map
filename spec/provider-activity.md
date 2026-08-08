@@ -399,7 +399,16 @@ Broadcast over `/ws` in the common envelope of
   recent history (§Execution stats, per-node `recent` ring, so the inspector
   stacks the tool call log). Absent when the provider mapped no finer detail.
   Emitted by the Provider's `mapEvent` as the optional `IActivitySignal.detail`
-  and forwarded verbatim by the resolver.
+  and forwarded verbatim by the resolver. Beyond MCP invocations, providers MAY
+  carry the literal invoking tool name on UNIT and resource `start` frames (the
+  raw name from the hook payload, unnormalized: Claude `Skill` / `Read` /
+  `Agent`, Codex `spawn_agent`, Antigravity `view_file`, opencode `skill` /
+  `read` / `task`), so clients can label WHICH tool lit a node. Because
+  `detail` presence no longer implies an MCP invocation, clients MUST gate
+  invocation-edge rendering on the target node path's `mcp://` prefix (or the
+  `access: "mcp"` classifier where available), never on `detail` presence
+  alone; unit detail renders as a transient badge on the executing card that
+  decays with the glow.
 - `access` (optional): classifies a RESOURCE frame, `"mcp"` when the node is an
   `mcp://` server (a tool call) or `"read"` when it is a file a unit read.
   Absent on a UNIT's own execution (a skill / agent / command start). The
@@ -643,9 +652,11 @@ RESOURCE access (a tool call or a file read, `access` set on the frame) is
 written to BOTH ends: the resource node's entry carries `caller` (the unit that
 accessed it) and the unit's own mirrored entry carries `target` (the accessed
 node), both tagged with `kind` (`"mcp"` | `"read"`) and, for an mcp call, the
-`detail` tool (a read carries no `detail`). So the inspector shows, from either
-side, who accessed what and of which type. A unit's own execution carries none
-of these. All sets and rings are bounded; hitting a bound saturates or evicts
+`detail` tool (for a read, `detail` is the provider's literal read-tool name
+when the adapter carries one, e.g. `Read` / `view_file`). So the inspector
+shows, from either side, who accessed what and of which type. A unit's own
+execution carries none of these except an optional `detail` naming the literal
+invoking tool (e.g. `Skill`, `spawn_agent`, `task`). All sets and rings are bounded; hitting a bound saturates or evicts
 oldest entries, it never errors.
 
 Per-node stats gain OPTIONAL execution aggregates when spawn completions

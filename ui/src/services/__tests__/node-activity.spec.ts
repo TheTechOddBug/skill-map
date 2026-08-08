@@ -697,3 +697,94 @@ describe('NodeActivityService.activeInvocations (tool-invocation edges)', () => 
     expect(service.activeInvocations()).toHaveLength(0);
   });
 });
+
+describe('NodeActivityService.executionDetails (tool badge) and the mcp:// gate', () => {
+  const MCP = 'mcp://notion';
+
+  function startWithDetail(nodePath: string, owner: string, detail: string): IWsNodeActivityEvent {
+    const ev = makeEvent(nodePath, 'start', owner);
+    ev.data.detail = detail;
+    return ev;
+  }
+
+  it('a detail-bearing NON-mcp start creates NO invocation edge (gate regression)', async () => {
+    const { service, events$ } = bootstrap(10_000);
+
+    events$.next(startWithDetail(SKILL, 'main:abc', 'Skill'));
+    await flushed();
+
+    expect(service.activeInvocations()).toHaveLength(0);
+    expect(service.activePaths().has(SKILL)).toBe(true);
+  });
+
+  it('exposes the tool label for a lit unit AND a lit mcp node', async () => {
+    const { service, events$ } = bootstrap(10_000);
+
+    events$.next(startWithDetail(SKILL, 'main:abc', 'Skill'));
+    events$.next(startWithDetail(MCP, 'main:abc', 'notion-create-pages'));
+    await flushed();
+
+    expect(service.executionDetails().get(SKILL)).toBe('Skill');
+    expect(service.executionDetails().get(MCP)).toBe('notion-create-pages');
+  });
+
+  it('a start without detail exposes no label', async () => {
+    const { service, events$ } = bootstrap(10_000);
+
+    events$.next(makeEvent(SKILL, 'start', 'main:abc'));
+    await flushed();
+
+    expect(service.activePaths().has(SKILL)).toBe(true);
+    expect(service.executionDetails().has(SKILL)).toBe(false);
+  });
+
+  it('the label decays WITH the glow (TTL sweep)', async () => {
+    const { service, events$ } = bootstrap(40);
+
+    events$.next(startWithDetail(SKILL, 'main:abc', 'Skill'));
+    await flushed();
+    expect(service.executionDetails().get(SKILL)).toBe('Skill');
+
+    await afterTtlDecay();
+    expect(service.activePaths().has(SKILL)).toBe(false);
+    expect(service.executionDetails().has(SKILL)).toBe(false);
+  });
+
+  it('an owner-scope release drops the label with the claim', async () => {
+    const { service, events$ } = bootstrap(10_000);
+
+    events$.next(startWithDetail(SKILL, 'agent-1', 'Skill'));
+    await flushed();
+    expect(service.executionDetails().has(SKILL)).toBe(true);
+
+    const stop = makeEvent(SKILL, 'end', 'agent-1');
+    stop.data.ownerScope = true;
+    events$.next(stop);
+    await flushed();
+    expect(service.executionDetails().has(SKILL)).toBe(false);
+  });
+
+  it('setEnabled(false) clears the labels immediately', async () => {
+    const { service, events$ } = bootstrap(10_000);
+
+    events$.next(startWithDetail(SKILL, 'main:abc', 'Skill'));
+    await flushed();
+    expect(service.executionDetails().size).toBe(1);
+
+    service.setEnabled(false);
+    expect(service.executionDetails().size).toBe(0);
+  });
+
+  it('republishes the SAME map instance when nothing changed (OnPush discipline)', async () => {
+    const { service, events$ } = bootstrap(10_000);
+
+    events$.next(startWithDetail(SKILL, 'main:abc', 'Skill'));
+    await flushed();
+    const first = service.executionDetails();
+
+    // A repeat start with the same detail changes nothing observable.
+    events$.next(startWithDetail(SKILL, 'main:abc', 'Skill'));
+    await flushed();
+    expect(service.executionDetails()).toBe(first);
+  });
+});

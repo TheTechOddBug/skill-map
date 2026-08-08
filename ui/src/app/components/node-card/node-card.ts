@@ -105,6 +105,16 @@ export class NodeCard {
   readonly executing = input<boolean>(false);
 
   /**
+   * Literal tool name that lit the card (spec/provider-activity.md
+   * §detail: `Skill`, `Read`, `Agent`, an MCP tool, provider raw
+   * names). Owned by `NodeActivityService.executionDetails` and
+   * projected by the graph view; rendered as a transient badge only
+   * while `executing` is true, so it decays with the glow. `null`
+   * (frames without detail, non-live contexts) renders nothing.
+   */
+  readonly executingDetail = input<string | null>(null);
+
+  /**
    * Per-node execution stats (spec/provider-activity.md §Execution
    * stats), owned by `NodeActivityStatsService` and projected by the
    * graph view (one O(1) Map lookup per node). The card only paints

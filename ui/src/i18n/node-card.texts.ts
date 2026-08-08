@@ -60,6 +60,13 @@ export const NODE_CARD_TEXTS = {
       `Executed ${count} time${count === 1 ? '' : 's'} this session`,
   },
   /**
+   * Transient tool badge on the executing glow
+   * (spec/provider-activity.md §detail): the visible text is the raw
+   * provider tool name (data, not a catalogued string); only the
+   * accessible label lives here.
+   */
+  executingDetailA11y: (tool: string): string => `Executing via ${tool}`,
+  /**
    * Step 9.6.5, sidecar drift badge tooltips. The badge surfaces only
    * for nodes whose sidecar overlay reports a stale status; tooltip
    * spells out which side drifted (body, frontmatter, or both).

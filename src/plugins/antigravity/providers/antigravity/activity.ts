@@ -127,7 +127,8 @@ function mapFileView(
 ): IActivitySignal[] | null {
   const relative = relativizeMarkdownPath(args['AbsolutePath'], event['workspacePaths']);
   if (relative === null) return null;
-  return [{ path: relative, phase: 'start', owner: ownerOf(event) }];
+  // `detail` = literal invoking tool name (spec/provider-activity.md §detail).
+  return [{ path: relative, phase: 'start', owner: ownerOf(event), detail: 'view_file' }];
 }
 
 /**

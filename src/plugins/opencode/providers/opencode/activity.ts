@@ -174,7 +174,8 @@ function mapToolCall(wrapper: Record<string, unknown>): IActivitySignal[] | null
   if (input['tool'] === 'skill') {
     const name = nonEmptyString(args['name']);
     if (!name) return null;
-    return [{ kind: 'skill', name, phase: 'start', owner: ownerOf(input) }];
+    // `detail` = literal invoking tool name (spec/provider-activity.md §detail).
+    return [{ kind: 'skill', name, phase: 'start', owner: ownerOf(input), detail: 'skill' }];
   }
   if (input['tool'] === 'read') {
     return mapMarkdownRead(wrapper, input, args);
@@ -291,7 +292,8 @@ function mapMarkdownRead(
 ): IActivitySignal[] | null {
   const relative = relativizeMarkdownPath(args['filePath'], [wrapper['directory']]);
   if (relative === null) return null;
-  return [{ path: relative, phase: 'start', owner: ownerOf(input) }];
+  // `detail` = literal invoking tool name (spec/provider-activity.md §detail).
+  return [{ path: relative, phase: 'start', owner: ownerOf(input), detail: 'read' }];
 }
 
 function mapCommand(wrapper: Record<string, unknown>): IActivitySignal[] | null {

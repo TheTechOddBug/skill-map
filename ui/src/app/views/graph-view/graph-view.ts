@@ -1135,6 +1135,16 @@ export class GraphView implements OnInit {
   }
 
   /**
+   * Literal tool name that lit the node (spec/provider-activity.md
+   * §detail), rendered by the card as a transient badge while the glow
+   * lasts. One O(1) map lookup per node; `null` when the frame carried
+   * no detail.
+   */
+  executingDetail(id: string): string | null {
+    return this.nodeActivity.executionDetails().get(id) ?? null;
+  }
+
+  /**
    * Active-spine edge: both endpoints are executing (the agent that is
    * running and the skill it invoked), so the connection between them
    * lights up with them and the path reads as one live chain instead of

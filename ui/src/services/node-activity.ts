@@ -192,6 +192,23 @@ export class NodeActivityService {
   /** Node paths executing right now. Graph consumers do `activePaths().has(node.id)`. */
   readonly activePaths = this._activePaths.asReadonly();
 
+  /**
+   * Latest tool label per lit path (`spec/provider-activity.md`
+   * §detail: unit frames may carry the literal invoking tool name).
+   * Entries live exactly as long as the path stays in the active set;
+   * `publish` sweeps the leavers.
+   */
+  private readonly detailByPath = new Map<string, string>();
+
+  private readonly _executionDetails = signal<ReadonlyMap<string, string>>(new Map());
+  /**
+   * Literal tool name that lit each executing node, keyed by node path.
+   * Consumers do `executionDetails().get(node.id)`; the map republishes
+   * only when membership or a value actually changed (OnPush parity
+   * with `activePaths`).
+   */
+  readonly executionDetails = this._executionDetails.asReadonly();
+
   private readonly _activeInvocations = signal<readonly INodeInvocation[]>([]);
   /**
    * Live tool invocations (caller -> target, with the tool label). An
@@ -224,6 +241,7 @@ export class NodeActivityService {
     this.pending = [];
     this.claims.clear();
     this.invocations.clear();
+    this.detailByPath.clear();
     this.lastUnitByOwner.clear();
     this.sessionByOwner.clear();
     this.publish(Date.now());
@@ -299,13 +317,23 @@ export class NodeActivityService {
       // RIGHT NOW (with a last-unit fallback), before the target's own
       // claim lands (the target is excluded by path either way). The
       // edge gets its OWN TTL, refreshed here on a repeat invocation.
-      if (data.detail !== undefined) {
+      // Gated on the mcp:// target path, NOT on detail presence: unit
+      // frames may also carry `detail` (the literal invoking tool name,
+      // spec/provider-activity.md §detail) and those must never draw an
+      // invocation edge.
+      if (data.detail !== undefined && data.nodePath.startsWith(MCP_NODE_PREFIX)) {
         const caller = this.correlateCaller(data.nodePath, owner);
         this.invocations.set(data.nodePath, {
           view: { target: data.nodePath, caller, detail: data.detail },
           owner,
           expiresAt: now + this.invocationTtlMs,
         });
+      }
+      // Any detail-bearing start (unit or mcp) labels the lit card with
+      // the literal tool name; the badge decays with the glow (swept in
+      // `publish` when the path leaves the active set).
+      if (data.detail !== undefined) {
+        this.detailByPath.set(data.nodePath, data.detail);
       }
       // Track the most-recent NON-mcp unit for this owner so a later tool
       // call can still name its caller after the caller's glow decayed.
@@ -405,6 +433,15 @@ export class NodeActivityService {
       this._activePaths.set(active);
     }
 
+    // Badge sweep: a detail label lives exactly as long as its path
+    // glows. Republish only on a real change (OnPush discipline).
+    for (const path of this.detailByPath.keys()) {
+      if (!active.has(path)) this.detailByPath.delete(path);
+    }
+    if (!stringMapsEqual(this.detailByPath, this._executionDetails())) {
+      this._executionDetails.set(new Map(this.detailByPath));
+    }
+
     // Prune invocations on their OWN expiry (NOT the target's glow, so a
     // slow tool keeps its edge while the node stops glowing), folding
     // the survivors' expiries into the sweep window. Publish the
@@ -430,6 +467,17 @@ export class NodeActivityService {
       this.sweepTimer = setTimeout(() => this.publish(Date.now()), earliest - now + 1);
     }
   }
+}
+
+function stringMapsEqual(
+  a: ReadonlyMap<string, string>,
+  b: ReadonlyMap<string, string>,
+): boolean {
+  if (a.size !== b.size) return false;
+  for (const [key, value] of a) {
+    if (b.get(key) !== value) return false;
+  }
+  return true;
 }
 
 function setsEqual(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
