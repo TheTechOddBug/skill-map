@@ -6,6 +6,14 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>1.5.1</b> · 2026-08-08</summary>
+
+### CLI Patch
+- The inspector's Body section adds an Expand button next to the Raw / Rendered toggle: it opens the full node body in a large modal dialog (node name in the header, same toggle flipping the shared session-sticky view, same rendered / raw content with no extra fetch). Because the dialog portals to `<body>`, the rendered-markdown prose rules and the dialog chrome moved from the inspector's scoped styles to global `ui/src/styles.css`; the card-vs-dialog layout split stays scoped.
+
+</details>
+
+<details>
 <summary><b>1.5.0</b> · 2026-08-07</summary>
 
 ### CLI Minor
