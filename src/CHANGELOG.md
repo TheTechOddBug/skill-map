@@ -1,5 +1,11 @@
 # skill-map
 
+## 1.6.2
+
+### Patch Changes
+
+- Refresh the CLI dependency graph to apply audited security fixes and restore the supported TypeScript toolchain pins.
+
 ## 1.6.1
 
 ### Patch Changes

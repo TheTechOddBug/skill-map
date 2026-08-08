@@ -6,6 +6,17 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>1.6.2</b> · 2026-08-08</summary>
+
+### CLI Patch
+- Refresh the CLI dependency graph to apply audited security fixes and restore the supported TypeScript toolchain pins.
+
+### Spec Patch (1.8.1)
+- Correct the §detail example list in `provider-activity.md`: opencode's `task` spawn emits the relation-only form (no node lit), so it never carries a `detail` tool name; the prose no longer promises a value no adapter emits.
+
+</details>
+
+<details>
 <summary><b>1.6.1</b> · 2026-08-08</summary>
 
 ### CLI Patch
