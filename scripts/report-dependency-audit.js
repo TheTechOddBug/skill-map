@@ -3,8 +3,9 @@
  * CI report step for the `dependency-audit` workflow: reads the `pnpm audit`
  * and `pnpm peers check` output already captured to disk by the workflow, and
  * when either command found issues, appends a markdown report to the GitHub
- * Actions job summary. Never exits non-zero: this script only produces
- * output, it never gates the job (that's the point of this workflow).
+ * Actions job summary and emits a `::warning::` annotation so the run is
+ * visibly flagged without failing. Never exits non-zero: this script only
+ * produces output, it never gates the job (that's the point of this workflow).
  *
  * Env vars (all required, set by `.github/workflows/dependency-audit.yml`):
  *   AUDIT_EXIT_CODE     exit code of `pnpm audit --json`
@@ -36,6 +37,14 @@ function readSafe(path) {
   }
 }
 
+// Workflow-command annotations only mean something to the Actions runner;
+// locally the report already lands on stdout, so skip the noise.
+function emitWorkflowWarning(message) {
+  if (process.env.GITHUB_ACTIONS === 'true') {
+    console.log(`::warning title=Dependency audit::${message}`);
+  }
+}
+
 const sections = ['## Dependency audit report', ''];
 
 if (auditExitCode !== 0) {
@@ -50,9 +59,15 @@ if (auditExitCode !== 0) {
 
   if (parsed?.metadata?.vulnerabilities) {
     const counts = parsed.metadata.vulnerabilities;
+    const nonZero = Object.entries(counts).filter(([, count]) => count > 0);
+    const total = nonZero.reduce((sum, [, count]) => sum + count, 0);
+    const breakdown = nonZero.map(([severity, count]) => `${count} ${severity}`).join(', ');
+    emitWorkflowWarning(
+      `pnpm audit found ${total} known ${total === 1 ? 'vulnerability' : 'vulnerabilities'} (${breakdown}). See the job summary for details.`
+    );
     sections.push('| Severity | Count |', '| --- | --- |');
-    for (const [severity, count] of Object.entries(counts)) {
-      if (count > 0) sections.push(`| ${severity} | ${count} |`);
+    for (const [severity, count] of nonZero) {
+      sections.push(`| ${severity} | ${count} |`);
     }
     sections.push('');
 
@@ -69,6 +84,9 @@ if (auditExitCode !== 0) {
       sections.push('');
     }
   } else {
+    emitWorkflowWarning(
+      `pnpm audit exited with code ${auditExitCode} and produced unparseable output. See the job summary for the raw output.`
+    );
     sections.push(
       `\`pnpm audit\` exited with code ${auditExitCode} and produced output that could not be parsed as JSON. Raw output:`,
       '',
@@ -85,12 +103,16 @@ if (auditExitCode !== 0) {
 }
 
 if (peersExitCode !== 0) {
+  emitWorkflowWarning(
+    'pnpm peers check reported unsatisfied peer dependencies. See the job summary for details.'
+  );
   sections.push('### `pnpm peers check`', '', '```', readSafe(peersTxtPath) || '(empty)', '```', '');
 }
 
 if (summaryPath) {
   appendFileSync(summaryPath, sections.join('\n') + '\n');
+  console.log('Dependency issues detected; report appended to the job summary.');
 } else {
   process.stdout.write(sections.join('\n') + '\n');
+  console.log('Dependency issues detected; report written to stdout (GITHUB_STEP_SUMMARY not set).');
 }
-console.log('Dependency issues detected; report appended to the job summary.');
