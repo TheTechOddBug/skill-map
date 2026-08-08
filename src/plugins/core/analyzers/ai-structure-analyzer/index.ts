@@ -7,6 +7,15 @@
  * exit-code-bearing); read them with `sm findings`, in context with
  * `sm show`.
  *
+ * Axis cession (user decision 2026-08-08): the prose-should-be-a-list
+ * territory moved to `core/ai-prose-to-rules-analyzer`, which judges what a
+ * span ENCODES (enumerable normative rules) and proposes the extracted
+ * checklist; this finder keeps placement, ordering and hierarchy. The
+ * prompt draws the boundary in positive terms without naming the sibling
+ * (finders judge INDEPENDENTLY, user ruling 2026-07-14). The prompt edit
+ * re-keyed `promptTemplateHash`, so already-queued structure jobs keep
+ * their old content and fresh submits render the narrowed axis.
+ *
  * As a probabilistic Analyzer it carries NO `evaluate()` (the
  * orchestrator excludes finders from every scan-time phase): the kernel
  * renders `prompt.md` + the canonical preamble + the report contract

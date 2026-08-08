@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.ai/spec/v1/core/ai-prose-to-rules-analyzer-report.schema.json",
+  "title": "AiProseToRulesAnalyzerReport",
+  "description": "Report shape for the built-in `core/ai-prose-to-rules-analyzer` probabilistic finder Analyzer. Extends the canonical findings envelope (`findings/report.schema.json`); that reference is BOTH the load-time gate and the record-path routing signal (the validated `findings[]` land in `state_findings`, see `job-lifecycle.md` §Record). Narrows every finding's `type` to the const `prose-to-rules` so this finder can only emit its own judgment; any other slug fails the record as `report-invalid`. Stability: experimental.",
+  "allOf": [{ "$ref": "https://skill-map.ai/spec/v1/findings/report.schema.json" }],
+  "type": "object",
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": { "const": "prose-to-rules" }
+        }
+      }
+    }
+  }
+}

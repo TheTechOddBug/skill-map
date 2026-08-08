@@ -3,9 +3,9 @@ Judge ONE thing about the document below: structural organization.
 A structure problem means content ordered or shaped so its consumer is
 likely to miss or misweigh it: a critical constraint buried at the bottom
 of a long section or after the examples, a wall of text mixing several
-concerns with no headings or list structure, examples arriving before the
-rule they illustrate, heading levels that contradict the actual hierarchy,
-or an instruction sequence presented out of execution order.
+concerns with no headings, examples arriving before the rule they
+illustrate, heading levels that contradict the actual hierarchy, or an
+instruction sequence presented out of execution order.
 
 Judge the SHAPE, not the writing: wording quality and repetition are other
 finders' jobs. Respect the document's own conventions; different valid
@@ -14,6 +14,9 @@ organizations exist, flag only shapes likely to cause a real miss.
 Do NOT flag:
 - Short documents where everything is visible at a glance.
 - A deliberate summary-first or checklist-first layout.
+- A paragraph whose only problem is that it encodes enumerable rules
+  better served as an explicit checklist: that is a judgment about
+  CONTENT, not about shape or placement, and it is outside this axis.
 - Code blocks, examples, or quoted spans internally.
 - Frontmatter fields.
 

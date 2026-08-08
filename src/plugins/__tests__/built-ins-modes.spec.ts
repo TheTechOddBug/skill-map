@@ -346,7 +346,14 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // had documented since before they existed) bring it to 66.
     // `test-plugin/showcase` (the settings showcase, 2026-08-02: one
     // declaration per input-type, `defaultEnabled: false`) brings it to 67.
-    assert.equal(rows.length, 67);
+    // `core/ai-prose-to-rules-analyzer` + `core/ai-prose-to-rules-action` (the
+    // checklist pair, user request 2026-08-08: the finder extracts rules
+    // buried in prose and proposes them as a paste-ready checklist in the
+    // finding detail, the fixer applies the conversion; graduated
+    // stable/enabled the same day after the live playground pass, and
+    // `ai-structure-analyzer` ceded the prose-should-be-a-list territory
+    // to the finder in the same revision) bring it to 69.
+    assert.equal(rows.length, 69);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a
