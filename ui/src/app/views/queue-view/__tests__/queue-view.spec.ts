@@ -156,6 +156,27 @@ describe('QueueView', () => {
     expect(actionIcon.className).toContain('pi-wrench');
   });
 
+  it('orders rows by enqueue time, newest first, even when an older job was claimed later', async () => {
+    const now = Date.now();
+    const jobs = [
+      // Oldest enqueue, but claimed RIGHT NOW: under the retired
+      // claim-time sort this row jumped to the top; under strict enqueue
+      // order it stays at the bottom.
+      makeJob({ id: 'j-old', nodeId: 'docs/old.md', status: 'running', createdAt: now - 60_000, claimedAt: now }),
+      makeJob({ id: 'j-mid', nodeId: 'docs/mid.md', createdAt: now - 30_000 }),
+      makeJob({ id: 'j-new', nodeId: 'docs/new.md', createdAt: now - 1000 }),
+    ];
+    const { fixture } = bootstrap({ jobs });
+    await flush(fixture);
+
+    const rows = [...dom(fixture).querySelectorAll('[data-testid^="queue-row-"]')];
+    expect(rows.map((r) => r.getAttribute('data-testid'))).toEqual([
+      'queue-row-j-new',
+      'queue-row-j-mid',
+      'queue-row-j-old',
+    ]);
+  });
+
   it('shows the empty state when the queue has no jobs', async () => {
     const { fixture } = bootstrap({ jobs: [] });
     await flush(fixture);

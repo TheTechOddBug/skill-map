@@ -528,3 +528,28 @@ describe('InspectorHeader summarize button, processing-agent gate', () => {
     expect(refresh.querySelector('.pi-clock')).not.toBeNull();
   });
 });
+
+describe('InspectorHeader physical-stat chips (T / B pills, 2026-08-08)', () => {
+  it('renders tokens + bytes beside the path with compact values', async () => {
+    const fixture = await bootstrap(
+      makeNode({ tokensTotal: 12_420, bytesTotal: 3_100, modifiedAtMs: 1_700_000_000_000 }),
+    );
+    const dom = fixture.nativeElement as HTMLElement;
+    const tokens = dom.querySelector('[data-testid="inspector-header-tokens"]');
+    const bytes = dom.querySelector('[data-testid="inspector-header-bytes"]');
+    expect(tokens).not.toBeNull();
+    expect(bytes).not.toBeNull();
+    expect(tokens!.textContent).toContain('T');
+    expect(tokens!.textContent).toContain('12');
+    expect(bytes!.textContent).toContain('B');
+    expect(bytes!.textContent).toContain('3');
+  });
+
+  it('hides the pills when the stats are absent (virtual / derived nodes)', async () => {
+    // No tokensTotal and no modifiedAtMs: an mcp:// style virtual node.
+    const fixture = await bootstrap(makeNode({ bytesTotal: 0 }));
+    const dom = fixture.nativeElement as HTMLElement;
+    expect(dom.querySelector('[data-testid="inspector-header-tokens"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-header-bytes"]')).toBeNull();
+  });
+});

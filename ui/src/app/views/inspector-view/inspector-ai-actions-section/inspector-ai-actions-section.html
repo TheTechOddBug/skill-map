@@ -144,26 +144,49 @@
                     [attr.data-state]="aiActionEntryState(item.entry)"
                     [attr.data-action]="item.isFinder ? finderActionMode(item.entry) : 'run'"
                   />
-                  <!-- Stop companion (user decision 2026-07-17; the
-                       restart twin was dropped same day): only beside an
-                       active launcher whose payload carries the
-                       server-confirmed job handle. -->
-                  @if (aiActionCompanionsVisible(item.entry)) {
-                    <p-button
-                      icon="pi pi-times"
-                      severity="danger"
-                      size="small"
-                      [rounded]="true"
-                      [text]="true"
-                      [disabled]="aiActionCompanionDisabled(item.entry)"
-                      [pTooltip]="texts.aiActions.stopTooltip"
-                      tooltipPosition="left"
-                      appendTo="body"
-                      [ariaLabel]="texts.aiActions.stopTooltip"
-                      (onClick)="stopAiAction(item.entry)"
-                      [attr.data-testid]="'inspector-ai-action-stop-' + item.entry.id"
-                    />
-                  }
+                  <!-- Fixed trailing slot: the stop X (active job) and
+                       the verdict mark (idle, judged) alternate inside
+                       one always-present 1.6rem box, so both glyphs
+                       center on the same column and the launcher keeps
+                       one constant width across states. -->
+                  <span class="inspector__ai-actions-tail">
+                    <!-- Stop companion (user decision 2026-07-17; the
+                         restart twin was dropped same day): only beside
+                         an active launcher whose payload carries the
+                         server-confirmed job handle. -->
+                    @if (aiActionCompanionsVisible(item.entry)) {
+                      <p-button
+                        icon="pi pi-times"
+                        severity="danger"
+                        size="small"
+                        [rounded]="true"
+                        [text]="true"
+                        [disabled]="aiActionCompanionDisabled(item.entry)"
+                        [pTooltip]="texts.aiActions.stopTooltip"
+                        tooltipPosition="left"
+                        appendTo="body"
+                        [ariaLabel]="texts.aiActions.stopTooltip"
+                        (onClick)="stopAiAction(item.entry)"
+                        [attr.data-testid]="'inspector-ai-action-stop-' + item.entry.id"
+                      />
+                    } @else if (aiActionVerdictVisible(item.entry)) {
+                      <!-- Verdict mark (user request 2026-08-08): what
+                           the last run FOUND, by highest severity (same
+                           glyph family as the Findings chips), or a
+                           green check when it found nothing. Glyph
+                           only; the WHEN stays in the tooltip. -->
+                      <i
+                        [class]="aiActionVerdictIcon(item.entry) + ' inspector__ai-actions-verdict'"
+                        role="img"
+                        [attr.data-severity]="aiActionVerdictKind(item.entry)"
+                        [attr.aria-label]="aiActionVerdictTooltip(item.entry)"
+                        [pTooltip]="aiActionVerdictTooltip(item.entry)"
+                        tooltipPosition="left"
+                        appendTo="body"
+                        [attr.data-testid]="'inspector-ai-action-verdict-' + item.entry.id"
+                      ></i>
+                    }
+                  </span>
                 </span>
               }
               </div>

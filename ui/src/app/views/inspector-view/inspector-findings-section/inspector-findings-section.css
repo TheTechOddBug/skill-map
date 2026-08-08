@@ -251,3 +251,102 @@
   margin-top: 0.35rem;
   opacity: 0.85;
 }
+
+/* ---------------------------------------------------------------------
+ * Severity filter chips + Clear all (queue-chip pattern, user request
+ * 2026-08-08). Chips: glyph + combined count, severity tint while on,
+ * dimmed while toggled off. Clear all mirrors the queue's bulk-button
+ * chassis with a danger hover.
+ * ------------------------------------------------------------------- */
+.inspector__findings-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.inspector__severity-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.inspector__severity-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-lg);
+  background: transparent;
+  color: var(--p-text-muted-color);
+  font: inherit;
+  font-size: var(--sm-fs-xs);
+  line-height: 1.2;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+
+.inspector__severity-chip i {
+  font-size: var(--sm-fs-xs);
+}
+
+.inspector__severity-chip:hover {
+  color: var(--p-text-color);
+}
+
+.inspector__severity-chip.is-on {
+  background: var(--p-highlight-background);
+  color: var(--p-text-color);
+}
+
+.inspector__severity-chip:not(.is-on) {
+  opacity: 0.5;
+}
+
+.inspector__severity-chip.is-on[data-severity='error'] i {
+  color: var(--sm-severity-error);
+}
+
+.inspector__severity-chip.is-on[data-severity='warn'] i {
+  color: var(--sm-severity-warn);
+}
+
+.inspector__severity-chip.is-on[data-severity='info'] i {
+  color: var(--sm-severity-info);
+}
+
+.inspector__findings-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-lg);
+  background: transparent;
+  color: var(--p-text-muted-color);
+  font: inherit;
+  font-size: var(--sm-fs-xs);
+  cursor: pointer;
+}
+
+.inspector__findings-clear i {
+  font-size: var(--sm-fs-xs);
+}
+
+.inspector__findings-clear:hover:not(:disabled) {
+  color: var(--sm-severity-error);
+  border-color: var(--sm-severity-error);
+}
+
+.inspector__findings-clear:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.inspector__findings-filter-empty {
+  margin: 0;
+  font-size: var(--sm-fs-sm);
+  font-style: italic;
+  color: var(--p-text-muted-color);
+}

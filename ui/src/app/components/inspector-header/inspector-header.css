@@ -159,6 +159,44 @@
   color: var(--sm-severity-warn);
 }
 
+/* Path + physical-stats row: the copy button plus the T / B pills
+   (user request 2026-08-08), baseline-aligned on one line under the
+   name. The strip owns the top gap the button used to carry. */
+.inspector__path-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  margin-top: 0.15rem;
+}
+
+/* The node card's `.sm-gnode__sub-stat` pill, mirrored (same mono chip
+   chassis, same per-stat tint tokens the themes retint). */
+.inspector__stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.08rem 0.35rem;
+  border-radius: var(--sm-radius-sm);
+  background: var(--sm-bg-hover);
+  font-family: var(--sm-font-mono);
+  font-size: var(--sm-fs-2xs);
+  color: var(--sm-text-muted);
+  flex: none;
+}
+
+.inspector__stat-key {
+  font-weight: 700;
+}
+
+.inspector__stat--tokens {
+  background: var(--sm-stat-tokens-bg);
+}
+
+.inspector__stat--bytes {
+  background: var(--sm-stat-bytes-bg);
+}
+
 /* The path chip is click-to-copy: the button is a transparent shell that
    owns the layout (self-alignment, width cap, top gap) so the `<code>`
    keeps its plain chip styling, and only adds the pointer affordance plus
@@ -174,9 +212,9 @@
   color: inherit;
   text-align: left;
   cursor: pointer;
-  align-self: flex-start;
-  max-width: 100%;
-  margin-top: 0.15rem;
+  /* Shrinks (the code ellipsizes) so the T / B pills never get pushed
+     off the strip; the top gap moved to `.inspector__path-strip`. */
+  min-width: 0;
 }
 
 .inspector__path-btn:hover code {

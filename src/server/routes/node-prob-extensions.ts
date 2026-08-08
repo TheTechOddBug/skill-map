@@ -134,6 +134,16 @@ export interface IProbExtensionEntry {
    */
   hasOpenFindings: boolean;
   /**
+   * Highest severity among the extension's stored `state_findings` rows
+   * for this node, EVERY lifecycle state and both origins, stale rows
+   * included (`rest-envelope.schema.json#/$defs/ProbExtensionEntry`):
+   * replace semantics make the stored rows exactly what the last
+   * judgment left behind, so this is the last run's verdict. `null` =
+   * no rows (a clean last verdict, or a never-judged pair; `lastJudged`
+   * disambiguates client-side). Drives the launcher's verdict mark.
+   */
+  findingsMaxSeverity: IFindingRecord['severity'] | null;
+  /**
    * Frozen finding targets of the ACTIVE fixer jobs for this finder
    * (`spec/cli-contract.md` §GET /api/nodes/:pathB64/prob-extensions):
    * `all: true` when a whole-node fixer job (no `findingIds`) is active,
@@ -292,6 +302,7 @@ async function buildCatalog(
   const activeJobs = (await adapter.jobs.list({ nodeId: node.path })).filter(
     (j) => j.status === 'queued' || j.status === 'running',
   );
+  const maxSeverity = maxSeverityByExtension(findings);
 
   const finders: IProbExtensionEntry[] = [];
   const standalone: IProbExtensionEntry[] = [];
@@ -301,6 +312,7 @@ async function buildCatalog(
     if (!nodeMatchesPrecondition(node, analyzer.precondition)) continue;
     const qualified = qualifiedExtensionId(analyzer.pluginId, analyzer.id);
     const fixerIds = resolveMatchingFixerIds(qualified, sources.projectedActions);
+    const findingsMaxSeverity = maxSeverity.get(qualified) ?? null;
     if (fixerIds.length > 0) {
       // A finder WITH a fixer: report its fixer(s) (the per-finding fix
       // button submits them) + whether open findings disable the button.
@@ -308,6 +320,7 @@ async function buildCatalog(
         await buildEntry(adapter, node, analyzer, activeJobs, {
           fixerIds,
           hasOpenFindings: nodeHasOpenFindings(findings, suppressions, qualified),
+          findingsMaxSeverity,
         }),
       );
     } else {
@@ -317,16 +330,42 @@ async function buildCatalog(
         await buildEntry(adapter, node, analyzer, activeJobs, {
           fixerIds: [],
           hasOpenFindings: false,
+          findingsMaxSeverity,
         }),
       );
     }
   }
   for (const action of sources.probActions) {
-    const classified = await classifyProbAction(adapter, node, action, activeJobs, sources);
+    const classified = await classifyProbAction(
+      adapter,
+      node,
+      action,
+      activeJobs,
+      sources,
+      maxSeverity,
+    );
     pushClassifiedAction(classified, standalone, issueFixers);
   }
 
   return { finders, standalone, issueFixers };
+}
+
+/**
+ * Highest stored-finding severity per extension id (the verdict mark's
+ * source, spec §prob-extensions `findingsMaxSeverity`): EVERY lifecycle
+ * state, both origins, stale rows included. One pass over the findings
+ * the catalog already fetched; extensions with no rows stay absent.
+ */
+function maxSeverityByExtension(
+  findings: readonly IFindingRecord[],
+): Map<string, IFindingRecord['severity']> {
+  const rank: Record<IFindingRecord['severity'], number> = { info: 0, warn: 1, error: 2 };
+  const out = new Map<string, IFindingRecord['severity']>();
+  for (const f of findings) {
+    const prev = out.get(f.extensionId);
+    if (prev === undefined || rank[f.severity] > rank[prev]) out.set(f.extensionId, f.severity);
+  }
+  return out;
 }
 
 /** Land a classified action in its bucket (`null` = unlisted). */
@@ -370,9 +409,18 @@ async function classifyProbAction(
   action: IAction,
   activeJobs: readonly Job[],
   sources: ICatalogSources,
+  maxSeverity: ReadonlyMap<string, IFindingRecord['severity']>,
 ): Promise<TClassifiedProbAction | null> {
   const analyzerIds = fixerAnalyzerIds('action', action);
-  const standaloneExtras = { fixerIds: [] as string[], hasOpenFindings: false };
+  const standaloneExtras = {
+    fixerIds: [] as string[],
+    hasOpenFindings: false,
+    // A standalone action's run can still leave rows attributed to it
+    // (the kernel safety lane stamps the REPORTING extension's id), so
+    // its verdict mark rides the same map as the finders.
+    findingsMaxSeverity:
+      maxSeverity.get(qualifiedExtensionId(action.pluginId, action.id)) ?? null,
+  };
   if (analyzerIds !== undefined) {
     if (referencedAnalyzerMode(sources.runtime.analyzers, analyzerIds) !== 'deterministic') {
       return null;
@@ -470,7 +518,11 @@ async function buildEntry(
   node: Node,
   extension: IAction | IAnalyzer,
   activeJobs: readonly Job[],
-  extras: { fixerIds: string[]; hasOpenFindings: boolean },
+  extras: {
+    fixerIds: string[];
+    hasOpenFindings: boolean;
+    findingsMaxSeverity: IFindingRecord['severity'] | null;
+  },
 ): Promise<IProbExtensionEntry> {
   const qualified = qualifiedExtensionId(extension.pluginId, extension.id);
   // The BUTTON's active job is the finder's OR any of its fixers' (the
@@ -505,6 +557,7 @@ async function buildEntry(
     lastJudged: latest ? { at: latest.finishedAt, model: latest.model ?? null } : null,
     fixerIds: extras.fixerIds,
     hasOpenFindings: extras.hasOpenFindings,
+    findingsMaxSeverity: extras.findingsMaxSeverity,
     fixerBusy,
   };
 }

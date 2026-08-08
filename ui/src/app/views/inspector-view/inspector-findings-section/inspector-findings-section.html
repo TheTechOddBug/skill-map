@@ -13,14 +13,65 @@
     }
     @if (expanded()) {
       <div class="inspector__findings-body">
-        @if (issues().length > 0) {
+        <!-- Severity chips (queue-chip pattern) + Clear all. Chips carry
+             the combined live count over both lists and toggle that
+             tier's visibility; Clear all row-dismisses every VISIBLE AI
+             finding (reversible, dismissed bucket). -->
+        @if (issues().length + aiActionFindings().length > 0) {
+          <div class="inspector__findings-toolbar">
+            <div
+              class="inspector__severity-chips"
+              role="group"
+              [attr.aria-label]="texts.findingsFilter.groupLabel"
+            >
+              @for (chip of severityChips(); track chip.severity) {
+                <button
+                  type="button"
+                  class="inspector__severity-chip"
+                  [class.is-on]="chip.active"
+                  [attr.data-severity]="chip.severity"
+                  [attr.aria-pressed]="chip.active"
+                  [pTooltip]="chip.label"
+                  tooltipPosition="top"
+                  [attr.aria-label]="texts.findingsFilter.chipAriaLabel(chip.label, chip.count, chip.active)"
+                  (click)="toggleSeverity(chip.severity)"
+                  [attr.data-testid]="'inspector-findings-chip-' + chip.severity"
+                >
+                  <i [class]="chip.icon" aria-hidden="true"></i>
+                  <span class="inspector__severity-chip-count">{{ chip.count }}</span>
+                </button>
+              }
+            </div>
+            @if (visibleAiFindings().length > 0) {
+              <button
+                type="button"
+                class="inspector__findings-clear"
+                [disabled]="clearingAll()"
+                [pTooltip]="texts.findingsClearAll.tooltip"
+                tooltipPosition="top"
+                [attr.aria-label]="texts.findingsClearAll.ariaLabel(visibleAiFindings().length)"
+                (click)="onClearAll()"
+                data-testid="inspector-findings-clear-all"
+              >
+                <i class="pi pi-times" aria-hidden="true"></i>
+                <span>{{ texts.findingsClearAll.label }}</span>
+              </button>
+            }
+          </div>
+        }
+        @if (severityFilterEmpty()) {
+          <p class="inspector__findings-filter-empty" data-testid="inspector-findings-filter-empty">
+            {{ texts.findingsFilter.empty }}
+          </p>
+        }
+        @if (visibleIssues().length > 0) {
       <ul class="inspector__findings-list">
         <!-- Content-keyed track (issues carry no id): a silent
              refresh that returns the same findings keeps every row's
              DOM, preserving the no-flicker contract of the issues
              effect. `$index` only breaks ties between identical
              findings, so it never causes a rebuild on its own. -->
-        @for (issue of sortedIssues(); track issue.analyzerId + '|' + issue.message + '|' + $index) {
+        @for (issue of visibleIssues(); track issue.analyzerId + '|' + issue.message + '|' + $index) {
           <li
             class="inspector__finding"
             [attr.data-severity]="issue.severity"
@@ -102,12 +153,14 @@
              every finding lives here; the launcher buttons stay in
              the AI actions card). Same row anatomy, plus the
              per-finding actions and the hidden-buckets honesty line. -->
-        @if (aiActionFindings().length > 0) {
+        @if (visibleAiFindings().length > 0) {
           <ul class="inspector__findings-list" data-testid="inspector-ai-actions-list">
             <!-- Finding rows carry a stable DB id, so tracking it keeps
                  row DOM across the silent live refreshes (same
-                 no-flicker contract as the deterministic list above). -->
-            @for (f of aiActionFindings(); track f.id) {
+                 no-flicker contract as the deterministic list above).
+                 Severity-sorted (error, warn, info) and narrowed by the
+                 chips, like the deterministic list. -->
+            @for (f of visibleAiFindings(); track f.id) {
               <li
                 class="inspector__finding"
                 [attr.data-severity]="f.severity"

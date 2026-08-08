@@ -195,6 +195,14 @@ export interface IAiActionsHandle {
   // --- per-finding actions (the read-time suppression lens) ---------------
   /** Dismiss a finding directly (consent-aware; hides the class, reversible). */
   dismissFinding(finding: IFindingApi): Promise<void>;
+  /**
+   * Row-dismiss every given finding in one gesture (the tray's Clear
+   * all, user request 2026-08-08). Same reversible row-grain state as
+   * `dismissFinding`, sequential round-trips (the route is per-row),
+   * ONE tray refresh at the end. Failures land on the shared error
+   * strip and do not stop the sweep.
+   */
+  dismissAllFindings(findings: readonly IFindingApi[]): Promise<void>;
   /** Mark a finding fixed by the operator. */
   resolveFinding(finding: IFindingApi): Promise<void>;
   /** Restore (undismiss) a finding from the revealed dismissed bucket. */
@@ -660,6 +668,39 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     }
   }
 
+  /**
+   * The tray's Clear all: row-dismiss every given finding. Same
+   * per-row route and reversible state as `dismissFinding`; sequential
+   * on purpose (a node's tray is small, and a serial sweep keeps the
+   * error attribution readable), with each id in the busy set for the
+   * whole sweep and ONE refresh at the end instead of one per row.
+   */
+  async function dismissAllFindings(findings: readonly IFindingApi[]): Promise<void> {
+    const path = deps.node()?.path;
+    if (!path) return;
+    const targets = findings.filter((f) => !findingBusy().has(f.id));
+    if (targets.length === 0) return;
+    error.set(null);
+    for (const f of targets) setFindingBusy(f.id, true);
+    let dismissed = 0;
+    try {
+      for (const f of targets) {
+        try {
+          await deps.dataSource.dismissFinding(path, f.id, {});
+          dismissed += 1;
+        } catch (err) {
+          recordSubmitError(err);
+        }
+      }
+      if (dismissed > 0) {
+        deps.announce?.(INSPECTOR_VIEW_TEXTS.announce.findingsCleared(dismissed));
+      }
+    } finally {
+      for (const f of targets) setFindingBusy(f.id, false);
+      refreshTray();
+    }
+  }
+
 
   /**
    * Restore a finding from the revealed dismissed bucket. Branches on
@@ -842,6 +883,7 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     stop,
     dismissError: () => error.set(null),
     dismissFinding: (finding) => dismissFinding(finding),
+    dismissAllFindings: (findings) => dismissAllFindings(findings),
     resolveFinding,
     restoreFinding: (finding) => restoreFinding(finding),
     deleteFinding: (finding) => deleteFinding(finding),

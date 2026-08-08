@@ -37,6 +37,25 @@ import {
   type TFindingsBucket,
 } from '../inspector-ai-actions-section/inspector-ai-actions.controller';
 
+/** Severity display order: error on top, then warn, then info (Notes). */
+const SEVERITY_ORDER: readonly TIssueSeverityApi[] = ['error', 'warn', 'info'];
+
+/** Chip glyph per severity tier (matches the map's severity palette). */
+const SEVERITY_CHIP_ICONS: Record<TIssueSeverityApi, string> = {
+  error: 'pi pi-times-circle',
+  warn: 'pi pi-exclamation-triangle',
+  info: 'pi pi-info-circle',
+};
+
+/** One severity filter chip: tier + live count + enabled state. */
+interface ISeverityChip {
+  severity: TIssueSeverityApi;
+  count: number;
+  active: boolean;
+  icon: string;
+  label: string;
+}
+
 /**
  * Findings section of the inspector (the mixed card, user call
  * 2026-07-22): the deterministic `scan_issues` rows on top, the
@@ -47,6 +66,8 @@ import {
  * actions controller handle (`setupAiActions`, one instance spanning
  * the header affordances, this card's finding rows, and the AI actions
  * launcher card) is created by the host and threaded in as an input.
+ * Since 2026-08-08 it also owns the severity filter chips (queue-chip
+ * pattern) and the Clear-all bulk dismiss.
  */
 @Component({
   selector: 'sm-inspector-findings-section',
@@ -173,6 +194,100 @@ export class InspectorFindingsSection {
     const order: Record<TIssueSeverityApi, number> = { error: 0, warn: 1, info: 2 };
     return [...this.issues()].sort((a, b) => order[a.severity] - order[b.severity]);
   });
+
+  // --- severity filter chips (queue-chip pattern, user request 2026-08-08) --
+
+  /**
+   * Enabled severity tiers. All on by default (the whole card is
+   * visible); toggling a chip narrows BOTH lists (deterministic issues
+   * + AI findings). Session-only, like the queue's status filter.
+   */
+  protected readonly severityFilter = signal<ReadonlySet<TIssueSeverityApi>>(
+    new Set(SEVERITY_ORDER),
+  );
+
+  protected toggleSeverity(severity: TIssueSeverityApi): void {
+    // Deliberately untracked: the usage taxonomy's `severity` filter
+    // group belongs to the map toolbox, and this card gesture has no
+    // group of its own (adding one is a spec/telemetry.md decision).
+    this.severityFilter.update((current) => {
+      const next = new Set(current);
+      if (next.has(severity)) next.delete(severity);
+      else next.add(severity);
+      return next;
+    });
+  }
+
+  /**
+   * One chip per severity PRESENT in the card (zero-count tiers never
+   * render, same rule as the hidden-bucket chips), in the display order
+   * (error, warn, info), each with its combined live count over both
+   * lists and its enabled state.
+   */
+  protected readonly severityChips = computed<ISeverityChip[]>(() => {
+    const filter = this.severityFilter();
+    const counts: Record<TIssueSeverityApi, number> = { error: 0, warn: 0, info: 0 };
+    for (const issue of this.issues()) counts[issue.severity] += 1;
+    for (const finding of this.aiActions().findings()) counts[finding.severity] += 1;
+    return SEVERITY_ORDER.filter((severity) => counts[severity] > 0).map((severity) => ({
+      severity,
+      count: counts[severity],
+      active: filter.has(severity),
+      icon: SEVERITY_CHIP_ICONS[severity],
+      label: this.texts.findingsFilter.labels[severity],
+    }));
+  });
+
+  /** The deterministic list the template renders: sorted, then narrowed. */
+  protected readonly visibleIssues = computed<IIssueApi[]>(() =>
+    this.sortedIssues().filter((issue) => this.severityFilter().has(issue.severity)),
+  );
+
+  /**
+   * AI finding rows sorted like the deterministic list (error, warn,
+   * info; stable within a tier so the tray's own order survives), then
+   * narrowed by the chips.
+   */
+  protected readonly visibleAiFindings = computed<IFindingApi[]>(() => {
+    const order: Record<TIssueSeverityApi, number> = { error: 0, warn: 1, info: 2 };
+    return [...this.aiActions().findings()]
+      .sort((a, b) => order[a.severity] - order[b.severity])
+      .filter((finding) => this.severityFilter().has(finding.severity));
+  });
+
+  /** The chips hid every row (the card has rows, the filter shows none). */
+  protected readonly severityFilterEmpty = computed<boolean>(
+    () =>
+      this.issues().length + this.aiActions().findings().length > 0 &&
+      this.visibleIssues().length === 0 &&
+      this.visibleAiFindings().length === 0,
+  );
+
+  // --- Clear all (bulk row-dismiss, user request 2026-08-08) ---------------
+
+  /** In-flight guard for the Clear-all sweep (disables the button). */
+  protected readonly clearingAll = signal(false);
+
+  /**
+   * Row-dismiss every VISIBLE AI finding (the filtered list, so the
+   * chips scope the sweep to what the operator is looking at). Same
+   * reversible state as the per-row X; the rows land in the dismissed
+   * bucket. Deterministic issues are deliberately excluded: their
+   * dismissal writes per-value suppressions into the committed `.sm`
+   * sidecar, a different (consent-gated) hammer.
+   */
+  protected async onClearAll(): Promise<void> {
+    const targets = this.visibleAiFindings();
+    if (targets.length === 0 || this.clearingAll()) return;
+    // Deliberately untracked (user call 2026-08-08): the bulk sweep
+    // emits no usage event, unlike the per-row dismiss.
+    this.clearingAll.set(true);
+    try {
+      await this.aiActions().dismissAllFindings(targets);
+    } finally {
+      this.clearingAll.set(false);
+    }
+  }
 
   /**
    * True when the active node has a `frontmatter-parse-error` finding,

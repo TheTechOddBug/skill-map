@@ -1756,6 +1756,20 @@ export interface IProbExtensionEntryApi {
    */
   hasOpenFindings: boolean;
   /**
+   * Highest severity among the extension's stored findings for this
+   * node, every lifecycle state and both origins, stale rows included
+   * (replace semantics make the rows the last judgment's output, so
+   * this is the last run's verdict). `null` = no rows: a clean last
+   * verdict, or a never-judged pair (`lastJudged` disambiguates).
+   * Drives the launcher's verdict mark.
+   *
+   * OPTIONAL on the wire (`rest-envelope.schema.json`): absent means the
+   * server does not report the verdict, which is NOT `null` (a server
+   * predating the field would otherwise read as "found nothing"), so an
+   * absent value renders no mark at all.
+   */
+  findingsMaxSeverity?: TIssueSeverityApi | null;
+  /**
    * Frozen finding targets of the ACTIVE fixer jobs for this finder:
    * `all: true` when a whole-node fixer job is active, `findingIds` the
    * union of the active subset jobs' ids. The tray derives each row's

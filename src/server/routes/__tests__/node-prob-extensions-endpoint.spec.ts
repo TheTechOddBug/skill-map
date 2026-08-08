@@ -274,6 +274,46 @@ describe('GET /api/nodes/:pathB64/prob-extensions', () => {
     }
   });
 
+  it('findingsMaxSeverity: highest stored severity across lifecycle states; null with no rows', async () => {
+    try {
+      // A warn + an error; the error then gets resolved. The verdict is
+      // the highest STORED severity regardless of lifecycle state, so a
+      // fixed error still reads `error` (the last run found errors).
+      await seedFindings(project, SKILL_NODE.path, FINDER_ID, [
+        { type: 'defect-a', severity: 'warn' },
+        { type: 'defect-b', severity: 'error' },
+      ]);
+      await withProjectDb(project, async (adapter) => {
+        const rows = (await adapter.findings.list({ nodeId: SKILL_NODE.path })).filter(
+          (r) => r.extensionId === FINDER_ID,
+        );
+        const error = rows.find((r) => r.severity === 'error');
+        assert.ok(error, 'the seeded error row is present');
+        const outcome = await adapter.findings.resolveByHuman(error.id, null, Date.now());
+        assert.equal(outcome.kind, 'resolved');
+      });
+      await bootAndUse(project, async (handle) => {
+        const finder = byId((await fetchCatalog(handle, SKILL_NODE.path)).item.finders, FINDER_ID);
+        assert.ok(finder);
+        assert.equal(
+          finder.findingsMaxSeverity,
+          'error',
+          'resolved rows still count for the verdict',
+        );
+      });
+
+      // A clean re-record (zero rows) erases the verdict: null.
+      await seedFindings(project, SKILL_NODE.path, FINDER_ID, []);
+      await bootAndUse(project, async (handle) => {
+        const finder = byId((await fetchCatalog(handle, SKILL_NODE.path)).item.finders, FINDER_ID);
+        assert.ok(finder);
+        assert.equal(finder.findingsMaxSeverity, null, 'no rows = clean verdict');
+      });
+    } finally {
+      await seedFindings(project, SKILL_NODE.path, FINDER_ID, []);
+    }
+  });
+
   it('state + jobId reflect the live queue; lastJudged the latest completed execution', async () => {
     const judgedAt = Date.now() - 1000;
     await withProjectDb(project, async (adapter) => {

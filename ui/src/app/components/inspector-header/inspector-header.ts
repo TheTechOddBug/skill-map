@@ -39,6 +39,7 @@ import type { INodeSummaryRowApi } from '../../../models/api';
 import type { INodeView, TStability } from '../../../models/node';
 import {
   surfaceContribution,
+  compactNumber,
   effectiveStability,
   effectiveUserTags,
   effectiveVersion,
@@ -377,6 +378,23 @@ export class InspectorHeader {
   });
 
   protected readonly headerVersion = computed<string | null>(() => effectiveVersion(this.node()));
+
+  /**
+   * Physical-stat chips next to the path (user request 2026-08-08): the
+   * node card's T / B pills mirrored into the header's meta strip, same
+   * `compactNumber` formatting and the same hide rules (tokens on an
+   * absent count; bytes for virtual / derived nodes with no backing
+   * file, whose hard 0 would read as a meaningless "B 0").
+   */
+  protected readonly tokensShort = computed<string | null>(() => {
+    const v = this.node().tokensTotal;
+    return v === undefined ? null : compactNumber(v);
+  });
+  protected readonly bytesShort = computed<string | null>(() => {
+    if (this.node().modifiedAtMs === undefined) return null;
+    const v = this.node().bytesTotal;
+    return v === undefined ? null : compactNumber(v);
+  });
 
   protected readonly headerStability = computed<TStability | null>(() =>
     effectiveStability(this.node()),

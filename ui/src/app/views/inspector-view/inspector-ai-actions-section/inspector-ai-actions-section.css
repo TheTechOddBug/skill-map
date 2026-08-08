@@ -172,10 +172,23 @@
   justify-content: flex-start;
 }
 
+/* Fixed trailing slot: the stop X and the verdict mark alternate inside
+   one always-present box, so both glyphs center on the same column in
+   every entry state (and across rows) and the stretched launcher keeps
+   one constant width. */
+.inspector__ai-actions-tail {
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* The stop companion matches the per-finding action buttons: compact
    rounded-text icon (user call 2026-07-22: the stock small button read
    huge next to the flat launcher rows). */
-.inspector__ai-actions-entry > p-button:not(:first-child) .p-button {
+.inspector__ai-actions-tail .p-button {
   width: 1.6rem;
   height: 1.6rem;
   padding: 0;
@@ -222,4 +235,30 @@
   margin: 0;
   font-size: var(--sm-fs-sm);
   color: var(--p-text-muted-color);
+}
+
+/* Verdict mark: what an idle, already-judged launcher's last run FOUND,
+   by highest severity (glyph family + tints shared with the Findings
+   chips), or a green check for a clean pass. Glyph only; the timestamp
+   lives in the tooltip (the 2026-07-22 "no last-run meta" call stands). */
+.inspector__ai-actions-verdict {
+  /* Geometry lives on `.inspector__ai-actions-tail` (the shared slot);
+     the mark only paints its glyph. */
+  font-size: var(--sm-fs-xs);
+}
+
+.inspector__ai-actions-verdict[data-severity='clean'] {
+  color: var(--sm-severity-success);
+}
+
+.inspector__ai-actions-verdict[data-severity='error'] {
+  color: var(--sm-severity-error);
+}
+
+.inspector__ai-actions-verdict[data-severity='warn'] {
+  color: var(--sm-severity-warn);
+}
+
+.inspector__ai-actions-verdict[data-severity='info'] {
+  color: var(--sm-severity-info);
 }

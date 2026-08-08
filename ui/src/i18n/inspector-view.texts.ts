@@ -55,6 +55,11 @@ export const INSPECTOR_VIEW_TEXTS = {
       copiedTooltip: 'Copied!',
       a11yLabel: 'Copy the file path to the clipboard',
     },
+    /** Physical-stat chips beside the path (the node card's T / B pills). */
+    stats: {
+      bytes: (total: number): string => `${total.toLocaleString('en-US')} bytes`,
+      tokens: (total: number): string => `${total.toLocaleString('en-US')} tokens`,
+    },
     /** The stability chip doubles as the Set stability affordance. */
     stabilityTooltip: 'Set stability',
     /**
@@ -208,6 +213,18 @@ export const INSPECTOR_VIEW_TEXTS = {
      * and the accessible label.
      */
     stopTooltip: 'Stop this job',
+    /**
+     * Verdict mark beside an idle, already-judged launcher (user
+     * request 2026-08-08): what the LAST run found, by highest
+     * severity, or a clean check. The timestamp lives here in the
+     * tooltip only, honouring the "no last-run meta on the rows" call.
+     */
+    verdictMark: {
+      clean: (when: string): string => `Last run completed ${when}; nothing found`,
+      error: (when: string): string => `Last run completed ${when}; found errors`,
+      warn: (when: string): string => `Last run completed ${when}; found warnings`,
+      info: (when: string): string => `Last run completed ${when}; found notes`,
+    },
     /** Per-finding actions (the read-time suppression lens). */
     finding: {
       /** The AUTOMATIC fix: queue the finder's fixer(s) for this class. */
@@ -357,6 +374,38 @@ export const INSPECTOR_VIEW_TEXTS = {
   /** Findings list, fix hint label rendered before the per-issue summary. */
   findingHintLabel: 'Hint:',
   /**
+   * Severity filter chips at the top of the Findings card (queue-chip
+   * pattern, user request 2026-08-08): one chip per severity present,
+   * with its live count, toggling that tier's visibility in BOTH lists
+   * (deterministic issues + AI findings). "Notes" is the operator-facing
+   * name for the `info` tier.
+   */
+  findingsFilter: {
+    groupLabel: 'Filter findings by severity',
+    labels: {
+      error: 'Errors',
+      warn: 'Warnings',
+      info: 'Notes',
+    } satisfies Record<'error' | 'warn' | 'info', string>,
+    chipAriaLabel: (label: string, count: number, active: boolean): string =>
+      `${label}: ${count}${active ? '' : ' (hidden)'}`,
+    /** Muted line when the active severity filter hides every row. */
+    empty: 'Nothing to show for this severity filter.',
+  },
+  /**
+   * Clear-all over the LISTED AI finding rows (user request 2026-08-08):
+   * one gesture row-dismisses every visible finding, same reversible
+   * state as the per-row X (they land in the dismissed bucket).
+   * Deterministic issues are deliberately NOT included: their dismissal
+   * writes per-value suppressions into the committed `.sm` sidecar.
+   */
+  findingsClearAll: {
+    label: 'Clear all',
+    tooltip:
+      'Dismiss every listed AI finding (reversible from the dismissed bucket)',
+    ariaLabel: (n: number): string => `Dismiss all ${n} listed AI findings`,
+  },
+  /**
    * Per-issue AI fix button (deterministic findings card): rendered on
    * each issue row a probabilistic issue-fixer matches. The tooltip is
    * the action manifest's own description; only the aria label lives
@@ -396,6 +445,8 @@ export const INSPECTOR_VIEW_TEXTS = {
     fixQueued: 'Fix queued.',
     findingResolved: 'Finding marked as fixed.',
     findingDismissed: 'Finding dismissed.',
+    findingsCleared: (n: number): string =>
+      n === 1 ? '1 finding dismissed.' : `${n} findings dismissed.`,
     findingRestored: 'Finding restored.',
     issueDismissed: 'Issue dismissed.',
   },

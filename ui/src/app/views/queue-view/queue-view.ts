@@ -186,11 +186,17 @@ export class QueueView {
   protected readonly rows = computed<IQueueRow[]>(() => {
     const cancelled = this.optimisticCancelled();
     const now = Date.now();
-    // Strict age order, newest first: sort by the SAME clock the age cell
-    // shows (since-claimed for a running job, else since-created), so the age
-    // column reads monotonically top to bottom regardless of status.
+    // Strict ENQUEUE order, newest first (user decision 2026-08-08): the
+    // latest submitted job enters at the top and slides down as newer ones
+    // arrive, regardless of status. Sorted by `createdAt` (id DESC
+    // tiebreak, mirroring the API's `createdAt DESC, id DESC` contract),
+    // NOT by the age cell's clock: the previous claim-time sort made a
+    // freshly-claimed running job jump above jobs enqueued after it, which
+    // read as the queue reshuffling. The age CELL keeps its per-status
+    // clock (since-claimed for a running job), so the column is no longer
+    // monotonic top-to-bottom, by design.
     return [...this.jobs()]
-      .sort((a, b) => ageBase(b) - ageBase(a))
+      .sort((a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id))
       .map((job) => this.toRow(job, cancelled.has(job.id) ? 'cancelled' : null, now));
   });
 
@@ -632,8 +638,8 @@ export class QueueView {
   }
 }
 
-/** The clock the age cell + the row sort read: since-claimed for a running
- *  job, else since-created. */
+/** The clock the age cell reads: since-claimed for a running job, else
+ *  since-created. Cell-only since the rows moved to strict enqueue order. */
 function ageBase(job: IJobApi): number {
   return job.claimedAt ?? job.createdAt;
 }

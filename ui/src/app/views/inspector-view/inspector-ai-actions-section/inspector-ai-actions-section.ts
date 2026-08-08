@@ -14,7 +14,7 @@ import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { INSPECTOR_VIEW_TEXTS } from '../../../../i18n/inspector-view.texts';
-import type { IProbExtensionEntryApi } from '../../../../models/api';
+import type { IProbExtensionEntryApi, TIssueSeverityApi } from '../../../../models/api';
 import type { INodeView } from '../../../../models/node';
 import { shortExtensionLabel } from '../../../../models/extension-label';
 import { ProviderRegistryService } from '../../../../services/provider-registry';
@@ -26,6 +26,17 @@ import { ProjectInfoService } from '../../../services/project-info';
 import { CollapsibleSection } from '../../../components/collapsible-section/collapsible-section';
 import type { IAiActionsHandle } from './inspector-ai-actions.controller';
 import { setupAutoFix, type IAutoFixHandle } from './inspector-auto-fix.controller';
+
+/** The verdict mark's kind: the highest found severity, or a clean pass. */
+type TAiActionVerdict = TIssueSeverityApi | 'clean';
+
+/** Verdict glyph per kind (severity glyphs match the Findings chips). */
+const VERDICT_ICONS: Record<TAiActionVerdict, string> = {
+  error: 'pi pi-times-circle',
+  warn: 'pi pi-exclamation-triangle',
+  info: 'pi pi-info-circle',
+  clean: 'pi pi-check',
+};
 
 /**
  * AI actions section of the inspector: the LAUNCHERS only (finder /
@@ -353,6 +364,42 @@ export class InspectorAiActionsSection {
   }
 
   /** True while the launcher shows the busy spinner (running or submitting). */
+  /**
+   * The verdict mark (user request 2026-08-08, iterated same day): a
+   * glyph beside an IDLE, already-judged launcher reporting what its
+   * LAST run found, by highest severity: red errors, amber warnings,
+   * blue notes, or a green check when it found nothing
+   * (`findingsMaxSeverity: null` + a `lastJudged`; the BFF counts only
+   * COMPLETED runs, and replace semantics make the stored rows the last
+   * judgment's exact output). Hidden while queued / running and on
+   * never-judged pairs. The earlier "no last-run meta on the rows" call
+   * (2026-07-22) stands: the WHEN lives only in the mark's tooltip.
+   */
+  protected aiActionVerdictVisible(entry: IProbExtensionEntryApi): boolean {
+    return (
+      this.aiActionEntryState(entry) === 'idle' &&
+      entry.lastJudged !== null &&
+      // An ABSENT field is a server that does not report the verdict,
+      // which the contract separates from `null` ("found nothing"):
+      // render no mark rather than a false clean check.
+      entry.findingsMaxSeverity !== undefined
+    );
+  }
+
+  /** The mark's kind: the highest found severity, or `clean`. */
+  protected aiActionVerdictKind(entry: IProbExtensionEntryApi): TAiActionVerdict {
+    return entry.findingsMaxSeverity ?? 'clean';
+  }
+
+  protected aiActionVerdictIcon(entry: IProbExtensionEntryApi): string {
+    return VERDICT_ICONS[this.aiActionVerdictKind(entry)];
+  }
+
+  protected aiActionVerdictTooltip(entry: IProbExtensionEntryApi): string {
+    const when = new Date(entry.lastJudged?.at ?? 0).toLocaleString();
+    return this.texts.aiActions.verdictMark[this.aiActionVerdictKind(entry)](when);
+  }
+
   protected aiActionLauncherBusy(entry: IProbExtensionEntryApi): boolean {
     return (
       this.aiActionEntryState(entry) === 'running' || this.aiActions().isSubmitting(entry.id)

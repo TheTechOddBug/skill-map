@@ -2400,6 +2400,8 @@ function makeProbEntry(overrides: Partial<IProbExtensionEntryApi> = {}): IProbEx
     // the Fix state fixtures additionally pass `hasOpenFindings: true`.
     fixerIds: [],
     hasOpenFindings: false,
+    // No stored rows: a clean (or never-judged) verdict by default.
+    findingsMaxSeverity: null,
     // No active fixer job: every row's fix affordance idle.
     fixerBusy: null,
     ...overrides,
@@ -4111,4 +4113,170 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     await flush(fixture);
     expect(dataSource.deleteFinding).toHaveBeenCalledWith(node.path, 44, {});
   });
+
+describe('findings severity chips + clear all (2026-08-08)', () => {
+  it('sorts AI findings by severity (error, warn, info) and shows one chip per present tier with combined counts', async () => {
+    const { fixture } = await bootAiActions({
+      issues: [makeIssue()], // one deterministic error
+      findings: makeFindingsEnvelope([
+        makeFinding({ id: 1, severity: 'info', type: 'note-a' }),
+        makeFinding({ id: 2, severity: 'error', type: 'err-a' }),
+        makeFinding({ id: 3, severity: 'warn', type: 'warn-a' }),
+      ]),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+
+    // AI rows severity-ordered: error (2), warn (3), info (1).
+    const rows = [...dom.querySelectorAll('li[data-testid^="inspector-ai-action-"]')];
+    expect(rows.map((r) => r.getAttribute('data-testid'))).toEqual([
+      'inspector-ai-action-2',
+      'inspector-ai-action-3',
+      'inspector-ai-action-1',
+    ]);
+
+    // Chips: error combines the issue + the finding; warn / info are 1 each.
+    const chip = (sev: string) =>
+      dom.querySelector(`[data-testid="inspector-findings-chip-${sev}"]`);
+    expect(chip('error')!.textContent).toContain('2');
+    expect(chip('warn')!.textContent).toContain('1');
+    expect(chip('info')!.textContent).toContain('1');
+    // All on by default.
+    expect(chip('error')!.classList.contains('is-on')).toBe(true);
+  });
+
+  it('toggling a chip hides that tier in both lists; all-off shows the filtered-empty line', async () => {
+    const { fixture } = await bootAiActions({
+      issues: [makeIssue()],
+      findings: makeFindingsEnvelope([makeFinding({ id: 2, severity: 'error', type: 'err-a' })]),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(dom.querySelectorAll('[data-testid="inspector-finding"]').length).toBe(1);
+    expect(dom.querySelector('[data-testid="inspector-ai-action-2"]')).not.toBeNull();
+
+    (dom.querySelector('[data-testid="inspector-findings-chip-error"]') as HTMLButtonElement).click();
+    await flush(fixture);
+
+    // Both lists lose their error rows; only errors existed, so the
+    // filtered-empty line takes over. The chip stays for toggling back.
+    expect(dom.querySelectorAll('[data-testid="inspector-finding"]').length).toBe(0);
+    expect(dom.querySelector('[data-testid="inspector-ai-action-2"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-findings-filter-empty"]')).not.toBeNull();
+
+    (dom.querySelector('[data-testid="inspector-findings-chip-error"]') as HTMLButtonElement).click();
+    await flush(fixture);
+    expect(dom.querySelector('[data-testid="inspector-ai-action-2"]')).not.toBeNull();
+  });
+
+  it('Clear all row-dismisses every VISIBLE AI finding (filter-scoped), never the deterministic issues', async () => {
+    const { fixture, dataSource, node } = await bootAiActions({
+      issues: [makeIssue()],
+      findings: makeFindingsEnvelope([
+        makeFinding({ id: 2, severity: 'error', type: 'err-a' }),
+        makeFinding({ id: 3, severity: 'warn', type: 'warn-a' }),
+        makeFinding({ id: 1, severity: 'info', type: 'note-a' }),
+      ]),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+
+    // Narrow to errors+info first: the warn row leaves the sweep's scope.
+    (dom.querySelector('[data-testid="inspector-findings-chip-warn"]') as HTMLButtonElement).click();
+    await flush(fixture);
+
+    (dom.querySelector('[data-testid="inspector-findings-clear-all"]') as HTMLButtonElement).click();
+    await flush(fixture);
+    await flush(fixture);
+
+    expect(dataSource.dismissFinding).toHaveBeenCalledWith(node.path, 2, {});
+    expect(dataSource.dismissFinding).toHaveBeenCalledWith(node.path, 1, {});
+    expect(dataSource.dismissFinding).not.toHaveBeenCalledWith(node.path, 3, {});
+    // The deterministic issue is untouched (its dismissal is the
+    // consent-gated sidecar hammer, never part of Clear all).
+    expect(dataSource.dismissIssue).not.toHaveBeenCalled();
+  });
+});
+
+describe('AI actions verdict mark (2026-08-08)', () => {
+  it('clean pass: green check on an idle judged launcher with no stored rows', async () => {
+    const { fixture } = await bootAiActions({
+      probs: makeProbExtensions({
+        standalone: [
+          makeProbEntry({
+            id: 'core/ai-summarizer-action',
+            lastJudged: { at: 1_700_000_000_000, model: 'claude-opus-4' },
+          }),
+        ],
+      }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    const mark = dom.querySelector(
+      '[data-testid="inspector-ai-action-verdict-core/ai-summarizer-action"]',
+    );
+    expect(mark).not.toBeNull();
+    expect(mark!.getAttribute('data-severity')).toBe('clean');
+    expect(mark!.classList.contains('pi-check')).toBe(true);
+  });
+
+  it('reports the highest found severity with the matching glyph', async () => {
+    const { fixture } = await bootAiActions({
+      probs: makeProbExtensions({
+        finders: [
+          makeProbEntry({
+            id: 'core/error-finder',
+            lastJudged: { at: 1, model: null },
+            findingsMaxSeverity: 'error',
+            hasOpenFindings: true,
+          }),
+          makeProbEntry({
+            id: 'core/warn-finder',
+            lastJudged: { at: 1, model: null },
+            findingsMaxSeverity: 'warn',
+          }),
+          makeProbEntry({
+            id: 'core/info-finder',
+            lastJudged: { at: 1, model: null },
+            findingsMaxSeverity: 'info',
+          }),
+        ],
+      }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    const mark = (id: string) =>
+      dom.querySelector(`[data-testid="inspector-ai-action-verdict-${id}"]`);
+    // Open findings do NOT hide the mark: the verdict reports what the
+    // run found; the Fix-state button carries the open story separately.
+    expect(mark('core/error-finder')!.getAttribute('data-severity')).toBe('error');
+    expect(mark('core/error-finder')!.classList.contains('pi-times-circle')).toBe(true);
+    expect(mark('core/warn-finder')!.getAttribute('data-severity')).toBe('warn');
+    expect(mark('core/warn-finder')!.classList.contains('pi-exclamation-triangle')).toBe(true);
+    expect(mark('core/info-finder')!.getAttribute('data-severity')).toBe('info');
+    expect(mark('core/info-finder')!.classList.contains('pi-info-circle')).toBe(true);
+  });
+
+  it('no mark while busy, never judged, or when the server omits the field', async () => {
+    const { fixture } = await bootAiActions({
+      probs: makeProbExtensions({
+        finders: [
+          makeProbEntry({
+            id: 'core/busy-finder',
+            lastJudged: { at: 1, model: null },
+            state: 'queued',
+            jobId: 'j9',
+          }),
+          makeProbEntry({ id: 'core/never-finder' }),
+          // A server predating the field: ABSENT is not `null`, so it
+          // must NOT read as a clean check (contract: render no mark).
+          makeProbEntry({
+            id: 'core/legacy-finder',
+            lastJudged: { at: 1, model: null },
+            findingsMaxSeverity: undefined,
+          }),
+        ],
+      }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(dom.querySelector('[data-testid="inspector-ai-action-verdict-core/busy-finder"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-action-verdict-core/never-finder"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-ai-action-verdict-core/legacy-finder"]')).toBeNull();
+  });
+});
 });
