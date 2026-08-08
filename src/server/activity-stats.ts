@@ -91,6 +91,15 @@ export function pairKeyOf(parent: string, childNodePath: string): string {
   return `${parent}>>${childNodePath}`;
 }
 
+/**
+ * True when a pair key names `nodePath` on either side (parent or
+ * child). Both identities are separator-free, so a plain prefix/suffix
+ * match is exact; mirrors the UI's `activityPairKeyTouches`.
+ */
+export function pairKeyTouches(key: string, nodePath: string): boolean {
+  return key.startsWith(`${nodePath}>>`) || key.endsWith(`>>${nodePath}`);
+}
+
 export class ActivityStatsService {
   /** Unix-ms boot timestamp, the `since` of every summary snapshot. */
   readonly sinceMs = Date.now();
@@ -193,6 +202,23 @@ export class ActivityStatsService {
       return { stats: { count: 0, lastStartAt: 0, distinctOwners: 0 }, recent: [] };
     }
     return { stats: projectStats(state), recent: state.recent.map((entry) => ({ ...entry })) };
+  }
+
+  /**
+   * Forget one node's accumulated runtime activity (the clear-all,
+   * `spec/provider-activity.md` §DELETE /api/activity/node): its stats
+   * + recent ring, and every pair counter touching it as parent or
+   * child. The sticky-dedupe memory deliberately survives (a paused
+   * runtime resuming after a clear re-emits its start under the same
+   * owner id, and a resume is not new activity), and so does the
+   * owner->last-unit correlation (it attributes FUTURE invocations;
+   * fresh activity is supposed to re-accumulate).
+   */
+  clearNode(path: string): void {
+    this.nodes.delete(path);
+    for (const key of [...this.pairs.keys()]) {
+      if (pairKeyTouches(key, path)) this.pairs.delete(key);
+    }
   }
 
   /** `true` when this `(nodePath, owner)` pair counts (first sighting). */

@@ -73,6 +73,18 @@ export interface IActivityPort {
   getNodeActivity(path: string): Promise<IActivityNodeDetailApi | null>;
 
   /**
+   * Clear every recorded activity item for one node
+   * (`DELETE /api/activity/node/<pathB64>`,
+   * `spec/provider-activity.md` §DELETE): the persistent AI-run
+   * history, the runtime stats + recent ring, the pair counters and
+   * the retained spawn conversations touching the node. Regenerable
+   * machine data, so no consent gate. Resolves on 204; rejects
+   * `not-found` for an unknown path. Demo mode rejects with
+   * `code: 'demo-readonly'`.
+   */
+  clearNodeActivity(path: string): Promise<void>;
+
+  /**
    * One spawn record by id (`GET /api/activity/spawns/<spawnId>`), the
    * spawn-edge click surface. Metadata always; conversation content
    * only while the capture gate is on. Returns `null` on 404 (unknown

@@ -138,6 +138,24 @@ export class ActivityConversationStore {
     return out;
   }
 
+  /**
+   * Drop every retained record touching `path` as parent OR child (the
+   * same predicate `byNode` lists by), the Activity clear-all
+   * (`spec/provider-activity.md` §DELETE /api/activity/node). Returns
+   * the removed count; gate-independent (with the gate off the store is
+   * empty and this is a no-op).
+   */
+  deleteByNode(path: string): number {
+    let removed = 0;
+    for (const [spawnId, record] of this.records) {
+      if (record.parentNodePath === path || record.childNodePath === path) {
+        this.records.delete(spawnId);
+        removed += 1;
+      }
+    }
+    return removed;
+  }
+
   private evictPastCap(): void {
     while (this.records.size > CONVERSATION_RING_CAP) {
       const oldest = this.records.keys().next().value;

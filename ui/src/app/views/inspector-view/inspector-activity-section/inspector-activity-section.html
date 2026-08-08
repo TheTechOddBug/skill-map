@@ -182,6 +182,23 @@
                 </p>
               }
             }
+            <!-- Section-scope clear-all (timeline + spawns + counters in
+                 one DELETE). Bottom-right, out of the reading flow; no
+                 confirm dialog (regenerable machine data, summary-delete
+                 posture). -->
+            <div class="inspector__activity-actions">
+              <p-button
+                [label]="texts.activity.clearAll"
+                icon="pi pi-trash"
+                severity="danger"
+                size="small"
+                [text]="true"
+                [disabled]="clearingActivity()"
+                [pTooltip]="texts.activity.clearAllTooltip"
+                (onClick)="onClearAll()"
+                data-testid="inspector-activity-clear"
+              />
+            </div>
           }
         </div>
       } @else {

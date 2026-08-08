@@ -536,6 +536,17 @@ export class RestDataSource implements IDataSourcePort {
     }
   }
 
+  /** `DELETE /api/activity/node/:pathB64` (204-style), the Activity clear-all. */
+  async clearNodeActivity(path: string): Promise<void> {
+    try {
+      await firstValueFrom(
+        this.http.delete(`${BASE}/activity/node/${encodeNodePath(path)}`),
+      );
+    } catch (err) {
+      throw this.translateError(err);
+    }
+  }
+
   async getSpawnRecord(spawnId: string): Promise<IActivitySpawnDetailApi | null> {
     try {
       return await this.getJson<IActivitySpawnDetailApi>(

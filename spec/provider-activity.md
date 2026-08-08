@@ -723,6 +723,29 @@ renders the two provenances visually distinguished behind a three-way filter
 (all / runtime activity / AI runs) persisted at the INSPECTOR level, not
 per node.
 
+### `DELETE /api/activity/node/<pathB64>`
+
+Clears every recorded activity item for one node (the inspector's Activity
+clear-all): the persistent AI-run history (every `state_executions` row whose
+node list contains the path, the same JSON1 containment the GET's `runs`
+filter uses, so the delete removes exactly what the section lists; an
+execution recorded against several nodes disappears from all of them), the
+node's in-memory runtime stats + recent ring, the pair counters touching the
+node as parent or child, and the retained spawn conversations touching the
+node. Both halves are machine-generated, regenerable data
+([`architecture.md`](./architecture.md) §Storage rule), so there is NO
+consent gate and no sidecar touch, the same posture as the summaries /
+findings deletes.
+
+Success is `204 No Content`; the client re-fetches (an activity-less node
+hides its Activity section). An unknown path or malformed `<pathB64>` answers
+`404` `not-found`; a missing DB clears the runtime half anyway and still
+answers `204` (mirror of the GET's degradation). The operation logs one
+`activity.clear` line ([`cli-contract.md`](./cli-contract.md) §Operations
+log). The sticky-dedupe memory is deliberately NOT cleared: a paused runtime
+resuming after a clear re-emits its lifecycle start with the same owner id,
+and a resume is not new activity, so it must not re-count.
+
 ## Conversation capture
 
 The inter-agent conversation halves (the spawn `prompt`, the sync-completion

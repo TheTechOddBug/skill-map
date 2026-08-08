@@ -8,7 +8,7 @@
  */
 
 import { strict as assert } from 'node:assert';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, beforeEach, describe, it } from 'node:test';
@@ -468,6 +468,97 @@ describe('GET /api/activity/spawns/:spawnId', () => {
       });
       const res = await fetch(url(handle, `/api/activity/spawns/${SPAWN_ID}`));
       assert.equal(res.status, 404);
+    });
+  });
+});
+
+describe('DELETE /api/activity/node/:pathB64', () => {
+  function deleteNodeActivity(handle: IServerHandle, path: string): Promise<Response> {
+    return fetch(url(handle, `/api/activity/node/${encodeNodePath(path)}`), {
+      method: 'DELETE',
+    });
+  }
+
+  /** A counted (non-custody) start lighting the orchestrator's runtime stats. */
+  const COUNTED_START_PAYLOAD = {
+    session_id: '6cfe5636-2e56-4271-91a6-87fc3d4355be',
+    hook_event_name: 'SubagentStart',
+    agent_id: 'a4e825faeafee3619',
+    agent_type: 'demo-orchestrator',
+  };
+
+  it('404 for a path that is not a scanned node (and for malformed pathB64)', async () => {
+    await bootAndUse(async (handle) => {
+      const missing = await deleteNodeActivity(handle, 'not/scanned.md');
+      assert.equal(missing.status, 404);
+      const malformed = await fetch(url(handle, '/api/activity/node/%2e%2e'), {
+        method: 'DELETE',
+      });
+      assert.equal(malformed.status, 404);
+    });
+  });
+
+  it('clears runs + runtime stats + spawns for the node only, answers 204, logs activity.clear', async () => {
+    await seedExecutions([
+      makeExecution(1),
+      makeExecution(2),
+      makeExecution(99, { nodeIds: ['.claude/skills/deploy/SKILL.md'] }),
+    ]);
+    // The operations log is silent without a `.skill-map/` dir; create it
+    // so the `activity.clear` line is observable.
+    mkdirSync(join(root.fixtureRoot, '.skill-map'), { recursive: true });
+    await bootAndUse(async (handle) => {
+      await enableCapture(handle);
+      await postActivity(handle, AGENT_SPAWN_PAYLOAD);
+      await postActivity(handle, COUNTED_START_PAYLOAD);
+
+      const res = await deleteNodeActivity(handle, ORCHESTRATOR);
+      assert.equal(res.status, 204);
+
+      // The node is fully quiet afterwards; the capture gate itself is
+      // untouched by a clear.
+      const after = (await (await getNodeDetail(handle, ORCHESTRATOR)).json()) as INodeDetailEnvelope;
+      assert.deepEqual(after, {
+        stats: { count: 0, lastStartAt: 0, distinctOwners: 0 },
+        recent: [],
+        spawns: [],
+        captureEnabled: true,
+        runs: [],
+      });
+      // The dropped spawn record is gone by id too, not just from the list.
+      assert.equal(
+        (await fetch(url(handle, `/api/activity/spawns/${SPAWN_ID}`))).status,
+        404,
+      );
+      // The OTHER node's history is untouched.
+      const other = (await (
+        await getNodeDetail(handle, '.claude/skills/deploy/SKILL.md')
+      ).json()) as INodeDetailEnvelope;
+      assert.deepEqual(
+        other.runs.map((r) => r['executionId']),
+        ['e-run-099'],
+      );
+      // One operations-log line with the counts it had in hand.
+      const log = readFileSync(
+        join(root.fixtureRoot, '.skill-map', 'operations.log'),
+        'utf8',
+      );
+      assert.match(log, /"op":"activity\.clear"/);
+      assert.match(log, /"detail":"runs=2 spawns=1"/);
+    });
+  });
+
+  it('missing DB: clears the runtime half and still answers 204', async () => {
+    await bootAndUse(async (handle) => {
+      await postActivity(handle, COUNTED_START_PAYLOAD);
+      rmSync(root.dbPath, { force: true });
+      rmSync(`${root.dbPath}-wal`, { force: true });
+      rmSync(`${root.dbPath}-shm`, { force: true });
+      const res = await deleteNodeActivity(handle, ORCHESTRATOR);
+      assert.equal(res.status, 204);
+      const detail = (await (await getNodeDetail(handle, ORCHESTRATOR)).json()) as INodeDetailEnvelope;
+      assert.deepEqual(detail.stats, { count: 0, lastStartAt: 0, distinctOwners: 0 });
+      assert.deepEqual(detail.recent, []);
     });
   });
 });

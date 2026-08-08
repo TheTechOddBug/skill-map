@@ -81,6 +81,7 @@ type IStubDataSource = IDataSourcePort & {
   getNode: ReturnType<typeof vi.fn>;
   listIssues: ReturnType<typeof vi.fn>;
   getNodeActivity: ReturnType<typeof vi.fn>;
+  clearNodeActivity: ReturnType<typeof vi.fn>;
   getNodeFindings: ReturnType<typeof vi.fn>;
   getNodeSummary: ReturnType<typeof vi.fn>;
   deleteNodeSummary: ReturnType<typeof vi.fn>;
@@ -202,6 +203,7 @@ function makeStubDataSource(): IStubDataSource {
       captureEnabled: false,
       runs: [],
     }),
+    clearNodeActivity: vi.fn().mockResolvedValue(undefined),
     getNodeFindings: vi.fn().mockResolvedValue({
       schemaVersion: '1',
       kind: 'findings',
@@ -379,6 +381,9 @@ function bootstrap(opts: IBootstrapOpts = {}): {
           ),
           pairCounts: signal<ReadonlyMap<string, number>>(opts.activityPairs ?? new Map()),
           runNodes: signal<ReadonlySet<string>>(opts.activityRunNodes ?? new Set()),
+          // The clear-all re-hydrates the mirror after a DELETE; the stub
+          // records the call so tests can assert the convergence hook.
+          refresh: vi.fn().mockResolvedValue(undefined),
         } as unknown as NodeActivityStatsService,
       },
       {
@@ -1930,6 +1935,100 @@ describe('InspectorView, activity merged timeline (runtime + AI runs)', () => {
     await flush(fixture);
     expect(dom.querySelector('[data-testid="inspector-activity-filter-empty"]')).not.toBeNull();
     expect(dom.querySelectorAll('[data-testid="inspector-activity-recent-row"]').length).toBe(0);
+  });
+});
+
+describe('InspectorView, activity clear-all', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  /** `bootWithTimeline` shape, but keeping the stub refs for assertions. */
+  async function bootForClear(): Promise<{
+    fixture: ComponentFixture<InspectorView>;
+    dataSource: IStubDataSource;
+  }> {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    dataSource.getNodeActivity.mockResolvedValue({
+      stats: { count: 1, lastStartAt: 3000, distinctOwners: 1 },
+      recent: [{ at: 3000, owner: 'main:abc' }],
+      spawns: [],
+      captureEnabled: false,
+      runs: [makeRun({ executionId: 'e1', finishedAt: 2000 })],
+    });
+    const { fixture } = bootstrap({
+      loader,
+      dataSource,
+      activityStats: new Map([[node.path, makeActivityStats()]]),
+    });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const toggle = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-activity-toggle"]',
+    ) as HTMLButtonElement;
+    toggle.click();
+    await flush(fixture);
+    await flush(fixture);
+    return { fixture, dataSource };
+  }
+
+  it('DELETEs the node activity on click, re-fetches, and re-hydrates the stats mirror', async () => {
+    const { fixture, dataSource } = await bootForClear();
+    const dom: HTMLElement = fixture.nativeElement;
+    const btn = dom.querySelector(
+      '[data-testid="inspector-activity-clear"] button',
+    ) as HTMLButtonElement;
+    expect(btn).not.toBeNull();
+
+    // The cleared server answers empty on the authoritative re-fetch.
+    dataSource.getNodeActivity.mockResolvedValue({
+      stats: { count: 0, lastStartAt: 0, distinctOwners: 0 },
+      recent: [],
+      spawns: [],
+      captureEnabled: false,
+      runs: [],
+    });
+    const fetchesBefore = dataSource.getNodeActivity.mock.calls.length;
+    btn.click();
+    await flush(fixture);
+    await flush(fixture);
+
+    expect(dataSource.clearNodeActivity).toHaveBeenCalledWith('agents/architect.md');
+    expect(dataSource.getNodeActivity.mock.calls.length).toBeGreaterThan(fetchesBefore);
+    // The panel reflects the cleared detail (quiet-node empty line).
+    expect(dom.querySelectorAll('[data-testid="inspector-activity-recent-row"]').length).toBe(0);
+    expect(dom.querySelectorAll('[data-testid="inspector-activity-run-row"]').length).toBe(0);
+    // The mirror re-hydration is what retires the section gate / pill.
+    const statsService = TestBed.inject(NodeActivityStatsService) as unknown as {
+      refresh: ReturnType<typeof vi.fn>;
+    };
+    expect(statsService.refresh).toHaveBeenCalled();
+  });
+
+  it('keeps the panel untouched when the DELETE fails (progressive enhancement)', async () => {
+    const { fixture, dataSource } = await bootForClear();
+    const dom: HTMLElement = fixture.nativeElement;
+    dataSource.clearNodeActivity.mockRejectedValue(new Error('demo-readonly'));
+    const fetchesBefore = dataSource.getNodeActivity.mock.calls.length;
+
+    (dom.querySelector('[data-testid="inspector-activity-clear"] button') as HTMLButtonElement).click();
+    await flush(fixture);
+    await flush(fixture);
+
+    // No re-fetch, no mirror refresh, rows still shown.
+    expect(dataSource.getNodeActivity.mock.calls.length).toBe(fetchesBefore);
+    const statsService = TestBed.inject(NodeActivityStatsService) as unknown as {
+      refresh: ReturnType<typeof vi.fn>;
+    };
+    expect(statsService.refresh).not.toHaveBeenCalled();
+    expect(dom.querySelectorAll('[data-testid="inspector-activity-recent-row"]').length).toBe(1);
+    expect(dom.querySelectorAll('[data-testid="inspector-activity-run-row"]').length).toBe(1);
   });
 });
 

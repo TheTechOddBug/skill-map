@@ -287,6 +287,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       captureEnabled: false,
       runs: [],
     }),
+  clearNodeActivity: () => Promise.resolve(),
   getSpawnRecord: () => Promise.resolve(null),
   getActivityCapture: () => Promise.resolve({ enabled: false }),
   setActivityCapture: () => Promise.resolve({ enabled: false }),

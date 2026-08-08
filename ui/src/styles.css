@@ -881,7 +881,7 @@ button.sm-md-img:focus-visible {
  * ------------------------------------------------------------------------- */
 .inspector__body-dialog {
   width: 90vw;
-  max-width: 1280px;
+  max-width: 1024px;
   height: 90vh;
 }
 

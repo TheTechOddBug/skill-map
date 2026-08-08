@@ -114,6 +114,19 @@ export class NodeActivityStatsService {
   }
 
   /**
+   * On-demand re-hydration from the summary snapshot. Used after a
+   * server-side mutation of the accumulator the WS stream does not
+   * echo, today the Activity clear-all (`DELETE /api/activity/node`):
+   * the summary is the full server truth, so the wholesale replace
+   * drops the cleared node from `stats` / `pairCounts` / `runNodes`
+   * and the Activity surfaces (section gate, node-card pill, edge
+   * labels) converge without a reload.
+   */
+  async refresh(): Promise<void> {
+    await this.hydrate();
+  }
+
+  /**
    * Replace the map from the summary snapshot. Errors are swallowed:
    * counters are a progressive enhancement, a failed fetch leaves the
    * last known snapshot in place and the WS deltas keep flowing.

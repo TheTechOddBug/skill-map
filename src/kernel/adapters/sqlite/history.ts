@@ -109,6 +109,34 @@ function projectExecutionTokens(
   };
 }
 
+// --- Deletes ---------------------------------------------------------------
+
+/**
+ * Delete every `state_executions` row whose `node_ids_json` contains
+ * `nodePath` (the Activity clear-all, `spec/provider-activity.md`
+ * §DELETE /api/activity/node). The predicate is the same JSON1
+ * correlated-EXISTS the `listExecutions` nodePath filter applies, so
+ * the delete removes exactly the rows a per-node listing shows.
+ */
+export async function deleteExecutionsForNode(
+  db: TDbOrTx,
+  nodePath: string,
+): Promise<number> {
+  const result = await db
+    .deleteFrom('state_executions')
+    .where(({ exists, selectFrom }) =>
+      exists(
+        selectFrom(
+          sql<{ value: string }>`json_each(state_executions.node_ids_json)`.as('je'),
+        )
+          .select(sql<number>`1`.as('one'))
+          .where(sql.ref('je.value'), '=', nodePath),
+      ),
+    )
+    .executeTakeFirst();
+  return Number(result.numDeletedRows ?? 0);
+}
+
 // --- Reads -----------------------------------------------------------------
 
 export async function listExecutions(

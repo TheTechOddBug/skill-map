@@ -13,8 +13,14 @@
  *     `runs: []` with the runtime half still answering.
  *   - `GET /api/activity/spawns/:spawnId` → one spawn record (the
  *     spawn-edge click surface), 404 for an unknown id.
+ *   - `DELETE /api/activity/node/:pathB64` → the Activity clear-all:
+ *     hard-deletes the node's `state_executions` rows (same JSON1
+ *     containment the GET's `runs` filter uses), forgets its runtime
+ *     stats + pair counters, and drops its retained spawn records.
+ *     Regenerable machine data, so no consent (mirror of the summaries
+ *     delete); success `204`, one `activity.clear` operations-log line.
  *
- * Both are loopback-gated like every `/api/*` route and take NO
+ * All are loopback-gated like every `/api/*` route and take NO
  * serve.json token (operator UI surface). Spawn records serve metadata
  * always; the conversation halves (`prompt` / `response`) are stripped
  * whenever the capture gate is off (`captureEnabled` rides every
@@ -27,6 +33,7 @@ import type { Hono } from 'hono';
 // eslint-disable-next-line import-x/extensions
 import { HTTPException } from 'hono/http-exception';
 
+import { appendOperation } from '../../core/operations-log.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { bffReadVersionCheck } from '../util/db-read-check.js';
 import type {
@@ -111,6 +118,39 @@ export function registerActivityDetailRoutes(
       .byNode(nodePath)
       .map((record) => projectRecord(record, captureEnabled));
     return c.json({ stats: detail.stats, recent: detail.recent, spawns, captureEnabled, runs });
+  });
+
+  app.delete('/api/activity/node/:pathB64', async (c) => {
+    const nodePath = decodePathParamOr404(c.req.param('pathB64'));
+    // Missing DB (`null` from the seam) is NOT a 404: the runtime half
+    // still clears, mirroring the GET's degradation. Unknown node IS a
+    // 404, same posture as the GET (same discriminated shape, since the
+    // seam already spends `null` on "no DB").
+    const dbResult = await tryWithSqlite(
+      { databasePath: deps.options.dbPath, autoBackup: false },
+      async (
+        adapter,
+      ): Promise<{ kind: 'unknown-node' } | { kind: 'cleared'; runs: number }> => {
+        if ((await adapter.scans.findNode(nodePath)) === null) return { kind: 'unknown-node' };
+        return { kind: 'cleared', runs: await adapter.history.deleteForNode(nodePath) };
+      },
+    );
+    if (dbResult?.kind === 'unknown-node') {
+      throw new HTTPException(404, {
+        message: tx(SERVER_TEXTS.nodeNotFound, { path: sanitizeForTerminal(nodePath) }),
+      });
+    }
+    const runs = dbResult === null ? 0 : dbResult.runs;
+    deps.stats.clearNode(nodePath);
+    const spawns = deps.conversations.deleteByNode(nodePath);
+    appendOperation(deps.runtimeContext.cwd, {
+      op: 'activity.clear',
+      target: nodePath,
+      channel: 'ui',
+      outcome: 'ok',
+      detail: `runs=${runs} spawns=${spawns}`,
+    });
+    return c.body(null, 204);
   });
 
   app.get('/api/activity/spawns/:spawnId', (c) => {

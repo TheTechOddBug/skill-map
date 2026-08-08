@@ -830,12 +830,21 @@ export interface StoragePort {
     nodesWithRuns(): Promise<string[]>;
     /**
      * Append a single `state_executions` row (the table is append-only
-     * through v1.0). The primitive history write the port previously
-     * lacked; `sm record` transitions atomically through
-     * `jobs.recordTerminal`, while a standalone in-process action with
-     * no job row uses this directly.
+     * apart from the targeted `deleteForNode` clear below). The
+     * primitive history write the port previously lacked; `sm record`
+     * transitions atomically through `jobs.recordTerminal`, while a
+     * standalone in-process action with no job row uses this directly.
      */
     insertExecution(record: ExecutionRecord): Promise<void>;
+    /**
+     * Delete every `state_executions` row whose node list contains
+     * `nodePath` (the same JSON1 containment the `list` filter applies,
+     * so the delete removes exactly the rows a per-node listing shows).
+     * Returns the deleted-row count. The single targeted history
+     * delete: the Activity clear-all
+     * (`spec/provider-activity.md` §DELETE /api/activity/node).
+     */
+    deleteForNode(nodePath: string): Promise<number>;
     /**
      * Aggregate counters / period buckets / top-nodes / error rates
      * over `state_executions`. Body matches the spec

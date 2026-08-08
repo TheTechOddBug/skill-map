@@ -229,6 +229,35 @@ export class InspectorActivitySection {
     }
   }
 
+  /** In-flight guard for the clear-all button (disables it while deleting). */
+  protected readonly clearingActivity = signal(false);
+
+  /**
+   * Clear-all (`DELETE /api/activity/node`,
+   * `spec/provider-activity.md` §DELETE): drops the node's run history,
+   * runtime counters and spawn conversations in one call. Machine data,
+   * regenerable, so no confirm dialog (same posture as the summary
+   * delete). On success the authoritative re-fetch empties the panel and
+   * the stats-mirror re-hydration is what lets `hasActivity()` retire
+   * the whole section (the mirror drives the gate, the node-card pill
+   * and the edge labels, and no WS frame echoes a clear).
+   */
+  protected async onClearAll(): Promise<void> {
+    if (this.clearingActivity()) return;
+    const path = this.node().path;
+    this.clearingActivity.set(true);
+    try {
+      await this.dataSource.clearNodeActivity(path);
+      if (this.activityPath === path) await this.fetchActivity(path);
+      await this.activityStats.refresh();
+    } catch {
+      // Progressive enhancement: a failed clear (transport, demo mode)
+      // keeps the panel as it was, same posture as fetchActivity.
+    } finally {
+      this.clearingActivity.set(false);
+    }
+  }
+
   /** True when the fetched detail has nothing to show (quiet node). */
   protected readonly activityEmpty = computed<boolean>(() => {
     const detail = this.activityDetail();

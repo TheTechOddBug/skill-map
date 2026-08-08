@@ -833,6 +833,13 @@ export class StaticDataSource implements IDataSourcePort {
     return { since: Date.now(), nodes: {}, pairs: {}, runNodes: [] };
   }
 
+  async clearNodeActivity(_path: string): Promise<void> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Clearing activity is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
   async getNodeActivity(_path: string): Promise<IActivityNodeDetailApi | null> {
     // `runs` stays empty too: the demo bundle ships no state DB, which
     // is exactly the missing-DB degradation the contract prescribes.

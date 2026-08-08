@@ -66,6 +66,7 @@ import { tx } from '../../util/tx.js';
 import { NodeSqliteDialect } from './dialect.js';
 import {
   aggregateHistoryStats,
+  deleteExecutionsForNode,
   insertExecution,
   listExecutions,
   listNodesWithRuns,
@@ -393,6 +394,7 @@ export class SqliteStorageAdapter implements StoragePort {
       list: (filter: IListExecutionsFilter) => listExecutions(this.db, filter),
       nodesWithRuns: () => listNodesWithRuns(this.db),
       insertExecution: (record) => insertExecution(this.db, record),
+      deleteForNode: (nodePath) => deleteExecutionsForNode(this.db, nodePath),
       aggregateStats: (
         range: IHistoryStatsRange,
         period: THistoryStatsPeriod,

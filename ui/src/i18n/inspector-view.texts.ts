@@ -318,6 +318,15 @@ export const INSPECTOR_VIEW_TEXTS = {
     /** Row shape: `<parent> -> <child>`. */
     spawnPair: (parent: string, child: string): string => `${parent} -> ${child}`,
     captureOffHint: 'Conversation capture is off. Enable it in Settings > Project.',
+    /**
+     * Clear-all affordance (`DELETE /api/activity/node`): drops the
+     * node's run history, runtime counters and spawn conversations in
+     * one go. Machine-generated, regenerable data, so no confirm
+     * dialog (same posture as the summary delete).
+     */
+    clearAll: 'Clear all',
+    clearAllTooltip:
+      "Delete this node's recorded activity: run history, runtime counters and spawn conversations",
   },
   body: {
     // The body section is hidden entirely when there is nothing to
