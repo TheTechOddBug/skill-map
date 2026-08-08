@@ -1,0 +1,75 @@
+name: dependency-audit
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: dependency-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: pnpm audit + peers check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: "pnpm"
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Run pnpm audit
+        id: audit
+        run: |
+          mkdir -p .tmp
+          set +e
+          pnpm audit --json --ignore-registry-errors > .tmp/audit-report.json 2> .tmp/audit-report.stderr.log
+          code=$?
+          set -e
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Run pnpm peers check
+        id: peers
+        run: |
+          mkdir -p .tmp
+          set +e
+          pnpm peers check > .tmp/peers-report.txt 2>&1
+          code=$?
+          set -e
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Report issues to job summary
+        if: steps.audit.outputs.exit_code != '0' || steps.peers.outputs.exit_code != '0'
+        env:
+          AUDIT_EXIT_CODE: ${{ steps.audit.outputs.exit_code }}
+          PEERS_EXIT_CODE: ${{ steps.peers.outputs.exit_code }}
+          AUDIT_JSON_PATH: .tmp/audit-report.json
+          AUDIT_STDERR_PATH: .tmp/audit-report.stderr.log
+          PEERS_TXT_PATH: .tmp/peers-report.txt
+        run: node scripts/report-dependency-audit.js
+
+      - name: Upload report artifact
+        if: steps.audit.outputs.exit_code != '0' || steps.peers.outputs.exit_code != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit-report
+          path: |
+            .tmp/audit-report.json
+            .tmp/audit-report.stderr.log
+            .tmp/peers-report.txt
+          retention-days: 30
