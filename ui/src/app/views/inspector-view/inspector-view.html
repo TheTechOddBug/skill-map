@@ -252,7 +252,7 @@
                   placeholders inside that inert HTML (no request fires
                   until the operator clicks one).
                 -->
-                <div smMarkdownImages class="inspector__body-rendered" data-testid="inspector-body-rendered" [innerHTML]="bodyHtml()"></div>
+                <div smMarkdownImages class="sm-md-prose inspector__body-rendered" data-testid="inspector-body-rendered" [innerHTML]="bodyHtml()"></div>
               }
             }
           }
@@ -384,7 +384,7 @@
         <!-- Same sanitized SafeHtml + click-to-load images contract as the card's rendered view. -->
         <div
           smMarkdownImages
-          class="inspector__body-rendered inspector__body-rendered--dialog"
+          class="sm-md-prose inspector__body-rendered inspector__body-rendered--dialog"
           data-testid="inspector-body-dialog-rendered"
           [innerHTML]="bodyHtml()"
         ></div>

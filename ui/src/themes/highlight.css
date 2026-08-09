@@ -8,7 +8,7 @@
  * not strictly required, but keeping it last reads cleanly).
  *
  * The base `.hljs` container colour / background is owned by the
- * consuming surface (e.g. `.inspector__body-rendered pre`); this file
+ * consuming surface (e.g. `.sm-md-prose pre`); this file
  * only colours the token spans so it composes with any code-block chrome.
  */
 

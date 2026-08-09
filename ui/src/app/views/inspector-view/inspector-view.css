@@ -238,7 +238,7 @@
 
 /* ---------------------------------------------------------------------
  * Rendered markdown LAYOUT. The prose vocabulary itself (headings, code,
- * tables, quotes: the `.inspector__body-rendered` family) is global in
+ * tables, quotes: the shared `.sm-md-prose` family) is global in
  * `styles.css`, promoted when the Expand dialog moved to a body portal;
  * here lives only the card-vs-dialog layout split.
  * ------------------------------------------------------------------- */

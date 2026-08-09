@@ -117,7 +117,7 @@ import type { ISpawnThread } from './spawn-thread';
                      until the operator clicks one). -->
                 <div
                   smMarkdownImages
-                  class="convo__bubble convo__bubble--parent"
+                  class="sm-md-prose convo__bubble convo__bubble--parent"
                   [attr.data-testid]="'conversation-dialog-prompt-' + i"
                   [attr.aria-label]="texts.promptLabel"
                   [innerHTML]="htmlFor(r.spawnId, 'prompt')"
@@ -126,7 +126,7 @@ import type { ISpawnThread } from './spawn-thread';
               @if (r.response) {
                 <div
                   smMarkdownImages
-                  class="convo__bubble convo__bubble--child"
+                  class="sm-md-prose convo__bubble convo__bubble--child"
                   [attr.data-testid]="'conversation-dialog-response-' + i"
                   [attr.aria-label]="texts.responseLabel"
                   [innerHTML]="htmlFor(r.spawnId, 'response')"
@@ -160,7 +160,12 @@ import type { ISpawnThread } from './spawn-thread';
         align-items: baseline; gap: 0.5rem; }
       .convo__turn-meta { font-size: var(--sm-fs-xs);
         color: var(--p-text-muted-color); }
-      .convo__bubble { max-width: 88%; padding: 0.6rem 0.75rem;
+      /* The markdown prose vocabulary (headings, code, tables, and the
+         pre block's own overflow-x scroll that keeps long lines from
+         widening the dialog) comes from the global .sm-md-prose family
+         in styles.css; the bubble only owns its chat-bubble chrome. */
+      .convo__bubble { max-width: 88%; min-width: 0;
+        padding: 0.6rem 0.75rem;
         border: 1px solid var(--sm-border);
         border-radius: var(--sm-radius-sm);
         font-size: var(--sm-fs-md); line-height: 1.5; overflow-wrap: anywhere; }
