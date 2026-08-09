@@ -9,8 +9,16 @@
  * issue and its confidence penalty), not as a read-time lens, because
  * issues carry no stable row identity and are regenerated wholesale
  * each scan.
+ *
+ * The ENFORCEMENT point is the orchestrator's analyzer pass
+ * (`kernel/orchestrator/analyzers.ts`), which drops every emitted issue
+ * whose `(analyzer, data.target)` pair matches an entry on any of its
+ * `nodeIds`. An analyzer only reaches for these helpers itself when the
+ * dismissal must also skip a SIDE EFFECT the central drop cannot undo
+ * (today only `core/reference-broken`'s confidence penalty).
  */
 
+import type { Node } from '../types.js';
 import { matchesQualifiedExtensionFilter } from './analyzer-filter.js';
 
 /**
@@ -58,6 +66,40 @@ function toIssueSuppressionEntry(entry: unknown): IIssueSuppressionEntry | null 
 /** `string` with content, else `null` (split out for the complexity cap). */
 function nonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+/**
+ * Index every node's active suppression entries by node path, for a
+ * whole scan pass. `sidecarRoots` is the orchestrator's raw `.sm` root
+ * map (zero extra file I/O); a node absent from it falls back to its
+ * typed sidecar overlay. Nodes without entries stay OUT of the map so
+ * the per-issue guard is a cheap miss, and an empty map means "no
+ * dismissals in this project" for a single `size` check.
+ */
+export function buildIssueSuppressionIndex(
+  nodes: readonly Node[],
+  sidecarRoots?: ReadonlyMap<string, Record<string, unknown>>,
+): ReadonlyMap<string, IIssueSuppressionEntry[]> {
+  const index = new Map<string, IIssueSuppressionEntry[]>();
+  for (const node of nodes) {
+    const entries = issueSuppressionsFromAnnotations(nodeAnnotations(node, sidecarRoots));
+    if (entries.length > 0) index.set(node.path, entries);
+  }
+  return index;
+}
+
+/**
+ * A node's annotations block: the raw sidecar root when the
+ * orchestrator threaded it (zero file I/O), else the typed overlay.
+ * Split out for the complexity cap.
+ */
+function nodeAnnotations(
+  node: Node,
+  sidecarRoots?: ReadonlyMap<string, Record<string, unknown>>,
+): unknown {
+  const fromRoots = sidecarRoots?.get(node.path)?.['annotations'];
+  if (fromRoots !== undefined && fromRoots !== null) return fromRoots;
+  return node.sidecar?.annotations ?? null;
 }
 
 /**

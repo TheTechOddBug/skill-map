@@ -470,7 +470,7 @@
     "files": {
       "CHANGELOG.md": "195675136ae91e81ba965e4575febdff6e78970dad7c70d6474f22a225170516",
       "README.md": "35ac6cc3ce8379c5087f739a528d3b80a140aef5cdeeba9c49b59c5dd5df4c54",
-      "architecture.md": "1447b99d6557257bf5ea2758f45d5b0da5acd899913fcdc7a6d3c979d4abb547",
+      "architecture.md": "38797ae6cfbfc30e95887ba0ff5b9223d0651ac0db31a3bf44ba7427e7aab6d1",
       "cli-contract.md": "29d7372794e880a1b2e845b2e6ab3d9b356d80bf73e432040127c307257c81c1",
       "conformance/README.md": "1cf7a020d4a7517e9f2b5fa2e6912be812322dfffa388de5eb47ef44d9277e8f",
       "conformance/cases/backtick-path-extraction.json": "4112b5724156c4d6ad5cf90a762e43741d25d68735f91d453ac580a77b3764da",
@@ -622,7 +622,7 @@
       "conformance/fixtures/view-slots-all/.skill-map/plugins/all-slots/analyzers/everything/extension.json": "8f13f91539ced01f332246f90e1957efeedfeb249c647e21a6b4ffda67d312c5",
       "conformance/fixtures/view-slots-all/.skill-map/plugins/all-slots/analyzers/everything/index.js": "3aea0f750e4ff3495210ec6306e3bff7130d87c9d970a02feb31a28860fe227d",
       "conformance/fixtures/view-slots-all/.skill-map/plugins/all-slots/plugin.json": "c48e8a0574947ade0b4eb189d6bc27a48e24f92f616aacdc177f2d22d472a599",
-      "db-schema.md": "7e7753aaf65b182181521de94bad3c94b90f7aa955d8aa16437836ecbed60895",
+      "db-schema.md": "9073784fa9195369d49b6586decc2d99686eb63863e4ffe5927b4d008c421689",
       "input-types.md": "61c9ea9083e1111f4802c38a112bde5c9d948a859f0b398404d731a2d00da7d8",
       "interfaces/security-scanner.md": "1e90d23254c4962989a56f64a625b5b7bcc469a2064adcdd07950fd0a6ddbfc9",
       "job-events.md": "7e722580e0b9dd0238778436ec4c1e64d355f170767138f2405511d376116741",

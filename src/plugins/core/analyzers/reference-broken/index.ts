@@ -40,6 +40,11 @@
  * time (`spec/db-schema.md` §scan_issues; issues are regenerated
  * wholesale per scan, so there is no read-time lens to hide behind).
  * Written by `sm issues dismiss` / the inspector's per-issue dismiss.
+ * The ISSUE half is redundant with the orchestrator's central gate
+ * (`kernel/orchestrator/analyzers.ts`, which drops any dismissed
+ * value-carrying issue for every analyzer); the check stays inline
+ * because only this analyzer can skip the SIDE EFFECT the central drop
+ * cannot undo, the `-0.75` confidence penalty on the flagged link.
  *
  * Severity is two-tier: `error` for a genuinely dangling authored
  * reference (a structural defect the operator must notice; the card
@@ -72,8 +77,8 @@ import { linkLines } from '../../../../kernel/util/link-lines.js';
 import { formatFinding } from '../../../../kernel/util/finding-format.js';
 import { isCodeShapedAtToken } from '../../../../kernel/util/code-shaped-token.js';
 import {
+  buildIssueSuppressionIndex,
   isIssueSuppressed,
-  issueSuppressionsFromAnnotations,
   type IIssueSuppressionEntry,
 } from '../../../../kernel/util/issue-suppressions.js';
 import { BROKEN_PENALTY } from '../../../../kernel/orchestrator/confidence-constants.js';
@@ -134,7 +139,7 @@ export const referenceBrokenAnalyzer: IBuiltInManifest<IAnalyzer> = {
     if (!broken || broken.size === 0) return [];
     const refIndex = buildReferenceIndex(ctx);
     const ignoredRefs = buildIgnoredReferencesIndex(ctx);
-    const suppressions = buildIssueSuppressionIndex(ctx);
+    const suppressions = buildIssueSuppressionIndex(ctx.nodes, ctx.sidecarRoots);
     const adjust = ctx.adjustConfidence; // present only in the score phase
 
     const issues: Issue[] = [];
@@ -208,35 +213,6 @@ function traceVerdict(ctx: IAnalyzerContext, link: Link, verdict: TBrokenVerdict
   if (!ctx.log.enabled('trace')) return;
   const why = verdict === 'report' ? `unresolved (${link.kind}), reporting` : VERDICT_TRACE[verdict];
   ctx.log.trace(`${link.source} -> ${link.target}: ${why}`);
-}
-
-/**
- * Per-evaluate index of the operators' issue suppressions, keyed by
- * node path (the future `link.source`). Sourced from the raw sidecar
- * roots when the orchestrator threaded them (the zero-file-I/O path,
- * same access pattern as `annotation-field-unknown`), else from the
- * node's typed sidecar overlay. Nodes without entries stay absent so
- * the per-link guard is a cheap map miss.
- */
-function buildIssueSuppressionIndex(
-  ctx: IAnalyzerContext,
-): ReadonlyMap<string, IIssueSuppressionEntry[]> {
-  const index = new Map<string, IIssueSuppressionEntry[]>();
-  for (const node of ctx.nodes) {
-    const entries = issueSuppressionsFromAnnotations(nodeAnnotations(ctx, node));
-    if (entries.length > 0) index.set(node.path, entries);
-  }
-  return index;
-}
-
-/**
- * A node's annotations block: raw sidecar root when threaded (zero
- * file I/O), else the typed overlay. Split out for the complexity cap.
- */
-function nodeAnnotations(ctx: IAnalyzerContext, node: Node): unknown {
-  const fromRoots = ctx.sidecarRoots?.get(node.path)?.['annotations'];
-  if (fromRoots !== undefined && fromRoots !== null) return fromRoots;
-  return node.sidecar?.annotations ?? null;
 }
 
 /**

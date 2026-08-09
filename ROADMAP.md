@@ -849,7 +849,7 @@ Shared flags (inherited by every verb): `--json`, `-v`/`-q`, `--no-color`, `-h`/
 The verb surface is specified in [`spec/cli-contract.md`](./spec/cli-contract.md); each verb's flags and JSON shape live there and in `sm help <verb>`. The families:
 
 - **Setup & state**: `init` (bootstrap `.skill-map/` + first scan), `tutorial` (materialize the single tester walkthrough skill, a "book" of parts whose advanced parts, plugins/settings/view-slots, the CLI in depth, are reached from its in-skill menu), `example` (drop a ready-to-explore example project into an empty cwd, the same wired harness the public demo renders, sourced from the single canonical `fixtures/demo/` fixture, so a new user can `sm scan` then `sm serve` against a real graph without authoring files first), `version`, `doctor`, `help`. Bare `sm` in an empty folder surfaces `tutorial` and `example` as an interactive getting-started menu; in a non-empty folder with no project it offers to run `init` and, on accept, continues into `serve`; the no-project hint still shows when the offer is declined or stdin is non-interactive. See [`spec/cli-contract.md`](./spec/cli-contract.md) §Binary.
-- **Scan**: `scan` (incremental by default since 2026-08-07: a persisted prior reuses unchanged nodes; `--full` forces a complete re-extraction, `--changed` stays as the explicit alias, `-n`/`--dry-run` previews in memory), `scan compare-with <dump>` (delta), `watch` / `scan --watch` (live loop). There is deliberately no single-node scan (graph-wide analyzers need the whole corpus; see `spec/cli-contract.md` §Scan).
+- **Scan**: `scan` (incremental by default since 2026-08-07: a persisted prior reuses unchanged nodes; `--full` forces a complete re-extraction, `--changed` stays as the explicit alias, `-n`/`--dry-run` previews in memory). An unchanged node keeps its prior `(provider, kind)` pairing (2026-08-09): the mtime fast path has no parsed frontmatter to classify with, so binding it to the first iterating provider relabelled every unchanged node with the active lens and, on the next re-extraction, invented a `frontmatter-invalid: no-schema`. Also `scan compare-with <dump>` (delta), `watch` / `scan --watch` (live loop). There is deliberately no single-node scan (graph-wide analyzers need the whole corpus; see `spec/cli-contract.md` §Scan).
 - **Browse**: `list`, `show`, `check`, `findings`, `graph`, `export`, and `orphans` (with `orphans reconcile` / `orphans undo-rename` for rename recovery).
 - **Actions**: `actions list` / `actions show`.
 - **Record**: `record --id <id> --nonce <n> --status completed|failed ...`, the job callback.
@@ -1121,7 +1121,11 @@ incoherence), the deterministic-analyzer fixers (`ai-reference-action`,
 
 Standing rules born here (rationale in the Decision log): dismissal is durable
 suppression in the node's `.sm` sidecar at the `(extension, type)` grain
-(#144), issue dismissal keys on the verbatim value instead (#146), the
+(#144), issue dismissal keys on the verbatim value instead (#146, ENFORCED BY
+THE KERNEL since 2026-08-09: the orchestrator's analyzer pass drops every
+dismissed value-carrying issue, so any deterministic analyzer is dismissable
+without suppression code of its own; `core/reference-broken` keeps its inline
+check only to skip the confidence penalty), the
 project-level `ignored-references` match-list settles dead-by-design targets
 (#148), a submit with no processing skill installed is refused (#145), and TTL
 is opt-in (#139). Full arc, including every dated refinement:

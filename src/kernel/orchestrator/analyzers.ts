@@ -8,6 +8,19 @@
  * Issue validation (`validateIssue`) catches analyzers that emit an
  * out-of-spec `severity` and surfaces them as `extension.error` events
  * so plugin authors see why an issue silently disappeared.
+ *
+ * The same emit-side gate enforces the operator's standing dismissals
+ * (`annotations.issueSuppressions`, `spec/db-schema.md` §scan_issues):
+ * an issue carrying a `data.target` is DROPPED when any of its
+ * `nodeIds` holds a matching (analyzer, value) entry. It lives here,
+ * not in each analyzer, because the dismiss affordance is offered
+ * generically for any value-carrying issue (UI button, `sm issues
+ * dismiss`, the MCP tool), so honouring it must be generic too:
+ * otherwise every analyzer that forgets the check, and every
+ * third-party one, ships a dismiss that silently comes back on the
+ * next scan. An analyzer still consults the entries itself when the
+ * dismissal must ALSO skip a side effect this drop cannot undo (today
+ * only `core/reference-broken`'s confidence penalty).
  */
 
 import {
@@ -31,6 +44,11 @@ import { applyConfidenceAdjustments, type IConfidenceAdjustment } from './confid
 import type { IRegisteredAnnotationKey } from '../types/annotation-catalog.js';
 import type { IRegisteredViewContribution, IViewContribution } from '../types/view-catalog.js';
 import { makeExtensionLogger } from '../util/extension-logger.js';
+import {
+  buildIssueSuppressionIndex,
+  isIssueSuppressed,
+  type IIssueSuppressionEntry,
+} from '../util/issue-suppressions.js';
 import { tx } from '../util/tx.js';
 import { emitExtensionError, readDeclaredContributionRefs } from './extractors.js';
 
@@ -120,6 +138,9 @@ export async function runAnalyzers(
   // the read-only `detect` phase, so detect analyzers (e.g.
   // `core/name-reserved`, keyed on `confidence === 0.1`) read the final
   // value. Links matched by object identity.
+  // Operator dismissals, indexed once for the whole pass (empty map in
+  // the overwhelmingly common project with no `.sm` suppressions).
+  const suppressions = buildIssueSuppressionIndex(nodes, sidecarRoots);
   const scoreAdjustments: IConfidenceAdjustment[] = [];
   const scorableLinks = new Set<Link>(internalLinks);
   let scoresFolded = false;
@@ -248,7 +269,9 @@ export async function runAnalyzers(
     })) ?? [];
     for (const issue of emitted) {
       const validated = validateIssue(analyzer, issue, emitter);
-      if (validated) issues.push(validated);
+      if (!validated) continue;
+      if (isDismissedByOperator(qualifiedId, validated, suppressions)) continue;
+      issues.push(validated);
     }
     // Spec § A.11, `analyzer.completed`. Aggregated per Analyzer, after every
     // issue has been validated. Fan-out scope: one event per Analyzer per
@@ -287,6 +310,32 @@ function phaseRank(a: IAnalyzer): number {
   if (a.phase === 'score') return 0;
   if (a.phase === 'aggregate') return 2;
   return 1; // 'detect' (default)
+}
+
+/**
+ * The operator-dismissal gate: an issue is dropped when it carries a
+ * non-empty string `data.target` and ANY node it is anchored to holds a
+ * matching `annotations.issueSuppressions` entry. Anchoring is
+ * any-of, not first-of, on purpose: a multi-node issue renders under
+ * every node in `nodeIds`, and `sm issues dismiss` deletes the whole
+ * persisted row from whichever node the operator dismissed it on, so
+ * the emission-time gate mirrors that reach.
+ *
+ * Issues without a `data.target` carry no dismissal key at all (the UI
+ * renders no dismiss button for them) and always pass.
+ */
+function isDismissedByOperator(
+  qualifiedAnalyzerId: string,
+  issue: Issue,
+  suppressions: ReadonlyMap<string, IIssueSuppressionEntry[]>,
+): boolean {
+  if (suppressions.size === 0) return false;
+  const target = issue.data?.['target'];
+  if (typeof target !== 'string' || target === '') return false;
+  return issue.nodeIds.some((nodeId) => {
+    const entries = suppressions.get(nodeId);
+    return entries !== undefined && isIssueSuppressed(qualifiedAnalyzerId, target, entries);
+  });
 }
 
 function validateIssue(analyzer: IAnalyzer, issue: Issue, emitter: ProgressEmitterPort): Issue | null {

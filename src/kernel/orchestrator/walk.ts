@@ -408,6 +408,14 @@ interface IWalkContext {
    * key; see `computeCacheDecision`.
    */
   settingsHashByExtractor: Map<string, string>;
+  /**
+   * Participating providers keyed by bare id, the same filtered set the
+   * walk iterates (`providerParticipates`). Lets the unchanged fast
+   * path re-bind a prior node to the provider that actually classified
+   * it instead of the one whose pass happened to reach it first; see
+   * `handleUnchangedRawNode`.
+   */
+  participatingProvidersById: Map<string, IProvider>;
 }
 
 /**
@@ -710,7 +718,8 @@ async function injectUnchangedPriorNodes(
   changed: ReadonlySet<string>,
   removed: ReadonlySet<string>,
 ): Promise<number> {
-  const providerById = new Map(args.activeProviders.map((p) => [p.id, p]));
+  // Same participating set the walk iterates, indexed once per scan.
+  const providerById = args.wctx.participatingProvidersById;
   // Fallback for a prior node whose provider is no longer active: the
   // first universal (un-gated) provider, mirroring the markdown
   // fallback's role in the full walk.
@@ -951,6 +960,12 @@ function buildWalkContext(opts: IWalkAndExtractOptions): IWalkContext {
     else shortIdToQualified.set(ex.id, [qualified]);
     settingsHashByExtractor.set(qualified, sha256(canonicalResolvedSettings(ex.resolvedSettings)));
   }
+  const participatingProvidersById = new Map<string, IProvider>();
+  for (const provider of opts.providers) {
+    if (providerParticipates(provider, opts.activeProvider)) {
+      participatingProvidersById.set(provider.id, provider);
+    }
+  }
   return {
     opts,
     priorNodesByPath,
@@ -958,6 +973,7 @@ function buildWalkContext(opts: IWalkAndExtractOptions): IWalkContext {
     priorFrontmatterIssuesByNode,
     shortIdToQualified,
     settingsHashByExtractor,
+    participatingProvidersById,
   };
 }
 
@@ -1087,11 +1103,27 @@ function priorTokenStateCompatible(wctx: IWalkContext, priorNode: Node): boolean
  * a sidecar edit forces re-extraction. An unchanged corpus pays a stat per
  * file, not a read + YAML parse.
  *
+ * **The node keeps its prior PROVIDER, not the iterating one.** No
+ * Provider declares `roots` today, so every Provider's walk yields every
+ * `.md`, and `classify` is what disclaims a file that is not its
+ * territory. This path skips `classify` (there is no freshly-parsed
+ * frontmatter to classify with), so binding the node to the Provider
+ * whose pass reached it first let the FIRST active Provider claim every
+ * unchanged node: on any incremental scan a plain `notes.md` flipped from
+ * `markdown/markdown` to `<active-lens>/markdown`, an identity the lens
+ * Provider would have disclaimed. Downstream that mis-pairs
+ * `(provider, kind)` for the per-kind frontmatter validator (the pair has
+ * no schema → a spurious `frontmatter-invalid: no-schema` on the next
+ * re-extraction), for the provider chip, and for the next scan's cache
+ * bookkeeping. Reusing `prior.provider` is the same trust the path
+ * already places in `prior.kind`.
+ *
  * Returns `true` when the node was claimed + dispatched (caller returns
- * `true`). Returns `false` only in the degenerate "prior node vanished for
- * an unchanged-marked path" case (the map is built FROM the prior, so this
- * should not happen): the body is read now and the caller falls through to
- * the normal build path.
+ * `true`). Returns `false` in the degenerate "prior node vanished for an
+ * unchanged-marked path" case (the map is built FROM the prior, so this
+ * should not happen) AND when the prior Provider no longer participates
+ * (a lens switch retired it): both read the body now so the caller falls
+ * through to the normal build path, which re-classifies for real.
  */
 async function handleUnchangedRawNode(
   raw: IRawNode,
@@ -1102,12 +1134,13 @@ async function handleUnchangedRawNode(
   nextIndex: number,
 ): Promise<boolean> {
   const prior = wctx.priorNodesByPath.get(raw.path);
-  if (prior) {
+  const owner = prior ? wctx.participatingProvidersById.get(prior.provider) : undefined;
+  if (prior && owner) {
     claimedPaths.add(raw.path);
     await dispatchNode(
       {
         raw,
-        provider,
+        provider: owner,
         kind: prior.kind,
         bodyHash: prior.bodyHash,
         frontmatterHash: prior.frontmatterHash,
@@ -1125,8 +1158,9 @@ async function handleUnchangedRawNode(
     );
     return true;
   }
-  // Prior node vanished for an unchanged-marked path: read the body now so
-  // the caller's normal build path has real content to hash.
+  // Prior node vanished for an unchanged-marked path, or its Provider no
+  // longer participates: read the body now so the caller's normal build
+  // path has real content to hash and classify.
   await rereadInto(raw);
   return false;
 }
