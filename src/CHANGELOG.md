@@ -1,5 +1,21 @@
 # skill-map
 
+## 1.6.4
+
+### Patch Changes
+
+- The global rendered-markdown prose family in `ui/src/styles.css` is renamed from `.inspector__body-rendered` to the shared `.sm-md-prose` and now also styles the conversation dialog's bubbles, whose `pre` blocks previously kept browser-default `white-space: pre` and forced horizontal scroll on the whole dialog; the prose `pre { overflow-x: auto }` confines long lines to their own scrollable block.
+
+  ## User-facing
+
+  **Conversation dialog readability.** Code blocks in agent prompts and responses now scroll inside their own box instead of stretching the dialog sideways, and messages render with proper markdown styling (headings, tables, code).
+
+- The claude and opencode live-activity adapters now capture markdown WRITES (Claude `Write`/`Edit`, opencode `write`/`edit`) alongside reads: an in-scope `.md` write emits the same filter-first PATH signal, with the literal tool name riding the existing `detail` field so the UI badge tells reads apart from writes; the installed claude hook matcher widens accordingly, while codex and antigravity writes stay unmapped per the spec rows.
+
+  ## User-facing
+
+  **Edits light the map too.** When your agent writes or edits a markdown file, the map now lights that node the moment it happens, with a Write/Edit badge, instead of waiting for the next rescan. Re-run the activity hook install (or repair from Settings) to pick it up.
+
 ## 1.6.3
 
 ### Patch Changes
