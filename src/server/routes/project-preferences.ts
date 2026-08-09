@@ -107,7 +107,7 @@ export interface IProjectPreferencesEnvelope {
   mcpServerEnabled: boolean;
   /**
    * Whether the skill-actions catalog is OFFERED (config key
-   * `skillActions.enabled`, default `true`, spec/skill-actions.md
+   * `skillActions.enabled`, default `false`, opt-in, spec/skill-actions.md
    * §Settings). When `false`, the prob-extensions `skills` bucket
    * empties and `skill:` submits refuse not-found. Read fresh per
    * request, so a flip applies immediately (no restarts). Written to
@@ -171,8 +171,8 @@ function buildEnvelope(deps: IRouteDeps): IProjectPreferencesEnvelope {
     skillActionsEnabled:
       readConfigValue<boolean>('skillActions.enabled', {
         cwd,
-        default: true,
-      }) ?? true,
+        default: false,
+      }) ?? false,
   };
 }
 
@@ -439,7 +439,7 @@ function applyMcpServerWrite(body: IPatchBody, cwd: string): boolean {
 function applySkillActionsWrite(body: IPatchBody, cwd: string): boolean {
   const next = body.skillActionsEnabled;
   if (next === undefined) return false;
-  const before = readConfigValue<boolean>('skillActions.enabled', { cwd, default: true }) ?? true;
+  const before = readConfigValue<boolean>('skillActions.enabled', { cwd, default: false }) ?? false;
   if (before === next) return false;
   try {
     writeConfigValue('skillActions.enabled', next, { target: 'project-local', cwd });

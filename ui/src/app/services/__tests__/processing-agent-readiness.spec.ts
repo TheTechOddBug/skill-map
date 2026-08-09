@@ -86,7 +86,10 @@ describe('ProcessingAgentReadinessService', () => {
     const { service } = bootstrap({
       getAgentSkillInstallStatus: vi.fn().mockResolvedValue(status(true, false)),
     });
-    expect(service.skillMissing()).toBe(null); // pending, fails open
+    expect(service.skillMissing()).toBe(null); // pending
+    // Fail-closed at boot (2026-08-09): no confirmed reading yet, so the
+    // surface holds disabled until the probe lands.
+    expect(service.submitGateReason()).toBe('probe-pending');
     await settled();
     expect(service.skillMissing()).toBe(true);
   });
@@ -110,19 +113,36 @@ describe('ProcessingAgentReadinessService', () => {
     expect(unsupported.service.skillMissing()).toBe(false);
   });
 
-  it('fails OPEN (null) when the probe errors', async () => {
+  it('an errored probe keeps the gate closed (probe-pending), not open', async () => {
     const { service } = bootstrap({
       getAgentSkillInstallStatus: vi.fn().mockRejectedValue(new Error('down')),
     });
     await settled();
     expect(service.skillMissing()).toBe(null);
+    // Fail-closed (2026-08-09, superseding the fail-open call): an
+    // unconfirmed setup never enables the AI surface on its own.
+    expect(service.submitGateReason()).toBe('probe-pending');
+    expect(service.submitGateClosed()).toBe(true);
   });
 
-  it('fails OPEN (null) and never probes while no lens is resolved', async () => {
+  it('a green check verdict opens the gate even while the skill probe never resolved', async () => {
+    const { service } = bootstrap({
+      getAgentSkillInstallStatus: vi.fn().mockRejectedValue(new Error('down')),
+    });
+    await settled();
+    expect(service.submitGateReason()).toBe('probe-pending');
+    // Drainage evidence outranks the pending probe: an answered ping
+    // proves the whole pipeline end to end.
+    service.noteAgentAlive(true);
+    expect(service.submitGateClosed()).toBe(false);
+  });
+
+  it('holds closed (probe-pending) and never probes while no lens is resolved', async () => {
     const getAgentSkillInstallStatus = vi.fn().mockResolvedValue(status(true, false));
     const { service } = bootstrap({ getAgentSkillInstallStatus }, null);
     await settled();
     expect(service.skillMissing()).toBe(null);
+    expect(service.submitGateReason()).toBe('probe-pending');
     expect(getAgentSkillInstallStatus).not.toHaveBeenCalled();
   });
 

@@ -20,6 +20,7 @@ import { analyzeLinks } from '../services/link-analysis';
 import { A11yAnnouncerService } from './services/a11y-announcer';
 import { ActivityReadinessService } from './services/activity-readiness';
 import { ProcessingAgentReadinessService } from './services/processing-agent-readiness';
+import { SettingsVisibilityService } from './services/settings-visibility';
 import { ProjectInfoService } from './services/project-info';
 import { ScanTriggerService } from './services/scan-trigger';
 import { UpdateCheckService } from './services/update-check';
@@ -63,6 +64,7 @@ export class App {
   private readonly activityReadiness = inject(ActivityReadinessService);
   private readonly announcer = inject(A11yAnnouncerService);
   private readonly processingAgentReadiness = inject(ProcessingAgentReadinessService);
+  private readonly settingsVisibility = inject(SettingsVisibilityService);
   // `FilterUrlSyncService` and `DebugSlotsService` are eagerly
   // instantiated via `provideAppInitializer` in `app.config.ts`. They
   // self-wire on construction; the App component does not need to
@@ -183,6 +185,11 @@ export class App {
       // install lives in that very section, so every submit affordance
       // must unlock as soon as the modal closes, not on the next scan.
       void this.processingAgentReadiness.refresh();
+      // And tick the shared close stream so deep consumers (the
+      // inspector's AI actions launcher catalog) re-fetch what Settings
+      // may have changed: plugin extension toggles, the skill-actions
+      // offering toggle.
+      this.settingsVisibility.notifyClosed();
     }
   }
 

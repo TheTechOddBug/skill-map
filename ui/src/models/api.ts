@@ -1221,7 +1221,8 @@ export interface IProjectPreferencesApi {
   /**
    * Project-local skill-actions offering toggle (`skillActions.enabled`,
    * spec/skill-actions.md §Settings). When `false`, the prob-extensions
-   * `skills` bucket empties and `skill:` submits refuse; default `true`.
+   * `skills` bucket empties and `skill:` submits refuse; default `false`
+   * (opt-in offering).
    * Read fresh per request, so a flip applies immediately, no restarts.
    * Optional only to tolerate an older BFF envelope that predates it;
    * the current BFF always emits a concrete boolean.

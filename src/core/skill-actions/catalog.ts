@@ -101,9 +101,9 @@ export function emptySkillActionCatalog(): ISkillActionCatalog {
 
 /**
  * The boot-frozen catalog as OFFERED right now: the catalog itself when
- * the project-local `skillActions.enabled` toggle (default `true`,
- * `spec/skill-actions.md` §Settings) resolves on, the empty catalog when
- * it resolves off. The toggle is read FRESH on every call, so a Settings
+ * the project-local `skillActions.enabled` toggle (default `false`,
+ * opt-in offering, `spec/skill-actions.md` §Settings) resolves on, the
+ * empty catalog when it resolves off. The toggle is read FRESH on every call, so a Settings
  * flip applies on the next request with no restart; membership stays
  * boot-frozen either way. Both consuming routes (prob-extensions, the
  * per-node job submit) MUST go through this instead of reading
@@ -115,7 +115,7 @@ export function offeredSkillActionCatalog(
   cwd: string,
 ): ISkillActionCatalog {
   const enabled =
-    readConfigValue<boolean>('skillActions.enabled', { cwd, default: true }) ?? true;
+    readConfigValue<boolean>('skillActions.enabled', { cwd, default: false }) ?? false;
   return enabled ? catalog : emptySkillActionCatalog();
 }
 

@@ -33,10 +33,15 @@
  * check, is the only signal with authority here.
  *
  * `null` = unknown (probe pending, no lens resolved yet, or the read
- * failed) and consumers FAIL OPEN: a transport hiccup must never lock
- * the whole AI surface. `false` also means open, either the skill is
- * installed or the lens declares no skill territory (`supported: false`,
- * nothing to install). Only a confirmed `true` closes the gate.
+ * failed) and the gate FAILS CLOSED with the dedicated `probe-pending`
+ * reason (user decision 2026-08-09, superseding the 2026-07-26 fail-open
+ * call): the AI surface starts DISABLED on UI boot and enables only when
+ * the boot probe confirms the skill (`false` = installed, or the lens
+ * declares no skill territory, nothing to install). A probe that errors
+ * keeps the gate closed; the manual full-circuit check (or any observed
+ * answer) still opens it, a green verdict is stronger evidence than the
+ * unresolved skill read. Only a confirmed `true` closes the gate with
+ * the deeper `skill-missing` reason.
  *
  * Concurrent `refresh()` calls coalesce onto the single in-flight probe
  * FOR THE SAME LENS so a lens-switch-then-scan burst costs one
@@ -58,9 +63,11 @@ import { ProjectInfoService } from './project-info';
 /**
  * Which half of the readiness pair closes the submit gate. `null` = open.
  * Ordered by depth: with no skill installed no check can even submit, so
- * `skill-missing` wins when both are true.
+ * `skill-missing` wins when both are true. `probe-pending` is the boot
+ * state: no confirmed reading landed yet (probe in flight, no lens, or
+ * the read failed), so the surface holds DISABLED until one does.
  */
-export type TSubmitGateReason = 'skill-missing' | 'agent-silent';
+export type TSubmitGateReason = 'skill-missing' | 'agent-silent' | 'probe-pending';
 
 @Injectable({ providedIn: 'root' })
 export class ProcessingAgentReadinessService {
@@ -114,6 +121,11 @@ export class ProcessingAgentReadinessService {
   private readonly liveGateReason = computed<TSubmitGateReason | null>(() => {
     if (this._skillMissing() === true) return 'skill-missing';
     if (this._agentAlive() === false) return 'agent-silent';
+    // No confirmed skill reading yet: closed until the boot probe lands
+    // (fail-closed, 2026-08-09). Drainage evidence outranks the pending
+    // probe: a green check or an observed answer proves the whole
+    // pipeline, so `_agentAlive === true` opens without waiting.
+    if (this._skillMissing() === null && this._agentAlive() !== true) return 'probe-pending';
     return null;
   });
 
@@ -130,10 +142,12 @@ export class ProcessingAgentReadinessService {
   private readonly _checkHold = signal<TSubmitGateReason | null>(null);
 
   /**
-   * Why the submit gate is closed, or `null` while it is open. Both
-   * halves fail OPEN on `null` (unknown), so only confirmed readings
-   * ever disable a control. While a manual check is in flight the
-   * reason it started with is latched (see `_checkHold`).
+   * Why the submit gate is closed, or `null` while it is open. An
+   * unknown skill reading closes with `probe-pending` (fail-closed at
+   * boot, 2026-08-09); the check verdict half still fails open on
+   * `null` (no check ever ran) once the skill probe confirmed. While a
+   * manual check is in flight the reason it started with is latched
+   * (see `_checkHold`).
    */
   readonly submitGateReason = computed<TSubmitGateReason | null>(
     () => this._checkHold() ?? this.liveGateReason(),
@@ -241,7 +255,9 @@ export class ProcessingAgentReadinessService {
 
   private async probe(lens: string | null): Promise<void> {
     if (lens === null) {
-      // No lens resolved yet: unknown, so the gate stays open.
+      // No lens resolved yet: unknown, so the gate holds closed
+      // (`probe-pending`) until the boot lens resolution triggers the
+      // real probe.
       this._skillMissing.set(null);
       this._skillStale.set(null);
       return;
@@ -253,8 +269,11 @@ export class ProcessingAgentReadinessService {
       if (untracked(() => this.projectInfo.activeProvider()) !== lens) return;
       this.noteSkillStatus(status);
     } catch {
-      // Unknown, NOT locked: any failure (transport, demo quirks)
-      // resolves to null so the gate fails open.
+      // Unknown: any failure (transport, demo quirks) resolves to null,
+      // which under the 2026-08-09 fail-closed policy keeps the gate
+      // shut with `probe-pending`. The next refresh tick (scan, lens
+      // change, Settings close), a green manual check, or any observed
+      // answer reopens it.
       this._skillMissing.set(null);
       this._skillStale.set(null);
     }

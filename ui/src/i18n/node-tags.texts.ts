@@ -32,6 +32,7 @@ export const NODE_TAGS_TEXTS = {
      */
     tooltipNoAgent: 'Needs a jobs agent',
     tooltipAgentSilent: 'No agent answered the last check',
+    tooltipChecking: 'Checking your agent setup...',
   },
   /** Inline title for the view-mode tag row (renders as `TAGS:`). */
   viewLabel: 'Tags',

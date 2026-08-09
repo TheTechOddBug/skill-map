@@ -150,15 +150,16 @@ export class SettingsProjectPreferences {
 
   /**
    * Project-local skill-actions offering toggle (`skillActions.enabled`,
-   * spec/skill-actions.md §Settings). Default `true`: skills installed
-   * under `.skill-map/.agents/skills/` are offered on every node. Read
-   * defensively so an older envelope that predates the field renders the
-   * switch ON (the server-side default). Not surface-expanding, so no
+   * spec/skill-actions.md §Settings). Default `false` (opt-in): skills
+   * installed under `.skill-map/.agents/skills/` are offered on every
+   * node only after the operator turns this on. Read defensively so an
+   * older envelope that predates the field renders the switch OFF (the
+   * server-side default). Not surface-expanding, so no
    * confirm dialog, and the toggle is read fresh per request server-side,
    * so no restart hint either.
    */
   protected readonly skillActionsEnabled = computed<boolean>(() => {
-    return this.preferences()?.skillActionsEnabled ?? true;
+    return this.preferences()?.skillActionsEnabled ?? false;
   });
 
   /**

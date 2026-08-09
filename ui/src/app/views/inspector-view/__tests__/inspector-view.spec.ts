@@ -27,6 +27,7 @@ import { ProviderRegistryService } from '../../../../services/provider-registry'
 import { ProjectInfoService } from '../../../services/project-info';
 import { ProjectIgnoreService } from '../../../../services/project-ignore';
 import { ProcessingAgentReadinessService } from '../../../services/processing-agent-readiness';
+import { SettingsVisibilityService } from '../../../services/settings-visibility';
 import type { INodeView, ISidecarOverlay } from '../../../../models/node';
 import { activityPairKeyOf } from '../../../../models/api';
 import type {
@@ -3881,8 +3882,23 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     expect(autoFixInput(open.fixture).disabled).toBe(false);
   });
 
-  it('unknown gate (probe failed) FAILS OPEN: nothing is disabled', async () => {
+  /**
+   * Fail-closed at boot (user decision 2026-08-09, superseding the
+   * 2026-07-26 fail-open call): an UNKNOWN reading (probe pending or
+   * failed) disables every submitting control until the automatic probe
+   * confirms the setup, with the dedicated `probe-pending` reason. A
+   * green check verdict (or any observed answer) still opens the gate
+   * without waiting for the skill probe.
+   */
+  it('unknown gate (probe pending / failed) FAILS CLOSED: every submitting control is disabled', async () => {
     const { fixture } = await gateFixture('unknown');
+    for (const testid of SUBMITTING_CONTROLS) {
+      expect(gateButton(fixture, testid).disabled, testid).toBe(true);
+    }
+
+    // Drainage evidence opens it live, no skill probe needed.
+    TestBed.inject(ProcessingAgentReadinessService).noteAgentAlive(true);
+    await flush(fixture);
     for (const testid of SUBMITTING_CONTROLS) {
       expect(gateButton(fixture, testid).disabled, testid).toBe(false);
     }
@@ -3927,6 +3943,26 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     await flush(fixture);
 
     expect(dataSource.getNodeFindings.mock.calls.length).toBeGreaterThan(findingsBefore);
+    expect(dataSource.getNodeProbExtensions.mock.calls.length).toBeGreaterThan(probsBefore);
+  });
+
+  it('re-fetches the launcher catalog when Settings closes (toggles may have changed it)', async () => {
+    const { fixture, dataSource } = await bootAiActions({
+      probs: makeProbExtensions({ finders: [makeProbEntry()] }),
+    });
+    const probsBefore = dataSource.getNodeProbExtensions.mock.calls.length;
+
+    vi.useFakeTimers();
+    try {
+      // The app shell ticks this on modal close; plugin extension
+      // toggles and the skill-actions offering live in that modal.
+      TestBed.inject(SettingsVisibilityService).notifyClosed();
+      vi.advanceTimersByTime(400);
+    } finally {
+      vi.useRealTimers();
+    }
+    await flush(fixture);
+
     expect(dataSource.getNodeProbExtensions.mock.calls.length).toBeGreaterThan(probsBefore);
   });
 

@@ -114,7 +114,7 @@ describe('GET /api/project-preferences', () => {
           confirmIgnore: true,
         },
         mcpServerEnabled: false,
-        skillActionsEnabled: true,
+        skillActionsEnabled: false,
       });
     });
   });
@@ -410,25 +410,8 @@ describe('PATCH /api/project-preferences (skillActionsEnabled)', () => {
     });
   });
 
-  it('writes the offering toggle to settings.local.json (per-operator), no confirm', async () => {
+  it('writes the opt-in to settings.local.json (per-operator), no confirm', async () => {
     await boot(async (handle) => {
-      const res = await fetch(url(handle, '/api/project-preferences'), {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ skillActionsEnabled: false }),
-      });
-      assert.equal(res.status, 200);
-      const env = (await res.json()) as IProjectPrefsEnvelopeWire;
-      assert.equal(env.skillActionsEnabled, false);
-      const local = JSON.parse(readFileSync(join(cwd, '.skill-map/settings.local.json'), 'utf8'));
-      assert.equal(local.skillActions.enabled, false);
-    });
-  });
-
-  it('GET reflects the persisted toggle and a flip back restores it', async () => {
-    await boot(async (handle) => {
-      const before = (await (await fetch(url(handle, '/api/project-preferences'))).json()) as IProjectPrefsEnvelopeWire;
-      assert.equal(before.skillActionsEnabled, false);
       const res = await fetch(url(handle, '/api/project-preferences'), {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
@@ -437,6 +420,23 @@ describe('PATCH /api/project-preferences (skillActionsEnabled)', () => {
       assert.equal(res.status, 200);
       const env = (await res.json()) as IProjectPrefsEnvelopeWire;
       assert.equal(env.skillActionsEnabled, true);
+      const local = JSON.parse(readFileSync(join(cwd, '.skill-map/settings.local.json'), 'utf8'));
+      assert.equal(local.skillActions.enabled, true);
+    });
+  });
+
+  it('GET reflects the persisted opt-in and a flip back restores the default', async () => {
+    await boot(async (handle) => {
+      const before = (await (await fetch(url(handle, '/api/project-preferences'))).json()) as IProjectPrefsEnvelopeWire;
+      assert.equal(before.skillActionsEnabled, true);
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ skillActionsEnabled: false }),
+      });
+      assert.equal(res.status, 200);
+      const env = (await res.json()) as IProjectPrefsEnvelopeWire;
+      assert.equal(env.skillActionsEnabled, false);
     });
   });
 });

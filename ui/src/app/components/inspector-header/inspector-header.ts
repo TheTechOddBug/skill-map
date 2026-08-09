@@ -219,6 +219,7 @@ export class InspectorHeader {
       // agent" are different actions for the operator.
       const reason = this.processingAgent.submitGateReason();
       if (reason === 'agent-silent') return t.tooltipAgentSilent;
+      if (reason === 'probe-pending') return t.tooltipChecking;
       return t.tooltipNoAgent;
     }
     switch (this.summaryState()) {

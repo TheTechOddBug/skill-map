@@ -18,7 +18,7 @@
  */
 
 import { grantTrust } from '../../../../kernel/config/plugin-trust-store.js';
-import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,6 +26,7 @@ import { fileURLToPath } from 'node:url';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 
 import { installAgentSkill } from '../../../../core/agent-skill/engine.js';
+import { writeConfigValue } from '../../../../core/config/helper.js';
 import { SqliteStorageAdapter } from '../../../../kernel/adapters/sqlite/index.js';
 import { replaceFindingsForNode, type IFindingInsertRow } from '../../../../kernel/adapters/sqlite/findings.js';
 import { sha256 } from '../../../../kernel/orchestrator/node-build.js';
@@ -174,6 +175,16 @@ export function installSkillAction(
     join(dir, 'SKILL.md'),
     `---\nname: ${name}\ndescription: ${opts.description ?? `Skill ${name}.`}\nversion: ${opts.version ?? '1.0.0'}\n---\n${opts.body ?? `Body of skill ${name}.\n`}`,
   );
+  // The offering toggle defaults OFF (spec/skill-actions.md §Settings):
+  // a test that installs a skill wants it OFFERED, so opt the project in
+  // through `writeConfigValue`, the SAME blessed path the Settings
+  // toggle uses. A hand-written settings.local.json would be IGNORED:
+  // project-local-only keys are consent-gated per copy of the project,
+  // and only the blessed write path records the grant.
+  writeConfigValue('skillActions.enabled', true, {
+    target: 'project-local',
+    cwd: project.root,
+  });
 }
 
 /**

@@ -35,7 +35,7 @@
 
 import { assertInInjectionContext, computed, effect, signal, type Signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { debounceTime, merge, type Observable } from 'rxjs';
+import { EMPTY, debounceTime, merge, type Observable } from 'rxjs';
 
 import type {
   IFindingApi,
@@ -90,6 +90,15 @@ export interface IAiActionsSetupDeps {
   jobEvents$: Observable<IWsEvent>;
   /** Watcher re-scan signal, findings staleness derives from the scan. */
   scanCompleted$: Observable<IWsScanCompletedEvent>;
+  /**
+   * Settings-modal close tick (`SettingsVisibilityService.closed$`):
+   * Settings is where the launcher catalog's inputs get mutated (plugin
+   * extension toggles, the skill-actions offering toggle), so a close
+   * joins the live-refresh sources and the open node's catalog re-reads
+   * immediately instead of waiting for the next selection or job event.
+   * Optional so tests can omit it, like `announce`.
+   */
+  settingsClosed$?: Observable<void>;
   /**
    * The app-level processing-agent gate
    * (`ProcessingAgentReadinessService.skillMissing`), threaded by the
@@ -491,10 +500,12 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     void probeAgentPresence();
   });
 
-  // Live refresh: any job lifecycle frame or a completed re-scan makes
-  // the tray stale (new findings recorded, queue state moved, fixer
-  // visibility changed). One debounced re-fetch of both reads.
-  merge(deps.jobEvents$, deps.scanCompleted$)
+  // Live refresh: any job lifecycle frame, a completed re-scan, or a
+  // Settings close makes the tray stale (new findings recorded, queue
+  // state moved, fixer visibility changed, an extension or the
+  // skill-actions offering toggled). One debounced re-fetch of both
+  // reads.
+  merge(deps.jobEvents$, deps.scanCompleted$, deps.settingsClosed$ ?? EMPTY)
     .pipe(debounceTime(AI_ACTIONS_LIVE_REFRESH_DEBOUNCE_MS), takeUntilDestroyed())
     .subscribe(() => {
       // Agent presence IS re-probed here: a `job.claimed` frame is

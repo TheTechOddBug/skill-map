@@ -37,6 +37,7 @@ import { ProjectIgnoreService } from '../../../services/project-ignore';
 import { cssKindNameOrFallback } from '../../../services/css-guard';
 import { ProviderRegistryService } from '../../../services/provider-registry';
 import { ProcessingAgentReadinessService } from '../../services/processing-agent-readiness';
+import { SettingsVisibilityService } from '../../services/settings-visibility';
 import { UsageTrackerService } from '../../services/usage-tracker';
 import {
   AnnotationsPanel,
@@ -124,6 +125,7 @@ export class InspectorView implements OnInit {
   private readonly actionDispatch = inject(ActionDispatchService);
   private readonly providerRegistry = inject(ProviderRegistryService);
   private readonly processingAgent = inject(ProcessingAgentReadinessService);
+  private readonly settingsVisibility = inject(SettingsVisibilityService);
   private readonly usageTracker = inject(UsageTrackerService);
   protected readonly projectIgnore = inject(ProjectIgnoreService);
   private readonly announcer = inject(A11yAnnouncerService);
@@ -445,6 +447,10 @@ export class InspectorView implements OnInit {
     dataSource: this.dataSource,
     jobEvents$: this.wsEvents.jobEvents$,
     scanCompleted$: this.wsEvents.scanCompleted$,
+    // Settings close re-reads the launcher catalog: plugin extension
+    // toggles and the skill-actions offering are flipped in that modal,
+    // and the server recomposes both from live config per request.
+    settingsClosed$: this.settingsVisibility.closed$,
     // The shared readiness service drives the first heads-up warning
     // and, through `submitGateClosed`, the disabled state of every
     // submitting control (see the AI actions section). The second

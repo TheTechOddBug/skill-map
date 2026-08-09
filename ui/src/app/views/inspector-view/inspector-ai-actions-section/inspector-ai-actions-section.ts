@@ -319,6 +319,8 @@ export class InspectorAiActionsSection {
         return this.texts.aiActions.autoFix.tooltipNoAgent;
       case 'agent-silent':
         return this.texts.aiActions.autoFix.tooltipAgentSilent;
+      case 'probe-pending':
+        return this.texts.aiActions.autoFix.tooltipChecking;
       default:
         return this.texts.aiActions.autoFix.tooltip;
     }

@@ -37,6 +37,7 @@ export const INSPECTOR_VIEW_TEXTS = {
        */
       tooltipNoAgent: 'Needs a jobs agent',
       tooltipAgentSilent: 'No agent answered the last check',
+      tooltipChecking: 'Checking your agent setup...',
       tooltipQueued: 'Analysis queued',
       tooltipRunning: 'Analyzing…',
       tooltipReady: 'Show / hide the semantic analysis',
@@ -144,6 +145,7 @@ export const INSPECTOR_VIEW_TEXTS = {
        */
       tooltipNoAgent: 'Needs a jobs agent',
       tooltipAgentSilent: 'No agent answered the last check',
+      tooltipChecking: 'Checking your agent setup...',
     },
     /**
      * Finder button action names (tooltip prefix): Detect runs the

@@ -27,7 +27,7 @@
   },
   "plugins": {},
   "skillActions": {
-    "enabled": true
+    "enabled": false
   },
   "jobs": {
     "claimWaitSeconds": 2,
