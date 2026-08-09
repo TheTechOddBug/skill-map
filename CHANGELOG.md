@@ -6,6 +6,23 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>1.6.5</b> · 2026-08-09</summary>
+
+### CLI Patch
+- The map now flashes a node once (~1s, theme primary color) when the live watcher detects its file changed on disk, gated by the new project-local `ui.changeSpark` preference (default on) and suppressed around agent activity so the executing glow never double-flashes. `scan.started` now reports its real `{ mode, roots }` payload (`changed` on watcher file-change batches, `full` otherwise) and `scan.progress` documents the actual per-node shape with `cached` / `partialCache` semantics.
+- Confirmation dialogs now share one global width band (512-1024px, viewport-capped): every PrimeNG confirm gate plus the sidecar-consent, crash-report, and action-prompt dialogs. The consent dialogs' former `:host ::ng-deep` sizing never reached their body-portaled dialog root, so they stretched as wide as their copy, while the follow-symlinks gate sat below the new floor.
+- The files rail's file and folder rows and the inspector header gain an Ignore button that appends a root-anchored pattern to the project-root `.skillmapignore` through the existing `PATCH /api/project-ignore`, fronted by a confirmation dialog whose don't-ask-again checkbox persists the new project-local `ui.confirmIgnore` key (default `true` = ask); duplicates resolve silently, demo mode hides the buttons, and the gesture rides telemetry as `ui.feature.ignore-path`, never the path.
+- The inspector's AI Actions section now renders the Standalone launcher group above Finders, so single-action buttons surface before the two-state Detect/Fix pairs.
+- Rule 6 of `spec/telemetry.md` §Per-incident crash-report consent now excludes UI module-load failures: a dynamically imported chunk that fails to fetch (the three browser phrasings, matched on the error message) never opens the crash-report consent dialog, since the crash is environmental (serving process gone or a stale cached shell) with nothing actionable to report; the UI early-returns on that class and the error still reaches the console.
+
+### Spec Patch (1.8.4)
+- The map now flashes a node once (~1s, theme primary color) when the live watcher detects its file changed on disk, gated by the new project-local `ui.changeSpark` preference (default on) and suppressed around agent activity so the executing glow never double-flashes. `scan.started` now reports its real `{ mode, roots }` payload (`changed` on watcher file-change batches, `full` otherwise) and `scan.progress` documents the actual per-node shape with `cached` / `partialCache` semantics.
+- The files rail's file and folder rows and the inspector header gain an Ignore button that appends a root-anchored pattern to the project-root `.skillmapignore` through the existing `PATCH /api/project-ignore`, fronted by a confirmation dialog whose don't-ask-again checkbox persists the new project-local `ui.confirmIgnore` key (default `true` = ask); duplicates resolve silently, demo mode hides the buttons, and the gesture rides telemetry as `ui.feature.ignore-path`, never the path.
+- Rule 6 of `spec/telemetry.md` §Per-incident crash-report consent now excludes UI module-load failures: a dynamically imported chunk that fails to fetch (the three browser phrasings, matched on the error message) never opens the crash-report consent dialog, since the crash is environmental (serving process gone or a stale cached shell) with nothing actionable to report; the UI early-returns on that class and the error still reaches the console.
+
+</details>
+
+<details>
 <summary><b>1.6.4</b> · 2026-08-09</summary>
 
 ### CLI Patch

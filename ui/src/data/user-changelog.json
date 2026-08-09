@@ -2,6 +2,40 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.6.5",
+      "date": "2026-08-09",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**See file changes on the map.** When a file changes on disk (your editor saving, a git pull), its node now flashes briefly in your theme color so you notice the update. Your agent activity glow always wins. Turn it off in Settings > Project with Flash on file changes.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Confirmation dialogs (like the companion-file write consent) no longer stretch across the whole window: they now stay between 512 and 1024 pixels wide, sizing to their content within that range.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Ignore files without leaving the map.** Ignore a file or folder right from the files list or the inspector header: a new button adds it to `.skillmapignore` after a confirmation, with a don't-ask-again option. Bring it back anytime from Settings > Project.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**No crash-report prompt when the server is gone.** If a page fails to load because `sm serve` is not running (or the browser kept an old copy of the app), skill-map no longer asks to send a crash report; the server being unreachable is not a bug worth reporting.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.6.4",
       "date": "2026-08-09",
       "kind": "user-facing",

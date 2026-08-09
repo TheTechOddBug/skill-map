@@ -1,5 +1,27 @@
 # Spec changelog
 
+## 1.8.4
+
+### Patch Changes
+
+- The map now flashes a node once (~1s, theme primary color) when the live watcher detects its file changed on disk, gated by the new project-local `ui.changeSpark` preference (default on) and suppressed around agent activity so the executing glow never double-flashes. `scan.started` now reports its real `{ mode, roots }` payload (`changed` on watcher file-change batches, `full` otherwise) and `scan.progress` documents the actual per-node shape with `cached` / `partialCache` semantics.
+
+  ## User-facing
+
+  **See file changes on the map.** When a file changes on disk (your editor saving, a git pull), its node now flashes briefly in your theme color so you notice the update. Your agent activity glow always wins. Turn it off in Settings > Project with Flash on file changes.
+
+- The files rail's file and folder rows and the inspector header gain an Ignore button that appends a root-anchored pattern to the project-root `.skillmapignore` through the existing `PATCH /api/project-ignore`, fronted by a confirmation dialog whose don't-ask-again checkbox persists the new project-local `ui.confirmIgnore` key (default `true` = ask); duplicates resolve silently, demo mode hides the buttons, and the gesture rides telemetry as `ui.feature.ignore-path`, never the path.
+
+  ## User-facing
+
+  **Ignore files without leaving the map.** Ignore a file or folder right from the files list or the inspector header: a new button adds it to `.skillmapignore` after a confirmation, with a don't-ask-again option. Bring it back anytime from Settings > Project.
+
+- Rule 6 of `spec/telemetry.md` §Per-incident crash-report consent now excludes UI module-load failures: a dynamically imported chunk that fails to fetch (the three browser phrasings, matched on the error message) never opens the crash-report consent dialog, since the crash is environmental (serving process gone or a stale cached shell) with nothing actionable to report; the UI early-returns on that class and the error still reaches the console.
+
+  ## User-facing
+
+  **No crash-report prompt when the server is gone.** If a page fails to load because `sm serve` is not running (or the browser kept an old copy of the app), skill-map no longer asks to send a crash report; the server being unreachable is not a bug worth reporting.
+
 ## 1.8.3
 
 ### Patch Changes
