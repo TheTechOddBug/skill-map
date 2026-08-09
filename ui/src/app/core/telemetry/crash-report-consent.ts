@@ -19,7 +19,10 @@
  *
  * Demo mode (`SKILL_MAP_MODE === 'demo'`, the public static bundle) is
  * fully suppressed: there is no BFF to read preferences from and the
- * showcase must never interrupt with consent dialogs.
+ * showcase must never interrupt with consent dialogs. Module-load
+ * failures (a lazy chunk that fails to fetch, spec rule 6) never open
+ * the dialog either: the crash is environmental (server gone, stale
+ * cached shell), not a defect worth a report.
  */
 
 import { Injectable, inject, signal } from '@angular/core';
@@ -39,6 +42,25 @@ export interface ICrashConsentConfig {
    * `null` (health failed) falls back to home-only scrubbing.
    */
   projectRoot: string | null;
+}
+
+/**
+ * Module-load failures excluded from the consent flow
+ * (`spec/telemetry.md` §Per-incident crash-report consent, rule 6): a
+ * lazy chunk that fails to fetch means the serving process is gone or a
+ * cached shell went stale, not a defect in the running code, so there
+ * is nothing actionable to report (and typically no server behind the
+ * page anyway). The three phrasings are Chrome/Edge, Firefox, and
+ * Safari for the same native dynamic-import failure; matched against
+ * the message so a wrapped rejection (`Uncaught (in promise): ...`)
+ * is caught too.
+ */
+const MODULE_LOAD_FAILURE =
+  /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/;
+
+function isModuleLoadFailure(error: unknown): boolean {
+  if (error instanceof Error) return MODULE_LOAD_FAILURE.test(error.message);
+  return typeof error === 'string' && MODULE_LOAD_FAILURE.test(error);
 }
 
 /** Session dedupe key: enough to collapse a re-thrown CD-loop error. */
@@ -90,11 +112,14 @@ export class CrashReportConsentService {
 
   /**
    * Entry point for the `ErrorHandler`: maybe open the consent dialog for
-   * this error. Suppressed wholesale in demo mode and while the DSN is
-   * dormant; deduped per session; dropped while another dialog is open.
+   * this error. Suppressed wholesale in demo mode, while the DSN is
+   * dormant, and for module-load failures (an environmental crash, not a
+   * code defect); deduped per session; dropped while another dialog is
+   * open.
    */
   offer(error: unknown): void {
     if (this.mode === 'demo' || !isUiDsnConfigured()) return;
+    if (isModuleLoadFailure(error)) return;
     const key = crashKey(error);
     if (this.seen.has(key) || this.openSig()) return;
     this.seen.add(key);

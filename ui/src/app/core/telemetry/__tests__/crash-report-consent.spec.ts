@@ -97,6 +97,28 @@ describe('CrashReportConsentService', () => {
     expect(svc.open()).toBe(false);
   });
 
+  it('never offers a module-load failure (server gone / stale cached shell), any browser phrasing', () => {
+    const svc = bootstrap();
+    svc.offer(
+      new TypeError(
+        'Failed to fetch dynamically imported module: http://localhost:4200/@ng/component?c=x',
+      ),
+    );
+    expect(svc.open()).toBe(false);
+    svc.offer(new TypeError('error loading dynamically imported module: http://localhost:4200/x'));
+    expect(svc.open()).toBe(false);
+    svc.offer(new TypeError('Importing a module script failed.'));
+    expect(svc.open()).toBe(false);
+  });
+
+  it('a genuine error still asks after a suppressed module-load failure', () => {
+    const svc = bootstrap();
+    svc.offer(new TypeError('Failed to fetch dynamically imported module: http://localhost:4200/x'));
+    expect(svc.open()).toBe(false);
+    svc.offer(boom('real defect'));
+    expect(svc.open()).toBe(true);
+  });
+
   it('a decline resolves cleanly and clears the pending state', async () => {
     const svc = bootstrap();
     svc.offer(boom('to-decline'));

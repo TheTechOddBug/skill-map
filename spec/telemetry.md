@@ -143,8 +143,15 @@ errors surface; it governs only the **non-interactive fallback**:
    and unhandled rejections; the process exits `1` after the flow) and
    per-verb errors caught by the command boundary (the documented exit code
    `2` is unchanged). UI: unhandled runtime errors reaching the Angular
-   `ErrorHandler`. The BFF (`sm serve`) is excluded: it has no interactive
-   operator to ask and keeps the toggle-only model.
+   `ErrorHandler`, EXCEPT module-load failures: a dynamically imported chunk
+   that fails to fetch (the native-import failure in its browser phrasings,
+   `Failed to fetch dynamically imported module`, `error loading dynamically
+   imported module`, `Importing a module script failed`) means the serving
+   process is gone or a cached shell went stale, not a defect in the running
+   code, so there is nothing actionable to report (and typically no server
+   behind the page anyway); the consent dialog MUST NOT open for that class,
+   the error still reaches the console. The BFF (`sm serve`) is excluded: it
+   has no interactive operator to ask and keeps the toggle-only model.
 7. **Scrubbed preview.** The prompt MUST offer a details view rendering the
    would-be payload after the same pure scrubber that runs in the pre-send
    hook, so the operator can inspect what would leave the machine before
