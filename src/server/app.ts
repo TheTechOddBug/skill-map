@@ -72,6 +72,7 @@ import {
   type IPluginRuntime,
 } from '../core/runtime/plugin-runtime.js';
 import type { IRuntimeContext } from '../core/runtime/runtime-context.js';
+import type { ISkillActionCatalog } from '../core/skill-actions/catalog.js';
 import { ExportQueryError } from '../kernel/index.js';
 import type { Kernel } from '../kernel/index.js';
 import { log } from '../kernel/util/logger.js';
@@ -535,6 +536,13 @@ export interface IAppDeps {
    */
   watcherHolder: IWatcherServiceHolder;
   /**
+   * Boot-discovered skill-action catalog (`spec/skill-actions.md`),
+   * assembled ONCE by the composition root next to the plugin runtime
+   * and forwarded verbatim into `IRouteDeps.skillActionCatalog` (see
+   * `routes/deps.ts` for the boot-frozen contract).
+   */
+  skillActionCatalog: ISkillActionCatalog;
+  /**
    * Kernel instance owned by the BFF, instantiated once at boot,
    * stamped with the runtime annotation catalog via
    * `setRegisteredAnnotationKeys(pluginRuntime.annotationContributions)`,
@@ -690,6 +698,7 @@ export function createApp(deps: IAppDeps): Hono {
     },
     configService,
     watcherHolder: deps.watcherHolder,
+    skillActionCatalog: deps.skillActionCatalog,
   };
   registerScanRoute(app, { ...routeDeps, broadcaster: deps.broadcaster });
   registerNodesRoutes(app, routeDeps);

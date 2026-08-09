@@ -39,6 +39,7 @@ import {
   buildCurrentTagsSection,
   buildFindingsSection,
   buildIssuesSection,
+  buildSkillSection,
   computeContentHash,
   computePromptTemplateHash,
   generateJobId,
@@ -47,6 +48,9 @@ import {
   InvalidTtlError,
   isTagsReportSchema,
   loadCanonicalPreamble,
+  loadCanonicalSkillTemplate,
+  loadSkillActionReportSchema,
+  loadSkillActionReportSchemaText,
   nodelessTarget,
   buildReportContract,
   renderJobContent,
@@ -56,6 +60,7 @@ import {
   selectCurrentTags,
   selectFixerFindings,
   selectFixerIssues,
+  type TResolvableAction,
 } from '../../kernel/jobs/index.js';
 import { sha256 } from '../../kernel/orchestrator/node-build.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
@@ -65,6 +70,7 @@ import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import type { IActionRuntime } from './action-runtime.js';
 import { referencedAnalyzerMode, type TAnalyzerMode } from './analyzer-mode.js';
 import { SUBMIT_ENGINE_TEXTS as T } from './i18n/submit-engine.texts.js';
+import { isSkillActionId, type ISkillActionCatalog } from '../skill-actions/catalog.js';
 
 /**
  * Match a node against an extension precondition (the `sm jobs submit
@@ -291,6 +297,16 @@ export interface ISubmitContext {
   promptTemplate: string;
   preamble: string;
   /**
+   * Rendered skill-instructions section (`buildSkillSection`,
+   * `spec/skill-actions.md`). Present ONLY for a SKILL-ACTION submit
+   * (`skill:<name>` target): the installed skill's body under the
+   * kernel-authored framing, injected FIRST at the `{{userContent}}`
+   * seam and folded into `promptTemplateHash` at prepare time (so
+   * editing a `SKILL.md` byte re-keys `contentHash`). Absent for every
+   * extension target.
+   */
+  skillSection?: string;
+  /**
    * Rendered report-contract section (`spec/job-lifecycle.md` §Submit
    * step 9): the extension's report schema chain, inlined verbatim so
    * the job is self-contained. Renders before the `<user-content>`
@@ -407,6 +423,10 @@ async function resolveJobRenderInputs(
     promptTemplateHash: computePromptTemplateHash({
       preamble: prepared.preamble,
       template: prepared.promptTemplate,
+      // Unreachable for a skill submit today (never a fixer, never a
+      // tagger, so the fast path above always reuses the prepared hash),
+      // but the formula stays consistent whichever branch runs.
+      ...(prepared.skillSection !== undefined ? { skillSection: prepared.skillSection } : {}),
       ...(findingsSection !== undefined ? { findingsSection } : {}),
       ...(currentTagsSection !== undefined ? { currentTagsSection } : {}),
       reportContract: prepared.reportContract,
@@ -597,8 +617,8 @@ async function insertFixerJobRow(
  * Render the stored content blob from the verified body + the resolved
  * per-node sections. Each kernel-authored section is passed only when it
  * exists (`exactOptionalPropertyTypes`), and `renderJobContent` owns their
- * order at the `{{userContent}}` seam: findings, current tags, report
- * contract, then the `<user-content>` block.
+ * order at the `{{userContent}}` seam: skill instructions, findings,
+ * current tags, report contract, then the `<user-content>` block.
  */
 function renderContent(
   node: Node,
@@ -611,6 +631,7 @@ function renderContent(
     nodeBody: body,
     promptTemplate: prepared.promptTemplate,
     preamble: prepared.preamble,
+    ...(prepared.skillSection !== undefined ? { skillSection: prepared.skillSection } : {}),
     ...(inputs.findingsSection !== undefined ? { findingsSection: inputs.findingsSection } : {}),
     ...(inputs.currentTagsSection !== undefined
       ? { currentTagsSection: inputs.currentTagsSection }
@@ -738,9 +759,10 @@ export type TPrepareError =
   | { kind: 'invalid-ttl'; message: string }
   | { kind: 'invalid-priority'; message: string }
   /**
-   * `findingIds` on a target that cannot honour it: a non-fixer, or a
+   * `findingIds` on a target that cannot honour it: a non-fixer, a
    * deterministic-analyzer fixer whose triggers are `scan_issues` rows
-   * (no stable ids). Usage error (exit 2 / 400),
+   * (no stable ids), or a skill action (no fixer injection at all,
+   * `spec/skill-actions.md` §HTTP surface). Usage error (exit 2 / 400),
    * `spec/job-lifecycle.md` §Finding-subset targeting.
    */
   | { kind: 'finding-ids-unsupported' };
@@ -750,17 +772,18 @@ export type TPrepareOutcome =
   | { ok: false; error: TPrepareError };
 
 /**
- * Resolve the submit target (probabilistic Action or finder Analyzer,
- * `spec/cli-contract.md` §Jobs) and prepare the constant-across-fan-out
- * submit context: prompt template, report contract, preamble, TTL /
- * priority, hashes, and the fixer `analyzerIds`. PURE (no printing, no DB):
- * every failure returns a structured `TPrepareError` so every caller, the
- * CLI command's `failPrepare`, the hook's `submitFixerJob`, and the BFF
- * submit route, decides how to surface it. This is the extraction that
- * keeps `sm jobs submit` byte-identical while letting the auto-fix hook
- * render a real, injected, superseding fixer job (not a bare row).
+ * Success / failure shape when the caller supplies a skill catalog
+ * (`spec/skill-actions.md`): a `skill:` hit resolves against the catalog,
+ * not the extension registries, so there is no manifest object to return
+ * and `extension` widens to `null`. Callers that never pass a catalog
+ * (the CLI verb, the MCP tool, the auto-fix hook, the boot ping) keep
+ * the narrow `TPrepareOutcome` through the overloads below.
  */
-export function prepareSubmitContext(opts: {
+export type TSkillAwarePrepareOutcome =
+  | { ok: true; extension: TQueueableExtension | null; prepared: ISubmitContext }
+  | { ok: false; error: TPrepareError };
+
+export interface IPrepareSubmitOpts {
   runtime: IActionRuntime;
   jobs: IJobsConfig;
   extensionId: string;
@@ -782,7 +805,49 @@ export function prepareSubmitContext(opts: {
    * rendered section are deterministic regardless of input order.
    */
   findingIds?: readonly number[];
-}): TPrepareOutcome {
+  /**
+   * Boot-frozen skill-action catalog (`spec/skill-actions.md`). Supplied
+   * by the BFF submit route ONLY: a `skill:<name>` target resolves
+   * against it before the extension registries are ever consulted. Absent
+   * on every other surface, which makes the `skill:` prefix RESERVED
+   * there (the CLI's exit-5 refusal, `spec/cli-contract.md` §Jobs): the
+   * prefix routes into the skill branch and the missing catalog misses.
+   */
+  skillCatalog?: ISkillActionCatalog;
+}
+
+/**
+ * Resolve the submit target (probabilistic Action or finder Analyzer,
+ * `spec/cli-contract.md` §Jobs; or a `skill:<name>` skill action when a
+ * catalog is supplied, `spec/skill-actions.md`) and prepare the
+ * constant-across-fan-out submit context: prompt template, report
+ * contract, preamble, TTL / priority, hashes, and the fixer
+ * `analyzerIds`. PURE (no printing, no DB): every failure returns a
+ * structured `TPrepareError` so every caller, the CLI command's
+ * `failPrepare`, the hook's `submitFixerJob`, and the BFF submit route,
+ * decides how to surface it. This is the extraction that keeps
+ * `sm jobs submit` byte-identical while letting the auto-fix hook render
+ * a real, injected, superseding fixer job (not a bare row).
+ */
+export function prepareSubmitContext(
+  opts: IPrepareSubmitOpts & { skillCatalog: ISkillActionCatalog },
+): TSkillAwarePrepareOutcome;
+export function prepareSubmitContext(opts: IPrepareSubmitOpts): TPrepareOutcome;
+export function prepareSubmitContext(opts: IPrepareSubmitOpts): TSkillAwarePrepareOutcome {
+  // The `skill:` prefix NEVER reaches extension target resolution (and an
+  // unprefixed id never matches a skill), so no ambiguity can arise
+  // between the two namespaces (`spec/skill-actions.md` §Identity).
+  return isSkillActionId(opts.extensionId)
+    ? prepareSkillContext(opts)
+    : prepareExtensionContext(opts);
+}
+
+/**
+ * The extension branch of `prepareSubmitContext` (the historical body,
+ * verbatim): resolve across the probabilistic Action / Analyzer
+ * catalogs, then assemble the constant-across-fan-out context.
+ */
+function prepareExtensionContext(opts: IPrepareSubmitOpts): TPrepareOutcome {
   const target = resolveQueueTarget(opts.runtime, opts.extensionId);
   if (!target.ok) return target;
   const { extension, qualified, extensionKind, dir } = target;
@@ -840,6 +905,91 @@ export function prepareSubmitContext(opts: {
 }
 
 /**
+ * The `skill:` branch of `prepareSubmitContext` (`spec/skill-actions.md`).
+ * Resolves the target against the boot-frozen catalog instead of the
+ * extension registries: a miss (unknown name, or a surface without a
+ * catalog at all) is the same `not-found` outcome an unknown extension
+ * gets. A hit builds the context from the canonical substitutes: the
+ * wrapper template and the report schema are spec constants (skills
+ * carry no `prompt.md` / `report.schema.json`), the discovery-cached
+ * body rides as the skill-instructions section, and the section folds
+ * into `promptTemplateHash` at prepare time so a `SKILL.md` edit
+ * re-keys `contentHash` (§Hashing). The canonical schema `$ref`s only
+ * `report-base.schema.json` (no summaries / findings / tags namespace),
+ * so `isTagger` is false by construction and a completed record writes
+ * the execution row only. `autoFix` clamps false (kind `action` never
+ * chains); `findingIds` refuses with the same invalid-request outcome a
+ * non-fixer extension target gets (no fixer injection to narrow), per
+ * §HTTP surface.
+ */
+function prepareSkillContext(opts: IPrepareSubmitOpts): TSkillAwarePrepareOutcome {
+  const entry = opts.skillCatalog?.byId.get(opts.extensionId);
+  if (entry === undefined) return { ok: false, error: { kind: 'not-found' } };
+  if (opts.findingIds !== undefined) {
+    return { ok: false, error: { kind: 'finding-ids-unsupported' } };
+  }
+  const scheduling = resolveSchedulingKnobs(
+    skillSchedulingRef(entry.id),
+    opts.jobs,
+    opts.flagTtl,
+    opts.flagPriority,
+  );
+  if ('error' in scheduling) return { ok: false, error: scheduling.error };
+  const preamble = loadCanonicalPreamble();
+  const promptTemplate = loadCanonicalSkillTemplate();
+  const skillSection = buildSkillSection(entry);
+  const reportContract = buildReportContract({
+    schemaText: loadSkillActionReportSchemaText(),
+    schema: loadSkillActionReportSchema(),
+  });
+  const prepared: ISubmitContext = {
+    // The `skill:` id verbatim: it freezes onto `state_jobs.extension_id`
+    // and routes record-time report resolution (`resolveExtensionRecord`).
+    extensionId: entry.id,
+    extensionVersion: entry.version,
+    // Frozen `action`: a skill action behaves exactly like a probabilistic
+    // Action end to end; the prefix carries the real provenance
+    // (`spec/skill-actions.md` §Identity and version).
+    extensionKind: 'action',
+    autoFix: resolveAutoFixFlag('action', opts.autoFix),
+    promptTemplate,
+    preamble,
+    skillSection,
+    reportContract,
+    isTagger: false,
+    analyzerIds: undefined,
+    analyzerMode: undefined,
+    findingIds: undefined,
+    promptTemplateHash: computePromptTemplateHash({
+      preamble,
+      template: promptTemplate,
+      skillSection,
+      reportContract,
+    }),
+    ttlSeconds: scheduling.ttlSeconds,
+    priority: scheduling.priority,
+    cwd: opts.cwd,
+    force: opts.force,
+    providers: opts.runtime.providers,
+    nodeless: false,
+  };
+  return { ok: true, extension: null, prepared };
+}
+
+/**
+ * The minimal `{ id, pluginId }` ref the TTL / priority resolvers take
+ * for a skill target. `pluginId` is empty by construction (a skill has
+ * no plugin): the qualified-id leg of the config lookup composes
+ * `/skill:<name>`, which matches nothing, and the bare-id leg resolves
+ * `jobs.perExtensionTtl` / `jobs.perExtensionPriority` keys written as
+ * the full `skill:<name>` id, so operator config keyed by the submit
+ * target resolves through the existing lookup.
+ */
+function skillSchedulingRef(id: string): TResolvableAction {
+  return { id, pluginId: '' };
+}
+
+/**
  * True when the resolved target is a NODELESS Action (`probNodeless`,
  * `spec/job-lifecycle.md` §Submit · Nodeless submit). Analyzers are always
  * per-node (a finder judges a node), so only Actions can declare it.
@@ -854,10 +1004,12 @@ function isNodelessTarget(
 /**
  * Resolve the TTL + priority knobs, mapping their typed failures to the
  * structured prepare errors (extracted so `prepareSubmitContext` stays
- * inside the complexity cap).
+ * inside the complexity cap). Takes the minimal `TResolvableAction` ref
+ * (satisfied by both queueable kinds AND the synthetic skill ref) so the
+ * skill branch resolves through the exact same config lookup.
  */
 function resolveSchedulingKnobs(
-  extension: TQueueableExtension,
+  extension: TResolvableAction,
   jobs: IJobsConfig,
   flagTtl: number | undefined,
   flagPriority: number | undefined,

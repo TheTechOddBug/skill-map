@@ -63,29 +63,40 @@ function sha256Hex(data: string): string {
 
 /**
  * `promptTemplateHash` = sha256 of the kernel-authored prelude: the
- * canonical preamble, the raw extension template (`prompt.md`), the
- * findings-to-resolve section (fixer jobs ONLY, `findings-injection.ts`),
- * the current-tags section (tagger jobs ONLY,
- * `current-tags-injection.ts`), and the report-contract section,
+ * canonical preamble, the raw extension template (`prompt.md`; the
+ * canonical wrapper template for a skill-action job), the
+ * skill-instructions section (skill-action jobs ONLY,
+ * `skill-injection.ts`), the findings-to-resolve section (fixer jobs
+ * ONLY, `findings-injection.ts`), the current-tags section (tagger jobs
+ * ONLY, `current-tags-injection.ts`), and the report-contract section,
  * concatenated in that fixed order, the SAME order they render in
  * (`spec/prompt-preamble.md`: "the preamble + extension template + the
- * findings-to-resolve section for fixer jobs + report-contract blocks").
+ * findings-to-resolve section for fixer jobs + report-contract blocks";
+ * `spec/skill-actions.md` §Hashing for the skill fold).
  * Direct concatenation, no separator: the fixed order keeps it
  * deterministic. Folding the whole prelude in is the point (see file
  * docstring): a preamble bump, a report-schema edit, a changed finding
- * set, OR a changed tag set changes this hash and therefore the downstream
- * `contentHash`.
+ * set, a changed tag set, OR a single edited `SKILL.md` byte changes
+ * this hash and therefore the downstream `contentHash`.
  *
- * NON-FIXER / NON-TAGGER invariant: both optional sections are absent
- * (undefined) for every other job, so they fold in as the empty string and
- * the concatenation reduces to `preamble + template + reportContract`,
- * byte-for-byte the pre-injection formula. Those jobs'
- * `promptTemplateHash` (and hence their `contentHash`) is therefore
- * UNCHANGED by either injection feature.
+ * NON-SKILL / NON-FIXER / NON-TAGGER invariant: every optional section is
+ * absent (undefined) for every other job, so it folds in as the empty
+ * string and the concatenation reduces to
+ * `preamble + template + reportContract`, byte-for-byte the pre-injection
+ * formula. Those jobs' `promptTemplateHash` (and hence their
+ * `contentHash`) is therefore UNCHANGED by any injection feature.
  */
 export function computePromptTemplateHash(input: {
   preamble: string;
   template: string;
+  /**
+   * Rendered skill-instructions section (`skill-injection.ts`). Present
+   * ONLY for skill-action jobs (`skill:<name>` submits); absent (folds
+   * in as `''`) otherwise, so every non-skill hash stays byte-identical
+   * to the pre-skill-actions formula (`spec/skill-actions.md` §Hashing).
+   * Folded immediately after the template, the same order it renders in.
+   */
+  skillSection?: string;
   /**
    * Rendered findings-to-resolve section (`findings-injection.ts`).
    * Present ONLY for fixer jobs; absent (folds in as `''`) otherwise, so
@@ -106,6 +117,7 @@ export function computePromptTemplateHash(input: {
   return sha256Hex(
     input.preamble +
       input.template +
+      (input.skillSection ?? '') +
       (input.findingsSection ?? '') +
       (input.currentTagsSection ?? '') +
       input.reportContract,

@@ -82,7 +82,14 @@ import type { IRouteDeps } from './deps.js';
 import { decodePathB64Or404 } from './node-loader.js';
 
 interface IJobSubmitBody {
-  /** Qualified or bare probabilistic extension id (CLI matching rules). */
+  /**
+   * Qualified or bare probabilistic extension id (CLI matching rules),
+   * or a `skill:<name>` skill-action target (`spec/skill-actions.md`
+   * §HTTP surface): resolved against the boot-frozen catalog on
+   * `IRouteDeps.skillActionCatalog`, unknown name -> 404 `not-found`;
+   * `autoFix` is clamped false and `findingIds` -> 400 `bad-query` on a
+   * skill target; everything else below is inherited unchanged.
+   */
   extension: string;
   /**
    * Per-job auto-fix opt-in (default off). `true` on a finder submit
@@ -215,6 +222,12 @@ export function registerNodeJobsRoute(app: Hono, deps: INodeJobsRouteDeps): void
       flagPriority: undefined,
       autoFix: body.autoFix ?? false,
       ...(body.findingIds !== undefined ? { findingIds: body.findingIds } : {}),
+      // Skill-action targets (`skill:<name>`) resolve against the
+      // boot-frozen catalog; this per-node route is the ONLY submit
+      // surface that supplies it in v1 (`spec/skill-actions.md` §CLI
+      // surface: the CLI grammar stays reserved, the nodeless route has
+      // no skill shape to accept).
+      skillCatalog: deps.skillActionCatalog,
     });
     if (!prep.ok) throw prepareErrorToHttp(prep.error, body.extension);
 

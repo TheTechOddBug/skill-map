@@ -21,6 +21,11 @@
  *     omitted defaults false; a non-boolean `autoFix` is a 400 bad body.
  *   - 404 unknown extension / unknown node / malformed pathB64 /
  *     missing DB; 400 deterministic extension, virtual node, bad body.
+ *   - skill-action targets (`spec/skill-actions.md` §HTTP surface):
+ *     `skill:<name>` submits 200 with the ordinary `job.submitted`
+ *     envelope (kind frozen `action`, catalog version); unknown name
+ *     404; `findingIds` on a skill target 400; the processing-agent
+ *     409 gate applies unchanged.
  */
 
 import { strict as assert } from 'node:assert';
@@ -36,6 +41,7 @@ import {
   compileEnvelopeValidator,
   FINDER_ID,
   FIXER_ID,
+  installSkillAction,
   makeFakeWsClient,
   seedFindings,
   serverUrl,
@@ -417,6 +423,73 @@ describe('POST /api/nodes/:pathB64/jobs', () => {
       const [job] = await adapter.jobs.list({ extensionId: FINDER_ID });
       assert.ok(job, 'the finder job was enqueued on the running server');
       assert.equal(job.status, 'queued');
+    });
+  });
+
+  it('skill target: 200 job.submitted envelope, row frozen action-kind with the catalog version', async () => {
+    installSkillAction(project, 'reviewer', { version: '3.1.0' });
+    const validate = compileEnvelopeValidator();
+    await bootAndUse(project, async (handle) => {
+      const res = await postJob(handle, SKILL_NODE.path, { extension: 'skill:reviewer' });
+      assert.equal(res.status, 200);
+      const raw = await res.text();
+      assert.doesNotMatch(raw, /nonce/i, 'the record credential never travels to the UI');
+      const env = JSON.parse(raw) as IJobSubmittedEnvelope;
+      assert.equal(env.kind, 'job.submitted');
+      assert.equal(env.value.extensionId, 'skill:reviewer');
+      assert.equal(env.value.nodePath, SKILL_NODE.path);
+      assert.deepEqual(env.value.supersededIds, []);
+      assert.equal(
+        validate(env),
+        true,
+        `envelope must validate: ${JSON.stringify(validate.errors)}`,
+      );
+
+      // Identical resubmit: the inherited duplicate refusal.
+      const dup = await postJob(handle, SKILL_NODE.path, { extension: 'skill:reviewer' });
+      assert.equal(dup.status, 409);
+      assert.equal(((await dup.json()) as IErrorBody).error.code, 'duplicate-job');
+    });
+    await withProjectDb(project, async (adapter) => {
+      const [job] = await adapter.jobs.list({ extensionId: 'skill:reviewer' });
+      assert.ok(job, 'the skill job was enqueued');
+      assert.equal(job.status, 'queued');
+      assert.equal(job.extensionKind, 'action', 'kind frozen as action');
+      assert.equal(job.extensionVersion, '3.1.0', 'catalog version frozen on the row');
+      assert.equal(job.autoFix, false);
+    });
+  });
+
+  it('skill target: 404 unknown name; 400 findingIds on a skill', async () => {
+    installSkillAction(project, 'reviewer', {});
+    await bootAndUse(project, async (handle) => {
+      const unknown = await postJob(handle, SKILL_NODE.path, { extension: 'skill:never' });
+      assert.equal(unknown.status, 404);
+      assert.equal(((await unknown.json()) as IErrorBody).error.code, 'not-found');
+
+      const subset = await postJob(handle, SKILL_NODE.path, {
+        extension: 'skill:reviewer',
+        findingIds: [1],
+      });
+      assert.equal(subset.status, 400);
+      const body = (await subset.json()) as IErrorBody;
+      assert.equal(body.error.code, 'bad-query');
+      assert.match(body.error.message, /findingIds/);
+    });
+  });
+
+  it('skill target: the processing-agent 409 gate applies unchanged', async () => {
+    const bare = await setupProbProject(join(tmpRoot, `proj-skill-gate-${counter}`), [SKILL_NODE], {
+      installSkill: false,
+    });
+    installSkillAction(bare, 'reviewer', {});
+    await bootAndUse(bare, async (handle) => {
+      const res = await postJob(handle, SKILL_NODE.path, { extension: 'skill:reviewer' });
+      assert.equal(res.status, 409);
+      assert.equal(((await res.json()) as IErrorBody).error.code, 'no-processing-agent');
+    });
+    await withProjectDb(bare, async (adapter) => {
+      assert.equal((await adapter.jobs.list({})).length, 0, 'nothing enqueued behind the gate');
     });
   });
 

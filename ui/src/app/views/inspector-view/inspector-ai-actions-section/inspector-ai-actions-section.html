@@ -1,7 +1,7 @@
 <!--
-  AI actions section: the LAUNCHERS only (finder / standalone
-  buttons + the Automatic toggle + the submit error strip). The
-  probabilistic finding rows moved INTO the Findings card,
+  AI actions section: the LAUNCHERS only (finder / standalone /
+  skill buttons + the Automatic toggle + the submit error strip).
+  The probabilistic finding rows moved INTO the Findings card,
   mixed with the deterministic issues (user call 2026-07-22), so
   this card gates purely on having something to launch.
 -->
@@ -92,15 +92,16 @@
               </button>
             </div>
             <!-- Launcher groups (user pick 2026-07-22, iterated the
-                 same day): Finders always on top, Standalone below,
-                 each a FULL-WIDTH block, and INSIDE each block the
-                 extension rows flow into dynamic columns (auto-fill,
-                 the width decides how many). Each block: a header
-                 line (title + its type-scoped ALL, which queues ONLY
-                 its group), then the rows: launch button stretched
-                 left, stop companion at the right when a job is
-                 active. No last-run meta on the rows (user call:
-                 when it ran does not matter here). -->
+                 same day; standalone first since 2026-08-09, skills
+                 appended last with skill actions): each a FULL-WIDTH
+                 block, and INSIDE each block the extension rows flow
+                 into dynamic columns (auto-fill, the width decides how
+                 many). Each block: a header line (title + its
+                 type-scoped ALL, which queues ONLY its group), then
+                 the rows: launch button stretched left, stop companion
+                 at the right when a job is active. No last-run meta on
+                 the rows (user call: when it ran does not matter
+                 here). -->
             @for (group of aiActionLauncherGroups(); track group.id) {
             <div
               class="inspector__ai-actions-group-buttons"
@@ -108,9 +109,7 @@
             >
               <div class="inspector__ai-actions-group-head">
                 <span class="inspector__ai-actions-group-title">{{
-                  group.id === 'finders'
-                    ? texts.aiActions.groupTitles.finders
-                    : texts.aiActions.groupTitles.standalone
+                  texts.aiActions.groupTitles[group.id]
                 }}</span>
                 <p-button
                   [label]="texts.aiActions.runAll"
@@ -118,7 +117,7 @@
                   [text]="true"
                   [disabled]="aiActionLauncherAllDisabled()"
                   styleClass="inspector__ai-actions-run-all"
-                  [pTooltip]="group.id === 'finders' ? texts.aiActions.allFindersTooltip : texts.aiActions.allStandaloneTooltip"
+                  [pTooltip]="texts.aiActions.runAllTooltips[group.id]"
                   tooltipPosition="right"
                   appendTo="body"
                   (onClick)="onLauncherAllGroup(group.id)"
@@ -127,22 +126,22 @@
               </div>
               <div class="inspector__ai-actions-group-grid">
               @for (entry of group.entries; track entry.id) {
-                @let item = { entry: entry, isFinder: group.id === 'finders' };
+                @let item = { entry: entry, groupId: group.id };
                 <span class="inspector__ai-actions-entry">
                   <p-button
                     [label]="aiActionLauncherLabel(item.entry)"
-                    [icon]="aiActionLauncherIcon(item.entry, item.isFinder)"
+                    [icon]="aiActionLauncherIcon(item.entry, item.groupId)"
                     size="small"
                     [text]="true"
                     [disabled]="aiActionLauncherDisabled(item.entry)"
                     [loading]="aiActionLauncherBusy(item.entry)"
-                    [pTooltip]="aiActionLauncherTooltip(item.entry, item.isFinder)"
+                    [pTooltip]="aiActionLauncherTooltip(item.entry, item.groupId)"
                     tooltipPosition="left"
                     appendTo="body"
-                    (onClick)="onLauncherClick(item.entry, item.isFinder)"
+                    (onClick)="onLauncherClick(item.entry, item.groupId)"
                     [attr.data-testid]="'inspector-ai-action-launch-' + item.entry.id"
                     [attr.data-state]="aiActionEntryState(item.entry)"
-                    [attr.data-action]="item.isFinder ? finderActionMode(item.entry) : 'run'"
+                    [attr.data-action]="item.groupId === 'finders' ? finderActionMode(item.entry) : 'run'"
                   />
                   <!-- Fixed trailing slot: the stop X (active job) and
                        the verdict mark (idle, judged) alternate inside

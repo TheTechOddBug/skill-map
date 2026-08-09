@@ -485,7 +485,9 @@ export class StaticDataSource implements IDataSourcePort {
   async getNodeProbExtensions(path: string): Promise<IProbExtensionsApi | null> {
     const scan = await this.loadData();
     if (!scan.nodes.some((n) => n.path === path)) return null;
-    return { finders: [], standalone: [], issueFixers: [] };
+    // `skills: []` (not absent): demo mode supports skill actions, its
+    // catalog is just empty (the bundle ships no `.skill-map/` store).
+    return { finders: [], standalone: [], issueFixers: [], skills: [] };
   }
 
   async listLinks(q: ILinksQuery = {}): Promise<IListEnvelopeApi<ILinkApi>> {

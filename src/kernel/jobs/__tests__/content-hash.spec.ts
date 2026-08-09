@@ -200,3 +200,73 @@ describe('computePromptTemplateHash, fixer findings section', () => {
     notStrictEqual(a, b);
   });
 });
+
+describe('computePromptTemplateHash, skill-instructions section', () => {
+  const PREAMBLE = 'PREAMBLE\n';
+  const TEMPLATE = 'Run the skill against {{userContent}}.';
+  const CONTRACT = '## Report contract\n\n```json\n{}\n```';
+  const SKILL = '## Skill instructions\n\nInstalled skill: `demo` (version 1.0.0).\n\nBody.';
+  const FINDINGS = '## Findings to resolve\n\n```json\n[]\n```';
+  const TAGS = '## Current tags\n\n```json\n[]\n```';
+
+  it('absent skillSection: byte-identical to the pre-skill-actions formula', () => {
+    // The deliberately compatible reading of `spec/job-lifecycle.md`
+    // §Stability (`spec/skill-actions.md` §Hashing): the fold is the
+    // empty string when absent, so every existing job hash is unmoved.
+    const absent = computePromptTemplateHash({
+      preamble: PREAMBLE,
+      template: TEMPLATE,
+      reportContract: CONTRACT,
+    });
+    const preSkill = createHash('sha256')
+      .update(PREAMBLE + TEMPLATE + CONTRACT, 'utf8')
+      .digest('hex');
+    strictEqual(absent, preSkill);
+    strictEqual(
+      computePromptTemplateHash({
+        preamble: PREAMBLE,
+        template: TEMPLATE,
+        skillSection: '',
+        reportContract: CONTRACT,
+      }),
+      preSkill,
+    );
+  });
+
+  it('a present skill section re-keys the hash (a SKILL.md edit is new work)', () => {
+    const withSkill = computePromptTemplateHash({
+      preamble: PREAMBLE,
+      template: TEMPLATE,
+      skillSection: SKILL,
+      reportContract: CONTRACT,
+    });
+    const without = computePromptTemplateHash({
+      preamble: PREAMBLE,
+      template: TEMPLATE,
+      reportContract: CONTRACT,
+    });
+    notStrictEqual(withSkill, without);
+    const oneByteEdit = computePromptTemplateHash({
+      preamble: PREAMBLE,
+      template: TEMPLATE,
+      skillSection: `${SKILL}!`,
+      reportContract: CONTRACT,
+    });
+    notStrictEqual(withSkill, oneByteEdit);
+  });
+
+  it('folds in RENDER order: template, skill, findings, current tags, contract', () => {
+    const hash = computePromptTemplateHash({
+      preamble: PREAMBLE,
+      template: TEMPLATE,
+      skillSection: SKILL,
+      findingsSection: FINDINGS,
+      currentTagsSection: TAGS,
+      reportContract: CONTRACT,
+    });
+    const expected = createHash('sha256')
+      .update(PREAMBLE + TEMPLATE + SKILL + FINDINGS + TAGS + CONTRACT, 'utf8')
+      .digest('hex');
+    strictEqual(hash, expected);
+  });
+});

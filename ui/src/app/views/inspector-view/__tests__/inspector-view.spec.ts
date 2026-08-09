@@ -42,6 +42,7 @@ import type {
   INodeActivityStatsApi,
   IProbExtensionEntryApi,
   IProbExtensionsApi,
+  ISkillActionEntryApi,
 } from '../../../../models/api';
 import type { IWsEvent, IWsJobCompletedData } from '../../../../models/ws-event';
 import type { ISpawnThread } from '../../../components/conversation-dialog/spawn-thread';
@@ -2438,6 +2439,25 @@ function makeIssueFixer(overrides: Partial<IIssueFixerEntryApi> = {}): IIssueFix
   };
 }
 
+/**
+ * One `skills` bucket entry (`spec/skill-actions.md`): the id is the
+ * verbatim `skill:<dirname>` submit target while `name` is the
+ * frontmatter label; the two differ on purpose in fixtures so a test
+ * asserting the label proves it came from `name`, never from the id.
+ */
+function makeSkillEntry(overrides: Partial<ISkillActionEntryApi> = {}): ISkillActionEntryApi {
+  return {
+    id: 'skill:skill-optimizer',
+    name: 'skill-optimizer',
+    description: 'Tightens the skill body.',
+    version: '2.0.0',
+    state: 'idle',
+    jobId: null,
+    lastJudged: null,
+    ...overrides,
+  };
+}
+
 /** A dedicated-surface claim (`inspector.surface.*`) for boot fixtures. */
 function makeSurfaceClaim(slot: string, actionId: string): IContributionApi {
   const extensionId = actionId.slice(actionId.indexOf('/') + 1);
@@ -2726,6 +2746,217 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     ) as HTMLElement;
     expect(all).not.toBeNull();
     expect(all.textContent).toContain('(run all)');
+  });
+
+  // -------------------------------------------------------------------
+  // Skills launcher group (skill actions, spec/skill-actions.md): the
+  // optional third bucket of the prob-extensions payload, rendered as a
+  // launcher group AFTER standalone and finders through the SAME button
+  // template (mapped with fixerIds: [], hasOpenFindings: false, no
+  // verdict fields).
+  // -------------------------------------------------------------------
+
+  it('renders the skills group LAST ([standalone, finders, skills]), labelled from the wire name, book icon', async () => {
+    const { fixture } = await bootAiActions({
+      probs: makeProbExtensions({
+        finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'] })],
+        standalone: [makeProbEntry({ id: 'core/summarizer', description: 'Summarizes.' })],
+        skills: [makeSkillEntry({ name: 'optimizer-pro' })],
+      }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    // Group order is DOM order: standalone, finders, then skills.
+    const rows = Array.from(
+      dom.querySelectorAll('[data-testid^="inspector-ai-actions-launchers-row-"]'),
+    ).map((el) => el.getAttribute('data-testid'));
+    expect(rows).toEqual([
+      'inspector-ai-actions-launchers-row-standalone',
+      'inspector-ai-actions-launchers-row-finders',
+      'inspector-ai-actions-launchers-row-skills',
+    ]);
+    // The group header carries the Skills title and its own run-all.
+    const skillsRow = dom.querySelector(
+      '[data-testid="inspector-ai-actions-launchers-row-skills"]',
+    ) as HTMLElement;
+    expect(skillsRow.textContent).toContain('Skills');
+    expect(
+      dom.querySelector('[data-testid="inspector-ai-action-launch-all-skills"]'),
+    ).not.toBeNull();
+    // The button labels with the wire `name` VERBATIM (the fixture's
+    // name differs from the id's dirname on purpose): never the
+    // `skill:` id, never the shortening helper.
+    const launcher = dom.querySelector(
+      '[data-testid="inspector-ai-action-launch-skill:skill-optimizer"]',
+    ) as HTMLElement;
+    expect(launcher).not.toBeNull();
+    expect(launcher.textContent).toContain('optimizer-pro');
+    expect(launcher.textContent).not.toContain('skill:');
+    // Single-action semantics like standalone (`data-action` run), with
+    // the book glyph as the idle icon.
+    expect(launcher.getAttribute('data-action')).toBe('run');
+    expect(launcher.getAttribute('data-state')).toBe('idle');
+    expect(launcher.querySelector('.pi-book')).not.toBeNull();
+  });
+
+  it('a skills-only catalog still renders the card (available includes skills)', async () => {
+    const { fixture } = await bootAiActions({
+      probs: makeProbExtensions({ skills: [makeSkillEntry()] }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(dom.querySelector('[data-testid="inspector-card-ai-actions"]')).not.toBeNull();
+    expect(
+      dom.querySelector('[data-testid="inspector-ai-actions-launchers-row-skills"]'),
+    ).not.toBeNull();
+    // No finders: the Automatic toggle has nothing to govern.
+    expect(dom.querySelector('[data-testid="inspector-auto-fix-toggle"]')).toBeNull();
+  });
+
+  it('an absent skills bucket (older server) and an empty catalog both render no skills row', async () => {
+    // Absent: `makeProbExtensions` emits no `skills` key at all, the
+    // wire shape of a server predating skill actions.
+    const absent = await bootAiActions({
+      probs: makeProbExtensions({ finders: [makeProbEntry()] }),
+    });
+    expect(
+      absent.fixture.nativeElement.querySelector(
+        '[data-testid="inspector-ai-actions-launchers-row-skills"]',
+      ),
+    ).toBeNull();
+    // Empty: the feature is live, the catalog just has nothing installed.
+    const empty = await bootAiActions({
+      probs: makeProbExtensions({ finders: [makeProbEntry()], skills: [] }),
+    });
+    expect(
+      empty.fixture.nativeElement.querySelector(
+        '[data-testid="inspector-ai-actions-launchers-row-skills"]',
+      ),
+    ).toBeNull();
+  });
+
+  it('clicking a skill posts its skill: id VERBATIM with autoFix false and flips to queued', async () => {
+    const { fixture, dataSource, node } = await bootAiActions({
+      probs: makeProbExtensions({ skills: [makeSkillEntry()] }),
+    });
+    const host = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-ai-action-launch-skill:skill-optimizer"]',
+    ) as HTMLElement;
+    (host.querySelector('button') as HTMLButtonElement).click();
+    await flush(fixture);
+    // The SAME submit path as every launcher: the entry id verbatim as
+    // the `extension` body field, autoFix never true for a skill.
+    expect(dataSource.submitNodeJob).toHaveBeenCalledWith(node.path, 'skill:skill-optimizer', false);
+    expect(host.getAttribute('data-state')).toBe('queued');
+    expect((host.querySelector('button') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('the skills (run all) queues every skill sequentially, and ONLY skills', async () => {
+    const { fixture, dataSource, node } = await bootAiActions({
+      probs: makeProbExtensions({
+        finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'] })],
+        skills: [
+          makeSkillEntry(),
+          makeSkillEntry({ id: 'skill:changelog-writer', name: 'changelog-writer' }),
+        ],
+      }),
+    });
+    (
+      fixture.nativeElement.querySelector(
+        '[data-testid="inspector-ai-action-launch-all-skills"] button',
+      ) as HTMLButtonElement
+    ).click();
+    await flush(fixture);
+    expect(dataSource.submitNodeJob).toHaveBeenCalledTimes(2);
+    // Catalog order, both with autoFix false; the finder never rides.
+    expect(dataSource.submitNodeJob).toHaveBeenNthCalledWith(
+      1,
+      node.path,
+      'skill:skill-optimizer',
+      false,
+    );
+    expect(dataSource.submitNodeJob).toHaveBeenNthCalledWith(
+      2,
+      node.path,
+      'skill:changelog-writer',
+      false,
+    );
+  });
+
+  it('a queued skill renders the stop companion off its server job handle; stop cancels it', async () => {
+    const { fixture, dataSource } = await bootAiActions({
+      probs: makeProbExtensions({
+        skills: [makeSkillEntry({ state: 'queued', jobId: 'job-42' })],
+      }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    const stop = dom.querySelector(
+      '[data-testid="inspector-ai-action-stop-skill:skill-optimizer"]',
+    ) as HTMLElement;
+    expect(stop).not.toBeNull();
+    (stop.querySelector('button') as HTMLButtonElement).click();
+    await flush(fixture);
+    expect(dataSource.cancelJob).toHaveBeenCalledWith('job-42');
+    // Optimistic idle flip, same as every launcher.
+    const launcher = dom.querySelector(
+      '[data-testid="inspector-ai-action-launch-skill:skill-optimizer"]',
+    ) as HTMLElement;
+    expect(launcher.getAttribute('data-state')).toBe('idle');
+  });
+
+  it('a server-confirmed payload reconciles the optimistic skill flip (the stop appears on refetch)', async () => {
+    const { fixture, dataSource, jobEvents$ } = await bootAiActions({
+      probs: makeProbExtensions({ skills: [makeSkillEntry()] }),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    const host = dom.querySelector(
+      '[data-testid="inspector-ai-action-launch-skill:skill-optimizer"]',
+    ) as HTMLElement;
+    (host.querySelector('button') as HTMLButtonElement).click();
+    await flush(fixture);
+    // Optimistically queued, no server job handle yet: no companion.
+    expect(host.getAttribute('data-state')).toBe('queued');
+    expect(
+      dom.querySelector('[data-testid="inspector-ai-action-stop-skill:skill-optimizer"]'),
+    ).toBeNull();
+
+    // The refetch lands the server truth: still queued, now with the
+    // job handle, which retires the optimistic flip (reconcile over the
+    // skills bucket) and mounts the stop companion.
+    dataSource.getNodeProbExtensions.mockResolvedValue(
+      makeProbExtensions({ skills: [makeSkillEntry({ state: 'queued', jobId: 'job-9' })] }),
+    );
+    vi.useFakeTimers();
+    try {
+      jobEvents$.next(makeJobCompleted());
+      vi.advanceTimersByTime(400);
+    } finally {
+      vi.useRealTimers();
+    }
+    // Twice: the debounced callback's fetch settles through its own
+    // await chain (same drain as the job-terminal stop test above).
+    await flush(fixture);
+    await flush(fixture);
+    expect(host.getAttribute('data-state')).toBe('queued');
+    expect(
+      dom.querySelector('[data-testid="inspector-ai-action-stop-skill:skill-optimizer"]'),
+    ).not.toBeNull();
+  });
+
+  it('a judged idle skill renders NO verdict mark (skills carry no findings verdict)', async () => {
+    const { fixture } = await bootAiActions({
+      probs: makeProbExtensions({
+        skills: [
+          makeSkillEntry({ lastJudged: { at: 1_700_000_000_000, model: 'claude-opus-4' } }),
+        ],
+      }),
+    });
+    // `findingsMaxSeverity` stays ABSENT on the mapped entry, which the
+    // verdict contract reads as "no verdict reported": no mark, not a
+    // false clean check.
+    expect(
+      fixture.nativeElement.querySelector(
+        '[data-testid="inspector-ai-action-verdict-skill:skill-optimizer"]',
+      ),
+    ).toBeNull();
   });
 
   it('each ALL button queues ONLY its own type', async () => {
@@ -3567,6 +3798,7 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
         finders: [makeProbEntry({ fixerIds: ['core/todo-fixer'] })],
         standalone: [makeProbEntry({ id: 'core/summarizer' })],
         issueFixers: [makeIssueFixer()],
+        skills: [makeSkillEntry()],
       }),
     });
   }
@@ -3584,8 +3816,10 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
   const SUBMITTING_CONTROLS = [
     'inspector-ai-action-launch-core/todo-finder',
     'inspector-ai-action-launch-core/summarizer',
+    'inspector-ai-action-launch-skill:skill-optimizer',
     'inspector-ai-action-launch-all-finders',
     'inspector-ai-action-launch-all-standalone',
+    'inspector-ai-action-launch-all-skills',
     'inspector-finding-fix-12',
     'inspector-issue-fix-reference-broken',
   ];

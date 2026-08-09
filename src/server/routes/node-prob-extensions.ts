@@ -2,7 +2,17 @@
  * `GET /api/nodes/:pathB64/prob-extensions`, the per-node probabilistic
  * launcher catalog for the inspector's finder buttons (Step 16,
  * `spec/cli-contract.md` §Serve route table; classification per ROADMAP
- * §Step 16, manifest-mechanical). Three buckets:
+ * §Step 16, manifest-mechanical). Four buckets:
+ *
+ *   - `skills`: the boot-discovered skill-action catalog
+ *     (`spec/skill-actions.md` §HTTP surface), one entry per installed
+ *     skill on EVERY node, deterministically (no precondition, no
+ *     eligibility heuristics: every skill takes the target file as its
+ *     subject). The field is OPTIONAL on the wire (absent is NOT empty);
+ *     the reference implementation always emits it, `[]` for an empty
+ *     catalog. Entries decorate `state` / `jobId` over the SKILL's own
+ *     active jobs only (no fixerIds union) and `lastJudged` from its
+ *     latest completed execution, the same way `buildEntry` does.
  *
  *   - `finders`: probabilistic Analyzers whose precondition matches the
  *     node (the same `nodeMatchesPrecondition` gate the CLI `--all`
@@ -59,7 +69,7 @@
  * still needs an `sm serve` restart (the documented exception: its
  * handlers were never bucketed into the runtime).
  *
- * A VIRTUAL node answers 200 with three empty arrays: it has no backing
+ * A VIRTUAL node answers 200 with four empty arrays: it has no backing
  * file to render, so nothing is launchable against it (the submit route
  * refuses it too). 404 rules: malformed `pathB64`, unknown node, and
  * missing DB all answer 404 `not-found`.
@@ -81,6 +91,10 @@ import {
 import { fixerAnalyzerIds, nodeMatchesPrecondition } from '../../core/jobs/submit-engine.js';
 import { buildFreshResolver } from '../../core/runtime/fresh-resolver.js';
 import type { IPluginRuntime } from '../../core/runtime/plugin-runtime.js';
+import type {
+  ISkillActionCatalog,
+  ISkillActionEntry,
+} from '../../core/skill-actions/catalog.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import type { IAction, IAnalyzer } from '../../kernel/extensions/index.js';
 import {
@@ -175,11 +189,31 @@ export interface IIssueFixerEntry {
   analyzerIds: string[];
 }
 
+/**
+ * One `skills` entry
+ * (`rest-envelope.schema.json#/$defs/SkillActionEntry`): an
+ * operator-installed skill action offered on every node
+ * (`spec/skill-actions.md` §HTTP surface). `id` is the `skill:<name>`
+ * submit target the jobs route accepts verbatim; `name` / `description`
+ * / `version` come from the boot-frozen catalog; `state` / `jobId` /
+ * `lastJudged` mirror `IProbExtensionEntry` over the skill's own jobs.
+ */
+export interface ISkillActionLauncherEntry {
+  id: string;
+  name: string;
+  description: string;
+  version: string;
+  state: 'idle' | 'queued' | 'running';
+  jobId: string | null;
+  lastJudged: { at: number; model: string | null } | null;
+}
+
 /** The `item` payload of the `node.prob-extensions` single envelope. */
 export interface IProbExtensionsCatalog {
   finders: IProbExtensionEntry[];
   standalone: IProbExtensionEntry[];
   issueFixers: IIssueFixerEntry[];
+  skills: ISkillActionLauncherEntry[];
 }
 
 export function registerNodeProbExtensionsRoute(app: Hono, deps: IRouteDeps): void {
@@ -201,7 +235,7 @@ export function registerNodeProbExtensionsRoute(app: Hono, deps: IRouteDeps): vo
       async (adapter) => {
         const bundle = await adapter.scans.findNode(nodePath);
         if (!bundle) return null;
-        return buildCatalog(adapter, bundle.node, sources);
+        return buildCatalog(adapter, bundle.node, sources, deps.skillActionCatalog);
       },
     );
     if (item === null) {
@@ -287,10 +321,14 @@ async function buildCatalog(
   adapter: StoragePort,
   node: Node,
   sources: ICatalogSources,
+  skillCatalog: ISkillActionCatalog,
 ): Promise<IProbExtensionsCatalog> {
   // A virtual node has no backing file: nothing is launchable, the
-  // submit route refuses it, so the catalog is honestly empty.
-  if (node.virtual === true) return { finders: [], standalone: [], issueFixers: [] };
+  // submit route refuses it, so the catalog is honestly empty (skills
+  // included: every skill takes the target FILE as its subject).
+  if (node.virtual === true) {
+    return { finders: [], standalone: [], issueFixers: [], skills: [] };
+  }
 
   // ONE findings read (stale included, we filter staleness ourselves for
   // `hasOpenFindings`), ONE suppressions read (the read-time dismissal
@@ -349,7 +387,28 @@ async function buildCatalog(
     pushClassifiedAction(classified, standalone, issueFixers);
   }
 
-  return { finders, standalone, issueFixers };
+  const skills = await buildSkillsBucket(adapter, node, skillCatalog, activeJobs);
+
+  return { finders, standalone, issueFixers, skills };
+}
+
+/**
+ * The `skills` bucket: every catalog skill lands on every node,
+ * deterministically (no precondition, no eligibility gate,
+ * `spec/skill-actions.md` §HTTP surface); the catalog is already
+ * name-sorted at discovery, so the bucket order is stable for free.
+ */
+async function buildSkillsBucket(
+  adapter: StoragePort,
+  node: Node,
+  skillCatalog: ISkillActionCatalog,
+  activeJobs: readonly Job[],
+): Promise<ISkillActionLauncherEntry[]> {
+  const skills: ISkillActionLauncherEntry[] = [];
+  for (const skill of skillCatalog.entries) {
+    skills.push(await buildSkillEntry(adapter, node, skill, activeJobs));
+  }
+  return skills;
 }
 
 /**
@@ -543,6 +602,41 @@ function computeFixerBusy(fixerJobs: readonly Job[]): IProbExtensionEntry['fixer
   return {
     all: fixerJobs.some((j) => j.findingIds === null),
     findingIds: [...new Set(fixerJobs.flatMap((j) => j.findingIds ?? []))].sort((a, b) => a - b),
+  };
+}
+
+/**
+ * One `skills` entry: catalog identity + the live decoration `buildEntry`
+ * gives an extension launcher, scoped to the SKILL's own jobs (a skill
+ * has no fixer union to fold in). `running` wins over `queued`; the
+ * exposed `jobId` is the row that decided the state (the cancel handle);
+ * `lastJudged` is the latest COMPLETED execution for the (node, skill)
+ * pair, read off `state_executions` by the frozen `skill:` id.
+ */
+async function buildSkillEntry(
+  adapter: StoragePort,
+  node: Node,
+  skill: ISkillActionEntry,
+  activeJobs: readonly Job[],
+): Promise<ISkillActionLauncherEntry> {
+  const mine = activeJobs.filter((j) => j.extensionId === skill.id);
+  const runningJob = mine.find((j) => j.status === 'running');
+  const activeJob = runningJob ?? mine[0];
+  const state = runningJob !== undefined ? 'running' : mine.length > 0 ? 'queued' : 'idle';
+  const [latest] = await adapter.history.list({
+    nodePath: node.path,
+    extensionId: skill.id,
+    statuses: ['completed'],
+    limit: 1,
+  });
+  return {
+    id: skill.id,
+    name: skill.name,
+    description: skill.description,
+    version: skill.version,
+    state,
+    jobId: activeJob?.id ?? null,
+    lastJudged: latest ? { at: latest.finishedAt, model: latest.model ?? null } : null,
   };
 }
 

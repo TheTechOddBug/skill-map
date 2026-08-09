@@ -33,7 +33,10 @@
  *     leaves it false.
  *   - `state` / `jobId` reflect the live `state_jobs` row; `lastJudged`
  *     the latest COMPLETED execution.
- *   - a VIRTUAL node answers 200 with three empty arrays.
+ *   - the `skills` bucket (`spec/skill-actions.md` §HTTP surface): every
+ *     boot-discovered catalog skill lands on EVERY node with its
+ *     `SkillActionEntry` decoration; an empty catalog emits `[]`.
+ *   - a VIRTUAL node answers 200 with four empty arrays.
  *   - the 200 envelope validates against `rest-envelope.schema.json`.
  *   - malformed `pathB64` / unknown node -> 404.
  */
@@ -52,6 +55,7 @@ import {
   compileEnvelopeValidator,
   FINDER_ID,
   FIXER_ID,
+  installSkillAction,
   seedFindings,
   serverUrl,
   setupProbProject,
@@ -698,11 +702,124 @@ describe('GET /api/nodes/:pathB64/prob-extensions', () => {
     }
   });
 
-  it('virtual node: 200 with three empty arrays', async () => {
+  it('virtual node: 200 with four empty arrays', async () => {
     await bootAndUse(project, async (handle) => {
       const env = await fetchCatalog(handle, VIRTUAL_NODE.path);
-      assert.deepEqual(env.item, { finders: [], standalone: [], issueFixers: [] });
+      assert.deepEqual(env.item, { finders: [], standalone: [], issueFixers: [], skills: [] });
     });
+  });
+
+  it('empty skill catalog: the skills bucket is [] (absent-is-not-empty on the wire)', async () => {
+    // The shared project installs no skill under
+    // `.skill-map/.agents/skills/`, so the reference implementation
+    // still EMITS the bucket, as `[]` (spec/skill-actions.md §HTTP
+    // surface: absent means "not reported at all", which we never are).
+    await bootAndUse(project, async (handle) => {
+      const env = await fetchCatalog(handle, SKILL_NODE.path);
+      assert.deepEqual(env.item.skills, []);
+    });
+  });
+
+  it('skills bucket: every catalog skill on EVERY node, sorted, decorated, schema-valid', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'skill-map-prob-ext-skills-'));
+    try {
+      const proj = await setupProbProject(root, [SKILL_NODE, NOTE_NODE], { installSkill: true });
+      installSkillAction(proj, 'reviewer', {
+        description: 'Reviews prose quality.',
+        version: '2.0.0',
+      });
+      // Version fallback: no `version` key and no `metadata.version`
+      // -> 0.0.0 (spec/skill-actions.md §Identity and version).
+      installSkillAction(proj, 'auditor', {});
+      writeFileSync(
+        join(proj.root, '.skill-map', '.agents', 'skills', 'auditor', 'SKILL.md'),
+        '---\nname: auditor\ndescription: Audits the file.\n---\nAudit body.\n',
+      );
+      const validate = compileEnvelopeValidator();
+      await bootAndUse(proj, async (handle) => {
+        const env = await fetchCatalog(handle, SKILL_NODE.path);
+        // Name-sorted catalog, one entry per installed skill.
+        assert.deepEqual(
+          env.item.skills.map((s) => s.id),
+          ['skill:auditor', 'skill:reviewer'],
+        );
+        const reviewer = env.item.skills.find((s) => s.id === 'skill:reviewer');
+        assert.ok(reviewer);
+        assert.equal(reviewer.name, 'reviewer');
+        assert.equal(reviewer.description, 'Reviews prose quality.');
+        assert.equal(reviewer.version, '2.0.0');
+        assert.equal(reviewer.state, 'idle');
+        assert.equal(reviewer.jobId, null);
+        assert.equal(reviewer.lastJudged, null);
+        const auditor = env.item.skills.find((s) => s.id === 'skill:auditor');
+        assert.equal(auditor?.version, '0.0.0', 'no frontmatter version falls back to 0.0.0');
+
+        // EVERY node, deterministically: the markdown note (which the
+        // fixture finders' preconditions reject) carries the same list.
+        const noteEnv = await fetchCatalog(handle, NOTE_NODE.path);
+        assert.deepEqual(
+          noteEnv.item.skills.map((s) => s.id),
+          ['skill:auditor', 'skill:reviewer'],
+        );
+
+        // The populated bucket validates against SkillActionEntry.
+        assert.equal(
+          validate(env),
+          true,
+          `envelope must validate: ${JSON.stringify(validate.errors)}`,
+        );
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('skills decoration: an active job flips state/jobId; lastJudged reads the latest completed execution', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'skill-map-prob-ext-skills-live-'));
+    try {
+      const proj = await setupProbProject(root, [SKILL_NODE], { installSkill: true });
+      installSkillAction(proj, 'reviewer', {});
+      const judgedAt = Date.now() - 1000;
+      await withProjectDb(proj, async (adapter) => {
+        await adapter.jobs.submit(
+          {
+            id: 'd-20260808-000000-5555',
+            extensionId: 'skill:reviewer',
+            extensionVersion: '1.0.0',
+            extensionKind: 'action',
+            nodeId: SKILL_NODE.path,
+            contentHash: 'c'.repeat(64),
+            nonce: 'n'.repeat(32),
+            priority: 0,
+            status: 'queued',
+            ttlSeconds: null,
+            createdAt: Date.now(),
+          },
+          { contentHash: 'c'.repeat(64), content: 'rendered', createdAt: Date.now() },
+        );
+        await adapter.history.insertExecution({
+          id: 'e-20260808-000000-5555',
+          kind: 'action',
+          extensionId: 'skill:reviewer',
+          extensionVersion: '1.0.0',
+          nodeIds: [SKILL_NODE.path],
+          status: 'completed',
+          startedAt: judgedAt - 500,
+          finishedAt: judgedAt,
+          model: 'test-model',
+        });
+      });
+      await bootAndUse(proj, async (handle) => {
+        const env = await fetchCatalog(handle, SKILL_NODE.path);
+        const reviewer = env.item.skills.find((s) => s.id === 'skill:reviewer');
+        assert.ok(reviewer);
+        assert.equal(reviewer.state, 'queued');
+        assert.equal(reviewer.jobId, 'd-20260808-000000-5555', 'the cancel handle');
+        assert.deepEqual(reviewer.lastJudged, { at: judgedAt, model: 'test-model' });
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('200 envelope validates against rest-envelope.schema.json (single variant)', async () => {

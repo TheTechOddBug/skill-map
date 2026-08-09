@@ -159,6 +159,12 @@
         "path": "schemas/frontmatter/base.schema.json"
       }
     ],
+    "skill-actions": [
+      {
+        "id": "skill-actions/report",
+        "path": "schemas/skill-actions/report.schema.json"
+      }
+    ],
     "summaries": [
       {
         "id": "summaries/markdown",
@@ -437,6 +443,10 @@
         "file": "conformance/cases/sidecar-end-to-end.json"
       },
       {
+        "id": "skill-actions-catalog",
+        "file": "conformance/cases/skill-actions-catalog.json"
+      },
+      {
         "id": "ttl-reap-abandoned",
         "file": "conformance/cases/ttl-reap-abandoned.json"
       },
@@ -460,8 +470,8 @@
     "files": {
       "CHANGELOG.md": "53544ccb4c582b64cc4c1bd0c6147733e035d4df03ee824227c58410d4544b9e",
       "README.md": "35ac6cc3ce8379c5087f739a528d3b80a140aef5cdeeba9c49b59c5dd5df4c54",
-      "architecture.md": "086596d7fc864166bcb466cd1126be725cd593e01d782383ec964f39c56e22c8",
-      "cli-contract.md": "985e9e7274bba861d1a9cbcb61df3921380dc7112de98d586f85da02200fe8ef",
+      "architecture.md": "1447b99d6557257bf5ea2758f45d5b0da5acd899913fcdc7a6d3c979d4abb547",
+      "cli-contract.md": "28d27b85ac314fd5d11caab15e95cdd4911af4f5b18937babd56b78f3c547f83",
       "conformance/README.md": "1cf7a020d4a7517e9f2b5fa2e6912be812322dfffa388de5eb47ef44d9277e8f",
       "conformance/cases/backtick-path-extraction.json": "4112b5724156c4d6ad5cf90a762e43741d25d68735f91d453ac580a77b3764da",
       "conformance/cases/bump-report-schema.json": "f9f1b9f1143e5750bea045001aff60d0f5f6b15e41597d9bd983c4159540fb22",
@@ -509,11 +519,12 @@
       "conformance/cases/score-phase-confidence.json": "118dedfc76f7219a907bc3f020092eb2e2380dc5c9b982c5d659fe6dbaa8b574",
       "conformance/cases/serve-info-schema.json": "2329a8e190bd9b094d130691df319e0d58e32eff0b5051c2f6e1610b7a631b76",
       "conformance/cases/sidecar-end-to-end.json": "034324999d5f4b5b1a514dd49bd4759bf2c94db0e17f990c3d458c7339290d7d",
+      "conformance/cases/skill-actions-catalog.json": "9b76b0953b4f40e7b9c07980ac37a2060a71be4d9b528394cae32af745e4b776",
       "conformance/cases/ttl-reap-abandoned.json": "1daab06b5a512cbecd559dfbe0f3c9535ecccc2d6922232b2d70e846d3115bdd",
       "conformance/cases/view-action-button.json": "bb1377a737117c3d274a4f5a216adb1b94dae534658fa8dcc784c39fcfb15e1b",
       "conformance/cases/view-contribution-payloads.json": "ca02992c269e7c1724df024b138abf0c97f50f003c300c404cb6034743ad7ca7",
       "conformance/cases/view-slots-all.json": "0e3294ada16eb6695760e3067cf05e7ea233720f83b26531432ca95cc24ef4f9",
-      "conformance/coverage.md": "8c2dec7b97695e55ae037dbdfbd49c276c3c6d599b4105fa4213d0dfaf02b24d",
+      "conformance/coverage.md": "1921b9075d3346bccdc5953b6f97dcba398ee13cf5bcc023153b6e3594a5c78d",
       "conformance/fixtures/backtick-path/docs/target.md": "a09ae2cb4c96358a2e0692215f172b0f8c48028b6b123e4e83424b28302e644c",
       "conformance/fixtures/backtick-path/source.md": "217f78b12b3ff47a938a5cc9c1ff7d6989d6a1db82bd1ddf3656787f31efb902",
       "conformance/fixtures/extension-enable-gate/.skill-map/plugins/gated/analyzers/boom/extension.json": "bc8a8a24a068fa4a03d096790fa52b8c3f8c7ecb1e7ac9d3fbe83ea0babafe6f",
@@ -593,6 +604,10 @@
       "conformance/fixtures/signal-ir-collision/.claude/agents/architect.md": "14df915d4f11a7f41fd2e84600e77f21a596490b60da1b81ebd1ad555452f862",
       "conformance/fixtures/signal-ir-single-signal/source.md": "1eda417b4c6eed372b66870e385c8d8cd631372b77cab7e996bb711e22218f89",
       "conformance/fixtures/signal-ir-single-signal/target.md": "527137f2b4f46c0034b0edc8932cf8613d2bf22ffaaf78f01085c82a3baaebe3",
+      "conformance/fixtures/skill-action-template-v1.txt": "855f6616c675739bea1c99530ea86b7093157f68bf786846813d5fdd8eeab9b2",
+      "conformance/fixtures/skill-actions-catalog/.skill-map/.agents/skills/demo-skill/SKILL.md": "9bab31fbb2abe0465274a3630bdf87877eb473ebe453cfe9c2e82c21266a1d55",
+      "conformance/fixtures/skill-actions-catalog/notes.md": "3487d0d3ad3ab4b9542df99412d6bcf996c88b51c3535a6310d1c63d5354d17a",
+      "conformance/fixtures/skill-actions-catalog/skill-report-example.json": "a0bedf44c45617a655af3e9c6f94b18e625003641c474804e85163ec1d381309",
       "conformance/fixtures/view-action-button/.skill-map/plugins/badge-actions/analyzers/good-badges/extension.json": "068a37ec052c122a9ef6322aced1c6918289409850307d3f988966f2133cc23a",
       "conformance/fixtures/view-action-button/.skill-map/plugins/badge-actions/analyzers/good-badges/index.js": "1e81af9be9665a4b3f5384c34a6e0f58ee604685c994a6bb74b6e1ec86b86faf",
       "conformance/fixtures/view-action-button/.skill-map/plugins/badge-actions/plugin.json": "ed7b048c140d3d5acdf4456678acba8d9d55fd63511013c8621122b7062f40be",
@@ -607,19 +622,19 @@
       "conformance/fixtures/view-slots-all/.skill-map/plugins/all-slots/analyzers/everything/extension.json": "8f13f91539ced01f332246f90e1957efeedfeb249c647e21a6b4ffda67d312c5",
       "conformance/fixtures/view-slots-all/.skill-map/plugins/all-slots/analyzers/everything/index.js": "3aea0f750e4ff3495210ec6306e3bff7130d87c9d970a02feb31a28860fe227d",
       "conformance/fixtures/view-slots-all/.skill-map/plugins/all-slots/plugin.json": "c48e8a0574947ade0b4eb189d6bc27a48e24f92f616aacdc177f2d22d472a599",
-      "db-schema.md": "2507e7d4056daa80aaa8139e74de1254ab1d7b157748869b796527b7f4414a3e",
+      "db-schema.md": "7e7753aaf65b182181521de94bad3c94b90f7aa955d8aa16437836ecbed60895",
       "input-types.md": "61c9ea9083e1111f4802c38a112bde5c9d948a859f0b398404d731a2d00da7d8",
       "interfaces/security-scanner.md": "1e90d23254c4962989a56f64a625b5b7bcc469a2064adcdd07950fd0a6ddbfc9",
       "job-events.md": "7e722580e0b9dd0238778436ec4c1e64d355f170767138f2405511d376116741",
-      "job-lifecycle.md": "8ae062a631832b3196b5de331e1b53a8dd52ac28fd71d709f6563486a1b0cccc",
+      "job-lifecycle.md": "159b5c839e22cf3e9a323f3ed0753f3079aabc412b278be96c0f63c1a2002979",
       "mcp-server.md": "d29f52a2bb29477e4365a58be9f27fbebf9b1619abfd837e356b588f0d4b8c78",
       "plugin-author-guide.md": "768c1849562ed02dfac1b3dc24f92f2497956f27802a0f0f3dc0b47eb4809ef8",
       "plugin-kv-api.md": "a9fe61f8c00a689eabb806dadafa55bd275cd0226495a0ffc6d8475ce00b4487",
       "plugin-quickstart.md": "1903fa03303d75cd25cc16af3c2876d5eda6e1d9a694e8d3b794a67235e9afb8",
-      "prompt-preamble.md": "b9639cbc60047022d0436a5c1f3d2f8e287231fe29b9ed976b4b24332af61c6d",
+      "prompt-preamble.md": "592878ce0dc1c6811fbd24c7bd2c12a69555b28d92071723c321a70efa75e6f5",
       "provider-activity.md": "9eb4a7a4681049383a45103add7165cd04ebc55a01e9ee2201d1bba325056e79",
       "schemas/annotations.schema.json": "2020dc285288653eb775bbc80c72a85191bd0411bc11bd752b487a1ad5ec6f98",
-      "schemas/api/rest-envelope.schema.json": "06ac56e806b0205bf53f8bf454d23b8efd2651633649b155ea25eed3e8a93c90",
+      "schemas/api/rest-envelope.schema.json": "f2a36211a925df38377c8a7bada8a6fad26ee97ccdb7066bc3d65ecf1c415559",
       "schemas/bump-report.schema.json": "dea9390aa706955e2a47f6254310943d96ceb74a2f51539be86f0d389e33fa86",
       "schemas/conformance-case.schema.json": "0987ec6aa36aabe12a01ce5dbf992991bd20e425c1b6c4d4a9025b1559041d22",
       "schemas/conformance-result.schema.json": "05b0f1e2dd029f08ba67472b82cb85c2b6d72ab4a7291bf65c5bed499a59c1d9",
@@ -652,6 +667,7 @@
       "schemas/serve-info.schema.json": "1ad0c0c0b63e4b401d67902f9acfef234eaaea61fe03e3b1e04d1b9cb44924ba",
       "schemas/sidecar.schema.json": "9e304a1f2677d275d8abb7d8b8cb61c35ea3d7d7d7c660d839422c34ce8cf1cb",
       "schemas/signal.schema.json": "3126ec4ebd8b6764d738e5e7a1050be45a0114fd427983c153cda6993e5fc16f",
+      "schemas/skill-actions/report.schema.json": "c2678054f01f91eee08f82965eae837e4d115b7a5e240ae0316fbcd5e60036cd",
       "schemas/summaries/markdown.schema.json": "bf052cafd54e79bb79f3fd98ed79a56849e08703602a2e01820af598dc1de708",
       "schemas/tags/markdown.schema.json": "9fcbaf7942da80705d5da4fb5e195bfd97ec53ca17914e69a80fd15c865d6723",
       "schemas/user-settings.schema.json": "d179e5109d1e452b8ef0b52af5ef122117fbe6390f8fcb70ecea449d266cfb5c",

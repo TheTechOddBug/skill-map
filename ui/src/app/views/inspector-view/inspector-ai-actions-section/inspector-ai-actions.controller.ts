@@ -1,7 +1,7 @@
 /**
  * AI actions card state (Step 16 piece 1, the findings workbench,
  * inspector half): the per-node probabilistic findings tray plus the
- * finder / fixer / standalone launcher buttons.
+ * finder / fixer / standalone / skill launcher buttons.
  *
  * Mirrors the `inspector-body-state` / `inspector-dead-link` pattern: a
  * `setupAiActions` factory called from a field initializer (injection
@@ -44,6 +44,7 @@ import type {
   IIssueFixerEntryApi,
   IProbExtensionEntryApi,
   IProbExtensionsApi,
+  ISkillActionEntryApi,
 } from '../../../../models/api';
 import type { INodeView } from '../../../../models/node';
 import type { IWsEvent, IWsScanCompletedEvent } from '../../../../models/ws-event';
@@ -156,10 +157,13 @@ export interface IAiActionsHandle {
   error: Signal<IAiActionsError | null>;
   /**
    * Effective launcher state: the optimistic `queued` / `idle` flips win
-   * over a stale payload. Accepts `issueFixers` entries too (the fix
-   * button on deterministic issue rows shares the submit flow).
+   * over a stale payload. Accepts `issueFixers` and `skills` entries too
+   * (the fix button on deterministic issue rows and the skill launchers
+   * share the submit flow).
    */
-  entryState(entry: IProbExtensionEntryApi | IIssueFixerEntryApi): 'idle' | 'queued' | 'running';
+  entryState(
+    entry: IProbExtensionEntryApi | IIssueFixerEntryApi | ISkillActionEntryApi,
+  ): 'idle' | 'queued' | 'running';
   /** True while this extension's submit round-trip is in flight. */
   isSubmitting(extensionId: string): boolean;
   /**
@@ -379,9 +383,16 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     if (queued.size === 0 && idle.size === 0) return;
     const idleIds = new Set<string>();
     const activeIds = new Set<string>();
-    // Issue fixers reconcile too: their fix button submits through the
-    // same flow, so a confirmed payload must retire its optimistic flip.
-    for (const entry of [...probs.finders, ...probs.standalone, ...probs.issueFixers]) {
+    // Issue fixers and skills reconcile too: their fix button / skill
+    // launcher submits through the same flow, so a confirmed payload
+    // must retire its optimistic flip. `skills` is optional on the wire
+    // (absent = the server predates skill actions).
+    for (const entry of [
+      ...probs.finders,
+      ...probs.standalone,
+      ...probs.issueFixers,
+      ...(probs.skills ?? []),
+    ]) {
       if (entry.state === 'idle') idleIds.add(entry.id);
       else activeIds.add(entry.id);
     }
@@ -502,11 +513,15 @@ export function setupAiActions(deps: IAiActionsSetupDeps): IAiActionsHandle {
     // Launchers only (user call 2026-07-22): the finding rows and the
     // hidden-buckets chips moved into the Findings card (mixed with the
     // deterministic issues), so this card exists purely to LAUNCH:
-    // no finder or standalone entry -> no card. Findings-side
+    // no finder, standalone, or skill entry -> no card. Findings-side
     // visibility lives in the view's `findingsSectionAvailable`.
     const probs = probExtensions();
     if (probs === null) return false;
-    return probs.finders.length > 0 || probs.standalone.length > 0;
+    return (
+      probs.finders.length > 0 ||
+      probs.standalone.length > 0 ||
+      (probs.skills?.length ?? 0) > 0
+    );
   });
 
   /** Record a submit failure in the error strip (non-`DataSourceError` too). */

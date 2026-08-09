@@ -1,0 +1,25 @@
+{
+  "$schema": "https://skill-map.ai/spec/v1/conformance-case.schema.json",
+  "id": "skill-actions-catalog",
+  "description": "Skill actions (`skill-actions.md`): a skill installed under the private catalog folder `.skill-map/.agents/skills/<name>/SKILL.md` is discovered at server boot and surfaced through the `skills` bucket of `GET /api/nodes/:pathB64/prob-extensions`, whose response MUST validate against the envelope (the `node.prob-extensions` single variant; a present `skills` array validates every entry against `#/$defs/SkillActionEntry`). The fixture pre-seeds one valid skill (`demo-skill`, frontmatter `metadata.version` exercising the version fallback chain) before the server starts, since discovery is boot-frozen by contract. The second assertion validates the documented example report against the canonical `skill-actions/report.schema.json` (the `allOf` chain to `report-base.schema.json` must resolve and the required `summary` hold); the enforcement side of that schema (the record gate rejecting a summary-less report) stays implementation-tested until the CLI submit grammar for `skill:` targets ships, because v1 submits are BFF-only and the runner has no HTTP body primitive. The `version` invoke is benign on purpose, same shape as `rest-envelope-schema`.",
+  "fixture": "skill-actions-catalog",
+  "setup": {
+    "priorScans": [{ "fixture": "skill-actions-catalog" }],
+    "serve": true
+  },
+  "invoke": { "verb": "version" },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    {
+      "type": "http-matches-schema",
+      "request": { "path": "/api/nodes/bm90ZXMubWQ/prob-extensions", "method": "GET" },
+      "status": 200,
+      "schema": "api/rest-envelope.schema.json"
+    },
+    {
+      "type": "file-matches-schema",
+      "path": "skill-report-example.json",
+      "schema": "skill-actions/report.schema.json"
+    }
+  ]
+}

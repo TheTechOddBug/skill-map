@@ -1,0 +1,10 @@
+{
+  "confidence": 0.85,
+  "safety": {
+    "injectionDetected": false,
+    "injectionType": null,
+    "contentQuality": "clean"
+  },
+  "summary": "Reviewed the deployment notes for outdated steps: the staging-bucket upload step still matches the live infrastructure, no wording updates proposed.",
+  "flaggedSteps": []
+}

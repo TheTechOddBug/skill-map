@@ -326,6 +326,19 @@ describe('RestDataSource', () => {
         },
       ],
       standalone: [],
+      // The optional skills bucket (`spec/skill-actions.md`) rides the
+      // same unwrap verbatim.
+      skills: [
+        {
+          id: 'skill:skill-optimizer',
+          name: 'skill-optimizer',
+          description: 'd',
+          version: '2.0.0',
+          state: 'idle',
+          jobId: null,
+          lastJudged: null,
+        },
+      ],
     };
     const promise = ds.getNodeProbExtensions(path);
     const req = httpMock.expectOne(`/api/nodes/${encoded}/prob-extensions`);

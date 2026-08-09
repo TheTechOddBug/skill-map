@@ -26,6 +26,7 @@ import {
   SKILL_MAP_DIR,
   BACKUPS_DIRNAME,
   kernelBackupsDir,
+  kernelSkillActionsDir,
 } from '../../kernel/util/skill-map-paths.js';
 
 /**
@@ -34,8 +35,10 @@ import {
  * The canonical literal lives in `kernel/util/skill-map-paths.ts` (the
  * innermost layer); it is re-exported here so the CLI / BFF path helpers
  * keep importing it from one place without `core/` owning the literal.
+ * `kernelSkillActionsDir` (the skill-action catalog folder,
+ * `spec/skill-actions.md`) rides the same re-export.
  */
-export { SKILL_MAP_DIR, BACKUPS_DIRNAME };
+export { SKILL_MAP_DIR, BACKUPS_DIRNAME, kernelSkillActionsDir };
 
 const DB_FILENAME = 'skill-map.db';
 const JOBS_DIRNAME = 'jobs';

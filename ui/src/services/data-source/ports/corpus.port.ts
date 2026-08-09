@@ -248,9 +248,12 @@ export interface ICorpusPort {
    * `standalone` are finders WITHOUT a fixer plus probabilistic Actions
    * with no `analyzerIds` (single-action buttons). Each entry carries the
    * live queue `state` (`idle` / `queued` / `running`) for this (node,
-   * extension) pair. Returns the unwrapped `item`; `null` on a 404
-   * (unknown node / missing DB). The static (demo) data source returns
-   * the empty catalog.
+   * extension) pair. The OPTIONAL `skills` bucket lists the
+   * operator-installed skill actions (`spec/skill-actions.md`), one per
+   * catalog skill on every node; absent means the server predates the
+   * feature, `[]` an empty catalog. Returns the unwrapped `item`; `null`
+   * on a 404 (unknown node / missing DB). The static (demo) data source
+   * returns the empty catalog.
    */
   getNodeProbExtensions(path: string): Promise<IProbExtensionsApi | null>;
 

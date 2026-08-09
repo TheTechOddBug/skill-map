@@ -685,6 +685,21 @@ Hooks introduce no new persisted state and do NOT participate in the determinist
 
 ---
 
+## Skill-actions catalog
+
+A PARALLEL catalog next to the extension system, full contract in [`skill-actions.md`](./skill-actions.md). Operator-installed `SKILL.md` skills under the private folder `<cwd>/.skill-map/.agents/skills/<name>/` are discovered once at `sm serve` boot (same posture as `PluginLoaderPort` discovery: no per-request re-walk, restart to pick up an install) and offered as per-node probabilistic work through the `skills` bucket of `GET /api/nodes/:pathB64/prob-extensions`, submitting into the ordinary job queue under the `skill:<name>` id with `extension_kind` frozen as `action`.
+
+What keeps it OUTSIDE the extension system, deliberately:
+
+- **No code, no import trust.** A skill is TEXT that becomes part of a rendered prompt (inlined under a kernel-authored skill-instructions section, outside `<user-content>`), never an imported module, so the §Locality trust axes do not apply; the trust anchor is the operator's explicit install into gitignored `.skill-map/` state, the same anchor as a drop-in plugin's `prompt.md`.
+- **No manifest, canonical substitutes instead.** Identity from the directory name (`skill:<dirname>`), version from frontmatter with a `0.0.0` fallback, prompt from the spec-pinned wrapper template (a normative artifact loaded like the canonical preamble), report contract from the single canonical [`schemas/skill-actions/report.schema.json`](./schemas/skill-actions/report.schema.json), resolved as a constant at record time.
+- **No registry membership.** Skill actions never enter the extension registry, claim no view slots, contribute no annotations, and have no enable toggles; the §Boot invariant is untouched (an empty catalog is the default, and the kernel boots identically without one).
+- **Not nodes.** The catalog lives under `.skill-map/`, which the default scan ignore excludes; a skill committed into the project tree is a node and NOT a skill action, the two surfaces are disjoint.
+
+The execution posture is unchanged from §Execution handover: the kernel renders and queues, an external agent claims and records.
+
+---
+
 ## Dependency analyzers
 
 The following imports are NORMATIVELY FORBIDDEN:

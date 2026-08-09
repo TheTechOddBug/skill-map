@@ -71,6 +71,12 @@ export {
   selectCurrentTags,
 } from './current-tags-injection.js';
 export {
+  loadCanonicalSkillTemplate,
+  loadSkillActionReportSchema,
+  loadSkillActionReportSchemaText,
+} from './skill-template.js';
+export { buildSkillSection, type ISkillSectionInput } from './skill-injection.js';
+export {
   bucketFilterActive,
   countDismissedHidden,
   countFixedHidden,

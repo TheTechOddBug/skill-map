@@ -57,6 +57,7 @@ import {
   fixerResolutionEntries,
   generateExecutionId,
   kernelSafetyRows,
+  loadSkillActionReportSchema,
   summaryKindOfReportSchema,
 } from '../../kernel/jobs/index.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
@@ -66,6 +67,7 @@ import { tx } from '../../kernel/util/tx.js';
 import { RECORD_OUTCOME_TEXTS } from './i18n/record-outcome.texts.js';
 import { resolveAction, type IActionRuntime } from './action-runtime.js';
 import { referencedAnalyzerMode } from './analyzer-mode.js';
+import { isSkillActionId } from '../skill-actions/catalog.js';
 
 /**
  * Agent-side metrics stamped onto the execution row. Every field is
@@ -159,12 +161,28 @@ export type TExtensionRecordResolution =
  * frozen `extensionKind` names: an `analyzer` job validates against the
  * ANALYZER's `report.schema.json` (or codegen-inlined `reportSchema`)
  * even when a sibling Action shares the extension id, and vice versa.
+ * A `skill:` id routes FIRST, on the prefix alone, to the canonical
+ * skill-action schema CONSTANT.
  */
 export function resolveExtensionRecord(
   runtime: IActionRuntime,
   extensionId: string,
   extensionKind: JobExtensionKind,
 ): TExtensionRecordResolution {
+  // Skill-action job (`spec/skill-actions.md` §Report contract and
+  // record): the report schema is spec-static, resolved from the id
+  // prefix WITHOUT consulting the catalog, so a skill uninstalled
+  // between submit and record never orphans its running job (the same
+  // tolerance the record path grants a deleted node). The schema sits
+  // under no summaries/ or findings/ namespace and `analyzerIds` stays
+  // null, so record writes the execution row only; the kernel safety
+  // lane still fires like everywhere else.
+  if (isSkillActionId(extensionId)) {
+    return {
+      ok: true,
+      record: { extensionKind: 'action', schema: loadSkillActionReportSchema(), analyzerIds: null },
+    };
+  }
   return extensionKind === 'action'
     ? resolveActionExtensionRecord(runtime, extensionId)
     : resolveAnalyzerExtensionRecord(runtime, extensionId);

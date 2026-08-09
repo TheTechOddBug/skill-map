@@ -121,6 +121,54 @@ describe('renderJobContent', () => {
       JobRenderError,
     );
   });
+
+  /**
+   * Skill-instructions seam placement (`spec/job-lifecycle.md` §Submit
+   * step 9; `spec/skill-actions.md`): the skill section expands FIRST
+   * among the seam sections, before findings / current tags / report
+   * contract, and always OUTSIDE the `<user-content>` block.
+   */
+  it('renders the skill section first at the seam, outside the delimiter', () => {
+    const out = renderJobContent({
+      node: { path: 'n.md' },
+      nodeBody: 'BODY',
+      promptTemplate: 'Task.\n{{userContent}}\nEnd.',
+      preamble: PREAMBLE,
+      skillSection: '## Skill instructions\n\nSKILL BODY',
+      findingsSection: '## Findings to resolve',
+      currentTagsSection: '## Current tags',
+      reportContract: '## Report contract',
+    });
+    strictEqual(
+      out,
+      'PREAMBLE LINE\n\nTask.\n' +
+        '## Skill instructions\n\nSKILL BODY\n\n' +
+        '## Findings to resolve\n\n' +
+        '## Current tags\n\n' +
+        '## Report contract\n\n' +
+        '<user-content id="n.md">\nBODY\n</user-content>\nEnd.',
+    );
+    // The skill body sits OUTSIDE the delimiter block.
+    ok(out.indexOf('SKILL BODY') < out.indexOf('<user-content'));
+  });
+
+  it('template validation is unaffected by a skill section (the section is not a template)', () => {
+    // The canonical wrapper IS the template and must carry the
+    // placeholder; the skill section never passes validateTemplate, so a
+    // section full of delimiter-looking text renders fine while a
+    // placeholder-less TEMPLATE still rejects.
+    throws(
+      () =>
+        renderJobContent({
+          node: { path: 'n.md' },
+          nodeBody: 'B',
+          promptTemplate: 'No placeholder here.',
+          preamble: PREAMBLE,
+          skillSection: '## Skill instructions\n\nX',
+        }),
+      JobRenderError,
+    );
+  });
 });
 
 describe('user-content escaping round-trip', () => {

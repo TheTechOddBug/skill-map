@@ -154,14 +154,30 @@ export interface IRenderJobContentInput {
    */
   preamble?: string;
   /**
+   * Rendered skill-instructions section (`buildSkillSection`). Present
+   * ONLY for skill-action jobs (`skill:<name>` submits,
+   * `spec/skill-actions.md`). When present it is inserted at the
+   * placeholder seam FIRST among the seam sections (before the findings /
+   * current-tags sections and the report contract, per
+   * `spec/job-lifecycle.md` §Submit step 9). Kernel-authored prelude,
+   * never user content, so it stays outside the delimiter: rendering the
+   * skill body inside `<user-content>` would order the model to ignore
+   * its instructions, neutralising the skill's purpose. Absent for every
+   * non-skill job. The skill BODY is a section, not a template: it never
+   * passes `validateTemplate` (discovery already rejected bodies carrying
+   * delimiter markup or the placeholder); the canonical wrapper template
+   * IS the template and validates as-is.
+   */
+  skillSection?: string;
+  /**
    * Rendered findings-to-resolve section (`buildFindingsSection`). Present
    * ONLY for fixer jobs (probabilistic Actions declaring
    * `precondition.analyzerIds`). When present it is inserted at the
    * placeholder seam BEFORE the report contract, so the render order is
-   * template-prose, findings, current-tags, report-contract,
-   * `<user-content>` block. It is kernel-authored prelude, never user
-   * content, so it stays outside the delimiter. Absent on non-fixer /
-   * legacy callers.
+   * template-prose, skill-instructions, findings, current-tags,
+   * report-contract, `<user-content>` block. It is kernel-authored
+   * prelude, never user content, so it stays outside the delimiter.
+   * Absent on non-fixer / legacy callers.
    */
   findingsSection?: string;
   /**
@@ -202,10 +218,12 @@ export function renderJobContent(input: IRenderJobContentInput): string {
   // The kernel-authored prelude expands WITH the placeholder so it lands
   // right before the `<user-content>` block (and outside it), per
   // `spec/job-lifecycle.md` §Submit step 9 + §Findings injection for fixers
-  // + §Current-tags injection for taggers. Order: findings-to-resolve
-  // (fixer only), then current tags (tagger only), then report contract,
-  // then the user-content block.
+  // + §Current-tags injection for taggers + `spec/skill-actions.md`.
+  // Order: skill instructions (skill-action only), then
+  // findings-to-resolve (fixer only), then current tags (tagger only),
+  // then report contract, then the user-content block.
   const parts: string[] = [];
+  if (input.skillSection !== undefined) parts.push(input.skillSection);
   if (input.findingsSection !== undefined) parts.push(input.findingsSection);
   if (input.currentTagsSection !== undefined) parts.push(input.currentTagsSection);
   if (input.reportContract !== undefined) parts.push(input.reportContract);

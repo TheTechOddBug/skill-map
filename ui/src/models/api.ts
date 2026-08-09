@@ -1821,6 +1821,41 @@ export interface IIssueFixerEntryApi {
 }
 
 /**
+ * One `skills` entry of the `node.prob-extensions` catalog: an
+ * operator-installed skill from the private `.skill-map/.agents/skills/`
+ * catalog (`spec/skill-actions.md`), offered on EVERY node. Mirrors
+ * `rest-envelope.schema.json#/$defs/SkillActionEntry`. `state` / `jobId`
+ * follow `IProbExtensionEntryApi` over the SKILL's own active jobs only
+ * (no fixer surface at all: skills carry no `fixerIds`, no
+ * `hasOpenFindings`, no `findingsMaxSeverity`, no `fixerBusy`).
+ * Submitting posts the entry's `id` VERBATIM as the `extension` body
+ * field of `POST /api/nodes/:pathB64/jobs`.
+ */
+export interface ISkillActionEntryApi {
+  /** The `skill:<name>` submit target, `<name>` the catalog dirname verbatim. */
+  id: string;
+  /**
+   * The skill's frontmatter `name`, the launcher label. Rendered
+   * VERBATIM: skill ids carry no `<plugin>/` segment, so the
+   * `shortExtensionLabel` helper never applies.
+   */
+  name: string;
+  /** The skill's frontmatter `description`, the launcher tooltip / subtitle. */
+  description: string;
+  /**
+   * Resolved catalog version (frontmatter `version`, else
+   * `metadata.version`, else `0.0.0`). Informational only; surfaces in
+   * the launcher tooltip.
+   */
+  version: string;
+  state: TProbExtensionStateApi;
+  /** The ACTIVE queued/running job's id, `null` when idle (stop handle). */
+  jobId: string | null;
+  /** Latest recorded execution for the pair; `null` when never judged. */
+  lastJudged: { at: number; model: string | null } | null;
+}
+
+/**
  * The `item` of the `node.prob-extensions` envelope: the node's
  * probabilistic launcher catalog, classified manifest-mechanically
  * (ROADMAP §Step 16). `finders` are probabilistic Analyzers matching the
@@ -1836,6 +1871,14 @@ export interface IProbExtensionsApi {
   finders: IProbExtensionEntryApi[];
   standalone: IProbExtensionEntryApi[];
   issueFixers: IIssueFixerEntryApi[];
+  /**
+   * OPTIONAL skill-action bucket (`spec/skill-actions.md`): one entry
+   * per operator-installed skill, on every node. Absent is NOT empty:
+   * a server predating skill actions omits the field entirely, while an
+   * empty catalog emits `[]` (same absent-is-not-empty rule as
+   * `findingsMaxSeverity`).
+   */
+  skills?: ISkillActionEntryApi[];
 }
 
 /**

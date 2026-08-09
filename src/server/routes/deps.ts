@@ -15,6 +15,7 @@
 import type { IProvider } from '../../kernel/extensions/index.js';
 import type { ConfigService } from '../../core/config/service.js';
 import type { IPluginRuntime } from '../../core/runtime/plugin-runtime.js';
+import type { ISkillActionCatalog } from '../../core/skill-actions/catalog.js';
 
 /**
  * Mutable one-field box around the plugin runtime, so a swap performed
@@ -109,6 +110,19 @@ export interface IRouteDeps {
    * false → true direction has something to build.
    */
   reloadPluginRuntime: () => Promise<void>;
+  /**
+   * Boot-discovered skill-action catalog (`spec/skill-actions.md`).
+   * BOOT-FROZEN by contract (§Discovery: discovery runs ONCE at
+   * `sm serve` boot, alongside plugin discovery; installing or editing a
+   * skill requires a server restart, and the body bytes are cached in
+   * memory for the life of the process). Deliberately NO holder and NO
+   * reload seam, unlike `pluginRuntimeHolder`: skills have no enable
+   * toggles and no mid-session mutation surface, so a plain frozen value
+   * is the honest shape. Consumed by the launcher catalog
+   * (`node-prob-extensions.ts`, the `skills` bucket) and the submit
+   * route (`node-jobs.ts`, `skill:<name>` targets).
+   */
+  readonly skillActionCatalog: ISkillActionCatalog;
   /**
    * Lazily-cached view over `loadConfig`. Routes consume
    * `c.var.configService.get()` (or `.effective()`) instead of calling

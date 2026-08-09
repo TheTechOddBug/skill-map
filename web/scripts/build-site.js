@@ -51,6 +51,7 @@ const PROSE_DOCS = [
   { file: 'telemetry.md', title: 'Telemetry', summary: 'Opt-in usage/error telemetry: toggles, consent, anonymity.' },
   { file: 'view-slots.md', title: 'View slots', summary: 'Closed slot + renderer catalog for plugin UI contributions.' },
   { file: 'input-types.md', title: 'Input types', summary: 'Closed catalog of extension input types.' },
+  { file: 'skill-actions.md', title: 'Skill actions', summary: 'Operator-installed SKILL.md skills run as per-node jobs.' },
   { file: 'interfaces/security-scanner.md', title: 'Security scanner interface', summary: 'Convention for third-party security scanners.' },
 ];
 

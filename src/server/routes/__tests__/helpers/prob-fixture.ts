@@ -158,6 +158,25 @@ export async function setupProbProject(
 }
 
 /**
+ * Install one skill action into the project's PRIVATE catalog
+ * (`<root>/.skill-map/.agents/skills/<name>/SKILL.md`,
+ * `spec/skill-actions.md` §The catalog folder). Discovery is boot-frozen
+ * (§Discovery), so call this BEFORE `bootAndUse`.
+ */
+export function installSkillAction(
+  project: IProbProject,
+  name: string,
+  opts: { description?: string; version?: string; body?: string } = {},
+): void {
+  const dir = join(project.root, '.skill-map', '.agents', 'skills', name);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, 'SKILL.md'),
+    `---\nname: ${name}\ndescription: ${opts.description ?? `Skill ${name}.`}\nversion: ${opts.version ?? '1.0.0'}\n---\n${opts.body ?? `Body of skill ${name}.\n`}`,
+  );
+}
+
+/**
  * Seed `state_findings` rows for one `(nodeId, extensionId)` pair
  * (REPLACE semantics, mirroring the record path). Rows default to the
  * finder lane / warn / fresh (`bodyHashAtGeneration` = the node's live

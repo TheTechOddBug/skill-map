@@ -61,6 +61,7 @@ import {
   loadPluginRuntime,
   type IPluginRuntime,
 } from '../core/runtime/plugin-runtime.js';
+import { assembleSkillActionCatalog } from '../core/skill-actions/catalog.js';
 import { builtInPlugins, builtIns } from '../plugins/built-ins.js';
 import { defaultRuntimeContext, type IRuntimeContext } from '../core/runtime/runtime-context.js';
 import { collectViewContributions } from '../kernel/extensions/index.js';
@@ -212,6 +213,14 @@ export async function createServer(
   });
   const { pluginRuntime, kindRegistry, providerRegistry, providers } =
     await assemblePluginRuntime(options, runtimeContext);
+  // Skill-action catalog (`spec/skill-actions.md` §Discovery), assembled
+  // ONCE at boot next to the plugin runtime and frozen for the process
+  // lifetime (install / edit requires a restart, same posture as plugin
+  // discovery). Discovery warnings go to the server log directly: unlike
+  // plugin warnings, no watcher leg re-surfaces them.
+  const skillActionCatalog = assembleSkillActionCatalog(runtimeContext.cwd, (msg) =>
+    log.warn(msg),
+  );
   const { kernel, contributionsRegistry } = assembleKernel(pluginRuntime, options.noBuiltIns);
 
   // Holder is created BEFORE `createApp` so route deps can capture a
@@ -251,6 +260,7 @@ export async function createServer(
     contributionsRegistry,
     pluginRuntime,
     watcherHolder,
+    skillActionCatalog,
     kernel,
     mcpManager: mcpIntegration ? mcpIntegration.manager : null,
   });

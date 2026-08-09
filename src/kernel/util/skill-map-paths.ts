@@ -63,3 +63,16 @@ export function kernelLocalSettingsPath(scopeRoot: string): string {
 export function kernelBackupsDir(dbPath: string): string {
   return join(dirname(resolve(dbPath)), BACKUPS_DIRNAME);
 }
+
+/**
+ * `<scopeRoot>/.skill-map/.agents/skills`, the skill-action catalog
+ * folder (`spec/skill-actions.md` §The catalog folder). The inner
+ * `.agents/skills/` segment is the generic store the `npx skills`
+ * installer emits, so installing is one command run with the working
+ * directory inside `.skill-map/`. This is the ONLY folder skill-action
+ * discovery walks (`core/skill-actions/catalog.ts`); the `core/paths`
+ * re-export feeds the host layers so the segments live in one place.
+ */
+export function kernelSkillActionsDir(scopeRoot: string): string {
+  return join(scopeRoot, KERNEL_SKILL_MAP_DIR, '.agents', 'skills');
+}

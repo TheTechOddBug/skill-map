@@ -699,7 +699,7 @@
       }
     },
     {
-      "description": "Probabilistic-launcher envelope served by `GET /api/nodes/:pathB64/prob-extensions` (Step 16). Rides the single shape (`item` + the three registries, no `counts` / `filters`); the `item` is the node's launcher catalog for the inspector's finder buttons (ROADMAP \u00a7Step 16): `finders` (probabilistic Analyzers whose precondition matches the node AND that have at least one matching fixer, i.e. `fixerIds` non-empty; the UI renders each as a Detect button, Detect+Fix when the automatic toggle is on, DISABLED while `hasOpenFindings` is true since 2026-07-20, the fix lives on each finding row), `standalone` (probabilistic Analyzers matching the node with NO fixer, PLUS probabilistic Actions without `analyzerIds`; single-action buttons, `fixerIds` empty), and `issueFixers` (probabilistic Actions whose `analyzerIds` resolve to a DETERMINISTIC analyzer, such as `core/ai-reference-action` over `core/reference-broken`, listed ONLY while the node carries at least one matching open Issue; the UI renders each as a fix button ON the matching deterministic issue rows, never as a launcher button, user decision 2026-07-22 replacing the former standalone placement). A fixer paired with a probabilistic finder is never listed on its own: it surfaces through its finder's `fixerIds` and the tray's per-finding fix button submits it; the former per-finder-fixer split and the `fixers` bucket stay retired. Entry shapes in `#/$defs/ProbExtensionEntry` (finders / standalone) and `#/$defs/IssueFixerEntry` (issueFixers).",
+      "description": "Probabilistic-launcher envelope served by `GET /api/nodes/:pathB64/prob-extensions` (Step 16). Rides the single shape (`item` + the three registries, no `counts` / `filters`); the `item` is the node's launcher catalog for the inspector's finder buttons (ROADMAP \u00a7Step 16): `finders` (probabilistic Analyzers whose precondition matches the node AND that have at least one matching fixer, i.e. `fixerIds` non-empty; the UI renders each as a Detect button, Detect+Fix when the automatic toggle is on, DISABLED while `hasOpenFindings` is true since 2026-07-20, the fix lives on each finding row), `standalone` (probabilistic Analyzers matching the node with NO fixer, PLUS probabilistic Actions without `analyzerIds`; single-action buttons, `fixerIds` empty), and `issueFixers` (probabilistic Actions whose `analyzerIds` resolve to a DETERMINISTIC analyzer, such as `core/ai-reference-action` over `core/reference-broken`, listed ONLY while the node carries at least one matching open Issue; the UI renders each as a fix button ON the matching deterministic issue rows, never as a launcher button, user decision 2026-07-22 replacing the former standalone placement). A fixer paired with a probabilistic finder is never listed on its own: it surfaces through its finder's `fixerIds` and the tray's per-finding fix button submits it; the former per-finder-fixer split and the `fixers` bucket stay retired. The OPTIONAL fourth bucket `skills` carries the skill-action catalog (`skill-actions.md`): one entry per skill installed under `.skill-map/.agents/skills/`, on every node, deterministically; ABSENT is not empty (an implementation predating skill actions omits the field and stays conforming, an empty catalog emits `[]`, same rule as `findingsMaxSeverity`). Entry shapes in `#/$defs/ProbExtensionEntry` (finders / standalone), `#/$defs/IssueFixerEntry` (issueFixers) and `#/$defs/SkillActionEntry` (skills).",
       "required": [
         "item",
         "kindRegistry",
@@ -735,6 +735,13 @@
               "items": {
                 "$ref": "#/$defs/IssueFixerEntry"
               }
+            },
+            "skills": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SkillActionEntry"
+              },
+              "description": "OPTIONAL skill-action bucket (`skill-actions.md`). Absent is NOT empty: absent means the implementation does not report skill actions at all, `[]` means an empty catalog."
             }
           }
         }
@@ -1238,6 +1245,85 @@
             }
           },
           "description": "Frozen finding targets of the ACTIVE fixer jobs for this finder (cli-contract.md, GET /api/nodes/:pathB64/prob-extensions): the tray derives each row's fix-button busy state from it so fixing one finding no longer spins every row. `null` when no fixer job is active."
+        }
+      }
+    },
+    "SkillActionEntry": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "description",
+        "version",
+        "state",
+        "jobId",
+        "lastJudged"
+      ],
+      "additionalProperties": false,
+      "description": "One `skills` entry of the `node.prob-extensions` catalog: an operator-installed skill from the private `.skill-map/.agents/skills/` catalog (`skill-actions.md`), offered on every node. `state` / `jobId` mirror `ProbExtensionEntry` over the SKILL's own active jobs only (no fixerIds union; running wins over queued); `lastJudged` is its latest recorded execution for this node. Submitting posts the entry's `id` verbatim as the `extension` body field of `POST /api/nodes/:pathB64/jobs`.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^skill:.+$",
+          "description": "The `skill:<name>` submit target, `<name>` being the catalog subdirectory name verbatim."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The skill's frontmatter `name`, the launcher label (skill ids carry no `<plugin>/` segment to shorten)."
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The skill's frontmatter `description`, rendered as the launcher tooltip / subtitle."
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Resolved catalog version: frontmatter `version` when a string, else `metadata.version` when a string, else `0.0.0`. Informational; dedup correctness rides the body hashing into `promptTemplateHash`."
+        },
+        "state": {
+          "enum": [
+            "idle",
+            "queued",
+            "running"
+          ]
+        },
+        "lastJudged": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "at",
+                "model"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "at": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Epoch milliseconds of the latest recorded execution for this (node, skill) pair."
+                },
+                "model": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The recording agent's self-reported model id at that execution; `null` when undeclared."
+                }
+              }
+            }
+          ]
+        },
+        "jobId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The ACTIVE queued/running job's id for this skill on this node, the handle the UI's stop affordance cancels via POST /api/jobs/:jobId/cancel. `null` when idle."
         }
       }
     },

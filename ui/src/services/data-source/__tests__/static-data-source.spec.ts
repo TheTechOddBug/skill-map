@@ -440,10 +440,13 @@ describe('StaticDataSource', () => {
   });
 
   it('getNodeProbExtensions() returns the empty launcher catalog for a known node', async () => {
+    // `skills: []` (not absent): demo mode supports skill actions with
+    // an empty catalog, the absent-is-not-empty wire rule in reverse.
     await expect(ds.getNodeProbExtensions('b.md')).resolves.toEqual({
       finders: [],
       standalone: [],
       issueFixers: [],
+      skills: [],
     });
   });
 

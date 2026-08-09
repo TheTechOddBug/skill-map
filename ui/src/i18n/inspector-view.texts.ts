@@ -105,8 +105,12 @@ export const INSPECTOR_VIEW_TEXTS = {
      * "ALL standalone" buttons). Queues every entry of ITS group only.
      */
     runAll: '(run all)',
-    allFindersTooltip: 'Queue every finder on this node at once.',
-    allStandaloneTooltip: 'Queue every standalone action on this node at once.',
+    /** Tooltip of each group's "(run all)" link, keyed like `groupTitles`. */
+    runAllTooltips: {
+      finders: 'Queue every finder on this node at once.',
+      standalone: 'Queue every standalone action on this node at once.',
+      skills: 'Queue every skill on this node at once.',
+    },
     /**
      * Automatic toggle (Step 16): when on, one click on a finder button
      * runs the finder AND auto-chains its fixers (the finder submit
@@ -151,6 +155,15 @@ export const INSPECTOR_VIEW_TEXTS = {
       detect: 'Detect',
       detectAndFix: 'Detect + fix',
     },
+    /**
+     * Skill launcher tooltip (spec/skill-actions.md): the wire `name`
+     * plus the informational catalog version, then the skill's own
+     * frontmatter description, e.g. "skill-optimizer (v2.0.0): Tightens
+     * the skill body." Skill ids carry no plugin segment, so the name
+     * leads verbatim.
+     */
+    skillTooltip: (name: string, version: string, description: string): string =>
+      `${name} (v${version}): ${description}`,
     /**
      * Per-row AI-action provenance: the confidence percent alone (the
      * recording model was dropped from the row, user call 2026-07-20;
@@ -199,10 +212,14 @@ export const INSPECTOR_VIEW_TEXTS = {
     /** Launcher button state tooltips (appended after the description). */
     stateQueued: 'queued',
     stateRunning: 'running',
-    /** Column headers of the launcher columns (user pick 2026-07-22). */
+    /**
+     * Column headers of the launcher groups (user pick 2026-07-22;
+     * `skills` = the operator-installed skill actions, rendered last).
+     */
     groupTitles: {
       finders: 'Finders',
       standalone: 'Standalone',
+      skills: 'Skills',
     },
     /**
      * Disabled-reason suffix on a finder whose findings are still open

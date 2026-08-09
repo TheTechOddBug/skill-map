@@ -32,7 +32,7 @@ An extension template that violates rule 4 (e.g., interpolates user text outside
 
 ## The preamble text
 
-The following text is **normative and verbatim**, byte-for-byte reproducible. Included in the `contentHash` computation (via `promptTemplateHash`, which hashes the kernel-authored prelude: the preamble + extension template + the findings-to-resolve section for fixer jobs, the current-tags section for tagger jobs + report-contract blocks, concatenated, see [`job-lifecycle.md` §Submit](./job-lifecycle.md#submit) step 9 and §Findings injection for fixers).
+The following text is **normative and verbatim**, byte-for-byte reproducible. Included in the `contentHash` computation (via `promptTemplateHash`, which hashes the kernel-authored prelude: the preamble + extension template + the skill-instructions section for skill-action jobs ([`skill-actions.md`](./skill-actions.md)), the findings-to-resolve section for fixer jobs, the current-tags section for tagger jobs + report-contract blocks, concatenated, see [`job-lifecycle.md` §Submit](./job-lifecycle.md#submit) step 9 and §Findings injection for fixers).
 
 ```
 You are operating inside skill-map, a deterministic tool that prepares

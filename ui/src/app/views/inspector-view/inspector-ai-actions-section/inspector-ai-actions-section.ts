@@ -14,7 +14,11 @@ import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { INSPECTOR_VIEW_TEXTS } from '../../../../i18n/inspector-view.texts';
-import type { IProbExtensionEntryApi, TIssueSeverityApi } from '../../../../models/api';
+import type {
+  IProbExtensionEntryApi,
+  ISkillActionEntryApi,
+  TIssueSeverityApi,
+} from '../../../../models/api';
 import type { INodeView } from '../../../../models/node';
 import { shortExtensionLabel } from '../../../../models/extension-label';
 import { ProviderRegistryService } from '../../../../services/provider-registry';
@@ -39,11 +43,58 @@ const VERDICT_ICONS: Record<TAiActionVerdict, string> = {
 };
 
 /**
+ * Launcher group ids in render order: `standalone` first (user call
+ * 2026-08-09), `finders` next, `skills` (the operator-installed skill
+ * actions, `spec/skill-actions.md`) appended LAST.
+ */
+type TAiLauncherGroupId = 'standalone' | 'finders' | 'skills';
+
+/**
+ * One launcher row of the groups computed: the wire `ProbExtensionEntry`
+ * shape the shared button template renders. A SKILL entry maps into it
+ * (see `skillLauncherEntry`) so the template needs no per-group
+ * special-casing beyond label / icon / tooltip; the two `skill*` fields
+ * are the display data only a skill carries.
+ */
+interface ILauncherEntryVm extends IProbExtensionEntryApi {
+  /** Wire `name` of a skill entry: the launcher label VERBATIM (never shortened). */
+  skillName?: string;
+  /** Wire `version` of a skill entry: informational, tooltip only. */
+  skillVersion?: string;
+}
+
+/**
+ * Map a wire skill entry (`spec/skill-actions.md`) into the launcher
+ * view-model the buttons already render. The empty fixer surface is
+ * STRUCTURAL, not a stub: skills carry no fixers, no open findings and
+ * no verdict, so `fixerIds` is always `[]`, `hasOpenFindings` always
+ * `false`, `fixerBusy` always `null`, and `findingsMaxSeverity` stays
+ * ABSENT (absent = "no verdict reported", so no mark renders). Submit,
+ * stop and the optimistic flips ride the same controller flow keyed by
+ * the verbatim `skill:<name>` id.
+ */
+function skillLauncherEntry(entry: ISkillActionEntryApi): ILauncherEntryVm {
+  return {
+    id: entry.id,
+    description: entry.description,
+    state: entry.state,
+    jobId: entry.jobId,
+    lastJudged: entry.lastJudged,
+    fixerIds: [],
+    hasOpenFindings: false,
+    fixerBusy: null,
+    skillName: entry.name,
+    skillVersion: entry.version,
+  };
+}
+
+/**
  * AI actions section of the inspector: the LAUNCHERS only (finder /
- * standalone buttons + the Automatic toggle + the agent-check chip +
- * the submit error strip). The probabilistic finding rows live in the
- * Findings section, mixed with the deterministic issues (user call
- * 2026-07-22), so this card gates purely on having something to launch.
+ * standalone / skill buttons + the Automatic toggle + the agent-check
+ * chip + the submit error strip). The probabilistic finding rows live
+ * in the Findings section, mixed with the deterministic issues (user
+ * call 2026-07-22), so this card gates purely on having something to
+ * launch.
  *
  * Extracted from the inspector god component following the
  * `linked-nodes-panel` precedent: the section owns its per-launcher
@@ -201,14 +252,18 @@ export class InspectorAiActionsSection {
 
   /**
    * Launcher groups in render order, empty groups filtered out so the
-   * template iterates once instead of double-gating. Two buckets,
+   * template iterates once instead of double-gating. Three buckets,
    * `standalone` first (user call 2026-08-09): `standalone` (finders
    * without a fixer + Actions with no `analyzerIds`, single-action
    * buttons) above `finders` (probabilistic Analyzers with a fixer,
-   * rendered as two-state Detect ⇄ Fix buttons).
+   * rendered as two-state Detect ⇄ Fix buttons), with `skills` (the
+   * operator-installed skill actions, mapped through
+   * `skillLauncherEntry`) appended LAST. The surface-claim exclusion
+   * applies to `standalone` ONLY: skills are never claimants (they own
+   * no contributions at all, `spec/skill-actions.md`).
    */
   protected readonly aiActionLauncherGroups = computed<
-    { id: 'finders' | 'standalone'; entries: IProbExtensionEntryApi[] }[]
+    { id: TAiLauncherGroupId; entries: ILauncherEntryVm[] }[]
   >(() => {
     const probs = this.probExtensions();
     if (probs === null) return [];
@@ -219,10 +274,14 @@ export class InspectorAiActionsSection {
     // kernel-agnosticism sweep 2026-07-23).
     const claimed = this.surfaceClaimedActionIds();
     const standalone = probs.standalone.filter((e) => !claimed.has(e.id));
+    // `skills` is optional on the wire: an absent bucket (a server
+    // predating skill actions) renders exactly like an empty one.
+    const skills = (probs.skills ?? []).map(skillLauncherEntry);
     return (
       [
         { id: 'standalone', entries: standalone },
         { id: 'finders', entries: probs.finders },
+        { id: 'skills', entries: skills },
       ] as const
     )
       .filter((g) => g.entries.length > 0)
@@ -292,27 +351,31 @@ export class InspectorAiActionsSection {
   }
 
   /**
-   * Launcher label: always the extension KIND (the segment after the
-   * slash, minus the `node-` prefix, via `shortExtensionLabel`), for
-   * finders and standalone alike (user call 2026-07-18). The action is
-   * carried by the icon (`aiActionLauncherIcon`) and the tooltip, not
-   * the label.
+   * Launcher label: the extension KIND (the segment after the slash,
+   * minus the `node-` prefix, via `shortExtensionLabel`) for finders
+   * and standalone alike (user call 2026-07-18); a SKILL labels with
+   * its wire `name` VERBATIM (skill ids carry no plugin segment, so the
+   * shortening helper never applies). The action is carried by the icon
+   * (`aiActionLauncherIcon`) and the tooltip, not the label.
    */
-  protected aiActionLauncherLabel(entry: IProbExtensionEntryApi): string {
-    return shortExtensionLabel(entry.id);
+  protected aiActionLauncherLabel(entry: ILauncherEntryVm): string {
+    return entry.skillName ?? shortExtensionLabel(entry.id);
   }
 
   /**
    * Mode icon (the label is the kind, so the icon shows the action): a
    * queued job pins the clock; otherwise a finder shows detect or
-   * detect+fix per the Automatic toggle and a standalone shows the run
-   * glyph. Auto-fix is the MAGIC glyph (user call 2026-07-20, shared
-   * with the per-finding fix button).
+   * detect+fix per the Automatic toggle, a skill shows the book glyph,
+   * and a standalone shows the run glyph. Auto-fix is the MAGIC glyph
+   * (user call 2026-07-20, shared with the per-finding fix button).
    */
-  protected aiActionLauncherIcon(entry: IProbExtensionEntryApi, isFinder: boolean): string {
+  protected aiActionLauncherIcon(entry: ILauncherEntryVm, groupId: TAiLauncherGroupId): string {
     if (this.aiActionEntryState(entry) === 'queued') return 'pi pi-clock';
-    // Standalone actions wear the magic icon (user call 2026-07-22).
-    if (!isFinder) return 'pi pi-sparkles';
+    // Skills wear the book glyph (an installed SKILL.md is documentation
+    // turned into work); standalone actions the magic icon (user call
+    // 2026-07-22).
+    if (groupId === 'skills') return 'pi pi-book';
+    if (groupId !== 'finders') return 'pi pi-sparkles';
     return this.finderActionMode(entry) === 'detectAndFix' ? 'pi pi-sparkles' : 'pi pi-search';
   }
 
@@ -320,10 +383,16 @@ export class InspectorAiActionsSection {
    * Tooltip: the manifest description, the current action (Detect /
    * Detect + fix) for finders so the icon reads unambiguously, plus the
    * live state when not idle, or the open-findings reason while the
-   * button sits disabled by them.
+   * button sits disabled by them. A SKILL leads with its name and
+   * informational version instead ("skill-optimizer (v2.0.0): ...").
    */
-  protected aiActionLauncherTooltip(entry: IProbExtensionEntryApi, isFinder: boolean): string {
+  protected aiActionLauncherTooltip(entry: ILauncherEntryVm, groupId: TAiLauncherGroupId): string {
+    const isFinder = groupId === 'finders';
     const action = isFinder ? `${this.texts.aiActions.buttons[this.finderActionMode(entry)]} · ` : '';
+    const body =
+      entry.skillName !== undefined && entry.skillVersion !== undefined
+        ? this.texts.aiActions.skillTooltip(entry.skillName, entry.skillVersion, entry.description)
+        : entry.description;
     const state = this.aiActionEntryState(entry);
     const suffix =
       state === 'queued'
@@ -333,7 +402,7 @@ export class InspectorAiActionsSection {
           : entry.hasOpenFindings
             ? ` (${this.texts.aiActions.stateOpenFindings})`
             : '';
-    return `${action}${entry.description}${suffix}`;
+    return `${action}${body}${suffix}`;
   }
 
   /**
@@ -411,12 +480,16 @@ export class InspectorAiActionsSection {
   }
 
   /**
-   * Launcher click. Standalone entries submit their own extension. A
-   * finder submits itself, with `autoFix: true` when the Automatic
-   * toggle is on (the kernel chains its fixers on record). Fixing an
-   * already-open finding lives on the finding row, not here.
+   * Launcher click. Standalone entries submit their own extension; a
+   * SKILL submits its verbatim `skill:<name>` id the same way (always
+   * `autoFix: false`, the flag is meaningless on a skill target and the
+   * server clamps it anyway). A finder submits itself, with
+   * `autoFix: true` when the Automatic toggle is on (the kernel chains
+   * its fixers on record). Fixing an already-open finding lives on the
+   * finding row, not here.
    */
-  protected onLauncherClick(entry: IProbExtensionEntryApi, isFinder: boolean): void {
+  protected onLauncherClick(entry: ILauncherEntryVm, groupId: TAiLauncherGroupId): void {
+    const isFinder = groupId === 'finders';
     // Usage analytics (opt-in, default OFF): the per-action launch gesture,
     // with the extension id collapsed in the tracker. The ALL buttons emit
     // their own single gesture in `onLauncherAllGroup`, never one per entry.
@@ -428,7 +501,7 @@ export class InspectorAiActionsSection {
   }
 
   /** The submit a launcher click dispatches, exposed as a promise for ALL. */
-  private launcherSubmit(entry: IProbExtensionEntryApi, isFinder: boolean): Promise<void> {
+  private launcherSubmit(entry: ILauncherEntryVm, isFinder: boolean): Promise<void> {
     const autoFix = isFinder && this.finderActionMode(entry) === 'detectAndFix';
     return this.aiActions().submit(entry.id, autoFix);
   }
@@ -448,11 +521,12 @@ export class InspectorAiActionsSection {
    */
   /**
    * Type-scoped ALL (user call 2026-07-22: finders and standalone each
-   * get their own ALL button running ONLY their group), sequential like
-   * the former combined ALL so a file-editing action can never land
-   * between two finders of the same batch.
+   * get their own ALL button running ONLY their group; skills join for
+   * symmetry), sequential like the former combined ALL so a
+   * file-editing action can never land between two finders of the same
+   * batch.
    */
-  protected onLauncherAllGroup(groupId: 'finders' | 'standalone'): void {
+  protected onLauncherAllGroup(groupId: TAiLauncherGroupId): void {
     this.usageTracker.trackFeature('ai-action-all', groupId);
     void (async (): Promise<void> => {
       const group = this.aiActionLauncherGroups().find((g) => g.id === groupId);
