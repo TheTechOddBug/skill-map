@@ -2,6 +2,39 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.6.6",
+      "date": "2026-08-09",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**AI actions wait for your agent check.** The AI action buttons now start disabled with a 'Checking your agent setup' hint until skill-map confirms your agent is ready, and the panel refreshes as soon as you close Settings, so toggles you flip there apply right away.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "On the map you can now select several nodes at once (Shift+drag a rectangle, or Ctrl/Cmd+click) and drag them together; the selection stays after you drop them. Press Escape or click empty canvas to clear it.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "New Skills group in the AI actions panel: install agent skills into your project's .skill-map folder (npx skills add) and run them on any node; each run's report lands in the executions history. The server picks up newly installed skills on restart.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "New Settings > Project toggle: Skill actions (off by default). Turn it on to offer installed skills in the AI actions panel; the setting text explains where skills live (.skill-map/.agents/skills/<name>/SKILL.md) and that new installs load on server restart.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.6.5",
       "date": "2026-08-09",
       "kind": "user-facing",

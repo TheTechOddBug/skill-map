@@ -6,6 +6,21 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>1.6.6</b> · 2026-08-09</summary>
+
+### CLI Patch
+- The UI's AI submit gate now fails closed at boot (superseding the 2026-07-26 fail-open call): an unknown skill reading disables every submitting affordance with a 'Checking your agent setup...' tooltip until the automatic probe confirms the setup, while a green check verdict or an observed answer still opens it; the inspector's AI actions also re-fetch their launcher catalog when Settings closes, so plugin and skill-action toggles apply to the open node immediately.
+- Graph multi-selection now survives its own gestures: releasing a Shift+drag rectangle no longer clears the set (the background-click deselect ignores clicks that conclude a drag), Ctrl/Cmd+click toggles nodes without collapsing to a single selection, dragging any selected node moves the whole group and keeps it selected, and Escape clears a lingering multi-selection.
+- Skill actions: agent skills installed under the project's private `.skill-map/.agents/skills/` catalog (skills.sh installer) are discovered at `sm serve` boot and run as per-node probabilistic jobs. New `spec/skill-actions.md` contract plus canonical report schema; `prob-extensions` gains an optional `skills` bucket, the BFF job submit accepts `skill:<name>` targets, and the inspector's AI actions card gains a Skills group. The CLI submit grammar for `skill:` stays reserved.
+- Skill actions gain a project-local offering toggle, `skillActions.enabled` (default false, opt-in), surfaced in Settings > Project below the external-symlinks opt-in: while off, the prob-extensions `skills` bucket stays empty and `skill:` submits refuse not-found; the key is read fresh per request so flips apply without restarts. The root READMEs (EN/ES) document the catalog folder and install command.
+
+### Spec Patch (1.8.5)
+- Skill actions: agent skills installed under the project's private `.skill-map/.agents/skills/` catalog (skills.sh installer) are discovered at `sm serve` boot and run as per-node probabilistic jobs. New `spec/skill-actions.md` contract plus canonical report schema; `prob-extensions` gains an optional `skills` bucket, the BFF job submit accepts `skill:<name>` targets, and the inspector's AI actions card gains a Skills group. The CLI submit grammar for `skill:` stays reserved.
+- Skill actions gain a project-local offering toggle, `skillActions.enabled` (default false, opt-in), surfaced in Settings > Project below the external-symlinks opt-in: while off, the prob-extensions `skills` bucket stays empty and `skill:` submits refuse not-found; the key is read fresh per request so flips apply without restarts. The root READMEs (EN/ES) document the catalog folder and install command.
+
+</details>
+
+<details>
 <summary><b>1.6.5</b> · 2026-08-09</summary>
 
 ### CLI Patch
