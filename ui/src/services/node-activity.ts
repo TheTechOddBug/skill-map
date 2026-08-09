@@ -134,6 +134,14 @@ interface IInvocationEntry {
   expiresAt: number;
 }
 
+/**
+ * Horizon for the `lastLitAtByPath` recency memory. Generous on
+ * purpose: it only needs to outlive any plausible spark-suppression
+ * window (`NODE_SPARK_SUPPRESS_AFTER_ACTIVITY_MS`, 2s today) so the
+ * map never grows unbounded across a long session.
+ */
+const LAST_LIT_PRUNE_MS = 60_000;
+
 @Injectable({ providedIn: 'root' })
 export class NodeActivityService {
   private readonly ttlMs = inject(NODE_ACTIVITY_TTL_MS);
@@ -182,6 +190,14 @@ export class NodeActivityService {
    * Cleaned per owner on release, wholesale on disable.
    */
   private readonly sessionByOwner = new Map<string, string>();
+
+  /**
+   * When each path was last seen lit (stamped while active AND on the
+   * publish that removes it). Backs `wasActiveWithin` so the change
+   * spark can suppress a flash for a node whose glow ended moments ago
+   * (the agent-write double-flash case). Pruned on `LAST_LIT_PRUNE_MS`.
+   */
+  private readonly lastLitAtByPath = new Map<string, number>();
 
   /** Rule-9 coalescing buffer: events land here, the signal mutates once per frame. */
   private pending: IWsNodeActivityData[] = [];
@@ -245,6 +261,22 @@ export class NodeActivityService {
     this.lastUnitByOwner.clear();
     this.sessionByOwner.clear();
     this.publish(Date.now());
+    // AFTER the publish: it stamps the force-released paths as leavers
+    // in the recency memory, and a disable must leave no memory behind.
+    this.lastLitAtByPath.clear();
+  }
+
+  /**
+   * True when the node is lit right now, or was lit within the last
+   * `windowMs`. Deliberately a pull-read, NOT a signal: the change
+   * spark (`NodeSparkService`) consults it inside its own flush,
+   * outside change detection, so no OnPush consumer ever depends on
+   * it. `now` is injectable for tests.
+   */
+  wasActiveWithin(path: string, windowMs: number, now = Date.now()): boolean {
+    if (this._activePaths().has(path)) return true;
+    const litAt = this.lastLitAtByPath.get(path);
+    return litAt !== undefined && now - litAt <= windowMs;
   }
 
   private enqueue(data: IWsNodeActivityData): void {
@@ -429,7 +461,20 @@ export class NodeActivityService {
       if (owners.size === 0) this.claims.delete(path);
     }
 
-    if (!setsEqual(active, this._activePaths())) {
+    // Recency memory: stamp every path lit at this publish AND every
+    // leaver (present in the previous published set, absent now), so
+    // `wasActiveWithin` still answers "went dark moments ago" after the
+    // glow decayed. Pruned on a generous horizon.
+    const previous = this._activePaths();
+    for (const path of active) this.lastLitAtByPath.set(path, now);
+    for (const path of previous) {
+      if (!active.has(path)) this.lastLitAtByPath.set(path, now);
+    }
+    for (const [path, litAt] of this.lastLitAtByPath) {
+      if (now - litAt > LAST_LIT_PRUNE_MS) this.lastLitAtByPath.delete(path);
+    }
+
+    if (!setsEqual(active, previous)) {
       this._activePaths.set(active);
     }
 

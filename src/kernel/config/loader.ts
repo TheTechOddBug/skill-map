@@ -343,8 +343,8 @@ export interface IActivityCaptureConfig {
 
 /**
  * Web-UI preferences block. Mirrors
- * `project-config.schema.json#/properties/ui`. Both keys are
- * per-developer rendering choices (previously browser localStorage),
+ * `project-config.schema.json#/properties/ui`. Every key is a
+ * per-developer rendering choice (previously browser localStorage),
  * so they live in `settings.local.json` only.
  */
 export interface IUiPreferencesConfig {
@@ -365,6 +365,13 @@ export interface IUiPreferencesConfig {
    * `realtimeActivity`.
    */
   showRuntimeAgents?: boolean;
+  /**
+   * Whether the map flashes a node once when the live watcher detects
+   * its file changed on disk (`scan.progress` with `cached: false`
+   * inside a `mode: 'changed'` scan). Default `true`. Subordinate to
+   * `liveUpdates` only; independent of `realtimeActivity`.
+   */
+  changeSpark?: boolean;
 }
 
 /**
@@ -397,6 +404,7 @@ export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
   'ui.liveUpdates',
   'ui.realtimeActivity',
   'ui.showRuntimeAgents',
+  'ui.changeSpark',
   'mcp.server.enabled',
   // The `github/enrichment` base-URL overrides. The extension's `token`
   // setting rides the Authorization header to whatever host `apiBaseUrl`

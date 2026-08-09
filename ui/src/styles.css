@@ -190,6 +190,15 @@
   --sm-exec-c4: #fbbf24;
   --sm-exec-c5: #fb7185;
 
+  /* Change spark (a node's file changed on disk, NodeSparkService).
+     Deliberately ONE hue, the theme's predominant color, so the flash
+     reads as "external update" and never as the multi-hue executing
+     treatment (user call 2026-08-09: theme-primary, not a fixed
+     accent). PrimeNG themes redefine `--p-primary-color` per palette,
+     so the spark follows the active theme for free; used bare, no
+     fallback, per the repo CSS-var rule. */
+  --sm-spark-c: var(--p-primary-color);
+
   /* Pinned error red for consent-bearing dialogs (Settings, Quick Start).
      Those hosts re-pin PrimeNG's `--p-message-error-*` so form-level
      failures keep the universal red signal even under themes that retint

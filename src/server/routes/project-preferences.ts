@@ -83,12 +83,15 @@ export interface IProjectPreferencesEnvelope {
    * executing nodes (default `true`, subordinate to `liveUpdates`).
    * `showRuntimeAgents`: render capsules for runtime sub-agents with no
    * scanned node (default `true`, subordinate to `realtimeActivity`).
+   * `changeSpark`: flash a node once when the watcher detects its file
+   * changed on disk (default `true`, subordinate to `liveUpdates` only).
    * No confirm gate, neither expands disk access nor trusts code.
    */
   ui: {
     liveUpdates: boolean;
     realtimeActivity: boolean;
     showRuntimeAgents: boolean;
+    changeSpark: boolean;
   };
   /**
    * Whether `sm serve` exposes the opt-in read-only MCP server at `/mcp`
@@ -113,6 +116,7 @@ interface IPatchBody {
     liveUpdates?: boolean;
     realtimeActivity?: boolean;
     showRuntimeAgents?: boolean;
+    changeSpark?: boolean;
   };
   mcpServerEnabled?: boolean;
 }
@@ -156,6 +160,11 @@ function buildEnvelope(deps: IRouteDeps): IProjectPreferencesEnvelope {
         }) ?? true,
       showRuntimeAgents:
         readConfigValue<boolean>('ui.showRuntimeAgents', {
+          cwd,
+          default: true,
+        }) ?? true,
+      changeSpark:
+        readConfigValue<boolean>('ui.changeSpark', {
           cwd,
           default: true,
         }) ?? true,
@@ -342,6 +351,7 @@ function applyUiWrites(body: IPatchBody, cwd: string): boolean {
     { key: 'ui.liveUpdates', next: body.ui.liveUpdates },
     { key: 'ui.realtimeActivity', next: body.ui.realtimeActivity },
     { key: 'ui.showRuntimeAgents', next: body.ui.showRuntimeAgents },
+    { key: 'ui.changeSpark', next: body.ui.changeSpark },
   ] as const;
   for (const { key, next } of entries) {
     if (next === undefined) continue;
@@ -715,6 +725,7 @@ const PATCH_BODY_SCHEMA = {
         liveUpdates: { type: 'boolean' },
         realtimeActivity: { type: 'boolean' },
         showRuntimeAgents: { type: 'boolean' },
+        changeSpark: { type: 'boolean' },
       },
     },
     scan: {
@@ -756,6 +767,7 @@ const parsePatchBody = makeBodyValidator<IPatchBody>(PATCH_BODY_SCHEMA, {
     '/ui/liveUpdates:type:boolean': SERVER_TEXTS.projectPrefsLiveUpdatesNotBoolean,
     '/ui/realtimeActivity:type:boolean': SERVER_TEXTS.projectPrefsRealtimeActivityNotBoolean,
     '/ui/showRuntimeAgents:type:boolean': SERVER_TEXTS.projectPrefsShowRuntimeAgentsNotBoolean,
+    '/ui/changeSpark:type:boolean': SERVER_TEXTS.projectPrefsChangeSparkNotBoolean,
     '/mcpServerEnabled:type:boolean': SERVER_TEXTS.projectPrefsMcpServerNotBoolean,
   },
 });

@@ -787,4 +787,38 @@ describe('NodeActivityService.executionDetails (tool badge) and the mcp:// gate'
     await flushed();
     expect(service.executionDetails()).toBe(first);
   });
+
+  describe('wasActiveWithin (change-spark recency memory)', () => {
+    it('is true while the node is lit', async () => {
+      const { service, events$ } = bootstrap(10_000);
+      events$.next(makeEvent(SKILL, 'start', 'main'));
+      await flushed();
+      expect(service.wasActiveWithin(SKILL, 1)).toBe(true);
+    });
+
+    it('stays true within the window after the glow ended, false past it', async () => {
+      const { service, events$ } = bootstrap(10_000);
+      events$.next(makeEvent(SKILL, 'start', 'main'));
+      await flushed();
+      events$.next(makeEvent(SKILL, 'end', 'main'));
+      await flushed();
+      expect(service.activePaths().has(SKILL)).toBe(false);
+
+      // Explicit `now` arguments instead of sleeping: a generous window
+      // catches the just-released path; a tiny window with `now` pushed
+      // forward proves the memory ages out.
+      expect(service.wasActiveWithin(SKILL, 2_000, Date.now())).toBe(true);
+      expect(service.wasActiveWithin(SKILL, 1, Date.now() + 5_000)).toBe(false);
+    });
+
+    it('is false for never-lit paths and after a disable clears the memory', async () => {
+      const { service, events$ } = bootstrap(10_000);
+      expect(service.wasActiveWithin(SKILL, 60_000)).toBe(false);
+
+      events$.next(makeEvent(SKILL, 'start', 'main'));
+      await flushed();
+      service.setEnabled(false);
+      expect(service.wasActiveWithin(SKILL, 60_000)).toBe(false);
+    });
+  });
 });

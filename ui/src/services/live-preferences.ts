@@ -10,6 +10,11 @@
  *     glow driven by `node.activity` frames, `spec/provider-activity.md`)
  *     lights up the map. OFF keeps the socket (and every other live
  *     feature) untouched; only the activity lighting goes inert.
+ *   - `changeSparkEnabled`, whether the map flashes a node once when
+ *     the live watcher detects its file changed on disk (the "change
+ *     spark"). Subordinate to `wsEnabled` only. Behaviour owner:
+ *     `NodeSparkService.setEnabled` (clears the live sparks on
+ *     disable), mirroring the activity pair.
  *   - `followActivityEnabled`, whether the graph camera auto-frames the
  *     executing nodes ("Follow the Activity", the map-toolbar toggle).
  *     Default ON (user call 2026-07-26: watching the agent run IS the
@@ -67,6 +72,7 @@ export class LivePreferencesService {
   private readonly _wsEnabled = signal(true);
   private readonly _activityEnabled = signal(true);
   private readonly _showRuntimeAgents = signal(true);
+  private readonly _changeSpark = signal(true);
   private readonly _followActivity = signal(readStoredBool(FOLLOW_ACTIVITY_KEY, true));
 
   /** Live `/ws` channel wanted at all. Default ON. */
@@ -82,6 +88,13 @@ export class LivePreferencesService {
    * the setter here directly.
    */
   readonly showRuntimeAgents = this._showRuntimeAgents.asReadonly();
+  /**
+   * Change spark wanted (`ui.changeSpark`): flash a node once when the
+   * watcher detects its file changed on disk. Default ON; subordinate
+   * to `wsEnabled` only (no live channel, no scan frames). Behaviour
+   * owner: `NodeSparkService.setEnabled`.
+   */
+  readonly changeSparkEnabled = this._changeSpark.asReadonly();
   /** Camera auto-frames the executing nodes. Default ON (user call 2026-07-26). */
   readonly followActivityEnabled = this._followActivity.asReadonly();
 
@@ -98,6 +111,7 @@ export class LivePreferencesService {
       this._wsEnabled.set(prefs.ui?.liveUpdates ?? true);
       this._activityEnabled.set(prefs.ui?.realtimeActivity ?? true);
       this._showRuntimeAgents.set(prefs.ui?.showRuntimeAgents ?? true);
+      this._changeSpark.set(prefs.ui?.changeSpark ?? true);
     } catch {
       // Offline BFF or older envelope: keep the ON defaults.
     }
@@ -121,6 +135,12 @@ export class LivePreferencesService {
     this.persist({ ui: { showRuntimeAgents: value } });
   }
 
+  setChangeSparkEnabled(value: boolean): void {
+    if (this._changeSpark() === value) return;
+    this._changeSpark.set(value);
+    this.persist({ ui: { changeSpark: value } });
+  }
+
   setFollowActivityEnabled(value: boolean): void {
     if (this._followActivity() === value) return;
     this._followActivity.set(value);
@@ -134,7 +154,12 @@ export class LivePreferencesService {
    * with quota errors. Next boot re-reads whatever the server holds.
    */
   private persist(patch: {
-    ui: { liveUpdates?: boolean; realtimeActivity?: boolean; showRuntimeAgents?: boolean };
+    ui: {
+      liveUpdates?: boolean;
+      realtimeActivity?: boolean;
+      showRuntimeAgents?: boolean;
+      changeSpark?: boolean;
+    };
   }): void {
     void this.dataSource.setProjectPreferences(patch).catch((err: unknown) => {
       console.warn('live-preferences: persisting the toggle failed', err);

@@ -193,6 +193,58 @@ describe('chokidar-scoped incremental scan', () => {
     );
   });
 
+  it('advertises the walk strategy on scan.started: changed when honoured, full otherwise', async () => {
+    const fixture = freshFixture('mode');
+    await fullFixture(fixture);
+    const prior = await fullScan(fixture);
+
+    const startedMode = (events: ProgressEvent[]): unknown =>
+      (events.find((e) => e.type === 'scan.started')?.data as { mode?: unknown }).mode;
+
+    // Honoured scoped set -> 'changed'.
+    const scopedEvents: ProgressEvent[] = [];
+    const scopedEmitter = new InMemoryProgressEmitter();
+    scopedEmitter.subscribe((e) => scopedEvents.push(e));
+    await scopedScan(fixture, prior, ['.claude/commands/deploy.md'], [], scopedEmitter);
+    strictEqual(startedMode(scopedEvents), 'changed');
+
+    // Cached FULL walk (prior + cache, no scoped set) -> 'full': the
+    // mode names the walk strategy, not the cache posture.
+    const cachedEvents: ProgressEvent[] = [];
+    const cachedEmitter = new InMemoryProgressEmitter();
+    cachedEmitter.subscribe((e) => cachedEvents.push(e));
+    const cachedKernel = createKernel();
+    for (const m of listBuiltIns()) cachedKernel.registry.register(m);
+    await runScan(cachedKernel, {
+      roots: [fixture],
+      extensions: builtIns(),
+      priorSnapshot: prior,
+      enableCache: true,
+      emitter: cachedEmitter,
+    });
+    strictEqual(startedMode(cachedEvents), 'full');
+
+    // Gate-fallback honesty: a scoped set WITHOUT a prior snapshot
+    // cannot be honoured, so the event must report 'full'
+    // (spec/job-events.md §scan.started).
+    const fallbackEvents: ProgressEvent[] = [];
+    const fallbackEmitter = new InMemoryProgressEmitter();
+    fallbackEmitter.subscribe((e) => fallbackEvents.push(e));
+    const fallbackKernel = createKernel();
+    for (const m of listBuiltIns()) fallbackKernel.registry.register(m);
+    await runScan(fallbackKernel, {
+      roots: [fixture],
+      extensions: builtIns(),
+      enableCache: true,
+      incrementalChangedPaths: {
+        changed: new Set(['.claude/commands/deploy.md']),
+        removed: new Set<string>(),
+      },
+      emitter: fallbackEmitter,
+    });
+    strictEqual(startedMode(fallbackEvents), 'full');
+  });
+
   it('drops a removed path and fires broken-ref on the dangling reference', async () => {
     const fixture = freshFixture('removed');
     await fullFixture(fixture);

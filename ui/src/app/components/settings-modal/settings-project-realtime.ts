@@ -1,7 +1,9 @@
 /**
  * `<sm-settings-project-realtime>`, the "Real-time node activity" row
  * of the Settings > Project section: whether executing nodes light up
- * on the map, `ui.realtimeActivity` in `settings.local.json`.
+ * on the map, `ui.realtimeActivity` in `settings.local.json`. Also
+ * hosts the "Flash on file changes" row right below it
+ * (`ui.changeSpark`, the change spark) and the runtime sub-agents row.
  *
  * Subordinate to two gates, each with its own hint:
  *   - "Live updates" (the sibling `<sm-settings-project-live>` row):
@@ -32,6 +34,7 @@ import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import { UsageTrackerService } from '../../services/usage-tracker';
 import { LivePreferencesService } from '../../../services/live-preferences';
 import { NodeActivityService } from '../../../services/node-activity';
+import { NodeSparkService } from '../../../services/node-spark';
 import { WsEventStreamService } from '../../../services/ws-event-stream';
 import { ActivityReadinessService } from '../../services/activity-readiness';
 import { ToggleRowDirective } from './toggle-row.directive';
@@ -47,6 +50,7 @@ export class SettingsProjectRealtime {
   private readonly usageTracker = inject(UsageTrackerService);
   private readonly wsStream = inject(WsEventStreamService);
   private readonly nodeActivity = inject(NodeActivityService);
+  private readonly nodeSpark = inject(NodeSparkService);
   private readonly activityReadiness = inject(ActivityReadinessService);
   private readonly livePrefs = inject(LivePreferencesService);
 
@@ -75,6 +79,20 @@ export class SettingsProjectRealtime {
   protected onLiveActivityToggle(next: boolean): void {
     this.usageTracker.trackFeature('realtime-activity', next, 'settings');
     this.nodeActivity.setEnabled(next);
+  }
+
+  /**
+   * Change spark (`ui.changeSpark`): writes through the feature owner
+   * (`NodeSparkService.setEnabled`, which clears the live sparks on
+   * disable), mirroring the activity toggle above. Subordinate to Live
+   * updates only, never to the activity toggle or the hook state (the
+   * spark rides scan frames, no hook involved).
+   */
+  protected readonly changeSparkEnabled = this.nodeSpark.enabled;
+
+  protected onChangeSparkToggle(next: boolean): void {
+    this.usageTracker.trackFeature('change-spark', next);
+    this.nodeSpark.setEnabled(next);
   }
 
   /**

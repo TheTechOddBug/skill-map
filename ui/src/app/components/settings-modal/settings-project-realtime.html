@@ -33,6 +33,32 @@
   />
 </div>
 
+<div smToggleRow class="settings-project__row" data-testid="settings-project-change-spark-row">
+  <div class="settings-project__row-text">
+    <label class="settings-project__row-label" for="settings-project-change-spark-switch">
+      {{ texts.project.live.spark.label }}
+    </label>
+    <div class="settings-project__row-description">
+      {{ texts.project.live.spark.description }}
+    </div>
+    @if (!liveWsEnabled()) {
+      <div class="settings-project__row-meta">
+        <span class="settings-project__meta-line">{{ texts.project.live.spark.hint }}</span>
+      </div>
+    }
+  </div>
+  <!-- Subordinate to Live updates ONLY: the spark rides scan frames,
+       not activity frames, so neither the activity toggle nor the
+       hook-install state gates it. -->
+  <p-toggleswitch
+    inputId="settings-project-change-spark-switch"
+    [ngModel]="changeSparkEnabled()"
+    (ngModelChange)="onChangeSparkToggle($event)"
+    [disabled]="!liveWsEnabled()"
+    data-testid="settings-project-change-spark-toggle"
+  />
+</div>
+
 <div smToggleRow class="settings-project__row" data-testid="settings-project-runtime-agents-row">
   <div class="settings-project__row-text">
     <label class="settings-project__row-label" for="settings-project-runtime-agents-switch">

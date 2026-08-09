@@ -298,6 +298,7 @@
                    node per pass instead of once per binding. -->
               @let sel = selectionFor(node.id);
               @let executing = isExecuting(node.id);
+              @let sparking = isSparking(node.id);
               @let activity = activityStatsFor(node.id);
               @let expanded = isExpanded(node.id);
               @let hostLabel = nodeHostLabel(node);
@@ -326,6 +327,12 @@
                 @if (executing) {
                   <div class="sm-gnode__halo" aria-hidden="true"></div>
                 }
+                <!-- Change spark: mounted only while the flash lives
+                     (unmount IS the reset, no forwards fill). The
+                     executing glow wins over it. -->
+                @if (sparking && !executing) {
+                  <div class="sm-gnode__spark" aria-hidden="true"></div>
+                }
                 <sm-node-card
                   [node]="node.view"
                   [stats]="node.stats"
@@ -353,6 +360,7 @@
                 <!-- Same @let hoists as the virtualized branch above. -->
                 @let sel = selectionFor(node.id);
                 @let executing = isExecuting(node.id);
+                @let sparking = isSparking(node.id);
                 @let activity = activityStatsFor(node.id);
                 @let expanded = isExpanded(node.id);
                 @let hostLabel = nodeHostLabel(node);
@@ -380,6 +388,12 @@
                 >
                   @if (executing) {
                     <div class="sm-gnode__halo" aria-hidden="true"></div>
+                  }
+                  <!-- Change spark: mounted only while the flash lives
+                       (unmount IS the reset, no forwards fill). The
+                       executing glow wins over it. -->
+                  @if (sparking && !executing) {
+                    <div class="sm-gnode__spark" aria-hidden="true"></div>
                   }
                   <sm-node-card
                     [node]="node.view"

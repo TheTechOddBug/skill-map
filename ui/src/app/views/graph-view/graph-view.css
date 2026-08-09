@@ -398,6 +398,63 @@
   }
 }
 
+/* Change spark: one-shot ~1s single-color flash when the watcher
+   detects the node's file changed on disk (`NodeSparkService`; the
+   duration lives in `NODE_SPARK_DURATION_MS`, keep the animation
+   duration in sync). Same geometry as the halo above, but a static single-hue
+   glow (`--sm-spark-c`, the theme's primary color) instead of the
+   rotating rainbow, so an external edit never reads as agent activity.
+   The element is MOUNTED only while the service keeps the path in
+   `sparkPaths()` and the template additionally yields to the executing
+   halo; unmount IS the reset, so there is deliberately NO `forwards`
+   fill (files-view.css §row-animation lesson: a forwards fill on a
+   live re-rendered element strands state). Under reduced motion the
+   treatment is the discrete appear/disappear of the static glow,
+   nothing moves, same posture as the frozen rainbow.
+
+   Geometry: `inset: 0`, NOT the halo's -6px. The halo is a blurred
+   backdrop and needs the outset; a crisp ring at -6px reads as a
+   floating frame with an empty gutter around the card (user feedback
+   2026-08-09). At inset 0 the element sits exactly under the card and
+   the 2px shadow ring hugs its edge. */
+.sm-gnode__spark {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: var(--sm-radius-lg);
+  pointer-events: none;
+  opacity: 0.7;
+  box-shadow:
+    0 0 0 2px var(--sm-spark-c),
+    0 0 18px 6px color-mix(in srgb, var(--sm-spark-c) 60%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sm-gnode__spark {
+    animation: sm-spark-flash 1000ms ease-out;
+  }
+
+  /* Fast rise, then HOLD bright for most of the second, then a short
+     fade. The first cut peaked at 20% and spent the rest fading, so
+     the flash read as far shorter than its real duration (user
+     feedback 2026-08-09); the plateau is what makes the full second
+     legible. */
+  @keyframes sm-spark-flash {
+    0% {
+      opacity: 0;
+    }
+    10% {
+      opacity: 0.9;
+    }
+    80% {
+      opacity: 0.9;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+}
+
 /* Kind accent and tag styles live in `<sm-node-card>` now (the card
    owns its own `.sm-gnode--{kind}` accent bar and `.sm-gnode__icon-box`
    tinting). This file only retains the host wrapper and the

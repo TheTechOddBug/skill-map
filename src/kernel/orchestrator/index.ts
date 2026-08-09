@@ -504,7 +504,9 @@ export interface RunScanOptions {
    * corpus), `scanTruncated` stays `false` (the ceiling never fires on a
    * scoped read). Absent (boot, `sm scan`, `sm scan --changed`,
    * meta-file change) falls back to the full-traversal + mtime-gate path,
-   * byte-identical to today.
+   * byte-identical to today. Whether the fast path was honoured or fell
+   * back is surfaced on the `scan.started` event as `mode: 'changed' |
+   * 'full'` (`spec/job-events.md` §scan.started).
    */
   incrementalChangedPaths?: {
     changed: ReadonlySet<string>;
@@ -568,15 +570,6 @@ async function runScanInternal(
   const setup = await buildScanSetup(options);
   const { emitter, exts, hookDispatcher, encoder, prior, start } = setup;
 
-  const scanStartedEvent = makeEvent('scan.started', { roots: options.roots });
-  emitter.emit(scanStartedEvent);
-  await hookDispatcher.dispatch('scan.started', scanStartedEvent);
-
-  const activeProviderId = resolveActiveProviderOption(
-    options.activeProvider,
-    options.roots,
-    exts.providers,
-  );
   // Tokenizer-change invalidation (project-config.schema.json
   // §tokenizer "Changing this invalidates prior counts on next scan").
   // The incremental cache reuses per-node `tokens` from the prior
@@ -589,6 +582,30 @@ async function runScanInternal(
   // `enableCache` is on and tokenization is active.
   const tokenizerChanged =
     encoder !== null && prior !== null && prior.tokenizer !== setup.tokenizer;
+  // Watcher incremental fast path, resolved ONCE here: honoured only
+  // when a prior exists, cache reuse is on, and the tokenizer is
+  // unchanged (else a scoped read would skip nodes whose token counts
+  // must be recomputed). This single value drives BOTH the advertised
+  // `scan.started.mode` and the walker spread below, so the mode the
+  // event reports can never diverge from the walk actually taken
+  // (spec/job-events.md §scan.started: a fallback MUST report `full`).
+  const incrementalChangedPaths =
+    prior !== null && setup.enableCache && !tokenizerChanged
+      ? options.incrementalChangedPaths
+      : undefined;
+
+  const scanStartedEvent = makeEvent('scan.started', {
+    roots: options.roots,
+    mode: incrementalChangedPaths !== undefined ? 'changed' : 'full',
+  });
+  emitter.emit(scanStartedEvent);
+  await hookDispatcher.dispatch('scan.started', scanStartedEvent);
+
+  const activeProviderId = resolveActiveProviderOption(
+    options.activeProvider,
+    options.roots,
+    exts.providers,
+  );
   const walked = await walkAndExtract({
     providers: exts.providers,
     extractors: exts.extractors,
@@ -615,18 +632,12 @@ async function runScanInternal(
     ...(options.followExternalSymlinks === true
       ? { followExternalSymlinks: true }
       : {}),
-    // Watcher incremental fast path: only honoured when a prior exists,
-    // cache reuse is on, and the tokenizer is unchanged (else a scoped
-    // read would skip nodes whose token counts must be recomputed). The
-    // walker enumerates from the prior snapshot + reads only the changed
-    // files instead of traversing the corpus. Falls back to the full
-    // traversal + mtime-gate when the gate does not hold.
-    ...(options.incrementalChangedPaths !== undefined &&
-    prior !== null &&
-    setup.enableCache &&
-    !tokenizerChanged
-      ? { incrementalChangedPaths: options.incrementalChangedPaths }
-      : {}),
+    // Watcher incremental fast path (gate resolved above, beside the
+    // `scan.started` mode). The walker enumerates from the prior
+    // snapshot + reads only the changed files instead of traversing the
+    // corpus. Falls back to the full traversal + mtime-gate when the
+    // gate does not hold.
+    ...(incrementalChangedPaths !== undefined ? { incrementalChangedPaths } : {}),
   });
 
   // Signal IR resolver phase. Consumes the `Signal[]` buffer produced by

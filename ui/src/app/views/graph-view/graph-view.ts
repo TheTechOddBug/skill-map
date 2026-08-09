@@ -47,6 +47,7 @@ import { LivePreferencesService } from '../../../services/live-preferences';
 import { MapVisibilityService } from '../../../services/map-visibility';
 import { AgentSpawnService } from '../../../services/agent-spawn';
 import { NodeActivityService } from '../../../services/node-activity';
+import { NodeSparkService } from '../../../services/node-spark';
 import { NodeActivityStatsService } from '../../../services/node-activity-stats';
 import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
 import type { INodeActivityStatsApi } from '../../../models/api';
@@ -198,6 +199,7 @@ export class GraphView implements OnInit {
   private readonly dagreLayout = inject(DagreLayoutEngine);
   private readonly injector = inject(Injector);
   protected readonly nodeActivity = inject(NodeActivityService);
+  private readonly nodeSpark = inject(NodeSparkService);
   private readonly activityStats = inject(NodeActivityStatsService);
   private readonly agentSpawns = inject(AgentSpawnService);
   private readonly livePrefs = inject(LivePreferencesService);
@@ -1132,6 +1134,16 @@ export class GraphView implements OnInit {
    */
   isExecuting(id: string): boolean {
     return this.nodeActivity.activePaths().has(id);
+  }
+
+  /**
+   * Change spark: `true` while the node's file-change flash is live
+   * (`NodeSparkService`, watcher-detected disk change). One O(1) set
+   * lookup per node; under OnPush only the cards whose value flips
+   * re-render.
+   */
+  isSparking(id: string): boolean {
+    return this.nodeSpark.sparkPaths().has(id);
   }
 
   /**

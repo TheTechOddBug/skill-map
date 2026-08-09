@@ -258,7 +258,7 @@ The **shapes below are experimental through spec v0.x**. The reference impl emit
 
 #### `scan.started`
 
-Emitted once when a scan begins (full, `--changed`, or `-n <node.path>`).
+Emitted once when a scan begins.
 
 ```json
 {
@@ -267,18 +267,30 @@ Emitted once when a scan begins (full, `--changed`, or `-n <node.path>`).
   "runId": "r-scan-20260420-143055-a3f2",
   "jobId": null,
   "data": {
-    "mode": "full | changed | single",
-    "target": "<node.path> | null",
-    "rootsCount": 1
+    "mode": "full | changed",
+    "roots": ["."]
   }
 }
 ```
+
+`mode` names the walk strategy actually taken, not the cache posture. `changed`
+means the implementation ran a scoped incremental walk over an explicit
+changed-path set (the reference impl's watcher fast path: only the changed
+files are re-read, every other node is injected from the prior snapshot).
+`full` means a full traversal, with or without cache reuse (`sm scan`,
+`sm scan --changed`, the watcher's boot and meta-file batches,
+`POST /api/scan`). An implementation that receives a changed-path set but
+cannot honour it (no prior snapshot, cache disabled, tokenizer changed) MUST
+report the fallback honestly as `full`. `roots` is the scanned root list as
+invoked.
 
 > **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Pre-scan setup, telemetry init.
 
 #### `scan.progress`
 
-Emitted periodically during a scan (implementation-defined cadence; SHOULD throttle to ≥250 ms apart to keep WS traffic cheap).
+Emitted once per classified node during the walk (per-node fan-out;
+throttling is deferred, matching the WS catalog note in
+[`cli-contract.md`](./cli-contract.md) §WebSocket protocol).
 
 ```json
 {
@@ -287,12 +299,24 @@ Emitted periodically during a scan (implementation-defined cadence; SHOULD throt
   "runId": "...",
   "jobId": null,
   "data": {
-    "filesSeen": 128,
-    "filesProcessed": 64,
-    "filesSkipped": 3
+    "index": 12,
+    "path": "docs/notes.md",
+    "kind": "doc",
+    "cached": false,
+    "partialCache": true
   }
 }
 ```
+
+`index` is 1-based over the claimed nodes. `path` is the node's root-relative
+POSIX path (the same string as `node.path`, so it keys directly into the node
+set a consumer already holds). `cached: true` means the node was reused
+verbatim from the prior snapshot (hashes matched, no extractor ran).
+`cached: false` means extractors ran: a brand-new node, or a changed body /
+frontmatter / sidecar. `partialCache: true` (present only beside
+`cached: false`) narrows that to "hashes matched but at least one applicable
+extractor lacked a prior run record": NOT a content change, so consumers
+reacting to "this file changed on disk" MUST skip those frames.
 
 #### `scan.completed`
 

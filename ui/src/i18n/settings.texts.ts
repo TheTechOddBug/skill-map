@@ -145,6 +145,16 @@ export const SETTINGS_TEXTS = {
           "Requires the active lens's real-time hook. Install it in this section.",
       },
       /**
+       * `ui.changeSpark`: the one-shot flash when a node's file
+       * changes on disk (watcher-scoped incremental scan). Subordinate
+       * to live updates only; agent activity wins over it at runtime.
+       */
+      spark: {
+        label: 'Flash on file changes',
+        description: 'Nodes flash briefly when their file changes on disk.',
+        hint: 'Requires live updates.',
+      },
+      /**
        * `ui.showRuntimeAgents`: the ephemeral capsules for runtime
        * sub-agents with no scanned node (unresolved spawn children).
        * Subordinate to the activity toggle above.

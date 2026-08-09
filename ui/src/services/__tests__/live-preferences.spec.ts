@@ -52,13 +52,19 @@ describe('LivePreferencesService', () => {
       getProjectPreferences: vi
         .fn()
         .mockResolvedValue(
-          prefsEnvelope({ liveUpdates: false, realtimeActivity: false, showRuntimeAgents: false }),
+          prefsEnvelope({
+            liveUpdates: false,
+            realtimeActivity: false,
+            showRuntimeAgents: false,
+            changeSpark: false,
+          }),
         ),
     });
     await service.load();
     expect(service.wsEnabled()).toBe(false);
     expect(service.activityEnabled()).toBe(false);
     expect(service.showRuntimeAgents()).toBe(false);
+    expect(service.changeSparkEnabled()).toBe(false);
   });
 
   it('load() keeps the ON defaults when the fetch fails', async () => {
@@ -69,6 +75,7 @@ describe('LivePreferencesService', () => {
     expect(service.wsEnabled()).toBe(true);
     expect(service.activityEnabled()).toBe(true);
     expect(service.showRuntimeAgents()).toBe(true);
+    expect(service.changeSparkEnabled()).toBe(true);
   });
 
   it('load() ignores stale pre-move localStorage values (server is the only source)', async () => {

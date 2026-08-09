@@ -255,6 +255,10 @@
         "showRuntimeAgents": {
           "type": "boolean",
           "description": "Whether the map renders ephemeral agent capsules for runtime sub-agents that match no scanned node (provider-activity.md, unresolved spawn children: a vendor's built-in explorer/planner with no file on disk). Default `true`. When `false` those spawns stay invisible (resolved-node spawn edges and session anchors are unaffected). Subordinate to `realtimeActivity`."
+        },
+        "changeSpark": {
+          "type": "boolean",
+          "description": "Whether the map flashes a node once (a short single-color spark) when the live watcher detects its file changed on disk, i.e. a `scan.progress` with `cached: false` inside a scan whose `scan.started` reported `mode: 'changed'` (job-events.md §Scan events). Default `true`. Subordinate to `liveUpdates` only (no live channel, no scan frames); independent of `realtimeActivity`. Suppressed while the node shows real-time agent activity or shortly after it, so an agent-driven write surfaces through the activity glow, never a double flash."
         }
       }
     }

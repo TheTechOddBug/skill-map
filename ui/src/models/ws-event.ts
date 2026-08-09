@@ -63,32 +63,46 @@ export interface IWsEvent<T = unknown> {
 // ---------------------------------------------------------------------------
 
 /**
- * `scan.started` payload. Spec example uses `{ mode, target, rootsCount }`;
- * the kernel currently emits `{ roots: string[] }` instead. Both shapes
- * are tolerated.
+ * `scan.started` payload. Canonical kernel shape per
+ * `spec/job-events.md` §scan.started: `{ mode, roots }`, where `mode`
+ * names the walk strategy actually taken (`'changed'` = scoped
+ * incremental walk over an explicit changed-path set, the watcher fast
+ * path; `'full'` = full traversal, with or without cache reuse). The
+ * legacy optionals (`target`, `rootsCount`, `'single'`) stay tolerated
+ * per the forward-compat rule; nothing emits them today.
  */
 export interface IWsScanStartedData {
   mode?: 'full' | 'changed' | 'single';
   target?: string | null;
   rootsCount?: number;
-  /** Kernel-current shape, array of root paths. */
+  /** Scanned root list as invoked. */
   roots?: string[];
 }
 
 /**
- * `scan.progress` payload. Spec example uses
- * `{ filesSeen, filesProcessed, filesSkipped }`; the kernel currently
- * emits per-node `{ index, path, kind, cached }`. Both shapes tolerated.
+ * `scan.progress` payload. Canonical kernel shape per
+ * `spec/job-events.md` §scan.progress: one frame per classified node,
+ * `{ index, path, kind, cached, partialCache? }`. The legacy aggregate
+ * optionals stay tolerated per the forward-compat rule.
  */
 export interface IWsScanProgressData {
   filesSeen?: number;
   filesProcessed?: number;
   filesSkipped?: number;
-  /** Kernel-current shape, per-node fan-out. */
+  /** 1-based over the claimed nodes. */
   index?: number;
+  /** Root-relative POSIX path, same string as `node.path`. */
   path?: string;
   kind?: string;
+  /** `true` = reused verbatim from the prior snapshot (no extractor ran). */
   cached?: boolean;
+  /**
+   * Present only beside `cached: false`: hashes matched but at least
+   * one applicable extractor lacked a prior run record. NOT a content
+   * change; consumers reacting to "this file changed on disk" MUST
+   * skip these frames (spec/job-events.md §scan.progress).
+   */
+  partialCache?: boolean;
 }
 
 /**

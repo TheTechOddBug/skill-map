@@ -12,6 +12,7 @@ import { KindRegistryService } from '../../../../services/kind-registry';
 import { LivePreferencesService } from '../../../../services/live-preferences';
 import { MapVisibilityService } from '../../../../services/map-visibility';
 import { NodeActivityService, type INodeInvocation } from '../../../../services/node-activity';
+import { NodeSparkService } from '../../../../services/node-spark';
 import {
   DATA_SOURCE,
   type IDataSourcePort,
@@ -1222,6 +1223,109 @@ describe('GraphView, follow-the-activity camera', () => {
   // empty-set sentinel) and the re-frame cadence are covered by
   // `follow-activity.controller.spec.ts` against the extracted
   // controller's observable surface.
+});
+
+describe('GraphView, change spark', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+    localStorage.removeItem('sm.map.visible-paths');
+    localStorage.removeItem('sm.graph.viewport');
+  });
+
+  /**
+   * Shared-`bootstrap` shape plus stubbed `NodeSparkService` /
+   * `NodeActivityService` signals the test drives directly (the real
+   * services only move on WS frames, which demo mode never opens).
+   */
+  async function bootstrapWithSpark(
+    initialNodes: INodeView[],
+    spark: ReturnType<typeof signal<ReadonlySet<string>>>,
+    active: ReturnType<typeof signal<ReadonlySet<string>>>,
+  ): Promise<{ fixture: ComponentFixture<GraphView>; cmp: GraphView }> {
+    const loader = makeStubLoader(initialNodes);
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([{ path: '', component: BlankPage }]),
+        { provide: CollectionLoaderService, useValue: loader },
+        { provide: DATA_SOURCE, useValue: STUB_DATA_SOURCE },
+        { provide: MarkdownRenderer, useClass: FakeMarkdownRenderer },
+        { provide: SKILL_MAP_MODE, useValue: 'demo' },
+        {
+          provide: NodeActivityService,
+          useValue: {
+            enabled: signal(true).asReadonly(),
+            activePaths: active.asReadonly(),
+            activeInvocations: signal<readonly INodeInvocation[]>([]).asReadonly(),
+            executionDetails: signal<ReadonlyMap<string, string>>(new Map()).asReadonly(),
+            setEnabled: vi.fn(),
+          } as unknown as NodeActivityService,
+        },
+        {
+          provide: NodeSparkService,
+          useValue: {
+            enabled: signal(true).asReadonly(),
+            sparkPaths: spark.asReadonly(),
+            setEnabled: vi.fn(),
+          } as unknown as NodeSparkService,
+        },
+      ],
+    });
+    TestBed.overrideComponent(GraphView, {
+      add: {
+        providers: [
+          {
+            provide: DagreLayoutEngine,
+            useValue: { calculate: vi.fn().mockResolvedValue({ nodes: [] }) },
+          },
+        ],
+      },
+    });
+    TestBed.inject(KindRegistryService).ingest({
+      agent: { primaryProviderId: 'claude', providers: { claude: { label: 'Agents', color: '#3b82f6' } } },
+    });
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/');
+    const fixture = TestBed.createComponent(GraphView);
+    return { fixture, cmp: fixture.componentInstance };
+  }
+
+  function sparkEl(fixture: ComponentFixture<GraphView>, id: string): Element | null {
+    const host = (fixture.nativeElement as HTMLElement).querySelector(
+      `[data-testid="graph-node-${id}"]`,
+    );
+    return host?.querySelector('.sm-gnode__spark') ?? null;
+  }
+
+  it('mounts the spark element while the path is in sparkPaths, unmounts on clear', async () => {
+    const spark = signal<ReadonlySet<string>>(new Set());
+    const active = signal<ReadonlySet<string>>(new Set());
+    const { fixture, cmp } = await bootstrapWithSpark([makeNode('a.md', 'a')], spark, active);
+    await flushEffects(fixture);
+    expect(cmp.isSparking('a.md')).toBe(false);
+    expect(sparkEl(fixture, 'a.md')).toBeNull();
+
+    spark.set(new Set(['a.md']));
+    await flushEffects(fixture);
+    expect(cmp.isSparking('a.md')).toBe(true);
+    expect(sparkEl(fixture, 'a.md')).not.toBeNull();
+
+    spark.set(new Set());
+    await flushEffects(fixture);
+    expect(sparkEl(fixture, 'a.md')).toBeNull();
+  });
+
+  it('the executing glow wins: a lit node never shows the spark element', async () => {
+    const spark = signal<ReadonlySet<string>>(new Set(['a.md']));
+    const active = signal<ReadonlySet<string>>(new Set(['a.md']));
+    const { fixture } = await bootstrapWithSpark([makeNode('a.md', 'a')], spark, active);
+    await flushEffects(fixture);
+
+    expect(sparkEl(fixture, 'a.md')).toBeNull();
+    const host = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="graph-node-a.md"]',
+    );
+    expect(host?.querySelector('.sm-gnode__halo')).not.toBeNull();
+  });
 });
 
 describe('GraphView, edge conversation-count labels + historical click', () => {

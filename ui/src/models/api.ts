@@ -1197,6 +1197,11 @@ export interface IProjectPreferencesApi {
      * (default `true`, subordinate to `realtimeActivity`).
      */
     showRuntimeAgents: boolean;
+    /**
+     * Flash a node once when the watcher detects its file changed on
+     * disk (default `true`, subordinate to `liveUpdates` only).
+     */
+    changeSpark: boolean;
   };
   /**
    * Project-local opt-in for the MCP server (`mcp.server.enabled`).
@@ -1242,6 +1247,7 @@ export interface IProjectPreferencesPatchApi {
     liveUpdates?: boolean;
     realtimeActivity?: boolean;
     showRuntimeAgents?: boolean;
+    changeSpark?: boolean;
   };
   /**
    * Flip the project-local read-only MCP server opt-in (`mcp.server.enabled`).

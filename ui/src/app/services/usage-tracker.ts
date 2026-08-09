@@ -71,6 +71,7 @@ export type TUsageFeatureSurface =
   | 'live-updates'
   | 'realtime-activity'
   | 'runtime-agents'
+  | 'change-spark'
   | 'capture-conversations'
   | 'hook-install'
   | 'hook-uninstall'

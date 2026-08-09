@@ -219,6 +219,9 @@ describe('runScan', () => {
     assert.equal(events[0]?.type, 'scan.started');
     assert.equal(events[1]?.type, 'scan.completed');
     assert.deepEqual((events[0]?.data as { roots: string[] }).roots, ['.']);
+    // No scoped change set: the walk strategy is a full traversal and
+    // the event must say so (spec/job-events.md §scan.started).
+    assert.equal((events[0]?.data as { mode: string }).mode, 'full');
     assert.ok((events[1]?.data as { stats: { durationMs: number } }).stats.durationMs >= 0);
   });
 

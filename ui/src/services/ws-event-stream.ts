@@ -97,6 +97,8 @@ import {
   type IWsJobSubmittedEvent,
   type IWsNodeActivityEvent,
   type IWsScanCompletedEvent,
+  type IWsScanProgressEvent,
+  type IWsScanStartedEvent,
 } from '../models/ws-event';
 import { SKILL_MAP_MODE } from './data-source/runtime-mode';
 import { LivePreferencesService } from './live-preferences';
@@ -278,6 +280,23 @@ export class WsEventStreamService implements OnDestroy {
   readonly scanCompleted$: Observable<IWsScanCompletedEvent>;
 
   /**
+   * Pre-filtered stream of `scan.started` envelopes. Consumed by the
+   * `NodeSparkService`, which latches the scan's `mode` to decide
+   * whether the in-flight scan may spark (`spec/job-events.md`
+   * §scan.started). Type-only predicate, no payload validation, per the
+   * spec's forward-compat rule.
+   */
+  readonly scanStarted$: Observable<IWsScanStartedEvent>;
+
+  /**
+   * Pre-filtered stream of `scan.progress` envelopes (per-node fan-out,
+   * `spec/job-events.md` §scan.progress). Consumed by the
+   * `NodeSparkService` for the change-spark flash. Type-only predicate,
+   * no payload validation, per the spec's forward-compat rule.
+   */
+  readonly scanProgress$: Observable<IWsScanProgressEvent>;
+
+  /**
    * Pre-filtered stream of `action.applied` envelopes, with full
    * payload-shape validation via `isActionAppliedEvent`. Carries EVERY
    * dispatched Action that materialised a write, so consumers branch on
@@ -352,6 +371,12 @@ export class WsEventStreamService implements OnDestroy {
 
     this.scanCompleted$ = this.events$.pipe(
       filter((event): event is IWsScanCompletedEvent => event.type === 'scan.completed'),
+    );
+    this.scanStarted$ = this.events$.pipe(
+      filter((event): event is IWsScanStartedEvent => event.type === 'scan.started'),
+    );
+    this.scanProgress$ = this.events$.pipe(
+      filter((event): event is IWsScanProgressEvent => event.type === 'scan.progress'),
     );
     this.actionApplied$ = this.events$.pipe(
       filter(isActionAppliedEvent),

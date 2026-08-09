@@ -30,7 +30,12 @@ interface IProjectPrefsEnvelopeWire {
   allowSidecarWriters: boolean;
   scan: { referencePaths: string[]; followExternalSymlinks: boolean; respectGitignore: boolean };
   tutorialReminderStep: number;
-  ui: { liveUpdates: boolean; realtimeActivity: boolean; showRuntimeAgents: boolean };
+  ui: {
+    liveUpdates: boolean;
+    realtimeActivity: boolean;
+    showRuntimeAgents: boolean;
+    changeSpark: boolean;
+  };
   mcpServerEnabled: boolean;
 }
 
@@ -99,7 +104,12 @@ describe('GET /api/project-preferences', () => {
         allowSidecarWriters: true,
         scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore: false },
         tutorialReminderStep: 0,
-        ui: { liveUpdates: true, realtimeActivity: true, showRuntimeAgents: true },
+        ui: {
+          liveUpdates: true,
+          realtimeActivity: true,
+          showRuntimeAgents: true,
+          changeSpark: true,
+        },
         mcpServerEnabled: false,
       });
     });
@@ -535,6 +545,7 @@ describe('PATCH /api/project-preferences (ui.* live-channel preferences)', () =>
         { ui: { liveUpdates: false } },
         { ui: { realtimeActivity: false } },
         { ui: { showRuntimeAgents: false } },
+        { ui: { changeSpark: false } },
       ];
       for (const body of bodies) {
         const patch = await fetch(url(handle, '/api/project-preferences'), {
@@ -550,6 +561,39 @@ describe('PATCH /api/project-preferences (ui.* live-channel preferences)', () =>
       assert.equal(env.ui.liveUpdates, false);
       assert.equal(env.ui.realtimeActivity, false);
       assert.equal(env.ui.showRuntimeAgents, false);
+      assert.equal(env.ui.changeSpark, false);
+    });
+  });
+
+  it('persists ui.changeSpark to settings.local.json (project-local), no confirm needed', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ui: { changeSpark: false } }),
+      });
+      assert.equal(res.status, 200);
+      const env = (await res.json()) as IProjectPrefsEnvelopeWire;
+      assert.equal(env.ui.changeSpark, false);
+
+      const local = JSON.parse(
+        readFileSync(join(cwd, '.skill-map/settings.local.json'), 'utf8'),
+      );
+      assert.equal(local.ui.changeSpark, false);
+    });
+  });
+
+  it('400 bad-query when ui.changeSpark is not a boolean', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ui: { changeSpark: 'nope' } }),
+      });
+      assert.equal(res.status, 400);
+      const env = (await res.json()) as IErrorEnvelopeWire;
+      assert.equal(env.error.code, 'bad-query');
+      assert.match(env.error.message, /ui\.changeSpark/);
     });
   });
 
