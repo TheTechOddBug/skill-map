@@ -699,6 +699,7 @@ export class StaticDataSource implements IDataSourcePort {
         realtimeActivity: true,
         showRuntimeAgents: true,
         changeSpark: true,
+        confirmIgnore: true,
       },
       mcpServerEnabled: false,
     };

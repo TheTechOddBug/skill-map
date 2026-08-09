@@ -1202,6 +1202,12 @@ export interface IProjectPreferencesApi {
      * disk (default `true`, subordinate to `liveUpdates` only).
      */
     changeSpark: boolean;
+    /**
+     * Ask before appending an ignore pattern from the Ignore buttons
+     * (files rail rows, inspector header). Default `true`; the confirm
+     * dialog's don't-ask-again checkbox sets `false`.
+     */
+    confirmIgnore: boolean;
   };
   /**
    * Project-local opt-in for the MCP server (`mcp.server.enabled`).
@@ -1248,6 +1254,7 @@ export interface IProjectPreferencesPatchApi {
     realtimeActivity?: boolean;
     showRuntimeAgents?: boolean;
     changeSpark?: boolean;
+    confirmIgnore?: boolean;
   };
   /**
    * Flip the project-local read-only MCP server opt-in (`mcp.server.enabled`).

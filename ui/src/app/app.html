@@ -320,4 +320,12 @@
       (decision)="onCrashReportDecision($event)"
     />
   }
+
+  @defer (when ignoreConfirmOpen()) {
+    <sm-ignore-confirm-dialog
+      [open]="ignoreConfirmOpen()"
+      [target]="ignoreConfirmTarget()"
+      (decision)="onIgnoreConfirmDecision($event)"
+    />
+  }
 </div>

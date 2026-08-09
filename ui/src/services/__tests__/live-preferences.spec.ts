@@ -57,6 +57,7 @@ describe('LivePreferencesService', () => {
             realtimeActivity: false,
             showRuntimeAgents: false,
             changeSpark: false,
+            confirmIgnore: false,
           }),
         ),
     });

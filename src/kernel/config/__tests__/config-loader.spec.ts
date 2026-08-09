@@ -389,6 +389,24 @@ describe('config loader, project-local-only locality', () => {
     strictEqual(sources.get('mcp.server.enabled'), 'project-local');
   });
 
+  it('strips ui.confirmIgnore from the project layer + warns (ui.* family sample)', () => {
+    const { cwd } = freshScope('plonly-ui-confirm-ignore');
+    writeSettings(cwd, 'settings', { ui: { confirmIgnore: false } });
+    const { effective, sources, warnings } = loadConfig({ cwd });
+    // Stripped: the don't-ask-again suppression is a per-developer UI
+    // choice; a committed `false` would silence the ignore confirmation
+    // for every teammate. Samples the shared `ui.*` project-local-only
+    // treatment (liveUpdates / realtimeActivity / showRuntimeAgents /
+    // changeSpark ride the same set).
+    strictEqual(effective.ui?.confirmIgnore, undefined);
+    ok(sources.get('ui.confirmIgnore') !== 'project');
+    ok(
+      warnings.some(
+        (w) => /ui\.confirmIgnore/.test(w) && /project-local only/.test(w),
+      ),
+    );
+  });
+
   it('strips the github/enrichment base-URL overrides from the COMMITTED layer + warns', () => {
     // The token setting rides the Authorization header to whatever host
     // apiBaseUrl names, so a committed override in a cloned repo would

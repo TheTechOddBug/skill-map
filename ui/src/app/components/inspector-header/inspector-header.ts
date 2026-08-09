@@ -98,6 +98,20 @@ export class InspectorHeader {
   readonly favoriteToggle = output<string>();
 
   /**
+   * Whether the Ignore affordance renders (false in demo mode, the
+   * host injects availability so this header stays presentational and
+   * DI-free of `ProjectIgnoreService`).
+   */
+  readonly ignoreVisible = input<boolean>(false);
+  /**
+   * The Ignore (ban) button beside the favorite star: carries the
+   * node's path, the host routes it into
+   * `ProjectIgnoreService.requestIgnore` (confirm-gated append to
+   * `.skillmapignore`). Mirrors `favoriteToggle`.
+   */
+  readonly ignoreClick = output<string>();
+
+  /**
    * Emitted when the user clicks a tag chip in the header. Carries the
    * tag string; the host forwards it to the graph's tag-selection
    * (`onTagSelect`), which selects every node carrying that tag and
@@ -457,6 +471,11 @@ export class InspectorHeader {
   protected onFavoriteClick(event: MouseEvent): void {
     event.stopPropagation();
     this.favoriteToggle.emit(this.node().path);
+  }
+
+  protected onIgnoreClick(event: MouseEvent): void {
+    event.stopPropagation();
+    this.ignoreClick.emit(this.node().path);
   }
 
   /** DEBUG-SLOTS: qualified id of the claim on `slot`, for the overlay tooltip. */

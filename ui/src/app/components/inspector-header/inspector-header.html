@@ -160,6 +160,21 @@
         }
       </button>
     }
+    <!-- Ignore BEFORE the star: the favorite star keeps the rightmost
+         spot of the action pair (user call 2026-08-09). -->
+    @if (ignoreVisible()) {
+      <button
+        type="button"
+        class="inspector__ignore"
+        [attr.aria-label]="texts.header.ignoreAriaLabel(n.path)"
+        [pTooltip]="texts.header.ignoreTooltip"
+        tooltipPosition="left"
+        (click)="onIgnoreClick($event)"
+        data-testid="inspector-ignore"
+      >
+        <i class="pi pi-ban" aria-hidden="true"></i>
+      </button>
+    }
     <button
       type="button"
       class="inspector__favorite"

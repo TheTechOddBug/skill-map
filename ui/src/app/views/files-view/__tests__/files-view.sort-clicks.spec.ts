@@ -16,6 +16,7 @@ import { of } from 'rxjs';
 import { settleVirtualScroll } from '../../../../testing/virtual-scroll';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
 import { NodeActivityStatsService } from '../../../../services/node-activity-stats';
+import { ProjectIgnoreService } from '../../../../services/project-ignore';
 import { MAP_ISOLATE_INTENT } from '../../../slots/map-isolate-intent';
 import { NODE_OPEN_INTENT } from '../../../slots/node-open-intent';
 import type { INodeView } from '../../../../models/node';
@@ -83,6 +84,17 @@ async function boot(activity: Record<string, number>) {
           stats: signal<ReadonlyMap<string, INodeActivityStatsApi>>(statsMap),
           pairCounts: signal<ReadonlyMap<string, number>>(new Map()),
         } as unknown as NodeActivityStatsService,
+      },
+      // FilesView injects the ignore-gesture owner (Ignore row buttons);
+      // stub it so construction never reaches DATA_SOURCE / SKILL_MAP_MODE.
+      {
+        provide: ProjectIgnoreService,
+        useValue: {
+          available: signal(true).asReadonly(),
+          errorText: signal<string | null>(null).asReadonly(),
+          requestIgnore: () => Promise.resolve('dialog'),
+          clearError: () => undefined,
+        } as unknown as ProjectIgnoreService,
       },
     ],
   });

@@ -35,13 +35,18 @@ import { ConnectionBanner } from './components/connection-banner/connection-bann
 import { SettingsModal, type TSettingsSection } from './components/settings-modal/settings-modal';
 import { QuickStartModal } from './components/quick-start-modal/quick-start-modal';
 import { CrashReportDialog } from './components/crash-report-dialog/crash-report-dialog';
+import { IgnoreConfirmDialog } from './components/ignore-confirm-dialog/ignore-confirm-dialog';
 import { CrashReportConsentService } from './core/telemetry/crash-report-consent';
+import {
+  ProjectIgnoreService,
+  type IIgnoreConfirmDecision,
+} from '../services/project-ignore';
 /* ViewContributionsHost: real topbar.nav.start slot mount (also ringed by the kept debug-slots overlay; see context/ui.md). */
 import { ViewContributionsHost } from './components/view-contributions-host/view-contributions-host';
 
 @Component({
   selector: 'sm-root',
-  imports: [RouterOutlet, ButtonModule, InputTextModule, TooltipModule, FormsModule, NgOptimizedImage, DemoBanner, TutorialReminderBanner, ProviderMarkerDriftBanner, OversizedBanner, SkippedFilesBanner, ConnectionBanner, SettingsModal, QuickStartModal, CrashReportDialog, /* DEBUG-SLOTS */ ViewContributionsHost],
+  imports: [RouterOutlet, ButtonModule, InputTextModule, TooltipModule, FormsModule, NgOptimizedImage, DemoBanner, TutorialReminderBanner, ProviderMarkerDriftBanner, OversizedBanner, SkippedFilesBanner, ConnectionBanner, SettingsModal, QuickStartModal, CrashReportDialog, IgnoreConfirmDialog, /* DEBUG-SLOTS */ ViewContributionsHost],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -117,6 +122,19 @@ export class App {
   private readonly crashConsent = inject(CrashReportConsentService);
   protected readonly crashReportOpen = this.crashConsent.open;
   protected readonly crashReportPreview = this.crashConsent.preview;
+
+  /**
+   * Ignore-confirmation dialog (files rail rows + inspector header):
+   * single shell mount driven by the owning service's signals, same
+   * shape as the crash-report dialog above.
+   */
+  private readonly projectIgnore = inject(ProjectIgnoreService);
+  protected readonly ignoreConfirmOpen = this.projectIgnore.dialogOpen;
+  protected readonly ignoreConfirmTarget = this.projectIgnore.dialogTarget;
+
+  protected onIgnoreConfirmDecision(decision: IIgnoreConfirmDecision): void {
+    this.projectIgnore.resolveDecision(decision);
+  }
 
   protected onCrashReportDecision(send: boolean): void {
     void this.crashConsent.resolve(send);

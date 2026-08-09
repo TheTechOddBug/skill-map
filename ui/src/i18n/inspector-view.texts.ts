@@ -18,6 +18,9 @@ export const INSPECTOR_VIEW_TEXTS = {
     invalidFrontmatter: 'invalid frontmatter',
     invalidFrontmatterTooltip:
       'The YAML frontmatter could not be parsed, so name, description and other metadata are unavailable. Check the Findings section for the parser error.',
+    /** Ignore button (append to .skillmapignore, confirm-gated). */
+    ignoreTooltip: 'Ignore this file: add it to .skillmapignore and remove it from the map',
+    ignoreAriaLabel: (path: string) => `Ignore ${path}, add it to .skillmapignore`,
     /**
      * Semantic-analysis affordance (user shape 2026-07-21): the
      * magic (sparkles) button beside the title, and the

@@ -259,6 +259,10 @@
         "changeSpark": {
           "type": "boolean",
           "description": "Whether the map flashes a node once (a short single-color spark) when the live watcher detects its file changed on disk, i.e. a `scan.progress` with `cached: false` inside a scan whose `scan.started` reported `mode: 'changed'` (job-events.md §Scan events). Default `true`. Subordinate to `liveUpdates` only (no live channel, no scan frames); independent of `realtimeActivity`. Suppressed while the node shows real-time agent activity or shortly after it, so an agent-driven write surfaces through the activity glow, never a double flash."
+        },
+        "confirmIgnore": {
+          "type": "boolean",
+          "description": "Whether the web UI asks for confirmation before appending a pattern to the project-root `.skillmapignore` from the Ignore buttons on the files rail's rows and the inspector header. Default `true` (ask). Set to `false` by the confirm dialog's don't-ask-again checkbox; per checkout in `settings.local.json`, reset with `sm config reset ui.confirmIgnore`. Positive naming on purpose: every `ui.*` key defaults to `true`."
         }
       }
     }

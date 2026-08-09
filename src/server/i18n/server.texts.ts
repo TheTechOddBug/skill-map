@@ -495,6 +495,7 @@ export const SERVER_TEXTS = {
   projectPrefsRealtimeActivityNotBoolean: '`ui.realtimeActivity` must be a boolean.',
   projectPrefsShowRuntimeAgentsNotBoolean: '`ui.showRuntimeAgents` must be a boolean.',
   projectPrefsChangeSparkNotBoolean: '`ui.changeSpark` must be a boolean.',
+  projectPrefsConfirmIgnoreNotBoolean: '`ui.confirmIgnore` must be a boolean.',
   projectPrefsMcpServerNotBoolean: '`mcpServerEnabled` must be a boolean.',
   // Server-stderr advisory after `PATCH /api/project-preferences` toggles the
   // opt-in read-only MCP server. Boot-time, so the note flags the serve restart.

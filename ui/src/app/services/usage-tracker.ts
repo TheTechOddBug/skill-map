@@ -72,6 +72,7 @@ export type TUsageFeatureSurface =
   | 'realtime-activity'
   | 'runtime-agents'
   | 'change-spark'
+  | 'ignore-path'
   | 'capture-conversations'
   | 'hook-install'
   | 'hook-uninstall'
@@ -105,11 +106,12 @@ export type TUsageFeatureSurface =
 
 /**
  * Where a shared gesture was performed. A feature reachable from more than
- * one surface (Settings, Quick Start and the inspector expose some of the
- * same actions) stamps `source` from EVERY call site, so adoption of each
- * path is comparable in PostHog; single-surface features omit it.
+ * one surface (Settings, Quick Start, the inspector and the files rail
+ * expose some of the same actions) stamps `source` from EVERY call site,
+ * so adoption of each path is comparable in PostHog; single-surface
+ * features omit it.
  */
-export type TUsageFeatureSource = 'settings' | 'quick-start' | 'inspector';
+export type TUsageFeatureSource = 'settings' | 'quick-start' | 'inspector' | 'files';
 
 /** The map toolbox's filter families, the `group` property of `ui.filter`. */
 export type TUsageFilterGroup = 'kind' | 'severity' | 'link' | 'favorites';

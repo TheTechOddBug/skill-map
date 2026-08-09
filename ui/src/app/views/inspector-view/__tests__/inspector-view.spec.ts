@@ -25,6 +25,7 @@ import { LivePreferencesService } from '../../../../services/live-preferences';
 import { NodeActivityStatsService } from '../../../../services/node-activity-stats';
 import { ProviderRegistryService } from '../../../../services/provider-registry';
 import { ProjectInfoService } from '../../../services/project-info';
+import { ProjectIgnoreService } from '../../../../services/project-ignore';
 import { ProcessingAgentReadinessService } from '../../../services/processing-agent-readiness';
 import type { INodeView, ISidecarOverlay } from '../../../../models/node';
 import { activityPairKeyOf } from '../../../../models/api';
@@ -402,6 +403,18 @@ function bootstrap(opts: IBootstrapOpts = {}): {
             opts.activeProvider === undefined ? 'claude' : opts.activeProvider,
           ),
         } as unknown as ProjectInfoService,
+      },
+      // The header's Ignore affordance routes through this owner; stub
+      // it so the harness (SKILL_MAP_MODE 'demo') still renders the
+      // button and the wiring test can assert the routed call.
+      {
+        provide: ProjectIgnoreService,
+        useValue: {
+          available: signal(true).asReadonly(),
+          errorText: signal<string | null>(null).asReadonly(),
+          requestIgnore: vi.fn().mockResolvedValue('dialog'),
+          clearError: vi.fn(),
+        } as unknown as ProjectIgnoreService,
       },
     ],
   });
@@ -4455,4 +4468,24 @@ describe('AI actions verdict mark (2026-08-08)', () => {
     expect(dom.querySelector('[data-testid="inspector-ai-action-verdict-core/legacy-finder"]')).toBeNull();
   });
 });
+});
+
+describe('InspectorView, header Ignore wiring', () => {
+  it('routes the header ignoreClick into ProjectIgnoreService with the inspector source', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const { fixture } = bootstrap({ loader });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+
+    const probe = fixture.componentInstance as unknown as {
+      onHeaderIgnore(path: string): void;
+    };
+    probe.onHeaderIgnore(node.path);
+
+    const svc = TestBed.inject(ProjectIgnoreService) as unknown as {
+      requestIgnore: ReturnType<typeof vi.fn>;
+    };
+    expect(svc.requestIgnore).toHaveBeenCalledWith(node.path, 'file', 'inspector');
+  });
 });

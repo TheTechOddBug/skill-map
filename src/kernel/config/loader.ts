@@ -372,6 +372,13 @@ export interface IUiPreferencesConfig {
    * `liveUpdates` only; independent of `realtimeActivity`.
    */
   changeSpark?: boolean;
+  /**
+   * Whether the web UI asks for confirmation before appending a
+   * pattern to `.skillmapignore` from the Ignore buttons (files rail
+   * rows, inspector header). Default `true` (ask); the confirm
+   * dialog's don't-ask-again checkbox sets it `false`.
+   */
+  confirmIgnore?: boolean;
 }
 
 /**
@@ -405,6 +412,7 @@ export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
   'ui.realtimeActivity',
   'ui.showRuntimeAgents',
   'ui.changeSpark',
+  'ui.confirmIgnore',
   'mcp.server.enabled',
   // The `github/enrichment` base-URL overrides. The extension's `token`
   // setting rides the Authorization header to whatever host `apiBaseUrl`

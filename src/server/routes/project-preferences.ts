@@ -85,13 +85,17 @@ export interface IProjectPreferencesEnvelope {
    * scanned node (default `true`, subordinate to `realtimeActivity`).
    * `changeSpark`: flash a node once when the watcher detects its file
    * changed on disk (default `true`, subordinate to `liveUpdates` only).
-   * No confirm gate, neither expands disk access nor trusts code.
+   * `confirmIgnore`: ask before appending an ignore pattern from the
+   * Ignore buttons (default `true`; the dialog's don't-ask-again sets
+   * `false`). No confirm gate, neither expands disk access nor trusts
+   * code.
    */
   ui: {
     liveUpdates: boolean;
     realtimeActivity: boolean;
     showRuntimeAgents: boolean;
     changeSpark: boolean;
+    confirmIgnore: boolean;
   };
   /**
    * Whether `sm serve` exposes the opt-in read-only MCP server at `/mcp`
@@ -117,6 +121,7 @@ interface IPatchBody {
     realtimeActivity?: boolean;
     showRuntimeAgents?: boolean;
     changeSpark?: boolean;
+    confirmIgnore?: boolean;
   };
   mcpServerEnabled?: boolean;
 }
@@ -147,33 +152,32 @@ function buildEnvelope(deps: IRouteDeps): IProjectPreferencesEnvelope {
         cwd,
         default: 0,
       }) ?? 0,
-    ui: {
-      liveUpdates:
-        readConfigValue<boolean>('ui.liveUpdates', {
-          cwd,
-          default: true,
-        }) ?? true,
-      realtimeActivity:
-        readConfigValue<boolean>('ui.realtimeActivity', {
-          cwd,
-          default: true,
-        }) ?? true,
-      showRuntimeAgents:
-        readConfigValue<boolean>('ui.showRuntimeAgents', {
-          cwd,
-          default: true,
-        }) ?? true,
-      changeSpark:
-        readConfigValue<boolean>('ui.changeSpark', {
-          cwd,
-          default: true,
-        }) ?? true,
-    },
+    ui: buildUiEnvelope(cwd),
     mcpServerEnabled:
       readConfigValue<boolean>('mcp.server.enabled', {
         cwd,
         default: false,
       }) ?? false,
+  };
+}
+
+/**
+ * Build the `ui` sub-envelope (split out to keep `buildEnvelope` under
+ * the lint complexity cap; every `?? true` default is a branch and the
+ * key family keeps growing).
+ */
+function buildUiEnvelope(cwd: string): IProjectPreferencesEnvelope['ui'] {
+  return {
+    liveUpdates:
+      readConfigValue<boolean>('ui.liveUpdates', { cwd, default: true }) ?? true,
+    realtimeActivity:
+      readConfigValue<boolean>('ui.realtimeActivity', { cwd, default: true }) ?? true,
+    showRuntimeAgents:
+      readConfigValue<boolean>('ui.showRuntimeAgents', { cwd, default: true }) ?? true,
+    changeSpark:
+      readConfigValue<boolean>('ui.changeSpark', { cwd, default: true }) ?? true,
+    confirmIgnore:
+      readConfigValue<boolean>('ui.confirmIgnore', { cwd, default: true }) ?? true,
   };
 }
 
@@ -352,6 +356,7 @@ function applyUiWrites(body: IPatchBody, cwd: string): boolean {
     { key: 'ui.realtimeActivity', next: body.ui.realtimeActivity },
     { key: 'ui.showRuntimeAgents', next: body.ui.showRuntimeAgents },
     { key: 'ui.changeSpark', next: body.ui.changeSpark },
+    { key: 'ui.confirmIgnore', next: body.ui.confirmIgnore },
   ] as const;
   for (const { key, next } of entries) {
     if (next === undefined) continue;
@@ -726,6 +731,7 @@ const PATCH_BODY_SCHEMA = {
         realtimeActivity: { type: 'boolean' },
         showRuntimeAgents: { type: 'boolean' },
         changeSpark: { type: 'boolean' },
+        confirmIgnore: { type: 'boolean' },
       },
     },
     scan: {
@@ -768,6 +774,7 @@ const parsePatchBody = makeBodyValidator<IPatchBody>(PATCH_BODY_SCHEMA, {
     '/ui/realtimeActivity:type:boolean': SERVER_TEXTS.projectPrefsRealtimeActivityNotBoolean,
     '/ui/showRuntimeAgents:type:boolean': SERVER_TEXTS.projectPrefsShowRuntimeAgentsNotBoolean,
     '/ui/changeSpark:type:boolean': SERVER_TEXTS.projectPrefsChangeSparkNotBoolean,
+    '/ui/confirmIgnore:type:boolean': SERVER_TEXTS.projectPrefsConfirmIgnoreNotBoolean,
     '/mcpServerEnabled:type:boolean': SERVER_TEXTS.projectPrefsMcpServerNotBoolean,
   },
 });

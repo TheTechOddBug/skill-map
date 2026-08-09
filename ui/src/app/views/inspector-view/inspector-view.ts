@@ -33,6 +33,7 @@ import {
   setupHighlightedSource,
 } from '../../../services/markdown-inline-signal';
 import { ActionDispatchService } from '../../../services/action-dispatch';
+import { ProjectIgnoreService } from '../../../services/project-ignore';
 import { cssKindNameOrFallback } from '../../../services/css-guard';
 import { ProviderRegistryService } from '../../../services/provider-registry';
 import { ProcessingAgentReadinessService } from '../../services/processing-agent-readiness';
@@ -124,6 +125,7 @@ export class InspectorView implements OnInit {
   private readonly providerRegistry = inject(ProviderRegistryService);
   private readonly processingAgent = inject(ProcessingAgentReadinessService);
   private readonly usageTracker = inject(UsageTrackerService);
+  protected readonly projectIgnore = inject(ProjectIgnoreService);
   private readonly announcer = inject(A11yAnnouncerService);
 
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
@@ -779,6 +781,21 @@ export class InspectorView implements OnInit {
     // node path or state rides the event.
     this.usageTracker.trackFeature('favorite-toggle');
     void this.loader.toggleFavorite(path, !n.isFavorite);
+  }
+
+  /**
+   * Forwarded from `<sm-inspector-header (ignoreClick)>`: confirm-gated
+   * append to `.skillmapignore` via `ProjectIgnoreService`. Accepted v1
+   * behavior: once the watcher's re-scan drops the node, this view falls
+   * into its existing "Node not found" empty state (the panel does NOT
+   * auto-close); honest, and the path stays visible for orientation.
+   * The `auto` outcome (confirmation suppressed) emits its telemetry
+   * here, the dialog owns the once / always / declined values.
+   */
+  protected onHeaderIgnore(path: string): void {
+    void this.projectIgnore.requestIgnore(path, 'file', 'inspector').then((outcome) => {
+      if (outcome === 'auto') this.usageTracker.trackFeature('ignore-path', 'auto', 'inspector');
+    });
   }
 
   // Action dispatch. The toolbar's action buttons arrive as

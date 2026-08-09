@@ -12,6 +12,7 @@ import { ActivityReadinessService } from '../services/activity-readiness';
 import { ScanTriggerService } from '../services/scan-trigger';
 import { DATA_SOURCE, type IDataSourcePort } from '../../services/data-source/data-source.port';
 import { NodeActivityService } from '../../services/node-activity';
+import { ProjectIgnoreService } from '../../services/project-ignore';
 import { SKILL_MAP_MODE } from '../../services/data-source/runtime-mode';
 import { WsEventStreamService, WS_SOCKET_FACTORY, type TWsSocketFactory, type IWsLike } from '../../services/ws-event-stream';
 import { UpdateCheckService } from '../services/update-check';
@@ -444,6 +445,38 @@ describe('App', () => {
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('h1')?.textContent).toContain('skill-map');
+  });
+
+  it('mounts the ignore-confirm dialog from the shell and routes the decision back', async () => {
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // Drive the REAL root service (the stub data source implements the
+    // preferences + ignore reads): the shell's @defer mount must render
+    // the dialog the moment the service opens it.
+    const svc = TestBed.inject(ProjectIgnoreService);
+    const outcome = await svc.requestIgnore('docs/notes.md', 'file', 'files');
+    expect(outcome).toBe('dialog');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // appendTo="body" portals the dialog content outside the fixture host.
+    expect(document.body.querySelector('[data-testid="ignore-confirm-dialog"]')).not.toBeNull();
+    expect(
+      document.body.querySelector('[data-testid="ignore-confirm-pattern"]')?.textContent,
+    ).toBe('/docs/notes.md');
+
+    // Accepting through the rendered button routes the decision back into
+    // the service (the shell's (decision) wiring) and closes the dialog.
+    const accept = document.body.querySelector<HTMLButtonElement>(
+      '[data-testid="ignore-confirm-accept"] button',
+    );
+    expect(accept).not.toBeNull();
+    accept!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(svc.dialogOpen()).toBe(false);
   });
 
   it('exposes a skip-to-content link targeting the main region (WCAG 2.4.1)', async () => {

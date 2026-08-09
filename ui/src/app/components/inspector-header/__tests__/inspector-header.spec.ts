@@ -562,3 +562,28 @@ describe('InspectorHeader physical-stat chips (T / B pills, 2026-08-08)', () => 
     expect(dom.querySelector('[data-testid="inspector-header-bytes"]')).toBeNull();
   });
 });
+
+describe('InspectorHeader ignore affordance', () => {
+  it('is hidden by default (ignoreVisible unset, e.g. demo mode)', async () => {
+    const fixture = await bootstrap(makeNode());
+    const dom = fixture.nativeElement as HTMLElement;
+    expect(dom.querySelector('[data-testid="inspector-ignore"]')).toBeNull();
+  });
+
+  it('renders when visible and emits the node path on click', async () => {
+    const fixture = await bootstrap(makeNode());
+    fixture.componentRef.setInput('ignoreVisible', true);
+    fixture.detectChanges();
+
+    const paths: string[] = [];
+    fixture.componentInstance.ignoreClick.subscribe((p) => paths.push(p));
+
+    const button = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+      '[data-testid="inspector-ignore"]',
+    );
+    expect(button).not.toBeNull();
+    expect(button!.querySelector('.pi-ban')).not.toBeNull();
+    button!.click();
+    expect(paths).toEqual(['agents/architect.md']);
+  });
+});

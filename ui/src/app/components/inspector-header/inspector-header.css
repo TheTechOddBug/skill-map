@@ -302,6 +302,39 @@
   color: var(--p-primary-color);
 }
 
+/* Ignore (ban) button: same quiet 24px glyph treatment as the favorite
+   star beside it. The destructive guard is the confirmation dialog. */
+.inspector__ignore {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  color: var(--p-text-muted-color);
+  border-radius: var(--sm-radius-md);
+  flex: none;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.inspector__ignore .pi {
+  font-size: var(--sm-fs-md);
+  line-height: 1;
+}
+
+.inspector__ignore:hover {
+  background: var(--sm-bg-hover);
+  color: var(--p-text-color);
+}
+
+.inspector__ignore:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 1px;
+}
+
 .inspector__name-version {
   font-family: var(--sm-font-mono);
   font-size: var(--sm-fs-xs);

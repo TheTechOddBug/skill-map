@@ -11,6 +11,21 @@
     <p-message severity="error" [text]="error()!" />
   }
 
+  @if (ignoreError(); as ignoreMsg) {
+    <!-- Ignore-write failure (ProjectIgnoreService). Closable: the
+         failure is transient advice, not view state. Accepted gap: the
+         message lives in the files rail only, so an inspector-triggered
+         failure surfaces here too (one surface, the rail is where the
+         user looks to verify the row vanished). -->
+    <p-message
+      severity="error"
+      [text]="ignoreMsg"
+      [closable]="true"
+      (onClose)="onIgnoreErrorClose()"
+      data-testid="files-ignore-error"
+    />
+  }
+
   @if (showLoading()) {
     <div class="files__loading" data-testid="files-loading">
       <p-progressSpinner strokeWidth="4" [style]="{ width: '1.75rem', height: '1.75rem' }" />
@@ -321,6 +336,20 @@
                   ></i>
                   <span class="files__name files__name--folder">{{ row.name }}</span>
                   <span class="files__count" [attr.aria-label]="row.nodeCount + ' nodes'">{{ texts.folderCount(row.nodeCount) }}</span>
+                  @if (projectIgnore.available()) {
+                    <button
+                      type="button"
+                      class="files__ignore"
+                      [attr.tabindex]="activeIndex() === rowIndex ? 0 : -1"
+                      [pTooltip]="texts.ignoreTooltip"
+                      tooltipPosition="top"
+                      [attr.aria-label]="texts.ignoreFolderAriaLabel(row.name)"
+                      (click)="onIgnoreFolderClick(row, $event)"
+                      [attr.data-testid]="'files-ignore-folder-' + row.path"
+                    >
+                      <i class="pi pi-ban" aria-hidden="true"></i>
+                    </button>
+                  }
                 </span>
               </td>
               <td></td>
@@ -410,6 +439,20 @@
                   >
                     <i class="pi pi-sitemap" aria-hidden="true"></i>
                   </button>
+                  @if (projectIgnore.available()) {
+                    <button
+                      type="button"
+                      class="files__ignore"
+                      [attr.tabindex]="activeIndex() === rowIndex ? 0 : -1"
+                      [pTooltip]="texts.ignoreTooltip"
+                      tooltipPosition="top"
+                      [attr.aria-label]="texts.ignoreFileAriaLabel(row.name)"
+                      (click)="onIgnoreLeafClick(row, $event)"
+                      [attr.data-testid]="'files-ignore-leaf-' + row.path"
+                    >
+                      <i class="pi pi-ban" aria-hidden="true"></i>
+                    </button>
+                  }
                 </span>
               </td>
               <td class="files__cell-num files__cell-activity" [attr.title]="(row.activityRaw ?? 0) > 0 ? texts.activityTooltip(row.activityRaw!) : null">{{ row.activity }}</td>

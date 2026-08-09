@@ -35,6 +35,7 @@ interface IProjectPrefsEnvelopeWire {
     realtimeActivity: boolean;
     showRuntimeAgents: boolean;
     changeSpark: boolean;
+    confirmIgnore: boolean;
   };
   mcpServerEnabled: boolean;
 }
@@ -109,6 +110,7 @@ describe('GET /api/project-preferences', () => {
           realtimeActivity: true,
           showRuntimeAgents: true,
           changeSpark: true,
+          confirmIgnore: true,
         },
         mcpServerEnabled: false,
       });
@@ -546,6 +548,7 @@ describe('PATCH /api/project-preferences (ui.* live-channel preferences)', () =>
         { ui: { realtimeActivity: false } },
         { ui: { showRuntimeAgents: false } },
         { ui: { changeSpark: false } },
+        { ui: { confirmIgnore: false } },
       ];
       for (const body of bodies) {
         const patch = await fetch(url(handle, '/api/project-preferences'), {
@@ -562,6 +565,39 @@ describe('PATCH /api/project-preferences (ui.* live-channel preferences)', () =>
       assert.equal(env.ui.realtimeActivity, false);
       assert.equal(env.ui.showRuntimeAgents, false);
       assert.equal(env.ui.changeSpark, false);
+      assert.equal(env.ui.confirmIgnore, false);
+    });
+  });
+
+  it('persists ui.confirmIgnore to settings.local.json (project-local), no confirm needed', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ui: { confirmIgnore: false } }),
+      });
+      assert.equal(res.status, 200);
+      const env = (await res.json()) as IProjectPrefsEnvelopeWire;
+      assert.equal(env.ui.confirmIgnore, false);
+
+      const local = JSON.parse(
+        readFileSync(join(cwd, '.skill-map/settings.local.json'), 'utf8'),
+      );
+      assert.equal(local.ui.confirmIgnore, false);
+    });
+  });
+
+  it('400 bad-query when ui.confirmIgnore is not a boolean', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ui: { confirmIgnore: 'nope' } }),
+      });
+      assert.equal(res.status, 400);
+      const env = (await res.json()) as IErrorEnvelopeWire;
+      assert.equal(env.error.code, 'bad-query');
+      assert.match(env.error.message, /ui\.confirmIgnore/);
     });
   });
 

@@ -461,7 +461,7 @@
       "CHANGELOG.md": "53544ccb4c582b64cc4c1bd0c6147733e035d4df03ee824227c58410d4544b9e",
       "README.md": "35ac6cc3ce8379c5087f739a528d3b80a140aef5cdeeba9c49b59c5dd5df4c54",
       "architecture.md": "086596d7fc864166bcb466cd1126be725cd593e01d782383ec964f39c56e22c8",
-      "cli-contract.md": "6a1d134eb0c136d3c6d2b14ed0b5611ea4ce5c762ef3777d7ae59662e4365611",
+      "cli-contract.md": "985e9e7274bba861d1a9cbcb61df3921380dc7112de98d586f85da02200fe8ef",
       "conformance/README.md": "1cf7a020d4a7517e9f2b5fa2e6912be812322dfffa388de5eb47ef44d9277e8f",
       "conformance/cases/backtick-path-extraction.json": "4112b5724156c4d6ad5cf90a762e43741d25d68735f91d453ac580a77b3764da",
       "conformance/cases/bump-report-schema.json": "f9f1b9f1143e5750bea045001aff60d0f5f6b15e41597d9bd983c4159540fb22",
@@ -645,7 +645,7 @@
       "schemas/node.schema.json": "6f44a115367ef5a016b2ba0a56af1220bbf51aeef66addbc28f1f7afc2a22ef5",
       "schemas/plugins-doctor.schema.json": "a474cdc69bff60b57f25f60e871e54c672b2de924983eecb4167e21f4400c979",
       "schemas/plugins-registry.schema.json": "fcb2c911a5d746ec14c153afb5c3255d95322a4ddb1500a17f5b7353df9c0d63",
-      "schemas/project-config.schema.json": "e0ff362bd13886a3c7258a88b8875420dabc52c9b5f08f092094040f83c87a05",
+      "schemas/project-config.schema.json": "0c665fa06d89e2de7606173af715e1fa631a8bca41993d935a9a988b8d8ef721",
       "schemas/report-base-deterministic.schema.json": "a72f80f48e3e784ad2d6a632f07a59f28848bf49884ad401d625a4d65d9fb1dd",
       "schemas/report-base.schema.json": "991907323b51c3d55107d5f3e52a904fbdbe598d481bc81ff1d50cde36a2f35c",
       "schemas/scan-result.schema.json": "9c379dbbd854bdcc46d7d5d9f8af46a639e1b92063d8987e9ca2727b8cb83d88",
@@ -656,7 +656,7 @@
       "schemas/tags/markdown.schema.json": "9fcbaf7942da80705d5da4fb5e195bfd97ec53ca17914e69a80fd15c865d6723",
       "schemas/user-settings.schema.json": "d179e5109d1e452b8ef0b52af5ef122117fbe6390f8fcb70ecea449d266cfb5c",
       "schemas/view-slots.schema.json": "2a3a39a3f8a5e0db51a4cb3a5e0e3589230e5a9b22b4440f331470c89369af77",
-      "telemetry.md": "6a0fbcd037483098396d72772cbbf92b66fe5209b2875a025d6b74ac331185c2",
+      "telemetry.md": "3400399dcc3a533597ea6bc41fd7de7bc1affeb0a3e7c77189abe2b1fc4d3678",
       "versioning.md": "37aaceacd9fbc3f22b868115d68ac623a50b8ea10b51bcb1237bc4abd1d8880b",
       "view-slots.md": "0c92f8a8bf258b5416d55e900fc0ac7d520a8e3a4444b146aaf9e58d97320916"
     }

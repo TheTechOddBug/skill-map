@@ -126,6 +126,16 @@ export function createLiveBffFixture(repoRoot: string): ILiveBffFixture {
   mkdirSync(docsDir, { recursive: true });
   writeFileSync(join(docsDir, 'guide.md'), '# Guide\n\nLive-BFF map-scope fixture file.\n', 'utf8');
   writeFileSync(join(docsDir, 'api.md'), '# API\n\nLive-BFF map-scope fixture file.\n', 'utf8');
+  // Three sacrificial files OWNED by `ignore.spec.ts` (it removes them
+  // from the corpus by appending `.skillmapignore` patterns). Dedicated
+  // folder on purpose: the suite shares ONE server (workers: 1, specs
+  // run serially), so ignoring anything under `.claude/` or `docs/`
+  // would break the bump / map-scope specs that run around it.
+  const notesDir = join(cwd, 'notes');
+  mkdirSync(notesDir, { recursive: true });
+  writeFileSync(join(notesDir, 'scratch.md'), '# Scratch\n\nLive-BFF ignore fixture file.\n', 'utf8');
+  writeFileSync(join(notesDir, 'todo.md'), '# Todo\n\nLive-BFF ignore fixture file.\n', 'utf8');
+  writeFileSync(join(notesDir, 'draft.md'), '# Draft\n\nLive-BFF ignore fixture file.\n', 'utf8');
   // `core/node-bump` ships `defaultEnabled: false` (2026-07-21 enabled-gate
   // sweep) and its surface is the header version chip, so the bump spec
   // needs the explicit opt-in. Project layer only: `.sm` write consent

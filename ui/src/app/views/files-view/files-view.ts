@@ -30,6 +30,8 @@ import { FilterStoreService } from '../../../services/filter-store';
 import { FilesFollowSelectionService } from '../../../services/files-follow-selection';
 import { MapVisibilityService, type TFolderVisibility } from '../../../services/map-visibility';
 import { NodeActivityStatsService } from '../../../services/node-activity-stats';
+import { ProjectIgnoreService } from '../../../services/project-ignore';
+import { UsageTrackerService } from '../../services/usage-tracker';
 import { MAP_ISOLATE_INTENT } from '../../slots/map-isolate-intent';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import type { INodeView } from '../../../models/node';
@@ -88,6 +90,8 @@ export class FilesView implements OnInit {
   private readonly nodeOpenIntent = inject(NODE_OPEN_INTENT);
   private readonly mapVisibility = inject(MapVisibilityService);
   private readonly mapIsolate = inject(MAP_ISOLATE_INTENT);
+  protected readonly projectIgnore = inject(ProjectIgnoreService);
+  private readonly usageTracker = inject(UsageTrackerService);
   private readonly activityStats = inject(NodeActivityStatsService);
   private readonly followSelection = inject(FilesFollowSelectionService);
   private readonly route = inject(ActivatedRoute);
@@ -507,6 +511,36 @@ export class FilesView implements OnInit {
   onSitemapClick(row: IFolderLeaf, event: Event): void {
     event.stopPropagation();
     this.mapIsolate.isolate(row.path);
+  }
+
+  /**
+   * Ignore (ban) icon on a leaf row: append the file's root-anchored
+   * pattern to `.skillmapignore` behind the confirmation dialog
+   * (`ProjectIgnoreService`). The `auto` outcome (confirmation
+   * suppressed by `ui.confirmIgnore`) emits its telemetry HERE: the
+   * dialog owns the once / always / declined values, but on the
+   * suppressed path no dialog ever shows.
+   */
+  onIgnoreLeafClick(row: IFolderLeaf, event: Event): void {
+    event.stopPropagation();
+    void this.projectIgnore.requestIgnore(row.path, 'file', 'files').then((outcome) => {
+      if (outcome === 'auto') this.usageTracker.trackFeature('ignore-path', 'auto', 'files');
+    });
+  }
+
+  /** Ignore icon on a folder row: same flow, subtree pattern. */
+  onIgnoreFolderClick(row: IFolderRow, event: Event): void {
+    event.stopPropagation();
+    void this.projectIgnore.requestIgnore(row.path, 'folder', 'files').then((outcome) => {
+      if (outcome === 'auto') this.usageTracker.trackFeature('ignore-path', 'auto', 'files');
+    });
+  }
+
+  /** Ignore-write failure text for the rail's closable error message. */
+  protected readonly ignoreError = this.projectIgnore.errorText;
+
+  protected onIgnoreErrorClose(): void {
+    this.projectIgnore.clearError();
   }
 
   resetFilters(): void {

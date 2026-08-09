@@ -483,6 +483,48 @@
   color: var(--p-primary-color);
 }
 
+/* Ignore (ban) button: appends the row's pattern to `.skillmapignore`
+   behind the confirmation dialog (ProjectIgnoreService). Same discreet
+   hover-reveal treatment as `.files__open-graph` above; folder rows
+   gain their first reveal action here, so the folder variant joins the
+   reveal selectors. The destructive guard is the dialog, not the
+   color, so the hover tint stays the shared primary. */
+.files__ignore {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-left: 0.25rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: var(--sm-radius-sm);
+  color: var(--p-text-muted-color);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease-out, background 120ms ease-out, color 120ms ease-out;
+}
+
+.files__ignore i {
+  font-size: var(--sm-fs-md);
+  line-height: 1;
+}
+
+.files__row--leaf:hover .files__ignore,
+.files__row--leaf:focus-within .files__ignore,
+.files__row--folder:hover .files__ignore,
+.files__row--folder:focus-within .files__ignore {
+  opacity: 0.85;
+}
+
+.files__ignore:hover,
+.files__ignore:focus-visible {
+  opacity: 1;
+  background: var(--sm-bg-hover);
+  color: var(--p-primary-color);
+}
+
 .files__count {
   flex-shrink: 0;
   font-size: var(--sm-fs-xs);

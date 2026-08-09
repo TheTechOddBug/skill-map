@@ -17,6 +17,10 @@ export const FILES_VIEW_TEXTS = {
   mapAllAriaLabel: 'Toggle every node\'s visibility on the map',
   isolateTooltip: 'Isolate this node and its direct links on the map',
   isolateAriaLabel: (name: string) => `Isolate ${name} and its direct links on the map`,
+  /** Ignore buttons (append to .skillmapignore, confirm-gated). */
+  ignoreTooltip: 'Ignore: add to .skillmapignore and remove from the scan',
+  ignoreFileAriaLabel: (name: string) => `Ignore ${name}, add it to .skillmapignore`,
+  ignoreFolderAriaLabel: (name: string) => `Ignore folder ${name}, add it to .skillmapignore`,
   /**
    * Column headers. The structural (tree) column is unique to the
    * files view; the rest mirror the prior list view shape so the

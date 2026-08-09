@@ -9,6 +9,8 @@ import { settleVirtualScroll } from '../../../../testing/virtual-scroll';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
 import { MapVisibilityService } from '../../../../services/map-visibility';
 import { NodeActivityStatsService } from '../../../../services/node-activity-stats';
+import { ProjectIgnoreService } from '../../../../services/project-ignore';
+import { UsageTrackerService } from '../../../services/usage-tracker';
 import { MAP_ISOLATE_INTENT } from '../../../slots/map-isolate-intent';
 import { NODE_OPEN_INTENT } from '../../../slots/node-open-intent';
 import type { INodeView } from '../../../../models/node';
@@ -115,15 +117,24 @@ async function bootstrap(
   nodes: INodeView[] = [makeNode(LEAF_PATH, 'readme')],
   counts: Record<string, { errorCount?: number; warnCount?: number }> = {},
   activity: Record<string, number> = {},
+  ignoreAvailable = true,
 ): Promise<{
   fixture: ReturnType<typeof TestBed.createComponent<FilesView>>;
   isolate: ReturnType<typeof vi.fn>;
   open: ReturnType<typeof vi.fn>;
+  requestIgnore: ReturnType<typeof vi.fn>;
+  clearError: ReturnType<typeof vi.fn>;
+  trackFeature: ReturnType<typeof vi.fn>;
+  ignoreErrorText: ReturnType<typeof signal<string | null>>;
   loader: ReturnType<typeof makeLoaderStub>;
   selection: MapVisibilityService;
 }> {
   const isolate = vi.fn();
   const open = vi.fn();
+  const requestIgnore = vi.fn().mockResolvedValue('dialog');
+  const clearError = vi.fn();
+  const trackFeature = vi.fn();
+  const ignoreErrorText = signal<string | null>(null);
   const loader = makeLoaderStub(nodes, counts);
   // The real selection service is `providedIn: 'root'`; clear its
   // localStorage so each test starts from an empty selection.
@@ -157,13 +168,35 @@ async function bootstrap(
           pairCounts: signal<ReadonlyMap<string, number>>(new Map()),
         } as unknown as NodeActivityStatsService,
       },
+      // Ignore-gesture owner: stubbed so the specs drive the disposition
+      // and no DATA_SOURCE / SKILL_MAP_MODE token is ever needed.
+      {
+        provide: ProjectIgnoreService,
+        useValue: {
+          available: signal(ignoreAvailable).asReadonly(),
+          errorText: ignoreErrorText.asReadonly(),
+          requestIgnore,
+          clearError,
+        } as unknown as ProjectIgnoreService,
+      },
+      { provide: UsageTrackerService, useValue: { trackFeature } },
     ],
   });
   const selection = TestBed.inject(MapVisibilityService);
   const fixture = TestBed.createComponent(FilesView);
   // Virtualised table: the first render window lands a macrotask later.
   await settleVirtualScroll(fixture);
-  return { fixture, isolate, open, loader, selection };
+  return {
+    fixture,
+    isolate,
+    open,
+    requestIgnore,
+    clearError,
+    trackFeature,
+    ignoreErrorText,
+    loader,
+    selection,
+  };
 }
 
 /**
@@ -200,6 +233,68 @@ describe('FilesView leaf interactions', () => {
     expect(open).toHaveBeenCalledWith(LEAF_PATH);
     expect(isolate).not.toHaveBeenCalled();
   });
+
+  it('ignore button requests the file ignore and does NOT open the row', async () => {
+    const { fixture, open, requestIgnore } = await bootstrap();
+
+    query(fixture, `files-ignore-leaf-${LEAF_PATH}`).click();
+
+    expect(requestIgnore).toHaveBeenCalledWith(LEAF_PATH, 'file', 'files');
+    // The click must NOT bubble to the row's open-intent.
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('hides the ignore buttons while the service reports unavailable (demo)', async () => {
+    const { fixture } = await bootstrap(
+      [makeNode(LEAF_PATH, 'readme')],
+      {},
+      {},
+      false,
+    );
+
+    const el = (fixture.nativeElement as HTMLElement).querySelector(
+      `[data-testid="files-ignore-leaf-${LEAF_PATH}"]`,
+    );
+    expect(el).toBeNull();
+  });
+
+  it('emits the auto telemetry when the suppressed path skips the dialog', async () => {
+    const { fixture, requestIgnore, trackFeature } = await bootstrap();
+    requestIgnore.mockResolvedValue('auto');
+
+    query(fixture, `files-ignore-leaf-${LEAF_PATH}`).click();
+    // The outcome resolves a microtask later; the emit rides its .then.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(trackFeature).toHaveBeenCalledWith('ignore-path', 'auto', 'files');
+  });
+
+  it('a dialog outcome emits NO call-site telemetry (the dialog owns it)', async () => {
+    const { fixture, trackFeature } = await bootstrap();
+
+    query(fixture, `files-ignore-leaf-${LEAF_PATH}`).click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(trackFeature).not.toHaveBeenCalled();
+  });
+
+  it('surfaces the write failure as a closable message wired to clearError', async () => {
+    const { fixture, clearError, ignoreErrorText } = await bootstrap();
+
+    ignoreErrorText.set('disk full');
+    await settleVirtualScroll(fixture);
+
+    const msg = query(fixture, 'files-ignore-error');
+    expect(msg.textContent).toContain('disk full');
+
+    // PrimeNG renders the close affordance as a button inside the host.
+    const close = msg.querySelector<HTMLButtonElement>('button');
+    expect(close).not.toBeNull();
+    close!.click();
+    expect(clearError).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('FilesView folder interactions', () => {
@@ -235,6 +330,36 @@ describe('FilesView folder interactions', () => {
     // branch and never touches the overrides.
     expect(loader.load).not.toHaveBeenCalled();
     expect(selection.overrides().size).toBe(0);
+  });
+
+  it('folder ignore button requests the subtree ignore and does NOT collapse the folder', async () => {
+    const { fixture, loader, requestIgnore } = await bootstrap([
+      makeNode('src/a.md', 'a'),
+      makeNode('src/b.md', 'b'),
+    ]);
+
+    // Folders start collapsed: expand first so the children render and
+    // an accidental collapse (a bubbled row click) becomes observable.
+    query(fixture, 'files-folder-src').click();
+    await settleVirtualScroll(fixture);
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector(
+        '[data-testid="files-leaf-src/a.md"]',
+      ),
+    ).not.toBeNull();
+
+    query(fixture, 'files-ignore-folder-src').click();
+    await settleVirtualScroll(fixture);
+
+    expect(requestIgnore).toHaveBeenCalledWith('src', 'folder', 'files');
+    // stopPropagation: the row's collapse toggle must not also run, so
+    // the folder's children remain rendered.
+    expect(loader.load).not.toHaveBeenCalled();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector(
+        '[data-testid="files-leaf-src/a.md"]',
+      ),
+    ).not.toBeNull();
   });
 
   it('descendant checkboxes stay TOGGLEABLE under an excluded ancestor (deeper override)', async () => {
