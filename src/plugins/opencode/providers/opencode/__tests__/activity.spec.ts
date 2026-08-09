@@ -82,6 +82,50 @@ describe('opencodeActivity.mapEvent', () => {
     ]);
   });
 
+  it('maps in-scope markdown write and edit to PATH signals with the tool as detail', () => {
+    const write = opencodeActivity.mapEvent({
+      hook: 'tool.execute.before',
+      directory: DIR,
+      input: { tool: 'write', sessionID: SESSION, callID: 'call_00_WR' },
+      output: { args: { filePath: `${DIR}/notes/todo.md`, content: '# updated' } },
+    });
+    assert.deepEqual(write, [
+      { path: 'notes/todo.md', phase: 'start', owner: SESSION, detail: 'write' },
+    ]);
+    const edit = opencodeActivity.mapEvent({
+      hook: 'tool.execute.before',
+      directory: DIR,
+      input: { tool: 'edit', sessionID: SESSION, callID: 'call_00_ED' },
+      output: {
+        args: { filePath: `${DIR}/notes/todo.md`, oldString: 'before', newString: 'after' },
+      },
+    });
+    assert.deepEqual(edit, [
+      { path: 'notes/todo.md', phase: 'start', owner: SESSION, detail: 'edit' },
+    ]);
+  });
+
+  it('write/edit filter: non-md and out-of-scope paths disclaim like read', () => {
+    assert.equal(
+      opencodeActivity.mapEvent({
+        hook: 'tool.execute.before',
+        directory: DIR,
+        input: { tool: 'write', sessionID: SESSION },
+        output: { args: { filePath: `${DIR}/src/index.ts`, content: 'x' } },
+      }),
+      null,
+    );
+    assert.equal(
+      opencodeActivity.mapEvent({
+        hook: 'tool.execute.before',
+        directory: DIR,
+        input: { tool: 'edit', sessionID: SESSION },
+        output: { args: { filePath: '/elsewhere/readme.md', oldString: 'a', newString: 'b' } },
+      }),
+      null,
+    );
+  });
+
   it('filter-first: non-md reads, out-of-scope reads, other tools disclaim', () => {
     assert.equal(
       opencodeActivity.mapEvent({

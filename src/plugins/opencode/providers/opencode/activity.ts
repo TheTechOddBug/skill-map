@@ -25,10 +25,13 @@
  *   `.opencode/agent/<name>.md`; built-ins without a file (`build`,
  *   `plan`, ...) drop at the resolver. Fires per assistant message, so
  *   it doubles as the owner heartbeat.
- * - **Markdown reads**: `tool.execute.before` with `input.tool ===
- *   'read'`, `output.args.filePath` absolute; filter-first (`.md` only,
- *   inside the plugin context's `directory`), relativized to a PATH
- *   signal.
+ * - **Markdown usage**: `tool.execute.before` with `input.tool` `read`,
+ *   `write` or `edit` (all carry `output.args.filePath` absolute, per
+ *   the official tool schemas); filter-first (`.md` only, inside the
+ *   plugin context's `directory`), relativized to a PATH signal with the
+ *   tool name as `detail` so reads label apart from writes.
+ *   `apply_patch` carries only `patchText` (no path arg) and stays
+ *   unmapped.
  * - **MCP tool call**: `tool.execute.before` whose `input.tool` is a
  *   `<server>_<tool>` name (OpenCode's MCP naming, no explicit marker) →
  *   PATH signal on `mcp://<server>` (the prefix before the first `_`); the
@@ -177,8 +180,8 @@ function mapToolCall(wrapper: Record<string, unknown>): IActivitySignal[] | null
     // `detail` = literal invoking tool name (spec/provider-activity.md §detail).
     return [{ kind: 'skill', name, phase: 'start', owner: ownerOf(input), detail: 'skill' }];
   }
-  if (input['tool'] === 'read') {
-    return mapMarkdownRead(wrapper, input, args);
+  if (input['tool'] === 'read' || input['tool'] === 'write' || input['tool'] === 'edit') {
+    return mapMarkdownUsage(wrapper, input, args);
   }
   if (input['tool'] === 'task') {
     return mapTaskSpawn(input, args);
@@ -281,11 +284,13 @@ function taskResultOf(output: unknown): string | null {
 }
 
 /**
- * Markdown usage, filter-first (mirroring the claude `Read` handling):
- * non-`.md` reads and reads outside the plugin context's `directory`
- * are early-disclaimed; survivors become scope-relative PATH signals.
+ * Markdown usage, filter-first (mirroring the claude handling): the
+ * `read` / `write` / `edit` tools all carry `args.filePath`; non-`.md`
+ * paths and paths outside the plugin context's `directory` are
+ * early-disclaimed; survivors become scope-relative PATH signals with
+ * the tool name as `detail` so reads label apart from writes.
  */
-function mapMarkdownRead(
+function mapMarkdownUsage(
   wrapper: Record<string, unknown>,
   input: Record<string, unknown>,
   args: Record<string, unknown>,
@@ -293,7 +298,7 @@ function mapMarkdownRead(
   const relative = relativizeMarkdownPath(args['filePath'], [wrapper['directory']]);
   if (relative === null) return null;
   // `detail` = literal invoking tool name (spec/provider-activity.md §detail).
-  return [{ path: relative, phase: 'start', owner: ownerOf(input), detail: 'read' }];
+  return [{ path: relative, phase: 'start', owner: ownerOf(input), detail: String(input['tool']) }];
 }
 
 function mapCommand(wrapper: Record<string, unknown>): IActivitySignal[] | null {

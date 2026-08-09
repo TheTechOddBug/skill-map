@@ -22,7 +22,7 @@
             "command": "node \"$CLAUDE_PROJECT_DIR\"/.skill-map/activity/bridge.js claude"
           }
         ],
-        "matcher": "^(Skill|Agent|Read|mcp__.+)$"
+        "matcher": "^(Skill|Agent|Read|Write|Edit|mcp__.+)$"
       }
     ],
     "PostToolUse": [

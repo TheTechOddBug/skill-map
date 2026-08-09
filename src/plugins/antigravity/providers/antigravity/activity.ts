@@ -119,7 +119,10 @@ function readToolCall(event: Record<string, unknown>): IToolCall | null {
  * early-disclaimed, so high-frequency source-file traffic never reaches
  * the node set. Survivors are relativized against the FIRST workspace
  * root that contains them (forward-slash, scope-relative), matching the
- * scanned `node.path` space.
+ * scanned `node.path` space. Markdown WRITES stay unmapped: the runtime
+ * ships write tools (`write_to_file`, `create_file`, `edit_file`) but
+ * their hook arg shapes are not live-verified, so the matcher waits for
+ * a probe run (spec/provider-activity.md, antigravity row).
  */
 function mapFileView(
   event: Record<string, unknown>,

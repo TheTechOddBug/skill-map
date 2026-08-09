@@ -26,10 +26,13 @@
  *   `SubagentStop` events with an EMPTY `agent_type` are orphan noise
  *   (observed firing out of order with unrelated ids) and are
  *   disclaimed.
- * - **Markdown usage**: `PreToolUse` with `tool_name: 'Read'` carries
- *   `tool_input.file_path`; in-scope `.md` reads become PATH signals
- *   (see `mapMarkdownRead`, filter-first: everything else is
- *   early-disclaimed). Auto-loaded session context (`CLAUDE.md`) fires
+ * - **Markdown usage**: `PreToolUse` with `tool_name` `Read`, `Write`
+ *   or `Edit` carries `tool_input.file_path`; in-scope `.md` touches
+ *   become PATH signals with the literal tool name as `detail`, so the
+ *   UI labels reads apart from writes (see `mapMarkdownUsage`,
+ *   filter-first: everything else is early-disclaimed). A `Write`
+ *   creating a NEW file resolves to no scanned node and drops until the
+ *   watcher scans it. Auto-loaded session context (`CLAUDE.md`) fires
  *   no tool event and stays invisible by design.
  * - **Turn boundary**: the main-context `Stop` maps to the node-less
  *   TURN-END form (`turnEnd: true`), sweeping sync spawn relations whose
@@ -78,13 +81,14 @@ export const claudeActivity: IProviderActivityAdapter = {
     projectDirEnvVar: 'CLAUDE_PROJECT_DIR',
     // Only the events mapEvent consumes: every wired event spawns one
     // bridge process, so the list stays tight. Tool events are narrowed
-    // to the attributable tools (Skill invocations, Read for markdown
-    // usage, Agent spawns for parent custody); plain Bash/Grep/... calls
-    // never spawn the bridge at all. Survivors are further filtered
-    // inside mapEvent (in-scope `.md` reads, agent-context spawns).
+    // to the attributable tools (Skill invocations, Read/Write/Edit for
+    // markdown usage, Agent spawns for parent custody); plain
+    // Bash/Grep/... calls never spawn the bridge at all. Survivors are
+    // further filtered inside mapEvent (in-scope `.md` touches,
+    // agent-context spawns).
     events: [
       { event: 'UserPromptExpansion', matcher: '*' },
-      { event: 'PreToolUse', matcher: '^(Skill|Agent|Read|mcp__.+)$' },
+      { event: 'PreToolUse', matcher: '^(Skill|Agent|Read|Write|Edit|mcp__.+)$' },
       { event: 'PostToolUse', matcher: '^Agent$' },
       { event: 'SubagentStart', matcher: '*' },
       { event: 'SubagentStop', matcher: '*' },
@@ -157,8 +161,9 @@ function mapPreToolUse(event: Record<string, unknown>): IActivitySignal[] | null
     // badge the lit card (spec/provider-activity.md §detail).
     return [{ kind: 'skill', name, phase: 'start', owner: sessionizedOwner(event), detail: 'Skill' }];
   }
-  if (event['tool_name'] === 'Read') {
-    return mapMarkdownRead(event, input);
+  const toolName = event['tool_name'];
+  if (toolName === 'Read' || toolName === 'Write' || toolName === 'Edit') {
+    return mapMarkdownUsage(event, input, toolName);
   }
   if (event['tool_name'] === 'Agent') {
     return mapSpawnCustodyStart(event);
@@ -316,23 +321,28 @@ function buildSpawnRelation(
 }
 
 /**
- * Markdown usage: the runtime read a file. `Read` is HIGH-frequency
+ * Markdown usage: the runtime read or wrote a file (`Read` / `Write` /
+ * `Edit`, all carrying `tool_input.file_path`). `Read` is HIGH-frequency
  * (every source file the assistant opens), so the shared filter-first
  * relativizer discards everything that can never light a node (non-`.md`
- * reads, no usable `cwd`, files outside it) before any node-set work
+ * paths, no usable `cwd`, files outside it) before any node-set work
  * happens downstream. Survivors become a PATH signal (scope-relative,
  * forward-slash): the resolver matches `node.path` directly, across
- * kinds, so reading `notes/todo.md` lights the markdown node and reading
- * a skill's `SKILL.md` lights that skill.
+ * kinds, so touching `notes/todo.md` lights the markdown node and
+ * touching a skill's `SKILL.md` lights that skill. The literal tool name
+ * rides as `detail` so the UI labels reads apart from writes; a `Write`
+ * creating a NEW file resolves to no scanned node and drops until the
+ * watcher scans it.
  */
-function mapMarkdownRead(
+function mapMarkdownUsage(
   event: Record<string, unknown>,
   input: Record<string, unknown>,
+  toolName: string,
 ): IActivitySignal[] | null {
   const relative = relativizeMarkdownPath(input['file_path'], [event['cwd']]);
   if (relative === null) return null;
   // `detail` = literal invoking tool name (spec/provider-activity.md §detail).
-  return [{ path: relative, phase: 'start', owner: sessionizedOwner(event), detail: 'Read' }];
+  return [{ path: relative, phase: 'start', owner: sessionizedOwner(event), detail: toolName }];
 }
 
 /**

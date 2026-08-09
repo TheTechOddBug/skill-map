@@ -372,6 +372,65 @@ describe('claudeActivity.mapEvent', () => {
     ]);
   });
 
+  it('an in-scope markdown Write maps to a PATH signal with the tool as detail', () => {
+    const signals = claudeActivity.mapEvent({
+      session_id: '6cfe5636-2e56-4271-91a6-87fc3d4355be',
+      cwd: '/home/user/project',
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Write',
+      tool_input: { file_path: '/home/user/project/notes/todo.md', content: '# updated' },
+      tool_use_id: 'toolu_01WriteMarkdownExample001',
+    });
+    assert.deepEqual(signals, [
+      {
+        path: 'notes/todo.md',
+        phase: 'start',
+        owner: 'main:6cfe5636-2e56-4271-91a6-87fc3d4355be',
+        detail: 'Write',
+      },
+    ]);
+  });
+
+  it('an in-scope markdown Edit maps to a PATH signal with the tool as detail', () => {
+    const signals = claudeActivity.mapEvent({
+      cwd: '/home/user/project',
+      hook_event_name: 'PreToolUse',
+      agent_id: 'afa6d56495644b2db',
+      agent_type: 'probe-agent',
+      tool_name: 'Edit',
+      tool_input: {
+        file_path: '/home/user/project/docs/playbook.md',
+        old_string: 'before',
+        new_string: 'after',
+      },
+    });
+    assert.deepEqual(signals, [
+      { path: 'docs/playbook.md', phase: 'start', owner: 'afa6d56495644b2db', detail: 'Edit' },
+    ]);
+  });
+
+  it('Write/Edit filter: non-markdown and out-of-scope paths disclaim like Read', () => {
+    // The high-frequency case: source-code writes never reach the node set.
+    assert.equal(
+      claudeActivity.mapEvent({
+        cwd: '/home/user/project',
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Write',
+        tool_input: { file_path: '/home/user/project/src/index.ts', content: 'x' },
+      }),
+      null,
+    );
+    assert.equal(
+      claudeActivity.mapEvent({
+        cwd: '/home/user/project',
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Edit',
+        tool_input: { file_path: '/somewhere/else/readme.md', old_string: 'a', new_string: 'b' },
+      }),
+      null,
+    );
+  });
+
   it('Read filter: early-disclaims everything that can never light a node', () => {
     const base = {
       cwd: '/home/user/project',
