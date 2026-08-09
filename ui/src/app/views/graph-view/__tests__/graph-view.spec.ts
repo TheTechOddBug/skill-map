@@ -596,6 +596,160 @@ describe('GraphView, canvas click deselect shield', () => {
   });
 });
 
+describe('GraphView, multi-selection survival', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  /**
+   * Foblex owns multi-selection (Shift+marquee via `<f-selection-area>`,
+   * Ctrl/Cmd+click toggle via `SelectByPointer`). These tests pin the
+   * app-side guards that used to wipe that selection: the background
+   * click synthesized at marquee release, the single-id click handler,
+   * the drag-end re-assert, and Escape as the keyboard way out.
+   * `flow` is stubbed because the Foblex template does not render in
+   * JSDOM (see the bootstrap note above).
+   */
+  function stubFlow(cmp: GraphView, nodes: string[]): { select: ReturnType<typeof vi.fn> } {
+    const select = vi.fn();
+    (cmp as unknown as { flow: () => unknown }).flow = () => ({
+      getSelection: () => ({ fNodeIds: nodes, fGroupIds: [], fConnectionIds: [] }),
+      select,
+      hostElement: document.createElement('div'),
+    });
+    return { select };
+  }
+
+  it('the click concluding a background drag (marquee release) does NOT deselect', async () => {
+    const { fixture, cmp } = await bootstrap([makeNode('a.md', 'a')]);
+    await flushEffects(fixture);
+    cmp.selectedNodeId.set('a.md');
+
+    const bare = document.createElement('span');
+    cmp.onCanvasPointerDown({ button: 0, clientX: 0, clientY: 0 } as unknown as MouseEvent);
+    cmp.onCanvasClick({ target: bare, clientX: 120, clientY: 80 } as unknown as MouseEvent);
+    expect(cmp.selectedNodeId()).toBe('a.md');
+
+    // A genuine click (no travel) still deselects.
+    cmp.onCanvasPointerDown({ button: 0, clientX: 10, clientY: 10 } as unknown as MouseEvent);
+    cmp.onCanvasClick({ target: bare, clientX: 11, clientY: 11 } as unknown as MouseEvent);
+    expect(cmp.selectedNodeId()).toBeNull();
+  });
+
+  it('modifier clicks on the background do NOT deselect (selection-building gestures)', async () => {
+    const { fixture, cmp } = await bootstrap([makeNode('a.md', 'a')]);
+    await flushEffects(fixture);
+
+    const bare = document.createElement('span');
+    for (const modifier of [{ shiftKey: true }, { ctrlKey: true }, { metaKey: true }]) {
+      cmp.selectedNodeId.set('a.md');
+      cmp.onCanvasClick({ target: bare, ...modifier } as unknown as MouseEvent);
+      expect(cmp.selectedNodeId()).toBe('a.md');
+    }
+  });
+
+  it('modifier clicks on a node do NOT collapse the selection to that node', async () => {
+    const { fixture, cmp } = await bootstrap([makeNode('a.md', 'a')]);
+    await flushEffects(fixture);
+    const graphNode = cmp.graph().nodes[0];
+
+    cmp.selectNode(graphNode, new MouseEvent('click', { ctrlKey: true }));
+    expect(cmp.selectedNodeId()).toBeNull();
+    cmp.selectNode(graphNode, new MouseEvent('click', { shiftKey: true }));
+    expect(cmp.selectedNodeId()).toBeNull();
+
+    cmp.selectNode(graphNode, new MouseEvent('click'));
+    expect(cmp.selectedNodeId()).toBe('a.md');
+  });
+
+  it('drag-end preserves a multi-node Foblex selection (group move)', async () => {
+    const { fixture, cmp } = await bootstrap([makeNode('a.md', 'a'), makeNode('b.md', 'b')]);
+    await flushEffects(fixture);
+    const { select } = stubFlow(cmp, ['a.md', 'b.md']);
+
+    cmp.onNodePointerDown(new PointerEvent('pointerdown', { clientX: 0, clientY: 0 }));
+    cmp.onNodePositionChange('a.md', { x: 10, y: 20 });
+    document.dispatchEvent(new MouseEvent('mouseup'));
+    await Promise.resolve();
+
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it('drag-end still re-asserts the app selection after a single-node drag', async () => {
+    const { fixture, cmp } = await bootstrap([makeNode('a.md', 'a')]);
+    await flushEffects(fixture);
+    const { select } = stubFlow(cmp, ['a.md']);
+
+    cmp.onNodePointerDown(new PointerEvent('pointerdown', { clientX: 0, clientY: 0 }));
+    cmp.onNodePositionChange('a.md', { x: 10, y: 20 });
+    document.dispatchEvent(new MouseEvent('mouseup'));
+    await Promise.resolve();
+
+    // App inspects nothing, so the re-assert pushes an empty selection.
+    expect(select).toHaveBeenCalledWith([], [], false);
+  });
+
+  it('Escape clears a Foblex-only multi-selection', async () => {
+    const { fixture, cmp } = await bootstrap([makeNode('a.md', 'a'), makeNode('b.md', 'b')]);
+    await flushEffects(fixture);
+    const { select } = stubFlow(cmp, ['a.md', 'b.md']);
+
+    expect(cmp.selectedNodeId()).toBeNull();
+    cmp.onEscape();
+    expect(select).toHaveBeenCalledWith([], [], false);
+  });
+
+  it('the bridge maps a multi-node selection to "no inspected node" and back', async () => {
+    const first = makeNode('a.md', 'a');
+    const second = makeNode('b.md', 'b');
+    const { fixture, cmp } = await bootstrap([first, second]);
+    await flushEffects(fixture);
+
+    flowSelectionChange(cmp, first.path);
+    expect(cmp.selectedNodeId()).toBe(first.path);
+
+    // Growing the set (marquee / Ctrl+click) hides the inspector...
+    flowSelectionChange(cmp, first.path, second.path);
+    expect(cmp.selectedNodeId()).toBeNull();
+
+    // ...and toggling back down to one node re-opens it on that node.
+    flowSelectionChange(cmp, second.path);
+    expect(cmp.selectedNodeId()).toBe(second.path);
+  });
+
+  it('a connection-only selection preserves the inspected node; an empty one clears it', async () => {
+    const node = makeNode('a.md', 'a');
+    const { fixture, cmp } = await bootstrap([node]);
+    await flushEffects(fixture);
+    const bridge = cmp as unknown as {
+      onFlowSelectionChange(event: FSelectionChangeEvent): void;
+    };
+
+    flowSelectionChange(cmp, node.path);
+    expect(cmp.selectedNodeId()).toBe(node.path);
+
+    // Ctrl+arrow topology walk stops on a connection: keep the node.
+    bridge.onFlowSelectionChange(new FSelectionChangeEvent([], [], ['edge-1']));
+    expect(cmp.selectedNodeId()).toBe(node.path);
+
+    bridge.onFlowSelectionChange(new FSelectionChangeEvent([], [], []));
+    expect(cmp.selectedNodeId()).toBeNull();
+  });
+
+  it('a non-primary-button press does not arm the background-drag guard', async () => {
+    const { fixture, cmp } = await bootstrap([makeNode('a.md', 'a')]);
+    await flushEffects(fixture);
+    cmp.selectedNodeId.set('a.md');
+
+    // Middle-mouse pan: its press must not leave a stale anchor that
+    // would suppress the deselect of the NEXT genuine click.
+    cmp.onCanvasPointerDown({ button: 1, clientX: 0, clientY: 0 } as unknown as MouseEvent);
+    const bare = document.createElement('span');
+    cmp.onCanvasClick({ target: bare, clientX: 120, clientY: 80 } as unknown as MouseEvent);
+    expect(cmp.selectedNodeId()).toBeNull();
+  });
+});
+
 describe('GraphView, deep-link reader', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();

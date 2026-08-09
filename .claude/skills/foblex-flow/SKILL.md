@@ -7,7 +7,7 @@ description: Authoritative guide for working with Foblex Flow (@foblex/flow) in 
 
 Foblex Flow (`@foblex/flow`) is the graph library that powers `ui/src/app/views/graph-view/`. Upstream documentation is sparse, so this skill is the authoritative operational guide. Before writing or reviewing any graph-related code, read the non-negotiables below.
 
-**Installed version: 19.1.2** (migrated from 18.6.1). The migration adopted v19's unified `[fConnector]` model, the renamed `f-connection` endpoint inputs (`fSourceId` / `fTargetId`), the opt-in keyboard a11y layer (`provideFFlow(withA11y(...))`), and the Foblex-owned selection contract. Legacy names still work but are deprecated; new code uses the v19 names.
+**Installed version: 19.1.6** (migrated from 18.6.1). The migration adopted v19's unified `[fConnector]` model, the renamed `f-connection` endpoint inputs (`fSourceId` / `fTargetId`), the opt-in keyboard a11y layer (`provideFFlow(withA11y(...))`), and the Foblex-owned selection contract. Legacy names still work but are deprecated; new code uses the v19 names.
 
 **Reference material** (load on demand):
 
@@ -472,7 +472,7 @@ isEdgeDimmed(e)           { /* selected exists, neither endpoint matches */ }
 Notes:
 
 - **Edge dim via host opacity**, not stroke alpha. The `<f-connection>` host has emulated encapsulation but `opacity` cascades to the SVG path it renders. No `::ng-deep`. Same trick the bracket SCSS uses.
-- **Deselect** by listening for `(click)` on a wrapper around the canvas and ignoring clicks whose `event.target.closest('.sm-gnode')` (or any other interactive overlay) is non-null. Foblex's `<f-flow>` does not expose a "background-only click" event. The deselect itself is `applySelection(null)`, never a bare signal write.
+- **Deselect** by listening for `(click)` on a wrapper around the canvas and ignoring clicks whose `event.target.closest('.sm-gnode')` (or any other interactive overlay) is non-null. Foblex's `<f-flow>` does not expose a "background-only click" event. The deselect itself is `applySelection(null)`, never a bare signal write. Two guards are mandatory on this handler: (a) a drag-distance check against the wrapper's own `mousedown` anchor, because the browser synthesizes a `click` at the END of any background drag (down and up both land on the canvas), so releasing a Shift+marquee would otherwise wipe the selection it just built; (b) skip when `shiftKey`/`ctrlKey`/`metaKey` is held, those are selection-BUILDING gestures (additive marquee, `SelectByPointer` toggle) that Foblex answers by keeping its selection, and clearing on its behalf fights the library.
 - **Single click selects, double click navigates** to the inspector. Same gesture as Finder / file managers; descoverable. Maintain a small drag-distance guard in the click handler so a node-drag doesn't fire `selectNode`.
 - **Selection guard via effect**: when filters change and the selected node is no longer visible, clear the selection (`effect(() => { if (!this.graph().nodes.some(n => n.id === id)) this.applySelection(null); })`). Avoids dangling highlight state on both sides of the bridge.
 
@@ -489,6 +489,8 @@ export function isFlowDragging(host: HTMLElement | null | undefined): boolean {
 ```
 
 Suppressing the mirror is only half the fix: Foblex's internal selection now holds the dragged node (painted `.f-selected`) while the app still inspects another one. **Re-assert the app's selection when the drag settles**, `applySelection(this.selectedNodeId())`, from the rule 9 `mouseup` flush. That moment is safe to mutate library state from: Foblex finalizes its drag on `pointerup`, which the browser fires *before* `mouseup`, so the whole finalize + `reset()` pipeline has already run. Do NOT hang the re-assert on `(fDragEnded)` instead: it fires for every drag kind, and a Shift+area marquee applies its selection in `SelectionAreaFinalize` *before* that event, so a blanket re-assert would wipe the marquee.
+
+The re-assert itself must also be **multi-selection aware**: when the settled drag moved a multi-node selection (marquee or Ctrl/Cmd+click set; grabbing an already-selected node keeps the whole set and drags the group), Foblex's selection IS the user's intent, and pushing the app's single id over it would drop the group at release. Skip the re-assert when `flow.getSelection().fNodeIds.length > 1`; the single-node divergence it exists to fix cannot occur in that case. Related gesture handlers need the same courtesy: the app's own node `(click)` select must not run when a multi-select modifier (Shift/Ctrl/Cmd) is held, or it collapses the set the library just built on pointerdown. Note the multi-select toggle modifier is Ctrl (Cmd on macOS) by default (`fMultiSelectTrigger`); binding Shift+click to it is futile while `<f-selection-area>` keeps its default Shift trigger, because `SelectionAreaPreparation` claims the pointer first and `SelectByPointer._isSelectionPhase` hard-rejects selection updates on Shift while the area holds the claim.
 
 A plain click is untouched by all of this: the class is never stamped, the single emit arrives on pointerup via `finalizeDragSequence`, and the inspector opens as it always did.
 

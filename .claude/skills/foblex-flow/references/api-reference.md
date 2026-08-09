@@ -906,8 +906,9 @@ interface IFFlowState {
 }
 
 interface ICurrentSelection {
-  nodes: string[];
-  connections: string[];
+  fNodeIds: string[];
+  fGroupIds: string[];
+  fConnectionIds: string[];
 }
 
 interface FCanvasChangeEvent {

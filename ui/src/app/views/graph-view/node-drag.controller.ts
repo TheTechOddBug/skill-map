@@ -22,6 +22,14 @@ import { DestroyRef, type WritableSignal } from '@angular/core';
 import type { IPoint, TNodePositions } from './graph-layout';
 import { writeStoredNodePositions } from './graph-view.storage';
 
+/**
+ * Max pointer travel (px) for a press-release pair to still count as a
+ * click. Shared with the canvas-level background-click guard in
+ * `graph-view.ts` so node clicks and canvas clicks agree on what a
+ * "click" is.
+ */
+export const CLICK_DRAG_TOLERANCE_PX = 4;
+
 export interface INodeDragConfig {
   destroyRef: DestroyRef;
   nodePositions: WritableSignal<TNodePositions>;
@@ -49,7 +57,7 @@ export interface INodeDragHandle {
   onNodePointerDown(event: PointerEvent): void;
   /**
    * True when `event` came from a pointerdown that did NOT move past
-   * the click tolerance (4 px). Consumed by `selectNode` so a drag
+   * `CLICK_DRAG_TOLERANCE_PX`. Consumed by `selectNode` so a drag
    * does not also fire a selection.
    */
   isClickWithoutDrag(event: MouseEvent): boolean;
@@ -103,7 +111,7 @@ export function setupNodeDrag(config: INodeDragConfig): INodeDragHandle {
     if (!start) return true;
     const dx = event.clientX - start.x;
     const dy = event.clientY - start.y;
-    return Math.hypot(dx, dy) <= 4;
+    return Math.hypot(dx, dy) <= CLICK_DRAG_TOLERANCE_PX;
   };
 
   // Defensive: `{ once: true }` auto-removes the listener after it

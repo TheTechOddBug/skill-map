@@ -55,6 +55,7 @@
       #canvasWrap
       tabindex="-1"
       [smMiddleMousePan]="panTarget"
+      (mousedown)="onCanvasPointerDown($event)"
       (click)="onCanvasClick($event)"
       data-testid="graph-canvas-wrap"
     >

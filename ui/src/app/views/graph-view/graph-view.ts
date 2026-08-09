@@ -93,7 +93,7 @@ import { setupViewportStore, ZOOM_MIN, ZOOM_MAX } from './viewport-store';
 import { isAnyPrimengOverlayOpen, isFlowDragging } from './graph-view.utils';
 import type { IEdgeSelectionView, ISelectionView } from '../../../models/selection';
 import { createSelectionState } from './selection-state';
-import { setupNodeDrag } from './node-drag.controller';
+import { CLICK_DRAG_TOLERANCE_PX, setupNodeDrag } from './node-drag.controller';
 import { setupExpansion } from './expansion.controller';
 import { setupFollowActivity } from './follow-activity.controller';
 import { setupLayoutFit } from './layout-fit.controller';
@@ -300,7 +300,15 @@ export class GraphView implements OnInit {
     // the grabbed node on pointerdown and `onFlowSelectionChange` refused
     // to mirror that (see there); re-asserting the app's own selection
     // here realigns both sides, so the drag leaves selection untouched.
-    onDragEnd: () => this.applySelection(this.selectedNodeId()),
+    // A multi-node selection (Shift+marquee, Ctrl/Cmd+click) is the
+    // exception: the user built it deliberately and just moved the whole
+    // group, so Foblex's selection IS the intent and must survive the
+    // release. The app side already shows no inspected node for multi
+    // (see `onFlowSelectionChange`), so both sides stay coherent.
+    onDragEnd: () => {
+      if ((this.flow()?.getSelection().fNodeIds.length ?? 0) > 1) return;
+      this.applySelection(this.selectedNodeId());
+    },
   });
 
   // Card-expansion state, owns `expandedNodeIds`, the persistence
@@ -870,6 +878,12 @@ export class GraphView implements OnInit {
 
   selectNode(node: IGraphNode, event: MouseEvent): void {
     if (!this.nodeDrag.isClickWithoutDrag(event)) return;
+    // Modifier clicks are multi-selection gestures owned by Foblex:
+    // Ctrl/Cmd+click toggles the node in and out of the selection
+    // (`SelectByPointer`), Shift belongs to the marquee. Forcing the
+    // single-id selection here would collapse the set the library just
+    // built on pointerdown.
+    if (event.shiftKey || event.ctrlKey || event.metaKey) return;
     this.applySelection(node.id);
   }
 
@@ -962,9 +976,15 @@ export class GraphView implements OnInit {
    * variants used in this app.
    */
   onEscape(): void {
-    if (this.selectedNodeId() === null) return;
     if (typeof document !== 'undefined' && isAnyPrimengOverlayOpen(document)) return;
-    this.closePanel();
+    if (this.selectedNodeId() !== null) {
+      this.closePanel();
+      return;
+    }
+    // No inspected node, but a multi-selection (Shift+marquee,
+    // Ctrl/Cmd+click) may still live inside Foblex; Escape drops it so
+    // the keyboard path has the same way out as a background click.
+    if ((this.flow()?.getSelection().fNodeIds.length ?? 0) > 0) this.applySelection(null);
   }
 
   /**
@@ -1071,9 +1091,37 @@ export class GraphView implements OnInit {
    * break the deselect gating, and a new overlay opts out by adding
    * the attribute instead of editing a selector list here.
    */
+  /**
+   * Anchor of the last primary-button press on the wrapper, consumed by
+   * `onCanvasClick` to tell a genuine background click from the click
+   * the browser synthesizes at the END of a background drag (Shift
+   * marquee, canvas pan), whose down and up both land on the canvas.
+   */
+  private canvasPointerDownAt: { x: number; y: number } | null = null;
+
+  onCanvasPointerDown(event: MouseEvent): void {
+    this.canvasPointerDownAt =
+      event.button === 0 ? { x: event.clientX, y: event.clientY } : null;
+  }
+
   onCanvasClick(event: MouseEvent): void {
+    const downAt = this.canvasPointerDownAt;
+    this.canvasPointerDownAt = null;
     const target = event.target as HTMLElement | null;
     if (target?.closest('[data-canvas-click-shield]')) return;
+    // The click concluding a background DRAG is not a deselect request:
+    // releasing a Shift+marquee would otherwise wipe the selection it
+    // just built. Same tolerance as the node-level click guard.
+    if (
+      downAt !== null &&
+      Math.hypot(event.clientX - downAt.x, event.clientY - downAt.y) > CLICK_DRAG_TOLERANCE_PX
+    ) {
+      return;
+    }
+    // Modifier clicks are selection-building gestures (Shift = additive
+    // marquee, Ctrl/Cmd = toggle); Foblex keeps its selection on them,
+    // so the app must not clear on its behalf.
+    if (event.shiftKey || event.ctrlKey || event.metaKey) return;
     this.applySelection(null);
   }
 
