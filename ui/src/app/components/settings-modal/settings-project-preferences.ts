@@ -149,6 +149,19 @@ export class SettingsProjectPreferences {
   });
 
   /**
+   * Project-local skill-actions offering toggle (`skillActions.enabled`,
+   * spec/skill-actions.md §Settings). Default `true`: skills installed
+   * under `.skill-map/.agents/skills/` are offered on every node. Read
+   * defensively so an older envelope that predates the field renders the
+   * switch ON (the server-side default). Not surface-expanding, so no
+   * confirm dialog, and the toggle is read fresh per request server-side,
+   * so no restart hint either.
+   */
+  protected readonly skillActionsEnabled = computed<boolean>(() => {
+    return this.preferences()?.skillActionsEnabled ?? true;
+  });
+
+  /**
    * View state the switches bind to, one per toggle. A plain computed
    * cannot roll a cancelled flip back: the p-toggleswitch flips its
    * internal state on click, and when the user dismisses the confirm
@@ -170,6 +183,9 @@ export class SettingsProjectPreferences {
   );
   protected readonly mcpServerEnabledView = linkedSignal(() =>
     this.mcpServerEnabled(),
+  );
+  protected readonly skillActionsEnabledView = linkedSignal(() =>
+    this.skillActionsEnabled(),
   );
 
   /**
@@ -275,6 +291,39 @@ export class SettingsProjectPreferences {
     void this.runPatch('mcpServerEnabled', { mcpServerEnabled: next }).then((ok) => {
       if (ok) this.mcpServerRestartPending.set(true);
       else this.mcpServerEnabledView.set(this.mcpServerEnabled());
+    });
+  }
+
+  // -----------------------------------------------------------------
+  // Skill-actions offering handler (project-local, ungated, live)
+  // -----------------------------------------------------------------
+
+  /**
+   * Sticky informational note for the skill-actions toggle, mirroring
+   * the MCP row's restart hint VISUALLY but not semantically: the flip
+   * itself applies on the next read (the consuming routes re-read the
+   * toggle per request), so the note states that AND the one
+   * restart-relevant fact, that newly installed skills load at `sm
+   * serve` boot. Set once the operator flips the toggle in this session;
+   * never clears in-session, like `mcpServerRestartPending`.
+   */
+  protected readonly skillActionsFlipNoted = signal(false);
+
+  /**
+   * Flip the project-local `skillActions.enabled` offering toggle. Not
+   * surface-expanding (it only governs whether the installed catalog is
+   * offered), so it persists directly with no confirm dialog; the
+   * consuming routes read it fresh per request, so the change applies
+   * immediately. A successful flip raises the sticky informational note
+   * (`skillActionsFlipNoted`); on a failed write the view signal rolls
+   * back to the committed value and the note is left untouched.
+   */
+  protected onSkillActionsToggle(next: boolean): void {
+    this.usageTracker.trackFeature('skill-actions', next, 'settings');
+    this.skillActionsEnabledView.set(next);
+    void this.runPatch('skillActionsEnabled', { skillActionsEnabled: next }).then((ok) => {
+      if (ok) this.skillActionsFlipNoted.set(true);
+      else this.skillActionsEnabledView.set(this.skillActionsEnabled());
     });
   }
 

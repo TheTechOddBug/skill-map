@@ -134,10 +134,14 @@ Two touchpoints, both on existing routes ([`cli-contract.md`](./cli-contract.md)
 
 Deferred in v1. The `skill:` prefix is RESERVED in submit target resolution ([`cli-contract.md` §Jobs](./cli-contract.md#jobs)): `sm jobs submit skill:<name>` refuses with exit 5 (not found) like any unknown target, and no CLI verb lists the catalog. The processing loop is fully CLI-compatible today (`sm jobs claim` hands out rendered content source-agnostically; `sm record` closes the job via the prefix-routed canonical schema); only the SUBMIT syntax is BFF-only. Lifting the deferral is a compatible bump that documents the CLI grammar and adds its contract-guard coverage.
 
+## Settings
+
+One config key governs the OFFERING: `skillActions.enabled`, boolean, default `true` ([`schemas/project-config.schema.json`](./schemas/project-config.schema.json)). When `false`, the `skills` bucket of `GET /api/nodes/:pathB64/prob-extensions` emits `[]` and a `skill:` submit refuses not-found; nothing else changes (discovery still runs at boot, membership stays boot-frozen either way, already-queued skill jobs still claim and record). The key is **project-local only** (the catalog is per-machine state, so offering it is a per-operator decision), written by the Settings > Project toggle through `PATCH /api/project-preferences` with no confirm gate, and read FRESH on every request, so flipping it takes effect immediately with no restart. This is deliberately an offering toggle, not per-skill enablement: uninstalling a skill remains the per-skill off switch (§What skill actions are NOT).
+
 ## What skill actions are NOT (v1 cuts)
 
 - No install / update / remove surface in skill-map (the `npx skills` CLI owns that; skill-map only reads the result).
-- No per-skill enable toggles, no config keys, no settings surface (uninstall is the off switch).
+- No per-skill enable toggles (uninstall is the per-skill off switch); the single catalog-wide offering toggle is `skillActions.enabled` (§Settings).
 - No eligibility gating (every skill on every node). A future explicit frontmatter gate (e.g. a skill declaring the node kinds it applies to) would be additive.
 - No CLI submit grammar (above), no MCP tool, no nodeless skills, no `--all` fan-out.
 - No harness-side invocation: the skill is inlined into the rendered job, never invoked by name in the processing agent's own runtime.

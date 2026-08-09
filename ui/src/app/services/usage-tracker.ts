@@ -81,6 +81,7 @@ export type TUsageFeatureSurface =
   | 'skill-update'
   | 'follow-symlinks'
   | 'mcp-server'
+  | 'skill-actions'
   | 'allow-sidecar'
   | 'use-gitignore'
   | 'reference-paths-add'

@@ -1218,6 +1218,15 @@ export interface IProjectPreferencesApi {
    * emits a concrete boolean.
    */
   mcpServerEnabled?: boolean;
+  /**
+   * Project-local skill-actions offering toggle (`skillActions.enabled`,
+   * spec/skill-actions.md §Settings). When `false`, the prob-extensions
+   * `skills` bucket empties and `skill:` submits refuse; default `true`.
+   * Read fresh per request, so a flip applies immediately, no restarts.
+   * Optional only to tolerate an older BFF envelope that predates it;
+   * the current BFF always emits a concrete boolean.
+   */
+  skillActionsEnabled?: boolean;
 }
 
 /**
@@ -1262,6 +1271,12 @@ export interface IProjectPreferencesPatchApi {
    * mount only reflects it on the next `sm serve` restart.
    */
   mcpServerEnabled?: boolean;
+  /**
+   * Flip the project-local skill-actions offering toggle
+   * (`skillActions.enabled`). No confirm gate; applies on the next read,
+   * no restarts.
+   */
+  skillActionsEnabled?: boolean;
 }
 
 /**

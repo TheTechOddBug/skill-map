@@ -478,6 +478,34 @@ describe('POST /api/nodes/:pathB64/jobs', () => {
     });
   });
 
+  it('skill target: 404 while skillActions.enabled is off, live, and submits again once restored', async () => {
+    installSkillAction(project, 'reviewer', {});
+    await bootAndUse(project, async (handle) => {
+      // Gate the offering through the running server's own PATCH route
+      // (persists + configService.reload()); an installed skill must
+      // refuse exactly like an unknown one (spec/skill-actions.md
+      // §Settings), on the very next request, no restart.
+      const off = await fetch(serverUrl(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ skillActionsEnabled: false }),
+      });
+      assert.equal(off.status, 200);
+      const refused = await postJob(handle, SKILL_NODE.path, { extension: 'skill:reviewer' });
+      assert.equal(refused.status, 404);
+      assert.equal(((await refused.json()) as IErrorBody).error.code, 'not-found');
+
+      const on = await fetch(serverUrl(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ skillActionsEnabled: true }),
+      });
+      assert.equal(on.status, 200);
+      const ok = await postJob(handle, SKILL_NODE.path, { extension: 'skill:reviewer' });
+      assert.equal(ok.status, 200, 'restoring the offering restores the submit');
+    });
+  });
+
   it('skill target: the processing-agent 409 gate applies unchanged', async () => {
     const bare = await setupProbProject(join(tmpRoot, `proj-skill-gate-${counter}`), [SKILL_NODE], {
       installSkill: false,

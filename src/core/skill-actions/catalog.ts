@@ -3,8 +3,11 @@
  * action is an operator-installed `SKILL.md` agent skill under the
  * private catalog folder `<cwd>/.skill-map/.agents/skills/<name>/`, a
  * PARALLEL catalog next to the extension system: no manifest, no module
- * import, no registry membership, no enable toggle
- * (`spec/architecture.md` §Skill-actions catalog).
+ * import, no registry membership, no per-skill enable toggle
+ * (`spec/architecture.md` §Skill-actions catalog). The one catalog-wide
+ * knob is the OFFERING toggle `skillActions.enabled`
+ * (`spec/skill-actions.md` §Settings), applied at read time via
+ * `offeredSkillActionCatalog` below, never at discovery.
  *
  * Discovery runs ONCE, at `sm serve` boot, alongside plugin discovery
  * (same posture, audit M3: never re-walk the filesystem per request);
@@ -30,6 +33,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { readConfigValue } from '../config/helper.js';
 import { kernelSkillActionsDir } from '../../kernel/util/skill-map-paths.js';
 import { USER_CONTENT_PLACEHOLDER } from '../../kernel/jobs/index.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
@@ -93,6 +97,26 @@ export interface ISkillActionCatalog {
 /** The empty catalog (missing folder, tests, non-serve surfaces). */
 export function emptySkillActionCatalog(): ISkillActionCatalog {
   return { entries: [], byId: new Map() };
+}
+
+/**
+ * The boot-frozen catalog as OFFERED right now: the catalog itself when
+ * the project-local `skillActions.enabled` toggle (default `true`,
+ * `spec/skill-actions.md` §Settings) resolves on, the empty catalog when
+ * it resolves off. The toggle is read FRESH on every call, so a Settings
+ * flip applies on the next request with no restart; membership stays
+ * boot-frozen either way. Both consuming routes (prob-extensions, the
+ * per-node job submit) MUST go through this instead of reading
+ * `deps.skillActionCatalog` raw, so a disabled catalog empties the
+ * launcher list AND refuses `skill:` submits as not-found in one place.
+ */
+export function offeredSkillActionCatalog(
+  catalog: ISkillActionCatalog,
+  cwd: string,
+): ISkillActionCatalog {
+  const enabled =
+    readConfigValue<boolean>('skillActions.enabled', { cwd, default: true }) ?? true;
+  return enabled ? catalog : emptySkillActionCatalog();
 }
 
 /**

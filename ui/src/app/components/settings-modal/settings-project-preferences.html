@@ -67,6 +67,30 @@
   />
 </div>
 
+<div smToggleRow class="settings-project__row" data-testid="settings-project-skill-actions-row">
+  <div class="settings-project__row-text">
+    <label class="settings-project__row-label" for="settings-project-skill-actions-switch"
+      >{{ texts.project.skillActionsLabel }}</label
+    >
+    <div class="settings-project__row-description">
+      {{ texts.project.skillActionsDescription }}
+    </div>
+    @if (skillActionsFlipNoted()) {
+      <div class="settings-project__row-restart-hint" data-testid="settings-project-skill-actions-flip-hint">
+        <i class="pi pi-info-circle" aria-hidden="true"></i>
+        {{ texts.project.skillActionsFlipHint }}
+      </div>
+    }
+  </div>
+  <p-toggleswitch
+    inputId="settings-project-skill-actions-switch"
+    [ngModel]="skillActionsEnabledView()"
+    (ngModelChange)="onSkillActionsToggle($event)"
+    [disabled]="loading() || isPending('skillActionsEnabled') || preferences() === null"
+    data-testid="settings-project-skill-actions-toggle"
+  />
+</div>
+
 @if (loadError(); as err) {
   <p-message severity="error" [closable]="false" data-testid="settings-project-load-error">
     {{ texts.project.loadErrorPrefix }} {{ err }}

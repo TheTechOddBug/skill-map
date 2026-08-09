@@ -26,6 +26,9 @@
     "respectGitignore": false
   },
   "plugins": {},
+  "skillActions": {
+    "enabled": true
+  },
   "jobs": {
     "claimWaitSeconds": 2,
     "perExtensionTtl": {},

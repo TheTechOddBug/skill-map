@@ -500,6 +500,10 @@ export const SERVER_TEXTS = {
   // Server-stderr advisory after `PATCH /api/project-preferences` toggles the
   // opt-in read-only MCP server. Boot-time, so the note flags the serve restart.
   projectPrefsMcpServerSet: 'project-prefs: mcp.server.enabled = {{value}} (restart sm serve to apply)',
+  projectPrefsSkillActionsNotBoolean: '`skillActionsEnabled` must be a boolean.',
+  // Server-stderr advisory after `PATCH /api/project-preferences` toggles the
+  // skill-actions offering. Read fresh per request, so it applies immediately.
+  projectPrefsSkillActionsSet: 'project-prefs: skillActions.enabled = {{value}}',
   // Server-stderr advisory after `PATCH /api/project-preferences`
   // toggles the committed sidecar-writer policy. Lets the operator see
   // the team-shared change land without opening settings.json.

@@ -65,6 +65,7 @@ import {
   type TSubmitOutcome,
 } from '../../core/jobs/submit-engine.js';
 import { buildFreshResolver } from '../../core/runtime/fresh-resolver.js';
+import { offeredSkillActionCatalog } from '../../core/skill-actions/catalog.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { nodelessTargetId } from '../../kernel/jobs/index.js';
 import type { JobStatus, Node } from '../../kernel/types.js';
@@ -223,11 +224,16 @@ export function registerNodeJobsRoute(app: Hono, deps: INodeJobsRouteDeps): void
       autoFix: body.autoFix ?? false,
       ...(body.findingIds !== undefined ? { findingIds: body.findingIds } : {}),
       // Skill-action targets (`skill:<name>`) resolve against the
-      // boot-frozen catalog; this per-node route is the ONLY submit
-      // surface that supplies it in v1 (`spec/skill-actions.md` §CLI
-      // surface: the CLI grammar stays reserved, the nodeless route has
-      // no skill shape to accept).
-      skillCatalog: deps.skillActionCatalog,
+      // boot-frozen catalog AS OFFERED (empty while the project-local
+      // `skillActions.enabled` toggle is off, so a disabled catalog
+      // refuses skill submits as not-found); this per-node route is the
+      // ONLY submit surface that supplies it in v1
+      // (`spec/skill-actions.md` §CLI surface: the CLI grammar stays
+      // reserved, the nodeless route has no skill shape to accept).
+      skillCatalog: offeredSkillActionCatalog(
+        deps.skillActionCatalog,
+        deps.runtimeContext.cwd,
+      ),
     });
     if (!prep.ok) throw prepareErrorToHttp(prep.error, body.extension);
 

@@ -100,6 +100,10 @@ sm --mcp
 
 skill-map nunca ejecuta un LLM por sí mismo: el trabajo probabilístico se encola y TU agente lo reclama, ejecuta y registra a través del skill `sm-process-jobs` (`sm agent install`). Todos los agentes soportados hablan el mismo protocolo.
 
+## Skill actions
+
+Cualquier skill de agente basado en `SKILL.md` (por ejemplo, de [skills.sh](https://skills.sh)) puede ejecutarse sobre nodos individuales: instálalo en el catálogo privado del proyecto (`cd .skill-map && npx skills add <repo> --skill <name>`) y aparecerá como un grupo Skills en el panel de AI actions del inspector. Las instrucciones del skill se insertan en un job encolado que tu propio agente procesa, y el reporte queda en el historial de ejecuciones del nodo. Contrato: [`spec/skill-actions.md`](./spec/skill-actions.md).
+
 ## Archivos sidecar `.sm`
 
 La curación humana (versión, estabilidad, tags, rastro de auditoría) vive en un YAML hermano (`demo-agent.md` → `demo-agent.sm`), nunca dentro del `.md`: el agente y tú son dueños del `.md`, skill-map es dueño del `.sm`. Aparecen solo cuando optas por ellos (`sm bump`, `sm sidecars annotate`; los scans nunca los escriben) y son código fuente: van al repo. Diseño completo: [`spec/architecture.md` §Annotation system](./spec/architecture.md#annotation-system).

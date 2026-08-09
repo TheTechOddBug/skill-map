@@ -105,6 +105,15 @@ export interface IProjectPreferencesEnvelope {
    * the project-local layer (a per-operator decision to expose a local server).
    */
   mcpServerEnabled: boolean;
+  /**
+   * Whether the skill-actions catalog is OFFERED (config key
+   * `skillActions.enabled`, default `true`, spec/skill-actions.md
+   * §Settings). When `false`, the prob-extensions `skills` bucket
+   * empties and `skill:` submits refuse not-found. Read fresh per
+   * request, so a flip applies immediately (no restarts). Written to
+   * the project-local layer (the catalog is per-machine state).
+   */
+  skillActionsEnabled: boolean;
 }
 
 interface IPatchBody {
@@ -124,6 +133,7 @@ interface IPatchBody {
     confirmIgnore?: boolean;
   };
   mcpServerEnabled?: boolean;
+  skillActionsEnabled?: boolean;
 }
 
 export function registerProjectPreferencesRoute(app: Hono, deps: IRouteDeps): void {
@@ -158,6 +168,11 @@ function buildEnvelope(deps: IRouteDeps): IProjectPreferencesEnvelope {
         cwd,
         default: false,
       }) ?? false,
+    skillActionsEnabled:
+      readConfigValue<boolean>('skillActions.enabled', {
+        cwd,
+        default: true,
+      }) ?? true,
   };
 }
 
@@ -245,6 +260,12 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
   // `sm serve`.
   const mcpChanged = applyMcpServerWrite(body, cwd);
 
+  // Project-local skill-actions offering toggle. Read fresh per request
+  // by the prob-extensions and node-jobs routes, so persisting + cache
+  // reload is the whole live effect; no watcher restart (it changes
+  // nothing the scan indexes).
+  const skillActionsChanged = applySkillActionsWrite(body, cwd);
+
   // Best-effort watcher restart: the runtime re-reads config every
   // batch so the next file edit picks the change up anyway, but the
   // restart guarantees the operator sees the effect (new path list,
@@ -266,6 +287,7 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
     followChanged,
     uiChanged,
     mcpChanged,
+    skillActionsChanged,
   ].some(Boolean);
   if (shouldRestart) await maybeRestartWatcher(deps);
   // Successful writes mutate the on-disk config; the cached view would
@@ -401,6 +423,35 @@ function applyMcpServerWrite(body: IPatchBody, cwd: string): boolean {
     });
   }
   log.warn(tx(SERVER_TEXTS.projectPrefsMcpServerSet, { value: String(next) }));
+  return true;
+}
+
+/**
+ * Apply the `skillActionsEnabled` key of the patch (config key
+ * `skillActions.enabled`): whether the skill-actions catalog is offered
+ * (spec/skill-actions.md §Settings). Read fresh per request by the
+ * consuming routes, so the write + cache reload is the whole effect, no
+ * restarts. Written to the gitignored project-local layer (the catalog
+ * under `.skill-map/` is per-machine state), no privacy / confirm gate.
+ * Returns `true` when the value actually changed, so the caller reloads
+ * the config cache.
+ */
+function applySkillActionsWrite(body: IPatchBody, cwd: string): boolean {
+  const next = body.skillActionsEnabled;
+  if (next === undefined) return false;
+  const before = readConfigValue<boolean>('skillActions.enabled', { cwd, default: true }) ?? true;
+  if (before === next) return false;
+  try {
+    writeConfigValue('skillActions.enabled', next, { target: 'project-local', cwd });
+  } catch (err) {
+    throw new HTTPException(400, {
+      message: tx(SERVER_TEXTS.projectPrefsPersistFailed, {
+        key: 'skillActions.enabled',
+        message: formatErrorMessage(err),
+      }),
+    });
+  }
+  log.warn(tx(SERVER_TEXTS.projectPrefsSkillActionsSet, { value: String(next) }));
   return true;
 }
 
@@ -716,12 +767,14 @@ const PATCH_BODY_SCHEMA = {
     { required: ['tutorialReminderStep'] },
     { required: ['ui'] },
     { required: ['mcpServerEnabled'] },
+    { required: ['skillActionsEnabled'] },
   ],
   properties: {
     confirm: { type: 'boolean' },
     allowSidecarWriters: { type: 'boolean' },
     tutorialReminderStep: { type: 'integer', minimum: 0, maximum: 2 },
     mcpServerEnabled: { type: 'boolean' },
+    skillActionsEnabled: { type: 'boolean' },
     ui: {
       type: 'object',
       additionalProperties: false,
@@ -776,5 +829,6 @@ const parsePatchBody = makeBodyValidator<IPatchBody>(PATCH_BODY_SCHEMA, {
     '/ui/changeSpark:type:boolean': SERVER_TEXTS.projectPrefsChangeSparkNotBoolean,
     '/ui/confirmIgnore:type:boolean': SERVER_TEXTS.projectPrefsConfirmIgnoreNotBoolean,
     '/mcpServerEnabled:type:boolean': SERVER_TEXTS.projectPrefsMcpServerNotBoolean,
+    '/skillActionsEnabled:type:boolean': SERVER_TEXTS.projectPrefsSkillActionsNotBoolean,
   },
 });

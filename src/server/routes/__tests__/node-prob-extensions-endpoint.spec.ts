@@ -774,6 +774,44 @@ describe('GET /api/nodes/:pathB64/prob-extensions', () => {
     }
   });
 
+  it('skills bucket empties live while skillActions.enabled is off, no restart', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'skill-map-prob-ext-skills-toggle-'));
+    try {
+      const proj = await setupProbProject(root, [SKILL_NODE], { installSkill: true });
+      installSkillAction(proj, 'reviewer', {});
+      await bootAndUse(proj, async (handle) => {
+        const before = await fetchCatalog(handle, SKILL_NODE.path);
+        assert.deepEqual(before.item.skills.map((s) => s.id), ['skill:reviewer']);
+
+        // Flip the offering toggle through the running server's own
+        // PATCH route (persists + configService.reload()); the bucket
+        // must empty on the very next read (spec/skill-actions.md
+        // §Settings: read fresh per request, no restarts).
+        const off = await fetch(serverUrl(handle, '/api/project-preferences'), {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ skillActionsEnabled: false }),
+        });
+        assert.equal(off.status, 200);
+        const disabled = await fetchCatalog(handle, SKILL_NODE.path);
+        assert.deepEqual(disabled.item.skills, [], 'disabled offering empties the bucket');
+
+        // Flip back: the boot-frozen membership never went away, only
+        // the offering was gated.
+        const on = await fetch(serverUrl(handle, '/api/project-preferences'), {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ skillActionsEnabled: true }),
+        });
+        assert.equal(on.status, 200);
+        const restored = await fetchCatalog(handle, SKILL_NODE.path);
+        assert.deepEqual(restored.item.skills.map((s) => s.id), ['skill:reviewer']);
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('skills decoration: an active job flips state/jobId; lastJudged reads the latest completed execution', async () => {
     const root = mkdtempSync(join(tmpdir(), 'skill-map-prob-ext-skills-live-'));
     try {

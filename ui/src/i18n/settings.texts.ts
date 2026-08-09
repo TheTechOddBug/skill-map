@@ -202,6 +202,25 @@ export const SETTINGS_TEXTS = {
     followExternalSymlinksConfirmAccept: 'Enable',
     followExternalSymlinksConfirmReject: 'Cancel',
     /**
+     * Project-local skill-actions offering toggle
+     * (`skillActions.enabled`, default true, spec/skill-actions.md
+     * §Settings). Not surface-expanding (it only governs whether the
+     * installed catalog is offered), so no confirm dialog; applies on
+     * the next read, no restart hint. Persists in settings.local.json.
+     */
+    skillActionsLabel: 'Skill actions',
+    skillActionsDescription:
+      'Offer installed skills as runnable AI actions on every node. Drop ' +
+      'each skill at .skill-map/.agents/skills/<name>/SKILL.md (frontmatter ' +
+      'name + description); new installs load when sm serve restarts.',
+    /**
+     * Sticky note after a flip. Deliberately NOT the MCP restart demand:
+     * the offering toggle applies on the next read (the server reads it
+     * fresh per request), so the only restart-relevant fact is that
+     * newly INSTALLED skills load at boot.
+     */
+    skillActionsFlipHint: 'Applied instantly. Skills you install later load when sm restarts.',
+    /**
      * Project-local read-only MCP server opt-in (`mcp.server.enabled`).
      * When on, `sm serve` mounts an experimental read-only MCP endpoint at
      * `/mcp` so an MCP-capable assistant can query the map (never execute

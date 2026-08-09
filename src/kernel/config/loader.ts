@@ -414,6 +414,11 @@ export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
   'ui.changeSpark',
   'ui.confirmIgnore',
   'mcp.server.enabled',
+  // The skill-actions offering toggle: the catalog under
+  // `.skill-map/.agents/skills/` is per-machine state, so whether to
+  // offer it is a per-operator decision (spec/skill-actions.md
+  // §Settings), never a committed team policy.
+  'skillActions.enabled',
   // The `github/enrichment` base-URL overrides. The extension's `token`
   // setting rides the Authorization header to whatever host `apiBaseUrl`
   // names, so a committed override in a cloned repo would exfiltrate the

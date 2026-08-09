@@ -91,9 +91,10 @@ import {
 import { fixerAnalyzerIds, nodeMatchesPrecondition } from '../../core/jobs/submit-engine.js';
 import { buildFreshResolver } from '../../core/runtime/fresh-resolver.js';
 import type { IPluginRuntime } from '../../core/runtime/plugin-runtime.js';
-import type {
-  ISkillActionCatalog,
-  ISkillActionEntry,
+import {
+  offeredSkillActionCatalog,
+  type ISkillActionCatalog,
+  type ISkillActionEntry,
 } from '../../core/skill-actions/catalog.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import type { IAction, IAnalyzer } from '../../kernel/extensions/index.js';
@@ -235,7 +236,12 @@ export function registerNodeProbExtensionsRoute(app: Hono, deps: IRouteDeps): vo
       async (adapter) => {
         const bundle = await adapter.scans.findNode(nodePath);
         if (!bundle) return null;
-        return buildCatalog(adapter, bundle.node, sources, deps.skillActionCatalog);
+        return buildCatalog(
+          adapter,
+          bundle.node,
+          sources,
+          offeredSkillActionCatalog(deps.skillActionCatalog, deps.runtimeContext.cwd),
+        );
       },
     );
     if (item === null) {

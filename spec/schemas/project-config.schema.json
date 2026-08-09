@@ -72,6 +72,18 @@
         }
       }
     },
+    "skillActions": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Skill-actions surface (see skill-actions.md). Holds the offering toggle today; extends additively as further skill-action preferences land.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether the skill-actions catalog is OFFERED (skill-actions.md §Settings). Default `true`. When `false`, `GET /api/nodes/:pathB64/prob-extensions` emits an empty `skills` bucket and a `skill:` submit refuses not-found; discovery still runs at boot (membership is boot-frozen either way), only the offering is gated. Read fresh on every request, so flipping it takes effect immediately, no watcher or server restart. **Project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`), stripped with a warning from the committed `project` layer: the catalog itself is per-machine state under `.skill-map/`, so whether to offer it is a per-operator decision; the Settings > Project toggle and `PATCH /api/project-preferences` write it to `settings.local.json`. No confirm gate (it neither expands disk access nor trusts code).",
+          "$comment": "Project-local only; a per-operator offering toggle, never committed."
+        }
+      }
+    },
     "scan": {
       "type": "object",
       "additionalProperties": false,

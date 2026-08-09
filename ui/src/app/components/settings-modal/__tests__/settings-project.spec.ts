@@ -278,6 +278,10 @@ interface ITrustProto {
   mcpServerEnabledView(): boolean;
   mcpServerRestartPending(): boolean;
   onMcpServerToggle(next: boolean): void;
+  skillActionsEnabled(): boolean;
+  skillActionsEnabledView(): boolean;
+  skillActionsFlipNoted(): boolean;
+  onSkillActionsToggle(next: boolean): void;
 }
 
 function prefsSymlinks(followExternalSymlinks: boolean): IProjectPreferencesApi {
@@ -299,6 +303,14 @@ function prefsMcp(mcpServerEnabled: boolean): IProjectPreferencesApi {
     allowSidecarWriters: true,
     scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore: false },
     mcpServerEnabled,
+  };
+}
+
+function prefsSkillActions(skillActionsEnabled: boolean): IProjectPreferencesApi {
+  return {
+    allowSidecarWriters: true,
+    scan: { referencePaths: [], followExternalSymlinks: false, respectGitignore: false },
+    skillActionsEnabled,
   };
 }
 
@@ -569,6 +581,74 @@ describe('SettingsProjectPreferences mcpServerEnabled opt-in', () => {
     expect(proto.mcpServerEnabled()).toBe(false);
     expect(proto.mcpServerEnabledView()).toBe(false);
     expect(proto.mcpServerRestartPending()).toBe(false);
+  });
+});
+
+/**
+ * SettingsProjectPreferences · `skillActionsEnabled` offering toggle.
+ *
+ * Project-local, ungated (it only governs whether the installed
+ * skill-actions catalog is offered): a flip persists directly through
+ * `setProjectPreferences` with the top-level `skillActionsEnabled` key,
+ * no confirm dialog and no restart hint (the server reads the toggle
+ * fresh per request). Defaults ON, also against an older envelope that
+ * predates the field; a failed write rolls the switch view back.
+ */
+describe('SettingsProjectPreferences skillActionsEnabled toggle', () => {
+  it('reads skillActionsEnabled from the loaded preferences, defaulting ON when absent', () => {
+    const { proto } = bootstrapTrust({});
+    expect(proto.skillActionsEnabled()).toBe(true);
+    proto.preferences.set(prefsSkillActions(false));
+    expect(proto.skillActionsEnabled()).toBe(false);
+    // An envelope predating the field renders the server-side default.
+    proto.preferences.set(prefsMcp(false));
+    expect(proto.skillActionsEnabled()).toBe(true);
+  });
+
+  it('turning it OFF persists directly with the top-level key and no confirm', async () => {
+    const setProjectPreferences = vi.fn().mockResolvedValue(prefsSkillActions(false));
+    const { proto } = bootstrapTrust({
+      setProjectPreferences,
+    } as Partial<IDataSourcePort>);
+
+    proto.onSkillActionsToggle(false);
+    await flush();
+
+    expect(setProjectPreferences).toHaveBeenCalledTimes(1);
+    expect(setProjectPreferences).toHaveBeenCalledWith({ skillActionsEnabled: false });
+  });
+
+  it('raises the sticky informational note after a successful flip', async () => {
+    const setProjectPreferences = vi.fn().mockResolvedValue(prefsSkillActions(false));
+    const { proto } = bootstrapTrust({
+      setProjectPreferences,
+    } as Partial<IDataSourcePort>);
+
+    expect(proto.skillActionsFlipNoted()).toBe(false);
+    proto.onSkillActionsToggle(false);
+    await flush();
+
+    expect(proto.skillActionsFlipNoted()).toBe(true);
+  });
+
+  it('rolls the switch view back and leaves the note down when the PATCH rejects', async () => {
+    const setProjectPreferences = vi
+      .fn()
+      .mockRejectedValueOnce(new DataSourceError('boom', 'persist failed'));
+    const { proto } = bootstrapTrust({
+      setProjectPreferences,
+    } as Partial<IDataSourcePort>);
+
+    proto.onSkillActionsToggle(false);
+    // Optimistic flip while the write is in flight.
+    expect(proto.skillActionsEnabledView()).toBe(false);
+    await flush();
+
+    // The write failed: committed value never changed, view rolls back,
+    // and the note never rose.
+    expect(proto.skillActionsEnabled()).toBe(true);
+    expect(proto.skillActionsEnabledView()).toBe(true);
+    expect(proto.skillActionsFlipNoted()).toBe(false);
   });
 });
 
