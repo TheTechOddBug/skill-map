@@ -6,6 +6,18 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>1.6.4</b> · 2026-08-09</summary>
+
+### CLI Patch
+- The global rendered-markdown prose family in `ui/src/styles.css` is renamed from `.inspector__body-rendered` to the shared `.sm-md-prose` and now also styles the conversation dialog's bubbles, whose `pre` blocks previously kept browser-default `white-space: pre` and forced horizontal scroll on the whole dialog; the prose `pre { overflow-x: auto }` confines long lines to their own scrollable block.
+- The claude and opencode live-activity adapters now capture markdown WRITES (Claude `Write`/`Edit`, opencode `write`/`edit`) alongside reads: an in-scope `.md` write emits the same filter-first PATH signal, with the literal tool name riding the existing `detail` field so the UI badge tells reads apart from writes; the installed claude hook matcher widens accordingly, while codex and antigravity writes stay unmapped per the spec rows.
+
+### Spec Patch (1.8.3)
+- `provider-activity.md` now covers markdown writes: the By-path and early-disclaim wording spans reads and writes, the §detail tool-name list adds Claude `Write`/`Edit` and opencode `write`/`edit`, and the per-provider rows document the widened claude matcher, opencode's `write`/`edit` mapping via `args.filePath`, and why codex and antigravity writes stay unmapped for now.
+
+</details>
+
+<details>
 <summary><b>1.6.3</b> · 2026-08-08</summary>
 
 ### CLI Patch
