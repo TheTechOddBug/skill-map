@@ -3620,6 +3620,24 @@ describe('InspectorView, AI actions card (Step 16 piece 1)', () => {
     expect(dom.querySelector('[data-testid="inspector-ai-actions-empty"]')).toBeNull();
   });
 
+  it('orders finding rows by severity, then by confidence descending inside each tier', async () => {
+    const { fixture } = await bootAiActions({
+      findings: makeFindingsEnvelope([
+        makeFinding({ id: 1, severity: 'warn', confidence: 0.4 }),
+        makeFinding({ id: 2, severity: 'error', confidence: 0.6 }),
+        makeFinding({ id: 3, severity: 'warn', confidence: 0.9 }),
+        makeFinding({ id: 4, severity: 'error', confidence: 0.95 }),
+        makeFinding({ id: 5, severity: 'info', confidence: 0.2 }),
+      ]),
+    });
+    const dom: HTMLElement = fixture.nativeElement;
+    const ids = [...dom.querySelectorAll('[data-testid^="inspector-ai-action-"]')]
+      .map((el) => el.getAttribute('data-testid') ?? '')
+      .filter((id) => /^inspector-ai-action-\d+$/.test(id))
+      .map((id) => Number(id.replace('inspector-ai-action-', '')));
+    expect(ids).toEqual([4, 2, 3, 1, 5]);
+  });
+
   it('a stale row rides the DEFAULT tray inline with the stale mark (no stale bucket)', async () => {
     const { fixture } = await bootAiActions({
       findings: makeFindingsEnvelope([

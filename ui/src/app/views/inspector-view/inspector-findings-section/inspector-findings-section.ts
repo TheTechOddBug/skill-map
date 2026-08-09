@@ -245,13 +245,22 @@ export class InspectorFindingsSection {
 
   /**
    * AI finding rows sorted like the deterministic list (error, warn,
-   * info; stable within a tier so the tray's own order survives), then
-   * narrowed by the chips.
+   * info) and, WITHIN a tier, by confidence descending (user request
+   * 2026-08-09). The tier order alone left same-severity rows in the
+   * tray's arrival order, which carries no meaning to the reader, while
+   * the row's own confidence says how sure the finder is: surest first
+   * puts the rows most worth acting on at the top of their tier.
+   * Deterministic issues are NOT re-ordered, they carry no confidence.
+   * Equal confidence keeps the incoming order (stable sort). Narrowed
+   * by the chips last.
    */
   protected readonly visibleAiFindings = computed<IFindingApi[]>(() => {
     const order: Record<TIssueSeverityApi, number> = { error: 0, warn: 1, info: 2 };
     return [...this.aiActions().findings()]
-      .sort((a, b) => order[a.severity] - order[b.severity])
+      .sort((a, b) => {
+        const tier = order[a.severity] - order[b.severity];
+        return tier !== 0 ? tier : b.confidence - a.confidence;
+      })
       .filter((finding) => this.severityFilter().has(finding.severity));
   });
 
