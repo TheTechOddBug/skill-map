@@ -1,5 +1,33 @@
 # skill-map
 
+## 1.6.6
+
+### Patch Changes
+
+- The UI's AI submit gate now fails closed at boot (superseding the 2026-07-26 fail-open call): an unknown skill reading disables every submitting affordance with a 'Checking your agent setup...' tooltip until the automatic probe confirms the setup, while a green check verdict or an observed answer still opens it; the inspector's AI actions also re-fetch their launcher catalog when Settings closes, so plugin and skill-action toggles apply to the open node immediately.
+
+  ## User-facing
+
+  **AI actions wait for your agent check.** The AI action buttons now start disabled with a 'Checking your agent setup' hint until skill-map confirms your agent is ready, and the panel refreshes as soon as you close Settings, so toggles you flip there apply right away.
+
+- Graph multi-selection now survives its own gestures: releasing a Shift+drag rectangle no longer clears the set (the background-click deselect ignores clicks that conclude a drag), Ctrl/Cmd+click toggles nodes without collapsing to a single selection, dragging any selected node moves the whole group and keeps it selected, and Escape clears a lingering multi-selection.
+
+  ## User-facing
+
+  On the map you can now select several nodes at once (Shift+drag a rectangle, or Ctrl/Cmd+click) and drag them together; the selection stays after you drop them. Press Escape or click empty canvas to clear it.
+
+- Skill actions: agent skills installed under the project's private `.skill-map/.agents/skills/` catalog (skills.sh installer) are discovered at `sm serve` boot and run as per-node probabilistic jobs. New `spec/skill-actions.md` contract plus canonical report schema; `prob-extensions` gains an optional `skills` bucket, the BFF job submit accepts `skill:<name>` targets, and the inspector's AI actions card gains a Skills group. The CLI submit grammar for `skill:` stays reserved.
+
+  ## User-facing
+
+  New Skills group in the AI actions panel: install agent skills into your project's .skill-map folder (npx skills add) and run them on any node; each run's report lands in the executions history. The server picks up newly installed skills on restart.
+
+- Skill actions gain a project-local offering toggle, `skillActions.enabled` (default false, opt-in), surfaced in Settings > Project below the external-symlinks opt-in: while off, the prob-extensions `skills` bucket stays empty and `skill:` submits refuse not-found; the key is read fresh per request so flips apply without restarts. The root READMEs (EN/ES) document the catalog folder and install command.
+
+  ## User-facing
+
+  New Settings > Project toggle: Skill actions (off by default). Turn it on to offer installed skills in the AI actions panel; the setting text explains where skills live (.skill-map/.agents/skills/<name>/SKILL.md) and that new installs load on server restart.
+
 ## 1.6.5
 
 ### Patch Changes
