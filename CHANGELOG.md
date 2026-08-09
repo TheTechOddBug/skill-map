@@ -6,6 +6,22 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>1.6.7</b> · 2026-08-09</summary>
+
+### CLI Patch
+- The inspector's AI finding rows now sort by confidence descending inside each severity tier, instead of leaving same-severity rows in the tray's arrival order. Severity remains the primary key (error, warn, info) and equal-confidence rows keep their incoming order; the deterministic issue rows above them are unchanged, they carry no confidence.
+- Dismissing a deterministic analyzer issue now sticks across scans for every analyzer, not just `core/reference-broken`. The orchestrator applies `annotations.issueSuppressions` centrally, dropping any emitted issue whose `(analyzer, data.target)` pair matches an entry on one of its anchor nodes before it reaches the accumulator; `core/reference-broken` keeps its inline check only to skip the confidence penalty.
+- The active lens is now a cache input. Each scan records it in `scan_meta.active_provider` (new column, mirrored on `ScanResult.activeProvider`) and the next one rebuilds every node when it differs, since the lens decides per-node classification and gates provider-specific extractors. This catches a lens changed out of band, where the `scan_*` drop performed by `sm config set activeProvider` never runs. The walker's `tokenizerChanged` flag generalises into `cacheInvalidatedBy`.
+- An incremental scan no longer re-attributes unchanged nodes to the active lens. The mtime fast path skips `classify`, so it now reuses the prior node's provider the same way it already reused its kind, instead of binding the node to whichever provider's pass reached it first; a prior provider that stopped participating falls through to a real reread plus classify. That mis-paired `(provider, kind)` was also what made a re-extracted node emit a spurious `frontmatter-invalid: no-schema`.
+
+### Spec Patch (1.8.6)
+- Dismissing a deterministic analyzer issue now sticks across scans for every analyzer, not just `core/reference-broken`. The orchestrator applies `annotations.issueSuppressions` centrally, dropping any emitted issue whose `(analyzer, data.target)` pair matches an entry on one of its anchor nodes before it reaches the accumulator; `core/reference-broken` keeps its inline check only to skip the confidence penalty.
+- The active lens is now a cache input. Each scan records it in `scan_meta.active_provider` (new column, mirrored on `ScanResult.activeProvider`) and the next one rebuilds every node when it differs, since the lens decides per-node classification and gates provider-specific extractors. This catches a lens changed out of band, where the `scan_*` drop performed by `sm config set activeProvider` never runs. The walker's `tokenizerChanged` flag generalises into `cacheInvalidatedBy`.
+- An incremental scan no longer re-attributes unchanged nodes to the active lens. The mtime fast path skips `classify`, so it now reuses the prior node's provider the same way it already reused its kind, instead of binding the node to whichever provider's pass reached it first; a prior provider that stopped participating falls through to a real reread plus classify. That mis-paired `(provider, kind)` was also what made a re-extracted node emit a spurious `frontmatter-invalid: no-schema`.
+
+</details>
+
+<details>
 <summary><b>1.6.6</b> · 2026-08-09</summary>
 
 ### CLI Patch

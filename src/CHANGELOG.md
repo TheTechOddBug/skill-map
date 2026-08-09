@@ -1,5 +1,33 @@
 # skill-map
 
+## 1.6.7
+
+### Patch Changes
+
+- The inspector's AI finding rows now sort by confidence descending inside each severity tier, instead of leaving same-severity rows in the tray's arrival order. Severity remains the primary key (error, warn, info) and equal-confidence rows keep their incoming order; the deterministic issue rows above them are unchanged, they carry no confidence.
+
+  ## User-facing
+
+  In the Findings card, findings of the same severity are now listed with the most confident ones first.
+
+- Dismissing a deterministic analyzer issue now sticks across scans for every analyzer, not just `core/reference-broken`. The orchestrator applies `annotations.issueSuppressions` centrally, dropping any emitted issue whose `(analyzer, data.target)` pair matches an entry on one of its anchor nodes before it reaches the accumulator; `core/reference-broken` keeps its inline check only to skip the confidence penalty.
+
+  ## User-facing
+
+  Dismissing an issue used to work only for broken references: for every other kind (redundant references, self-loops, reserved names, schema violations, extractor collisions) the issue came back on the next scan. Dismissals now stick for all of them.
+
+- The active lens is now a cache input. Each scan records it in `scan_meta.active_provider` (new column, mirrored on `ScanResult.activeProvider`) and the next one rebuilds every node when it differs, since the lens decides per-node classification and gates provider-specific extractors. This catches a lens changed out of band, where the `scan_*` drop performed by `sm config set activeProvider` never runs. The walker's `tokenizerChanged` flag generalises into `cacheInvalidatedBy`.
+
+  ## User-facing
+
+  If the active tool changes without going through Settings (a hand-edited or pulled config), the next scan now re-reads the whole project instead of keeping files labelled under the old tool.
+
+- An incremental scan no longer re-attributes unchanged nodes to the active lens. The mtime fast path skips `classify`, so it now reuses the prior node's provider the same way it already reused its kind, instead of binding the node to whichever provider's pass reached it first; a prior provider that stopped participating falls through to a real reread plus classify. That mis-paired `(provider, kind)` was also what made a re-extracted node emit a spurious `frontmatter-invalid: no-schema`.
+
+  ## User-facing
+
+  Re-scanning a project no longer relabels plain markdown files with the active tool's badge, and no longer invents a "frontmatter failed schema validation" warning on files that have no frontmatter at all.
+
 ## 1.6.6
 
 ### Patch Changes

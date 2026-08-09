@@ -2,6 +2,40 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.6.7",
+      "date": "2026-08-09",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "In the Findings card, findings of the same severity are now listed with the most confident ones first.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Dismissing an issue used to work only for broken references: for every other kind (redundant references, self-loops, reserved names, schema violations, extractor collisions) the issue came back on the next scan. Dismissals now stick for all of them.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "If the active tool changes without going through Settings (a hand-edited or pulled config), the next scan now re-reads the whole project instead of keeping files labelled under the old tool.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Re-scanning a project no longer relabels plain markdown files with the active tool's badge, and no longer invents a \"frontmatter failed schema validation\" warning on files that have no frontmatter at all.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.6.6",
       "date": "2026-08-09",
       "kind": "user-facing",
