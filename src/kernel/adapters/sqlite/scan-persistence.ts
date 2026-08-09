@@ -698,14 +698,31 @@ function metaToRow(result: ScanResult): Insertable<IScanMetaTable> {
     statsFilesWalked: result.stats.filesWalked,
     statsFilesSkipped: result.stats.filesSkipped,
     statsDurationMs: result.stats.durationMs,
-    // Resolved encoder that produced the token counts (see
-    // project-config.schema.json §tokenizer). NULL on synthetic results
-    // that bypass the orchestrator / skip tokenization; a real scan always
-    // carries it. The next incremental scan reads this back to detect an
-    // encoder switch and force a token recompute.
-    tokenizer: result.tokenizer ?? null,
+    ...projectInvalidationColumns(result),
     ...projectNodeLimitColumns(result),
     ...projectOversizedColumns(result),
+  };
+}
+
+/**
+ * Project the two SCAN-WIDE inputs the next incremental scan compares
+ * before reusing this snapshot. Both are NULL on synthetic results that
+ * bypass the orchestrator, and a NULL prior reads as "changed", so the
+ * next scan rebuilds rather than trusting an unknown provenance.
+ *
+ *   - `tokenizer`: the encoder that produced the per-node token counts
+ *     (`project-config.schema.json` §tokenizer). A different encoder
+ *     forces a token recompute.
+ *   - `activeProvider`: the lens the corpus was classified under
+ *     (`spec/architecture.md` §Provider dispatch). A different lens
+ *     forces a re-classification of every node.
+ */
+function projectInvalidationColumns(
+  result: ScanResult,
+): Pick<Insertable<IScanMetaTable>, 'tokenizer' | 'activeProvider'> {
+  return {
+    tokenizer: result.tokenizer ?? null,
+    activeProvider: result.activeProvider ?? null,
   };
 }
 

@@ -113,6 +113,7 @@ const noopExtractor = {
 async function runWalk(opts: {
   prior: ScanResult | null;
   extractors: IExtractor[];
+  activeProvider?: string | null;
 }): Promise<IWalkAndExtractResult> {
   return walkAndExtract({
     providers: PROVIDERS,
@@ -122,7 +123,7 @@ async function runWalk(opts: {
     encoder: null,
     strict: false,
     enableCache: opts.prior !== null,
-    tokenizerChanged: false,
+    cacheInvalidatedBy: null,
     prior: opts.prior,
     priorIndex: indexPriorSnapshot(opts.prior),
     // Empty (not undefined) so the fine-grained path runs with NO
@@ -131,7 +132,7 @@ async function runWalk(opts: {
     priorExtractorRuns: opts.prior === null ? undefined : new Map(),
     providerFrontmatter: buildProviderFrontmatterValidator(PROVIDERS),
     pluginStores: undefined,
-    activeProvider: 'claude',
+    activeProvider: opts.activeProvider === undefined ? 'claude' : opts.activeProvider,
     scanCeiling: 100000,
     overrideScanCeiling: null,
     maxRenderNodes: 256,
@@ -159,6 +160,31 @@ describe('walkAndExtract / unchanged fast path keeps the prior provider', () => 
     const agent = incremental.nodes.find((n) => n.path === '.claude/agents/foo.md');
     assert.equal(agent?.provider, 'claude');
     assert.equal(agent?.kind, 'agent');
+  });
+
+  it('re-classifies for real when the prior provider stopped participating', async () => {
+    const cold = await runWalk({ prior: null, extractors: [] });
+    assert.equal(
+      cold.nodes.find((n) => n.path === '.claude/agents/foo.md')?.provider,
+      'claude',
+    );
+
+    // The claude stub is gated and no longer the lens, so it is absent
+    // from the participating set. Its former node cannot keep a provider
+    // that is not running: the fast path must fall through to a real
+    // reread plus classify. In production a LENS switch invalidates the
+    // whole cache before this branch is reached (see
+    // `__tests__/integration/lens-invalidation.spec.ts`); the branch is
+    // what covers a provider that vanished for any OTHER reason, e.g. a
+    // plugin uninstalled between scans.
+    const after = await runWalk({
+      prior: asPrior(cold),
+      extractors: [noopExtractor],
+      activeProvider: 'other',
+    });
+    const orphaned = after.nodes.find((n) => n.path === '.claude/agents/foo.md');
+    assert.equal(orphaned?.provider, 'markdown', 'the universal base reclaims it');
+    assert.equal(orphaned?.kind, 'markdown', 'and re-classifies it for real');
   });
 
   it('emits no frontmatter-invalid: the (provider, kind) pair still has a schema', async () => {

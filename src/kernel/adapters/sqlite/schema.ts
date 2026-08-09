@@ -252,6 +252,16 @@ export interface IScanMetaTable {
    */
   tokenizer: string | null;
   /**
+   * Active provider LENS that produced this scan. Mirrors
+   * `ScanResult.activeProvider`. The lens decides classification and
+   * gates provider-specific extractors, so a node cached under a
+   * different lens is stale; the incremental path reads this back and
+   * treats a NULL or mismatching value as a lens change that forces a
+   * re-classification. NULL on a pre-feature DB / a scan with no
+   * resolvable lens.
+   */
+  activeProvider: string | null;
+  /**
    * Schema-drift fingerprint (see `spec/db-schema.md` §Schema drift
    * (pre-1.0)). sha256 (hex) of the concatenated migration DDL the
    * schema was built from, written by `metaToRow` at persist time. NULL

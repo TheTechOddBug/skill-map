@@ -75,7 +75,7 @@ async function runWalk(opts?: { followExternalSymlinks?: boolean }) {
     encoder: null,
     strict: false,
     enableCache: false,
-    tokenizerChanged: false,
+    cacheInvalidatedBy: null,
     prior: null,
     priorIndex: {
       priorNodesByPath: new Map(),

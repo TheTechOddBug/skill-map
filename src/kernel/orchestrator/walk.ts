@@ -72,18 +72,33 @@ export interface IWalkAndExtractOptions {
   strict: boolean;
   enableCache: boolean;
   /**
-   * Tokenizer-change invalidation flag (see
-   * `project-config.schema.json` §tokenizer). When `true`, the prior
-   * snapshot's per-node `tokens` were produced by a DIFFERENT encoder
-   * than the one resolved for this scan, so cache reuse of token counts
-   * is unsafe. The walker forces every node down the fresh-build path
-   * (`nodeHashCacheEligible = false`) so `buildNode` recomputes `tokens`
-   * with the current encoder. Computed by `runScanInternal`; only ever
-   * `true` when `enableCache` is on, a prior exists, and tokenization is
-   * active. `false` for fresh scans (nothing to invalidate) and when the
-   * encoder is unchanged.
+   * Whole-cache invalidation reason, or `null` when the prior snapshot
+   * is reusable. Computed by `runScanInternal`; only ever non-null when
+   * `enableCache` is on AND a prior exists, so a fresh scan always
+   * carries `null` (nothing to invalidate). Both reasons are SCAN-WIDE
+   * inputs the per-node cache key cannot see, so they invalidate every
+   * node rather than a subset:
+   *
+   *   - `'tokenizer'`: the prior snapshot's per-node `tokens` came from
+   *     a DIFFERENT encoder than the one resolved for this scan (see
+   *     `project-config.schema.json` §tokenizer), so `buildNode` must
+   *     recompute them with the current encoder.
+   *   - `'lens'`: the prior scan ran under a DIFFERENT active provider
+   *     (`scan_meta.active_provider`), and the lens decides per-node
+   *     classification plus provider-specific extractor gating, so every
+   *     cached `(provider, kind)` pairing is stale. Switching the lens
+   *     through `sm config set activeProvider` or the BFF route already
+   *     drops the whole `scan_*` zone; this covers a lens that changed
+   *     OUT OF BAND (a hand-edited or pulled `settings.json`), where no
+   *     mutation site ran.
+   *
+   * Both reasons take the same three gates: no mtime fast path
+   * (`buildPriorMtimes` returns `undefined`, so every file is read and
+   * classified for real), no node-level cache reuse
+   * (`nodeHashCacheEligible = false`), and no watcher-scoped incremental
+   * walk (`runScanInternal` drops `incrementalChangedPaths`).
    */
-  tokenizerChanged: boolean;
+  cacheInvalidatedBy: 'tokenizer' | 'lens' | null;
   prior: ScanResult | null;
   priorIndex: IPriorIndex;
   /**
@@ -910,7 +925,9 @@ function resolveEffectiveCaps(
 function buildPriorMtimes(
   opts: IWalkAndExtractOptions,
 ): ReadonlyMap<string, number> | undefined {
-  if (!opts.enableCache || opts.prior === null || opts.tokenizerChanged) return undefined;
+  if (!opts.enableCache || opts.prior === null || opts.cacheInvalidatedBy !== null) {
+    return undefined;
+  }
   const map = new Map<string, number>();
   for (const node of opts.prior.nodes) {
     if (typeof node.modifiedAtMs === 'number') map.set(node.path, node.modifiedAtMs);
@@ -1069,7 +1086,7 @@ function isNodeHashCacheEligible(
 ): boolean {
   return (
     wctx.opts.enableCache &&
-    !wctx.opts.tokenizerChanged &&
+    wctx.opts.cacheInvalidatedBy === null &&
     wctx.opts.prior !== null &&
     priorNode !== undefined &&
     priorTokenStateCompatible(wctx, priorNode) &&

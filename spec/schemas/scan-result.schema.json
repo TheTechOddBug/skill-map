@@ -41,6 +41,11 @@
       "type": "string",
       "description": "Resolved offline tokenizer (encoder) that produced the per-node token counts in this scan, one of the closed allow-list in `project-config.schema.json#/properties/tokenizer` (`cl100k_base` default, `o200k_base`). Mirrors `scan_meta.tokenizer`. Reported so consumers know which encoder the counts came from; the incremental scan compares the persisted value against the resolved one and force-recomputes counts when they differ. Absent on synthetic fixtures and when tokenization was disabled."
     },
+    "activeProvider": {
+      "type": ["string", "null"],
+      "description": "Active provider LENS this scan ran under: the id of the gated Provider whose grammar the corpus was read with (see `architecture.md` §Active-lens scope for providers), `null` when no lens is resolvable. Mirrors `scan_meta.active_provider`. Reported so consumers know which lens produced the classification; the incremental scan compares the persisted value against the resolved one and re-classifies every node when they differ (the lens decides which Provider claims a file, as which kind). Absent on synthetic fixtures.",
+      "default": null
+    },
     "scanCeiling": {
       "type": "integer",
       "minimum": 1,

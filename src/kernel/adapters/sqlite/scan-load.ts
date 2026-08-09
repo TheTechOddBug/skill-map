@@ -190,6 +190,10 @@ function buildScanResultFromMeta(
     // orchestrator's tokenizer-change check treats a missing prior value
     // as a change (forcing a token recompute).
     ...(metaRow.tokenizer !== null ? { tokenizer: metaRow.tokenizer } : {}),
+    // Active lens of the prior scan. A NULL column maps to an absent
+    // domain field; the orchestrator's lens-change check treats a missing
+    // prior value as a change (forcing a re-classification).
+    ...(metaRow.activeProvider !== null ? { activeProvider: metaRow.activeProvider } : {}),
     scanCeiling: metaRow.scanCeiling,
     scanTruncated: metaRow.scanTruncated === 1,
     maxRenderNodes: metaRow.maxRenderNodes,

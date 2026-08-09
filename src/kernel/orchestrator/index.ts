@@ -570,27 +570,31 @@ async function runScanInternal(
   const setup = await buildScanSetup(options);
   const { emitter, exts, hookDispatcher, encoder, prior, start } = setup;
 
-  // Tokenizer-change invalidation (project-config.schema.json
-  // §tokenizer "Changing this invalidates prior counts on next scan").
-  // The incremental cache reuses per-node `tokens` from the prior
-  // snapshot; those counts were produced by whatever encoder the prior
-  // scan recorded in `scan_meta.tokenizer`. When the resolved encoder
-  // for THIS scan differs (or the prior never recorded one), the cached
-  // counts are stale and the walker must take the fresh-build path so
-  // `buildNode` recomputes `tokens` with the current encoder. Full
-  // scans already recompute (no prior reuse); this only matters when
-  // `enableCache` is on and tokenization is active.
-  const tokenizerChanged =
-    encoder !== null && prior !== null && prior.tokenizer !== setup.tokenizer;
+  // Resolved BEFORE the cache-invalidation verdict below, which compares
+  // this lens against the one the prior scan recorded. Pure resolution
+  // (config value or filesystem auto-detect), no side effect: the
+  // persist-on-autodetect lives in the scan-runner bootstrap upstream.
+  const activeProviderId = resolveActiveProviderOption(
+    options.activeProvider,
+    options.roots,
+    exts.providers,
+  );
+  const cacheInvalidatedBy = resolveCacheInvalidation({
+    encoder,
+    prior,
+    tokenizer: setup.tokenizer,
+    activeProvider: activeProviderId,
+  });
   // Watcher incremental fast path, resolved ONCE here: honoured only
-  // when a prior exists, cache reuse is on, and the tokenizer is
-  // unchanged (else a scoped read would skip nodes whose token counts
-  // must be recomputed). This single value drives BOTH the advertised
-  // `scan.started.mode` and the walker spread below, so the mode the
-  // event reports can never diverge from the walk actually taken
-  // (spec/job-events.md §scan.started: a fallback MUST report `full`).
+  // when a prior exists, cache reuse is on, and nothing scan-wide
+  // invalidated that prior (else a scoped read would skip the nodes the
+  // invalidation has to rebuild). This single value drives BOTH the
+  // advertised `scan.started.mode` and the walker spread below, so the
+  // mode the event reports can never diverge from the walk actually
+  // taken (spec/job-events.md §scan.started: a fallback MUST report
+  // `full`).
   const incrementalChangedPaths =
-    prior !== null && setup.enableCache && !tokenizerChanged
+    prior !== null && setup.enableCache && cacheInvalidatedBy === null
       ? options.incrementalChangedPaths
       : undefined;
 
@@ -601,11 +605,6 @@ async function runScanInternal(
   emitter.emit(scanStartedEvent);
   await hookDispatcher.dispatch('scan.started', scanStartedEvent);
 
-  const activeProviderId = resolveActiveProviderOption(
-    options.activeProvider,
-    options.roots,
-    exts.providers,
-  );
   const walked = await walkAndExtract({
     providers: exts.providers,
     extractors: exts.extractors,
@@ -615,7 +614,7 @@ async function runScanInternal(
     encoder,
     strict: setup.strict,
     enableCache: setup.enableCache,
-    tokenizerChanged,
+    cacheInvalidatedBy,
     prior,
     priorIndex: setup.priorIndex,
     priorExtractorRuns: setup.priorExtractorRuns,
@@ -796,7 +795,16 @@ async function runScanInternal(
   emitter.emit(scanCompletedEvent);
   await hookDispatcher.dispatch('scan.completed', scanCompletedEvent);
 
-  return buildScanReturn(walked, issues, renameOps, stats, options, setup, analyzerResult.linkScores);
+  return buildScanReturn(
+    walked,
+    issues,
+    renameOps,
+    stats,
+    options,
+    setup,
+    analyzerResult.linkScores,
+    activeProviderId,
+  );
 }
 
 /**
@@ -1121,6 +1129,9 @@ function buildScanReturn(
   options: RunScanOptions,
   setup: IScanSetup,
   linkScores: IConfidenceAdjustment[],
+  // Active lens this scan ran under, persisted to `scan_meta` so the
+  // NEXT scan can detect an out-of-band lens switch.
+  activeProvider: string | null,
 ): {
   result: ScanResult;
   renameOps: RenameOp[];
@@ -1139,6 +1150,7 @@ function buildScanReturn(
       providers: setup.exts.providers.map((a) => a.id),
       scannedBy: SCANNED_BY,
       tokenizer: setup.tokenizer,
+      activeProvider,
       scanCeiling: walked.scanCeiling,
       scanTruncated: walked.scanTruncated,
       maxRenderNodes: walked.maxRenderNodes,
@@ -1224,5 +1236,42 @@ function resolveActiveProviderOption(
     const detected = detectProvidersFromFilesystem(absRoot, providers)[0] ?? null;
     if (detected !== null) return detected;
   }
+  return null;
+}
+
+/**
+ * Whole-cache invalidation verdict for this scan (`null` = the prior
+ * snapshot is reusable). Both reasons are SCAN-WIDE inputs that no
+ * per-node cache key can see, so each invalidates every node; see
+ * `IWalkAndExtractOptions.cacheInvalidatedBy` for the three gates the
+ * verdict drives.
+ *
+ *   - `'tokenizer'` (project-config.schema.json §tokenizer, "Changing
+ *     this invalidates prior counts on next scan"): the prior per-node
+ *     `tokens` were produced by the encoder recorded in
+ *     `scan_meta.tokenizer`; a different resolved encoder (or a prior
+ *     that recorded none) makes them stale. Only checkable when
+ *     tokenization is active for THIS scan.
+ *   - `'lens'`: the prior scan recorded a different
+ *     `scan_meta.active_provider`. The lens decides per-node
+ *     classification (which Provider claims a file, as which kind) and
+ *     gates provider-specific extractors, so every cached pairing is
+ *     stale. A prior that recorded no lens counts as different, EXCEPT
+ *     when this scan resolves none either (both `null` = no lens in
+ *     play, nothing to re-derive).
+ *
+ * Tokenizer is reported first when both changed; the effect is
+ * identical, the string only names the cause for the reader.
+ */
+function resolveCacheInvalidation(input: {
+  encoder: Tiktoken | null;
+  prior: ScanResult | null;
+  tokenizer: string | undefined;
+  activeProvider: string | null;
+}): 'tokenizer' | 'lens' | null {
+  const { prior } = input;
+  if (prior === null) return null; // fresh scan, nothing to invalidate
+  if (input.encoder !== null && prior.tokenizer !== input.tokenizer) return 'tokenizer';
+  if ((prior.activeProvider ?? null) !== input.activeProvider) return 'lens';
   return null;
 }

@@ -134,7 +134,7 @@ async function runWalkProviders(providers: IProvider[], activeProvider: string |
     encoder: null,
     strict: false,
     enableCache: false,
-    tokenizerChanged: false,
+    cacheInvalidatedBy: null,
     prior: null,
     priorIndex: {
       priorNodesByPath: new Map(),

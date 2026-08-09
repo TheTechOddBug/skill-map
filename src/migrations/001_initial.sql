@@ -462,6 +462,19 @@ CREATE TABLE scan_meta (
   -- counts). NULL on a pre-feature DB / never-tokenized scan; a NULL prior is
   -- treated as "different encoder" so the next scan recomputes.
   tokenizer TEXT,
+  -- Active provider LENS that produced this scan (`activeProvider` from the
+  -- resolved config, the id of the gated provider whose grammar the scan was
+  -- authored under). Recorded for the same reason as `tokenizer` above: the
+  -- lens decides classification (kind + provider per node) and gates the
+  -- provider-specific extractors, so a cached node produced under a different
+  -- lens is stale. Switching the lens through `sm config set activeProvider`
+  -- or the BFF route drops the whole `scan_*` zone, but that defends the
+  -- invariant only at the mutation sites; comparing this column at scan entry
+  -- defends it at the consumer, catching a lens that changed out of band (a
+  -- hand-edited or pulled `settings.json`). NULL on a pre-feature DB / a scan
+  -- with no resolvable lens; a NULL prior against a resolved lens is treated
+  -- as "different lens" so the next scan re-classifies.
+  active_provider TEXT,
   -- Schema-drift fingerprint (see spec/db-schema.md §Schema drift (pre-1.0)).
   -- sha256 (hex) of the concatenated migration DDL the schema was built from,
   -- written at persist time. NULL on a DB created by a pre-fingerprint CLI; a

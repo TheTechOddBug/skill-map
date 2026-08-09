@@ -781,6 +781,18 @@ export interface ScanResult {
    */
   tokenizer?: string;
   /**
+   * Active provider LENS that produced this scan: the id of the gated
+   * Provider whose grammar the corpus was read under (`activeProvider`
+   * from the resolved config, `null` when none is resolvable). Mirrors
+   * `scan_meta.active_provider`. Sibling of `tokenizer` above and read
+   * for the same reason: the lens decides per-node classification and
+   * gates provider-specific extractors, so the incremental path compares
+   * the persisted value against the resolved one and re-classifies every
+   * node when they differ. Absent on synthetic fixtures / loaders that
+   * predate the field, which the comparison reads as a change.
+   */
+  activeProvider?: string | null;
+  /**
    * Effective walk ceiling for this scan (`--max-scan <N>` override on
    * `sm scan` / `sm watch` / `sm serve`, else `scan.maxScan` from
    * settings, default 5000). The scan walks, parses, analyzes, and
