@@ -39,7 +39,7 @@ import { A11yAnnouncerService } from '../../services/a11y-announcer';
       [dismissableMask]="true"
       appendTo="body"
       [header]="texts.header"
-      styleClass="crash-report__dialog"
+      styleClass="sm-confirm-dialog"
       [attr.aria-label]="texts.ariaLabel"
       data-testid="crash-report-dialog"
     >
@@ -70,10 +70,9 @@ import { A11yAnnouncerService } from '../../services/a11y-announcer';
     </p-dialog>
   `,
   styles: [`
-    /* PrimeNG injects [styleClass] on the portal-rendered dialog root
-       (outside view encapsulation, hence the deep reach). Same sizing
-       pattern as the sidecar-consent dialog. */
-    :host ::ng-deep .crash-report__dialog { width: 34rem; max-width: 92vw; }
+    /* Dialog sizing rides the global .sm-confirm-dialog band in
+       styles.css: appendTo="body" re-parents the dialog root outside
+       this host's subtree, where :host ::ng-deep can never reach. */
     .crash__body { margin: 0 0 1rem; line-height: 1.5;
       color: var(--p-text-color); }
     .crash__preview { display: flex; flex-direction: column; gap: 0.35rem;

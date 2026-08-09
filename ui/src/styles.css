@@ -335,6 +335,27 @@ a {
   max-width: 48ch;
 }
 
+/* Confirmation-dialog width band, one contract for the whole family:
+   every `<p-confirmdialog>` gate (project consents like
+   follow-external-symlinks, queue / graph confirms) plus the custom
+   `<p-dialog>` consents that opt in via `styleClass="sm-confirm-dialog"`
+   (sidecar write consent, crash report, action prompt). They all ride
+   `appendTo="body"`, so PrimeNG re-parents the dialog root to <body> on
+   show and component-scoped `:host ::ng-deep` sizing can never reach it
+   (same portal story as the inspector body dialog below); a global rule
+   is the only hook. Width stays content-driven inside the band: floor so
+   short copy never yields a cramped sliver, ceiling so long copy never
+   stretches across the window, viewport cap winning on narrow windows.
+   A dialog that must break the band overrides with its own inline
+   `[style]` (inline beats class). Both confirmdialog class spellings
+   cover PrimeNG naming drift, as above. */
+.p-confirm-dialog,
+.p-confirmdialog,
+.sm-confirm-dialog {
+  min-width: min(512px, 92vw);
+  max-width: min(1024px, 92vw);
+}
+
 /* Custom scrollbars tuned to the project palette. Covers both the
    Chromium / Safari pseudo-element API (`::-webkit-scrollbar`) and the
    Firefox / standard properties (`scrollbar-width`, `scrollbar-color`).

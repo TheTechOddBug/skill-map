@@ -14,9 +14,8 @@
  * choice through `confirmed` (carrying the collected value) or `closed`
  * (cancel / X / mask). The host folds the value into the dispatch body.
  *
- * LINT (renderer attr-sanitization): no `[innerHTML]` / `[style]` from
- * data. `[style]` on `<p-dialog>` is a static literal (dialog width),
- * not bound from payload.
+ * Dialog sizing rides the global `.sm-confirm-dialog` band in
+ * `styles.css` (the confirmation-dialog width contract).
  */
 
 import {
@@ -53,7 +52,7 @@ import { ACTION_PROMPT_DIALOG_TEXTS } from '../../../i18n/action-prompt-dialog.t
       [dismissableMask]="true"
       appendTo="body"
       [header]="header()"
-      [style]="{ width: '28rem' }"
+      styleClass="sm-confirm-dialog"
       [attr.aria-label]="texts.ariaLabel"
       data-testid="action-prompt-dialog"
     >
