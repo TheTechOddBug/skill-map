@@ -201,10 +201,11 @@ export class InspectorAiActionsSection {
 
   /**
    * Launcher groups in render order, empty groups filtered out so the
-   * template iterates once instead of double-gating. Two buckets:
-   * `finders` (probabilistic Analyzers with a fixer, rendered as
-   * two-state Detect ⇄ Fix buttons) and `standalone` (finders without a
-   * fixer + Actions with no `analyzerIds`, single-action buttons).
+   * template iterates once instead of double-gating. Two buckets,
+   * `standalone` first (user call 2026-08-09): `standalone` (finders
+   * without a fixer + Actions with no `analyzerIds`, single-action
+   * buttons) above `finders` (probabilistic Analyzers with a fixer,
+   * rendered as two-state Detect ⇄ Fix buttons).
    */
   protected readonly aiActionLauncherGroups = computed<
     { id: 'finders' | 'standalone'; entries: IProbExtensionEntryApi[] }[]
@@ -220,8 +221,8 @@ export class InspectorAiActionsSection {
     const standalone = probs.standalone.filter((e) => !claimed.has(e.id));
     return (
       [
-        { id: 'finders', entries: probs.finders },
         { id: 'standalone', entries: standalone },
+        { id: 'finders', entries: probs.finders },
       ] as const
     )
       .filter((g) => g.entries.length > 0)
