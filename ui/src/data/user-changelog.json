@@ -2,6 +2,27 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.8.0",
+      "date": "2026-08-10",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Line numbers in findings (L12) now match your editor: they count the frontmatter block. The inspector's Raw view shows the whole file including the frontmatter, so its line gutter lines up. Panning the map with the middle mouse button no longer clears your selection.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Fractions and scores written in prose (\"total /10\", \"@10/20\") are no longer mistaken for command or mention references, so they stop showing up as broken-reference errors.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.7.0",
       "date": "2026-08-10",
       "kind": "user-facing",
