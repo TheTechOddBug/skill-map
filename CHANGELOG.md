@@ -6,6 +6,17 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>1.7.0</b> · 2026-08-10</summary>
+
+### CLI Minor
+- `sm activity status` gains `--verify`, a wiring self-test that pushes one synthetic probe event through the installed activity bridge and asks the running server whether it arrived, so a crashing bridge, a dead server or a stale `serve.json` stops reading as a green `installed`. Backed by a new `GET /api/activity/probe` readback plus a `__skillMapProbe` short-circuit in `POST /api/activity` that keeps probes from lighting nodes or counting as executions. Failing verdicts exit 1.
+
+### Spec Minor (1.9.0)
+- `sm activity status` gains `--verify`, a wiring self-test that pushes one synthetic probe event through the installed activity bridge and asks the running server whether it arrived, so a crashing bridge, a dead server or a stale `serve.json` stops reading as a green `installed`. Backed by a new `GET /api/activity/probe` readback plus a `__skillMapProbe` short-circuit in `POST /api/activity` that keeps probes from lighting nodes or counting as executions. Failing verdicts exit 1.
+
+</details>
+
+<details>
 <summary><b>1.6.7</b> · 2026-08-09</summary>
 
 ### CLI Patch

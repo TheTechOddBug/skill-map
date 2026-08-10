@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.7.0",
+      "date": "2026-08-10",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "`sm activity status --verify` now proves your live-activity wiring actually works: it sends a test event through the installed bridge and reports whether the server received it, instead of showing a green check while the map stays dark.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.6.7",
       "date": "2026-08-09",
       "kind": "user-facing",
