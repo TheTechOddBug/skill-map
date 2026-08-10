@@ -473,6 +473,37 @@ describe('StaticDataSource', () => {
     await expect(ds.listJobs({ status: 'queued' })).resolves.toEqual([]);
   });
 
+  it('getMapViews() returns the empty envelope (demo bundle ships no views)', async () => {
+    await expect(ds.getMapViews()).resolves.toEqual({
+      schemaVersion: '1',
+      kind: 'map-views',
+      views: [],
+      skipped: [],
+    });
+  });
+
+  it('putMapView() rejects with demo-readonly (static bundle is immutable)', async () => {
+    await expect(
+      ds.putMapView('focus', {
+        schemaVersion: 1,
+        kind: 'map-view',
+        name: 'Focus',
+        overrides: [],
+        pins: {},
+      }),
+    ).rejects.toMatchObject({
+      name: 'DataSourceError',
+      code: 'demo-readonly',
+    });
+  });
+
+  it('deleteMapView() rejects with demo-readonly (static bundle is immutable)', async () => {
+    await expect(ds.deleteMapView('focus')).rejects.toMatchObject({
+      name: 'DataSourceError',
+      code: 'demo-readonly',
+    });
+  });
+
   it('listLinks() with no filters returns the pre-derived envelope', async () => {
     await expect(ds.listLinks()).resolves.toEqual(META_FIXTURE.links);
   });

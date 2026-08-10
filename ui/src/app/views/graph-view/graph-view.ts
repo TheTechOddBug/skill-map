@@ -45,6 +45,7 @@ import { GraphPreferencesService } from '../../../services/graph-preferences';
 import { IssuePathsService } from '../../../services/issue-paths';
 import { LivePreferencesService } from '../../../services/live-preferences';
 import { MapVisibilityService } from '../../../services/map-visibility';
+import { MapViewsService } from '../../../services/map-views';
 import { AgentSpawnService } from '../../../services/agent-spawn';
 import { NodeActivityService } from '../../../services/node-activity';
 import { NodeSparkService } from '../../../services/node-spark';
@@ -54,6 +55,7 @@ import type { INodeActivityStatsApi } from '../../../models/api';
 import { directNeighborhood } from './node-neighborhood';
 import { BranchCapBanner } from './branch-cap-banner/branch-cap-banner';
 import { GraphLayoutToolbar } from './graph-layout-toolbar/graph-layout-toolbar';
+import { MapViewSwitcher } from './map-view-switcher/map-view-switcher';
 import { ConversationDialog } from '../../components/conversation-dialog/conversation-dialog';
 import { KindPalette } from '../../components/kind-palette/kind-palette';
 import { LinkKindPalette } from '../../components/link-kind-palette/link-kind-palette';
@@ -104,6 +106,16 @@ import { type IViewportTransform } from './viewport-animation';
 
 const ZOOM_BUTTON_STEP = 0.2;
 
+/**
+ * How long the `view-switching` host class stays on after a map view
+ * applies its pin set: the CSS entry fade runs ~200ms, the window
+ * doubles it so nodes mounted by late layout writes (dagre re-run for
+ * unpinned nodes, the branch refetch for the new visible set) still
+ * ride the same fade. Positions themselves jump deliberately, see the
+ * rule-3 note above the animation block in graph-view.css.
+ */
+const VIEW_SWITCH_ANIMATION_MS = 450;
+
 /** Inspector panel width the view opens at when nothing is persisted. */
 const PANEL_WIDTH_DEFAULT = 500;
 const PANEL_WIDTH_MIN = 400;
@@ -140,6 +152,7 @@ const EDGE_SELECTION_DEFAULT: IEdgeSelectionView = {
     BranchCapBanner,
     ConversationDialog,
     GraphLayoutToolbar,
+    MapViewSwitcher,
     KindPalette,
     LinkKindPalette,
     AgentCapsule,
@@ -182,7 +195,12 @@ const EDGE_SELECTION_DEFAULT: IEdgeSelectionView = {
   templateUrl: './graph-view.html',
   styleUrl: './graph-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { '(document:keydown.escape)': 'onEscape()' },
+  host: {
+    '(document:keydown.escape)': 'onEscape()',
+    // Short-lived while a map view applies its pin set; the CSS keys
+    // the (PRM-gated) node transition + fade on it.
+    '[class.view-switching]': 'viewSwitching()',
+  },
 })
 export class GraphView implements OnInit {
   private readonly loader = inject(CollectionLoaderService);
@@ -191,6 +209,10 @@ export class GraphView implements OnInit {
   // Protected so the template can read `isActive()` / `count()` (toolbar
   // "show all" affordance + curation empty-state) and call `clear()`.
   protected readonly mapVisibility = inject(MapVisibilityService);
+  // Map views (spec/map-views.md): the graph consumes `pendingPins` and
+  // feeds back the manual pin subset; see the two effects in the
+  // constructor. The switcher component owns every other surface.
+  private readonly mapViews = inject(MapViewsService);
   private readonly graphPreferences = inject(GraphPreferencesService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -279,6 +301,16 @@ export class GraphView implements OnInit {
     emitChange: () => this.canvas()?.emitCanvasChangeEvent(),
   };
   protected readonly canZoomIn = this.viewportStore.canZoomIn;
+
+  /**
+   * Whole-corpus path set (lite nodes, not the rendered branch). The
+   * position reconcile prunes MANUAL pins against this set only: a pin
+   * on a node merely hidden by the current map scope survives, a pin
+   * whose file left the corpus is garbage-collected.
+   */
+  private readonly corpusPathSet = computed<ReadonlySet<string>>(
+    () => new Set(this.loader.liteNodes().map((n) => n.path)),
+  );
   protected readonly canZoomOut = this.viewportStore.canZoomOut;
 
   // Re-expose the zoom range so the `<f-canvas>` bindings can read from
@@ -417,6 +449,24 @@ export class GraphView implements OnInit {
   // live in `<sm-graph-layout-toolbar>` (graph-layout-toolbar/). The
   // toolbar reads + writes `GraphPreferencesService` directly so no
   // wiring crosses the parent-child boundary.
+
+  /**
+   * True for `VIEW_SWITCH_ANIMATION_MS` after a map view applies its
+   * pin set; bound to the `view-switching` host class so the entry
+   * fade in `graph-view.css` engages only around the swap (it must
+   * never ride normal drags or layout runs).
+   */
+  protected readonly viewSwitching = signal(false);
+  private viewSwitchTimer: number | null = null;
+
+  private beginViewSwitchAnimation(): void {
+    this.viewSwitching.set(true);
+    if (this.viewSwitchTimer !== null) clearTimeout(this.viewSwitchTimer);
+    this.viewSwitchTimer = window.setTimeout(() => {
+      this.viewSwitching.set(false);
+      this.viewSwitchTimer = null;
+    }, VIEW_SWITCH_ANIMATION_MS);
+  }
 
   readonly selectedNodeId = signal<string | null>(null);
 
@@ -607,6 +657,7 @@ export class GraphView implements OnInit {
         nodes,
         current: this.nodePositions(),
         layout,
+        corpusPaths: this.corpusPathSet(),
       });
       if (result.dirty) {
         this.nodePositions.set(result.next);
@@ -664,6 +715,52 @@ export class GraphView implements OnInit {
       // effect would track the selection and re-run on every checkbox click,
       // wiping a freshly-selected folder prefix before the map even renders.
       untracked(() => this.mapVisibility.prune(new Set(lite.map((n) => n.path))));
+    });
+
+    // Map views, apply side: consume a freshly applied view's pin set
+    // (spec/map-views.md §Apply semantics: pins REPLACE the manual pin
+    // set, everything unpinned re-lays out). The next positions map
+    // holds ONLY the view's pins (`manual: true`); every other entry is
+    // dropped, which is the same mechanism `resetLayout()` uses, so the
+    // reconcile effect re-seeds the unpinned nodes from the freshest
+    // dagre output. Keeping the old entries as demoted autos was the
+    // "no switcheo" bug: the reconcile only refreshes autos when a node
+    // ENTERS the graph, so between two views sharing the same visible
+    // set the outgoing view's arrangement never moved. One positions
+    // write + one storage write per apply; the mailbox clears inside
+    // `untracked` so this effect only ever fires on a new apply, and
+    // the short-lived `view-switching` host class drives the
+    // (PRM-gated) entry fade in graph-view.css.
+    effect(() => {
+      const pending = this.mapViews.pendingPins();
+      if (pending === null) return;
+      untracked(() => {
+        const next: TNodePositions = new Map();
+        for (const [path, point] of Object.entries(pending)) {
+          next.set(path, { x: point.x, y: point.y, manual: true });
+        }
+        this.beginViewSwitchAnimation();
+        this.nodePositions.set(next);
+        writeStoredNodePositions(next);
+        this.mapViews.clearPendingPins();
+      });
+    });
+    this.destroyRef.onDestroy(() => {
+      if (this.viewSwitchTimer !== null) clearTimeout(this.viewSwitchTimer);
+    });
+
+    // Map views, save side: project the `manual: true` subset of the
+    // live positions to the service, feeding the dirty computation and
+    // the pin set `saveActive` / `saveAs` persist. The write is
+    // untracked (and value-deduped inside the service), so no loop
+    // forms with the apply effect above.
+    effect(() => {
+      const positions = this.nodePositions();
+      const manual: Record<string, IPoint> = {};
+      for (const [id, pos] of positions) {
+        if (pos.manual === true) manual[id] = { x: pos.x, y: pos.y };
+      }
+      untracked(() => this.mapViews.setLivePins(manual));
     });
 
     // Async layout effect, runs dagre when topology or layout

@@ -18,6 +18,7 @@ import { CollectionLoaderService } from '../services/collection-loader';
 import { LivePreferencesService } from '../services/live-preferences';
 import { DebugSlotsService } from './services/debug-slots';
 import { FilterUrlSyncService } from './services/filter-url-sync';
+import { MapViewUrlSyncService } from './services/map-view-url-sync';
 import { ProjectInfoService } from './services/project-info';
 import { SmTitleStrategy } from './services/title-strategy';
 import { UpdateCheckService } from './services/update-check';
@@ -255,6 +256,7 @@ export const appConfig: ApplicationConfig = {
     // instead of at boot.
     provideAppInitializer(() => {
       inject(FilterUrlSyncService);
+      inject(MapViewUrlSyncService);
       inject(DebugSlotsService);
       // UsageTrackerService is deliberately NOT injected here: the
       // telemetry initializer above already constructs it at boot, and

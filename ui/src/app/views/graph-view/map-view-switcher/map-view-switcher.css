@@ -1,0 +1,197 @@
+/*
+ * Map-view switcher: toolbar trigger + popover panel. Lives on this
+ * component (not graph-view.css) for the same encapsulation reason as
+ * the layout toolbar: the popover content renders at <body> and only
+ * this component's `::ng-deep` rule plus its own `_ngcontent` scope
+ * reach the panel markup.
+ */
+
+/* Popover content tightening, mirror of `.graph__layout-popover`. */
+:host ::ng-deep .mvs__popover .p-popover-content {
+  padding: 8px;
+}
+
+/* Trigger content: projected into the p-button, so the pieces inherit
+   the button's own color / hover ramp via currentColor. */
+.mvs__trigger-label {
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--sm-fs-sm);
+}
+
+/* Dirty dot: unsaved changes on the active view. Primary tint so it
+   reads as "attention", not "error". */
+.mvs__dirty {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--p-primary-color);
+  flex-shrink: 0;
+}
+
+.mvs__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 220px;
+  max-width: 320px;
+}
+
+.mvs__title {
+  margin: 0;
+  font-size: var(--sm-fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--p-text-muted-color);
+}
+
+.mvs__hint,
+.mvs__empty,
+.mvs__skipped {
+  margin: 0;
+  font-size: var(--sm-fs-sm);
+  color: var(--p-text-muted-color);
+  line-height: 1.4;
+}
+
+.mvs__error {
+  margin: 0;
+  font-size: var(--sm-fs-sm);
+  color: var(--sm-severity-error);
+  line-height: 1.4;
+}
+
+.mvs__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.mvs__row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Same hover / focus / active treatment as the layout popover menu
+   (tint = pointer affordance, ring = keyboard affordance). */
+.mvs__item {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--p-text-color);
+  font: inherit;
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: var(--sm-radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.mvs__item:hover {
+  background: color-mix(in srgb, var(--p-primary-color) 12%, transparent);
+}
+
+.mvs__item:focus-visible {
+  background: color-mix(in srgb, var(--p-primary-color) 12%, transparent);
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: -2px;
+}
+
+.mvs__item.is-active {
+  background: color-mix(in srgb, var(--p-primary-color) 18%, transparent);
+  color: var(--p-primary-color);
+  font-weight: 600;
+}
+
+.mvs__item-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Dead-reference badge: warn tint, count only (the tooltip carries the
+   explanation). */
+.mvs__broken {
+  flex-shrink: 0;
+  font-size: var(--sm-fs-2xs);
+  color: var(--sm-severity-warn);
+  background: color-mix(in srgb, var(--sm-severity-warn) 14%, transparent);
+  border-radius: var(--sm-radius-sm);
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+/* Inline glyph button (context/ui.md exception: a p-button's wrapper
+   padding would distort the dense 2px-gutter row). */
+.mvs__delete {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--p-text-muted-color);
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--sm-radius-sm);
+  flex-shrink: 0;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.mvs__delete:hover {
+  background: color-mix(in srgb, var(--sm-severity-error) 12%, transparent);
+  color: var(--sm-severity-error);
+}
+
+.mvs__delete:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: -2px;
+}
+
+.mvs__delete:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.mvs__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--p-content-border-color);
+  padding-top: 8px;
+}
+
+.mvs__saveas {
+  display: flex;
+  gap: 6px;
+}
+
+/* PrimeNG-owned chrome (`pInputText pSize="small"`); this rule only
+   sizes the flex slot and pins the dense-panel font stop. */
+.mvs__saveas-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  --p-inputtext-sm-font-size: var(--sm-fs-sm);
+}
+
+.mvs__footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}

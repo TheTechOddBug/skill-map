@@ -25,6 +25,51 @@
   gap: 1rem;
 }
 
+/* ── Map-view provenance chip (spec/map-views.md) ─────────────────────
+   Rail header strip shown only while a saved view is active: names the
+   view the rows below curate and re-opens the graph toolbar's switcher
+   on click. Inline glyph-scale button (context/ui.md exception: a
+   p-button's wrapper padding would inflate the dense rail header). */
+.files__view-strip {
+  display: flex;
+}
+
+.files__view-chip {
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--p-primary-color) 35%, transparent);
+  background: color-mix(in srgb, var(--p-primary-color) 10%, transparent);
+  color: var(--p-primary-color);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 100%;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: var(--sm-fs-xs);
+  font-weight: 600;
+  transition: background 120ms ease;
+}
+
+.files__view-chip:hover {
+  background: color-mix(in srgb, var(--p-primary-color) 18%, transparent);
+}
+
+.files__view-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Unsaved-changes dot, mirror of the switcher trigger's `.mvs__dirty`. */
+.files__view-chip-dirty {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--p-primary-color);
+  flex-shrink: 0;
+}
+
 .files__loading {
   display: flex;
   align-items: center;

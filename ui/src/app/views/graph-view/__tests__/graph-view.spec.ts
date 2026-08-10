@@ -237,6 +237,24 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     }),
   getProjectIgnore: vi.fn().mockResolvedValue({ patterns: [] }),
   setProjectIgnore: vi.fn().mockResolvedValue({ patterns: [] }),
+  getMapViews: vi.fn().mockResolvedValue({
+    schemaVersion: '1',
+    kind: 'map-views',
+    views: [],
+    skipped: [],
+  }),
+  putMapView: vi.fn().mockResolvedValue({
+    schemaVersion: '1',
+    kind: 'map-views',
+    views: [],
+    skipped: [],
+  }),
+  deleteMapView: vi.fn().mockResolvedValue({
+    schemaVersion: '1',
+    kind: 'map-views',
+    views: [],
+    skipped: [],
+  }),
   getActiveProvider: vi
     .fn()
     .mockResolvedValue({

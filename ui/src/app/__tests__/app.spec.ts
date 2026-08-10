@@ -204,6 +204,27 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     }),
   getProjectIgnore: () => Promise.resolve({ patterns: [] }),
   setProjectIgnore: () => Promise.resolve({ patterns: [] }),
+  getMapViews: () =>
+    Promise.resolve({
+      schemaVersion: '1' as const,
+      kind: 'map-views' as const,
+      views: [],
+      skipped: [],
+    }),
+  putMapView: () =>
+    Promise.resolve({
+      schemaVersion: '1' as const,
+      kind: 'map-views' as const,
+      views: [],
+      skipped: [],
+    }),
+  deleteMapView: () =>
+    Promise.resolve({
+      schemaVersion: '1' as const,
+      kind: 'map-views' as const,
+      views: [],
+      skipped: [],
+    }),
   getActiveProvider: () =>
     Promise.resolve({
       activeProvider: 'markdown',

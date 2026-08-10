@@ -1,4 +1,31 @@
 <section class="files files--rail" data-testid="files-view">
+  @if (mapViews.available() && mapViews.activeView(); as activeEntry) {
+    <!-- Map-view provenance chip (spec/map-views.md): the rail rows
+         below curate the ACTIVE VIEW, not the scan; this strip names
+         which view, carries the dirty dot, and re-opens the graph
+         toolbar's switcher on click (intent signal, no graph import). -->
+    <div class="files__view-strip">
+      <button
+        type="button"
+        class="files__view-chip"
+        [pTooltip]="texts.viewChipTooltip"
+        tooltipPosition="bottom"
+        [attr.aria-label]="texts.viewChipAria(activeEntry.view.name)"
+        (click)="onViewChipClick()"
+        data-testid="files-view-chip"
+      >
+        <i class="pi pi-bookmark" aria-hidden="true"></i>
+        <span class="files__view-chip-name">{{ texts.viewChip(activeEntry.view.name) }}</span>
+        @if (mapViews.dirty()) {
+          <span
+            class="files__view-chip-dirty"
+            aria-hidden="true"
+            data-testid="files-view-chip-dirty"
+          ></span>
+        }
+      </button>
+    </div>
+  }
   @if (error()) {
     <!-- No live-region wrapper here, on purpose. `<p-message>` declares
          `role="alert"` + `aria-live="polite"` on its own host (verified in

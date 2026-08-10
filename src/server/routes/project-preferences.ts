@@ -88,7 +88,10 @@ export interface IProjectPreferencesEnvelope {
    * `confirmIgnore`: ask before appending an ignore pattern from the
    * Ignore buttons (default `true`; the dialog's don't-ask-again sets
    * `false`). No confirm gate, neither expands disk access nor trusts
-   * code.
+   * code. `confirmViewSwitch`: ask (Save / Discard / Cancel) before
+   * switching away from a map view with unsaved changes (default
+   * `true`; the dialog's don't-ask-again sets `false`). Ungated for
+   * the same reason.
    */
   ui: {
     liveUpdates: boolean;
@@ -96,6 +99,7 @@ export interface IProjectPreferencesEnvelope {
     showRuntimeAgents: boolean;
     changeSpark: boolean;
     confirmIgnore: boolean;
+    confirmViewSwitch: boolean;
   };
   /**
    * Whether `sm serve` exposes the opt-in read-only MCP server at `/mcp`
@@ -131,6 +135,7 @@ interface IPatchBody {
     showRuntimeAgents?: boolean;
     changeSpark?: boolean;
     confirmIgnore?: boolean;
+    confirmViewSwitch?: boolean;
   };
   mcpServerEnabled?: boolean;
   skillActionsEnabled?: boolean;
@@ -193,6 +198,8 @@ function buildUiEnvelope(cwd: string): IProjectPreferencesEnvelope['ui'] {
       readConfigValue<boolean>('ui.changeSpark', { cwd, default: true }) ?? true,
     confirmIgnore:
       readConfigValue<boolean>('ui.confirmIgnore', { cwd, default: true }) ?? true,
+    confirmViewSwitch:
+      readConfigValue<boolean>('ui.confirmViewSwitch', { cwd, default: true }) ?? true,
   };
 }
 
@@ -379,6 +386,7 @@ function applyUiWrites(body: IPatchBody, cwd: string): boolean {
     { key: 'ui.showRuntimeAgents', next: body.ui.showRuntimeAgents },
     { key: 'ui.changeSpark', next: body.ui.changeSpark },
     { key: 'ui.confirmIgnore', next: body.ui.confirmIgnore },
+    { key: 'ui.confirmViewSwitch', next: body.ui.confirmViewSwitch },
   ] as const;
   for (const { key, next } of entries) {
     if (next === undefined) continue;
@@ -785,6 +793,7 @@ const PATCH_BODY_SCHEMA = {
         showRuntimeAgents: { type: 'boolean' },
         changeSpark: { type: 'boolean' },
         confirmIgnore: { type: 'boolean' },
+        confirmViewSwitch: { type: 'boolean' },
       },
     },
     scan: {
@@ -828,6 +837,7 @@ const parsePatchBody = makeBodyValidator<IPatchBody>(PATCH_BODY_SCHEMA, {
     '/ui/showRuntimeAgents:type:boolean': SERVER_TEXTS.projectPrefsShowRuntimeAgentsNotBoolean,
     '/ui/changeSpark:type:boolean': SERVER_TEXTS.projectPrefsChangeSparkNotBoolean,
     '/ui/confirmIgnore:type:boolean': SERVER_TEXTS.projectPrefsConfirmIgnoreNotBoolean,
+    '/ui/confirmViewSwitch:type:boolean': SERVER_TEXTS.projectPrefsConfirmViewSwitchNotBoolean,
     '/mcpServerEnabled:type:boolean': SERVER_TEXTS.projectPrefsMcpServerNotBoolean,
     '/skillActionsEnabled:type:boolean': SERVER_TEXTS.projectPrefsSkillActionsNotBoolean,
   },

@@ -30,9 +30,26 @@ function makeLayout(positions: Record<string, { x: number; y: number }>): IFullL
   };
 }
 
+/**
+ * Wrapper defaulting `corpusPaths` to the branch node set, which is the
+ * pre-map-views baseline (corpus == loaded branch). Tests exercising the
+ * hidden-vs-deleted asymmetry pass their own wider corpus.
+ */
+function reconcile(input: {
+  nodes: Parameters<typeof reconcileNodePositions>[0]['nodes'];
+  current: Parameters<typeof reconcileNodePositions>[0]['current'];
+  layout: Parameters<typeof reconcileNodePositions>[0]['layout'];
+  corpusPaths?: ReadonlySet<string>;
+}): ReturnType<typeof reconcileNodePositions> {
+  return reconcileNodePositions({
+    ...input,
+    corpusPaths: input.corpusPaths ?? new Set(input.nodes.map((n) => n.path)),
+  });
+}
+
 describe('reconcileNodePositions', () => {
   it('no changes: returns clean (dirty=false), allows the host effect to bail without writing', () => {
-    const result = reconcileNodePositions({
+    const result = reconcile({
       nodes: [makeNode('a.md'), makeNode('b.md')],
       current: asMap({ 'a.md': { x: 10, y: 20 }, 'b.md': { x: 30, y: 40 } }),
       layout: makeLayout({ 'a.md': { x: 10, y: 20 }, 'b.md': { x: 30, y: 40 } }),
@@ -41,7 +58,7 @@ describe('reconcileNodePositions', () => {
   });
 
   it('drops positions for nodes that no longer exist (dirty=true)', () => {
-    const result = reconcileNodePositions({
+    const result = reconcile({
       nodes: [makeNode('a.md')],
       current: asMap({ 'a.md': { x: 10, y: 20 }, 'gone.md': { x: 99, y: 99 } }),
       layout: makeLayout({ 'a.md': { x: 10, y: 20 } }),
@@ -51,7 +68,7 @@ describe('reconcileNodePositions', () => {
   });
 
   it('pins newly-loaded nodes against layout positions (dirty=true)', () => {
-    const result = reconcileNodePositions({
+    const result = reconcile({
       nodes: [makeNode('a.md'), makeNode('new.md')],
       current: asMap({ 'a.md': { x: 10, y: 20 } }),
       layout: makeLayout({ 'a.md': { x: 10, y: 20 }, 'new.md': { x: 55, y: 66 } }),
@@ -73,7 +90,7 @@ describe('reconcileNodePositions', () => {
   // signal write re-fired the effect, and the loop pegged CPU at 100%+
   // until dagre finally emitted.
   it('missing paths with no matching layout entry: returns dirty=false (no rewrite loop)', () => {
-    const result = reconcileNodePositions({
+    const result = reconcile({
       nodes: [makeNode('a.md'), makeNode('rename-target.md')],
       current: asMap({ 'a.md': { x: 10, y: 20 } }),
       // Layout is stale: dagre has not run for `rename-target.md` yet.
@@ -83,7 +100,7 @@ describe('reconcileNodePositions', () => {
   });
 
   it('partial layout: applies the entries it has, ignores the rest (dirty=true on real change)', () => {
-    const result = reconcileNodePositions({
+    const result = reconcile({
       nodes: [makeNode('a.md'), makeNode('known.md'), makeNode('unknown.md')],
       current: asMap({ 'a.md': { x: 10, y: 20 } }),
       layout: makeLayout({ 'a.md': { x: 10, y: 20 }, 'known.md': { x: 77, y: 88 } }),
@@ -104,7 +121,7 @@ describe('reconcileNodePositions', () => {
   // of an old one. Auto pins now follow dagre WHEN A NODE WAS ADDED.
   // Manual pins (user-dragged) stay put regardless.
   it('auto pins follow the freshest dagre output when a NEW node entered the graph', () => {
-    const result = reconcileNodePositions({
+    const result = reconcile({
       // 'c.md' is new (not in `current`), triggering the auto-pin refresh.
       nodes: [makeNode('a.md'), makeNode('b.md'), makeNode('c.md')],
       current: asMap({
@@ -124,7 +141,7 @@ describe('reconcileNodePositions', () => {
   });
 
   it('manual pins are preserved across dagre drift even when a new node arrives', () => {
-    const result = reconcileNodePositions({
+    const result = reconcile({
       nodes: [makeNode('a.md'), makeNode('b.md'), makeNode('c.md')],
       current: asMap({
         'a.md': { x: 10, y: 20, manual: true },
@@ -148,7 +165,7 @@ describe('reconcileNodePositions', () => {
   // edge set drifted, but auto pins must stay anchored so the user's
   // mental model "I edited one file, nothing else should move" holds.
   it('auto pins stay put when no new node entered the graph (pure edge / body change)', () => {
-    const result = reconcileNodePositions({
+    const result = reconcile({
       nodes: [makeNode('a.md'), makeNode('b.md')],
       current: asMap({
         'a.md': { x: 10, y: 20 }, // auto
@@ -167,11 +184,61 @@ describe('reconcileNodePositions', () => {
   });
 
   it('all auto pins match dagre exactly: dirty=false', () => {
-    const result = reconcileNodePositions({
+    const result = reconcile({
       nodes: [makeNode('a.md')],
       current: asMap({ 'a.md': { x: 10, y: 20 } }),
       layout: makeLayout({ 'a.md': { x: 10, y: 20 } }),
     });
     expect(result.dirty).toBe(false);
+  });
+
+  // Regression for the map-view switch bug ("cuando switcheo de uno a
+  // otro, no switcheo"): the apply effect writes the incoming view's
+  // pins while `loader.nodes()` still holds the OUTGOING view's branch
+  // (the refetch is async + debounced), and this reconcile fires on the
+  // positions write. Pruning manual pins against that stale branch
+  // destroyed the incoming pins and flipped the view dirty, detouring
+  // every next switch into the confirm gate. Manual pins now prune
+  // against the CORPUS only.
+  it('manual pin on a node hidden from the branch but present in the corpus survives', () => {
+    const result = reconcile({
+      nodes: [makeNode('a.md')], // branch: only a.md visible
+      current: asMap({
+        'a.md': { x: 10, y: 20 },
+        'hidden.md': { x: 50, y: 60, manual: true },
+      }),
+      layout: makeLayout({ 'a.md': { x: 10, y: 20 } }),
+      corpusPaths: new Set(['a.md', 'hidden.md']),
+    });
+    expect(result.dirty).toBe(false);
+    expect(result.next.get('hidden.md')).toEqual({ x: 50, y: 60, manual: true });
+  });
+
+  it('manual pin whose node left the corpus is garbage-collected', () => {
+    const result = reconcile({
+      nodes: [makeNode('a.md')],
+      current: asMap({
+        'a.md': { x: 10, y: 20 },
+        'deleted.md': { x: 50, y: 60, manual: true },
+      }),
+      layout: makeLayout({ 'a.md': { x: 10, y: 20 } }),
+      corpusPaths: new Set(['a.md']),
+    });
+    expect(result.dirty).toBe(true);
+    expect(result.next.has('deleted.md')).toBe(false);
+  });
+
+  it('auto entry off the branch is dropped even while its node stays in the corpus', () => {
+    const result = reconcile({
+      nodes: [makeNode('a.md')],
+      current: asMap({
+        'a.md': { x: 10, y: 20 },
+        'hidden-auto.md': { x: 50, y: 60 },
+      }),
+      layout: makeLayout({ 'a.md': { x: 10, y: 20 } }),
+      corpusPaths: new Set(['a.md', 'hidden-auto.md']),
+    });
+    expect(result.dirty).toBe(true);
+    expect(result.next.has('hidden-auto.md')).toBe(false);
   });
 });

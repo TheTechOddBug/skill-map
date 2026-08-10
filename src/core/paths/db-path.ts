@@ -43,6 +43,7 @@ export { SKILL_MAP_DIR, BACKUPS_DIRNAME, kernelSkillActionsDir };
 const DB_FILENAME = 'skill-map.db';
 const JOBS_DIRNAME = 'jobs';
 const PLUGINS_DIRNAME = 'plugins';
+const VIEWS_DIRNAME = 'views';
 const SETTINGS_FILENAME = 'settings.json';
 const LOCAL_SETTINGS_FILENAME = 'settings.local.json';
 const IGNORE_FILENAME = '.skillmapignore';
@@ -244,6 +245,29 @@ export function defaultActivityBridgePath(scopeRoot: string): string {
  * remove exactly the entries `install` added.
  */
 export const ACTIVITY_BRIDGE_REL = `${SKILL_MAP_DIR}/${ACTIVITY_DIRNAME}/${ACTIVITY_BRIDGE_FILENAME}`;
+
+/**
+ * Map-views directory (`<scopeRoot>/.skill-map/views`), one committed
+ * JSON file per named map view (`spec/map-views.md`). Deliberately
+ * ABSENT from `SCOPE_GITIGNORE_ENTRIES`: like `settings.json` and
+ * `plugins/`, view files carry human curation and are trackable by
+ * default. Created lazily on the first write; an absent directory reads
+ * as zero views.
+ */
+export function defaultProjectViewsDir(scopeRoot: string): string {
+  return join(scopeRoot, SKILL_MAP_DIR, VIEWS_DIRNAME);
+}
+
+/**
+ * One map-view file (`<scopeRoot>/.skill-map/views/<slug>.json`). The
+ * filename IS the view's identity (`spec/map-views.md` §File location
+ * and identity); callers MUST validate `slug` against the Slug rule of
+ * `map-view.schema.json` before composing a path with it (the write
+ * side additionally asserts containment under the views directory).
+ */
+export function mapViewFilePath(scopeRoot: string, slug: string): string {
+  return join(defaultProjectViewsDir(scopeRoot), `${slug}.json`);
+}
 
 /**
  * Default `.skillmapignore` file path

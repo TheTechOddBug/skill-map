@@ -496,6 +496,7 @@ export const SERVER_TEXTS = {
   projectPrefsShowRuntimeAgentsNotBoolean: '`ui.showRuntimeAgents` must be a boolean.',
   projectPrefsChangeSparkNotBoolean: '`ui.changeSpark` must be a boolean.',
   projectPrefsConfirmIgnoreNotBoolean: '`ui.confirmIgnore` must be a boolean.',
+  projectPrefsConfirmViewSwitchNotBoolean: '`ui.confirmViewSwitch` must be a boolean.',
   projectPrefsMcpServerNotBoolean: '`mcpServerEnabled` must be a boolean.',
   // Server-stderr advisory after `PATCH /api/project-preferences` toggles the
   // opt-in read-only MCP server. Boot-time, so the note flags the serve restart.
@@ -601,6 +602,51 @@ export const SERVER_TEXTS = {
     'project-ignore: - {{pattern}}',
   projectIgnoreWatcherRestartFailed:
     'project-ignore: watcher restart after `.skillmapignore` write failed ({{message}}). Restart `sm` to pick up the new filter.',
+
+  // ---- map-views routes (routes/map-views.ts) ----------------------------
+  //
+  // GET /api/map-views, PUT / DELETE /api/map-views/:slug. Backing is
+  // one committed JSON file per view under `.skill-map/views/`
+  // (spec/map-views.md). No consent gate: writes are confined to the
+  // views directory, expand no disk access, and trust no code. No
+  // watcher interaction: views never change what the scan indexes.
+
+  // A file in the views directory was skipped by the lister: bad
+  // filename, broken JSON, or schema violation. Per-file by design, a
+  // hand-edited broken view must never take the whole list down.
+  mapViewFileSkipped:
+    'map-views: skipped {{file}} ({{reason}})',
+  mapViewBodyNotJson: 'Request body must be valid JSON.',
+  mapViewBodyNotObject: 'Request body must be a JSON object.',
+  // Generic fallback for schema mismatches with no directed mapping
+  // entry (unknown keys, malformed pins / groups internals).
+  mapViewBodyInvalid:
+    'Request body must be a MapView document (see spec/schemas/map-view.schema.json).',
+  mapViewSchemaVersionInvalid:
+    '`schemaVersion` must be the number 1.',
+  mapViewKindInvalid:
+    '`kind` must be the string "map-view".',
+  mapViewNameMissing:
+    'Request body must include `name` (1-80 characters).',
+  mapViewNameInvalid:
+    '`name` must be a string of 1-80 characters.',
+  mapViewDescriptionInvalid:
+    '`description` must be a string of at most 500 characters.',
+  mapViewOverridesInvalid:
+    '`overrides` must be an array of `[path, "include" | "exclude"]` pairs.',
+  mapViewPinsInvalid:
+    '`pins` must map node paths to `{ x, y }` positions.',
+  mapViewGroupsInvalid:
+    '`groups` must be an array of group objects (`id`, `label`, `members`).',
+  // The `:slug` param failed the Slug rule of map-view.schema.json.
+  // The rule structurally forbids traversal, so this is also the
+  // route's first containment lock.
+  mapViewSlugInvalid:
+    'Invalid view slug "{{slug}}": must be 1-64 lowercase alphanumerics or hyphens, no leading or trailing hyphen.',
+  mapViewPersistFailed:
+    'Could not persist the view file: {{message}}',
+  mapViewNotFound:
+    'No view named "{{slug}}" exists.',
 
   // A connected client's outbound buffer exceeded the backpressure
   // threshold. The broadcaster closes the client with code 1009 and

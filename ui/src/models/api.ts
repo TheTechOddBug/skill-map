@@ -1216,6 +1216,13 @@ export interface IProjectPreferencesApi {
      * dialog's don't-ask-again checkbox sets `false`.
      */
     confirmIgnore: boolean;
+    /**
+     * Ask before switching / exiting a map view with unsaved changes
+     * (`spec/map-views.md`). Default `true`; the switch dialog's
+     * don't-ask-again checkbox sets `false`. Optional only to tolerate
+     * an older BFF envelope that predates it.
+     */
+    confirmViewSwitch?: boolean;
   };
   /**
    * Project-local opt-in for the MCP server (`mcp.server.enabled`).
@@ -1273,6 +1280,7 @@ export interface IProjectPreferencesPatchApi {
     showRuntimeAgents?: boolean;
     changeSpark?: boolean;
     confirmIgnore?: boolean;
+    confirmViewSwitch?: boolean;
   };
   /**
    * Flip the project-local read-only MCP server opt-in (`mcp.server.enabled`).
@@ -1308,6 +1316,70 @@ export interface IProjectIgnoreApi {
  */
 export interface IProjectIgnorePatchApi {
   patterns: string[];
+}
+
+/**
+ * Flow-coordinate point used by map-view pins, the same coordinate
+ * space as the Foblex canvas (`spec/schemas/map-view.schema.json`
+ * `$defs.Point`).
+ */
+export interface IMapViewPointApi {
+  x: number;
+  y: number;
+}
+
+/**
+ * One visual group inside a map view (`$defs.Group` of
+ * `map-view.schema.json`). RESERVED surface: wave-1 round-trips the
+ * array verbatim on save and renders no grouping UI.
+ */
+export interface IMapViewGroupApi {
+  id: string;
+  label: string;
+  color?: string;
+  members: readonly string[];
+  position?: IMapViewPointApi;
+  size?: { width: number; height: number };
+}
+
+/**
+ * One map-view document (`spec/schemas/map-view.schema.json`): a
+ * human-curated projection of the workspace map, committed as
+ * `.skill-map/views/<slug>.json`. The slug is NOT stored inside the
+ * document; the filename is the identity. `overrides` array ORDER is
+ * significant (include seniority, preserved verbatim); `pins` carries
+ * only human-pinned positions. Dead references are legal: consumers
+ * apply the view ignoring keys that no longer resolve to scanned
+ * nodes and surface their count.
+ */
+export interface IMapViewApi {
+  schemaVersion: 1;
+  kind: 'map-view';
+  name: string;
+  description?: string;
+  overrides: ReadonlyArray<readonly [string, 'include' | 'exclude']>;
+  pins: Readonly<Record<string, IMapViewPointApi>>;
+  groups?: readonly IMapViewGroupApi[];
+}
+
+/** One `{ slug, view }` row of the `GET /api/map-views` envelope. */
+export interface IMapViewEntryApi {
+  slug: string;
+  view: IMapViewApi;
+}
+
+/**
+ * Envelope returned by `GET /api/map-views` (and by the PUT / DELETE
+ * write routes, which respond with the refreshed list). `views` is
+ * sorted by slug server-side; `skipped` lists the basenames of view
+ * files that failed JSON parse or schema validation (a hand-edited
+ * broken view never takes the whole list down).
+ */
+export interface IMapViewsEnvelopeApi {
+  schemaVersion: '1';
+  kind: 'map-views';
+  views: readonly IMapViewEntryApi[];
+  skipped: readonly string[];
 }
 
 /**

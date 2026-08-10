@@ -779,3 +779,46 @@ sm-node-card.sm-gnode--deprecated + .sm-gnode__marker-anchor {
    connection-type) lives in `graph-layout-toolbar.css` alongside the
    toolbar markup. Moved out so Angular's emulated encapsulation stamps
    each rule with the host component the popover actually sits in. */
+
+/* ── Map-view switch animation (spec/map-views.md) ─────────────────────
+   Engaged ONLY while the host carries `view-switching` (a short-lived
+   class the graph view toggles around a view's pin-set apply, see
+   `beginViewSwitchAnimation`), so the treatment can never leak into
+   normal drags, layout runs, or live re-renders.
+
+   The treatment is a fade ONLY, deliberately. Positions jump. A
+   `transition: transform` glide on `.sm-gnode-host` was tried first
+   and shipped stale edges: Foblex measures connector geometry from
+   the DOM when the position inputs change, so while the transition
+   was still interpolating the nodes toward their new coordinates the
+   connections were computed against the OLD on-screen geometry and
+   nothing re-triggered a redraw once the glide settled (the edges
+   stayed wrong until the next pan / zoom). That is foblex-flow skill
+   rule 3 (never transition a transform the library controls) biting
+   exactly as documented; the cross-fade below animates opacity, which
+   the library never reads, so geometry stays in sync by construction.
+
+   Nodes entering with the view fade in: a mount while the class is on
+   starts the keyframe; the nodes that STAY also run it once, which
+   reads as one soft cross-refresh of the canvas. Nodes leaving the
+   view unmount with their DOM (a pure-CSS exit fade is not possible
+   without holding the element back), the accepted approximation for a
+   CSS-only treatment.
+
+   Like every motion treatment in this file, the whole block sits
+   behind the `prefers-reduced-motion` gate: with "animation effects
+   off" at the OS level the swap is a discrete jump, nothing fades. */
+@media (prefers-reduced-motion: no-preference) {
+  :host(.view-switching) .sm-gnode-host {
+    animation: sm-view-switch-fade 200ms ease;
+  }
+
+  @keyframes sm-view-switch-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}

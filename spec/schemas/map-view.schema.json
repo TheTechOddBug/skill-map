@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.ai/spec/v1/map-view.schema.json",
+  "title": "MapView",
+  "description": "One named, shareable map view: a human-curated projection of the workspace map (visibility overrides plus pinned node positions, later visual groups), persisted as `<scopeRoot>/.skill-map/views/<slug>.json` and committed to the shared repository. The slug is NOT stored inside the document; the filename is the identity and MUST match the Slug rule in `$defs.Slug`. Consumers MUST apply a view tolerating references that no longer resolve to scanned nodes (dead override keys, pins, or group members are ignored on apply and surfaced as a count, never rewritten server-side). Full contract: map-views.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "name", "overrides", "pins"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1,
+      "description": "Document format version. Greenfield: stays `1` until a released consumer depends on a breaking change."
+    },
+    "kind": {
+      "const": "map-view",
+      "description": "Document discriminator, mirrors the `kind` convention of the REST envelopes so a stray JSON file is self-describing."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "description": "Human-facing display label of the view. Free text; the filename slug is derived from it at creation time but never re-derived on rename."
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Optional free-text purpose note. Writers omit the key when empty (canonical serialization, map-views.md)."
+    },
+    "overrides": {
+      "type": "array",
+      "description": "Ordered visibility overrides, the map scope of this view. Each entry is a `[path, state]` pair with the exact semantics of cli-contract.md §Map scope overrides (rsync-filter shape: a key covers itself and its `/`-prefixed descendants, nearest ancestor wins, unmatched nodes are included). Array ORDER is significant: it is the include seniority that drives the render-cap fill, so writers MUST preserve it verbatim. The root override is the `''` key. An empty array means the full corpus.",
+      "items": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
+        "prefixItems": [
+          { "$ref": "#/$defs/OverridePath" },
+          { "enum": ["include", "exclude"] }
+        ],
+        "items": false
+      }
+    },
+    "pins": {
+      "type": "object",
+      "description": "Manually pinned node positions, keyed by scope-root-relative node path. Only human-pinned positions travel (the localStorage `manual: true` entries); everything unpinned is re-laid-out by the consumer's auto-layout, which keeps views robust across checkouts whose corpus differs. Writers serialize keys byte-sorted (canonical serialization).",
+      "propertyNames": { "$ref": "#/$defs/NodePath" },
+      "additionalProperties": { "$ref": "#/$defs/Point" }
+    },
+    "groups": {
+      "type": "array",
+      "description": "Visual groups (reserved surface: the schema ships from day one so wave-2 grouping UI needs no file migration; wave-1 implementations MUST round-trip the array verbatim). Semantic grouping stays with tags; a group here is spatial presentation inside this view. Writers omit the key when empty (canonical serialization).",
+      "items": { "$ref": "#/$defs/Group" }
+    }
+  },
+  "$defs": {
+    "Slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$",
+      "description": "Filename and group-id rule: 1-64 chars of lowercase alphanumerics and hyphens, no leading or trailing hyphen. Structurally forbids `/`, `\\`, and `.`, so a conforming slug can never traverse outside the views directory."
+    },
+    "NodePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).*$",
+      "description": "Scope-root-relative path (node file or folder prefix): non-empty, no leading `/`, no `..` segment. Shape hygiene only; view paths are matched against scanned node paths and never dereferenced on disk."
+    },
+    "OverridePath": {
+      "anyOf": [
+        { "const": "" },
+        { "$ref": "#/$defs/NodePath" }
+      ],
+      "description": "An override key: the root (`''`) or a NodePath."
+    },
+    "Point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      },
+      "description": "Flow-coordinate position, the same coordinate space as the Foblex canvas."
+    },
+    "Group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "members"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Slug",
+          "description": "Group identity, unique within the view."
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Human-facing group title, rendered on the group container."
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "Optional accent color (6-digit hex) tinting the group border and background."
+        },
+        "members": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/NodePath" },
+          "description": "Node paths belonging to the group. Dead members are tolerated on apply like every other view reference."
+        },
+        "position": { "$ref": "#/$defs/Point" },
+        "size": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["width", "height"],
+          "properties": {
+            "width": { "type": "number", "exclusiveMinimum": 0 },
+            "height": { "type": "number", "exclusiveMinimum": 0 }
+          },
+          "description": "Optional fixed container size; absent means auto-size to fit members."
+        }
+      }
+    }
+  }
+}

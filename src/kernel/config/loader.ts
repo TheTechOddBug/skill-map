@@ -379,6 +379,13 @@ export interface IUiPreferencesConfig {
    * dialog's don't-ask-again checkbox sets it `false`.
    */
   confirmIgnore?: boolean;
+  /**
+   * Whether the web UI asks for confirmation (Save / Discard / Cancel)
+   * before switching away from a map view that has unsaved changes
+   * (`spec/map-views.md`). Default `true` (ask); the dialog's
+   * don't-ask-again checkbox sets it `false`.
+   */
+  confirmViewSwitch?: boolean;
 }
 
 /**
@@ -413,6 +420,7 @@ export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
   'ui.showRuntimeAgents',
   'ui.changeSpark',
   'ui.confirmIgnore',
+  'ui.confirmViewSwitch',
   'mcp.server.enabled',
   // The skill-actions offering toggle: the catalog under
   // `.skill-map/.agents/skills/` is per-machine state, so whether to

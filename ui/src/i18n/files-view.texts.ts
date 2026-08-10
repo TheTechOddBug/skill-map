@@ -11,12 +11,19 @@ export const FILES_VIEW_TEXTS = {
     `${expanded ? 'Collapse' : 'Expand'} folder ${name}`,
   leafAriaLabel: (name: string) => `Inspect ${name}`,
   /** Map visibility curation (checkboxes + isolate). */
-  mapVisibilityTooltip: 'Toggle visibility on the map',
+  mapVisibilityTooltip:
+    'Toggle visibility on the map. Hides only in the current map view; the ignore ban icon removes it from the scan for everyone.',
   mapVisibilityAriaLabel: (name: string) => `Toggle ${name} visibility on the map`,
   mapAllTooltip: 'Toggle the whole project on the map',
   mapAllAriaLabel: 'Toggle every node\'s visibility on the map',
   isolateTooltip: 'Isolate this node and its direct links on the map',
   isolateAriaLabel: (name: string) => `Isolate ${name} and its direct links on the map`,
+  /** Active map-view provenance chip (rail header). */
+  viewChip: (name: string) => `View: ${name}`,
+  viewChipTooltip:
+    'The map is showing a saved view. Click to manage views.',
+  viewChipAria: (name: string) =>
+    `Active map view ${name}. Open the view switcher.`,
   /** Ignore buttons (append to .skillmapignore, confirm-gated). */
   ignoreTooltip: 'Ignore: add to .skillmapignore and remove from the scan',
   ignoreFileAriaLabel: (name: string) => `Ignore ${name}, add it to .skillmapignore`,

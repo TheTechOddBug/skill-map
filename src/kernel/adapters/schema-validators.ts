@@ -60,6 +60,7 @@ export type TSchemaName =
   | 'report-base'
   | 'conformance-case'
   | 'history-stats'
+  | 'map-view'
   | 'extension-provider'
   | 'extension-provider-kind'
   | 'extension-extractor'
@@ -91,6 +92,7 @@ const SCHEMA_FILES: Record<TSchemaName, string> = {
   'report-base': 'schemas/report-base.schema.json',
   'conformance-case': 'schemas/conformance-case.schema.json',
   'history-stats': 'schemas/history-stats.schema.json',
+  'map-view': 'schemas/map-view.schema.json',
   'extension-provider': 'schemas/extensions/provider.schema.json',
   'extension-provider-kind': 'schemas/extensions/provider-kind.schema.json',
   'extension-extractor': 'schemas/extensions/extractor.schema.json',

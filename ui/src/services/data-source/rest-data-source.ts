@@ -40,6 +40,8 @@ import type {
   IKindRegistryApi,
   ILinkApi,
   IListEnvelopeApi,
+  IMapViewApi,
+  IMapViewsEnvelopeApi,
   INodeApi,
   INodeDetailApi,
   INodeSummaryRowApi,
@@ -447,6 +449,30 @@ export class RestDataSource implements IDataSourcePort {
 
   async setProjectIgnore(patch: IProjectIgnorePatchApi): Promise<IProjectIgnoreApi> {
     return await this.patchJson<IProjectIgnoreApi>(`${BASE}/project-ignore`, patch);
+  }
+
+  async getMapViews(): Promise<IMapViewsEnvelopeApi> {
+    return await this.getJson<IMapViewsEnvelopeApi>(`${BASE}/map-views`);
+  }
+
+  async putMapView(slug: string, view: IMapViewApi): Promise<IMapViewsEnvelopeApi> {
+    return await this.patchJson<IMapViewsEnvelopeApi>(
+      `${BASE}/map-views/${encodeURIComponent(slug)}`,
+      view,
+      'PUT',
+    );
+  }
+
+  async deleteMapView(slug: string): Promise<IMapViewsEnvelopeApi> {
+    try {
+      return await firstValueFrom(
+        this.http.delete<IMapViewsEnvelopeApi>(
+          `${BASE}/map-views/${encodeURIComponent(slug)}`,
+        ),
+      );
+    } catch (err) {
+      throw this.translateError(err);
+    }
   }
 
   async getActiveProvider(): Promise<IActiveProviderApi> {
@@ -922,17 +948,22 @@ export class RestDataSource implements IDataSourcePort {
 
   /**
    * `PATCH` by default, optionally `POST` (used by `runScan` so the
-   * route shape matches `POST /api/scan`). Both verbs share the same
-   * envelope-error translation, so collapsing them under one helper
-   * avoids duplicating the try/catch.
+   * route shape matches `POST /api/scan`) or `PUT` (the map-views
+   * upsert). All verbs share the same envelope-error translation, so
+   * collapsing them under one helper avoids duplicating the try/catch.
    */
   private async patchJson<T>(
     url: string,
     body: unknown,
-    method: 'PATCH' | 'POST' = 'PATCH',
+    method: 'PATCH' | 'POST' | 'PUT' = 'PATCH',
   ): Promise<T> {
     try {
-      const obs = method === 'POST' ? this.http.post<T>(url, body) : this.http.patch<T>(url, body);
+      const obs =
+        method === 'POST'
+          ? this.http.post<T>(url, body)
+          : method === 'PUT'
+            ? this.http.put<T>(url, body)
+            : this.http.patch<T>(url, body);
       return await firstValueFrom(obs);
     } catch (err) {
       throw this.translateError(err);

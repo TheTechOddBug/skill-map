@@ -19,6 +19,7 @@ import { CollectionLoaderService } from '../../../../services/collection-loader'
 import { MapVisibilityService } from '../../../../services/map-visibility';
 import { NodeActivityStatsService } from '../../../../services/node-activity-stats';
 import { ProjectIgnoreService } from '../../../../services/project-ignore';
+import { MapViewsService } from '../../../../services/map-views';
 import { MAP_ISOLATE_INTENT } from '../../../slots/map-isolate-intent';
 import { NODE_OPEN_INTENT } from '../../../slots/node-open-intent';
 import type { INodeView } from '../../../../models/node';
@@ -98,6 +99,17 @@ async function boot() {
           requestIgnore: () => Promise.resolve('dialog'),
           clearError: () => undefined,
         } as unknown as ProjectIgnoreService,
+      },
+      // Map-views owner: stubbed neutral (no active view) so the
+      // provenance chip stays hidden and no DATA_SOURCE token is needed.
+      {
+        provide: MapViewsService,
+        useValue: {
+          available: signal(true).asReadonly(),
+          activeView: signal(null).asReadonly(),
+          dirty: signal(false).asReadonly(),
+          requestOpenSwitcher: () => undefined,
+        } as unknown as MapViewsService,
       },
     ],
   });

@@ -1,0 +1,173 @@
+<!--
+  Trigger + popover + dirty-switch dialog. Hidden entirely in demo mode
+  (the static bundle cannot write views, and an inert switcher would
+  only advertise a dead feature). The trigger paints inline in the
+  graph toolbar cluster; the popover escapes clipping via
+  appendTo="body" (same pattern as the layout toolbar's popovers).
+-->
+@if (mapViews.available()) {
+  <p-button
+    #switcherTrigger
+    severity="secondary"
+    [text]="true"
+    [rounded]="true"
+    size="small"
+    [ariaLabel]="triggerAria()"
+    [pTooltip]="texts.triggerTooltip"
+    (onClick)="onTriggerClick($event)"
+    data-testid="map-view-switcher"
+  >
+    <i class="pi pi-bookmark" aria-hidden="true"></i>
+    <span class="mvs__trigger-label">{{ triggerLabel() }}</span>
+    @if (mapViews.dirty()) {
+      <span
+        class="mvs__dirty"
+        role="img"
+        [attr.aria-label]="texts.dirtyAria"
+        data-testid="map-view-dirty"
+      ></span>
+    }
+  </p-button>
+
+  <p-popover #switcherPopover appendTo="body" styleClass="mvs__popover">
+    <div class="mvs__panel" data-testid="map-view-panel">
+      <p class="mvs__title">{{ texts.panelTitle }}</p>
+
+      @if (mapViews.error(); as err) {
+        <p class="mvs__error" data-testid="map-view-error">{{ err }}</p>
+      }
+
+      @if (mapViews.loading()) {
+        <p class="mvs__hint" data-testid="map-view-loading">{{ texts.loading }}</p>
+      } @else if (mapViews.views().length === 0) {
+        <p class="mvs__empty" data-testid="map-view-empty">{{ texts.empty }}</p>
+      } @else {
+        <ul class="mvs__list" role="menu">
+          @for (entry of mapViews.views(); track entry.slug) {
+            <li role="none" class="mvs__row">
+              <button
+                type="button"
+                role="menuitemradio"
+                class="mvs__item"
+                [class.is-active]="entry.slug === mapViews.activeSlug()"
+                [attr.aria-checked]="entry.slug === mapViews.activeSlug()"
+                [attr.aria-label]="texts.applyAria(entry.view.name)"
+                (click)="onApply(entry.slug)"
+                [attr.data-testid]="'map-view-item-' + entry.slug"
+              >
+                <span class="mvs__item-name">{{ entry.view.name }}</span>
+                @if (brokenRefs(entry); as broken) {
+                  <span
+                    class="mvs__broken"
+                    [pTooltip]="texts.brokenRefsTooltip"
+                    [attr.data-testid]="'map-view-broken-' + entry.slug"
+                  >
+                    {{ texts.brokenRefs(broken) }}
+                  </span>
+                }
+              </button>
+              <button
+                type="button"
+                class="mvs__delete"
+                [disabled]="busy()"
+                [pTooltip]="texts.deleteTooltip"
+                [tooltipDisabled]="busy()"
+                [attr.aria-label]="texts.deleteAria(entry.view.name)"
+                (click)="onDelete(entry.slug, $event)"
+                [attr.data-testid]="'map-view-delete-' + entry.slug"
+              >
+                <i class="pi pi-trash" aria-hidden="true"></i>
+              </button>
+            </li>
+          }
+        </ul>
+        @if (mapViews.skipped().length > 0) {
+          <p class="mvs__skipped" data-testid="map-view-skipped">
+            {{ texts.skipped(mapViews.skipped().length) }}
+          </p>
+        }
+      }
+
+      <div class="mvs__footer">
+        <!-- Save-as: plain form so Enter in the input submits. The slug
+             collision path swaps the button label into the explicit
+             overwrite wording (two-step, never silent). -->
+        <form class="mvs__saveas" (submit)="$event.preventDefault(); onSaveAsSubmit()">
+          <input
+            pInputText
+            pSize="small"
+            type="text"
+            class="mvs__saveas-input"
+            [value]="saveAsName()"
+            (input)="onSaveAsNameChange($any($event.target).value)"
+            [placeholder]="texts.saveAsPlaceholder"
+            [attr.aria-label]="texts.saveAsNameAria"
+            maxlength="80"
+            data-testid="map-view-save-as-name"
+          />
+          <p-button
+            type="submit"
+            [label]="saveAsLabel()"
+            [severity]="saveAsPendingOverwrite() ? 'warn' : 'secondary'"
+            [outlined]="true"
+            size="small"
+            [disabled]="busy() || saveAsName().trim().length === 0"
+            [ariaLabel]="texts.saveAsAria"
+            data-testid="map-view-save-as"
+          />
+        </form>
+        <div class="mvs__footer-actions">
+          <!-- tooltipDisabled mirrors each [disabled] condition on purpose:
+               a disabled element stops emitting mouse events, so a tooltip
+               that is VISIBLE when its host flips to disabled never gets the
+               mouseleave that would hide it and sticks forever (the exact
+               Exit-views bug). PrimeNG's tooltipDisabled setter calls
+               deactivate(), closing the live tooltip the moment the state
+               flips. -->
+          <p-button
+            [label]="texts.save"
+            severity="primary"
+            size="small"
+            [disabled]="busy() || !mapViews.dirty()"
+            [pTooltip]="texts.saveTooltip"
+            [tooltipDisabled]="busy() || !mapViews.dirty()"
+            (onClick)="onSave()"
+            data-testid="map-view-save"
+          />
+          <p-button
+            [label]="texts.revert"
+            severity="secondary"
+            [outlined]="true"
+            size="small"
+            icon="pi pi-undo"
+            [disabled]="busy() || !mapViews.dirty()"
+            [pTooltip]="texts.revertTooltip"
+            [tooltipDisabled]="busy() || !mapViews.dirty()"
+            [ariaLabel]="texts.revertAria"
+            (onClick)="onRevert()"
+            data-testid="map-view-revert"
+          />
+          @if (mapViews.activeSlug() !== null) {
+            <p-button
+              [label]="texts.exit"
+              severity="secondary"
+              [text]="true"
+              size="small"
+              [disabled]="busy()"
+              [pTooltip]="texts.exitTooltip"
+              [tooltipDisabled]="busy()"
+              (onClick)="onExit()"
+              data-testid="map-view-exit"
+            />
+          }
+        </div>
+      </div>
+    </div>
+  </p-popover>
+
+  <sm-map-view-confirm-dialog
+    [open]="mapViews.pendingSwitch() !== null"
+    [viewName]="mapViews.activeView()?.view?.name ?? null"
+    (decision)="onConfirmDecision($event)"
+  />
+}

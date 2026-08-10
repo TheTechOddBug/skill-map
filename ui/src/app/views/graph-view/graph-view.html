@@ -635,6 +635,10 @@
         }
         <span class="graph__toolbar-sep" aria-hidden="true"></span>
         <sm-graph-layout-toolbar />
+        <!-- Map views (spec/map-views.md): renders nothing in demo
+             mode, so the cluster keeps its shape without a dangling
+             separator. -->
+        <sm-map-view-switcher />
         <span class="graph__toolbar-sep" aria-hidden="true"></span>
         <p-button
           icon="pi pi-history"

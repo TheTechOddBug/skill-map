@@ -52,6 +52,8 @@ import type {
   IJobSubmittedEnvelopeApi,
   ILinkApi,
   IListEnvelopeApi,
+  IMapViewApi,
+  IMapViewsEnvelopeApi,
   INodeApi,
   INodeDetailApi,
   INodeSummaryRowApi,
@@ -705,6 +707,7 @@ export class StaticDataSource implements IDataSourcePort {
         showRuntimeAgents: true,
         changeSpark: true,
         confirmIgnore: true,
+        confirmViewSwitch: true,
       },
       mcpServerEnabled: false,
     };
@@ -727,6 +730,25 @@ export class StaticDataSource implements IDataSourcePort {
     throw new DataSourceError(
       'demo-readonly',
       'Ignore patterns are not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  /** Demo bundle ships no committed views, honestly empty. */
+  async getMapViews(): Promise<IMapViewsEnvelopeApi> {
+    return { schemaVersion: '1', kind: 'map-views', views: [], skipped: [] };
+  }
+
+  async putMapView(_slug: string, _view: IMapViewApi): Promise<IMapViewsEnvelopeApi> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Saving map views is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async deleteMapView(_slug: string): Promise<IMapViewsEnvelopeApi> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Deleting map views is not available in demo mode (static bundle is immutable).',
     );
   }
 

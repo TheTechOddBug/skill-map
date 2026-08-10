@@ -275,6 +275,10 @@
         "confirmIgnore": {
           "type": "boolean",
           "description": "Whether the web UI asks for confirmation before appending a pattern to the project-root `.skillmapignore` from the Ignore buttons on the files rail's rows and the inspector header. Default `true` (ask). Set to `false` by the confirm dialog's don't-ask-again checkbox; per checkout in `settings.local.json`, reset with `sm config reset ui.confirmIgnore`. Positive naming on purpose: every `ui.*` key defaults to `true`."
+        },
+        "confirmViewSwitch": {
+          "type": "boolean",
+          "description": "Whether the web UI asks for confirmation (Save / Discard / Cancel) before switching away from a map view that has unsaved changes (see map-views.md). Default `true` (ask). Set to `false` by the dialog's don't-ask-again checkbox; per checkout in `settings.local.json`, reset with `sm config reset ui.confirmViewSwitch`."
         }
       }
     }

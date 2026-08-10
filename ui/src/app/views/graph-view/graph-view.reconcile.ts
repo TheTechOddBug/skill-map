@@ -49,7 +49,18 @@ export function reconcileExpandedIds(
 
 /**
  * Reconcile pinned positions against the loaded node set:
- *   - Drop entries for nodes that no longer exist.
+ *   - Drop entries for nodes that no longer exist, with one deliberate
+ *     asymmetry: AUTO entries prune against the LOADED branch (they are
+ *     regenerable, dagre re-seeds them the moment the node loads
+ *     again), while MANUAL entries prune only against the CORPUS
+ *     (`corpusPaths`). A manual pin on a node that is merely HIDDEN by
+ *     the current map scope (a rail checkbox, an applied map view)
+ *     must survive the hide: the branch set changes on every
+ *     visibility gesture, and this effect also fires on every
+ *     positions write, so during a view switch it runs while the
+ *     branch is still the OUTGOING view's set, and pruning manual pins
+ *     against it silently destroyed the INCOMING view's pins (and
+ *     flipped the view dirty) before the new branch ever arrived.
  *   - For newly-loaded nodes, read the latest dagre output for the
  *     missing ids and pin them as auto (`manual !== true`). Both the
  *     cold-start case (no pins yet) and the incremental case (a node
@@ -77,15 +88,20 @@ export function reconcileNodePositions(input: {
   nodes: readonly INodeView[];
   current: TNodePositions;
   layout: IFullLayout;
+  /** Full corpus paths (lite node set); manual pins prune against THIS, never the branch. */
+  corpusPaths: ReadonlySet<string>;
 }): IReconcileResult<TNodePositions> {
-  const { nodes, current, layout } = input;
+  const { nodes, current, layout, corpusPaths } = input;
   const allPaths = new Set(nodes.map((n) => n.path));
   let dirty = false;
   const next: TNodePositions = new Map(current);
 
-  // Drop positions for nodes that no longer exist.
-  for (const id of next.keys()) {
+  // Drop stale positions. Auto entries: gone from the loaded branch is
+  // enough (regenerable). Manual entries: only when the node left the
+  // corpus (deleted file); hidden-but-existing keeps the user's pin.
+  for (const [id, pos] of next) {
     if (allPaths.has(id)) continue;
+    if (pos.manual === true && corpusPaths.has(id)) continue;
     next.delete(id);
     dirty = true;
   }

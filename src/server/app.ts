@@ -108,6 +108,7 @@ import { registerNodeProbExtensionsRoute } from './routes/node-prob-extensions.j
 import { registerNodesRoutes } from './routes/nodes.js';
 import { registerPluginsRoute } from './routes/plugins.js';
 import { registerPreferencesRoute } from './routes/preferences.js';
+import { registerMapViewsRoutes } from './routes/map-views.js';
 import { registerProjectIgnoreRoute } from './routes/project-ignore.js';
 import { registerProjectPreferencesRoute } from './routes/project-preferences.js';
 import type { ActivityConversationStore } from './activity-conversations.js';
@@ -874,6 +875,13 @@ export function createApp(deps: IAppDeps): Hono {
   // only narrow the scan surface). Pairs with the Settings UI's
   // "Ignored patterns" row.
   registerProjectIgnoreRoute(app, routeDeps);
+  // Named map views, `GET /api/map-views` + `PUT / DELETE
+  // /api/map-views/:slug`. Backing is one committed JSON file per view
+  // under `.skill-map/views/` (spec/map-views.md). No consent gate
+  // (writes confined to the views directory, no disk-access expansion,
+  // no code trust) and no watcher interaction (views never change what
+  // the scan indexes).
+  registerMapViewsRoutes(app, routeDeps);
 
   // 10. /api/* (catch-all), every other API path returns the structured
   //     404 envelope. Keeps the contract honest as new endpoints land in

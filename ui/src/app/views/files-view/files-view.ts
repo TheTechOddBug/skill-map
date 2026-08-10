@@ -29,6 +29,7 @@ import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
 import { FilesFollowSelectionService } from '../../../services/files-follow-selection';
 import { MapVisibilityService, type TFolderVisibility } from '../../../services/map-visibility';
+import { MapViewsService } from '../../../services/map-views';
 import { NodeActivityStatsService } from '../../../services/node-activity-stats';
 import { ProjectIgnoreService } from '../../../services/project-ignore';
 import { UsageTrackerService } from '../../services/usage-tracker';
@@ -89,6 +90,9 @@ export class FilesView implements OnInit {
   private readonly filters = inject(FilterStoreService);
   private readonly nodeOpenIntent = inject(NODE_OPEN_INTENT);
   private readonly mapVisibility = inject(MapVisibilityService);
+  // Protected: the header strip reads `available()` / `activeView()` /
+  // `dirty()` for the provenance chip.
+  protected readonly mapViews = inject(MapViewsService);
   private readonly mapIsolate = inject(MAP_ISOLATE_INTENT);
   protected readonly projectIgnore = inject(ProjectIgnoreService);
   private readonly usageTracker = inject(UsageTrackerService);
@@ -541,6 +545,15 @@ export class FilesView implements OnInit {
 
   protected onIgnoreErrorClose(): void {
     this.projectIgnore.clearError();
+  }
+
+  /**
+   * Provenance chip click: ask the graph toolbar's switcher to open
+   * (tick-signal intent on `MapViewsService`, so the rail never
+   * imports graph-view code).
+   */
+  protected onViewChipClick(): void {
+    this.mapViews.requestOpenSwitcher();
   }
 
   resetFilters(): void {

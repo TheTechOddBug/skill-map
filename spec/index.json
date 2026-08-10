@@ -49,6 +49,10 @@
         "path": "schemas/link.schema.json"
       },
       {
+        "id": "map-view",
+        "path": "schemas/map-view.schema.json"
+      },
+      {
         "id": "node",
         "path": "schemas/node.schema.json"
       },
@@ -242,6 +246,10 @@
     {
       "file": "view-slots.md",
       "title": "View slots"
+    },
+    {
+      "file": "map-views.md",
+      "title": "Map views"
     },
     {
       "file": "mcp-server.md",
@@ -470,8 +478,8 @@
     "files": {
       "CHANGELOG.md": "2a17102d453819152bb13ff6f050a60ae8e49e2c1fa9ee760e2148a3d2d87597",
       "README.md": "35ac6cc3ce8379c5087f739a528d3b80a140aef5cdeeba9c49b59c5dd5df4c54",
-      "architecture.md": "7846bee9c3ce404713750143fd7169f643f9365de7ce33ad85770d0fc3c327f6",
-      "cli-contract.md": "c513694864b047a65831fadd14f815b280ab7488bf2ea88c853317e951ecaa52",
+      "architecture.md": "f461e335f249e11de28cfa9ebead9d5aaef4763fdcdff9f42657635e164267f9",
+      "cli-contract.md": "4c63189f71b40186cceb2054de415b23ce5006857662fe664e740b4d028da813",
       "conformance/README.md": "1cf7a020d4a7517e9f2b5fa2e6912be812322dfffa388de5eb47ef44d9277e8f",
       "conformance/cases/backtick-path-extraction.json": "4112b5724156c4d6ad5cf90a762e43741d25d68735f91d453ac580a77b3764da",
       "conformance/cases/bump-report-schema.json": "f9f1b9f1143e5750bea045001aff60d0f5f6b15e41597d9bd983c4159540fb22",
@@ -524,7 +532,7 @@
       "conformance/cases/view-action-button.json": "bb1377a737117c3d274a4f5a216adb1b94dae534658fa8dcc784c39fcfb15e1b",
       "conformance/cases/view-contribution-payloads.json": "ca02992c269e7c1724df024b138abf0c97f50f003c300c404cb6034743ad7ca7",
       "conformance/cases/view-slots-all.json": "0e3294ada16eb6695760e3067cf05e7ea233720f83b26531432ca95cc24ef4f9",
-      "conformance/coverage.md": "1921b9075d3346bccdc5953b6f97dcba398ee13cf5bcc023153b6e3594a5c78d",
+      "conformance/coverage.md": "d6cffd4aa8b205e7fcb1a0813d78cb7722c418851f7f33961277ca45238213e2",
       "conformance/fixtures/backtick-path/docs/target.md": "a09ae2cb4c96358a2e0692215f172b0f8c48028b6b123e4e83424b28302e644c",
       "conformance/fixtures/backtick-path/source.md": "217f78b12b3ff47a938a5cc9c1ff7d6989d6a1db82bd1ddf3656787f31efb902",
       "conformance/fixtures/extension-enable-gate/.skill-map/plugins/gated/analyzers/boom/extension.json": "bc8a8a24a068fa4a03d096790fa52b8c3f8c7ecb1e7ac9d3fbe83ea0babafe6f",
@@ -627,6 +635,7 @@
       "interfaces/security-scanner.md": "1e90d23254c4962989a56f64a625b5b7bcc469a2064adcdd07950fd0a6ddbfc9",
       "job-events.md": "7e722580e0b9dd0238778436ec4c1e64d355f170767138f2405511d376116741",
       "job-lifecycle.md": "159b5c839e22cf3e9a323f3ed0753f3079aabc412b278be96c0f63c1a2002979",
+      "map-views.md": "c39d7d1544a305fc3b782ec010eb8b4c4f691236aa3f988da7d4b4fc49b6b79e",
       "mcp-server.md": "d29f52a2bb29477e4365a58be9f27fbebf9b1619abfd837e356b588f0d4b8c78",
       "plugin-author-guide.md": "768c1849562ed02dfac1b3dc24f92f2497956f27802a0f0f3dc0b47eb4809ef8",
       "plugin-kv-api.md": "a9fe61f8c00a689eabb806dadafa55bd275cd0226495a0ffc6d8475ce00b4487",
@@ -657,10 +666,11 @@
       "schemas/issue.schema.json": "2751485d783f589b6724d4465d0b478226a616c0fb8eecb799e4d0946dea49d3",
       "schemas/job.schema.json": "0f3dfa5e1a178263b95cad790f29590920de8279af57c96ce1a440b75b4d99a1",
       "schemas/link.schema.json": "e6a5b38663e57260f83f79ba4a75d1d15ed604511330dfa6db5eaf2391172e51",
+      "schemas/map-view.schema.json": "f083a48cffb51c385fbd362717864edd9ae56733dfa1fafd9289b27c6bbacba5",
       "schemas/node.schema.json": "6f44a115367ef5a016b2ba0a56af1220bbf51aeef66addbc28f1f7afc2a22ef5",
       "schemas/plugins-doctor.schema.json": "a474cdc69bff60b57f25f60e871e54c672b2de924983eecb4167e21f4400c979",
       "schemas/plugins-registry.schema.json": "fcb2c911a5d746ec14c153afb5c3255d95322a4ddb1500a17f5b7353df9c0d63",
-      "schemas/project-config.schema.json": "0398be2116a705c6338dade4eabe7170031e1c3c6c4768c3a0e32879efedb341",
+      "schemas/project-config.schema.json": "36b89fddfa163dc8e3876ce57866757bc28f52d5c9848ed2d2fe8fc485c67fbd",
       "schemas/report-base-deterministic.schema.json": "a72f80f48e3e784ad2d6a632f07a59f28848bf49884ad401d625a4d65d9fb1dd",
       "schemas/report-base.schema.json": "991907323b51c3d55107d5f3e52a904fbdbe598d481bc81ff1d50cde36a2f35c",
       "schemas/scan-result.schema.json": "a383e3dc6efb8e9faf5fed22d3be9068d38128ac507264d8f38ea571008d1fcd",
