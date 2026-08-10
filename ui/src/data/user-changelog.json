@@ -2,6 +2,33 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.9.0",
+      "date": "2026-08-10",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Drag views up and down in the view selector to order them; the order is saved in the view files, so your team gets the same sequence. The first nine views show their number and keys 1-9 switch straight to them.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "You can now save the map you curated as a named view and commit it, so your team gets the same map: same hidden folders, same pinned nodes. Switch views from the new selector on the graph, share one with a link, and save changes explicitly when you are ready.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Workspace map polish.** The Show all button moved from the map toolbar to an eraser icon on the files rail, leaving a view keeps your layout in place instead of rearranging it, view menus now wear an eye icon, and the Bezier connector style is gone (it doubled Adaptive curve).",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.8.0",
       "date": "2026-08-10",
       "kind": "user-facing",
