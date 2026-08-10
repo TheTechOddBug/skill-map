@@ -6,6 +6,22 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>1.9.0</b> · 2026-08-10</summary>
+
+### CLI Minor
+- Map views gain a shared list order: a new optional `order` field in `map-view.schema.json` (contract in `spec/map-views.md` §Ordering and shortcuts) drives the `GET /api/map-views` sequence (order ascending, absent last, slug tiebreak), the switcher list is drag-reorderable (renumbering compactly and re-writing only the changed view files), and the first nine positions surface their digit-shortcut number on the row.
+- Named map views: human-curated map topology (visibility overrides plus pinned node positions, with a reserved groups surface) now persists as committed files under `.skill-map/views/<slug>.json` per the new `spec/map-views.md` contract and `map-view.schema.json`, written and served through the new `GET/PUT/DELETE /api/map-views` endpoints; the web UI gains a view switcher with save, save as, exit views, a dirty-switch confirmation (`ui.confirmViewSwitch`) and `?view=` deep links.
+
+### CLI Patch
+- UX round on the workspace map: the map-views glyph is now the eye (switcher trigger and rail view chip), the graph toolbar's Show-all button was replaced by an eraser reset in the files rail's curation strip (shown for manual curation too, routing through the guarded view exit when a view is active), exiting a view no longer rearranges the canvas (pins stay put, revealed nodes seed from auto-layout), and the bezier connector style was removed (a legacy stored value falls back to the default).
+
+### Spec Minor (1.10.0)
+- Map views gain a shared list order: a new optional `order` field in `map-view.schema.json` (contract in `spec/map-views.md` §Ordering and shortcuts) drives the `GET /api/map-views` sequence (order ascending, absent last, slug tiebreak), the switcher list is drag-reorderable (renumbering compactly and re-writing only the changed view files), and the first nine positions surface their digit-shortcut number on the row.
+- Named map views: human-curated map topology (visibility overrides plus pinned node positions, with a reserved groups surface) now persists as committed files under `.skill-map/views/<slug>.json` per the new `spec/map-views.md` contract and `map-view.schema.json`, written and served through the new `GET/PUT/DELETE /api/map-views` endpoints; the web UI gains a view switcher with save, save as, exit views, a dirty-switch confirmation (`ui.confirmViewSwitch`) and `?view=` deep links.
+
+</details>
+
+<details>
 <summary><b>1.8.0</b> · 2026-08-10</summary>
 
 ### CLI Minor

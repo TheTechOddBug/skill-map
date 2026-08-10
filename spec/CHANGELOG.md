@@ -1,5 +1,21 @@
 # Spec changelog
 
+## 1.10.0
+
+### Minor Changes
+
+- Map views gain a shared list order: a new optional `order` field in `map-view.schema.json` (contract in `spec/map-views.md` §Ordering and shortcuts) drives the `GET /api/map-views` sequence (order ascending, absent last, slug tiebreak), the switcher list is drag-reorderable (renumbering compactly and re-writing only the changed view files), and the first nine positions surface their digit-shortcut number on the row.
+
+  ## User-facing
+
+  Drag views up and down in the view selector to order them; the order is saved in the view files, so your team gets the same sequence. The first nine views show their number and keys 1-9 switch straight to them.
+
+- Named map views: human-curated map topology (visibility overrides plus pinned node positions, with a reserved groups surface) now persists as committed files under `.skill-map/views/<slug>.json` per the new `spec/map-views.md` contract and `map-view.schema.json`, written and served through the new `GET/PUT/DELETE /api/map-views` endpoints; the web UI gains a view switcher with save, save as, exit views, a dirty-switch confirmation (`ui.confirmViewSwitch`) and `?view=` deep links.
+
+  ## User-facing
+
+  You can now save the map you curated as a named view and commit it, so your team gets the same map: same hidden folders, same pinned nodes. Switch views from the new selector on the graph, share one with a link, and save changes explicitly when you are ready.
+
 ## 1.9.1
 
 ### Patch Changes
