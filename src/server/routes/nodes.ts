@@ -22,7 +22,7 @@
  *   {
  *     schemaVersion: '1',
  *     kind: 'node',
- *     item: Node,                                  // (+ optional `body`)
+ *     item: Node,                                  // (+ optional `body` / `raw`)
  *     links: { incoming: Link[], outgoing: Link[] },
  *     issues: Issue[]
  *   }
@@ -44,6 +44,13 @@
  * when the file is missing / unreadable. The Inspector view passes the
  * flag; the auto-rename UI and other future single-node consumers can
  * skip it.
+ *
+ * **`?include=raw`**, opt-in flag that adds `item.raw`: the on-disk
+ * file VERBATIM (frontmatter block included), or `null` when missing /
+ * unreadable. Consumer: the inspector's Raw toggle, whose line-number
+ * gutter must match the FILE-absolute `L<n>` lines findings report
+ * (`link.schema.json#/properties/location`). Composable with `body`
+ * (`?include=body,raw`); both ride the same single disk read.
  */
 
 import type { Hono } from 'hono';
@@ -60,7 +67,7 @@ import { tx } from '../../kernel/util/tx.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { buildListEnvelope, REST_ENVELOPE_SCHEMA_VERSION } from '../envelope.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
-import { readNodeBody } from '../node-body.js';
+import { readNodeFileRaw, stripFrontmatter } from '../node-body.js';
 import { decodeNodePath, PathCodecError } from '../path-codec.js';
 import {
   filterNodesWithoutIssues,
@@ -151,8 +158,20 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
     );
     const decoratedNode = { ...bundle.node, isFavorite, contributions: foldedContributions, tags };
     const includes = parseIncludes(c.req.query('include'));
-    const item = includes.has('body')
-      ? { ...decoratedNode, body: await readNodeBody(deps.runtimeContext.cwd, nodePath) }
+    // `body` and `raw` share one guarded disk read: `raw` is the file
+    // verbatim (frontmatter included, so the inspector's Raw gutter
+    // matches the file-absolute `L<n>` lines findings report), `body`
+    // is the same bytes with the frontmatter block stripped.
+    const wantsFile = includes.has('body') || includes.has('raw');
+    const rawFile = wantsFile ? await readNodeFileRaw(deps.runtimeContext.cwd, nodePath) : null;
+    const item = wantsFile
+      ? {
+          ...decoratedNode,
+          ...(includes.has('body')
+            ? { body: rawFile === null ? null : stripFrontmatter(rawFile) }
+            : {}),
+          ...(includes.has('raw') ? { raw: rawFile } : {}),
+        }
       : decoratedNode;
     return c.json({
       schemaVersion: REST_ENVELOPE_SCHEMA_VERSION,

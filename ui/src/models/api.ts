@@ -76,6 +76,14 @@ export interface INodeApi {
   externalRefs?: IExternalRefApi[];
   body?: string | null;
   /**
+   * Opt-in (`?include=raw`): the on-disk file VERBATIM, frontmatter
+   * block included, so the inspector's Raw gutter numbers match the
+   * file-absolute `L<n>` lines findings report. `null` when the file
+   * is missing / unreadable; `undefined` when the caller did not opt
+   * in.
+   */
+  raw?: string | null;
+  /**
    * Step 9.6.2, co-located `.sm` sidecar overlay. Carries presence flag,
    * drift status (null when no sidecar or when the sidecar exists but
    * failed to parse), and the parsed `annotations:` block (null when

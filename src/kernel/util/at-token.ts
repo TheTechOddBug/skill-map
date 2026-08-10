@@ -35,11 +35,20 @@ import { posix as pathPosix } from 'node:path';
  *     alphanumeric or `_` (excludes a trailing `.` sentence punctuation
  *     `@foo.` or `/` path separator without leaf `@dir/`).
  *   - Optional namespace marker `:` + identifier.
+ *   - **At least one letter somewhere in the token** (the
+ *     `(?=[0-9_\-./:]*[a-z])` lookahead right after `@`, bounded to the
+ *     token's own charset so it cannot peek past the match). A purely
+ *     numeric token (`@10`, `@10/20`) is prose (a score, a date, a
+ *     fraction), not a handle or a path, and an unresolved match paints
+ *     a red `reference-broken`; file-shaped tokens keep matching
+ *     because their extension carries letters (`@10.md`). Same sweep as
+ *     `slash-token.ts` / `dollar-token.ts` (2026-08-10, the three sigil
+ *     grammars move as a set per runtime-quirks §8).
  * The leading char must be non-word (so emails `foo@bar.com` and `@@` don't
  * match). The match is case-insensitive; capture group 1 is the `@`-token.
  */
 export const AT_TOKEN_RE =
-  /(?:^|[^A-Za-z0-9_@])(@(?:(?:\.{1,2}\/)+|\/)?\.?[a-z0-9](?:[a-z0-9_\-./]*[a-z0-9_])?(?::[a-z0-9][a-z0-9_-]*)?)/gi;
+  /(?:^|[^A-Za-z0-9_@])(@(?=[0-9_\-./:]*[a-z])(?:(?:\.{1,2}\/)+|\/)?\.?[a-z0-9](?:[a-z0-9_\-./]*[a-z0-9_])?(?::[a-z0-9][a-z0-9_-]*)?)/gi;
 
 /**
  * File extensions skill-map treats as a strong "this is a file reference, not

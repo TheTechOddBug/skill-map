@@ -13,7 +13,7 @@ import { tmpdir, platform } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
-import { readNodeBody, stripFrontmatter } from '../node-body.js';
+import { readNodeBody, readNodeFileRaw, stripFrontmatter } from '../node-body.js';
 
 let scratch: string;
 
@@ -163,4 +163,24 @@ describe('readNodeBody()', () => {
       }
     },
   );
+});
+
+describe('readNodeFileRaw()', () => {
+  it('returns the on-disk file verbatim, frontmatter included', async () => {
+    const raw = ['---', 'name: note', '---', 'hello body.', ''].join('\n');
+    writeFileSync(join(scratch, 'raw-note.md'), raw);
+    assert.equal(await readNodeFileRaw(scratch, 'raw-note.md'), raw);
+  });
+
+  it('returns the file unchanged when it has no frontmatter', async () => {
+    const raw = '# heading only\n\nplain prose.\n';
+    writeFileSync(join(scratch, 'raw-plain.md'), raw);
+    assert.equal(await readNodeFileRaw(scratch, 'raw-plain.md'), raw);
+  });
+
+  it('shares the guard contract: traversal, absolute paths, and missing files return null', async () => {
+    assert.equal(await readNodeFileRaw(scratch, '../../etc/passwd'), null);
+    assert.equal(await readNodeFileRaw(scratch, join(scratch, 'raw-note.md')), null);
+    assert.equal(await readNodeFileRaw(scratch, 'no-such-file.md'), null);
+  });
 });

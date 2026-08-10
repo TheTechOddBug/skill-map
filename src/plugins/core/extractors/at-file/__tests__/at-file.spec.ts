@@ -77,6 +77,16 @@ describe('at-file extractor (core, @-file-picker lenses)', () => {
     strictEqual(helper.links[0]!.target, '.codex/agents/style.md');
   });
 
+  it('keeps a numeric FILENAME (letters in the extension) while bare numerics never match', async () => {
+    // The 2026-08-10 numeric guard rejects tokens with no letter
+    // anywhere (`@10`, prose scores / dates); a numeric file name keeps
+    // matching because its extension carries the letters.
+    const helper = makeContext(mockNode('docs/index.md'), 'read @10.md but ignore @10 and @10/20');
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 1);
+    strictEqual(helper.links[0]!.target, 'docs/10.md');
+  });
+
   it('resolves a multi-level relative path token (`../../` climbs past one level)', async () => {
     const helper = makeContext(mockNode('.agent/workflows/build.md'), 'consult @../../docs/guide.md before shipping');
     await runAndResolve(helper);

@@ -427,7 +427,7 @@ export class StaticDataSource implements IDataSourcePort {
 
   async getNode(
     path: string,
-    _opts: { includeBody?: boolean } = {},
+    _opts: { includeBody?: boolean; includeRaw?: boolean } = {},
   ): Promise<INodeDetailApi | null> {
     // Demo mode: bodies are pre-baked into `data.json` by
     // `web/scripts/build-demo-dataset.js` (Step 14.5.a). The static source
@@ -435,6 +435,9 @@ export class StaticDataSource implements IDataSourcePort {
     // when one was embedded, there's nothing to opt into. Nodes with
     // no body in the snapshot return `body: undefined` naturally,
     // which the inspector treats the same as the live `body: null`.
+    // `includeRaw` is likewise ignored: the snapshot embeds no raw file
+    // content, so `item.raw` stays undefined and the inspector's Raw
+    // toggle falls back to the body string.
     const [scan, meta] = await Promise.all([this.loadData(), this.loadMeta()]);
     const node = scan.nodes.find((n) => n.path === path);
     if (!node) return null;

@@ -132,6 +132,15 @@ export async function runExtractorsForNode(opts: {
   bodyHash: string;
   emitter: ProgressEmitterPort;
   /**
+   * File lines preceding the first body line (`IRawNode.bodyLineOffset`).
+   * Extractors track lines against the body they receive; the orchestrator
+   * adds this offset to every body-scoped Signal's `range.line` at emit
+   * time so persisted lines are FILE-absolute (frontmatter counted).
+   * Omitted / `0` when the body is the whole file or no absolute mapping
+   * exists (`bodyField` providers), lines stay body-relative then.
+   */
+  bodyLineOffset?: number;
+  /**
    * Spec § A.12, per-plugin `ctx.store` wrappers keyed by `pluginId`.
    * The map's lookup is per-extractor inside the loop, so callers that
    * don't track plugin storage can omit it; the resulting `ctx.store`
@@ -278,7 +287,7 @@ export async function runExtractorsForNode(opts: {
     const emitSignal = (signal: Signal): void => {
       const validated = validateSignal(extractor, signal, opts.emitter);
       if (!validated) return;
-      signals.push(validated);
+      signals.push(applyBodyLineOffset(validated, opts.bodyLineOffset ?? 0));
     };
     const emitNode = (emitted: IEmittedNode): void => {
       // First-wins dedup so N extractors / N source nodes emitting the
@@ -558,6 +567,25 @@ function validateSignal(
     if (!isValidSignalCandidate(qualifiedId, candidate, emitter)) return null;
   }
   return signal;
+}
+
+/**
+ * Shift a body-scoped Signal's `range.line` by the node's
+ * `bodyLineOffset` so persisted lines (and every `L<n>` derived from
+ * them: `link.location.line`, finding messages, UI badges) are
+ * FILE-absolute, counting the frontmatter block the way the author's
+ * editor does. Single adjustment point: extractors keep tracking lines
+ * against the body they receive and never learn about the offset.
+ * Frontmatter / sidecar scopes are untouched (their locations are
+ * `fieldPath`-based, and a sidecar's lines belong to a different file);
+ * `range.start` / `range.end` stay body byte offsets per the Signal
+ * schema (they power collision detection over the body text).
+ */
+function applyBodyLineOffset(signal: Signal, offset: number): Signal {
+  if (offset <= 0 || signal.scope !== 'body') return signal;
+  const range = signal.range;
+  if (!range || typeof range.line !== 'number') return signal;
+  return { ...signal, range: { ...range, line: range.line + offset } };
 }
 
 function isValidSignalCandidate(

@@ -83,6 +83,15 @@ describe('at-directive extractor', () => {
     strictEqual(helper.signals.length, 0);
   });
 
+  it('does not match purely numeric tokens (scores / dates are prose)', async () => {
+    // Same numeric guard as the slash grammar (2026-08-10 sweep): a
+    // token with no letter anywhere is never a handle or a path.
+    const helper = makeContext(mockNode('readme.md'), 'meet @10 or rate @10/20 and @9-5');
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 0);
+    strictEqual(helper.signals.length, 0);
+  });
+
   it('defers a HIDDEN-directory file token to at-file (file-shaped, never a mention)', async () => {
     // The widened first segment (2026-08-08) makes `@.claude/minions.md`
     // match the shared grammar; the file-shape deferral must then route

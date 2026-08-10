@@ -71,6 +71,18 @@ export interface IParsedFile {
    */
   frontmatterDeclared?: boolean;
   /**
+   * Number of file lines that precede the first `body` line (the
+   * frontmatter block, fences included). Lets downstream line tracking
+   * report FILE-absolute line numbers (`body line + offset`) instead of
+   * body-relative ones, so an `L<n>` in a finding matches what the
+   * author's editor shows. Owned by the parser because only the parser
+   * knows its own fence grammar. Omitted (treated as `0`) when the body
+   * IS the whole file (`plain`, fence-less markdown) or when no
+   * file-absolute mapping exists (`toml`, whose prose body lives inside
+   * a frontmatter field).
+   */
+  bodyLineOffset?: number;
+  /**
    * Optional diagnostics describing structural failures the parser
    * recovered from (e.g. malformed YAML). Empty / undefined on the
    * happy path; the orchestrator maps non-empty entries to warn-level

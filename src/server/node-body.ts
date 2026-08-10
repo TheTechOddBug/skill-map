@@ -9,18 +9,25 @@
  * (markdown preview at Step 14.5) opt into a filesystem re-read by
  * passing `?include=body`.
  *
- * Two pieces:
+ * Three pieces:
  *
- *   1. `readNodeBody(cwd, relPath)`, resolves the node path against the
- *      scope root, refuses any resolved path that escapes the root
+ *   1. `readNodeFileRaw(cwd, relPath)`, resolves the node path against
+ *      the scope root, refuses any resolved path that escapes the root
  *      (defense-in-depth for path-traversal, `node.path` is supposed to
  *      be relative-and-inside, but a corrupted DB row or a future
  *      Provider that doesn't sanitise its paths shouldn't be able to
- *      hand the BFF a `../../../etc/passwd`), reads UTF-8 from disk, and
- *      strips frontmatter delimiters. Returns `null` on missing file
+ *      hand the BFF a `../../../etc/passwd`), and reads UTF-8 from
+ *      disk VERBATIM (frontmatter included). Serves `?include=raw`,
+ *      whose consumer (the inspector's Raw toggle with its line-number
+ *      gutter) needs gutter numbers that match the FILE-absolute
+ *      `L<n>` lines findings report. Returns `null` on missing file
  *      (ENOENT) or path-traversal violation; bubbles unexpected errors.
  *
- *   2. `stripFrontmatter(raw)`, removes a leading `---\n…\n---\n?` block
+ *   2. `readNodeBody(cwd, relPath)`, the same guarded read followed by
+ *      the frontmatter strip. Serves `?include=body` and the MCP
+ *      `get_node` tool (prose for rendering / model consumption).
+ *
+ *   3. `stripFrontmatter(raw)`, removes a leading `---\n…\n---\n?` block
  *      if present, otherwise returns the input unchanged. Tolerates
  *      both LF and CRLF EOLs.
  *
@@ -37,6 +44,15 @@ import { isAbsolute, resolve as resolvePath, relative as relativePath, sep } fro
 
 /**
  * Read a node body from disk and strip its YAML frontmatter delimiters.
+ * Same guard + error contract as `readNodeFileRaw` (which it wraps).
+ */
+export async function readNodeBody(cwd: string, relPath: string): Promise<string | null> {
+  const raw = await readNodeFileRaw(cwd, relPath);
+  return raw === null ? null : stripFrontmatter(raw);
+}
+
+/**
+ * Read a node's on-disk file VERBATIM (frontmatter included).
  *
  * Returns `null` when:
  *   - the resolved path escapes `cwd` (path-traversal defense),
@@ -46,7 +62,7 @@ import { isAbsolute, resolve as resolvePath, relative as relativePath, sep } fro
  * Other errors (truly unexpected I/O failures) bubble, the BFF's
  * `app.onError` formats them into the shared error envelope.
  */
-export async function readNodeBody(cwd: string, relPath: string): Promise<string | null> {
+export async function readNodeFileRaw(cwd: string, relPath: string): Promise<string | null> {
   // Absolute paths violate the "node.path is relative to the scope root"
   // contract from `spec/schemas/node.schema.json`. Even if the absolute
   // path happens to resolve inside `cwd`, accepting it would let a
@@ -85,7 +101,7 @@ export async function readNodeBody(cwd: string, relPath: string): Promise<string
       });
     }
   }
-  return stripFrontmatter(raw);
+  return raw;
 }
 
 /**

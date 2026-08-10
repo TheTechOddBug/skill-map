@@ -50,7 +50,7 @@
     },
     "location": {
       "type": ["object", "null"],
-      "description": "Where in the source body the link was found. Null if the extractor didn't track location.",
+      "description": "Where in the source the link was found. Null if the extractor didn't track location. `line` is 1-indexed and FILE-absolute (the frontmatter block is counted, matching the author's editor), inherited from the originating Signal's offset-adjusted `range.line`; it degrades to body-relative only when no file-absolute mapping exists (`bodyField` providers). `offset` remains a byte offset into the BODY text.",
       "required": ["line"],
       "additionalProperties": false,
       "properties": {
@@ -86,7 +86,7 @@
           },
           "location": {
             "type": ["object", "null"],
-            "description": "Position of the occurrence in the body, when the extractor records it.",
+            "description": "Position of the occurrence, when the extractor records it. Same semantics as the link-level `location`: `line` is file-absolute, `offset` is a body byte offset.",
             "required": ["line"],
             "additionalProperties": false,
             "properties": {

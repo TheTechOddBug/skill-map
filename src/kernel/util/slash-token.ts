@@ -37,18 +37,33 @@
  *                     in the negative list.
  *
  * Command identifier: one or more of `[a-z0-9_-]` starting alphanumeric,
- * optionally followed by a namespace separator `:` + another identifier
- * (Claude Code plugin namespace convention, e.g. `/skill-map:explore`).
+ * containing AT LEAST ONE LETTER, optionally followed by a namespace
+ * separator `:` + another identifier under the same letter rule (Claude
+ * Code plugin namespace convention, e.g. `/skill-map:explore`).
  * Case-insensitive; capture group 1 is the `/`-token.
+ *
+ * The letter requirement (the `(?=[0-9_-]*[a-z])` lookaheads) drops
+ * purely numeric tokens: prose like "total /10" or "score 8/10 on a
+ * new line" is a fraction / denominator, not an invocation, and every
+ * such match surfaced as a red `reference-broken` false positive (field
+ * report 2026-08-10). No real command is all digits, command names come
+ * from file basenames, so this loses nothing; digit-LEADING names
+ * (`/2fa-setup`) keep matching. Mirrors `dollar-token.ts`, whose
+ * grammar already rejects `$5` / `$100` for the same reason (currency),
+ * and `at-token.ts` carries the same guard, the three sigil grammars
+ * are swept as a set (runtime-quirks §8).
  *
  * We DO NOT use a regex-level negative lookahead for the "next char is
  * `/`" check: the engine's backtracking lets `/api/v1/items` match `/a`
  * (greedy `[a-z0-9_-]*` shrinks to zero, lookahead then passes because
  * the next char is `p`, not `/`). Callers run `isPathLikeSuffix` on the
- * original text instead.
+ * original text instead. The letter lookaheads above are safe from that
+ * failure mode: they sit at fixed positions (right after `/` and `:`)
+ * and assert over a prefix the following atoms re-consume, so
+ * backtracking cannot shrink them into vacuity.
  */
 export const SLASH_TOKEN_RE =
-  /(?<![A-Za-z0-9_/.:?#=&])(\/[a-z0-9][a-z0-9_-]*(?::[a-z0-9][a-z0-9_-]*)?)/gi;
+  /(?<![A-Za-z0-9_/.:?#=&])(\/(?=[0-9_-]*[a-z])[a-z0-9][a-z0-9_-]*(?::(?=[0-9_-]*[a-z])[a-z0-9][a-z0-9_-]*)?)/gi;
 
 /**
  * Post-match path guard: `true` when the char at `endIdx` (immediately

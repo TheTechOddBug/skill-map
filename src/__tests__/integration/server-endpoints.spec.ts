@@ -392,6 +392,60 @@ describe('/api/nodes/:pathB64', () => {
     );
   });
 
+  it('?include=body,raw also attaches the on-disk file verbatim (frontmatter included)', async () => {
+    // `raw` powers the inspector's Raw toggle: its line-number gutter
+    // must match the FILE-absolute `L<n>` lines findings report, so the
+    // payload is the file as-is, frontmatter fences included.
+    await bootAndUse(
+      defaultOptions(),
+      async (handle) => {
+        const target = '.claude/agents/architect.md';
+        const encoded = encodeNodePath(target);
+        const res = await fetch(url(handle, `/api/nodes/${encoded}?include=body,raw`));
+        assert.equal(res.status, 200);
+        const env = (await res.json()) as INodeDetailResponse;
+        assert.equal(env.item.body, 'Run /deploy.');
+        assert.equal(
+          env.item.raw,
+          ['---', 'name: architect', 'description: The architect.', '---', 'Run /deploy.'].join('\n'),
+        );
+      },
+      { runtimeContext: { cwd: root.fixtureDir} },
+    );
+  });
+
+  it('?include=raw alone attaches raw without body', async () => {
+    await bootAndUse(
+      defaultOptions(),
+      async (handle) => {
+        const target = '.claude/agents/architect.md';
+        const encoded = encodeNodePath(target);
+        const res = await fetch(url(handle, `/api/nodes/${encoded}?include=raw`));
+        assert.equal(res.status, 200);
+        const env = (await res.json()) as INodeDetailResponse;
+        assert.equal(env.item.body, undefined, 'body absent unless ?include=body');
+        assert.ok(env.item.raw?.startsWith('---\n'), 'raw starts at the opening fence');
+      },
+      { runtimeContext: { cwd: root.fixtureDir} },
+    );
+  });
+
+  it('?include=raw returns raw=null when the on-disk file disappeared', async () => {
+    const ghostCwd = mkdtempSync(join(root.tmp, 'ghost-raw-cwd-'));
+    await bootAndUse(
+      defaultOptions(),
+      async (handle) => {
+        const target = '.claude/agents/architect.md';
+        const encoded = encodeNodePath(target);
+        const res = await fetch(url(handle, `/api/nodes/${encoded}?include=raw`));
+        assert.equal(res.status, 200);
+        const env = (await res.json()) as INodeDetailResponse;
+        assert.equal(env.item.raw, null);
+      },
+      { runtimeContext: { cwd: ghostCwd} },
+    );
+  });
+
   it('R15, surfaces `sidecar.root` with the full parsed `.sm` payload', async () => {
     // The fixture's `architect.md` has a co-located `.sm` planted in
     // `before()` with `for:` + `annotations:` + `audit:` blocks. The
@@ -445,6 +499,7 @@ interface INodeDetailResponse {
     path: string;
     bodyHash: string;
     body?: string | null;
+    raw?: string | null;
     sidecar?: {
       present: boolean;
       status?: string | null;

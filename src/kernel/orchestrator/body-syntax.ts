@@ -12,10 +12,13 @@
  * `findBacktickImbalance` scanner that `stripCodeBlocks` is built on, so
  * this warning can never drift from the policy it protects.
  *
- * The reported line is relative to the analysed BODY, not the file: a
- * Provider may carry the body inside a frontmatter field (`bodyField`),
- * so a file-absolute line is not universally defined. The offending
- * source line travels in `issue.detail` as the concrete locator.
+ * The reported line is FILE-absolute whenever the walker supplied a
+ * `bodyLineOffset` (the frontmatter block's line count, see
+ * `IRawNode.bodyLineOffset`), matching the author's editor. It degrades
+ * to body-relative when no absolute mapping exists, e.g. a Provider
+ * carrying the body inside a frontmatter field (`bodyField`). The
+ * offending source line travels in `issue.detail` as the concrete
+ * locator either way.
  */
 
 import { ORCHESTRATOR_TEXTS } from '../i18n/orchestrator.texts.js';
@@ -29,19 +32,25 @@ import type { Issue } from '../types.js';
  * `backtick-unbalanced` issue (severity `warn`, lifted to `error` under
  * `strict`), or `null` when every fence and inline span is balanced.
  */
-export function detectUnclosedBacktick(body: string, path: string, strict: boolean): Issue | null {
+export function detectUnclosedBacktick(
+  body: string,
+  path: string,
+  strict: boolean,
+  bodyLineOffset = 0,
+): Issue | null {
   const imbalance = findBacktickImbalance(body);
   if (!imbalance) return null;
   const template =
     imbalance.kind === 'fence'
       ? ORCHESTRATOR_TEXTS.bodyBacktickUnclosedFence
       : ORCHESTRATOR_TEXTS.bodyBacktickUnclosedInline;
+  const line = imbalance.line + bodyLineOffset;
   return {
     analyzerId: BACKTICK_ISSUE_ID,
     severity: strict ? 'error' : 'warn',
     nodeIds: [path],
-    message: tx(template, { path, line: imbalance.line }),
+    message: tx(template, { path, line }),
     detail: imbalance.sourceLine,
-    data: { kind: imbalance.kind, line: imbalance.line },
+    data: { kind: imbalance.kind, line },
   };
 }

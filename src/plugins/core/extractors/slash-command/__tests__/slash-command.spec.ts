@@ -97,6 +97,26 @@ describe('slash-command extractor', () => {
     strictEqual(helper.signals.length, 0);
   });
 
+  it('does not match purely numeric tokens (fractions / scores are prose)', async () => {
+    // Field report 2026-08-10: "Run the Quick Self-Test (5 dimensions,
+    // 0-2 each, total /10)." emitted an invokes for `/10` that surfaced
+    // as a red reference-broken. No real command name is all digits.
+    const helper = makeContext(
+      mockNode('x.md'),
+      'Quick Self-Test (5 dimensions, 0-2 each, total /10). Rate it /5 and log /10:30 as the slot.',
+    );
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 0);
+    strictEqual(helper.signals.length, 0);
+  });
+
+  it('still matches digit-leading commands that carry a letter', async () => {
+    const helper = makeContext(mockNode('x.md'), 'run /2fa-setup before shipping');
+    await runAndResolve(helper);
+    strictEqual(helper.links.length, 1);
+    strictEqual(helper.links[0]!.target, '/2fa-setup');
+  });
+
   it('skips tokens inside code spans and fenced blocks', async () => {
     const helper = makeContext(mockNode('x.md'), 'inline `/scan` and:\n```\n/refresh\n```\n');
     await runAndResolve(helper);

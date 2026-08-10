@@ -134,6 +134,33 @@ describe('walkContent', () => {
     strictEqual(byPath.get('docs/a.toml')!.body, '');
   });
 
+  it('threads the parser bodyLineOffset; drops it when bodyField swaps the body', async () => {
+    // Markdown with a 4-line frontmatter block → offset 4; markdown
+    // without any fence → offset absent (body IS the whole file).
+    const md = new Map<string, IRawNode>();
+    for await (const n of walkContent([root], {
+      extensions: ['.md'],
+      parser: 'frontmatter-yaml',
+    })) {
+      md.set(n.path, n);
+    }
+    strictEqual(md.get('docs/a.md')!.bodyLineOffset, 4, '4-line frontmatter block');
+    strictEqual(md.get('docs/b.md')!.bodyLineOffset, undefined, 'fence-less file');
+    strictEqual(md.get('nested/inner/c.md')!.bodyLineOffset, 3, '3-line frontmatter block');
+
+    // A bodyField swap replaces the body with a frontmatter field's
+    // string: no file-absolute mapping exists, the offset must NOT
+    // travel (lines degrade to body-relative).
+    for await (const n of walkContent([root], {
+      extensions: ['.toml'],
+      parser: 'toml',
+      bodyField: 'developer_instructions',
+    })) {
+      if (n.path !== 'agents/codex.toml') continue;
+      strictEqual(n.bodyLineOffset, undefined, 'bodyField body carries no offset');
+    }
+  });
+
   it('falls back to the parser body when bodyField is absent', async () => {
     let codexBody: string | null = null;
     for await (const n of walkContent([root], {

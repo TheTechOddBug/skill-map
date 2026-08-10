@@ -219,10 +219,14 @@ export class RestDataSource implements IDataSourcePort {
 
   async getNode(
     path: string,
-    opts: { includeBody?: boolean } = {},
+    opts: { includeBody?: boolean; includeRaw?: boolean } = {},
   ): Promise<INodeDetailApi | null> {
     const encoded = encodeNodePath(path);
-    const query = opts.includeBody ? '?include=body' : '';
+    const parts = [
+      ...(opts.includeBody ? ['body'] : []),
+      ...(opts.includeRaw ? ['raw'] : []),
+    ];
+    const query = parts.length > 0 ? `?include=${parts.join(',')}` : '';
     try {
       const envelope = await this.getJson<INodeDetailApi>(`${BASE}/nodes/${encoded}${query}`);
       this.ingestRegistry(envelope.kindRegistry);

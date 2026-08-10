@@ -22,9 +22,22 @@
  * The bound value is a small accessor object the host wires to its
  * viewport signals (see `IMiddleMousePanTarget`); the directive reads it
  * lazily on every event, so a late canvas mount is tolerated.
+ *
+ * The middle press is consumed in the CAPTURE phase on the wrapper, so
+ * it never reaches Foblex's own `mousedown` listener on the `f-flow`
+ * host below. `FDraggableDirective.onPointerDown` runs its selection
+ * claimants for ANY button and, when the button is not draggable under
+ * the active scheme (middle is not, on the default scheme), immediately
+ * finalizes with an `EmitSelectionChangeEvent`, which clears a live
+ * selection (single or marquee-built multi) the instant a middle-click
+ * pan starts on the background. The middle button is app-owned (this
+ * pan); hiding the press from Foblex keeps its selection intact at the
+ * source instead of patching the cleared state back afterwards. A
+ * bubble-phase Angular host binding cannot do this: the `f-flow` host
+ * sits deeper in the DOM, so its listener would run first.
  */
 
-import { Directive, OnDestroy, input } from '@angular/core';
+import { Directive, ElementRef, OnDestroy, inject, input } from '@angular/core';
 
 import type { IPoint } from './graph-layout';
 
@@ -42,21 +55,29 @@ export interface IMiddleMousePanTarget {
 
 @Directive({
   selector: '[smMiddleMousePan]',
-  host: {
-    '(mousedown)': 'onMouseDown($event)',
-  },
 })
 export class MiddleMousePanDirective implements OnDestroy {
   /** Viewport accessors, typically wired to the host's viewport signals. */
   readonly smMiddleMousePan = input.required<IMiddleMousePanTarget>();
 
+  private readonly hostElement: HTMLElement = inject(ElementRef).nativeElement;
+
   private origin: { mouseX: number; mouseY: number; canvasX: number; canvasY: number } | null = null;
   private rafId: number | null = null;
   private pendingPosition: IPoint | null = null;
 
-  onMouseDown(event: MouseEvent): void {
+  constructor() {
+    // Capture phase, NOT an Angular host binding (those are bubble
+    // phase): the press must be consumed before Foblex's `mousedown`
+    // listener on the deeper `f-flow` host clears the selection. See
+    // the module doc.
+    this.hostElement.addEventListener('mousedown', this.onMouseDown, { capture: true });
+  }
+
+  private readonly onMouseDown = (event: MouseEvent): void => {
     if (event.button !== 1) return;
     event.preventDefault();
+    event.stopPropagation();
     const pos = this.smMiddleMousePan().readPosition();
     this.origin = {
       mouseX: event.clientX,
@@ -66,9 +87,10 @@ export class MiddleMousePanDirective implements OnDestroy {
     };
     document.addEventListener('mousemove', this.onMove);
     document.addEventListener('mouseup', this.onEnd);
-  }
+  };
 
   ngOnDestroy(): void {
+    this.hostElement.removeEventListener('mousedown', this.onMouseDown, { capture: true });
     this.onEnd();
   }
 

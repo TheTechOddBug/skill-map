@@ -848,6 +848,7 @@ function buildUnchangedRawNode(
           frontmatterRaw: re.frontmatterRaw,
           frontmatter: re.frontmatter,
           ...(re.frontmatterDeclared ? { frontmatterDeclared: true } : {}),
+          ...(re.bodyLineOffset !== undefined ? { bodyLineOffset: re.bodyLineOffset } : {}),
           ...(re.parseIssues ? { parseIssues: re.parseIssues } : {}),
         };
       }
@@ -1296,6 +1297,7 @@ async function rereadInto(raw: IRawNode): Promise<void> {
   raw.frontmatterRaw = re.frontmatterRaw;
   raw.unchanged = false;
   if (re.frontmatterDeclared) raw.frontmatterDeclared = true;
+  if (re.bodyLineOffset !== undefined) raw.bodyLineOffset = re.bodyLineOffset;
   if (re.parseIssues) raw.parseIssues = re.parseIssues;
 }
 
@@ -1412,6 +1414,7 @@ async function applyExtractPath(
     frontmatter: ctx.raw.frontmatter,
     bodyHash: ctx.bodyHash,
     emitter: wctx.opts.emitter,
+    ...(ctx.raw.bodyLineOffset !== undefined ? { bodyLineOffset: ctx.raw.bodyLineOffset } : {}),
     ...(wctx.opts.pluginStores ? { pluginStores: wctx.opts.pluginStores } : {}),
   });
   mergeExtractResult(extractResult, accum);

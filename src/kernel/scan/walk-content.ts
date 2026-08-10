@@ -284,19 +284,31 @@ async function traversedEntryToNode(
 
   const parsed = await readAndParse(entry.full, relPath, parser, bodyField);
   if (parsed === null) return null; // unreadable, silently skipped
+  // File mtime from the TOCTOU `lstat` (zero extra syscalls). Threaded
+  // onto the persisted `Node` as `modifiedAtMs`.
+  return parsedToRawNode(relPath, parsed, entry.modifiedAtMs);
+}
+
+/**
+ * Compose the eager-path `IRawNode` from one `readAndParse` result.
+ * Shared by the traversal and scoped walks so the optional-field
+ * spreads (`frontmatterDeclared`, `bodyLineOffset`, and the audit-L1
+ * `parseIssues` forwarding that lets the orchestrator surface parser
+ * diagnostics as warn-level `Issue` rows) never drift between them.
+ */
+function parsedToRawNode(
+  relPath: string,
+  parsed: NonNullable<Awaited<ReturnType<typeof readAndParse>>>,
+  modifiedAtMs: number,
+): IRawNode {
   return {
     path: relPath,
     body: parsed.body,
     frontmatterRaw: parsed.frontmatterRaw,
     frontmatter: parsed.frontmatter,
     ...(parsed.frontmatterDeclared ? { frontmatterDeclared: true } : {}),
-    // File mtime from the TOCTOU `lstat` (zero extra syscalls).
-    // Threaded onto the persisted `Node` as `modifiedAtMs`.
-    modifiedAtMs: entry.modifiedAtMs,
-    // Audit L1: forward parser diagnostics (e.g. malformed YAML)
-    // through the IRawNode surface so the orchestrator can
-    // convert them into warn-level kernel `Issue` rows. Omitted
-    // when the parser reported no issues (happy path).
+    ...(parsed.bodyLineOffset !== undefined ? { bodyLineOffset: parsed.bodyLineOffset } : {}),
+    modifiedAtMs,
     ...(parsed.parseIssues ? { parseIssues: parsed.parseIssues } : {}),
   };
 }
@@ -442,15 +454,7 @@ async function scopedPathToNode(
   if (s === null) return null; // outside the roots, vanished, non-regular, or oversized
   const parsed = await readAndParse(full, relPath, parser, bodyField);
   if (parsed === null) return null; // unreadable, silently skipped
-  return {
-    path: relPath,
-    body: parsed.body,
-    frontmatterRaw: parsed.frontmatterRaw,
-    frontmatter: parsed.frontmatter,
-    ...(parsed.frontmatterDeclared ? { frontmatterDeclared: true } : {}),
-    modifiedAtMs: Math.round(s.mtimeMs),
-    ...(parsed.parseIssues ? { parseIssues: parsed.parseIssues } : {}),
-  };
+  return parsedToRawNode(relPath, parsed, Math.round(s.mtimeMs));
 }
 
 /**
@@ -587,6 +591,7 @@ async function readAndParse(
   frontmatterRaw: string;
   frontmatter: Record<string, unknown>;
   frontmatterDeclared?: boolean;
+  bodyLineOffset?: number;
   parseIssues?: readonly IParseIssue[];
 } | null> {
   let raw: string;
@@ -596,11 +601,18 @@ async function readAndParse(
     return null;
   }
   const parsed = parser!.parse(raw, relPath);
+  const body = resolveEffectiveBody(parsed.body, parsed.frontmatter, bodyField);
+  // The parser's `bodyLineOffset` describes ITS OWN `body` split. When a
+  // `bodyField` swap replaced the body with a frontmatter field's string,
+  // no file-absolute line mapping exists, drop the offset so line
+  // tracking degrades to body-relative instead of pointing at nothing.
+  const offsetApplies = body === parsed.body && typeof parsed.bodyLineOffset === 'number';
   return {
-    body: resolveEffectiveBody(parsed.body, parsed.frontmatter, bodyField),
+    body,
     frontmatterRaw: parsed.frontmatterRaw,
     frontmatter: parsed.frontmatter,
     ...(parsed.frontmatterDeclared ? { frontmatterDeclared: true } : {}),
+    ...(offsetApplies ? { bodyLineOffset: parsed.bodyLineOffset } : {}),
     ...(parsed.issues && parsed.issues.length > 0 ? { parseIssues: parsed.issues } : {}),
   };
 }

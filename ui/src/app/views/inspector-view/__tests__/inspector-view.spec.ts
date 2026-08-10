@@ -522,7 +522,7 @@ describe('InspectorView, body card lifecycle', () => {
     await flush(fixture);
     const dom: HTMLElement = fixture.nativeElement;
     expect(dom.querySelector('[data-testid="inspector-body-loading"]')).not.toBeNull();
-    expect(dataSource.getNode).toHaveBeenCalledWith(node.path, { includeBody: true });
+    expect(dataSource.getNode).toHaveBeenCalledWith(node.path, { includeBody: true, includeRaw: true });
   });
 
   it('renders the markdown HTML when getNode() returns a body', async () => {
@@ -745,6 +745,32 @@ describe('InspectorView, body raw / rendered toggle', () => {
     expect(code!.classList.contains('hljs')).toBe(true);
     expect(code!.textContent).toContain('# title');
   });
+
+  it('prefers item.raw (frontmatter included) for the raw view, rendering stays body-only', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    const body = '# hello\n\nworld';
+    const raw = `---\nname: probe\n---\n${body}`;
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body, raw })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const dom = fixture.nativeElement as HTMLElement;
+
+    // Rendered view: body only, no frontmatter leakage.
+    const rendered = dom.querySelector('[data-testid="inspector-body-rendered"]');
+    expect(rendered!.innerHTML).not.toContain('name: probe');
+
+    // Raw view: full file, so the gutter (6 lines) matches the
+    // file-absolute L<n> lines findings report.
+    (dom.querySelector('[data-testid="inspector-body-view-toggle"]') as HTMLButtonElement).click();
+    await flush(fixture);
+    const code = dom.querySelector('[data-testid="inspector-body-raw-code"]');
+    expect(code!.textContent).toContain('name: probe');
+    const gutter = dom.querySelector('.inspector__body-raw-gutter');
+    expect(gutter!.textContent).toBe('1\n2\n3\n4\n5\n6');
+  });
 });
 
 describe('InspectorView, body expand dialog', () => {
@@ -866,7 +892,7 @@ describe('InspectorView, codex / bodyField inline body', () => {
     expect(rendered!.innerHTML).not.toContain('RAW TOML');
     // The body card never requests the on-demand disk read for a bodyField
     // provider (other panels may call getNode, but not with includeBody).
-    expect(dataSource.getNode).not.toHaveBeenCalledWith(node.path, { includeBody: true });
+    expect(dataSource.getNode).not.toHaveBeenCalledWith(node.path, { includeBody: true, includeRaw: true });
   });
 
   it('renders a codex skill (.md, no developer_instructions) from its fetched markdown body', async () => {
@@ -896,7 +922,7 @@ describe('InspectorView, codex / bodyField inline body', () => {
     expect(rendered).not.toBeNull();
     expect(rendered!.innerHTML).toContain('# Run tests');
     // A skill with no bodyField value pulls its body from the disk fetch.
-    expect(dataSource.getNode).toHaveBeenCalledWith(node.path, { includeBody: true });
+    expect(dataSource.getNode).toHaveBeenCalledWith(node.path, { includeBody: true, includeRaw: true });
   });
 
   it('shows the raw developer_instructions verbatim when toggled to the raw view', async () => {
@@ -939,7 +965,7 @@ describe('InspectorView, codex / bodyField inline body', () => {
     // Empty effective body -> the whole section is omitted, and we never
     // fall back to the disk read (which would hand back raw TOML).
     expect(dom.querySelector('[data-testid="inspector-card-body"]')).toBeNull();
-    expect(dataSource.getNode).not.toHaveBeenCalledWith(node.path, { includeBody: true });
+    expect(dataSource.getNode).not.toHaveBeenCalledWith(node.path, { includeBody: true, includeRaw: true });
   });
 });
 

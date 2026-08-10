@@ -163,8 +163,16 @@ export interface ICorpusPort {
    * read the markdown body from disk and attach it to `item.body`.
    * Inspector view passes `true`; other consumers (e.g. linked-nodes
    * panels that only need metadata) leave it false / unset.
+   *
+   * `opts.includeRaw`: when `true`, also attaches `item.raw`, the
+   * on-disk file verbatim (frontmatter included), so the inspector's
+   * Raw gutter matches the file-absolute `L<n>` lines findings report.
+   * Rides the same single disk read as `includeBody`.
    */
-  getNode(path: string, opts?: { includeBody?: boolean }): Promise<INodeDetailApi | null>;
+  getNode(
+    path: string,
+    opts?: { includeBody?: boolean; includeRaw?: boolean },
+  ): Promise<INodeDetailApi | null>;
 
   /** Filtered list of persisted links. */
   listLinks(q?: ILinksQuery): Promise<IListEnvelopeApi<ILinkApi>>;

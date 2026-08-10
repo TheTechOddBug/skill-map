@@ -64,10 +64,14 @@ export interface IBodyStateHandle {
   /** Sanitized HTML for the `ready` state. `null` otherwise. */
   readonly bodyHtml: Signal<SafeHtml | null>;
   /**
-   * The raw body source (the markdown / `developer_instructions` string
-   * before rendering) for the `ready` state, `null` otherwise. Lets the
-   * inspector offer a Raw / Rendered toggle over the same content without a
-   * second fetch.
+   * The raw source for the `ready` state, `null` otherwise. Lets the
+   * inspector offer a Raw / Rendered toggle over the same content without
+   * a second fetch. For fetched nodes this is the on-disk file VERBATIM
+   * (`item.raw`, frontmatter included) so the Raw gutter's line numbers
+   * match the file-absolute `L<n>` lines findings report; it falls back
+   * to the body string when the BFF did not attach `raw` (static demo
+   * snapshot) and for inline-body providers (Codex `developer_instructions`,
+   * where finding lines are body-relative and the prompt IS the source).
    */
   readonly bodyRaw: Signal<string | null>;
 }
@@ -112,7 +116,7 @@ export function setupBodyState(config: IBodyStateConfig): IBodyStateHandle {
 
   const fetchAndRender = async (path: string, token: number): Promise<void> => {
     try {
-      const detail = await dataSource.getNode(path, { includeBody: true });
+      const detail = await dataSource.getNode(path, { includeBody: true, includeRaw: true });
       if (token !== fetchToken) return;
       if (detail === null) {
         bodyState.set('unavailable');
@@ -129,7 +133,10 @@ export function setupBodyState(config: IBodyStateConfig): IBodyStateHandle {
       }
       const html = await markdown.render(body);
       if (token !== fetchToken) return;
-      bodyRaw.set(body);
+      // Raw toggle shows the on-disk file verbatim (frontmatter included)
+      // so its gutter matches the file-absolute `L<n>` finding lines; the
+      // body string is the fallback when the source attached no raw file.
+      bodyRaw.set(detail.item.raw ?? body);
       bodyHtml.set(html);
       bodyState.set('ready');
     } catch {

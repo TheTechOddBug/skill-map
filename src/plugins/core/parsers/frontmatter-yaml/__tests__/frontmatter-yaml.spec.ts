@@ -192,4 +192,31 @@ describe('parsers/frontmatter-yaml', () => {
     const b = frontmatterYamlParser.parse(raw, 'totally/different.md');
     deepStrictEqual(a, b);
   });
+
+  describe('bodyLineOffset', () => {
+    it('counts the frontmatter block lines, fences included', () => {
+      // L1 ---, L2 name, L3 tags, L4 ---, body starts at file L5.
+      const raw = '---\nname: foo\ntags: [a]\n---\nbody line';
+      const out = frontmatterYamlParser.parse(raw, 'test.md');
+      strictEqual(out.bodyLineOffset, 4);
+    });
+
+    it('handles a declared-but-empty block', () => {
+      // L1 ---, L2 (blank), L3 ---, body starts at file L4.
+      const raw = '---\n\n---\nbody';
+      const out = frontmatterYamlParser.parse(raw, 'test.md');
+      strictEqual(out.bodyLineOffset, 3);
+    });
+
+    it('counts CRLF newlines the same as LF', () => {
+      const raw = '---\r\nname: foo\r\n---\r\nbody';
+      const out = frontmatterYamlParser.parse(raw, 'test.md');
+      strictEqual(out.bodyLineOffset, 3);
+    });
+
+    it('is absent when no fence matches (body is the whole file)', () => {
+      const out = frontmatterYamlParser.parse('just prose\nno fence', 'test.md');
+      strictEqual(out.bodyLineOffset, undefined);
+    });
+  });
 });

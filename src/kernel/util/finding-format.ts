@@ -10,9 +10,11 @@
  *   - **subject** (line 1, optional): the offending token / path / name,
  *     wrapped in backticks. Omitted when the finding has no single
  *     subject (node-level schema failures, sidecar-wide checks).
- *   - **location prefix** `L<lines>: ` (optional): the 1-indexed body
- *     line(s) the finding maps to (`L2: ` / `L2, 5: `). Omitted when the
- *     finding has no body line (sidecar / frontmatter / abstract checks).
+ *   - **location prefix** `L<lines>: ` (optional): the 1-indexed
+ *     FILE-absolute line(s) the finding maps to (`L2: ` / `L2, 5: `),
+ *     frontmatter counted, matching the author's editor (see
+ *     `link.schema.json#/properties/location`). Omitted when the finding
+ *     has no line (sidecar / frontmatter / abstract checks).
  *   - **body**: the diagnosis as `<what>; <why>` (what was detected, then
  *     why it matters). English, no remediation sentence, a fix hint, when
  *     present, belongs in `Issue.fix.summary`, not in the message.
@@ -25,7 +27,7 @@
 export interface IFindingFormat {
   /** Offending token / path / name. Backtick-wrapped; omitted when absent. */
   readonly subject?: string | undefined;
-  /** 1-indexed body lines. Rendered as `L2: ` / `L2, 5: `; omitted when empty. */
+  /** 1-indexed file-absolute lines. Rendered as `L2: ` / `L2, 5: `; omitted when empty. */
   readonly lines?: readonly number[] | undefined;
   /** The diagnosis `<what>; <why>`, already interpolated via `tx`. */
   readonly body: string;

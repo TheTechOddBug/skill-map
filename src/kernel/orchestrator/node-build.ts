@@ -454,7 +454,7 @@ export function buildFreshNodeAndValidateFrontmatter(opts: {
   // so the warning survives a clean re-scan without re-reading the file.
   pushIssue(
     frontmatterIssues,
-    detectUnclosedBacktick(opts.raw.body, opts.raw.path, opts.strict),
+    detectUnclosedBacktick(opts.raw.body, opts.raw.path, opts.strict, opts.raw.bodyLineOffset ?? 0),
   );
 
   return { node, frontmatterIssues };

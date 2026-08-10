@@ -252,3 +252,14 @@ grammar in the same change.** Divergence is how one gets fixed and the other
 does not. The grammars in scope today are the `@` tokens (`kernel/util/at-token.ts`),
 the backtick path / trigger extractors (§5), and the slash / dollar invocation
 grammars.
+
+The rule cuts both ways, narrowing sweeps included. 2026-08-10: the
+at-least-one-letter guard against purely numeric tokens landed in the `/`
+and `@` grammars in one change, after a field report of `total /10` (a
+denominator, prose) surfacing as a red `reference-broken`. The `$` grammar
+had already solved that exact class years-of-lines earlier with its
+lowercase-first-letter rule (`$5` / `$100` currency), and the divergence is
+precisely what this section predicts: the guard existed in one sigil grammar
+and the other two never got the sweep. File-shaped numerics keep matching
+through their extension's letters (`@10.md`); digit-leading names keep
+matching through their own (`/2fa-setup`).

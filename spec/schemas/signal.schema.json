@@ -24,7 +24,7 @@
       "properties": {
         "start": { "type": "integer", "minimum": 0, "description": "Inclusive byte offset of the first character." },
         "end": { "type": "integer", "minimum": 0, "description": "Exclusive byte offset one past the last character." },
-        "line": { "type": "integer", "minimum": 1, "description": "Optional 1-indexed line number containing `start`. Extractors that already compute line tracking (via `computeLineStarts` / `lineFor`) populate this so the resolver's materialised Link can preserve `link.location.line` without re-walking the body. Absent when the extractor does not track lines, the resolver falls back to `1`." }
+        "line": { "type": "integer", "minimum": 1, "description": "Optional 1-indexed FILE-absolute line number containing `start`, counting the frontmatter block, so it matches the author's editor. Extractors emit body-relative lines (via `computeLineStarts` / `lineFor` over the body they receive); the orchestrator adds the parser-owned `bodyLineOffset` (the frontmatter block's line count) to every body-scoped Signal at emit time. The offset is 0, and the line stays body-relative, when no absolute mapping exists (a `bodyField` provider whose prose lives inside a frontmatter field). The resolver preserves the value into `link.location.line` without re-walking the body; absent when the extractor does not track lines, the resolver falls back to `1`. Note `start` / `end` remain BODY byte offsets (they power collision detection over the body text); only `line` is file-absolute." }
       }
     },
     "fieldPath": {

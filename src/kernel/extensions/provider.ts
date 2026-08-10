@@ -52,6 +52,17 @@ export interface IRawNode {
    */
   frontmatterDeclared?: boolean;
   /**
+   * Number of file lines preceding the first `body` line (frontmatter
+   * block, fences included), parser-owned (see
+   * `IParsedFile.bodyLineOffset`). The orchestrator adds it to
+   * body-relative line tracking so persisted `link.location.line` and
+   * finding `L<n>` prefixes are FILE-absolute, matching the author's
+   * editor. Omitted (`0`) when the body is the whole file, when a
+   * `bodyField` swap makes a file-absolute line undefined, or by custom
+   * `walk()` Providers that don't track it.
+   */
+  bodyLineOffset?: number;
+  /**
    * File modification time (`mtime`) in Unix milliseconds, captured by
    * the kernel walker from the same `lstat` that guards the read (zero
    * extra syscalls). Threaded onto the persisted `Node` as
@@ -88,7 +99,10 @@ export interface IRawNode {
    * than duplicating it in the orchestrator.
    */
   reread?: () => Promise<
-    Pick<IRawNode, 'body' | 'frontmatterRaw' | 'frontmatter' | 'parseIssues' | 'frontmatterDeclared'>
+    Pick<
+      IRawNode,
+      'body' | 'frontmatterRaw' | 'frontmatter' | 'parseIssues' | 'frontmatterDeclared' | 'bodyLineOffset'
+    >
   >;
 }
 

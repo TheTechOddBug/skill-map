@@ -270,6 +270,23 @@ describe('RestDataSource', () => {
     await expect(promise).resolves.toEqual(NODE_DETAIL);
   });
 
+  it('getNode() composes the include query from the opts flags', async () => {
+    const path = '.claude/agents/foo.md';
+    const encoded = encodeNodePath(path);
+
+    const bodyOnly = ds.getNode(path, { includeBody: true });
+    httpMock.expectOne(`/api/nodes/${encoded}?include=body`).flush(NODE_DETAIL);
+    await bodyOnly;
+
+    const rawOnly = ds.getNode(path, { includeRaw: true });
+    httpMock.expectOne(`/api/nodes/${encoded}?include=raw`).flush(NODE_DETAIL);
+    await rawOnly;
+
+    const both = ds.getNode(path, { includeBody: true, includeRaw: true });
+    httpMock.expectOne(`/api/nodes/${encoded}?include=body,raw`).flush(NODE_DETAIL);
+    await both;
+  });
+
   it('getNode() returns null on 404 with not-found envelope', async () => {
     const promise = ds.getNode('missing.md');
     const encoded = encodeNodePath('missing.md');

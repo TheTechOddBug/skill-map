@@ -100,13 +100,36 @@ export const frontmatterYamlParser: IFileParser = {
     // YAML failed to load. The flag lets the orchestrator route the
     // empty-content case through the per-kind AJV pass instead of
     // conflating it with "no frontmatter at all".
-    const out: IParsedFile = { frontmatterRaw, frontmatter: parsed, body, frontmatterDeclared: true };
+    //
+    // `bodyLineOffset`: `body` is a verbatim tail of `raw`, so the file
+    // prefix the frontmatter block occupies is `raw.length - body.length`
+    // characters; each newline in it is one file line before the body.
+    // Counting on the real prefix (not on `frontmatterRaw + 2`) keeps the
+    // offset honest for CRLF input and the optional newline after the
+    // closing fence.
+    const bodyLineOffset = countNewlines(raw, raw.length - body.length);
+    const out: IParsedFile = {
+      frontmatterRaw,
+      frontmatter: parsed,
+      body,
+      frontmatterDeclared: true,
+      bodyLineOffset,
+    };
     if (issues.length > 0) {
       return { ...out, issues };
     }
     return out;
   },
 };
+
+/** Count `\n` occurrences in `raw[0..end)`. */
+function countNewlines(raw: string, end: number): number {
+  let count = 0;
+  for (let i = 0; i < end; i += 1) {
+    if (raw.charCodeAt(i) === 10) count += 1;
+  }
+  return count;
+}
 
 /**
  * The sanitised js-yaml message, plus an actionable quoting hint when
