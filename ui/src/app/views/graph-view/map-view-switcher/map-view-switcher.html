@@ -17,7 +17,7 @@
     (onClick)="onTriggerClick($event)"
     data-testid="map-view-switcher"
   >
-    <i class="pi pi-bookmark" aria-hidden="true"></i>
+    <i class="pi pi-eye" aria-hidden="true"></i>
     <span class="mvs__trigger-label">{{ triggerLabel() }}</span>
     @if (mapViews.dirty()) {
       <span
@@ -42,9 +42,38 @@
       } @else if (mapViews.views().length === 0) {
         <p class="mvs__empty" data-testid="map-view-empty">{{ texts.empty }}</p>
       } @else {
-        <ul class="mvs__list" role="menu">
-          @for (entry of mapViews.views(); track entry.slug) {
-            <li role="none" class="mvs__row">
+        <ul
+          class="mvs__list"
+          role="menu"
+          cdkDropList
+          (cdkDropListDropped)="onReordered($event)"
+        >
+          @for (entry of mapViews.views(); track entry.slug; let i = $index) {
+            <li
+              role="none"
+              class="mvs__row"
+              cdkDrag
+              cdkDragPreviewContainer="parent"
+              [cdkDragData]="entry.slug"
+            >
+              <!-- Position badge: the first nine rows show their digit
+                   shortcut (shared order, spec map-views.md §Ordering and
+                   shortcuts); later rows keep the empty slot so names
+                   stay aligned. aria-hidden: the number is a visual echo
+                   of the shortcut, the row button carries the name. The
+                   shortcut-teaching tooltip rides the FIRST badge only
+                   (user call: one hint, not nine); tooltipDisabled keeps
+                   it silent elsewhere AND closes it live if a reorder
+                   moves the row off position 1. -->
+              <span
+                class="mvs__num"
+                [class.mvs__num--none]="i >= 9"
+                aria-hidden="true"
+                [pTooltip]="texts.shortcutHintTooltip"
+                [tooltipDisabled]="i !== 0"
+                [attr.data-testid]="'map-view-num-' + entry.slug"
+                >{{ i < 9 ? i + 1 : '' }}</span
+              >
               <button
                 type="button"
                 role="menuitemradio"

@@ -1,29 +1,52 @@
 <section class="files files--rail" data-testid="files-view">
-  @if (mapViews.available() && mapViews.activeView(); as activeEntry) {
-    <!-- Map-view provenance chip (spec/map-views.md): the rail rows
-         below curate the ACTIVE VIEW, not the scan; this strip names
-         which view, carries the dirty dot, and re-opens the graph
-         toolbar's switcher on click (intent signal, no graph import). -->
+  @if ((mapViews.available() && mapViews.activeView() !== null) || curationActive()) {
+    <!-- Curation strip (spec/map-views.md): the rail rows below curate
+         the map, so this strip carries the two map-scope affordances.
+         Left, the provenance chip naming the ACTIVE VIEW (dirty dot,
+         click re-opens the graph toolbar's switcher via intent signal,
+         no graph import). Right, the show-all reset (relocated here
+         from the graph toolbar, user decision 2026-08-10): clears the
+         whole curation back to the full map. Deliberately NOT an eye
+         (the eye is the map-views glyph). -->
     <div class="files__view-strip">
-      <button
-        type="button"
-        class="files__view-chip"
-        [pTooltip]="texts.viewChipTooltip"
-        tooltipPosition="bottom"
-        [attr.aria-label]="texts.viewChipAria(activeEntry.view.name)"
-        (click)="onViewChipClick()"
-        data-testid="files-view-chip"
-      >
-        <i class="pi pi-bookmark" aria-hidden="true"></i>
-        <span class="files__view-chip-name">{{ texts.viewChip(activeEntry.view.name) }}</span>
-        @if (mapViews.dirty()) {
-          <span
-            class="files__view-chip-dirty"
-            aria-hidden="true"
-            data-testid="files-view-chip-dirty"
-          ></span>
-        }
-      </button>
+      @if (mapViews.available() && mapViews.activeView(); as activeEntry) {
+        <button
+          type="button"
+          class="files__view-chip"
+          [pTooltip]="texts.viewChipTooltip"
+          tooltipPosition="bottom"
+          [attr.aria-label]="texts.viewChipAria(activeEntry.view.name)"
+          (click)="onViewChipClick()"
+          data-testid="files-view-chip"
+        >
+          <i class="pi pi-eye" aria-hidden="true"></i>
+          <span class="files__view-chip-name">{{ texts.viewChip(activeEntry.view.name) }}</span>
+          @if (mapViews.dirty()) {
+            <span
+              class="files__view-chip-dirty"
+              aria-hidden="true"
+              data-testid="files-view-chip-dirty"
+            ></span>
+          }
+        </button>
+      }
+      @if (curationActive()) {
+        <button
+          type="button"
+          class="files__show-all"
+          [pTooltip]="
+            mapViews.available() && mapViews.activeView() !== null
+              ? texts.showAllExitTooltip
+              : texts.showAllTooltip
+          "
+          tooltipPosition="bottom"
+          [attr.aria-label]="texts.showAllAria"
+          (click)="onShowAllClick()"
+          data-testid="files-show-all"
+        >
+          <i class="pi pi-eraser" aria-hidden="true"></i>
+        </button>
+      }
     </div>
   }
   @if (error()) {

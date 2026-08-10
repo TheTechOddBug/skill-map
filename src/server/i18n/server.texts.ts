@@ -632,6 +632,8 @@ export const SERVER_TEXTS = {
     '`name` must be a string of 1-80 characters.',
   mapViewDescriptionInvalid:
     '`description` must be a string of at most 500 characters.',
+  mapViewOrderInvalid:
+    '`order` must be an integer of at least 1.',
   mapViewOverridesInvalid:
     '`overrides` must be an array of `[path, "include" | "exclude"]` pairs.',
   mapViewPinsInvalid:

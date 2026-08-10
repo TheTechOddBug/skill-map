@@ -232,12 +232,17 @@ export class MapViewsService {
   }
 
   /**
-   * Exit views: back to the neutral full map. Clears the curation and
-   * demotes every manual pin (empty pending set = nothing stays pinned).
+   * Exit views: back to the neutral full map, WITHOUT rearranging
+   * (user decision 2026-08-10). Clears the curation so every node
+   * shows again, but leaves the position map alone: the arrangement
+   * you were looking at stays put (view pins stay pinned), and only
+   * the nodes the clear reveals get seeded from the auto-layout, the
+   * same behaviour as un-hiding a folder from the rail. The earlier
+   * shape (replacing the pin set with an empty one) reseeded the WHOLE
+   * canvas from dagre, which read as exit blowing the layout away.
    */
   exitViews(): void {
     this.mapVisibility.clear();
-    this._pendingPins.set({});
     this._activeSlug.set(null);
   }
 
@@ -274,8 +279,56 @@ export class MapViewsService {
     const trimmed = name.trim();
     const slug = slugify(trimmed);
     if (trimmed.length === 0 || slug.length === 0) return false;
-    const ok = await this.putView(slug, this.buildDocument(trimmed));
+    // A new view appends at the end of the shared sequence; overwriting
+    // an existing slug keeps that view's position instead.
+    const prior = this._views().find((e) => e.slug === slug)?.view;
+    const document: IMapViewApi =
+      prior?.order !== undefined
+        ? { ...this.buildDocument(trimmed), order: prior.order }
+        : { ...this.buildDocument(trimmed), order: this.nextOrder() };
+    const ok = await this.putView(slug, document);
     if (ok) this._activeSlug.set(slug);
+    return ok;
+  }
+
+  /** Next free position at the end of the shared sequence. */
+  private nextOrder(): number {
+    let max = 0;
+    for (const entry of this._views()) {
+      const order = entry.view.order;
+      if (order !== undefined && order > max) max = order;
+    }
+    return max + 1;
+  }
+
+  /**
+   * Persist a new shared sequence (map-views.md §Ordering and
+   * shortcuts): `slugs` is the full list in its new order; every view
+   * whose stored `order` differs from its compact 1..N position is
+   * re-PUT. The local list re-sorts optimistically first so the drag
+   * settles instantly; each response envelope reconciles, and the last
+   * one is authoritative.
+   */
+  async reorder(slugs: readonly string[]): Promise<boolean> {
+    const bySlug = new Map(this._views().map((entry) => [entry.slug, entry]));
+    const target = slugs
+      .map((slug) => bySlug.get(slug))
+      .filter((entry): entry is IMapViewEntryApi => entry !== undefined);
+    // `slugs` must be an exact permutation of the loaded list: same
+    // length on BOTH sides (an unknown slug shrinks `target`, a missing
+    // one shrinks `slugs`), else the caller raced a refresh.
+    if (target.length !== slugs.length || target.length !== this._views().length) {
+      return false;
+    }
+    this._views.set(target.map((entry, i) => ({
+      slug: entry.slug,
+      view: { ...entry.view, order: i + 1 },
+    })));
+    let ok = true;
+    for (const [i, entry] of target.entries()) {
+      if (entry.view.order === i + 1) continue;
+      ok = (await this.putView(entry.slug, { ...entry.view, order: i + 1 })) && ok;
+    }
     return ok;
   }
 
@@ -378,6 +431,7 @@ export class MapViewsService {
       kind: 'map-view',
       name,
       ...(prior?.description !== undefined ? { description: prior.description } : {}),
+      ...(prior?.order !== undefined ? { order: prior.order } : {}),
       overrides: [...this.mapVisibility.overrides()],
       pins: { ...this._livePins() },
       ...(prior?.groups !== undefined ? { groups: prior.groups } : {}),

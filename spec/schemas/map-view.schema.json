@@ -26,6 +26,11 @@
       "maxLength": 500,
       "description": "Optional free-text purpose note. Writers omit the key when empty (canonical serialization, map-views.md)."
     },
+    "order": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Optional shared position of this view in the project's view list (map-views.md §Ordering and shortcuts): lists sort by `order` ascending, absent-order views sort last, slug breaks ties. The first nine positions map to the digit shortcuts 1-9; positions beyond nine have no shortcut. Writers SHOULD keep orders compact (1..N) when reordering."
+    },
     "overrides": {
       "type": "array",
       "description": "Ordered visibility overrides, the map scope of this view. Each entry is a `[path, state]` pair with the exact semantics of cli-contract.md §Map scope overrides (rsync-filter shape: a key covers itself and its `/`-prefixed descendants, nearest ancestor wins, unmatched nodes are included). Array ORDER is significant: it is the include seniority that drives the render-cap fill, so writers MUST preserve it verbatim. The root override is the `''` key. An empty array means the full corpus.",

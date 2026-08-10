@@ -273,6 +273,54 @@ describe('PUT /api/map-views/:slug', () => {
     });
   });
 
+  it('round-trips order in the canonical key position (after description)', async () => {
+    clearViews();
+    await boot(async (handle) => {
+      const res = await putView(handle, 'ordered', {
+        ...validDoc(),
+        description: 'has a note',
+        order: 2,
+      });
+      assert.equal(res.status, 200);
+      const raw = readFileSync(join(viewsDir(), 'ordered.json'), 'utf8');
+      const keys = Object.keys(JSON.parse(raw) as Record<string, unknown>);
+      assert.deepEqual(keys, [
+        'schemaVersion',
+        'kind',
+        'name',
+        'description',
+        'order',
+        'overrides',
+        'pins',
+      ]);
+      const validators = loadSchemaValidators();
+      const parsed = validators.validate('map-view', JSON.parse(raw));
+      assert.equal(parsed.ok, true);
+    });
+  });
+
+  it('lists in the canonical sequence: order ascending, absent last, slug tiebreak', async () => {
+    clearViews();
+    await boot(async (handle) => {
+      assert.equal((await putView(handle, 'aa-unordered', validDoc())).status, 200);
+      assert.equal(
+        (await putView(handle, 'bb-second', { ...validDoc(), order: 2 })).status,
+        200,
+      );
+      assert.equal(
+        (await putView(handle, 'dd-second-twin', { ...validDoc(), order: 2 })).status,
+        200,
+      );
+      const res = await putView(handle, 'cc-first', { ...validDoc(), order: 1 });
+      assert.equal(res.status, 200);
+      const env = (await res.json()) as IMapViewsEnvelopeWire;
+      assert.deepEqual(
+        env.views.map((v) => v.slug),
+        ['cc-first', 'bb-second', 'dd-second-twin', 'aa-unordered'],
+      );
+    });
+  });
+
   it('400 bad-query on every slug-rule violation', async () => {
     clearViews();
     // `a..b` is invalid on purpose: the Slug rule has no `.` in its
@@ -307,6 +355,9 @@ describe('PUT /api/map-views/:slug', () => {
       { label: 'pin without y', body: { ...base, pins: { 'a.md': { x: 1 } } } },
       { label: 'unknown top-level key', body: { ...base, bogus: true } },
       { label: 'group without label', body: { ...base, groups: [{ id: 'g1', members: [] }] } },
+      { label: 'order zero', body: { ...base, order: 0 } },
+      { label: 'order non-integer', body: { ...base, order: 1.5 } },
+      { label: 'order as string', body: { ...base, order: '2' } },
     ];
     await boot(async (handle) => {
       for (const { label, body } of badBodies) {

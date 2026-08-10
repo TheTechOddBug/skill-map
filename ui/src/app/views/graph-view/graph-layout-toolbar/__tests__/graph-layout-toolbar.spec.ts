@@ -108,7 +108,7 @@ describe('GraphLayoutToolbar', () => {
     // The toggle paints an inline SVG path that mirrors the selected
     // shape. Asserting the `d` attribute keeps the test resilient to
     // markup changes while still catching a wrong catalog wire-up
-    // (e.g. swapping `bezier` and `adaptive-curve`).
+    // (e.g. swapping `straight` and `adaptive-curve`).
     const { fixture, preferences } = makeFixture({ connectionType: 'segment' });
     const root = fixture.nativeElement as HTMLElement;
     function togglePath(): string {

@@ -54,11 +54,12 @@ byte-identical files and diffs stay reviewable:
 
 - UTF-8, LF line endings, 2-space indent, single trailing newline.
 - Top-level key order: `schemaVersion`, `kind`, `name`, `description`,
-  `overrides`, `pins`, `groups`.
+  `order`, `overrides`, `pins`, `groups`.
 - `pins` keys byte-sorted ascending.
 - `overrides` array order preserved VERBATIM: it is the include seniority
   of §Map scope overrides (`cli-contract.md`), not a sortable list.
-- `description` and `groups` omitted when empty; no `null` values.
+- `description`, `order`, and `groups` omitted when empty or absent; no
+  `null` values.
 - No timestamps. A view file is a pure function of curated state; history
   and authorship belong to git.
 
@@ -85,6 +86,27 @@ built-in `view-ref-broken` analyzer MAY lint committed view files and a
 companion fixer MAY propose the pruned file through the ordinary findings
 pipeline; both are reserved surface, not part of this contract yet.
 
+## Ordering and shortcuts
+
+The view list has a SHARED order, part of the curation that travels
+(user decision 2026-08-10): every collaborator sees the same sequence,
+so "press 2" means the same view for the whole team.
+
+- Each document MAY carry an optional `order` (integer, minimum 1).
+  Lists sort by `order` ascending; documents WITHOUT `order` sort after
+  every ordered one; the slug (byte order) breaks ties in both groups.
+  The `GET /api/map-views` envelope returns entries already in this
+  canonical sequence.
+- The first nine positions of the sorted list map to the digit
+  shortcuts `1`-`9` in consuming UIs; a UI SHOULD surface the position
+  number on those entries. Positions beyond nine have NO shortcut and
+  no number, by design; the list itself is unbounded.
+- Reordering is a client concern: a writer renumbers the affected
+  documents compactly (`1..N`) and persists each changed one through
+  the ordinary upsert. Implementations MUST tolerate duplicate and
+  sparse `order` values in committed files (a merge can produce both);
+  the sort's slug tiebreak keeps the sequence deterministic either way.
+
 ## Groups (reserved)
 
 The `groups` array ships in the schema from day one so that grouping UI
@@ -103,10 +125,14 @@ leaves a half-serialized view.
 
 ## Stability
 
-- The document shape (`schemaVersion` 1, the five top-level keys plus
-  optional `description` and `groups`) is stable as of spec v1.10. Adding
-  a new OPTIONAL top-level key is a minor bump; making one required,
+- The document shape (`schemaVersion` 1, the five required top-level
+  keys plus optional `description`, `order`, and `groups`) is stable as
+  of spec v1.10 (`order` added in the same release cycle). Adding a new
+  OPTIONAL top-level key is a minor bump; making one required,
   renaming, or removing one is a major bump.
+- The ordering contract (§Ordering and shortcuts: sort key, absent-last,
+  slug tiebreak, nine shortcut positions) is stable; changing the sort
+  key or the shortcut count is a major bump.
 - The Slug rule, the canonical serialization, and the dead-reference
   tolerance are stable; tightening any of them is a major bump.
 - The `groups` entry shape (`id`, `label`, required `members`, optional

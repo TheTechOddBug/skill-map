@@ -73,11 +73,18 @@ function bootstrap(opts: IStubOpts = {}): IHarness {
   const skipped = opts.skipped ?? [];
 
   function envelope(): IMapViewsEnvelopeApi {
+    // Mirror the server's canonical sequence (map-views.md §Ordering and
+    // shortcuts): order ascending, absent-order last, slug tiebreak.
     return {
       schemaVersion: '1',
       kind: 'map-views',
       views: [...store.entries()]
-        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .sort(([aSlug, aView], [bSlug, bView]) => {
+          const ao = aView.order ?? Number.POSITIVE_INFINITY;
+          const bo = bView.order ?? Number.POSITIVE_INFINITY;
+          if (ao !== bo) return ao - bo;
+          return aSlug < bSlug ? -1 : aSlug > bSlug ? 1 : 0;
+        })
         .map(([slug, view]) => ({ slug, view })),
       skipped,
     };
@@ -184,14 +191,17 @@ describe('MapViewsService', () => {
     expect(service.pendingPins()).toBeNull();
   });
 
-  it('exitViews clears curation, empties the pending pin set, deactivates', async () => {
+  it('exitViews clears curation and deactivates WITHOUT touching positions', async () => {
     const { service, mapVisibility } = bootstrap();
     await service.loadViews();
     service.apply('focus');
     syncGraphPins(service);
     service.exitViews();
     expect(mapVisibility.overrides().size).toBe(0);
-    expect(service.pendingPins()).toEqual({});
+    // No pin mailbox write: leaving a view must not rearrange the
+    // canvas (the arrangement stays, revealed nodes seed from dagre).
+    expect(service.pendingPins()).toBeNull();
+    expect(service.livePins()).toEqual(FOCUS_VIEW.pins);
     expect(service.activeSlug()).toBeNull();
     expect(service.dirty()).toBe(false);
   });
@@ -231,6 +241,48 @@ describe('MapViewsService', () => {
     expect(service.activeSlug()).toBe('focus');
     // The saved override map is back verbatim (the 'src' divergence gone).
     expect(mapVisibility.overrides().get('src')).toBeUndefined();
+  });
+
+  it('reorder renumbers compactly and PUTs only the views whose order changed', async () => {
+    const { service, putMapView } = bootstrap({
+      entries: [
+        { slug: 'aa', view: { ...OTHER_VIEW, name: 'A', order: 1 } },
+        { slug: 'bb', view: { ...OTHER_VIEW, name: 'B', order: 2 } },
+        { slug: 'cc', view: { ...OTHER_VIEW, name: 'C', order: 3 } },
+      ],
+    });
+    await service.loadViews();
+
+    await expect(service.reorder(['aa', 'cc', 'bb'])).resolves.toBe(true);
+    // aa keeps position 1 untouched; cc and bb swap into 2 and 3.
+    expect(putMapView).toHaveBeenCalledTimes(2);
+    expect(putMapView).toHaveBeenCalledWith('cc', expect.objectContaining({ order: 2 }));
+    expect(putMapView).toHaveBeenCalledWith('bb', expect.objectContaining({ order: 3 }));
+    expect(service.views().map((entry) => entry.slug)).toEqual(['aa', 'cc', 'bb']);
+  });
+
+  it('reorder with a stale slug set refuses without writing', async () => {
+    const { service, putMapView } = bootstrap({
+      entries: [{ slug: 'aa', view: { ...OTHER_VIEW, name: 'A', order: 1 } }],
+    });
+    await service.loadViews();
+    await expect(service.reorder(['aa', 'ghost'])).resolves.toBe(false);
+    expect(putMapView).not.toHaveBeenCalled();
+  });
+
+  it('saveAs appends at the end of the shared sequence (max order + 1, sparse tolerated)', async () => {
+    const { service, putMapView } = bootstrap({
+      entries: [
+        { slug: 'aa', view: { ...OTHER_VIEW, name: 'A', order: 1 } },
+        { slug: 'bb', view: { ...OTHER_VIEW, name: 'B', order: 5 } },
+      ],
+    });
+    await service.loadViews();
+    await expect(service.saveAs('New One')).resolves.toBe(true);
+    expect(putMapView).toHaveBeenCalledWith(
+      'new-one',
+      expect.objectContaining({ order: 6 }),
+    );
   });
 
   it('revert without an active view is a no-op', async () => {

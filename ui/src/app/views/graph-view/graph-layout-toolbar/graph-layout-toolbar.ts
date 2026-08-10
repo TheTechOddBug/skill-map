@@ -59,14 +59,13 @@ const DIRECTION_ICONS: Readonly<Record<TLayoutDirection, string>> = {
 /**
  * SVG `path d` per connector shape preset, drawn into a 16×16 viewBox
  * (`graph__connection-svg`). Each path traces a tiny "edge" from the
- * bottom-left (2,14) to the top-right (14,2) so the four options read
+ * bottom-left (2,14) to the top-right (14,2) so the three options read
  * as variations of the same connector. Square viewBox lets the toggle
  * sit flush with the sibling PrimeIcons in the toolbar (which are all
  * 16×16). Stroke uses `currentColor` so the glyph picks up the
  * button's hover / active tint automatically.
  *   - `segment` (orthogonal):    Z-shape with two right-angle corners
  *   - `straight`:                single diagonal segment
- *   - `bezier`:                  cubic curve with offset control points
  *   - `adaptive-curve`:          cubic curve whose control tangents
  *                                align with the connector orientation
  * The tooltip carries the real name so a reader who finds the glyph
@@ -75,7 +74,6 @@ const DIRECTION_ICONS: Readonly<Record<TLayoutDirection, string>> = {
 const CONNECTION_TYPE_PATHS: Readonly<Record<TConnectionType, string>> = {
   segment: 'M 2 14 L 8 14 L 8 2 L 14 2',
   straight: 'M 2 14 L 14 2',
-  bezier: 'M 2 14 C 6 14, 10 2, 14 2',
   'adaptive-curve': 'M 2 14 C 8 14, 8 2, 14 2',
 };
 

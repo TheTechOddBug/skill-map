@@ -31,6 +31,7 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
+import { CdkDrag, CdkDropList, moveItemInArray, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { Popover, PopoverModule } from 'primeng/popover';
@@ -46,7 +47,15 @@ import { MapViewConfirmDialog } from './map-view-confirm-dialog';
 
 @Component({
   selector: 'sm-map-view-switcher',
-  imports: [ButtonModule, InputTextModule, PopoverModule, TooltipModule, MapViewConfirmDialog],
+  imports: [
+    ButtonModule,
+    CdkDrag,
+    CdkDropList,
+    InputTextModule,
+    PopoverModule,
+    TooltipModule,
+    MapViewConfirmDialog,
+  ],
   templateUrl: './map-view-switcher.html',
   styleUrl: './map-view-switcher.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -190,6 +199,18 @@ export class MapViewSwitcher {
   /** Discard the divergence: restore the active view as saved. */
   protected onRevert(): void {
     this.mapViews.revert();
+  }
+
+  /**
+   * Drag settled: persist the new shared sequence. The service
+   * re-sorts optimistically, renumbers 1..N, and re-PUTs only the
+   * views whose stored order changed.
+   */
+  protected onReordered(event: CdkDragDrop<unknown>): void {
+    if (event.previousIndex === event.currentIndex) return;
+    const slugs = this.mapViews.views().map((entry) => entry.slug);
+    moveItemInArray(slugs, event.previousIndex, event.currentIndex);
+    void this.runBusy(() => this.mapViews.reorder(slugs));
   }
 
   protected onSaveAsNameChange(value: string): void {

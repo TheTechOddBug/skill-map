@@ -90,6 +90,8 @@ export class FilesView implements OnInit {
   private readonly filters = inject(FilterStoreService);
   private readonly nodeOpenIntent = inject(NODE_OPEN_INTENT);
   private readonly mapVisibility = inject(MapVisibilityService);
+  /** Template face of the curation state: drives the strip's show-all reset. */
+  protected readonly curationActive = this.mapVisibility.isActive;
   // Protected: the header strip reads `available()` / `activeView()` /
   // `dirty()` for the provenance chip.
   protected readonly mapViews = inject(MapViewsService);
@@ -554,6 +556,23 @@ export class FilesView implements OnInit {
    */
   protected onViewChipClick(): void {
     this.mapViews.requestOpenSwitcher();
+  }
+
+  /**
+   * Show-all reset (the graph toolbar's former button, relocated):
+   * back to the full map. With a view active this IS leaving the view
+   * (clearing the whole scope and staying "in" the view would only
+   * strand a dirty husk), so it routes through the SAME guarded exit
+   * as the switcher's Exit button: dirty state pops the Save / Discard
+   * / Cancel dialog, a clean state exits immediately. Without a view
+   * it is a plain curation clear, no ceremony.
+   */
+  protected onShowAllClick(): void {
+    if (this.mapViews.available() && this.mapViews.activeView() !== null) {
+      void this.mapViews.requestExit();
+      return;
+    }
+    this.mapVisibility.clear();
   }
 
   resetFilters(): void {

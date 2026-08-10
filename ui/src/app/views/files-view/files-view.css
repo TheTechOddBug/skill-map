@@ -32,6 +32,32 @@
    p-button's wrapper padding would inflate the dense rail header). */
 .files__view-strip {
   display: flex;
+  align-items: center;
+}
+
+/* Show-all reset (relocated from the graph toolbar): pinned to the
+   strip's right edge, icon-only, muted until hovered, mirroring the
+   rail's other quiet icon affordances. */
+.files__show-all {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--p-text-muted-color);
+  margin-left: auto;
+  padding: 4px 6px;
+  border-radius: var(--sm-radius-sm);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.files__show-all:hover {
+  color: var(--p-text-color);
+  background: var(--p-content-hover-background);
+}
+
+.files__show-all:focus-visible {
+  outline: 2px solid var(--p-focus-ring-color);
+  outline-offset: 1px;
 }
 
 .files__view-chip {

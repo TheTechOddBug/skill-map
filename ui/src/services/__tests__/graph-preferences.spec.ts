@@ -35,11 +35,10 @@ describe('GraphPreferencesService, defaults', () => {
     expect(service.connectionType()).toBe('adaptive-curve');
   });
 
-  it('exposes a closed catalog matching the Foblex enum (4 entries)', () => {
+  it('exposes the closed offered catalog (3 entries, bezier deliberately absent)', () => {
     expect(CONNECTION_TYPES).toEqual([
       'segment',
       'straight',
-      'bezier',
       'adaptive-curve',
     ]);
   });
@@ -59,7 +58,6 @@ describe('GraphPreferencesService, localStorage read-path', () => {
   for (const good of [
     'segment',
     'straight',
-    'bezier',
     'adaptive-curve',
   ] as const) {
     it(`reads ${JSON.stringify(good)} verbatim from storage`, () => {
@@ -71,6 +69,15 @@ describe('GraphPreferencesService, localStorage read-path', () => {
 
   it('falls back to the default when storage holds an unknown value', () => {
     localStorage.setItem(STORAGE_KEY, 'spiral-bezier-future');
+    const service = TestBed.inject(GraphPreferencesService);
+    expect(service.connectionType()).toBe(DEFAULT_CONNECTION_TYPE);
+  });
+
+  // Migration pin: bezier WAS a catalog value until 2026-08-10; a
+  // checkout that persisted it must land on the default, not crash or
+  // keep rendering a shape the picker no longer offers.
+  it('sanitises a legacy stored bezier back to the default', () => {
+    localStorage.setItem(STORAGE_KEY, 'bezier');
     const service = TestBed.inject(GraphPreferencesService);
     expect(service.connectionType()).toBe(DEFAULT_CONNECTION_TYPE);
   });
@@ -95,9 +102,9 @@ describe('GraphPreferencesService, write-back', () => {
 
   it('updates the signal and persists to storage', () => {
     const service = TestBed.inject(GraphPreferencesService);
-    service.setConnectionType('bezier');
-    expect(service.connectionType()).toBe('bezier');
-    expect(localStorage.getItem(STORAGE_KEY)).toBe('bezier');
+    service.setConnectionType('segment');
+    expect(service.connectionType()).toBe('segment');
+    expect(localStorage.getItem(STORAGE_KEY)).toBe('segment');
   });
 
   it('is a no-op when the new value matches the current one', () => {
@@ -112,13 +119,13 @@ describe('GraphPreferencesService, write-back', () => {
     expect(localStorage.getItem(STORAGE_KEY)).toBe('straight');
   });
 
-  it('survives all four catalog values round-trip', () => {
+  it('survives every catalog value round-trip', () => {
     const service = TestBed.inject(GraphPreferencesService);
     // Step off the default first so every iteration below actually
     // writes (the service short-circuits when the new value matches the
     // current one, which would skip the storage write for the default).
-    service.setConnectionType('bezier');
-    expect(localStorage.getItem(STORAGE_KEY)).toBe('bezier');
+    service.setConnectionType('segment');
+    expect(localStorage.getItem(STORAGE_KEY)).toBe('segment');
     for (const value of CONNECTION_TYPES) {
       service.setConnectionType(value);
       expect(service.connectionType()).toBe(value);
@@ -144,8 +151,8 @@ describe('GraphPreferencesService, signal reactivity', () => {
     readings.push(service.connectionType());
     service.setConnectionType('straight');
     readings.push(service.connectionType());
-    service.setConnectionType('bezier');
+    service.setConnectionType('segment');
     readings.push(service.connectionType());
-    expect(readings).toEqual([DEFAULT_CONNECTION_TYPE, 'straight', 'bezier']);
+    expect(readings).toEqual([DEFAULT_CONNECTION_TYPE, 'straight', 'segment']);
   });
 });

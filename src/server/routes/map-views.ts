@@ -195,6 +195,7 @@ const PUT_BODY_SCHEMA = {
     kind: { const: 'map-view' },
     name: { type: 'string', minLength: 1, maxLength: 80 },
     description: { type: 'string', maxLength: 500 },
+    order: { type: 'integer', minimum: 1 },
     overrides: {
       type: 'array',
       items: {
@@ -232,6 +233,8 @@ const parsePutBody = makeBodyValidator<MapView>(PUT_BODY_SCHEMA, {
     '/name:maxLength': SERVER_TEXTS.mapViewNameInvalid,
     '/description:type:string': SERVER_TEXTS.mapViewDescriptionInvalid,
     '/description:maxLength': SERVER_TEXTS.mapViewDescriptionInvalid,
+    '/order:type:integer': SERVER_TEXTS.mapViewOrderInvalid,
+    '/order:minimum': SERVER_TEXTS.mapViewOrderInvalid,
     '/overrides:required': SERVER_TEXTS.mapViewOverridesInvalid,
     '/overrides:type:array': SERVER_TEXTS.mapViewOverridesInvalid,
     '/overrides/*:type:array': SERVER_TEXTS.mapViewOverridesInvalid,

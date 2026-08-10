@@ -1357,6 +1357,8 @@ export interface IMapViewApi {
   kind: 'map-view';
   name: string;
   description?: string;
+  /** Shared list position (spec map-views.md §Ordering and shortcuts); absent sorts last. */
+  order?: number;
   overrides: ReadonlyArray<readonly [string, 'include' | 'exclude']>;
   pins: Readonly<Record<string, IMapViewPointApi>>;
   groups?: readonly IMapViewGroupApi[];

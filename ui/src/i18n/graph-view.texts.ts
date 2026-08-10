@@ -54,9 +54,6 @@ export const GRAPH_VIEW_TEXTS = {
     },
     resetLayoutLabel: 'Re-arrange layout',
     resetLayoutTooltip: 'Re-arrange the visible nodes',
-    showAllLabel: 'Show all',
-    showAllTooltip: 'Clear the map selection and show every node again',
-    showAllAria: 'Show all nodes on the map',
     /**
      * Inline graph-layout popovers anchored to the bottom toolbar.
      * The popovers are the only surface that exposes these knobs,
@@ -118,7 +115,6 @@ export const GRAPH_VIEW_TEXTS = {
       options: {
         segment: { label: 'Orthogonal' },
         straight: { label: 'Straight' },
-        bezier: { label: 'Bezier' },
         'adaptive-curve': { label: 'Adaptive curve' },
       },
     },

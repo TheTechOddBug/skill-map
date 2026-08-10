@@ -20,6 +20,9 @@ export const FILES_VIEW_TEXTS = {
   isolateAriaLabel: (name: string) => `Isolate ${name} and its direct links on the map`,
   /** Active map-view provenance chip (rail header). */
   viewChip: (name: string) => `View: ${name}`,
+  showAllTooltip: 'Clear the map selection and show every node again',
+  showAllExitTooltip: 'Leave the view and show every node again',
+  showAllAria: 'Show all nodes on the map',
   viewChipTooltip:
     'The map is showing a saved view. Click to manage views.',
   viewChipAria: (name: string) =>

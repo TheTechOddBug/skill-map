@@ -238,6 +238,23 @@ describe('MapViewSwitcher', () => {
     expect(revertBtn()?.disabled).toBe(true);
   });
 
+  it('shows position badges 1-9 and an empty slot from the tenth row on', async () => {
+    const entries: IMapViewEntryApi[] = Array.from({ length: 10 }, (_, i) => ({
+      slug: `view-${String(i).padStart(2, '0')}`,
+      view: { ...FOCUS_VIEW, name: `View ${i}`, order: i + 1 },
+    }));
+    const { fixture, service } = setup({ entries, corpus: ['docs/a.md'] });
+    await service.loadViews();
+    fixture.detectChanges();
+    await openPopover(fixture);
+
+    const badge = (slug: string): string =>
+      (document.body.querySelector(`[data-testid="map-view-num-${slug}"]`)?.textContent ?? '').trim();
+    expect(badge('view-00')).toBe('1');
+    expect(badge('view-08')).toBe('9');
+    expect(badge('view-09')).toBe('');
+  });
+
   describe('digit shortcuts (implicit list order)', () => {
     const OTHER_VIEW: IMapViewApi = {
       schemaVersion: 1,

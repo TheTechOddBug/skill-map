@@ -15,6 +15,9 @@ export const MAP_VIEWS_TEXTS = {
   loading: 'Loading views…',
   empty: 'No saved views yet. Curate the map, then save it as a view to share it through git.',
   applyAria: (name: string) => `Apply view ${name}`,
+  /** Shown on the FIRST row's position badge only: teaches the digit shortcut once. */
+  shortcutHintTooltip:
+    'Keyboard shortcut: press the row number (1-9) to switch straight to that view.',
   /** Per-row dead-reference badge (count > 0 only). */
   brokenRefs: (count: number) => `${count} broken ${count === 1 ? 'ref' : 'refs'}`,
   brokenRefsTooltip:

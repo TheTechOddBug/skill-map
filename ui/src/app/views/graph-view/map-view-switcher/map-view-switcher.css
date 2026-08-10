@@ -78,6 +78,43 @@
   display: flex;
   align-items: center;
   gap: 2px;
+  /* The whole row drags (cdkDrag); grab communicates it without a
+     dedicated handle. Click-to-apply still works, CDK only starts the
+     drag past its movement threshold. */
+  cursor: grab;
+}
+
+/* Digit-shortcut position badge (spec map-views.md §Ordering and
+   shortcuts): rows 1-9 show their number, later rows keep the empty
+   slot so names stay aligned. */
+.mvs__num {
+  flex: 0 0 auto;
+  min-width: 1.15rem;
+  text-align: center;
+  font-size: var(--sm-fs-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--p-text-muted-color);
+  user-select: none;
+}
+
+/* CDK drag chrome: the preview rides in a body-level overlay, so it
+   carries its own surface; the placeholder marks the drop slot. */
+.cdk-drag-preview.mvs__row {
+  background: var(--p-content-background);
+  border: 1px solid var(--p-content-border-color);
+  border-radius: var(--sm-radius-sm);
+  box-shadow: var(--p-overlay-popover-shadow);
+  cursor: grabbing;
+}
+
+.cdk-drag-placeholder {
+  opacity: 0.35;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mvs__list.cdk-drop-list-dragging .mvs__row:not(.cdk-drag-placeholder) {
+    transition: transform 180ms ease;
+  }
 }
 
 /* Same hover / focus / active treatment as the layout popover menu

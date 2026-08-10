@@ -44,11 +44,17 @@ import {
   type TLayoutSpacing,
 } from '../app/views/graph-view/layout-controls';
 
-/** Foblex `EFConnectionType` literal alias, scoped for narrowing without dragging the enum into every consumer. */
+/**
+ * Foblex `EFConnectionType` literal subset, scoped for narrowing without
+ * dragging the enum into every consumer. `bezier` exists in Foblex but is
+ * deliberately NOT offered (user call 2026-08-10): visually it reads as a
+ * near-twin of `adaptive-curve` without following the connector
+ * orientation, so it only bloated the picker. A legacy stored `bezier`
+ * sanitises back to the default on read.
+ */
 export type TConnectionType =
   | 'segment'
   | 'straight'
-  | 'bezier'
   | 'adaptive-curve';
 
 /**
@@ -64,7 +70,6 @@ export const DEFAULT_CONNECTION_TYPE: TConnectionType = 'adaptive-curve';
 export const CONNECTION_TYPES: ReadonlyArray<TConnectionType> = [
   'segment',
   'straight',
-  'bezier',
   'adaptive-curve',
 ];
 

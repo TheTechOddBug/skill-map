@@ -76,6 +76,8 @@ export interface MapView {
   kind: 'map-view';
   name: string;
   description?: string;
+  /** Shared list position (map-views.md §Ordering and shortcuts); absent sorts last. */
+  order?: number;
   overrides: Array<[string, 'include' | 'exclude']>;
   pins: Record<string, MapViewPoint>;
   groups?: MapViewGroup[];
@@ -108,7 +110,16 @@ export function listMapViews(cwd: string): IMapViewListing {
     const view = readValidView(dir, entry, skipped);
     if (view !== null) views.push({ slug, view });
   }
-  views.sort((a, b) => byteCompare(a.slug, b.slug));
+  // Canonical list sequence (map-views.md §Ordering and shortcuts):
+  // `order` ascending, absent-order documents after every ordered one,
+  // slug byte order breaking ties in both groups. Duplicate and sparse
+  // orders (merge artifacts) stay deterministic through the tiebreak.
+  views.sort((a, b) => {
+    const ao = a.view.order ?? Number.POSITIVE_INFINITY;
+    const bo = b.view.order ?? Number.POSITIVE_INFINITY;
+    if (ao !== bo) return ao - bo;
+    return byteCompare(a.slug, b.slug);
+  });
   return { views, skipped };
 }
 
@@ -134,6 +145,7 @@ export function canonicalizeMapView(view: MapView): MapView {
     ...(view.description !== undefined && view.description.length > 0
       ? { description: view.description }
       : {}),
+    ...(view.order !== undefined ? { order: view.order } : {}),
     overrides: view.overrides,
     pins,
     ...(view.groups !== undefined && view.groups.length > 0 ? { groups: view.groups } : {}),
