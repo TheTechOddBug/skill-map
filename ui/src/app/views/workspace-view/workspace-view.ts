@@ -325,10 +325,11 @@ export class WorkspaceView implements IMapIsolateIntent {
 
   /**
    * Reset the workspace to its default overview: clear the map folder
-   * selection (show every node again, the map's "Show all") AND reset
-   * every facet filter (search, kind, severity, favorites). Same pair of
-   * actions the map's floating "Show all" + the empty-state "Reset
-   * filters" expose, surfaced as one control at the top of the rail.
+   * selection (show every node again, the rail strip's eraser without
+   * the view-exit ceremony) AND reset every facet filter (search, kind,
+   * severity, favorites). Same pair of actions the rail's eraser + the
+   * empty-state "Reset filters" expose, surfaced as one control at the
+   * top of the rail.
    */
   protected resetView(): void {
     this.mapVisibility.clear();

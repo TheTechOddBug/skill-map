@@ -4,7 +4,7 @@
  *
  *   1. Algorithm popover (vertical menu of layout algorithms).
  *   2. Direction popover (icon row, top/bottom/left/right arrows).
- *   3. Connection-type popover (icon row, segment/straight/bezier/adaptive).
+ *   3. Connection-type popover (icon row, segment/straight/adaptive).
  *
  * Layout spacing has no control here: it is fixed to "Normal"
  * (`DEFAULT_LAYOUT_SPACING`) in `GraphPreferencesService`. The
