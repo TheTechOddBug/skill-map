@@ -1,5 +1,23 @@
 # skill-map
 
+## 1.8.0
+
+### Minor Changes
+
+- Line numbers in findings and link locations are now file-absolute (the frontmatter block is counted, matching the editor), the inspector's Raw view shows the on-disk file verbatim via the new `GET /api/nodes/:pathB64?include=raw` so its gutter lines up with the reported `L<n>`, and a middle-mouse pan on the graph background no longer clears the current selection.
+
+  ## User-facing
+
+  Line numbers in findings (L12) now match your editor: they count the frontmatter block. The inspector's Raw view shows the whole file including the frontmatter, so its line gutter lines up. Panning the map with the middle mouse button no longer clears your selection.
+
+### Patch Changes
+
+- The slash and at-mention token grammars now require at least one letter in the identifier, so purely numeric prose tokens (`total /10`, `@10/20`) no longer produce false-positive reference-broken findings; digit-leading names (`/2fa-setup`) and numeric filenames (`@10.md`) keep matching. Mirrors the guard the dollar grammar already had for currency.
+
+  ## User-facing
+
+  Fractions and scores written in prose ("total /10", "@10/20") are no longer mistaken for command or mention references, so they stop showing up as broken-reference errors.
+
 ## 1.7.0
 
 ### Minor Changes
