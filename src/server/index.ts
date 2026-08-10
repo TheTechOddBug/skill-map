@@ -74,6 +74,7 @@ import { tx } from '../kernel/util/tx.js';
 import { readConfigValue } from '../core/config/helper.js';
 import { ActivityConversationStore } from './activity-conversations.js';
 import { ActivityOwnerIndex } from './activity-owner-index.js';
+import { ActivityProbeStore } from './activity-probe.js';
 import { ActivityStatsService } from './activity-stats.js';
 import { AgentPresenceTracker } from './agent-presence.js';
 import { createApp } from './app.js';
@@ -204,6 +205,9 @@ export async function createServer(
   // resolver anchor a spawn that names no parent on the agent that owner
   // is running, instead of a synthetic session capsule.
   const activityOwners = new ActivityOwnerIndex();
+  // Wiring self-test nonce ring (see `activity-probe.ts`): written by the
+  // ingest when a probe arrives, read back by `GET /api/activity/probe`.
+  const activityProbes = new ActivityProbeStore();
   const activityConversations = new ActivityConversationStore({
     enabled:
       readConfigValue<boolean>('activity.captureConversations', {
@@ -250,6 +254,7 @@ export async function createServer(
     activityToken,
     activityStats,
     activityOwners,
+    activityProbes,
     activityConversations,
     agentPresence,
     broadcaster,

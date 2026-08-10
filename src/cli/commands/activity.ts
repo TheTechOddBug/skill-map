@@ -46,6 +46,11 @@ import {
   installActivityBridge,
   uninstallActivityBridge,
 } from '../../core/activity/install.js';
+import {
+  isFailingVerdict,
+  verifyActivityWiring,
+  type IVerifyResult,
+} from '../../core/activity/verify.js';
 import { composeScanExtensions, loadPluginRuntime } from '../../core/runtime/plugin-runtime.js';
 import { ACTIVITY_TEXTS } from '../i18n/activity.texts.js';
 import { ACTIVITY_BRIDGE_REL } from '../util/db-path.js';
@@ -323,14 +328,28 @@ export class ActivityStatusCommand extends SmCommand {
       writes anything. \`--json\` emits
       \`{ ok, kind: 'activity-status', providers[], elapsedMs }\`, one
       entry per provider (\`{ id, state, configPath }\`).
+
+      \`--verify\` adds the wiring self-test: it pushes one synthetic
+      probe event through the INSTALLED bridge and asks the running
+      server whether it arrived, which is the only way to catch the
+      silent failures the install state cannot see (a bridge that
+      crashes on every invocation, a dead server, a stale
+      \`serve.json\`). The probe never lights a node and never counts as
+      an execution. Any failing verdict exits 1.
     `,
     examples: [
       ['All providers', '$0 activity status'],
       ['One provider', '$0 activity status claude'],
+      ['Prove the wiring actually works', '$0 activity status --verify'],
     ],
   });
 
+  static override exitCodes = [ExitCode.Ok, ExitCode.Issues, ExitCode.Error];
+
   provider = Option.String({ required: false });
+  verify = Option.Boolean('--verify', false, {
+    description: 'Send a probe through the installed bridge and report whether the server got it.',
+  });
 
   protected async run(): Promise<number> {
     const ansi = this.ansiFor('stdout');
@@ -365,27 +384,112 @@ export class ActivityStatusCommand extends SmCommand {
     }
 
     const ctx = defaultRuntimeContext();
+    // The self-test EXECUTES the chain, so it runs once per target and
+    // its verdicts feed both output modes and the exit code.
+    const verdicts = this.verify ? await this.runSelfTests(ctx.cwd, targets) : null;
+
     // §Machine-readable output: `--json` puts the envelope on stdout and
     // nothing else; the human report keeps its exact per-provider lines.
     if (this.json) {
-      this.printer!.data(
-        JSON.stringify({
-          ok: true,
-          kind: 'activity-status',
-          providers: targets.map((provider) => ({
-            id: provider.id,
-            state: activityStateOf(ctx.cwd, provider),
-            configPath: provider.activity!.install.configPath,
-          })),
-          elapsedMs: this.elapsed!.ms(),
-        }) + '\n',
-      );
-      return ExitCode.Ok;
+      this.printer!.data(this.jsonEnvelope(targets, ctx.cwd, verdicts));
+    } else {
+      this.printReport(targets, ctx.cwd, verdicts, okGlyph, ansi);
     }
+    return this.verifyExit(verdicts);
+  }
+
+  /** The `--json` envelope; each entry gains `verify` only under `--verify`. */
+  private jsonEnvelope(
+    targets: readonly IProvider[],
+    cwd: string,
+    verdicts: Map<string, IVerifyResult> | null,
+  ): string {
+    const providers = targets.map((provider) => {
+      const entry: Record<string, unknown> = {
+        id: provider.id,
+        state: activityStateOf(cwd, provider),
+        configPath: provider.activity!.install.configPath,
+      };
+      const result = verdicts?.get(provider.id);
+      if (result !== undefined) entry['verify'] = result;
+      return entry;
+    });
+    return (
+      JSON.stringify({
+        ok: true,
+        kind: 'activity-status',
+        providers,
+        elapsedMs: this.elapsed!.ms(),
+      }) + '\n'
+    );
+  }
+
+  /** The human report: one state line per provider, plus self-test lines. */
+  private printReport(
+    targets: readonly IProvider[],
+    cwd: string,
+    verdicts: Map<string, IVerifyResult> | null,
+    okGlyph: string,
+    ansi: { dim(s: string): string; red(s: string): string; yellow(s: string): string },
+  ): void {
     for (const provider of targets) {
-      this.printer!.data(this.statusLine(provider, ctx.cwd, okGlyph, ansi));
+      this.printer!.data(this.statusLine(provider, cwd, okGlyph, ansi));
+      const result = verdicts?.get(provider.id);
+      // `not-installed` needs no self-test line: the state line right
+      // above already says it, and repeating it reads as noise. The
+      // `--json` entry still carries the verdict for machine consumers.
+      if (result !== undefined && result.verdict !== 'not-installed') {
+        this.printer!.data(this.verifyLine(result, okGlyph, ansi));
+      }
     }
-    return ExitCode.Ok;
+    if (verdicts !== null && this.anyFailed(verdicts)) {
+      this.printer!.info(ansi.dim(tx(ACTIVITY_TEXTS.verifyFooter, {})));
+    }
+  }
+
+  /** Run the self-test for every target, keyed by provider id. */
+  private async runSelfTests(
+    cwd: string,
+    targets: readonly IProvider[],
+  ): Promise<Map<string, IVerifyResult>> {
+    const results = new Map<string, IVerifyResult>();
+    for (const provider of targets) {
+      results.set(provider.id, await verifyActivityWiring(cwd, provider));
+    }
+    return results;
+  }
+
+  private anyFailed(verdicts: Map<string, IVerifyResult>): boolean {
+    return [...verdicts.values()].some((r) => isFailingVerdict(r.verdict));
+  }
+
+  /** Exit 1 when any self-test failed; a skip is not a failure. */
+  private verifyExit(verdicts: Map<string, IVerifyResult> | null): number {
+    if (verdicts === null) return ExitCode.Ok;
+    return this.anyFailed(verdicts) ? ExitCode.Issues : ExitCode.Ok;
+  }
+
+  /** One indented self-test line under the provider's state line. */
+  private verifyLine(
+    result: IVerifyResult,
+    okGlyph: string,
+    ansi: { dim(s: string): string; red(s: string): string },
+  ): string {
+    if (result.verdict === 'ok') {
+      return tx(ACTIVITY_TEXTS.verifyOk, { glyph: okGlyph });
+    }
+    const detail = sanitizeForTerminal(result.detail ?? '');
+    if (!isFailingVerdict(result.verdict)) {
+      return tx(ACTIVITY_TEXTS.verifySkipped, {
+        glyph: ansi.dim('·'),
+        detail: detail || result.verdict,
+      });
+    }
+    return tx(ACTIVITY_TEXTS.verifyFailed, {
+      glyph: ansi.red('✕'),
+      verdict: result.verdict,
+      detail,
+    });
   }
 
   /** One report line: installed / not installed / partial (with the repair hint). */

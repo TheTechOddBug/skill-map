@@ -59,11 +59,18 @@ function captureContext(): ICapturedContext {
   };
 }
 
+/**
+ * Construct the verb directly (no clipanion parse), so every declared
+ * option must be assigned by hand: an `Option.Boolean` left untouched
+ * still holds clipanion's descriptor object, which is TRUTHY and would
+ * silently switch the self-test on.
+ */
 function makeCmd(provider?: string): ActivityStatusCommand {
   const cmd = new ActivityStatusCommand();
   cmd.json = false;
   cmd.quiet = false;
   cmd.noColor = true;
+  cmd.verify = false;
   cmd.provider = provider;
   return cmd;
 }
@@ -122,6 +129,57 @@ describe('sm activity status', () => {
     ok(out.includes('claude: partial'));
     ok(out.includes('bridge artifact is missing'));
     ok(out.includes('sm activity install claude'));
+  });
+
+  it('--verify skips what is not installed and stays exit 0', async () => {
+    // A skip is not a failure: nothing is wired, so there is nothing to
+    // disprove (cli-contract.md §Activity).
+    const fixture = freshFixture('verify-virgin');
+    process.chdir(fixture);
+
+    const cap = captureContext();
+    const cmd = makeCmd('claude');
+    cmd.verify = true;
+    cmd.context = cap.context;
+    strictEqual(await cmd.execute(), 0);
+    ok(!cap.stdout().includes('self-test:'), 'a not-installed provider is not probed');
+  });
+
+  it('--verify exits 1 when the wiring cannot be proven (no server)', async () => {
+    // The whole point of the flag: the install state reads a green
+    // `installed` while nothing downstream works.
+    const fixture = freshFixture('verify-noserver');
+    await installActivityBridge(fixture, providerById('claude'));
+    process.chdir(fixture);
+
+    const cap = captureContext();
+    const cmd = makeCmd('claude');
+    cmd.verify = true;
+    cmd.context = cap.context;
+    strictEqual(await cmd.execute(), 1);
+
+    const out = cap.stdout();
+    ok(out.includes('claude: installed'), 'the install state still reads installed');
+    ok(out.includes('self-test: server-down'), 'the self-test disagrees');
+  });
+
+  it('--verify rides the --json envelope as a per-provider `verify` block', async () => {
+    const fixture = freshFixture('verify-json');
+    await installActivityBridge(fixture, providerById('claude'));
+    process.chdir(fixture);
+
+    const cap = captureContext();
+    const cmd = makeCmd('claude');
+    cmd.verify = true;
+    cmd.json = true;
+    cmd.context = cap.context;
+    strictEqual(await cmd.execute(), 1);
+
+    const envelope = JSON.parse(cap.stdout()) as {
+      providers: { id: string; state: string; verify?: { verdict: string } }[];
+    };
+    strictEqual(envelope.providers[0]!.state, 'installed');
+    strictEqual(envelope.providers[0]!.verify?.verdict, 'server-down');
   });
 
   it('filters to the named provider only', async () => {

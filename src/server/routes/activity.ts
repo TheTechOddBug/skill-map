@@ -16,6 +16,11 @@
  *      the loopback gate's sibling). Constant-time comparison so the
  *      check leaks nothing about the expected value.
  *   2. AJV body validation via the shared `makeBodyValidator` factory.
+ *   2b. Wiring self-test short-circuit: an event carrying
+ *      `__skillMapProbe` is recorded in the boot-scoped nonce ring and
+ *      answered `202` immediately, BEFORE any mapping, so a probe never
+ *      lights a node, counts as an execution, or broadcasts a frame
+ *      (`spec/provider-activity.md` §Wiring self-test).
  *   3. `resolveActivityEvent` maps the raw event through the Provider's
  *      `activity.mapEvent` and resolves each signal against the scanned
  *      node set. Per resolved activity payload the stats accumulator
@@ -45,6 +50,7 @@ import type { Hono } from 'hono';
 import type { WsBroadcaster } from '../broadcaster.js';
 import type { ActivityConversationStore } from '../activity-conversations.js';
 import type { ActivityOwnerIndex } from '../activity-owner-index.js';
+import { probeNonceOf, type ActivityProbeStore } from '../activity-probe.js';
 import type { ActivityStatsService } from '../activity-stats.js';
 import {
   buildAgentSpawnEvent,
@@ -103,6 +109,8 @@ export interface IActivityRouteDeps extends IRouteDeps {
   broadcaster: WsBroadcaster;
   /** Per-session shared secret minted by the composition root at boot. */
   activityToken: string;
+  /** Boot-scoped self-test nonce ring (composition-root owned). */
+  probes: ActivityProbeStore;
   /** Boot-scoped execution-stats accumulator (composition-root owned). */
   stats: ActivityStatsService;
   /**
@@ -122,6 +130,12 @@ export function registerActivityRoute(app: Hono, deps: IActivityRouteDeps): void
     assertTokenLogged(c.req.raw.headers.get(INGEST_TOKEN_HEADER), deps.activityToken);
     const body = await parseBody(c.req.raw);
 
+    // Wiring self-test (spec §Wiring self-test): recorded and answered
+    // BEFORE any mapping, so a probe can never light a node, count as
+    // an execution, or broadcast a frame. The token gate above already
+    // ran, which is the point: the self-test covers that path too.
+    if (recordProbe(deps.probes, body)) return c.json({ ok: true, probe: true }, 202);
+
     const resolution = await resolveActivityEvent({
       providers: deps.providers,
       dbPath: deps.options.dbPath,
@@ -131,21 +145,8 @@ export function registerActivityRoute(app: Hono, deps: IActivityRouteDeps): void
     });
     logActivityIngest(body.provider, body.event, resolution);
     const { activity, spawns, reports } = resolution;
-    for (const data of activity) {
-      const stats = deps.stats.record(data);
-      const payload: INodeActivityEventData = stats ? { ...data, stats } : data;
-      deps.broadcaster.broadcast(buildNodeActivityEvent(payload));
-    }
-    for (const spawn of spawns) {
-      deps.conversations.record(spawn);
-      const pairCount = deps.stats.recordSpawn(spawn);
-      if (spawn.execution !== undefined && spawn.childNodePath !== undefined) {
-        deps.stats.recordExecution(spawn.childNodePath, spawn.execution);
-      }
-      const data = toSpawnEventData(spawn);
-      if (pairCount !== null) data.pairCount = pairCount;
-      deps.broadcaster.broadcast(buildAgentSpawnEvent(data));
-    }
+    broadcastActivity(deps, activity);
+    broadcastSpawns(deps, spawns);
     // End-of-context reports (the async response source) go ONLY to
     // the gated store; like the spawn halves they never broadcast.
     for (const report of reports) {
@@ -154,6 +155,54 @@ export function registerActivityRoute(app: Hono, deps: IActivityRouteDeps): void
 
     return c.json({ ok: true, resolved: activity.length, spawns: spawns.length }, 202);
   });
+}
+
+/**
+ * Feed each resolved signal to the stats accumulator and broadcast one
+ * `node.activity` frame per signal (stats-enriched when the start
+ * counted).
+ */
+function broadcastActivity(
+  deps: IActivityRouteDeps,
+  activity: readonly INodeActivityEventData[],
+): void {
+  for (const data of activity) {
+    const stats = deps.stats.record(data);
+    const payload: INodeActivityEventData = stats ? { ...data, stats } : data;
+    deps.broadcaster.broadcast(buildNodeActivityEvent(payload));
+  }
+}
+
+/**
+ * Per resolved spawn: record it in the consent-gated conversation store
+ * (a no-op while the gate is off), count the pair, attribute any
+ * execution totals to the child, and broadcast the METADATA-ONLY frame.
+ */
+function broadcastSpawns(deps: IActivityRouteDeps, spawns: readonly IResolvedSpawn[]): void {
+  for (const spawn of spawns) {
+    deps.conversations.record(spawn);
+    const pairCount = deps.stats.recordSpawn(spawn);
+    if (spawn.execution !== undefined && spawn.childNodePath !== undefined) {
+      deps.stats.recordExecution(spawn.childNodePath, spawn.execution);
+    }
+    const data = toSpawnEventData(spawn);
+    if (pairCount !== null) data.pairCount = pairCount;
+    deps.broadcaster.broadcast(buildAgentSpawnEvent(data));
+  }
+}
+
+/**
+ * Record a wiring-self-test probe and report whether the body WAS one
+ * (in which case the caller must answer without mapping anything). One
+ * INFO line so an operator watching `sm serve --log-level info` sees the
+ * self-test land; the nonce is skill-map's own value, never user content.
+ */
+function recordProbe(probes: ActivityProbeStore, body: IActivityBody): boolean {
+  const nonce = probeNonceOf(body.event);
+  if (nonce === null) return false;
+  probes.record(nonce);
+  log.info(`activity: ${sanitizeForTerminal(body.provider)} <- wiring self-test probe`);
+  return true;
 }
 
 /**

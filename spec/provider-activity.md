@@ -300,6 +300,68 @@ Served by the BFF, loopback-gated like every `/api/*` route, plus token-gated:
   field. Nothing beyond the minimal WS payload leaves the process, and nothing
   ever leaves the machine (see §Privacy).
 
+## Wiring self-test
+
+Every failure mode in the chain above is SILENT by construction. The bridge's
+invisibility invariants forbid it from reporting anything (§Bridge contract),
+the ingest answers `202` even when nothing resolves, and the install-state
+report is pure disk state: hook entries present plus bridge artifact present
+reads `installed` whether or not a single event has ever arrived. An operator
+whose bridge crashes on every invocation, whose server is down, or whose
+`serve.json` is stale therefore sees a green check and a dark map, with no
+surface that disagrees. The self-test is the surface that disagrees: it sends
+one synthetic event through the REAL installed bridge and asks the server
+whether it arrived.
+
+**Probe payload**. A raw event carrying the string field `__skillMapProbe` is a
+probe, not a provider event. The double-underscore camelCase key cannot collide
+with a vendor payload (every runtime in §Per-provider signal notes uses
+snake_case or lowercase dotted keys), so the discriminator needs no
+provider-specific knowledge.
+
+**Ingest short-circuit (normative)**. `POST /api/activity` MUST test for
+`__skillMapProbe` AFTER the token gate and body validation but BEFORE resolving
+the Provider, and on a match MUST record the nonce and return `202` without
+calling `mapEvent`, without touching the stats accumulator, the owner index or
+the conversation store, and without broadcasting any WS frame. A probe is
+therefore observable only through the endpoint below: it can never light a node,
+count as an execution, or appear in the map. Recording is boot-scoped and
+bounded (a ring of at most 64 nonces, oldest evicted); nothing persists.
+Passing through the token gate is deliberate, it makes the self-test cover the
+`serve.json` token path exactly as a real event does.
+
+### `GET /api/activity/probe?nonce=<nonce>`
+
+Loopback-gated, no token (operator surface, like the install probe). Returns
+`{ "nonce": "<nonce>", "seen": boolean, "at": <epoch-ms> | null }`. `seen` is
+`true` only when an ingest recorded that exact nonce since the server booted.
+A missing or empty `nonce` param → `400` `bad-query`. Read-only: reporting a
+nonce never consumes or clears it.
+
+**What the self-test proves** (`sm activity status --verify`,
+[`cli-contract.md` §Activity](./cli-contract.md)): that the installed bridge
+executes under the local Node runtime (the module-type trap in §Bridge contract
+is the archetype), derives its scope root correctly, finds and parses
+`serve.json`, passes its own scope + loopback + port gates, authenticates with
+the session token, reaches a listening server, and that the server accepted the
+event. The wiring half is already covered by the reported install state: a hook
+entry counts as wired only when its command string CONTAINS the installed
+bridge's scope-relative path, so a config pointing somewhere else reads
+`not installed` / `partial` and the self-test reports that instead of probing.
+
+**What it does NOT prove**: that the provider runtime actually spawns the hook.
+No local test can establish that (it depends on the runtime's own settings
+discovery, trust model, and matcher evaluation), so the self-test MUST NOT claim
+a working end-to-end wiring, only that everything downstream of the spawn works.
+
+**Security (normative)**. The self-test MUST spawn the bridge at the path the
+implementation composes itself (`<scopeRoot>/.skill-map/activity/bridge.js`) and
+MUST NOT execute the command string read from the provider's hook config. That
+file is operator territory skill-map does not own and, under clone-and-scan,
+is authored by whoever wrote the repository: executing a string from it would
+turn a diagnostic verb into arbitrary code execution on checkout. The wired
+command is compared as TEXT and never run.
+
 ## Install management over HTTP
 
 The same install / uninstall operations the CLI verbs expose (`sm activity

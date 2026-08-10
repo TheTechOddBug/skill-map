@@ -112,12 +112,14 @@ import { registerProjectIgnoreRoute } from './routes/project-ignore.js';
 import { registerProjectPreferencesRoute } from './routes/project-preferences.js';
 import type { ActivityConversationStore } from './activity-conversations.js';
 import type { ActivityOwnerIndex } from './activity-owner-index.js';
+import type { ActivityProbeStore } from './activity-probe.js';
 import type { ActivityStatsService } from './activity-stats.js';
 import type { AgentPresenceTracker } from './agent-presence.js';
 import { registerActiveProviderRoute } from './routes/active-provider.js';
 import { registerActionsRoutes } from './routes/actions.js';
 import { registerActivityRoute } from './routes/activity.js';
 import { registerActivityCaptureRoutes } from './routes/activity-capture.js';
+import { registerActivityProbeRoute } from './routes/activity-probe.js';
 import { registerActivityDetailRoutes } from './routes/activity-detail.js';
 import { registerActivityInstallRoutes } from './routes/activity-install.js';
 import { registerActivitySummaryRoute } from './routes/activity-summary.js';
@@ -457,6 +459,13 @@ export interface IAppDeps {
    */
   activityOwners: ActivityOwnerIndex;
   /**
+   * Boot-scoped wiring-self-test nonce ring (see `activity-probe.ts`).
+   * Instantiated by the composition root; threaded to the ingest route
+   * (which records) and the probe route (which reads back), never
+   * placed on `IRouteDeps`. Holds nonces the CLI minted, no payload.
+   */
+  activityProbes: ActivityProbeStore;
+  /**
    * Consent-gated conversation store (see `activity-conversations.ts`
    * for the custody contract). Instantiated ONLY by the composition
    * root; threaded ONLY to the activity routes (ingest, detail,
@@ -769,8 +778,15 @@ export function createApp(deps: IAppDeps): Hono {
     activityToken: deps.activityToken,
     stats: deps.activityStats,
     owners: deps.activityOwners,
+    probes: deps.activityProbes,
     conversations: deps.activityConversations,
   });
+  // Wiring self-test readback, `GET /api/activity/probe?nonce=` (see
+  // `spec/provider-activity.md` §Wiring self-test). Reports whether the
+  // ingest above recorded that nonce since boot, which is how
+  // `sm activity status --verify` learns the fire-and-forget bridge
+  // actually reached this server.
+  registerActivityProbeRoute(app, { probes: deps.activityProbes });
   // Job-event push ingest, `POST /api/job-events` (the CLI-to-server
   // push leg of `spec/job-events.md` §Transport). Same serve.json
   // session token as the activity ingest (403 `token-mismatch` BEFORE

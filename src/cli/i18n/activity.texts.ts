@@ -49,6 +49,21 @@ export const ACTIVITY_TEXTS = {
   statusPartialBridgeMissing:
     '{{glyph}}  {{provider}}: partial, {{configPath}} is wired but the bridge artifact is missing; re-run `sm activity install {{provider}}`\n',
 
+  // Wiring self-test (`--verify`), one indented line under the provider's
+  // state line. `ok` is the only verdict that proves the chain works;
+  // the failures each name what to do next.
+  verifyOk:
+    '   {{glyph}} self-test: the server received the probe through the installed bridge\n',
+  verifySkipped:
+    '   {{glyph}} self-test: skipped ({{detail}})\n',
+  verifyFailed:
+    '   {{glyph}} self-test: {{verdict}}, {{detail}}\n',
+  // Printed once, after the report, whenever any provider failed. The
+  // self-test cannot observe the runtime spawning the hook, so a green
+  // run must never be read as proof of end-to-end wiring.
+  verifyFooter:
+    'The self-test covers everything downstream of the hook spawn (bridge, serve.json, scope + loopback gates, token, ingest). It cannot observe whether the provider runtime actually spawns the hook.\n',
+
   // Write failures (config merge or bridge artifact).
   installFailed:
     '{{glyph}}  sm activity: install failed: {{message}}\n',
