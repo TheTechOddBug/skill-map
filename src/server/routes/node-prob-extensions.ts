@@ -90,7 +90,6 @@ import {
 } from '../../core/jobs/auto-fix-chain.js';
 import { fixerAnalyzerIds, nodeMatchesPrecondition } from '../../core/jobs/submit-engine.js';
 import { buildFreshResolver } from '../../core/runtime/fresh-resolver.js';
-import type { IPluginRuntime } from '../../core/runtime/plugin-runtime.js';
 import {
   offeredSkillActionCatalog,
   type ISkillActionCatalog,
@@ -108,7 +107,6 @@ import { isLockedBuiltIn } from '../../plugins/locked-built-ins.js';
 import type { Job, Node } from '../../kernel/types.js';
 import type { IFindingRecord } from '../../kernel/types/storage.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
-import { log } from '../../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { buildSingleEnvelope } from '../envelope.js';
@@ -218,11 +216,6 @@ export interface IProbExtensionsCatalog {
 }
 
 export function registerNodeProbExtensionsRoute(app: Hono, deps: IRouteDeps): void {
-  // Plugin-runtime discovery warnings are static per boot; emit them
-  // once here so the per-request recompose below (which uses a noop
-  // sink) never re-spams the server log.
-  emitPluginRuntimeWarnings(deps.pluginRuntimeHolder.current);
-
   app.get('/api/nodes/:pathB64/prob-extensions', async (c) => {
     const nodePath = decodePathB64Or404(c.req.param('pathB64'));
 
@@ -263,23 +256,14 @@ export function registerNodeProbExtensionsRoute(app: Hono, deps: IRouteDeps): vo
 }
 
 /**
- * Emit the plugin-runtime's boot-time discovery warnings to the server
- * log exactly once. The set is static per boot, so re-emitting it on the
- * per-request recompose path would only spam the log; the catalog is
- * recomposed fresh, the warnings are not.
- */
-function emitPluginRuntimeWarnings(pluginRuntime: IPluginRuntime): void {
-  for (const line of pluginRuntime.warnings) log.warn(line);
-}
-
-/**
  * Build the probabilistic catalog sources for one request. A fresh
  * enabled-resolver is derived from the live layered config
  * (`configService.effective()`) and threaded into `buildActionRuntime`
  * so a mid-session enable/disable is honoured without restarting
  * `sm serve` (audit M3: in-memory re-filter of the boot-cached runtime,
  * no discovery pass). The warn sink is a noop here, warnings already
- * went to the log once at registration. See `core/runtime/fresh-resolver.ts`.
+ * went to the log once at server boot (`server/index.ts`, the single
+ * emission point). See `core/runtime/fresh-resolver.ts`.
  */
 async function composeProbSources(deps: IRouteDeps): Promise<ICatalogSources> {
   const resolveEnabled = await buildFreshResolver({
@@ -288,7 +272,7 @@ async function composeProbSources(deps: IRouteDeps): Promise<ICatalogSources> {
   const runtime = buildActionRuntime(
     deps.pluginRuntimeHolder.current,
     () => {
-      /* discard: warnings emitted once at registration */
+      /* discard: warnings emitted once at server boot */
     },
     undefined,
     resolveEnabled,

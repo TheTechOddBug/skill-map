@@ -70,7 +70,6 @@ import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { nodelessTargetId } from '../../kernel/jobs/index.js';
 import type { JobStatus, Node } from '../../kernel/types.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
-import { log } from '../../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { JobSubmitConflictError } from '../app.js';
@@ -169,11 +168,6 @@ export interface INodeJobsRouteDeps extends IRouteDeps {
 }
 
 export function registerNodeJobsRoute(app: Hono, deps: INodeJobsRouteDeps): void {
-  // Plugin-runtime discovery warnings are static per boot; emit them
-  // once here (the per-request runtime build below uses a noop sink so a
-  // mid-session recompose never re-spams the server log).
-  for (const line of deps.pluginRuntimeHolder.current.warnings) log.warn(line);
-
   app.post('/api/nodes/:pathB64/jobs', async (c) => {
     const startedAt = Date.now();
     const nodePath = decodePathB64Or404(c.req.param('pathB64'));
@@ -194,7 +188,7 @@ export function registerNodeJobsRoute(app: Hono, deps: INodeJobsRouteDeps): void
     const runtime = buildActionRuntime(
       deps.pluginRuntimeHolder.current,
       () => {
-        /* discard: warnings emitted once at registration */
+        /* discard: warnings emitted once at server boot */
       },
       undefined,
       resolveEnabled,
@@ -303,7 +297,7 @@ export function registerNodelessJobsRoute(app: Hono, deps: INodeJobsRouteDeps): 
     const runtime = buildActionRuntime(
       deps.pluginRuntimeHolder.current,
       () => {
-        /* discard: warnings emitted once at registration */
+        /* discard: warnings emitted once at server boot */
       },
       undefined,
       resolveEnabled,

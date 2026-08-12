@@ -491,16 +491,16 @@ async function assemblePluginRuntime(
   const pluginRuntime = options.noPlugins
     ? emptyPluginRuntime()
     : await loadPluginRuntime({ runtimeContext });
-  // Surface plugin-load warnings ONCE at boot. When the watcher runs
-  // (the default), its initial scan (`runInitialBatch`) re-loads the
-  // plugins and surfaces the identical warnings via `onPluginWarning`,
-  // so printing them here too would double every warning at startup.
-  // Only print here when no watcher will run (`--no-watcher`), where
-  // this is the sole surfacing point.
-  if (options.noWatcher) {
-    for (const warn of pluginRuntime.warnings) {
-      log.warn(warn);
-    }
+  // Surface plugin-load warnings ONCE at boot, unconditionally: this is
+  // the SINGLE emission point for the whole BFF. The watcher never
+  // re-surfaces them because `buildWatcherServiceOpts` always injects
+  // this very runtime, and `resolveBootPluginRuntime` deliberately skips
+  // `onPluginWarning` for an injected one (the injector already spoke).
+  // Route factories must NOT re-emit either: two of them used to do it
+  // at registration time, each believing it was the only one, which is
+  // how a bare `sm` printed the untrusted-plugin notice twice.
+  for (const warn of pluginRuntime.warnings) {
+    log.warn(warn);
   }
   // The kindRegistry embeds in every envelope and is CACHED at boot.
   // It must include EVERY built-in's declarations regardless of the

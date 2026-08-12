@@ -1719,7 +1719,7 @@ describe('SettingsProjectMcp registration row', () => {
     expect(el.querySelector('[data-testid="settings-project-mcp-register-hint"]')).toBeNull();
   });
 
-  it('shows the config document plus its paste target for a config-flavour lens', () => {
+  it('shows the config document plus its paste target for a config-flavour lens', async () => {
     const fixture = createMcp('antigravity');
     const el: HTMLElement = fixture.nativeElement;
     const snippet = el.querySelector('[data-testid="settings-project-mcp-register-snippet"]');
@@ -1727,6 +1727,17 @@ describe('SettingsProjectMcp registration row', () => {
     expect(
       el.querySelector('[data-testid="settings-project-mcp-register-copy"]')?.textContent,
     ).toContain('Copy config');
+    // The paste target is work that only exists once the snippet is in
+    // hand, so it waits for the copy (same gate as the restart hint).
+    expect(el.querySelector('[data-testid="settings-project-mcp-register-hint"]')).toBeNull();
+    await copySnippet(fixture);
+    // The 2-second confirmation owns the slot first.
+    expect(
+      el.querySelector('[data-testid="settings-project-mcp-register-hint"]')?.textContent,
+    ).toContain('Copied to the clipboard.');
+    const proto = fixture.componentInstance as unknown as { copied: WritableSignal<boolean> };
+    proto.copied.set(false);
+    fixture.detectChanges();
     expect(
       el.querySelector('[data-testid="settings-project-mcp-register-hint"]')?.textContent,
     ).toContain('~/.gemini/config/mcp_config.json');

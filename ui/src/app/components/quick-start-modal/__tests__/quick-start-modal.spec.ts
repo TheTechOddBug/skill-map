@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { provideZonelessChangeDetection, signal } from '@angular/core';
+import { provideZonelessChangeDetection, signal, type WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
 import { QuickStartModal } from '../quick-start-modal';
@@ -103,6 +103,8 @@ interface ISetupProbe {
   mcpInstalledMeta(): string | null;
   mcpInstalledMetaTone(): 'muted' | 'warn';
   onCheckMcpConnection(): Promise<void>;
+  onCopyMcpSnippet(): Promise<void>;
+  mcpCopied: WritableSignal<boolean>;
   onFollowSymlinksToggle(): void;
   selectGroup(id: 'live' | 'realtime' | 'ai'): void;
   tutorialNotePrefix(): string;
@@ -169,6 +171,21 @@ function open(setup: ISetup): void {
 async function useLens(providerId: string): Promise<void> {
   await TestBed.inject(ProjectInfoService).reloadActiveProvider();
   expect(TestBed.inject(ProjectInfoService).activeProvider()).toBe(providerId);
+}
+
+/**
+ * Take the snippet with a stubbed clipboard, then let the button's
+ * 2-second confirmation expire so the hint slot lands on whatever comes
+ * AFTER it (the paste target, for a config-flavour lens).
+ */
+async function copySnippetAndSettle(setup: ISetup): Promise<void> {
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText: vi.fn().mockResolvedValue(undefined) },
+  });
+  await setup.probe.onCopyMcpSnippet();
+  setup.probe.mcpCopied.set(false);
+  setup.fixture.detectChanges();
 }
 
 /** Stub half of `useLens`: the `/api/active-provider` payload for a lens. */
@@ -496,14 +513,49 @@ describe('QuickStartModal, MCP register snippet', () => {
     expect(JSON.parse(snippet.payload)).toEqual({
       mcpServers: { 'skill-map': { serverUrl: MCP_URL } },
     });
-    // A config lens flips the Copy affordance and surfaces the target file.
+    // A config lens flips the Copy affordance.
     expect(setup.probe.mcpCopyLabel()).toBe(QUICK_START_TEXTS.action.copyConfig);
+    // ...but the target file is an instruction for the step AFTER the copy,
+    // so an operator still reading the row is not told to paste anything yet.
+    expect(setup.probe.mcpInstalledMeta()).not.toBe(
+      QUICK_START_TEXTS.rows.mcpInstalled.pasteHint('~/.gemini/config/mcp_config.json'),
+    );
+
+    await copySnippetAndSettle(setup);
+
+    // Copy -> "Copied to the clipboard." -> where to put it. The target
+    // outlives the 2-second confirmation it followed.
     expect(setup.probe.mcpInstalledMeta()).toBe(
       QUICK_START_TEXTS.rows.mcpInstalled.pasteHint('~/.gemini/config/mcp_config.json'),
     );
     // Pending manual work, so it wears the warning hue (user call
     // 2026-07-25), unlike the muted copy acknowledgement.
     expect(setup.probe.mcpInstalledMetaTone()).toBe('warn');
+  });
+
+  it('answers the copy with the clipboard confirmation before naming the target', async () => {
+    const setup = bootstrapLens('antigravity', {
+      kind: 'config',
+      config: {
+        target: '~/.gemini/config/mcp_config.json',
+        document: { mcpServers: { 'skill-map': { serverUrl: '{{url}}' } } },
+      },
+    });
+
+    open(setup);
+    await useLens('antigravity');
+    await flushAsync();
+
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
+    await setup.probe.onCopyMcpSnippet();
+
+    // The confirmation owns the single hint slot while it shows; the paste
+    // target takes over when it expires (covered by the test above).
+    expect(setup.probe.mcpInstalledMeta()).toBe(QUICK_START_TEXTS.rows.mcpInstalled.copiedHint);
+    expect(setup.probe.mcpInstalledMetaTone()).toBe('muted');
   });
 
   it('substitutes the live endpoint everywhere it appears in the document', async () => {

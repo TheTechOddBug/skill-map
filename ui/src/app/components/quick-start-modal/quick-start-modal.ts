@@ -282,6 +282,14 @@ export class QuickStartModal {
   private readonly mcpRestartPending = signal(false);
   /** Transient "Copied" feedback for the MCP register-command button. */
   protected readonly mcpCopied = signal(false);
+  /**
+   * Sticky companion of `mcpCopied`: the paste instruction is work that
+   * only exists once the operator holds the snippet, so it waits for the
+   * copy and then stays for the rest of the session (it must NOT vanish
+   * with the button's 2-second confirmation). Mirrors `copiedOnce` on
+   * the Settings twin of this row.
+   */
+  private readonly mcpCopiedOnce = signal(false);
 
   // Live runtime signals (no probe): the row indicators read them directly.
   private readonly hookInstalledSignal = this.activityReadiness.hookInstalled;
@@ -691,8 +699,16 @@ export class QuickStartModal {
    * Where a config document goes, for the lenses that hand one over. Its
    * own computed because the tone below keys on THIS hint specifically,
    * not on "the meta line is populated".
+   *
+   * Gated on the copy having happened: an operator still reading the row
+   * has nothing to paste yet, so the instruction lands as noise ahead of
+   * the gesture it belongs to. The sequence is copy -> "Copied to the
+   * clipboard." -> where to put it, and the gate is the STICKY
+   * `mcpCopiedOnce`, so the target survives the 2-second confirmation
+   * instead of flashing past with it.
    */
   private readonly mcpPasteHint = computed<string | null>(() => {
+    if (!this.mcpCopiedOnce()) return null;
     const snippet = this.mcpSnippet();
     return snippet.kind === 'config' && snippet.target !== undefined
       ? this.texts.rows.mcpInstalled.pasteHint(snippet.target)
@@ -741,6 +757,7 @@ export class QuickStartModal {
     try {
       await navigator.clipboard.writeText(this.mcpSnippet().payload);
       this.mcpCopied.set(true);
+      this.mcpCopiedOnce.set(true);
       setTimeout(() => this.mcpCopied.set(false), COPIED_FEEDBACK_MS);
     } catch {
       // Clipboard blocked (insecure context / denied). Non-actionable, no-op.

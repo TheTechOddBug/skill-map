@@ -120,10 +120,18 @@ export class SettingsProjectMcp {
    * wins while it shows, then the paste target for the config-flavour
    * lenses (a document is useless without knowing which file it goes
    * into), then nothing.
+   *
+   * Both entries wait for the copy, on the same reasoning as the restart
+   * line below: before the gesture the operator holds nothing to paste,
+   * so naming the file is noise on a row they are still reading. The
+   * paste target keys off the STICKY `copiedOnce` so it outlives the
+   * button's 2-second confirmation and stays available while they edit
+   * their config.
    */
   protected readonly hint = computed<string | null>(() => {
     const t = this.texts.project.mcpRegister;
     if (this.copied()) return t.copiedHint;
+    if (!this.copiedOnce()) return null;
     const snippet = this.snippet();
     return snippet.kind === 'config' && snippet.target !== undefined
       ? t.pasteHint(snippet.target)
