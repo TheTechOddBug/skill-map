@@ -48,8 +48,7 @@ import type { INodeView } from '../../../models/node';
 import type { GraphPreferencesService } from '../../../services/graph-preferences';
 import type { TOverrideMap } from '../../../services/map-overrides';
 import {
-  computeDagreLayout,
-  computeForceLayoutPositions,
+  computeLayoutPositions,
   type IFullLayout,
   type IPoint,
   type ITopology,
@@ -447,10 +446,11 @@ export function setupCamera(config: ICameraConfig): ICameraHandle {
       direction: config.graphPreferences.layoutDirection(),
       spacing: config.graphPreferences.layoutSpacing(),
     };
-    const positions = await Promise.resolve(
-      preferences.algorithm === 'force'
-        ? computeForceLayoutPositions(subNodes, subEdges)
-        : computeDagreLayout(config.dagreLayout, subNodes, subEdges, preferences),
+    const positions = await computeLayoutPositions(
+      config.dagreLayout,
+      subNodes,
+      subEdges,
+      preferences,
     );
     const next: TNodePositions = new Map(config.nodePositions());
     for (const [path, pt] of positions) {

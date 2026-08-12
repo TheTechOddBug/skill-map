@@ -72,8 +72,7 @@ import { pathBasenameForLink } from '../../../services/path-basename';
 import { InspectorView } from '../inspector-view/inspector-view';
 import { MiddleMousePanDirective, type IMiddleMousePanTarget } from './middle-mouse-pan';
 import {
-  computeDagreLayout,
-  computeForceLayoutPositions,
+  computeLayoutPositions,
   topologyFingerprint,
   type IGraphEdge,
   type IGraphNode,
@@ -803,15 +802,14 @@ export class GraphView implements OnInit {
       lastLayoutKey = cacheKey;
       lastPreferencesKey = preferencesKey;
 
-      // Dispatch on algorithm: 'force' goes to our local d3-force
-      // helper (sync, wrap in Promise.resolve so the effect's await
-      // chain is uniform), the rest go to Foblex's dagre engine.
-      const layoutPromise =
-        preferences.algorithm === 'force'
-          ? Promise.resolve(computeForceLayoutPositions(nodes, topology.edges))
-          : Promise.resolve().then(() =>
-              computeDagreLayout(this.dagreLayout, nodes, topology.edges, preferences),
-            );
+      // Algorithm dispatch lives in `computeLayoutPositions` (one owner,
+      // three callers), and always answers with a promise.
+      const layoutPromise = computeLayoutPositions(
+        this.dagreLayout,
+        nodes,
+        topology.edges,
+        preferences,
+      );
 
       void layoutPromise
         .then((positions) => {

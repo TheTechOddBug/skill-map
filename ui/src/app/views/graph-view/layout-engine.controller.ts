@@ -26,8 +26,7 @@ import type { DagreLayoutEngine } from '@foblex/flow-dagre-layout';
 
 import type { INodeView } from '../../../models/node';
 import {
-  computeDagreLayout,
-  computeForceLayoutPositions,
+  computeLayoutPositions,
   topologyFingerprint,
   type IPoint,
   type ITopology,
@@ -86,15 +85,14 @@ export function setupLayoutEngine(config: ILayoutEngineConfig): {
     lastLayoutKey = cacheKey;
     lastPreferencesKey = preferencesKey;
 
-    // Dispatch on algorithm: 'force' goes to our local d3-force helper
-    // (sync, wrap in Promise.resolve so the effect's await chain is
-    // uniform), the rest go to Foblex's dagre engine.
-    const layoutPromise =
-      preferences.algorithm === 'force'
-        ? Promise.resolve(computeForceLayoutPositions([...nodes], topology.edges))
-        : Promise.resolve().then(() =>
-            computeDagreLayout(config.dagreLayout, [...nodes], topology.edges, preferences),
-          );
+    // Algorithm dispatch lives in `computeLayoutPositions` (one owner,
+    // three callers), and always answers with a promise.
+    const layoutPromise = computeLayoutPositions(
+      config.dagreLayout,
+      [...nodes],
+      topology.edges,
+      preferences,
+    );
 
     void layoutPromise
       .then((positions) => {

@@ -66,8 +66,14 @@ export const GRAPH_VIEW_TEXTS = {
     layoutAlgorithmTooltip: 'Layout algorithm',
     layoutDirectionLabel: 'Layout direction',
     layoutDirectionTooltip: 'Layout direction',
+    /**
+     * Two layouts own their own axes and ignore the direction knob
+     * (Organic has no layers at all, Folders always runs root-left to
+     * depth-right), so the wording names the remaining choices rather
+     * than the algorithm it is refusing.
+     */
     layoutDirectionUnavailableTooltip:
-      'Direction does not apply to the Organic layout. Switch to Balanced or Stretched to set it.',
+      'Direction does not apply to this layout. Switch to Balanced or Stretched to set it.',
     layoutSpacingLabel: 'Layout spacing',
     layoutSpacingTooltip: 'Layout spacing',
     layoutSpacingUnavailableTooltip:
@@ -94,6 +100,7 @@ export const GRAPH_VIEW_TEXTS = {
         'network-simplex': { label: 'Balanced' },
         'longest-path': { label: 'Stretched' },
         force: { label: 'Organic' },
+        filesystem: { label: 'Folders' },
       },
     },
     direction: {

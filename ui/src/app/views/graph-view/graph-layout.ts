@@ -59,6 +59,7 @@ import {
   LAYOUT_SPACING_VALUES,
   toFoblexAlgorithm,
   toFoblexDirection,
+  type ILayoutSpacingValues,
   type TLayoutAlgorithm,
   type TLayoutDirection,
   type TLayoutSpacing,
@@ -370,6 +371,175 @@ export function computeForceLayoutPositions(
     });
   }
   return positions;
+}
+
+/**
+ * One directory while the filesystem layout is being built: the files
+ * sitting directly in it, plus its subdirectories by name. Directories
+ * are NOT nodes (skill-map has no folder node), they exist only as the
+ * scaffolding this layout walks.
+ */
+interface IDirTree {
+  files: INodeView[];
+  children: Map<string, IDirTree>;
+}
+
+function emptyDir(): IDirTree {
+  return { files: [], children: new Map() };
+}
+
+/**
+ * Build the directory tree implied by the node paths. Paths are
+ * POSIX-relative (`docs/guide.md`, `.claude/skills/foo/SKILL.md`), so
+ * splitting on `/` is the whole story; no platform separator handling
+ * belongs here. Intermediate directories that hold no file of their own
+ * still materialise, which is what keeps a node's column equal to its
+ * real depth.
+ */
+function buildDirTree(allNodes: INodeView[]): IDirTree {
+  const root = emptyDir();
+  for (const node of allNodes) {
+    const segments = node.path.split('/');
+    // The last segment is the file itself, everything before it is the
+    // directory chain that leads to it.
+    let dir = root;
+    for (let i = 0; i < segments.length - 1; i += 1) {
+      const name = segments[i] ?? '';
+      let next = dir.children.get(name);
+      if (!next) {
+        next = emptyDir();
+        dir.children.set(name, next);
+      }
+      dir = next;
+    }
+    dir.files.push(node);
+  }
+  return root;
+}
+
+/**
+ * Place one directory's subtree. Each COLUMN fills compactly from the
+ * top, tracked in `nextFree` (one cursor per depth); the only thing
+ * that ever pushes a folder further down is `minRow`, the rule that a
+ * folder's contents may not start ABOVE the row its parent's own files
+ * start on. So a folder's files sit beside, and no higher than, the
+ * folder that holds them, and the rest of the canvas stays packed.
+ *
+ * Why not reserve a band per branch. The obvious tree layout gives
+ * every subtree its own exclusive block of rows, which aligns parent
+ * and child perfectly, and it was measured and rejected (user call): a
+ * reserved band cannot be shared, so branch heights SUM instead of
+ * overlapping, and on a real corpus (284 nodes, this repo) it came to
+ * 386 rows against 82 for a naive per-column packing, taller than the
+ * single dagre column the layout exists to replace. Sharing rows
+ * between branches is what keeps it compact, and the cost is that
+ * parent and child land near each other rather than exactly level
+ * (median 6 rows apart on that same corpus).
+ *
+ * One blank row trails a folder's own run so sibling folders in a
+ * column read as blocks rather than one undifferentiated list.
+ */
+function placeDirTree(
+  dir: IDirTree,
+  depth: number,
+  minRow: number,
+  positions: Map<string, IPoint>,
+  pitch: { column: number; row: number },
+  nextFree: number[],
+): void {
+  const startRow = Math.max(nextFree[depth] ?? 0, minRow);
+  const x = depth * pitch.column;
+  let row = startRow;
+  for (const file of [...dir.files].sort((a, b) => a.path.localeCompare(b.path))) {
+    positions.set(file.path, { x, y: row * pitch.row });
+    row += 1;
+  }
+  // Trailing blank row only when this folder actually put something in
+  // the column; an empty pass-through directory must not spend a row.
+  nextFree[depth] = row + (dir.files.length > 0 ? 1 : 0);
+
+  for (const name of [...dir.children.keys()].sort((a, b) => a.localeCompare(b))) {
+    const child = dir.children.get(name);
+    // Children inherit THIS folder's start row as their floor, which is
+    // the whole alignment rule; where they actually land is that floor
+    // or their column's cursor, whichever is lower down.
+    if (child) placeDirTree(child, depth + 1, startRow, positions, pitch, nextFree);
+  }
+}
+
+/**
+ * Arrange the loaded set by PATH rather than by edges: column = how
+ * deep the node sits, so the root-level nodes read on the left and the
+ * deeply nested ones on the right, and each folder's contents sit
+ * beside the folder they belong to. Used by the "Folders" layout option.
+ *
+ * Why it exists. Dagre ranks nodes by their PREDECESSORS, so a node
+ * with no edges lands in rank 0 by definition. Open a corpus with many
+ * nodes and few references between them (the common shape of a docs
+ * tree that has not been cross-linked yet) and every node shares rank
+ * 0: with the default LEFT_RIGHT direction that is one endless vertical
+ * column, ordered by nothing the reader can perceive (dagre orders
+ * within a rank to minimise edge crossings, and there are no edges to
+ * cross). The layout the operator wants there is not a graph layout at
+ * all, it is the shape they already have in their head, the folder
+ * tree. Edges are ignored outright, which is the point: this answers
+ * "where does this file live", not "what does it reference".
+ *
+ * Column-per-depth alone was not enough (user call): sorting each
+ * column independently scattered a folder's children anywhere down the
+ * canvas, with nothing tying `docs/deep/*` to where `docs/*` had landed.
+ * The layout walks the directory TREE instead, so a folder's files sit
+ * beside the folder that holds them, while columns still pack from the
+ * top so the canvas does not grow taller than the problem it solves.
+ * See `placeDirTree` for the alignment rule and the band-reservation
+ * variant that was measured and rejected.
+ *
+ * Deterministic (name-sorted at every level, so input order cannot
+ * change the result) and cheap: one pass to build the tree, one DFS to
+ * place it. Runs synchronously on the same path as the force layout.
+ */
+export function computeFilesystemLayoutPositions(
+  allNodes: INodeView[],
+  spacing: ILayoutSpacingValues,
+): Map<string, IPoint> {
+  const positions = new Map<string, IPoint>();
+  placeDirTree(
+    buildDirTree(allNodes),
+    0,
+    0,
+    positions,
+    { column: NODE_WIDTH + spacing.layerGap, row: NODE_HEIGHT + spacing.nodeGap },
+    [],
+  );
+  return positions;
+}
+
+/**
+ * Single entry point for "give me positions for this set". Owns the
+ * dispatch on `preferences.algorithm` so the three callers (the graph
+ * view's layout effect, the extracted layout-engine controller, and
+ * the camera controller's re-layout of a visible subset) cannot drift
+ * apart on which algorithms exist. Every branch is normalised to a
+ * promise so callers keep one uniform await chain.
+ */
+export function computeLayoutPositions(
+  engine: DagreLayoutEngine,
+  allNodes: INodeView[],
+  edges: IGraphEdge[],
+  preferences: ILayoutPreferences,
+): Promise<Map<string, IPoint>> {
+  if (preferences.algorithm === 'force') {
+    return Promise.resolve(computeForceLayoutPositions(allNodes, edges));
+  }
+  if (preferences.algorithm === 'filesystem') {
+    return Promise.resolve(
+      computeFilesystemLayoutPositions(allNodes, LAYOUT_SPACING_VALUES[preferences.spacing]),
+    );
+  }
+  // Wrapped rather than called bare: dagre's CJS interop can throw on
+  // import in some test environments, and the callers handle a rejected
+  // promise (keep the previous positions) but not a synchronous throw.
+  return Promise.resolve().then(() => computeDagreLayout(engine, allNodes, edges, preferences));
 }
 
 /**

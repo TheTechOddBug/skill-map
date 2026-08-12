@@ -28,11 +28,17 @@ import { EDagreLayoutAlgorithm } from '@foblex/flow-dagre-layout';
  *     so the string we store in localStorage flows straight into the
  *     dagre engine options.
  *   - `force`, our local d3-force simulation. Not a dagre algorithm,
- *     branched in `graph-view.ts` to `computeForceLayoutPositions`.
- *     `direction` has no meaning under this layout (no layers, no
- *     flow), so the toolbar disables the direction button when it
- *     is active and the connection sides fall back to Foblex's
- *     `CALCULATE` mode so arrow heads orient themselves.
+ *     branched in `graph-layout.ts`'s `computeLayoutPositions` to
+ *     `computeForceLayoutPositions`. `direction` has no meaning under
+ *     this layout (no layers, no flow), so the toolbar disables the
+ *     direction button when it is active and the connection sides
+ *     fall back to Foblex's `CALCULATE` mode so arrow heads orient
+ *     themselves.
+ *   - `filesystem`, our local path-derived layout. Also not dagre:
+ *     the column of a node comes from how deep its path sits, not
+ *     from its edges, which is the only thing that arranges a corpus
+ *     whose nodes barely reference each other. See
+ *     `computeFilesystemLayoutPositions`.
  *
  * Dagre also exposes `tight-tree`; it is intentionally NOT in this
  * catalogue. On our typical skill-map graphs (small, mostly tree-shaped),
@@ -42,17 +48,23 @@ import { EDagreLayoutAlgorithm } from '@foblex/flow-dagre-layout';
  * value from a previous version fails the `isLayoutAlgorithm` guard
  * and falls back to the default on the next read.
  */
-export type TLayoutAlgorithm = 'network-simplex' | 'longest-path' | 'force';
+export type TLayoutAlgorithm = 'network-simplex' | 'longest-path' | 'force' | 'filesystem';
 
 export const LAYOUT_ALGORITHMS: ReadonlyArray<TLayoutAlgorithm> = [
   'network-simplex',
   'longest-path',
   'force',
+  'filesystem',
 ];
 
-/** Whether the algorithm honours the `direction` preference. False for the d3-force simulation. */
+/**
+ * Whether the algorithm honours the `direction` preference. False for
+ * the two layouts that own their own axes: the d3-force simulation
+ * (no layers, no flow) and the filesystem layout, whose whole point is
+ * that depth runs left to right.
+ */
 export function algorithmUsesDirection(value: TLayoutAlgorithm): boolean {
-  return value !== 'force';
+  return value !== 'force' && value !== 'filesystem';
 }
 
 /**
@@ -61,7 +73,9 @@ export function algorithmUsesDirection(value: TLayoutAlgorithm): boolean {
  * (they feed `IDagreLayoutEngineOptions`); the force simulation
  * uses its own hardcoded collision radius + link distance. Until
  * we wire spacing into the force tuning, the UI dims the spacing
- * control when force is active.
+ * control when force is active. The filesystem layout reads the same
+ * two numbers directly (row pitch + column pitch), so it keeps the
+ * control live.
  */
 export function algorithmUsesSpacing(value: TLayoutAlgorithm): boolean {
   return value !== 'force';
