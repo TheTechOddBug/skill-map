@@ -60,6 +60,7 @@ import {
   LAYOUT_SPACING_VALUES,
   toFoblexAlgorithm,
   toFoblexDirection,
+  type IFilesystemSpacingValues,
   type ILayoutSpacingValues,
   type TLayoutAlgorithm,
   type TLayoutDirection,
@@ -443,47 +444,55 @@ function buildDirTree(allNodes: INodeView[]): IDirTree {
  * panel. Do not "optimise" it back to the compact form without asking:
  * the compact form was built, measured, shown, and rejected.
  *
- * One blank row trails a folder's own run so sibling folders in a
- * column read as blocks rather than one undifferentiated list.
+ * `folderGap` of vertical air trails a folder's own run so sibling
+ * folders in a column read as blocks rather than one undifferentiated
+ * list. It is a gap in its OWN right, not "one more row": deriving it
+ * from the row pitch chained it to `nodeGap` and made the air inside a
+ * folder impossible to tune without moving the boundary between folders
+ * with it, which is exactly the complaint that split them (user call).
+ *
+ * Y is tracked in PIXELS rather than row indices for the same reason:
+ * once two different vertical gaps exist, "rows" stop being a unit that
+ * can express the layout.
  */
 function placeDirTree(
   dir: IDirTree,
   depth: number,
-  minRow: number,
+  minY: number,
   positions: Map<string, IPoint>,
-  pitch: { column: number; row: number },
+  pitch: { column: number; row: number; folderGap: number },
   nextFree: number[],
   filesBelowSubfolders: boolean,
 ): number {
-  const startRow = Math.max(nextFree[depth] ?? 0, minRow);
+  const startY = Math.max(nextFree[depth] ?? 0, minY);
   const x = depth * pitch.column;
   const sortedFiles = [...dir.files].sort((a, b) => a.path.localeCompare(b.path));
   const sortedChildren = [...dir.children.keys()].sort((a, b) => a.localeCompare(b));
 
   const placeOwnFiles = (from: number): number => {
-    let row = from;
+    let y = from;
     for (const file of sortedFiles) {
-      positions.set(file.path, { x, y: row * pitch.row });
-      row += 1;
+      positions.set(file.path, { x, y });
+      y += pitch.row;
     }
-    // Trailing blank row only when this folder actually put something
-    // in the column; an empty pass-through directory must not spend one.
-    nextFree[depth] = row + (sortedFiles.length > 0 ? 1 : 0);
-    return row;
+    // The folder separator is only owed when this folder actually put
+    // something in the column; an empty pass-through directory must not
+    // spend any.
+    nextFree[depth] = y + (sortedFiles.length > 0 ? pitch.folderGap : 0);
+    return y;
   };
 
   // COMPACT: this folder's files claim its column first, and the
-  // subfolders only inherit `startRow` as their floor. Nothing waits on
+  // subfolders only inherit `startY` as their floor. Nothing waits on
   // anything, so branch heights overlap and the canvas stays short.
   if (!filesBelowSubfolders) {
-    const row = placeOwnFiles(startRow);
-    let deepest = row;
+    let deepest = placeOwnFiles(startY);
     for (const name of sortedChildren) {
       const child = dir.children.get(name);
       if (child) {
         deepest = Math.max(
           deepest,
-          placeDirTree(child, depth + 1, startRow, positions, pitch, nextFree, false),
+          placeDirTree(child, depth + 1, startY, positions, pitch, nextFree, false),
         );
       }
     }
@@ -493,13 +502,13 @@ function placeDirTree(
   // FILES PANEL ORDER: subfolders first (never starting above this
   // folder's own start row), then this folder's files below everything
   // they occupied.
-  let deepest = startRow;
+  let deepest = startY;
   for (const name of sortedChildren) {
     const child = dir.children.get(name);
     if (child) {
       deepest = Math.max(
         deepest,
-        placeDirTree(child, depth + 1, startRow, positions, pitch, nextFree, true),
+        placeDirTree(child, depth + 1, startY, positions, pitch, nextFree, true),
       );
     }
   }
@@ -550,7 +559,7 @@ function placeDirTree(
  */
 export function computeFilesystemLayoutPositions(
   allNodes: INodeView[],
-  spacing: ILayoutSpacingValues,
+  spacing: IFilesystemSpacingValues,
   variant: 'files-below' | 'files-first',
 ): Map<string, IPoint> {
   const positions = new Map<string, IPoint>();
@@ -559,7 +568,11 @@ export function computeFilesystemLayoutPositions(
     0,
     0,
     positions,
-    { column: NODE_WIDTH + spacing.layerGap, row: NODE_HEIGHT + spacing.nodeGap },
+    {
+      column: NODE_WIDTH + spacing.layerGap,
+      row: NODE_HEIGHT + spacing.nodeGap,
+      folderGap: spacing.folderGap,
+    },
     [],
     variant === 'files-below',
   );

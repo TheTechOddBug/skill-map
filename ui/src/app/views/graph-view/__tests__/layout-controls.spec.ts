@@ -93,6 +93,25 @@ describe('spacing scales', () => {
       expect(scale.compact.layerGap).toBeLessThan(scale.normal.layerGap);
       expect(scale.normal.layerGap).toBeLessThan(scale.spacious.layerGap);
     }
+    expect(FILESYSTEM_SPACING_VALUES.compact.folderGap).toBeLessThan(
+      FILESYSTEM_SPACING_VALUES.normal.folderGap,
+    );
+    expect(FILESYSTEM_SPACING_VALUES.normal.folderGap).toBeLessThan(
+      FILESYSTEM_SPACING_VALUES.spacious.folderGap,
+    );
+  });
+
+  it('separates folders more than it separates files inside one', () => {
+    // The boundary between two folders is `nodeGap + folderGap`, so it
+    // is always the wider of the two. If a future retune inverted that,
+    // the column would read as one undifferentiated run and the folder
+    // grouping, the whole point of these layouts, would stop being
+    // visible.
+    for (const tier of LAYOUT_SPACINGS) {
+      const { nodeGap, folderGap } = FILESYSTEM_SPACING_VALUES[tier];
+      expect(folderGap, tier).toBeGreaterThan(0);
+      expect(nodeGap + folderGap, tier).toBeGreaterThan(nodeGap);
+    }
   });
 
   it('covers every tier in both scales', () => {

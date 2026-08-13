@@ -151,25 +151,41 @@ export const LAYOUT_SPACING_VALUES: Readonly<Record<TLayoutSpacing, ILayoutSpaci
 };
 
 /**
- * Gaps for the two filesystem layouts, tighter than the dagre presets
- * above at every tier (user call: "menos espacio de gap").
- *
- * They can afford it. Dagre's numbers reserve room for EDGES: a layer
- * gap has to fit the routed connectors between one rank and the next,
- * and a node gap has to keep parallel edges from overlapping the cards.
- * The filesystem layouts draw no edges at all, so that clearance buys
- * nothing and only spreads the map out. What is left to reserve is
- * visual separation between cards, which needs far less.
- *
- * The tier the operator picked still applies, the whole scale is just
- * shifted down; `spacious` here is still roomier than `compact`.
- * Because the blank row between sibling folders is one ROW, tightening
- * `nodeGap` shrinks that separator by the same proportion for free.
+ * Filesystem-layout gaps. Same two axes as above plus `folderGap`, the
+ * extra vertical air between two sibling folders sharing a column.
  */
-export const FILESYSTEM_SPACING_VALUES: Readonly<Record<TLayoutSpacing, ILayoutSpacingValues>> = {
-  compact: { nodeGap: 8, layerGap: 16 },
-  normal: { nodeGap: 16, layerGap: 28 },
-  spacious: { nodeGap: 36, layerGap: 64 },
+export interface IFilesystemSpacingValues extends ILayoutSpacingValues {
+  readonly folderGap: number;
+}
+
+/**
+ * Gaps for the two filesystem layouts, on their own scale rather than
+ * dagre's. Dagre's numbers reserve room for EDGES: a layer gap has to
+ * fit the routed connectors between one rank and the next. These
+ * layouts draw no edges at all, so that clearance buys nothing and only
+ * spreads the map out; what is left to reserve is visual separation
+ * between cards, which needs less.
+ *
+ * `folderGap` exists because the two separations are INDEPENDENT
+ * concerns and the operator judged them separately (user call: the air
+ * between folders was right, inside a folder too tight). It used to be
+ * derived, one blank ROW between sibling folders, which made it
+ * `NODE_HEIGHT + nodeGap` and therefore impossible to loosen the inside
+ * of a folder without loosening the boundary between folders by the
+ * same amount. Now `nodeGap` tunes what a folder's own files get and
+ * `folderGap` tunes what separates one folder from the next; the
+ * boundary is `nodeGap + folderGap` and these values keep it where it
+ * already was (152px at `normal`) while roughly doubling the air inside.
+ *
+ * The tier the operator picked still applies; `spacious` is still
+ * roomier than `compact`.
+ */
+export const FILESYSTEM_SPACING_VALUES: Readonly<
+  Record<TLayoutSpacing, IFilesystemSpacingValues>
+> = {
+  compact: { nodeGap: 20, layerGap: 36, folderGap: 100 },
+  normal: { nodeGap: 40, layerGap: 56, folderGap: 112 },
+  spacious: { nodeGap: 64, layerGap: 96, folderGap: 136 },
 };
 
 /**

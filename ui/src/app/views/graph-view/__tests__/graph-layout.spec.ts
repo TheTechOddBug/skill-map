@@ -22,7 +22,7 @@ import {
   type IFullLayout,
   type IGraphEdge,
 } from '../graph-layout';
-import type { ILayoutSpacingValues } from '../layout-controls';
+import type { IFilesystemSpacingValues } from '../layout-controls';
 import type { INodeView } from '../../../../models/node';
 import type { ILinkApi, INodeApi, IScanResultApi } from '../../../../models/api';
 
@@ -301,7 +301,9 @@ describe('projectVisible', () => {
 // ---------------------------------------------------------------------------
 
 describe('computeFilesystemLayoutPositions', () => {
-  const spacing: ILayoutSpacingValues = { nodeGap: 64, layerGap: 96 };
+  // folderGap 0 keeps every assertion below a clean multiple of the row
+  // pitch; the separator has its own dedicated test.
+  const spacing: IFilesystemSpacingValues = { nodeGap: 64, layerGap: 96, folderGap: 0 };
   const columnPitch = NODE_WIDTH + spacing.layerGap;
   const rowPitch = NODE_HEIGHT + spacing.nodeGap;
 
@@ -397,11 +399,11 @@ describe('computeFilesystemLayoutPositions', () => {
       spacing,
       'files-below',
     );
-    // `a` fills rows 0-2 of column 1, one blank row, so `b` opens at 4
-    // and its subfolder may not start any higher than that.
-    expect(positions.get('b/deep/y1.md')).toEqual({ x: 2 * columnPitch, y: 4 * rowPitch });
+    // `a` fills rows 0-2 of column 1 (this fixture sets folderGap 0), so
+    // `b` opens at 3 and its subfolder may not start any higher.
+    expect(positions.get('b/deep/y1.md')).toEqual({ x: 2 * columnPitch, y: 3 * rowPitch });
     // ...and b's own file lands under its subfolder, per the files order.
-    expect(positions.get('b/1.md')).toEqual({ x: columnPitch, y: 5 * rowPitch });
+    expect(positions.get('b/1.md')).toEqual({ x: columnPitch, y: 4 * rowPitch });
   });
 
   it('shares rows between branches whose columns differ', () => {
@@ -417,10 +419,10 @@ describe('computeFilesystemLayoutPositions', () => {
       spacing,
       'files-below',
     );
-    // Column 2 packs straight through the branch change: rows 0, 1, then
-    // a blank row, then 3. A reserved band would have pushed y1 lower.
+    // Column 2 packs straight through the branch change. A reserved band
+    // would have pushed y1 lower.
     expect(positions.get('a/deep/x2.md')?.y).toBe(rowPitch);
-    expect(positions.get('b/deep/y1.md')?.y).toBe(3 * rowPitch);
+    expect(positions.get('b/deep/y1.md')?.y).toBe(2 * rowPitch);
   });
 
   it('keeps two folders sharing a column off each other rows', () => {
@@ -440,16 +442,41 @@ describe('computeFilesystemLayoutPositions', () => {
     expect(new Set(column2).size).toBe(column2.length);
   });
 
-  it('breathes one blank row between two folders sharing a column', () => {
-    const positions = computeFilesystemLayoutPositions(
-      [nodeView('one/a.md'), nodeView('one/b.md'), nodeView('two/c.md')],
-      spacing,
-      'files-below',
-    );
-    // Same column (both depth 1), and the folder change costs a row.
-    expect(positions.get('one/a.md')?.y).toBe(0);
-    expect(positions.get('one/b.md')?.y).toBe(rowPitch);
-    expect(positions.get('two/c.md')?.y).toBe(3 * rowPitch);
+  it('separates sibling folders by folderGap, independently of nodeGap', () => {
+    // The two vertical gaps are different concerns and must be tunable
+    // apart (user call: the air between folders was right, the air
+    // inside a folder too tight). They used to be one number, because
+    // the separator was "one more row", i.e. NODE_HEIGHT + nodeGap.
+    const airInside = (s: IFilesystemSpacingValues): number => {
+      const p = computeFilesystemLayoutPositions(
+        [nodeView('one/a.md'), nodeView('one/b.md'), nodeView('two/c.md')],
+        s,
+        'files-below',
+      );
+      return (p.get('one/b.md')?.y ?? 0) - (p.get('one/a.md')?.y ?? 0) - NODE_HEIGHT;
+    };
+    const airBetween = (s: IFilesystemSpacingValues): number => {
+      const p = computeFilesystemLayoutPositions(
+        [nodeView('one/a.md'), nodeView('one/b.md'), nodeView('two/c.md')],
+        s,
+        'files-below',
+      );
+      return (p.get('two/c.md')?.y ?? 0) - (p.get('one/b.md')?.y ?? 0) - NODE_HEIGHT;
+    };
+    const base: IFilesystemSpacingValues = { nodeGap: 40, layerGap: 56, folderGap: 112 };
+    expect(airInside(base)).toBe(40);
+    expect(airBetween(base)).toBe(40 + 112);
+
+    // Loosening the inside leaves the boundary's own contribution alone:
+    // it moves only by the nodeGap it also contains, not by a whole row.
+    const looser: IFilesystemSpacingValues = { ...base, nodeGap: 80 };
+    expect(airInside(looser)).toBe(80);
+    expect(airBetween(looser) - airInside(looser)).toBe(112);
+
+    // ...and folderGap moves the boundary without touching the inside.
+    const wider: IFilesystemSpacingValues = { ...base, folderGap: 200 };
+    expect(airInside(wider)).toBe(40);
+    expect(airBetween(wider)).toBe(40 + 200);
   });
 
   it('ignores edges entirely: the same nodes land in the same places', () => {
@@ -476,7 +503,7 @@ describe('computeFilesystemLayoutPositions', () => {
   });
 
   it('honours the spacing preset on both axes', () => {
-    const tight: ILayoutSpacingValues = { nodeGap: 0, layerGap: 0 };
+    const tight: IFilesystemSpacingValues = { nodeGap: 0, layerGap: 0, folderGap: 0 };
     const positions = computeFilesystemLayoutPositions(
       [nodeView('docs/a.md'), nodeView('docs/b.md'), nodeView('r.md')],
       tight,
@@ -493,7 +520,9 @@ describe('computeFilesystemLayoutPositions', () => {
 // ---------------------------------------------------------------------------
 
 describe("computeFilesystemLayoutPositions, 'files-first' variant", () => {
-  const spacing: ILayoutSpacingValues = { nodeGap: 64, layerGap: 96 };
+  // folderGap 0 keeps every assertion below a clean multiple of the row
+  // pitch; the separator has its own dedicated test.
+  const spacing: IFilesystemSpacingValues = { nodeGap: 64, layerGap: 96, folderGap: 0 };
   const columnPitch = NODE_WIDTH + spacing.layerGap;
   const rowPitch = NODE_HEIGHT + spacing.nodeGap;
 
@@ -551,7 +580,7 @@ describe("computeFilesystemLayoutPositions, 'files-first' variant", () => {
       'files-first',
     );
     const bRow = positions.get('b/1.md')?.y ?? -1;
-    expect(bRow).toBe(4 * rowPitch);
+    expect(bRow).toBe(3 * rowPitch);
     expect(positions.get('b/deep/y1.md')).toEqual({ x: 2 * columnPitch, y: bRow });
   });
 
