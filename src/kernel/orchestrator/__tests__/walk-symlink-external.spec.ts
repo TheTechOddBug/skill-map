@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { walkAndExtract } from '../walk.js';
+import { indexPriorSnapshot } from '../cache.js';
 import { InMemoryProgressEmitter } from '../../adapters/in-memory-progress.js';
 import { buildProviderFrontmatterValidator } from '../../adapters/schema-validators.js';
 import type { IProvider } from '../../extensions/index.js';
@@ -65,24 +66,29 @@ function makeMarkdownProvider(): IProvider {
   };
 }
 
-async function runWalk(opts?: { followExternalSymlinks?: boolean }) {
+async function runWalk(opts?: {
+  followExternalSymlinks?: boolean;
+  prior?: import('../../types.js').ScanResult;
+  changed?: readonly string[];
+  extractors?: import('../../extensions/index.js').IExtractor[];
+}) {
   const providers = [makeMarkdownProvider()];
+  const prior = opts?.prior ?? null;
   return walkAndExtract({
     providers,
-    extractors: [],
+    extractors: opts?.extractors ?? [],
     roots: [project],
     emitter: new InMemoryProgressEmitter(),
     encoder: null,
     strict: false,
-    enableCache: false,
+    enableCache: prior !== null,
     cacheInvalidatedBy: null,
-    prior: null,
-    priorIndex: {
-      priorNodesByPath: new Map(),
-      priorLinksByOriginating: new Map(),
-      priorFrontmatterIssuesByNode: new Map(),
-    },
-    priorExtractorRuns: undefined,
+    prior,
+    priorIndex: indexPriorSnapshot(prior),
+    // Empty (not undefined) when a prior exists: the fine-grained path
+    // runs with NO cached extractor run, so every unchanged node
+    // re-extracts and `ensureBody` fires the reread this spec guards.
+    priorExtractorRuns: prior === null ? undefined : new Map(),
     providerFrontmatter: buildProviderFrontmatterValidator(providers),
     pluginStores: undefined,
     activeProvider: null,
@@ -91,6 +97,14 @@ async function runWalk(opts?: { followExternalSymlinks?: boolean }) {
     maxRenderNodes: 256,
     overrideMaxRenderNodes: null,
     ...(opts?.followExternalSymlinks ? { followExternalSymlinks: true } : {}),
+    ...(opts?.changed
+      ? {
+          incrementalChangedPaths: {
+            changed: new Set(opts.changed),
+            removed: new Set<string>(),
+          },
+        }
+      : {}),
   });
 }
 
@@ -115,5 +129,55 @@ describe('walkAndExtract / external symlink', () => {
       `external file reached through the symlink indexed (got ${JSON.stringify(paths)})`,
     );
     strictEqual(out.nodes.length, 2, 'the in-project file plus the opted-in symlinked external file');
+  });
+
+  it('keeps the symlinked node CONTENT on an incremental reread of unchanged nodes', async () => {
+    // The other half of the propagation guard. The incremental
+    // (changed-files) pass injects every unchanged prior node with a lazy
+    // `reread` (`buildUnchangedRawNode`); that reread used to run the
+    // scoped provider walk on the gate's DEFAULT instead of the scan's
+    // own config, so it yielded nothing for a node behind an authorised
+    // external symlink and degraded to EMPTY content: extractors re-ran
+    // over a blank body and the node's derived data silently vanished.
+    const cold = await runWalk({ followExternalSymlinks: true });
+    strictEqual(cold.nodes.length, 2);
+    const prior = {
+      nodes: cold.nodes,
+      links: cold.internalLinks,
+      issues: [],
+    } as unknown as import('../../types.js').ScanResult;
+
+    // What each extractor pass actually SAW for the symlinked node.
+    const seenBodies: string[] = [];
+    const probeExtractor = {
+      id: 'probe',
+      pluginId: 'test',
+      kind: 'extractor',
+      version: '1.0.0',
+      description: 'records the body the re-extraction reads',
+      extract: (ctx: { node: { path: string }; body: string }) => {
+        if (ctx.node.path === 'linked/outside.md') seenBodies.push(ctx.body);
+        return [];
+      },
+    } as unknown as import('../../extensions/index.js').IExtractor;
+
+    // Someone edits the IN-PROJECT file; the symlinked node is unchanged.
+    const incremental = await runWalk({
+      followExternalSymlinks: true,
+      prior,
+      changed: ['inside.md'],
+      extractors: [probeExtractor],
+    });
+
+    strictEqual(
+      incremental.nodes.find((n) => n.path === 'linked/outside.md') !== undefined,
+      true,
+      'the unchanged symlinked node survives the incremental pass',
+    );
+    strictEqual(seenBodies.length > 0, true, 'the re-extraction actually ran for it');
+    ok(
+      seenBodies.every((body) => body.includes('Body.')),
+      `the reread must surface the REAL body, not blank it (saw ${JSON.stringify(seenBodies)})`,
+    );
   });
 });

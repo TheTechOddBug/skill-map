@@ -466,11 +466,11 @@ function submitRefusal(
     case 'unreadable':
       // Judgment call documented in the module header: a file missing /
       // unreadable since the scan is the extreme form of drift, same
-      // remedy (`sm scan`), same code.
+      // code. `detail` is the engine's complete per-cause sentence (it
+      // names the node and its own remedy).
       return new JobSubmitConflictError({
         code: 'node-drifted',
         message: tx(SERVER_TEXTS.jobsNodeUnreadable, {
-          node: safePath,
           detail: sanitizeForTerminal(outcome.detail),
         }),
       });

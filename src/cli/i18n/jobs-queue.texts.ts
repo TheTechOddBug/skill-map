@@ -39,8 +39,15 @@ export const JOBS_QUEUE_TEXTS = {
   submitErrNodeVirtual: 'node {{node}} is virtual (no backing file to render)',
   submitErrNodeDrifted:
     'node {{node}} changed on disk since the last scan; run sm scan and resubmit',
-  submitErrNodeUnreadable:
-    'node {{node}} cannot be read from disk ({{detail}}); run sm scan to refresh the graph',
+  /**
+   * Passthrough: the engine's `detail` is a complete per-cause sentence
+   * (deleted / broken symlink / permission / blocked external link, see
+   * `core/jobs/i18n/submit-engine.texts.ts`) that already names the node
+   * and its own remedy, so wrapping it in a second "cannot be read" frame
+   * would restate the failure and, worse, append an `sm scan` advisory
+   * that is the WRONG remedy for half the causes.
+   */
+  submitErrNodeUnreadable: '{{detail}}',
   submitErrBadTtl: '--ttl must be an integer number of seconds, got {{value}}',
   submitErrBadPriority: '--priority must be an integer, got {{value}}',
   // Processing-agent gate (`spec/job-lifecycle.md` §Submit): the queue is
@@ -101,8 +108,9 @@ export const JOBS_QUEUE_TEXTS = {
   submitSuppressedAll: 'all findings',
   submitDriftLine:
     '{{glyph}}  drift: {{node}} changed on disk since the last scan (run sm scan)\n',
-  submitUnreadableLine:
-    '{{glyph}}  unreadable: {{node}} cannot be read from disk ({{detail}})\n',
+  // `detail` is the engine's complete per-cause sentence (it names the
+  // node); the label keeps the fan-out rows scannable next to `drift:`.
+  submitUnreadableLine: '{{glyph}}  unreadable: {{detail}}\n',
   submitNoFindingsLine:
     '{{glyph}}  no findings: {{node}} has no {{finders}} findings to resolve\n',
   submitAllSummary:

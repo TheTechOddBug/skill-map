@@ -27,7 +27,7 @@
  * `sm record`, where an agent is demonstrably processing the queue).
  */
 
-import { readFileSync } from 'node:fs';
+import { accessSync, constants as fsConstants, lstatSync, readFileSync, realpathSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import type { IAction, IActionPrecondition, IAnalyzer, IProvider, IProviderWalkOptions, IRawNode } from '../../kernel/extensions/index.js';
@@ -66,6 +66,9 @@ import { sha256 } from '../../kernel/orchestrator/node-build.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { walkContent } from '../../kernel/scan/walk-content.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
+import { isPathContained } from '../../kernel/util/path-containment.js';
+import { tx } from '../../kernel/util/tx.js';
+import { readConfigValue } from '../config/helper.js';
 
 import type { IActionRuntime } from './action-runtime.js';
 import { referencedAnalyzerMode, type TAnalyzerMode } from './analyzer-mode.js';
@@ -167,7 +170,118 @@ function defaultProviderWalk(
     extensions: ['.md'],
     parser: 'frontmatter-yaml',
     ...(options?.scopedPaths !== undefined ? { scopedPaths: options.scopedPaths } : {}),
+    ...(options?.followExternalSymlinks === true ? { followExternalSymlinks: true } : {}),
   });
+}
+
+/** Cause union of `diagnoseUnreadable`, one sentence each in `SUBMIT_ENGINE_TEXTS`. */
+type TUnreadableCause = 'missing' | 'broken-symlink' | 'external-blocked' | 'permission' | 'unknown';
+
+/** Map an fs errno onto an unreadable cause; `null` when it explains nothing. */
+function causeFromErrno(code: string | undefined): TUnreadableCause | null {
+  if (code === 'ENOENT') return 'missing';
+  if (code === 'EACCES' || code === 'EPERM') return 'permission';
+  return null;
+}
+
+/**
+ * Diagnose WHY a node's file could not be read, from the stat family
+ * alone (no content read). Four distinct situations used to collapse
+ * into one generic detail whose remedy (`sm scan`) was wrong for half
+ * of them; each cause maps to its own sentence in
+ * `SUBMIT_ENGINE_TEXTS`. The live case that motivated this: a HEALTHY
+ * symlink whose target escapes the project, refused by the
+ * realpath-containment gate, reported as if the file did not exist.
+ *
+ * `'unknown'` covers everything the stat family cannot explain (file
+ * present and readable but no longer parseable as a node, an exotic FS
+ * error); the caller keeps whatever concrete detail it has for that
+ * branch.
+ */
+function diagnoseUnreadable(
+  cwd: string,
+  abs: string,
+  followExternalSymlinks: boolean,
+): TUnreadableCause {
+  let isLink: boolean;
+  try {
+    isLink = lstatSync(abs).isSymbolicLink();
+  } catch (err) {
+    return causeFromErrno((err as NodeJS.ErrnoException).code) ?? 'unknown';
+  }
+  return diagnoseExistingPath(cwd, abs, followExternalSymlinks, isLink);
+}
+
+/**
+ * A path that lstats clean. `realpathSync` resolves the WHOLE chain,
+ * leaf symlink and symlinked ancestor directories alike, which matters
+ * because the reported live case was `demo -> ../demo` (a directory
+ * link): the file itself lstats as a regular file, and only its
+ * resolved real path reveals the escape the containment gate refused
+ * (the scan's default posture, audit M1). Same realpath-then-contain
+ * pattern as `kernel/scan/watcher.ts`.
+ */
+function diagnoseExistingPath(
+  cwd: string,
+  abs: string,
+  follow: boolean,
+  isLink: boolean,
+): TUnreadableCause {
+  let real: string;
+  try {
+    real = realpathSync(abs);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') return isLink ? 'broken-symlink' : 'missing';
+    return causeFromErrno(code) ?? 'unknown';
+  }
+  // With the gate opted out the escape is not the blocker, so whatever
+  // failed is something else; fall through to the readability probe.
+  if (!follow && escapesProject(cwd, real)) return 'external-blocked';
+  return isLink ? 'unknown' : diagnoseRegularFile(abs);
+}
+
+/** True when `real` (an already-resolved path) lies outside the project root. */
+function escapesProject(cwd: string, real: string): boolean {
+  try {
+    return !isPathContained(real, [realpathSync(cwd)]);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The regular-file tail. `lstat` alone cannot catch a permission
+ * problem on the FILE itself (it succeeds with only traversal rights on
+ * the parents; it is the read that fails), so probe readability
+ * explicitly.
+ */
+function diagnoseRegularFile(abs: string): TUnreadableCause {
+  try {
+    accessSync(abs, fsConstants.R_OK);
+    return 'unknown';
+  } catch (err) {
+    return causeFromErrno((err as NodeJS.ErrnoException).code) ?? 'unknown';
+  }
+}
+
+/** Build the `unreadable` outcome with the per-cause `detail` sentence. */
+function unreadableOutcome(
+  cwd: string,
+  abs: string,
+  follow: boolean,
+  nodePath: string,
+  fallbackDetail: string,
+): TNodeBodyRead {
+  const node = nodePath;
+  const sentences: Record<TUnreadableCause, string> = {
+    missing: tx(T.submitReadMissing, { node }),
+    'broken-symlink': tx(T.submitReadBrokenSymlink, { node }),
+    'external-blocked': tx(T.submitReadExternalBlocked, { node }),
+    permission: tx(T.submitReadPermission, { node }),
+    unknown: tx(T.submitReadUnknown, { node, detail: fallbackDetail }),
+  };
+  return { kind: 'unreadable', detail: sentences[diagnoseUnreadable(cwd, abs, follow)] };
 }
 
 /**
@@ -179,6 +293,16 @@ function defaultProviderWalk(
  * hashes, never body text, so the render can only source disk bytes;
  * without this check an edit-after-scan would silently render content the
  * stored `contentHash` does not describe.
+ *
+ * The read honours `scan.followExternalSymlinks` exactly like the scan
+ * walk does: a node the scan reached through an authorised external
+ * symlink MUST stay readable at submit. The flag is read here (not
+ * threaded from the hosts) so every submit surface, CLI single and
+ * `--all`, BFF routes, MCP `submit_job`, the boot ping, and the
+ * auto-fix chain, inherits it from one place and cannot drift; a config
+ * read per submit is noise at submit frequency. Before this, the walk
+ * ran on the default (gate closed) and every `demo -> ../demo` style
+ * node was scannable but not operable, misreported as "file missing".
  */
 async function readNodeBodyVerified(
   cwd: string,
@@ -188,9 +312,13 @@ async function readNodeBodyVerified(
   const provider = providers.find((p) => p.id === node.provider);
   const walk = provider !== undefined ? resolveProviderWalk(provider) : defaultProviderWalk;
   const abs = resolve(cwd, node.path);
+  const follow = followExternalSymlinksFor(cwd);
   let raw: IRawNode | null = null;
   try {
-    for await (const rec of walk([cwd], { scopedPaths: [abs] })) {
+    for await (const rec of walk([cwd], {
+      scopedPaths: [abs],
+      ...(follow ? { followExternalSymlinks: true } : {}),
+    })) {
       // The scoped walk yields at most one record for the kernel walker;
       // a custom Provider `walk()` may ignore the hint and traverse, so
       // match on the node path.
@@ -200,13 +328,22 @@ async function readNodeBodyVerified(
       }
     }
   } catch (err) {
-    return { kind: 'unreadable', detail: formatErrorMessage(err) };
+    return unreadableOutcome(cwd, abs, follow, node.path, formatErrorMessage(err));
   }
   if (raw === null) {
-    return { kind: 'unreadable', detail: T.submitReadNotOnDisk };
+    return unreadableOutcome(cwd, abs, follow, node.path, T.submitReadNotOnDisk);
   }
   if (sha256(raw.body) !== node.bodyHash) return { kind: 'drift' };
   return { kind: 'ok', body: raw.body };
+}
+
+/**
+ * Effective `scan.followExternalSymlinks` for this project (default
+ * off). Read from the layered config on demand rather than threaded
+ * from the hosts, so every submit surface shares one source of truth.
+ */
+function followExternalSymlinksFor(cwd: string): boolean {
+  return readConfigValue<boolean>('scan.followExternalSymlinks', { cwd, default: false }) ?? false;
 }
 
 /**

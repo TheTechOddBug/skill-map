@@ -546,11 +546,10 @@ export class JobSubmitCommand extends SmCommand {
       return this.fail(tx(T.submitErrNodeDrifted, { node: sanitizeForTerminal(outcome.nodeId) }));
     }
     if (outcome.kind === 'unreadable') {
+      // `detail` is the engine's complete per-cause sentence (it already
+      // names the node), see `submit-engine.texts.ts`.
       return this.fail(
-        tx(T.submitErrNodeUnreadable, {
-          node: sanitizeForTerminal(outcome.nodeId),
-          detail: sanitizeForTerminal(outcome.detail),
-        }),
+        tx(T.submitErrNodeUnreadable, { detail: sanitizeForTerminal(outcome.detail) }),
       );
     }
     // Fixer with no matching findings: refuse (exit 2) with the finder-first
@@ -804,9 +803,10 @@ export class JobSubmitCommand extends SmCommand {
       });
     }
     if (o.kind === 'unreadable') {
+      // `detail` is the engine's complete per-cause sentence (it already
+      // names the node), see `submit-engine.texts.ts`.
       return tx(T.submitUnreadableLine, {
         glyph: this.warnGlyph(),
-        node: sanitizeForTerminal(o.nodeId),
         detail: sanitizeForTerminal(o.detail),
       });
     }

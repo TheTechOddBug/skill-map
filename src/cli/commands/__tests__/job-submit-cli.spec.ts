@@ -20,7 +20,17 @@
  */
 
 import { grantTrust } from '../../../kernel/config/plugin-trust-store.js';
-import { appendFileSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { grantLocalKey } from '../../../kernel/config/local-key-grants.js';
+import {
+  appendFileSync,
+  chmodSync,
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
@@ -442,9 +452,135 @@ describe('sm jobs submit -n', () => {
     const code = await withCwd(proj.root, async () => {
       const cap = captureContext();
       const c = await run(buildSubmit({ action: ACTION_ID, node: SKILL.path }), cap);
-      match(cap.stderr(), /cannot be read from disk/);
+      // Per-cause diagnosis: a deleted file is named as such, with the
+      // remedy that actually applies (re-scan drops the stale node).
+      match(cap.stderr(), /no longer on disk/);
+      match(cap.stderr(), /run sm scan/);
       doesNotMatch(cap.stderr(), /at .*\.ts:\d+/, 'no raw stack trace leaks');
       doesNotMatch(cap.stderr(), /ENOENT/, 'no raw errno leaks');
+      return c;
+    });
+    strictEqual(code, 2);
+    strictEqual(await countJobs(proj.dbPath), 0);
+  });
+
+  it('names a broken symlink as the cause, with fix-the-link as the remedy', async () => {
+    const proj = await setupProject([SKILL]);
+    const abs = join(proj.root, SKILL.path);
+    // The scanned file is replaced by a symlink whose target is gone:
+    // the walk yields nothing, and "file missing" would be a lie the
+    // operator cannot act on (the path DOES exist in a listing).
+    rmSync(abs);
+    try {
+      symlinkSync(join(proj.root, 'never-existed.md'), abs);
+    } catch {
+      return; // platform refuses symlink creation (e.g. Windows non-admin)
+    }
+
+    const code = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const c = await run(buildSubmit({ action: ACTION_ID, node: SKILL.path }), cap);
+      match(cap.stderr(), /broken symlink/);
+      match(cap.stderr(), /Fix the link/);
+      doesNotMatch(cap.stderr(), /ENOENT/, 'no raw errno leaks');
+      return c;
+    });
+    strictEqual(code, 2);
+    strictEqual(await countJobs(proj.dbPath), 0);
+  });
+
+  it('names permission denied as the cause when the file cannot be opened', {
+    // Root reads through any mode bits, so the fixture cannot refuse it.
+    skip: typeof process.getuid === 'function' && process.getuid() === 0,
+  }, async () => {
+    const proj = await setupProject([SKILL]);
+    const abs = join(proj.root, SKILL.path);
+    chmodSync(abs, 0o000);
+    try {
+      const code = await withCwd(proj.root, async () => {
+        const cap = captureContext();
+        const c = await run(buildSubmit({ action: ACTION_ID, node: SKILL.path }), cap);
+        match(cap.stderr(), /permission denied/);
+        match(cap.stderr(), /file permissions/);
+        doesNotMatch(cap.stderr(), /EACCES/, 'no raw errno leaks');
+        return c;
+      });
+      strictEqual(code, 2);
+    } finally {
+      chmodSync(abs, 0o644); // let the suite's cleanup delete the tree
+    }
+  });
+});
+
+describe('sm jobs submit through an external symlink', () => {
+  const NODE_PATH = 'demo/AGENTS.md';
+
+  /**
+   * The reported live scenario: a directory symlink inside the project
+   * whose target lives OUTSIDE every scan root (`demo -> <tmp>/external`).
+   * The scan indexes the node only when `scan.followExternalSymlinks` is
+   * on, so the submit-time read must honour the same key or the node is
+   * scannable but never operable. Returns null when the platform refuses
+   * symlink creation.
+   */
+  async function setupSymlinkedProject(follow: boolean): Promise<IProject | null> {
+    const proj = await setupProject([]);
+    const external = mkdtempSync(join(tmpRoot, 'external-'));
+    writeFileSync(join(external, 'AGENTS.md'), `---\ntitle: t\n---\n${bodyFor(NODE_PATH)}`);
+    try {
+      symlinkSync(external, join(proj.root, 'demo'), 'dir');
+    } catch {
+      return null;
+    }
+    if (follow) {
+      // The key is privileged (audit H1): the loader strips it from a
+      // settings.local.json that carries no grant in the scope lock, so
+      // the test mints the grant exactly like the real toggle does.
+      writeFileSync(
+        join(proj.root, '.skill-map', 'settings.local.json'),
+        JSON.stringify({ scan: { followExternalSymlinks: true } }),
+      );
+      ok(
+        grantLocalKey(proj.root, 'scan.followExternalSymlinks', true),
+        'the temp project must be able to anchor a local-key grant',
+      );
+    }
+    const adapter = new SqliteStorageAdapter({ databasePath: proj.dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      await insertNode(adapter, { path: NODE_PATH, kind: 'skill', provider: 'claude' });
+    } finally {
+      await adapter.close();
+    }
+    return proj;
+  }
+
+  it('submits a node behind an authorised external symlink (scan parity)', async () => {
+    const proj = await setupSymlinkedProject(true);
+    if (proj === null) return;
+
+    const code = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const c = await run(buildSubmit({ action: ACTION_ID, node: NODE_PATH }), cap);
+      strictEqual(cap.stderr().includes('unreadable'), false, cap.stderr());
+      return c;
+    });
+    strictEqual(code, 0, 'the submit read honours scan.followExternalSymlinks like the scan');
+    strictEqual(await countJobs(proj.dbPath), 1);
+  });
+
+  it('explains the policy block when following external links is off', async () => {
+    const proj = await setupSymlinkedProject(false);
+    if (proj === null) return;
+
+    const code = await withCwd(proj.root, async () => {
+      const cap = captureContext();
+      const c = await run(buildSubmit({ action: ACTION_ID, node: NODE_PATH }), cap);
+      // The file exists and is healthy; "missing" would be a lie. The
+      // refusal names the real blocker and the setting that lifts it.
+      match(cap.stderr(), /leads outside the project/);
+      match(cap.stderr(), /followExternalSymlinks/);
+      doesNotMatch(cap.stderr(), /no longer on disk/);
       return c;
     });
     strictEqual(code, 2);

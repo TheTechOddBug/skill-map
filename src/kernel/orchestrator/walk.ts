@@ -745,7 +745,7 @@ async function injectUnchangedPriorNodes(
     if (!shouldInjectPriorNode(priorNode, changed, removed, args.claimedPaths)) continue;
     const provider = providerById.get(priorNode.provider) ?? universalFallback;
     if (!provider) continue; // no providers active at all (degenerate)
-    const raw = buildUnchangedRawNode(priorNode, provider, args.wctx.opts.roots);
+    const raw = buildUnchangedRawNode(priorNode, provider, args.wctx.opts.roots, args.walkOptions);
     await args.advance(raw, provider);
     injected += 1;
   }
@@ -821,11 +821,22 @@ function shouldInjectPriorNode(
  * Body / frontmatter are empty placeholders (the reuse path never reads
  * them); `reread` lazily reads the real `.md` via the provider's parser
  * if the defensive partial-cache branch ever needs it.
+ *
+ * `walkOptions` is the walk's own bag, threaded so the scoped reread
+ * applies the SAME discovery config as the scan that indexed the node,
+ * `followExternalSymlinks` above all: without it the reread ran on the
+ * default (gate closed), so an unchanged node behind an authorised
+ * external symlink hit the not-found fallback below and had its content
+ * SILENTLY blanked on the next incremental pass. Only that flag is
+ * forwarded on purpose: `priorMtimes` in particular could flip the
+ * walker's mtime fast path for a file whose mtime has not moved, and a
+ * reread exists precisely to get the real bytes.
  */
 function buildUnchangedRawNode(
   priorNode: Node,
   provider: IProvider,
   roots: readonly string[],
+  walkOptions: import('../extensions/provider.js').IProviderWalkOptions,
 ): IRawNode {
   const path = priorNode.path;
   return {
@@ -842,7 +853,10 @@ function buildUnchangedRawNode(
       // read + parse logic stays in the walker (single source). The
       // scoped walk yields at most one record for an existing `.md`.
       const abs = toAbsolute(path, roots);
-      for await (const re of resolveProviderWalk(provider)(roots as string[], { scopedPaths: [abs] })) {
+      for await (const re of resolveProviderWalk(provider)(roots as string[], {
+        scopedPaths: [abs],
+        ...(walkOptions.followExternalSymlinks === true ? { followExternalSymlinks: true } : {}),
+      })) {
         return {
           body: re.body,
           frontmatterRaw: re.frontmatterRaw,

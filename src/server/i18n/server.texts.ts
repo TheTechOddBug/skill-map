@@ -741,8 +741,14 @@ export const SERVER_TEXTS = {
     'extension {{extension}} takes no node; submit it without a target (POST /api/jobs)',
   jobsNodeDrifted:
     'node {{node}} changed on disk since the last scan; run sm scan and resubmit',
-  jobsNodeUnreadable:
-    'node {{node}} cannot be read from disk ({{detail}}); run sm scan to refresh the graph',
+  /**
+   * Passthrough: the submit engine's `detail` is a complete per-cause
+   * sentence (deleted / broken symlink / permission / blocked external
+   * link) that names the node and its own remedy; a second frame here
+   * would restate the failure and append the wrong advisory for half
+   * the causes. Mirrors the CLI's `submitErrNodeUnreadable`.
+   */
+  jobsNodeUnreadable: '{{detail}}',
   jobsNoFindings:
     'no findings to resolve for {{finders}} on {{node}}; run the finder first',
 
