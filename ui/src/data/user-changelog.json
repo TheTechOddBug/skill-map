@@ -2,6 +2,44 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.9.1",
+      "date": "2026-08-13",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Two new layouts arrange the map like your file tree instead of by links, and \"Folder (compact)\" is now what a new map opens with. If you already picked a layout, yours is kept.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The MCP row no longer tells you where to paste a config you have not copied yet. Click Copy, and once the \"Copied to the clipboard\" confirmation fades the row names the file the snippet belongs in.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Starting `sm` on a project with an untrusted plugin now prints the \"plugin found but not loaded\" warning once instead of twice.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Files reached through an allowed external symlink can now be operated: submitting jobs against them works, and live re-scans no longer risk wiping their content from the map.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "When a job submit fails because a file cannot be read, the error now tells you what actually happened (deleted, broken symlink, no permission, or a link blocked by settings) and how to fix that, instead of a generic message.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.9.0",
       "date": "2026-08-10",
       "kind": "user-facing",

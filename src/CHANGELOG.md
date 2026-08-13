@@ -1,5 +1,41 @@
 # skill-map
 
+## 1.9.1
+
+### Patch Changes
+
+- New path-derived graph layouts, and "Folder (compact)" becomes the default a map opens with. Column is path depth, edges are ignored, and the two variants differ only in where a folder's own files go: level with the folder, or under its subfolders like the files panel lists them. Both use their own tighter gaps, since a layout that draws no edges reserves no room to route them. They answer the case dagre cannot: few references means every node lands in rank 0, one endless column.
+
+  ## User-facing
+
+  Two new layouts arrange the map like your file tree instead of by links, and "Folder (compact)" is now what a new map opens with. If you already picked a layout, yours is kept.
+
+- The MCP registration rows (Quick Start and Settings > Project) hold the "paste it into <file>" instruction back until the snippet has actually been copied, so the hint line reads copy, then the clipboard confirmation, then where the document goes. The target is gated on a sticky flag, so it survives the button's two-second confirmation instead of flashing past with it.
+
+  ## User-facing
+
+  The MCP row no longer tells you where to paste a config you have not copied yet. Click Copy, and once the "Copied to the clipboard" confirmation fades the row names the file the snippet belongs in.
+
+- Plugin-load warnings are emitted exactly once per `sm serve` boot. The composition root is now the single emission point (it used to gate its own line behind `--no-watcher` while two route factories printed the full warning list at registration time), so a project carrying an untrusted drop-in no longer repeats the "found but not loaded" notice at startup.
+
+  ## User-facing
+
+  Starting `sm` on a project with an untrusted plugin now prints the "plugin found but not loaded" warning once instead of twice.
+
+- Fix a race in the graph view's selection/URL sync that could re-open the inspector on the node you had just closed. The writer mirrors the selection into `?path=`, and the reader could not tell that query-param change from an incoming deep link, so whenever it first observed the param after the selection had already been cleared it "restored" it. The writer now claims the value it pushes and the reader swallows its own echo; genuine deep links are unaffected.
+
+- The two scoped single-file reads, the job-submit drift verification and the incremental scan's reread of unchanged nodes, now honour `scan.followExternalSymlinks` like the scan walk. Before, both ran on the gate's default: a node indexed through an authorised external symlink was scannable but not operable (submits refused it as "file missing") and a live re-scan could silently blank its content. The spec's §Submit step 8 now names the discovery config alongside the parser rules.
+
+  ## User-facing
+
+  Files reached through an allowed external symlink can now be operated: submitting jobs against them works, and live re-scans no longer risk wiping their content from the map.
+
+- The unreadable-node submit refusal now diagnoses and names the actual cause instead of a generic "file missing or not readable as a node": a deleted file, a broken symlink, permission denied, or an external symlink blocked by settings, each with the remedy that applies to it (the old blanket "run sm scan" advice was wrong for half of them). The full sentence is authored once in the submit engine, so the CLI, the fan-out lines, the BFF envelope, and MCP `submit_job` all carry it.
+
+  ## User-facing
+
+  When a job submit fails because a file cannot be read, the error now tells you what actually happened (deleted, broken symlink, no permission, or a link blocked by settings) and how to fix that, instead of a generic message.
+
 ## 1.9.0
 
 ### Minor Changes
