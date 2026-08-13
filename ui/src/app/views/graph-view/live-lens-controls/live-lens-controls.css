@@ -1,0 +1,138 @@
+/*
+ * Live lens toolbar cluster. Popover option styling mirrors the layout
+ * toolbar's menu (`graph-layout-toolbar.css`); the rules are duplicated
+ * here because Angular's emulated encapsulation stamps this component's
+ * own `_ngcontent` attribute on the popover content it mounts.
+ */
+
+/* Transparent-fragment host: the buttons participate directly in the
+   parent `.graph__toolbar` flex row (2px gap, no-wrap). */
+:host {
+  display: contents;
+}
+
+/* Popover content tightening, mirror of `.graph__layout-popover`. */
+:host ::ng-deep .graph__layout-popover .p-popover-content {
+  padding: 4px;
+}
+
+/* Active pill behind the toggle while the lens is on, same 18% primary
+   tint as `.graph__toolbar-toggle--on` so "active" reads identically
+   across the toolbar family (and survives the monochrome themes). */
+.lens__wrap {
+  display: inline-flex;
+}
+
+/* The toggle's face: a recording dot instead of a glyph icon. The
+   16x16 outer box keeps the button flush with its PrimeIcon-driven
+   toolbar siblings (same trick as `graph__connection-svg--toggle`);
+   the dot itself rides ::before so the box geometry never depends on
+   the dot size. Broadcast red in EVERY theme (`--sm-live-c`). */
+.lens__dot {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lens__dot::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--sm-live-c);
+}
+
+/* While the lens is on, the dot works: a soft halo plus the same
+   1.2s blink cadence as the LIVE badge's own dot, so toggle and badge
+   read as one recording indicator. PRM-gated like every live
+   animation; reduced-motion users keep the halo as the on-state. */
+.lens__dot--on::before {
+  box-shadow: 0 0 6px color-mix(in srgb, var(--sm-live-c) 70%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lens__dot--on::before {
+    animation: sm-lens-dot-blink 1.2s ease-in-out infinite;
+  }
+
+  @keyframes sm-lens-dot-blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+}
+
+.lens__wrap--on {
+  background: color-mix(in srgb, var(--p-primary-color) 18%, transparent);
+  border-radius: var(--sm-radius-pill);
+}
+
+/* Compact text face for the window button: keep the label from
+   ballooning the pill (the tooltip carries the full explanation). */
+:host ::ng-deep .lens__window-button .p-button-label {
+  font-size: var(--sm-fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.lens__menu {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+}
+
+.lens__menu-item {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--p-text-color);
+  font: inherit;
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: var(--sm-radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.lens__menu-item:hover {
+  background: color-mix(in srgb, var(--p-primary-color) 12%, transparent);
+}
+
+.lens__menu-item:focus-visible {
+  background: color-mix(in srgb, var(--p-primary-color) 12%, transparent);
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: -2px;
+}
+
+/* Active option: tinted background + leading dot, same treatment as the
+   layout popover rows so the two menus read as one family. */
+.lens__menu-item.is-active {
+  background: color-mix(in srgb, var(--p-primary-color) 18%, transparent);
+  color: var(--p-primary-color);
+  font-weight: 600;
+}
+
+.lens__menu-item::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.lens__menu-item.is-active::before {
+  background: var(--p-primary-color);
+}

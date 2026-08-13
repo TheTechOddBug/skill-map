@@ -506,8 +506,10 @@ function projectLiteNode(lite: IFolderNodeLite): INodeView {
  * by the graph / inspector / palettes. Body bytes are NOT projected, the
  * inspector fetches the body on demand. Catalog-curation 2026-05-07: no
  * synthesised `metadata` block, annotations live in the `.sm` sidecar.
+ * Exported so the live-lens cache projects its curation-independent
+ * branch rows through the identical shape.
  */
-function projectNode(api: INodeApi): INodeView {
+export function projectNode(api: INodeApi): INodeView {
   const kind = api.kind;
   const frontmatter = (api.frontmatter ?? {}) as Partial<TFrontmatter>;
   const fm: TFrontmatter = {

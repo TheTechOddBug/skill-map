@@ -68,6 +68,8 @@ import { PerfHud } from '../../components/perf-hud/perf-hud';
 import { ViewContributionsHost } from '../../components/view-contributions-host/view-contributions-host';
 import { DebugPerfService } from '../../services/debug-perf';
 import { A11yAnnouncerService } from '../../services/a11y-announcer';
+import { ActivityReadinessService } from '../../services/activity-readiness';
+import { LiveLensService } from '../../../services/live-lens';
 import { pathBasenameForLink } from '../../../services/path-basename';
 import { InspectorView } from '../inspector-view/inspector-view';
 import { MiddleMousePanDirective, type IMiddleMousePanTarget } from './middle-mouse-pan';
@@ -97,6 +99,8 @@ import { createSelectionState } from './selection-state';
 import { CLICK_DRAG_TOLERANCE_PX, setupNodeDrag } from './node-drag.controller';
 import { setupExpansion } from './expansion.controller';
 import { setupFollowActivity } from './follow-activity.controller';
+import { setupLiveLens } from './live-lens.controller';
+import { LiveLensControls } from './live-lens-controls/live-lens-controls';
 import { setupLayoutFit } from './layout-fit.controller';
 import { setupGraphPipeline } from './graph-pipeline';
 import { setupCamera, type ICameraHandle } from './camera.controller';
@@ -137,6 +141,14 @@ const EDGE_SELECTION_DEFAULT: IEdgeSelectionView = {
   opacity: 1,
 };
 
+/**
+ * Frozen empties the live-lens display switchers return while the lens
+ * is on (stable identities, so OnPush consumers see one change on the
+ * flip, not a fresh object per read).
+ */
+const EMPTY_NODE_POSITIONS: TNodePositions = new Map();
+const EMPTY_PATH_SET: ReadonlySet<string> = new Set();
+
 
 // Direction icons / spacing icons / connection-type SVG paths now live
 // inside `<sm-graph-layout-toolbar>` along with the catalogs and
@@ -151,6 +163,7 @@ const EDGE_SELECTION_DEFAULT: IEdgeSelectionView = {
     BranchCapBanner,
     ConversationDialog,
     GraphLayoutToolbar,
+    LiveLensControls,
     MapViewSwitcher,
     KindPalette,
     LinkKindPalette,
@@ -226,6 +239,8 @@ export class GraphView implements OnInit {
   private readonly livePrefs = inject(LivePreferencesService);
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly announcer = inject(A11yAnnouncerService);
+  private readonly liveLens = inject(LiveLensService);
+  private readonly activityReadiness = inject(ActivityReadinessService);
 
   private readonly flow = viewChild(FFlowComponent);
   // Inspector panel container, focused (and announced) when a node
@@ -385,11 +400,58 @@ export class GraphView implements OnInit {
   private readonly layoutComputedAtSignal = this.pipeline.layoutComputedAtSignal;
   private readonly fullLayout = this.pipeline.fullLayout;
   private readonly mapVisiblePaths = this.pipeline.mapVisiblePaths;
-  readonly graph = this.pipeline.graph;
   private readonly fullAdjacency = this.pipeline.fullAdjacency;
   private readonly pathsFingerprint = this.pipeline.pathsFingerprint;
 
-  readonly hasData = computed(() => this.graph().nodes.length > 0);
+  // ── Live lens ───────────────────────────────────────────────────────
+  // Ephemeral "camera on what executes" mode. `LiveLensService` owns
+  // WHAT is live (watermark membership + curation-independent cache);
+  // `setupLiveLens` owns the parallel lens pipeline, the seeded force
+  // layout, the lens follow camera, and the enter/exit transitions.
+  // Declared right after the main pipeline so the display switchers
+  // below can reference its handle; cross-field references inside the
+  // config are lazy closures, resolved at effect/call time when every
+  // field exists (same contract as `camera`).
+  private readonly liveLensCtl = setupLiveLens({
+    lens: this.liveLens,
+    nodeActivity: this.nodeActivity,
+    livePrefs: this.livePrefs,
+    issuesBySeverity: this.issuePaths.bySeverity,
+    mainPathsFingerprint: this.pathsFingerprint,
+    viewportPosition: this.viewportPosition,
+    viewportScale: this.viewportScale,
+    sessions: () => this.spawnOverlay().sessions,
+    hostElement: () => this.canvasWrap()?.nativeElement ?? null,
+    panelWidth: () => this.reservedPanelWidth(),
+    bootFitDone: () => this.layoutFit.hasCompletedInitialLayout(),
+    zoomMin: ZOOM_MIN,
+    animateToTransform: (transform) => this.animateToTransform(transform),
+    fitMainView: () => this.camera.runAnimatedFit(),
+    beginViewSwitch: () => this.beginViewSwitchAnimation(),
+  });
+  protected readonly lensOn = this.liveLensCtl.active;
+
+  // Display switchers: while the lens is on, the template + overlay
+  // controllers read the LENS pipeline; the main pipeline keeps
+  // computing underneath (reconcile, map views, storage all stay wired
+  // to `this.pipeline` / `this.nodePositions` explicitly), so exiting
+  // restores the curated map BY CONSTRUCTION. `hasData` and the
+  // top-level empty states stay MAIN-bound on purpose: the lens must
+  // never unmount `<f-flow>` (teardown flashes, see the template).
+  readonly graph = computed(() =>
+    this.lensOn() ? this.liveLensCtl.pipeline.graph() : this.pipeline.graph(),
+  );
+  private readonly displayVisiblePaths = computed(() =>
+    this.lensOn() ? this.liveLensCtl.pipeline.mapVisiblePaths() : this.mapVisiblePaths(),
+  );
+  private readonly displayFullLayout = computed(() =>
+    this.lensOn() ? this.liveLensCtl.pipeline.fullLayout() : this.fullLayout(),
+  );
+  private readonly displayNodePositions = computed<TNodePositions>(() =>
+    this.lensOn() ? EMPTY_NODE_POSITIONS : this.nodePositions(),
+  );
+
+  readonly hasData = computed(() => this.pipeline.graph().nodes.length > 0);
   /**
    * Show the empty-state card when no nodes are visible AND the user
    * did NOT intentionally drive the view to zero matches. Two cases
@@ -423,17 +485,55 @@ export class GraphView implements OnInit {
     () => !this.hasData() && this.mapVisibility.isActive(),
   );
 
-  /** Counters / timestamp exposed to the perf HUD. Pure derivations in the pipeline. */
-  protected readonly visibleCount = this.pipeline.visibleCount;
+  /**
+   * Live lens empty state: the lens is on with nothing live (or not yet
+   * fetched). A floating overlay over the canvas, NOT a branch of the
+   * top-level empty-state chain: `<f-flow>` must stay mounted (teardown
+   * flashes the whole canvas, see the template comment).
+   */
+  protected readonly showLensEmptyState = computed(
+    () => this.lensOn() && this.graph().nodes.length === 0,
+  );
+  /**
+   * Copy branches on a CONFIRMED missing hook only
+   * (`hookInstalled === false`; `null` = probe unavailable, fail open):
+   * without the hook no frame can ever arrive, so "waiting" would lie.
+   */
+  protected readonly lensEmptyCopy = computed(() =>
+    this.activityReadiness.hookInstalled() === false
+      ? {
+          title: GRAPH_VIEW_TEXTS.lens.emptyHookMissing,
+          hint: GRAPH_VIEW_TEXTS.lens.emptyHookMissingHint,
+        }
+      : {
+          title: GRAPH_VIEW_TEXTS.lens.emptyWaiting,
+          hint: GRAPH_VIEW_TEXTS.lens.emptyWaitingHint,
+        },
+  );
+
+  /** Counters / timestamp exposed to the perf HUD. Pure derivations in
+   *  the pipeline; visible/edge counts display-switch with the lens so
+   *  the HUD narrates what is actually painted. `totalCount` stays
+   *  loader-bound (branch size is a fact about the corpus, not the lens). */
+  protected readonly visibleCount = computed(() =>
+    this.lensOn() ? this.liveLensCtl.pipeline.visibleCount() : this.pipeline.visibleCount(),
+  );
   protected readonly totalCount = this.pipeline.totalCount;
-  protected readonly edgeCount = this.pipeline.edgeCount;
+  protected readonly edgeCount = computed(() =>
+    this.lensOn() ? this.liveLensCtl.pipeline.edgeCount() : this.pipeline.edgeCount(),
+  );
   protected readonly layoutComputedAt = this.pipeline.layoutComputedAt;
 
   // Connector sides per layout direction (direction table +
   // force-layout fallback live in `./connection-sides`, the computeds
-  // in `graph-pipeline.ts`).
-  protected readonly inputSide = this.pipeline.inputSide;
-  protected readonly outputSide = this.pipeline.outputSide;
+  // in `graph-pipeline.ts`). Display-switched: the lens always runs the
+  // force layout, so its pipeline resolves the force fallback sides.
+  protected readonly inputSide = computed(() =>
+    this.lensOn() ? this.liveLensCtl.pipeline.inputSide() : this.pipeline.inputSide(),
+  );
+  protected readonly outputSide = computed(() =>
+    this.lensOn() ? this.liveLensCtl.pipeline.outputSide() : this.pipeline.outputSide(),
+  );
 
   /**
    * Fixed sides for overlay-chrome spawn edges (`edge.vertical`): the
@@ -585,7 +685,10 @@ export class GraphView implements OnInit {
   // zoom clamp during its own tween, hence the clamp-after-snap).
   private readonly layoutFit = setupLayoutFit({
     visibleNodes: this.visibleNodes,
-    pathsFingerprint: this.pathsFingerprint,
+    // Frozen at its enter value while the lens is on: lens membership
+    // churn (and the enter/exit swap itself) must never fire the
+    // curated map's auto-fit. See `setupLiveLens`.
+    pathsFingerprint: this.liveLensCtl.layoutFitFingerprint,
     savedViewport: this.savedViewport,
     fit: () => this.camera.fitToScreenClamped(),
     animatedFit: () => this.camera.animatedFitToScreen(),
@@ -622,6 +725,10 @@ export class GraphView implements OnInit {
       // effect runs the pan once the boot fit has fixed the zoom and
       // the dagre positions are in.
       onDeepLinkSelect: (id) => {
+        // The center pan resolves MAIN-pipeline geometry; while the
+        // lens is on that frame would not match what is painted, so the
+        // deep link only selects (inspector opens, no camera move).
+        if (this.lensOn()) return;
         this.camera.pendingCenterNodeId.set(id);
       },
       router: this.router,
@@ -746,6 +853,21 @@ export class GraphView implements OnInit {
     });
     this.destroyRef.onDestroy(() => {
       if (this.viewSwitchTimer !== null) clearTimeout(this.viewSwitchTimer);
+    });
+
+    // Live lens transition announcements (WCAG 4.1.3): the canvas swap
+    // is purely visual, a screen-reader user would otherwise not know
+    // the map they were reading was replaced (or restored). Watches the
+    // signal, not the toggle handler, so the forced exit (Real Time
+    // off) announces too.
+    let prevLensOn = untracked(() => this.lensOn());
+    effect(() => {
+      const on = this.lensOn();
+      if (on === prevLensOn) return;
+      prevLensOn = on;
+      this.announcer.announce(
+        on ? GRAPH_VIEW_TEXTS.a11y.lensEntered : GRAPH_VIEW_TEXTS.a11y.lensExited,
+      );
     });
 
     // Map views, save side: project the `manual: true` subset of the
@@ -882,6 +1004,10 @@ export class GraphView implements OnInit {
    * `MapVisibilityService.isolate`); the service owns that bookkeeping.
    */
   isolateNeighborhood(path: string): void {
+    // Isolate is a curated-map intent ("look at THIS neighborhood"):
+    // the lens exits first (full restore path), then the curation +
+    // re-fit run on the map the user is about to see.
+    if (this.lensOn()) this.liveLensCtl.toggle();
     // Isolating curates + re-frames the neighborhood; follow would fight
     // that framing on the next activity tick, so it yields first.
     this.disableFollow();
@@ -894,6 +1020,9 @@ export class GraphView implements OnInit {
   }
 
   onNodePositionChange(id: string, position: IPoint): void {
+    // Belt-and-braces with `[fNodeDraggingDisabled]`: nothing the lens
+    // shows may ever reach the drag buffer / persisted positions.
+    if (this.lensOn()) return;
     this.nodeDrag.onNodePositionChange(id, position);
   }
 
@@ -910,7 +1039,19 @@ export class GraphView implements OnInit {
   }
 
   fitToScreen(): void {
+    // The camera controller's fit reads main-pipeline geometry and must
+    // stay main-bound (it also WRITES `nodePositions` on other paths);
+    // the lens carries its own fit over the lens set.
+    if (this.lensOn()) {
+      this.liveLensCtl.fitToLens();
+      return;
+    }
     this.camera.runAnimatedFit();
+  }
+
+  /** Toolbar handler: enter/exit the Live lens (snapshot + restore live in the controller). */
+  protected toggleLiveLens(): void {
+    this.liveLensCtl.toggle();
   }
 
   resetLayout(): void {
@@ -1336,9 +1477,13 @@ export class GraphView implements OnInit {
     activityStats: this.activityStats,
     livePrefs: this.livePrefs,
     dataSource: this.dataSource,
-    nodePositions: this.nodePositions,
-    fullLayout: this.fullLayout,
-    mapVisiblePaths: this.mapVisiblePaths,
+    // Display-switched geometry: while the lens is on the overlay
+    // anchors onto the lens cards (empty pin layer, lens force layout,
+    // lens visible set) and silently drops edges whose endpoint is not
+    // live; on the curated map everything reads as before.
+    nodePositions: this.displayNodePositions,
+    fullLayout: this.displayFullLayout,
+    mapVisiblePaths: this.displayVisiblePaths,
     graph: this.graph,
     resolveSpawnActiveId: (edge) => this.spawnActiveIdFor(edge),
   });
@@ -1363,7 +1508,12 @@ export class GraphView implements OnInit {
   private readonly followCtl = setupFollowActivity({
     livePrefs: this.livePrefs,
     nodeActivity: this.nodeActivity,
-    visiblePaths: this.mapVisiblePaths,
+    // Suspended while the lens is on: the empty set collapses the
+    // fingerprint to the '' sentinel, so the MAIN follow effect goes
+    // dormant and the lens's own follow instance owns the camera.
+    visiblePaths: computed(() =>
+      this.lensOn() ? EMPTY_PATH_SET : this.mapVisiblePaths(),
+    ),
     sessions: () => this.spawnOverlay().sessions,
     layoutComputedAt: this.layoutComputedAt,
     bootFitDone: () => this.layoutFit.hasCompletedInitialLayout(),
@@ -1376,11 +1526,18 @@ export class GraphView implements OnInit {
     animateToTransform: (transform) => this.animateToTransform(transform),
   });
 
-  /** Follow-the-activity preference, re-exposed for the toolbar toggle. */
-  protected readonly followActivity = this.followCtl.followActivity;
+  /**
+   * Follow-the-activity state for the toolbar toggle. Mode-aware: while
+   * the lens is on, the button drives the lens's session-local arming
+   * (re-armed on every enter), so a disarm there never clobbers the
+   * user's persisted follow preference.
+   */
+  protected readonly followActivity = computed(() =>
+    this.lensOn() ? this.liveLensCtl.follow.followActivity() : this.followCtl.followActivity(),
+  );
 
   protected toggleFollowActivity(): void {
-    this.followCtl.toggle();
+    (this.lensOn() ? this.liveLensCtl.follow : this.followCtl).toggle();
   }
 
   /**
@@ -1391,7 +1548,7 @@ export class GraphView implements OnInit {
    * buttons no longer disable. The setter no-ops when already off.
    */
   private disableFollow(): void {
-    this.followCtl.disable();
+    (this.lensOn() ? this.liveLensCtl.follow : this.followCtl).disable();
   }
 
   /**

@@ -52,6 +52,20 @@ export interface IFollowActivityConfig {
   livePrefs: LivePreferencesService;
   /** Live-activity source: enablement gate + executing node paths. */
   nodeActivity: NodeActivityService;
+  /**
+   * The paths the camera frames. Defaults to
+   * `nodeActivity.activePaths` (the classic follow behaviour); the
+   * live lens passes its own membership so the camera frames executing
+   * PLUS lingering nodes.
+   */
+  targetPaths?: Signal<ReadonlySet<string>>;
+  /**
+   * The armed-state pair the toggle/disable verbs drive. Defaults to
+   * the persisted `livePrefs.followActivityEnabled` preference; the
+   * live lens passes a session-local signal so a gesture-disarm during
+   * the lens never clobbers the user's global follow preference.
+   */
+  followState?: { enabled: Signal<boolean>; setEnabled(value: boolean): void };
   /** Paths currently visible on the canvas (facet AND curation). */
   visiblePaths: Signal<ReadonlySet<string>>;
   /** Live session capsules from the spawn overlay. */
@@ -95,7 +109,12 @@ export interface IFollowActivityHandle {
  */
 export function setupFollowActivity(config: IFollowActivityConfig): IFollowActivityHandle {
   const { livePrefs, nodeActivity } = config;
-  const followActivity = livePrefs.followActivityEnabled;
+  const followState = config.followState ?? {
+    enabled: livePrefs.followActivityEnabled,
+    setEnabled: (value: boolean) => livePrefs.setFollowActivityEnabled(value),
+  };
+  const targetPaths = config.targetPaths ?? nodeActivity.activePaths;
+  const followActivity = followState.enabled;
 
   /**
    * Membership fingerprint of the follow targets: the executing node
@@ -107,7 +126,7 @@ export function setupFollowActivity(config: IFollowActivityConfig): IFollowActiv
   const followTargetsFingerprint = computed<string>(() => {
     if (!followActivity() || !nodeActivity.enabled()) return '';
     const visible = config.visiblePaths();
-    const paths = [...nodeActivity.activePaths()].filter((p) => visible.has(p)).sort();
+    const paths = [...targetPaths()].filter((p) => visible.has(p)).sort();
     const sessions = config.sessions().map((s) => s.id).sort();
     return [...paths, ...sessions].join('|');
   });
@@ -134,7 +153,7 @@ export function setupFollowActivity(config: IFollowActivityConfig): IFollowActiv
     if (!host) return;
     const visible = config.visiblePaths();
     const points: IPoint[] = [];
-    for (const path of nodeActivity.activePaths()) {
+    for (const path of targetPaths()) {
       if (!visible.has(path)) continue;
       const pt = config.positionOf(path);
       if (pt) points.push({ x: pt.x, y: pt.y });
@@ -165,10 +184,10 @@ export function setupFollowActivity(config: IFollowActivityConfig): IFollowActiv
     followActivity,
     framing,
     toggle(): void {
-      livePrefs.setFollowActivityEnabled(!followActivity());
+      followState.setEnabled(!followActivity());
     },
     disable(): void {
-      livePrefs.setFollowActivityEnabled(false);
+      followState.setEnabled(false);
     },
   };
 }

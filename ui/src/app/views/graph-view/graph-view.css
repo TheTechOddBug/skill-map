@@ -205,6 +205,12 @@
      free. Transform keeps the slide on the compositor (no per-frame
      layout). */
   transform: translateX(calc(-50% - var(--sm-graph-inspector-w, 0px) / 2));
+  /* The pill never reflows. Absolute + `left: 50%` caps shrink-to-fit
+     at half the canvas width, so on narrow viewports the row used to
+     compress and stack its buttons; `max-content` pins the width to the
+     content's natural size instead (overflowing the edge is preferred
+     over disassembling). */
+  width: max-content;
   display: flex;
   align-items: center;
   gap: 2px;
@@ -244,6 +250,157 @@
 .graph__toolbar-toggle--on {
   background: color-mix(in srgb, var(--p-primary-color) 18%, transparent);
   border-radius: var(--sm-radius-pill);
+}
+
+/* Live lens frame: the "on air" border around the whole map while the
+   lens is on. A wide band in the dedicated broadcast red
+   (`--sm-live-c`, theme-invariant, see styles.css) softened by an
+   inner glow so it reads as a recording frame rather than an error
+   outline; a gentle PRM-gated breathe keeps it feeling live without
+   shouting. Click-through (`pointer-events: none`) and z-indexed above
+   the canvas overlays but below the inspector panel (z 20), so the
+   panel keeps reading as a surface on top of the map. */
+.graph__lens-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  border: 6px solid var(--sm-live-c);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--sm-live-c) 55%, transparent),
+    inset 0 0 36px color-mix(in srgb, var(--sm-live-c) 26%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Same 2.4s cadence as the executing ring (`sm-exec-spin`), so the
+     frame and the lit cards breathe as one family. The floor stays
+     high (0.7) so the frame reads intensely red through the whole
+     cycle instead of fading toward "maybe off". */
+  .graph__lens-frame {
+    animation: sm-lens-frame-breathe 2.4s ease-in-out infinite;
+  }
+
+  @keyframes sm-lens-frame-breathe {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
+  }
+}
+
+/* Broadcast-style LIVE badge, pinned to the frame's top-left corner
+   (offset past the 6px band). White-on-red is deliberate, the classic
+   on-air chip: `--sm-live-c` is theme-invariant by design (see
+   styles.css) and deep enough that the white clears WCAG AA, and no
+   contrast token exists for it (the primary-contrast one tracks
+   primary, wrong hue family). Click-through like the frame; the text
+   itself is the AT-visible state indicator. */
+.graph__lens-badge {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 3;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 10px;
+  background: var(--sm-live-c);
+  color: #fff;
+  font-size: var(--sm-fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-radius: var(--sm-radius-sm);
+  box-shadow: var(--sm-shadow-floating);
+}
+
+/* The recording dot before the word. */
+.graph__lens-badge::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .graph__lens-badge::before {
+    animation: sm-lens-badge-blink 1.2s ease-in-out infinite;
+  }
+
+  @keyframes sm-lens-badge-blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.25;
+    }
+  }
+}
+
+/* Live lens empty state: floating card centred over the canvas while
+   the lens is on with nothing live. An overlay sibling of the toolbar,
+   never a branch of the top-level empty-state chain, so `<f-flow>`
+   stays mounted underneath (teardown flashes, see the template). Non
+   interactive by design: `pointer-events: none` keeps pan / zoom /
+   background clicks working straight through the card. */
+.graph__lens-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 20px 28px;
+  background: var(--sm-bg-content);
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-lg);
+  box-shadow: var(--sm-shadow-floating);
+  z-index: 2;
+  pointer-events: none;
+  text-align: center;
+}
+
+.graph__lens-empty-icon {
+  font-size: var(--sm-fs-xl);
+  color: var(--p-primary-color);
+}
+
+/* Gentle breathing pulse on the icon: "the lens is live, waiting".
+   PRM-gated like every other executing animation. */
+@media (prefers-reduced-motion: no-preference) {
+  .graph__lens-empty-icon {
+    animation: sm-lens-empty-pulse 2.4s ease-in-out infinite;
+  }
+
+  @keyframes sm-lens-empty-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
+}
+
+.graph__lens-empty-title {
+  margin: 0;
+  font-weight: 600;
+  color: var(--p-text-color);
+}
+
+.graph__lens-empty-hint {
+  margin: 0;
+  font-size: var(--sm-fs-sm);
+  color: var(--p-text-muted-color);
 }
 
 

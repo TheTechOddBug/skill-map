@@ -333,12 +333,23 @@ export async function computeDagreLayout(
  *     the cloud is fully settled.
  *
  * Deterministic: d3-force seeds initial positions via phyllotaxis
- * (no Math.random), so the same input produces the same output. Tests
- * can rely on stable positions.
+ * (no Math.random; jiggle uses d3's per-simulation LCG), so the same
+ * input produces the same output. Tests can rely on stable positions.
+ *
+ * `seed` (optional) turns the run into an INCREMENTAL relayout: nodes
+ * present in the map start from their previous position (d3-force
+ * honours pre-set x/y instead of phyllotaxis), newcomers start at the
+ * centroid of their already-seeded neighbours (collide separates
+ * coincident starts deterministically), and the simulation runs cooler
+ * and shorter so survivors drift minimally while newcomers settle.
+ * The live-lens membership churns node by node; without the seed every
+ * join/leave would reshuffle the whole cloud. Seed points are TOP-LEFT
+ * (same convention as the returned map).
  */
 export function computeForceLayoutPositions(
   allNodes: INodeView[],
   edges: IGraphEdge[],
+  seed?: ReadonlyMap<string, IPoint>,
 ): Map<string, IPoint> {
   interface ISimNode extends SimulationNodeDatum {
     id: string;
@@ -347,8 +358,36 @@ export function computeForceLayoutPositions(
     source: string;
     target: string;
   }
-  const simNodes: ISimNode[] = allNodes.map((n) => ({ id: n.path }));
+  const simNodes: ISimNode[] = allNodes.map((n) => {
+    const prev = seed?.get(n.path);
+    if (prev === undefined) return { id: n.path };
+    return { id: n.path, x: prev.x + NODE_WIDTH / 2, y: prev.y + NODE_HEIGHT / 2 };
+  });
   const simLinks: ISimLink[] = edges.map((e) => ({ source: e.from, target: e.to }));
+
+  const anySeeded = simNodes.some((sn) => sn.x !== undefined);
+  if (anySeeded) {
+    const byId = new Map(simNodes.map((sn) => [sn.id, sn]));
+    for (const sn of simNodes) {
+      if (sn.x !== undefined) continue;
+      let sumX = 0;
+      let sumY = 0;
+      let placed = 0;
+      for (const e of edges) {
+        const otherId = e.from === sn.id ? e.to : e.to === sn.id ? e.from : undefined;
+        if (otherId === undefined) continue;
+        const other = byId.get(otherId);
+        if (other?.x === undefined || other.y === undefined) continue;
+        sumX += other.x;
+        sumY += other.y;
+        placed += 1;
+      }
+      if (placed > 0) {
+        sn.x = sumX / placed;
+        sn.y = sumY / placed;
+      }
+    }
+  }
 
   const sim = forceSimulation<ISimNode>(simNodes)
     .force(
@@ -362,7 +401,11 @@ export function computeForceLayoutPositions(
     .force('collide', forceCollide<ISimNode>(NODE_WIDTH / 2 + 12))
     .stop();
 
-  const TICKS = 400;
+  // Seeded runs start mid-cooling: less energy means survivors keep
+  // their neighbourhood while the newcomers get pushed into free space,
+  // and the settled cloud needs far fewer ticks to re-settle.
+  if (anySeeded) sim.alpha(0.35);
+  const TICKS = anySeeded ? 120 : 400;
   for (let i = 0; i < TICKS; i++) sim.tick();
 
   const positions = new Map<string, IPoint>();

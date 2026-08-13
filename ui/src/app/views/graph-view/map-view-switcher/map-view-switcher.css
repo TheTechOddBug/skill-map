@@ -6,6 +6,14 @@
  * reach the panel markup.
  */
 
+/* Same transparent-fragment host as the layout toolbar: the trigger
+   button (and nothing else in demo mode) participates directly in the
+   `.graph__toolbar` flex row, sharing its 2px gap and its no-wrap
+   guarantee instead of living inside a shrinkable inline box. */
+:host {
+  display: contents;
+}
+
 /* Popover content tightening, mirror of `.graph__layout-popover`. */
 :host ::ng-deep .mvs__popover .p-popover-content {
   padding: 8px;

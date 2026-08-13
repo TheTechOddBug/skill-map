@@ -1,0 +1,88 @@
+<!--
+  Lens toggle + (while on) window selector and reset. The active state
+  paints the same tinted wrapper pill as the follow toggle
+  (`.lens__wrap--on` mirrors `.graph__toolbar-toggle--on`); PrimeNG
+  internals are unreachable from scoped CSS, so the state lives on the
+  App-owned wrapper.
+-->
+@if (available()) {
+  <span class="lens__wrap" [class.lens__wrap--on]="lens.active()">
+    <p-button
+      [ariaLabel]="lens.active() ? texts.toggle.ariaOn : texts.toggle.ariaOff"
+      [pTooltip]="lens.active() ? texts.toggle.tooltipOn : texts.toggle.tooltipOff"
+      [severity]="lens.active() ? 'primary' : 'secondary'"
+      [text]="true"
+      [rounded]="true"
+      size="small"
+      [attr.aria-pressed]="lens.active()"
+      (onClick)="toggleLens.emit()"
+      data-testid="graph-lens-toggle"
+    >
+      <!-- The recording dot IS the icon (projected content, same
+           16x16-box technique as the connection-type toggle). Always
+           the broadcast red (`--sm-live-c`, theme-invariant); while the
+           lens is on it blinks in step with the LIVE badge. -->
+      <span
+        class="lens__dot"
+        [class.lens__dot--on]="lens.active()"
+        aria-hidden="true"
+      ></span>
+    </p-button>
+  </span>
+  @if (lens.active()) {
+    <p-button
+      [label]="windowCompactLabel()"
+      [ariaLabel]="texts.window.aria"
+      [pTooltip]="texts.window.tooltip"
+      severity="secondary"
+      [text]="true"
+      [rounded]="true"
+      size="small"
+      styleClass="lens__window-button"
+      (onClick)="windowPopover.toggle($event)"
+      data-testid="graph-lens-window"
+    />
+    <p-button
+      icon="pi pi-eraser"
+      [ariaLabel]="texts.reset.aria"
+      [pTooltip]="texts.reset.tooltip"
+      severity="secondary"
+      [text]="true"
+      [rounded]="true"
+      size="small"
+      (onClick)="reset()"
+      data-testid="graph-lens-reset"
+    />
+  }
+
+  <p-popover #windowPopover appendTo="body" styleClass="graph__layout-popover">
+    <ul class="lens__menu" role="menu" [attr.aria-label]="texts.window.aria">
+      <li role="none">
+        <button
+          type="button"
+          role="menuitemradio"
+          class="lens__menu-item"
+          [class.is-active]="!windowIsInfinite()"
+          [attr.aria-checked]="!windowIsInfinite()"
+          (click)="selectWindow(false); windowPopover.hide()"
+          data-testid="graph-lens-window-5m"
+        >
+          {{ texts.window.fiveMinutes }}
+        </button>
+      </li>
+      <li role="none">
+        <button
+          type="button"
+          role="menuitemradio"
+          class="lens__menu-item"
+          [class.is-active]="windowIsInfinite()"
+          [attr.aria-checked]="windowIsInfinite()"
+          (click)="selectWindow(true); windowPopover.hide()"
+          data-testid="graph-lens-window-infinite"
+        >
+          {{ texts.window.infinite }}
+        </button>
+      </li>
+    </ul>
+  </p-popover>
+}

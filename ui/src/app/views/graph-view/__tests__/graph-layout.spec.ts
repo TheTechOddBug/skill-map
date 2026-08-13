@@ -16,6 +16,7 @@ import {
   NODE_HEIGHT,
   NODE_WIDTH,
   computeFilesystemLayoutPositions,
+  computeForceLayoutPositions,
   projectVisible,
   resolveTopology,
   topologyFingerprint,
@@ -596,5 +597,105 @@ describe("computeFilesystemLayoutPositions, 'files-first' variant", () => {
       'files-first',
     );
     expect(shuffled).toEqual(forward);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeForceLayoutPositions, seeded incremental runs
+// ---------------------------------------------------------------------------
+
+describe('computeForceLayoutPositions with seed', () => {
+  const edge = (from: string, to: string): IGraphEdge => ({
+    id: `${from}->${to}`,
+    from,
+    to,
+    kind: 'invokes',
+    confidence: 0.9,
+  });
+
+  it('unseeded runs stay deterministic', () => {
+    const nodes = [nodeView('a.md'), nodeView('b.md'), nodeView('c.md')];
+    const edges = [edge('a.md', 'b.md')];
+    const first = computeForceLayoutPositions(nodes, edges);
+    const second = computeForceLayoutPositions(nodes, edges);
+    expect(second).toEqual(first);
+    expect(first.size).toBe(3);
+  });
+
+  it('survivors drift minimally from their seeded positions', () => {
+    const nodes = [nodeView('a.md'), nodeView('b.md'), nodeView('c.md')];
+    const edges = [edge('a.md', 'b.md'), edge('b.md', 'c.md')];
+    const settled = computeForceLayoutPositions(nodes, edges);
+
+    // Re-run the same membership seeded by the settled output: an
+    // already-relaxed cloud should barely move (the incremental
+    // contract that keeps the live lens from reshuffling).
+    const reRun = computeForceLayoutPositions(nodes, edges, settled);
+    for (const n of nodes) {
+      const before = settled.get(n.path);
+      const after = reRun.get(n.path);
+      expect(before).toBeDefined();
+      expect(after).toBeDefined();
+      const dx = (after?.x ?? 0) - (before?.x ?? 0);
+      const dy = (after?.y ?? 0) - (before?.y ?? 0);
+      expect(Math.hypot(dx, dy)).toBeLessThan(NODE_WIDTH / 2);
+    }
+  });
+
+  it('places a newcomer beside its linked neighbour, far from unrelated nodes', () => {
+    // Two disconnected seeded survivors far apart; the newcomer links to
+    // one of them. Distances are measured pairwise (translation-invariant)
+    // because forceCenter re-centres the whole cloud every tick, so any
+    // assertion against absolute coordinates measures the recentring, not
+    // the seeding. Probed values: ~284px to the neighbour, ~963px to the
+    // unrelated node.
+    const grown = computeForceLayoutPositions(
+      [nodeView('near.md'), nodeView('far.md'), nodeView('new.md')],
+      [edge('near.md', 'new.md')],
+      new Map([
+        ['near.md', { x: -1500, y: 0 }],
+        ['far.md', { x: 1500, y: 0 }],
+      ]),
+    );
+    const near = grown.get('near.md');
+    const far = grown.get('far.md');
+    const newcomer = grown.get('new.md');
+    expect(near).toBeDefined();
+    expect(far).toBeDefined();
+    expect(newcomer).toBeDefined();
+    const dNear = Math.hypot(
+      (newcomer?.x ?? 0) - (near?.x ?? 0),
+      (newcomer?.y ?? 0) - (near?.y ?? 0),
+    );
+    const dFar = Math.hypot(
+      (newcomer?.x ?? 0) - (far?.x ?? 0),
+      (newcomer?.y ?? 0) - (far?.y ?? 0),
+    );
+    expect(dNear).toBeLessThan(dFar / 2);
+  });
+
+  it('separates two newcomers seeded onto the same centroid', () => {
+    const survivors = [nodeView('a.md')];
+    const settled = computeForceLayoutPositions(survivors, []);
+    const grown = computeForceLayoutPositions(
+      [...survivors, nodeView('x.md'), nodeView('y.md')],
+      [edge('a.md', 'x.md'), edge('a.md', 'y.md')],
+      settled,
+    );
+    const x = grown.get('x.md');
+    const y = grown.get('y.md');
+    expect(x).toBeDefined();
+    expect(y).toBeDefined();
+    // Both start at a.md's centroid; collide must have pushed them apart.
+    const gap = Math.hypot((x?.x ?? 0) - (y?.x ?? 0), (x?.y ?? 0) - (y?.y ?? 0));
+    expect(gap).toBeGreaterThan(NODE_WIDTH / 2);
+  });
+
+  it('an empty seed behaves exactly like an unseeded run', () => {
+    const nodes = [nodeView('a.md'), nodeView('b.md')];
+    const edges = [edge('a.md', 'b.md')];
+    const unseeded = computeForceLayoutPositions(nodes, edges);
+    const emptySeed = computeForceLayoutPositions(nodes, edges, new Map());
+    expect(emptySeed).toEqual(unseeded);
   });
 });

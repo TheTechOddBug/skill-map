@@ -35,6 +35,25 @@ export const GRAPH_VIEW_TEXTS = {
      * the control and hints the arrow-key operation.
      */
     resizeSeparator: 'Resize the inspector panel. Use the left and right arrow keys.',
+    /** Announced on the Live lens transitions (WCAG 4.1.3): the canvas
+     *  swaps wholesale, which is invisible to a screen-reader user. */
+    lensEntered: 'Live lens on. The map shows only executing and recent nodes.',
+    lensExited: 'Live lens off. Your map is back as it was.',
+  },
+  /**
+   * Live lens empty-state overlay (the lens is on with nothing live).
+   * The hook branch fires only on a confirmed not-installed probe
+   * (`ActivityReadinessService.hookInstalled === false`, fails open on
+   * null): without the hook no activity frame can ever arrive, so
+   * "waiting" would be a lie.
+   */
+  lens: {
+    /** Broadcast-style corner badge while the lens is on. */
+    liveBadge: 'LIVE',
+    emptyWaiting: 'Waiting for activity',
+    emptyWaitingHint: 'Nodes appear here while your AI runtime executes them.',
+    emptyHookMissing: 'The activity hook is not installed',
+    emptyHookMissingHint: 'Install it from Settings so executions can light up the lens.',
   },
   toolbar: {
     zoomIn: 'Zoom in',

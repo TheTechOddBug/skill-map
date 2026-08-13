@@ -19,6 +19,16 @@
  *     ownership of the popover's visual surface).
  */
 
+/* The template comment promises "the host renders as a transparent
+   fragment"; this rule is what delivers it. Without it the host is a
+   default-inline flex item: it can shrink below its content and wrap
+   the three buttons onto extra lines, and the parent's 2px gap never
+   reaches them. `contents` promotes the buttons to direct flex items
+   of `.graph__toolbar`. */
+:host {
+  display: contents;
+}
+
 /* Popover content tightening, the items already carry their own padding,
    so the wrapper only needs a thin 4px gutter. */
 :host ::ng-deep .graph__layout-popover .p-popover-content {

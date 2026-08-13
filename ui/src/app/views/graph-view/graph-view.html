@@ -63,6 +63,34 @@
            more nodes than the server render cap, so only the first slice
            is drawn on the map. Floats over the canvas, informational. -->
       <sm-branch-cap-banner />
+
+      <!-- Live lens frame: the "on air" border around the whole map
+           while the lens is on, the at-a-glance signal that this is a
+           live, read-only view (no drag, no curation). Decorative and
+           click-through; the a11y announcement carries the state. -->
+      @if (lensOn()) {
+        <div class="graph__lens-frame" aria-hidden="true" data-testid="graph-lens-frame"></div>
+        <!-- Real text (not aria-hidden): the persistent state indicator
+             for AT users; the announcer only covers the transitions. -->
+        <div class="graph__lens-badge" data-testid="graph-lens-badge">
+          {{ texts.lens.liveBadge }}
+        </div>
+      }
+
+      <!-- Live lens empty state: floating overlay, NOT a branch of the
+           top-level empty-state chain, so <f-flow> stays mounted while
+           the lens waits for its first frame. -->
+      @if (showLensEmptyState()) {
+        <div
+          class="graph__lens-empty"
+          data-canvas-click-shield
+          data-testid="graph-lens-empty"
+        >
+          <i class="pi pi-wave-pulse graph__lens-empty-icon" aria-hidden="true"></i>
+          <p class="graph__lens-empty-title">{{ lensEmptyCopy().title }}</p>
+          <p class="graph__lens-empty-hint">{{ lensEmptyCopy().hint }}</p>
+        </div>
+      }
       <f-flow
         fDraggable
         [fCache]="perf.cache"
@@ -310,6 +338,7 @@
                 fConnectorType="source-target"
                 [fNodeId]="node.id"
                 [fNodePosition]="node.position"
+                [fNodeDraggingDisabled]="lensOn()"
                 [fConnectorId]="node.id"
                 (fNodePositionChange)="onNodePositionChange(node.id, $event)"
                 class="sm-gnode-host"
@@ -372,6 +401,7 @@
                   fConnectorType="source-target"
                   [fNodeId]="node.id"
                   [fNodePosition]="node.position"
+                  [fNodeDraggingDisabled]="lensOn()"
                   [fConnectorId]="node.id"
                   (fNodePositionChange)="onNodePositionChange(node.id, $event)"
                   class="sm-gnode-host"
@@ -489,11 +519,16 @@
         <f-minimap />
       </f-flow>
 
-      <div class="graph__filter-stack" data-canvas-click-shield>
-        <sm-kind-palette />
-        <sm-severity-palette />
-        <sm-link-kind-palette />
-      </div>
+      <!-- Facet palettes hide while the Live lens is on: its filter
+           stub deliberately ignores them (the lens answers "what is
+           executing"), and showing dead toggles would lie. -->
+      @if (!lensOn()) {
+        <div class="graph__filter-stack" data-canvas-click-shield>
+          <sm-kind-palette />
+          <sm-severity-palette />
+          <sm-link-kind-palette />
+        </div>
+      }
 
       <!--
         `inert` while closed (WCAG 2.4.3). The panel hides with
@@ -633,24 +668,35 @@
             />
           </span>
         }
-        <span class="graph__toolbar-sep" aria-hidden="true"></span>
-        <sm-graph-layout-toolbar />
-        <!-- Map views (spec/map-views.md): renders nothing in demo
-             mode, so the cluster keeps its shape without a dangling
-             separator. -->
-        <sm-map-view-switcher />
-        <span class="graph__toolbar-sep" aria-hidden="true"></span>
-        <p-button
-          icon="pi pi-history"
-          [ariaLabel]="texts.toolbar.resetLayoutLabel"
-          [pTooltip]="texts.toolbar.resetLayoutTooltip"
-          severity="secondary"
-          [text]="true"
-          [rounded]="true"
-          size="small"
-          (onClick)="resetLayout()"
-          data-testid="graph-reset-layout"
-        />
+        <!-- Live lens cluster (toggle; window + reset while on). The
+             component renders nothing in demo mode or with Real Time
+             off, and its enter/exit orchestration lives in
+             `setupLiveLens` (hence the routed output). -->
+        <sm-live-lens-controls (toggleLens)="toggleLiveLens()" />
+        <!-- Layout, map-view and reset-layout controls all mutate
+             persisted arrangement state, which the lens neither reads
+             nor may ever write: hidden (not disabled) while it is on,
+             the same no-dead-chrome idiom as demo mode. -->
+        @if (!lensOn()) {
+          <span class="graph__toolbar-sep" aria-hidden="true"></span>
+          <sm-graph-layout-toolbar />
+          <!-- Map views (spec/map-views.md): renders nothing in demo
+               mode, so the cluster keeps its shape without a dangling
+               separator. -->
+          <sm-map-view-switcher />
+          <span class="graph__toolbar-sep" aria-hidden="true"></span>
+          <p-button
+            icon="pi pi-history"
+            [ariaLabel]="texts.toolbar.resetLayoutLabel"
+            [pTooltip]="texts.toolbar.resetLayoutTooltip"
+            severity="secondary"
+            [text]="true"
+            [rounded]="true"
+            size="small"
+            (onClick)="resetLayout()"
+            data-testid="graph-reset-layout"
+          />
+        }
       </div>
 
     </div>

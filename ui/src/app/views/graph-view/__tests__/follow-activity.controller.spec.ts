@@ -211,4 +211,89 @@ describe('follow-activity.controller', () => {
     TestBed.tick();
     expect(h.handle.framing()).toBe(false);
   });
+
+  it('targetPaths overrides the framed set (the live-lens seam)', () => {
+    const h = makeHarness();
+    const lensTargets = signal<ReadonlySet<string>>(new Set());
+    const animate = vi.fn<(t: IViewportTransform) => void>();
+    let handle!: IFollowActivityHandle;
+    TestBed.runInInjectionContext(() => {
+      handle = setupFollowActivity({
+        livePrefs: TestBed.inject(LivePreferencesService),
+        nodeActivity: {
+          enabled: h.activityEnabled.asReadonly(),
+          activePaths: h.active.asReadonly(),
+        } as unknown as NodeActivityService,
+        targetPaths: lensTargets.asReadonly(),
+        visiblePaths: h.visiblePaths,
+        sessions: () => [],
+        layoutComputedAt: h.layoutComputedAt,
+        bootFitDone: () => true,
+        hostElement: () => ({ clientWidth: 800, clientHeight: 600 }) as HTMLElement,
+        positionOf: (path) => ({ x: path.length * 10, y: 5 }),
+        panelWidth: () => 0,
+        zoomMin: 0.1,
+        animateToTransform: animate,
+      });
+    });
+    handle.toggle();
+    h.visiblePaths.set(new Set(['a.md', 'lingering.md']));
+
+    // activePaths moves but the override set is empty: no framing.
+    h.active.set(new Set(['a.md']));
+    TestBed.tick();
+    expect(animate).not.toHaveBeenCalled();
+
+    // The override set (executing + lingering) drives the camera.
+    lensTargets.set(new Set(['lingering.md']));
+    TestBed.tick();
+    expect(animate).toHaveBeenCalledTimes(1);
+  });
+
+  it('followState overrides arming without touching the persisted preference', () => {
+    const h = makeHarness();
+    const armed = signal(true);
+    const animate = vi.fn<(t: IViewportTransform) => void>();
+    let handle!: IFollowActivityHandle;
+    TestBed.runInInjectionContext(() => {
+      handle = setupFollowActivity({
+        livePrefs: TestBed.inject(LivePreferencesService),
+        nodeActivity: {
+          enabled: h.activityEnabled.asReadonly(),
+          activePaths: h.active.asReadonly(),
+        } as unknown as NodeActivityService,
+        followState: {
+          enabled: armed.asReadonly(),
+          setEnabled: (value) => armed.set(value),
+        },
+        visiblePaths: h.visiblePaths,
+        sessions: () => [],
+        layoutComputedAt: h.layoutComputedAt,
+        bootFitDone: () => true,
+        hostElement: () => ({ clientWidth: 800, clientHeight: 600 }) as HTMLElement,
+        positionOf: (path) => ({ x: path.length * 10, y: 5 }),
+        panelWidth: () => 0,
+        zoomMin: 0.1,
+        animateToTransform: animate,
+      });
+    });
+    h.visiblePaths.set(new Set(['a.md']));
+    h.active.set(new Set(['a.md']));
+    TestBed.tick();
+    expect(animate).toHaveBeenCalledTimes(1);
+
+    // disable() disarms the LOCAL pair; the stored preference (seeded
+    // 'false' by beforeEach, i.e. untouched) stays as it was.
+    handle.disable();
+    TestBed.tick();
+    expect(armed()).toBe(false);
+    expect(handle.followActivity()).toBe(false);
+    expect(localStorage.getItem(FOLLOW_KEY)).toBe('false');
+
+    // toggle() re-arms through the same local pair.
+    handle.toggle();
+    TestBed.tick();
+    expect(armed()).toBe(true);
+    expect(animate).toHaveBeenCalledTimes(2);
+  });
 });

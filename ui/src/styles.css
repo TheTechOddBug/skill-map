@@ -190,6 +190,15 @@
   --sm-exec-c4: #fbbf24;
   --sm-exec-c5: #fb7185;
 
+  /* Live lens "on air" chrome (frame + LIVE badge, graph-view.css).
+     A dedicated broadcast red, NOT --sm-severity-error: the severity
+     token is tuned per theme for text/chip legibility (pale rose in
+     dark, brick in light, green in matrix), none of which reads as a
+     recording light. Shared across themes like the exec palette so
+     the lens always signals in the same unmistakable hue; deep enough
+     that the badge's white text clears WCAG AA. */
+  --sm-live-c: #e5102e;
+
   /* Change spark (a node's file changed on disk, NodeSparkService).
      Deliberately ONE hue, the theme's predominant color, so the flash
      reads as "external update" and never as the multi-hue executing
