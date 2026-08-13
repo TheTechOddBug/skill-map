@@ -2,6 +2,9 @@
 export const FILES_VIEW_TEXTS = {
   loading: 'Loading collection…',
   emptyFiltered: 'No nodes match the current filters.',
+  /** Live lens on, nothing seen executing yet (mirrors the map's own empty state). */
+  emptyLens: 'Nothing has executed yet.',
+  emptyLensHint: 'Files appear here as your AI runtime touches them.',
   emptyAll: 'No nodes loaded.',
   emptyAllHint: 'Run a scan from the topbar to populate the collection.',
   resetFilters: 'Reset filters',

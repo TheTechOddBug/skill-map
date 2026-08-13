@@ -11,6 +11,7 @@ import { MapVisibilityService } from '../../../../services/map-visibility';
 import { NodeActivityStatsService } from '../../../../services/node-activity-stats';
 import { ProjectIgnoreService } from '../../../../services/project-ignore';
 import { MapViewsService } from '../../../../services/map-views';
+import { LiveLensService } from '../../../../services/live-lens';
 import { UsageTrackerService } from '../../../services/usage-tracker';
 import { MAP_ISOLATE_INTENT } from '../../../slots/map-isolate-intent';
 import { NODE_OPEN_INTENT } from '../../../slots/node-open-intent';
@@ -146,6 +147,16 @@ async function bootstrap(
       provideZonelessChangeDetection(),
       { provide: CollectionLoaderService, useValue: loader },
       { provide: MAP_ISOLATE_INTENT, useValue: { isolate } },
+      // Live lens owner: stubbed OFF so the rail keeps its whole-corpus
+      // listing (the lens narrows it to the executed set) and construction
+      // never reaches DATA_SOURCE / SKILL_MAP_MODE through its graph.
+      {
+        provide: LiveLensService,
+        useValue: {
+          active: signal(false).asReadonly(),
+          membership: signal<ReadonlySet<string>>(new Set()).asReadonly(),
+        } as unknown as LiveLensService,
+      },
       { provide: NODE_OPEN_INTENT, useValue: { open } },
       // FilesView reads `?path` to highlight/reveal the selected node; the
       // rail's follow preference is off by default (localStorage cleared),

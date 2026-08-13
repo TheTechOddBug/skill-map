@@ -30,7 +30,7 @@ import { pathBasenameForLink } from '../../../../services/path-basename';
 })
 export class PlaybackBar {
   protected readonly playback = inject(ActivityPlaybackService);
-  private readonly recorder = inject(ActivityRecorderService);
+  protected readonly recorder = inject(ActivityRecorderService);
 
   protected readonly texts = PLAYBACK_BAR_TEXTS;
 
@@ -68,6 +68,18 @@ export class PlaybackBar {
   protected togglePlay(): void {
     if (this.playback.playing()) this.playback.pause();
     else this.playback.play();
+  }
+
+  /**
+   * Contextual shortcut for the Settings row's delete: the recording is
+   * kept until the operator drops it, and the moment you decide it is
+   * junk is usually while watching it. Leaves the replay afterwards,
+   * there is no longer a tape to show. No confirmation (regenerable
+   * machine data, same posture as the Activity clear-all).
+   */
+  protected deleteRecording(): void {
+    this.recorder.clear();
+    this.playback.exit();
   }
 
   protected onSeek(event: Event): void {

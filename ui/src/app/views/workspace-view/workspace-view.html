@@ -28,12 +28,18 @@
         >
           <i class="pi pi-folder" aria-hidden="true"></i>
         </button>
+        <!-- `aria-disabled` rather than the native `disabled`: the button
+             stays focusable and announced (so a keyboard user learns WHY
+             it is off) and PrimeNG's tooltip still fires to say it. The
+             click is inert through `openSection`'s own guard. -->
         <button
           type="button"
           class="workspace__rail-btn"
-          [pTooltip]="texts.sections.queueTooltip"
+          [class.is-disabled]="queueDisabled()"
+          [pTooltip]="queueDisabled() ? texts.sections.queueDisabledTooltip : texts.sections.queueTooltip"
           tooltipPosition="right"
           [attr.aria-label]="texts.sections.queueTooltip"
+          [attr.aria-disabled]="queueDisabled() ? 'true' : null"
           (click)="openSection('queue')"
           data-testid="workspace-section-queue"
         >
@@ -83,14 +89,21 @@
           <i class="pi pi-folder" aria-hidden="true"></i>
           <span>{{ texts.sections.files }}</span>
         </button>
+        <!-- Disabled via `aria-disabled` (see the activity-bar twin): an
+             APG tab may stay focusable while unavailable, which keeps the
+             roving arrow walk intact and lets the tooltip explain. -->
         <button
           type="button"
           class="workspace__tab"
           role="tab"
           id="workspace-tab-queue"
           [class.is-active]="activeSection() === 'queue'"
+          [class.is-disabled]="queueDisabled()"
           [attr.aria-selected]="activeSection() === 'queue'"
+          [attr.aria-disabled]="queueDisabled() ? 'true' : null"
           [attr.tabindex]="activeSection() === 'queue' ? 0 : -1"
+          [pTooltip]="queueDisabled() ? texts.sections.queueDisabledTooltip : ''"
+          tooltipPosition="bottom"
           aria-controls="workspace-rail-body"
           (click)="openSection('queue')"
           data-testid="workspace-section-queue"

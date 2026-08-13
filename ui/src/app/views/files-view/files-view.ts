@@ -28,6 +28,7 @@ import { FILES_VIEW_TEXTS } from '../../../i18n/files-view.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
 import { FilesFollowSelectionService } from '../../../services/files-follow-selection';
+import { LiveLensService } from '../../../services/live-lens';
 import { MapVisibilityService, type TFolderVisibility } from '../../../services/map-visibility';
 import { MapViewsService } from '../../../services/map-views';
 import { NodeActivityStatsService } from '../../../services/node-activity-stats';
@@ -99,6 +100,7 @@ export class FilesView implements OnInit {
   protected readonly projectIgnore = inject(ProjectIgnoreService);
   private readonly usageTracker = inject(UsageTrackerService);
   private readonly activityStats = inject(NodeActivityStatsService);
+  private readonly liveLens = inject(LiveLensService);
   private readonly followSelection = inject(FilesFollowSelectionService);
   private readonly route = inject(ActivatedRoute);
   private readonly injector = inject(Injector);
@@ -291,8 +293,20 @@ export class FilesView implements OnInit {
       errors: new Set(maps.errorCounts.keys()),
       warns: new Set(maps.warnCounts.keys()),
     };
-    return this.filters.apply(this.loader.liteNodeViews(), severity);
+    const nodes = this.filters.apply(this.loader.liteNodeViews(), severity);
+    // Live lens: the rail narrows to the same set the map shows, the
+    // files the operator SAW execute (and, under replay, whatever the
+    // tape walked through up to the cursor). The whole workspace then
+    // narrates one story instead of a live map beside a full corpus.
+    // Membership is the lens's single source; folders with no member
+    // fall out of the tree on their own.
+    if (!this.lensOn()) return nodes;
+    const members = this.liveLens.membership();
+    return nodes.filter((node) => members.has(node.path));
   });
+
+  /** True while the Live lens owns the workspace (map AND rail). */
+  protected readonly lensOn = this.liveLens.active;
 
   private readonly tree = computed<ITreeFolder>(() => buildTree(this.filteredNodes()));
 

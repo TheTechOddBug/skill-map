@@ -85,6 +85,23 @@
   color: var(--p-text-color);
 }
 
+/* Unavailable while the Live lens owns the workspace. `aria-disabled`
+   (not the native `disabled`) keeps the control focusable and its
+   tooltip alive, so the dimming below is the only visual half of the
+   state; the hover affordance is dropped so it does not read as
+   clickable. Shared by the tab and its activity-bar twin. */
+.workspace__tab.is-disabled,
+.workspace__rail-btn.is-disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.workspace__tab.is-disabled:hover,
+.workspace__rail-btn.is-disabled:hover {
+  background: transparent;
+  color: var(--p-text-muted-color);
+}
+
 .workspace__tab i {
   font-size: var(--sm-fs-sm);
 }

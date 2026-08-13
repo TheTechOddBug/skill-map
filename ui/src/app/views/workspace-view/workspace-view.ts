@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, forwardRef, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, forwardRef, inject, signal, untracked, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
@@ -9,6 +9,7 @@ import { WORKSPACE_VIEW_TEXTS } from '../../../i18n/workspace-view.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilesFollowSelectionService } from '../../../services/files-follow-selection';
 import { FilterStoreService } from '../../../services/filter-store';
+import { LiveLensService } from '../../../services/live-lens';
 import { MapVisibilityService } from '../../../services/map-visibility';
 import { setupEdgeResize } from '../../core/edge-resize.controller';
 import { handleRovingTablistKeydown } from '../../core/roving-tablist';
@@ -91,6 +92,7 @@ export class WorkspaceView implements IMapIsolateIntent {
   private readonly store = inject(FilterStoreService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly loader = inject(CollectionLoaderService);
+  private readonly liveLens = inject(LiveLensService);
   private readonly mapVisibility = inject(MapVisibilityService);
   private readonly followSelection = inject(FilesFollowSelectionService);
   private readonly usageTracker = inject(UsageTrackerService);
@@ -133,6 +135,16 @@ export class WorkspaceView implements IMapIsolateIntent {
   protected readonly activeSection = signal<TWorkspaceSection>(
     readStoredActiveSection() ?? 'files',
   );
+
+  /**
+   * The queue is off while the Live lens is on: the lens (and its
+   * replay) narrate what the runtime EXECUTED, and the job queue is a
+   * different, unrelated timeline whose live rows would read as part of
+   * that story. Disabled rather than hidden so the tab keeps its place
+   * and can explain itself (`aria-disabled` + the reason in the
+   * tooltip); the section switch below moves off it on entry.
+   */
+  protected readonly queueDisabled = this.liveLens.active;
 
   /** Guards so the corpus-size auto-default applies at most once and never
    *  fights a manual toggle. */
@@ -223,6 +235,17 @@ export class WorkspaceView implements IMapIsolateIntent {
       const cap = this.loader.scanMeta()?.maxRenderNodes ?? 256;
       if (count > cap) this.railCollapsed.set(false);
     });
+
+    // Entering the lens while the queue is open would strand the rail on
+    // a panel that just went unavailable, so the rail falls back to
+    // files. Leaving the lens does NOT restore the queue: the operator
+    // is looking at files by then, and yanking the panel back would be
+    // the more surprising move.
+    effect(() => {
+      if (this.queueDisabled() && untracked(() => this.activeSection()) === 'queue') {
+        this.setActiveSection('files');
+      }
+    });
   }
 
   /**
@@ -233,6 +256,11 @@ export class WorkspaceView implements IMapIsolateIntent {
    * a collapsed icon opens the rail onto that section.
    */
   protected openSection(section: TWorkspaceSection): void {
+    // The queue is unavailable while the Live lens owns the workspace
+    // (see `queueDisabled`). Guarded HERE rather than at each call site:
+    // the tab click, the collapsed activity-bar button and the roving
+    // arrow keys all route through this one verb.
+    if (section === 'queue' && this.queueDisabled()) return;
     this.userToggledRail = true;
     // Usage analytics (opt-in, default OFF): only a gesture that actually
     // opens the rail or switches the panel counts; re-clicking the already

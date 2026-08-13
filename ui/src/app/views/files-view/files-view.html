@@ -84,7 +84,14 @@
   } @else if (!error()) {
     @if (rows().length === 0) {
       <div class="empty-state">
-        @if (filtersActive()) {
+        @if (lensOn()) {
+          <!-- Checked FIRST: while the lens owns the rail, an empty list
+               means "nothing executed yet", never "your filters are too
+               narrow" (the facets are not what emptied it). -->
+          <i class="pi pi-wave-pulse empty-state__icon" aria-hidden="true"></i>
+          <p class="empty-state__title" data-testid="files-empty-lens">{{ texts.emptyLens }}</p>
+          <p class="empty-state__desc">{{ texts.emptyLensHint }}</p>
+        } @else if (filtersActive()) {
           <i class="pi pi-filter-slash empty-state__icon" aria-hidden="true"></i>
           <p class="empty-state__title" data-testid="files-empty-filtered">{{ texts.emptyFiltered }}</p>
           <p-button [label]="texts.resetFilters" [text]="true" size="small" (onClick)="resetFilters()" data-testid="files-reset-filters" />

@@ -12,7 +12,10 @@ import { Subject } from 'rxjs';
 import type { IWsEvent } from '../../models/ws-event';
 import {
   ACTIVITY_RECORDER_CAP,
+  ACTIVITY_RECORDING_KEY,
   ActivityRecorderService,
+  PERSISTED_CHAR_BUDGET,
+  PERSISTED_EVENT_CAP,
 } from '../activity-recorder';
 import { LivePreferencesService } from '../live-preferences';
 import { WsEventStreamService } from '../ws-event-stream';
@@ -63,13 +66,25 @@ async function flushed(): Promise<void> {
   await vi.advanceTimersByTimeAsync(1);
 }
 
+/** Past the flush macrotask AND the 2s persist debounce. */
+async function persisted(): Promise<void> {
+  await vi.advanceTimersByTimeAsync(2_500);
+}
+
+function storedTape(): unknown[] {
+  const raw = localStorage.getItem(ACTIVITY_RECORDING_KEY);
+  return raw === null ? [] : (JSON.parse(raw) as unknown[]);
+}
+
 describe('ActivityRecorderService', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(T0);
+    localStorage.clear();
   });
   afterEach(() => {
     vi.useRealTimers();
+    localStorage.clear();
   });
 
   it('records activity and spawn frames with their server timestamps', async () => {
@@ -133,5 +148,111 @@ describe('ActivityRecorderService', () => {
 
     expect(service.size()).toBe(0);
     expect(service.droppedCount()).toBe(0);
+  });
+
+  // --- persistence (the tape survives a reload; the operator deletes it) ---
+
+  it('mirrors the tape to storage after the debounce, not per frame', async () => {
+    const { service, events$ } = bootstrap();
+    events$.next(activityFrame(T0 + 1));
+    await flushed();
+    // Flushed into memory, but the debounce has not landed the write yet.
+    expect(service.size()).toBe(1);
+    expect(localStorage.getItem(ACTIVITY_RECORDING_KEY)).toBeNull();
+
+    await persisted();
+    expect(storedTape()).toHaveLength(1);
+    expect(service.storedChars()).toBeGreaterThan(0);
+  });
+
+  it('hydrates the stored tape at construction, before live frames append', async () => {
+    const first = bootstrap();
+    first.events$.next(activityFrame(T0 + 1));
+    first.events$.next(spawnFrame(T0 + 2));
+    await persisted();
+
+    // A new page: the recorder starts from the mirrored history.
+    const second = bootstrap();
+    expect(second.service.size()).toBe(2);
+
+    second.events$.next(activityFrame(T0 + 3));
+    await flushed();
+    expect(second.service.size()).toBe(3);
+    // Order holds: history first, then the live frame.
+    expect(second.service.events()[2]?.tMs).toBe(T0 + 3);
+  });
+
+  it('drops a corrupt stored tape instead of carrying it into the fold', () => {
+    localStorage.setItem(ACTIVITY_RECORDING_KEY, '{not json');
+    expect(bootstrap().service.size()).toBe(0);
+    expect(localStorage.getItem(ACTIVITY_RECORDING_KEY)).toBeNull();
+
+    // Valid JSON, wrong shape: same treatment.
+    localStorage.setItem(ACTIVITY_RECORDING_KEY, JSON.stringify([{ nope: true }]));
+    expect(bootstrap().service.size()).toBe(0);
+    expect(localStorage.getItem(ACTIVITY_RECORDING_KEY)).toBeNull();
+  });
+
+  it('mirrors only the trailing slice, bounded by the event cap', async () => {
+    const { service, events$ } = bootstrap();
+    const total = PERSISTED_EVENT_CAP + 25;
+    for (let i = 0; i < total; i++) events$.next(activityFrame(T0 + i));
+    await persisted();
+
+    // Memory keeps everything (the ring is far larger); storage keeps
+    // the most recent slice.
+    expect(service.size()).toBe(total);
+    const stored = storedTape() as Array<{ tMs: number }>;
+    expect(stored).toHaveLength(PERSISTED_EVENT_CAP);
+    expect(stored[0]?.tMs).toBe(T0 + 25); // oldest 25 trimmed
+  });
+
+  it('stays inside the character budget when frames are fat', async () => {
+    const { events$ } = bootstrap();
+    // ~1.2 KB of detail per frame: 2000 frames is well past the budget.
+    const fatDetail = 'x'.repeat(1_200);
+    for (let i = 0; i < 2_000; i++) {
+      events$.next({
+        type: 'node.activity',
+        timestamp: T0 + i,
+        data: { nodePath: SKILL, phase: 'start', owner: 'main:abc', detail: fatDetail },
+      } as IWsEvent);
+    }
+    await persisted();
+
+    const raw = localStorage.getItem(ACTIVITY_RECORDING_KEY) ?? '';
+    expect(raw.length).toBeLessThanOrEqual(PERSISTED_CHAR_BUDGET);
+    // Trimmed, but not emptied: a bounded tape is still worth keeping.
+    expect(storedTape().length).toBeGreaterThan(50);
+  });
+
+  it('clear() deletes the stored recording too', async () => {
+    const { service, events$ } = bootstrap();
+    events$.next(activityFrame(T0 + 1));
+    await persisted();
+    expect(localStorage.getItem(ACTIVITY_RECORDING_KEY)).not.toBeNull();
+
+    service.clear();
+    expect(localStorage.getItem(ACTIVITY_RECORDING_KEY)).toBeNull();
+    expect(service.storedChars()).toBe(0);
+
+    // And a fresh page starts empty.
+    expect(bootstrap().service.size()).toBe(0);
+  });
+
+  it('survives a storage write failure without losing the in-memory tape', async () => {
+    const { service, events$ } = bootstrap();
+    // Spy the INSTANCE, not `Storage.prototype`: the test environment's
+    // localStorage carries its own `setItem`, so a prototype spy never
+    // intercepts and the write quietly succeeds.
+    const setItem = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
+    events$.next(activityFrame(T0 + 1));
+    await persisted();
+
+    expect(service.size()).toBe(1); // recording keeps working
+    expect(service.storedChars()).toBe(0); // the mirror stood down
+    setItem.mockRestore();
   });
 });

@@ -45,8 +45,11 @@ function makeFixture(init?: {
     stepBack: vi.fn(),
     stepForward: vi.fn(),
   } as unknown as ActivityPlaybackService;
+  const clear = vi.fn();
   const recorder = {
     droppedCount: signal(init?.dropped ?? 0).asReadonly(),
+    size: signal(init?.total ?? 3).asReadonly(),
+    clear,
   } as unknown as ActivityRecorderService;
 
   TestBed.resetTestingModule();
@@ -59,7 +62,7 @@ function makeFixture(init?: {
   });
   const fixture = TestBed.createComponent(PlaybackBar);
   fixture.detectChanges();
-  return { fixture, playback, cursor, playing };
+  return { fixture, playback, cursor, playing, clear };
 }
 
 function query(fixture: { nativeElement: unknown }, testid: string): HTMLElement | null {
@@ -94,6 +97,15 @@ describe('PlaybackBar', () => {
   it('exit routes through the service', () => {
     const { fixture, playback } = makeFixture();
     (query(fixture, 'graph-playback-exit')?.querySelector('button') as HTMLButtonElement).click();
+    expect(playback.exit).toHaveBeenCalledTimes(1);
+  });
+
+  it('the delete shortcut drops the recording AND leaves the replay', () => {
+    const { fixture, playback, clear } = makeFixture();
+    (query(fixture, 'graph-playback-delete')?.querySelector('button') as HTMLButtonElement).click();
+    expect(clear).toHaveBeenCalledTimes(1);
+    // Nothing left to replay, so the mode exits rather than sitting on
+    // an empty tape.
     expect(playback.exit).toHaveBeenCalledTimes(1);
   });
 

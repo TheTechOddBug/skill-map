@@ -166,6 +166,22 @@ export const SETTINGS_TEXTS = {
           'while they run, even though they are not files in your project.',
         hint: 'Requires real-time node activity.',
       },
+      /**
+       * The live lens replay tape (`sm.live.recording` in this
+       * browser). Not a toggle: a readout plus the operator's delete,
+       * since nothing else ever erases the recording.
+       */
+      recording: {
+        label: 'Session recording',
+        description:
+          'The live lens keeps what your runtime executed in this browser so you ' +
+          'can replay it later. It stays until you delete it.',
+        empty: 'Nothing recorded yet.',
+        /** `1,240 events, 380 KB stored`. */
+        summary: (events: string, size: string): string =>
+          `${events} events, ${size} stored`,
+        delete: 'Delete recording',
+      },
     },
     loadErrorPrefix: 'Could not load project settings:',
     saveErrorPrefix: 'Could not save project settings:',

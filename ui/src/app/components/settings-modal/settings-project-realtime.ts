@@ -23,15 +23,19 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   effect,
   inject,
   input,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ButtonModule } from 'primeng/button';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import { UsageTrackerService } from '../../services/usage-tracker';
+import { ActivityRecorderService } from '../../../services/activity-recorder';
+import { formatExactCount } from '../../../services/format-count';
 import { LivePreferencesService } from '../../../services/live-preferences';
 import { NodeActivityService } from '../../../services/node-activity';
 import { NodeSparkService } from '../../../services/node-spark';
@@ -41,7 +45,7 @@ import { ToggleRowDirective } from './toggle-row.directive';
 
 @Component({
   selector: 'sm-settings-project-realtime',
-  imports: [FormsModule, ToggleRowDirective, ToggleSwitchModule],
+  imports: [ButtonModule, FormsModule, ToggleRowDirective, ToggleSwitchModule],
   templateUrl: './settings-project-realtime.html',
   styleUrl: './settings-project-rows.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -107,4 +111,44 @@ export class SettingsProjectRealtime {
     this.usageTracker.trackFeature('runtime-agents', next);
     this.livePrefs.setShowRuntimeAgents(next);
   }
+
+  /**
+   * Live lens replay tape. Not a preference: a readout of what this
+   * browser is holding plus the operator's delete, which is the ONLY
+   * thing that erases the recording (see `ActivityRecorderService`).
+   * Regenerable machine data, so the delete takes no confirmation
+   * dialog, matching the Activity clear-all posture.
+   */
+  private readonly recorder = inject(ActivityRecorderService);
+
+  protected readonly recordedCount = this.recorder.size;
+
+  protected readonly recordingSummary = computed(() => {
+    const events = this.recordedCount();
+    if (events === 0) return SETTINGS_TEXTS.project.live.recording.empty;
+    return SETTINGS_TEXTS.project.live.recording.summary(
+      formatExactCount(events),
+      formatStoredSize(this.recorder.storedChars()),
+    );
+  });
+
+  protected onDeleteRecording(): void {
+    // No usage event: `TUsageFeatureSurface` is a CLOSED taxonomy
+    // (spec/telemetry.md), and a new member is a spec change, not a
+    // side effect of adding a button.
+    this.recorder.clear();
+  }
+}
+
+/**
+ * Stored size for the readout. The recorder meters UTF-16 characters
+ * (what the browser charges against the quota); one ASCII character is
+ * one byte on disk, so the KB figure reads true for path / owner /
+ * tool-name payloads and errs low only for non-ASCII ones.
+ */
+function formatStoredSize(chars: number): string {
+  if (chars < 1024) return `${chars} B`;
+  const kb = chars / 1024;
+  if (kb < 1024) return `${Math.round(kb)} KB`;
+  return `${(kb / 1024).toFixed(1)} MB`;
 }

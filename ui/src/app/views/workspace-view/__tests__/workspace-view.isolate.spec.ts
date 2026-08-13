@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
-import { Component, Injectable, signal } from '@angular/core';
+import { Component, Injectable, signal, type WritableSignal } from '@angular/core';
 import { Router, provideRouter } from '@angular/router';
 import { EMPTY } from 'rxjs';
 import { DagreLayoutEngine } from '@foblex/flow-dagre-layout';
@@ -10,6 +10,7 @@ import { GraphView } from '../../graph-view/graph-view';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
 import { FilterStoreService } from '../../../../services/filter-store';
 import { KindRegistryService } from '../../../../services/kind-registry';
+import { LiveLensService } from '../../../../services/live-lens';
 import { MapVisibilityService } from '../../../../services/map-visibility';
 import {
   DATA_SOURCE,
@@ -143,7 +144,47 @@ class FakeMarkdownRenderer extends MarkdownRenderer {
   }
 }
 
-async function bootstrap(nodes: INodeView[], links: ILinkApi[], corpusSize = nodes.length): Promise<{
+/**
+ * Controllable stand-in for the Live lens, so a suite can flip the mode
+ * on without a WS socket or a `live` runtime mode. Only the two signals
+ * the workspace + rail read are needed (`active` gates the queue tab and
+ * the rail narrowing; `membership` IS the narrowed set).
+ */
+export interface ILensHandles {
+  active: WritableSignal<boolean>;
+  membership: WritableSignal<ReadonlySet<string>>;
+}
+
+/**
+ * The stub covers the WHOLE read surface, not just the two driven
+ * signals: the mounted `GraphView` also consumes the lens (observed
+ * relations, lens nodes / scan, the toolbar controls), and a partial
+ * stub throws mid-render, which the jsdom guards below would swallow
+ * into an empty DOM and a mystifying assertion failure.
+ */
+function makeLensStub(lens: ILensHandles): LiveLensService {
+  return {
+    available: signal(true).asReadonly(),
+    active: lens.active.asReadonly(),
+    membership: lens.membership.asReadonly(),
+    windowMs: signal(5 * 60_000).asReadonly(),
+    lensNodes: signal<INodeView[]>([]).asReadonly(),
+    lensScan: signal<IScanResultApi | null>(null).asReadonly(),
+    observedInvocations: signal([]).asReadonly(),
+    observedSpawns: signal([]).asReadonly(),
+    observedSpinePairs: signal<ReadonlySet<string>>(new Set()).asReadonly(),
+    setActive: (value: boolean) => lens.active.set(value),
+    setWindow: () => undefined,
+    reset: () => undefined,
+  } as unknown as LiveLensService;
+}
+
+async function bootstrap(
+  nodes: INodeView[],
+  links: ILinkApi[],
+  corpusSize = nodes.length,
+  lens?: ILensHandles,
+): Promise<{
   fixture: ComponentFixture<WorkspaceView>;
   mapVisibility: MapVisibilityService;
 }> {
@@ -164,6 +205,12 @@ async function bootstrap(nodes: INodeView[], links: ILinkApi[], corpusSize = nod
       { provide: DATA_SOURCE, useValue: STUB_DATA_SOURCE },
       { provide: MarkdownRenderer, useClass: FakeMarkdownRenderer },
       { provide: SKILL_MAP_MODE, useValue: 'demo' },
+      // Only when a suite drives the lens: the real service is
+      // unavailable in demo mode (so it could never turn on here), and
+      // the stub keeps the whole activity graph out of these DOM tests.
+      ...(lens === undefined
+        ? []
+        : [{ provide: LiveLensService, useValue: makeLensStub(lens) }]),
       // The queue panel (mounted when the Queue section is active) injects
       // `WsEventStreamService` for its debounced live refresh. The real
       // service is used here (as before this suite grew the queue tab): in
@@ -469,6 +516,135 @@ describe('WorkspaceView activity sections', () => {
     }
     await Promise.resolve();
     expect(q(fixture, 'workspace-search')).not.toBeNull();
+
+    localStorage.removeItem('sm.workspace.rail-collapsed');
+    localStorage.removeItem('sm.workspace.rail-section');
+  });
+
+  it('disables the Queue tab while the Live lens is on, and clicking it is inert', async () => {
+    localStorage.setItem('sm.workspace.rail-collapsed', '0');
+    const lens: ILensHandles = {
+      active: signal(true),
+      membership: signal<ReadonlySet<string>>(new Set(['a.md'])),
+    };
+    const { fixture } = await bootstrap([makeNode('a.md', 'a')], [], 1, lens);
+
+    // Disabled via `aria-disabled` (the control stays focusable so its
+    // tooltip can explain), and the dimming class rides along.
+    const queueTab = q(fixture, 'workspace-section-queue')!;
+    expect(queueTab.getAttribute('aria-disabled')).toBe('true');
+    expect(queueTab.classList.contains('is-disabled')).toBe(true);
+
+    // The click routes through `openSection`, whose guard drops it: the
+    // rail stays on Files and the queue panel never mounts.
+    queueTab.click();
+    try {
+      fixture.detectChanges();
+    } catch {
+      /* ignore Foblex-internal render glitches in jsdom */
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(q(fixture, 'files-view')).not.toBeNull();
+    expect(q(fixture, 'queue-view')).toBeNull();
+
+    // Leaving the lens re-enables it.
+    lens.active.set(false);
+    try {
+      fixture.detectChanges();
+    } catch {
+      /* same guard */
+    }
+    expect(q(fixture, 'workspace-section-queue')!.getAttribute('aria-disabled')).toBeNull();
+
+    localStorage.removeItem('sm.workspace.rail-collapsed');
+    localStorage.removeItem('sm.workspace.rail-section');
+  });
+
+  it('entering the lens moves the rail off an open Queue panel', async () => {
+    localStorage.setItem('sm.workspace.rail-collapsed', '0');
+    const lens: ILensHandles = {
+      active: signal(false),
+      membership: signal<ReadonlySet<string>>(new Set()),
+    };
+    const { fixture } = await bootstrap([makeNode('a.md', 'a')], [], 1, lens);
+
+    q(fixture, 'workspace-section-queue')!.click();
+    try {
+      fixture.detectChanges();
+    } catch {
+      /* ignore Foblex-internal render glitches in jsdom */
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    try {
+      fixture.detectChanges();
+    } catch {
+      /* same guard */
+    }
+    expect(q(fixture, 'queue-view')).not.toBeNull();
+
+    // The lens turns on: the panel it just disabled must not stay open.
+    lens.active.set(true);
+    try {
+      fixture.detectChanges();
+    } catch {
+      /* same guard */
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    try {
+      fixture.detectChanges();
+    } catch {
+      /* same guard */
+    }
+    expect(q(fixture, 'queue-view')).toBeNull();
+    expect(q(fixture, 'files-view')).not.toBeNull();
+
+    localStorage.removeItem('sm.workspace.rail-collapsed');
+    localStorage.removeItem('sm.workspace.rail-section');
+  });
+
+  it('narrows the files rail to the lens membership, with its own empty state', async () => {
+    localStorage.setItem('sm.workspace.rail-collapsed', '0');
+    const lens: ILensHandles = {
+      active: signal(false),
+      membership: signal<ReadonlySet<string>>(new Set()),
+    };
+    const { fixture } = await bootstrap(
+      [makeNode('a.md', 'a'), makeNode('b.md', 'b')],
+      [],
+      2,
+      lens,
+    );
+    const settle = async (): Promise<void> => {
+      try {
+        fixture.detectChanges();
+      } catch {
+        /* ignore Foblex-internal render glitches in jsdom */
+      }
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      try {
+        fixture.detectChanges();
+      } catch {
+        /* same guard */
+      }
+    };
+
+    // Lens off: the rail lists the whole corpus.
+    expect(q(fixture, 'files-leaf-graph-a.md')).not.toBeNull();
+    expect(q(fixture, 'files-leaf-graph-b.md')).not.toBeNull();
+
+    // Lens on with only a.md seen executing: b.md leaves the rail.
+    lens.active.set(true);
+    lens.membership.set(new Set(['a.md']));
+    await settle();
+    expect(q(fixture, 'files-leaf-graph-a.md')).not.toBeNull();
+    expect(q(fixture, 'files-leaf-graph-b.md')).toBeNull();
+
+    // Nothing seen yet: the lens empty state, NOT the filters one (the
+    // facets are not what emptied the list).
+    lens.membership.set(new Set());
+    await settle();
+    expect(q(fixture, 'files-empty-lens')).not.toBeNull();
+    expect(q(fixture, 'files-empty-filtered')).toBeNull();
 
     localStorage.removeItem('sm.workspace.rail-collapsed');
     localStorage.removeItem('sm.workspace.rail-section');

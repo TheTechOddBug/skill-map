@@ -81,3 +81,28 @@
     data-testid="settings-project-runtime-agents-toggle"
   />
 </div>
+
+<!-- Not a toggle: the replay tape this browser holds, plus the delete
+     that owns its lifetime (nothing else erases it). -->
+<div smToggleRow class="settings-project__row" data-testid="settings-project-recording-row">
+  <div class="settings-project__row-text">
+    <span class="settings-project__row-label">{{ texts.project.live.recording.label }}</span>
+    <div class="settings-project__row-description">
+      {{ texts.project.live.recording.description }}
+    </div>
+    <div class="settings-project__row-meta">
+      <span class="settings-project__meta-line" data-testid="settings-project-recording-summary">
+        {{ recordingSummary() }}
+      </span>
+    </div>
+  </div>
+  <p-button
+    [label]="texts.project.live.recording.delete"
+    severity="secondary"
+    [outlined]="true"
+    size="small"
+    [disabled]="recordedCount() === 0"
+    (onClick)="onDeleteRecording()"
+    data-testid="settings-project-recording-delete"
+  />
+</div>

@@ -8,8 +8,9 @@ export const PLAYBACK_BAR_TEXTS = {
   scrubber: 'Replay position',
   /** `k / N` progress readout. */
   counter: (current: number, total: number): string => `${current} / ${total}`,
-  emptyTape: 'Nothing recorded yet in this session',
+  emptyTape: 'Nothing recorded yet',
   trimmedTape: 'Oldest events trimmed from the tape',
+  deleteRecording: 'Delete the recording',
   caption: {
     start: (name: string, detail: string | undefined): string =>
       detail === undefined ? `run ${name}` : `${detail} ${name}`,

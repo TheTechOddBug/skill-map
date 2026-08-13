@@ -17,6 +17,8 @@ export const WORKSPACE_VIEW_TEXTS = {
     /** Icon-bar button tooltips (collapsed rail). */
     filesTooltip: 'Files navigator',
     queueTooltip: 'Job queue',
+    /** Replaces the queue tooltip while the Live lens owns the workspace. */
+    queueDisabledTooltip: 'The job queue is unavailable while the live lens is on',
   },
   rail: {
     label: 'Files',
