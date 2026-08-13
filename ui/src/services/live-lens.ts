@@ -54,12 +54,20 @@
  * The service is the STATE seam only. Camera, layout, and the parallel
  * graph pipeline live in the graph view's `setupLiveLens` controller;
  * nothing here touches persisted positions, map views, or curation.
+ *
+ * Replay: while `ActivityPlaybackService.active`, the membership and
+ * the observed relations SWITCH SOURCE to the playback fold (virtual
+ * time over the recorder's tape) instead of the live watermark; the
+ * node cache, fetch machinery, and every downstream consumer read the
+ * same signals and never notice. The replay lives inside the lens:
+ * deactivating the lens exits it.
  */
 
 import { DestroyRef, Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 
 import type { ILinkApi, INodeApi, IScanResultApi } from '../models/api';
 import type { INodeView } from '../models/node';
+import { ActivityPlaybackService } from './activity-playback';
 import { AgentSpawnService } from './agent-spawn';
 import { CollectionLoaderService, projectNode } from './collection-loader';
 import { DATA_SOURCE, type IDataSourcePort } from './data-source/data-source.port';
@@ -159,6 +167,7 @@ export class LiveLensService {
   private readonly nodeActivity = inject(NodeActivityService);
   private readonly activityStats = inject(NodeActivityStatsService);
   private readonly agentSpawns = inject(AgentSpawnService);
+  private readonly playback = inject(ActivityPlaybackService);
   private readonly loader = inject(CollectionLoaderService);
   private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
   private readonly mode = inject(SKILL_MAP_MODE);
@@ -225,6 +234,11 @@ export class LiveLensService {
   readonly membership = computed<ReadonlySet<string>>(
     () => {
       if (!this._active()) return EMPTY_SET;
+      // Replay mode: the fold IS the membership (everything the tape
+      // walked through up to the cursor). The node cache + fetch
+      // machinery downstream works unchanged because it only ever
+      // reads this signal.
+      if (this.playback.active()) return this.playback.state().members;
       this.expiryTick();
       const active = this.nodeActivity.activePaths();
       const stats = this.activityStats.stats();
@@ -292,6 +306,9 @@ export class LiveLensService {
    */
   readonly observedInvocations = computed<readonly IObservedInvocation[]>(() => {
     if (!this._active()) return [];
+    // Replay: the fold's accumulated invocations (its members contain
+    // both endpoints by construction, no extra filter needed).
+    if (this.playback.active()) return this.playback.state().invocations;
     this.expiryTick();
     const membership = this.membership();
     const floor = this.floorAt(Date.now());
@@ -311,6 +328,7 @@ export class LiveLensService {
    */
   readonly observedSpawns = computed<readonly IObservedSpawn[]>(() => {
     if (!this._active()) return [];
+    if (this.playback.active()) return this.playback.state().spawns;
     this.expiryTick();
     const membership = this.membership();
     const floor = this.floorAt(Date.now());
@@ -332,6 +350,10 @@ export class LiveLensService {
   readonly observedSpinePairs = computed<ReadonlySet<string>>(
     () => {
       if (!this._active()) return EMPTY_SET;
+      // Replay: the fold records EVERY co-lit pair (both orientations,
+      // links unknown to it); only pairs that match a rendered lens
+      // edge ever dress anything, so no link filter is needed here.
+      if (this.playback.active()) return this.playback.state().coLitPairs;
       this.expiryTick();
       const membership = this.membership();
       const floor = this.floorAt(Date.now());
@@ -376,6 +398,12 @@ export class LiveLensService {
     // controller reacts to the flip for its camera restore.
     effect(() => {
       if (!this.nodeActivity.enabled() && this._active()) this._active.set(false);
+    });
+
+    // Replay rides INSIDE the lens: whatever deactivates the lens
+    // (toggle, Real Time off) takes the replay down with it.
+    effect(() => {
+      if (!this._active() && this.playback.active()) this.playback.exit();
     });
 
     // Observed-relation stamps (always-on, like the departure stamps).
@@ -461,6 +489,7 @@ export class LiveLensService {
       this.expiryTick();
       this.clearExpiryTimer();
       if (!this._active()) return;
+      if (this.playback.active()) return; // virtual time, no wall-clock expiry
       const windowMs = this._windowMs();
       if (windowMs === Number.POSITIVE_INFINITY) return;
       const active = this.nodeActivity.activePaths();

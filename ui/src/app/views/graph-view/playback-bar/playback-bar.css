@@ -1,0 +1,57 @@
+/*
+ * Replay transport bar: floats above the map's main toolbar while the
+ * lens replays. Same pill language as `.graph__toolbar` (the host is
+ * positioned by graph-view.css so the inspector-width shift is shared);
+ * amber accents ride `--sm-replay-c`, matching the frame and badge.
+ */
+
+.pbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  width: max-content;
+  background: var(--sm-bg-content);
+  border: 1px solid color-mix(in srgb, var(--sm-replay-c) 55%, transparent);
+  border-radius: var(--sm-radius-pill);
+  box-shadow: var(--sm-shadow-floating);
+  pointer-events: auto;
+}
+
+.pbar__sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 2px;
+  background: var(--sm-border);
+  flex-shrink: 0;
+}
+
+.pbar__scrubber {
+  width: 180px;
+  accent-color: var(--sm-replay-c);
+}
+
+.pbar__scrubber:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 2px;
+}
+
+.pbar__counter {
+  font-size: var(--sm-fs-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--p-text-muted-color);
+  white-space: nowrap;
+}
+
+.pbar__caption {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--sm-fs-sm);
+  color: var(--p-text-color);
+}
+
+.pbar__caption--empty {
+  color: var(--p-text-muted-color);
+}

@@ -17,6 +17,7 @@ import { SKILL_MAP_MODE, readSkillMapModeFromMeta } from '../services/data-sourc
 import { CollectionLoaderService } from '../services/collection-loader';
 import { LivePreferencesService } from '../services/live-preferences';
 import { DebugSlotsService } from './services/debug-slots';
+import { ActivityRecorderService } from '../services/activity-recorder';
 import { FilterUrlSyncService } from './services/filter-url-sync';
 import { MapViewUrlSyncService } from './services/map-view-url-sync';
 import { ProjectInfoService } from './services/project-info';
@@ -258,6 +259,12 @@ export const appConfig: ApplicationConfig = {
       inject(FilterUrlSyncService);
       inject(MapViewUrlSyncService);
       inject(DebugSlotsService);
+      // The replay tape must start recording with the page: `events$`
+      // never replays to late subscribers, so a lazily-injected
+      // recorder would silently miss everything before the first
+      // Live-lens replay. Same self-wire-on-construct contract as the
+      // services above.
+      inject(ActivityRecorderService);
       // UsageTrackerService is deliberately NOT injected here: the
       // telemetry initializer above already constructs it at boot, and
       // there is no per-view / per-route usage event to wire (see the

@@ -73,6 +73,12 @@
   border-radius: var(--sm-radius-pill);
 }
 
+/* Replay-armed pill: amber, matching the replay frame/badge truth. */
+.lens__wrap--replay {
+  background: color-mix(in srgb, var(--sm-replay-c) 22%, transparent);
+  border-radius: var(--sm-radius-pill);
+}
+
 /* Compact text face for the window button: keep the label from
    ballooning the pill (the tooltip carries the full explanation). */
 :host ::ng-deep .lens__window-button .p-button-label {

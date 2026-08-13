@@ -39,9 +39,11 @@ import { WsEventStreamService } from './ws-event-stream';
  * the operator's attention. Injectable so tests (and a future settings
  * knob) can shorten it.
  */
+export const NODE_ACTIVITY_DEFAULT_TTL_MS = 12_000;
+
 export const NODE_ACTIVITY_TTL_MS = new InjectionToken<number>('NODE_ACTIVITY_TTL_MS', {
   providedIn: 'root',
-  factory: () => 12_000,
+  factory: () => NODE_ACTIVITY_DEFAULT_TTL_MS,
 });
 
 /**
@@ -51,11 +53,13 @@ export const NODE_ACTIVITY_TTL_MS = new InjectionToken<number>('NODE_ACTIVITY_TT
  * crashed runtime that never sends one. Kept refreshed by the owner
  * heartbeat while events flow.
  */
+export const NODE_ACTIVITY_DEFAULT_STICKY_TTL_MS = 5 * 60_000;
+
 export const NODE_ACTIVITY_STICKY_TTL_MS = new InjectionToken<number>(
   'NODE_ACTIVITY_STICKY_TTL_MS',
   {
     providedIn: 'root',
-    factory: () => 5 * 60_000,
+    factory: () => NODE_ACTIVITY_DEFAULT_STICKY_TTL_MS,
   },
 );
 
@@ -85,8 +89,9 @@ const ANONYMOUS_OWNER = '';
  * an `mcp://<server>` node is the target a live tool call lights). Used
  * to EXCLUDE mcp nodes when correlating the caller of a tool invocation:
  * the caller is a real unit (agent / skill), never another tool node.
+ * Exported for the playback fold, which mirrors the same correlation.
  */
-const MCP_NODE_PREFIX = 'mcp://';
+export const MCP_NODE_PREFIX = 'mcp://';
 
 /** One owner's hold on a node: when it decays, its window class, and how recently it lit. */
 interface IClaim {
@@ -298,6 +303,9 @@ export class NodeActivityService {
     this.publish(now);
   }
 
+  // NOTE: `activity-playback-state.ts` mirrors this state machine as a
+  // pure fold for the Live lens replay. A semantic change here (claim
+  // classes, scoped ends, correlation) must be mirrored there.
   private apply(data: IWsNodeActivityData, now: number): void {
     const owner = data.owner ?? ANONYMOUS_OWNER;
 

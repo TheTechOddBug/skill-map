@@ -199,6 +199,12 @@
      that the badge's white text clears WCAG AA. */
   --sm-live-c: #e5102e;
 
+  /* Live lens REPLAY chrome (amber sibling of --sm-live-c): the frame,
+     badge and transport bar swap to it while the lens replays the
+     recorded tape, so the canvas never claims LIVE while showing the
+     past. Deep amber, white text clears WCAG AA. */
+  --sm-replay-c: #b45309;
+
   /* Change spark (a node's file changed on disk, NodeSparkService).
      Deliberately ONE hue, the theme's predominant color, so the flash
      reads as "external update" and never as the multi-hue executing

@@ -19,4 +19,10 @@ export const LIVE_LENS_TEXTS = {
     aria: 'Clear the lens canvas',
     tooltip: 'Clear the canvas; nodes executing right now stay',
   },
+  replay: {
+    ariaOn: 'Exit the replay',
+    ariaOff: 'Replay the recorded session',
+    tooltipOn: 'Exit the replay and go back live',
+    tooltipOff: 'Replay everything recorded this session, one event per second',
+  },
 } as const;

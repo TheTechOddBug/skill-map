@@ -14,6 +14,8 @@ import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 
 import type { INodeActivityStatsApi, IScanResultApi } from '../../models/api';
+import { ActivityPlaybackService } from '../activity-playback';
+import type { IPlaybackState } from '../activity-playback-state';
 import { AgentSpawnService, type ISpawnView } from '../agent-spawn';
 import { CollectionLoaderService } from '../collection-loader';
 import { DATA_SOURCE } from '../data-source/data-source.port';
@@ -63,12 +65,26 @@ function statsOf(lastStartAt: number): INodeActivityStatsApi {
   return { count: 1, lastStartAt, distinctOwners: 1 };
 }
 
+const EMPTY_PLAYBACK_STATE: IPlaybackState = {
+  executing: new Set(),
+  details: new Map(),
+  members: new Set(),
+  invocations: [],
+  spawns: [],
+  coLitPairs: new Set(),
+  caption: null,
+  virtualNowMs: 0,
+};
+
 function bootstrap(mode: TSkillMapMode = 'live') {
   TestBed.resetTestingModule();
   const activePaths = signal<ReadonlySet<string>>(new Set());
   const enabled = signal(true);
   const activeInvocations = signal<readonly INodeInvocation[]>([]);
   const spawnEdges = signal<readonly ISpawnView[]>([]);
+  const playbackActive = signal(false);
+  const playbackState = signal<IPlaybackState>(EMPTY_PLAYBACK_STATE);
+  const playbackExit = vi.fn(() => playbackActive.set(false));
   const stats = signal<ReadonlyMap<string, INodeActivityStatsApi>>(new Map());
   const scanMeta = signal<IScanResultApi | null>(scanMetaFixture());
   const loadBranch = vi.fn().mockResolvedValue({ nodes: [], links: [], issues: [] });
@@ -91,6 +107,14 @@ function bootstrap(mode: TSkillMapMode = 'live') {
         useValue: { spawnEdges: spawnEdges.asReadonly() } as unknown as AgentSpawnService,
       },
       {
+        provide: ActivityPlaybackService,
+        useValue: {
+          active: playbackActive.asReadonly(),
+          state: playbackState.asReadonly(),
+          exit: playbackExit,
+        } as unknown as ActivityPlaybackService,
+      },
+      {
         provide: CollectionLoaderService,
         useValue: { scanMeta: scanMeta.asReadonly() } as unknown as CollectionLoaderService,
       },
@@ -99,7 +123,18 @@ function bootstrap(mode: TSkillMapMode = 'live') {
     ],
   });
   const service = TestBed.inject(LiveLensService);
-  return { service, activePaths, enabled, activeInvocations, spawnEdges, stats, loadBranch };
+  return {
+    service,
+    activePaths,
+    enabled,
+    activeInvocations,
+    spawnEdges,
+    stats,
+    loadBranch,
+    playbackActive,
+    playbackState,
+    playbackExit,
+  };
 }
 
 describe('LiveLensService', () => {
@@ -381,6 +416,39 @@ describe('LiveLensService', () => {
     vi.advanceTimersByTime(LIVE_LENS_DEFAULT_WINDOW_MS + 100);
     TestBed.tick();
     expect(service.observedSpinePairs().has(key)).toBe(false);
+  });
+
+  it('replay switches membership and relations to the playback fold', () => {
+    const { service, activePaths, playbackActive, playbackState } = bootstrap();
+    service.setActive(true);
+    activePaths.set(new Set([AGENT])); // live watermark would show AGENT only
+
+    playbackActive.set(true);
+    playbackState.set({
+      ...EMPTY_PLAYBACK_STATE,
+      members: new Set([SKILL]),
+      invocations: [
+        { key: `${AGENT}>>${SKILL}`, caller: AGENT, target: SKILL, label: 'query', lastSeenAt: T0 },
+      ],
+      coLitPairs: new Set([`${AGENT}|${SKILL}`]),
+    });
+    expect([...service.membership()]).toEqual([SKILL]);
+    expect(service.observedInvocations()).toHaveLength(1);
+    expect(service.observedSpinePairs().has(`${AGENT}|${SKILL}`)).toBe(true);
+
+    // Replay off: back to the live watermark instantly.
+    playbackActive.set(false);
+    expect(service.membership().has(AGENT)).toBe(true);
+    expect(service.membership().has(SKILL)).toBe(false);
+  });
+
+  it('deactivating the lens exits the replay with it', () => {
+    const { service, playbackActive, playbackExit } = bootstrap();
+    service.setActive(true);
+    playbackActive.set(true);
+    service.setActive(false);
+    TestBed.tick();
+    expect(playbackExit).toHaveBeenCalled();
   });
 
   it('reset hides relations even when one endpoint keeps executing', () => {

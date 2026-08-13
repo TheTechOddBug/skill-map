@@ -29,7 +29,24 @@
       ></span>
     </p-button>
   </span>
-  @if (lens.active()) {
+  <!-- Replay toggle: available whenever the cluster is (entering also
+       enters the lens, the graph view orchestrates). Amber active pill
+       so LIVE red and REPLAY amber never blur together. -->
+  <span class="lens__wrap" [class.lens__wrap--replay]="playback.active()">
+    <p-button
+      icon="pi pi-history"
+      [ariaLabel]="playback.active() ? texts.replay.ariaOn : texts.replay.ariaOff"
+      [pTooltip]="playback.active() ? texts.replay.tooltipOn : texts.replay.tooltipOff"
+      [severity]="playback.active() ? 'primary' : 'secondary'"
+      [text]="true"
+      [rounded]="true"
+      size="small"
+      [attr.aria-pressed]="playback.active()"
+      (onClick)="toggleReplay.emit()"
+      data-testid="graph-lens-replay-toggle"
+    />
+  </span>
+  @if (lens.active() && !playback.active()) {
     <p-button
       [label]="windowCompactLabel()"
       [ariaLabel]="texts.window.aria"

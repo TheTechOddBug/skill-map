@@ -39,6 +39,8 @@ export const GRAPH_VIEW_TEXTS = {
      *  swaps wholesale, which is invisible to a screen-reader user. */
     lensEntered: 'Live lens on. The map shows only executing and recent nodes.',
     lensExited: 'Live lens off. Your map is back as it was.',
+    replayEntered: 'Replay on. The lens plays back the recorded session.',
+    replayExited: 'Replay off. The lens is live again.',
   },
   /**
    * Live lens empty-state overlay (the lens is on with nothing live).
@@ -50,6 +52,8 @@ export const GRAPH_VIEW_TEXTS = {
   lens: {
     /** Broadcast-style corner badge while the lens is on. */
     liveBadge: 'LIVE',
+    /** Badge variant while the lens replays the recorded tape. */
+    replayBadge: 'REPLAY',
     emptyWaiting: 'Waiting for activity',
     emptyWaitingHint: 'Nodes appear here while your AI runtime executes them.',
     emptyHookMissing: 'The activity hook is not installed',

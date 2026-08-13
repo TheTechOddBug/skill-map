@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 
 import { LiveLensControls } from '../live-lens-controls';
+import { ActivityPlaybackService } from '../../../../../services/activity-playback';
 import { LiveLensService } from '../../../../../services/live-lens';
 import { NodeActivityService } from '../../../../../services/node-activity';
 
@@ -32,6 +33,9 @@ function makeFixture(init?: {
   const nodeActivity = {
     enabled: signal(init?.activityEnabled ?? true).asReadonly(),
   } as unknown as NodeActivityService;
+  const playback = {
+    active: signal(false).asReadonly(),
+  } as unknown as ActivityPlaybackService;
 
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
@@ -39,6 +43,7 @@ function makeFixture(init?: {
     providers: [
       { provide: LiveLensService, useValue: lens },
       { provide: NodeActivityService, useValue: nodeActivity },
+      { provide: ActivityPlaybackService, useValue: playback },
     ],
   });
   const fixture = TestBed.createComponent(LiveLensControls);

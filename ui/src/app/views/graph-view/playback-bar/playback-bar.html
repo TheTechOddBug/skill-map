@@ -1,0 +1,74 @@
+<div class="pbar" data-canvas-click-shield data-testid="graph-playback-bar">
+  <p-button
+    icon="pi pi-times"
+    [ariaLabel]="texts.exit"
+    [pTooltip]="texts.exit"
+    severity="secondary"
+    [text]="true"
+    [rounded]="true"
+    size="small"
+    (onClick)="playback.exit()"
+    data-testid="graph-playback-exit"
+  />
+  <span class="pbar__sep" aria-hidden="true"></span>
+  <p-button
+    [icon]="playback.playing() ? 'pi pi-pause' : 'pi pi-play'"
+    [ariaLabel]="playback.playing() ? texts.pause : texts.play"
+    [pTooltip]="playback.playing() ? texts.pause : texts.play"
+    severity="secondary"
+    [text]="true"
+    [rounded]="true"
+    size="small"
+    [disabled]="playback.total() === 0"
+    (onClick)="togglePlay()"
+    data-testid="graph-playback-toggle"
+  />
+  <p-button
+    icon="pi pi-step-backward"
+    [ariaLabel]="texts.stepBack"
+    [pTooltip]="texts.stepBack"
+    severity="secondary"
+    [text]="true"
+    [rounded]="true"
+    size="small"
+    [disabled]="playback.cursor() <= -1"
+    (onClick)="playback.stepBack()"
+    data-testid="graph-playback-step-back"
+  />
+  <p-button
+    icon="pi pi-step-forward"
+    [ariaLabel]="texts.stepForward"
+    [pTooltip]="texts.stepForward"
+    severity="secondary"
+    [text]="true"
+    [rounded]="true"
+    size="small"
+    [disabled]="playback.cursor() >= playback.total() - 1"
+    (onClick)="playback.stepForward()"
+    data-testid="graph-playback-step-forward"
+  />
+  <input
+    class="pbar__scrubber"
+    type="range"
+    [min]="-1"
+    [max]="playback.total() - 1"
+    [value]="playback.cursor()"
+    [disabled]="playback.total() === 0"
+    [attr.aria-label]="texts.scrubber"
+    [attr.aria-valuetext]="counter()"
+    (input)="onSeek($event)"
+    data-testid="graph-playback-scrubber"
+  />
+  <span
+    class="pbar__counter"
+    [pTooltip]="trimmed() ? texts.trimmedTape : ''"
+    data-testid="graph-playback-counter"
+  >{{ counter() }}@if (trimmed()) {<span aria-hidden="true">*</span>}</span>
+  @if (playback.total() === 0) {
+    <span class="pbar__caption pbar__caption--empty">{{ texts.emptyTape }}</span>
+  } @else {
+    <span class="pbar__caption" aria-live="polite" data-testid="graph-playback-caption">
+      {{ caption() }}
+    </span>
+  }
+</div>

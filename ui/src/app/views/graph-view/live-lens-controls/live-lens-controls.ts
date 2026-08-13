@@ -23,6 +23,7 @@ import { PopoverModule } from 'primeng/popover';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { LIVE_LENS_TEXTS } from '../../../../i18n/live-lens.texts';
+import { ActivityPlaybackService } from '../../../../services/activity-playback';
 import { LIVE_LENS_DEFAULT_WINDOW_MS, LiveLensService } from '../../../../services/live-lens';
 import { NodeActivityService } from '../../../../services/node-activity';
 
@@ -36,12 +37,16 @@ import { NodeActivityService } from '../../../../services/node-activity';
 export class LiveLensControls {
   protected readonly lens = inject(LiveLensService);
   protected readonly nodeActivity = inject(NodeActivityService);
+  protected readonly playback = inject(ActivityPlaybackService);
 
   protected readonly texts = LIVE_LENS_TEXTS;
   protected readonly defaultWindowMs = LIVE_LENS_DEFAULT_WINDOW_MS;
 
   /** Enter/exit intent; the graph view routes it through `setupLiveLens.toggle()`. */
   readonly toggleLens = output<void>();
+
+  /** Replay intent; the graph view orchestrates (may enter the lens first). */
+  readonly toggleReplay = output<void>();
 
   /** The cluster renders only where the lens can ever produce frames. */
   protected readonly available = computed(

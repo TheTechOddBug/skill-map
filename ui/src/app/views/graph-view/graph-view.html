@@ -69,11 +69,31 @@
            live, read-only view (no drag, no curation). Decorative and
            click-through; the a11y announcement carries the state. -->
       @if (lensOn()) {
-        <div class="graph__lens-frame" aria-hidden="true" data-testid="graph-lens-frame"></div>
+        <div
+          class="graph__lens-frame"
+          [class.graph__lens-frame--replay]="replayOn()"
+          aria-hidden="true"
+          data-testid="graph-lens-frame"
+        ></div>
         <!-- Real text (not aria-hidden): the persistent state indicator
              for AT users; the announcer only covers the transitions. -->
-        <div class="graph__lens-badge" data-testid="graph-lens-badge">
-          {{ texts.lens.liveBadge }}
+        <div
+          class="graph__lens-badge"
+          [class.graph__lens-badge--replay]="replayOn()"
+          data-testid="graph-lens-badge"
+        >
+          {{ replayOn() ? texts.lens.replayBadge : texts.lens.liveBadge }}
+        </div>
+      }
+
+      <!-- Replay transport, floats above the main toolbar while the
+           lens replays the recorded tape. -->
+      @if (replayOn()) {
+        <div
+          class="graph__playback-bar"
+          [style.--sm-graph-inspector-w]="reservedPanelWidth() + 'px'"
+        >
+          <sm-playback-bar />
         </div>
       }
 
@@ -460,7 +480,7 @@
                lands in an EPHEMERAL override map, never the persisted
                node-position store. Selection stays disabled. -->
           <ng-container ngProjectAs="[fNodes]">
-            @for (session of spawnOverlay().sessions; track session.id) {
+            @for (session of displaySessions(); track session.id) {
               <div
                 fNode
                 fConnector
@@ -491,7 +511,7 @@
                override map, selection disabled; the capsule is the
                TARGET of its dashed anchor edge. -->
           <ng-container ngProjectAs="[fNodes]">
-            @for (capsule of spawnOverlay().agents; track capsule.id) {
+            @for (capsule of displayAgents(); track capsule.id) {
               <div
                 fNode
                 fConnector
@@ -672,7 +692,10 @@
              component renders nothing in demo mode or with Real Time
              off, and its enter/exit orchestration lives in
              `setupLiveLens` (hence the routed output). -->
-        <sm-live-lens-controls (toggleLens)="toggleLiveLens()" />
+        <sm-live-lens-controls
+          (toggleLens)="toggleLiveLens()"
+          (toggleReplay)="toggleReplay()"
+        />
         <!-- Layout, map-view and reset-layout controls all mutate
              persisted arrangement state, which the lens neither reads
              nor may ever write: hidden (not disabled) while it is on,

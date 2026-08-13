@@ -69,6 +69,7 @@ import { ViewContributionsHost } from '../../components/view-contributions-host/
 import { DebugPerfService } from '../../services/debug-perf';
 import { A11yAnnouncerService } from '../../services/a11y-announcer';
 import { ActivityReadinessService } from '../../services/activity-readiness';
+import { ActivityPlaybackService } from '../../../services/activity-playback';
 import { LiveLensService } from '../../../services/live-lens';
 import { pathBasenameForLink } from '../../../services/path-basename';
 import { InspectorView } from '../inspector-view/inspector-view';
@@ -101,6 +102,7 @@ import { setupExpansion } from './expansion.controller';
 import { setupFollowActivity } from './follow-activity.controller';
 import { setupLiveLens } from './live-lens.controller';
 import { LiveLensControls } from './live-lens-controls/live-lens-controls';
+import { PlaybackBar } from './playback-bar/playback-bar';
 import { setupLayoutFit } from './layout-fit.controller';
 import { setupGraphPipeline } from './graph-pipeline';
 import { setupCamera, type ICameraHandle } from './camera.controller';
@@ -167,6 +169,7 @@ const EMPTY_PATH_SET: ReadonlySet<string> = new Set();
     GraphLayoutToolbar,
     LiveLensControls,
     MapViewSwitcher,
+    PlaybackBar,
     KindPalette,
     LinkKindPalette,
     AgentCapsule,
@@ -242,6 +245,7 @@ export class GraphView implements OnInit {
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly announcer = inject(A11yAnnouncerService);
   private readonly liveLens = inject(LiveLensService);
+  protected readonly playback = inject(ActivityPlaybackService);
   private readonly activityReadiness = inject(ActivityReadinessService);
 
   private readonly flow = viewChild(FFlowComponent);
@@ -422,7 +426,9 @@ export class GraphView implements OnInit {
     mainPathsFingerprint: this.pathsFingerprint,
     viewportPosition: this.viewportPosition,
     viewportScale: this.viewportScale,
-    sessions: () => this.spawnOverlay().sessions,
+    // Live session capsules vanish during replay: they narrate the
+    // present, and the replay canvas narrates the tape.
+    sessions: () => (this.playback.active() ? [] : this.spawnOverlay().sessions),
     hostElement: () => this.canvasWrap()?.nativeElement ?? null,
     panelWidth: () => this.reservedPanelWidth(),
     bootFitDone: () => this.layoutFit.hasCompletedInitialLayout(),
@@ -432,6 +438,8 @@ export class GraphView implements OnInit {
     beginViewSwitch: () => this.beginViewSwitchAnimation(),
   });
   protected readonly lensOn = this.liveLensCtl.active;
+  /** Replay sub-mode of the lens (the fold drives what is painted). */
+  protected readonly replayOn = this.playback.active;
 
   // Display switchers: while the lens is on, the template + overlay
   // controllers read the LENS pipeline; the main pipeline keeps
@@ -869,6 +877,17 @@ export class GraphView implements OnInit {
       prevLensOn = on;
       this.announcer.announce(
         on ? GRAPH_VIEW_TEXTS.a11y.lensEntered : GRAPH_VIEW_TEXTS.a11y.lensExited,
+      );
+    });
+
+    // Replay transition announcements, same rationale as the lens pair.
+    let prevReplayOn = untracked(() => this.replayOn());
+    effect(() => {
+      const on = this.replayOn();
+      if (on === prevReplayOn) return;
+      prevReplayOn = on;
+      this.announcer.announce(
+        on ? GRAPH_VIEW_TEXTS.a11y.replayEntered : GRAPH_VIEW_TEXTS.a11y.replayExited,
       );
     });
 
@@ -1419,6 +1438,9 @@ export class GraphView implements OnInit {
    * flips re-render.
    */
   isExecuting(id: string): boolean {
+    // Replay: the fold's virtual-time executing set replaces the live
+    // glow (the past lights up exactly as it did).
+    if (this.replayOn()) return this.playback.state().executing.has(id);
     return this.nodeActivity.activePaths().has(id);
   }
 
@@ -1439,6 +1461,7 @@ export class GraphView implements OnInit {
    * no detail.
    */
   executingDetail(id: string): string | null {
+    if (this.replayOn()) return this.playback.state().details.get(id) ?? null;
     return this.nodeActivity.executionDetails().get(id) ?? null;
   }
 
@@ -1452,6 +1475,11 @@ export class GraphView implements OnInit {
    * happened stay animated instead of evaporating with the glow.
    */
   isEdgeExecuting(edge: IGraphEdge): boolean {
+    if (this.replayOn()) {
+      const executing = this.playback.state().executing;
+      if (executing.has(edge.from) && executing.has(edge.to)) return true;
+      return this.liveLens.observedSpinePairs().has(`${edge.from}|${edge.to}`);
+    }
     const active = this.nodeActivity.activePaths();
     if (active.has(edge.from) && active.has(edge.to)) return true;
     return this.lensOn() && this.liveLens.observedSpinePairs().has(`${edge.from}|${edge.to}`);
@@ -1532,7 +1560,9 @@ export class GraphView implements OnInit {
    * really happened keeps its edge after its live entry ended.
    */
   protected readonly displaySpawnEdges = computed<readonly ISpawnOverlayEdge[]>(() => {
-    const live = this.spawnOverlay().edges;
+    // During replay the LIVE overlay stands down entirely: the fold's
+    // observed spawns (via the lens switch) are the only spawn edges.
+    const live = this.replayOn() ? [] : this.spawnOverlay().edges;
     if (!this.lensOn()) return live;
     const observed = this.liveLens.observedSpawns();
     if (observed.length === 0) return live;
@@ -1561,13 +1591,37 @@ export class GraphView implements OnInit {
    * The spawn riding this static edge, or `null` when the edge is
    * plain. Lens mode falls back to the OBSERVED spawn pair so the
    * spawn-active dress (and its conversation click, anchored on the
-   * last live spawnId) persists after the live spawn ended.
+   * last live spawnId) persists after the live spawn ended; replay
+   * skips the live lookup entirely (the fold is the only truth there).
    */
   protected spawnActiveIdFor(edge: IGraphEdge): string | null {
-    const live = this.spawnAnchors.spawnActiveIdFor(edge);
+    const live = this.replayOn() ? null : this.spawnAnchors.spawnActiveIdFor(edge);
     if (live !== null) return live;
     if (!this.lensOn()) return null;
     return this.lensSpawnByPair().get(`${edge.from}|${edge.to}`) ?? null;
+  }
+
+  /** Session anchors / agent capsules hide during replay (they narrate the present). */
+  protected readonly displaySessions = computed(() =>
+    this.replayOn() ? [] : this.spawnOverlay().sessions,
+  );
+  protected readonly displayAgents = computed(() =>
+    this.replayOn() ? [] : this.spawnOverlay().agents,
+  );
+
+  /**
+   * Enter/exit the replay sub-mode. Entering may need to enter the
+   * lens first (the replay lives inside it); exiting returns to the
+   * LIVE lens, and a full lens exit takes the replay down via the
+   * service invariant.
+   */
+  protected toggleReplay(): void {
+    if (this.playback.active()) {
+      this.playback.exit();
+      return;
+    }
+    if (!this.lensOn()) this.liveLensCtl.toggle();
+    this.playback.enter();
   }
 
   // ── Follow the Activity ─────────────────────────────────────────────
