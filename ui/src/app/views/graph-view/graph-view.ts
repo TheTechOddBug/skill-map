@@ -105,6 +105,8 @@ import { setupLayoutFit } from './layout-fit.controller';
 import { setupGraphPipeline } from './graph-pipeline';
 import { setupCamera, type ICameraHandle } from './camera.controller';
 import { setupSpawnAnchors } from './spawn-anchors.controller';
+import { edgePairKey, type ISpawnOverlayEdge } from './spawn-overlay';
+import type { IInvocationOverlayEdge } from './invocation-overlay';
 import { type IViewportTransform } from './viewport-animation';
 
 const ZOOM_BUTTON_STEP = 0.2;
@@ -1444,11 +1446,15 @@ export class GraphView implements OnInit {
    * Active-spine edge: both endpoints are executing (the agent that is
    * running and the skill it invoked), so the connection between them
    * lights up with them and the path reads as one live chain instead of
-   * isolated glowing dots.
+   * isolated glowing dots. In lens mode the treatment additionally
+   * PERSISTS on links the lens observed live (both ends executed
+   * together at some point inside the watermark): links that actually
+   * happened stay animated instead of evaporating with the glow.
    */
   isEdgeExecuting(edge: IGraphEdge): boolean {
     const active = this.nodeActivity.activePaths();
-    return active.has(edge.from) && active.has(edge.to);
+    if (active.has(edge.from) && active.has(edge.to)) return true;
+    return this.lensOn() && this.liveLens.observedSpinePairs().has(`${edge.from}|${edge.to}`);
   }
 
   /**
@@ -1488,14 +1494,80 @@ export class GraphView implements OnInit {
     resolveSpawnActiveId: (edge) => this.spawnActiveIdFor(edge),
   });
   protected readonly spawnOverlay = this.spawnAnchors.spawnOverlay;
-  protected readonly invocationEdges = this.spawnAnchors.invocationEdges;
+
+  /**
+   * Invocation edges for the template. Curated map: the live overlay
+   * (60s TTL). Lens mode: the lens's OBSERVED invocations instead,
+   * same shape and same `.f-conn--invocation` dress, so a call that
+   * really happened keeps its labeled edge for as long as its
+   * endpoints stay on the lens (links do not evaporate). The observed
+   * set is a superset of the live one there, membership-filtered by
+   * the service.
+   */
+  protected readonly invocationEdges = computed<readonly IInvocationOverlayEdge[]>(() => {
+    if (!this.lensOn()) return this.spawnAnchors.invocationEdges();
+    return this.liveLens.observedInvocations().map((inv) => ({
+      key: inv.key,
+      sourceId: inv.caller,
+      targetId: inv.target,
+      label: inv.label,
+    }));
+  });
+
+  /** O(1) pair -> lastSpawnId lookup over the lens's observed spawns. */
+  private readonly lensSpawnByPair = computed<ReadonlyMap<string, string>>(() => {
+    const map = new Map<string, string>();
+    for (const spawn of this.liveLens.observedSpawns()) {
+      map.set(`${spawn.parent}|${spawn.child}`, spawn.lastSpawnId);
+    }
+    return map;
+  });
+
+  /**
+   * Spawn edges for the template. Curated map: the live overlay
+   * verbatim. Lens mode: the live overlay PLUS a persistent dashed
+   * edge per observed node-to-node spawn whose pair neither rides a
+   * rendered static edge (that pair persists as `.f-conn--spawn-active`
+   * via `spawnActiveIdFor`) nor is already drawn live, so a spawn that
+   * really happened keeps its edge after its live entry ended.
+   */
+  protected readonly displaySpawnEdges = computed<readonly ISpawnOverlayEdge[]>(() => {
+    const live = this.spawnOverlay().edges;
+    if (!this.lensOn()) return live;
+    const observed = this.liveLens.observedSpawns();
+    if (observed.length === 0) return live;
+    const livePairs = new Set(live.map((e) => `${e.sourceId}|${e.targetId}`));
+    const staticPairs = new Set(this.graph().edges.map((e) => `${e.from}|${e.to}`));
+    const extras: ISpawnOverlayEdge[] = [];
+    for (const spawn of observed) {
+      const pair = `${spawn.parent}|${spawn.child}`;
+      if (staticPairs.has(pair) || livePairs.has(pair)) continue;
+      extras.push({
+        spawnId: spawn.lastSpawnId,
+        sourceId: spawn.parent,
+        targetId: spawn.child,
+        fromSession: false,
+        vertical: false,
+        pairKey: edgePairKey(spawn.parent, spawn.child),
+      });
+    }
+    return extras.length === 0 ? live : [...live, ...extras];
+  });
   protected readonly conversationOpen = this.spawnAnchors.conversationOpen;
   protected readonly conversationThread = this.spawnAnchors.conversationThread;
   protected readonly conversationCaptureEnabled = this.spawnAnchors.conversationCaptureEnabled;
 
-  /** The spawn riding this static edge, or `null` when the edge is plain. */
+  /**
+   * The spawn riding this static edge, or `null` when the edge is
+   * plain. Lens mode falls back to the OBSERVED spawn pair so the
+   * spawn-active dress (and its conversation click, anchored on the
+   * last live spawnId) persists after the live spawn ended.
+   */
   protected spawnActiveIdFor(edge: IGraphEdge): string | null {
-    return this.spawnAnchors.spawnActiveIdFor(edge);
+    const live = this.spawnAnchors.spawnActiveIdFor(edge);
+    if (live !== null) return live;
+    if (!this.lensOn()) return null;
+    return this.lensSpawnByPair().get(`${edge.from}|${edge.to}`) ?? null;
   }
 
   // ── Follow the Activity ─────────────────────────────────────────────

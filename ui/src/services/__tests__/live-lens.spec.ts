@@ -14,11 +14,12 @@ import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 
 import type { INodeActivityStatsApi, IScanResultApi } from '../../models/api';
+import { AgentSpawnService, type ISpawnView } from '../agent-spawn';
 import { CollectionLoaderService } from '../collection-loader';
 import { DATA_SOURCE } from '../data-source/data-source.port';
 import { SKILL_MAP_MODE, type TSkillMapMode } from '../data-source/runtime-mode';
 import { LIVE_LENS_DEFAULT_WINDOW_MS, LiveLensService } from '../live-lens';
-import { NodeActivityService } from '../node-activity';
+import { NodeActivityService, type INodeInvocation } from '../node-activity';
 import { NodeActivityStatsService } from '../node-activity-stats';
 
 const T0 = 1_700_000_000_000;
@@ -66,6 +67,8 @@ function bootstrap(mode: TSkillMapMode = 'live') {
   TestBed.resetTestingModule();
   const activePaths = signal<ReadonlySet<string>>(new Set());
   const enabled = signal(true);
+  const activeInvocations = signal<readonly INodeInvocation[]>([]);
+  const spawnEdges = signal<readonly ISpawnView[]>([]);
   const stats = signal<ReadonlyMap<string, INodeActivityStatsApi>>(new Map());
   const scanMeta = signal<IScanResultApi | null>(scanMetaFixture());
   const loadBranch = vi.fn().mockResolvedValue({ nodes: [], links: [], issues: [] });
@@ -76,11 +79,16 @@ function bootstrap(mode: TSkillMapMode = 'live') {
         useValue: {
           activePaths: activePaths.asReadonly(),
           enabled: enabled.asReadonly(),
+          activeInvocations: activeInvocations.asReadonly(),
         } as unknown as NodeActivityService,
       },
       {
         provide: NodeActivityStatsService,
         useValue: { stats: stats.asReadonly() } as unknown as NodeActivityStatsService,
+      },
+      {
+        provide: AgentSpawnService,
+        useValue: { spawnEdges: spawnEdges.asReadonly() } as unknown as AgentSpawnService,
       },
       {
         provide: CollectionLoaderService,
@@ -91,7 +99,7 @@ function bootstrap(mode: TSkillMapMode = 'live') {
     ],
   });
   const service = TestBed.inject(LiveLensService);
-  return { service, activePaths, enabled, stats, loadBranch };
+  return { service, activePaths, enabled, activeInvocations, spawnEdges, stats, loadBranch };
 }
 
 describe('LiveLensService', () => {
@@ -289,5 +297,110 @@ describe('LiveLensService', () => {
     first.service.setWindow(Number.POSITIVE_INFINITY);
     const second = bootstrap();
     expect(second.service.windowMs()).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it('an observed invocation outlives the live overlay while both ends are members', () => {
+    const { service, activePaths, activeInvocations } = bootstrap();
+    service.setActive(true);
+    activePaths.set(new Set([SKILL, AGENT]));
+    activeInvocations.set([{ target: SKILL, caller: AGENT, detail: 'mcp__db__query' }]);
+    TestBed.tick(); // sighting stamped
+
+    // The live invocation TTL sweeps it away; the observation persists.
+    activeInvocations.set([]);
+    TestBed.tick();
+    expect(service.observedInvocations()).toHaveLength(1);
+    expect(service.observedInvocations()[0]?.label).toBe('mcp__db__query');
+
+    // Reset clears the accumulated relations along with the canvas.
+    vi.advanceTimersByTime(10);
+    service.reset();
+    TestBed.tick();
+    expect(service.observedInvocations()).toHaveLength(0);
+  });
+
+  it('a bare main-session invocation (null caller) never records an edge', () => {
+    const { service, activePaths, activeInvocations } = bootstrap();
+    service.setActive(true);
+    activePaths.set(new Set([SKILL]));
+    activeInvocations.set([{ target: SKILL, caller: null, detail: 'mcp__db__query' }]);
+    TestBed.tick();
+    expect(service.observedInvocations()).toHaveLength(0);
+  });
+
+  it('an observed spawn keeps its last spawnId after the live spawn ends', () => {
+    const { service, activePaths, spawnEdges } = bootstrap();
+    service.setActive(true);
+    activePaths.set(new Set([SKILL, AGENT]));
+    spawnEdges.set([
+      { spawnId: 'toolu_01', parentOwner: 'main:abc', parentNodePath: AGENT, childNodePath: SKILL },
+    ]);
+    TestBed.tick();
+
+    spawnEdges.set([]); // the end frame released the live entry
+    TestBed.tick();
+    expect(service.observedSpawns()).toHaveLength(1);
+    expect(service.observedSpawns()[0]?.lastSpawnId).toBe('toolu_01');
+  });
+
+  it('session-parent spawns (no parent node) are not recorded', () => {
+    const { service, activePaths, spawnEdges } = bootstrap();
+    service.setActive(true);
+    activePaths.set(new Set([SKILL]));
+    spawnEdges.set([
+      { spawnId: 'toolu_02', parentOwner: 'main:abc', parentSession: 'main:abc', childNodePath: SKILL },
+    ]);
+    TestBed.tick();
+    expect(service.observedSpawns()).toHaveLength(0);
+  });
+
+  it('a spine pair persists after the glow and expires with the watermark', async () => {
+    const { service, activePaths, loadBranch } = bootstrap();
+    loadBranch.mockResolvedValue({
+      nodes: [apiNode(SKILL), apiNode(AGENT)],
+      links: [
+        { source: AGENT, target: SKILL, kind: 'invokes', confidence: 0.9, sources: ['ext'] },
+      ],
+      issues: [],
+    });
+    service.setActive(true);
+    activePaths.set(new Set([SKILL, AGENT]));
+    TestBed.tick();
+    await vi.advanceTimersByTimeAsync(400); // link cache fill
+    TestBed.tick(); // spine sighting stamped against the cached link
+
+    const key = `${AGENT}|${SKILL}`;
+    expect(service.observedSpinePairs().has(key)).toBe(true);
+
+    // Glow ends: the spine treatment persists while both linger.
+    activePaths.set(new Set());
+    TestBed.tick();
+    expect(service.observedSpinePairs().has(key)).toBe(true);
+
+    // Watermark ages the whole thing out (nodes and relation together).
+    vi.advanceTimersByTime(LIVE_LENS_DEFAULT_WINDOW_MS + 100);
+    TestBed.tick();
+    expect(service.observedSpinePairs().has(key)).toBe(false);
+  });
+
+  it('reset hides relations even when one endpoint keeps executing', () => {
+    const { service, activePaths, activeInvocations, stats } = bootstrap();
+    service.setActive(true);
+    // AGENT executes and stays executing; SKILL only lingers via stats.
+    stats.set(new Map([[SKILL, statsOf(T0 - 1000)]]));
+    activePaths.set(new Set([AGENT]));
+    activeInvocations.set([{ target: SKILL, caller: AGENT, detail: 'mcp__db__query' }]);
+    TestBed.tick();
+    activeInvocations.set([]);
+    TestBed.tick();
+    expect(service.observedInvocations()).toHaveLength(1);
+
+    // Reset drops SKILL (linger-only member); AGENT survives as
+    // executing, so the relation loses an endpoint and hides.
+    vi.advanceTimersByTime(10);
+    service.reset();
+    TestBed.tick();
+    expect(service.membership().has(AGENT)).toBe(true);
+    expect(service.observedInvocations()).toHaveLength(0);
   });
 });

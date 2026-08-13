@@ -56,10 +56,11 @@
  * nothing here touches persisted positions, map views, or curation.
  */
 
-import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 
 import type { ILinkApi, INodeApi, IScanResultApi } from '../models/api';
 import type { INodeView } from '../models/node';
+import { AgentSpawnService } from './agent-spawn';
 import { CollectionLoaderService, projectNode } from './collection-loader';
 import { DATA_SOURCE, type IDataSourcePort } from './data-source/data-source.port';
 import { SKILL_MAP_MODE } from './data-source/runtime-mode';
@@ -88,6 +89,44 @@ const LOCAL_STAMP_PRUNE_MS = 60 * 60_000;
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 
+/**
+ * Safety cap on each observed-relation map. Relations are pruned only
+ * by `reset()` (so flipping 5 min -> no-limit resurfaces older links,
+ * "links that happened do not evaporate"), which leaves the maps
+ * unbounded in a pathological session; past the cap the OLDEST entries
+ * drop first. A few thousand distinct pairs is far beyond any real
+ * project.
+ */
+const OBSERVED_RELATIONS_CAP = 2000;
+
+/**
+ * A link the lens actually SAW happen: an MCP invocation (caller ->
+ * target, labeled with the tool) or an agent spawn (parent node ->
+ * child node). Unlike the live overlays (60s invocation TTL, spawn
+ * dies on its end frame), these persist under the lens watermark: they
+ * stay rendered while both endpoints are lens members and their last
+ * sighting is inside the window, and only `reset()` hard-clears them.
+ */
+export interface IObservedInvocation {
+  /** Stable key, `<caller>>><target>` (the invocation-overlay idiom). */
+  key: string;
+  caller: string;
+  target: string;
+  /** Latest tool label seen for the pair. */
+  label: string;
+  lastSeenAt: number;
+}
+
+export interface IObservedSpawn {
+  /** Stable key, `<parent>>><child>`. */
+  key: string;
+  parent: string;
+  child: string;
+  /** Latest live spawnId seen for the pair (the conversation-click anchor). */
+  lastSpawnId: string;
+  lastSeenAt: number;
+}
+
 function setsEqual(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
   if (a === b) return true;
   if (a.size !== b.size) return false;
@@ -99,10 +138,27 @@ function linkKeyOf(link: ILinkApi): string {
   return `${link.source}|${link.target}|${link.kind}`;
 }
 
+/** Upsert into an observed-relation map with the oldest-first cap. */
+function upsertObserved<T extends { lastSeenAt: number }>(
+  map: ReadonlyMap<string, T>,
+  key: string,
+  value: T,
+): Map<string, T> {
+  const next = new Map(map);
+  next.delete(key); // re-insert at the tail so Map order stays oldest-first
+  next.set(key, value);
+  if (next.size > OBSERVED_RELATIONS_CAP) {
+    const oldest = next.keys().next().value;
+    if (oldest !== undefined) next.delete(oldest);
+  }
+  return next;
+}
+
 @Injectable({ providedIn: 'root' })
 export class LiveLensService {
   private readonly nodeActivity = inject(NodeActivityService);
   private readonly activityStats = inject(NodeActivityStatsService);
+  private readonly agentSpawns = inject(AgentSpawnService);
   private readonly loader = inject(CollectionLoaderService);
   private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
   private readonly mode = inject(SKILL_MAP_MODE);
@@ -134,6 +190,23 @@ export class LiveLensService {
    */
   private readonly _lastActiveAt = signal<ReadonlyMap<string, number>>(new Map());
 
+  /**
+   * Observed-relation memories (see the interfaces above). Stamped by
+   * always-on effects so entering the lens shows links from just
+   * before the toggle; pruned ONLY by the safety cap and read-filtered
+   * by the watermark, so flipping the window to no-limit resurfaces
+   * older sightings instead of losing them (unlike the node departure
+   * stamps, these have no server-side recency to fall back on).
+   */
+  private readonly _observedInvocations = signal<ReadonlyMap<string, IObservedInvocation>>(
+    new Map(),
+  );
+  private readonly _observedSpawns = signal<ReadonlyMap<string, IObservedSpawn>>(new Map());
+  /** Cached links whose BOTH endpoints executed together, keyed `source|target`. */
+  private readonly _observedSpinePairs = signal<
+    ReadonlyMap<string, { source: string; target: string; lastSeenAt: number }>
+  >(new Map());
+
   /** Corpus-wide node cache for the lens (curation-independent). */
   private readonly _nodeCache = signal<ReadonlyMap<string, INodeApi>>(new Map());
   /** Links seen among live nodes, cumulative, keyed by source|target|kind. */
@@ -156,12 +229,7 @@ export class LiveLensService {
       const active = this.nodeActivity.activePaths();
       const stats = this.activityStats.stats();
       const local = this._lastActiveAt();
-      const windowMs = this._windowMs();
-      const resetAt = this._resetAt();
-      const floor =
-        windowMs === Number.POSITIVE_INFINITY
-          ? resetAt
-          : Math.max(Date.now() - windowMs, resetAt);
+      const floor = this.floorAt(Date.now());
       const next = new Set(active);
       for (const [path, s] of stats) {
         if (s.lastStartAt > floor) next.add(path);
@@ -215,6 +283,69 @@ export class LiveLensService {
     return { ...meta, nodes, links, issues: [] };
   });
 
+  /**
+   * Observed MCP invocations currently visible on the lens: sighted
+   * inside the watermark AND both endpoints are members (an expired
+   * node takes its links with it). Empty while the lens is off. These
+   * REPLACE the live invocation overlay in lens mode, so the edge and
+   * its label survive the 60s live TTL instead of evaporating.
+   */
+  readonly observedInvocations = computed<readonly IObservedInvocation[]>(() => {
+    if (!this._active()) return [];
+    this.expiryTick();
+    const membership = this.membership();
+    const floor = this.floorAt(Date.now());
+    const out: IObservedInvocation[] = [];
+    for (const inv of this._observedInvocations().values()) {
+      if (inv.lastSeenAt <= floor) continue;
+      if (!membership.has(inv.caller) || !membership.has(inv.target)) continue;
+      out.push(inv);
+    }
+    return out;
+  });
+
+  /**
+   * Observed node-to-node spawns under the same visibility rule. In
+   * lens mode these keep the dashed spawn edge (or the spawn-active
+   * dress on the hosting static edge) after the live spawn ended.
+   */
+  readonly observedSpawns = computed<readonly IObservedSpawn[]>(() => {
+    if (!this._active()) return [];
+    this.expiryTick();
+    const membership = this.membership();
+    const floor = this.floorAt(Date.now());
+    const out: IObservedSpawn[] = [];
+    for (const spawn of this._observedSpawns().values()) {
+      if (spawn.lastSeenAt <= floor) continue;
+      if (!membership.has(spawn.parent) || !membership.has(spawn.child)) continue;
+      out.push(spawn);
+    }
+    return out;
+  });
+
+  /**
+   * `source|target` keys of static links whose both endpoints were
+   * seen executing TOGETHER, filtered like the other relations. In
+   * lens mode the executing-spine treatment stays on these edges
+   * permanently instead of switching off with the live glow.
+   */
+  readonly observedSpinePairs = computed<ReadonlySet<string>>(
+    () => {
+      if (!this._active()) return EMPTY_SET;
+      this.expiryTick();
+      const membership = this.membership();
+      const floor = this.floorAt(Date.now());
+      const out = new Set<string>();
+      for (const [key, pair] of this._observedSpinePairs()) {
+        if (pair.lastSeenAt <= floor) continue;
+        if (!membership.has(pair.source) || !membership.has(pair.target)) continue;
+        out.add(key);
+      }
+      return out;
+    },
+    { equal: setsEqual },
+  );
+
   constructor() {
     // Departure stamps: when a path leaves the active set, record the
     // moment so the linger window has a truthful anchor for claims
@@ -247,6 +378,81 @@ export class LiveLensService {
       if (!this.nodeActivity.enabled() && this._active()) this._active.set(false);
     });
 
+    // Observed-relation stamps (always-on, like the departure stamps).
+    // Re-running while a relation stays live keeps refreshing its
+    // sighting, so the frozen stamp IS the departure time.
+    effect(() => {
+      const invocations = this.nodeActivity.activeInvocations();
+      if (invocations.length === 0) return;
+      const now = Date.now();
+      this._observedInvocations.update((map) => {
+        let next: Map<string, IObservedInvocation> | null = null;
+        for (const inv of invocations) {
+          if (inv.caller === null) continue; // bare main-session call, no edge
+          const key = `${inv.caller}>>${inv.target}`;
+          next = upsertObserved(next ?? map, key, {
+            key,
+            caller: inv.caller,
+            target: inv.target,
+            label: inv.detail,
+            lastSeenAt: now,
+          });
+        }
+        return next ?? map;
+      });
+    });
+
+    effect(() => {
+      const spawns = this.agentSpawns.spawnEdges();
+      if (spawns.length === 0) return;
+      const now = Date.now();
+      this._observedSpawns.update((map) => {
+        let next: Map<string, IObservedSpawn> | null = null;
+        for (const spawn of spawns) {
+          const parent = spawn.parentNodePath;
+          const child = spawn.childNodePath;
+          // Node-to-node only: session anchors and unresolved capsules
+          // are overlay chrome without a stable scanned endpoint.
+          if (parent === undefined || child === undefined) continue;
+          const key = `${parent}>>${child}`;
+          next = upsertObserved(next ?? map, key, {
+            key,
+            parent,
+            child,
+            lastSpawnId: spawn.spawnId,
+            lastSeenAt: now,
+          });
+        }
+        return next ?? map;
+      });
+    });
+
+    // Spine sightings: a cached link whose both endpoints execute
+    // together. Bounded by the link cache (which only ever holds links
+    // among live nodes), so the scan is tiny.
+    effect(() => {
+      const active = this.nodeActivity.activePaths();
+      if (active.size < 2) return;
+      const links = this._linkCache();
+      if (links.size === 0) return;
+      const now = Date.now();
+      // Untracked self-read: this effect WRITES the map below, so a
+      // tracked read of it here would re-trigger the effect on its own
+      // write, an infinite loop.
+      const current = untracked(() => this._observedSpinePairs());
+      let next: Map<string, { source: string; target: string; lastSeenAt: number }> | null =
+        null;
+      for (const link of links.values()) {
+        if (!active.has(link.source) || !active.has(link.target)) continue;
+        next = upsertObserved(next ?? current, `${link.source}|${link.target}`, {
+          source: link.source,
+          target: link.target,
+          lastSeenAt: now,
+        });
+      }
+      if (next) this._observedSpinePairs.set(next);
+    });
+
     // Single self-rearming expiry timer (timed mode only): wake at the
     // earliest upcoming linger expiry, bump the tick, re-evaluate.
     // Reading `expiryTick` re-runs this effect after each firing so the
@@ -273,6 +479,16 @@ export class LiveLensService {
       for (const [path, at] of local) {
         if (!stats.has(path)) consider(path, at);
       }
+      // Observed relations expire on their own clock too: a link can
+      // age out of the window while both its endpoints stay members
+      // (the nodes re-executed, the link did not recur).
+      const considerStamp = (lastSeen: number): void => {
+        if (lastSeen <= floor) return;
+        earliest = Math.min(earliest, lastSeen + windowMs);
+      };
+      for (const inv of this._observedInvocations().values()) considerStamp(inv.lastSeenAt);
+      for (const spawn of this._observedSpawns().values()) considerStamp(spawn.lastSeenAt);
+      for (const pair of this._observedSpinePairs().values()) considerStamp(pair.lastSeenAt);
       if (earliest === Number.POSITIVE_INFINITY) return;
       const delay = Math.max(earliest - now, 0) + 16;
       this.expiryTimer = setTimeout(() => {
@@ -334,6 +550,13 @@ export class LiveLensService {
     local: ReadonlyMap<string, number>,
   ): number {
     return Math.max(lastStartAt, local.get(path) ?? 0);
+  }
+
+  /** The watermark floor: recency at or below it is outside the lens. */
+  private floorAt(now: number): number {
+    const windowMs = this._windowMs();
+    const resetAt = this._resetAt();
+    return windowMs === Number.POSITIVE_INFINITY ? resetAt : Math.max(now - windowMs, resetAt);
   }
 
   private clearExpiryTimer(): void {

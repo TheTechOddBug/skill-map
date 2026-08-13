@@ -219,7 +219,7 @@
                this list: they ride that edge as .f-conn--spawn-active
                instead (no duplicated arrows). -->
           <ng-container ngProjectAs="[fConnections]">
-            @for (edge of spawnOverlay().edges; track edge.spawnId) {
+            @for (edge of displaySpawnEdges(); track edge.spawnId) {
               @let convo = convoCountForKey(edge.pairKey);
               <!-- Overlay-chrome edges (session anchors / capsules) are
                    ALWAYS vertical (anchor above, target below), so they
