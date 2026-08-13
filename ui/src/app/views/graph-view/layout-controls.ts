@@ -34,11 +34,16 @@ import { EDagreLayoutAlgorithm } from '@foblex/flow-dagre-layout';
  *     direction button when it is active and the connection sides
  *     fall back to Foblex's `CALCULATE` mode so arrow heads orient
  *     themselves.
- *   - `filesystem`, our local path-derived layout. Also not dagre:
- *     the column of a node comes from how deep its path sits, not
- *     from its edges, which is the only thing that arranges a corpus
- *     whose nodes barely reference each other. See
- *     `computeFilesystemLayoutPositions`.
+ *   - `filesystem` and `filesystem-compact`, our local path-derived
+ *     layouts. Also not dagre: the column of a node comes from how deep
+ *     its path sits, not from its edges, which is the only thing that
+ *     arranges a corpus whose nodes barely reference each other. They
+ *     share every rule but one, where a folder's OWN files go:
+ *     `filesystem` puts them under its subfolders, matching the files
+ *     panel's reading order, and `filesystem-compact` puts them level
+ *     with the folder, which is far shorter but reads less like a file
+ *     tree. Both ship because the choice is a matter of taste on a
+ *     given corpus. See `computeFilesystemLayoutPositions`.
  *
  * Dagre also exposes `tight-tree`; it is intentionally NOT in this
  * catalogue. On our typical skill-map graphs (small, mostly tree-shaped),
@@ -48,23 +53,39 @@ import { EDagreLayoutAlgorithm } from '@foblex/flow-dagre-layout';
  * value from a previous version fails the `isLayoutAlgorithm` guard
  * and falls back to the default on the next read.
  */
-export type TLayoutAlgorithm = 'network-simplex' | 'longest-path' | 'force' | 'filesystem';
+export type TLayoutAlgorithm =
+  | 'network-simplex'
+  | 'longest-path'
+  | 'force'
+  | 'filesystem'
+  | 'filesystem-compact';
 
+/**
+ * Menu order, and the popover renders it verbatim. The two path-derived
+ * layouts lead, the default first; the dagre pair follows, with the
+ * force simulation last as the specialist option.
+ */
 export const LAYOUT_ALGORITHMS: ReadonlyArray<TLayoutAlgorithm> = [
+  'filesystem-compact',
+  'filesystem',
   'network-simplex',
   'longest-path',
   'force',
-  'filesystem',
 ];
+
+/** True for the path-derived layouts, which share everything but file placement. */
+export function isFilesystemAlgorithm(value: TLayoutAlgorithm): boolean {
+  return value === 'filesystem' || value === 'filesystem-compact';
+}
 
 /**
  * Whether the algorithm honours the `direction` preference. False for
- * the two layouts that own their own axes: the d3-force simulation
- * (no layers, no flow) and the filesystem layout, whose whole point is
+ * the layouts that own their own axes: the d3-force simulation (no
+ * layers, no flow) and both filesystem layouts, whose whole point is
  * that depth runs left to right.
  */
 export function algorithmUsesDirection(value: TLayoutAlgorithm): boolean {
-  return value !== 'force' && value !== 'filesystem';
+  return value !== 'force' && !isFilesystemAlgorithm(value);
 }
 
 /**
@@ -129,8 +150,49 @@ export const LAYOUT_SPACING_VALUES: Readonly<Record<TLayoutSpacing, ILayoutSpaci
   spacious: { nodeGap: 96, layerGap: 144 },
 };
 
-/** Default algorithm, matches Foblex's own default for the dagre engine. */
-export const DEFAULT_LAYOUT_ALGORITHM: TLayoutAlgorithm = 'network-simplex';
+/**
+ * Gaps for the two filesystem layouts, tighter than the dagre presets
+ * above at every tier (user call: "menos espacio de gap").
+ *
+ * They can afford it. Dagre's numbers reserve room for EDGES: a layer
+ * gap has to fit the routed connectors between one rank and the next,
+ * and a node gap has to keep parallel edges from overlapping the cards.
+ * The filesystem layouts draw no edges at all, so that clearance buys
+ * nothing and only spreads the map out. What is left to reserve is
+ * visual separation between cards, which needs far less.
+ *
+ * The tier the operator picked still applies, the whole scale is just
+ * shifted down; `spacious` here is still roomier than `compact`.
+ * Because the blank row between sibling folders is one ROW, tightening
+ * `nodeGap` shrinks that separator by the same proportion for free.
+ */
+export const FILESYSTEM_SPACING_VALUES: Readonly<Record<TLayoutSpacing, ILayoutSpacingValues>> = {
+  compact: { nodeGap: 8, layerGap: 16 },
+  normal: { nodeGap: 16, layerGap: 28 },
+  spacious: { nodeGap: 36, layerGap: 64 },
+};
+
+/**
+ * Default algorithm (user call, replacing dagre's `network-simplex`).
+ *
+ * A first open is exactly the case the dagre rankers handle worst: a
+ * project whose files barely reference each other has no edges to rank
+ * by, so every node lands in rank 0 and the map opens as one endless
+ * vertical column. The filesystem layouts never depend on edges, so the
+ * first thing a new user sees is their own folder tree. The dagre
+ * layouts stay one click away for a corpus that IS cross-linked, which
+ * is where they earn their keep.
+ *
+ * The COMPACT variant is the default rather than the files-panel-exact
+ * one: both read as a folder tree, and on a first open the deciding
+ * factor is how much canvas the map costs (on this repo's 284 nodes,
+ * 126 rows against 418).
+ *
+ * Only affects operators with no stored preference: `graph-preferences`
+ * reads `sm.graph.layout-algorithm` from localStorage first, so anyone
+ * who already picked a layout keeps it.
+ */
+export const DEFAULT_LAYOUT_ALGORITHM: TLayoutAlgorithm = 'filesystem-compact';
 
 /**
  * Default direction is left-to-right. Skill graphs are wide and
@@ -138,6 +200,10 @@ export const DEFAULT_LAYOUT_ALGORITHM: TLayoutAlgorithm = 'network-simplex';
  * horizontal flow reads the dependency chain along the natural
  * left-to-right reading axis and keeps the 260px-wide cards from
  * stacking into a tall, scroll-heavy column.
+ *
+ * Inert under the default algorithm (`filesystem` owns its own axes and
+ * dims the direction control); it applies the moment the operator picks
+ * one of the dagre layouts.
  */
 export const DEFAULT_LAYOUT_DIRECTION: TLayoutDirection = 'LEFT_RIGHT';
 

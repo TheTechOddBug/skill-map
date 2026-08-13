@@ -2,8 +2,8 @@
 '@skill-map/cli': patch
 ---
 
-New "Folders" graph layout that arranges nodes by the directory tree their paths imply instead of by edges: column is path depth, and a folder's contents sit beside, and never above, the folder that holds them, while each column still packs from the top so the canvas stays compact. It answers the case dagre cannot, a corpus with many nodes and few references between them, where every node shares rank 0 and stacks into one endless column.
+New path-derived graph layouts, and "Folder (compact)" becomes the default a map opens with. Column is path depth, edges are ignored, and the two variants differ only in where a folder's own files go: level with the folder, or under its subfolders like the files panel lists them. Both use their own tighter gaps, since a layout that draws no edges reserves no room to route them. They answer the case dagre cannot: few references means every node lands in rank 0, one endless column.
 
 ## User-facing
 
-The layout picker gains "Folders", which lays the map out like your file tree: root files on the left, each folder's contents to its right. Useful on a project whose files barely reference each other, where the other layouts pile everything into one tall column.
+Two new layouts arrange the map like your file tree instead of by links, and "Folder (compact)" is now what a new map opens with. If you already picked a layout, yours is kept.

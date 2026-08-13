@@ -56,6 +56,7 @@ import type {
 import type { ILinkApi, INodeApi, IScanResultApi, TLinkKindApi } from '../../../models/api';
 import { edgeId, edgeTargetPath } from '../../../services/link-analysis';
 import {
+  FILESYSTEM_SPACING_VALUES,
   LAYOUT_SPACING_VALUES,
   toFoblexAlgorithm,
   toFoblexDirection,
@@ -418,23 +419,29 @@ function buildDirTree(allNodes: INodeView[]): IDirTree {
 }
 
 /**
- * Place one directory's subtree. Each COLUMN fills compactly from the
- * top, tracked in `nextFree` (one cursor per depth); the only thing
- * that ever pushes a folder further down is `minRow`, the rule that a
- * folder's contents may not start ABOVE the row its parent's own files
- * start on. So a folder's files sit beside, and no higher than, the
- * folder that holds them, and the rest of the canvas stays packed.
+ * Place one directory's subtree and answer the last row it touched.
  *
- * Why not reserve a band per branch. The obvious tree layout gives
- * every subtree its own exclusive block of rows, which aligns parent
- * and child perfectly, and it was measured and rejected (user call): a
- * reserved band cannot be shared, so branch heights SUM instead of
- * overlapping, and on a real corpus (284 nodes, this repo) it came to
- * 386 rows against 82 for a naive per-column packing, taller than the
- * single dagre column the layout exists to replace. Sharing rows
- * between branches is what keeps it compact, and the cost is that
- * parent and child land near each other rather than exactly level
- * (median 6 rows apart on that same corpus).
+ * Reading order matches the files panel exactly (`files-view.rows.ts`,
+ * `buildTreeRows`): subfolders first, then the folder's OWN files, at
+ * every level including the root. In a linear list that ordering is
+ * free, it is just what comes first; on a canvas the two live in
+ * different columns and never compete for a row, so "after" has to be
+ * spelled out as "below everything the subfolders occupied", which is
+ * what `deepest` carries back up. The visible payoff is the one the
+ * user asked for: loose files at a level sit at the FOOT of their
+ * column, under the folders, instead of floating above them.
+ *
+ * Columns still share one cursor per depth (`nextFree`) rather than
+ * reserving an exclusive band per branch, so two branches can occupy
+ * the same rows whenever their columns differ.
+ *
+ * Cost, measured on this repo's 284 markdown nodes and accepted by the
+ * user with the number in hand: 418 rows, against 126 when a folder's
+ * own files were allowed to sit level with its subfolders. Pushing the
+ * files below the subtree makes branch heights add up again, so this is
+ * the tall end of the trade-off, chosen for fidelity to the files
+ * panel. Do not "optimise" it back to the compact form without asking:
+ * the compact form was built, measured, shown, and rejected.
  *
  * One blank row trails a folder's own run so sibling folders in a
  * column read as blocks rather than one undifferentiated list.
@@ -446,32 +453,65 @@ function placeDirTree(
   positions: Map<string, IPoint>,
   pitch: { column: number; row: number },
   nextFree: number[],
-): void {
+  filesBelowSubfolders: boolean,
+): number {
   const startRow = Math.max(nextFree[depth] ?? 0, minRow);
   const x = depth * pitch.column;
-  let row = startRow;
-  for (const file of [...dir.files].sort((a, b) => a.path.localeCompare(b.path))) {
-    positions.set(file.path, { x, y: row * pitch.row });
-    row += 1;
-  }
-  // Trailing blank row only when this folder actually put something in
-  // the column; an empty pass-through directory must not spend a row.
-  nextFree[depth] = row + (dir.files.length > 0 ? 1 : 0);
+  const sortedFiles = [...dir.files].sort((a, b) => a.path.localeCompare(b.path));
+  const sortedChildren = [...dir.children.keys()].sort((a, b) => a.localeCompare(b));
 
-  for (const name of [...dir.children.keys()].sort((a, b) => a.localeCompare(b))) {
-    const child = dir.children.get(name);
-    // Children inherit THIS folder's start row as their floor, which is
-    // the whole alignment rule; where they actually land is that floor
-    // or their column's cursor, whichever is lower down.
-    if (child) placeDirTree(child, depth + 1, startRow, positions, pitch, nextFree);
+  const placeOwnFiles = (from: number): number => {
+    let row = from;
+    for (const file of sortedFiles) {
+      positions.set(file.path, { x, y: row * pitch.row });
+      row += 1;
+    }
+    // Trailing blank row only when this folder actually put something
+    // in the column; an empty pass-through directory must not spend one.
+    nextFree[depth] = row + (sortedFiles.length > 0 ? 1 : 0);
+    return row;
+  };
+
+  // COMPACT: this folder's files claim its column first, and the
+  // subfolders only inherit `startRow` as their floor. Nothing waits on
+  // anything, so branch heights overlap and the canvas stays short.
+  if (!filesBelowSubfolders) {
+    const row = placeOwnFiles(startRow);
+    let deepest = row;
+    for (const name of sortedChildren) {
+      const child = dir.children.get(name);
+      if (child) {
+        deepest = Math.max(
+          deepest,
+          placeDirTree(child, depth + 1, startRow, positions, pitch, nextFree, false),
+        );
+      }
+    }
+    return deepest;
   }
+
+  // FILES PANEL ORDER: subfolders first (never starting above this
+  // folder's own start row), then this folder's files below everything
+  // they occupied.
+  let deepest = startRow;
+  for (const name of sortedChildren) {
+    const child = dir.children.get(name);
+    if (child) {
+      deepest = Math.max(
+        deepest,
+        placeDirTree(child, depth + 1, startRow, positions, pitch, nextFree, true),
+      );
+    }
+  }
+  return placeOwnFiles(Math.max(nextFree[depth] ?? 0, deepest));
 }
 
 /**
  * Arrange the loaded set by PATH rather than by edges: column = how
  * deep the node sits, so the root-level nodes read on the left and the
  * deeply nested ones on the right, and each folder's contents sit
- * beside the folder they belong to. Used by the "Folders" layout option.
+ * beside the folder they belong to. Used by the two "Folder" layout
+ * options.
  *
  * Why it exists. Dagre ranks nodes by their PREDECESSORS, so a node
  * with no edges lands in rank 0 by definition. Open a corpus with many
@@ -488,11 +528,21 @@ function placeDirTree(
  * Column-per-depth alone was not enough (user call): sorting each
  * column independently scattered a folder's children anywhere down the
  * canvas, with nothing tying `docs/deep/*` to where `docs/*` had landed.
- * The layout walks the directory TREE instead, so a folder's files sit
- * beside the folder that holds them, while columns still pack from the
- * top so the canvas does not grow taller than the problem it solves.
- * See `placeDirTree` for the alignment rule and the band-reservation
- * variant that was measured and rejected.
+ * The layout walks the directory TREE instead.
+ *
+ * Two variants ship, differing ONLY in where a folder's own files go,
+ * because which one reads better depends on the corpus and the operator
+ * is the judge:
+ *
+ *   - `'files-below'` ("Folder (realistic)", the default) matches the files
+ *     panel's reading order (`files-view.rows.ts`, `buildTreeRows`):
+ *     subfolders first, the folder's own files beneath them, so loose
+ *     files sit at the foot of their column. Truest to the panel, and
+ *     the tallest.
+ *   - `'files-first'` ("Folder (compact)") lets a folder's files sit level
+ *     with the folder itself. Much shorter, reads less like a tree.
+ *
+ * On this repo's 284 markdown nodes: 418 rows against 126.
  *
  * Deterministic (name-sorted at every level, so input order cannot
  * change the result) and cheap: one pass to build the tree, one DFS to
@@ -501,6 +551,7 @@ function placeDirTree(
 export function computeFilesystemLayoutPositions(
   allNodes: INodeView[],
   spacing: ILayoutSpacingValues,
+  variant: 'files-below' | 'files-first',
 ): Map<string, IPoint> {
   const positions = new Map<string, IPoint>();
   placeDirTree(
@@ -510,6 +561,7 @@ export function computeFilesystemLayoutPositions(
     positions,
     { column: NODE_WIDTH + spacing.layerGap, row: NODE_HEIGHT + spacing.nodeGap },
     [],
+    variant === 'files-below',
   );
   return positions;
 }
@@ -531,9 +583,15 @@ export function computeLayoutPositions(
   if (preferences.algorithm === 'force') {
     return Promise.resolve(computeForceLayoutPositions(allNodes, edges));
   }
-  if (preferences.algorithm === 'filesystem') {
+  if (preferences.algorithm === 'filesystem' || preferences.algorithm === 'filesystem-compact') {
     return Promise.resolve(
-      computeFilesystemLayoutPositions(allNodes, LAYOUT_SPACING_VALUES[preferences.spacing]),
+      computeFilesystemLayoutPositions(
+        allNodes,
+        // Its own gap scale, not the dagre one: no edges to route means
+        // no clearance to reserve. See `FILESYSTEM_SPACING_VALUES`.
+        FILESYSTEM_SPACING_VALUES[preferences.spacing],
+        preferences.algorithm === 'filesystem' ? 'files-below' : 'files-first',
+      ),
     );
   }
   // Wrapped rather than called bare: dagre's CJS interop can throw on

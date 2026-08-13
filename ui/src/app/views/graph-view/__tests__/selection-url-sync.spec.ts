@@ -89,6 +89,35 @@ describe('selection-url-sync', () => {
     });
   });
 
+  it("swallows the writer's own echo instead of re-selecting a closed node", () => {
+    TestBed.runInInjectionContext(() => {
+      const nodes = [makeNode('a.md')];
+      const { queryParamMap$, navigate, selectedNodeId, selectedPath } = setup(null, nodes);
+      TestBed.tick();
+
+      // In-map click: the writer mirrors the selection into `?path=`.
+      selectedNodeId.set('a.md');
+      selectedPath.set('a.md');
+      TestBed.tick();
+      expect(navigate).toHaveBeenCalledTimes(1);
+
+      // The panel closes BEFORE that navigation's query-param change
+      // lands (`router.navigate` is async). This is the real ordering:
+      // the reader may not have run at all while the selection was set.
+      selectedNodeId.set(null);
+      selectedPath.set(undefined);
+      TestBed.tick();
+
+      // Now the param change arrives. It is the writer's own echo, not
+      // an incoming deep link, so it must not resurrect the selection
+      // the user just cleared.
+      queryParamMap$.next(makeParamMap('a.md'));
+      TestBed.tick();
+
+      expect(selectedNodeId()).toBeNull();
+    });
+  });
+
   it('does not re-fire onDeepLinkSelect when the URL already matches the selection', () => {
     TestBed.runInInjectionContext(() => {
       const nodes = [makeNode('a.md')];

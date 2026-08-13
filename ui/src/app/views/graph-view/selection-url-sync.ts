@@ -86,30 +86,84 @@ export function bindSelectionToUrl(config: ISelectionUrlSyncConfig): void {
   );
 
   // Reader: URL → selection.
+  //
+  // A `?path=` is an INSTRUCTION to honour once ("select this"), not a
+  // state to re-apply forever. That distinction matters because this
+  // effect also depends on `graphNodes`, which changes for reasons that
+  // have nothing to do with the URL (a re-layout, a WS push, a filter).
+  //
+  // The race it closes: arriving on a deep link, the first run has the
+  // path but an EMPTY node list, so it cannot resolve it yet and has to
+  // wait. If the user closes the panel before the nodes land, the next
+  // `graphNodes` change re-runs this effect, the URL still carries the
+  // old path (the writer's `router.navigate` is async), and the node
+  // the user just closed gets re-selected. `untracked` on the selection
+  // does not help, the effect was woken by the nodes, not the
+  // selection; and invalidating from the writer does not either, since
+  // effects run in creation order and this one runs FIRST.
+  //
+  // So a pending path is tagged with the selection it was armed
+  // against. If the selection has moved since, the deep link lost its
+  // mandate and is dropped rather than applied late.
+  // Last path the WRITER pushed into the URL, awaiting its own
+  // query-param change to come back around. See both effects below.
+  let echoedPath: string | null = null;
+  let seenUrlPath: string | null | undefined;
+  let pendingPath: string | null = null;
+  let armedAtSelection: string | null = null;
   effect(() => {
-    const path = deepLinkPath();
+    const path = deepLinkPath() ?? null;
     const nodes = graphNodes();
-    if (nodes.length === 0) return;
-    if (!path) {
-      // The URL has no `path`. The writer effect keeps the URL in sync
-      // when the selection clears; don't clear here, or a refresh on a
-      // deep-link would clear before the reader has matched the URL
-      // to a node.
+    // Tagged with the raw selection ID, NOT `selectedPath`: that one
+    // resolves the id against `graphNodes` and so reads `undefined`
+    // during the exact window this guard exists for, the one where the
+    // nodes have not loaded. Comparing it would compare null to null
+    // and never fire.
+    const currentSelection = untracked(() => readSelectedNodeId());
+    if (path !== seenUrlPath && path !== null && path === echoedPath) {
+      // The writer put this path there; it is our own reflection, not an
+      // instruction. Swallow it. Without this the reader cannot tell an
+      // echo from a deep link whenever it did not happen to run while
+      // the selection was still set, and it then "restores" a selection
+      // the user has already cleared.
+      seenUrlPath = path;
+      echoedPath = null;
       return;
     }
+    if (path !== seenUrlPath) {
+      // A real navigation landed (deep link, files-view "open in map"):
+      // re-arm against today's selection.
+      seenUrlPath = path;
+      pendingPath = path;
+      armedAtSelection = currentSelection;
+    } else if (pendingPath !== null && currentSelection !== armedAtSelection) {
+      // The app moved the selection while this path was still waiting
+      // for nodes to resolve against. Whatever the URL still says, the
+      // user's last action wins.
+      pendingPath = null;
+    }
+    // Nothing to honour, or nothing to resolve it against yet. An
+    // absent path never CLEARS the selection: the writer owns that
+    // direction, and clearing here would drop a deep link on refresh
+    // before the nodes have loaded.
+    if (pendingPath === null || nodes.length === 0) return;
     // Loop guard: read the current selection via `untracked` so this
-    // effect does NOT subscribe to `selectedNodeId`. Otherwise a
-    // close-panel call (which clears selection BEFORE the writer
-    // effect has cleared the URL) re-fires this reader with the stale
-    // URL path and immediately re-selects the node we just closed.
+    // effect does NOT subscribe to it, the writer side feeds it.
     const currentId = untracked(() => readSelectedNodeId());
     if (currentId !== null) {
       const currentNode = nodes.find((n) => n.id === currentId);
-      // URL already matches the selection, reader is a no-op.
-      if (currentNode?.view.path === path) return;
+      // URL already matches the selection (an in-map click the writer
+      // mirrored out): consume it without re-selecting, and WITHOUT
+      // firing `onDeepLinkSelect`, which would yank the camera on every
+      // click.
+      if (currentNode?.view.path === pendingPath) {
+        pendingPath = null;
+        return;
+      }
     }
-    const target = nodes.find((n) => n.view.path === path);
+    const target = nodes.find((n) => n.view.path === pendingPath);
     if (target) {
+      pendingPath = null;
       setSelectedNodeId(target.id);
       onDeepLinkSelect?.(target.id);
     }
@@ -129,6 +183,11 @@ export function bindSelectionToUrl(config: ISelectionUrlSyncConfig): void {
     // navigation.
     const currentInUrl = untracked(() => deepLinkPath());
     if ((path ?? null) === (currentInUrl ?? null)) return;
+    // Claim this value before navigating so the reader recognises the
+    // resulting query-param change as our own echo rather than a fresh
+    // deep link. Only a non-null path needs claiming: an absent `path`
+    // never makes the reader select anything.
+    echoedPath = path ?? null;
     void router.navigate([], {
       relativeTo: route,
       queryParams: { path: path ?? null },

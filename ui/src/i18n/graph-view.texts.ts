@@ -100,7 +100,8 @@ export const GRAPH_VIEW_TEXTS = {
         'network-simplex': { label: 'Balanced' },
         'longest-path': { label: 'Stretched' },
         force: { label: 'Organic' },
-        filesystem: { label: 'Folders' },
+        filesystem: { label: 'Folder (realistic)' },
+        'filesystem-compact': { label: 'Folder (compact)' },
       },
     },
     direction: {

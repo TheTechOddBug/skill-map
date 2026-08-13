@@ -297,7 +297,7 @@ describe('projectVisible', () => {
 });
 
 // ---------------------------------------------------------------------------
-// computeFilesystemLayoutPositions, the path-derived "Folders" layout
+// computeFilesystemLayoutPositions, the path-derived "Folder" layouts
 // ---------------------------------------------------------------------------
 
 describe('computeFilesystemLayoutPositions', () => {
@@ -309,6 +309,7 @@ describe('computeFilesystemLayoutPositions', () => {
     const positions = computeFilesystemLayoutPositions(
       [nodeView('root.md'), nodeView('docs/one.md'), nodeView('docs/deep/two.md')],
       spacing,
+      'files-below',
     );
     expect(positions.get('root.md')?.x).toBe(0);
     expect(positions.get('docs/one.md')?.x).toBe(columnPitch);
@@ -328,6 +329,7 @@ describe('computeFilesystemLayoutPositions', () => {
         nodeView('docs/deep/f.md'),
       ],
       spacing,
+      'files-below',
     );
     const columns = new Set([...positions.values()].map((p) => p.x));
     expect(columns.size).toBe(3);
@@ -339,26 +341,51 @@ describe('computeFilesystemLayoutPositions', () => {
     const positions = computeFilesystemLayoutPositions(
       [nodeView('docs/zebra.md'), nodeView('docs/alpha.md')],
       spacing,
+      'files-below',
     );
     expect(positions.get('docs/alpha.md')?.y).toBe(0);
     expect(positions.get('docs/zebra.md')?.y).toBe(rowPitch);
   });
 
-  it("starts a folder's contents level with the folder's own files", () => {
-    // The horizontality the tree buys: children sit to the RIGHT of
-    // their parent's row, not somewhere further down the canvas.
+  it("puts a folder's own files under its subfolders, like the files panel", () => {
+    // `files-view.rows.ts` emits subfolders before leaves at every
+    // level; on a canvas the two never share a column, so "after" has to
+    // become "below whatever the subfolders occupied".
     const positions = computeFilesystemLayoutPositions(
       [nodeView('docs/alpha.md'), nodeView('docs/deep/inner.md')],
       spacing,
+      'files-below',
     );
-    expect(positions.get('docs/alpha.md')).toEqual({ x: columnPitch, y: 0 });
     expect(positions.get('docs/deep/inner.md')).toEqual({ x: 2 * columnPitch, y: 0 });
+    expect(positions.get('docs/alpha.md')).toEqual({ x: columnPitch, y: rowPitch });
   });
 
-  it('never lets a folder start above the folder that holds it', () => {
-    // The alignment rule, and the ONLY thing that pushes a node down
-    // beyond its column's own packing. `b` is declared late and `b/deep`
-    // would otherwise fit high up in a sparse column 2.
+  it('lands the root files at the foot of the leftmost column', () => {
+    // The symptom that opened this round: loose root files floated above
+    // every folder, the reverse of how the files panel lists them.
+    const positions = computeFilesystemLayoutPositions(
+      [
+        nodeView('README.md'),
+        nodeView('a/1.md'),
+        nodeView('a/2.md'),
+        nodeView('b/1.md'),
+      ],
+      spacing,
+      'files-below',
+    );
+    const readme = positions.get('README.md');
+    expect(readme?.x).toBe(0);
+    const deepestFolderRow = Math.max(
+      ...[...positions.entries()]
+        .filter(([path]) => path !== 'README.md')
+        .map(([, point]) => point.y),
+    );
+    expect(readme?.y).toBeGreaterThan(deepestFolderRow);
+  });
+
+  it('never lets a subfolder start above the folder that holds it', () => {
+    // `b/deep` would otherwise fit high up in a sparse column 2, several
+    // screens above the `b` it belongs to.
     const positions = computeFilesystemLayoutPositions(
       [
         nodeView('a/1.md'),
@@ -368,35 +395,32 @@ describe('computeFilesystemLayoutPositions', () => {
         nodeView('b/deep/y1.md'),
       ],
       spacing,
+      'files-below',
     );
-    const bRow = positions.get('b/1.md')?.y ?? -1;
-    expect(bRow).toBe(4 * rowPitch);
-    // Column 2 is otherwise empty, so without the rule y1 would sit at
-    // row 0, three screens above the folder it belongs to.
-    expect(positions.get('b/deep/y1.md')).toEqual({ x: 2 * columnPitch, y: bRow });
+    // `a` fills rows 0-2 of column 1, one blank row, so `b` opens at 4
+    // and its subfolder may not start any higher than that.
+    expect(positions.get('b/deep/y1.md')).toEqual({ x: 2 * columnPitch, y: 4 * rowPitch });
+    // ...and b's own file lands under its subfolder, per the files order.
+    expect(positions.get('b/1.md')).toEqual({ x: columnPitch, y: 5 * rowPitch });
   });
 
-  it('packs columns instead of reserving a band per branch', () => {
-    // The compactness half of the trade-off. Reserving a band per
-    // subtree aligns parent and child exactly but makes branch heights
-    // SUM: on this fixture that is 5 rows, against the 3 a packed
-    // column needs. Measured on a real corpus it was 386 rows vs 82,
-    // which is why the band variant was rejected.
+  it('shares rows between branches whose columns differ', () => {
+    // What is left of compactness after the files ordering: branches are
+    // NOT given exclusive bands, so `b`'s subtree may reuse rows that
+    // `a`'s subtree left free in another column.
     const positions = computeFilesystemLayoutPositions(
       [
-        nodeView('a/1.md'),
         nodeView('a/deep/x1.md'),
         nodeView('a/deep/x2.md'),
-        nodeView('a/deep/x3.md'),
-        nodeView('b/1.md'),
+        nodeView('b/deep/y1.md'),
       ],
       spacing,
+      'files-below',
     );
-    // `b` clears a's own run in column 1 (one file plus a blank row),
-    // NOT the three rows a's children occupy over in column 2.
-    expect(positions.get('b/1.md')).toEqual({ x: columnPitch, y: 2 * rowPitch });
-    const tallest = Math.max(...[...positions.values()].map((p) => p.y));
-    expect(tallest).toBe(2 * rowPitch);
+    // Column 2 packs straight through the branch change: rows 0, 1, then
+    // a blank row, then 3. A reserved band would have pushed y1 lower.
+    expect(positions.get('a/deep/x2.md')?.y).toBe(rowPitch);
+    expect(positions.get('b/deep/y1.md')?.y).toBe(3 * rowPitch);
   });
 
   it('keeps two folders sharing a column off each other rows', () => {
@@ -408,6 +432,7 @@ describe('computeFilesystemLayoutPositions', () => {
         nodeView('b/deep/y2.md'),
       ],
       spacing,
+      'files-below',
     );
     const column2 = [...positions.entries()]
       .filter(([, point]) => point.x === 2 * columnPitch)
@@ -419,6 +444,7 @@ describe('computeFilesystemLayoutPositions', () => {
     const positions = computeFilesystemLayoutPositions(
       [nodeView('one/a.md'), nodeView('one/b.md'), nodeView('two/c.md')],
       spacing,
+      'files-below',
     );
     // Same column (both depth 1), and the folder change costs a row.
     expect(positions.get('one/a.md')?.y).toBe(0);
@@ -428,21 +454,23 @@ describe('computeFilesystemLayoutPositions', () => {
 
   it('ignores edges entirely: the same nodes land in the same places', () => {
     const nodes = [nodeView('a.md'), nodeView('docs/b.md')];
-    const bare = computeFilesystemLayoutPositions(nodes, spacing);
+    const bare = computeFilesystemLayoutPositions(nodes, spacing, 'files-below');
     // This layout takes no edges by construction; the assertion pins the
     // contract that a future refactor must not quietly start ranking by
     // references (that is what the dagre options are for).
-    expect(computeFilesystemLayoutPositions(nodes, spacing)).toEqual(bare);
+    expect(computeFilesystemLayoutPositions(nodes, spacing, 'files-below')).toEqual(bare);
   });
 
   it('is deterministic under input permutation', () => {
     const forward = computeFilesystemLayoutPositions(
       [nodeView('docs/a.md'), nodeView('docs/b.md'), nodeView('r.md')],
       spacing,
+      'files-below',
     );
     const shuffled = computeFilesystemLayoutPositions(
       [nodeView('r.md'), nodeView('docs/b.md'), nodeView('docs/a.md')],
       spacing,
+      'files-below',
     );
     expect(shuffled).toEqual(forward);
   });
@@ -452,8 +480,92 @@ describe('computeFilesystemLayoutPositions', () => {
     const positions = computeFilesystemLayoutPositions(
       [nodeView('docs/a.md'), nodeView('docs/b.md'), nodeView('r.md')],
       tight,
+      'files-below',
     );
     expect(positions.get('docs/a.md')?.x).toBe(NODE_WIDTH);
     expect(positions.get('docs/b.md')?.y).toBe(NODE_HEIGHT);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The 'files-first' variant ("Folder (compact)"): same tree, files level with
+// their folder instead of below its subfolders.
+// ---------------------------------------------------------------------------
+
+describe("computeFilesystemLayoutPositions, 'files-first' variant", () => {
+  const spacing: ILayoutSpacingValues = { nodeGap: 64, layerGap: 96 };
+  const columnPitch = NODE_WIDTH + spacing.layerGap;
+  const rowPitch = NODE_HEIGHT + spacing.nodeGap;
+
+  it("keeps a folder's files level with the folder itself", () => {
+    const positions = computeFilesystemLayoutPositions(
+      [nodeView('docs/alpha.md'), nodeView('docs/deep/inner.md')],
+      spacing,
+      'files-first',
+    );
+    // The mirror image of the default variant, where alpha sits one row
+    // below its own subfolder.
+    expect(positions.get('docs/alpha.md')).toEqual({ x: columnPitch, y: 0 });
+    expect(positions.get('docs/deep/inner.md')).toEqual({ x: 2 * columnPitch, y: 0 });
+  });
+
+  it('comes out shorter than the default variant on the same input', () => {
+    // The whole reason both ship. Not a tie-break: the compact variant
+    // must be strictly shorter whenever a folder has files AND subfolders.
+    const nodes = [
+      nodeView('a/1.md'),
+      nodeView('a/deep/x1.md'),
+      nodeView('a/deep/x2.md'),
+      nodeView('a/deep/x3.md'),
+      nodeView('b/1.md'),
+      nodeView('README.md'),
+    ];
+    const tallest = (variant: 'files-below' | 'files-first'): number =>
+      Math.max(
+        ...[...computeFilesystemLayoutPositions(nodes, spacing, variant).values()].map((p) => p.y),
+      );
+    expect(tallest('files-first')).toBeLessThan(tallest('files-below'));
+  });
+
+  it('still puts a node in the column its path depth names', () => {
+    const positions = computeFilesystemLayoutPositions(
+      [nodeView('root.md'), nodeView('docs/one.md'), nodeView('docs/deep/two.md')],
+      spacing,
+      'files-first',
+    );
+    expect(positions.get('root.md')?.x).toBe(0);
+    expect(positions.get('docs/one.md')?.x).toBe(columnPitch);
+    expect(positions.get('docs/deep/two.md')?.x).toBe(2 * columnPitch);
+  });
+
+  it('never lets a subfolder start above the folder that holds it', () => {
+    const positions = computeFilesystemLayoutPositions(
+      [
+        nodeView('a/1.md'),
+        nodeView('a/2.md'),
+        nodeView('a/3.md'),
+        nodeView('b/1.md'),
+        nodeView('b/deep/y1.md'),
+      ],
+      spacing,
+      'files-first',
+    );
+    const bRow = positions.get('b/1.md')?.y ?? -1;
+    expect(bRow).toBe(4 * rowPitch);
+    expect(positions.get('b/deep/y1.md')).toEqual({ x: 2 * columnPitch, y: bRow });
+  });
+
+  it('is deterministic under input permutation', () => {
+    const forward = computeFilesystemLayoutPositions(
+      [nodeView('docs/a.md'), nodeView('docs/b.md'), nodeView('r.md')],
+      spacing,
+      'files-first',
+    );
+    const shuffled = computeFilesystemLayoutPositions(
+      [nodeView('r.md'), nodeView('docs/b.md'), nodeView('docs/a.md')],
+      spacing,
+      'files-first',
+    );
+    expect(shuffled).toEqual(forward);
   });
 });
