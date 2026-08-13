@@ -17,7 +17,7 @@
  * first event, `total - 1` = everything applied.
  */
 
-import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 
 import { computePlaybackState, type IPlaybackState } from './activity-playback-state';
 import { ActivityRecorderService, type TRecordedEvent } from './activity-recorder';
@@ -56,6 +56,15 @@ export class ActivityPlaybackService {
 
   constructor() {
     this.destroyRef.onDestroy(() => this.clearStepTimer());
+
+    // A replay narrates a recording: once the operator deletes it (the
+    // Settings row, the transport's own shortcut, anything later), the
+    // frozen tape describes something that no longer exists, so the
+    // mode stands down. The invariant lives HERE so no call site has to
+    // remember to pair `clear()` with `exit()`.
+    effect(() => {
+      if (this._active() && this.recorder.events().length === 0) this.exit();
+    });
   }
 
   /** Snapshot the tape, rewind, and start playing from the top. */

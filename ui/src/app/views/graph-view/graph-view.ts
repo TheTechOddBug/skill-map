@@ -1610,17 +1610,16 @@ export class GraphView implements OnInit {
   );
 
   /**
-   * Enter/exit the replay sub-mode. Entering may need to enter the
-   * lens first (the replay lives inside it); exiting returns to the
-   * LIVE lens, and a full lens exit takes the replay down via the
-   * service invariant.
+   * Enter/exit the replay sub-mode. Its control only renders while the
+   * lens is on (the replay IS a mode of the lens), so entering never
+   * has to open the lens itself; exiting returns to the LIVE lens, and
+   * a full lens exit takes the replay down via the service invariant.
    */
   protected toggleReplay(): void {
     if (this.playback.active()) {
       this.playback.exit();
       return;
     }
-    if (!this.lensOn()) this.liveLensCtl.toggle();
     this.playback.enter();
   }
 

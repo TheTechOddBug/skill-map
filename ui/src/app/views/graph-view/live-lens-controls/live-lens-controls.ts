@@ -24,6 +24,7 @@ import { TooltipModule } from 'primeng/tooltip';
 
 import { LIVE_LENS_TEXTS } from '../../../../i18n/live-lens.texts';
 import { ActivityPlaybackService } from '../../../../services/activity-playback';
+import { ActivityRecorderService } from '../../../../services/activity-recorder';
 import { LIVE_LENS_DEFAULT_WINDOW_MS, LiveLensService } from '../../../../services/live-lens';
 import { NodeActivityService } from '../../../../services/node-activity';
 
@@ -38,6 +39,8 @@ export class LiveLensControls {
   protected readonly lens = inject(LiveLensService);
   protected readonly nodeActivity = inject(NodeActivityService);
   protected readonly playback = inject(ActivityPlaybackService);
+  /** Read for the replay gate only: no tape, no replay control. */
+  protected readonly recorder = inject(ActivityRecorderService);
 
   protected readonly texts = LIVE_LENS_TEXTS;
   protected readonly defaultWindowMs = LIVE_LENS_DEFAULT_WINDOW_MS;

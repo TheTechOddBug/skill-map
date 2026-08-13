@@ -127,6 +127,21 @@ describe('ActivityPlaybackService', () => {
     expect(service.total()).toBe(0);
   });
 
+  it('deleting the recording stands the replay down, wherever the delete came from', () => {
+    const { service, events } = bootstrap(TAPE);
+    service.enter();
+    vi.advanceTimersByTime(PLAYBACK_STEP_MS);
+    expect(service.active()).toBe(true);
+
+    // The Settings row (or the bar shortcut) clears the recorder; the
+    // frozen tape now describes something that no longer exists.
+    events.set([]);
+    TestBed.tick();
+    expect(service.active()).toBe(false);
+    expect(service.playing()).toBe(false);
+    expect(service.total()).toBe(0);
+  });
+
   it('entering with an empty tape stays inert (nothing to play)', () => {
     const { service } = bootstrap([]);
     service.enter();

@@ -73,13 +73,13 @@ export class PlaybackBar {
   /**
    * Contextual shortcut for the Settings row's delete: the recording is
    * kept until the operator drops it, and the moment you decide it is
-   * junk is usually while watching it. Leaves the replay afterwards,
-   * there is no longer a tape to show. No confirmation (regenerable
-   * machine data, same posture as the Activity clear-all).
+   * junk is usually while watching it. Leaving the replay is NOT done
+   * here: `ActivityPlaybackService` stands the mode down whenever the
+   * recording goes empty, wherever the delete came from. No
+   * confirmation (regenerable machine data, Activity clear-all posture).
    */
   protected deleteRecording(): void {
     this.recorder.clear();
-    this.playback.exit();
   }
 
   protected onSeek(event: Event): void {

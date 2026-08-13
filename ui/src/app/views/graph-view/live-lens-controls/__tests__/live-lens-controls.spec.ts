@@ -4,6 +4,7 @@ import { signal } from '@angular/core';
 
 import { LiveLensControls } from '../live-lens-controls';
 import { ActivityPlaybackService } from '../../../../../services/activity-playback';
+import { ActivityRecorderService } from '../../../../../services/activity-recorder';
 import { LiveLensService } from '../../../../../services/live-lens';
 import { NodeActivityService } from '../../../../../services/node-activity';
 
@@ -17,6 +18,9 @@ function makeFixture(init?: {
   available?: boolean;
   activityEnabled?: boolean;
   active?: boolean;
+  replaying?: boolean;
+  /** Frames on the tape; 0 means there is nothing to replay. */
+  recorded?: number;
   windowMs?: number;
 }) {
   const active = signal(init?.active ?? false);
@@ -33,9 +37,14 @@ function makeFixture(init?: {
   const nodeActivity = {
     enabled: signal(init?.activityEnabled ?? true).asReadonly(),
   } as unknown as NodeActivityService;
+  const playbackActive = signal(init?.replaying ?? false);
   const playback = {
-    active: signal(false).asReadonly(),
+    active: playbackActive.asReadonly(),
   } as unknown as ActivityPlaybackService;
+  const recorded = signal(init?.recorded ?? 5);
+  const recorder = {
+    size: recorded.asReadonly(),
+  } as unknown as ActivityRecorderService;
 
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
@@ -44,11 +53,12 @@ function makeFixture(init?: {
       { provide: LiveLensService, useValue: lens },
       { provide: NodeActivityService, useValue: nodeActivity },
       { provide: ActivityPlaybackService, useValue: playback },
+      { provide: ActivityRecorderService, useValue: recorder },
     ],
   });
   const fixture = TestBed.createComponent(LiveLensControls);
   fixture.detectChanges();
-  return { fixture, active, windowMs, reset };
+  return { fixture, active, windowMs, reset, playbackActive, recorded };
 }
 
 function query(fixture: { nativeElement: unknown }, testid: string): HTMLElement | null {
@@ -56,9 +66,13 @@ function query(fixture: { nativeElement: unknown }, testid: string): HTMLElement
 }
 
 describe('LiveLensControls', () => {
-  it('renders only the toggle while the lens is off', () => {
+  it('renders ONLY the lens toggle while the lens is off', () => {
     const { fixture } = makeFixture();
     expect(query(fixture, 'graph-lens-toggle')).not.toBeNull();
+    // Every other control acts on the lens, so none of them exists yet.
+    // The replay in particular is a sub-mode of the lens: offering it
+    // over a curated map would promise a canvas it cannot paint.
+    expect(query(fixture, 'graph-lens-replay-toggle')).toBeNull();
     expect(query(fixture, 'graph-lens-window')).toBeNull();
     expect(query(fixture, 'graph-lens-reset')).toBeNull();
   });
@@ -84,10 +98,11 @@ describe('LiveLensControls', () => {
     expect(active()).toBe(false);
   });
 
-  it('reflects the active state via aria-pressed and shows window + reset', () => {
+  it('reflects the active state via aria-pressed and shows replay + window + reset', () => {
     const { fixture } = makeFixture({ active: true });
     const toggleBtn = query(fixture, 'graph-lens-toggle');
     expect(toggleBtn?.getAttribute('aria-pressed')).toBe('true');
+    expect(query(fixture, 'graph-lens-replay-toggle')).not.toBeNull();
     expect(query(fixture, 'graph-lens-window')).not.toBeNull();
     expect(query(fixture, 'graph-lens-reset')).not.toBeNull();
   });
@@ -98,6 +113,37 @@ describe('LiveLensControls', () => {
     windowMs.set(Number.POSITIVE_INFINITY);
     fixture.detectChanges();
     expect(query(fixture, 'graph-lens-window')?.textContent).toContain('ALL');
+  });
+
+  it('hides the replay while there is nothing recorded, and reveals it on the first frame', () => {
+    const { fixture, recorded } = makeFixture({ active: true, recorded: 0 });
+    // A fresh session has an empty tape: no dead button, the control
+    // simply does not exist yet.
+    expect(query(fixture, 'graph-lens-replay-toggle')).toBeNull();
+    // The lens itself is unaffected.
+    expect(query(fixture, 'graph-lens-window')).not.toBeNull();
+
+    recorded.set(1);
+    fixture.detectChanges();
+    expect(query(fixture, 'graph-lens-replay-toggle')).not.toBeNull();
+  });
+
+  it('keeps the replay control while replaying, even if the tape was just deleted', () => {
+    // A delete mid-replay empties the recorder; the service stands the
+    // mode down on its own tick, and the control must not blink out
+    // from under the pointer in between.
+    const { fixture } = makeFixture({ active: true, replaying: true, recorded: 0 });
+    expect(query(fixture, 'graph-lens-replay-toggle')).not.toBeNull();
+  });
+
+  it('while replaying, the live-only controls stand down and the replay pill lights', () => {
+    const { fixture } = makeFixture({ active: true, replaying: true });
+    const replayBtn = query(fixture, 'graph-lens-replay-toggle');
+    expect(replayBtn?.getAttribute('aria-pressed')).toBe('true');
+    // The window and the reset act on the LIVE watermark, which the
+    // replay does not use, so they leave rather than sit inert.
+    expect(query(fixture, 'graph-lens-window')).toBeNull();
+    expect(query(fixture, 'graph-lens-reset')).toBeNull();
   });
 
   it('reset delegates to the service', () => {

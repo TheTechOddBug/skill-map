@@ -100,13 +100,14 @@ describe('PlaybackBar', () => {
     expect(playback.exit).toHaveBeenCalledTimes(1);
   });
 
-  it('the delete shortcut drops the recording AND leaves the replay', () => {
+  it('the delete shortcut drops the recording and leaves the exit to the service', () => {
     const { fixture, playback, clear } = makeFixture();
     (query(fixture, 'graph-playback-delete')?.querySelector('button') as HTMLButtonElement).click();
     expect(clear).toHaveBeenCalledTimes(1);
-    // Nothing left to replay, so the mode exits rather than sitting on
-    // an empty tape.
-    expect(playback.exit).toHaveBeenCalledTimes(1);
+    // Standing the mode down is `ActivityPlaybackService`'s invariant
+    // (an empty recording exits the replay wherever the delete came
+    // from), NOT something each call site pairs by hand.
+    expect(playback.exit).not.toHaveBeenCalled();
   });
 
   it('narrates the cursor event and flags a trimmed tape', () => {

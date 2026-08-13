@@ -29,47 +29,59 @@
       ></span>
     </p-button>
   </span>
-  <!-- Replay toggle: available whenever the cluster is (entering also
-       enters the lens, the graph view orchestrates). Amber active pill
-       so LIVE red and REPLAY amber never blur together. -->
-  <span class="lens__wrap" [class.lens__wrap--replay]="playback.active()">
-    <p-button
-      icon="pi pi-history"
-      [ariaLabel]="playback.active() ? texts.replay.ariaOn : texts.replay.ariaOff"
-      [pTooltip]="playback.active() ? texts.replay.tooltipOn : texts.replay.tooltipOff"
-      [severity]="playback.active() ? 'primary' : 'secondary'"
-      [text]="true"
-      [rounded]="true"
-      size="small"
-      [attr.aria-pressed]="playback.active()"
-      (onClick)="toggleReplay.emit()"
-      data-testid="graph-lens-replay-toggle"
-    />
-  </span>
-  @if (lens.active() && !playback.active()) {
-    <p-button
-      [label]="windowCompactLabel()"
-      [ariaLabel]="texts.window.aria"
-      [pTooltip]="texts.window.tooltip"
-      severity="secondary"
-      [text]="true"
-      [rounded]="true"
-      size="small"
-      styleClass="lens__window-button"
-      (onClick)="windowPopover.toggle($event)"
-      data-testid="graph-lens-window"
-    />
-    <p-button
-      icon="pi pi-eraser"
-      [ariaLabel]="texts.reset.aria"
-      [pTooltip]="texts.reset.tooltip"
-      severity="secondary"
-      [text]="true"
-      [rounded]="true"
-      size="small"
-      (onClick)="reset()"
-      data-testid="graph-lens-reset"
-    />
+  <!-- Everything below is a control OF the lens, so it only exists while
+       the lens does: the replay is a sub-mode of it (there is no way to
+       replay from a curated map), and the window / reset act on the
+       live watermark, which replay does not use. -->
+  @if (lens.active()) {
+    <!-- Nothing recorded means nothing to replay, so the control does
+         not exist rather than sitting there disabled: an empty session
+         is the normal state before the first execution, and a dead
+         button on every fresh map would be noise. `playback.active()`
+         keeps it through the tick between a delete and the service's
+         own stand-down, so the pill never blinks out mid-replay.
+         Amber active pill so LIVE red and REPLAY amber never blur. -->
+    @if (recorder.size() > 0 || playback.active()) {
+      <span class="lens__wrap" [class.lens__wrap--replay]="playback.active()">
+        <p-button
+          icon="pi pi-history"
+          [ariaLabel]="playback.active() ? texts.replay.ariaOn : texts.replay.ariaOff"
+          [pTooltip]="playback.active() ? texts.replay.tooltipOn : texts.replay.tooltipOff"
+          [severity]="playback.active() ? 'primary' : 'secondary'"
+          [text]="true"
+          [rounded]="true"
+          size="small"
+          [attr.aria-pressed]="playback.active()"
+          (onClick)="toggleReplay.emit()"
+          data-testid="graph-lens-replay-toggle"
+        />
+      </span>
+    }
+    @if (!playback.active()) {
+      <p-button
+        [label]="windowCompactLabel()"
+        [ariaLabel]="texts.window.aria"
+        [pTooltip]="texts.window.tooltip"
+        severity="secondary"
+        [text]="true"
+        [rounded]="true"
+        size="small"
+        styleClass="lens__window-button"
+        (onClick)="windowPopover.toggle($event)"
+        data-testid="graph-lens-window"
+      />
+      <p-button
+        icon="pi pi-eraser"
+        [ariaLabel]="texts.reset.aria"
+        [pTooltip]="texts.reset.tooltip"
+        severity="secondary"
+        [text]="true"
+        [rounded]="true"
+        size="small"
+        (onClick)="reset()"
+        data-testid="graph-lens-reset"
+      />
+    }
   }
 
   <p-popover #windowPopover appendTo="body" styleClass="graph__layout-popover">
