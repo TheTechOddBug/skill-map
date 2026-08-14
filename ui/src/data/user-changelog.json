@@ -2,6 +2,37 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.10.0",
+      "date": "2026-08-14",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "New in the map: the Live lens. Toggle it from the bottom toolbar to watch only what your AI is executing right now, plus what ran in the last 5 minutes (or keep everything until you reset). The calls between files stay drawn, and exiting brings your map back untouched.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Your session recording now survives a page refresh, and it stays until you delete it: Settings, Project shows how much is stored with a Delete button, and the replay bar carries the same shortcut.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Replay your session on the map: the Live lens now records what your AI did and can play it back, one event per second, with a scrubber to jump anywhere. Watch nodes light up and calls appear exactly as they happened, without re-running anything.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The live lens now also narrows your file list to what the AI actually touched, so the panel and the map tell the same story. The Queue tab stays out of the way while the lens is on.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.9.1",
       "date": "2026-08-13",
       "kind": "user-facing",

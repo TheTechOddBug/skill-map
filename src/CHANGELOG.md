@@ -1,5 +1,35 @@
 # skill-map
 
+## 1.10.0
+
+### Minor Changes
+
+- The Live lens gains a session replay: a recorder tapes every activity frame the page receives (bounded ring, page-lifetime), and a new transport in the map replays the whole session one event per second under an amber REPLAY frame, with play/pause, a scrubber, single-event stepping and a ticker narrating each event. The replayed state is a pure fold in virtual time (same claim semantics as the live glow), so scrubbing is instant and nothing re-executes.
+
+  ## User-facing
+
+  Replay your session on the map: the Live lens now records what your AI did and can play it back, one event per second, with a scrubber to jump anywhere. Watch nodes light up and calls appear exactly as they happened, without re-running anything.
+
+### Patch Changes
+
+- New Live lens mode in the graph view: a toolbar toggle narrows the canvas to the nodes the AI runtime is executing plus the recently-executed ones inside a configurable linger window (5 minutes by default, no-limit option, one-click reset), with automatic layout, camera framing, dragging disabled and a red on-air frame. Links that actually fired (invocations, spawns, executing chains) persist instead of expiring with their live TTLs; exiting restores the curated map exactly.
+
+  ## User-facing
+
+  New in the map: the Live lens. Toggle it from the bottom toolbar to watch only what your AI is executing right now, plus what ran in the last 5 minutes (or keep everything until you reset). The calls between files stay drawn, and exiting brings your map back untouched.
+
+- The Live lens replay tape now survives a reload: the recorder mirrors it into localStorage (`sm.live.recording`) and hydrates at boot, so a refresh or a later visit keeps the history. Nothing expires it by age; the operator owns its lifetime through a new Settings row (with an events + size readout) and a delete shortcut in the replay bar. The mirror is double-bounded by event count and characters so it can never crowd the other stored preferences out of the origin quota.
+
+  ## User-facing
+
+  Your session recording now survives a page refresh, and it stays until you delete it: Settings, Project shows how much is stored with a Delete button, and the replay bar carries the same shortcut.
+
+- The Live lens now scopes the whole workspace, not just the map: the files rail lists only the files seen executing (the same membership the canvas paints, so the replay narrows it as the tape advances) and shows its own "nothing has executed yet" state instead of the filters one, while the Queue tab is disabled for the duration and an open queue panel falls back to files.
+
+  ## User-facing
+
+  The live lens now also narrows your file list to what the AI actually touched, so the panel and the map tell the same story. The Queue tab stays out of the way while the lens is on.
+
 ## 1.9.1
 
 ### Patch Changes
