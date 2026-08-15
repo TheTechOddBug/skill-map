@@ -6,6 +6,19 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>1.10.0</b> · 2026-08-14</summary>
+
+### CLI Minor
+- The Live lens gains a session replay: a recorder tapes every activity frame the page receives (bounded ring, page-lifetime), and a new transport in the map replays the whole session one event per second under an amber REPLAY frame, with play/pause, a scrubber, single-event stepping and a ticker narrating each event. The replayed state is a pure fold in virtual time (same claim semantics as the live glow), so scrubbing is instant and nothing re-executes.
+
+### CLI Patch
+- New Live lens mode in the graph view: a toolbar toggle narrows the canvas to the nodes the AI runtime is executing plus the recently-executed ones inside a configurable linger window (5 minutes by default, no-limit option, one-click reset), with automatic layout, camera framing, dragging disabled and a red on-air frame. Links that actually fired (invocations, spawns, executing chains) persist instead of expiring with their live TTLs; exiting restores the curated map exactly.
+- The Live lens replay tape now survives a reload: the recorder mirrors it into localStorage (`sm.live.recording`) and hydrates at boot, so a refresh or a later visit keeps the history. Nothing expires it by age; the operator owns its lifetime through a new Settings row (with an events + size readout) and a delete shortcut in the replay bar. The mirror is double-bounded by event count and characters so it can never crowd the other stored preferences out of the origin quota.
+- The Live lens now scopes the whole workspace, not just the map: the files rail lists only the files seen executing (the same membership the canvas paints, so the replay narrows it as the tape advances) and shows its own "nothing has executed yet" state instead of the filters one, while the Queue tab is disabled for the duration and an open queue panel falls back to files.
+
+</details>
+
+<details>
 <summary><b>1.9.1</b> · 2026-08-13</summary>
 
 ### CLI Patch
