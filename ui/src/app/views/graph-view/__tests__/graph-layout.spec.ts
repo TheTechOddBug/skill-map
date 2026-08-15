@@ -622,33 +622,37 @@ describe('computeForceLayoutPositions with seed', () => {
     expect(first.size).toBe(3);
   });
 
-  it('survivors drift minimally from their seeded positions', () => {
+  it('seeded survivors do not move at all', () => {
     const nodes = [nodeView('a.md'), nodeView('b.md'), nodeView('c.md')];
     const edges = [edge('a.md', 'b.md'), edge('b.md', 'c.md')];
     const settled = computeForceLayoutPositions(nodes, edges);
 
-    // Re-run the same membership seeded by the settled output: an
-    // already-relaxed cloud should barely move (the incremental
-    // contract that keeps the live lens from reshuffling).
+    // Re-run the same membership seeded by the settled output: every
+    // seeded node is pinned, so the output is identical. Any drift here
+    // is the flicker the live lens must never show.
     const reRun = computeForceLayoutPositions(nodes, edges, settled);
-    for (const n of nodes) {
-      const before = settled.get(n.path);
-      const after = reRun.get(n.path);
-      expect(before).toBeDefined();
-      expect(after).toBeDefined();
-      const dx = (after?.x ?? 0) - (before?.x ?? 0);
-      const dy = (after?.y ?? 0) - (before?.y ?? 0);
-      expect(Math.hypot(dx, dy)).toBeLessThan(NODE_WIDTH / 2);
+    expect(reRun).toEqual(settled);
+  });
+
+  it('survivors stay frozen while a newcomer joins', () => {
+    const survivors = [nodeView('a.md'), nodeView('b.md')];
+    const edges = [edge('a.md', 'b.md')];
+    const settled = computeForceLayoutPositions(survivors, edges);
+    const grown = computeForceLayoutPositions(
+      [...survivors, nodeView('c.md')],
+      [...edges, edge('b.md', 'c.md')],
+      settled,
+    );
+    for (const n of survivors) {
+      expect(grown.get(n.path)).toEqual(settled.get(n.path));
     }
+    expect(grown.get('c.md')).toBeDefined();
   });
 
   it('places a newcomer beside its linked neighbour, far from unrelated nodes', () => {
     // Two disconnected seeded survivors far apart; the newcomer links to
-    // one of them. Distances are measured pairwise (translation-invariant)
-    // because forceCenter re-centres the whole cloud every tick, so any
-    // assertion against absolute coordinates measures the recentring, not
-    // the seeding. Probed values: ~284px to the neighbour, ~963px to the
-    // unrelated node.
+    // one of them. The survivors are pinned at their seed, so only the
+    // newcomer's placement is under test.
     const grown = computeForceLayoutPositions(
       [nodeView('near.md'), nodeView('far.md'), nodeView('new.md')],
       [edge('near.md', 'new.md')],

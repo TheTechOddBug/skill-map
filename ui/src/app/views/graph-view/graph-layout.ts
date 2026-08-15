@@ -337,14 +337,18 @@ export async function computeDagreLayout(
  * input produces the same output. Tests can rely on stable positions.
  *
  * `seed` (optional) turns the run into an INCREMENTAL relayout: nodes
- * present in the map start from their previous position (d3-force
- * honours pre-set x/y instead of phyllotaxis), newcomers start at the
+ * present in the map are PINNED at their previous position (`fx`/`fy`,
+ * which d3-force restores after every tick) and newcomers start at the
  * centroid of their already-seeded neighbours (collide separates
- * coincident starts deterministically), and the simulation runs cooler
- * and shorter so survivors drift minimally while newcomers settle.
- * The live-lens membership churns node by node; without the seed every
- * join/leave would reshuffle the whole cloud. Seed points are TOP-LEFT
- * (same convention as the returned map).
+ * coincident starts deterministically), so only the newcomers move.
+ * The live-lens membership churns node by node; a survivor that drifts
+ * even a little while a neighbour joins reads as flicker, so "minimal
+ * drift" is not enough, it has to be zero. For the same reason the
+ * incremental run drops `forceCenter` / `forceX` / `forceY`: those
+ * translate or pull the WHOLE cloud, which with pinned survivors would
+ * only shear the newcomers against a frame that never moves. The pinned
+ * cloud is its own anchor. Seed points are TOP-LEFT (same convention as
+ * the returned map).
  */
 export function computeForceLayoutPositions(
   allNodes: INodeView[],
@@ -361,7 +365,10 @@ export function computeForceLayoutPositions(
   const simNodes: ISimNode[] = allNodes.map((n) => {
     const prev = seed?.get(n.path);
     if (prev === undefined) return { id: n.path };
-    return { id: n.path, x: prev.x + NODE_WIDTH / 2, y: prev.y + NODE_HEIGHT / 2 };
+    const x = prev.x + NODE_WIDTH / 2;
+    const y = prev.y + NODE_HEIGHT / 2;
+    // Pinned, not merely pre-positioned: a survivor must not move at all.
+    return { id: n.path, x, y, fx: x, fy: y };
   });
   const simLinks: ISimLink[] = edges.map((e) => ({ source: e.from, target: e.to }));
 
@@ -395,15 +402,21 @@ export function computeForceLayoutPositions(
       forceLink<ISimNode, ISimLink>(simLinks).id((d) => d.id).distance(90).strength(1),
     )
     .force('charge', forceManyBody<ISimNode>().strength(-200))
-    .force('center', forceCenter(0, 0))
-    .force('x', forceX<ISimNode>(0).strength(0.06))
-    .force('y', forceY<ISimNode>(0).strength(0.06))
     .force('collide', forceCollide<ISimNode>(NODE_WIDTH / 2 + 12))
     .stop();
 
-  // Seeded runs start mid-cooling: less energy means survivors keep
-  // their neighbourhood while the newcomers get pushed into free space,
-  // and the settled cloud needs far fewer ticks to re-settle.
+  // Whole-cloud framing forces belong to the cold-start run only: with
+  // pinned survivors they cannot move the frame, they would only drag
+  // the newcomers towards an origin the rest of the cloud ignores.
+  if (!anySeeded) {
+    sim
+      .force('center', forceCenter(0, 0))
+      .force('x', forceX<ISimNode>(0).strength(0.06))
+      .force('y', forceY<ISimNode>(0).strength(0.06));
+  }
+
+  // Seeded runs start mid-cooling: only the newcomers are free, and
+  // they settle against a frozen cloud in far fewer ticks.
   if (anySeeded) sim.alpha(0.35);
   const TICKS = anySeeded ? 120 : 400;
   for (let i = 0; i < TICKS; i++) sim.tick();
