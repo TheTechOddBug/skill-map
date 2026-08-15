@@ -6,6 +6,14 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>1.10.1</b> · 2026-08-15</summary>
+
+### CLI Patch
+- The Live lens incremental layout now pins the nodes it has already placed (d3-force `fx`/`fy`) instead of re-simulating them, and keeps the whole-cloud centring forces for the cold-start run only. A node joining the live set used to nudge every other node, which read as flicker; survivors now hold their exact position and only the newcomers settle.
+
+</details>
+
+<details>
 <summary><b>1.10.0</b> · 2026-08-14</summary>
 
 ### CLI Minor

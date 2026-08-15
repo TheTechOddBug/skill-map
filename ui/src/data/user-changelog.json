@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.10.1",
+      "date": "2026-08-15",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The Live lens map no longer jitters: when a new file starts executing, the nodes already on screen stay exactly where they were instead of drifting around it.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.10.0",
       "date": "2026-08-14",
       "kind": "user-facing",
