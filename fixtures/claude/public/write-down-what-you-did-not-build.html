@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Write down what you did not build</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Write down what you did not build</h1>
+
+  <p>Every nontrivial decision has a shadow: the approach you looked at and set aside. That shadow does not disappear when you ship the thing you chose instead. It waits, and it comes back the moment someone new looks at the code and wonders why it is not simpler, faster, or more obviously correct. If you did not write down why you rejected the alternative, you get to have the same argument again, usually with less context than you had the first time.</p>
+
+  <h2>Why the rejected option keeps coming back</h2>
+  <p>The alternative you did not build is usually the more obvious one. That is often exactly why it was tempting and exactly why someone will propose it again: a cache instead of a queue, a synchronous call instead of an event, a single table instead of two. Obvious ideas are attractive precisely because they are easy to explain, which means they are also easy to re-propose without anyone realizing it was already tried, or already reasoned about and dropped. Without a record, the team pays the analysis cost twice, and sometimes ships the rejected version the second time because nobody remembers why it lost.</p>
+
+  <h2>Where the note belongs</h2>
+  <p>Match the note to how long the decision needs to survive and how many people need to find it. A comment next to the code is right when the reasoning is local: why this function does not memoize, why this loop is not batched. An ADR or a short decision doc is right when the choice shapes more than one file and future contributors will need to find it without already knowing where to look. A README is right for decisions a newcomer hits in their first hour: why there is no ORM, why the build is not containerized yet. Pick the smallest container that a future reader will actually encounter at the moment they need it, and skip the ceremony of a formal process for a choice nobody will revisit.</p>
+
+  <h2>What a good note contains</h2>
+  <p>A rejected-option note earns its keep only if it answers three questions, not one. First, name the option plainly, in terms a future reader recognizes, not a vague "we considered other approaches." Second, state the actual reason it lost: too slow at the scale you measured, too much operational surface for the team you have, or it solved a problem you do not have yet. Third, and most often skipped, say what would change the answer: a specific load threshold, a headcount, a dependency becoming stable. That third part is what turns the note from a historical footnote into a live decision boundary someone can check against reality later, instead of re-litigating from scratch.</p>
+
+  <h2>When not to bother</h2>
+  <p>Not every discarded idea deserves a paragraph. If the alternative is not obvious, not tempting, and nobody sane would propose it again, skip the note; you are just adding noise for a fight that will not happen. The judgment call is whether a competent teammate, seeing the code cold, would plausibly ask "why not just do X instead." If yes, write it down before you forget the answer, because you will forget, and the next person to ask will not have the benefit of having just lived through the decision.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

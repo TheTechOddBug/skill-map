@@ -229,6 +229,7 @@ describe('core/observed-link-missing analyzer', () => {
       undefined, // signals
       undefined, // nameMismatches
       observedMap([observed({})]),
+      undefined, // observedExecutions
     );
     assert.deepEqual(result.issues, []);
   });

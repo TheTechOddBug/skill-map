@@ -28,7 +28,7 @@ import {
   type IHookDispatcher,
 } from '../extensions/hook-dispatcher.js';
 import type { IAnalyzer, INameClaim, INameMismatch } from '../extensions/index.js';
-import type { IObservedRelation } from '../session-journal/index.js';
+import type { IObservedExecution, IObservedRelation } from '../session-journal/index.js';
 import { loadSchemaValidators } from '../adapters/schema-validators.js';
 import type {
   IContributionErrorRecord,
@@ -87,6 +87,7 @@ export async function runAnalyzers(
   signals: readonly Signal[] | undefined,
   nameMismatches: readonly INameMismatch[] | undefined,
   observedRelations: ReadonlyMap<string, IObservedRelation> | undefined,
+  observedExecutions: ReadonlyMap<string, IObservedExecution> | undefined,
   // Pre-analyzer issues (e.g. orchestrator-side
   // `frontmatter-parse-error` / `frontmatter-invalid`) seeded into the
   // accumulator so the aggregate phase (`core/issue-counter`) counts
@@ -266,6 +267,7 @@ export async function runAnalyzers(
       ...(nameCollisions && nameCollisions.size > 0 ? { nameCollisions } : {}),
       ...(nameMismatches && nameMismatches.length > 0 ? { nameMismatches } : {}),
       ...(observedRelations && observedRelations.size > 0 ? { observedRelations } : {}),
+      ...(observedExecutions && observedExecutions.size > 0 ? { observedExecutions } : {}),
       ...(signals && signals.length > 0 ? { signals } : {}),
       ...(adjustConfidence ? { adjustConfidence } : {}),
       emitContribution,

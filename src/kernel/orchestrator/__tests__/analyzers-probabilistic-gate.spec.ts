@@ -53,6 +53,7 @@ async function runWith(analyzers: IAnalyzer[]): ReturnType<typeof runAnalyzers> 
     undefined, // signals
     undefined, // nameMismatches
     undefined, // observedRelations
+    undefined, // observedExecutions
   );
 }
 

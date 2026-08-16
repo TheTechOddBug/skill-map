@@ -12,7 +12,7 @@
 import type { IExtensionBase } from './base.js';
 import type { IExtensionPrecondition } from './extractor.js';
 import type { TIdentifierSource } from './provider.js';
-import type { IObservedRelation } from '../session-journal/index.js';
+import type { IObservedExecution, IObservedRelation } from '../session-journal/index.js';
 import type { Issue, Link, Node, Signal, TConfidenceOp, TExecutionMode } from '../types.js';
 import type { IExtensionLogger } from '../util/extension-logger.js';
 import type { IRegisteredAnnotationKey } from '../types/annotation-catalog.js';
@@ -206,7 +206,7 @@ export interface IAnalyzerContext {
    * Observed runtime relations folded from the session journal
    * (`spec/provider-activity.md` §Session journal), keyed
    * `source\x00target`. Computed by the DRIVING adapter before the scan
-   * (`readSessionJournal` + `foldObservedRelations` from
+   * (`readSessionJournal` + `foldObservedActivity` from
    * `kernel/session-journal`) and threaded through
    * `RunScanOptions.observedRelations`, the same precompute-and-project
    * pattern as `referenceablePaths`. The single consumer today is
@@ -216,6 +216,16 @@ export interface IAnalyzerContext {
    * Treat as read-only.
    */
   observedRelations?: ReadonlyMap<string, IObservedRelation>;
+  /**
+   * Observed per-node EXECUTION counts from the same journal fold
+   * (`foldObservedActivity(...).executions`), keyed by node path: how
+   * many times each node ran as a unit across recorded sessions
+   * (custody heartbeats excluded). Single consumer today:
+   * `core/declared-link-unobserved`, whose volume gate needs "did the
+   * source actually run enough for its silence to mean something".
+   * Absent when the journal is empty. Treat as read-only.
+   */
+  observedExecutions?: ReadonlyMap<string, IObservedExecution>;
   /**
    * Absolute path of the scan's project root (cwd of the invocation).
    * Threaded into the analyzer pass so an analyzer that needs to

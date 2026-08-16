@@ -42,13 +42,17 @@ import {
 const SEVERITY_ORDER: readonly TIssueSeverityApi[] = ['error', 'warn', 'info'];
 
 /**
- * Analyzer whose rows group under the "Observed in sessions" sub-header
- * (spec/provider-activity.md, Session journal): design-vs-reality
- * observations, rendered apart from the design-defect issues so they
- * read as reality commenting on the authored design. Issues carry the
- * SHORT analyzer id (the persisted `scan_issues` form).
+ * Analyzers whose rows group under the "Observed in sessions" sub-header
+ * (spec/provider-activity.md, Session journal): the two directions of
+ * the design-vs-reality diff (emergent use + dead design), rendered
+ * apart from the design-defect issues so they read as reality
+ * commenting on the authored design. Issues carry the SHORT analyzer
+ * id (the persisted `scan_issues` form).
  */
-const OBSERVED_SESSIONS_ANALYZER_ID = 'observed-link-missing';
+const OBSERVED_SESSIONS_ANALYZER_IDS: ReadonlySet<string> = new Set([
+  'observed-link-missing',
+  'declared-link-unobserved',
+]);
 
 /** Chip glyph per severity tier (matches the map's severity palette). */
 const SEVERITY_CHIP_ICONS: Record<TIssueSeverityApi, string> = {
@@ -255,17 +259,17 @@ export class InspectorFindingsSection {
 
   /** Deterministic rows MINUS the observed-in-sessions group below. */
   protected readonly visibleDesignIssues = computed<IIssueApi[]>(() =>
-    this.visibleIssues().filter((issue) => issue.analyzerId !== OBSERVED_SESSIONS_ANALYZER_ID),
+    this.visibleIssues().filter((issue) => !OBSERVED_SESSIONS_ANALYZER_IDS.has(issue.analyzerId)),
   );
 
   /**
-   * `core/observed-link-missing` rows, rendered under their own
+   * Design-vs-reality rows (both directions), rendered under their own
    * "Observed in sessions" sub-header after the design issues. Same row
    * anatomy and affordances (severity chip narrowing, per-row dismiss
    * via the standard issue-suppression path); only the grouping differs.
    */
   protected readonly visibleObservedIssues = computed<IIssueApi[]>(() =>
-    this.visibleIssues().filter((issue) => issue.analyzerId === OBSERVED_SESSIONS_ANALYZER_ID),
+    this.visibleIssues().filter((issue) => OBSERVED_SESSIONS_ANALYZER_IDS.has(issue.analyzerId)),
   );
 
   /**

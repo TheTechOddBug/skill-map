@@ -91,6 +91,7 @@ async function runWith(
     undefined, // signals
     undefined, // nameMismatches
     undefined, // observedRelations
+    undefined, // observedExecutions
   );
 }
 

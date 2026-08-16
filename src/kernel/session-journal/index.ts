@@ -9,10 +9,12 @@
  * home), so a corrupt or future-shaped file must never take a scan down,
  * the same posture the client recorder's hydrate takes.
  *
- * `foldObservedRelations(recordings)` collapses the recordings into the
+ * `foldObservedActivity(recordings)` collapses the recordings into the
  * observed `(source, target)` pairs the `core/observed-link-missing`
- * analyzer compares against the declared link graph. Two relation shapes
- * are folded (v1 scope, reads deliberately deferred as noisy):
+ * analyzer compares against the declared link graph, plus the per-node
+ * execution counts that gate `core/declared-link-unobserved` (the
+ * dead-design detector). Two relation shapes are folded (v1 scope, reads
+ * deliberately deferred as noisy):
  *
  *   - `invokes`: a `node.activity` start with `access: 'mcp'` (an MCP tool
  *     call landing on an `mcp://` node), attributed to its CALLING unit by
@@ -58,6 +60,25 @@ export interface SessionRecording {
   startedAt: number;
   endedAt?: number;
   frames: SessionRecordingFrame[];
+}
+
+/**
+ * Per-node observed EXECUTIONS folded from the journal (spec §Session
+ * journal · Consumption): how many times a node ran as a UNIT across the
+ * recordings. A unit run is a `start` frame naming the node with NO
+ * resource access (`keepAlive` custody heartbeats do not count; a sticky
+ * agent span counts once per claim, i.e. once per spawn). This is the
+ * dead-design detector's VOLUME gate: absence of an observed pair means
+ * nothing until the would-be source demonstrably executed.
+ */
+export interface IObservedExecution {
+  /** Scan-relative path of the node observed running. */
+  path: string;
+  count: number;
+  /** Distinct recordings the node ran in. */
+  sessions: number;
+  /** Unix-ms of the latest run. */
+  lastSeenAt: number;
 }
 
 /**
@@ -129,6 +150,11 @@ interface IFoldEntry extends IObservedRelation {
   sessionKeys: Set<string>;
 }
 
+/** Execution accumulator entry: the public shape plus its session set. */
+interface IExecutionEntry extends IObservedExecution {
+  sessionKeys: Set<string>;
+}
+
 /** Per-recording fold state (owner claims + spawn dedupe reset per session). */
 interface IRecordingFoldState {
   sessionKey: string;
@@ -136,16 +162,27 @@ interface IRecordingFoldState {
   countedSpawnIds: Set<string>;
 }
 
+/** The one journal fold's full product (spec §Session journal · Consumption). */
+export interface IObservedActivity {
+  /** `(source, target)` pairs keyed `source\x00target`. */
+  relations: ReadonlyMap<string, IObservedRelation>;
+  /** Per-node unit-run counts keyed by node path. */
+  executions: ReadonlyMap<string, IObservedExecution>;
+}
+
 /**
- * Fold recordings into observed relations, keyed `source\x00target`. A
- * pair observed under both relations (not producible today: `invokes`
- * targets `mcp://` nodes, `spawns` targets agent files) keeps its
- * first-seen relation and keeps accumulating counts.
+ * Fold recordings into the observed activity: relations keyed
+ * `source\x00target` (a pair observed under both relations, not
+ * producible today since `invokes` targets `mcp://` nodes and `spawns`
+ * targets agent files, keeps its first-seen relation and keeps
+ * accumulating counts) plus per-node execution counts (the dead-design
+ * volume gate), both out of ONE walk over the frames.
  */
-export function foldObservedRelations(
+export function foldObservedActivity(
   recordings: readonly SessionRecording[],
-): ReadonlyMap<string, IObservedRelation> {
+): IObservedActivity {
   const relations = new Map<string, IFoldEntry>();
+  const executions = new Map<string, IExecutionEntry>();
   for (const recording of recordings) {
     const state: IRecordingFoldState = {
       // Distinct-session identity: rootOwner alone repeats across boots
@@ -156,15 +193,20 @@ export function foldObservedRelations(
     };
     for (const frame of recording.frames) {
       if (frame.type === 'agent.spawn') foldSpawnFrame(relations, state, frame);
-      else foldActivityFrame(relations, state, frame);
+      else foldActivityFrame(relations, executions, state, frame);
     }
   }
-  const out = new Map<string, IObservedRelation>();
+  const relationsOut = new Map<string, IObservedRelation>();
   for (const [key, entry] of relations) {
     const { sessionKeys, ...relation } = entry;
-    out.set(key, { ...relation, sessions: sessionKeys.size });
+    relationsOut.set(key, { ...relation, sessions: sessionKeys.size });
   }
-  return out;
+  const executionsOut = new Map<string, IObservedExecution>();
+  for (const [key, entry] of executions) {
+    const { sessionKeys, ...execution } = entry;
+    executionsOut.set(key, { ...execution, sessions: sessionKeys.size });
+  }
+  return { relations: relationsOut, executions: executionsOut };
 }
 
 /** One `agent.spawn` frame: count once per `spawnId`, both paths required. */
@@ -187,11 +229,13 @@ function foldSpawnFrame(
 /**
  * One `node.activity` frame: an MCP start correlates to the owner's
  * current unit; a unit's own start (sticky / keepAlive included,
- * mirroring the client fold's claim map) becomes that current unit;
+ * mirroring the client fold's claim map) becomes that current unit AND
+ * counts as an execution (except `keepAlive`, custody is not a run);
  * reads stay ignored (deferred as noisy).
  */
 function foldActivityFrame(
   relations: Map<string, IFoldEntry>,
+  executions: Map<string, IExecutionEntry>,
   state: IRecordingFoldState,
   frame: SessionRecordingFrame,
 ): void {
@@ -205,7 +249,27 @@ function foldActivityFrame(
     return;
   }
   if (data['access'] !== undefined) return; // reads: deferred (noisy)
-  if (!nodePath.startsWith(MCP_NODE_PREFIX)) state.lastUnitByOwner.set(owner, nodePath);
+  if (nodePath.startsWith(MCP_NODE_PREFIX)) return;
+  state.lastUnitByOwner.set(owner, nodePath);
+  if (data['keepAlive'] === true) return;
+  recordExecution(executions, state.sessionKey, nodePath, frame.tMs);
+}
+
+/** Accumulate one unit run onto the node's execution entry. */
+function recordExecution(
+  executions: Map<string, IExecutionEntry>,
+  sessionKey: string,
+  path: string,
+  tMs: number,
+): void {
+  let entry = executions.get(path);
+  if (entry === undefined) {
+    entry = { path, count: 0, sessions: 0, lastSeenAt: tMs, sessionKeys: new Set() };
+    executions.set(path, entry);
+  }
+  entry.count += 1;
+  entry.sessionKeys.add(sessionKey);
+  if (tMs > entry.lastSeenAt) entry.lastSeenAt = tMs;
 }
 
 /** The owner's current unit (when known) invoked the MCP node. */

@@ -38,9 +38,9 @@ import type { IPrinter } from './printer.js';
 import { SCAN_RUNNER_TEXTS } from './i18n/scan-runner.texts.js';
 import { defaultProjectSessionsDir, resolveDbPath } from '../paths/db-path.js';
 import {
-  foldObservedRelations,
+  foldObservedActivity,
   readSessionJournal,
-  type IObservedRelation,
+  type IObservedActivity,
 } from '../../kernel/session-journal/index.js';
 import { ensureScopeGitignore } from '../scope-gitignore.js';
 import { resolveScanRoots } from './scan-roots.js';
@@ -317,9 +317,9 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<TScanRunRes
 
   // Session-journal fold (spec/provider-activity.md §Session journal):
   // read `.skill-map/sessions/*.json` (AJV-validated, off-shape skipped)
-  // and fold the observed relations `core/observed-link-missing`
-  // projects. Absent directory = empty map = the option stays unset.
-  const observedRelations = foldObservedRelations(
+  // and fold the observed relations + executions the design-vs-reality
+  // analyzers project. Absent directory = empty maps = options stay unset.
+  const observedActivity = foldObservedActivity(
     readSessionJournal(defaultProjectSessionsDir(ctx.cwd)),
   );
 
@@ -341,7 +341,7 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<TScanRunRes
     strict,
     extensions,
     referenceablePaths,
-    observedRelations,
+    observedActivity,
     ctx.cwd,
     activeProvider,
     cfg.scan.maxScan,
@@ -653,7 +653,7 @@ function makeScanRunner(
   strict: boolean,
   extensions: ReturnType<typeof composeScanExtensions>,
   referenceablePaths: ReadonlySet<string> | undefined,
-  observedRelations: ReadonlyMap<string, IObservedRelation>,
+  observedActivity: IObservedActivity,
   scanCwd: string,
   activeProvider: string | null,
   scanCeiling: number,
@@ -673,7 +673,7 @@ function makeScanRunner(
       strict,
       extensions,
       referenceablePaths,
-      observedRelations,
+      observedActivity,
       cwd: scanCwd,
       prior,
       activeProvider,
@@ -696,8 +696,8 @@ interface IBuildRunScanOptionsArgs {
   strict: boolean;
   extensions: ReturnType<typeof composeScanExtensions>;
   referenceablePaths: ReadonlySet<string> | undefined;
-  /** Session-journal fold (empty map when the journal holds nothing). */
-  observedRelations: ReadonlyMap<string, IObservedRelation>;
+  /** Session-journal fold (empty maps when the journal holds nothing). */
+  observedActivity: IObservedActivity;
   cwd: string;
   prior: ScanResult | null;
   activeProvider: string | null;
@@ -777,8 +777,11 @@ function applyScopeRunScanOptions(
   if (args.referenceablePaths?.size) {
     runOptions.referenceablePaths = args.referenceablePaths;
   }
-  if (args.observedRelations.size > 0) {
-    runOptions.observedRelations = args.observedRelations;
+  if (args.observedActivity.relations.size > 0) {
+    runOptions.observedRelations = args.observedActivity.relations;
+  }
+  if (args.observedActivity.executions.size > 0) {
+    runOptions.observedExecutions = args.observedActivity.executions;
   }
   if (args.pluginStores?.size) runOptions.pluginStores = args.pluginStores;
 }

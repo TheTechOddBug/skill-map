@@ -410,7 +410,8 @@ export const INSPECTOR_VIEW_TEXTS = {
   /** Findings list, fix hint label rendered before the per-issue summary. */
   findingHintLabel: 'Hint:',
   /**
-   * Sub-header grouping the `observed-link-missing` rows apart from the
+   * Sub-header grouping the design-vs-reality rows (`observed-link-missing`
+   * + `declared-link-unobserved`) apart from the
    * other deterministic issues (spec/provider-activity.md, Session
    * journal): these rows are reality commenting on the authored design
    * (something observed executing in recorded sessions that no declared

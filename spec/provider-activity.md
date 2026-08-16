@@ -990,16 +990,35 @@ WHICH nodes executed and who spawned whom, no latency, no tokens, no content.
   frames into **observed relations**, `(source node, target node)` pairs with
   `relation: invokes` (an MCP tool call correlated to its calling unit by
   owner) or `relation: spawns` (a spawn frame carrying both resolved paths),
-  and threads them to analyzers as `IAnalyzerContext.observedRelations`
-  (absent when the journal is empty). The deterministic
-  `core/observed-link-missing` analyzer emits one `info` issue per observed
-  pair whose source and target both exist in the scanned set and that no
-  declared `invokes` / `references` link covers (matching on the link's
-  resolved target, falling back to the raw target; `mentions` / `points` do
-  not count as declarations of execution). The operator fixes by editing the
-  markdown (declaring the link makes the issue disappear on the next scan) or
-  dismisses it durably via the standard issue-suppression sidecar affordance;
-  there is deliberately NO auto-fixer.
+  plus **observed executions**, per-node unit-run counts (a `start` frame
+  naming a node with NO resource access; `keepAlive` custody heartbeats do
+  not count, a sticky agent span counts once per claim), and threads both to
+  analyzers as `IAnalyzerContext.observedRelations` /
+  `IAnalyzerContext.observedExecutions` (absent when the journal is empty).
+  Two deterministic analyzers consume them, one per direction of the
+  design-vs-reality diff:
+  - `core/observed-link-missing` (reality the design lacks) emits one `info`
+    issue per observed pair whose source and target both exist in the
+    scanned set and that no declared `invokes` / `references` link covers
+    (matching on the link's resolved target, falling back to the raw target;
+    `mentions` / `points` do not count as declarations of execution).
+  - `core/declared-link-unobserved` (design reality never confirms, the
+    dead-design detector) emits one `info` issue per declared `invokes` /
+    `references` link that reality could have confirmed but never did. Three
+    gates keep it honest: the link must be OBSERVABLE, its resolved target
+    an `mcp://` node or an `agent`-kind node, the two evidence classes the
+    fold records (a link whose only honest firing would be a read cannot be
+    judged while reads stay unfolded); the source must have executed at
+    least 3 times across recorded sessions (the VOLUME gate: absence of
+    evidence means nothing until the source demonstrably ran); and the
+    (source, resolved target) pair must appear in no recorded session. Both
+    endpoints must exist in the scanned set, and self-links are skipped.
+  The operator fixes by editing the markdown (declaring the missing link, or
+  removing / reworking the never-confirmed one, makes the issue disappear on
+  the next scan) or dismisses durably via the standard issue-suppression
+  sidecar affordance (both analyzers stamp `data.target` with the resolved
+  target as the suppression value); there is deliberately NO auto-fixer for
+  either direction.
 
 ## Transport shapes
 

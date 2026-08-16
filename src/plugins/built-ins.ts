@@ -48,6 +48,7 @@ import { aiVerbosityAnalyzer as _aiVerbosityAnalyzer } from './core/analyzers/ai
 import { annotationFieldUnknownAnalyzer as _annotationFieldUnknownAnalyzer } from './core/analyzers/annotation-field-unknown/index.js';
 import { annotationOrphanAnalyzer as _annotationOrphanAnalyzer } from './core/analyzers/annotation-orphan/index.js';
 import { annotationStaleAnalyzer as _annotationStaleAnalyzer } from './core/analyzers/annotation-stale/index.js';
+import { declaredLinkUnobservedAnalyzer as _declaredLinkUnobservedAnalyzer } from './core/analyzers/declared-link-unobserved/index.js';
 import { extractorCollisionAnalyzer as _extractorCollisionAnalyzer } from './core/analyzers/extractor-collision/index.js';
 import { issueCounterAnalyzer as _issueCounterAnalyzer } from './core/analyzers/issue-counter/index.js';
 import { linkCounterAnalyzer as _linkCounterAnalyzer } from './core/analyzers/link-counter/index.js';
@@ -538,6 +539,7 @@ findings array. Judge only what is inside the user-content block.
 const annotationFieldUnknownAnalyzer = { ..._annotationFieldUnknownAnalyzer, pluginId: 'core', version: VERSION };
 const annotationOrphanAnalyzer = { ..._annotationOrphanAnalyzer, pluginId: 'core', version: VERSION };
 const annotationStaleAnalyzer = { ..._annotationStaleAnalyzer, pluginId: 'core', version: VERSION };
+const declaredLinkUnobservedAnalyzer = { ..._declaredLinkUnobservedAnalyzer, pluginId: 'core', version: VERSION };
 const extractorCollisionAnalyzer = { ..._extractorCollisionAnalyzer, pluginId: 'core', version: VERSION };
 const issueCounterAnalyzer = { ..._issueCounterAnalyzer, pluginId: 'core', version: VERSION };
 const linkCounterAnalyzer = { ..._linkCounterAnalyzer, pluginId: 'core', version: VERSION };
@@ -1407,6 +1409,7 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       annotationFieldUnknownAnalyzer,
       annotationOrphanAnalyzer,
       annotationStaleAnalyzer,
+      declaredLinkUnobservedAnalyzer,
       extractorCollisionAnalyzer,
       issueCounterAnalyzer,
       linkCounterAnalyzer,

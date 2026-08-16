@@ -4,7 +4,7 @@ description: |
   Writes and edits the portfolio's pages. Reads a brief, follows the
   style guide, and emits the HTML into public/.
   Use when asked to create, rewrite, or update a page of the portfolio site.
-tools: [Read, Write]
+tools: [Read, Write, mcp__notion__notion-create-pages]
 model: sonnet
 ---
 

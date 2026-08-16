@@ -3,7 +3,7 @@ name: notion-writer
 description: Deprecated. Mirrors a single page into Notion by following the notion-publish skill. Superseded by /publish, which mirrors every page to Notion on release; kept only so existing references keep resolving.
 model: inherit
 color: purple
-tools: [Skill]
+tools: [Skill, mcp__notion__notion-create-pages]
 ---
 
 # notion-writer (deprecated)

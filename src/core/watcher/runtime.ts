@@ -89,7 +89,7 @@ import {
   defaultSettingsPath,
 } from '../paths/db-path.js';
 import {
-  foldObservedRelations,
+  foldObservedActivity,
   readSessionJournal,
 } from '../../kernel/session-journal/index.js';
 import { buildFreshResolver } from '../runtime/fresh-resolver.js';
@@ -414,10 +414,9 @@ interface IWatcherPriorState {
  * the per-batch closure stays under the complexity cap.
  */
 function applyObservedRelations(runOptions: IWatcherRunOptions, cwd: string): void {
-  const observedRelations = foldObservedRelations(
-    readSessionJournal(defaultProjectSessionsDir(cwd)),
-  );
-  if (observedRelations.size > 0) runOptions.observedRelations = observedRelations;
+  const observed = foldObservedActivity(readSessionJournal(defaultProjectSessionsDir(cwd)));
+  if (observed.relations.size > 0) runOptions.observedRelations = observed.relations;
+  if (observed.executions.size > 0) runOptions.observedExecutions = observed.executions;
 }
 
 /**

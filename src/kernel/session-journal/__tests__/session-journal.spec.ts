@@ -16,10 +16,17 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  foldObservedRelations,
+  foldObservedActivity,
   readSessionJournal,
   type SessionRecording,
 } from '../index.js';
+
+/** Relations half of the fold (most cases pin only this side). */
+function foldRelations(
+  recordings: SessionRecording[],
+): ReturnType<typeof foldObservedActivity>['relations'] {
+  return foldObservedActivity(recordings).relations;
+}
 
 const roots: string[] = [];
 
@@ -77,7 +84,7 @@ describe('readSessionJournal', () => {
   });
 });
 
-describe('foldObservedRelations', () => {
+describe('foldObservedActivity relations', () => {
   it('correlates an MCP invocation to the calling unit by owner', () => {
     const rec = recording({
       frames: [
@@ -99,7 +106,7 @@ describe('foldObservedRelations', () => {
         },
       ],
     });
-    const folded = foldObservedRelations([rec]);
+    const folded = foldRelations([rec]);
     assert.equal(folded.size, 1);
     const entry = [...folded.values()][0]!;
     assert.equal(entry.source, SKILL);
@@ -120,7 +127,7 @@ describe('foldObservedRelations', () => {
         },
       ],
     });
-    assert.equal(foldObservedRelations([rec]).size, 0);
+    assert.equal(foldRelations([rec]).size, 0);
   });
 
   it('ignores read-access frames entirely (reads relation deferred)', () => {
@@ -138,7 +145,7 @@ describe('foldObservedRelations', () => {
         },
       ],
     });
-    assert.equal(foldObservedRelations([rec]).size, 0);
+    assert.equal(foldRelations([rec]).size, 0);
   });
 
   it('counts a spawn ONCE per spawnId (start / handoff / end trio merges)', () => {
@@ -155,7 +162,7 @@ describe('foldObservedRelations', () => {
         { tMs: 3, type: 'agent.spawn', data: { ...spawnData, phase: 'end' } },
       ],
     });
-    const folded = foldObservedRelations([rec]);
+    const folded = foldRelations([rec]);
     assert.equal(folded.size, 1);
     const entry = [...folded.values()][0]!;
     assert.equal(entry.relation, 'spawns');
@@ -173,7 +180,7 @@ describe('foldObservedRelations', () => {
         },
       ],
     });
-    assert.equal(foldObservedRelations([rec]).size, 0);
+    assert.equal(foldRelations([rec]).size, 0);
   });
 
   it('counts DISTINCT sessions per pair and totals observations across recordings', () => {
@@ -196,9 +203,65 @@ describe('foldObservedRelations', () => {
     ];
     const recA = recording({ rootOwner: 'main:a', startedAt: 100, frames });
     const recB = recording({ rootOwner: 'main:b', startedAt: 200, frames });
-    const folded = foldObservedRelations([recA, recB]);
+    const folded = foldRelations([recA, recB]);
     const entry = [...folded.values()][0]!;
     assert.equal(entry.count, 4);
+    assert.equal(entry.sessions, 2);
+  });
+});
+
+describe('foldObservedActivity executions', () => {
+  it('counts unit runs per node; custody heartbeats and resource accesses do not count', () => {
+    const rec = recording({
+      frames: [
+        { tMs: 1, type: 'node.activity', data: { nodePath: SKILL, phase: 'start', owner: 'o1' } },
+        // Custody heartbeat: keeps the claim alive, is NOT a new run.
+        {
+          tMs: 2,
+          type: 'node.activity',
+          data: { nodePath: SKILL, phase: 'start', owner: 'o1', keepAlive: true },
+        },
+        // Sticky agent span: counts once per claim (once per spawn).
+        {
+          tMs: 3,
+          type: 'node.activity',
+          data: { nodePath: AGENT, phase: 'start', owner: 'a1', sticky: true },
+        },
+        // Resource accesses are not the node's own run.
+        {
+          tMs: 4,
+          type: 'node.activity',
+          data: { nodePath: 'README.md', phase: 'start', owner: 'o1', access: 'read' },
+        },
+        {
+          tMs: 5,
+          type: 'node.activity',
+          data: { nodePath: MCP, phase: 'start', owner: 'o1', access: 'mcp' },
+        },
+        // A second real run of the same unit.
+        { tMs: 6, type: 'node.activity', data: { nodePath: SKILL, phase: 'start', owner: 'o1' } },
+      ],
+    });
+    const { executions } = foldObservedActivity([rec]);
+    assert.equal(executions.size, 2);
+    const skill = executions.get(SKILL)!;
+    assert.equal(skill.count, 2);
+    assert.equal(skill.sessions, 1);
+    assert.equal(skill.lastSeenAt, 6);
+    assert.equal(executions.get(AGENT)!.count, 1);
+    assert.equal(executions.has('README.md'), false);
+    assert.equal(executions.has(MCP), false);
+  });
+
+  it('counts DISTINCT sessions per node across recordings', () => {
+    const frames: SessionRecording['frames'] = [
+      { tMs: 1, type: 'node.activity', data: { nodePath: SKILL, phase: 'start', owner: 'o1' } },
+    ];
+    const recA = recording({ rootOwner: 'main:a', startedAt: 100, frames });
+    const recB = recording({ rootOwner: 'main:b', startedAt: 200, frames });
+    const { executions } = foldObservedActivity([recA, recB]);
+    const entry = executions.get(SKILL)!;
+    assert.equal(entry.count, 2);
     assert.equal(entry.sessions, 2);
   });
 });
