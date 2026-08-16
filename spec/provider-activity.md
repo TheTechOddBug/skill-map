@@ -928,7 +928,18 @@ WHICH nodes executed and who spawned whom, no latency, no tokens, no content.
   fires on session release (a `sessionScope` end naming the session, or a
   terminal `ownerScope` end of the session's root owner) and on server
   shutdown for every still-open session. A `turnEnd` does NOT finalize: a
-  session spans many turns.
+  session spans many turns. Finalization is REOPENABLE within one recording
+  window: several providers' release forms mean "everything is idle NOW",
+  not "the conversation is over" (codex's per-turn main `Stop`, Antigravity's
+  fully-idle `Stop`, opencode's `session.idle`; only Claude's `SessionEnd`
+  is a true terminal), so a frame attributed to an already-finalized root
+  REOPENS that session onto its same file: same name, frames keep
+  appending, `endedAt` re-stamped at the next finalization (each
+  finalization is a real write and logs its own operations line). Without
+  reopen, every multi-turn conversation on those providers fragments into
+  one file per turn. The reopen memory is bounded by the retention file
+  count and dies with the recording window: stopping the recording,
+  shutdown, and deletion all clear it.
 - **Naming**: `<startedAt ISO-8601, colons stripped>-<suffix>.json`, where
   the suffix is the runtime session id when derivable (sanitized to
   `[A-Za-z0-9._-]`) and an 8-char hash of the root owner otherwise. Sortable

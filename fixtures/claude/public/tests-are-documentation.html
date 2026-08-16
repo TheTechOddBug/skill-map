@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Tests are documentation that runs</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Tests are documentation that runs</h1>
+
+  <p>A comment can lie. A README can describe a system that no longer exists. A test suite cannot drift the same way, because the moment it stops matching the code, it fails. That single property makes it the only documentation you can trust without also checking the date it was last edited.</p>
+
+  <h2>Prose goes stale silently</h2>
+  <p>Nothing forces a comment or a design doc to stay accurate. The code changes, the writer moves on, and the words sit there looking authoritative while being wrong. Nobody gets an error message when a README falls out of sync. You just find out later, usually while debugging something the doc told you was impossible.</p>
+
+  <h2>A test either runs or it tells on itself</h2>
+  <p>A test makes a claim and then checks it, every time you run the suite. If the claim stops being true, the test goes red. That feedback loop is the whole advantage: staleness turns into a failure you cannot ignore, instead of a wrong sentence you never notice.</p>
+
+  <h2>Naming and structure matter more than usual</h2>
+  <p>If a test suite is meant to be read, not just executed, it has to be written for a reader. Name the test after the behavior it guarantees, not the function it happens to call. Group tests by scenario, not by implementation detail. A suite full of `test1`, `test2`, and mocked-everything setup documents nothing, even though it still passes.</p>
+
+  <h2>Where the analogy breaks down</h2>
+  <p>Tests document what the code does, not why it does it, and they say nothing about the paths not covered. A green suite can still leave you guessing at intent, at rejected alternatives, at the tradeoff behind a weird-looking line. Tests are necessary documentation, not sufficient. You still need prose for the decisions that never show up as assertions.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

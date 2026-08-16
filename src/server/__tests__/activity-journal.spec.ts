@@ -379,6 +379,71 @@ describe('ActivityJournalService finalization', () => {
     journal.shutdown();
   });
 
+  it('a finalized session REOPENS onto its same file when its root keeps talking (codex per-turn Stop)', async () => {
+    const root = makeScope();
+    const journal = makeJournal(root);
+    // Turn 1: activity + the per-turn sessionScope release codex emits.
+    journal.recordActivity('codex', {
+      nodePath: 'README.md',
+      phase: 'start',
+      owner: 'main:s1',
+      session: 's1',
+    });
+    journal.recordActivity('codex', { phase: 'end', sessionScope: true, session: 's1' });
+    const afterTurn1 = sessionFiles(root);
+    assert.equal(afterTurn1.length, 1);
+    assert.equal(typeof readSession(root, afterTurn1[0]!)['endedAt'], 'number');
+
+    // Turn 2: the SAME conversation keeps going; without reopen this
+    // would fragment into a second file.
+    journal.recordActivity('codex', {
+      nodePath: 'docs/STYLE.md',
+      phase: 'start',
+      owner: 'main:s1',
+      session: 's1',
+    });
+    journal.flushNow();
+    const reopened = sessionFiles(root);
+    assert.equal(reopened.length, 1);
+    assert.equal(reopened[0], afterTurn1[0]); // same file, stable name
+    const openDoc = readSession(root, reopened[0]!);
+    assert.equal((openDoc['frames'] as unknown[]).length, 3);
+    assert.equal('endedAt' in openDoc, false); // open again until the next release
+
+    // Turn 2's release re-finalizes the same file.
+    journal.recordActivity('codex', { phase: 'end', sessionScope: true, session: 's1' });
+    const closed = readSession(root, sessionFiles(root)[0]!);
+    assert.equal((closed['frames'] as unknown[]).length, 4);
+    assert.equal(typeof closed['endedAt'], 'number');
+    journal.shutdown();
+  });
+
+  it('the reopen memory dies with the recording window: a new gesture starts a new file', async () => {
+    const root = makeScope();
+    const journal = makeJournal(root);
+    journal.recordActivity('codex', {
+      nodePath: 'README.md',
+      phase: 'start',
+      owner: 'main:s1',
+      session: 's1',
+    });
+    journal.recordActivity('codex', { phase: 'end', sessionScope: true, session: 's1' });
+    assert.equal(journal.setRecording(false), false);
+    assert.equal(sessionFiles(root).length, 1);
+
+    // A NEW recording window: the same conversation opens a fresh file.
+    assert.equal(journal.setRecording(true), true);
+    journal.recordActivity('codex', {
+      nodePath: 'README.md',
+      phase: 'start',
+      owner: 'main:s1',
+      session: 's1',
+    });
+    journal.flushNow();
+    assert.equal(sessionFiles(root).length, 2);
+    journal.shutdown();
+  });
+
   it('shutdown flushes and finalizes still-open sessions before the debounce fires', () => {
     const root = makeScope();
     const journal = makeJournal(root, { debounceMs: 60_000 });

@@ -125,6 +125,17 @@ export class ActivityJournalService {
 
   /** Open sessions keyed by root owner, in creation order. */
   private readonly sessions = new Map<string, IJournalSession>();
+  /**
+   * Finalized sessions retained for REOPEN within the recording window
+   * (spec §Session journal · Finalization): most providers' release
+   * forms mean "everything is idle now", not "the conversation is
+   * over" (codex fires one per TURN), so a frame attributed to a
+   * finalized root revives its session onto the same file instead of
+   * fragmenting the conversation into one file per turn. Bounded by
+   * `maxFiles` (oldest evicted lose only their reopen-ability); cleared
+   * when the window dies (stop / shutdown / clearAll).
+   */
+  private readonly closedSessions = new Map<string, IJournalSession>();
   /** `owner -> rootOwner` attribution learned from spawn `childOwner` claims. */
   private readonly ownerToRoot = new Map<string, string>();
   private flushTimer: NodeJS.Timeout | null = null;
@@ -247,6 +258,10 @@ export class ActivityJournalService {
       } catch {
         // Fire-and-forget, like every other write path here.
       }
+      // The recording window died with the gesture: nothing reopens
+      // across it, and the attribution memory goes with it.
+      this.closedSessions.clear();
+      this.ownerToRoot.clear();
     }
     return this.recordingActive;
   }
@@ -282,6 +297,7 @@ export class ActivityJournalService {
    */
   clearAll(): number {
     this.sessions.clear();
+    this.closedSessions.clear();
     this.ownerToRoot.clear();
     let deleted = 0;
     try {
@@ -337,12 +353,23 @@ export class ActivityJournalService {
       }
       return session;
     }
-    // Ownerless: a session-scoped end (or future node-less forms) belongs
-    // to the session whose id it names; otherwise the most recent open
-    // session, else the unattributed bucket. Never guessed further.
-    if (data.session !== undefined) {
-      const match = this.findBySessionId(data.session);
+    return this.attributeOwnerless(data.session, tMs);
+  }
+
+  /**
+   * Ownerless attribution: a session-scoped end (or future node-less
+   * forms) belongs to the session whose id it names, open or closed (a
+   * closed one reopens, e.g. a duplicate provider Stop: naming it beats
+   * guessing); otherwise the most recent open session, else the
+   * unattributed bucket. Never guessed further.
+   */
+  private attributeOwnerless(sessionId: string | undefined, tMs: number): IJournalSession {
+    if (sessionId !== undefined) {
+      const match = this.findBySessionId(sessionId);
       if (match) return match;
+      for (const closed of this.closedSessions.values()) {
+        if (closed.sessionId === sessionId) return this.sessionFor(closed.rootOwner, tMs);
+      }
     }
     const latest = this.latestOpenSession();
     return latest ?? this.sessionFor(UNATTRIBUTED_ROOT, tMs);
@@ -361,24 +388,16 @@ export class ActivityJournalService {
    * the orphan re-point to the adopting root.
    */
   private adoptMisrootedOwner(owner: string, into: IJournalSession): void {
-    const orphan = this.sessions.get(owner);
+    // A mis-rooted orphan may already be FINALIZED (its terminal end also
+    // raced ahead of the claim), so the closed park is adoptable too.
+    const orphan = this.sessions.get(owner) ?? this.closedSessions.get(owner);
     if (orphan === undefined || orphan === into) return;
     this.sessions.delete(orphan.rootOwner);
+    this.closedSessions.delete(orphan.rootOwner);
     for (const [child, root] of this.ownerToRoot) {
       if (root === orphan.rootOwner) this.ownerToRoot.set(child, into.rootOwner);
     }
-    into.frames = [...into.frames, ...orphan.frames]
-      .sort((a, b) => a.tMs - b.tMs)
-      .slice(0, JOURNAL_MAX_FRAMES_PER_SESSION);
-    into.startedAt = Math.min(into.startedAt, orphan.startedAt);
-    into.lastFrameAt = Math.max(into.lastFrameAt, orphan.lastFrameAt);
-    if (into.sessionId === undefined && orphan.sessionId !== undefined) {
-      into.sessionId = orphan.sessionId;
-    }
-    if (into.provider === undefined && orphan.provider !== undefined) {
-      into.provider = orphan.provider;
-    }
-    into.dirty = true;
+    mergeOrphanInto(into, orphan);
     if (orphan.fileName !== undefined) {
       try {
         unlinkSync(join(this.sessionsDir, orphan.fileName));
@@ -391,6 +410,16 @@ export class ActivityJournalService {
   private sessionFor(rootOwner: string, tMs: number): IJournalSession {
     let session = this.sessions.get(rootOwner);
     if (session === undefined) {
+      const closed = this.closedSessions.get(rootOwner);
+      if (closed !== undefined) {
+        // Reopen: same file, frames keep appending; the next flush
+        // rewrites without `endedAt` and the next finalization
+        // re-stamps it.
+        this.closedSessions.delete(rootOwner);
+        this.sessions.set(rootOwner, closed);
+        closed.dirty = true;
+        return closed;
+      }
       session = {
         rootOwner,
         startedAt: tMs,
@@ -405,6 +434,24 @@ export class ActivityJournalService {
       this.sessions.set(rootOwner, session);
     }
     return session;
+  }
+
+  /**
+   * Park a finalized session for reopen, bounded by `maxFiles` in
+   * insertion order: an evicted session loses only its reopen-ability
+   * (its file stays until retention says otherwise), and its owner
+   * attributions go with it.
+   */
+  private retainForReopen(session: IJournalSession): void {
+    this.closedSessions.set(session.rootOwner, session);
+    while (this.closedSessions.size > this.maxFiles) {
+      const oldest = this.closedSessions.keys().next().value;
+      if (oldest === undefined) break;
+      this.closedSessions.delete(oldest);
+      for (const [owner, root] of this.ownerToRoot) {
+        if (root === oldest) this.ownerToRoot.delete(owner);
+      }
+    }
   }
 
   private findBySessionId(sessionId: string): IJournalSession | undefined {
@@ -513,10 +560,11 @@ export class ActivityJournalService {
    */
   private finalize(session: IJournalSession, opts?: { skipPrune?: boolean }): void {
     this.sessions.delete(session.rootOwner);
-    for (const [owner, root] of this.ownerToRoot) {
-      if (root === session.rootOwner) this.ownerToRoot.delete(owner);
-    }
     if (session.frames.length === 0) return; // nothing recorded, no file, no log line
+    // Retain for reopen (owner attributions included: the next turn's
+    // child frames still belong to this conversation); the window's own
+    // death (stop / shutdown / clearAll) is what forgets it.
+    this.retainForReopen(session);
     this.writeSession(session, session.lastFrameAt);
     if (session.fileName !== undefined && !session.dirty) {
       appendOperation(this.cwd, {
@@ -575,4 +623,25 @@ function stripActivity(data: INodeActivityEventData): Record<string, unknown> {
 function stripSpawn(data: IAgentSpawnEventData): Record<string, unknown> {
   const { pairCount: _pairCount, ...rest } = data;
   return { ...rest };
+}
+
+/**
+ * Fold a mis-rooted orphan's buffer into its adopting session: frames
+ * re-sorted chronologically (the orphan raced ahead of the claim),
+ * bounds widened, identity hints filled only where the adopter lacks
+ * them, and the result marked dirty for the next flush.
+ */
+function mergeOrphanInto(into: IJournalSession, orphan: IJournalSession): void {
+  into.frames = [...into.frames, ...orphan.frames]
+    .sort((a, b) => a.tMs - b.tMs)
+    .slice(0, JOURNAL_MAX_FRAMES_PER_SESSION);
+  into.startedAt = Math.min(into.startedAt, orphan.startedAt);
+  into.lastFrameAt = Math.max(into.lastFrameAt, orphan.lastFrameAt);
+  if (into.sessionId === undefined && orphan.sessionId !== undefined) {
+    into.sessionId = orphan.sessionId;
+  }
+  if (into.provider === undefined && orphan.provider !== undefined) {
+    into.provider = orphan.provider;
+  }
+  into.dirty = true;
 }
