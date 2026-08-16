@@ -49,16 +49,24 @@ function makeClock(startAt = 1_723_800_000_000): () => number {
 
 function makeJournal(
   root: string,
-  opts?: Partial<ConstructorParameters<typeof ActivityJournalService>[0]>,
+  opts?: Partial<ConstructorParameters<typeof ActivityJournalService>[0]> & {
+    /** Capture gesture state; the harness arms it by default (2026-08-16). */
+    recording?: boolean;
+  },
 ): ActivityJournalService {
-  return new ActivityJournalService({
+  const { recording, ...serviceOpts } = opts ?? {};
+  const journal = new ActivityJournalService({
     enabled: true,
     sessionsDir: defaultProjectSessionsDir(root),
     cwd: root,
     debounceMs: DEBOUNCE_MS,
     now: makeClock(),
-    ...opts,
+    ...serviceOpts,
   });
+  // Capture is a gesture, never ambient: almost every case exercises
+  // the capturing path, so the harness presses Record for them.
+  if (recording !== false) journal.setRecording(true);
+  return journal;
 }
 
 function sessionFiles(root: string): string[] {
@@ -196,6 +204,81 @@ describe('ActivityJournalService grouping', () => {
     assert.equal((s2['frames'] as unknown[]).length, 1);
     journal.shutdown();
   });
+
+  it('a late childOwner claim adopts the session mis-rooted at that owner (hook race)', async () => {
+    const root = makeScope();
+    const journal = makeJournal(root);
+    // The real 2026-08-16 trace: the child's sticky claim beat the
+    // handoff frame that declares its owner, so the streaming fold had
+    // already opened a first-sight session for it.
+    journal.recordSpawn('claude', {
+      spawnId: 'spawn-1',
+      phase: 'start',
+      parentOwner: 'main:s1',
+      childName: 'content-editor',
+    });
+    journal.recordActivity('claude', {
+      nodePath: '.claude/agents/content-editor.md',
+      phase: 'start',
+      owner: 'agent-1',
+      sticky: true,
+    });
+    journal.recordSpawn('claude', {
+      spawnId: 'spawn-1',
+      phase: 'handoff',
+      parentOwner: 'main:s1',
+      childOwner: 'agent-1',
+    });
+    journal.recordActivity('claude', {
+      nodePath: 'docs/STYLE.md',
+      phase: 'start',
+      owner: 'agent-1',
+      access: 'read',
+    });
+    await settle();
+
+    const files = sessionFiles(root);
+    assert.equal(files.length, 1);
+    const doc = readSession(root, files[0]!);
+    assert.equal(doc['rootOwner'], 'main:s1');
+    const frames = doc['frames'] as Array<{ tMs: number; type: string }>;
+    assert.equal(frames.length, 4);
+    // Chronological after the merge: the raced sticky sits between the
+    // spawn start and the handoff, where it actually happened.
+    assert.deepEqual(
+      frames.map((f) => f.type),
+      ['agent.spawn', 'node.activity', 'agent.spawn', 'node.activity'],
+    );
+    assert.ok(frames.every((f, i) => i === 0 || f.tMs >= frames[i - 1]!.tMs));
+    journal.shutdown();
+  });
+
+  it('adoption removes an orphan file the debounce already flushed', async () => {
+    const root = makeScope();
+    const journal = makeJournal(root);
+    journal.recordActivity('claude', {
+      nodePath: '.claude/agents/content-editor.md',
+      phase: 'start',
+      owner: 'agent-1',
+      sticky: true,
+    });
+    journal.flushNow();
+    assert.equal(sessionFiles(root).length, 1);
+
+    journal.recordSpawn('claude', {
+      spawnId: 'spawn-1',
+      phase: 'handoff',
+      parentOwner: 'main:s1',
+      childOwner: 'agent-1',
+    });
+    journal.flushNow();
+    const files = sessionFiles(root);
+    assert.equal(files.length, 1);
+    const doc = readSession(root, files[0]!);
+    assert.equal(doc['rootOwner'], 'main:s1');
+    assert.equal((doc['frames'] as unknown[]).length, 2);
+    journal.shutdown();
+  });
 });
 
 describe('ActivityJournalService finalization', () => {
@@ -310,6 +393,59 @@ describe('ActivityJournalService.clearAll', () => {
     const journal = makeJournal(root, { enabled: false });
     assert.equal(journal.clearAll(), 1);
     assert.equal(sessionFiles(root).length, 0);
+  });
+});
+
+describe('ActivityJournalService recording gesture', () => {
+  it('captures NOTHING unless the operator pressed record (never ambient)', async () => {
+    const root = makeScope();
+    const journal = makeJournal(root, { recording: false });
+    journal.recordActivity('claude', {
+      nodePath: 'README.md',
+      phase: 'start',
+      owner: 'main:s1',
+    });
+    await settle();
+    assert.equal(journal.isRecording(), false);
+    assert.equal(sessionFiles(root).length, 0);
+
+    assert.equal(journal.setRecording(true), true);
+    journal.recordActivity('claude', {
+      nodePath: 'README.md',
+      phase: 'start',
+      owner: 'main:s1',
+    });
+    await settle();
+    assert.equal(sessionFiles(root).length, 1);
+  });
+
+  it('stopping finalizes every open session (endedAt + operations line)', async () => {
+    const root = makeScope();
+    const journal = makeJournal(root, { debounceMs: 60_000 });
+    journal.recordActivity('claude', {
+      nodePath: 'README.md',
+      phase: 'start',
+      owner: 'main:s1',
+    });
+    assert.equal(journal.setRecording(false), false);
+    const files = sessionFiles(root);
+    assert.equal(files.length, 1);
+    assert.equal(typeof readSession(root, files[0]!)['endedAt'], 'number');
+    // Frames arriving after the stop never land.
+    journal.recordActivity('claude', {
+      nodePath: 'README.md',
+      phase: 'start',
+      owner: 'main:s2',
+    });
+    await settle();
+    assert.equal(sessionFiles(root).length, 1);
+  });
+
+  it('the master switch off refuses to engage the recording toggle', () => {
+    const root = makeScope();
+    const journal = makeJournal(root, { enabled: false, recording: false });
+    assert.equal(journal.setRecording(true), false);
+    assert.equal(journal.isRecording(), false);
   });
 });
 

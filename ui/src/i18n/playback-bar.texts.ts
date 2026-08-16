@@ -24,7 +24,13 @@ export const PLAYBACK_BAR_TEXTS = {
     end: (name: string): string => `done ${name}`,
     ownerEnd: 'execution context ended',
     sessionEnd: 'session ended',
-    spawn: (parent: string, child: string, phase: string): string =>
-      phase === 'end' ? `${parent} finished ${child}` : `${parent} spawned ${child}`,
+    turnEnd: 'turn ended',
+    /** Node-less custody frames with no finer story (never blank). */
+    other: 'session signal',
+    /** An empty parent is the session context itself spawning. */
+    spawn: (parent: string, child: string, phase: string): string => {
+      if (phase === 'end') return parent === '' ? `finished ${child}` : `${parent} finished ${child}`;
+      return parent === '' ? `spawned ${child}` : `${parent} spawned ${child}`;
+    },
   },
 } as const;

@@ -23,9 +23,12 @@
  *     exist the flush skips silently (the journal never creates the scope
  *     directory as a side effect; `sessions/` itself IS created lazily
  *     inside an existing scope).
- *   - GATE: `activity.journal.enabled` (default true) is read ONCE at boot
- *     by the composition root and threaded in as `enabled`; off means the
- *     service is a full no-op and existing files stay untouched.
+ *   - GATES: `activity.journal.enabled` (default true) is read ONCE at
+ *     boot by the composition root and threaded in as `enabled`, the
+ *     MASTER switch; off means the service is a full no-op and existing
+ *     files stay untouched. On top of it, capture is a GESTURE
+ *     (2026-08-16): frames land only while `setRecording(true)` holds
+ *     (the UI's Record session control), never ambiently.
  *   - RETENTION: bounded by file count and total size (50 files / 20 MiB
  *     by default), oldest first by name (the ISO-prefixed names sort
  *     chronologically), pruned at boot and at each finalization.
@@ -126,6 +129,15 @@ export class ActivityJournalService {
   private readonly ownerToRoot = new Map<string, string>();
   private flushTimer: NodeJS.Timeout | null = null;
   private closed = false;
+  /**
+   * Capture is a GESTURE (user decision 2026-08-16, superseding the
+   * always-on capture this service first shipped with): frames land
+   * only between `setRecording(true)` and `setRecording(false)`,
+   * driven by the UI's Record session control over
+   * `POST /api/activity/sessions/recording`. Boot state OFF; dies with
+   * the process (shutdown finalizes whatever was open).
+   */
+  private recordingActive = false;
 
   constructor(opts: IActivityJournalOptions) {
     this.enabled = opts.enabled;
@@ -147,7 +159,7 @@ export class ActivityJournalService {
    * session (Antigravity's fully-idle Stop shape). Fire-and-forget.
    */
   recordActivity(provider: string, data: INodeActivityEventData): void {
-    if (!this.enabled || this.closed) return;
+    if (!this.enabled || !this.recordingActive || this.closed) return;
     try {
       const tMs = this.now();
       const session = this.attributeActivity(data, tMs);
@@ -185,7 +197,7 @@ export class ActivityJournalService {
    * the `childOwner -> session` claims. Fire-and-forget.
    */
   recordSpawn(provider: string, data: IAgentSpawnEventData): void {
-    if (!this.enabled || this.closed) return;
+    if (!this.enabled || !this.recordingActive || this.closed) return;
     try {
       const tMs = this.now();
       const root =
@@ -196,9 +208,63 @@ export class ActivityJournalService {
             // the journal never saw claimed is a first-sight root.
             (this.ownerToRoot.get(data.parentOwner) ?? data.parentOwner);
       const session = this.sessionFor(root, tMs);
-      if (data.childOwner !== undefined) this.ownerToRoot.set(data.childOwner, root);
+      if (data.childOwner !== undefined) {
+        this.ownerToRoot.set(data.childOwner, root);
+        this.adoptMisrootedOwner(data.childOwner, session);
+      }
       this.append(session, provider, tMs, 'agent.spawn', stripSpawn(data));
       this.scheduleFlush();
+    } catch {
+      // Fire-and-forget.
+    }
+  }
+
+  /** The live capture state, stamped on the read-back envelope. */
+  isRecording(): boolean {
+    return this.recordingActive;
+  }
+
+  /**
+   * Toggle capture (`POST /api/activity/sessions/recording`). Engaging
+   * requires the boot master switch (`activity.journal.enabled`);
+   * disengaging FINALIZES every still-open session (endedAt + one
+   * operations line each, the same closure a `sessionScope` end gives
+   * one session). Returns the EFFECTIVE state so the route can answer
+   * honestly when the master switch refused.
+   */
+  setRecording(on: boolean): boolean {
+    if (on) {
+      if (this.enabled && !this.closed) this.recordingActive = true;
+      return this.recordingActive;
+    }
+    if (this.recordingActive) {
+      this.recordingActive = false;
+      try {
+        for (const session of [...this.sessions.values()]) {
+          this.finalize(session, { skipPrune: true });
+        }
+        this.prune();
+      } catch {
+        // Fire-and-forget, like every other write path here.
+      }
+    }
+    return this.recordingActive;
+  }
+
+  /**
+   * Flush every dirty buffer NOW (`GET /api/activity/sessions` calls it
+   * before reading the directory, so a just-recorded session is visible
+   * without waiting out the debounce). Fire-and-forget like the timed
+   * flush; a no-op while disabled or after shutdown.
+   */
+  flushNow(): void {
+    if (!this.enabled || this.closed) return;
+    if (this.flushTimer !== null) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
+    try {
+      this.flushDirty();
     } catch {
       // Fire-and-forget.
     }
@@ -280,6 +346,46 @@ export class ActivityJournalService {
     }
     const latest = this.latestOpenSession();
     return latest ?? this.sessionFor(UNATTRIBUTED_ROOT, tMs);
+  }
+
+  /**
+   * Late-claim adoption (spec §Session journal · Session grouping): the
+   * parent's and child's hook processes race, so the child's first
+   * activity can arrive BEFORE the `handoff` frame that declares its
+   * `childOwner`, and this streaming fold will have mis-rooted it as a
+   * first-sight session (the client index is immune: it folds the whole
+   * tape with lookback, `computeSessionIndex`'s earliest-claim
+   * fallback). When the claim lands, the claiming session absorbs the
+   * orphan: frames merge in chronological order, the orphan's file (if
+   * one was already flushed) is removed, and any owners attributed to
+   * the orphan re-point to the adopting root.
+   */
+  private adoptMisrootedOwner(owner: string, into: IJournalSession): void {
+    const orphan = this.sessions.get(owner);
+    if (orphan === undefined || orphan === into) return;
+    this.sessions.delete(orphan.rootOwner);
+    for (const [child, root] of this.ownerToRoot) {
+      if (root === orphan.rootOwner) this.ownerToRoot.set(child, into.rootOwner);
+    }
+    into.frames = [...into.frames, ...orphan.frames]
+      .sort((a, b) => a.tMs - b.tMs)
+      .slice(0, JOURNAL_MAX_FRAMES_PER_SESSION);
+    into.startedAt = Math.min(into.startedAt, orphan.startedAt);
+    into.lastFrameAt = Math.max(into.lastFrameAt, orphan.lastFrameAt);
+    if (into.sessionId === undefined && orphan.sessionId !== undefined) {
+      into.sessionId = orphan.sessionId;
+    }
+    if (into.provider === undefined && orphan.provider !== undefined) {
+      into.provider = orphan.provider;
+    }
+    into.dirty = true;
+    if (orphan.fileName !== undefined) {
+      try {
+        unlinkSync(join(this.sessionsDir, orphan.fileName));
+      } catch {
+        // Best-effort: a stale orphan file falls to the retention sweep.
+      }
+    }
   }
 
   private sessionFor(rootOwner: string, tMs: number): IJournalSession {

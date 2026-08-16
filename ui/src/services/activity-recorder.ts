@@ -58,6 +58,7 @@
 
 import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 
+import { DATA_SOURCE, type IDataSourcePort } from './data-source/data-source.port';
 import type { IWsAgentSpawnData, IWsNodeActivityData } from '../models/ws-event';
 import {
   isAgentSpawnEvent,
@@ -115,6 +116,7 @@ export type TRecordedEvent = IRecordedActivityEvent | IRecordedSpawnEvent;
 @Injectable({ providedIn: 'root' })
 export class ActivityRecorderService {
   private readonly prefs = inject(LivePreferencesService);
+  private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
   private readonly destroyRef = inject(DestroyRef);
 
   /**
@@ -167,10 +169,29 @@ export class ActivityRecorderService {
 
     // Real Time off mid-recording: stop rather than silently capturing
     // nothing (the record control would keep claiming REC while every
-    // frame is dropped by the gate below).
+    // frame is dropped by the gate below). Routed through `stop()` so
+    // the SERVER journal disengages too.
     effect(() => {
-      if (!this.prefs.activityEnabled() && this._recording()) this._recording.set(false);
+      if (!this.prefs.activityEnabled() && this._recording()) this.stop();
     });
+
+    // Boot sync (capture is a gesture that SURVIVES reloads, decision
+    // 2026-08-16): the server journal keeps recording across a page
+    // reload, so probe its state and resume the local tape capture; a
+    // server recording this client can no longer honour (Real Time off)
+    // is stopped instead of silently diverging. Best-effort: demo mode
+    // / a dead server leave the boot state off. Optional calls on
+    // purpose: this service boots EAGERLY app-wide, and a partial test
+    // double without the journal surface must read as "no journal",
+    // not crash the whole injector.
+    void this.dataSource
+      .getSessionJournal?.()
+      .then(({ recording }) => {
+        if (!recording) return;
+        if (this.prefs.activityEnabled()) this._recording.set(true);
+        else void this.dataSource.setSessionRecording?.(false).catch(() => {});
+      })
+      .catch(() => {});
 
     const events = inject(WsEventStreamService);
     const sub = events.events$.subscribe((event) => {
@@ -197,15 +218,25 @@ export class ActivityRecorderService {
     });
   }
 
-  /** Begin capturing (no-op while Real Time is off: nothing would arrive). */
+  /**
+   * Begin capturing (no-op while Real Time is off: nothing would
+   * arrive). Mirrors the gesture to the SERVER journal (capture is a
+   * gesture on BOTH memories, decision 2026-08-16), best-effort: demo
+   * mode or a dead server never block the local tape.
+   */
   start(): void {
     if (!this.prefs.activityEnabled()) return;
     this._recording.set(true);
+    void this.dataSource.setSessionRecording?.(true).catch(() => {});
   }
 
-  /** Stop capturing. The tape stays, ready to replay. */
+  /**
+   * Stop capturing. The tape stays, ready to replay; the server
+   * finalizes its open journal sessions on the mirrored disengage.
+   */
   stop(): void {
     this._recording.set(false);
+    void this.dataSource.setSessionRecording?.(false).catch(() => {});
   }
 
   /**

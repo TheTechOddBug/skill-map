@@ -184,7 +184,7 @@
           "properties": {
             "enabled": {
               "type": "boolean",
-              "description": "Whether the serve process journals runtime sessions to `.skill-map/sessions/`. Default true. Read once at serve boot. A NORMAL project-config key, committable in the shared `project` layer: the journal is content-free by construction (no prompts, no arguments, no file contents), so this is a team preference, NOT consent-shaped like `activity.captureConversations`. Off means nothing is written; existing session files are left untouched (delete them by hand, or delete the directory, to reset the journal)."
+              "description": "Master switch of the session journal (`.skill-map/sessions/`). Default true. Read once at serve boot. Capture itself is a GESTURE, never ambient (decision 2026-08-16): frames land only while the operator records (`POST /api/activity/sessions/recording`, driven by the UI's Record session control); this key decides whether that recording toggle can engage at all for the boot (off = the toggle refuses and nothing is ever written). A NORMAL project-config key, committable in the shared `project` layer: the journal is content-free by construction (no prompts, no arguments, no file contents), so this is a team preference, NOT consent-shaped like `activity.captureConversations`. Existing session files are left untouched either way (delete them via the UI's delete-recording gesture, or by hand)."
             }
           }
         }

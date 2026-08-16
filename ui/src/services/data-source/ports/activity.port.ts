@@ -14,6 +14,7 @@ import type {
   IActivityNodeDetailApi,
   IActivitySpawnDetailApi,
   IActivitySummaryApi,
+  ISessionRecordingApi,
   IActivityUninstallEnvelopeApi,
 } from '../../../models/api';
 
@@ -83,6 +84,30 @@ export interface IActivityPort {
    * `code: 'demo-readonly'`.
    */
   clearNodeActivity(path: string): Promise<void>;
+
+  /**
+   * The project's session journal (`GET /api/activity/sessions`,
+   * `spec/provider-activity.md` §Session journal · Read-back): every
+   * on-disk recording, chronological, off-shape files skipped
+   * server-side, plus the LIVE capture state (`recording`, so a
+   * reloaded page restores its Record/Stop control). The Sessions tab
+   * merges the recordings with the live client tape so sessions
+   * survive reloads and closed pages. Demo mode resolves
+   * `{ sessions: [], recording: false }` (the static bundle carries no
+   * journal).
+   */
+  getSessionJournal(): Promise<{ sessions: ISessionRecordingApi[]; recording: boolean }>;
+
+  /**
+   * Toggle journal capture (`POST /api/activity/sessions/recording`,
+   * spec §Session journal · Capture is a gesture): frames land on disk
+   * ONLY while this is on. Resolves the EFFECTIVE state (the boot
+   * master switch `activity.journal.enabled: false` refuses to engage).
+   * Driven by `ActivityRecorderService.start()/stop()`, which mirrors
+   * the client tape gate to the server. Demo mode rejects with
+   * `code: 'demo-readonly'`.
+   */
+  setSessionRecording(recording: boolean): Promise<boolean>;
 
   /**
    * Empty the project's session journal

@@ -263,7 +263,13 @@ export class LiveLensService {
     }
     const links: ILinkApi[] = [];
     for (const link of this._linkCache().values()) {
-      if (membership.has(link.source) && membership.has(link.target)) links.push(link);
+      // Resolved endpoint, the graph-edge convention (`graph-layout.ts`
+      // keys edges on `resolvedTarget`): a trigger-style link keeps the
+      // authored `@foo` in `target`, which no membership path ever
+      // matches, so raw-target filtering dropped those edges entirely
+      // (user queue item 9, fixed 2026-08-16).
+      const target = link.resolvedTarget ?? link.target;
+      if (membership.has(link.source) && membership.has(target)) links.push(link);
     }
     return { ...meta, nodes, links, issues: [] };
   });
@@ -439,10 +445,17 @@ export class LiveLensService {
       let next: Map<string, { source: string; target: string; lastSeenAt: number }> | null =
         null;
       for (const link of links.values()) {
-        if (!active.has(link.source) || !active.has(link.target)) continue;
-        next = upsertObserved(next ?? current, `${link.source}|${link.target}`, {
+        // Resolved endpoint, matching how the graph keys its edges
+        // (`edge.to = resolvedTarget`) AND how `isEdgeExecuting` looks
+        // pairs up (`${edge.from}|${edge.to}`): keying on the raw
+        // `target` left every trigger-style link (`@foo` authored form)
+        // out of the executing-spine dressing (user queue item 9,
+        // fixed 2026-08-16).
+        const target = link.resolvedTarget ?? link.target;
+        if (!active.has(link.source) || !active.has(target)) continue;
+        next = upsertObserved(next ?? current, `${link.source}|${target}`, {
           source: link.source,
-          target: link.target,
+          target,
           lastSeenAt: now,
         });
       }

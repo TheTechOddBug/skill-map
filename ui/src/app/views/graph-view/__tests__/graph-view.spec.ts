@@ -339,6 +339,8 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   }),
   clearNodeActivity: vi.fn().mockResolvedValue(undefined),
   clearSessionJournal: vi.fn().mockResolvedValue(undefined),
+  getSessionJournal: vi.fn().mockResolvedValue({ sessions: [], recording: false }),
+  setSessionRecording: vi.fn().mockResolvedValue(true),
   getSpawnRecord: vi.fn().mockResolvedValue(null),
   getActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),
   setActivityCapture: vi.fn().mockResolvedValue({ enabled: false }),

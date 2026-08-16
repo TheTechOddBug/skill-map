@@ -20,20 +20,31 @@
  * unavailable (demo mode / Real Time off), with the tooltip saying why.
  */
 
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { ButtonModule } from 'primeng/button';
 import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { SESSIONS_VIEW_TEXTS } from '../../../i18n/sessions-view.texts';
-import { ActivityRecorderService } from '../../../services/activity-recorder';
+import type { ISessionRecordingApi } from '../../../models/api';
+import { ActivityRecorderService, type TRecordedEvent } from '../../../services/activity-recorder';
+import { DATA_SOURCE, type IDataSourcePort } from '../../../services/data-source/data-source.port';
 import { LiveLensService } from '../../../services/live-lens';
 import { pathBasenameForLink } from '../../../services/path-basename';
 import {
   computeSessionIndex,
   type ISessionAgentNode,
   type ISessionEntry,
+  type ISessionReplaySelection,
   type ISessionStep,
 } from '../../../services/session-index';
 import { SessionRecordControl } from '../../components/session-record-control/session-record-control';
@@ -58,12 +69,101 @@ export class SessionsView {
   protected readonly recorder = inject(ActivityRecorderService);
   private readonly liveLens = inject(LiveLensService);
   private readonly replayIntent = inject(SESSION_REPLAY_INTENT);
+  private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
+  private readonly destroyRef = inject(DestroyRef);
   protected readonly texts = SESSIONS_VIEW_TEXTS;
 
   protected readonly index = computed(() => computeSessionIndex(this.recorder.events()));
 
-  /** Newest first: the session you just watched is the one you replay. */
-  protected readonly sessions = computed(() => [...this.index().sessions].reverse());
+  /**
+   * The server journal's recordings (`GET /api/activity/sessions`,
+   * 2026-08-16): the DURABLE memory, so sessions recorded before this
+   * page opened still list and replay. Fetched at mount, re-fetched
+   * when a recording stops (the GET flushes pending buffers, so the
+   * fresh session is immediately visible) and when the tape empties
+   * (the purge wiped the journal too). Best-effort: demo mode / a dead
+   * server leave the tab living off the client tape alone.
+   */
+  private readonly journalRecordings = signal<readonly ISessionRecordingApi[]>([]);
+
+  /**
+   * Journal-ONLY sessions: each recording folds through the same
+   * `computeSessionIndex` as the tape, so rows / agents / steps reuse
+   * every template unchanged; roots the client tape already carries
+   * are skipped (the live version wins, it is still updating). The
+   * frames map feeds the replay selection (`sourceFrames`), the client
+   * recorder never saw these frames.
+   */
+  private readonly journalIndex = computed(() => {
+    const clientRoots = new Set(this.index().sessions.map((s) => s.rootOwner));
+    const entries: ISessionEntry[] = [];
+    const frames = new Map<string, readonly TRecordedEvent[]>();
+    for (const recording of this.journalRecordings()) {
+      if (clientRoots.has(recording.rootOwner)) continue;
+      // AJV pinned the frame shapes server-side (`session-recording.
+      // schema.json`), and they ARE the recorder's own tape shape.
+      const recFrames = recording.frames as unknown as readonly TRecordedEvent[];
+      for (const entry of computeSessionIndex(recFrames).sessions) {
+        if (clientRoots.has(entry.rootOwner) || frames.has(entry.rootOwner)) continue;
+        entries.push(entry);
+        frames.set(entry.rootOwner, recFrames);
+      }
+    }
+    return { entries, frames };
+  });
+
+  /**
+   * Newest first, tape + journal merged (the session you just watched
+   * is the one you replay). Ordinals re-stamp over the merged order so
+   * the positional testids stay unique.
+   */
+  protected readonly sessions = computed(() =>
+    [...this.index().sessions, ...this.journalIndex().entries]
+      .sort((a, b) => b.firstTMs - a.firstTMs)
+      .map((entry, i) => ({ ...entry, ordinal: i + 1 })),
+  );
+
+  constructor() {
+    void this.refreshJournal();
+    // Falling edge of recording -> refetch (the finalize/flush is
+    // server-side; the GET flushes buffers itself, no debounce wait).
+    // Tape emptied -> the purge also wiped the journal; small delay so
+    // the DELETE lands before the refetch.
+    let prevRecording: boolean | null = null;
+    let prevSize: number | null = null;
+    effect(() => {
+      const recording = this.recorder.recording();
+      if (prevRecording === true && !recording) this.scheduleJournalRefresh(300);
+      prevRecording = recording;
+    });
+    effect(() => {
+      const size = this.recorder.size();
+      if (prevSize !== null && prevSize > 0 && size === 0) this.scheduleJournalRefresh(400);
+      prevSize = size;
+    });
+    this.destroyRef.onDestroy(() => {
+      if (this.refreshTimer !== null) clearTimeout(this.refreshTimer);
+    });
+  }
+
+  private refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private scheduleJournalRefresh(delayMs: number): void {
+    if (this.refreshTimer !== null) clearTimeout(this.refreshTimer);
+    this.refreshTimer = setTimeout(() => {
+      this.refreshTimer = null;
+      void this.refreshJournal();
+    }, delayMs);
+  }
+
+  private async refreshJournal(): Promise<void> {
+    try {
+      const { sessions } = await this.dataSource.getSessionJournal();
+      this.journalRecordings.set(sessions);
+    } catch {
+      // Best-effort (demo mode, server down): the tape still lists.
+    }
+  }
 
   protected readonly playAvailable = this.liveLens.available;
 
@@ -160,16 +260,27 @@ export class SessionsView {
     return shortSessionId(id);
   }
 
+  /**
+   * Replay selection for one session: identity plus, for a
+   * journal-hydrated row, the recording's own frames (the client tape
+   * never saw them, see `ISessionReplaySelection.sourceFrames`).
+   */
+  private selectionFor(session: ISessionEntry, agentSpawnId?: string): ISessionReplaySelection {
+    const sourceFrames = this.journalIndex().frames.get(session.rootOwner);
+    return {
+      rootOwner: session.rootOwner,
+      ...(agentSpawnId === undefined ? {} : { agentSpawnId }),
+      ...(sourceFrames === undefined ? {} : { sourceFrames }),
+    };
+  }
+
   protected play(session: ISessionEntry): void {
-    this.replayIntent.replaySession(
-      { rootOwner: session.rootOwner },
-      this.sessionName(session),
-    );
+    this.replayIntent.replaySession(this.selectionFor(session), this.sessionName(session));
   }
 
   protected playAgent(session: ISessionEntry, agent: ISessionAgentNode): void {
     this.replayIntent.replaySession(
-      { rootOwner: session.rootOwner, agentSpawnId: agent.spawnId },
+      this.selectionFor(session, agent.spawnId),
       this.texts.agentLabel(this.sessionName(session), agent.name ?? this.texts.unnamedAgent),
     );
   }
@@ -181,11 +292,7 @@ export class SessionsView {
    * moment; the intent seeks by the step's `(tMs, path)` identity.
    */
   protected playStep(session: ISessionEntry, step: ISessionStep): void {
-    this.replayIntent.replaySession(
-      { rootOwner: session.rootOwner },
-      this.sessionName(session),
-      step,
-    );
+    this.replayIntent.replaySession(this.selectionFor(session), this.sessionName(session), step);
   }
 
   /** An agent is replayable only if its subtree owns attributable frames. */

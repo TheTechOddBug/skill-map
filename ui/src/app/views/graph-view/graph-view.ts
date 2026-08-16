@@ -1668,7 +1668,10 @@ export class GraphView implements OnInit {
    */
   replaySessionFromTape(selection: ISessionReplaySelection, label: string, step?: ISessionStep): void {
     if (!this.liveLens.available()) return;
-    const tape = filterTapeForSession(this.recorder.events(), selection);
+    // Journal-hydrated sessions carry their own frames (the client
+    // recorder never saw them); tape-native sessions re-filter live.
+    const source = selection.sourceFrames ?? this.recorder.events();
+    const tape = filterTapeForSession(source, selection);
     if (tape.length === 0) return;
     if (this.playback.active()) this.playback.exit();
     if (!this.lensOn()) this.liveLensCtl.toggle();

@@ -5,7 +5,7 @@
        search). Always rendered, empty list included, or nothing could
        ever be recorded. -->
   <sm-session-record-control />
-  @if (recorder.size() === 0 && index().sessions.length === 0) {
+  @if (recorder.size() === 0 && sessions().length === 0) {
     <div class="sessions__empty" data-testid="sessions-empty-none">
       <p>{{ texts.empty }}</p>
       <p class="sessions__hint">{{ texts.emptyHint }}</p>

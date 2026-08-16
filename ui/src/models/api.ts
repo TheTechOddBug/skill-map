@@ -1586,6 +1586,29 @@ export interface IActivitySummaryApi {
   runNodes: string[];
 }
 
+/**
+ * One recorded session off the server's journal
+ * (`GET /api/activity/sessions`, shape
+ * `spec/schemas/session-recording.schema.json`): the durable memory the
+ * Sessions tab hydrates from, so sessions recorded before this page
+ * opened still list and replay. `frames.data` carries the exact
+ * `node.activity` / `agent.spawn` wire payloads (AJV-pinned
+ * server-side), i.e. the recorder's own tape shape.
+ */
+export interface ISessionRecordingApi {
+  schemaVersion: number;
+  sessionId?: string;
+  rootOwner: string;
+  provider?: string;
+  startedAt: number;
+  endedAt?: number;
+  frames: Array<{
+    tMs: number;
+    type: 'node.activity' | 'agent.spawn';
+    data: Record<string, unknown>;
+  }>;
+}
+
 /** One entry of a node's recent-executions ring (most recent first). */
 export interface IActivityRecentExecutionApi {
   at: number;

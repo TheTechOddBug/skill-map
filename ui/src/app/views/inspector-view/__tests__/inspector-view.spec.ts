@@ -86,6 +86,8 @@ type IStubDataSource = IDataSourcePort & {
   getNodeActivity: ReturnType<typeof vi.fn>;
   clearNodeActivity: ReturnType<typeof vi.fn>;
   clearSessionJournal: ReturnType<typeof vi.fn>;
+  getSessionJournal: ReturnType<typeof vi.fn>;
+  setSessionRecording: ReturnType<typeof vi.fn>;
   getNodeFindings: ReturnType<typeof vi.fn>;
   getNodeSummary: ReturnType<typeof vi.fn>;
   deleteNodeSummary: ReturnType<typeof vi.fn>;
@@ -209,6 +211,8 @@ function makeStubDataSource(): IStubDataSource {
     }),
     clearNodeActivity: vi.fn().mockResolvedValue(undefined),
     clearSessionJournal: vi.fn().mockResolvedValue(undefined),
+    getSessionJournal: vi.fn().mockResolvedValue({ sessions: [], recording: false }),
+    setSessionRecording: vi.fn().mockResolvedValue(true),
     getNodeFindings: vi.fn().mockResolvedValue({
       schemaVersion: '1',
       kind: 'findings',

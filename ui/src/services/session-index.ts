@@ -135,6 +135,15 @@ export interface ISessionIndex {
 export interface ISessionReplaySelection {
   readonly rootOwner: string;
   readonly agentSpawnId?: string;
+  /**
+   * Out-of-tape frame source for a JOURNAL-hydrated session
+   * (2026-08-16): a session listed off `.skill-map/sessions/` has no
+   * frames on the client recorder, so the selection carries the
+   * recording's own frames and the replay filter runs over them
+   * instead of the live tape. Absent for tape-native sessions (the
+   * identity-only contract above holds there).
+   */
+  readonly sourceFrames?: readonly TRecordedEvent[];
 }
 
 interface IMutableAgentNode {

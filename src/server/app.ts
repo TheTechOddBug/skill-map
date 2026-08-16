@@ -71,6 +71,7 @@ import {
   loadPluginRuntime,
   type IPluginRuntime,
 } from '../core/runtime/plugin-runtime.js';
+import { defaultProjectSessionsDir } from '../core/paths/db-path.js';
 import type { IRuntimeContext } from '../core/runtime/runtime-context.js';
 import type { ISkillActionCatalog } from '../core/skill-actions/catalog.js';
 import { ExportQueryError } from '../kernel/index.js';
@@ -805,6 +806,7 @@ export function createApp(deps: IAppDeps): Hono {
   // gesture, one `activity.sessions-clear` operations line.
   registerActivitySessionsRoute(app, {
     journal: deps.activityJournal,
+    sessionsDir: defaultProjectSessionsDir(deps.runtimeContext.cwd),
     runtimeContext: deps.runtimeContext,
   });
   // Job-event push ingest, `POST /api/job-events` (the CLI-to-server

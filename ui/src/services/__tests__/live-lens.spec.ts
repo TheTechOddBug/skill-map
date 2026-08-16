@@ -410,6 +410,36 @@ describe('LiveLensService', () => {
     expect(service.observedSpinePairs().has(key)).toBe(false);
   });
 
+  it('a trigger-style link (raw @target, resolvedTarget set) spine-pairs and renders (queue item 9)', async () => {
+    const { service, activePaths, loadBranch } = bootstrap();
+    loadBranch.mockResolvedValue({
+      nodes: [apiNode(SKILL), apiNode(AGENT)],
+      links: [
+        // The authored trigger stays in `target`; only `resolvedTarget`
+        // carries the real node path (the graph keys its edges on it).
+        {
+          source: AGENT,
+          target: '@deploy',
+          kind: 'invokes',
+          confidence: 1,
+          sources: ['ext'],
+          resolvedTarget: SKILL,
+        },
+      ],
+      issues: [],
+    });
+    service.setActive(true);
+    activePaths.set(new Set([SKILL, AGENT]));
+    TestBed.tick();
+    await vi.advanceTimersByTimeAsync(400); // link cache fill
+    TestBed.tick();
+
+    // Spine pair keyed on the RESOLVED endpoint, the edge convention.
+    expect(service.observedSpinePairs().has(`${AGENT}|${SKILL}`)).toBe(true);
+    // And the lens scan carries the link (raw-target filtering dropped it).
+    expect(service.lensScan()?.links).toHaveLength(1);
+  });
+
   it('replay switches membership and relations to the playback fold', () => {
     const { service, activePaths, playbackActive, playbackState } = bootstrap();
     service.setActive(true);

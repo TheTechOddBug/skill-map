@@ -212,6 +212,15 @@ describe('computePlaybackState', () => {
     });
   });
 
+  it('node-less custody frames caption too (a blank ticker reads broken)', () => {
+    const events = [
+      activity(T0, { phase: 'end', owner: 'main:s1', turnEnd: true }),
+      activity(T0 + 10, { phase: 'start', owner: 'main:s1' }),
+    ];
+    expect(computePlaybackState(events, 0).caption).toEqual({ kind: 'turn-end' });
+    expect(computePlaybackState(events, 1).caption).toEqual({ kind: 'other' });
+  });
+
   it('a cursor past the end clamps to the last event', () => {
     const events = [activity(T0, { phase: 'start', nodePath: SKILL, owner: 'a' })];
     const state = computePlaybackState(events, 99);

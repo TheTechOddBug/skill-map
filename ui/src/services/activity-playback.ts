@@ -72,9 +72,19 @@ export class ActivityPlaybackService {
     // Settings row, the transport's own shortcut, anything later), the
     // frozen tape describes something that no longer exists, so the
     // mode stands down. The invariant lives HERE so no call site has to
-    // remember to pair `clear()` with `exit()`.
+    // remember to pair `clear()` with `exit()`. TRANSITION-based (a
+    // delete empties a previously non-empty recorder), NOT state-based:
+    // a journal-sourced replay (the Sessions tab hydrating from
+    // `.skill-map/sessions/`, 2026-08-16) legitimately enters while the
+    // client tape is ALREADY empty and must survive; the purge gesture
+    // still stands every replay down because it transitions the
+    // recorder to empty.
+    let prevRecorderSize = this.recorder.events().length;
     effect(() => {
-      if (this._active() && this.recorder.events().length === 0) this.exit();
+      const size = this.recorder.events().length;
+      const emptied = prevRecorderSize > 0 && size === 0;
+      prevRecorderSize = size;
+      if (emptied && this._active()) this.exit();
     });
   }
 

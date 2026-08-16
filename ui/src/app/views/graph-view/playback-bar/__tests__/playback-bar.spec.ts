@@ -132,6 +132,23 @@ describe('PlaybackBar', () => {
     expect(query(fixture, 'graph-playback-counter')?.textContent).toContain('*');
   });
 
+  it('never leaves the ticker blank on custody frames (turn end, node-less signals)', () => {
+    const turn = makeFixture({ cursor: 0, caption: { kind: 'turn-end' } });
+    expect(query(turn.fixture, 'graph-playback-caption')?.textContent).toContain('turn ended');
+    const other = makeFixture({ cursor: 0, caption: { kind: 'other' } });
+    expect(query(other.fixture, 'graph-playback-caption')?.textContent).toContain('session signal');
+  });
+
+  it('a session-context spawn (no parent node) narrates without a dangling parent', () => {
+    const { fixture } = makeFixture({
+      cursor: 0,
+      caption: { kind: 'spawn', phase: 'start', childName: 'content-editor' },
+    });
+    expect(query(fixture, 'graph-playback-caption')?.textContent?.trim()).toBe(
+      'spawned content-editor',
+    );
+  });
+
   it('stamps the cursor event with wall-clock HH:MM:SS plus the (mm:ss) session offset', () => {
     const start = new Date(2026, 7, 16, 14, 28, 24).getTime(); // local 14:28:24
     const tape = [

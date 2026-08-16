@@ -1,0 +1,35 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>The cost of cleverness</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>The cost of cleverness</h1>
+
+  <p>Clever code is a loan against future readers. It pays out fast, at write time, and charges interest every time someone else opens the file.</p>
+
+  <h2>What clever code looks like</h2>
+  <p>A one-liner that chains five operations. A bit trick instead of a named check. A regex that replaces ten lines of parsing. An abstraction that covers cases nobody asked for yet. Each one is smaller than the plain version, and each one hides how it works.</p>
+
+  <h2>Why it feels good to write</h2>
+  <p>Clever code is a small win you get right away. You solved the problem in fewer lines, you used a trick you just learned, and the code looks impressive in the diff. That reward lands the moment you write it.</p>
+
+  <h2>Who pays the interest</h2>
+  <p>The next reader pays. Often that reader is you, six months later, with no memory of the trick. They have to reconstruct the reasoning before they can trust the code, let alone change it. A plain version would have cost more lines and saved that reconstruction time.</p>
+
+  <h2>When cleverness is justified</h2>
+  <p>Sometimes it earns its keep. A hot path that a profiler flagged. A proven bottleneck with a benchmark to back it up. In those cases, write the clever version, but leave the plain one in a comment or a test, so the next reader can see what the trick replaced.</p>
+
+  <h2>The default</h2>
+  <p>Write the boring version first. Only reach for clever when you can point at a number that justifies it.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

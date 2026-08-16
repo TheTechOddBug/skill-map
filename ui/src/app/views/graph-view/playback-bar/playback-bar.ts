@@ -97,8 +97,10 @@ export class PlaybackBar {
           caption.childName ?? (caption.child === undefined ? '' : pathBasenameForLink(caption.child)),
           caption.phase,
         );
+      case 'turn-end':
+        return this.texts.caption.turnEnd;
       default:
-        return '';
+        return this.texts.caption.other;
     }
   });
 

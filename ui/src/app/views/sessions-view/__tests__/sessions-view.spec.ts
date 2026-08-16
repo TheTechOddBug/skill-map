@@ -10,8 +10,10 @@ import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 
 import { SessionsView } from '../sessions-view';
+import type { ISessionRecordingApi } from '../../../../models/api';
 import { ActivityPlaybackService } from '../../../../services/activity-playback';
 import { ActivityRecorderService, type TRecordedEvent } from '../../../../services/activity-recorder';
+import { DATA_SOURCE } from '../../../../services/data-source/data-source.port';
 import { LiveLensService } from '../../../../services/live-lens';
 import { NodeActivityService } from '../../../../services/node-activity';
 import { SESSION_RECORD_INTENT } from '../../../slots/session-record-intent';
@@ -55,6 +57,8 @@ function makeFixture(init?: {
   activityEnabled?: boolean;
   recording?: boolean;
   replaying?: boolean;
+  /** Server-journal recordings the hydration fetch resolves. */
+  journal?: ISessionRecordingApi[];
 }) {
   const recording = signal(init?.recording ?? false);
   const replaying = signal(init?.replaying ?? false);
@@ -81,6 +85,9 @@ function makeFixture(init?: {
   const replaySession = vi.fn();
   const startRecording = vi.fn(() => recording.set(true));
   const stopRecording = vi.fn(() => recording.set(false));
+  const getSessionJournal = vi
+    .fn()
+    .mockResolvedValue({ sessions: init?.journal ?? [], recording: false });
 
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
@@ -90,6 +97,7 @@ function makeFixture(init?: {
       { provide: ActivityPlaybackService, useValue: playback },
       { provide: LiveLensService, useValue: lens },
       { provide: NodeActivityService, useValue: nodeActivity },
+      { provide: DATA_SOURCE, useValue: { getSessionJournal } },
       { provide: SESSION_REPLAY_INTENT, useValue: { replaySession } },
       { provide: SESSION_RECORD_INTENT, useValue: { startRecording, stopRecording } },
     ],
@@ -97,6 +105,13 @@ function makeFixture(init?: {
   const fixture = TestBed.createComponent(SessionsView);
   fixture.detectChanges();
   return { fixture, replaySession, startRecording, stopRecording, playbackExit };
+}
+
+/** Settle the mount-time journal fetch, then re-render. */
+async function hydrated(fixture: { detectChanges(): void }): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+  fixture.detectChanges();
 }
 
 function query(fixture: { nativeElement: unknown }, testid: string): HTMLElement | null {
@@ -224,6 +239,66 @@ describe('SessionsView', () => {
       path: SKILL,
       detail: 'Skill',
     });
+  });
+
+  it('hydrates journal-only sessions and replays them with the recording frames as source', async () => {
+    const journalFrames = [
+      {
+        tMs: T0 - 500_000,
+        type: 'node.activity' as const,
+        data: { nodePath: SKILL, phase: 'start', owner: 'main:old-1' },
+      },
+    ];
+    const { fixture, replaySession } = makeFixture({
+      tape: [],
+      journal: [
+        {
+          schemaVersion: 1,
+          sessionId: 'old-1',
+          rootOwner: 'main:old-1',
+          provider: 'claude',
+          startedAt: T0 - 500_000,
+          endedAt: T0 - 400_000,
+          frames: journalFrames,
+        },
+      ],
+    });
+    await hydrated(fixture);
+    // The journal session lists despite an EMPTY client tape (that is
+    // the whole point: sessions survive reloads on disk).
+    expect(query(fixture, 'sessions-empty-none')).toBeNull();
+    const row = query(fixture, 'sessions-row-1');
+    expect(row?.textContent).toContain('old-1');
+    // Its replay carries the recording's own frames: the client
+    // recorder never saw them, so the tape cannot be the source.
+    (query(fixture, 'sessions-play-1')?.querySelector('button') as HTMLButtonElement).click();
+    expect(replaySession).toHaveBeenCalledWith(
+      { rootOwner: 'main:old-1', sourceFrames: journalFrames },
+      'old-1',
+    );
+  });
+
+  it('the live tape wins over a journal recording of the SAME session (no double rows)', async () => {
+    const { fixture } = makeFixture({
+      journal: [
+        {
+          schemaVersion: 1,
+          sessionId: 'sess-1',
+          rootOwner: MAIN,
+          startedAt: T0,
+          frames: [
+            {
+              tMs: T0,
+              type: 'node.activity' as const,
+              data: { nodePath: SKILL, phase: 'start', owner: MAIN },
+            },
+          ],
+        },
+      ],
+    });
+    await hydrated(fixture);
+    const dom = fixture.nativeElement as HTMLElement;
+    expect(dom.querySelectorAll('[data-testid^="sessions-row-"]').length).toBe(1);
   });
 
   it('Play routes the whole-session selection through the intent', () => {

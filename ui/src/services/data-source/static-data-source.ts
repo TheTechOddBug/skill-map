@@ -67,6 +67,7 @@ import type {
   IActivityNodeDetailApi,
   IActivitySpawnDetailApi,
   IActivitySummaryApi,
+  ISessionRecordingApi,
   IActivityUninstallEnvelopeApi,
   IAgentSkillInstallEnvelopeApi,
   IAgentSkillInstallStatusApi,
@@ -146,7 +147,7 @@ export interface IDemoMetaPayload {
  * `activity.install` descriptor).
  */
 const DEMO_ACTIVITY_DESCRIPTORS: Record<string, { configPath: string; events: number }> = {
-  claude: { configPath: '.claude/settings.json', events: 5 },
+  claude: { configPath: '.claude/settings.json', events: 7 },
   codex: { configPath: '.codex/hooks.json', events: 3 },
   antigravity: { configPath: '.agents/hooks.json', events: 2 },
   opencode: { configPath: '.opencode/plugin/skill-map-activity.js', events: 0 },
@@ -870,6 +871,17 @@ export class StaticDataSource implements IDataSourcePort {
     throw new DataSourceError(
       'demo-readonly',
       'Clearing activity is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async getSessionJournal(): Promise<{ sessions: ISessionRecordingApi[]; recording: boolean }> {
+    return { sessions: [], recording: false };
+  }
+
+  async setSessionRecording(_recording: boolean): Promise<boolean> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Recording sessions is not available in demo mode (static bundle is immutable).',
     );
   }
 

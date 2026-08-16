@@ -85,27 +85,43 @@ export interface IObservedRelation {
  * (the ISO-prefixed names sort chronologically).
  */
 export function readSessionJournal(sessionsDir: string): SessionRecording[] {
-  if (!existsSync(sessionsDir)) return [];
+  return readSessionJournalDetailed(sessionsDir).recordings;
+}
+
+/**
+ * `readSessionJournal` plus the skipped basenames, for surfaces that
+ * report the honesty line (`GET /api/activity/sessions` lists them in
+ * `skipped`, the map-views dialect). The scan-side fold keeps the
+ * plain reader: a skipped file is a non-event there.
+ */
+export function readSessionJournalDetailed(sessionsDir: string): {
+  recordings: SessionRecording[];
+  skipped: string[];
+} {
+  if (!existsSync(sessionsDir)) return { recordings: [], skipped: [] };
   let names: string[];
   try {
     names = readdirSync(sessionsDir)
       .filter((name) => name.endsWith('.json'))
       .sort();
   } catch {
-    return [];
+    return { recordings: [], skipped: [] };
   }
   const validators = loadSchemaValidators();
   const recordings: SessionRecording[] = [];
+  const skipped: string[] = [];
   for (const name of names) {
     try {
       const raw = JSON.parse(readFileSync(join(sessionsDir, name), 'utf8')) as unknown;
       const result = validators.validate<SessionRecording>('session-recording', raw);
       if (result.ok) recordings.push(result.data);
+      else skipped.push(name);
     } catch {
-      // Off-shape / unreadable: skip silently by contract.
+      // Off-shape / unreadable: skipped by contract, name reported.
+      skipped.push(name);
     }
   }
-  return recordings;
+  return { recordings, skipped };
 }
 
 /** Fold accumulator entry: the public relation plus its session set. */
