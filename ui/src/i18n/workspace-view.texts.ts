@@ -5,18 +5,21 @@
  */
 export const WORKSPACE_VIEW_TEXTS = {
   /**
-   * The rail's activity sections (files navigator + job queue). The
-   * collapsed icon bar and the open tab strip share these labels; the
-   * chevron collapse control keeps its own `rail.collapse` copy.
+   * The rail's activity sections (files navigator + job queue +
+   * recorded sessions). The collapsed icon bar and the open tab strip
+   * share these labels; the chevron collapse control keeps its own
+   * `rail.collapse` copy.
    */
   sections: {
     /** Accessible name for the tab strip / icon bar container. */
     ariaLabel: 'Workspace panel sections',
     files: 'Files',
     queue: 'Queue',
+    sessions: 'Sessions',
     /** Icon-bar button tooltips (collapsed rail). */
     filesTooltip: 'Files navigator',
     queueTooltip: 'Job queue',
+    sessionsTooltip: 'Recorded runtime sessions',
     /** Replaces the queue tooltip while the Live lens owns the workspace. */
     queueDisabledTooltip: 'The job queue is unavailable while the live lens is on',
   },

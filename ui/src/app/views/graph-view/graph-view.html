@@ -1,4 +1,4 @@
-<section class="graph" data-testid="graph-view">
+<section class="graph" [class.graph--replay-paused]="replayPaused()" data-testid="graph-view">
   <!--
     Loading + error branches are gated on `!hasData()` so a
     WebSocket-driven refresh (which flips `loading()` to true while the
@@ -688,14 +688,10 @@
             />
           </span>
         }
-        <!-- Live lens cluster (toggle; window + reset while on). The
-             component renders nothing in demo mode or with Real Time
-             off, and its enter/exit orchestration lives in
-             `setupLiveLens` (hence the routed output). -->
-        <sm-live-lens-controls
-          (toggleLens)="toggleLiveLens()"
-          (toggleReplay)="toggleReplay()"
-        />
+        <!-- The lens has NO toolbar control (user decision 2026-08-16):
+             it exists only as the face of RECORD (the Sessions rail's
+             record control) or REPLAY (the rail's replay entries + the
+             transport's exit). -->
         <!-- Layout, map-view and reset-layout controls all mutate
              persisted arrangement state, which the lens neither reads
              nor may ever write: hidden (not disabled) while it is on,
@@ -708,8 +704,12 @@
                separator. -->
           <sm-map-view-switcher />
           <span class="graph__toolbar-sep" aria-hidden="true"></span>
+          <!-- `pi-objects-column` (user pick 2026-08-16): `pi-history`
+               now belongs to the sessions/replay family (rail tab +
+               replay entries), so the rearrange gesture gets its own
+               "arrange objects" glyph. -->
           <p-button
-            icon="pi pi-history"
+            icon="pi pi-objects-column"
             [ariaLabel]="texts.toolbar.resetLayoutLabel"
             [pTooltip]="texts.toolbar.resetLayoutTooltip"
             severity="secondary"

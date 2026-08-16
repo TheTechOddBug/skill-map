@@ -1,0 +1,68 @@
+/* Shared record / stop / exit-replay control. The host renders as a
+   plain block so each rail context spaces it with its own chrome. */
+:host {
+  display: block;
+}
+
+.record {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--p-content-border-color);
+}
+
+.record__pill {
+  display: inline-flex;
+}
+
+/* Stop-replay face: a PLAIN text button like its recording twin (user
+   call 2026-08-16: the filled pill framed it apart from Rec), in the
+   SATURATED replay amber (`--sm-replay-c-bright`: the deep base is a
+   fill truth and reads muddy as a font color). Token-first (the ui.md
+   discipline): the button renders severity="secondary", so pinning its
+   text-variant tokens on the wrapper retints label + icon with no
+   `::ng-deep`. */
+.record__pill--replay {
+  --p-button-text-secondary-color: var(--sm-replay-c-bright);
+  --p-button-text-secondary-hover-color: var(--sm-replay-c-bright);
+  --p-button-text-secondary-active-color: var(--sm-replay-c-bright);
+}
+
+/* Blinking broadcast-red dot while capturing. PRM-gated; reduced-motion
+   users keep the steady dot as the state. */
+.record__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--sm-live-c);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--sm-live-c) 70%, transparent);
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .record__dot {
+    animation: sm-record-dot-blink 1.2s ease-in-out infinite;
+  }
+
+  @keyframes sm-record-dot-blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+}
+
+/* The replay twin: same dot anatomy, saturated amber. */
+.record__dot--replay {
+  background: var(--sm-replay-c-bright);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--sm-replay-c-bright) 70%, transparent);
+}
+
+.record__hint {
+  font-size: var(--sm-fs-xs);
+  color: var(--p-text-muted-color);
+}

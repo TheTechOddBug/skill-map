@@ -1,0 +1,204 @@
+/**
+ * Session-journal reader + observed-relations fold
+ * (`kernel/session-journal/index.ts`, contract in
+ * `spec/provider-activity.md` §Session journal · Consumption).
+ *
+ * Reader: AJV-gated file loads, off-shape files skipped silently,
+ * absent directory reads as empty. Fold: MCP invocations correlate to
+ * their calling unit by owner, spawns count once per `spawnId`, reads
+ * are ignored (deferred), sessions count DISTINCT recordings.
+ */
+
+import { strict as assert } from 'node:assert';
+import { afterEach, describe, it } from 'node:test';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import {
+  foldObservedRelations,
+  readSessionJournal,
+  type SessionRecording,
+} from '../index.js';
+
+const roots: string[] = [];
+
+function freshDir(): string {
+  const root = mkdtempSync(join(tmpdir(), 'skill-map-session-journal-'));
+  roots.push(root);
+  const dir = join(root, 'sessions');
+  mkdirSync(dir);
+  return dir;
+}
+
+afterEach(() => {
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+});
+
+function recording(over: Partial<SessionRecording>): SessionRecording {
+  return {
+    schemaVersion: 1,
+    rootOwner: 'main:s1',
+    startedAt: 1_723_800_000_000,
+    frames: [],
+    ...over,
+  };
+}
+
+const SKILL = '.claude/skills/deploy/SKILL.md';
+const AGENT = '.claude/agents/architect.md';
+const MCP = 'mcp://notion';
+
+describe('readSessionJournal', () => {
+  it('reads valid recordings in name order and skips off-shape files silently', () => {
+    const dir = freshDir();
+    writeFileSync(
+      join(dir, '2026-08-16T100000.000Z-s1.json'),
+      JSON.stringify(recording({ rootOwner: 'main:s1' })),
+    );
+    // Off-shape: missing required `rootOwner`.
+    writeFileSync(
+      join(dir, '2026-08-16T110000.000Z-bad.json'),
+      JSON.stringify({ schemaVersion: 1, startedAt: 1, frames: [] }),
+    );
+    // Unparseable JSON.
+    writeFileSync(join(dir, '2026-08-16T120000.000Z-corrupt.json'), '{ not json');
+    // Not a journal file at all.
+    writeFileSync(join(dir, 'README.txt'), 'hola');
+
+    const recordings = readSessionJournal(dir);
+    assert.equal(recordings.length, 1);
+    assert.equal(recordings[0]!.rootOwner, 'main:s1');
+  });
+
+  it('reads an absent directory as an empty journal', () => {
+    const dir = join(freshDir(), 'nope');
+    assert.deepEqual(readSessionJournal(dir), []);
+  });
+});
+
+describe('foldObservedRelations', () => {
+  it('correlates an MCP invocation to the calling unit by owner', () => {
+    const rec = recording({
+      frames: [
+        {
+          tMs: 1,
+          type: 'node.activity',
+          data: { nodePath: SKILL, phase: 'start', owner: 'main:s1' },
+        },
+        {
+          tMs: 2,
+          type: 'node.activity',
+          data: {
+            nodePath: MCP,
+            phase: 'start',
+            owner: 'main:s1',
+            access: 'mcp',
+            detail: 'notion-create-pages',
+          },
+        },
+      ],
+    });
+    const folded = foldObservedRelations([rec]);
+    assert.equal(folded.size, 1);
+    const entry = [...folded.values()][0]!;
+    assert.equal(entry.source, SKILL);
+    assert.equal(entry.target, MCP);
+    assert.equal(entry.relation, 'invokes');
+    assert.equal(entry.count, 1);
+    assert.equal(entry.sessions, 1);
+    assert.equal(entry.lastSeenAt, 2);
+  });
+
+  it('drops an MCP frame whose owner has no prior unit claim (no guessing)', () => {
+    const rec = recording({
+      frames: [
+        {
+          tMs: 1,
+          type: 'node.activity',
+          data: { nodePath: MCP, phase: 'start', owner: 'main:s1', access: 'mcp' },
+        },
+      ],
+    });
+    assert.equal(foldObservedRelations([rec]).size, 0);
+  });
+
+  it('ignores read-access frames entirely (reads relation deferred)', () => {
+    const rec = recording({
+      frames: [
+        {
+          tMs: 1,
+          type: 'node.activity',
+          data: { nodePath: SKILL, phase: 'start', owner: 'main:s1' },
+        },
+        {
+          tMs: 2,
+          type: 'node.activity',
+          data: { nodePath: 'README.md', phase: 'start', owner: 'main:s1', access: 'read' },
+        },
+      ],
+    });
+    assert.equal(foldObservedRelations([rec]).size, 0);
+  });
+
+  it('counts a spawn ONCE per spawnId (start / handoff / end trio merges)', () => {
+    const spawnData = {
+      spawnId: 'tool-1',
+      parentOwner: 'agent-0',
+      parentNodePath: AGENT,
+      childNodePath: SKILL,
+    };
+    const rec = recording({
+      frames: [
+        { tMs: 1, type: 'agent.spawn', data: { ...spawnData, phase: 'start' } },
+        { tMs: 2, type: 'agent.spawn', data: { ...spawnData, phase: 'handoff', childOwner: 'agent-1' } },
+        { tMs: 3, type: 'agent.spawn', data: { ...spawnData, phase: 'end' } },
+      ],
+    });
+    const folded = foldObservedRelations([rec]);
+    assert.equal(folded.size, 1);
+    const entry = [...folded.values()][0]!;
+    assert.equal(entry.relation, 'spawns');
+    assert.equal(entry.count, 1);
+    assert.equal(entry.lastSeenAt, 1);
+  });
+
+  it('skips spawns missing either resolved path (no edge to a phantom)', () => {
+    const rec = recording({
+      frames: [
+        {
+          tMs: 1,
+          type: 'agent.spawn',
+          data: { spawnId: 's-1', phase: 'start', parentOwner: 'main:s1', childName: 'worker' },
+        },
+      ],
+    });
+    assert.equal(foldObservedRelations([rec]).size, 0);
+  });
+
+  it('counts DISTINCT sessions per pair and totals observations across recordings', () => {
+    const frames: SessionRecording['frames'] = [
+      {
+        tMs: 1,
+        type: 'node.activity',
+        data: { nodePath: SKILL, phase: 'start', owner: 'o1' },
+      },
+      {
+        tMs: 2,
+        type: 'node.activity',
+        data: { nodePath: MCP, phase: 'start', owner: 'o1', access: 'mcp' },
+      },
+      {
+        tMs: 3,
+        type: 'node.activity',
+        data: { nodePath: MCP, phase: 'start', owner: 'o1', access: 'mcp' },
+      },
+    ];
+    const recA = recording({ rootOwner: 'main:a', startedAt: 100, frames });
+    const recB = recording({ rootOwner: 'main:b', startedAt: 200, frames });
+    const folded = foldObservedRelations([recA, recB]);
+    const entry = [...folded.values()][0]!;
+    assert.equal(entry.count, 4);
+    assert.equal(entry.sessions, 2);
+  });
+});

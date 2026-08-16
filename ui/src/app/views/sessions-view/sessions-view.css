@@ -1,0 +1,208 @@
+/* Sessions rail panel. Same quiet-list language as the files rail. */
+
+.sessions {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 0.5rem;
+  overflow-y: auto;
+}
+
+.sessions__empty {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1rem 0.5rem;
+  color: var(--p-text-muted-color);
+  font-size: var(--sm-fs-md);
+}
+
+.sessions__hint {
+  color: var(--p-text-muted-color);
+  font-size: var(--sm-fs-sm);
+}
+
+.sessions__notice {
+  margin: 0;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 6px;
+  color: var(--p-text-muted-color);
+  font-size: var(--sm-fs-sm);
+}
+
+.sessions__list,
+.sessions__agents {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sessions__row {
+  border-bottom: 1px solid var(--p-content-border-color);
+  padding: 0.25rem 0;
+}
+
+.sessions__row-main {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.sessions__agent {
+  padding-left: calc(var(--sessions-depth, 1) * 0.9rem);
+}
+
+.sessions__chevron {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--p-text-muted-color);
+  cursor: pointer;
+  font-size: var(--sm-fs-sm);
+}
+
+.sessions__chevron:disabled {
+  visibility: hidden;
+}
+
+.sessions__chevron:hover:not(:disabled) {
+  background: var(--p-content-hover-background);
+}
+
+.sessions__meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+/* First line of a session row: time, then name, inline (the step rows'
+   reading order). */
+.sessions__title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.sessions__title .sessions__time {
+  flex-shrink: 0;
+}
+
+.sessions__label {
+  font-size: var(--sm-fs-md);
+  color: var(--p-text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sessions__time,
+.sessions__stats {
+  font-size: var(--sm-fs-sm);
+  color: var(--p-text-muted-color);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subtitle line: the id chip + the counters, one row. */
+.sessions__subtitle {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+/* Runtime session id as a code/tag chip (user call 2026-08-16): the
+   value correlates with the journal filename suffix on disk, so it
+   reads as data, not prose. */
+.sessions__id {
+  flex-shrink: 0;
+  font-family: var(--sm-font-mono);
+  font-size: var(--sm-fs-2xs);
+  color: var(--p-text-muted-color);
+  background: var(--p-content-hover-background);
+  border: 1px solid var(--p-content-border-color);
+  border-radius: var(--sm-radius-sm);
+  padding: 0 0.3rem;
+}
+
+/* Dim parenthetical marking every spawned agent's row as a subagent. */
+.sessions__agent-tag {
+  font-size: var(--sm-fs-xs);
+  color: var(--p-text-muted-color);
+}
+
+/* Internal-step sub-rows: one thin, quiet line per step the hosting
+   context ran (main or a subagent). The 1.85rem inset aligns the text
+   under the host row's label (chevron 1.5rem + the row gap); the host
+   li's own padding carries the tree depth. */
+.sessions__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sessions__step {
+  min-width: 0;
+}
+
+/* The whole row is the deep link into the replay. Plain button (the
+   chevron exception family): quiet text row at rest, hover reveals the
+   affordance. */
+.sessions__step-link {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0 0.25rem 0 1.85rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-size: var(--sm-fs-2xs);
+  line-height: 1.6;
+  color: var(--p-text-muted-color);
+}
+
+.sessions__step-link:hover:not(:disabled) {
+  background: var(--p-content-hover-background);
+  color: var(--p-text-color);
+}
+
+.sessions__step-link:disabled {
+  cursor: default;
+}
+
+.sessions__step-time {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.sessions__step-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sessions__unattributed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.35rem 0.5rem;
+  border-top: 1px dashed var(--p-content-border-color);
+}

@@ -20,7 +20,7 @@ import { AgentSpawnService, type ISpawnView } from '../agent-spawn';
 import { CollectionLoaderService } from '../collection-loader';
 import { DATA_SOURCE } from '../data-source/data-source.port';
 import { SKILL_MAP_MODE, type TSkillMapMode } from '../data-source/runtime-mode';
-import { LIVE_LENS_DEFAULT_WINDOW_MS, LiveLensService } from '../live-lens';
+import { LiveLensService } from '../live-lens';
 import { NodeActivityService, type INodeInvocation } from '../node-activity';
 import { NodeActivityStatsService } from '../node-activity-stats';
 
@@ -141,11 +141,6 @@ describe('LiveLensService', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(T0);
-    try {
-      localStorage.removeItem('sm.live.lens-window');
-    } catch {
-      // Storage-less environment: the service falls back to defaults.
-    }
   });
 
   afterEach(() => {
@@ -165,18 +160,18 @@ describe('LiveLensService', () => {
     expect([...service.membership()].sort()).toEqual([AGENT, SKILL].sort());
   });
 
-  it('a departed node lingers for the window, then expires via the timer', () => {
+  it('a departed node STAYS on the canvas; nothing ages out mid-session (window removed 2026-08-16)', () => {
     const { service, activePaths } = bootstrap();
     service.setActive(true);
     activePaths.set(new Set([SKILL]));
     TestBed.tick();
     activePaths.set(new Set());
-    TestBed.tick(); // departure stamp + expiry timer arm
+    TestBed.tick(); // departure stamp
     expect(service.membership().has(SKILL)).toBe(true);
 
-    vi.advanceTimersByTime(LIVE_LENS_DEFAULT_WINDOW_MS + 100);
-    TestBed.tick(); // expiry tick fired, membership re-evaluates
-    expect(service.membership().has(SKILL)).toBe(false);
+    vi.advanceTimersByTime(30 * 60_000);
+    TestBed.tick();
+    expect(service.membership().has(SKILL)).toBe(true);
   });
 
   it('recency from stats().lastStartAt counts, so pre-toggle activity shows', () => {
@@ -209,16 +204,15 @@ describe('LiveLensService', () => {
     expect(service.membership().has(AGENT)).toBe(true);
   });
 
-  it('the infinite window accumulates past the default window, until reset', () => {
+  it('the canvas accumulates indefinitely, until reset', () => {
     const { service, activePaths } = bootstrap();
-    service.setWindow(Number.POSITIVE_INFINITY);
     service.setActive(true);
     activePaths.set(new Set([SKILL]));
     TestBed.tick();
     activePaths.set(new Set());
     TestBed.tick();
 
-    vi.advanceTimersByTime(3 * LIVE_LENS_DEFAULT_WINDOW_MS);
+    vi.advanceTimersByTime(3 * 60 * 60_000);
     TestBed.tick();
     expect(service.membership().has(SKILL)).toBe(true);
 
@@ -327,13 +321,6 @@ describe('LiveLensService', () => {
     expect(loadBranch).toHaveBeenCalledTimes(1);
   });
 
-  it('the window preference persists per browser', () => {
-    const first = bootstrap();
-    first.service.setWindow(Number.POSITIVE_INFINITY);
-    const second = bootstrap();
-    expect(second.service.windowMs()).toBe(Number.POSITIVE_INFINITY);
-  });
-
   it('an observed invocation outlives the live overlay while both ends are members', () => {
     const { service, activePaths, activeInvocations } = bootstrap();
     service.setActive(true);
@@ -407,13 +394,18 @@ describe('LiveLensService', () => {
     const key = `${AGENT}|${SKILL}`;
     expect(service.observedSpinePairs().has(key)).toBe(true);
 
-    // Glow ends: the spine treatment persists while both linger.
+    // Glow ends: the spine treatment persists (nothing ages out by
+    // time since the window removal); only the reset watermark clears.
     activePaths.set(new Set());
     TestBed.tick();
     expect(service.observedSpinePairs().has(key)).toBe(true);
 
-    // Watermark ages the whole thing out (nodes and relation together).
-    vi.advanceTimersByTime(LIVE_LENS_DEFAULT_WINDOW_MS + 100);
+    vi.advanceTimersByTime(60 * 60_000);
+    TestBed.tick();
+    expect(service.observedSpinePairs().has(key)).toBe(true);
+
+    vi.advanceTimersByTime(10);
+    service.reset();
     TestBed.tick();
     expect(service.observedSpinePairs().has(key)).toBe(false);
   });

@@ -200,6 +200,7 @@ describe('orchestrator, emitContribution rejection (analyzer)', () => {
       undefined, // nameCollisions
       undefined, // signals
       undefined, // nameMismatches
+      undefined, // observedRelations
     );
 
     // Only the declared-const-with-good-payload emission survives.

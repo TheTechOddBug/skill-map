@@ -45,15 +45,18 @@
  * fans out one `scan.progress` per classified node and would flood the
  * tape with frames the playback cannot narrate.
  *
- * Gating mirrors the live glow: frames record only while Real Time
- * (`activityEnabled`) is on, so the tape never contains activity the
- * operator had switched off. Eagerly instantiated from an app
- * initializer (`app.config.ts`): `events$` does not replay to late
- * subscribers, a lazily-created recorder would silently start
- * mid-session.
+ * Gating (user decision 2026-08-16, the record-session rework): frames
+ * land on the tape only while the operator is RECORDING (`start()` /
+ * `stop()`, driven by the Sessions rail's record control) AND Real Time
+ * (`activityEnabled`) is on; flipping Real Time off stops an in-flight
+ * recording. Recording is a deliberate gesture now, never ambient: the
+ * historical always-on capture is gone with the toolbar lens cluster.
+ * Eagerly instantiated from an app initializer (`app.config.ts`):
+ * `events$` does not replay to late subscribers, a lazily-created
+ * recorder would silently start mid-session.
  */
 
-import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 
 import type { IWsAgentSpawnData, IWsNodeActivityData } from '../models/ws-event';
 import {
@@ -127,6 +130,14 @@ export class ActivityRecorderService {
   /** Frames the cap pushed off the head; non-zero = the tape is trimmed. */
   readonly droppedCount = this._droppedCount.asReadonly();
 
+  private readonly _recording = signal(false);
+  /**
+   * Manual capture gate (user decision 2026-08-16): the tape grows only
+   * between `start()` and `stop()`. Session-only state, default OFF; a
+   * reload keeps the persisted tape but never resumes capturing.
+   */
+  readonly recording = this._recording.asReadonly();
+
   readonly size = computed(() => this._events().length);
 
   private readonly _storedChars = signal(0);
@@ -154,8 +165,16 @@ export class ActivityRecorderService {
     // recording is already made; only NEW frames honour that preference.
     this.hydrate();
 
+    // Real Time off mid-recording: stop rather than silently capturing
+    // nothing (the record control would keep claiming REC while every
+    // frame is dropped by the gate below).
+    effect(() => {
+      if (!this.prefs.activityEnabled() && this._recording()) this._recording.set(false);
+    });
+
     const events = inject(WsEventStreamService);
     const sub = events.events$.subscribe((event) => {
+      if (!this._recording()) return;
       if (!this.prefs.activityEnabled()) return;
       if (isNodeActivityEvent(event)) {
         this.pending.push({ tMs: wsEventTimestampMs(event), type: 'node.activity', data: event.data });
@@ -176,6 +195,17 @@ export class ActivityRecorderService {
         this.persist();
       }
     });
+  }
+
+  /** Begin capturing (no-op while Real Time is off: nothing would arrive). */
+  start(): void {
+    if (!this.prefs.activityEnabled()) return;
+    this._recording.set(true);
+  }
+
+  /** Stop capturing. The tape stays, ready to replay. */
+  stop(): void {
+    this._recording.set(false);
   }
 
   /**

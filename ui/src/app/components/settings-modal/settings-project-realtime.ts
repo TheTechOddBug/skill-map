@@ -29,9 +29,13 @@ import {
   input,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ConfirmationService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 
+import { SESSION_PURGE_TEXTS } from '../../../i18n/session-purge.texts';
+import { SessionPurgeService } from '../../../services/session-purge';
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import { UsageTrackerService } from '../../services/usage-tracker';
 import { ActivityRecorderService } from '../../../services/activity-recorder';
@@ -45,7 +49,8 @@ import { ToggleRowDirective } from './toggle-row.directive';
 
 @Component({
   selector: 'sm-settings-project-realtime',
-  imports: [ButtonModule, FormsModule, ToggleRowDirective, ToggleSwitchModule],
+  imports: [ButtonModule, ConfirmDialogModule, FormsModule, ToggleRowDirective, ToggleSwitchModule],
+  providers: [ConfirmationService],
   templateUrl: './settings-project-realtime.html',
   styleUrl: './settings-project-rows.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -114,12 +119,15 @@ export class SettingsProjectRealtime {
 
   /**
    * Live lens replay tape. Not a preference: a readout of what this
-   * browser is holding plus the operator's delete, which is the ONLY
-   * thing that erases the recording (see `ActivityRecorderService`).
-   * Regenerable machine data, so the delete takes no confirmation
-   * dialog, matching the Activity clear-all posture.
+   * browser is holding plus the operator's delete. Since 2026-08-16 the
+   * delete is ONE gesture over BOTH memories (the browser tape and the
+   * project session journal, via `SessionPurgeService`) behind a
+   * confirm that names the analyzer-evidence cost; the operator
+   * decides.
    */
   private readonly recorder = inject(ActivityRecorderService);
+  private readonly confirmation = inject(ConfirmationService);
+  private readonly purgeSvc = inject(SessionPurgeService);
 
   protected readonly recordedCount = this.recorder.size;
 
@@ -136,7 +144,17 @@ export class SettingsProjectRealtime {
     // No usage event: `TUsageFeatureSurface` is a CLOSED taxonomy
     // (spec/telemetry.md), and a new member is a spec change, not a
     // side effect of adding a button.
-    this.recorder.clear();
+    this.confirmation.confirm({
+      header: SESSION_PURGE_TEXTS.confirmHeader,
+      message: SESSION_PURGE_TEXTS.confirmMessage,
+      acceptLabel: SESSION_PURGE_TEXTS.confirmAccept,
+      rejectLabel: SESSION_PURGE_TEXTS.confirmReject,
+      acceptButtonProps: { severity: 'danger' },
+      rejectButtonProps: { severity: 'secondary' },
+      accept: () => {
+        this.purgeSvc.purge();
+      },
+    });
   }
 }
 

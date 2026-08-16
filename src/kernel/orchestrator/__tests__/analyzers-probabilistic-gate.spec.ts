@@ -52,6 +52,7 @@ async function runWith(analyzers: IAnalyzer[]): ReturnType<typeof runAnalyzers> 
     undefined, // nameCollisions
     undefined, // signals
     undefined, // nameMismatches
+    undefined, // observedRelations
   );
 }
 

@@ -112,6 +112,7 @@ import { registerMapViewsRoutes } from './routes/map-views.js';
 import { registerProjectIgnoreRoute } from './routes/project-ignore.js';
 import { registerProjectPreferencesRoute } from './routes/project-preferences.js';
 import type { ActivityConversationStore } from './activity-conversations.js';
+import type { ActivityJournalService } from './activity-journal.js';
 import type { ActivityOwnerIndex } from './activity-owner-index.js';
 import type { ActivityProbeStore } from './activity-probe.js';
 import type { ActivityStatsService } from './activity-stats.js';
@@ -121,6 +122,7 @@ import { registerActionsRoutes } from './routes/actions.js';
 import { registerActivityRoute } from './routes/activity.js';
 import { registerActivityCaptureRoutes } from './routes/activity-capture.js';
 import { registerActivityProbeRoute } from './routes/activity-probe.js';
+import { registerActivitySessionsRoute } from './routes/activity-sessions.js';
 import { registerActivityDetailRoutes } from './routes/activity-detail.js';
 import { registerActivityInstallRoutes } from './routes/activity-install.js';
 import { registerActivitySummaryRoute } from './routes/activity-summary.js';
@@ -475,6 +477,15 @@ export interface IAppDeps {
    */
   activityConversations: ActivityConversationStore;
   /**
+   * Session journal (see `activity-journal.ts` for the full contract).
+   * Instantiated ONLY by the composition root (which reads the
+   * `activity.journal.enabled` gate at boot and owns the shutdown
+   * flush); threaded ONLY to the ingest route as an explicit extra dep,
+   * never placed on `IRouteDeps`. Receives resolved, content-free
+   * frames exclusively.
+   */
+  activityJournal: ActivityJournalService;
+  /**
    * Boot-scoped agent-presence tracker (see `agent-presence.ts`).
    * Instantiated by the composition root, which ALSO registers its
    * `observe` as the broadcaster's envelope observer; `createApp` only
@@ -781,6 +792,7 @@ export function createApp(deps: IAppDeps): Hono {
     owners: deps.activityOwners,
     probes: deps.activityProbes,
     conversations: deps.activityConversations,
+    journal: deps.activityJournal,
   });
   // Wiring self-test readback, `GET /api/activity/probe?nonce=` (see
   // `spec/provider-activity.md` §Wiring self-test). Reports whether the
@@ -788,6 +800,13 @@ export function createApp(deps: IAppDeps): Hono {
   // `sm activity status --verify` learns the fire-and-forget bridge
   // actually reached this server.
   registerActivityProbeRoute(app, { probes: deps.activityProbes });
+  // Session-journal wipe, `DELETE /api/activity/sessions` (spec
+  // §Session journal · Deletion): files + open in-memory buffers in one
+  // gesture, one `activity.sessions-clear` operations line.
+  registerActivitySessionsRoute(app, {
+    journal: deps.activityJournal,
+    runtimeContext: deps.runtimeContext,
+  });
   // Job-event push ingest, `POST /api/job-events` (the CLI-to-server
   // push leg of `spec/job-events.md` §Transport). Same serve.json
   // session token as the activity ingest (403 `token-mismatch` BEFORE

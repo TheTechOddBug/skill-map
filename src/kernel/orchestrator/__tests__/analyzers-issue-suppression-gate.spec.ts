@@ -90,6 +90,7 @@ async function runWith(
     undefined, // nameCollisions
     undefined, // signals
     undefined, // nameMismatches
+    undefined, // observedRelations
   );
 }
 

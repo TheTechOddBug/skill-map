@@ -171,11 +171,22 @@
     "activity": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Live-activity preferences (see provider-activity.md). Holds the conversation-capture consent gate today; extends additively as further activity preferences land.",
+      "description": "Live-activity preferences (see provider-activity.md). Holds the conversation-capture consent gate and the session-journal toggle today; extends additively as further activity preferences land.",
       "properties": {
         "captureConversations": {
           "type": "boolean",
           "description": "Privacy-sensitive, project-local only. Consent gate for retaining inter-agent spawn conversation content (the spawn prompt, the sync completion response) in the serve process's in-memory, bounded store (provider-activity.md, Conversation capture). Default false. Turning it off clears the store immediately; content never persists, never rides the WS, and dies with the process. Written by POST /api/activity/capture behind the server-enforced confirm gate; stripped with a warning if found in the committed `project` layer (consent is per-operator, not team-shared)."
+        },
+        "journal": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Session-journal preferences (provider-activity.md, Session journal): the per-session files of resolved, content-free activity frames the serve process persists under `.skill-map/sessions/`.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Whether the serve process journals runtime sessions to `.skill-map/sessions/`. Default true. Read once at serve boot. A NORMAL project-config key, committable in the shared `project` layer: the journal is content-free by construction (no prompts, no arguments, no file contents), so this is a team preference, NOT consent-shaped like `activity.captureConversations`. Off means nothing is written; existing session files are left untouched (delete them by hand, or delete the directory, to reset the journal)."
+            }
+          }
         }
       }
     },

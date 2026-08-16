@@ -128,6 +128,7 @@ describe('sm init, project scope', () => {
       'operations.log*',
       'backups/',
       'activity/',
+      'sessions/',
     ]);
     // The committed surface stays trackable, and the project-root
     // `.gitignore` is no longer skill-map's business.
@@ -219,7 +220,7 @@ describe('sm init --dry-run (H3, spec §Dry-run)', () => {
     assert.match(r.stderr, /would write.+settings\.json/);
     assert.match(r.stderr, /would write.+settings\.local\.json/);
     assert.match(r.stderr, /would write.+\.skillmapignore/);
-    assert.match(r.stderr, /would write.+\.skill-map.+\.gitignore \(9 generated artifacts\)/);
+    assert.match(r.stderr, /would write.+\.skill-map.+\.gitignore \(10 generated artifacts\)/);
     assert.match(r.stderr, /would provision DB/);
     assert.match(r.stderr, /would run first scan/);
 
@@ -274,7 +275,7 @@ describe('sm init --dry-run (H3, spec §Dry-run)', () => {
     assert.equal(r.status, 0);
     assert.match(
       r.stderr,
-      /would update.+\.gitignore \(add 5: skill-map\.db-wal, skill-map\.db-shm, scope\.lock\.json, operations\.log\*, activity\/\)/,
+      /would update.+\.gitignore \(add 6: skill-map\.db-wal, skill-map\.db-shm, scope\.lock\.json, operations\.log\*, activity\/, sessions\/\)/,
     );
   });
 });

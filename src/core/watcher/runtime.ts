@@ -85,8 +85,13 @@ import { tx } from '../../kernel/util/tx.js';
 import {
   defaultGitignorePath,
   defaultIgnoreFilePath,
+  defaultProjectSessionsDir,
   defaultSettingsPath,
 } from '../paths/db-path.js';
+import {
+  foldObservedRelations,
+  readSessionJournal,
+} from '../../kernel/session-journal/index.js';
 import { buildFreshResolver } from '../runtime/fresh-resolver.js';
 import {
   collectRegisteredContributionKeys,
@@ -399,6 +404,20 @@ type IWatcherRunOptions = Parameters<typeof runScanWithRenames>[1];
 interface IWatcherPriorState {
   snapshot: NonNullable<IWatcherRunOptions['priorSnapshot']>;
   extractorRuns: NonNullable<IWatcherRunOptions['priorExtractorRuns']>;
+}
+
+/**
+ * Session-journal fold (spec/provider-activity.md §Session journal):
+ * mirror the CLI scan-runner so a watcher batch sees the same observed
+ * relations as `sm scan`. Re-read per batch on purpose, the serving
+ * process itself appends journal files between batches. Extracted so
+ * the per-batch closure stays under the complexity cap.
+ */
+function applyObservedRelations(runOptions: IWatcherRunOptions, cwd: string): void {
+  const observedRelations = foldObservedRelations(
+    readSessionJournal(defaultProjectSessionsDir(cwd)),
+  );
+  if (observedRelations.size > 0) runOptions.observedRelations = observedRelations;
 }
 
 /**
@@ -801,6 +820,7 @@ export function createWatcherRuntime(
           runOptions.referenceablePaths = walk.paths;
         }
       }
+      applyObservedRelations(runOptions, cwd);
       if (composed) runOptions.extensions = composed;
       applyPriorStateToRunOptions(runOptions, priorState, changedPaths);
 

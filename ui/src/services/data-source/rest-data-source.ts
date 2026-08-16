@@ -577,6 +577,15 @@ export class RestDataSource implements IDataSourcePort {
     }
   }
 
+  /** `DELETE /api/activity/sessions` (204-style), the journal wipe. */
+  async clearSessionJournal(): Promise<void> {
+    try {
+      await firstValueFrom(this.http.delete(`${BASE}/activity/sessions`));
+    } catch (err) {
+      throw this.translateError(err);
+    }
+  }
+
   async getSpawnRecord(spawnId: string): Promise<IActivitySpawnDetailApi | null> {
     try {
       return await this.getJson<IActivitySpawnDetailApi>(

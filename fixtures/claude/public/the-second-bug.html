@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>The second bug is the interesting one</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>The second bug is the interesting one</h1>
+
+  <p>You fix a bug, and if you look closely there is almost always a second one hiding behind it, the reason the first one was possible at all. The first bug is the one that paged you. The second one is the one worth your attention.</p>
+
+  <h2>The first bug is a symptom</h2>
+  <p>The crash you saw, the wrong number on the invoice, the null reference: that is the shallowest layer. It is real, and it needs a fix, but it is an effect, not a cause. Treating it as the whole story is how the same class of failure comes back next month wearing a different stack trace.</p>
+
+  <h2>Ask why the bad state was reachable</h2>
+  <p>Before closing the ticket, ask how the program ever got into that state in the first place. Usually the answer is one of a small set of culprits: missing validation at a boundary, a default value that lies about what it represents, or a type that was declared too wide for what the code actually assumes. Find which one it was. That is the second bug.</p>
+
+  <h2>A fix that only silences the stack trace comes back</h2>
+  <p>Wrapping the crash site in a null check, catching the exception and moving on, or adding a special case for the input you happened to see: these make the symptom go away without touching the mechanism that produced it. The bad state is still reachable, it just fails quietly now instead of loudly. Expect it back, usually in a form that is harder to notice.</p>
+
+  <h2>When to stop digging</h2>
+  <p>Not every bug fix has room for a full root-cause excavation, and that is fine. Under a deadline, ship the shallow fix. But write down the deeper one you found: a comment, a ticket, a line in the postmortem. The point is not to fix everything today. It is to make sure the second bug does not stay invisible just because the first one stopped hurting.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

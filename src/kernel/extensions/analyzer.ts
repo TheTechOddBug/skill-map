@@ -12,6 +12,7 @@
 import type { IExtensionBase } from './base.js';
 import type { IExtensionPrecondition } from './extractor.js';
 import type { TIdentifierSource } from './provider.js';
+import type { IObservedRelation } from '../session-journal/index.js';
 import type { Issue, Link, Node, Signal, TConfidenceOp, TExecutionMode } from '../types.js';
 import type { IExtensionLogger } from '../util/extension-logger.js';
 import type { IRegisteredAnnotationKey } from '../types/annotation-catalog.js';
@@ -201,6 +202,20 @@ export interface IAnalyzerContext {
    * that never wired the field through.
    */
   nameMismatches?: readonly INameMismatch[];
+  /**
+   * Observed runtime relations folded from the session journal
+   * (`spec/provider-activity.md` §Session journal), keyed
+   * `source\x00target`. Computed by the DRIVING adapter before the scan
+   * (`readSessionJournal` + `foldObservedRelations` from
+   * `kernel/session-journal`) and threaded through
+   * `RunScanOptions.observedRelations`, the same precompute-and-project
+   * pattern as `referenceablePaths`. The single consumer today is
+   * `core/observed-link-missing`, which flags observed pairs no declared
+   * link covers. Absent when the journal directory is empty or the
+   * caller never wired the field; the analyzer then emits nothing.
+   * Treat as read-only.
+   */
+  observedRelations?: ReadonlyMap<string, IObservedRelation>;
   /**
    * Absolute path of the scan's project root (cwd of the invocation).
    * Threaded into the analyzer pass so an analyzer that needs to

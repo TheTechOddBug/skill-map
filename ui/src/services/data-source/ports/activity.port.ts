@@ -85,6 +85,19 @@ export interface IActivityPort {
   clearNodeActivity(path: string): Promise<void>;
 
   /**
+   * Empty the project's session journal
+   * (`DELETE /api/activity/sessions`,
+   * `spec/provider-activity.md` §Session journal · Deletion): every
+   * `.skill-map/sessions/*.json` plus the serve process's open
+   * buffers. Resolves on 204 (idempotent, absent directory included).
+   * Demo mode rejects with `code: 'demo-readonly'`. Called by the
+   * delete-recording affordances TOGETHER with the client tape clear,
+   * behind their confirm (user decision 2026-08-16: one gesture, both
+   * memories).
+   */
+  clearSessionJournal(): Promise<void>;
+
+  /**
    * One spawn record by id (`GET /api/activity/spawns/<spawnId>`), the
    * spawn-edge click surface. Metadata always; conversation content
    * only while the capture gate is on. Returns `null` on 404 (unknown

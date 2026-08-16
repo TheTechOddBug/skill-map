@@ -64,14 +64,10 @@
             {{ texts.findingsFilter.empty }}
           </p>
         }
-        @if (visibleIssues().length > 0) {
-      <ul class="inspector__findings-list">
-        <!-- Content-keyed track (issues carry no id): a silent
-             refresh that returns the same findings keeps every row's
-             DOM, preserving the no-flicker contract of the issues
-             effect. `$index` only breaks ties between identical
-             findings, so it never causes a rebuild on its own. -->
-        @for (issue of visibleIssues(); track issue.analyzerId + '|' + issue.message + '|' + $index) {
+        <!-- One deterministic-row template, rendered by BOTH lists below
+             (the design issues and the observed-in-sessions group), so
+             the row anatomy cannot drift between them. -->
+        <ng-template #issueRow let-issue>
           <li
             class="inspector__finding"
             [attr.data-severity]="issue.severity"
@@ -145,8 +141,42 @@
               </p>
             }
           </li>
+        </ng-template>
+        @if (visibleDesignIssues().length > 0) {
+          <ul class="inspector__findings-list">
+            <!-- Content-keyed track (issues carry no id): a silent
+                 refresh that returns the same findings keeps every row's
+                 DOM, preserving the no-flicker contract of the issues
+                 effect. `$index` only breaks ties between identical
+                 findings, so it never causes a rebuild on its own. -->
+            @for (
+              issue of visibleDesignIssues();
+              track issue.analyzerId + '|' + issue.message + '|' + $index
+            ) {
+              <ng-container *ngTemplateOutlet="issueRow; context: { $implicit: issue }" />
+            }
+          </ul>
         }
-      </ul>
+        <!-- Observed-in-sessions group (spec/provider-activity.md,
+             Session journal): the `observed-link-missing` rows render
+             apart, under their own sub-header, so they read as reality
+             commenting on the authored design, never as code defects.
+             Same row template and affordances as the list above. -->
+        @if (visibleObservedIssues().length > 0) {
+          <h4
+            class="inspector__findings-subheader"
+            data-testid="inspector-observed-sessions-header"
+          >
+            {{ texts.observedSessionsHeader }}
+          </h4>
+          <ul class="inspector__findings-list" data-testid="inspector-observed-sessions-list">
+            @for (
+              issue of visibleObservedIssues();
+              track issue.analyzerId + '|' + issue.message + '|' + $index
+            ) {
+              <ng-container *ngTemplateOutlet="issueRow; context: { $implicit: issue }" />
+            }
+          </ul>
         }
         <!-- Probabilistic (AI) finding rows, MIXED into this card
              below the deterministic issues (user call 2026-07-22:

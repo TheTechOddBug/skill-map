@@ -1,0 +1,31 @@
+@if (visible()) {
+  <div class="record" data-testid="sessions-record-bar">
+    @let control = face();
+    <!-- The replay face mirrors the recording stop exactly (plain text
+         button, no frame); the wrapper's token pins turn it amber. -->
+    <span class="record__pill" [class.record__pill--replay]="playback.active()">
+      <p-button
+        [label]="control.label"
+        [icon]="control.icon"
+        [severity]="control.severity"
+        [text]="true"
+        size="small"
+        [disabled]="control.disabled"
+        [pTooltip]="control.tooltip"
+        tooltipPosition="bottom"
+        (onClick)="onClick()"
+        data-testid="sessions-record-toggle"
+      />
+    </span>
+    @if (recorder.recording() && !playback.active()) {
+      <span class="record__dot" aria-hidden="true"></span>
+      <span class="record__hint" data-testid="sessions-recording-hint">{{ texts.liveHint }}</span>
+    }
+    <!-- Like REC's dot: the status shows only while frames ADVANCE.
+         Paused or parked on a frame, the word would lie. -->
+    @if (playback.active() && playback.playing()) {
+      <span class="record__dot record__dot--replay" aria-hidden="true"></span>
+      <span class="record__hint" data-testid="sessions-replaying-hint">{{ texts.replayHint }}</span>
+    }
+  </div>
+}

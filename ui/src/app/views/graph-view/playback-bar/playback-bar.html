@@ -1,86 +1,124 @@
 <div class="pbar" data-canvas-click-shield data-testid="graph-playback-bar">
-  <p-button
-    icon="pi pi-times"
-    [ariaLabel]="texts.exit"
-    [pTooltip]="texts.exit"
-    severity="secondary"
-    [text]="true"
-    [rounded]="true"
-    size="small"
-    (onClick)="playback.exit()"
-    data-testid="graph-playback-exit"
-  />
-  <p-button
-    icon="pi pi-trash"
-    [ariaLabel]="texts.deleteRecording"
-    [pTooltip]="texts.deleteRecording"
-    severity="secondary"
-    [text]="true"
-    [rounded]="true"
-    size="small"
-    [disabled]="recorder.size() === 0"
-    (onClick)="deleteRecording()"
-    data-testid="graph-playback-delete"
-  />
-  <span class="pbar__sep" aria-hidden="true"></span>
-  <p-button
-    [icon]="playback.playing() ? 'pi pi-pause' : 'pi pi-play'"
-    [ariaLabel]="playback.playing() ? texts.pause : texts.play"
-    [pTooltip]="playback.playing() ? texts.pause : texts.play"
-    severity="secondary"
-    [text]="true"
-    [rounded]="true"
-    size="small"
-    [disabled]="playback.total() === 0"
-    (onClick)="togglePlay()"
-    data-testid="graph-playback-toggle"
-  />
-  <p-button
-    icon="pi pi-step-backward"
-    [ariaLabel]="texts.stepBack"
-    [pTooltip]="texts.stepBack"
-    severity="secondary"
-    [text]="true"
-    [rounded]="true"
-    size="small"
-    [disabled]="playback.cursor() <= -1"
-    (onClick)="playback.stepBack()"
-    data-testid="graph-playback-step-back"
-  />
-  <p-button
-    icon="pi pi-step-forward"
-    [ariaLabel]="texts.stepForward"
-    [pTooltip]="texts.stepForward"
-    severity="secondary"
-    [text]="true"
-    [rounded]="true"
-    size="small"
-    [disabled]="playback.cursor() >= playback.total() - 1"
-    (onClick)="playback.stepForward()"
-    data-testid="graph-playback-step-forward"
-  />
-  <input
-    class="pbar__scrubber"
-    type="range"
-    [min]="-1"
-    [max]="playback.total() - 1"
-    [value]="playback.cursor()"
-    [disabled]="playback.total() === 0"
-    [attr.aria-label]="texts.scrubber"
-    [attr.aria-valuetext]="counter()"
-    (input)="onSeek($event)"
-    data-testid="graph-playback-scrubber"
-  />
-  <span
-    class="pbar__counter"
-    [pTooltip]="trimmed() ? texts.trimmedTape : ''"
-    data-testid="graph-playback-counter"
-  >{{ counter() }}@if (trimmed()) {<span aria-hidden="true">*</span>}</span>
-  @if (playback.total() === 0) {
-    <span class="pbar__caption pbar__caption--empty">{{ texts.emptyTape }}</span>
-  } @else {
-    <span class="pbar__caption" aria-live="polite" data-testid="graph-playback-caption">
-      {{ caption() }}
-    </span>
-  }
+  <!-- Row 1, the timeline alone. Isolated on its own row (user request
+       2026-08-16) so the caption row below can never resize or shift it:
+       the bar's width is FIXED, and with the old single-row layout every
+       caption change re-centered the max-content pill and slid the
+       scrubber under the pointer mid-drag. -->
+  <div class="pbar__timeline">
+    <input
+      class="pbar__scrubber"
+      type="range"
+      [min]="-1"
+      [max]="playback.total() - 1"
+      [value]="playback.cursor()"
+      [disabled]="playback.total() === 0"
+      [attr.aria-label]="texts.scrubber"
+      [attr.aria-valuetext]="counter()"
+      (input)="onSeek($event)"
+      data-testid="graph-playback-scrubber"
+    />
+  </div>
+  <!-- Row 2, controls + scope + counter (right cluster). -->
+  <div class="pbar__controls">
+    <p-button
+      icon="pi pi-times"
+      [ariaLabel]="texts.exit"
+      [pTooltip]="texts.exit"
+      severity="secondary"
+      [text]="true"
+      [rounded]="true"
+      size="small"
+      (onClick)="playback.exit()"
+      data-testid="graph-playback-exit"
+    />
+    <p-button
+      icon="pi pi-trash"
+      [ariaLabel]="texts.deleteRecording"
+      [pTooltip]="texts.deleteRecording"
+      severity="secondary"
+      [text]="true"
+      [rounded]="true"
+      size="small"
+      [disabled]="recorder.size() === 0"
+      (onClick)="deleteRecording()"
+      data-testid="graph-playback-delete"
+    />
+    <span class="pbar__sep" aria-hidden="true"></span>
+    <p-button
+      [icon]="playback.playing() ? 'pi pi-pause' : 'pi pi-play'"
+      [ariaLabel]="playback.playing() ? texts.pause : texts.play"
+      [pTooltip]="playback.playing() ? texts.pause : texts.play"
+      severity="secondary"
+      [text]="true"
+      [rounded]="true"
+      size="small"
+      [disabled]="playback.total() === 0"
+      (onClick)="togglePlay()"
+      data-testid="graph-playback-toggle"
+    />
+    <p-button
+      icon="pi pi-step-backward"
+      [ariaLabel]="texts.stepBack"
+      [pTooltip]="texts.stepBack"
+      severity="secondary"
+      [text]="true"
+      [rounded]="true"
+      size="small"
+      [disabled]="playback.cursor() <= -1"
+      (onClick)="playback.stepBack()"
+      data-testid="graph-playback-step-back"
+    />
+    <p-button
+      icon="pi pi-step-forward"
+      [ariaLabel]="texts.stepForward"
+      [pTooltip]="texts.stepForward"
+      severity="secondary"
+      [text]="true"
+      [rounded]="true"
+      size="small"
+      [disabled]="playback.cursor() >= playback.total() - 1"
+      (onClick)="playback.stepForward()"
+      data-testid="graph-playback-step-forward"
+    />
+    @if (playback.scopeLabel(); as scope) {
+      <span class="pbar__scope" [pTooltip]="texts.scopeTooltip" data-testid="graph-playback-scope">{{
+        scope
+      }}</span>
+    }
+    <span
+      class="pbar__counter"
+      [pTooltip]="trimmed() ? texts.trimmedTape : ''"
+      data-testid="graph-playback-counter"
+    >{{ counter() }}@if (trimmed()) {<span aria-hidden="true">*</span>}</span>
+  </div>
+  <!-- Row 3, the caption alone at full width (user request 2026-08-16:
+       the narration is the information worth reading, so it stops being
+       the controls row's squeezed flex slack). The row is ALWAYS
+       rendered with a reserved height: the bar is bottom-anchored, so a
+       row that only appeared with the first frame would grow the bar
+       upward and slide the timeline vertically mid-drag. -->
+  <div class="pbar__caption-row">
+    @if (captionTime(); as time) {
+      <span class="pbar__time" [pTooltip]="texts.timeTooltip" data-testid="graph-playback-time">{{
+        time
+      }}</span>
+    }
+    @if (captionElapsed(); as elapsed) {
+      <span
+        class="pbar__time pbar__time--elapsed"
+        [pTooltip]="texts.elapsedTooltip"
+        data-testid="graph-playback-elapsed"
+      >{{ elapsed }}</span>
+    }
+    @if (playback.total() === 0) {
+      <span class="pbar__caption pbar__caption--empty">{{ texts.emptyTape }}</span>
+    } @else {
+      <span class="pbar__caption" aria-live="polite" data-testid="graph-playback-caption">
+        {{ caption() }}
+      </span>
+    }
+  </div>
 </div>
+<!-- Delete-recording confirm (shared copy with the Settings row): one
+     gesture erases tape + project journal, the warning names the cost. -->
+<p-confirmdialog />

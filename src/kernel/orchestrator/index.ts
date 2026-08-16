@@ -100,6 +100,7 @@ import type {
 } from '../ports/progress-emitter.js';
 import { qualifiedExtensionId } from '../registry.js';
 import type { IIgnoreFilter } from '../scan/ignore.js';
+import type { IObservedRelation } from '../session-journal/index.js';
 import type {
   Issue,
   Node,
@@ -400,6 +401,19 @@ export interface RunScanOptions {
    * `scan.referencePaths` unconfigured.
    */
   referenceablePaths?: ReadonlySet<string>;
+  /**
+   * Observed runtime relations folded from the session journal
+   * (`spec/provider-activity.md` §Session journal). The DRIVING adapter
+   * computes the map before the scan (`readSessionJournal` +
+   * `foldObservedRelations` from `kernel/session-journal`, anchored at
+   * `defaultProjectSessionsDir(cwd)`) and threads it here, the same
+   * precompute pattern as `referenceablePaths`; the orchestrator only
+   * projects it onto `IAnalyzerContext.observedRelations` for the
+   * `core/observed-link-missing` analyzer. Absent / empty when the
+   * journal directory holds nothing (the common case), the analyzer
+   * then emits nothing.
+   */
+  observedRelations?: ReadonlyMap<string, IObservedRelation>;
   /**
    * Absolute path of the scan's cwd / project root. Threaded onto
    * `IAnalyzerContext.cwd` so rules that need to resolve a relative
@@ -746,6 +760,7 @@ async function runScanInternal(
     nameCollisions,
     walked.signals,
     nameMismatches,
+    options.observedRelations,
     // Seed the accumulator with orchestrator-emitted frontmatter
     // issues so the aggregate phase (`core/issue-counter`) counts
     // them on the per-node chip. The seeds are echoed back on

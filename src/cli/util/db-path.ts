@@ -35,6 +35,7 @@ export {
   defaultProjectDbPath,
   defaultProjectJobsDir,
   defaultProjectPluginsDir,
+  defaultProjectSessionsDir,
   defaultProjectViewsDir,
   defaultScopeGitignorePath,
   defaultServeInfoPath,

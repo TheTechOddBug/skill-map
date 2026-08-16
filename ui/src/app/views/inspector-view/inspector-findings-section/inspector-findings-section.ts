@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -40,6 +41,15 @@ import {
 /** Severity display order: error on top, then warn, then info (Notes). */
 const SEVERITY_ORDER: readonly TIssueSeverityApi[] = ['error', 'warn', 'info'];
 
+/**
+ * Analyzer whose rows group under the "Observed in sessions" sub-header
+ * (spec/provider-activity.md, Session journal): design-vs-reality
+ * observations, rendered apart from the design-defect issues so they
+ * read as reality commenting on the authored design. Issues carry the
+ * SHORT analyzer id (the persisted `scan_issues` form).
+ */
+const OBSERVED_SESSIONS_ANALYZER_ID = 'observed-link-missing';
+
 /** Chip glyph per severity tier (matches the map's severity palette). */
 const SEVERITY_CHIP_ICONS: Record<TIssueSeverityApi, string> = {
   error: 'pi pi-times-circle',
@@ -71,7 +81,7 @@ interface ISeverityChip {
  */
 @Component({
   selector: 'sm-inspector-findings-section',
-  imports: [ButtonModule, TooltipModule, CollapsibleSection],
+  imports: [ButtonModule, NgTemplateOutlet, TooltipModule, CollapsibleSection],
   templateUrl: './inspector-findings-section.html',
   styleUrl: './inspector-findings-section.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -241,6 +251,21 @@ export class InspectorFindingsSection {
   /** The deterministic list the template renders: sorted, then narrowed. */
   protected readonly visibleIssues = computed<IIssueApi[]>(() =>
     this.sortedIssues().filter((issue) => this.severityFilter().has(issue.severity)),
+  );
+
+  /** Deterministic rows MINUS the observed-in-sessions group below. */
+  protected readonly visibleDesignIssues = computed<IIssueApi[]>(() =>
+    this.visibleIssues().filter((issue) => issue.analyzerId !== OBSERVED_SESSIONS_ANALYZER_ID),
+  );
+
+  /**
+   * `core/observed-link-missing` rows, rendered under their own
+   * "Observed in sessions" sub-header after the design issues. Same row
+   * anatomy and affordances (severity chip narrowing, per-row dismiss
+   * via the standard issue-suppression path); only the grouping differs.
+   */
+  protected readonly visibleObservedIssues = computed<IIssueApi[]>(() =>
+    this.visibleIssues().filter((issue) => issue.analyzerId === OBSERVED_SESSIONS_ANALYZER_ID),
   );
 
   /**

@@ -111,7 +111,14 @@ describe('previewScopeGitignore', () => {
     assert.equal(preview.exists, true);
     assert.deepEqual(
       [...preview.wouldAdd],
-      ['skill-map.db-wal', 'skill-map.db-shm', 'scope.lock.json', 'operations.log*', 'activity/'],
+      [
+        'skill-map.db-wal',
+        'skill-map.db-shm',
+        'scope.lock.json',
+        'operations.log*',
+        'activity/',
+        'sessions/',
+      ],
     );
     assert.deepEqual(entriesOf(root), [
       'settings.local.json',

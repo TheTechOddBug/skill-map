@@ -54,6 +54,7 @@ export type TUsageFeatureSurface =
   | 'quick-start'
   | 'files'
   | 'queue'
+  | 'sessions'
   | 'files-search-map'
   | 'files-follow-selection'
   | 'job-cancel'

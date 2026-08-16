@@ -11,6 +11,13 @@
  * fold (`computePlaybackState`) over `(tape, cursor)`, so scrubbing is
  * instant and nothing here re-injects frames into the live services.
  *
+ * A caller may hand `enter()` its own pre-filtered tape (the Sessions
+ * rail replaying ONE session or one agent branch) plus a scope label
+ * the transport bar shows; the default stays the whole recording. The
+ * delete-recording auto-exit deliberately keeps watching the RECORDER,
+ * not the frozen tape: a scoped replay narrates a slice of a recording
+ * that still exists, and stands down only when THAT is erased.
+ *
  * The stepper is a self-rearming timeout (armed only while playing),
  * auto-pausing on the last event; play() from the end restarts from
  * the beginning. Cursor conventions follow the fold: -1 = before the
@@ -45,6 +52,10 @@ export class ActivityPlaybackService {
   private readonly _tape = signal<readonly TRecordedEvent[]>([]);
   readonly tape = this._tape.asReadonly();
 
+  private readonly _scopeLabel = signal<string | null>(null);
+  /** What this replay narrates ("Session 3"); null = the whole tape. */
+  readonly scopeLabel = this._scopeLabel.asReadonly();
+
   readonly total = computed(() => this._tape().length);
 
   /** The fold at the current cursor: what the map shows while replaying. */
@@ -67,10 +78,15 @@ export class ActivityPlaybackService {
     });
   }
 
-  /** Snapshot the tape, rewind, and start playing from the top. */
-  enter(): void {
+  /**
+   * Snapshot the tape, rewind, and start playing from the top.
+   * `events` scopes the replay to a pre-filtered slice (default: the
+   * whole recording); `scopeLabel` names that slice for the transport.
+   */
+  enter(events?: readonly TRecordedEvent[], scopeLabel?: string): void {
     if (this._active()) return;
-    this._tape.set(this.recorder.events());
+    this._tape.set(events ?? this.recorder.events());
+    this._scopeLabel.set(scopeLabel ?? null);
     this._cursor.set(-1);
     this._active.set(true);
     this.play();
@@ -81,6 +97,7 @@ export class ActivityPlaybackService {
     this.pause();
     this._active.set(false);
     this._tape.set([]);
+    this._scopeLabel.set(null);
     this._cursor.set(-1);
   }
 

@@ -410,6 +410,14 @@ export const INSPECTOR_VIEW_TEXTS = {
   /** Findings list, fix hint label rendered before the per-issue summary. */
   findingHintLabel: 'Hint:',
   /**
+   * Sub-header grouping the `observed-link-missing` rows apart from the
+   * other deterministic issues (spec/provider-activity.md, Session
+   * journal): these rows are reality commenting on the authored design
+   * (something observed executing in recorded sessions that no declared
+   * link covers), so they must not read as code defects.
+   */
+  observedSessionsHeader: 'Observed in sessions',
+  /**
    * Severity filter chips at the top of the Findings card (queue-chip
    * pattern, user request 2026-08-08): one chip per severity present,
    * with its live count, toggling that tier's visibility in BOTH lists

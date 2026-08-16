@@ -353,7 +353,11 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // stable/enabled the same day after the live playground pass, and
     // `ai-structure-analyzer` ceded the prose-should-be-a-list territory
     // to the finder in the same revision) bring it to 69.
-    assert.equal(rows.length, 69);
+    // `core/observed-link-missing` (the session-journal emergent-use
+    // detector, 2026-08-16: flags observed invoke/spawn pairs no declared
+    // link covers, `spec/provider-activity.md` §Session journal) brings
+    // it to 70.
+    assert.equal(rows.length, 70);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a

@@ -45,10 +45,21 @@
         >
           <i class="pi pi-list" aria-hidden="true"></i>
         </button>
+        <button
+          type="button"
+          class="workspace__rail-btn"
+          [pTooltip]="texts.sections.sessionsTooltip"
+          tooltipPosition="right"
+          [attr.aria-label]="texts.sections.sessionsTooltip"
+          (click)="openSection('sessions')"
+          data-testid="workspace-section-sessions"
+        >
+          <i class="pi pi-history" aria-hidden="true"></i>
+        </button>
       </div>
     } @else {
-      <!-- Open: a tab strip (Files / Queue) plus the collapse chevron,
-           above the shared search cluster and the swappable body. -->
+      <!-- Open: a tab strip (Files / Queue / Sessions) plus the collapse
+           chevron, above the shared search cluster and the swappable body. -->
       <div class="workspace__rail-tabs">
         <!-- The tablist wraps ONLY the tabs (aria-required-children: a
              tablist may not contain the collapse chevron); display:
@@ -111,6 +122,23 @@
           <i class="pi pi-list" aria-hidden="true"></i>
           <span>{{ texts.sections.queue }}</span>
         </button>
+        <!-- Deliberately ENABLED while the Live lens is on (unlike Queue):
+             this tab is the lens's own front door. -->
+        <button
+          type="button"
+          class="workspace__tab"
+          role="tab"
+          id="workspace-tab-sessions"
+          [class.is-active]="activeSection() === 'sessions'"
+          [attr.aria-selected]="activeSection() === 'sessions'"
+          [attr.tabindex]="activeSection() === 'sessions' ? 0 : -1"
+          aria-controls="workspace-rail-body"
+          (click)="openSection('sessions')"
+          data-testid="workspace-section-sessions"
+        >
+          <i class="pi pi-history" aria-hidden="true"></i>
+          <span>{{ texts.sections.sessions }}</span>
+        </button>
         </div>
         <!-- Chevron: collapse-only, shown ONLY when open (no glyph swap). -->
         <button
@@ -131,6 +159,11 @@
            file tree and, via the map toggle, the graph), so it is gated on the
            active tab and hidden on Queue. -->
       @if (activeSection() === 'files') {
+      <!-- Stop-only record control (user call 2026-08-16): the lens
+           narrows THIS rail while recording or replaying, so the way
+           OUT lives here too. Idle it renders nothing; starting a
+           recording stays a Sessions-tab gesture. -->
+      <sm-session-record-control [stopOnly]="true" />
       <div class="workspace__rail-bar">
         <p-iconfield iconPosition="left" class="workspace__search">
           <p-inputicon styleClass="pi pi-search" />
@@ -217,11 +250,11 @@
         class="workspace__rail-body"
         id="workspace-rail-body"
         role="tabpanel"
-        [attr.aria-labelledby]="activeSection() === 'files' ? 'workspace-tab-files' : 'workspace-tab-queue'"
+        [attr.aria-labelledby]="'workspace-tab-' + activeSection()"
       >
         @if (activeSection() === 'files') {
           <sm-files-view />
-        } @else {
+        } @else if (activeSection() === 'queue') {
           <!-- Deferred: the queue chunk loads on the tab's first
                activation (the branch only renders while Queue is
                active), keeping it out of the eager workspace bundle.
@@ -230,6 +263,11 @@
                @placeholder is needed for the one-time chunk fetch. -->
           @defer (when activeSection() === 'queue') {
             <sm-queue-view />
+          }
+        } @else {
+          <!-- Deferred like Queue: the sessions chunk loads on first use. -->
+          @defer (when activeSection() === 'sessions') {
+            <sm-sessions-view />
           }
         }
       </div>

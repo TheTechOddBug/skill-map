@@ -204,7 +204,8 @@
    The queue view is embedded on the same footing, so it gets the analogous
    rule. */
 .workspace__rail-body sm-files-view,
-.workspace__rail-body sm-queue-view {
+.workspace__rail-body sm-queue-view,
+.workspace__rail-body sm-sessions-view {
   display: flex;
   flex-direction: column;
   flex: 1;

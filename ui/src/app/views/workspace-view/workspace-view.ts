@@ -14,11 +14,22 @@ import { MapVisibilityService } from '../../../services/map-visibility';
 import { setupEdgeResize } from '../../core/edge-resize.controller';
 import { handleRovingTablistKeydown } from '../../core/roving-tablist';
 import { MAP_ISOLATE_INTENT, type IMapIsolateIntent } from '../../slots/map-isolate-intent';
+import {
+  SESSION_RECORD_INTENT,
+  type ISessionRecordIntent,
+} from '../../slots/session-record-intent';
+import {
+  SESSION_REPLAY_INTENT,
+  type ISessionReplayIntent,
+} from '../../slots/session-replay-intent';
+import type { ISessionReplaySelection, ISessionStep } from '../../../services/session-index';
 import { UsageTrackerService } from '../../services/usage-tracker';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
+import { SessionRecordControl } from '../../components/session-record-control/session-record-control';
 import { FilesView } from '../files-view/files-view';
 import { GraphView } from '../graph-view/graph-view';
 import { QueueView } from '../queue-view/queue-view';
+import { SessionsView } from '../sessions-view/sessions-view';
 import { WorkspaceNodeOpenIntent } from './workspace-open-intent';
 import {
   readStoredActiveSection,
@@ -43,7 +54,7 @@ const RAIL_RESIZE_STEP = 24;
  * stays a plain list and does NOT drive the markup. Reorder the template
  * buttons and this list moves with them.
  */
-const WORKSPACE_TAB_ORDER: readonly TWorkspaceSection[] = ['files', 'queue'];
+const WORKSPACE_TAB_ORDER: readonly TWorkspaceSection[] = ['files', 'queue', 'sessions'];
 
 /**
  * Fused single-screen workspace: a resizable files rail on the left, the
@@ -53,9 +64,10 @@ const WORKSPACE_TAB_ORDER: readonly TWorkspaceSection[] = ['files', 'queue'];
  * node and opens the inspector, all without leaving the route.
  *
  * The rail is an activity-bar + tabbed panel: collapsed, it is a 44px
- * icon strip (Files / Queue) that opens onto the clicked section; open, a
- * tab header switches its body between the files navigator and the job
- * queue, with a compact search cluster (driving the shared
+ * icon strip (Files / Queue / Sessions) that opens onto the clicked
+ * section; open, a tab header switches its body between the files
+ * navigator, the job queue and the recorded-sessions list, with a
+ * compact search cluster (driving the shared
  * `FilterStoreService`, so it filters both the table and the map) and a
  * collapse chevron alongside the tabs. Width is drag-resizable like the
  * inspector; faceted filters live on the map's floating palettes.
@@ -68,6 +80,8 @@ const WORKSPACE_TAB_ORDER: readonly TWorkspaceSection[] = ['files', 'queue'];
   imports: [
     FilesView,
     QueueView,
+    SessionRecordControl,
+    SessionsView,
     GraphView,
     FormsModule,
     IconFieldModule,
@@ -85,10 +99,12 @@ const WORKSPACE_TAB_ORDER: readonly TWorkspaceSection[] = ['files', 'queue'];
   providers: [
     { provide: NODE_OPEN_INTENT, useClass: WorkspaceNodeOpenIntent },
     { provide: MAP_ISOLATE_INTENT, useExisting: forwardRef(() => WorkspaceView) },
+    { provide: SESSION_REPLAY_INTENT, useExisting: forwardRef(() => WorkspaceView) },
+    { provide: SESSION_RECORD_INTENT, useExisting: forwardRef(() => WorkspaceView) },
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class WorkspaceView implements IMapIsolateIntent {
+export class WorkspaceView implements IMapIsolateIntent, ISessionReplayIntent, ISessionRecordIntent {
   private readonly store = inject(FilterStoreService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly loader = inject(CollectionLoaderService);
@@ -186,6 +202,20 @@ export class WorkspaceView implements IMapIsolateIntent {
   /** `IMapIsolateIntent`: forward the rail's isolate gesture to the map. */
   isolate(path: string): void {
     this.graphView()?.isolateNeighborhood(path);
+  }
+
+  /** `ISessionReplayIntent`: forward the sessions rail's Play to the map. */
+  replaySession(selection: ISessionReplaySelection, label: string, step?: ISessionStep): void {
+    this.graphView()?.replaySessionFromTape(selection, label, step);
+  }
+
+  /** `ISessionRecordIntent`: forward the rail's record control to the map. */
+  startRecording(): void {
+    this.graphView()?.startSessionRecording();
+  }
+
+  stopRecording(): void {
+    this.graphView()?.stopSessionRecording();
   }
 
   // Rail sits on the LEFT edge (handle on its right), so dragging

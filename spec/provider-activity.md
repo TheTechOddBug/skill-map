@@ -30,9 +30,11 @@ The pipeline crosses four independently-owned pieces:
   a scan-time engine; it is not alive at runtime and never transports events.
 - **BFF** owns the runtime: the ingest route, the event->node resolution against the
   scanned node set, the WebSocket broadcast, the in-memory execution-stats
-  accumulator (§Execution stats), and the consent-gated conversation store
-  (§Conversation capture). Activity state is in-memory only; nothing is persisted
-  (no `scan_*` / `state_*` writes), and everything dies with the process.
+  accumulator (§Execution stats), the consent-gated conversation store
+  (§Conversation capture), and the session journal (§Session journal). Activity
+  STATE is in-memory only, no `scan_*` / `state_*` writes, and dies with the
+  process; the one durable output is the journal's per-session files of RESOLVED,
+  content-free frames under `.skill-map/sessions/`.
 - **Bridge** is the tiny artifact installed into the provider's own hook config. It
   has ZERO skill-map logic beyond discovery + forwarding (see §Bridge contract).
 - **UI** owns presentation: per-node lighting, the active spine, TTL decay.
@@ -862,6 +864,94 @@ One RETAINED spawn record (the edge-click surface), with its `prompt` /
 only while the gate is on, so with the gate off (or after it cleared the
 store) the route answers `404`, exactly like an unknown id.
 
+## Session journal
+
+The one durable output of the activity pipeline (decision 2026-08-16, the
+carve-out from the ephemerality contract above): while `sm serve` runs, the
+BFF groups the RESOLVED frames it broadcasts into runtime sessions and
+persists each session as one JSON file under `<scopeRoot>/.skill-map/sessions/`,
+shape [`schemas/session-recording.schema.json`](./schemas/session-recording.schema.json).
+The journal is simultaneously the server-side activity memory (a session
+survives a server restart or a closed page), the export/import format the
+recording schema anchors, and the evidence base of the design-vs-reality
+evaluation (`sm scan` folds it into observed relations, below). It exists to
+evaluate the AUTHORED design, never as an observability log: frames record
+WHICH nodes executed and who spawned whom, no latency, no tokens, no content.
+
+- **What is journaled**: exactly the wire payloads of the `node.activity` /
+  `agent.spawn` WS events, captured at the SAME post-resolution seam the
+  broadcast uses, minus the boot-scoped derived fields (`stats` on
+  `node.activity`, `pairCount` on `agent.spawn`), which are regenerable and
+  meaningless across boots. The raw provider event is still NEVER persisted,
+  and the spawn frame is the metadata-only projection, so the journal is
+  content-free by construction (the schema's frame shapes are closed:
+  a prompt, argument, or file-content field cannot land on disk even by
+  accident). Consent gates are untouched: `activity.captureConversations`
+  governs the in-memory conversation store only and nothing content-shaped
+  ever reaches a journal file.
+- **Session grouping** mirrors the client session index's STRUCTURAL rules: a
+  session root owner is the `parentOwner` of any spawn frame whose
+  `parentNodePath` is absent (the wire's own session-context discriminator),
+  or any activity `owner` never claimed as a `childOwner`; a `childOwner`
+  claim attributes an owner to the spawning session, latest claim at or
+  before the frame's time winning (the re-spawn rule). The `main:<session_id>`
+  prefix and the `session` field are hints only, never parsed further. A
+  frame that cannot be attributed lands in the most recent open session,
+  else in a dedicated unattributed bucket file (`rootOwner: ""`); the
+  journal never guesses.
+- **Write cadence**: an in-memory buffer per session, flushed to its file on
+  a short debounce (~2s) while frames arrive. **Finalization** stamps
+  `endedAt`, appends one `activity.session-write` operations-log line
+  ([`cli-contract.md`](./cli-contract.md) §Operations log), and prunes; it
+  fires on session release (a `sessionScope` end naming the session, or a
+  terminal `ownerScope` end of the session's root owner) and on server
+  shutdown for every still-open session. A `turnEnd` does NOT finalize: a
+  session spans many turns.
+- **Naming**: `<startedAt ISO-8601, colons stripped>-<suffix>.json`, where
+  the suffix is the runtime session id when derivable (sanitized to
+  `[A-Za-z0-9._-]`) and an 8-char hash of the root owner otherwise. Sortable
+  by name, stable per session within a boot.
+- **Retention**: bounded by file count and total size (defaults: 50 files,
+  20 MiB), oldest first by name, pruned at server boot and at each
+  finalization. Deleting any or all files by hand is always safe.
+- **Deletion**: `DELETE /api/activity/sessions` empties the journal in one
+  gesture: every session file plus the serve process's open in-memory
+  buffers (discarded without finalizing, so a pending debounce flush
+  cannot resurrect a wiped file). Answers `204` always (an absent
+  directory included) and logs ONE `activity.sessions-clear` operations
+  line. Loopback-gated, no token (operator surface). The SPA's
+  delete-recording affordances (the Settings row, the replay transport's
+  trash) call it TOGETHER with clearing the client tape, behind a single
+  confirm that warns the operator the observed-relations evidence (the
+  `core/observed-link-missing` analyzer's input) goes with it; the two
+  memories erase as one by decision 2026-08-16, and hand-deleting files
+  stays equally safe.
+- **Off switch**: `activity.journal.enabled`
+  ([`schemas/project-config.schema.json`](./schemas/project-config.schema.json)),
+  default `true`, read at serve boot. A NORMAL project-config key, committable
+  in the shared `project` layer: the journal is content-free, so this is a
+  team preference, not a consent gate (unlike `activity.captureConversations`).
+  Off means nothing is written; existing files are left untouched.
+- **Failure posture**: fire-and-forget, like the operations log. A journal
+  write failure never fails or delays ingest; without a `.skill-map/`
+  directory the journal stays silent and writes nothing.
+- **Consumption (design-vs-reality)**: at scan time the driving adapter reads
+  every journal file (AJV-validating each against the recording schema and
+  SKIPPING off-shape files silently, disposable machine data), folds the
+  frames into **observed relations**, `(source node, target node)` pairs with
+  `relation: invokes` (an MCP tool call correlated to its calling unit by
+  owner) or `relation: spawns` (a spawn frame carrying both resolved paths),
+  and threads them to analyzers as `IAnalyzerContext.observedRelations`
+  (absent when the journal is empty). The deterministic
+  `core/observed-link-missing` analyzer emits one `info` issue per observed
+  pair whose source and target both exist in the scanned set and that no
+  declared `invokes` / `references` link covers (matching on the link's
+  resolved target, falling back to the raw target; `mentions` / `points` do
+  not count as declarations of execution). The operator fixes by editing the
+  markdown (declaring the link makes the issue disappear on the next scan) or
+  dismisses it durably via the standard issue-suppression sidecar affordance;
+  there is deliberately NO auto-fixer.
+
 ## Transport shapes
 
 Three shapes converge on the same ingest route; the provider's `install.kind`
@@ -883,9 +973,12 @@ declares which applies:
   metadata, and, ONLY under the explicit capture gate, inter-agent conversation
   content) is in-memory only and dies with the process; the raw event is
   dropped after mapping. Conversation retention is opt-in and off by default
-  (§Conversation capture). Wider rich surfaces (a full tool log with arguments)
-  remain future opt-in gates, and file CONTENTS stay excluded unless explicitly
-  enabled.
+  (§Conversation capture). The single durable carve-out is the session journal
+  (§Session journal): RESOLVED, content-free frames only, persisted
+  project-locally under `.skill-map/sessions/`, gitignored, operator-deletable,
+  and excluded from telemetry like everything else here. Wider rich surfaces
+  (a full tool log with arguments) remain future opt-in gates, and file
+  CONTENTS stay excluded unless explicitly enabled.
 - Installation is explicit: `sm activity install <provider>` is operator-invoked
   and consent-prompted, and the SPA equivalent (§Install management over HTTP)
   sits behind a server-enforced confirm gate on BOTH install and uninstall.
@@ -911,7 +1004,8 @@ Live-verified against real runs (2026-06-30). These inform each provider's
 This entire surface is **experimental** across spec v0.x: the capability shape
 (`provider.activity`), `serve.json`, the ingest route, and the `node.activity`
 event may tighten before a stable tag lands. The `agent.spawn` family, the
-execution-stats fields and endpoints, and the conversation-capture surface are
+execution-stats fields and endpoints, the conversation-capture surface, and the
+session journal (file layout, retention defaults, and the recording schema) are
 experimental additions under the same policy. Once promoted (a minor bump), the
 usual semantics apply: adding an optional manifest field, a new install kind, or a
 new `data` field is a minor bump; removing or renaming any of them is a major

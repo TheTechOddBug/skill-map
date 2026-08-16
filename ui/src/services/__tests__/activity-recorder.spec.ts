@@ -45,7 +45,7 @@ function spawnFrame(tMs: number): IWsEvent {
   } as IWsEvent;
 }
 
-function bootstrap(activityEnabled = true) {
+function bootstrap(activityEnabled = true, recording = true) {
   TestBed.resetTestingModule();
   const events$ = new Subject<IWsEvent>();
   const enabled = signal(activityEnabled);
@@ -59,6 +59,11 @@ function bootstrap(activityEnabled = true) {
     ],
   });
   const service = TestBed.inject(ActivityRecorderService);
+  // Capture is a manual gate since 2026-08-16 (the Sessions rail's
+  // record control): almost every case exercises the capturing path, so
+  // the harness arms it by default. `start()` no-ops while Real Time is
+  // off, which is exactly what the gate cases assert.
+  if (recording) service.start();
   return { service, events$, enabled };
 }
 
@@ -113,16 +118,45 @@ describe('ActivityRecorderService', () => {
     expect(service.events()[0]?.type).toBe('node.activity');
   });
 
-  it('drops frames while Real Time is off', async () => {
+  it('drops frames while Real Time is off (start() cannot even arm)', async () => {
     const { service, events$, enabled } = bootstrap(false);
     events$.next(activityFrame(T0 + 1));
     await flushed();
     expect(service.size()).toBe(0);
+    expect(service.recording()).toBe(false);
 
     enabled.set(true);
+    service.start();
     events$.next(activityFrame(T0 + 2));
     await flushed();
     expect(service.size()).toBe(1);
+  });
+
+  it('captures NOTHING unless the operator pressed record (manual gate, never automatic)', async () => {
+    const { service, events$ } = bootstrap(true, false);
+    events$.next(activityFrame(T0 + 1));
+    await flushed();
+    expect(service.size()).toBe(0);
+    expect(localStorage.getItem(ACTIVITY_RECORDING_KEY)).toBeNull();
+
+    service.start();
+    events$.next(activityFrame(T0 + 2));
+    await flushed();
+    expect(service.size()).toBe(1);
+
+    service.stop();
+    events$.next(activityFrame(T0 + 3));
+    await flushed();
+    // The tape stays (ready to replay); only the capture stopped.
+    expect(service.size()).toBe(1);
+  });
+
+  it('Real Time flipping off stops an in-flight recording', async () => {
+    const { service, enabled } = bootstrap();
+    expect(service.recording()).toBe(true);
+    enabled.set(false);
+    TestBed.tick();
+    expect(service.recording()).toBe(false);
   });
 
   it('caps the tape oldest-first and counts the drops', async () => {

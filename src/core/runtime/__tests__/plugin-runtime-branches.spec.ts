@@ -359,6 +359,7 @@ describe('plugin-runtime, branch coverage', () => {
         'name-mismatch',
         'name-reserved',
         'node-stability',
+        'observed-link-missing',
         'reference-broken',
         'reference-redundant',
         'schema-violation',
@@ -385,7 +386,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 6, 'claude + antigravity (beta) + codex (beta) + opencode (beta) + agent-skills (stable, locked) + core-markdown load by default');
       assert.equal(composed.extractors.length, 12, 'all 12 extractors load by default; core/mcp-tools was promoted experimental → beta so it now ships enabled (the codex grammar extractors and the code-region siblings backtick-mention + backtick-slash + backtick-dollar load too)');
-      assert.equal(composed.analyzers.length, 26, 'all 26 analyzers load by default (ai-prose-to-rules-analyzer graduated stable/enabled 2026-08-08 after its live playground pass, joining the roster), while the shipped probabilistic finders are STABLE queue targets excluded from scan-time phases by the mode gate (the former projector analyzers core/supersede + core/tags were deleted; the remaining inspector buttons self-project from their actions and tag editing moved inline; core/score-resolution was deleted, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model; core/name-mismatch joined for declared-vs-path-handle divergences; core/contribution-orphan, the never-implemented stub, was deleted 2026-07-22; all five optimization finders ai-verbosity/-vagueness/-structure/-trigger/-scope graduated stable/enabled on 2026-07-22 after the one-by-one live playground pass; the two security finders ai-security-analyzer / ai-suspicion-analyzer graduated 2026-07-23 after theirs)');
+      assert.equal(composed.analyzers.length, 27, 'all 27 analyzers load by default (ai-prose-to-rules-analyzer graduated stable/enabled 2026-08-08 after its live playground pass; core/observed-link-missing, the session-journal emergent-use detector, joined 2026-08-16), while the shipped probabilistic finders are STABLE queue targets excluded from scan-time phases by the mode gate (the former projector analyzers core/supersede + core/tags were deleted; the remaining inspector buttons self-project from their actions and tag editing moved inline; core/score-resolution was deleted, the kernel now seeds the 1.0 baseline directly; core/job-file-orphan was removed, to return under a probabilistic evaluation model; core/name-mismatch joined for declared-vs-path-handle divergences; core/contribution-orphan, the never-implemented stub, was deleted 2026-07-22; all five optimization finders ai-verbosity/-vagueness/-structure/-trigger/-scope graduated stable/enabled on 2026-07-22 after the one-by-one live playground pass; the two security finders ai-security-analyzer / ai-suspicion-analyzer graduated 2026-07-23 after theirs)');
       // Actions load into the pipeline as dispatch targets; those with a
       // `project()` also self-project an inspector button (e.g.
       // `core/node-set-stability`). `core/node-set-tags` is stable and
@@ -528,7 +529,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
       assert.equal(composed.extractors.length, 12, 'extractors untouched (12: core/mcp-tools is now beta so it ships enabled; the codex grammar extractors and the three code-region trigger siblings load)');
-      assert.equal(composed.analyzers.length, 26, 'analyzers untouched (all 26: core/annotation-stale graduated to stable so no built-in analyzer is experimental, and the three probabilistic finders are STABLE queue targets; the projector analyzers core/supersede + core/tags were deleted; core/score-resolution was deleted, the kernel seeds the 1.0 baseline directly; core/job-file-orphan was removed; core/name-mismatch joined; the contribution-orphan stub was deleted)');
+      assert.equal(composed.analyzers.length, 27, 'analyzers untouched (all 27: core/annotation-stale graduated to stable so no built-in analyzer is experimental, and the three probabilistic finders are STABLE queue targets; the projector analyzers core/supersede + core/tags were deleted; core/score-resolution was deleted, the kernel seeds the 1.0 baseline directly; core/job-file-orphan was removed; core/name-mismatch joined; core/observed-link-missing joined 2026-08-16; the contribution-orphan stub was deleted)');
     });
 
     it('(b) killSwitches.extractors empties only the extractors bucket', () => {
@@ -540,7 +541,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 6, 'providers untouched (6: claude + antigravity (beta) + codex (beta) + opencode (beta) + agent-skills (stable, locked) + core-markdown load)');
       assert.equal(composed.extractors.length, 0);
-      assert.equal(composed.analyzers.length, 26, 'analyzers untouched (all 26: no built-in analyzer is experimental since core/annotation-stale graduated to stable; the probabilistic finders, ai-prose-to-rules included since 2026-08-08, are stable queue targets)');
+      assert.equal(composed.analyzers.length, 27, 'analyzers untouched (all 27: no built-in analyzer is experimental since core/annotation-stale graduated to stable; the probabilistic finders, ai-prose-to-rules included since 2026-08-08, are stable queue targets; core/observed-link-missing joined 2026-08-16)');
     });
 
     it('(c) killSwitches.analyzers empties only the rules bucket', () => {

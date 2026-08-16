@@ -68,6 +68,7 @@ Every analytical extension declares itself `deterministic` (runs inside `sm scan
 ## Philosophy
 
 - **Design made visible**: a harness is designed, not accumulated; skill-map makes your design verifiable as it grows.
+- **Design evaluation, not observability**: the live map, sessions and replay answer "is my design working?" (which declared links actually fire, what ran and why), never "is my system healthy?". Where reality diverges from the design, the answer is a finding that proposes an edit, not a metrics dashboard.
 - **CLI-first**: everything the UI does is reachable from the command line.
 - **Deterministic by default**: the LLM is optional; the product works offline.
 - **A public standard**: the spec in [`spec/`](./spec/README.md) is enough to build an alternative implementation.
