@@ -205,6 +205,35 @@ describe('ActivityJournalService grouping', () => {
     journal.shutdown();
   });
 
+  it('an unattributable frame rides the most recent open session, else the unattributed bucket', async () => {
+    const root = makeScope();
+    const journal = makeJournal(root);
+    // Nothing open yet: the ownerless frame falls to the bucket file.
+    journal.recordActivity('claude', { phase: 'end', turnEnd: true });
+    // A session is open now: the next ownerless frame rides it instead.
+    journal.recordActivity('claude', {
+      nodePath: 'README.md',
+      phase: 'start',
+      owner: 'main:s1',
+    });
+    journal.recordActivity('claude', { phase: 'end', turnEnd: true });
+    await settle();
+
+    const files = sessionFiles(root);
+    assert.equal(files.length, 2);
+    const docs = files.map((f) => readSession(root, f));
+    const bucket = docs.find((d) => d['rootOwner'] === '');
+    const session = docs.find((d) => d['rootOwner'] === 'main:s1');
+    assert.ok(bucket);
+    assert.ok(session);
+    assert.equal((bucket['frames'] as unknown[]).length, 1);
+    assert.equal((session['frames'] as unknown[]).length, 2);
+    // The bucket file is schema-legal: the empty rootOwner is its identity.
+    const validated = loadSchemaValidators().validate('session-recording', bucket);
+    assert.equal(validated.ok, true, validated.ok ? '' : validated.errors);
+    journal.shutdown();
+  });
+
   it('a late childOwner claim adopts the session mis-rooted at that owner (hook race)', async () => {
     const root = makeScope();
     const journal = makeJournal(root);
@@ -315,6 +344,41 @@ describe('ActivityJournalService finalization', () => {
     journal.shutdown();
   });
 
+  it('a terminal ownerScope end finalizes only when the owner IS a session root', () => {
+    const root = makeScope();
+    const journal = makeJournal(root, { debounceMs: 60_000 });
+    journal.recordActivity('antigravity', {
+      nodePath: 'README.md',
+      phase: 'start',
+      owner: 'main:s1',
+    });
+    journal.recordSpawn('antigravity', {
+      spawnId: 'spawn-1',
+      phase: 'handoff',
+      parentOwner: 'main:s1',
+      childOwner: 'agent-1',
+    });
+    // A SUBAGENT's terminal end never closes the session it belongs to.
+    journal.recordActivity('antigravity', {
+      nodePath: '.claude/agents/worker.md',
+      phase: 'end',
+      owner: 'agent-1',
+      ownerScope: true,
+    });
+    assert.equal(sessionFiles(root).length, 0);
+
+    // The ROOT owner's terminal end is the fully-idle Stop shape: close.
+    journal.recordActivity('antigravity', {
+      phase: 'end',
+      owner: 'main:s1',
+      ownerScope: true,
+    });
+    const files = sessionFiles(root);
+    assert.equal(files.length, 1);
+    assert.equal(typeof readSession(root, files[0]!)['endedAt'], 'number');
+    journal.shutdown();
+  });
+
   it('shutdown flushes and finalizes still-open sessions before the debounce fires', () => {
     const root = makeScope();
     const journal = makeJournal(root, { debounceMs: 60_000 });
@@ -354,6 +418,29 @@ describe('ActivityJournalService retention', () => {
     assert.equal(files.length, 2);
     // Oldest-first deletion: the s1 file (earliest startedAt) is gone.
     assert.equal(files.some((f) => f.endsWith('-s1.json')), false);
+    journal.shutdown();
+  });
+
+  it('prunes oldest first past the total-byte bound too', async () => {
+    const root = makeScope();
+    // Each padded file lands well under the bound alone and well over
+    // it combined, so the sweep must drop exactly the oldest.
+    const journal = makeJournal(root, { maxTotalBytes: 1200 });
+    for (const id of ['s1', 's2']) {
+      journal.recordActivity('codex', {
+        nodePath: 'README.md',
+        phase: 'start',
+        owner: `main:${id}`,
+        session: id,
+        detail: 'x'.repeat(500),
+      });
+      journal.recordActivity('codex', { phase: 'end', sessionScope: true, session: id });
+    }
+    await settle();
+
+    const files = sessionFiles(root);
+    assert.equal(files.length, 1);
+    assert.equal(files[0]!.endsWith('-s2.json'), true);
     journal.shutdown();
   });
 });

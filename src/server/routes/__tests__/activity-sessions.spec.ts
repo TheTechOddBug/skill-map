@@ -112,6 +112,31 @@ describe('POST /api/activity/sessions/recording', () => {
       assert.equal(bad.status, 400);
     });
   });
+
+  it('the master switch off refuses to engage: the response answers with the EFFECTIVE state', async () => {
+    // Boot with `activity.journal.enabled: false` in the project layer;
+    // the toggle must answer honestly instead of pretending to record.
+    const settingsPath = join(scopeRoot, '.skill-map', 'settings.json');
+    writeFileSync(settingsPath, JSON.stringify({ activity: { journal: { enabled: false } } }));
+    try {
+      await bootAndUse(async (handle) => {
+        const res = await fetch(url(handle, '/api/activity/sessions/recording'), {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ recording: true }),
+        });
+        assert.equal(res.status, 200);
+        assert.deepEqual(await res.json(), { recording: false });
+
+        const envelope = (await (await fetch(url(handle, '/api/activity/sessions'))).json()) as {
+          recording: boolean;
+        };
+        assert.equal(envelope.recording, false);
+      });
+    } finally {
+      rmSync(settingsPath, { force: true });
+    }
+  });
 });
 
 describe('GET + DELETE /api/activity/sessions', () => {
