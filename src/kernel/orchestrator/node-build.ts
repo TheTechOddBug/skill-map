@@ -196,10 +196,14 @@ export function canonicalResolvedSettings(
  *
  * Perf note (2026-08 sprint): this resolution is SYNCHRONOUS
  * (`existsSync` + `readFileSync` in `sidecar/parse.ts`) and runs once
- * per node on EVERY scan, warm included. Async-ifying it ripples into
- * every `readSidecarFor` consumer, so it was deliberately left out of
- * the ordered-read-ahead pass; designated follow-up if a future
- * re-profile shows the warm-scan target at risk.
+ * per node on EVERY scan, warm included. The post-sprint re-profile
+ * (2026-08-17, 1k-node corpus) measured the whole sync read at
+ * ~15-25 ms per warm scan, against an async conversion that ripples
+ * into ~25 `readSidecarFor` call sites across cli/server/mcp; the
+ * follow-up was evaluated and CLOSED as not worth it. Re-open only if
+ * a future profile shows this read dominating, and prefer a split
+ * read API (bulk-async for the scan path, sync for point reads) over
+ * converting every consumer.
  */
 interface ISidecarResolution {
   overlay: NonNullable<Node['sidecar']>;

@@ -266,22 +266,53 @@ function resolvePersistInputs(inputs: IPersistScanInputs): Required<IPersistScan
 }
 
 /**
- * Deterministic JSON serialisation: object keys sorted, arrays in
- * order, `undefined` object entries dropped (mirroring
- * `JSON.stringify`). The fingerprint input must not depend on property
- * insertion order, which varies with the code path that built a record.
+ * Streaming sink for the canonical serialisation: fragments accumulate
+ * into a bounded buffer that flushes into the running sha256. The
+ * canonical text of a real corpus runs to megabytes; materialising it
+ * as ONE string per scan was a measured top-3 warm-scan cost (~50 ms
+ * serialise + GC churn on 1k nodes), so the writer streams instead.
  */
-function stableStringify(value: unknown): string {
+const FP_CHUNK_CHARS = 1 << 16;
+
+interface ICanonicalSink {
+  push(fragment: string): void;
+}
+
+/**
+ * Deterministic JSON serialisation, streamed: object keys sorted,
+ * arrays in order, `undefined` object entries dropped (mirroring
+ * `JSON.stringify`). The fingerprint input must not depend on property
+ * insertion order, which varies with the code path that built a
+ * record. Emits byte-identical text to a key-sorted `JSON.stringify`.
+ */
+function writeCanonical(value: unknown, sink: ICanonicalSink): void {
   if (value === null || typeof value !== 'object') {
-    return JSON.stringify(value) ?? 'null';
+    sink.push(JSON.stringify(value) ?? 'null');
+    return;
   }
   if (Array.isArray(value)) {
-    return `[${value.map((v) => stableStringify(v)).join(',')}]`;
+    sink.push('[');
+    for (let i = 0; i < value.length; i += 1) {
+      if (i > 0) sink.push(',');
+      writeCanonical(value[i], sink);
+    }
+    sink.push(']');
+    return;
   }
-  const entries = Object.entries(value as Record<string, unknown>)
+  writeCanonicalObject(value as Record<string, unknown>, sink);
+}
+
+function writeCanonicalObject(value: Record<string, unknown>, sink: ICanonicalSink): void {
+  const entries = Object.entries(value)
     .filter(([, v]) => v !== undefined)
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`).join(',')}}`;
+  sink.push('{');
+  for (let i = 0; i < entries.length; i += 1) {
+    if (i > 0) sink.push(',');
+    sink.push(`${JSON.stringify(entries[i]![0])}:`);
+    writeCanonical(entries[i]![1], sink);
+  }
+  sink.push('}');
 }
 
 /**
@@ -350,7 +381,19 @@ function computeResultFingerprint(
     // full path.
     [...inputs.freshlyRunTuples].sort(),
   ];
-  return createHash('sha256').update(stableStringify(composite), 'utf8').digest('hex');
+  const hash = createHash('sha256');
+  let buffer = '';
+  writeCanonical(composite, {
+    push(fragment: string): void {
+      buffer += fragment;
+      if (buffer.length >= FP_CHUNK_CHARS) {
+        hash.update(buffer, 'utf8');
+        buffer = '';
+      }
+    },
+  });
+  if (buffer.length > 0) hash.update(buffer, 'utf8');
+  return hash.digest('hex');
 }
 
 async function readStoredResultFingerprint(

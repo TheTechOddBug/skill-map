@@ -54,6 +54,19 @@ export default defineConfig({
   // a runtime import; npm installs the correct prebuilt on the user's
   // machine (it is already in `pnpm-workspace.yaml` allowBuilds).
   external: ['@parcel/watcher'],
+  // W4 Tier B-1 (2026-08-17): bundle the pure-JS boot-path deps into the
+  // dist chunks instead of resolving them from node_modules at runtime.
+  // Before this, `sm --version` walked ~45 ESM modules of which ~32 were
+  // these packages' file trees (clipanion 22, smol-toml 9, js-yaml 1)
+  // plus ajv's CJS graph on the scan path; bundling collapses the
+  // module-loader work into chunks the V8 compile cache already covers.
+  // Deliberately NOT bundled: `gpt-tokenizer` (its per-encoding rank
+  // tables must stay behind the lazy bare-specifier dynamic import),
+  // `kysely` (deferred behind the sqlite chunk; revisit separately),
+  // `hono`/`ws`/`zod`/`posthog-node`/`@sentry/node` (server / telemetry
+  // chunks, already lazy), `@parcel/watcher` (native, above) and
+  // `chokidar` (lazy watcher backend).
+  noExternal: ['clipanion', 'ajv', 'ajv-formats', 'smol-toml', 'js-yaml', 'semver', 'ignore'],
   // Code splitting pairs with the CLI's deferred server import
   // (`cli/commands/serve.ts`): the BFF subgraph lands in its own chunk
   // that common verbs never parse or execute, and the kernel code shared
