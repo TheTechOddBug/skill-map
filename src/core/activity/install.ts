@@ -30,7 +30,7 @@ import {
   defaultActivityBridgePath,
   defaultProjectActivityDir,
 } from '../paths/db-path.js';
-import { readConfigValue } from '../config/helper.js';
+import { readConfigValue, removeConfigValue, writeConfigValue } from '../config/helper.js';
 import { ensureScopeGitignore } from '../scope-gitignore.js';
 import { BRIDGE_PACKAGE_JSON, renderActivityBridge } from './bridge-template.js';
 import {
@@ -169,6 +169,18 @@ export function uninstallActivityBridge(
   providers: readonly IProvider[],
 ): { removed: boolean } {
   const install = provider.activity!.install;
+  // Revoking the whole capture surface revokes the sensitive rung with
+  // it (spec provider-activity.md, Capture level rung 5): when THIS
+  // provider owns the shell opt-in event, uninstall retires the key so
+  // a later re-install starts relocked and only a fresh --shell
+  // re-opens it. Runs regardless of `removed` (an uninstall on a
+  // half-broken wiring must still drop the consent).
+  if (
+    install.kind === 'json-hooks' &&
+    (install.events ?? []).some((event) => event.optIn === 'shell')
+  ) {
+    retireShellOptIn(cwd);
+  }
   const configPath = join(cwd, install.configPath);
   if (install.kind === 'plugin-file') {
     // Delete exactly our artifact; a foreign file at the same path
@@ -187,6 +199,30 @@ export function uninstallActivityBridge(
     rmSync(defaultProjectActivityDir(cwd), { recursive: true, force: true });
   }
   return { removed: true };
+}
+
+/**
+ * Retire the shell opt-in: drop `activity.shellCapture` (and its
+ * per-checkout grant) and demote a persisted `activity.captureLevel`
+ * of `shell` back to the ladder default, so no config layer keeps
+ * pointing at a rung the opt-in no longer backs. Shared by the
+ * uninstall path here and the CLI / BFF `--no-shell` writers.
+ */
+export function retireShellOptIn(cwd: string): void {
+  removeConfigValue('activity.shellCapture', { cwd, target: 'project-local' });
+  demoteShellCaptureLevel(cwd);
+}
+
+/**
+ * Half of the retirement usable on its own: writers that STORE `false`
+ * (the `--no-shell` flag keeps an explicit off so a bare re-install
+ * stays off) still need the level demotion.
+ */
+export function demoteShellCaptureLevel(cwd: string): void {
+  const level = readConfigValue<string>('activity.captureLevel', { cwd, default: 'mcp' });
+  if (level === 'shell') {
+    writeConfigValue('activity.captureLevel', 'mcp', { cwd, target: 'project-local' });
+  }
 }
 
 /**

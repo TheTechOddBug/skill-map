@@ -48,9 +48,11 @@
         <button
           type="button"
           class="workspace__rail-btn"
-          [pTooltip]="texts.sections.sessionsTooltip"
+          [class.is-disabled]="sessionsDisabled()"
+          [pTooltip]="sessionsDisabled() ? texts.sections.sessionsDisabledTooltip : texts.sections.sessionsTooltip"
           tooltipPosition="right"
           [attr.aria-label]="texts.sections.sessionsTooltip"
+          [attr.aria-disabled]="sessionsDisabled() ? 'true' : null"
           (click)="openSection('sessions')"
           data-testid="workspace-section-sessions"
         >
@@ -123,16 +125,20 @@
           <span>{{ texts.sections.queue }}</span>
         </button>
         <!-- Deliberately ENABLED while the Live lens is on (unlike Queue):
-             this tab is the lens's own front door. -->
+             this tab is the lens's own front door. Disabled only while
+             the activity hook is KNOWN missing (no frames can arrive). -->
         <button
           type="button"
           class="workspace__tab"
           role="tab"
           id="workspace-tab-sessions"
           [class.is-active]="activeSection() === 'sessions'"
+          [class.is-disabled]="sessionsDisabled()"
           [attr.aria-selected]="activeSection() === 'sessions'"
+          [attr.aria-disabled]="sessionsDisabled() ? 'true' : null"
           [attr.tabindex]="activeSection() === 'sessions' ? 0 : -1"
           aria-controls="workspace-rail-body"
+          [pTooltip]="sessionsDisabled() ? texts.sections.sessionsDisabledTooltip : ''"
           (click)="openSection('sessions')"
           data-testid="workspace-section-sessions"
         >

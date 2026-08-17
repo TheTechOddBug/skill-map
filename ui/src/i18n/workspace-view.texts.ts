@@ -22,6 +22,8 @@ export const WORKSPACE_VIEW_TEXTS = {
     sessionsTooltip: 'Recorded runtime sessions',
     /** Replaces the queue tooltip while the Live lens owns the workspace. */
     queueDisabledTooltip: 'The job queue is unavailable while the live lens is on',
+    sessionsDisabledTooltip:
+      'Sessions need the live-activity hook: install it in Settings > Project',
   },
   rail: {
     label: 'Files',

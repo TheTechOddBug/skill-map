@@ -294,6 +294,40 @@ describe('POST /api/activity/sessions/recording', () => {
     }
   });
 
+  it('the live level SELF-HEALS to the default when the opt-in is retired mid-serve', async () => {
+    writeConfigValue('activity.shellCapture', true, { cwd: scopeRoot, target: 'project-local' });
+    try {
+      await bootAndUse(async (handle) => {
+        const moved = await fetch(url(handle, '/api/activity/capture-level'), {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ level: 'shell' }),
+        });
+        assert.deepEqual(await moved.json(), { captureLevel: 'shell' });
+
+        // Retirement lands from elsewhere (uninstall / --no-shell in
+        // another terminal): the next journal read demotes the live
+        // cell instead of reporting a rung the opt-in no longer backs.
+        removeConfigValue('activity.shellCapture', { cwd: scopeRoot, target: 'project-local' });
+        const envelope = (await (await fetch(url(handle, '/api/activity/sessions'))).json()) as {
+          captureLevel: string;
+          shellCapture: boolean;
+        };
+        assert.equal(envelope.shellCapture, false);
+        assert.equal(envelope.captureLevel, 'mcp');
+
+        // And the demotion persisted for the next boot.
+        const local = JSON.parse(
+          readFileSync(join(scopeRoot, '.skill-map', 'settings.local.json'), 'utf8'),
+        ) as { activity?: { captureLevel?: string } };
+        assert.equal(local.activity?.captureLevel, 'mcp');
+      });
+    } finally {
+      removeConfigValue('activity.shellCapture', { cwd: scopeRoot, target: 'project-local' });
+      rmSync(join(scopeRoot, '.skill-map', 'settings.local.json'), { force: true });
+    }
+  });
+
   it('the master switch off refuses to engage: the response answers with the EFFECTIVE state', async () => {
     // Boot with `activity.journal.enabled: false` in the project layer;
     // the toggle must answer honestly instead of pretending to record.

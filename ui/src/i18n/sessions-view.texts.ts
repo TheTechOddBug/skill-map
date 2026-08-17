@@ -48,11 +48,11 @@ export const SESSIONS_VIEW_TEXTS = {
    * ladder, absent stamp renders no tag.
    */
   levelTag: {
-    executions: 'exe',
-    reads: 'reads',
-    writes: 'writes',
-    mcp: 'mcp',
-    shell: 'shell',
+    executions: 'run',
+    reads: '+reads',
+    writes: '+writes',
+    mcp: '+mcp',
+    shell: '+shell',
   } as Record<string, string>,
   levelTagTooltip: (level: string): string => `Recorded at capture level: ${level}`,
   /** Separator between touched-node names in a session's title. */

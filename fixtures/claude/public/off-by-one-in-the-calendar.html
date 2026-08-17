@@ -1,0 +1,38 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Off by one in the calendar</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Off by one in the calendar</h1>
+
+  <p>Date and time bugs keep coming back because the calendar looks simple and is not. Here are the usual suspects and the one rule that avoids most of them.</p>
+
+  <h2>Timezones are not offsets</h2>
+  <p>An offset like UTC-5 is not a fixed fact about a place. Rules change by political decision, sometimes with little notice. Storing a timestamp with a raw offset instead of a timezone name loses the information needed to reconstruct local time later.</p>
+
+  <h2>Daylight saving time breaks arithmetic</h2>
+  <p>Adding 24 hours to a timestamp is not the same as adding one day when a DST transition falls in between. Some local times do not exist at all during a spring-forward gap, and some exist twice during a fall-back overlap. Any "add one day" function has to decide which of these it means.</p>
+
+  <h2>Leap years and leap seconds</h2>
+  <p>February has 29 days roughly every four years, except century years not divisible by 400. Code that hardcodes 365-day years or ignores the exception drifts by a day at the wrong moment. Leap seconds are a separate, rarer problem: they make some minutes 61 seconds long, and most systems quietly smear over them rather than handle them exactly.</p>
+
+  <h2>Week numbers depend on who is counting</h2>
+  <p>ISO 8601 weeks start on Monday and week 1 is the week containing the year's first Thursday. Other conventions start the week on Sunday or anchor week 1 to January 1st. The same date can land in different week numbers depending on which standard a library assumes, and mixing two in one system produces off-by-one reports.</p>
+
+  <h2>Inclusive vs exclusive ranges</h2>
+  <p>"From Monday to Friday" can mean five days or four, depending on whether the end date is included. Booking systems, billing periods, and event listings all need to state the convention explicitly, not leave it implied. A silent mismatch between an inclusive start and an exclusive end is a classic off-by-one.</p>
+
+  <h2>The practical rule</h2>
+  <p>Do not write your own date math. Use a maintained date-time library, store timestamps in UTC with an explicit timezone, and test the DST transition dates and leap day directly. The bugs above are well understood and already fixed in the libraries; rewriting the logic just reintroduces them.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

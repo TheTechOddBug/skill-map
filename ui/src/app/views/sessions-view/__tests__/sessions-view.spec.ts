@@ -331,7 +331,7 @@ describe('SessionsView', () => {
     const { fixture } = makeFixture({ tape: [], journal: [recording] });
     await hydrated(fixture);
     const tag = fixture.nativeElement.querySelector('[data-testid="sessions-level-1"]');
-    expect(tag?.textContent?.trim()).toBe('exe');
+    expect(tag?.textContent?.trim()).toBe('run');
   });
 
   it('the capture-level selector LOCKS while recording (clicks change nothing)', async () => {

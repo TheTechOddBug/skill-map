@@ -90,6 +90,7 @@ export type TUsageFeatureSurface =
   | 'ignore-patterns-add'
   | 'ignore-patterns-remove'
   | 'mcp-copy'
+  | 'shell-optin-copy'
   | 'mcp-check'
   | 'agent-jobs-check'
   | 'auto-fixer'

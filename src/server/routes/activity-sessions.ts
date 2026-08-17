@@ -37,6 +37,7 @@ import { SERVER_TEXTS } from '../i18n/server.texts.js';
 import { readConfigValue, writeConfigValue } from '../../core/config/helper.js';
 import {
   CAPTURE_LEVELS,
+  DEFAULT_CAPTURE_LEVEL,
   type CaptureLevelState,
   type TCaptureLevel,
 } from '../capture-level.js';
@@ -111,8 +112,10 @@ export function registerActivitySessionsRoute(
       // gesture).
       recording: deps.journal.isRecording(),
       // The live ladder position, so the level selector hydrates
-      // (spec §Capture level).
-      captureLevel: deps.captureLevel.current(),
+      // (spec §Capture level). Self-heal first: an opt-in retired
+      // elsewhere (uninstall, --no-shell in another terminal) must not
+      // leave the live cell on a rung it no longer backs.
+      captureLevel: effectiveCaptureLevel(deps),
       // The shell rung's install-side opt-in, unlocking the selector's
       // fifth position (read fresh so an install in another terminal
       // reflects on the next fetch).
@@ -174,6 +177,23 @@ export function registerActivitySessionsRoute(
     });
     return c.body(null, 204);
   });
+}
+
+/**
+ * The live level, demoted to the default when it sits on `shell` while
+ * the install opt-in is off (spec §Capture level rung 5: retirement
+ * demotes; a running serve heals here on the next read). The demotion
+ * also persists so the next boot agrees.
+ */
+function effectiveCaptureLevel(deps: IActivitySessionsRouteDeps): string {
+  const level = deps.captureLevel.current();
+  if (level !== 'shell' || shellCaptureOn(deps)) return level;
+  deps.captureLevel.set(DEFAULT_CAPTURE_LEVEL);
+  writeConfigValue('activity.captureLevel', DEFAULT_CAPTURE_LEVEL, {
+    cwd: deps.runtimeContext.cwd,
+    target: 'project-local',
+  });
+  return DEFAULT_CAPTURE_LEVEL;
 }
 
 /** The install-side shell opt-in (project-local key), read fresh per use. */

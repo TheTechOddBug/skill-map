@@ -34,6 +34,7 @@ import { ConfirmationService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
+import { TooltipModule } from 'primeng/tooltip';
 
 import { SESSION_PURGE_TEXTS } from '../../../i18n/session-purge.texts';
 import { DATA_SOURCE, type IDataSourcePort } from '../../../services/data-source/data-source.port';
@@ -61,6 +62,7 @@ import { ToggleRowDirective } from './toggle-row.directive';
     FormsModule,
     ToggleRowDirective,
     ToggleSwitchModule,
+    TooltipModule,
   ],
   providers: [ConfirmationService],
   templateUrl: './settings-project-realtime.html',
@@ -106,6 +108,26 @@ export class SettingsProjectRealtime {
   /** Capture-ladder mirror (spec provider-activity.md, Capture level). */
   protected readonly captureLevelSvc = inject(CaptureLevelService);
   protected readonly captureLevelTexts = CAPTURE_LEVEL_TEXTS;
+
+  /**
+   * Shell unlock line: the install-side half of the double opt-in runs
+   * in the terminal, so the row shows the exact command with a Copy
+   * button (the MCP registration row's dialect). Never hidden: once the
+   * opt-in is on it flips to the `--no-shell` way back out (an absent
+   * line read as a bug in the field, 2026-08-17).
+   */
+  protected readonly shellCommandCopied = signal(false);
+
+  protected async onCopyShellCommand(): Promise<void> {
+    this.usageTracker.trackFeature('shell-optin-copy', undefined, 'settings');
+    try {
+      await navigator.clipboard.writeText(this.captureLevelTexts.shellUnlock.command);
+      this.shellCommandCopied.set(true);
+      setTimeout(() => this.shellCommandCopied.set(false), 2000);
+    } catch {
+      // Clipboard blocked (insecure context / denied). Non-actionable, no-op.
+    }
+  }
 
   protected onLiveActivityToggle(next: boolean): void {
     this.usageTracker.trackFeature('realtime-activity', next, 'settings');

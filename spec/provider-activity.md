@@ -1097,7 +1097,14 @@ per event, cheap enough that the hooks always install their full surface):
    commands (2026-08-17, claude-only v1: a `PreToolUse` hook on `Bash`,
    rendered ONLY when the operator opted in at install time,
    `sm activity install claude --shell`, persisted as the project-local
-   `activity.shellCapture` key; `--no-shell` retires it). Double opt-in
+   `activity.shellCapture` key; `--no-shell` retires it, and so does
+   `sm activity uninstall` of a provider whose descriptor carries the
+   opt-in event: revoking the whole capture surface revokes the
+   sensitive rung with it, so a later re-install starts relocked and
+   only a fresh `--shell` re-opens it. Retiring the opt-in while the
+   persisted `activity.captureLevel` is `shell` demotes that key to the
+   default (`mcp`); a serving process self-heals the same way on its
+   next session-journal read). Double opt-in
    by design: command lines are operator content, so the rung demands
    BOTH the install flag and the selector, and `POST
    /api/activity/capture-level` refuses `shell` while the install key is

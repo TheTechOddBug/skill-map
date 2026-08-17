@@ -23,6 +23,8 @@ import {
   type ISessionReplayIntent,
 } from '../../slots/session-replay-intent';
 import type { ISessionReplaySelection, ISessionStep } from '../../../services/session-index';
+import { SKILL_MAP_MODE } from '../../../services/data-source/runtime-mode';
+import { ActivityReadinessService } from '../../services/activity-readiness';
 import { UsageTrackerService } from '../../services/usage-tracker';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import { SessionRecordControl } from '../../components/session-record-control/session-record-control';
@@ -162,6 +164,23 @@ export class WorkspaceView implements IMapIsolateIntent, ISessionReplayIntent, I
    */
   protected readonly queueDisabled = this.liveLens.active;
 
+  /**
+   * Sessions need the active lens's live-activity hook: without it no
+   * frames ever arrive, so recording is a dead control. `null`
+   * (unknown) fails OPEN like every consumer of the readiness probe; a
+   * KNOWN not-installed disables the tab (user decision 2026-08-17).
+   */
+  private readonly activityReadiness = inject(ActivityReadinessService);
+  /**
+   * Demo-exempt: the static snapshot honestly reports "nothing
+   * installed" (it has no filesystem), but its canned sessions are the
+   * whole point of the demo tour, so the gate only applies live.
+   */
+  private readonly mode = inject(SKILL_MAP_MODE);
+  protected readonly sessionsDisabled = computed(
+    () => this.mode !== 'demo' && this.activityReadiness.hookInstalled() === false,
+  );
+
   /** Guards so the corpus-size auto-default applies at most once and never
    *  fights a manual toggle. */
   private autoRailApplied = false;
@@ -276,6 +295,16 @@ export class WorkspaceView implements IMapIsolateIntent, ISessionReplayIntent, I
         this.setActiveSection('files');
       }
     });
+
+    // Same fallback for Sessions: an uninstall (Settings hook row
+    // refreshes the shared readiness signal, a CLI uninstall lands on
+    // the next scan tick) must not strand the rail on a panel whose
+    // feature just went unavailable.
+    effect(() => {
+      if (this.sessionsDisabled() && untracked(() => this.activeSection()) === 'sessions') {
+        this.setActiveSection('files');
+      }
+    });
   }
 
   /**
@@ -291,6 +320,13 @@ export class WorkspaceView implements IMapIsolateIntent, ISessionReplayIntent, I
     // the tab click, the collapsed activity-bar button and the roving
     // arrow keys all route through this one verb.
     if (section === 'queue' && this.queueDisabled()) return;
+    if (section === 'sessions') {
+      if (this.sessionsDisabled()) return;
+      // Cheap staleness guard: a CLI uninstall between scans would
+      // otherwise open a dead panel; if the probe answers not-installed
+      // the fallback effect above bounces to files.
+      void this.activityReadiness.refresh();
+    }
     this.userToggledRail = true;
     // Usage analytics (opt-in, default OFF): only a gesture that actually
     // opens the rail or switches the panel counts; re-clicking the already

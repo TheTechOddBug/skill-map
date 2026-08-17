@@ -13,7 +13,7 @@ import { dirname, join } from 'node:path';
 import { after, before, beforeEach, describe, it } from 'node:test';
 
 import type { IProvider } from '../../../kernel/extensions/index.js';
-import { writeConfigValue } from '../../config/helper.js';
+import { readConfigValue, writeConfigValue } from '../../config/helper.js';
 import {
   ACTIVITY_BRIDGE_REL,
   defaultActivityBridgePath,
@@ -21,6 +21,7 @@ import {
 } from '../../paths/db-path.js';
 import {
   activityInstallStatus,
+  demoteShellCaptureLevel,
   findActivityProvider,
   installActivityBridge,
   uninstallActivityBridge,
@@ -181,7 +182,7 @@ describe('core/activity install engine', () => {
 
   it('an opt-in event renders only while its key is on; re-install after key-off removes it', async () => {
     const gated = makeProvider();
-    (gated.activity!.install as { events: unknown[] }).events = [
+    (gated.activity!.install as unknown as { events: unknown[] }).events = [
       { event: 'PreToolUse', matcher: '^(Skill|Agent|Read)$' },
       { event: 'PreToolUse', matcher: '^Bash$', optIn: 'shell' },
     ];
@@ -207,6 +208,58 @@ describe('core/activity install engine', () => {
     hooks = readConfig(cwd)['hooks'] as Record<string, unknown[]>;
     assert.equal(JSON.stringify(hooks['PreToolUse']).includes('^Bash$'), false);
     assert.equal(JSON.stringify(hooks['PreToolUse']).includes(ACTIVITY_BRIDGE_REL), true);
+  });
+
+  it('uninstall RETIRES the shell opt-in and demotes a persisted shell level', async () => {
+    const gated = makeProvider();
+    (gated.activity!.install as unknown as { events: unknown[] }).events = [
+      { event: 'PreToolUse', matcher: '^(Skill|Agent|Read)$' },
+      { event: 'PreToolUse', matcher: '^Bash$', optIn: 'shell' },
+    ];
+    writeConfigValue('activity.shellCapture', true, { cwd, target: 'project-local' });
+    writeConfigValue('activity.captureLevel', 'shell', { cwd, target: 'project-local' });
+    await installActivityBridge(cwd, gated);
+
+    uninstallActivityBridge(cwd, gated, [gated]);
+    // Key gone, level demoted to the ladder default: re-consent is
+    // explicit after any uninstall (spec Capture level rung 5).
+    assert.equal(
+      readConfigValue<boolean>('activity.shellCapture', { cwd, default: false }),
+      false,
+    );
+    assert.equal(
+      readConfigValue<string>('activity.captureLevel', { cwd, default: 'mcp' }),
+      'mcp',
+    );
+    // A later bare re-install starts relocked: no Bash event rendered.
+    await installActivityBridge(cwd, gated);
+    const hooks = readConfig(cwd)['hooks'] as Record<string, unknown[]>;
+    assert.equal(JSON.stringify(hooks['PreToolUse']).includes('^Bash$'), false);
+  });
+
+  it('demoteShellCaptureLevel: only a persisted `shell` moves; other levels are untouched', () => {
+    writeConfigValue('activity.captureLevel', 'reads', { cwd, target: 'project-local' });
+    demoteShellCaptureLevel(cwd);
+    assert.equal(
+      readConfigValue<string>('activity.captureLevel', { cwd, default: 'mcp' }),
+      'reads',
+    );
+    writeConfigValue('activity.captureLevel', 'shell', { cwd, target: 'project-local' });
+    demoteShellCaptureLevel(cwd);
+    assert.equal(
+      readConfigValue<string>('activity.captureLevel', { cwd, default: 'mcp' }),
+      'mcp',
+    );
+  });
+
+  it('uninstall of a provider WITHOUT the opt-in event leaves the key alone', async () => {
+    writeConfigValue('activity.shellCapture', true, { cwd, target: 'project-local' });
+    await installActivityBridge(cwd, provider); // base provider: no optIn event
+    uninstallActivityBridge(cwd, provider, [provider]);
+    assert.equal(
+      readConfigValue<boolean>('activity.shellCapture', { cwd, default: false }),
+      true,
+    );
   });
 
   it('reinstall refreshes a stale wiring in place (remove-then-merge)', async () => {

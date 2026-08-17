@@ -42,6 +42,7 @@ import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import {
   activityInstallStatus,
+  demoteShellCaptureLevel,
   findActivityProvider,
   installActivityBridge,
   uninstallActivityBridge,
@@ -149,6 +150,9 @@ export class ActivityInstallCommand extends SmCommand {
   private resolveShellOptIn(cwd: string): boolean {
     if (this.shell !== undefined) {
       writeConfigValue('activity.shellCapture', this.shell, { cwd, target: 'project-local' });
+      // Turning the rung off must not leave the persisted level
+      // pointing at it (spec provider-activity.md, Capture level rung 5).
+      if (!this.shell) demoteShellCaptureLevel(cwd);
     }
     return readConfigValue<boolean>('activity.shellCapture', { cwd, default: false }) === true;
   }

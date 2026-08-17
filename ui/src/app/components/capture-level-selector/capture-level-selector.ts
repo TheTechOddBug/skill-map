@@ -11,7 +11,7 @@
  * then it renders disabled so the ladder's shape stays honest.
  */
 
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { TooltipModule } from 'primeng/tooltip';
@@ -28,6 +28,7 @@ interface ILevelOption {
   readonly label: string;
   readonly value: TCaptureLevel;
   readonly disabled: boolean;
+  readonly tooltip: string;
 }
 
 @Component({
@@ -42,13 +43,21 @@ interface ILevelOption {
       [allowEmpty]="false"
       [ngModel]="service.level()"
       (ngModelChange)="onChange($event)"
-      [disabled]="service.busy() || recorder.recording()"
+      [disabled]="service.busy() || recorder.recording() || disabled()"
       size="small"
-      [pTooltip]="recorder.recording() ? texts.lockedWhileRecording : texts.description"
+      [pTooltip]="recorder.recording() ? texts.lockedWhileRecording : ''"
       tooltipPosition="bottom"
       [attr.aria-label]="texts.label"
       data-testid="capture-level-selector"
-    />
+    >
+      <!-- Per-option tooltip (what each rung shows). Lives on the inner
+           span: a disabled native button swallows pointer events, so a
+           locked option stays silent and only the wrapper's lock
+           tooltip speaks, never both. -->
+      <ng-template let-option pTemplate="item">
+        <span [pTooltip]="option.tooltip" tooltipPosition="bottom">{{ option.label }}</span>
+      </ng-template>
+    </p-selectbutton>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -63,6 +72,12 @@ export class CaptureLevelSelector {
   protected readonly recorder = inject(ActivityRecorderService);
   protected readonly texts = CAPTURE_LEVEL_TEXTS;
 
+  /**
+   * External gate (the Settings mirror disables the whole control while
+   * the activity hook is KNOWN missing; the host row explains why).
+   */
+  readonly disabled = input(false);
+
   protected readonly options = computed<ILevelOption[]>(() =>
     CAPTURE_LEVELS.map((value) => ({
       label: CAPTURE_LEVEL_TEXTS.levels[value],
@@ -70,6 +85,7 @@ export class CaptureLevelSelector {
       // The shell rung unlocks only with the install-side opt-in
       // (spec §Capture level rung 5, double opt-in by design).
       disabled: value === 'shell' && !this.service.shellCapture(),
+      tooltip: CAPTURE_LEVEL_TEXTS.tooltips[value],
     })),
   );
 

@@ -34,14 +34,17 @@ describe('SettingsProjectRealtime recording row', () => {
   const tapeSize = signal(0);
   const storedChars = signal(0);
   const purge = vi.fn();
+  const setCaptureLevel = vi.fn((level: string) => Promise.resolve(level));
   let getSessionJournal: ReturnType<typeof vi.fn>;
 
   async function mount(
     journalSessions: number,
+    shellCapture = false,
+    hookInstalled: boolean | null = true,
   ): Promise<import('@angular/core/testing').ComponentFixture<Host>> {
     getSessionJournal = vi
       .fn()
-      .mockResolvedValue({ sessions: Array(journalSessions).fill({}), recording: false, captureLevel: 'mcp', shellCapture: false });
+      .mockResolvedValue({ sessions: Array(journalSessions).fill({}), recording: false, captureLevel: 'mcp', shellCapture });
     TestBed.configureTestingModule({
       providers: [
         {
@@ -56,11 +59,11 @@ describe('SettingsProjectRealtime recording row', () => {
         {
           provide: ActivityReadinessService,
           useValue: {
-            hookInstalled: signal(true).asReadonly(),
+            hookInstalled: signal(hookInstalled).asReadonly(),
             refresh: vi.fn().mockResolvedValue(undefined),
           } as unknown as ActivityReadinessService,
         },
-        { provide: DATA_SOURCE, useValue: { getSessionJournal } },
+        { provide: DATA_SOURCE, useValue: { getSessionJournal, setCaptureLevel } },
         { provide: SKILL_MAP_MODE, useValue: 'demo' },
       ],
     });
@@ -105,6 +108,40 @@ describe('SettingsProjectRealtime recording row', () => {
     );
     const button = query('settings-project-recording-delete')?.querySelector('button');
     expect(button?.disabled).toBe(true);
+  });
+
+  it('the shell unlock line shows the opt-in command until the opt-in is on', async () => {
+    await mount(0);
+    expect(query('settings-project-shell-unlock-hint')).toBeTruthy();
+    expect(query('settings-project-shell-unlock-command')?.textContent).toContain(
+      'sm activity install claude --shell',
+    );
+    expect(query('settings-project-shell-unlock-copy')).toBeTruthy();
+  });
+
+  it('a KNOWN-missing hook disables the capture ladder: hint shown, unlock line gone', async () => {
+    await mount(0, false, false);
+    expect(query('settings-project-capture-level-hook-hint')).toBeTruthy();
+    expect(query('settings-project-shell-unlock-hint')).toBeNull();
+    expect(query('settings-project-shell-unlock-command')).toBeNull();
+    // Behavioral disable (PrimeNG renders togglebuttons, not native
+    // buttons): clicking an option must not reach the service.
+    setCaptureLevel.mockClear();
+    const option = query('capture-level-selector')?.querySelectorAll('p-togglebutton')[0] as
+      | HTMLElement
+      | undefined;
+    expect(option).toBeTruthy();
+    option!.click();
+    (option!.querySelector('span') as HTMLElement | null)?.click();
+    expect(setCaptureLevel).not.toHaveBeenCalled();
+  });
+
+  it('once opted in the hint flips but the snippet keeps the OPT-IN command', async () => {
+    await mount(0, true);
+    expect(query('settings-project-shell-unlock-hint')?.textContent).toContain('opted in');
+    expect(query('settings-project-shell-unlock-command')?.textContent?.trim()).toBe(
+      'sm activity install claude --shell',
+    );
   });
 
   it('the confirmed delete purges both memories and zeroes the journal half optimistically', async () => {

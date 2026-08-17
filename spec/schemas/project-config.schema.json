@@ -175,7 +175,7 @@
       "properties": {
         "shellCapture": {
           "type": "boolean",
-          "description": "Install-side opt-in for the capture ladder's `shell` rung (provider-activity.md, Capture level): when true, `sm activity install claude` renders the extra `PreToolUse` Bash hook and the `shell` selector position unlocks. Default false; command lines are operator content, so this is never on by default. Project-LOCAL (settings.local.json); written by the install command's --shell / --no-shell flags."
+          "description": "Install-side opt-in for the capture ladder's `shell` rung (provider-activity.md, Capture level): when true, `sm activity install claude` renders the extra `PreToolUse` Bash hook and the `shell` selector position unlocks. Default false; command lines are operator content, so this is never on by default. Project-LOCAL (settings.local.json); written by the install command's --shell / --no-shell flags and retired by `sm activity uninstall` of the provider that owns the opt-in event."
         },
         "captureLevel": {
           "type": "string",

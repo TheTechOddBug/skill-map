@@ -298,6 +298,41 @@ describe('POST /api/activity/install, consent gate + effects', () => {
     });
   });
 
+  it('body shellCapture drives the opt-in over HTTP: true renders the Bash hook, false retires + demotes', async () => {
+    await bootAndUse(async (handle) => {
+      // Opt in through the install body (the UI dialect of --shell).
+      const on = await post(handle, '/api/activity/install', {
+        provider: 'claude',
+        confirm: true,
+        shellCapture: true,
+      });
+      assert.equal(on.status, 200);
+      assert.equal(((await on.json()) as IStatusEnvelope).events, 8);
+      const config = readFixtureConfig();
+      assert.equal(JSON.stringify(config['hooks']).includes('^Bash$'), true);
+
+      // Park the persisted level on the rung, then retire via the body.
+      writeConfigValue('activity.captureLevel', 'shell', {
+        cwd: root.fixtureRoot,
+        target: 'project-local',
+      });
+      const off = await post(handle, '/api/activity/install', {
+        provider: 'claude',
+        confirm: true,
+        shellCapture: false,
+      });
+      assert.equal(off.status, 200);
+      assert.equal(((await off.json()) as IStatusEnvelope).events, 7);
+      assert.equal(JSON.stringify(readFixtureConfig()['hooks']).includes('^Bash$'), false);
+      // The --no-shell dialect demotes the parked level too.
+      const local = JSON.parse(
+        readFileSync(join(root.fixtureRoot, '.skill-map', 'settings.local.json'), 'utf8'),
+      ) as { activity?: { captureLevel?: string; shellCapture?: boolean } };
+      assert.equal(local.activity?.shellCapture, false);
+      assert.equal(local.activity?.captureLevel, 'mcp');
+    });
+  });
+
   it('reinstall refreshes the wiring idempotently', async () => {
     await bootAndUse(async (handle) => {
       await post(handle, '/api/activity/install', { provider: 'claude', confirm: true });

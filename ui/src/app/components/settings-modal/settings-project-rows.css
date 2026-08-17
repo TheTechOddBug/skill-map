@@ -245,10 +245,11 @@
   color: var(--sm-text-muted);
 }
 
-/* The MCP registration payload, shown verbatim above the Copy button.
-   Wraps rather than scrolls horizontally: a command is one long line and
-   a config document is several, and the settings panel is narrow. */
-.settings-project__mcp-snippet {
+/* A verbatim copy payload (the MCP registration snippet, the shell
+   opt-in command), shown next to its Copy button. Wraps rather than
+   scrolls horizontally: a command is one long line and a config
+   document is several, and the settings panel is narrow. */
+.settings-project__snippet {
   margin: 0.4rem 0 0;
   padding: 0.4rem 0.55rem;
   font-family: var(--sm-font-mono);
@@ -260,4 +261,24 @@
   border: 1px solid var(--p-content-border-color);
   border-radius: var(--sm-radius-md);
   color: var(--sm-text-muted);
+}
+
+/* Snippet + its copy icon on one line (the shell unlock command). */
+.settings-project__snippet-line {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.4rem;
+}
+
+.settings-project__snippet-line .settings-project__snippet {
+  margin: 0;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* One-command variant: never wrap mid-command, scroll if cramped. */
+.settings-project__snippet--one-line {
+  white-space: nowrap;
+  overflow-x: auto;
 }

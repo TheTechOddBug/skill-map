@@ -1,0 +1,35 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Rollback is a feature</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Rollback is a feature</h1>
+
+  <p>Most teams treat rollback as an emergency escape hatch, something you reach for only when a deploy goes wrong. That framing is backward. The ability to undo a deploy cleanly is a product feature, and it deserves the same design attention as any feature your users actually see.</p>
+
+  <h2>A rollback you have never rehearsed does not exist</h2>
+  <p>A rollback path that only lives in a runbook, untested since the day it was written, is not a rollback path. It is a hope. The only way to know a rollback works is to run it, on purpose, outside of an incident, and watch it succeed. If the last time anyone reversed a deploy was eight months ago, assume it is broken until proven otherwise.</p>
+
+  <h2>Migrations are what make rollbacks hard</h2>
+  <p>Code is usually easy to roll back. The database is not. A migration that renames a column, drops a table, or changes a type in place leaves no way back once the old code is gone. The fix is to write migrations as two small steps instead of one big one: expand first (add the new column, the new table, the new shape, alongside the old one), then contract later (remove the old shape only after every consumer has moved on and a rollback is no longer on the table). Expand-then-contract costs an extra release, but it means the code can always fall back to a schema that still understands it.</p>
+
+  <h2>A fast rollback buys confidence</h2>
+  <p>Teams that can undo a bad deploy in under a minute ship smaller changes, more often, with less ceremony around each one. The size of a release is inversely proportional to the cost of undoing it. When rollback is slow or uncertain, every release accumulates extra review, extra staging time, extra people signing off, because the only defense against a mistake is preventing it in advance. When rollback is fast, the defense shifts to detecting and reversing mistakes quickly, which is cheaper and catches more of them.</p>
+
+  <h2>If it needs a decision tree, it will not happen at 3am</h2>
+  <p>A rollback procedure that starts with "it depends" is a procedure nobody will follow under pressure. If reverting a release requires checking which of three scenarios applies, consulting a flowchart, or paging someone who knows the one weird migration from last quarter, it will not get executed at 3am by whoever is on call. It will get escalated, debated, and delayed while the outage continues. The rollback that actually gets used is the one that is a single command, with no judgment call attached, that any engineer on the rotation can run without asking permission.</p>
+
+  <h2>Cheap undo enables better risk</h2>
+  <p>None of this is really about disaster recovery. It is about what a team is willing to try. A team that can undo a deploy cheaply takes bigger swings, ships experiments, and corrects course in minutes instead of days. A team that cannot undo anything treats every release like a one-way door, and one-way doors make people cautious in ways that slow everything down, not just the risky changes. Build rollback like a feature, rehearse it, and the rest of the release process gets to relax.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

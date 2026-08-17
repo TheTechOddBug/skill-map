@@ -39,6 +39,7 @@ import type { IProvider } from '../../kernel/extensions/index.js';
 import { readConfigValue, writeConfigValue } from '../../core/config/helper.js';
 import {
   activityInstallStatus,
+  demoteShellCaptureLevel,
   installActivityBridge,
   uninstallActivityBridge,
 } from '../../core/activity/install.js';
@@ -115,6 +116,10 @@ export function registerActivityInstallRoutes(app: Hono, deps: IRouteDeps): void
           cwd: deps.runtimeContext.cwd,
           target: 'project-local',
         });
+        // Turning the rung off must not leave the persisted level
+        // pointing at it (the live cell self-heals on the next
+        // session-journal read).
+        if (!body.shellCapture) demoteShellCaptureLevel(deps.runtimeContext.cwd);
       }
       await installActivityBridge(deps.runtimeContext.cwd, provider);
     } catch (err) {

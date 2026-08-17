@@ -9,6 +9,7 @@ import { WorkspaceView } from '../workspace-view';
 import { readStoredActiveSection } from '../workspace-view.storage';
 import { GraphView } from '../../graph-view/graph-view';
 import { ActivityPlaybackService } from '../../../../services/activity-playback';
+import { ActivityReadinessService } from '../../../services/activity-readiness';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
 import { FilterStoreService } from '../../../../services/filter-store';
 import { KindRegistryService } from '../../../../services/kind-registry';
@@ -184,6 +185,7 @@ async function bootstrap(
   links: ILinkApi[],
   corpusSize = nodes.length,
   lens?: ILensHandles,
+  extraProviders: unknown[] = [],
 ): Promise<{
   fixture: ComponentFixture<WorkspaceView>;
   mapVisibility: MapVisibilityService;
@@ -211,6 +213,7 @@ async function bootstrap(
       ...(lens === undefined
         ? []
         : [{ provide: LiveLensService, useValue: makeLensStub(lens) }]),
+      ...(extraProviders as []),
       // The queue panel (mounted when the Queue section is active) injects
       // `WsEventStreamService` for its debounced live refresh. The real
       // service is used here (as before this suite grew the queue tab): in
@@ -312,6 +315,97 @@ describe('WorkspaceView isolate wiring', () => {
     click(fixture, 'files-leaf-graph-a.md');
     expect(mapVisibility.overrides().size).toBe(0);
     expect(mapVisibility.isActive()).toBe(false);
+  });
+});
+
+describe('WorkspaceView sessions gate (activity hook required)', () => {
+  function makeReadinessStub(initial: boolean | null) {
+    const hookInstalled = signal<boolean | null>(initial);
+    return {
+      stub: {
+        hookInstalled: hookInstalled.asReadonly(),
+        refresh: vi.fn().mockResolvedValue(undefined),
+      } as unknown as ActivityReadinessService,
+      hookInstalled,
+    };
+  }
+
+  function sessionsTab(fixture: ComponentFixture<WorkspaceView>): HTMLElement {
+    return (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="workspace-section-sessions"]',
+    ) as HTMLElement;
+  }
+
+  it('a KNOWN-missing hook disables the tab: aria-disabled, and the click is inert', async () => {
+    localStorage.setItem('sm.workspace.rail-collapsed', '0');
+    const { stub } = makeReadinessStub(false);
+    const { fixture } = await bootstrap([makeNode('a.md', 'a')], [], 1, undefined, [
+      { provide: ActivityReadinessService, useValue: stub },
+      // The gate is demo-exempt, so these suites run as 'live'.
+      { provide: SKILL_MAP_MODE, useValue: 'live' },
+    ]);
+
+    const tab = sessionsTab(fixture);
+    expect(tab.getAttribute('aria-disabled')).toBe('true');
+    tab.click();
+    fixture.detectChanges();
+    expect(tab.getAttribute('aria-selected')).toBe('false'); // still not the active panel
+  });
+
+  it('an uninstall while Sessions is open bounces the rail to Files (dynamic fallback)', async () => {
+    localStorage.setItem('sm.workspace.rail-collapsed', '0');
+    localStorage.setItem('sm.workspace.rail-section', 'files');
+    const { stub, hookInstalled } = makeReadinessStub(true);
+    const { fixture } = await bootstrap([makeNode('a.md', 'a')], [], 1, undefined, [
+      { provide: ActivityReadinessService, useValue: stub },
+      // The gate is demo-exempt, so these suites run as 'live'.
+      { provide: SKILL_MAP_MODE, useValue: 'live' },
+    ]);
+
+    sessionsTab(fixture).click();
+    fixture.detectChanges();
+    expect(sessionsTab(fixture).getAttribute('aria-selected')).toBe('true');
+
+    // The Settings hook row refreshes the shared readiness signal right
+    // after an uninstall; the workspace must not stay stranded on a
+    // dead panel.
+    hookInstalled.set(false);
+    fixture.detectChanges();
+    expect(sessionsTab(fixture).getAttribute('aria-selected')).toBe('false');
+    expect(
+      (fixture.nativeElement as HTMLElement)
+        .querySelector('[data-testid="workspace-section-files"]')
+        ?.getAttribute('aria-selected'),
+    ).toBe('true');
+  });
+
+  it('demo mode is exempt: canned sessions stay reachable despite "nothing installed"', async () => {
+    localStorage.setItem('sm.workspace.rail-collapsed', '0');
+    const { stub } = makeReadinessStub(false);
+    const { fixture } = await bootstrap([makeNode('a.md', 'a')], [], 1, undefined, [
+      { provide: ActivityReadinessService, useValue: stub },
+      // No mode override: the harness default is 'demo'.
+    ]);
+    const tab = sessionsTab(fixture);
+    expect(tab.getAttribute('aria-disabled')).toBeNull();
+    tab.click();
+    fixture.detectChanges();
+    expect(sessionsTab(fixture).getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('unknown readiness (null) FAILS OPEN: the tab stays clickable', async () => {
+    localStorage.setItem('sm.workspace.rail-collapsed', '0');
+    const { stub } = makeReadinessStub(null);
+    const { fixture } = await bootstrap([makeNode('a.md', 'a')], [], 1, undefined, [
+      { provide: ActivityReadinessService, useValue: stub },
+      // The gate is demo-exempt, so these suites run as 'live'.
+      { provide: SKILL_MAP_MODE, useValue: 'live' },
+    ]);
+    const tab = sessionsTab(fixture);
+    expect(tab.getAttribute('aria-disabled')).toBeNull();
+    tab.click();
+    fixture.detectChanges();
+    expect(sessionsTab(fixture).getAttribute('aria-selected')).toBe('true');
   });
 });
 

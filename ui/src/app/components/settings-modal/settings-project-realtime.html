@@ -33,6 +33,56 @@
   />
 </div>
 
+<!-- Capture-ladder mirror (spec provider-activity.md, Capture level):
+     the same live selector the Sessions rail carries beside Record. -->
+<div smToggleRow class="settings-project__row" data-testid="settings-project-capture-level-row">
+  <div class="settings-project__row-text">
+    <span class="settings-project__row-label">{{ captureLevelTexts.label }}</span>
+    <div class="settings-project__row-description">
+      {{ captureLevelTexts.description }} {{ captureLevelTexts.settingsNote }}
+    </div>
+    @if (activityHookInstalled() === false) {
+      <!-- No hook, no frames: the whole ladder is moot until the hook
+           row above installs it (same gate as Real-time node activity). -->
+      <div class="settings-project__row-meta">
+        <span class="settings-project__meta-line" data-testid="settings-project-capture-level-hook-hint">
+          {{ texts.project.live.activity.hookHint }}
+        </span>
+      </div>
+    } @else {
+      <!-- Shell unlock (double opt-in, spec Capture level rung 5): the
+           install half happens in the terminal, so hand the command over
+           copy-style like the MCP registration row. The line never
+           hides; once opted in it flips to the way back out (its
+           absence read as a bug in the field, 2026-08-17). -->
+      <div class="settings-project__row-hint" data-testid="settings-project-shell-unlock-hint">
+        {{ captureLevelSvc.shellCapture() ? captureLevelTexts.shellUnlock.hintOn : captureLevelTexts.shellUnlock.hint }}
+      </div>
+      <div class="settings-project__snippet-line">
+        <pre
+          class="settings-project__snippet settings-project__snippet--one-line"
+          data-testid="settings-project-shell-unlock-command"
+        >{{ captureLevelTexts.shellUnlock.command }}</pre>
+        <!-- Icon-only copy (the row is compact); the check swap is the
+             copied feedback, the tooltip / aria carry the wording. -->
+        <p-button
+          [icon]="shellCommandCopied() ? 'pi pi-check' : 'pi pi-copy'"
+          severity="secondary"
+          [text]="true"
+          size="small"
+          [ariaLabel]="captureLevelTexts.shellUnlock.copyLabel"
+          [pTooltip]="shellCommandCopied() ? captureLevelTexts.shellUnlock.copiedLabel : captureLevelTexts.shellUnlock.copyLabel"
+          tooltipPosition="top"
+          (onClick)="onCopyShellCommand()"
+          data-testid="settings-project-shell-unlock-copy"
+        />
+      </div>
+    }
+  </div>
+  <sm-capture-level-selector [disabled]="activityHookInstalled() === false" />
+</div>
+
+
 <div smToggleRow class="settings-project__row" data-testid="settings-project-change-spark-row">
   <div class="settings-project__row-text">
     <label class="settings-project__row-label" for="settings-project-change-spark-switch">
@@ -82,17 +132,6 @@
   />
 </div>
 
-<!-- Capture-ladder mirror (spec provider-activity.md, Capture level):
-     the same live selector the Sessions rail carries beside Record. -->
-<div smToggleRow class="settings-project__row" data-testid="settings-project-capture-level-row">
-  <div class="settings-project__row-text">
-    <span class="settings-project__row-label">{{ captureLevelTexts.label }}</span>
-    <div class="settings-project__row-description">
-      {{ captureLevelTexts.description }}
-    </div>
-  </div>
-  <sm-capture-level-selector />
-</div>
 <!-- Not a toggle: the replay tape this browser holds, plus the delete
      that owns its lifetime (nothing else erases it). -->
 <div smToggleRow class="settings-project__row" data-testid="settings-project-recording-row">
