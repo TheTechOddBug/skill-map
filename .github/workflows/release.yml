@@ -10,26 +10,16 @@ on:
   # "is there release work to do" decision moved into the `Detect release
   # pass` step (fresh changesets -> version PR; unpublished version ->
   # publish; both false -> no-op).
+  # The rc prerelease channel (a dedicated `release/rc` branch in
+  # changesets pre mode publishing `-rc.N` under the `rc` npm tag) was
+  # RETIRED on 2026-08-17: releases go main-direct. Its push trigger and
+  # branch-side guard left with it; the pre.json-on-main guard below
+  # remains, it protects `latest` regardless of how pre mode might sneak
+  # back in.
   workflow_run:
     workflows: [ci]
     types: [completed]
     branches: [main]
-  # `release/rc` is the dedicated prerelease channel: while it is in
-  # changesets pre mode it publishes `-rc.N` builds under the `rc` tag, so
-  # `latest` (and every bare `npm i @skill-map/cli`) stays on the last
-  # stable. It keeps the direct push trigger (ci only runs on main pushes,
-  # so a workflow_run gate would never fire there). Runbook + invariants:
-  # CONTRIBUTING.md "Release candidates (prereleases)".
-  push:
-    branches: [release/rc]
-    paths:
-      - '.changeset/*.md'
-      # Entering / exiting pre mode (`changeset pre enter|exit`) only touches
-      # pre.json; include it so the prerelease pass triggers on the enter/exit
-      # commit even when no changeset .md changed in the same push.
-      - '.changeset/pre.json'
-      - '*/package.json'
-      - 'package.json'
 
 concurrency:
   group: release-${{ github.ref }}
@@ -44,17 +34,15 @@ jobs:
   release:
     runs-on: ubuntu-latest
     # The ci gate: a workflow_run event fires on ANY completion (success,
-    # failure, cancelled), so the success requirement lives here. The push
-    # event (release/rc) has no workflow_run payload and passes through.
-    if: github.event_name == 'push' || github.event.workflow_run.conclusion == 'success'
+    # failure, cancelled), so the success requirement lives here.
+    if: github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Checkout
         uses: actions/checkout@v5
         with:
           # Under workflow_run the default ref is the default branch's LATEST
           # commit, which can have moved past the push that ran ci; pin to
-          # the exact commit ci validated. Empty (-> github.ref) on the
-          # release/rc push trigger.
+          # the exact commit ci validated.
           ref: ${{ github.event.workflow_run.head_sha || '' }}
           fetch-depth: 0
           persist-credentials: true
@@ -79,36 +67,24 @@ jobs:
       - name: Install deps
         run: pnpm install --frozen-lockfile
 
-      - name: Guard release channel / pre-mode invariant
-        # Two hard invariants that keep the `latest` npm tag clean, checked
-        # before any build or publish so a misconfigured branch fails fast:
-        #   - `main` must NEVER carry .changeset/pre.json. If it did, the
-        #     changesets action would flip main into pre mode and publish every
-        #     release as an `-rc.N` under the `rc` tag, halting stable releases
-        #     to `latest`.
-        #   - `release/rc` must ALWAYS carry .changeset/pre.json. Without it the
-        #     action would version + publish a STABLE build to `latest` from the
-        #     prerelease branch, shipping an unvetted release to every
-        #     `npm i @skill-map/cli` user.
-        # Runbook: CONTRIBUTING.md "Release candidates (prereleases)".
-        env:
-          REF: ${{ github.ref }}
+      - name: Guard pre-mode invariant
+        # One hard invariant keeps the `latest` npm tag clean, checked before
+        # any build or publish: `main` must NEVER carry .changeset/pre.json.
+        # If it did, the changesets action would flip main into pre mode and
+        # publish every release as an `-rc.N` under the `rc` tag, halting
+        # stable releases to `latest`. (The dedicated rc channel that once
+        # paired a branch-side guard with this one was retired 2026-08-17.)
         run: |
-          if [ "$REF" = "refs/heads/main" ] && [ -f .changeset/pre.json ]; then
+          if [ -f .changeset/pre.json ]; then
             echo "::error::.changeset/pre.json is present on main. Run 'pnpm changeset pre exit' and remove it before releasing from main (see CONTRIBUTING.md)."
             exit 1
           fi
-          if [ "$REF" = "refs/heads/release/rc" ] && [ ! -f .changeset/pre.json ]; then
-            echo "::error::release/rc has no .changeset/pre.json. Run 'pnpm changeset pre enter rc' before pushing, or you would publish a stable release to the 'latest' tag from a prerelease branch (see CONTRIBUTING.md)."
-            exit 1
-          fi
-          echo "Release channel invariant OK for ${REF}."
+          echo "Pre-mode invariant OK."
 
       - name: Detect release pass
         id: pass
-        # This workflow fires on every push to main or release/rc that bumps a
-        # package.json or lands a changeset, so it runs in two distinct passes
-        # per cycle:
+        # This workflow fires on every ci-green push to main, so it runs in
+        # two distinct passes per cycle:
         #   - version-PR pass: fresh (unconsumed) changesets exist, the
         #     changesets action only opens / updates the "version packages" PR.
         #   - publish pass: no fresh changesets (versions already bumped), the
@@ -119,30 +95,19 @@ jobs:
         # self-skip on the version-PR pass, saving the build minutes that each
         # changeset push would otherwise waste.
         #
-        # "Fresh" is the subtle part. Outside pre mode, `changeset version`
-        # DELETES the .md it consumes, so any .md on disk is fresh. Inside pre
-        # mode (.changeset/pre.json present, i.e. the release/rc channel) the
-        # consumed .md are KEPT on disk and their ids are recorded in
-        # pre.json.changesets so they can accumulate across rc.N iterations and
-        # all land in the eventual stable. A raw file count therefore reads a
-        # publish pass as a version pass, skips the build, and the changesets
-        # action publishes a dist-less tarball (regression that shipped a broken
-        # 0.89.0-rc.0). So subtract the recorded ids: a .md is fresh only if its
-        # id is NOT already in pre.json.changesets.
+        # "Fresh" is simple since the rc channel retired (2026-08-17): outside
+        # pre mode `changeset version` DELETES the .md it consumes, and the
+        # guard above bars pre mode from main, so any non-README .md on disk
+        # is fresh. (The pre.json id-subtraction this step once carried, the
+        # fix for the dist-less 0.89.0-rc.0 tarball, went with the channel.)
         run: |
-          recorded=""
-          if [ -f .changeset/pre.json ]; then
-            recorded="$(jq -r '.changesets[]?' .changeset/pre.json)"
-          fi
           fresh=0
           for f in .changeset/*.md; do
             [ -e "$f" ] || continue
             base="$(basename "$f" .md)"
             [ "$base" = "README" ] && continue
-            if ! printf '%s\n' "$recorded" | grep -qxF "$base"; then
-              fresh=1
-              break
-            fi
+            fresh=1
+            break
           done
           if [ "$fresh" = "1" ]; then
             echo "publish=false" >> "$GITHUB_OUTPUT"

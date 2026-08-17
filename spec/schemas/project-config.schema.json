@@ -186,16 +186,16 @@
               "type": "boolean",
               "description": "Master switch of the session journal (`.skill-map/sessions/`). Default true. Read once at serve boot. Capture itself is a GESTURE, never ambient (decision 2026-08-16): frames land only while the operator records (`POST /api/activity/sessions/recording`, driven by the UI's Record session control); this key decides whether that recording toggle can engage at all for the boot (off = the toggle refuses and nothing is ever written). A NORMAL project-config key, committable in the shared `project` layer: the journal is content-free by construction (no prompts, no arguments, no file contents), so this is a team preference, NOT consent-shaped like `activity.captureConversations`. Existing session files are left untouched either way (delete them via the UI's delete-recording gesture, or by hand)."
             },
-          "maxFiles": {
-            "type": "integer",
-            "minimum": 1,
-            "description": "Retention ceiling for `.skill-map/sessions/`: keep at most this many recording files, pruning oldest first at boot and at each finalization. Default 50. This bounds the EVIDENCE WINDOW the observed-* volume gates count against, so keep it at or above the largest `min-active-sessions` in use or that gate becomes unreachable."
-          },
-          "maxTotalBytes": {
-            "type": "integer",
-            "minimum": 65536,
-            "description": "Retention ceiling for `.skill-map/sessions/` in total bytes across all recording files, pruning oldest first. Default 20971520 (20 MiB). Applied together with `maxFiles`; whichever bound is exceeded first evicts."
-          }
+            "maxFiles": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Retention ceiling for `.skill-map/sessions/`: keep at most this many recording files, pruning oldest first at boot and at each finalization. Default 50. This bounds the EVIDENCE WINDOW the observed-* volume gates count against, so keep it at or above the largest `min-active-sessions` in use or that gate becomes unreachable."
+            },
+            "maxTotalBytes": {
+              "type": "integer",
+              "minimum": 65536,
+              "description": "Retention ceiling for `.skill-map/sessions/` in total bytes across all recording files, pruning oldest first. Default 20971520 (20 MiB). Applied together with `maxFiles`; whichever bound is exceeded first evicts."
+            }
           }
         }
       }

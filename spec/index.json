@@ -674,7 +674,7 @@
       "schemas/node.schema.json": "6f44a115367ef5a016b2ba0a56af1220bbf51aeef66addbc28f1f7afc2a22ef5",
       "schemas/plugins-doctor.schema.json": "a474cdc69bff60b57f25f60e871e54c672b2de924983eecb4167e21f4400c979",
       "schemas/plugins-registry.schema.json": "fcb2c911a5d746ec14c153afb5c3255d95322a4ddb1500a17f5b7353df9c0d63",
-      "schemas/project-config.schema.json": "210aed2c1a724687d0a36f81cac6ae58c410b84cc6b60ec79ac1297525142cbc",
+      "schemas/project-config.schema.json": "ba40117d2afd7a8f772dfc725292f669e0ddf5b6eea9d2c5c9831bac8cc125e0",
       "schemas/report-base-deterministic.schema.json": "a72f80f48e3e784ad2d6a632f07a59f28848bf49884ad401d625a4d65d9fb1dd",
       "schemas/report-base.schema.json": "991907323b51c3d55107d5f3e52a904fbdbe598d481bc81ff1d50cde36a2f35c",
       "schemas/scan-result.schema.json": "a383e3dc6efb8e9faf5fed22d3be9068d38128ac507264d8f38ea571008d1fcd",

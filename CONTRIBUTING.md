@@ -113,7 +113,7 @@ Both public workspaces shipped `1.0.0` in 2026-08, so the post-1.0 rows below ar
 2. Merge to `main` → the `ci` workflow runs first; only when it finishes GREEN does the `release` workflow fire (a `workflow_run` gate) and open (or update) a **"Version Packages"** PR that bumps `package.json` files, consumes the changesets, and updates CHANGELOGs.
 3. Merge the Version Packages PR → its own `ci` run goes green → `release` publishes to npm and creates a git tag.
 
-Nothing ships to npm without an explicit merge of the Version Packages PR, and a red `ci` on `main` blocks both the version PR and the publish (`release/rc` keeps its direct push trigger, ungated: `ci` does not run on that branch).
+Nothing ships to npm without an explicit merge of the Version Packages PR, and a red `ci` on `main` blocks both the version PR and the publish.
 
 ### Publish provenance
 
@@ -147,32 +147,9 @@ CLI documentation is not a committed artifact: `sm help --format md` emits canon
 
 The bot-opened branch `changeset-release/*` is exempt from the "changeset required" check, it consumes changesets rather than adding them.
 
-### Release candidates (prereleases)
+### Release candidates (prereleases): RETIRED
 
-Normal releases publish under the npm `latest` dist-tag, so `npm i -g @skill-map/cli` (and any bare `@skill-map/cli`) resolves them automatically. A release candidate must NOT reach those users: it publishes under a separate `rc` dist-tag, opt-in only (`npm i -g @skill-map/cli@rc`), and `latest` stays pinned to the last stable. Both public packages (`@skill-map/cli`, `@skill-map/spec`) move together while in prerelease mode.
-
-The channel is cut from a dedicated `release/rc` branch, never from `main`. The `release` workflow is armed for both branches and enforces the invariant that keeps `latest` clean: `main` must never carry `.changeset/pre.json`, and `release/rc` must always carry it (a guard step fails the run otherwise).
-
-**Cut an RC:**
-
-1. Branch from the commit you want to ship: `git switch -c release/rc` (or `git switch release/rc` if it already exists).
-2. Enter pre mode and commit the generated file: `pnpm changeset pre enter rc`, then commit `.changeset/pre.json`. From here every version becomes an `-rc.N` prerelease.
-3. Confirm the `.changeset/*.md` you want in the RC are present, then push `release/rc`.
-4. CI opens a "Version Packages" PR against `release/rc` with `-rc.0` versions (e.g. `0.86.0-rc.0`). Review and merge it.
-5. The merge triggers the publish pass: `changeset publish` ships under the `rc` tag automatically (pre mode picks the tag from `pre.json`). Verify with `npm dist-tag ls @skill-map/cli`, `latest` unchanged and `rc` pointing at the new version.
-
-Testers install with `npm i -g @skill-map/cli@rc`.
-
-**Iterate (rc.1, rc.2, ...):** add another `.changeset/*.md` on `release/rc`, push, merge the refreshed Version Packages PR. Each cycle increments the prerelease number.
-
-**Promote to stable:** the real feature commits and their changesets land on `main` through the normal flow, and `main` cuts the stable release to `latest`. Do NOT merge `release/rc` into `main` (it carries `pre.json` and the `-rc` bumps). On `release/rc`, run `pnpm changeset pre exit` when the channel is done. Optionally retire the tag once stable ships: `npm dist-tag rm @skill-map/cli rc`.
-
-**Gotchas:**
-
-- Pre mode is sticky and global: while `pre.json` lives on the branch, every versioned package publishes as `-rc.N`. You cannot mix a stable and an RC on the same branch.
-- `.changeset/pre.json` must never reach `main`. The workflow guard fails the release if it does, but keep it off `main` by construction (do prerelease work only on `release/rc`).
-- `changeset version` consumes (deletes) the `.md` files on the branch. Keep the changesets that drive the eventual stable release on `main`; the `release/rc` branch is disposable.
-- `.npmrc` sets `minimum-release-age=4320` (72h), which delays INSTALLS, not publishes. To test a fresh RC immediately, install in a clean environment that does not inherit the repo `.npmrc` (the release workflow's smoke step already does this by installing from a `mktemp -d`).
+The dedicated rc channel (a `release/rc` branch in changesets pre mode publishing `-rc.N` builds under the npm `rc` dist-tag) was retired on 2026-08-17 after one full real cycle (0.89.0-rc.0 through rc.4, promoted to stable): releases now go main-direct through the normal Version Packages flow above. The full runbook (cut, iterate, promote) lives in git history at this section, should the channel ever come back; the one invariant that outlived it is enforced by the `release` workflow: `main` must never carry `.changeset/pre.json` (pre mode on main would divert every stable release to the `rc` tag).
 
 ## See also
 
