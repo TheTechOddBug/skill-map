@@ -6,14 +6,15 @@
   "description": "End-to-end / smoke tests for skill-map. Not a published workspace.",
   "scripts": {
     "test": "NODE_OPTIONS=--disable-warning=DEP0205 playwright test",
-    "test:ci": "PW_QUIET=1 FORCE_COLOR=1 NODE_OPTIONS=--disable-warning=DEP0205 playwright test --project=smoke",
+    "test:ci": "PW_QUIET=1 FORCE_COLOR=1 NODE_OPTIONS=--disable-warning=DEP0205 playwright test",
     "test:ui": "pnpm test:ci",
     "test:smoke": "NODE_OPTIONS=--disable-warning=DEP0205 playwright test --project=smoke",
     "test:live-bff": "NODE_OPTIONS=--disable-warning=DEP0205 playwright test --project=live-bff",
     "install:browsers": "playwright install chromium-headless-shell",
     "prevalidate:test": "pnpm install:browsers && pnpm --filter @skill-map/web demo:build",
     "validate": "pnpm validate:test",
-    "validate:test": "pnpm test:ci"
+    "validate:test": "pnpm check:testids && pnpm test:ci",
+    "check:testids": "node scripts/check-testids.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.12.1",

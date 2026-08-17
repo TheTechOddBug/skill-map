@@ -11,7 +11,10 @@ const PORT = Number(process.env.SMOKE_PORT ?? 4321);
  *                `webServer` block boots the static server.
  *   - `live-bff` runs against a real `sm serve` spawned by
  *                `live-bff/global-setup.ts`. Closes R10 from the
- *                §Step 9.6 review queue. Opt-in (`--project=live-bff`).
+ *                §Step 9.6 review queue. Part of the default `test:ci`
+ *                path since 2026-08-17 (it rotted silently as an
+ *                opt-in: a retired-testid pin sat stale for months);
+ *                `--project=live-bff` still runs it alone.
  *
  * Each project carries its own `baseURL` because the two run against
  * different servers on different ports. The live-bff suite hits a

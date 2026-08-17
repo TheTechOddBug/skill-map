@@ -29,7 +29,7 @@ Root orchestrates the two phases globally: **every workspace's compile phase run
 | `@skill-map/cli` | `typecheck` + `lint` + `build` + `built-ins:check` | `test:ci` |
 | `ui` | `build` | `test:ci` |
 | `@skill-map/web` | `build` |, |
-| `skill-map-e2e` |, | `test:ci` (with `prevalidate:test` that prepares demo + browsers) |
+| `skill-map-e2e` |, | `check:testids` (static pin tripwire) + `test:ci` = BOTH playwright projects, smoke AND live-bff (with `prevalidate:test` that prepares demo + browsers) |
 
 Root scripts:
 
