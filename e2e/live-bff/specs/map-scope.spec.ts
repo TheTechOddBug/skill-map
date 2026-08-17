@@ -21,6 +21,7 @@
  */
 
 import { test, expect } from './_fixtures.js';
+import { seedProjectStorage } from '../../_storage.js';
 
 const STALE_PATH = '.claude/agents/stale-agent.md';
 const DOCS_GUIDE = 'docs/guide.md';
@@ -28,6 +29,9 @@ const DOCS_API = 'docs/api.md';
 
 test.describe('map scope overrides (rail checkboxes -> /api/branch -> canvas)', () => {
   test.beforeEach(async ({ page, liveBffUrl }) => {
+    // Stamp the storage version FIRST: an unversioned seed reads as
+    // pre-namespace leftovers and the UI's gate wipes it at boot.
+    await seedProjectStorage(page);
     await page.addInitScript(() => {
       localStorage.setItem('sm.workspace.rail-collapsed', '0');
     });
@@ -54,15 +58,15 @@ test.describe('map scope overrides (rail checkboxes -> /api/branch -> canvas)', 
     await expect(page.getByTestId(`graph-node-${STALE_PATH}`)).toBeVisible();
     await expect(docsBox).toHaveAttribute('data-state', 'none');
     await expect(master).toHaveAttribute('data-state', 'some');
-    // An active scope surfaces the toolbar "Show all" escape hatch.
-    await expect(page.getByTestId('graph-show-all-toolbar')).toBeVisible();
+    // (The old partial-scope "Show all" toolbar button was retired with
+    // the workspace fusion, 2026-06-02; the escape hatch lives in the
+    // curation EMPTY state now, covered by the master-uncheck test.)
 
     // Re-check: the subtree returns and the scope goes back to
-    // show-all (override deleted, toolbar button gone).
+    // show-all (override deleted).
     await docsBox.click();
     await expect(page.getByTestId(`graph-node-${DOCS_GUIDE}`)).toBeVisible({ timeout: 10_000 });
     await expect(master).toHaveAttribute('data-state', 'all');
-    await expect(page.getByTestId('graph-show-all-toolbar')).toHaveCount(0);
   });
 
   test('master uncheck empties the map into the curation empty state; Show all restores', async ({ page }) => {

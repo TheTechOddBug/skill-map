@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { seedProjectStorage } from '../_storage.js';
 
 /**
  * Files-rail rows stay PAINTED across sorting and scrolling.
@@ -22,6 +23,9 @@ import { expect, test, type Page } from '@playwright/test';
 test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
 async function gotoFiles(page: Page): Promise<void> {
+  // Stamp the storage version FIRST: an unversioned seed reads as
+  // pre-namespace leftovers and the UI's gate wipes it at boot.
+  await seedProjectStorage(page);
   await page.addInitScript(() => {
     try {
       window.localStorage.setItem('sm.workspace.rail-collapsed', '0');

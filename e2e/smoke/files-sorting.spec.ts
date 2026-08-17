@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { seedProjectStorage } from '../_storage.js';
 
 import { expectSingleViewport } from './_files-rail.js';
 
@@ -31,6 +32,9 @@ async function gotoFiles(page: Page): Promise<void> {
   // opens collapsed map-first by default (`sm.workspace.rail-collapsed`
   // absent => collapsed), so seed the persisted OPEN state before the
   // first navigation; otherwise `files-view` never mounts.
+  // Stamp the storage version FIRST: an unversioned seed reads as
+  // pre-namespace leftovers and the UI's gate wipes it at boot.
+  await seedProjectStorage(page);
   await page.addInitScript(() => {
     try {
       window.localStorage.setItem('sm.workspace.rail-collapsed', '0');

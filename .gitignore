@@ -132,3 +132,6 @@ fixtures/*/pnpm-lock.yaml
 .skill-map/settings.local.json
 .skill-map/skill-map.db
 .skill-map/serve.json
+
+# Generated dev-server index (ui/scripts/stamp-dev-index.mjs)
+ui/src/index.dev.html

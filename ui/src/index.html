@@ -17,6 +17,15 @@
       `content` to `demo` and bundles a precomputed snapshot alongside.
     -->
     <meta name="skill-map-mode" content="live" />
+    <!-- Dev-harness stamp: the Angular dev server serves this file RAW
+         (the BFF meta injection never touches it), so the storage
+         version gate would sit inert there. "dev" is a stable
+         pseudo-version: the gate stamps it once and equality holds on
+         every later load. Under a real serve the BFF injects its own
+         skill-map-version right after <head>, which wins by document
+         order; the demo patch strips this one before stamping the real
+         version. -->
+    <meta name="skill-map-version" content="dev" />
     <!--
       Adaptive SVG favicon: the file carries an inline `prefers-color-scheme`
       <style> block that flips strokes/fills between dark and light browser

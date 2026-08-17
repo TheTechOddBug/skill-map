@@ -22,6 +22,7 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { seedProjectStorage } from '../../_storage.js';
 import { join } from 'node:path';
 
 import { test, expect } from './_fixtures.js';
@@ -46,6 +47,9 @@ test.describe('live-BFF ignore flow', () => {
   }) => {
     // Seed the rail OPEN (same recipe as the bump spec: the workspace
     // opens map-first by default).
+    // Stamp the storage version FIRST: an unversioned seed reads as
+    // pre-namespace leftovers and the UI's gate wipes it at boot.
+    await seedProjectStorage(page);
     await page.addInitScript(() => {
       try {
         window.localStorage.setItem('sm.workspace.rail-collapsed', '0');

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { seedProjectStorage } from '../_storage.js';
 import { AxeBuilder } from '@axe-core/playwright';
 
 /**
@@ -44,6 +45,9 @@ const BORDER_PROBES = ['input', 'button', '.p-toggleswitch', '.p-select'];
 for (const theme of THEMES) {
   test.describe(`theme ${theme.id}`, () => {
     test.beforeEach(async ({ page }) => {
+      // Stamp the storage version FIRST: an unversioned seed reads as
+      // pre-namespace leftovers and the UI's gate wipes it at boot.
+      await seedProjectStorage(page);
       await page.addInitScript(
         ({ mode, extra }) => {
           try {

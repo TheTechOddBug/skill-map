@@ -12,9 +12,10 @@
 #
 # Usage: start-pane.sh <pnpm-script-name> [fixture-dir] [extra-args...]
 #   The optional second arg names the fixture scope; when present it is
-#   exported as SM_FIXTURE so `bff:scan` / `bff:dev` resolve
-#   `fixtures/${SM_FIXTURE:-claude}`. The UI pane omits it (Angular
-#   HMR is fixture-agnostic, it proxies the API to the BFF).
+#   exported as SM_FIXTURE. The BFF pane resolves
+#   `fixtures/${SM_FIXTURE:-claude}` with it, and the UI pane's dev
+#   script stamps it into the generated index (per-fixture browser
+#   storage namespace under the Angular dev server).
 #   Anything after the fixture is appended to the pnpm script, so a
 #   `fix:*` shortcut can hand the serve its own flags (e.g.
 #   `--log-level info` to make the activity ingest log visible).

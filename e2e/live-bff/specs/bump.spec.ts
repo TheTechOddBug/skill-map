@@ -33,6 +33,7 @@
  */
 
 import { test, expect } from './_fixtures.js';
+import { seedProjectStorage } from '../../_storage.js';
 import { expectSingleViewport } from '../../smoke/_files-rail.js';
 
 const STALE_PATH = '.claude/agents/stale-agent.md';
@@ -44,6 +45,9 @@ test.describe('live-BFF bump flow', () => {
     // 1. Boot the SPA (live mode, real BFF). The files rail opens
     //    collapsed map-first by default; seed the persisted OPEN state so
     //    `files-view` mounts on load (same recipe as the demo smoke).
+    // Stamp the storage version FIRST: an unversioned seed reads as
+    // pre-namespace leftovers and the UI's gate wipes it at boot.
+    await seedProjectStorage(page);
     await page.addInitScript(() => {
       try {
         window.localStorage.setItem('sm.workspace.rail-collapsed', '0');

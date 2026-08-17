@@ -37,7 +37,9 @@
               "src/themes/neon-red.css",
               "src/themes/highlight.css"
             ],
-            "allowedCommonJsDependencies": ["dagre"],
+            "allowedCommonJsDependencies": [
+              "dagre"
+            ],
             "progress": false
           },
           "configurations": {
@@ -119,6 +121,12 @@
                   "output": "/"
                 }
               ]
+            },
+            "dev-stamped": {
+              "index": {
+                "input": "src/index.dev.html",
+                "output": "index.html"
+              }
             }
           },
           "defaultConfiguration": "production"
@@ -136,7 +144,7 @@
               "buildTarget": "ui:build:dev-demo"
             },
             "local": {
-              "buildTarget": "ui:build:development",
+              "buildTarget": "ui:build:development,dev-stamped",
               "proxyConfig": "proxy.conf.json"
             }
           },
@@ -145,7 +153,9 @@
         "test": {
           "builder": "@angular/build:unit-test",
           "options": {
-            "setupFiles": ["src/test-setup.ts"],
+            "setupFiles": [
+              "src/test-setup.ts"
+            ],
             "runnerConfig": "vitest.config.ts"
           }
         }

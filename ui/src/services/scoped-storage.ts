@@ -12,10 +12,12 @@
  * The root travels in the `skill-map-scope` meta the BFF injects into
  * the served `index.html` (spec `cli-contract.md` §Serve), so the
  * namespace is known SYNCHRONOUSLY at module load, before any service
- * hydrates. No meta (the static demo bundle, the `ng serve` dev
- * harness, jsdom) falls back to the `default` namespace: those hosts
- * serve exactly one project per origin, so the collision the namespace
- * exists to prevent cannot happen there.
+ * hydrates. The `fix:*` dev harness stamps its own metas at the source
+ * (`ui/scripts/stamp-dev-index.mjs` writes the fixture's root into the
+ * generated dev index; the raw index carries the `dev` pseudo-version).
+ * No meta at all (the static demo bundle, jsdom) falls back to the
+ * `default` namespace: those hosts serve one project per origin, so
+ * the collision the namespace exists to prevent cannot happen there.
  *
  * DEBUG AFFORDANCE, nothing reads it programmatically: the
  * `sm.scopes` registry key maps each hash to the root it was minted

@@ -68,7 +68,11 @@ fuser -k 4200/tcp 2>/dev/null || true
 
 # Per-pane command lives in scripts/start-pane.sh — it cannot be
 # inlined here because wt.exe parses `;` as a sub-command separator,
-# and the wrapper's `trap; pnpm; exec` chain contains them. The BFF pane
-# receives the fixture as a second arg (exported as SM_FIXTURE there).
+# and the wrapper's `trap; pnpm; exec` chain contains them. BOTH panes
+# receive the fixture as a second arg (exported as SM_FIXTURE there):
+# the BFF resolves its scope with it, and the UI pane's dev script
+# stamps it into the generated index so the browser storage namespace
+# is per-fixture even under the Angular dev server (which serves the
+# HTML raw, without the BFF's meta injection).
 wt.exe --title skill-map -d "$PROJECT_DIR" wsl zsh ./scripts/start-pane.sh bff:dev "$FIXTURE" "${@:2}" \; \
-  split-pane -V -d "$PROJECT_DIR" wsl zsh ./scripts/start-pane.sh ui:dev
+  split-pane -V -d "$PROJECT_DIR" wsl zsh ./scripts/start-pane.sh ui:dev "$FIXTURE"

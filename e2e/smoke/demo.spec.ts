@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { seedProjectStorage } from '../_storage.js';
 
 /**
  * Demo bundle smoke test (ROADMAP §Step 14.7).
@@ -28,6 +29,9 @@ test.describe('demo bundle', () => {
   // persisted OPEN state before each navigation so the `files-view` /
   // `files-table` assertions below find the rail expanded.
   test.beforeEach(async ({ page }) => {
+    // Stamp the storage version FIRST: an unversioned seed reads as
+    // pre-namespace leftovers and the UI's gate wipes it at boot.
+    await seedProjectStorage(page);
     await page.addInitScript(() => {
       try {
         window.localStorage.setItem('sm.workspace.rail-collapsed', '0');
