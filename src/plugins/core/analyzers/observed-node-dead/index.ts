@@ -48,6 +48,14 @@ export const MIN_ACTIVE_SESSIONS = 20;
 
 const SETTING_MIN_ACTIVE_SESSIONS = 'min-active-sessions';
 
+// DEFERRED until this trio graduates from experimental (user decision
+// 2026-08-17): an unreachable-gate check in `sm plugins doctor`,
+// warning when an enabled observed-* analyzer's `min-active-sessions`
+// exceeds `activity.journal.maxFiles`. Retention prunes the evidence
+// window before such a gate can ever be met, the silent-forever
+// failure class; until the check exists, spec §Session journal ·
+// Retention carries the coupling in prose.
+
 const settings = {
   [SETTING_MIN_ACTIVE_SESSIONS]: {
     type: 'integer',

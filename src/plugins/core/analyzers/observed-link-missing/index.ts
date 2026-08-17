@@ -33,6 +33,13 @@
  * them (a backtick path naming the file declares that it matters here).
  * Dead-design detection lives in the sibling
  * `core/observed-link-dead`.
+ *
+ * DEFERRED until the observed-* trio graduates from experimental (user
+ * decision 2026-08-17): migration from the issues surface to a new
+ * DETERMINISTIC findings lane (scan-direct upsert, auto-`fixed` when
+ * the emission disappears, per-row fixers reopened). Full sketch in
+ * `ROADMAP.md`, the "Findings-lane migration of the observed-* trio"
+ * entry; do not grow this trio's issue surface further in the meantime.
  */
 
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
