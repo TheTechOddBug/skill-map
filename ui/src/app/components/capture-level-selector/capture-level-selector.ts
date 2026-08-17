@@ -11,9 +11,9 @@
  * then it renders disabled so the ladder's shape stays honest.
  */
 
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { SelectButtonModule } from 'primeng/selectbutton';
+import { SelectButton, SelectButtonModule } from 'primeng/selectbutton';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { CAPTURE_LEVEL_TEXTS } from '../../../i18n/capture-level.texts';
@@ -27,7 +27,14 @@ import {
 interface ILevelOption {
   readonly label: string;
   readonly value: TCaptureLevel;
-  readonly disabled: boolean;
+  /**
+   * Locked = the shell rung without its install opt-in. NOT a native
+   * disable (that swallows the pointer events the explanatory tooltip
+   * needs): the option renders muted with `aria-disabled`, `onChange`
+   * refuses the selection, and the tooltip names the fix. Same dialect
+   * as the workspace's gated Sessions tab.
+   */
+  readonly locked: boolean;
   readonly tooltip: string;
 }
 
@@ -39,7 +46,6 @@ interface ILevelOption {
       [options]="options()"
       optionLabel="label"
       optionValue="value"
-      optionDisabled="disabled"
       [allowEmpty]="false"
       [ngModel]="service.level()"
       (ngModelChange)="onChange($event)"
@@ -50,14 +56,27 @@ interface ILevelOption {
       [attr.aria-label]="texts.label"
       data-testid="capture-level-selector"
     >
-      <!-- Per-option tooltip (what each rung shows). Lives on the inner
-           span: a disabled native button swallows pointer events, so a
-           locked option stays silent and only the wrapper's lock
-           tooltip speaks, never both. -->
+      <!-- Per-option tooltip (what each rung shows; the locked shell
+           position explains itself, pointing at Settings unless the
+           selector already sits there). The click itself is refused in
+           onChange, tooltip and refusal are separate mechanisms. -->
       <ng-template let-option pTemplate="item">
-        <span [pTooltip]="option.tooltip" tooltipPosition="bottom">{{ option.label }}</span>
+        <span
+          class="capture-level-option"
+          [class.capture-level-option--locked]="option.locked"
+          [attr.aria-disabled]="option.locked ? 'true' : null"
+          [pTooltip]="option.tooltip"
+          tooltipPosition="bottom"
+          >{{ option.label }}</span
+        >
       </ng-template>
     </p-selectbutton>
+  `,
+  styles: `
+    .capture-level-option--locked {
+      color: var(--sm-text-muted);
+      cursor: not-allowed;
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -78,19 +97,45 @@ export class CaptureLevelSelector {
    */
   readonly disabled = input(false);
 
+  /**
+   * Set by the Settings mirror: its capture-level row already carries
+   * the unlock command, so the locked shell tooltip drops the
+   * "see Settings" pointer there (user call 2026-08-17) and describes
+   * the rung like any other option.
+   */
+  readonly settingsHost = input(false);
+
+  private readonly selectButton = viewChild(SelectButton);
+
   protected readonly options = computed<ILevelOption[]>(() =>
     CAPTURE_LEVELS.map((value) => ({
       label: CAPTURE_LEVEL_TEXTS.levels[value],
       value,
       // The shell rung unlocks only with the install-side opt-in
       // (spec §Capture level rung 5, double opt-in by design).
-      disabled: value === 'shell' && !this.service.shellCapture(),
-      tooltip: CAPTURE_LEVEL_TEXTS.tooltips[value],
+      locked: value === 'shell' && !this.service.shellCapture(),
+      tooltip:
+        value === 'shell' && !this.service.shellCapture() && !this.settingsHost()
+          ? CAPTURE_LEVEL_TEXTS.tooltips.shellLocked
+          : CAPTURE_LEVEL_TEXTS.tooltips[value],
     })),
   );
 
-  /** Non-null guard: `allowEmpty=false` still types the event loosely. */
+  /**
+   * Non-null guard (`allowEmpty=false` still types the event loosely),
+   * plus the locked-shell refusal: PrimeNG has already flipped its
+   * internal value by the time this fires, so the rejection writes the
+   * REAL level back through the public CVA seam, no flicker, no
+   * request. Options are not natively disabled on purpose: a disabled
+   * button swallows pointer events and the explanatory tooltip dies
+   * with them (field feedback 2026-08-17).
+   */
   protected onChange(next: TCaptureLevel | null): void {
-    if (next !== null) void this.service.set(next);
+    if (next === null) return;
+    if (next === 'shell' && !this.service.shellCapture()) {
+      this.selectButton()?.writeValue(this.service.level());
+      return;
+    }
+    void this.service.set(next);
   }
 }

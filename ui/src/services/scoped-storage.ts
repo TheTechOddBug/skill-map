@@ -26,36 +26,35 @@
 /** Meta tag name the BFF stamps the resolved scope root into. */
 export const SCOPE_META_NAME = 'skill-map-scope';
 
+/** Meta tag name the BFF stamps the serving CLI version into. */
+export const VERSION_META_NAME = 'skill-map-version';
+
 /** Hash → root registry (debug legibility only; see module doc). */
 export const SCOPE_REGISTRY_KEY = 'sm.scopes';
 
 /**
- * Layout version of the `sm.*` storage family, kept under
- * `sm.storage-version`. There is NO backward compatibility (user
- * decision 2026-08-17), but the blast radius is PER BUMP, not always
- * total (user refinement, same day): each version declares in
- * `VERSION_RESETS` what it invalidates when arriving from the version
- * right below, and the gate walks the chain step by step. An unknown
- * stored version (the unversioned pre-namespace era, or a step missing
- * from the table) falls back to the full wipe, misreading state is
- * worse than resetting it.
+ * Layout-breaking releases: `'all'` = the whole `sm.*` family; a list
+ * = those BASE keys (every scoped `<base>.<hash>` variant included).
+ * Append-only; thresholds compare by semver ORDER, so an entry only
+ * needs to be `<=` the release that actually ships it.
  */
-export const STORAGE_SCHEMA_VERSION = 2;
-
-/**
- * What each bump invalidates, coming from the version right below it:
- * `'all'` = the whole `sm.*` family; a list = those BASE keys (every
- * scoped `<base>.<hash>` variant included). Append-only by design; a
- * new breaking layout change adds `STORAGE_SCHEMA_VERSION + 1` here
- * with the narrowest honest set.
- */
-const VERSION_RESETS: Readonly<Record<number, 'all' | readonly string[]>> = {
+const VERSION_RESETS: Readonly<Record<string, 'all' | readonly string[]>> = {
   // The namespace migration: every bare-era key is unreadable, and the
   // orphaned blobs (megabytes of tape) would sit on the origin quota.
-  2: 'all',
+  '1.12.0': 'all',
 };
 
-/** Key holding the layout version (the one key the wipe re-stamps). */
+/**
+ * Holds the CLI VERSION that last wrote this origin's storage (user
+ * call 2026-08-17: the CLI version is the meaningful stamp, not an
+ * opaque counter). There is NO backward compatibility, but the blast
+ * radius is PER LAYOUT CHANGE, not per release: upgrading applies
+ * every `VERSION_RESETS` threshold crossed since the stored version, a
+ * release crossing none wipes nothing, and a missing / unreadable
+ * stored version (the pre-namespace era) falls back to the full wipe,
+ * misreading state is worse than resetting it. Re-stamped to the
+ * running version on every mismatch.
+ */
 export const STORAGE_VERSION_KEY = 'sm.storage-version';
 
 /**
@@ -79,12 +78,8 @@ let resolved: string | null = null;
 /** The active namespace (memoized; see the module doc for the sources). */
 export function scopeNamespace(): string {
   if (resolved !== null) return resolved;
-  const root =
-    typeof document === 'undefined'
-      ? null
-      : (document.querySelector(`meta[name="${SCOPE_META_NAME}"]`)?.getAttribute('content') ??
-        null);
-  ensureStorageVersion();
+  const root = readMeta(SCOPE_META_NAME);
+  ensureStorageVersion(readMeta(VERSION_META_NAME));
   if (root === null || root.length === 0) {
     resolved = 'default';
   } else {
@@ -118,17 +113,27 @@ function registerScope(hash: string, root: string): void {
   }
 }
 
+function readMeta(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const value = document.querySelector(`meta[name="${name}"]`)?.getAttribute('content') ?? null;
+  return value !== null && value.length > 0 ? value : null;
+}
+
 let versionChecked = false;
 
-/** The version gate (see `STORAGE_SCHEMA_VERSION` / `VERSION_RESETS`). */
-function ensureStorageVersion(): void {
+/**
+ * The version gate (see `VERSION_RESETS`). Inert without a version
+ * meta (the dev harness, jsdom): with no idea what is running, wiping
+ * would be guesswork.
+ */
+function ensureStorageVersion(current: string | null): void {
   if (versionChecked) return;
   versionChecked = true;
+  if (current === null) return;
   try {
-    const raw = localStorage.getItem(STORAGE_VERSION_KEY);
-    const stored = raw === null ? null : Number.parseInt(raw, 10);
-    if (stored === STORAGE_SCHEMA_VERSION) return;
-    const resets = resetPlan(stored, STORAGE_SCHEMA_VERSION, VERSION_RESETS);
+    const stored = localStorage.getItem(STORAGE_VERSION_KEY);
+    if (stored === current) return;
+    const resets = resetPlan(stored, current, VERSION_RESETS);
     const stale: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -138,27 +143,47 @@ function ensureStorageVersion(): void {
       }
     }
     for (const key of stale) localStorage.removeItem(key);
-    localStorage.setItem(STORAGE_VERSION_KEY, String(STORAGE_SCHEMA_VERSION));
+    localStorage.setItem(STORAGE_VERSION_KEY, current);
   } catch {
     // Storage unavailable: nothing to version.
   }
 }
 
+/** `major.minor.patch` prefix as a comparable triplet; null = unreadable. */
+function semverTriplet(version: string): readonly [number, number, number] | null {
+  const match = /^(\d+)\.(\d+)\.(\d+)/.exec(version);
+  return match === null ? null : [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+function semverBefore(a: readonly [number, number, number], b: readonly [number, number, number]): boolean {
+  if (a[0] !== b[0]) return a[0] < b[0];
+  if (a[1] !== b[1]) return a[1] < b[1];
+  return a[2] < b[2];
+}
+
 /**
- * The combined reset for an upgrade from `stored` to `target`: the
- * union of every step's declaration, `'all'` if any step (or the
- * stored version itself) is unknown. Pure and exported for tests.
+ * The combined reset for an upgrade from `stored` to `current`: the
+ * union of every layout-break threshold CROSSED (stored < threshold <=
+ * current, by semver order), `'all'` if any crossed threshold declares
+ * it, or when the stored version is missing / unreadable / newer than
+ * what is running (a downgrade is unknown territory). A release
+ * crossing no threshold resets nothing. Pure and exported for tests.
  */
 export function resetPlan(
-  stored: number | null,
-  target: number,
-  resets: Readonly<Record<number, 'all' | readonly string[]>>,
+  stored: string | null,
+  current: string,
+  resets: Readonly<Record<string, 'all' | readonly string[]>>,
 ): 'all' | readonly string[] {
-  if (stored === null || !Number.isInteger(stored) || stored < 1 || stored > target) return 'all';
+  const from = stored === null ? null : semverTriplet(stored);
+  const to = semverTriplet(current);
+  if (from === null || to === null || semverBefore(to, from)) return 'all';
   const combined: string[] = [];
-  for (let step = stored + 1; step <= target; step++) {
-    const declared = resets[step];
-    if (declared === undefined || declared === 'all') return 'all';
+  for (const [threshold, declared] of Object.entries(resets)) {
+    const at = semverTriplet(threshold);
+    if (at === null) return 'all';
+    const crossed = semverBefore(from, at) && !semverBefore(to, at);
+    if (!crossed) continue;
+    if (declared === 'all') return 'all';
     combined.push(...declared);
   }
   return combined;

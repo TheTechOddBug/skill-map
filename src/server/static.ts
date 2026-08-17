@@ -121,20 +121,36 @@ export interface IStaticHandlerOptions {
    * `127.0.0.1:<port>`). `null` / absent = no stamp (tests, `--no-ui`).
    */
   scopeRoot?: string | null;
+  /**
+   * Serving CLI version, stamped as a `skill-map-version` meta: the
+   * SPA's storage version gate compares it against the last version
+   * that wrote the origin's localStorage and applies the layout resets
+   * crossed in between. `null` / absent = no stamp (the gate stays
+   * inert without it).
+   */
+  cliVersion?: string | null;
 }
 
 /**
- * Stamp the scope meta right after `<head>`. A document without a
- * literal `<head>` tag passes through untouched (never break serving
- * over a cosmetic stamp); the root is attribute-escaped since paths
- * can carry quotes and ampersands.
+ * Stamp the serve metas (scope root + CLI version) right after
+ * `<head>`. A document without a literal `<head>` tag passes through
+ * untouched (never break serving over a cosmetic stamp); values are
+ * attribute-escaped since paths can carry quotes and ampersands.
  */
-export function injectScopeMeta(html: string, scopeRoot: string): string {
-  const escaped = scopeRoot
-    .replaceAll('&', '&amp;')
-    .replaceAll('"', '&quot;')
-    .replaceAll('<', '&lt;');
-  return html.replace('<head>', `<head><meta name="skill-map-scope" content="${escaped}">`);
+export function injectServeMetas(
+  html: string,
+  metas: { scopeRoot: string | null; cliVersion: string | null },
+): string {
+  const tag = (name: string, value: string): string =>
+    `<meta name="${name}" content="${value
+      .replaceAll('&', '&amp;')
+      .replaceAll('"', '&quot;')
+      .replaceAll('<', '&lt;')}">`;
+  let stamp = '';
+  if (metas.scopeRoot !== null) stamp += tag('skill-map-scope', metas.scopeRoot);
+  if (metas.cliVersion !== null) stamp += tag('skill-map-version', metas.cliVersion);
+  if (stamp === '') return html;
+  return html.replace('<head>', `<head>${stamp}`);
 }
 
 /**
@@ -153,28 +169,32 @@ export function injectScopeMeta(html: string, scopeRoot: string): string {
 export function createStaticHandler(opts: IStaticHandlerOptions): MiddlewareHandler {
   if (opts.uiDist === null) return placeholderRootMiddleware(opts.noUi === true);
   const statik = serveStatic({ root: opts.uiDist });
-  const root = opts.scopeRoot ?? null;
-  if (root === null) return statik;
-  // `/` and `/index.html` get the scope-stamped document; every other
-  // asset streams through `serveStatic` untouched. Deep links are
-  // stamped by the SPA fallback, which shares `indexResponse`.
+  const metas = { scopeRoot: opts.scopeRoot ?? null, cliVersion: opts.cliVersion ?? null };
+  if (metas.scopeRoot === null && metas.cliVersion === null) return statik;
+  // `/` and `/index.html` get the stamped document; every other asset
+  // streams through `serveStatic` untouched. Deep links are stamped by
+  // the SPA fallback, which shares `indexResponse`.
   return async (c, next) => {
     if (
       (c.req.method === 'GET' || c.req.method === 'HEAD') &&
       (c.req.path === '/' || c.req.path === '/index.html')
     ) {
       const indexPath = join(opts.uiDist!, INDEX_HTML);
-      if (existsSync(indexPath)) return indexResponse(c, indexPath, root);
+      if (existsSync(indexPath)) return indexResponse(c, indexPath, metas);
     }
     return statik(c, next);
   };
 }
 
-/** `index.html`, scope-stamped when a root is known. */
-async function indexResponse(c: Context, indexPath: string, scopeRoot: string | null): Promise<Response> {
-  if (scopeRoot === null) return fileResponse(c, indexPath);
+/** `index.html`, meta-stamped when anything is known. */
+async function indexResponse(
+  c: Context,
+  indexPath: string,
+  metas: { scopeRoot: string | null; cliVersion: string | null },
+): Promise<Response> {
+  if (metas.scopeRoot === null && metas.cliVersion === null) return fileResponse(c, indexPath);
   const html = await readFile(indexPath, 'utf8');
-  return htmlResponse(c, injectScopeMeta(html, scopeRoot));
+  return htmlResponse(c, injectServeMetas(html, metas));
 }
 
 /**
@@ -193,7 +213,10 @@ export function createSpaFallback(opts: IStaticHandlerOptions): MiddlewareHandle
     if (opts.uiDist === null) return htmlResponse(c, placeholder);
     const indexPath = join(opts.uiDist, INDEX_HTML);
     if (!existsSync(indexPath)) return htmlResponse(c, placeholder);
-    return indexResponse(c, indexPath, opts.scopeRoot ?? null);
+    return indexResponse(c, indexPath, {
+      scopeRoot: opts.scopeRoot ?? null,
+      cliVersion: opts.cliVersion ?? null,
+    });
   };
 }
 

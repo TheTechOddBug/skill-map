@@ -56,6 +56,8 @@
 
 import { realpathSync } from 'node:fs';
 
+import { VERSION } from '../version.js';
+
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 // eslint-disable-next-line import-x/extensions
@@ -958,11 +960,21 @@ export function createApp(deps: IAppDeps): Hono {
   }
   app.use(
     '*',
-    createStaticHandler({ uiDist: deps.options.uiDist, noUi: deps.options.noUi, scopeRoot }),
+    createStaticHandler({
+      uiDist: deps.options.uiDist,
+      noUi: deps.options.noUi,
+      scopeRoot,
+      cliVersion: VERSION,
+    }),
   );
   app.get(
     '*',
-    createSpaFallback({ uiDist: deps.options.uiDist, noUi: deps.options.noUi, scopeRoot }),
+    createSpaFallback({
+      uiDist: deps.options.uiDist,
+      noUi: deps.options.noUi,
+      scopeRoot,
+      cliVersion: VERSION,
+    }),
   );
 
   app.notFound((c) => {

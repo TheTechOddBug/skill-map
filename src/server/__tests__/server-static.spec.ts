@@ -23,7 +23,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Hono } from 'hono';
 
-import { createSpaFallback, createStaticHandler, injectScopeMeta } from '../static.js';
+import { createSpaFallback, createStaticHandler, injectServeMetas } from '../static.js';
 
 interface IPlaceholderCase {
   name: string;
@@ -61,6 +61,7 @@ function mountStatic(opts: {
   uiDist: string | null;
   noUi: boolean;
   scopeRoot?: string | null;
+  cliVersion?: string | null;
 }): Hono {
   const app = new Hono();
   app.use('*', createStaticHandler(opts));
@@ -106,10 +107,16 @@ describe('static handler, scope-meta stamp', () => {
   });
 
   it('stamps "/", "/index.html" and SPA deep links; assets stream untouched', async () => {
-    const app = mountStatic({ uiDist, noUi: false, scopeRoot: '/home/x/proj' });
+    const app = mountStatic({
+      uiDist,
+      noUi: false,
+      scopeRoot: '/home/x/proj',
+      cliVersion: '1.12.0',
+    });
     for (const path of ['/', '/index.html', '/some/deep/link']) {
       const body = await (await app.request(path)).text();
       assert.match(body, /<meta name="skill-map-scope" content="\/home\/x\/proj">/, path);
+      assert.match(body, /<meta name="skill-map-version" content="1\.12\.0">/, path);
     }
     const asset = await (await app.request('/main.js')).text();
     assert.equal(asset.includes('skill-map-scope'), false);
@@ -121,10 +128,14 @@ describe('static handler, scope-meta stamp', () => {
     assert.equal(body.includes('skill-map-scope'), false);
   });
 
-  it('injectScopeMeta escapes attribute-hostile roots and skips head-less documents', () => {
-    const stamped = injectScopeMeta('<head></head>', '/a"b&c');
+  it('injectServeMetas escapes attribute-hostile values and skips head-less documents', () => {
+    const stamped = injectServeMetas('<head></head>', { scopeRoot: '/a"b&c', cliVersion: null });
     assert.match(stamped, /content="\/a&quot;b&amp;c"/);
+    assert.equal(stamped.includes('skill-map-version'), false);
     const headless = '<html><body>plain</body></html>';
-    assert.equal(injectScopeMeta(headless, '/x'), headless);
+    assert.equal(
+      injectServeMetas(headless, { scopeRoot: '/x', cliVersion: '1.0.0' }),
+      headless,
+    );
   });
 });

@@ -31,6 +31,8 @@ export const CAPTURE_LEVEL_TEXTS = {
     shell:
       'Adds .md files spotted inside shell commands (cat, grep...). ' +
       'Only the paths are kept, never the commands',
+    /** The LOCKED shell position: why it is off and where to fix it. */
+    shellLocked: 'Disabled: see Settings > Project > Capture level for how to enable it',
   },
   /**
    * Shell unlock block (Settings mirror only): the install-side half of

@@ -40,8 +40,20 @@ function resolveTarget(args) {
   return resolve(process.cwd(), explicit);
 }
 
+async function readCliVersion() {
+  const pkg = JSON.parse(await readFile(resolve(REPO_ROOT, 'src', 'package.json'), 'utf8'));
+  return pkg.version;
+}
+
 const META_PATTERN = /<meta\s+name="skill-map-mode"\s+content="[^"]*"\s*\/?\s*>/i;
 const META_REPLACEMENT = '<meta name="skill-map-mode" content="demo" />';
+/**
+ * The storage version gate (ui scoped-storage.ts) compares the serving
+ * version against the one that last wrote the origin's localStorage;
+ * without a stamp it stays inert. The demo stamps the CLI version so
+ * layout resets apply to demo visitors too.
+ */
+const VERSION_META = (version) => `<meta name="skill-map-version" content="${version}" />`;
 
 const BASE_PATTERN = /<base\s+href="[^"]*"\s*\/?\s*>/i;
 const BASE_REPLACEMENT = '<base href="/demo/" />';
@@ -64,7 +76,9 @@ async function main() {
   }
 
   const patched = original
-    .replace(META_PATTERN, META_REPLACEMENT)
+    // Idempotent re-patch: drop any prior version stamp before adding.
+    .replace(/<meta\s+name="skill-map-version"[^>]*>/gi, '')
+    .replace(META_PATTERN, META_REPLACEMENT + VERSION_META(await readCliVersion()))
     .replace(BASE_PATTERN, BASE_REPLACEMENT);
 
   if (patched === original) {

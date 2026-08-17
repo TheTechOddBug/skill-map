@@ -10,8 +10,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   SCOPE_META_NAME,
   SCOPE_REGISTRY_KEY,
-  STORAGE_SCHEMA_VERSION,
   STORAGE_VERSION_KEY,
+  VERSION_META_NAME,
   resetPlan,
   resetScopeNamespaceForTest,
   scopeNamespace,
@@ -19,14 +19,24 @@ import {
 } from '../scoped-storage';
 
 function setMeta(root: string): void {
+  addMeta(SCOPE_META_NAME, root);
+}
+
+function setVersionMeta(version: string): void {
+  addMeta(VERSION_META_NAME, version);
+}
+
+function addMeta(name: string, content: string): void {
   const meta = document.createElement('meta');
-  meta.setAttribute('name', SCOPE_META_NAME);
-  meta.setAttribute('content', root);
+  meta.setAttribute('name', name);
+  meta.setAttribute('content', content);
   document.head.appendChild(meta);
 }
 
 function clearMeta(): void {
-  for (const el of document.querySelectorAll(`meta[name="${SCOPE_META_NAME}"]`)) el.remove();
+  for (const name of [SCOPE_META_NAME, VERSION_META_NAME]) {
+    for (const el of document.querySelectorAll(`meta[name="${name}"]`)) el.remove();
+  }
 }
 
 describe('scoped-storage', () => {
@@ -84,13 +94,12 @@ describe('scoped-storage', () => {
   });
 
   it('a corrupt registry never blocks the namespace', () => {
-    localStorage.setItem(STORAGE_VERSION_KEY, String(STORAGE_SCHEMA_VERSION));
     localStorage.setItem(SCOPE_REGISTRY_KEY, '{not json');
     setMeta('/home/x/project-a');
     expect(scopeNamespace()).toMatch(/^[0-9a-f]{8}$/);
   });
 
-  it('a version mismatch WIPES the whole sm.* family and stamps the version (no retrocompat)', () => {
+  it('an unversioned origin WIPES the whole sm.* family and stamps the CLI version', () => {
     // The pre-namespace era: bare project state + a preference, no version.
     localStorage.setItem('sm.live.recording', '[]');
     localStorage.setItem('sm.graph.node-positions', '{}');
@@ -98,38 +107,63 @@ describe('scoped-storage', () => {
     localStorage.setItem('unrelated.key', 'survives');
 
     setMeta('/home/x/project-a');
+    setVersionMeta('1.12.0');
     scopeNamespace();
 
     expect(localStorage.getItem('sm.live.recording')).toBeNull();
     expect(localStorage.getItem('sm.graph.node-positions')).toBeNull();
     expect(localStorage.getItem('sm.workspace.rail-width')).toBeNull();
     expect(localStorage.getItem('unrelated.key')).toBe('survives');
-    expect(localStorage.getItem(STORAGE_VERSION_KEY)).toBe(String(STORAGE_SCHEMA_VERSION));
+    expect(localStorage.getItem(STORAGE_VERSION_KEY)).toBe('1.12.0');
   });
 
-  it('resetPlan: each bump declares its blast radius; steps accumulate across a skip', () => {
-    const table = { 2: 'all', 3: ['sm.live.recording'], 4: ['sm.map.overrides'] } as const;
-    // One selective step: only its keys.
-    expect(resetPlan(2, 3, table)).toEqual(['sm.live.recording']);
-    // Two selective steps (2 -> 4): the union.
-    expect(resetPlan(2, 4, table)).toEqual(['sm.live.recording', 'sm.map.overrides']);
-    // Any 'all' step in the chain totals the wipe.
-    expect(resetPlan(1, 3, table)).toBe('all');
+  it('a release crossing NO layout threshold wipes nothing and re-stamps', () => {
+    localStorage.setItem(STORAGE_VERSION_KEY, '1.12.0');
+    localStorage.setItem('sm.workspace.rail-width', '440');
+    setMeta('/home/x/project-a');
+    setVersionMeta('1.13.2'); // no VERSION_RESETS entry crossed past 1.12.0
+    scopeNamespace();
+    expect(localStorage.getItem('sm.workspace.rail-width')).toBe('440');
+    expect(localStorage.getItem(STORAGE_VERSION_KEY)).toBe('1.13.2');
+  });
+
+  it('no version meta = the gate stays inert (dev harness has no idea what runs)', () => {
+    localStorage.setItem('sm.live.recording', '[]');
+    setMeta('/home/x/project-a');
+    scopeNamespace();
+    expect(localStorage.getItem('sm.live.recording')).toBe('[]');
+    expect(localStorage.getItem(STORAGE_VERSION_KEY)).toBeNull();
+  });
+
+  it('resetPlan: only thresholds CROSSED by the upgrade apply; unions accumulate', () => {
+    const table = {
+      '1.12.0': 'all',
+      '1.14.0': ['sm.live.recording'],
+      '1.15.0': ['sm.map.overrides'],
+    } as const;
+    // A release crossing nothing resets nothing.
+    expect(resetPlan('1.12.0', '1.13.5', table)).toEqual([]);
+    // One selective threshold crossed: only its keys.
+    expect(resetPlan('1.13.0', '1.14.2', table)).toEqual(['sm.live.recording']);
+    // Two selective thresholds in one jump: the union.
+    expect(resetPlan('1.13.0', '1.15.0', table)).toEqual([
+      'sm.live.recording',
+      'sm.map.overrides',
+    ]);
+    // Any crossed 'all' totals the wipe.
+    expect(resetPlan('1.11.0', '1.14.0', table)).toBe('all');
   });
 
   it('resetPlan: unknown territory falls back to the full wipe (misreading is worse)', () => {
-    const table = { 2: ['sm.live.recording'] } as const;
-    expect(resetPlan(null, 2, table)).toBe('all'); // the unversioned era
-    expect(resetPlan(5, 2, table)).toBe('all'); // a FUTURE version downgraded
-    expect(resetPlan(0, 2, table)).toBe('all'); // off-range garbage
-    expect(resetPlan(1, 3, { 2: ['sm.a'] })).toBe('all'); // step 3 undeclared
+    const table = { '1.12.0': ['sm.live.recording'] } as const;
+    expect(resetPlan(null, '1.12.0', table)).toBe('all'); // the unversioned era
+    expect(resetPlan('2.0.0', '1.12.0', table)).toBe('all'); // a downgrade
+    expect(resetPlan('garbage', '1.12.0', table)).toBe('all'); // unreadable stored
+    expect(resetPlan('1.11.0', 'garbage', table)).toBe('all'); // unreadable current
   });
 
   it('a selective reset clears the base key AND its scoped variants, nothing else', () => {
-    // Simulate a future selective bump by seeding version current-1...
-    // not possible against the real table (v2 is the floor), so drive
-    // the seam the gate uses: the plan says exactly which spellings go.
-    const plan = resetPlan(2, 3, { 3: ['sm.live.recording'] });
+    const plan = resetPlan('1.13.0', '1.14.0', { '1.14.0': ['sm.live.recording'] });
     expect(plan).toEqual(['sm.live.recording']);
     const survives = ['sm.live.recording-not-this', 'sm.graph.node-positions.abc'];
     const goes = ['sm.live.recording', 'sm.live.recording.550b52c7'];
@@ -141,9 +175,10 @@ describe('scoped-storage', () => {
   });
 
   it('a matching version leaves every sm.* key alone', () => {
-    localStorage.setItem(STORAGE_VERSION_KEY, String(STORAGE_SCHEMA_VERSION));
+    localStorage.setItem(STORAGE_VERSION_KEY, '1.12.0');
     localStorage.setItem('sm.workspace.rail-width', '440');
     setMeta('/home/x/project-a');
+    setVersionMeta('1.12.0');
     scopeNamespace();
     expect(localStorage.getItem('sm.workspace.rail-width')).toBe('440');
   });
