@@ -1,0 +1,192 @@
+[
+  {
+    "schemaVersion": 1,
+    "sessionId": "demo-publish",
+    "rootOwner": "main:demo-publish",
+    "provider": "claude",
+    "startedAt": 1755000000000,
+    "endedAt": 1755000052000,
+    "captureLevel": "mcp",
+    "frames": [
+      {
+        "tMs": 1755000000000,
+        "type": "node.activity",
+        "data": {
+          "nodePath": ".claude/commands/publish.md",
+          "phase": "start",
+          "owner": "main:demo-publish",
+          "detail": "slash"
+        }
+      },
+      {
+        "tMs": 1755000002000,
+        "type": "node.activity",
+        "data": {
+          "nodePath": ".claude/skills/check-links/SKILL.md",
+          "phase": "start",
+          "owner": "main:demo-publish",
+          "detail": "Skill"
+        }
+      },
+      {
+        "tMs": 1755000004500,
+        "type": "node.activity",
+        "data": {
+          "nodePath": "AGENTS.md",
+          "phase": "start",
+          "owner": "main:demo-publish",
+          "detail": "Read",
+          "access": "read"
+        }
+      },
+      {
+        "tMs": 1755000009000,
+        "type": "node.activity",
+        "data": {
+          "nodePath": ".claude/skills/check-links/SKILL.md",
+          "phase": "end",
+          "owner": "main:demo-publish"
+        }
+      },
+      {
+        "tMs": 1755000011000,
+        "type": "node.activity",
+        "data": {
+          "nodePath": "docs/DEPLOY.md",
+          "phase": "start",
+          "owner": "main:demo-publish",
+          "detail": "Read",
+          "access": "read"
+        }
+      },
+      {
+        "tMs": 1755000013000,
+        "type": "agent.spawn",
+        "data": {
+          "spawnId": "sp-demo-editor",
+          "phase": "handoff",
+          "parentOwner": "main:demo-publish",
+          "parentNodePath": ".claude/commands/publish.md",
+          "childKind": "agent",
+          "childName": "content-editor",
+          "childNodePath": ".claude/agents/content-editor.md",
+          "childOwner": "agent:demo-editor"
+        }
+      },
+      {
+        "tMs": 1755000013500,
+        "type": "node.activity",
+        "data": {
+          "nodePath": ".claude/agents/content-editor.md",
+          "phase": "start",
+          "owner": "agent:demo-editor",
+          "sticky": true
+        }
+      },
+      {
+        "tMs": 1755000016000,
+        "type": "node.activity",
+        "data": {
+          "nodePath": "docs/STYLE.md",
+          "phase": "start",
+          "owner": "agent:demo-editor",
+          "detail": "Read",
+          "access": "read"
+        }
+      },
+      {
+        "tMs": 1755000024000,
+        "type": "node.activity",
+        "data": {
+          "nodePath": "docs/STYLE.md",
+          "phase": "start",
+          "owner": "agent:demo-editor",
+          "detail": "Read",
+          "access": "read"
+        }
+      },
+      {
+        "tMs": 1755000031000,
+        "type": "node.activity",
+        "data": {
+          "nodePath": ".claude/agents/content-editor.md",
+          "phase": "end",
+          "owner": "agent:demo-editor",
+          "ownerScope": true,
+          "terminal": true
+        }
+      },
+      {
+        "tMs": 1755000031200,
+        "type": "agent.spawn",
+        "data": {
+          "spawnId": "sp-demo-editor",
+          "phase": "end",
+          "parentOwner": "main:demo-publish",
+          "childOwner": "agent:demo-editor"
+        }
+      },
+      {
+        "tMs": 1755000034000,
+        "type": "node.activity",
+        "data": {
+          "nodePath": ".claude/skills/notion-publish/SKILL.md",
+          "phase": "start",
+          "owner": "main:demo-publish",
+          "detail": "Skill"
+        }
+      },
+      {
+        "tMs": 1755000037000,
+        "type": "node.activity",
+        "data": {
+          "nodePath": "mcp://notion",
+          "phase": "start",
+          "owner": "main:demo-publish",
+          "detail": "notion-create-pages",
+          "access": "mcp"
+        }
+      },
+      {
+        "tMs": 1755000041000,
+        "type": "node.activity",
+        "data": {
+          "nodePath": "mcp://notion",
+          "phase": "start",
+          "owner": "main:demo-publish",
+          "detail": "notion-create-pages",
+          "access": "mcp"
+        }
+      },
+      {
+        "tMs": 1755000045000,
+        "type": "node.activity",
+        "data": {
+          "nodePath": "mcp://notion",
+          "phase": "start",
+          "owner": "main:demo-publish",
+          "detail": "notion-create-pages",
+          "access": "mcp"
+        }
+      },
+      {
+        "tMs": 1755000049000,
+        "type": "node.activity",
+        "data": {
+          "nodePath": ".claude/skills/notion-publish/SKILL.md",
+          "phase": "end",
+          "owner": "main:demo-publish"
+        }
+      },
+      {
+        "tMs": 1755000052000,
+        "type": "node.activity",
+        "data": {
+          "phase": "end",
+          "owner": "main:demo-publish",
+          "turnEnd": true
+        }
+      }
+    ]
+  }
+]

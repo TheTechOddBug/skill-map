@@ -55,7 +55,7 @@ const TAPE: TRecordedEvent[] = [
 function makeFixture(init?: {
   tape?: TRecordedEvent[];
   dropped?: number;
-  lensAvailable?: boolean;
+  replayAvailable?: boolean;
   activityEnabled?: boolean;
   recording?: boolean;
   recordingSince?: number | null;
@@ -84,7 +84,8 @@ function makeFixture(init?: {
     recordingSince: signal(init?.recordingSince ?? null).asReadonly(),
   } as unknown as ActivityRecorderService;
   const lens = {
-    available: signal(init?.lensAvailable ?? true).asReadonly(),
+    available: signal(true).asReadonly(),
+    replayAvailable: signal(init?.replayAvailable ?? true).asReadonly(),
   } as unknown as LiveLensService;
   const nodeActivity = {
     enabled: signal(init?.activityEnabled ?? true).asReadonly(),
@@ -473,8 +474,8 @@ describe('SessionsView', () => {
     );
   });
 
-  it('Play is disabled while the lens is unavailable', () => {
-    const { fixture } = makeFixture({ lensAvailable: false });
+  it('Play is disabled while replay is unavailable', () => {
+    const { fixture } = makeFixture({ replayAvailable: false });
     const button = query(fixture, 'sessions-play-1')?.querySelector('button');
     expect(button?.disabled).toBe(true);
   });

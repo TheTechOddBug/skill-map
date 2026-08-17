@@ -1683,14 +1683,15 @@ export class GraphView implements OnInit {
    * no way to stand itself down.
    */
   replaySessionFromTape(selection: ISessionReplaySelection, label: string, step?: ISessionStep): void {
-    if (!this.liveLens.available()) return;
+    if (!this.liveLens.replayAvailable()) return;
     // Journal-hydrated sessions carry their own frames (the client
     // recorder never saw them); tape-native sessions re-filter live.
     const source = selection.sourceFrames ?? this.recorder.events();
     const tape = filterTapeForSession(source, selection);
     if (tape.length === 0) return;
     if (this.playback.active()) this.playback.exit();
-    if (!this.lensOn()) this.liveLensCtl.toggle();
+    // Playback FIRST, lens second: in demo mode the lens only admits
+    // an enter while a replay is in flight (`LiveLensService.setActive`).
     this.playback.enter(
       tape,
       label,
@@ -1698,6 +1699,7 @@ export class GraphView implements OnInit {
         ? { kind: 'journal' }
         : { kind: 'tape-session', rootOwner: selection.rootOwner },
     );
+    if (!this.lensOn()) this.liveLensCtl.toggle();
     // Step deep-link (user request 2026-08-16): a step row's click lands
     // the replay ON that frame and PAUSED there (`enter` auto-plays, so
     // the pause undoes it): the operator asked to look at a moment, not

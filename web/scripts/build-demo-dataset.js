@@ -39,6 +39,14 @@ const DB_PATH = join(FIXTURE_DIR, '.skill-map', 'skill-map.db');
 const OUT_DIR = join(REPO_ROOT, 'web', 'demo');
 const DATA_PATH = join(OUT_DIR, 'data.json');
 const META_PATH = join(OUT_DIR, 'data.meta.json');
+/**
+ * Curated demo session recordings (hand-authored, schema-valid against
+ * `spec/schemas/session-recording.schema.json`; a src-side test pins
+ * that). Copied verbatim into the bundle so the demo's Sessions tab can
+ * replay a believable run of the fixture's own nodes.
+ */
+const SESSIONS_SRC = resolve(fileURLToPath(new URL('.', import.meta.url)), 'demo-sessions.json');
+const SESSIONS_PATH = join(OUT_DIR, 'sessions.json');
 
 const BUILT_CLI = join(REPO_ROOT, 'src', 'dist', 'cli.js');
 const SOURCE_ENTRY = join(REPO_ROOT, 'src', 'cli', 'entry.ts');
@@ -550,9 +558,18 @@ async function main() {
 
   await writeAtomic(DATA_PATH, JSON.stringify(scan, null, 2) + '\n');
   await writeAtomic(META_PATH, JSON.stringify(meta, null, 2) + '\n');
+  // Sessions ride verbatim (already deterministic); parse first so a
+  // corrupted source fails the build instead of shipping broken JSON.
+  const sessionsRaw = await readFile(SESSIONS_SRC, 'utf8');
+  JSON.parse(sessionsRaw);
+  await writeAtomic(SESSIONS_PATH, sessionsRaw);
 
   const dataStat = await stat(DATA_PATH);
   const metaStat = await stat(META_PATH);
+  const sessionsStat = await stat(SESSIONS_PATH);
+  process.stdout.write(
+    `[build-demo-dataset] wrote ${SESSIONS_PATH} (${sessionsStat.size} bytes)\n`,
+  );
   process.stdout.write(
     `[build-demo-dataset] wrote ${DATA_PATH} (${dataStat.size} bytes)\n`,
   );

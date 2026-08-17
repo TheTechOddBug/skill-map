@@ -201,7 +201,7 @@ export class SessionsView {
     }
   }
 
-  protected readonly playAvailable = this.liveLens.available;
+  protected readonly playAvailable = this.liveLens.replayAvailable;
 
   /**
    * Capture-level tag for a session row (user request 2026-08-17): the

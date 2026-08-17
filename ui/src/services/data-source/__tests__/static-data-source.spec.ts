@@ -604,6 +604,37 @@ describe('StaticDataSource', () => {
     expect(completeCalled).toBe(true);
   });
 
+  it('getSessionJournal serves the baked sessions.json, pinned to the demo defaults', async () => {
+    const recording = {
+      schemaVersion: 1,
+      sessionId: 'demo-publish',
+      rootOwner: 'main:demo-publish',
+      startedAt: 1,
+      frames: [],
+    };
+    const withSessions = new StaticDataSource(
+      makeFetch({
+        'data.meta.json': META_FIXTURE,
+        'data.json': SCAN_FIXTURE,
+        'sessions.json': [recording],
+      }),
+      makeFakeRegistry(),
+      makeFakeProviderRegistry(),
+      makeFakeContributionsRegistry(),
+    );
+    const journal = await withSessions.getSessionJournal();
+    expect(journal.sessions).toEqual([recording]);
+    expect(journal.recording).toBe(false);
+    expect(journal.captureLevel).toBe('mcp');
+    expect(journal.shellCapture).toBe(false);
+  });
+
+  it('getSessionJournal degrades to the empty journal when the asset is missing', async () => {
+    const journal = await ds.getSessionJournal(); // harness fetch has no sessions.json (404)
+    expect(journal.sessions).toEqual([]);
+    expect(journal.recording).toBe(false);
+  });
+
   it('caches data.json + data.meta.json after the first fetch', async () => {
     const fetchSpy = vi.fn(async (input: string | URL | Request) => {
       const url = typeof input === 'string' ? input : input.toString();

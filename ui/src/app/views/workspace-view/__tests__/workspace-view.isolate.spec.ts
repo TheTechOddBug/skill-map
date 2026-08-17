@@ -168,6 +168,7 @@ export interface ILensHandles {
 function makeLensStub(lens: ILensHandles): LiveLensService {
   return {
     available: signal(true).asReadonly(),
+    replayAvailable: signal(true).asReadonly(),
     active: lens.active.asReadonly(),
     membership: lens.membership.asReadonly(),
     lensNodes: signal<INodeView[]>([]).asReadonly(),

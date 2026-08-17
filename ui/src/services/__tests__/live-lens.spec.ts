@@ -246,10 +246,22 @@ describe('LiveLensService', () => {
     expect(service.active()).toBe(false);
   });
 
-  it('demo mode reports unavailable and setActive no-ops', () => {
+  it('demo mode reports unavailable and a plain setActive no-ops', () => {
     const { service } = bootstrap('demo');
     expect(service.available()).toBe(false);
     service.setActive(true);
+    expect(service.active()).toBe(false);
+  });
+
+  it('demo mode admits the lens WHILE a replay is in flight (curated recordings)', () => {
+    const { service, playbackActive } = bootstrap('demo');
+    expect(service.replayAvailable()).toBe(true);
+    playbackActive.set(true);
+    service.setActive(true);
+    expect(service.active()).toBe(true);
+    // Exit is always legal, replay over or not.
+    playbackActive.set(false);
+    service.setActive(false);
     expect(service.active()).toBe(false);
   });
 

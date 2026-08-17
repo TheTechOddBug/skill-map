@@ -108,6 +108,8 @@ import {
  */
 const DATA_JSON = 'data.json';
 const META_JSON = 'data.meta.json';
+/** Curated demo session recordings (baked by `build-demo-dataset.js`). */
+const SESSIONS_JSON = 'sessions.json';
 
 /**
  * Shape of `data.meta.json`. Keys mirror the BFF route surface so the
@@ -168,6 +170,7 @@ const DEMO_AGENT_SKILL_DIRS: Record<string, string> = {
 export class StaticDataSource implements IDataSourcePort {
   private metaPromise: Promise<IDemoMetaPayload> | null = null;
   private dataPromise: Promise<IScanResultApi> | null = null;
+  private sessionsPromise: Promise<ISessionRecordingApi[]> | null = null;
   private readonly kindRegistry: KindRegistryService;
   private readonly providerRegistry: ProviderRegistryService;
   private readonly contributionsRegistry: ContributionsRegistryService;
@@ -875,13 +878,32 @@ export class StaticDataSource implements IDataSourcePort {
     );
   }
 
+  /**
+   * Curated recordings baked into the bundle (`sessions.json`), so the
+   * demo's Sessions tab can REPLAY a believable run of the fixture's
+   * own nodes; replay is pure client-side theater over recorded frames,
+   * the one live-arc feature a static bundle can honestly deliver.
+   * Never recording, ladder pinned at the default, shell locked. A
+   * bundle without the asset (or a corrupt one) degrades to the empty
+   * journal instead of breaking the tab.
+   */
   async getSessionJournal(): Promise<{
     sessions: ISessionRecordingApi[];
     recording: boolean;
     captureLevel: string;
     shellCapture: boolean;
   }> {
-    return { sessions: [], recording: false, captureLevel: 'mcp', shellCapture: false };
+    let sessions: ISessionRecordingApi[] = [];
+    try {
+      if (this.sessionsPromise === null) {
+        this.sessionsPromise = this.fetchJson<ISessionRecordingApi[]>(SESSIONS_JSON);
+      }
+      const loaded = await this.sessionsPromise;
+      if (Array.isArray(loaded)) sessions = loaded;
+    } catch {
+      this.sessionsPromise = null; // transient fetch failure: retry next open
+    }
+    return { sessions, recording: false, captureLevel: 'mcp', shellCapture: false };
   }
 
   async setCaptureLevel(_level: string): Promise<string> {

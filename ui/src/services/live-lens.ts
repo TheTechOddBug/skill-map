@@ -156,6 +156,15 @@ export class LiveLensService {
   /** False in demo mode: the feature hides entirely (the WS stream is EMPTY). */
   readonly available = computed(() => this.mode !== 'demo');
 
+  /**
+   * REPLAY availability, deliberately wider than `available` (user
+   * decision 2026-08-17: the demo ships curated session recordings):
+   * replay is pure client-side theater over recorded frames, so it
+   * works wherever frames exist, including the static demo bundle.
+   * Live watching / recording stay gated on `available`.
+   */
+  readonly replayAvailable = computed(() => true);
+
   private readonly _active = signal(false);
   /** Lens on/off. Session-only by design (see module doc). */
   readonly active = this._active.asReadonly();
@@ -488,7 +497,10 @@ export class LiveLensService {
   }
 
   setActive(value: boolean): void {
-    if (!this.available()) return;
+    // Exits are always legal. Entering needs the LIVE feature, or an
+    // in-flight replay (the demo's only lens use: playback enters the
+    // tape first, then flips the lens on, see replaySessionFromTape).
+    if (value && !this.available() && !this.playback.active()) return;
     if (this._active() === value) return;
     this._active.set(value);
   }
