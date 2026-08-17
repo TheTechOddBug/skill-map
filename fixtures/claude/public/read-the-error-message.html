@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Read the Error Message</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Read the Error Message</h1>
+
+  <p>Something breaks and the error scrolls by. Most people skim it for a color or a shape and start guessing before they finish reading. That guess costs more time than the read would have.</p>
+
+  <h2>The text is the bug report</h2>
+  <p>An error message is not decoration around a stack trace. It names a type, a line, a value, sometimes a noun that tells you exactly what was expected and what showed up instead. That noun is not filler, it is the bug report someone already wrote for you.</p>
+
+  <h2>Skimming past the line number</h2>
+  <p>The line number is not there to be ignored. Open it. Look at what is actually on it, not what you assume is on it from memory. Half the "impossible" bugs are possible once you look at the real line instead of the line you pictured in your head.</p>
+
+  <h2>The type tells you the shape of the mistake</h2>
+  <p>"Undefined is not a function" and "cannot read property of null" are different bugs with different fixes. A type error and a null reference are not interchangeable mysteries to shrug at, they point at different code paths. Read which one it is before you start changing things.</p>
+
+  <h2>Reading beats guessing</h2>
+  <p>Guessing feels faster because it starts sooner. Reading is faster because it ends sooner. The message usually already contains the noun that is wrong, the file that is wrong, and the line that is wrong. Searching the web or changing random code is a worse first move than reading the sentence in front of you.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

@@ -966,13 +966,20 @@ WHICH nodes executed and who spawned whom, no latency, no tokens, no content.
   buffers (discarded without finalizing, so a pending debounce flush
   cannot resurrect a wiped file). Answers `204` always (an absent
   directory included) and logs ONE `activity.sessions-clear` operations
-  line. Loopback-gated, no token (operator surface). The SPA's
-  delete-recording affordances (the Settings row, the replay transport's
-  trash) call it TOGETHER with clearing the client tape, behind a single
-  confirm that warns the operator the observed-relations evidence (the
-  `core/observed-link-missing` analyzer's input) goes with it; the two
-  memories erase as one by decision 2026-08-16, and hand-deleting files
-  stays equally safe.
+  line. Loopback-gated, no token (operator surface). Of the SPA's two
+  delete affordances, only the Settings row calls it (together with
+  clearing the client tape, behind a confirm that warns the operator the
+  observed-relations EVIDENCE, every design-vs-reality analyzer's input,
+  goes with it); the replay transport's trash acts on the BROWSER TAPE
+  ONLY, journal files untouched (decision 2026-08-17, superseding the
+  2026-08-16 erase-as-one: the journal is the accumulated evidence the
+  volume gates count on, so the casual replay-cleanup gesture must not
+  drain it), and is SCOPED to what the replay narrates: watching one
+  tape-held session, it removes that session's frames alone (the row
+  re-lists from its journal file, still replayable); an unscoped replay
+  keeps the whole-tape clear; a journal-sourced replay shows no trash at
+  all, nothing of it lives in the browser. Hand-deleting files stays
+  equally safe.
 - **Master switch**: `activity.journal.enabled`
   ([`schemas/project-config.schema.json`](./schemas/project-config.schema.json)),
   default `true`, read at serve boot. A NORMAL project-config key, committable
@@ -989,36 +996,73 @@ WHICH nodes executed and who spawned whom, no latency, no tokens, no content.
   SKIPPING off-shape files silently, disposable machine data), folds the
   frames into **observed relations**, `(source node, target node)` pairs with
   `relation: invokes` (an MCP tool call correlated to its calling unit by
-  owner) or `relation: spawns` (a spawn frame carrying both resolved paths),
-  plus **observed executions**, per-node unit-run counts (a `start` frame
-  naming a node with NO resource access; `keepAlive` custody heartbeats do
-  not count, a sticky agent span counts once per claim), and threads both to
-  analyzers as `IAnalyzerContext.observedRelations` /
+  owner), `relation: spawns` (a spawn frame carrying both resolved paths), or
+  `relation: reads` (an `access: 'read'` frame correlated to its reading unit
+  by owner, the same correlation the invokes class uses; the read path never
+  becomes the owner's current unit). The unit correlation is TURN-BOUNDED: a
+  `turnEnd` frame clears its owner's current-unit claim, so an access in a
+  later turn never attributes to a unit from an earlier one (the journal's
+  discrete mirror of the live map's TTL decay; a subagent has no turn
+  boundary, everything it touches is its own work for its whole span). The
+  fold also produces **observed executions**: per-node
+  unit-run counts (a `start` frame naming a node with NO resource access;
+  `keepAlive` custody heartbeats do not count, a sticky agent span counts
+  once per claim) plus the count of ACTIVE sessions, the distinct recorded
+  sessions that produced at least one unit run (the honest denominator for
+  "never ran": a recording where nothing executed proves nothing). Both
+  products thread to analyzers as `IAnalyzerContext.observedRelations` /
   `IAnalyzerContext.observedExecutions` (absent when the journal is empty).
-  Two deterministic analyzers consume them, one per direction of the
+  Three deterministic analyzers consume them, covering the
   design-vs-reality diff:
   - `core/observed-link-missing` (reality the design lacks) emits one `info`
     issue per observed pair whose source and target both exist in the
     scanned set and that no declared `invokes` / `references` link covers
     (matching on the link's resolved target, falling back to the raw target;
-    `mentions` / `points` do not count as declarations of execution).
-  - `core/declared-link-unobserved` (design reality never confirms, the
+    `mentions` / `points` do not count as declarations of execution). A
+    `reads` pair is held to a stricter standard on BOTH sides, because
+    reading is routine where executing is deliberate: it only flags past a
+    REPETITION gate (at least 3 observed reads of the pair), and a `points`
+    link ALSO covers it (a backtick path naming the file already declares
+    that the file matters here; only `mentions`, name-only, never covers).
+  - `core/observed-link-dead` (design reality never confirms, the
     dead-design detector) emits one `info` issue per declared `invokes` /
     `references` link that reality could have confirmed but never did. Three
-    gates keep it honest: the link must be OBSERVABLE, its resolved target
-    an `mcp://` node or an `agent`-kind node, the two evidence classes the
-    fold records (a link whose only honest firing would be a read cannot be
-    judged while reads stay unfolded); the source must have executed at
-    least 3 times across recorded sessions (the VOLUME gate: absence of
-    evidence means nothing until the source demonstrably ran); and the
-    (source, resolved target) pair must appear in no recorded session. Both
-    endpoints must exist in the scanned set, and self-links are skipped.
-  The operator fixes by editing the markdown (declaring the missing link, or
-  removing / reworking the never-confirmed one, makes the issue disappear on
-  the next scan) or dismisses durably via the standard issue-suppression
-  sidecar affordance (both analyzers stamp `data.target` with the resolved
-  target as the suppression value); there is deliberately NO auto-fixer for
-  either direction.
+    gates keep it honest: the link must be OBSERVABLE, meaning reality had
+    an evidence class that could have confirmed it, for an `invokes` link a
+    resolved target that is an `mcp://` node or an `agent`-kind node (the
+    invokes / spawns classes), and for a `references` link ANY scanned
+    target (every scanned node can be read, so the reads class makes all of
+    them confirmable; an `invokes` link to a skill or command stays
+    unjudged, unit-to-unit execution pairs are not folded); the source must
+    have executed at least 3 times across recorded sessions (the VOLUME
+    gate: absence of evidence means nothing until the source demonstrably
+    ran); and the (source, resolved target) pair must appear in no recorded
+    session under ANY relation. Both endpoints must exist in the scanned
+    set, and self-links are skipped.
+  - `core/observed-node-dead` (the node-level dead-design detector,
+    2026-08-17) emits one `info` issue per RUNNABLE node (kind `skill`,
+    `agent`, or `command`; docs and virtual nodes never flag, they do not
+    execute) that never ran in any recorded session, gated on at least 20
+    ACTIVE sessions of accumulated evidence (the volume gate at the node
+    grain: "this node never runs" is only worth saying once plenty of
+    recorded activity happened around it). `data.target` carries the
+    node's own path as the suppression value.
+  All three analyzers ship `stability: 'experimental'` (2026-08-17):
+  disabled by default while the evidence gates prove themselves in real
+  projects, opted into per extension via the Settings toggle or
+  `sm plugins enable core/<analyzer>`. Every volume / repetition gate above
+  is a per-extension SETTING with the stated value as its default (integer,
+  minimum 1): `min-read-observations`
+  on `core/observed-link-missing` (default 3), `min-source-runs` on
+  `core/observed-link-dead` (default 3), and `min-active-sessions` on
+  `core/observed-node-dead` (default 20), each tunable via
+  `sm plugins config core/<analyzer> <setting> <n>` or the extension's
+  Settings form. The operator fixes by editing the markdown (declaring the
+  missing link, or removing / reworking the never-confirmed one, makes the
+  issue disappear on the next scan) or dismisses durably via the standard
+  issue-suppression sidecar affordance (the link analyzers stamp
+  `data.target` with the resolved target, the node analyzer with the node's
+  own path); there is deliberately NO auto-fixer for any direction.
 
 ## Transport shapes
 

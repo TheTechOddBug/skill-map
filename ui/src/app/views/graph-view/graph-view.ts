@@ -472,6 +472,22 @@ export class GraphView implements OnInit {
     if (this.lensOn() && !this.recorder.recording()) this.liveLensCtl.toggle();
   });
 
+  /**
+   * The inverse invariant (user call 2026-08-17): RECORDING implies the
+   * recording view. `startSessionRecording` handles the normal gesture;
+   * this effect covers every other way recording can become true with
+   * the lens down, today the F5 resume (the boot probe re-engages
+   * capture because the server never stopped, but the button saying
+   * Stop over the curated map read as a half-state). A running replay
+   * keeps the canvas: it is also a lens face, and the stand-down above
+   * returns to the recording view when it exits.
+   */
+  private readonly lensRecordingFaceEffect = effect(() => {
+    if (this.recorder.recording() && !this.lensOn() && !this.playback.active()) {
+      this.liveLensCtl.toggle();
+    }
+  });
+
   // Display switchers: while the lens is on, the template + overlay
   // controllers read the LENS pipeline; the main pipeline keeps
   // computing underneath (reconcile, map views, storage all stay wired
@@ -1675,7 +1691,13 @@ export class GraphView implements OnInit {
     if (tape.length === 0) return;
     if (this.playback.active()) this.playback.exit();
     if (!this.lensOn()) this.liveLensCtl.toggle();
-    this.playback.enter(tape, label);
+    this.playback.enter(
+      tape,
+      label,
+      selection.sourceFrames !== undefined
+        ? { kind: 'journal' }
+        : { kind: 'tape-session', rootOwner: selection.rootOwner },
+    );
     // Step deep-link (user request 2026-08-16): a step row's click lands
     // the replay ON that frame and PAUSED there (`enter` auto-plays, so
     // the pause undoes it): the operator asked to look at a moment, not

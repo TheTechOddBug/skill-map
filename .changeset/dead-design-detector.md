@@ -3,7 +3,7 @@
 '@skill-map/cli': minor
 ---
 
-New `core/declared-link-unobserved` analyzer, the dead-design detector: one `info` issue per declared `invokes`/`references` link that recorded sessions could have observed firing (target an `mcp://` or agent node) but never did, gated on the source having executed at least 3 times (`IAnalyzerContext.observedExecutions`, the journal fold's new per-node run counts). Rows join "Observed in sessions" in the inspector; dismissible, no auto-fixer.
+New `core/observed-link-dead` analyzer, the dead-design detector: one `info` issue per declared `invokes`/`references` link that recorded sessions could have observed firing (target an `mcp://` or agent node) but never did, gated on the source having executed at least 3 times (`IAnalyzerContext.observedExecutions`, the journal fold's new per-node run counts). Rows join "Observed in sessions" in the inspector; dismissible, no auto-fixer. Ships `experimental` (disabled until opted in).
 
 ## User-facing
 

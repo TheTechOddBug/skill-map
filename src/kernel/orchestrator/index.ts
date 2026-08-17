@@ -100,7 +100,7 @@ import type {
 } from '../ports/progress-emitter.js';
 import { qualifiedExtensionId } from '../registry.js';
 import type { IIgnoreFilter } from '../scan/ignore.js';
-import type { IObservedExecution, IObservedRelation } from '../session-journal/index.js';
+import type { IObservedExecutions, IObservedRelation } from '../session-journal/index.js';
 import type {
   Issue,
   Node,
@@ -419,10 +419,10 @@ export interface RunScanOptions {
    * (`foldObservedActivity(...).executions`), keyed by node path. The
    * orchestrator only projects them onto
    * `IAnalyzerContext.observedExecutions`; the single consumer is the
-   * `core/declared-link-unobserved` volume gate. Absent / empty when
+   * `core/observed-link-dead` volume gate. Absent / empty when
    * the journal holds nothing.
    */
-  observedExecutions?: ReadonlyMap<string, IObservedExecution>;
+  observedExecutions?: IObservedExecutions;
   /**
    * Absolute path of the scan's cwd / project root. Threaded onto
    * `IAnalyzerContext.cwd` so rules that need to resolve a relative

@@ -1,12 +1,12 @@
 /**
- * User-facing strings emitted by the `declared-link-unobserved` built-in
- * analyzer (`plugins/core/analyzers/declared-link-unobserved/index.ts`).
+ * User-facing strings emitted by the `observed-link-dead` built-in
+ * analyzer (`plugins/core/analyzers/observed-link-dead/index.ts`).
  *
  * Convention: flat string templates with `{{name}}` placeholders. The
  * `tx` helper at `kernel/util/tx.ts` does the interpolation.
  */
 
-export const DECLARED_LINK_UNOBSERVED_TEXTS = {
+export const OBSERVED_LINK_DEAD_TEXTS = {
   /**
    * Diagnosis body (`<what>; <why>`). The shared `formatFinding` helper
    * wraps it with the backtick subject (the declared target); the source

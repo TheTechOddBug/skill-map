@@ -416,7 +416,7 @@ interface IWatcherPriorState {
 function applyObservedRelations(runOptions: IWatcherRunOptions, cwd: string): void {
   const observed = foldObservedActivity(readSessionJournal(defaultProjectSessionsDir(cwd)));
   if (observed.relations.size > 0) runOptions.observedRelations = observed.relations;
-  if (observed.executions.size > 0) runOptions.observedExecutions = observed.executions;
+  if (observed.executions.byPath.size > 0) runOptions.observedExecutions = observed.executions;
 }
 
 /**

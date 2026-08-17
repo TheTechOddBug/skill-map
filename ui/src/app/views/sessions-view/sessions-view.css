@@ -199,10 +199,3 @@
   white-space: nowrap;
 }
 
-.sessions__unattributed {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.35rem 0.5rem;
-  border-top: 1px dashed var(--p-content-border-color);
-}

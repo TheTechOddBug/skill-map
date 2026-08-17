@@ -16,6 +16,7 @@ import { ActivityRecorderService, type TRecordedEvent } from '../../../../servic
 import { DATA_SOURCE } from '../../../../services/data-source/data-source.port';
 import { LiveLensService } from '../../../../services/live-lens';
 import { NodeActivityService } from '../../../../services/node-activity';
+import { SessionPurgeService } from '../../../../services/session-purge';
 import { SESSION_RECORD_INTENT } from '../../../slots/session-record-intent';
 import { SESSION_REPLAY_INTENT } from '../../../slots/session-replay-intent';
 import type { IWsAgentSpawnData, IWsNodeActivityData } from '../../../../models/ws-event';
@@ -56,6 +57,7 @@ function makeFixture(init?: {
   lensAvailable?: boolean;
   activityEnabled?: boolean;
   recording?: boolean;
+  recordingSince?: number | null;
   replaying?: boolean;
   /** Server-journal recordings the hydration fetch resolves. */
   journal?: ISessionRecordingApi[];
@@ -75,6 +77,7 @@ function makeFixture(init?: {
     size: signal((init?.tape ?? TAPE).length).asReadonly(),
     droppedCount: signal(init?.dropped ?? 0).asReadonly(),
     recording: recording.asReadonly(),
+    recordingSince: signal(init?.recordingSince ?? null).asReadonly(),
   } as unknown as ActivityRecorderService;
   const lens = {
     available: signal(init?.lensAvailable ?? true).asReadonly(),
@@ -88,6 +91,7 @@ function makeFixture(init?: {
   const getSessionJournal = vi
     .fn()
     .mockResolvedValue({ sessions: init?.journal ?? [], recording: false });
+  const purgedAt = signal(0);
 
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
@@ -100,11 +104,15 @@ function makeFixture(init?: {
       { provide: DATA_SOURCE, useValue: { getSessionJournal } },
       { provide: SESSION_REPLAY_INTENT, useValue: { replaySession } },
       { provide: SESSION_RECORD_INTENT, useValue: { startRecording, stopRecording } },
+      {
+        provide: SessionPurgeService,
+        useValue: { purgedAt: purgedAt.asReadonly() } as unknown as SessionPurgeService,
+      },
     ],
   });
   const fixture = TestBed.createComponent(SessionsView);
   fixture.detectChanges();
-  return { fixture, replaySession, startRecording, stopRecording, playbackExit };
+  return { fixture, replaySession, startRecording, stopRecording, playbackExit, getSessionJournal, purgedAt };
 }
 
 /** Settle the mount-time journal fetch, then re-render. */
@@ -238,6 +246,38 @@ describe('SessionsView', () => {
       tMs: T0,
       path: SKILL,
       detail: 'Skill',
+    });
+  });
+
+  it('the in-flight session while recording cannot replay; finished ones can', async () => {
+    // Tape frames are stamped T0.. (see TAPE); a watermark BEFORE them
+    // marks the session as still receiving frames -> blocked.
+    const { fixture } = makeFixture({ recording: true, recordingSince: 1 });
+    const play = fixture.nativeElement.querySelector(
+      '[data-testid="sessions-play-1"] button',
+    ) as HTMLButtonElement;
+    expect(play.disabled).toBe(true);
+
+    // A watermark AFTER the last frame = a finished session -> replayable.
+    const done = makeFixture({ recording: true, recordingSince: Number.MAX_SAFE_INTEGER });
+    const donePlay = done.fixture.nativeElement.querySelector(
+      '[data-testid="sessions-play-1"] button',
+    ) as HTMLButtonElement;
+    expect(donePlay.disabled).toBe(false);
+  });
+
+  it('a settled purge refetches the journal even with an already-empty tape', async () => {
+    const { fixture, getSessionJournal, purgedAt } = makeFixture({ tape: [] });
+    await hydrated(fixture);
+    expect(getSessionJournal).toHaveBeenCalledTimes(1);
+
+    // The Settings purge lands: no tape transition exists to piggyback
+    // on (the tape was already empty), the purge signal alone must
+    // trigger the refetch or stale journal rows survive until an F5.
+    purgedAt.set(1);
+    fixture.detectChanges();
+    await vi.waitFor(() => {
+      expect(getSessionJournal).toHaveBeenCalledTimes(2);
     });
   });
 

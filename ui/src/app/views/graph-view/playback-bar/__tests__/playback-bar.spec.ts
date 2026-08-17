@@ -3,7 +3,10 @@ import { TestBed } from '@angular/core/testing';
 import { computed, signal } from '@angular/core';
 
 import { PlaybackBar } from '../playback-bar';
-import { ActivityPlaybackService } from '../../../../../services/activity-playback';
+import {
+  ActivityPlaybackService,
+  type TReplaySource,
+} from '../../../../../services/activity-playback';
 import type { TRecordedEvent } from '../../../../../services/activity-recorder';
 import { ActivityRecorderService } from '../../../../../services/activity-recorder';
 import { SessionPurgeService } from '../../../../../services/session-purge';
@@ -22,6 +25,8 @@ function makeFixture(init?: {
   dropped?: number;
   scopeLabel?: string;
   tape?: readonly TRecordedEvent[];
+  source?: TReplaySource;
+  recorderEvents?: readonly TRecordedEvent[];
 }) {
   const cursor = signal(init?.cursor ?? -1);
   const playing = signal(init?.playing ?? false);
@@ -42,6 +47,7 @@ function makeFixture(init?: {
     playing: playing.asReadonly(),
     total: total.asReadonly(),
     scopeLabel: signal(init?.scopeLabel ?? null).asReadonly(),
+    source: signal<TReplaySource>(init?.source ?? { kind: 'whole-tape' }).asReadonly(),
     tape: signal<readonly TRecordedEvent[]>(init?.tape ?? []).asReadonly(),
     state,
     exit: vi.fn(),
@@ -52,10 +58,13 @@ function makeFixture(init?: {
     stepForward: vi.fn(),
   } as unknown as ActivityPlaybackService;
   const clear = vi.fn();
+  const removeAll = vi.fn();
   const recorder = {
     droppedCount: signal(init?.dropped ?? 0).asReadonly(),
     size: signal(init?.total ?? 3).asReadonly(),
+    events: signal<readonly TRecordedEvent[]>(init?.recorderEvents ?? []).asReadonly(),
     clear,
+    removeAll,
   } as unknown as ActivityRecorderService;
   const purge = vi.fn();
 
@@ -70,7 +79,7 @@ function makeFixture(init?: {
   });
   const fixture = TestBed.createComponent(PlaybackBar);
   fixture.detectChanges();
-  return { fixture, playback, cursor, playing, clear, purge };
+  return { fixture, playback, cursor, playing, clear, removeAll, purge };
 }
 
 function query(fixture: { nativeElement: unknown }, testid: string): HTMLElement | null {
@@ -108,18 +117,44 @@ describe('PlaybackBar', () => {
     expect(playback.exit).toHaveBeenCalledTimes(1);
   });
 
-  it('the delete shortcut asks first; nothing erases before the confirm', () => {
+  it('the trash clears the browser tape ONLY, immediately (the journal evidence survives)', () => {
     const { fixture, playback, clear, purge } = makeFixture();
     (query(fixture, 'graph-playback-delete')?.querySelector('button') as HTMLButtonElement).click();
     fixture.detectChanges();
-    // Confirm gate (user decision 2026-08-16): the gesture wipes BOTH
-    // memories (tape + project journal), so it warns before executing.
-    // The purge itself is `SessionPurgeService`'s unit-tested job.
+    // Decision 2026-08-17 (superseding the both-memories gesture): the
+    // tape is regenerable and the Sessions tab re-hydrates from the
+    // journal, so no confirm and NO journal wipe from here; the full
+    // both-memories delete lives in Settings behind its warning.
+    expect(clear).toHaveBeenCalledTimes(1);
     expect(purge).not.toHaveBeenCalled();
-    expect(clear).not.toHaveBeenCalled();
     expect(playback.exit).not.toHaveBeenCalled();
-    // The warning dialog is on screen with the shared copy.
-    expect(document.body.textContent).toContain('Delete the recording?');
+    expect(document.body.textContent).not.toContain('Delete the recording?');
+  });
+
+  it('a tape-session replay trashes ONLY that session and exits (other sessions survive)', () => {
+    const mine = [
+      { tMs: 1, type: 'node.activity', data: { nodePath: 'a.md', phase: 'start', owner: 'main:s1' } },
+    ] as unknown as TRecordedEvent[];
+    const other = [
+      { tMs: 2, type: 'node.activity', data: { nodePath: 'b.md', phase: 'start', owner: 'main:s2' } },
+    ] as unknown as TRecordedEvent[];
+    const { fixture, playback, clear, removeAll } = makeFixture({
+      source: { kind: 'tape-session', rootOwner: 'main:s1' },
+      recorderEvents: [...mine, ...other],
+    });
+    (query(fixture, 'graph-playback-delete')?.querySelector('button') as HTMLButtonElement).click();
+    expect(clear).not.toHaveBeenCalled();
+    expect(removeAll).toHaveBeenCalledTimes(1);
+    const removed = removeAll.mock.calls[0]![0] as readonly TRecordedEvent[];
+    expect(removed).toEqual(mine);
+    // The tape may stay non-empty, so the empty-tape auto-exit cannot
+    // be relied on: the delete exits explicitly.
+    expect(playback.exit).toHaveBeenCalledTimes(1);
+  });
+
+  it('a journal-sourced replay shows no trash at all (nothing of it lives in this browser)', () => {
+    const { fixture } = makeFixture({ source: { kind: 'journal' } });
+    expect(query(fixture, 'graph-playback-delete')).toBeNull();
   });
 
   it('narrates the cursor event and flags a trimmed tape', () => {

@@ -780,7 +780,7 @@ function applyScopeRunScanOptions(
   if (args.observedActivity.relations.size > 0) {
     runOptions.observedRelations = args.observedActivity.relations;
   }
-  if (args.observedActivity.executions.size > 0) {
+  if (args.observedActivity.executions.byPath.size > 0) {
     runOptions.observedExecutions = args.observedActivity.executions;
   }
   if (args.pluginStores?.size) runOptions.pluginStores = args.pluginStores;

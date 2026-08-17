@@ -51,7 +51,8 @@ const SEVERITY_ORDER: readonly TIssueSeverityApi[] = ['error', 'warn', 'info'];
  */
 const OBSERVED_SESSIONS_ANALYZER_IDS: ReadonlySet<string> = new Set([
   'observed-link-missing',
-  'declared-link-unobserved',
+  'observed-link-dead',
+  'observed-node-dead',
 ]);
 
 /** Chip glyph per severity tier (matches the map's severity palette). */

@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Feature flags are branches that never merge</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Feature flags are branches that never merge</h1>
+
+  <p>A long-lived feature flag costs the same as a long-lived branch. It causes divergence, dead code, and untested combinations. The difference is that a flag hides inside main, instead of sitting outside it.</p>
+
+  <h2>Why flags feel free</h2>
+  <p>A flag looks cheap to add. One conditional, one config entry, no merge conflict to resolve later. That is exactly what makes it easy to forget once it ships.</p>
+
+  <h2>The combinatorial cost</h2>
+  <p>Two flags mean four code paths. Three flags mean eight. Nobody tests all of them, so most combinations run in production untested, on real users, for the first time.</p>
+
+  <h2>Flags need an expiry date</h2>
+  <p>A flag without a removal date is a branch without a merge date. Set the date when you add the flag, not when someone trips over the old code. Whoever adds it owns the cleanup.</p>
+
+  <h2>When a flag is the right call</h2>
+  <p>Kill switches, gradual rollouts, and ops toggles are legitimate uses. They are meant to be short-lived or permanently operational, not a way to avoid deciding whether a feature ships.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

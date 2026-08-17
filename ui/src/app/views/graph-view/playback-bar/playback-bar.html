@@ -31,18 +31,23 @@
       (onClick)="playback.exit()"
       data-testid="graph-playback-exit"
     />
-    <p-button
-      icon="pi pi-trash"
-      [ariaLabel]="texts.deleteRecording"
-      [pTooltip]="texts.deleteRecording"
-      severity="secondary"
-      [text]="true"
-      [rounded]="true"
-      size="small"
-      [disabled]="recorder.size() === 0"
-      (onClick)="deleteRecording()"
-      data-testid="graph-playback-delete"
-    />
+    <!-- Hidden on journal-sourced replays: nothing of them lives in
+         this browser, so a tape eraser would be a dead button (the
+         2026-08-17 one-session trap). -->
+    @if (trashVisible()) {
+      <p-button
+        icon="pi pi-trash"
+        [ariaLabel]="trashTooltip()"
+        [pTooltip]="trashTooltip()"
+        severity="secondary"
+        [text]="true"
+        [rounded]="true"
+        size="small"
+        [disabled]="recorder.size() === 0"
+        (onClick)="deleteRecording()"
+        data-testid="graph-playback-delete"
+      />
+    }
     <span class="pbar__sep" aria-hidden="true"></span>
     <p-button
       [icon]="playback.playing() ? 'pi pi-pause' : 'pi pi-play'"
@@ -121,4 +126,3 @@
 </div>
 <!-- Delete-recording confirm (shared copy with the Settings row): one
      gesture erases tape + project journal, the warning names the cost. -->
-<p-confirmdialog />

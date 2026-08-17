@@ -1,0 +1,35 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Config is code you forgot to test</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Config is code you forgot to test</h1>
+
+  <p>Nobody reviews a YAML file the way they review a function. It has no types, no tests, and no stack trace when it is wrong. But it decides what the program does, which makes it code, just code with none of the safety we insist on everywhere else.</p>
+
+  <h2>It has all the failure modes of code</h2>
+  <p>A config file has branches (feature flags), duplication (the same timeout copied into four services), dead entries (a key nothing reads anymore), and coupling (change the port here, break the healthcheck there). Those are the same problems we refactor out of source files. In config they just sit there, because no compiler complains and no reviewer feels qualified to object.</p>
+
+  <h2>The failures are quiet and late</h2>
+  <p>A typo in code fails at build time. A typo in a config key usually fails at 3am in production, or worse, does not fail at all: the key is ignored, the default applies, and the system runs correctly-looking for a month until someone notices the retries were never enabled. Silence is the expensive part, not the typo.</p>
+
+  <h2>Validate at the boundary</h2>
+  <p>Parse the config once, at startup, against a schema, and refuse to boot if it does not fit. An unknown key should be an error, not a shrug. Defaults should be visible in one place rather than scattered across the call sites that read them. This is the same advice as validating untrusted input at the edge, and config is untrusted input: a human typed it, usually in a hurry, usually during an incident.</p>
+
+  <h2>Give it the same ceremony as code</h2>
+  <p>Keep it in the repo. Review the diff. Explain in the commit message why the number changed, because <code>timeout: 30</code> tells the next reader nothing about what it was before or what broke at 10. If an environment needs a different value, make the difference explicit instead of maintaining four near-identical files that drift apart one hotfix at a time.</p>
+
+  <h2>The tell</h2>
+  <p>You know config has become code when someone says "do not touch that file, nobody remembers what it does". That sentence is a bug report. Treat it like one.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

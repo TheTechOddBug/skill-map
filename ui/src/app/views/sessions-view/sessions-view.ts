@@ -47,6 +47,7 @@ import {
   type ISessionReplaySelection,
   type ISessionStep,
 } from '../../../services/session-index';
+import { SessionPurgeService } from '../../../services/session-purge';
 import { SessionRecordControl } from '../../components/session-record-control/session-record-control';
 import { SESSION_REPLAY_INTENT } from '../../slots/session-replay-intent';
 
@@ -70,6 +71,7 @@ export class SessionsView {
   private readonly liveLens = inject(LiveLensService);
   private readonly replayIntent = inject(SESSION_REPLAY_INTENT);
   private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
+  private readonly purge = inject(SessionPurgeService);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly texts = SESSIONS_VIEW_TEXTS;
 
@@ -127,8 +129,9 @@ export class SessionsView {
     void this.refreshJournal();
     // Falling edge of recording -> refetch (the finalize/flush is
     // server-side; the GET flushes buffers itself, no debounce wait).
-    // Tape emptied -> the purge also wiped the journal; small delay so
-    // the DELETE lands before the refetch.
+    // Tape emptied -> refetch after a small delay: the Settings purge
+    // wipes the journal too (the DELETE should land first), while the
+    // replay trash clears the tape only, so the journal rows re-list.
     let prevRecording: boolean | null = null;
     let prevSize: number | null = null;
     effect(() => {
@@ -140,6 +143,15 @@ export class SessionsView {
       const size = this.recorder.size();
       if (prevSize !== null && prevSize > 0 && size === 0) this.scheduleJournalRefresh(400);
       prevSize = size;
+    });
+    // A settled purge (Settings row) refetches DIRECTLY: with an
+    // already-empty tape there is no size transition to piggyback on,
+    // which is how stale journal rows survived until an F5.
+    let prevPurgedAt: number | null = null;
+    effect(() => {
+      const purgedAt = this.purge.purgedAt();
+      if (prevPurgedAt !== null && purgedAt !== prevPurgedAt) this.scheduleJournalRefresh(0);
+      prevPurgedAt = purgedAt;
     });
     this.destroyRef.onDestroy(() => {
       if (this.refreshTimer !== null) clearTimeout(this.refreshTimer);
@@ -166,6 +178,25 @@ export class SessionsView {
   }
 
   protected readonly playAvailable = this.liveLens.available;
+
+  /**
+   * The IN-FLIGHT session while recording: frames still landing after
+   * the record watermark (user call 2026-08-17). Watching the present
+   * and replaying it collide on the same canvas, so its Play (and step
+   * deep-links) disable until the recording stops; every finished
+   * session stays replayable mid-recording.
+   */
+  protected replayBlocked(session: ISessionEntry): boolean {
+    const since = this.recorder.recordingSince();
+    return since !== null && session.lastTMs >= since;
+  }
+
+  /** Tooltip for a Play control, honest about WHY it is disabled. */
+  protected playTooltip(session: ISessionEntry, agentTooltip: string): string {
+    if (!this.playAvailable()) return this.texts.playUnavailableTooltip;
+    if (this.replayBlocked(session)) return this.texts.playRecordingTooltip;
+    return agentTooltip;
+  }
 
   /**
    * Session-row pagination, the Queue tab's exact dialect (user request

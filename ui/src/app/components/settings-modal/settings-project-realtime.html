@@ -101,7 +101,7 @@
     severity="secondary"
     [outlined]="true"
     size="small"
-    [disabled]="recordedCount() === 0"
+    [disabled]="recordedCount() === 0 && journalSessions() === 0"
     (onClick)="onDeleteRecording()"
     data-testid="settings-project-recording-delete"
   />

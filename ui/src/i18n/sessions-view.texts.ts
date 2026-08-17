@@ -25,6 +25,8 @@ export const SESSIONS_VIEW_TEXTS = {
   playTooltip: 'Replay this session on the map',
   playAgentTooltip: 'Replay only this agent and its children',
   playUnavailableTooltip: 'Replay needs Real Time on and the live map available',
+  /** The in-flight session while recording cannot replay (collides with the live view). */
+  playRecordingTooltip: 'Recording this session now; stop recording to replay it',
   /** `N events · M files · K agents` row stats. */
   stats: (events: number, files: number, agents: number): string =>
     `${events} ${events === 1 ? 'event' : 'events'} · ${files} ${files === 1 ? 'file' : 'files'} · ${agents} ${agents === 1 ? 'agent' : 'agents'}`,
@@ -44,7 +46,4 @@ export const SESSIONS_VIEW_TEXTS = {
     detail === undefined ? `run ${name}` : `${detail} ${name}`,
   /** Step rows are deep links into the replay (land on that frame). */
   stepTooltip: 'Replay this session from this step',
-  /** Drawer for frames the trimmed tape can no longer attribute. */
-  unattributed: 'Unattributed activity',
-  unattributedHint: 'Frames whose session or spawn chain fell off the recording.',
 } as const;

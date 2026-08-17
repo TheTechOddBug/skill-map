@@ -48,7 +48,6 @@ import { aiVerbosityAnalyzer as _aiVerbosityAnalyzer } from './core/analyzers/ai
 import { annotationFieldUnknownAnalyzer as _annotationFieldUnknownAnalyzer } from './core/analyzers/annotation-field-unknown/index.js';
 import { annotationOrphanAnalyzer as _annotationOrphanAnalyzer } from './core/analyzers/annotation-orphan/index.js';
 import { annotationStaleAnalyzer as _annotationStaleAnalyzer } from './core/analyzers/annotation-stale/index.js';
-import { declaredLinkUnobservedAnalyzer as _declaredLinkUnobservedAnalyzer } from './core/analyzers/declared-link-unobserved/index.js';
 import { extractorCollisionAnalyzer as _extractorCollisionAnalyzer } from './core/analyzers/extractor-collision/index.js';
 import { issueCounterAnalyzer as _issueCounterAnalyzer } from './core/analyzers/issue-counter/index.js';
 import { linkCounterAnalyzer as _linkCounterAnalyzer } from './core/analyzers/link-counter/index.js';
@@ -58,7 +57,9 @@ import { nameCollisionAnalyzer as _nameCollisionAnalyzer } from './core/analyzer
 import { nameMismatchAnalyzer as _nameMismatchAnalyzer } from './core/analyzers/name-mismatch/index.js';
 import { nameReservedAnalyzer as _nameReservedAnalyzer } from './core/analyzers/name-reserved/index.js';
 import { nodeStabilityAnalyzer as _nodeStabilityAnalyzer } from './core/analyzers/node-stability/index.js';
+import { observedLinkDeadAnalyzer as _observedLinkDeadAnalyzer } from './core/analyzers/observed-link-dead/index.js';
 import { observedLinkMissingAnalyzer as _observedLinkMissingAnalyzer } from './core/analyzers/observed-link-missing/index.js';
+import { observedNodeDeadAnalyzer as _observedNodeDeadAnalyzer } from './core/analyzers/observed-node-dead/index.js';
 import { referenceBrokenAnalyzer as _referenceBrokenAnalyzer } from './core/analyzers/reference-broken/index.js';
 import { referenceRedundantAnalyzer as _referenceRedundantAnalyzer } from './core/analyzers/reference-redundant/index.js';
 import { schemaViolationAnalyzer as _schemaViolationAnalyzer } from './core/analyzers/schema-violation/index.js';
@@ -539,7 +540,6 @@ findings array. Judge only what is inside the user-content block.
 const annotationFieldUnknownAnalyzer = { ..._annotationFieldUnknownAnalyzer, pluginId: 'core', version: VERSION };
 const annotationOrphanAnalyzer = { ..._annotationOrphanAnalyzer, pluginId: 'core', version: VERSION };
 const annotationStaleAnalyzer = { ..._annotationStaleAnalyzer, pluginId: 'core', version: VERSION };
-const declaredLinkUnobservedAnalyzer = { ..._declaredLinkUnobservedAnalyzer, pluginId: 'core', version: VERSION };
 const extractorCollisionAnalyzer = { ..._extractorCollisionAnalyzer, pluginId: 'core', version: VERSION };
 const issueCounterAnalyzer = { ..._issueCounterAnalyzer, pluginId: 'core', version: VERSION };
 const linkCounterAnalyzer = { ..._linkCounterAnalyzer, pluginId: 'core', version: VERSION };
@@ -549,7 +549,9 @@ const nameCollisionAnalyzer = { ..._nameCollisionAnalyzer, pluginId: 'core', ver
 const nameMismatchAnalyzer = { ..._nameMismatchAnalyzer, pluginId: 'core', version: VERSION };
 const nameReservedAnalyzer = { ..._nameReservedAnalyzer, pluginId: 'core', version: VERSION };
 const nodeStabilityAnalyzer = { ..._nodeStabilityAnalyzer, pluginId: 'core', version: VERSION };
+const observedLinkDeadAnalyzer = { ..._observedLinkDeadAnalyzer, pluginId: 'core', version: VERSION };
 const observedLinkMissingAnalyzer = { ..._observedLinkMissingAnalyzer, pluginId: 'core', version: VERSION };
+const observedNodeDeadAnalyzer = { ..._observedNodeDeadAnalyzer, pluginId: 'core', version: VERSION };
 const referenceBrokenAnalyzer = { ..._referenceBrokenAnalyzer, pluginId: 'core', version: VERSION };
 const referenceRedundantAnalyzer = { ..._referenceRedundantAnalyzer, pluginId: 'core', version: VERSION };
 const schemaViolationAnalyzer = { ..._schemaViolationAnalyzer, pluginId: 'core', version: VERSION };
@@ -1409,7 +1411,6 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       annotationFieldUnknownAnalyzer,
       annotationOrphanAnalyzer,
       annotationStaleAnalyzer,
-      declaredLinkUnobservedAnalyzer,
       extractorCollisionAnalyzer,
       issueCounterAnalyzer,
       linkCounterAnalyzer,
@@ -1419,7 +1420,9 @@ export const builtInPlugins: IBuiltInPlugin[] = [
       nameMismatchAnalyzer,
       nameReservedAnalyzer,
       nodeStabilityAnalyzer,
+      observedLinkDeadAnalyzer,
       observedLinkMissingAnalyzer,
+      observedNodeDeadAnalyzer,
       referenceBrokenAnalyzer,
       referenceRedundantAnalyzer,
       schemaViolationAnalyzer,

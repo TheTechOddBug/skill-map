@@ -1,0 +1,38 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>The second bug is the real one</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>The second bug is the real one</h1>
+
+  <p>The first bug you find in an incident is almost never the bug. It is the loudest symptom, the one that tripped the alert or threw the exception that made it to a log. Fix it and the alert stops, the page goes green, and everyone moves on. Two weeks later the same failure shows up wearing a different stack trace, and the room asks why this keeps happening.</p>
+
+  <h2>The first bug is a symptom by construction</h2>
+  <p>Incidents surface through whatever breaks loudest, not whatever is most wrong. A null pointer, a timeout, a retry storm: these are the visible edge of whatever assumption actually failed. The first bug is real in the sense that fixing it does something, but it is real the way turning off a smoke alarm is real. The smoke is still there.</p>
+
+  <h2>Stop after the first fix and you've patched the alarm</h2>
+  <p>The tempting move is to fix the thing you found, ship it, close the ticket. It is a legitimate short-term move under pressure, nobody should leave a system on fire to go spelunking. But if that is where the investigation ends, the underlying condition is untouched, and it will find a new way to surface, usually somewhere less obvious than the first time.</p>
+
+  <h2>Keep asking why until it stops being interesting</h2>
+  <p>The way to the second bug is boring: ask why the first bug was possible at all, and keep asking until the answer stops changing. A null pointer because a field was unset. Unset because a migration skipped it. Skipped because the migration script had no validation step. No validation step because nobody owns that pipeline. Somewhere in that chain is a decision, not an accident, and that decision is the second bug.</p>
+
+  <h2>The second bug is usually a design gap, not a typo</h2>
+  <p>The first bug lives in a line of code. The second bug usually lives in a missing invariant, a validation that was assumed instead of enforced, an ownership boundary nobody drew. That is why it is harder to find and easier to skip: fixing a line is a five-minute PR, fixing a missing invariant is a conversation about who is responsible for what.</p>
+
+  <h2>How to know you've reached it</h2>
+  <p>You know you have reached the second bug when the fix would have prevented an entire class of symptoms, not just the one you saw. If your fix only stops this exact stack trace from recurring, you are still on the first bug. If it removes the condition that let a whole family of failures exist, you have found the one worth writing down.</p>
+
+  <h2>Write it down before you fix it</h2>
+  <p>Once you find the second bug, resist the urge to just quietly fix it and move on. Say what it was in the postmortem, separately from the symptom that paged you. The next person debugging a superficially different incident needs to recognize the shape of this one. The fix that sticks is the one somebody else can point to and say "that's the same root cause as last time."</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

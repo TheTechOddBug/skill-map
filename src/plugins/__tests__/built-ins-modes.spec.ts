@@ -356,10 +356,13 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/observed-link-missing` (the session-journal emergent-use
     // detector, 2026-08-16: flags observed invoke/spawn pairs no declared
     // link covers, `spec/provider-activity.md` §Session journal) brings
-    // it to 70. `core/declared-link-unobserved` (its dead-design mirror,
+    // it to 70. `core/observed-link-dead` (its dead-design mirror,
     // 2026-08-17: flags declared links recorded sessions could have
     // confirmed but never did, volume-gated) brings it to 71.
-    assert.equal(rows.length, 71);
+    // `core/observed-node-dead` (the node-grain dead detector, 2026-08-17:
+    // runnable nodes that never ran across enough active recorded
+    // sessions) brings it to 72.
+    assert.equal(rows.length, 72);
   });
 
   // Convention guard: every built-in EXTRACTOR description ends with a

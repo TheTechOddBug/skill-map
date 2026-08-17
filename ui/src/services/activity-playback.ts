@@ -29,6 +29,16 @@ import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angul
 import { computePlaybackState, type IPlaybackState } from './activity-playback-state';
 import { ActivityRecorderService, type TRecordedEvent } from './activity-recorder';
 
+/**
+ * Frame provenance of one replay (see `ActivityPlaybackService.source`).
+ * `tape-session` carries the session's root owner so the transport can
+ * re-filter the live tape at delete time.
+ */
+export type TReplaySource =
+  | { kind: 'whole-tape' }
+  | { kind: 'tape-session'; rootOwner: string }
+  | { kind: 'journal' };
+
 /** Fixed playback cadence: one recorded event per wall-clock second. */
 export const PLAYBACK_STEP_MS = 1000;
 
@@ -55,6 +65,17 @@ export class ActivityPlaybackService {
   private readonly _scopeLabel = signal<string | null>(null);
   /** What this replay narrates ("Session 3"); null = the whole tape. */
   readonly scopeLabel = this._scopeLabel.asReadonly();
+
+  private readonly _source = signal<TReplaySource>({ kind: 'whole-tape' });
+  /**
+   * Where this replay's frames came from (2026-08-17): drives the
+   * transport trash's meaning. `tape-session` (a Sessions-rail row the
+   * client tape holds) erases THAT session from the tape;
+   * `whole-tape` keeps the historical clear; `journal` (frames from
+   * `.skill-map/sessions/`, nothing of them in this browser) has
+   * nothing to erase, the trash hides.
+   */
+  readonly source = this._source.asReadonly();
 
   readonly total = computed(() => this._tape().length);
 
@@ -93,10 +114,15 @@ export class ActivityPlaybackService {
    * `events` scopes the replay to a pre-filtered slice (default: the
    * whole recording); `scopeLabel` names that slice for the transport.
    */
-  enter(events?: readonly TRecordedEvent[], scopeLabel?: string): void {
+  enter(
+    events?: readonly TRecordedEvent[],
+    scopeLabel?: string,
+    source?: TReplaySource,
+  ): void {
     if (this._active()) return;
     this._tape.set(events ?? this.recorder.events());
     this._scopeLabel.set(scopeLabel ?? null);
+    this._source.set(source ?? { kind: 'whole-tape' });
     this._cursor.set(-1);
     this._active.set(true);
     this.play();
@@ -108,6 +134,7 @@ export class ActivityPlaybackService {
     this._active.set(false);
     this._tape.set([]);
     this._scopeLabel.set(null);
+    this._source.set({ kind: 'whole-tape' });
     this._cursor.set(-1);
   }
 

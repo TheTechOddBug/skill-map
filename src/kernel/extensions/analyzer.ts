@@ -12,7 +12,7 @@
 import type { IExtensionBase } from './base.js';
 import type { IExtensionPrecondition } from './extractor.js';
 import type { TIdentifierSource } from './provider.js';
-import type { IObservedExecution, IObservedRelation } from '../session-journal/index.js';
+import type { IObservedExecutions, IObservedRelation } from '../session-journal/index.js';
 import type { Issue, Link, Node, Signal, TConfidenceOp, TExecutionMode } from '../types.js';
 import type { IExtensionLogger } from '../util/extension-logger.js';
 import type { IRegisteredAnnotationKey } from '../types/annotation-catalog.js';
@@ -217,15 +217,16 @@ export interface IAnalyzerContext {
    */
   observedRelations?: ReadonlyMap<string, IObservedRelation>;
   /**
-   * Observed per-node EXECUTION counts from the same journal fold
-   * (`foldObservedActivity(...).executions`), keyed by node path: how
-   * many times each node ran as a unit across recorded sessions
-   * (custody heartbeats excluded). Single consumer today:
-   * `core/declared-link-unobserved`, whose volume gate needs "did the
-   * source actually run enough for its silence to mean something".
-   * Absent when the journal is empty. Treat as read-only.
+   * Observed EXECUTIONS from the same journal fold
+   * (`foldObservedActivity(...).executions`): per-node unit-run counts
+   * (`byPath`, custody heartbeats excluded) plus the ACTIVE-session
+   * denominator (`activeSessions`, distinct recorded sessions with at
+   * least one unit run). Consumers: `core/observed-link-dead`
+   * (per-source volume gate) and `core/observed-node-dead` (node-grain
+   * "never ran" against the denominator). Absent when the journal is
+   * empty. Treat as read-only.
    */
-  observedExecutions?: ReadonlyMap<string, IObservedExecution>;
+  observedExecutions?: IObservedExecutions;
   /**
    * Absolute path of the scan's project root (cwd of the invocation).
    * Threaded into the analyzer pass so an analyzer that needs to

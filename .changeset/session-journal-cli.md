@@ -2,7 +2,7 @@
 '@skill-map/cli': minor
 ---
 
-`sm serve` can now journal runtime sessions to `.skill-map/sessions/` (one JSON file per session, resolved content-free frames; captured only while the operator records, with `activity.journal.enabled` as the master switch), and `sm scan` folds the journal for the new `core/observed-link-missing` analyzer: one `info` issue per node observed invoking or spawning a target no declared link covers, grouped under "Observed in sessions" in the inspector, dismissible via the standard issue suppression.
+`sm serve` can now journal runtime sessions to `.skill-map/sessions/` (one content-free JSON per session, captured only while the operator records), and `sm scan` folds the journal for the new `core/observed-link-missing` analyzer: one `info` issue per node observed invoking or spawning a target no declared link covers, under "Observed in sessions" in the inspector, dismissible via the standard suppression. Ships `experimental` (disabled until opted in).
 
 ## User-facing
 

@@ -135,10 +135,21 @@ export class ActivityRecorderService {
   private readonly _recording = signal(false);
   /**
    * Manual capture gate (user decision 2026-08-16): the tape grows only
-   * between `start()` and `stop()`. Session-only state, default OFF; a
-   * reload keeps the persisted tape but never resumes capturing.
+   * between `start()` and `stop()`. Boot state OFF; a reload resumes
+   * capturing only when the SERVER is still recording (the boot probe
+   * below), so the two memories flip together.
    */
   readonly recording = this._recording.asReadonly();
+
+  private readonly _recordingSince = signal<number | null>(null);
+  /**
+   * Wall-clock watermark of the CURRENT recording window, null while
+   * not recording. Lets the Sessions tab tell the in-flight session
+   * (frames stamped after this moment) apart from finished ones, which
+   * is what gates its replay (user call 2026-08-17: watching the
+   * present and replaying it collide).
+   */
+  readonly recordingSince = this._recordingSince.asReadonly();
 
   readonly size = computed(() => this._events().length);
 
@@ -188,8 +199,12 @@ export class ActivityRecorderService {
       .getSessionJournal?.()
       .then(({ recording }) => {
         if (!recording) return;
-        if (this.prefs.activityEnabled()) this._recording.set(true);
-        else void this.dataSource.setSessionRecording?.(false).catch(() => {});
+        if (this.prefs.activityEnabled()) {
+          this._recording.set(true);
+          this._recordingSince.set(Date.now());
+        } else {
+          void this.dataSource.setSessionRecording?.(false).catch(() => {});
+        }
       })
       .catch(() => {});
 
@@ -227,6 +242,7 @@ export class ActivityRecorderService {
   start(): void {
     if (!this.prefs.activityEnabled()) return;
     this._recording.set(true);
+    this._recordingSince.set(Date.now());
     void this.dataSource.setSessionRecording?.(true).catch(() => {});
   }
 
@@ -236,6 +252,7 @@ export class ActivityRecorderService {
    */
   stop(): void {
     this._recording.set(false);
+    this._recordingSince.set(null);
     void this.dataSource.setSessionRecording?.(false).catch(() => {});
   }
 
@@ -264,6 +281,22 @@ export class ActivityRecorderService {
     } catch {
       // Storage blocked: the in-memory tape is cleared either way.
     }
+  }
+
+  /**
+   * Remove a SPECIFIC set of frames from the tape (identity-based: the
+   * caller hands back frame objects it obtained from `events()`, e.g.
+   * `filterTapeForSession`'s output). The per-session eraser behind the
+   * replay trash (2026-08-17): drop ONE watched session from this
+   * browser without touching the rest of the tape, the journal files,
+   * or the drop accounting. The storage mirror follows on the standard
+   * debounce.
+   */
+  removeAll(frames: readonly TRecordedEvent[]): void {
+    if (frames.length === 0) return;
+    const drop = new Set(frames);
+    this._events.update((list) => list.filter((event) => !drop.has(event)));
+    this.schedulePersist();
   }
 
   /**

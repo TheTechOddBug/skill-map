@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Ship it, then name it</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Ship it, then name it</h1>
+
+  <p>Naming a thing well is much easier after you have seen it work. Before that, you are guessing at a shape you have not fully built yet, and a good name for the wrong shape is worse than no name at all.</p>
+
+  <h2>Why we name too early</h2>
+  <p>Most tools ask for a name before they let you write a line of code: create the module, create the class, create the file. So we pick a name to satisfy the tool, not because we understand the thing yet. That name then quietly becomes the mental model everyone reasons from, even though it was really just a guess made under time pressure.</p>
+
+  <h2>What a placeholder name buys you</h2>
+  <p>Call it "thing", "temp", or the ugliest working title you can stand, and keep it that way on purpose. An ugly name is honest: it tells every reader, including future you, that the concept is not settled yet. It also removes the quiet embarrassment of renaming something later, since there was never a real name to defend in the first place.</p>
+
+  <h2>The moment a real name becomes obvious</h2>
+  <p>At some point the code works, other code depends on it, and you can describe what it actually does in one plain sentence. That sentence is usually the name. It shows up on its own, once the behavior is settled, and it almost never matches the name you would have picked on day one.</p>
+
+  <h2>When early naming is worth it</h2>
+  <p>None of this applies to anything a user has to type, read, or depend on: public APIs, CLI flags, config keys, URLs. Those need a stable name from the start, because renaming them breaks someone else's code, not just your own file. The rule is really about internal concepts, the modules and abstractions only you look at while the design is still moving.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

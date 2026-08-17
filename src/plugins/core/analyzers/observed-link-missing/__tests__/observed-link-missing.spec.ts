@@ -157,6 +157,71 @@ describe('core/observed-link-missing analyzer', () => {
     assert.deepEqual(issues, []);
   });
 
+  it('a reads pair flags only past the repetition gate, with the reads noun', async () => {
+    const DOC = 'docs/guide.md';
+    const below = await observedLinkMissingAnalyzer.evaluate!(
+      ctxWith({
+        nodes: [mockNode(SKILL), mockNode(DOC)],
+        observedRelations: observedMap([
+          observed({ target: DOC, relation: 'reads', count: 2, sessions: 2 }),
+        ]),
+      }),
+    );
+    assert.deepEqual(below, []);
+
+    const at = await observedLinkMissingAnalyzer.evaluate!(
+      ctxWith({
+        nodes: [mockNode(SKILL), mockNode(DOC)],
+        observedRelations: observedMap([
+          observed({ target: DOC, relation: 'reads', count: 3, sessions: 2 }),
+        ]),
+      }),
+    );
+    assert.equal(at.length, 1);
+    assert.match(at[0]!.message, /Observed 3 reads across 2 sessions/);
+    assert.equal(at[0]!.data?.['relation'], 'reads');
+  });
+
+  it('the read repetition gate is an extension setting (default 3, tunable)', async () => {
+    const DOC = 'docs/guide.md';
+    const issues = await observedLinkMissingAnalyzer.evaluate!(
+      ctxWith({
+        nodes: [mockNode(SKILL), mockNode(DOC)],
+        settings: { 'min-read-observations': 1 },
+        observedRelations: observedMap([
+          observed({ target: DOC, relation: 'reads', count: 1, sessions: 1 }),
+        ]),
+      }),
+    );
+    assert.equal(issues.length, 1);
+  });
+
+  it('a points link covers a reads pair, but never an execution pair', async () => {
+    const DOC = 'docs/guide.md';
+    const pointsToDoc = mockLink({ source: SKILL, target: DOC, kind: 'points' });
+    const readsCovered = await observedLinkMissingAnalyzer.evaluate!(
+      ctxWith({
+        nodes: [mockNode(SKILL), mockNode(DOC)],
+        links: [pointsToDoc],
+        observedRelations: observedMap([
+          observed({ target: DOC, relation: 'reads', count: 5, sessions: 3 }),
+        ]),
+      }),
+    );
+    assert.deepEqual(readsCovered, []);
+
+    // The same kind on an INVOKES pair does not declare execution.
+    const pointsToMcp = mockLink({ source: SKILL, target: MCP, kind: 'points' });
+    const stillFlags = await observedLinkMissingAnalyzer.evaluate!(
+      ctxWith({
+        nodes: [mockNode(SKILL), mockNode(MCP)],
+        links: [pointsToMcp],
+        observedRelations: observedMap([observed({})]),
+      }),
+    );
+    assert.equal(stillFlags.length, 1);
+  });
+
   it('mentions does NOT suppress (naming is not declaring execution)', async () => {
     const link = mockLink({ source: SKILL, target: MCP, kind: 'mentions', resolvedTarget: MCP });
     const issues = await observedLinkMissingAnalyzer.evaluate!(

@@ -130,7 +130,7 @@ describe('foldObservedActivity relations', () => {
     assert.equal(foldRelations([rec]).size, 0);
   });
 
-  it('ignores read-access frames entirely (reads relation deferred)', () => {
+  it('correlates a read to the reading unit; the read never becomes the current unit', () => {
     const rec = recording({
       frames: [
         {
@@ -140,6 +140,59 @@ describe('foldObservedActivity relations', () => {
         },
         {
           tMs: 2,
+          type: 'node.activity',
+          data: { nodePath: 'README.md', phase: 'start', owner: 'main:s1', access: 'read' },
+        },
+        // The MCP call still correlates to the UNIT, not the read doc.
+        {
+          tMs: 3,
+          type: 'node.activity',
+          data: { nodePath: MCP, phase: 'start', owner: 'main:s1', access: 'mcp' },
+        },
+      ],
+    });
+    const folded = foldRelations([rec]);
+    assert.equal(folded.size, 2);
+    const read = folded.get(`${SKILL}\x00README.md`)!;
+    assert.equal(read.relation, 'reads');
+    assert.equal(read.count, 1);
+    const invoke = folded.get(`${SKILL}\x00${MCP}`)!;
+    assert.equal(invoke.relation, 'invokes');
+  });
+
+  it('a turnEnd cuts the unit attribution: later-turn accesses never blame an earlier unit', () => {
+    const rec = recording({
+      frames: [
+        {
+          tMs: 1,
+          type: 'node.activity',
+          data: { nodePath: SKILL, phase: 'start', owner: 'main:s1' },
+        },
+        // Same turn: attributed to the skill.
+        {
+          tMs: 2,
+          type: 'node.activity',
+          data: { nodePath: 'docs/A.md', phase: 'start', owner: 'main:s1', access: 'read' },
+        },
+        { tMs: 3, type: 'node.activity', data: { phase: 'end', owner: 'main:s1', turnEnd: true } },
+        // NEXT turn, no unit ran: the read attributes to nothing.
+        {
+          tMs: 4,
+          type: 'node.activity',
+          data: { nodePath: 'docs/B.md', phase: 'start', owner: 'main:s1', access: 'read' },
+        },
+      ],
+    });
+    const folded = foldRelations([rec]);
+    assert.equal(folded.size, 1);
+    assert.ok(folded.has(`${SKILL}\x00docs/A.md`));
+  });
+
+  it('drops a read whose owner has no prior unit claim (no guessing)', () => {
+    const rec = recording({
+      frames: [
+        {
+          tMs: 1,
           type: 'node.activity',
           data: { nodePath: 'README.md', phase: 'start', owner: 'main:s1', access: 'read' },
         },
@@ -243,14 +296,15 @@ describe('foldObservedActivity executions', () => {
       ],
     });
     const { executions } = foldObservedActivity([rec]);
-    assert.equal(executions.size, 2);
-    const skill = executions.get(SKILL)!;
+    assert.equal(executions.byPath.size, 2);
+    assert.equal(executions.activeSessions, 1);
+    const skill = executions.byPath.get(SKILL)!;
     assert.equal(skill.count, 2);
     assert.equal(skill.sessions, 1);
     assert.equal(skill.lastSeenAt, 6);
-    assert.equal(executions.get(AGENT)!.count, 1);
-    assert.equal(executions.has('README.md'), false);
-    assert.equal(executions.has(MCP), false);
+    assert.equal(executions.byPath.get(AGENT)!.count, 1);
+    assert.equal(executions.byPath.has('README.md'), false);
+    assert.equal(executions.byPath.has(MCP), false);
   });
 
   it('counts DISTINCT sessions per node across recordings', () => {
@@ -260,7 +314,8 @@ describe('foldObservedActivity executions', () => {
     const recA = recording({ rootOwner: 'main:a', startedAt: 100, frames });
     const recB = recording({ rootOwner: 'main:b', startedAt: 200, frames });
     const { executions } = foldObservedActivity([recA, recB]);
-    const entry = executions.get(SKILL)!;
+    assert.equal(executions.activeSessions, 2);
+    const entry = executions.byPath.get(SKILL)!;
     assert.equal(entry.count, 2);
     assert.equal(entry.sessions, 2);
   });

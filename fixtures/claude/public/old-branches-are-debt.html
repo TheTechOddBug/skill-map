@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Old branches are debt</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Old branches are debt</h1>
+
+  <p>A branch is a loan against main. The moment you cut it, you owe a merge. Every day it sits open, main moves on without you, and the size of that debt grows. Nobody budgets for this. The branch was supposed to take two days, so nobody planned for the interest.</p>
+
+  <h2>"I'll rebase later" is a loan</h2>
+  <p>Saying you'll rebase later is the same as saying you'll pay it off later. The interest keeps accruing whether you acknowledge it or not. Every commit that lands on main while your branch is open is a conflict you have not seen yet, a test you have not run against, an assumption your code was written under that may no longer hold. Rebasing later does not avoid the cost. It just moves the whole bill to a single, worse day.</p>
+
+  <h2>Unfinished is not the same as abandoned</h2>
+  <p>A branch that is actively worked on, even slowly, is unfinished. Someone is paying down the debt a little each day, and the size of the gap is known and shrinking. A branch nobody has touched in three weeks is abandoned, whether or not anyone admits it. The debt is still accruing, but nobody is watching the balance. That is the dangerous branch: not the slow one, the silent one.</p>
+
+  <h2>Merging small and often is the payment plan</h2>
+  <p>The fix is not discipline or heroic rebasing, it is smaller loans. Merge behind a flag, merge an incomplete feature that is inert until wired up, split the work so each piece can land in a day or two instead of a month. A branch that lives for an afternoon barely accrues interest. A branch that lives for a quarter has compounded past the point where anyone wants to touch the merge.</p>
+
+  <h2>When a long branch is fine</h2>
+  <p>Not all debt is bad debt. A spike you intend to throw away, a branch you are using to answer a question and then delete, never has to be repaid, because it was never going to be merged. The problem is not branch age. It is branch age combined with an intent to merge. If you know upfront the answer is "learn something, then delete it," let it run as long as it needs to. The debt only matters for the branches that plan to come home.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>

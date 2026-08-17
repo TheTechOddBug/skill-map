@@ -31,4 +31,6 @@ export const OBSERVED_LINK_MISSING_TEXTS = {
   invokesPlural: 'invocations',
   spawnsSingular: 'spawn',
   spawnsPlural: 'spawns',
+  readsSingular: 'read',
+  readsPlural: 'reads',
 } as const;

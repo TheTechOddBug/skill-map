@@ -1,6 +1,6 @@
 /**
- * Coverage for the `core/declared-link-unobserved` built-in analyzer
- * (`plugins/core/analyzers/declared-link-unobserved/index.ts`), the
+ * Coverage for the `core/observed-link-dead` built-in analyzer
+ * (`plugins/core/analyzers/observed-link-dead/index.ts`), the
  * dead-design detector.
  *
  * Behaviour pinned by these tests:
@@ -23,7 +23,7 @@
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
-import { declaredLinkUnobservedAnalyzer, MIN_SOURCE_RUNS } from '../index.js';
+import { observedLinkDeadAnalyzer, MIN_SOURCE_RUNS } from '../index.js';
 import type { IAnalyzerContext } from '../../../../../kernel/extensions/index.js';
 import { makeHookDispatcher } from '../../../../../kernel/extensions/hook-dispatcher.js';
 import { InMemoryProgressEmitter } from '../../../../../kernel/adapters/in-memory-progress.js';
@@ -31,6 +31,7 @@ import { SILENT_EXTENSION_LOGGER } from '../../../../../kernel/adapters/silent-l
 import { runAnalyzers } from '../../../../../kernel/orchestrator/analyzers.js';
 import type {
   IObservedExecution,
+  IObservedExecutions,
   IObservedRelation,
 } from '../../../../../kernel/session-journal/index.js';
 import type { Link, Node } from '../../../../../kernel/types.js';
@@ -65,8 +66,8 @@ function mockLink(over: Partial<Link>): Link {
   };
 }
 
-function execMap(entries: Partial<IObservedExecution>[]): ReadonlyMap<string, IObservedExecution> {
-  return new Map(
+function execMap(entries: Partial<IObservedExecution>[]): IObservedExecutions {
+  const byPath = new Map(
     entries
       .map((over) => ({
         path: SKILL,
@@ -75,8 +76,9 @@ function execMap(entries: Partial<IObservedExecution>[]): ReadonlyMap<string, IO
         lastSeenAt: 1_723_800_000_000,
         ...over,
       }))
-      .map((e) => [e.path, e]),
+      .map((e) => [e.path, e] as const),
   );
+  return { byPath, activeSessions: 2 };
 }
 
 function observedMap(entries: Partial<IObservedRelation>[]): ReadonlyMap<string, IObservedRelation> {
@@ -108,9 +110,9 @@ function ctxWith(over: Partial<IAnalyzerContext>): IAnalyzerContext {
   };
 }
 
-describe('core/declared-link-unobserved analyzer', () => {
+describe('core/observed-link-dead analyzer', () => {
   it('emits nothing without observed executions (no recorded evidence at all)', async () => {
-    const issues = await declaredLinkUnobservedAnalyzer.evaluate!(
+    const issues = await observedLinkDeadAnalyzer.evaluate!(
       ctxWith({
         nodes: [mockNode(SKILL), mockNode(MCP)],
         links: [mockLink({})],
@@ -120,7 +122,7 @@ describe('core/declared-link-unobserved analyzer', () => {
   });
 
   it('flags a declared link to an mcp target the recordings never confirmed (info, on the source)', async () => {
-    const issues = await declaredLinkUnobservedAnalyzer.evaluate!(
+    const issues = await observedLinkDeadAnalyzer.evaluate!(
       ctxWith({
         nodes: [mockNode(SKILL), mockNode(MCP)],
         links: [mockLink({ kind: 'invokes' })],
@@ -140,7 +142,7 @@ describe('core/declared-link-unobserved analyzer', () => {
   });
 
   it('stays silent below the volume gate (the source has not run enough)', async () => {
-    const issues = await declaredLinkUnobservedAnalyzer.evaluate!(
+    const issues = await observedLinkDeadAnalyzer.evaluate!(
       ctxWith({
         nodes: [mockNode(SKILL), mockNode(MCP)],
         links: [mockLink({})],
@@ -150,9 +152,21 @@ describe('core/declared-link-unobserved analyzer', () => {
     assert.deepEqual(issues, []);
   });
 
+  it('the volume gate is an extension setting (default 3, tunable)', async () => {
+    const issues = await observedLinkDeadAnalyzer.evaluate!(
+      ctxWith({
+        nodes: [mockNode(SKILL), mockNode(MCP)],
+        links: [mockLink({ kind: 'invokes' })],
+        settings: { 'min-source-runs': 1 },
+        observedExecutions: execMap([{ count: 1 }]),
+      }),
+    );
+    assert.equal(issues.length, 1);
+  });
+
   it('an observed pair silences, matching the link on resolvedTarget (trigger-style)', async () => {
     const link = mockLink({ target: '@notion', kind: 'invokes', resolvedTarget: MCP });
-    const issues = await declaredLinkUnobservedAnalyzer.evaluate!(
+    const issues = await observedLinkDeadAnalyzer.evaluate!(
       ctxWith({
         nodes: [mockNode(SKILL), mockNode(MCP)],
         links: [link],
@@ -165,7 +179,7 @@ describe('core/declared-link-unobserved analyzer', () => {
 
   it('a trigger-style link with NO observation flags with the RESOLVED target as the key', async () => {
     const link = mockLink({ target: '@notion', kind: 'invokes', resolvedTarget: MCP });
-    const issues = await declaredLinkUnobservedAnalyzer.evaluate!(
+    const issues = await observedLinkDeadAnalyzer.evaluate!(
       ctxWith({
         nodes: [mockNode(SKILL), mockNode(MCP)],
         links: [link],
@@ -177,7 +191,7 @@ describe('core/declared-link-unobserved analyzer', () => {
   });
 
   it('an agent-kind target is observable (the spawns evidence class)', async () => {
-    const issues = await declaredLinkUnobservedAnalyzer.evaluate!(
+    const issues = await observedLinkDeadAnalyzer.evaluate!(
       ctxWith({
         nodes: [mockNode(SKILL), mockNode(AGENT, 'agent')],
         links: [mockLink({ target: AGENT })],
@@ -188,11 +202,35 @@ describe('core/declared-link-unobserved analyzer', () => {
     assert.equal(issues[0]!.data?.['target'], AGENT);
   });
 
-  it('a plain doc target is NOT observable: never judged while reads stay unfolded', async () => {
-    const issues = await declaredLinkUnobservedAnalyzer.evaluate!(
+  it('a references link to a doc IS observable via the reads class: flags when never read', async () => {
+    const issues = await observedLinkDeadAnalyzer.evaluate!(
       ctxWith({
         nodes: [mockNode(SKILL), mockNode(DOC)],
-        links: [mockLink({ target: DOC })],
+        links: [mockLink({ target: DOC, kind: 'references' })],
+        observedExecutions: execMap([{}]),
+      }),
+    );
+    assert.equal(issues.length, 1);
+    assert.equal(issues[0]!.data?.['target'], DOC);
+  });
+
+  it('an observed READ of the pair confirms the references link (silent)', async () => {
+    const issues = await observedLinkDeadAnalyzer.evaluate!(
+      ctxWith({
+        nodes: [mockNode(SKILL), mockNode(DOC)],
+        links: [mockLink({ target: DOC, kind: 'references' })],
+        observedExecutions: execMap([{}]),
+        observedRelations: observedMap([{ target: DOC, relation: 'reads' }]),
+      }),
+    );
+    assert.deepEqual(issues, []);
+  });
+
+  it('an invokes link to a non-mcp, non-agent target stays unjudged (no unit-pair evidence class)', async () => {
+    const issues = await observedLinkDeadAnalyzer.evaluate!(
+      ctxWith({
+        nodes: [mockNode(SKILL), mockNode(DOC)],
+        links: [mockLink({ target: DOC, kind: 'invokes' })],
         observedExecutions: execMap([{}]),
       }),
     );
@@ -200,7 +238,7 @@ describe('core/declared-link-unobserved analyzer', () => {
   });
 
   it('mentions is not a declaration of execution: never judged', async () => {
-    const issues = await declaredLinkUnobservedAnalyzer.evaluate!(
+    const issues = await observedLinkDeadAnalyzer.evaluate!(
       ctxWith({
         nodes: [mockNode(SKILL), mockNode(MCP)],
         links: [mockLink({ kind: 'mentions' })],
@@ -211,7 +249,7 @@ describe('core/declared-link-unobserved analyzer', () => {
   });
 
   it('drops links whose target left the scanned set; dedupes duplicate pairs', async () => {
-    const issues = await declaredLinkUnobservedAnalyzer.evaluate!(
+    const issues = await observedLinkDeadAnalyzer.evaluate!(
       ctxWith({
         nodes: [mockNode(SKILL), mockNode(MCP)],
         links: [
@@ -232,13 +270,13 @@ describe('core/declared-link-unobserved analyzer', () => {
         SKILL,
         {
           annotations: {
-            issueSuppressions: [{ analyzer: 'core/declared-link-unobserved', value: MCP }],
+            issueSuppressions: [{ analyzer: 'core/observed-link-dead', value: MCP }],
           },
         },
       ],
     ]);
     const result = await runAnalyzers(
-      [{ ...declaredLinkUnobservedAnalyzer, pluginId: 'core', version: '0.0.0' }],
+      [{ ...observedLinkDeadAnalyzer, pluginId: 'core', version: '0.0.0' }],
       [mockNode(SKILL), mockNode(MCP)],
       [mockLink({ kind: 'invokes' })],
       [], // orphanSidecars

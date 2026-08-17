@@ -27,14 +27,18 @@
  * Both endpoints must exist in the scanned node set: the journal can
  * outlive a deleted file or record an `mcp://` server no config or
  * frontmatter materialises, and an issue anchored on (or pointing at) a
- * phantom node would not be actionable. Dead-design detection (declared
- * but never observed) is deliberately NOT here: it needs a volume gate
- * (only meaningful once the source executed enough) and is deferred.
+ * phantom node would not be actionable. READ pairs (2026-08-17, the
+ * reads class) are held to a stricter standard on both sides: they only
+ * flag past `MIN_READ_OBSERVATIONS`, and a `points` link also covers
+ * them (a backtick path naming the file declares that it matters here).
+ * Dead-design detection lives in the sibling
+ * `core/observed-link-dead`.
  */
 
 import type { IAnalyzer, IAnalyzerContext, IBuiltInManifest } from '../../../../kernel/extensions/index.js';
 import type { IObservedRelation } from '../../../../kernel/session-journal/index.js';
 import type { Issue, Link } from '../../../../kernel/types.js';
+import type { TSettingDeclaration } from '../../../../kernel/types/view-catalog.js';
 import { formatFinding } from '../../../../kernel/util/finding-format.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
@@ -45,13 +49,45 @@ const ID = 'observed-link-missing';
 /** Link kinds that count as a DECLARATION of execution (see module doc). */
 const DECLARING_KINDS: ReadonlySet<string> = new Set(['invokes', 'references']);
 
+/**
+ * For READ pairs only, `points` also covers (spec §Consumption): a
+ * backtick path naming the file already declares that the file matters
+ * here. `mentions` (name-only) never covers anything.
+ */
+const READ_DECLARING_KINDS: ReadonlySet<string> = new Set(['invokes', 'references', 'points']);
+
+/**
+ * Repetition gate DEFAULT for READ pairs (spec §Consumption): reading
+ * is routine where executing is deliberate, so a one-off read is not an
+ * emergent-use signal (configurable per-extension since 2026-08-17).
+ */
+export const MIN_READ_OBSERVATIONS = 3;
+
+const SETTING_MIN_READ_OBSERVATIONS = 'min-read-observations';
+
+const settings = {
+  [SETTING_MIN_READ_OBSERVATIONS]: {
+    type: 'integer',
+    label: 'Minimum read observations',
+    description:
+      'Observed reads of the same pair required before an undeclared read relation is flagged. Higher = fewer, stronger emergent-read findings.',
+    default: MIN_READ_OBSERVATIONS,
+    min: 1,
+  },
+} satisfies Record<string, TSettingDeclaration>;
+
 export const observedLinkMissingAnalyzer: IBuiltInManifest<IAnalyzer> = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
   description:
     'Flags nodes observed invoking or spawning a target in recorded sessions that none of their declared links cover.',
+  // Experimental (user decision 2026-08-17): the design-vs-reality trio
+  // ships disabled until the evidence gates prove themselves in real
+  // projects; the Settings toggle / `sm plugins enable` opts in.
+  stability: 'experimental',
   mode: 'deterministic',
+  settings,
 
   evaluate(ctx: IAnalyzerContext): Issue[] {
     const observed = ctx.observedRelations;
@@ -65,39 +101,59 @@ export const observedLinkMissingAnalyzer: IBuiltInManifest<IAnalyzer> = {
     const entries = [...observed.values()].sort((a, b) =>
       `${a.source}\x00${a.target}`.localeCompare(`${b.source}\x00${b.target}`),
     );
+    const minReads = minReadObservations(ctx);
     for (const entry of entries) {
-      if (!nodePaths.has(entry.source) || !nodePaths.has(entry.target)) continue;
-      if (declared.has(`${entry.source}\x00${entry.target}`)) continue;
-      issues.push(buildIssue(entry));
+      if (shouldFlag(entry, nodePaths, declared, minReads)) issues.push(buildIssue(entry));
     }
     return issues;
   },
 };
 
+/** Coverage sets by pair grain (see `collectDeclaredCoverage`). */
+interface IDeclaredCoverage {
+  forExecution: ReadonlySet<string>;
+  forReads: ReadonlySet<string>;
+}
+
 /**
- * Declared coverage set, one pass over the links: `source\x00target` for
- * every execution-declaring edge, resolved target first (the fold keys
- * observed pairs by real node paths, so the two sides meet in the same
- * key space).
+ * The per-pair gates: both endpoints scanned, the reads repetition
+ * gate, then the grain-matched declared coverage.
  */
-function collectDeclaredCoverage(links: readonly Link[]): ReadonlySet<string> {
-  const declared = new Set<string>();
+function shouldFlag(
+  entry: IObservedRelation,
+  nodePaths: ReadonlySet<string>,
+  declared: IDeclaredCoverage,
+  minReads: number,
+): boolean {
+  if (!nodePaths.has(entry.source) || !nodePaths.has(entry.target)) return false;
+  if (entry.relation === 'reads' && entry.count < minReads) return false;
+  const key = `${entry.source}\x00${entry.target}`;
+  const covered =
+    entry.relation === 'reads' ? declared.forReads.has(key) : declared.forExecution.has(key);
+  return !covered;
+}
+
+/**
+ * Declared coverage sets, one pass over the links: `source\x00target`
+ * for every declaring edge, resolved target first (the fold keys
+ * observed pairs by real node paths, so the two sides meet in the same
+ * key space). Two grains: execution pairs (invokes / spawns) accept the
+ * execution-declaring kinds only; read pairs also accept `points`.
+ */
+function collectDeclaredCoverage(links: readonly Link[]): IDeclaredCoverage {
+  const forExecution = new Set<string>();
+  const forReads = new Set<string>();
   for (const link of links) {
-    if (!DECLARING_KINDS.has(link.kind)) continue;
-    declared.add(`${link.source}\x00${link.resolvedTarget ?? link.target}`);
+    if (!READ_DECLARING_KINDS.has(link.kind)) continue;
+    const key = `${link.source}\x00${link.resolvedTarget ?? link.target}`;
+    forReads.add(key);
+    if (DECLARING_KINDS.has(link.kind)) forExecution.add(key);
   }
-  return declared;
+  return { forExecution, forReads };
 }
 
 function buildIssue(entry: IObservedRelation): Issue {
-  const noun =
-    entry.relation === 'invokes'
-      ? entry.count === 1
-        ? TEXTS.invokesSingular
-        : TEXTS.invokesPlural
-      : entry.count === 1
-        ? TEXTS.spawnsSingular
-        : TEXTS.spawnsPlural;
+  const noun = relationNoun(entry);
   return {
     analyzerId: ID,
     severity: 'info',
@@ -124,4 +180,23 @@ function buildIssue(entry: IObservedRelation): Issue {
       lastSeenAt: entry.lastSeenAt,
     },
   };
+}
+
+/** Relation noun for the message (each relation pluralises its own way). */
+function relationNoun(entry: IObservedRelation): string {
+  if (entry.relation === 'invokes') {
+    return entry.count === 1 ? TEXTS.invokesSingular : TEXTS.invokesPlural;
+  }
+  if (entry.relation === 'reads') {
+    return entry.count === 1 ? TEXTS.readsSingular : TEXTS.readsPlural;
+  }
+  return entry.count === 1 ? TEXTS.spawnsSingular : TEXTS.spawnsPlural;
+}
+
+/** The read repetition gate, operator-tunable (integer setting, default 3). */
+function minReadObservations(ctx: IAnalyzerContext): number {
+  const raw = ctx.settings[SETTING_MIN_READ_OBSERVATIONS];
+  return typeof raw === 'number' && Number.isInteger(raw) && raw >= 1
+    ? raw
+    : MIN_READ_OBSERVATIONS;
 }

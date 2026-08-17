@@ -12,9 +12,8 @@
  * `foldObservedActivity(recordings)` collapses the recordings into the
  * observed `(source, target)` pairs the `core/observed-link-missing`
  * analyzer compares against the declared link graph, plus the per-node
- * execution counts that gate `core/declared-link-unobserved` (the
- * dead-design detector). Two relation shapes are folded (v1 scope, reads
- * deliberately deferred as noisy):
+ * execution counts that gate `core/observed-link-dead` (the
+ * dead-design detector). Three relation shapes are folded:
  *
  *   - `invokes`: a `node.activity` start with `access: 'mcp'` (an MCP tool
  *     call landing on an `mcp://` node), attributed to its CALLING unit by
@@ -28,6 +27,17 @@
  *     `childNodePath` (a scanned agent spawning a scanned child), counted
  *     ONCE per `spawnId` per recording (the start / handoff / end trio of
  *     one spawn merges, like the client session index).
+ *   - `reads`: a `node.activity` start with `access: 'read'`, attributed to
+ *     its READING unit by the same owner correlation the invokes class
+ *     uses (2026-08-17, lifting the original reads deferral: the noise
+ *     lives in the ANALYZER gates, repetition + points coverage, not in
+ *     the fold). The read path never becomes the owner's current unit.
+ *
+ * The unit correlation is TURN-BOUNDED (user call 2026-08-17): a
+ * `turnEnd` frame clears its owner's current-unit claim, so an access in
+ * a later turn never attributes to a unit from an earlier one. Without
+ * the bound, "the owner's last unit" over-attributes: a user-driven read
+ * two turns after a skill ran would count as the skill's read.
  *
  * The fold is pure over the recordings (deterministic input -> output);
  * only the reader touches the filesystem. Both run in the driving adapter
@@ -92,7 +102,7 @@ export interface IObservedRelation {
   source: string;
   /** Scan-relative path of the invoked / spawned node (`mcp://…` for invokes). */
   target: string;
-  relation: 'invokes' | 'spawns';
+  relation: 'invokes' | 'spawns' | 'reads';
   count: number;
   sessions: number;
   /** Unix-ms of the latest observation. */
@@ -162,20 +172,34 @@ interface IRecordingFoldState {
   countedSpawnIds: Set<string>;
 }
 
+/**
+ * The executions half of the fold: per-node unit-run counts plus the
+ * ACTIVE-session denominator, the distinct recorded sessions that
+ * produced at least one unit run (spec §Consumption: a recording where
+ * nothing executed proves nothing, so "never ran" claims count against
+ * active sessions, not raw files).
+ */
+export interface IObservedExecutions {
+  /** Per-node unit-run counts keyed by node path. */
+  byPath: ReadonlyMap<string, IObservedExecution>;
+  /** Distinct recorded sessions with at least one unit run. */
+  activeSessions: number;
+}
+
 /** The one journal fold's full product (spec §Session journal · Consumption). */
 export interface IObservedActivity {
   /** `(source, target)` pairs keyed `source\x00target`. */
   relations: ReadonlyMap<string, IObservedRelation>;
-  /** Per-node unit-run counts keyed by node path. */
-  executions: ReadonlyMap<string, IObservedExecution>;
+  /** Per-node unit runs + the active-session denominator. */
+  executions: IObservedExecutions;
 }
 
 /**
  * Fold recordings into the observed activity: relations keyed
- * `source\x00target` (a pair observed under both relations, not
- * producible today since `invokes` targets `mcp://` nodes and `spawns`
- * targets agent files, keeps its first-seen relation and keeps
- * accumulating counts) plus per-node execution counts (the dead-design
+ * `source\x00target` (a pair observed under MORE than one relation,
+ * producible since reads joined: an agent file can be both read and
+ * spawned, keeps its first-seen relation and keeps accumulating
+ * counts) plus per-node execution counts (the dead-design
  * volume gate), both out of ONE walk over the frames.
  */
 export function foldObservedActivity(
@@ -183,6 +207,7 @@ export function foldObservedActivity(
 ): IObservedActivity {
   const relations = new Map<string, IFoldEntry>();
   const executions = new Map<string, IExecutionEntry>();
+  const activeSessionKeys = new Set<string>();
   for (const recording of recordings) {
     const state: IRecordingFoldState = {
       // Distinct-session identity: rootOwner alone repeats across boots
@@ -193,7 +218,7 @@ export function foldObservedActivity(
     };
     for (const frame of recording.frames) {
       if (frame.type === 'agent.spawn') foldSpawnFrame(relations, state, frame);
-      else foldActivityFrame(relations, executions, state, frame);
+      else foldActivityFrame(relations, executions, activeSessionKeys, state, frame);
     }
   }
   const relationsOut = new Map<string, IObservedRelation>();
@@ -201,12 +226,15 @@ export function foldObservedActivity(
     const { sessionKeys, ...relation } = entry;
     relationsOut.set(key, { ...relation, sessions: sessionKeys.size });
   }
-  const executionsOut = new Map<string, IObservedExecution>();
+  const byPath = new Map<string, IObservedExecution>();
   for (const [key, entry] of executions) {
     const { sessionKeys, ...execution } = entry;
-    executionsOut.set(key, { ...execution, sessions: sessionKeys.size });
+    byPath.set(key, { ...execution, sessions: sessionKeys.size });
   }
-  return { relations: relationsOut, executions: executionsOut };
+  return {
+    relations: relationsOut,
+    executions: { byPath, activeSessions: activeSessionKeys.size },
+  };
 }
 
 /** One `agent.spawn` frame: count once per `spawnId`, both paths required. */
@@ -227,32 +255,80 @@ function foldSpawnFrame(
 }
 
 /**
- * One `node.activity` frame: an MCP start correlates to the owner's
- * current unit; a unit's own start (sticky / keepAlive included,
- * mirroring the client fold's claim map) becomes that current unit AND
- * counts as an execution (except `keepAlive`, custody is not a run);
- * reads stay ignored (deferred as noisy).
+ * One `node.activity` frame: an MCP or READ start correlates to the
+ * owner's current unit; a unit's own start (sticky / keepAlive
+ * included, mirroring the client fold's claim map) becomes that
+ * current unit AND counts as an execution (except `keepAlive`,
+ * custody is not a run).
  */
 function foldActivityFrame(
   relations: Map<string, IFoldEntry>,
   executions: Map<string, IExecutionEntry>,
+  activeSessionKeys: Set<string>,
   state: IRecordingFoldState,
   frame: SessionRecordingFrame,
 ): void {
   const data = frame.data;
-  const nodePath = data['nodePath'];
   const owner = data['owner'];
-  const isStart = data['phase'] === 'start';
-  if (!isStart || typeof nodePath !== 'string' || typeof owner !== 'string') return;
-  if (data['access'] === 'mcp') {
-    foldMcpInvocation(relations, state, owner, nodePath, frame.tMs);
+  if (typeof owner !== 'string') return;
+  // Turn boundary (spec §Consumption): the unit correlation is
+  // turn-bounded, so an access in a later turn never attributes to a
+  // unit from an earlier one (the discrete mirror of the live TTL
+  // decay). Subagent owners never see a turnEnd; their whole span is
+  // their own work.
+  if (data['turnEnd'] === true) {
+    state.lastUnitByOwner.delete(owner);
     return;
   }
-  if (data['access'] !== undefined) return; // reads: deferred (noisy)
+  const nodePath = data['nodePath'];
+  if (data['phase'] !== 'start' || typeof nodePath !== 'string') return;
+  if (data['access'] !== undefined) {
+    foldAccessFrame(relations, state, owner, nodePath, data['access'], frame.tMs);
+    return;
+  }
+  foldUnitStart(executions, activeSessionKeys, state, owner, nodePath, data['keepAlive'] === true, frame.tMs);
+}
+
+/**
+ * A unit's own start: it becomes the owner's current unit (sticky and
+ * keepAlive included, mirroring the client claim map) and counts as an
+ * execution, except `keepAlive`: custody is not a run.
+ */
+function foldUnitStart(
+  executions: Map<string, IExecutionEntry>,
+  activeSessionKeys: Set<string>,
+  state: IRecordingFoldState,
+  owner: string,
+  nodePath: string,
+  keepAlive: boolean,
+  tMs: number,
+): void {
   if (nodePath.startsWith(MCP_NODE_PREFIX)) return;
   state.lastUnitByOwner.set(owner, nodePath);
-  if (data['keepAlive'] === true) return;
-  recordExecution(executions, state.sessionKey, nodePath, frame.tMs);
+  if (keepAlive) return;
+  activeSessionKeys.add(state.sessionKey);
+  recordExecution(executions, state.sessionKey, nodePath, tMs);
+}
+
+/**
+ * One resource-access frame: the owner's current unit (when known)
+ * touched the accessed path. `mcp` folds as `invokes`, `read` as
+ * `reads`; any future access class is ignored until it earns a fold.
+ */
+function foldAccessFrame(
+  relations: Map<string, IFoldEntry>,
+  state: IRecordingFoldState,
+  owner: string,
+  accessedPath: string,
+  access: unknown,
+  tMs: number,
+): void {
+  const relation = access === 'mcp' ? 'invokes' : access === 'read' ? 'reads' : null;
+  if (relation === null) return;
+  const caller = state.lastUnitByOwner.get(owner);
+  if (caller !== undefined && caller !== accessedPath) {
+    observe(relations, state.sessionKey, caller, accessedPath, relation, tMs);
+  }
 }
 
 /** Accumulate one unit run onto the node's execution entry. */
@@ -270,20 +346,6 @@ function recordExecution(
   entry.count += 1;
   entry.sessionKeys.add(sessionKey);
   if (tMs > entry.lastSeenAt) entry.lastSeenAt = tMs;
-}
-
-/** The owner's current unit (when known) invoked the MCP node. */
-function foldMcpInvocation(
-  relations: Map<string, IFoldEntry>,
-  state: IRecordingFoldState,
-  owner: string,
-  mcpPath: string,
-  tMs: number,
-): void {
-  const caller = state.lastUnitByOwner.get(owner);
-  if (caller !== undefined && caller !== mcpPath) {
-    observe(relations, state.sessionKey, caller, mcpPath, 'invokes', tMs);
-  }
 }
 
 /** Accumulate one observation onto the pair's fold entry. */

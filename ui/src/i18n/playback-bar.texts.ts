@@ -17,7 +17,9 @@ export const PLAYBACK_BAR_TEXTS = {
   emptyTape: 'Nothing recorded yet',
   trimmedTape: 'Oldest events trimmed from the tape',
   scopeTooltip: 'Replaying only this slice of the recording',
-  deleteRecording: 'Delete the recording',
+  deleteRecording: 'Clear this tape (saved session files stay)',
+  /** tape-session replays: the trash drops only the watched session. */
+  deleteSession: 'Remove this session from this browser (its saved file stays)',
   caption: {
     start: (name: string, detail: string | undefined): string =>
       detail === undefined ? `run ${name}` : `${detail} ${name}`,

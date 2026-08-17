@@ -13,22 +13,18 @@
  */
 
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { ConfirmationService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
-import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { PLAYBACK_BAR_TEXTS } from '../../../../i18n/playback-bar.texts';
-import { SESSION_PURGE_TEXTS } from '../../../../i18n/session-purge.texts';
 import { ActivityPlaybackService } from '../../../../services/activity-playback';
 import { ActivityRecorderService } from '../../../../services/activity-recorder';
 import { pathBasenameForLink } from '../../../../services/path-basename';
-import { SessionPurgeService } from '../../../../services/session-purge';
+import { filterTapeForSession } from '../../../../services/session-index';
 
 @Component({
   selector: 'sm-playback-bar',
-  imports: [ButtonModule, ConfirmDialogModule, TooltipModule],
-  providers: [ConfirmationService],
+  imports: [ButtonModule, TooltipModule],
   templateUrl: './playback-bar.html',
   styleUrl: './playback-bar.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -109,31 +105,38 @@ export class PlaybackBar {
     else this.playback.play();
   }
 
-  private readonly confirmation = inject(ConfirmationService);
-  private readonly purgeSvc = inject(SessionPurgeService);
-
   /**
-   * Contextual shortcut for the Settings row's delete: the recording is
-   * kept until the operator drops it, and the moment you decide it is
-   * junk is usually while watching it. Leaving the replay is NOT done
-   * here: `ActivityPlaybackService` stands the mode down whenever the
-   * recording goes empty, wherever the delete came from. Confirmed
-   * since 2026-08-16: one gesture also wipes the project session
-   * journal (the observed-relations evidence), so the dialog names
-   * that cost and the operator decides.
+   * The trash acts on the BROWSER TAPE ONLY, scoped to what the replay
+   * narrates (decisions 2026-08-17: the project journal is the
+   * accumulated EVIDENCE the design-vs-reality volume gates count on,
+   * and while WATCHING a session the trash means "drop THIS session").
+   * Per source: a `tape-session` replay removes that session's frames
+   * from the tape and exits (the tape may stay non-empty, so the
+   * empty-tape auto-exit cannot be relied on; the row re-lists from the
+   * journal, still replayable); a `whole-tape` replay keeps the
+   * historical full-tape clear (auto-exit handles it); a `journal`
+   * replay never shows the button (nothing of it lives in this
+   * browser). No confirm anywhere: tape frames are regenerable and the
+   * journal survives; the full both-memories wipe lives in Settings.
    */
+  protected readonly trashVisible = computed(() => this.playback.source().kind !== 'journal');
+
+  protected readonly trashTooltip = computed(() =>
+    this.playback.source().kind === 'tape-session'
+      ? this.texts.deleteSession
+      : this.texts.deleteRecording,
+  );
+
   protected deleteRecording(): void {
-    this.confirmation.confirm({
-      header: SESSION_PURGE_TEXTS.confirmHeader,
-      message: SESSION_PURGE_TEXTS.confirmMessage,
-      acceptLabel: SESSION_PURGE_TEXTS.confirmAccept,
-      rejectLabel: SESSION_PURGE_TEXTS.confirmReject,
-      acceptButtonProps: { severity: 'danger' },
-      rejectButtonProps: { severity: 'secondary' },
-      accept: () => {
-        this.purgeSvc.purge();
-      },
-    });
+    const source = this.playback.source();
+    if (source.kind === 'tape-session') {
+      this.recorder.removeAll(
+        filterTapeForSession(this.recorder.events(), { rootOwner: source.rootOwner }),
+      );
+      this.playback.exit();
+      return;
+    }
+    this.recorder.clear();
   }
 
   protected onSeek(event: Event): void {

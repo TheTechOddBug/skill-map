@@ -25,3 +25,4 @@ Rules: plain static HTML, no framework, no client JS, one page per file.
 If `public/style.css` is missing, still link `/style.css` (the style guide
 requires it) and say so in your report. Never inline styles instead.
 Every page follows the [style guide](../../docs/STYLE.md).
+

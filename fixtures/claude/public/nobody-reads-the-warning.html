@@ -1,0 +1,35 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Nobody reads the warning</title>
+<link rel="stylesheet" href="/style.css">
+
+<header>
+  <nav>
+    <a href="/index.html">Home</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Nobody reads the warning</h1>
+
+  <p>A warning is supposed to make someone stop and look. That only works if warnings are rare. A build with three warnings gets read. A build with four hundred gets a scrollback nobody scrolls, and the one warning that actually mattered shipped anyway.</p>
+
+  <h2>Why the count only grows</h2>
+  <p>Warnings accumulate because fixing one takes longer than ignoring it, and ignoring it costs nothing today. Nobody fails a build over a warning, so nobody is forced to deal with it. Each new warning is one more, and one more never feels like the moment to draw a line. The count goes up every release and down almost never, because going down requires someone to spend an afternoon on work with no visible payoff.</p>
+
+  <h2>Noise hides the signal</h2>
+  <p>Once there are hundreds, no human reads them individually, they read the count, and the count barely changes release to release so it stops meaning anything. The real warning, the one about a null pointer that will crash in production, is indistinguishable from the deprecation notice everyone has learned to skip past. Volume is not neutral. It is actively where the important warning goes to hide.</p>
+
+  <h2>Warnings as errors is not free</h2>
+  <p>Turning warnings into build failures fixes the ignoring problem, but it moves the cost somewhere else: now every warning, however minor, blocks the build for everyone, including the person mid-incident who just needs to ship a fix. It also punishes the team for a dependency's warning they cannot fix themselves. It is the right lever once the count is near zero and each new warning is worth stopping for. Flip it before that and you have just added a slower way to ignore warnings, by suppressing the check instead of the message.</p>
+
+  <h2>What to do with a warning you will not fix</h2>
+  <p>There are exactly three honest options. Fix it, which is the default and should be cheap if you do it now instead of later. Silence it explicitly, with a comment naming the reason and ideally who approved it, so the suppression is a decision on record instead of a gap nobody remembers opening. Or delete the check, if it turns out the warning is not worth having, some checks are wrong more often than they are right, and keeping a check nobody trusts is worse than not having it. What you cannot do is leave it there unaddressed, because that is the same as adding one more warning that trains everyone to skip the next four hundred.</p>
+
+  <h2>The tell</h2>
+  <p>You know a warning budget has failed when someone says "oh, that warning, ignore it, it's always been there". It has been there long enough to become furniture. That is not a stable warning, it is a check that stopped doing its job the day nobody read it.</p>
+</main>
+
+<footer>
+  <p><a href="/index.html">Back to Home</a></p>
+</footer>
